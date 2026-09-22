@@ -720,18 +720,18 @@ fun PuppetModel.withCanvasSize(width: Float, height: Float): PuppetModel {
 }
 
 /**
- * Returns a copy of [this] with the world origin set to ([x], [y]) in world space, sharing the rest of
+ * Returns a copy of [this] with the world origin set to ([x], [z]) in world space, sharing the rest of
  * the model. A no-op (both coordinates already match) returns the same instance.
  *
  * @param Float x The new world-origin x.
- * @param Float y The new world-origin y.
+ * @param Float z The new world-origin z (up).
  * @return PuppetModel The model with the world origin moved, or [this] if nothing changed.
  */
-fun PuppetModel.withWorldOrigin(x: Float, y: Float): PuppetModel {
-	if (worldOriginX == x && worldOriginY == y) {
+fun PuppetModel.withWorldOrigin(x: Float, z: Float): PuppetModel {
+	if (worldOriginX == x && worldOriginZ == z) {
 		return this
 	}
-	return copy(worldOriginX = x, worldOriginY = y)
+	return copy(worldOriginX = x, worldOriginZ = z)
 }
 
 /**

@@ -52,7 +52,7 @@ class Cmo3AtlasUndedupTest {
 			canvasWidth = 200f,
 			canvasHeight = 200f,
 			worldOriginX = 100f,
-			worldOriginY = -100f,
+			worldOriginZ = -100f,
 			runtimeTarget = RuntimeTarget.Cubism53,
 		)
 

@@ -67,7 +67,7 @@ class Moc3ImportTest {
 		println("[Umamo][moc3import] parameterTree top=${puppet.parameterTree.size} links=${puppet.parameterLinks.size}")
 		println(
 			"[Umamo][moc3import] canvas=${puppet.canvasWidth}x${puppet.canvasHeight} " +
-				"origin=(${puppet.worldOriginX}, ${puppet.worldOriginY})",
+				"origin=(${puppet.worldOriginX}, ${puppet.worldOriginZ})",
 		)
 
 		// Model A: BLEND_SHAPE-typed parameters carry their kind through the import (MOC3 section 114).
@@ -97,7 +97,7 @@ class Moc3ImportTest {
 			assertEquals(4500f, puppet.canvasWidth, "canvas width")
 			assertEquals(6500f, puppet.canvasHeight, "canvas height")
 			assertEquals(2250f, puppet.worldOriginX, "world origin x")
-			assertEquals(-3250f, puppet.worldOriginY, "world origin y")
+			assertEquals(-3250f, puppet.worldOriginZ, "world origin y")
 			assertEquals(
 				listOf(
 					ParameterLink(ParameterId("ParamAngleX"), ParameterId("ParamAngleY")),

@@ -71,8 +71,8 @@ internal fun handleIdleMeshSelectionEvent(
 			if (event.buttons.isSecondaryPressed && event.keyboardModifiers.isShiftPressed) {
 				// Shift+RightClick places the space's cursor at the pointer (Blender's gesture); the Cursor
 				// pivot mode and the snap / mirror commands anchor on it.
-				val (worldX, worldY) = screenToWorld(change.position.x, change.position.y, camera, size)
-				placeCursor(worldX, worldY)
+				val (worldX, worldZ) = screenToWorld(change.position.x, change.position.y, camera, size)
+				placeCursor(worldX, worldZ)
 				change.consume()
 			} else if (boxArmed && event.buttons.isSecondaryPressed) {
 				session.clearSelectTool()

@@ -705,7 +705,7 @@ fun ViewportEditGizmoOverlay(
 						MeshTransforms.medianPivot(activeGeometry.worldPosed, activeCovered)
 					}
 				}
-			val cursorAnchor = session.cursor2d.value?.let { cursor -> cursor.worldX to cursor.worldY }
+			val cursorAnchor = session.cursor2d.value?.let { cursor -> cursor.worldX to cursor.worldZ }
 			val transform =
 				buildModalTransformCapture(
 					sources = sources,

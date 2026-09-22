@@ -123,7 +123,7 @@ object Moc3Export {
 						pixelsPerUnit = context.pixelsPerUnit,
 						originX = downgradedPuppet.worldOriginX,
 						// The runtime negates the canvas y into world space; storing it re-negates.
-						originY = -downgradedPuppet.worldOriginY,
+						originY = -downgradedPuppet.worldOriginZ,
 						width = downgradedPuppet.canvasWidth,
 						height = downgradedPuppet.canvasHeight,
 					),

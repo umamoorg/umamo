@@ -11,15 +11,15 @@ import kotlin.test.assertEquals
  */
 class OriginRelativeCoordinatesTest {
 	/**
-	 * A model with no content, a [width] x [height] canvas, and its world origin at ([originX], [originY]).
+	 * A model with no content, a [width] x [height] canvas, and its world origin at ([originX], [originZ]).
 	 *
 	 * @param Float width The canvas width.
 	 * @param Float height The canvas height.
 	 * @param Float originX The world-origin x.
-	 * @param Float originY The world-origin y (world space, negated canvas y).
+	 * @param Float originZ The world-origin z (up; world space, negated canvas y).
 	 * @return PuppetModel The model.
 	 */
-	private fun model(width: Float, height: Float, originX: Float, originY: Float): PuppetModel =
+	private fun model(width: Float, height: Float, originX: Float, originZ: Float): PuppetModel =
 		PuppetModel(
 			parameters = emptyList(),
 			parts = emptyList(),
@@ -30,7 +30,7 @@ class OriginRelativeCoordinatesTest {
 			canvasWidth = width,
 			canvasHeight = height,
 			worldOriginX = originX,
-			worldOriginY = originY,
+			worldOriginZ = originZ,
 		)
 
 	/** The origin every importer derives: the center of a 1200 x 1200 canvas, stored as (600, -600). */
@@ -57,9 +57,9 @@ class OriginRelativeCoordinatesTest {
 		val offCenter = model(1000f, 800f, 250f, -600f)
 
 		assertEquals(40f, offCenter.originRelativeX(offCenter.worldXFromOriginRelative(40f)))
-		assertEquals(-75f, offCenter.originRelativeZ(offCenter.worldYFromOriginRelative(-75f)))
+		assertEquals(-75f, offCenter.originRelativeZ(offCenter.worldZFromOriginRelative(-75f)))
 		assertEquals(310f, offCenter.worldXFromOriginRelative(offCenter.originRelativeX(310f)))
-		assertEquals(-120f, offCenter.worldYFromOriginRelative(offCenter.originRelativeZ(-120f)))
+		assertEquals(-120f, offCenter.worldZFromOriginRelative(offCenter.originRelativeZ(-120f)))
 	}
 
 	@Test
@@ -70,8 +70,8 @@ class OriginRelativeCoordinatesTest {
 		assertEquals(250f, offCenter.originFromCanvasLeft())
 		assertEquals(200f, offCenter.originFromCanvasBottom())
 		assertEquals(250f, offCenter.worldOriginXFromCanvasLeft(offCenter.originFromCanvasLeft()))
-		assertEquals(-600f, offCenter.worldOriginYFromCanvasBottom(offCenter.originFromCanvasBottom()))
-		assertEquals(-500f, offCenter.worldOriginYFromCanvasBottom(300f), "typing 300 puts the origin 300 above the bottom edge")
+		assertEquals(-600f, offCenter.worldOriginZFromCanvasBottom(offCenter.originFromCanvasBottom()))
+		assertEquals(-500f, offCenter.worldOriginZFromCanvasBottom(300f), "typing 300 puts the origin 300 above the bottom edge")
 	}
 
 	@Test

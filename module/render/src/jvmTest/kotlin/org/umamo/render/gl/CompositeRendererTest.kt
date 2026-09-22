@@ -97,7 +97,7 @@ class CompositeRendererTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		).withDerivedRenderRoot()
 
 	/** Renders [source] and returns the RGBA of the pixel at ([x], [y]) in top-first image space. */

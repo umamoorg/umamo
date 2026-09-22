@@ -31,7 +31,7 @@ import org.umamo.runtime.model.parentPartByPart
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.partSelfAndDescendants
 import org.umamo.runtime.model.worldXFromOriginRelative
-import org.umamo.runtime.model.worldYFromOriginRelative
+import org.umamo.runtime.model.worldZFromOriginRelative
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.NumberField
 import org.umamo.ui.kit.button.IconButton
@@ -176,7 +176,7 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 						NumberField(
 							value = puppet.originRelativeZ(bounds.centerY),
 							onValueChange = { newZ ->
-								session?.setDrawableWorldCenter(drawableId, bounds.centerX, puppet.worldYFromOriginRelative(newZ))
+								session?.setDrawableWorldCenter(drawableId, bounds.centerX, puppet.worldZFromOriginRelative(newZ))
 							},
 							modifier = Modifier.fillMaxWidth(),
 							range = UNBOUNDED_RANGE,

@@ -56,10 +56,16 @@ data class PuppetModel(
 	 * Imported documents put it at the canvas center.  A CMO3 import derives the center rather than reading
 	 * CModelInfo.originInPixels, which is (0, 0) in every corpus model; a MOC3 import reads CanvasInfo's
 	 * origin.  (0, 0) when the source carried no canvas.
+	 *
+	 * Axis names follow the viewport's convention, X right, Y forward (depth), and Z up: wherever a name
+	 * says it is world space, its vertical axis is Z (worldOriginZ, Cursor2d.worldZ, screenToWorldZ,
+	 * setWorldOrigin(x, z)).  Space-agnostic math keeps x / y - interleaved [x, y] arrays, MeshBounds, deltas,
+	 * the camera's center, GLSL vec2 - as do canvas, screen, UV, and NDC names, and the deform eval's
+	 * pre-negation space, whose y still grows downward.
 	 */
 	val worldOriginX: Float = 0f,
-	/** The world origin's y in world space (negated canvas y); see [worldOriginX]. */
-	val worldOriginY: Float = 0f,
+	/** The world origin's z (up) in world space (negated canvas y); see [worldOriginX]. */
+	val worldOriginZ: Float = 0f,
 	/**
 	 * Pixels per unit is used only for runtime export.  It is stored inside of UMA and CMO3, but it is
 	 * not used for anything internal to Umamo.

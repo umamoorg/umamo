@@ -89,7 +89,7 @@ object UmaPuppetExport {
 			canvasWidth = optionalFloat(model.canvasWidth, 0f, "canvasWidth"),
 			canvasHeight = optionalFloat(model.canvasHeight, 0f, "canvasHeight"),
 			worldOriginX = optionalFloat(model.worldOriginX, 0f, "worldOriginX"),
-			worldOriginY = optionalFloat(model.worldOriginY, 0f, "worldOriginY"),
+			worldOriginZ = optionalFloat(model.worldOriginZ, 0f, "worldOriginZ"),
 			pixelsPerUnit = model.pixelsPerUnit?.let { scale -> finite(scale, "pixelsPerUnit") },
 			runtimeTarget = model.runtimeTarget.takeIf { target -> target != RuntimeTarget.NoTarget }?.toUma(),
 			rendersFromSourceLayers = optionalBoolean(model.rendersFromSourceLayers, false),

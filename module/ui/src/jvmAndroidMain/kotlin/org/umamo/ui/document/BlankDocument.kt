@@ -53,7 +53,7 @@ fun newBlankDocument(): BlankDocument {
 			// World space is canvas x with canvas y negated, so the canvas center is (w/2, -h/2) - the
 			// expression SourceArtImport uses for an imported canvas.
 			worldOriginX = BLANK_DOCUMENT_CANVAS_SIZE / 2f,
-			worldOriginY = -(BLANK_DOCUMENT_CANVAS_SIZE / 2f),
+			worldOriginZ = -(BLANK_DOCUMENT_CANVAS_SIZE / 2f),
 		)
 	return BlankDocument(
 		puppet = puppet,

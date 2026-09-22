@@ -70,5 +70,5 @@ internal fun emptyContentBoundsOf(model: PuppetModel): ContentBounds =
 	if (model.canvasWidth > 0f && model.canvasHeight > 0f) {
 		ContentBounds(0f, -model.canvasHeight, model.canvasWidth, model.canvasHeight)
 	} else {
-		ContentBounds(model.worldOriginX - EMPTY_FRAME_EXTENT / 2f, model.worldOriginY - EMPTY_FRAME_EXTENT / 2f, EMPTY_FRAME_EXTENT, EMPTY_FRAME_EXTENT)
+		ContentBounds(model.worldOriginX - EMPTY_FRAME_EXTENT / 2f, model.worldOriginZ - EMPTY_FRAME_EXTENT / 2f, EMPTY_FRAME_EXTENT, EMPTY_FRAME_EXTENT)
 	}

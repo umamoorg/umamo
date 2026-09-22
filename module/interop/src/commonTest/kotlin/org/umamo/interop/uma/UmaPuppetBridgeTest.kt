@@ -172,7 +172,7 @@ class UmaPuppetBridgeTest {
 			canvasWidth = 2400f,
 			canvasHeight = 3000f,
 			worldOriginX = 1200f,
-			worldOriginY = -0.0f,
+			worldOriginZ = -0.0f,
 			pixelsPerUnit = 1f,
 			runtimeTarget = runtimeTarget,
 			rendersFromSourceLayers = true,

@@ -130,8 +130,8 @@ class OffscreenPuppetService(
 
 	override fun fit(areaId: String) = registry.fit(areaId)
 
-	override fun fitWorldRect(areaId: String, minX: Float, minY: Float, maxX: Float, maxY: Float) =
-		registry.fitWorldRect(areaId, minX, minY, maxX, maxY)
+	override fun fitWorldRect(areaId: String, minX: Float, minZ: Float, maxX: Float, maxZ: Float) =
+		registry.fitWorldRect(areaId, minX, minZ, maxX, maxZ)
 
 	override fun setSelection(ids: Set<DrawableId>) = engine.setSelection(ids)
 

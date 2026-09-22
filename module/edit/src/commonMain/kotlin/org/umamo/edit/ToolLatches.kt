@@ -385,10 +385,10 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 * Places (or moves) the 2D cursor.
 	 *
 	 * @param Float worldX The cursor's new world-space x.
-	 * @param Float worldY The cursor's new world-space y.
+	 * @param Float worldZ The cursor's new world-space z (up).
 	 */
-	fun setCursor2d(worldX: Float, worldY: Float) {
-		mutableCursor2d.value = Cursor2d(worldX, worldY)
+	fun setCursor2d(worldX: Float, worldZ: Float) {
+		mutableCursor2d.value = Cursor2d(worldX, worldZ)
 	}
 
 	/**
