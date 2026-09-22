@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Checkbox
 import org.umamo.ui.kit.Text
+import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.model.KeyedFieldState
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
@@ -65,6 +66,10 @@ internal val ASPECT_LOCK_GUTTER = 24.dp
  * control fills the right half, so a column of rows aligns and every field spans a consistent width.  The
  * control should [Modifier.fillMaxWidth] so it fills its half.
  *
+ * [description] is what the field does, shown as a tooltip over the LABEL HALF only.  The control keeps its
+ * own hover: nested tooltip areas all fire at once, so one wrapping the whole row would stack a second card
+ * over the icon buttons a relation or color field tooltips itself, and it would pop over a field mid-scrub.
+ *
  * [trailingGutter] reserves space at the RIGHT EDGE OF THE CONTROL for an adornment that sits outside the
  * row (the Size stack's aspect lock).  It shrinks the control only - the label column keeps its half of the
  * full row width, so a row with a gutter still lines up with the plain rows above and below it.  Reserving
@@ -72,24 +77,30 @@ internal val ASPECT_LOCK_GUTTER = 24.dp
  * shrinking and the entire two-column grid shifting.
  *
  * @param String label The localized field label.
+ * @param String description What the field does, as the label's tooltip; blank attaches none.
  * @param Dp trailingGutter Space reserved after the control for an out-of-row adornment (0 for none).
+ * @param Modifier modifier The layout modifier, applied to the row.
  * @param Function control The editable control (a fillMaxWidth NumberField, SelectField, etc.).
  */
 @Composable
 internal fun PropertyFieldRow(
 	label: String,
+	description: String = "",
 	trailingGutter: Dp = 0.dp,
 	modifier: Modifier = Modifier,
 	control: @Composable () -> Unit,
 ) {
 	Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-		Text(
-			text = label,
-			style = LocalUmamoTypography.current.bodySmall,
-			color = LocalUmamoColors.current.text,
-			textAlign = TextAlign.End,
-			modifier = Modifier.weight(1f).padding(end = 8.dp),
-		)
+		// The whole left half is the hover target, not just the glyphs, so a short label is easy to find.
+		Tooltip(text = description, modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+			Text(
+				text = label,
+				style = LocalUmamoTypography.current.bodySmall,
+				color = LocalUmamoColors.current.text,
+				textAlign = TextAlign.End,
+				modifier = Modifier.fillMaxWidth(),
+			)
+		}
 		Box(modifier = Modifier.weight(1f).padding(end = trailingGutter)) {
 			control()
 		}
@@ -101,9 +112,13 @@ internal fun PropertyFieldRow(
  * field, with the left label column left empty - matching Blender, where a lone toggle occupies the field
  * column.  A group of related toggles can carry a left-column heading later.
  *
+ * The checkbox's label is the row's label, so [description] tooltips the checkbox itself; it has no hover
+ * of its own to collide with.
+ *
  * @param Boolean checked The current state.
  * @param Function onCheckedChange The toggle callback.
  * @param String label The checkbox's own label (drawn to the right of the box).
+ * @param String description What the toggle does, as the checkbox's tooltip; blank attaches none.
  * @param KeyedFieldState keyState The keyform state to tint the box's border with.
  */
 @Composable
@@ -111,26 +126,34 @@ internal fun PropertyCheckboxRow(
 	checked: Boolean,
 	onCheckedChange: (Boolean) -> Unit,
 	label: String,
+	description: String = "",
 	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
 	Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 		Spacer(modifier = Modifier.weight(1f))
 		Box(modifier = Modifier.weight(1f)) {
-			Checkbox(checked = checked, onCheckedChange = onCheckedChange, label = label, keyState = keyState)
+			Tooltip(text = description) {
+				Checkbox(checked = checked, onCheckedChange = onCheckedChange, label = label, keyState = keyState)
+			}
 		}
 	}
 }
 
 /**
- * A labelled block wrapping a relation list, since a tall list does not fit the two-column field row.
+ * A labelled block wrapping a relation list, since a tall list does not fit the two-column field row.  The
+ * [description] tooltips the label alone, for the reason [PropertyFieldRow] gives: the list's add, remove,
+ * and pick buttons carry tooltips of their own.
  *
  * @param String label The block's localized label.
+ * @param String description What the list does, as the label's tooltip; blank attaches none.
  * @param Function content The list to draw beneath it.
  */
 @Composable
-internal fun RelationListBlock(label: String, content: @Composable () -> Unit) {
+internal fun RelationListBlock(label: String, description: String = "", content: @Composable () -> Unit) {
 	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-		Text(text = label, style = LocalUmamoTypography.current.bodySmall, color = LocalUmamoColors.current.text)
+		Tooltip(text = description) {
+			Text(text = label, style = LocalUmamoTypography.current.bodySmall, color = LocalUmamoColors.current.text)
+		}
 		content()
 	}
 }

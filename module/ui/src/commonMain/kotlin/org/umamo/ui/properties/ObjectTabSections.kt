@@ -80,7 +80,10 @@ internal val TransformSection =
 			} else if (deformer is Deformer.Rotation) {
 				listOf(
 					PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
-						PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
+						PropertyFieldRow(
+							stringResource(Res.string.properties_field_base_angle),
+							description = stringResource(Res.string.properties_field_base_angle_description),
+						) {
 							NumberField(
 								value = deformer.baseAngle,
 								onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
@@ -138,7 +141,10 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 		FieldStack(
 			listOf(
 				{ position ->
-					PropertyFieldRow(stringResource(Res.string.properties_field_position_x)) {
+					PropertyFieldRow(
+						stringResource(Res.string.properties_field_position_x),
+						description = stringResource(Res.string.properties_field_position_x_description),
+					) {
 						NumberField(
 							value = bounds.centerX,
 							onValueChange = { newX -> session?.setDrawableWorldCenter(drawableId, newX, bounds.centerY) },
@@ -151,7 +157,10 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 					}
 				},
 				{ position ->
-					PropertyFieldRow(stringResource(Res.string.properties_field_position_z)) {
+					PropertyFieldRow(
+						stringResource(Res.string.properties_field_position_z),
+						description = stringResource(Res.string.properties_field_position_z_description),
+					) {
 						NumberField(
 							value = bounds.centerY,
 							onValueChange = { newZ -> session?.setDrawableWorldCenter(drawableId, bounds.centerX, newZ) },
@@ -214,7 +223,11 @@ private fun SizeFieldsWithAspectLock(bounds: MeshBounds, enabled: Boolean, onRes
 		FieldStack(
 			listOf(
 				{ position ->
-					PropertyFieldRow(stringResource(Res.string.properties_field_size_x), trailingGutter = ASPECT_LOCK_GUTTER) {
+					PropertyFieldRow(
+						stringResource(Res.string.properties_field_size_x),
+						description = stringResource(Res.string.properties_field_size_x_description),
+						trailingGutter = ASPECT_LOCK_GUTTER,
+					) {
 						NumberField(
 							value = bounds.width,
 							onValueChange = commitWidth,
@@ -227,7 +240,11 @@ private fun SizeFieldsWithAspectLock(bounds: MeshBounds, enabled: Boolean, onRes
 					}
 				},
 				{ position ->
-					PropertyFieldRow(stringResource(Res.string.properties_field_size_z), trailingGutter = ASPECT_LOCK_GUTTER) {
+					PropertyFieldRow(
+						stringResource(Res.string.properties_field_size_z),
+						description = stringResource(Res.string.properties_field_size_z_description),
+						trailingGutter = ASPECT_LOCK_GUTTER,
+					) {
 						NumberField(
 							value = bounds.height,
 							onValueChange = commitHeight,
@@ -273,6 +290,7 @@ internal val RelationsSection =
 						// Note it appends at the destination, which changes draw order (Cubism does the same).
 						PartRelationRow(
 							labelRes = Res.string.properties_part_ref,
+							descriptionRes = Res.string.properties_part_ref_description,
 							context = context,
 							selectedPartId = context.puppet.partByDrawable()[drawable.id],
 							owner = "drawable.part:${drawable.id.raw}",
@@ -281,6 +299,7 @@ internal val RelationsSection =
 					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
 						DeformerRelationRow(
 							labelRes = Res.string.properties_parent_deformer,
+							descriptionRes = Res.string.properties_parent_deformer_description,
 							context = context,
 							selectedDeformerId = drawable.parentDeformerId,
 							owner = "drawable.parentDeformer:${drawable.id.raw}",
@@ -294,6 +313,7 @@ internal val RelationsSection =
 					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
 						PartRelationRow(
 							labelRes = Res.string.properties_part_ref,
+							descriptionRes = Res.string.properties_part_ref_description,
 							context = context,
 							selectedPartId = deformer.partId,
 							owner = "deformer.part:${deformer.id.raw}",
@@ -302,6 +322,7 @@ internal val RelationsSection =
 					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
 						DeformerRelationRow(
 							labelRes = Res.string.properties_parent_deformer,
+							descriptionRes = Res.string.properties_parent_deformer_description,
 							context = context,
 							selectedDeformerId = deformer.parent,
 							// Nesting a deformer inside its own subtree would make the hierarchy a cycle, so
@@ -323,6 +344,7 @@ internal val RelationsSection =
 					PropertyRow(terms = listOf(Res.string.properties_part_ref)) { _ ->
 						PartRelationRow(
 							labelRes = Res.string.properties_part_ref,
+							descriptionRes = Res.string.properties_part_ref_description,
 							context = context,
 							selectedPartId = parentOf[part.id],
 							excluding = { candidate -> candidate.id in cyclicOwners },

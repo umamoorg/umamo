@@ -17,6 +17,7 @@ Umamo is early alpha.
 * UI: Can now drag and drop files on the window.  Model files are opened and artworkd is added to the open document.
 * UI: When a text entry box is active the mouse cursor now displays the text entry cursor everywhere to indicate that text entry is currently active.
 * UI: Previous Workspace and Next Workspace added to Workspace menu.
+* UI: Add hover tooltips to the Properties area and Operation Strip.
 * Parameters: The parameters are now searchable.
 * Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
 

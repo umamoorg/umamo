@@ -81,7 +81,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
 	* Support renaming images.
 * Improvements
-	* Add tooltip for properties_field_source_layer_display.
 	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
 * Bugs
 	* When relinking EricaTamamo.psd in EricaTamamo.cmo3 it results in some layers getting fringe artifacts like what was experienced in the past.
@@ -146,6 +145,10 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Automatic Backup
 
 ### UMA (Native File Format)
+* Improvements
+	* Preview thumbnail should take a snapshot of the 2D space and not from the part thumbnailer.  The part thumbnail does not respect visbility and so on.
+	* Format icon helper - Display thumbnail as the icon with the Umamo logo overlaid.  Requires an installer.
+
 See the roadmap: docs/plan/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
 See format planning document: docs/plan/uma-format.md
 

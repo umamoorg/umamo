@@ -43,6 +43,7 @@ internal fun deformerIcon(deformer: Deformer): UmamoIcon =
  * clicked drawable's owner) or an outliner row.
  *
  * @param StringResource labelRes The row's localized label.
+ * @param StringResource descriptionRes What the relation means, as the label's tooltip.
  * @param PropertyContext context The context supplying the model.
  * @param PartId? selectedPartId The currently bound part, or null when unbound.
  * @param Function excluding Drops ineligible candidates (a part may not be nested inside itself).
@@ -52,6 +53,7 @@ internal fun deformerIcon(deformer: Deformer): UmamoIcon =
 @Composable
 internal fun PartRelationRow(
 	labelRes: StringResource,
+	descriptionRes: StringResource,
 	context: PropertyContext,
 	selectedPartId: PartId?,
 	excluding: (Part) -> Boolean = { false },
@@ -60,7 +62,7 @@ internal fun PartRelationRow(
 ) {
 	val relationPick = LocalRelationPick.current
 	val parts = context.puppet.parts.filterNot(excluding)
-	PropertyFieldRow(stringResource(labelRes)) {
+	PropertyFieldRow(stringResource(labelRes), description = stringResource(descriptionRes)) {
 		RelationField(
 			selected = parts.firstOrNull { candidate -> candidate.id == selectedPartId },
 			candidates = parts,
@@ -86,6 +88,7 @@ internal fun PartRelationRow(
  * the outliner.
  *
  * @param StringResource labelRes The row's localized label.
+ * @param StringResource descriptionRes What the relation means, as the label's tooltip.
  * @param PropertyContext context The context supplying the model.
  * @param DeformerId? selectedDeformerId The currently bound deformer, or null when unbound.
  * @param Function excluding Drops ineligible candidates (a deformer may not parent itself).
@@ -95,6 +98,7 @@ internal fun PartRelationRow(
 @Composable
 internal fun DeformerRelationRow(
 	labelRes: StringResource,
+	descriptionRes: StringResource,
 	context: PropertyContext,
 	selectedDeformerId: DeformerId?,
 	excluding: (Deformer) -> Boolean = { false },
@@ -103,7 +107,7 @@ internal fun DeformerRelationRow(
 ) {
 	val relationPick = LocalRelationPick.current
 	val deformers = context.puppet.deformers.filterNot(excluding)
-	PropertyFieldRow(stringResource(labelRes)) {
+	PropertyFieldRow(stringResource(labelRes), description = stringResource(descriptionRes)) {
 		RelationField(
 			selected = deformers.firstOrNull { candidate -> candidate.id == selectedDeformerId },
 			candidates = deformers,

@@ -43,7 +43,10 @@ internal val CanvasSection =
 					FieldStack(
 						listOf(
 							{ position ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_canvas_width)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_canvas_width),
+									description = stringResource(Res.string.properties_field_canvas_width_description),
+								) {
 									NumberField(
 										value = puppet.canvasWidth,
 										onValueChange = { newWidth -> session?.setCanvasSize(newWidth, puppet.canvasHeight) },
@@ -56,7 +59,10 @@ internal val CanvasSection =
 								}
 							},
 							{ position ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_canvas_height)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_canvas_height),
+									description = stringResource(Res.string.properties_field_canvas_height_description),
+								) {
 									NumberField(
 										value = puppet.canvasHeight,
 										onValueChange = { newHeight -> session?.setCanvasSize(puppet.canvasWidth, newHeight) },
@@ -78,7 +84,10 @@ internal val CanvasSection =
 					FieldStack(
 						listOf(
 							{ position ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_origin_x)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_origin_x),
+									description = stringResource(Res.string.properties_field_origin_x_description),
+								) {
 									NumberField(
 										value = puppet.worldOriginX,
 										onValueChange = { newX -> session?.setWorldOrigin(newX, puppet.worldOriginY) },
@@ -90,7 +99,10 @@ internal val CanvasSection =
 								}
 							},
 							{ position ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_origin_z)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_origin_z),
+									description = stringResource(Res.string.properties_field_origin_z_description),
+								) {
 									NumberField(
 										value = puppet.worldOriginY,
 										onValueChange = { newY -> session?.setWorldOrigin(puppet.worldOriginX, newY) },
@@ -133,6 +145,7 @@ internal val DisplaySection =
 						checked = puppet.rendersFromSourceLayers,
 						onCheckedChange = { enabled -> session?.setSourceLayerDisplay(enabled) },
 						label = stringResource(Res.string.properties_field_source_layer_display),
+						description = stringResource(Res.string.properties_field_source_layer_display_description),
 					)
 				},
 			)
@@ -158,7 +171,10 @@ internal val RuntimeSection =
 			listOf(
 				PropertyRow(terms = listOf(Res.string.properties_field_runtime_target)) { _ ->
 					val targetLabels = runtimeTargetLabels()
-					PropertyFieldRow(stringResource(Res.string.properties_field_runtime_target)) {
+					PropertyFieldRow(
+						stringResource(Res.string.properties_field_runtime_target),
+						description = stringResource(Res.string.properties_field_runtime_target_description),
+					) {
 						SelectField(
 							selected = puppet.runtimeTarget,
 							modifier = Modifier.fillMaxWidth(),
