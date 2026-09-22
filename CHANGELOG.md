@@ -18,6 +18,7 @@ Umamo is early alpha.
 * UI: When a text entry box is active the mouse cursor now displays the text entry cursor everywhere to indicate that text entry is currently active.
 * UI: Previous Workspace and Next Workspace added to Workspace menu.
 * Parameters: The parameters are now searchable.
+* Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.

@@ -83,7 +83,8 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 * Improvements
 	* Add tooltip for properties_field_source_layer_display.
 	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
-	* Adding new artwork to an existing file should compare centers and place it based on that.  Right now it is based on the 0,0 top left origin.
+* Bugs
+	* When relinking EricaTamamo.psd in EricaTamamo.cmo3 it results in some layers getting fringe artifacts like what was experienced in the past.
 
 ## UV Editor
 * Bugs/Improvements
@@ -250,6 +251,28 @@ Right now the goal is to support sRGB from ingest to output with full correctnes
 
 
 # Claude Notes
+
+## Added artwork placement (shipped 2026-09-22) and what a CMO3 round trip loses
+
+**What.** A later artwork file is placed on the rig's canvas by the add-artwork strip's Align (nine anchors)
+and Offset X / Y rows, seeded by `import.alignment`; the resulting offset is persisted per source
+(`ArtSource.offsetX/Y`, UMA §6.2) and every disk read of a listed file is placed by it before the model sees the
+art (`readListedArtworkAt`), so reload, relink, and match compare the file against the inventory in one frame.
+The Sources label takes the offset back out so its numbers match the art program.  This closes the
+"compare centers" TODO line above under Texture Authoring/UV Editor.
+
+**Known open: a CMO3 export carries no offset.**  A document reopened from the export reads every file at
+offset 0 while its rows are still in the document frame; the next disk reload of a placed file then sees every
+layer as moved (untouched quads jump to the unplaced position, edited meshes keep their positions but their
+UVs slide by the offset and are flagged outgrown).  A same-size file, the common outfit workflow, has offset 0
+and is unaffected.  Fix sketch for a format cycle: write `boundsOnImageDoc` in the file's own frame, keep
+`_materialLocalToCanvasTransform` in the document frame, and have ingest recover the offset from their
+difference - needs checking against the official editor, as does whether it accepts the negative
+`boundsOnImageDoc` a file larger than the canvas now exports.
+
+**Follow-up.** "Expand Canvas to Fit" (and an anchor-aware canvas resize in Properties) needs a whole-rig
+translate op that shifts drawable bases, deformer geometry, the world origin, and every source offset; sketched
+in `docs/plan/maintenance-2026-09.md` § Backlog.
 
 ## GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 
