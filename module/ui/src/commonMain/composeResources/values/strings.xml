@@ -779,8 +779,20 @@
 	<string name="merge_target_center">Center</string>
 	<string name="merge_target_first">First</string>
 	<string name="merge_target_last">Last</string>
+	<string name="import_options_align">Align</string>
+	<string name="import_options_offset_x">Offset X</string>
+	<string name="import_options_offset_y">Offset Y</string>
 	<string name="import_options_alpha_threshold">Alpha Threshold</string>
 	<string name="import_options_margin">Birth Mesh Margin</string>
+	<string name="import_anchor_top_left">Top Left</string>
+	<string name="import_anchor_top">Top</string>
+	<string name="import_anchor_top_right">Top Right</string>
+	<string name="import_anchor_left">Left</string>
+	<string name="import_anchor_center">Center</string>
+	<string name="import_anchor_right">Right</string>
+	<string name="import_anchor_bottom_left">Bottom Left</string>
+	<string name="import_anchor_bottom">Bottom</string>
+	<string name="import_anchor_bottom_right">Bottom Right</string>
 	<string name="match_options_threshold">Match Threshold</string>
 	<!-- Blend modes (Cubism color blend list). -->
 	<string name="blend_mode_normal">Normal</string>
@@ -868,6 +880,7 @@
 	<!-- Placeholder section (the real editor lands with the pen backend). -->
 	<string name="settings_pen_coming_soon">Pen configuration is coming soon.</string>
 	<string name="settings_import_parameter_template">Parameter Template</string>
+	<string name="settings_import_alignment">Align Added Artwork</string>
 	<string name="settings_import_watch_mode">Watch Artwork Files</string>
 	<string name="settings_import_watch_mode_auto">Reload Automatically</string>
 	<string name="settings_import_watch_mode_notify">Notify Only</string>

@@ -8,6 +8,7 @@ import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
+import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
@@ -410,5 +411,81 @@ class SourceArtImportTest {
 
 		assertEquals(listOf(AtlasTileId("art-0/Same#0"), AtlasTileId("art-0/Same#0#1")), puppet.atlas.tiles.map { tile -> tile.id })
 		assertEquals(2, puppet.drawables.map { drawable -> drawable.atlasTileId }.toSet().size, "each drawable samples its own tile")
+	}
+
+	/**
+	 * Placing a file shifts every layer's bounds and nothing else: the rasters are the same instances
+	 * (the decode memo and the texture cache key on them), the file's canvas and folders pass through,
+	 * and a zero offset hands the art back untouched.
+	 */
+	@Test
+	fun placingAFileShiftsItsBoundsAndKeepsItsRasters() {
+		val art = fixture()
+		assertSame(art, art.placedBy(CanvasOffset.Zero), "a zero offset places nothing")
+
+		val placed = art.placedBy(CanvasOffset(30, -10))
+		assertEquals(art.widthPx to art.heightPx, placed.widthPx to placed.heightPx, "the file's own canvas passes through")
+		assertSame(art.groups, placed.groups)
+		for ((original, moved) in art.layers.zip(placed.layers)) {
+			assertSame(original.raster, moved.raster, "'${original.name}' keeps its raster instance")
+			assertEquals(LayerBounds(original.bounds.left + 30, original.bounds.top - 10, original.bounds.width, original.bounds.height), moved.bounds)
+			assertEquals(original.id, moved.id)
+			assertEquals(original.groupPath, moved.groupPath)
+			assertEquals(original.clipped, moved.clipped)
+		}
+		val source = ArtSource(ArtSourceId("art-3"), "x.psd", null, "psd", offsetX = 4, offsetY = 6)
+		assertEquals(LayerBounds(104, 56, 10, 8), art.placedFor(source).layers.first { layer -> layer.name == "Eye" }.bounds, "a record's offset places the same way")
+	}
+
+	/**
+	 * The anchor splits the room between the document's canvas and the file's by its fraction, rounded
+	 * down, and the nudge is added on top; a file larger than the canvas overhangs it (a negative offset);
+	 * a rig's first artwork and a document with no canvas are never placed.
+	 */
+	@Test
+	fun theOffsetFollowsTheAnchorAndTheNudge() {
+		val host = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet.copy(canvasWidth = 300f, canvasHeight = 250f)
+		val small = FixtureArt(widthPx = 101, heightPx = 50, layers = listOf(layer("lyid:0", "Dot", order = 0, left = 0, top = 0, raster = rasterOf(2, 2))))
+		val large = FixtureArt(widthPx = 400, heightPx = 250, layers = small.layers)
+
+		fun offsetOf(art: SourceArt, anchor: ArtworkAnchor, nudgeX: Int = 0, nudgeY: Int = 0): CanvasOffset =
+			SourceArtImport.offsetFor(host, art, SourceArtImportOptions(anchor = anchor, nudgeX = nudgeX, nudgeY = nudgeY))
+
+		assertEquals(CanvasOffset(99, 100), offsetOf(small, ArtworkAnchor.Center), "199 x 200 of room, halved and rounded down")
+		assertEquals(CanvasOffset(0, 0), offsetOf(small, ArtworkAnchor.TopLeft))
+		assertEquals(CanvasOffset(199, 200), offsetOf(small, ArtworkAnchor.BottomRight))
+		assertEquals(CanvasOffset(99, 0), offsetOf(small, ArtworkAnchor.Top))
+		assertEquals(CanvasOffset(0, 100), offsetOf(small, ArtworkAnchor.Left))
+		assertEquals(CanvasOffset(199, 100), offsetOf(small, ArtworkAnchor.Right))
+		assertEquals(CanvasOffset(102, 96), offsetOf(small, ArtworkAnchor.Center, nudgeX = 3, nudgeY = -4), "the nudge is added to the anchor's placement")
+		assertEquals(CanvasOffset(-50, 0), offsetOf(large, ArtworkAnchor.Center), "a wider file overhangs both sides by the same amount")
+		assertEquals(CanvasOffset(-100, 0), offsetOf(large, ArtworkAnchor.BottomRight))
+
+		val blank = host.copy(drawables = emptyList(), atlas = PuppetAtlas.Empty)
+		assertEquals(CanvasOffset.Zero, SourceArtImport.offsetFor(blank, small, SourceArtImportOptions(nudgeX = 7)), "a first artwork sets the canvas and is never placed")
+		assertTrue(SourceArtImport.isFirstArtwork(blank))
+		assertTrue(!SourceArtImport.isFirstArtwork(host))
+		assertEquals(CanvasOffset.Zero, SourceArtImport.offsetFor(host.copy(canvasWidth = 0f), small, SourceArtImportOptions()), "no canvas, nothing to place within")
+	}
+
+	/**
+	 * A placed file's birth quads sit at the placed positions, its inventory rows are recorded in the
+	 * document frame, and its record keeps the offset; a listed file's additions keep the offset its
+	 * record already carries, whatever the caller passes.
+	 */
+	@Test
+	fun additionsRecordTheOffsetTheFileWasPlacedBy() {
+		val existing = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet
+		val offset = CanvasOffset(50, 20)
+		val added = SourceArtImport.additionsFor(fixture().placedBy(offset), ArtSourceDescriptor("second.psd", null, "psd"), SourceArtImportOptions(), existing, offset = offset).additions
+
+		assertEquals(50 to 20, added.source.offsetX to added.source.offsetY, "the new record keeps the offset")
+		val eye = assertNotNull(added.drawables.first { drawable -> drawable.name == "Eye" }.mesh)
+		assertTrue(eye.positions.contentEquals(floatArrayOf(150f, 69f, 158f, 69f, 158f, 76f, 150f, 76f)), "the quad is the fixture's, shifted: ${eye.positions.toList()}")
+		assertEquals(150 to 70, added.source.layers.first { row -> row.name == "Eye" }.let { row -> row.left to row.top }, "the inventory row is in the document frame")
+
+		val listed = existing.copy(sources = existing.sources.map { source -> source.copy(offsetX = 8, offsetY = 9) })
+		val underListed = SourceArtImport.additionsFor(fixture(), descriptor, SourceArtImportOptions(), listed, underSource = ArtSourceId("art-0"), layerKeys = setOf("lyid:1"), offset = offset).additions
+		assertEquals(8 to 9, underListed.source.offsetX to underListed.source.offsetY, "a listed file's record keeps its own offset")
 	}
 }

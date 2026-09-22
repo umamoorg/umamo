@@ -47,6 +47,8 @@ object UmaSourcesBridge {
 								ignored = layer.ignored.takeIf { ignored -> ignored },
 							)
 						}.ifEmpty { null },
+					offsetX = source.offsetX.takeIf { offset -> offset != 0 },
+					offsetY = source.offsetY.takeIf { offset -> offset != 0 },
 				)
 			}.ifEmpty { null },
 		)
@@ -84,6 +86,8 @@ object UmaSourcesBridge {
 					},
 				contentHash = digestOf(source.contentHash),
 				lastModified = source.lastModified,
+				offsetX = source.offsetX ?: 0,
+				offsetY = source.offsetY ?: 0,
 			)
 		}
 }

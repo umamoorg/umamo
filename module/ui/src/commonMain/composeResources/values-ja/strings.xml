@@ -722,8 +722,20 @@
 	<string name="merge_target_center">中心</string>
 	<string name="merge_target_first">最初</string>
 	<string name="merge_target_last">最後</string>
+	<string name="import_options_align">基準位置</string>
+	<string name="import_options_offset_x">オフセット X</string>
+	<string name="import_options_offset_y">オフセット Y</string>
 	<string name="import_options_alpha_threshold">アルファしきい値</string>
 	<string name="import_options_margin">初期メッシュの余白</string>
+	<string name="import_anchor_top_left">左上</string>
+	<string name="import_anchor_top">上</string>
+	<string name="import_anchor_top_right">右上</string>
+	<string name="import_anchor_left">左</string>
+	<string name="import_anchor_center">中央</string>
+	<string name="import_anchor_right">右</string>
+	<string name="import_anchor_bottom_left">左下</string>
+	<string name="import_anchor_bottom">下</string>
+	<string name="import_anchor_bottom_right">右下</string>
 	<string name="match_options_threshold">照合のしきい値</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
 	<string name="blend_mode_normal">通常</string>
@@ -808,6 +820,7 @@
 	<!-- プレースホルダ（ペンバックエンド実装で本実装に差し替え）。 -->
 	<string name="settings_pen_coming_soon">ペンの設定は近日対応予定です。</string>
 	<string name="settings_import_parameter_template">パラメータテンプレート</string>
+	<string name="settings_import_alignment">追加アートワークの基準位置</string>
 	<string name="settings_import_watch_mode">アートワークファイルの監視</string>
 	<string name="settings_import_watch_mode_auto">自動で再読み込み</string>
 	<string name="settings_import_watch_mode_notify">通知のみ</string>

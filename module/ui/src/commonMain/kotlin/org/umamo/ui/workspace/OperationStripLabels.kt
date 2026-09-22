@@ -9,6 +9,7 @@ import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformParameterKeys
 import org.umamo.edit.choiceKey
 import org.umamo.edit.parameterKey
+import org.umamo.interop.art.ArtworkAnchor
 import org.umamo.ui.model.ImportParameterKeys
 import org.umamo.ui.model.MatchParameterKeys
 import org.umamo.ui.model.RepackParameterKeys
@@ -42,6 +43,9 @@ internal fun operatorParameterLabel(labelKey: String): String =
 		PlacementParameterKeys.ANGLE -> stringResource(Res.string.placement_options_angle)
 		PlacementParameterKeys.SCALE_X -> stringResource(Res.string.placement_options_scale_x)
 		PlacementParameterKeys.SCALE_Y -> stringResource(Res.string.placement_options_scale_y)
+		ImportParameterKeys.ALIGN -> stringResource(Res.string.import_options_align)
+		ImportParameterKeys.OFFSET_X -> stringResource(Res.string.import_options_offset_x)
+		ImportParameterKeys.OFFSET_Y -> stringResource(Res.string.import_options_offset_y)
 		ImportParameterKeys.ALPHA_THRESHOLD -> stringResource(Res.string.import_options_alpha_threshold)
 		ImportParameterKeys.MARGIN -> stringResource(Res.string.import_options_margin)
 		MatchParameterKeys.THRESHOLD -> stringResource(Res.string.match_options_threshold)
@@ -64,16 +68,21 @@ internal fun operatorParameterLabel(labelKey: String): String =
 	}
 
 /**
- * The localized label of a choice entry's prefixed key: a falloff curve's, or a merge target's.
+ * The localized label of a choice entry's prefixed key: a falloff curve's, a merge target's, or an
+ * import anchor's.
  *
  * @param String labelKey The entry's label key.
- * @return String? The label, or null when the key carries neither prefix.
+ * @return String? The label, or null when the key carries none of the prefixes.
  */
 @Composable
 private fun choiceLabel(labelKey: String): String? {
 	if (labelKey.startsWith(TransformParameterKeys.FALLOFF_CHOICE_PREFIX)) {
 		val key = labelKey.removePrefix(TransformParameterKeys.FALLOFF_CHOICE_PREFIX)
 		return ProportionalFalloff.entries.firstOrNull { falloff -> falloff.choiceKey == key }?.let { falloff -> falloffLabel(falloff) }
+	}
+	if (labelKey.startsWith(ImportParameterKeys.ANCHOR_CHOICE_PREFIX)) {
+		val key = labelKey.removePrefix(ImportParameterKeys.ANCHOR_CHOICE_PREFIX)
+		return ArtworkAnchor.entries.firstOrNull { anchor -> anchor.key == key }?.let { anchor -> artworkAnchorLabel(anchor) }
 	}
 	if (labelKey.startsWith(MergeParameterKeys.TARGET_CHOICE_PREFIX)) {
 		val key = labelKey.removePrefix(MergeParameterKeys.TARGET_CHOICE_PREFIX)
@@ -86,6 +95,27 @@ private fun choiceLabel(labelKey: String): String? {
 	}
 	return null
 }
+
+/**
+ * The localized name of an import anchor, shared by the strip's Align row and the Import settings
+ * row that seeds it.
+ *
+ * @param ArtworkAnchor anchor The anchor.
+ * @return String The label.
+ */
+@Composable
+internal fun artworkAnchorLabel(anchor: ArtworkAnchor): String =
+	when (anchor) {
+		ArtworkAnchor.TopLeft -> stringResource(Res.string.import_anchor_top_left)
+		ArtworkAnchor.Top -> stringResource(Res.string.import_anchor_top)
+		ArtworkAnchor.TopRight -> stringResource(Res.string.import_anchor_top_right)
+		ArtworkAnchor.Left -> stringResource(Res.string.import_anchor_left)
+		ArtworkAnchor.Center -> stringResource(Res.string.import_anchor_center)
+		ArtworkAnchor.Right -> stringResource(Res.string.import_anchor_right)
+		ArtworkAnchor.BottomLeft -> stringResource(Res.string.import_anchor_bottom_left)
+		ArtworkAnchor.Bottom -> stringResource(Res.string.import_anchor_bottom)
+		ArtworkAnchor.BottomRight -> stringResource(Res.string.import_anchor_bottom_right)
+	}
 
 /**
  * The suffix a numeric row shows after its value for [unit], or null for a unitless one.

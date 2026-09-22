@@ -35,8 +35,8 @@ class UmaSourcesEntryTest {
 	private val hash = "sha256:" + "0123456789abcdef".repeat(4)
 
 	/**
-	 * Sources using every field: a read file with a hash and a time, a layer with every flag set, a plain layer,
-	 * and a source that was never read.
+	 * Sources using every field: a read file with a hash, a time, and a placement offset, a layer with every flag
+	 * set, a plain layer, and a source that was never read.
 	 *
 	 * @return UmaSources The sources.
 	 */
@@ -55,6 +55,8 @@ class UmaSourcesEntryTest {
 							UmaSourceLayer("uuid-1", "Eye L", "Head/Face", -12, 180, 220, 140, visible = false, present = false, contentHash = hash, empty = true, replaced = true, ignored = true),
 							UmaSourceLayer("name:Sketch#2", "Sketch", "", 0, 0, 2048, 2048, visible = true),
 						),
+					offsetX = 64,
+					offsetY = -32,
 				),
 				UmaSource("guid-7", "Erica.psd", "psd"),
 			),

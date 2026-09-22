@@ -6,7 +6,9 @@ import kotlinx.coroutines.withContext
 import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.OperatorParameter
+import org.umamo.edit.ParameterChoice
 import org.umamo.edit.ParameterUnit
+import org.umamo.edit.choiceValue
 import org.umamo.edit.commitArtworkAdded
 import org.umamo.edit.intValue
 import org.umamo.edit.withArtworkAdded
@@ -17,10 +19,12 @@ import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.ArtworkAnchor
 import org.umamo.interop.art.SourceArtAdditions
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.placedBy
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
@@ -39,12 +43,21 @@ import org.umamo.storage.UmamoLog
 
 /** The parameter keys the add-artwork rows carry (the strip maps their label keys to strings). */
 internal object ImportParameterKeys {
+	const val ALIGN = "import.align"
+	const val OFFSET_X = "import.offsetX"
+	const val OFFSET_Y = "import.offsetY"
 	const val ALPHA_THRESHOLD = "import.alphaThreshold"
 	const val MARGIN = "import.margin"
+
+	/** The prefix an Align entry's label key carries in front of its [ArtworkAnchor.key]. */
+	const val ANCHOR_CHOICE_PREFIX = "import.anchor."
 }
 
 /** The widest birth-mesh margin the strip offers, in source pixels. */
 internal const val IMPORT_MAX_MARGIN = 64
+
+/** How far the Offset rows reach either way, in source pixels: past any page the pack can hold. */
+internal const val IMPORT_MAX_OFFSET = 8192
 
 /**
  * One artwork file to add to the open document, as read from disk.
@@ -103,19 +116,36 @@ private sealed interface AddArtworkOutcome {
 }
 
 /**
- * The strip's rows for an add-artwork operation.
+ * The strip's rows for an add-artwork operation: Align and Offset X / Y for a file placed within the
+ * rig's canvas, then Alpha Threshold and Birth Mesh Margin.  A rig's first artwork sets the canvas
+ * rather than landing within it, so its step carries no placement rows.
  *
  * @param SourceArtImportOptions options The options the rows show.
+ * @param Boolean                placed  Whether the file was placed within an existing canvas.
  * @return List The rows.
  */
-internal fun addArtworkParameters(options: SourceArtImportOptions): List<OperatorParameter> =
-	listOf(
-		OperatorParameter.IntParameter(ImportParameterKeys.ALPHA_THRESHOLD, ImportParameterKeys.ALPHA_THRESHOLD, options.alphaThreshold, 1, 255),
-		OperatorParameter.IntParameter(ImportParameterKeys.MARGIN, ImportParameterKeys.MARGIN, options.birthMeshMargin, 0, IMPORT_MAX_MARGIN, unit = ParameterUnit.Pixels),
-	)
+internal fun addArtworkParameters(options: SourceArtImportOptions, placed: Boolean): List<OperatorParameter> {
+	val rows = ArrayList<OperatorParameter>()
+	if (placed) {
+		rows.add(
+			OperatorParameter.ChoiceParameter(
+				ImportParameterKeys.ALIGN,
+				ImportParameterKeys.ALIGN,
+				options.anchor.key,
+				ArtworkAnchor.entries.map { anchor -> ParameterChoice(anchor.key, ImportParameterKeys.ANCHOR_CHOICE_PREFIX + anchor.key) },
+			),
+		)
+		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_X, ImportParameterKeys.OFFSET_X, options.nudgeX, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
+		rows.add(OperatorParameter.IntParameter(ImportParameterKeys.OFFSET_Y, ImportParameterKeys.OFFSET_Y, options.nudgeY, -IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET, unit = ParameterUnit.Pixels))
+	}
+	rows.add(OperatorParameter.IntParameter(ImportParameterKeys.ALPHA_THRESHOLD, ImportParameterKeys.ALPHA_THRESHOLD, options.alphaThreshold, 1, 255))
+	rows.add(OperatorParameter.IntParameter(ImportParameterKeys.MARGIN, ImportParameterKeys.MARGIN, options.birthMeshMargin, 0, IMPORT_MAX_MARGIN, unit = ParameterUnit.Pixels))
+	return rows
+}
 
 /**
- * The options [parameters] describe, over [fallback] for the seed parameters the rows do not carry.
+ * The options [parameters] describe, over [fallback] for the seed parameters the rows do not carry
+ * (and for the placement, when the step had no placement rows).
  *
  * @param List                   parameters The strip's rows.
  * @param SourceArtImportOptions fallback   The options the first run used.
@@ -126,6 +156,9 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
 		parameters = fallback.parameters,
 		alphaThreshold = parameters.intValue(ImportParameterKeys.ALPHA_THRESHOLD, fallback.alphaThreshold).coerceIn(1, 255),
 		birthMeshMargin = parameters.intValue(ImportParameterKeys.MARGIN, fallback.birthMeshMargin).coerceIn(0, IMPORT_MAX_MARGIN),
+		anchor = ArtworkAnchor.fromKey(parameters.choiceValue(ImportParameterKeys.ALIGN, fallback.anchor.key)),
+		nudgeX = parameters.intValue(ImportParameterKeys.OFFSET_X, fallback.nudgeX).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
+		nudgeY = parameters.intValue(ImportParameterKeys.OFFSET_Y, fallback.nudgeY).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
 	)
 
 /**
@@ -136,13 +169,18 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
  * the existing art sits on compose exactly as they did.  A new tile the pack cannot carry stays
  * unplaced and is a note; the source-layer display still draws it.
  *
+ * A file joining a rig that already has art is first placed on the rig's canvas by the options'
+ * anchor and nudge ([SourceArtImport.offsetFor]), and its record keeps that offset so every later
+ * read of the file lands the same way.  The request's own art stays unplaced: an adjustment places
+ * it again from its rows.
+ *
  * The new rasters are added to [artRasters] here, before the pack reads them; the store is
  * document-lifetime, so an adjustment finds them already present.  The pack itself is
  * [packNewTilesAround], shared with the reload, relink, and match flows.
  *
  * @param PuppetModel            base               The model the additions join.
  * @param AddArtworkRequest      request            The file.
- * @param SourceArtImportOptions options            The threshold and margin to import with.
+ * @param SourceArtImportOptions options            The placement, threshold, and margin to import with.
  * @param SourceArtRasters       artRasters         The document's raster store.
  * @param Boolean                premultipliedAlpha The document's texture-convention flag.
  * @return AddArtworkOutcome? The outcome, or null when the file has no layer with art to add.
@@ -154,7 +192,8 @@ private fun addArtworkOutcome(
 	artRasters: SourceArtRasters,
 	premultipliedAlpha: Boolean,
 ): AddArtworkOutcome {
-	val added = SourceArtImport.additionsFor(request.art, request.descriptor, options, base)
+	val offset = SourceArtImport.offsetFor(base, request.art, options)
+	val added = SourceArtImport.additionsFor(request.art.placedBy(offset), request.descriptor, options, base, offset = offset)
 	if (added.additions.drawables.isEmpty()) {
 		return AddArtworkOutcome.NothingToAdd
 	}
@@ -166,7 +205,7 @@ private fun addArtworkOutcome(
 	// A rig with no art of its own takes its frame from the file that arrives - the new document starts
 	// on a placeholder canvas, and the first artwork is what says how big the rig really is.  A rig that
 	// already has art keeps its canvas: a second file is placed within that frame, not around it.
-	val framed = if (base.drawables.isEmpty() && base.atlas.tiles.isEmpty()) SourceArtImport.withFirstArtworkState(withArt, request.art) else withArt
+	val framed = if (SourceArtImport.isFirstArtwork(base)) SourceArtImport.withFirstArtworkState(withArt, request.art) else withArt
 	// The parameter template seeds a rig that has none, which is what makes importing art into a new
 	// document behave like opening that art did.  Authored axes are never replaced.
 	val seeded = if (framed.parameters.isEmpty()) SourceArtImport.withSeedParameters(framed, options.parameters) else framed
@@ -318,7 +357,7 @@ suspend fun runAddArtwork(host: AtlasRepackHost, request: AddArtworkRequest, are
 	host.sessionAtlasPages?.prewarm(committed.atlas, outcome.textures)
 	reportAddArtwork(request, outcome, committed)
 	session.emitNotice(if (outcome.notices.isEmpty()) "notice.import.artworkAdded" else "notice.import.artworkNotes", NoticePlacement.StatusBar)
-	session.registerAdjustableOperation(committed, areaId, addArtworkParameters(request.options)) { record ->
+	session.registerAdjustableOperation(committed, areaId, addArtworkParameters(request.options, placed = !SourceArtImport.isFirstArtwork(modelAtStart))) { record ->
 		host.scope.launch { adjustAddArtwork(host, record, request) }
 	}
 	return true

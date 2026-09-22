@@ -32,6 +32,13 @@ package org.umamo.runtime.model
  *   document last read it - or, for a CMO3-origin source, when the official editor did - or null when
  *   neither is known.  The stale-at-open check falls back to it where no hash was recorded, since a
  *   CMO3 keeps the time but not a hash.
+ * @property Int                  offsetX The translation from the file's own canvas to the document
+ *   canvas, in pixels: where the file's top-left corner sits on the document canvas.  Every read of the
+ *   file is placed by it before the model sees the art, so the inventory rows, the birth meshes, and
+ *   the reload's frame comparisons all live in the document's coordinates.  Zero for a file that set
+ *   or shares the document's frame (a rig's first artwork, a CMO3's own layered image); a later file is
+ *   placed by the import's Align anchor and Offset rows.
+ * @property Int                  offsetY See [offsetX].
  */
 data class ArtSource(
 	val id: ArtSourceId,
@@ -41,6 +48,8 @@ data class ArtSource(
 	val layers: List<ArtSourceLayer> = emptyList(),
 	val contentHash: String? = null,
 	val lastModified: Long? = null,
+	val offsetX: Int = 0,
+	val offsetY: Int = 0,
 )
 
 /**
@@ -52,7 +61,9 @@ data class ArtSource(
  * @property String  key       The reader's layer key - the same string a [SourceLayerRef] carries.
  * @property String  name      The layer's name at import.
  * @property String  groupPath The slash-joined enclosing-folder path at import ("" at the root).
- * @property Int     left      The layer's canvas position, top-left origin in source pixels.
+ * @property Int     left      The layer's position on the DOCUMENT canvas, top-left origin in source
+ *   pixels: the file's own position shifted by its source's [ArtSource.offsetX], the frame every
+ *   drawable's positions share.
  * @property Int     top       See [left].
  * @property Int     width     The layer's raster width in source pixels.
  * @property Int     height    The layer's raster height in source pixels.

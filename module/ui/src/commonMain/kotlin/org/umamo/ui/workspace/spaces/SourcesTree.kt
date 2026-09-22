@@ -104,7 +104,10 @@ sealed interface SourcesDetail {
 	/** A file's format and inventory size, and whether a path is recorded. */
 	data class Source(val format: String, val layerCount: Int, val hasPath: Boolean) : SourcesDetail
 
-	/** A layer's size and canvas position at the last read. */
+	/**
+	 * A layer's size and position at the last read, in the FILE's own canvas (the row's document position
+	 * with the source's offset taken back out), so the numbers match what the art program shows.
+	 */
 	data class Layer(val width: Int, val height: Int, val left: Int, val top: Int) : SourcesDetail
 
 	/** The 1-based page a placed tile sits on. */
@@ -280,7 +283,7 @@ fun buildSourcesTree(
 							source,
 							layer.key,
 							layer.name,
-							SourcesDetail.Layer(layer.width, layer.height, layer.left, layer.top),
+							SourcesDetail.Layer(layer.width, layer.height, layer.left - source.offsetX, layer.top - source.offsetY),
 							listed = layer.present,
 							emptied = layer.empty,
 							replaced = layer.replaced,

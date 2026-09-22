@@ -3,9 +3,12 @@ package org.umamo.reimport
 import org.umamo.format.art.LayerBounds
 import org.umamo.format.art.LayerRaster
 import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.CanvasOffset
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.placedBy
+import org.umamo.interop.art.placedFor
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTile
@@ -204,6 +207,56 @@ class ArtworkReloadPlannerTest {
 		assertTrue(plan.reload.source.layers.single().present, "the new binding's row is present, not lost")
 	}
 
+	/**
+	 * A file placed on the document canvas (its record carries an offset) reloads in the document frame:
+	 * the read is placed by the record before the planner sees it, so an unchanged file plans nothing, a
+	 * repainted layer's untouched quad is re-born at the PLACED position, and the refreshed record keeps
+	 * the offset.
+	 */
+	@Test
+	fun aPlacedFileReloadsInTheDocumentFrameAndKeepsItsOffset() {
+		val offset = CanvasOffset(100, 200)
+		val placedArt = TestArt(listOf(layer1, layer2)).placedBy(offset)
+		val placedQuad1 = SourceArtImport.birthMeshFor(placedArt.layers[0], options.alphaThreshold, options.birthMeshMargin)!!
+		val base = model()
+		val placedModel =
+			base.copy(
+				drawables = base.drawables.map { drawable -> if (drawable.id == DrawableId("d1")) drawable.copy(mesh = placedQuad1) else drawable },
+				sources = listOf(ArtSource(source, "a.psd", "/a.psd", "psd", SourceArtImport.inventoryOf(placedArt), offsetX = offset.x, offsetY = offset.y)),
+			)
+		val record = placedModel.sources.single()
+		assertEquals(110 to 220, record.layers.first().let { row -> row.left to row.top }, "the inventory is in the document frame")
+
+		assertNull(ArtworkReloadPlanner.plan(placedModel, source, TestArt(listOf(layer1, layer2)).placedFor(record), options, oldRasterOf), "the same file, placed the same way, plans nothing")
+
+		val repainted = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 6, 6), solidRaster(6, 6, 9))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(placedModel, source, TestArt(listOf(repainted, layer2)).placedFor(record), options, oldRasterOf))
+		assertEquals(listOf(tile1), plan.reload.replacedTiles.map { replaced -> replaced.oldId })
+		val reborn = plan.reload.drawableMeshes.getValue(DrawableId("d1"))
+		assertContentEquals(floatArrayOf(108f, 218f, 118f, 218f, 118f, 228f, 108f, 228f), reborn.positions, "re-born over the repainted art at its placed position")
+		assertEquals(offset.x to offset.y, plan.reload.source.offsetX to plan.reload.source.offsetY, "the refreshed record keeps the offset")
+		assertEquals(110 to 220, plan.reload.source.layers.first { row -> row.key == "lyid:1" }.let { row -> row.left to row.top }, "and its rows stay in the document frame")
+	}
+
+	/**
+	 * A relink onto a placed file carries the mesh by the OLD row in the tile's own file against the
+	 * target layer's PLACED bounds, so the canvas-attached vertex keeps sampling the same canvas pixel.
+	 */
+	@Test
+	fun aRelinkOntoAPlacedFileCarriesAgainstThePlacedLayer() {
+		val other = ArtSourceId("art-1")
+		val layer3 = TestLayer("lyid:3", "Three", 0, LayerBounds(50, 60, 4, 4), solidRaster(4, 4, 3))
+		val otherRecord = ArtSource(other, "b.psd", "/b.psd", "psd", offsetX = -20, offsetY = -19)
+		val otherArt = TestArt(listOf(layer3)).placedFor(otherRecord)
+		val model = model().let { base -> base.copy(sources = base.sources + otherRecord.copy(layers = SourceArtImport.inventoryOf(otherArt))) }
+		val plan = assertNotNull(ArtworkReloadPlanner.planMatches(model, other, otherArt, listOf(tile2 to "lyid:3"), options, oldRasterOf))
+		val carried = plan.reload.drawableMeshes.getValue(DrawableId("d2"))
+		// The target sits at (30, 41) placed: the old row's (30, 40) is one pixel above it, so every
+		// coordinate moves up by a quarter of the 4 px raster.
+		assertContentEquals(floatArrayOf(0f, -0.25f, 0.25f, -0.25f, 0f, 0f), carried.uvs, "carried against the placed bounds")
+		assertEquals(-20 to -19, plan.reload.source.offsetX to plan.reload.source.offsetY, "the target's record keeps its offset")
+	}
+
 	/** The read's modification time rides the refreshed record like the hash, and alone plans nothing. */
 	@Test
 	fun theModificationTimeIsRecordedLikeTheHashAndAloneChangesNothing() {
@@ -310,6 +363,11 @@ class ArtworkReloadPlannerTest {
 		val twin = assertNotNull(ArtworkReloadPlanner.plan(model(), source, TestArt(listOf(layer1, layer2)), options, oldRasterOf, replacement = ArtSourceDescriptor("b.psd", "/b.psd", "psd")))
 		assertEquals("b.psd", twin.reload.source.name)
 		assertTrue(twin.report.needsReview.isEmpty())
+
+		// The replacement stands in for the same art, so the record's placement on the canvas is kept.
+		val placedModel = model().let { base -> base.copy(sources = base.sources.map { record -> record.copy(offsetX = 5, offsetY = 6) }) }
+		val placedTwin = assertNotNull(ArtworkReloadPlanner.plan(placedModel, source, TestArt(listOf(layer1, layer2)), options, oldRasterOf, replacement = ArtSourceDescriptor("b.psd", "/b.psd", "psd")))
+		assertEquals(5 to 6, placedTwin.reload.source.offsetX to placedTwin.reload.source.offsetY, "the replaced record keeps its offset")
 	}
 
 	@Test

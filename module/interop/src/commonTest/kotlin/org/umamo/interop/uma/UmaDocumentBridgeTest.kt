@@ -132,6 +132,8 @@ class UmaDocumentBridgeTest {
 					),
 				contentHash = digest,
 				lastModified = 1_757_894_400_123L,
+				offsetX = 64,
+				offsetY = -32,
 			),
 			ArtSource(ArtSourceId("guid-7"), "Erica.psd", null, "psd"),
 		)
