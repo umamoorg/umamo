@@ -189,6 +189,12 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 * Ability to edit ALL the theme colors (the UmamoColors palette) for a custom look through preferences.  For example, in Blender I make my vertex colors as ff00ec(unselected), ff7a00(selected), and 7de400(active selection) since it is easier for me to see.
 	* The color-blind-assist first pass — vertex/edge/face gizmo colors plus the selection highlight — already exists in Settings > Colors.
 
+## DRY/Standardization
+* Fields like PropertyFieldRow need to take a key use use that to get the correct resource key automatically instead of passing it.
+	* For Example: properties_field_base_angle - "base_angle" -> Expanded out to `properties_field_base_angle` and `properties_field_base_angle_description`.
+	* There are plenty of places in the code base that are passing the values around like this at the moment.  Difficulty: .* import level maybe?  I need to read up on the Kotlin compiler optimization to determine if this will be an issue.
+	* operatorParameterDescriptionRes also is the start of something of what I am thinking, but hardcoded.
+
 ## Settings
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
 * Pen Binding (JPen, Wacom) - input.pen (Includes pen, pressure, and things related to the radial menu.)
