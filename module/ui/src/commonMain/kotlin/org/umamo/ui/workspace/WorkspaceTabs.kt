@@ -44,6 +44,7 @@ import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.kit.ContextMenuArea
+import org.umamo.ui.kit.DoubleClickTracker
 import org.umamo.ui.kit.InlineRenameField
 import org.umamo.ui.kit.LocalInlineEditController
 import org.umamo.ui.kit.MenuItem
@@ -63,13 +64,6 @@ import org.umamo.ui.theme.drawIcon
  * would silently reshuffle the tab order.
  */
 private const val REORDER_HOLD_MILLIS = 100L
-
-/**
- * The maximum gap between two clicks on the same tab that counts as a double-click and opens the inline
- * rename editor.  A fixed value rather than the platform's doubleTapTimeoutMillis, which on desktop
- * (Skiko) resolves to a window too short to hit comfortably.
- */
-private const val DOUBLE_CLICK_MILLIS = 300L
 
 /**
  * The browser-style top tab strip: one tab per workspace (the active one selected), a trailing "+"
@@ -121,10 +115,6 @@ fun WorkspaceTabs(
 	var reorderGeneration by remember { mutableStateOf(0) }
 	// The workspace whose tab is being renamed in place (double-click or the context-menu Rename), or null.
 	var editingWorkspaceId by remember { mutableStateOf<String?>(null) }
-	// Tracks the previous press (its tab index and event time) so a second press on the same tab within the
-	// double-click window opens the rename editor.  Index -1 means "no pending press".
-	var lastTapIndex by remember { mutableStateOf(-1) }
-	var lastTapUptime by remember { mutableStateOf(0L) }
 
 	// Localized chrome resolved once here: the context-menu onSelect lambdas run on a pointer event, not
 	// in composition, so they cannot call stringResource themselves - they capture these instead.
@@ -200,7 +190,11 @@ fun WorkspaceTabs(
 							}
 							// Raise the dragged tab above its neighbors so it draws (and is hit-tested) on top.
 							.then(if (isDragging) Modifier.zIndex(1f) else Modifier)
-							.pointerInput(index, workspaces.size) {
+							// Keyed on the workspace as well as the slot: the gesture reads workspace.id, and a reorder
+							// can hand a slot a different workspace without changing its index or the tab count.
+							.pointerInput(workspace.id, index, workspaces.size) {
+								// One tracker per tab, so a press on one tab never pairs with a press on another.
+								val clickTracker = DoubleClickTracker()
 								awaitEachGesture {
 									val down = awaitFirstDown(requireUnconsumed = false)
 									// A secondary/tertiary press belongs to the context-menu gesture, never to a tab drag
@@ -210,16 +204,13 @@ fun WorkspaceTabs(
 									}
 									// Double-click is detected on the press, not the release: the tab's clickable consumes
 									// the up when it fires its click, so the up is an unreliable signal, but the down always
-									// reaches us.  Two presses on the same tab within the window open the rename editor.
-									val pressTime = down.uptimeMillis
-									if (lastTapIndex == index && pressTime - lastTapUptime <= DOUBLE_CLICK_MILLIS) {
-										lastTapIndex = -1
-										lastTapUptime = 0L
+									// reaches us.  Selection stays on that clickable, which is why this gesture uses the
+									// shared timing core rather than the singleOrDoubleClick modifier: the clickable consumes
+									// the press before a parent modifier would see it.
+									if (clickTracker.registerPress(down.uptimeMillis)) {
 										editingWorkspaceId = workspace.id
 										return@awaitEachGesture
 									}
-									lastTapIndex = index
-									lastTapUptime = pressTime
 									// Hold gate: wait out the window watching the raw pressed state (read from the event,
 									// not waitForUpOrCancellation, whose result the clickable's up-consumption would defeat).
 									// A lift within the window is a click: the clickable handled selection, nothing to do here.
@@ -271,7 +262,7 @@ fun WorkspaceTabs(
 										draggingIndex = null
 										dragDeltaX = 0f
 										// A drag's press must not pair with a later click as a double-click.
-										lastTapIndex = -1
+										clickTracker.reset()
 										// Rebuild the tab visuals so no tab keeps a hover left stale by the layout shift.
 										reorderGeneration++
 									}
