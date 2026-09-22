@@ -81,7 +81,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
 	* Support renaming images.
 * Improvements
-	* Switch from an atlas page to an layer image or a differeny layer image should automatically refit the camera.  Most layer images are in different spots and are not anchored in the center which can result in them being outside of the viewport.
 	* Add tooltip for properties_field_source_layer_display.
 	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
 	* Adding new artwork to an existing file should compare centers and place it based on that.  Right now it is based on the 0,0 top left origin.
@@ -92,7 +91,6 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 		* Do a study to determine if rip functionality is really needed.  It is definitely needed for 3D work, but for 2D work I think it is less useful.  Though I'm curious what people would create with the functionality being available.
 	* Mirror UVs are shown in the command palette when editing a mesh in the 2D viewport.
 		* This is actually kind of useful, but technically breaks the border of the command palette only showing what is available per area.
-	* UV areas don't remember their selection.  For example: Changing to source layer is lost when changing workspaces.
 	* Pixels outside of the canvas still need to render.
 * UV Snap Pie
 	* (Deferred) Selected to Adjacent Unselected - Moves selection to adjacent unselected element.

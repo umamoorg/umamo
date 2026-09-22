@@ -516,8 +516,9 @@ internal class OffscreenRenderEngine(
 						continue // one read-back per area in flight; coalesces a flurry of slider moves
 					}
 					// Establish or refit the camera now that the size is known - the render thread owns the
-					// content bounds; the registry restores a remembered camera or fits fresh.
-					val camera = registry.establishCamera(slot, areaId, width, height) { contentBoundsFor(slot) }
+					// content bounds; the registry restores a remembered camera or fits fresh, and swaps a UV
+					// area's view when the page or layer it shows has changed.
+					val camera = registry.establishCamera(slot, areaId, width, height) { scene, content -> contentBoundsFor(scene, content) }
 					// Freshness splits into the size axis (throttled during an active resize) and the rest.
 					// A frame rendered below the settle scale stays size-stale on purpose, so the settle
 					// pass re-renders it at full quality once the size holds still.
@@ -727,17 +728,20 @@ internal class OffscreenRenderEngine(
 
 	/**
 	 * The content rectangle an area's camera fits: the puppet's rest-pose bounds for a 2D area, or the
-	 * shown surface's rectangle for a UV-editor area (the atlas page, or the source layer's raster).
-	 * Render thread only (reads the renderer's bounds).
+	 * shown surface's rectangle for a UV-editor area (the atlas page, or the source layer's raster), which
+	 * the registry widens to the shown meshes.  Takes the kind and content the registry read rather than
+	 * re-reading the slot, so the rectangle is of the surface the camera is filed under.  Render thread only
+	 * (reads the renderer's bounds).
 	 *
-	 * @param AreaSlot slot The area being framed.
+	 * @param RenderScene     scene     The area's kind.
+	 * @param UvSceneContent? uvContent What a UV-editor area shows; null for a puppet area.
 	 * @return ContentBounds The rectangle to fit.
 	 */
-	private fun contentBoundsFor(slot: AreaSlot): ContentBounds =
-		when (slot.scene) {
+	private fun contentBoundsFor(scene: RenderScene, uvContent: UvSceneContent?): ContentBounds =
+		when (scene) {
 			RenderScene.Puppet2D -> renderer.contentBounds()
 			RenderScene.UvScene ->
-				when (val uvContent = slot.uvContent) {
+				when (uvContent) {
 					is UvSceneContent.AtlasPage -> pageContentBounds(uvContent.pageIndex)
 					is UvSceneContent.SourceLayer -> imageContentBounds(uvContent.image)
 					null -> pageContentBounds(null)

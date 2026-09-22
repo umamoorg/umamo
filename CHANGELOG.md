@@ -30,6 +30,8 @@ Umamo is early alpha.
 * UI: The popup overlap picker now uses the drawable name with the part name in parenthesis.
 * UI: Buttons now use the accent color when pressed.
 * UV Editor: Clicking inside a UV island in Object mode now selects it even where its texture is transparent.  Where islands overlap, the one with visible art under the cursor still wins.
+* UV Editor: Switching to another page or layer for the first time refits the camera then remembers the camera position from there on.
+* UV Editor: Fit View now also frames meshes that sit past the edge of the atlas page.
 
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.

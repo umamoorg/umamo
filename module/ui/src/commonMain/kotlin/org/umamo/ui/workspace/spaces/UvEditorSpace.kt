@@ -227,23 +227,29 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// content tracks the resolved texture selection via setUvSceneContent, which is also how the area
 	// switches between a page and a layer WITHOUT re-registering (a second register would take a
 	// reference-counted hold this area never releases).  The camera is owned by the service (pan / zoom /
-	// fit below drive it), and the frame carries the camera it was rendered at for the overlay glue.
+	// fit below drive it), and the frame carries the camera it was rendered at for the overlay glue.  The
+	// service keeps this area's view of each page and layer apart, so following the selection onto another
+	// one - or picking one - brings back the view it was left with, or fits it the first time.
 	//
 	// Resolving the raster here is what triggers its decode, on first sight only - the store caches
 	// thereafter, including its failures.
 	val sceneContent =
 		if (layerView != null) {
-			UvSceneContent.SourceLayer(shownImage)
+			UvSceneContent.SourceLayer(layerView.layerKey, shownImage)
 		} else {
 			UvSceneContent.AtlasPage(pageIndex)
 		}
+	// The extent a fit of this area takes in beside the surface: every shown mesh, so art moved past the
+	// page edge is framed with the page.  Handed over with the content, which is what lets the engine fit a
+	// surface it switches to against that surface's own meshes.
+	val islandExtent = remember(geometries) { shownIslandExtent(geometries) }
 	// Keyed on the service too, like the 2D viewport's registration: a slot remembered across a
 	// service swap would keep collecting the disposed engine's flows and never register with the live one.
-	val imageFlow = remember(scope.areaId, service) { service.registerUvScene(scope.areaId, sceneContent) }
+	val imageFlow = remember(scope.areaId, service) { service.registerUvScene(scope.areaId, sceneContent, islandExtent) }
 	// The live service camera feeds the zoom readout: the wheel updates it immediately, where the
 	// frame's camera (image?.camera) lags the raster by a few frames.
 	val cameraFlow = remember(scope.areaId, service) { service.cameraFlow(scope.areaId) }
-	LaunchedEffect(scope.areaId, sceneContent) { service.setUvSceneContent(scope.areaId, sceneContent) }
+	LaunchedEffect(scope.areaId, sceneContent, islandExtent) { service.setUvSceneContent(scope.areaId, sceneContent, islandExtent) }
 	DisposableEffect(scope.areaId, service) {
 		onDispose { service.unregister(scope.areaId) }
 	}

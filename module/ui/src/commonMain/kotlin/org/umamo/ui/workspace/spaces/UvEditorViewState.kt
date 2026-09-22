@@ -13,6 +13,7 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
+import org.umamo.render.ContentBounds
 import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -414,3 +415,36 @@ internal fun uvGizmoGeometries(
 		val uvs = uvsById[drawable.id] ?: return@mapNotNull null
 		GizmoMeshGeometry(drawable.id, mesh.indices, MeshTopology.uniqueEdges(mesh.indices), uvToDisplay(uvs, displayWidth, displayHeight))
 	}
+
+/**
+ * The display-space rectangle every shown mesh covers - what a fit of the UV editor widens the shown
+ * surface to take in, so a placement moved past the page edge is still framed along with the page.
+ *
+ * @param List<GizmoMeshGeometry> geometries The shown meshes in display space.
+ * @return ContentBounds? Their bounds, or null when no mesh has a vertex.
+ */
+internal fun shownIslandExtent(geometries: List<GizmoMeshGeometry>): ContentBounds? {
+	var minX = Float.POSITIVE_INFINITY
+	var minY = Float.POSITIVE_INFINITY
+	var maxX = Float.NEGATIVE_INFINITY
+	var maxY = Float.NEGATIVE_INFINITY
+	for (geometry in geometries) {
+		val positions = geometry.positions
+		for (vertexIndex in 0 until positions.size / 2) {
+			val x = positions[vertexIndex * 2]
+			val y = positions[vertexIndex * 2 + 1]
+			// A mapping that is not a number frames nothing, and would poison every bound it touched.
+			if (!x.isFinite() || !y.isFinite()) {
+				continue
+			}
+			minX = minOf(minX, x)
+			minY = minOf(minY, y)
+			maxX = maxOf(maxX, x)
+			maxY = maxOf(maxY, y)
+		}
+	}
+	if (minX > maxX) {
+		return null
+	}
+	return ContentBounds(minX, minY, maxX - minX, maxY - minY)
+}
