@@ -62,8 +62,8 @@ import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.atlasPixelOf
+import org.umamo.runtime.model.storedToArtAffineForTile
 import java.io.File
-import kotlin.math.ulp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -547,13 +547,14 @@ class Cmo3ExportRoundTripTest {
 
 			val reread = Cmo3.read(Cmo3.write(cmo3))
 			val rereadRoot = reread.root as CModelSource
-			// Through a scale not every float has an exact preimage, so the edited pair comes back within a
-			// couple of ULPs; the untouched pairs, and the rest of the model, come back exactly.
+			// Through the placement and the cache scale not every float has an exact preimage, so the edited
+			// pair comes back within a hair of a page texel; the untouched pairs, and the rest of the model,
+			// come back exactly.
 			val reimported = Cmo3Import.fromModelSource(rereadRoot)
 			val reimportedUvs = reimported.drawables.first { drawable -> drawable.id == drawableId }.mesh!!.uvs
 			for (componentIndex in 0 until 2) {
 				assertTrue(
-					kotlin.math.abs(reimportedUvs[componentIndex] - movedUvs[componentIndex]) <= 2f * movedUvs[componentIndex].ulp,
+					kotlin.math.abs(reimportedUvs[componentIndex] - movedUvs[componentIndex]) <= 1e-6f,
 					"${file.name}: edited component $componentIndex re-imports as ${reimportedUvs[componentIndex]}, edited ${movedUvs[componentIndex]}",
 				)
 			}
@@ -564,9 +565,13 @@ class Cmo3ExportRoundTripTest {
 			assertTrue(residual.isEmpty, "${file.name}: the export changed more than the edited UVs: $residual")
 			val rereadSources = ((rereadRoot.drawableSourceSet as CDrawableSourceSet)._sources as Iterable<*>).filterIsInstance<CArtMeshSource>()
 			val storedAfter = rereadSources.first { candidate -> (candidate.id as? Id)?.idstr == drawableId.raw }.uvs as FloatArray
-			// The edited pair is stored in the editor's cache frame, the untouched pairs byte for byte.
-			assertEquals(scale.m00 * movedUvs[0] + scale.m01 * movedUvs[1] + scale.m02, storedAfter[0], 1e-6f, "${file.name}: the edited u is stored through the cache scale")
-			assertEquals(scale.m10 * movedUvs[0] + scale.m11 * movedUvs[1] + scale.m12, storedAfter[1], 1e-6f, "${file.name}: the edited v is stored through the cache scale")
+			// The edited pair comes off the tile's page into its art's frame and is stored in the editor's cache
+			// frame; the untouched pairs byte for byte.
+			val storedToArt = assertNotNull(edited.drawables.first { drawable -> drawable.id == drawableId }.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) })
+			val artU = storedToArt[0] * movedUvs[0] + storedToArt[1] * movedUvs[1] + storedToArt[2]
+			val artV = storedToArt[3] * movedUvs[0] + storedToArt[4] * movedUvs[1] + storedToArt[5]
+			assertEquals(scale.m00 * artU + scale.m01 * artV + scale.m02, storedAfter[0], 1e-5f, "${file.name}: the edited u is stored in the cache frame")
+			assertEquals(scale.m10 * artU + scale.m11 * artV + scale.m12, storedAfter[1], 1e-5f, "${file.name}: the edited v is stored in the cache frame")
 			for (componentIndex in 2 until storedBefore.size) {
 				assertEquals(storedBefore[componentIndex].toRawBits(), storedAfter[componentIndex].toRawBits(), "${file.name}: untouched component $componentIndex keeps its stored bits")
 			}

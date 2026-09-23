@@ -61,6 +61,7 @@ import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.inversePlacementAffine
 import org.umamo.runtime.model.isOriginAtCanvasCenter
 import org.umamo.runtime.model.lineageRoot
+import org.umamo.runtime.model.storedToArtAffineForTile
 
 /**
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
@@ -520,10 +521,10 @@ internal class Cmo3PropertyLowering(
 	}
 
 	/**
-	 * Lowers edited UVs into the frame the drawable stores ([Cmo3TextureFrames.storedUvsOf]): verbatim when
-	 * it stores its sampled image's frame, through the forward raster-to-cache affine when it stores the
-	 * editor's cache frame - the inverse of the remap import applied.  Unchanged texel pairs keep the stored
-	 * values so the affine round trip cannot drift them.
+	 * Lowers edited UVs into the frame the drawable stores ([Cmo3TextureFrames.storedUvsOf]) - the import's
+	 * remap run backward, off the edited tile's page through its EDITED placement when it has one.
+	 * Unchanged texel pairs keep the stored values so the round trip cannot drift them, but only while the
+	 * tile's placement is the one those values were read under: a moved placement moves every model pair.
 	 *
 	 * @param CArtMeshSource source         The drawable's graph source.
 	 * @param DrawableId     drawableId     The drawable's id (for notices).
@@ -535,8 +536,19 @@ internal class Cmo3PropertyLowering(
 			unsupported(ExportEntityCategory.Drawable, drawableId.raw, ExportNoticeReason.NoUvsToReconcile)
 			return
 		}
+		val baselineDrawable = baselineDrawableById[drawableId]
+		val editedToArt = editedDrawable.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) }
+		val baselineToArt = baselineDrawable?.atlasTileId?.let { tileId -> baseline.atlas.storedToArtAffineForTile(tileId) }
+		val placementKept = editedToArt.contentEquals(baselineToArt)
 		// CMO3: CArtMeshSource field uvs.
-		source.uvs = textureFrames.storedUvsOf(source, newUvs, source.uvs as? FloatArray, baselineDrawableById[drawableId]?.mesh?.uvs)
+		source.uvs =
+			textureFrames.storedUvsOf(
+				source,
+				newUvs,
+				editedToArt,
+				(source.uvs as? FloatArray).takeIf { placementKept },
+				baselineDrawable?.mesh?.uvs.takeIf { placementKept },
+			)
 		editor.ensureChildSlot(source, "CArtMeshSource", "uvs", "texture")
 	}
 

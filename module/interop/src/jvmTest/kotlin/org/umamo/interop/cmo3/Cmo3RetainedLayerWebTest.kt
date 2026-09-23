@@ -346,8 +346,11 @@ class Cmo3RetainedLayerWebTest {
 		val baseline = Cmo3Import.fromModelSource(retained.root as CModelSource)
 		val hairTile = baseline.atlas.tiles.first { tile -> tile.source?.layerKey == "lyid:5" }
 		val hair = baseline.drawables.first { drawable -> drawable.id.raw == "Hair" }
+		// The hair's tile is placed, so the import reads it out of the copy's frame and onto the page: tile
+		// pixel (x, y) sits at page pixel (8 + x, 2 + y) of the 16px page.
 		for (componentIndex in hairArtUvs.indices) {
-			assertEquals(hairArtUvs[componentIndex], hair.mesh!!.uvs[componentIndex], 1e-6f, "the import reads the copy's frame back into the raster's")
+			val expected = if (componentIndex % 2 == 0) (8f + hairArtUvs[componentIndex] * 4f) / pageSize else (2f + hairArtUvs[componentIndex] * 4f) / pageSize
+			assertEquals(expected, hair.mesh!!.uvs[componentIndex], 1e-6f, "the import reads the copy's frame onto the hair's page")
 		}
 
 		// A reload of the hair, repainted at 6x6.
@@ -374,9 +377,18 @@ class Cmo3RetainedLayerWebTest {
 		val scale = texture.transformImageResource01toLogical01 as CAffine
 		assertEquals(listOf(6f / 64f, 0f, 0f, 0f, 6f / 64f, 0f), listOf(scale.m00, scale.m01, scale.m02, scale.m10, scale.m11, scale.m12), "with the new size's cache scale")
 		assertEquals(Cmo3ImageChainBuilder.FULL_RESOLUTION_MIPMAP_LEVEL, texture.mipmapLevel)
-		assertContentEquals(hair.mesh!!.uvs, hairMesh.uvs as FloatArray, "a packed drawable over its raster stores the raster's frame verbatim")
+		// A packed drawable over its raster stores the raster's frame: the edited page coordinates off the
+		// reloaded 6px tile's placement.
+		val storedAfter = hairMesh.uvs as FloatArray
+		for (componentIndex in storedAfter.indices) {
+			val pageCoordinate = hair.mesh!!.uvs[componentIndex] * pageSize
+			val expected = if (componentIndex % 2 == 0) (pageCoordinate - 8f) / 6f else (pageCoordinate - 2f) / 6f
+			assertEquals(expected, storedAfter[componentIndex], 1e-5f, "the hair stores its new raster's frame at component $componentIndex")
+		}
 		val reimportedHair = Cmo3Import.fromModelSource(root).drawables.first { drawable -> drawable.id == hair.id }
-		assertContentEquals(hair.mesh!!.uvs, reimportedHair.mesh?.uvs, "and re-imports to the coordinates it was edited with")
+		for (componentIndex in storedAfter.indices) {
+			assertEquals(hair.mesh!!.uvs[componentIndex], reimportedHair.mesh!!.uvs[componentIndex], 1e-6f, "and re-imports to the page coordinates it was edited with")
+		}
 
 		// The copy is gone from the graph and the archive; the eye still samples the page.
 		assertNull(reread.archive.byPath(copyPath), "the copy's pixels are removed")

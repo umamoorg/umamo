@@ -38,6 +38,7 @@ Umamo is early alpha.
 * UV Editor: Clicking inside a UV island in Object mode now selects it even where its texture is transparent.  Where islands overlap, the one with visible art under the cursor still wins.
 * UV Editor: Switching to another page or layer for the first time refits the camera then remembers the camera position from there on.
 * UV Editor: Fit View now also frames meshes that sit past the edge of the atlas page.
+* Texture Atlas: Repack Atlas is now available on CMO3 models saved with "Show source artwork" turned on.
 
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
@@ -52,6 +53,11 @@ Umamo is early alpha.
 * Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.
 * Viewport: Changing an area between the UV Editor and the 2D Viewport no longer leaves the previous editor's contents and camera behind.
 * Outliner: A CTRL+Left Click or Shift+Left Click followed quickly by a plain click on the same row no longer opens rename.
+* Source Artwork: "Show source artwork" no longer draws layers misshaped, misplaced, and cut off on CMO3 models whose drawables use Cubism's reduced resolution texture copies.
+* Source Artwork: Reloading or relinking a layer in a CMO3 whose drawables use Cubism's reduced resolution copies now points them at the new art on export, so Cubism shows the reloaded layer instead of the stale copy.
+* Texture Atlas: Rebuilding the atlas after a reload, Replace Artwork, added artwork, or a repack no longer smears stretched pixels around art that touches the edge of its layer.
+* Texture Atlas: CMO3 models saved in Cubism with "Show source artwork" turned on now load the texture atlas as the atlas pages instead of loading every individual layer as an atlas page.
+* Viewport: Meshes that reach past the edge of their texture no longer smear the edge pixels across the overhang in the atlas display and clicking that overhang no longer selects the drawable.
 
 
 ## 0.3.0-dev - 2026-09-15

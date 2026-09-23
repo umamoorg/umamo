@@ -117,13 +117,13 @@ class Cmo3TextureFramesTest {
 	}
 
 	@Test
-	fun onlyUnpackedAndReducedCopyDrawablesStoreTheCacheFrame() {
+	fun eachDrawableStoresTheFrameOfWhatItsTextureNames() {
 		val frames = Cmo3TextureFrames(modelSource())
 
-		assertFalse(frames.storedUvsInCacheFrame(onPage), "a packed drawable over a page stores the page's frame")
-		assertFalse(frames.storedUvsInCacheFrame(onRaster), "a packed drawable over its raster stores the raster's frame")
-		assertTrue(frames.storedUvsInCacheFrame(onCopy), "a drawable over a reduced copy stores the cache frame")
-		assertTrue(frames.storedUvsInCacheFrame(unpacked), "an unpacked drawable stores the cache frame")
+		assertEquals(Cmo3StoredFrame.Page, frames.storedFrameOf(onPage), "a packed drawable over a page stores the page's frame")
+		assertEquals(Cmo3StoredFrame.Raster, frames.storedFrameOf(onRaster), "a packed drawable over its raster stores the raster's frame")
+		assertEquals(Cmo3StoredFrame.Cache, frames.storedFrameOf(onCopy), "a drawable over a reduced copy stores the cache frame")
+		assertEquals(Cmo3StoredFrame.Cache, frames.storedFrameOf(unpacked), "an unpacked drawable stores the cache frame")
 		assertTrue(frames.samplesReducedCopy(onCopy))
 		assertFalse(frames.samplesReducedCopy(onRaster))
 		assertFalse(frames.samplesReducedCopy(unpacked))
@@ -154,13 +154,35 @@ class Cmo3TextureFramesTest {
 	}
 
 	@Test
+	fun aPlacedTilesCoordinatesGoOntoItsPageAndBackOff() {
+		val frames = Cmo3TextureFrames(modelSource())
+		// The tile's model-to-art affine: its art occupies a quarter by a half of the page, from (0.25, 0.25).
+		val storedToArt = floatArrayOf(4f, 0f, -1f, 0f, 2f, -0.5f)
+		val stored = floatArrayOf(cacheScaleU * 0.5f, cacheScaleV * 0.5f, 0f, 0f)
+
+		// Over a copy: out of the cache frame to the art's center (0.5, 0.5), then onto the page.
+		val model = frames.modelUvsOf(onCopy, stored, storedToArt)
+		assertClose(floatArrayOf(0.375f, 0.5f, 0.25f, 0.25f), model, "the art's center and corner land on the page")
+		assertClose(stored, frames.storedUvsOf(onCopy, model, storedToArt), "and come back off it into the cache frame")
+		// Over the raster: no cache step, the same placement.
+		val rasterModel = frames.modelUvsOf(onRaster, floatArrayOf(0.5f, 0.5f), storedToArt)
+		assertClose(floatArrayOf(0.375f, 0.5f), rasterModel, "a raster pair lands on the page")
+		assertClose(floatArrayOf(0.5f, 0.5f), frames.storedUvsOf(onRaster, rasterModel, storedToArt), "and comes back in the raster's frame")
+		// Over the page: already there, whatever the placement.
+		assertSame(stored, frames.modelUvsOf(onPage, stored, storedToArt), "page coordinates are taken verbatim")
+		assertContentEquals(stored, frames.storedUvsOf(onPage, stored, storedToArt), "and stored verbatim")
+		// An unplaced tile's identity affine changes nothing past the cache step.
+		assertClose(floatArrayOf(0.5f, 0.5f, 0f, 0f), frames.modelUvsOf(onCopy, stored, floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)), "without a placement the raster frame is the model's")
+	}
+
+	@Test
 	fun anUnchangedPairKeepsItsStoredBits() {
 		val frames = Cmo3TextureFrames(modelSource())
 		val stored = floatArrayOf(0.3f, 0.7f, 0.1f, 0.2f)
 		val baseline = frames.modelUvsOf(onCopy, stored)
 		val edited = baseline.copyOf().also { uvs -> uvs[2] = 0.5f }
 
-		val written = frames.storedUvsOf(onCopy, edited, stored, baseline)
+		val written = frames.storedUvsOf(onCopy, edited, storedUvs = stored, baselineUvs = baseline)
 
 		assertEquals(stored[0].toRawBits(), written[0].toRawBits(), "the untouched pair keeps its stored u")
 		assertEquals(stored[1].toRawBits(), written[1].toRawBits(), "the untouched pair keeps its stored v")
@@ -173,11 +195,11 @@ class Cmo3TextureFramesTest {
 
 		// A rewrite rebuilds the image's cache without the copy; the drawable still samples it.
 		modelImage.cachedImageManager = CCachedImageManager().apply { cachedImages = listOf(CCachedImage().apply { _cachedImageResource = raster }) }
-		assertTrue(frames.storedUvsInCacheFrame(onCopy), "a cache rebuild does not change what the drawable's coordinates mean")
+		assertEquals(Cmo3StoredFrame.Cache, frames.storedFrameOf(onCopy), "a cache rebuild does not change what the drawable's coordinates mean")
 
 		// Retargeting the texture onto the raster does.
 		(onCopy.texture as GTexture2D).srcImageResource = raster
-		assertFalse(frames.storedUvsInCacheFrame(onCopy), "a packed drawable moved onto its raster stores the raster's frame")
+		assertEquals(Cmo3StoredFrame.Raster, frames.storedFrameOf(onCopy), "a packed drawable moved onto its raster stores the raster's frame")
 		assertSame(raster, frames.renderedImageOf(onCopy))
 	}
 
@@ -187,7 +209,7 @@ class Cmo3TextureFramesTest {
 		val frames = Cmo3TextureFrames(modelSource())
 
 		assertFalse(frames.isReducedCopy(page))
-		assertFalse(frames.storedUvsInCacheFrame(onPage))
+		assertEquals(Cmo3StoredFrame.Page, frames.storedFrameOf(onPage))
 		assertSame(page, frames.renderedImageOf(onPage))
 	}
 }

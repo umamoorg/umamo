@@ -278,6 +278,55 @@ class SourceLayerDisplayRenderTest {
 	}
 
 	/**
+	 * A mesh overhanging the page it samples shows nothing past the page - the same streak, on the atlas.
+	 *
+	 * A document's page is not always a packed atlas with padding around every tile: a CMO3 draws some
+	 * drawables straight from their model image, and the renderer takes that image as the drawable's page.
+	 * So the page wraps to a transparent border like a layer image does, and this probe - the overhang
+	 * probe above, displayed from a page instead of its artwork - lights a quarter of its quad, not all of it.
+	 */
+	@Test
+	fun atlasDisplayShowsNothingWhereTheMeshOverhangsItsPage() {
+		requireHeadlessGl("[page-overhang]")
+		val source = probeModel(overhangUvs)
+		val device = GlRenderDevice()
+		val renderer =
+			PuppetRenderer(
+				source,
+				PuppetTextures(listOf(solidImage(red = 0xFF, green = 0x00, size = 256)), mapOf(probeId.raw to 0), premultipliedAlpha = false),
+				device,
+			)
+		renderer.initGl()
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+
+		fun frame(): ByteBuffer {
+			renderer.setPose(emptyMap())
+			GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+			renderer.render(target, viewportSize, viewportSize)
+			return readPixels(viewportSize, viewportSize)
+		}
+
+		renderer.setShownDrawables(emptySet())
+		val background = frame()
+		renderer.setShownDrawables(setOf(probeId))
+		val statsPage = artColorStats(frame(), background, viewportSize, viewportSize)
+
+		val quadPixels = 120 * 120
+		val expectedArtPixels = quadPixels * overhangArtAreaFraction
+		println("[page-overhang] page mass ${statsPage.mass} px (quad $quadPixels, art ~$expectedArtPixels) r=${statsPage.meanRed} g=${statsPage.meanGreen}")
+
+		assertTrue(statsPage.mass > expectedArtPixels * 0.7f, "the page did not render at all (mass ${statsPage.mass})")
+		assertTrue(
+			statsPage.mass < expectedArtPixels * 1.4f,
+			"the mesh's overhang sampled the page's border instead of nothing: ${statsPage.mass} px lit, " +
+				"~$expectedArtPixels expected (a whole-quad $quadPixels means edge clamping)",
+		)
+		assertTrue(statsPage.meanRed > 200f && statsPage.meanGreen < 60f, "what did render is not the page (r=${statsPage.meanRed} g=${statsPage.meanGreen})")
+	}
+
+	/**
 	 * The mode never shows a puppet half in artwork and half on its atlas.
 	 *
 	 * Source-artwork display exists so a rigger can INSPECT the art, so a mixed view is not a degraded

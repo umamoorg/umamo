@@ -9,6 +9,7 @@ import org.umamo.format.cmo3.model.gen.CCachedImage
 import org.umamo.format.cmo3.model.gen.CCachedImageManager
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CModelImageGroup
+import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.gen.CTextureManager
@@ -16,7 +17,9 @@ import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.atlasPixelOf
 import java.io.File
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertTrue
@@ -30,8 +33,10 @@ import kotlin.test.assertTrue
  *  - A PACKED drawable over an atlas page or its model image's raster stores that image's own frame, and
  *    ingest leaves its UVs VERBATIM.
  *  - A drawable over the editor's reduced cache copy of its model image stores the copy's frame, which is
- *    the cache frame: ingest inverts the affine AND the drawable is shown from its model image's raster.
- *    The two go together - inverting the UVs while still sampling the copy shrinks the art.
+ *    the cache frame: ingest inverts the affine, and the drawable is shown from what its new coordinates
+ *    address.  The two go together - inverting the UVs while still sampling the copy shrinks the art.
+ *  - A placed tile's drawable, whatever its texture names, is read onto its atlas page (a model saved in
+ *    source-layer display still carries the page) and shown from that page.
  *
  * Corpus-gated by name; self-skips when a sample is absent.
  */
@@ -109,65 +114,107 @@ class Cmo3ImageResourceUvTest {
 	}
 
 	/**
-	 * Packed drawables over a page or their raster keep their stored UVs verbatim, and drawables over a
-	 * reduced copy come out inverted into their raster's frame AND shown from that raster.
+	 * A model saved in source-layer display is read onto its own atlas page: every placed drawable's UVs
+	 * leave the frame its texture names - its raster's, or the cache frame through the affine's inverse when
+	 * it samples a reduced copy - and go through its tile's placement onto the page, and the drawable is
+	 * shown from that page, never the copy or the raster.  The expected coordinates are computed here from
+	 * the file's own fields, independently of the import.
 	 */
 	@Test
-	fun packedUvsAreVerbatimAndReducedCopiesMoveToTheirRaster() {
+	fun aSourceModeSaveIsReadOntoItsOwnAtlasPage() {
 		val file =
 			corpusFile("modelA.cmo3") ?: run {
-				println("modelA.cmo3 not present; skipping packed-UV test")
+				println("modelA.cmo3 not present; skipping the source-mode page test")
 				return
 			}
 		val cmo3 = Cmo3.read(file)
 		val root = cmo3.root as? CModelSource ?: error("root is not a CModelSource")
-		val puppet = Cmo3Import.fromModelSource(root)
+		val imported = Cmo3Import.importModelSource(root)
+		val puppet = imported.puppet
 		val renderPages = cmo3AtlasPages(root, cmo3::extractLayerPng)
 		val copyOwners = reducedCopyOwners(root)
+		val pagePngs =
+			elements((root.textureManager as CTextureManager)._textureAtlases).filterIsInstance<CTextureAtlas>()
+				.map { atlas -> (atlas.cachedAtlasImage as? CImageResource)?.let(cmo3::extractLayerPng) }
 
 		val sourcesById = artMeshes(root).associateBy { (it.id as? Id)?.idstr }
-		var verbatimChecked = 0
+		var rasterChecked = 0
 		var reducedCopyChecked = 0
+		for (drawable in puppet.drawables) {
+			val source = sourcesById[drawable.id.raw] ?: continue
+			val tile = drawable.atlasTileId?.let { tileId -> puppet.atlas.tileById[tileId] } ?: continue
+			val placement = tile.placement ?: continue
+			val page = puppet.atlas.pages[placement.pageIndex]
+			val sourceUvs = source.uvs as? FloatArray ?: continue
+			val sampled = (source.texture as? GTexture2D)?.srcImageResource as? CImageResource ?: continue
+			val overCopy = sampled in copyOwners
+			val affine = (source.texture as GTexture2D).transformImageResource01toLogical01 as CAffine
+			val determinant = affine.m00 * affine.m11 - affine.m01 * affine.m10
+			val modelUvs = drawable.mesh!!.uvs
+			var componentIndex = 0
+			while (componentIndex + 1 < sourceUvs.size) {
+				// Into the raster frame: verbatim over the raster, through the cache affine's inverse over a copy.
+				val artU: Float
+				val artV: Float
+				if (overCopy) {
+					val cacheU = sourceUvs[componentIndex] - affine.m02
+					val cacheV = sourceUvs[componentIndex + 1] - affine.m12
+					artU = (affine.m11 * cacheU - affine.m01 * cacheV) / determinant
+					artV = (-affine.m10 * cacheU + affine.m00 * cacheV) / determinant
+				} else {
+					artU = sourceUvs[componentIndex]
+					artV = sourceUvs[componentIndex + 1]
+				}
+				// Onto the page: the placement takes art pixels to page pixels.
+				val pagePixel = atlasPixelOf(placement, artU * tile.width, artV * tile.height)
+				val expectedU = pagePixel[0] / page.width
+				val expectedV = pagePixel[1] / page.height
+				assertTrue(
+					abs(modelUvs[componentIndex] - expectedU) < 1e-5f && abs(modelUvs[componentIndex + 1] - expectedV) < 1e-5f,
+					"drawable ${drawable.id.raw} UV ${componentIndex / 2} is (${modelUvs[componentIndex]}, ${modelUvs[componentIndex + 1]}), not the page's ($expectedU, $expectedV)",
+				)
+				componentIndex += 2
+			}
+			val pageIndex = renderPages.atlasIndexByDrawableId[drawable.id.raw]
+			val pagePng = pagePngs.getOrNull(placement.pageIndex)
+			assertTrue(
+				pageIndex != null && pagePng != null && renderPages.pageBytes[pageIndex].contentEquals(pagePng),
+				"drawable ${drawable.id.raw} must be shown from its tile's atlas page",
+			)
+			if (overCopy) {
+				reducedCopyChecked++
+			} else {
+				rasterChecked++
+			}
+		}
+		assertTrue(puppet.atlas.storedUvsAddressPages, "a source-mode save's coordinates address its pages")
+		assertTrue(rasterChecked > 0, "expected placed drawables over their raster; found none")
+		assertTrue(reducedCopyChecked > 0, "expected placed drawables over a reduced copy (the regression surface); found none")
+	}
+
+	/**
+	 * A model saved in atlas display keeps its drawables' page coordinates byte for byte.
+	 */
+	@Test
+	fun pageSamplingUvsAreLeftVerbatim() {
+		val file =
+			corpusFile("EricaTamamo.cmo3") ?: run {
+				println("EricaTamamo.cmo3 not present; skipping the verbatim page test")
+				return
+			}
+		val root = Cmo3.read(file).root as? CModelSource ?: error("root is not a CModelSource")
+		val puppet = Cmo3Import.fromModelSource(root)
+		val sourcesById = artMeshes(root).associateBy { (it.id as? Id)?.idstr }
+		var checked = 0
 		for (drawable in puppet.drawables) {
 			val source = sourcesById[drawable.id.raw] ?: continue
 			if (!hasAtlasRegion(source)) {
 				continue
 			}
 			val sourceUvs = source.uvs as? FloatArray ?: continue
-			val sampled = (source.texture as? GTexture2D)?.srcImageResource as? CImageResource ?: continue
-			val owner = copyOwners[sampled]
-			if (owner == null) {
-				// A packed drawable over a page or its raster: byte-for-byte, no remap.
-				assertContentEquals(sourceUvs, drawable.mesh!!.uvs, "packed drawable ${drawable.id.raw} UVs must be verbatim")
-				verbatimChecked++
-				continue
-			}
-			// Over a reduced copy: the UVs leave the cache frame through the affine's inverse ...
-			val affine = (source.texture as GTexture2D).transformImageResource01toLogical01 as CAffine
-			val determinant = affine.m00 * affine.m11 - affine.m01 * affine.m10
-			val modelUvs = drawable.mesh!!.uvs
-			var componentIndex = 0
-			while (componentIndex + 1 < sourceUvs.size) {
-				val cacheU = sourceUvs[componentIndex] - affine.m02
-				val cacheV = sourceUvs[componentIndex + 1] - affine.m12
-				val expectedU = (affine.m11 * cacheU - affine.m01 * cacheV) / determinant
-				val expectedV = (-affine.m10 * cacheU + affine.m00 * cacheV) / determinant
-				assertTrue(
-					kotlin.math.abs(modelUvs[componentIndex] - expectedU) < 1e-5f && kotlin.math.abs(modelUvs[componentIndex + 1] - expectedV) < 1e-5f,
-					"reduced-copy drawable ${drawable.id.raw} UV ${componentIndex / 2} must be inverted into its raster's frame",
-				)
-				componentIndex += 2
-			}
-			// ... and the drawable is shown from the raster those UVs now address, never the copy.
-			val pageIndex = renderPages.atlasIndexByDrawableId[drawable.id.raw]
-			val rasterPng = (owner._filteredImage as? CImageResource)?.let(cmo3::extractLayerPng)
-			assertTrue(
-				pageIndex != null && rasterPng != null && renderPages.pageBytes[pageIndex].contentEquals(rasterPng),
-				"reduced-copy drawable ${drawable.id.raw} must be shown from its model image's raster",
-			)
-			reducedCopyChecked++
+			assertContentEquals(sourceUvs, drawable.mesh!!.uvs, "page-sampling drawable ${drawable.id.raw} UVs must be verbatim")
+			checked++
 		}
-		assertTrue(verbatimChecked > 0, "expected packed drawables over a page or a raster; found none")
-		assertTrue(reducedCopyChecked > 0, "expected drawables over a reduced copy (the regression surface); found none")
+		assertTrue(checked > 0, "expected page-sampling drawables; found none")
 	}
 }

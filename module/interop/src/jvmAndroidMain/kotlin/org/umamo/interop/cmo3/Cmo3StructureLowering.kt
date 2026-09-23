@@ -29,6 +29,7 @@ import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.runtime.model.storedToArtAffineForTile
 
 /*
  * The structural half of the CMO3 export reconcile: set membership.  Creations synthesize an
@@ -648,7 +649,7 @@ internal class Cmo3StructureLowering(
 		editor.ensureChildSlot(source, "CArtMeshSource", "indices", "keyforms")
 		source.positions = mesh.positions.copyOf()
 		editor.ensureChildSlot(source, "CArtMeshSource", "positions", "uvs")
-		source.uvs = storedUvsFor(source, mesh.uvs)
+		source.uvs = storedUvsFor(source, mesh.uvs, editedDrawable)
 		editor.ensureChildSlot(source, "CArtMeshSource", "uvs", "texture")
 
 		val editableMesh = Cmo3Import.editableMeshOf(source)
@@ -792,13 +793,16 @@ internal class Cmo3StructureLowering(
 		}
 
 	/**
-	 * The UVs as CMO3 stores them, in the frame the drawable stores ([Cmo3TextureFrames.storedUvsOf]).
+	 * The UVs as CMO3 stores them, in the frame the drawable stores ([Cmo3TextureFrames.storedUvsOf]), off
+	 * its tile's page through the edited placement when the tile has one.
 	 *
-	 * @param CArtMeshSource source The drawable's graph source.
-	 * @param FloatArray     uvs    The model-frame UVs.
+	 * @param CArtMeshSource source         The drawable's graph source.
+	 * @param FloatArray     uvs            The model-frame UVs.
+	 * @param Drawable       editedDrawable The edited drawable, whose tile the UVs address.
 	 * @return FloatArray The stored-frame UVs.
 	 */
-	private fun storedUvsFor(source: CArtMeshSource, uvs: FloatArray): FloatArray = textureFrames.storedUvsOf(source, uvs)
+	private fun storedUvsFor(source: CArtMeshSource, uvs: FloatArray, editedDrawable: Drawable): FloatArray =
+		textureFrames.storedUvsOf(source, uvs, editedDrawable.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) })
 
 	private fun findEditedGroup(groupId: ParameterGroupId): ParameterNode.Group? {
 		fun walk(nodes: List<ParameterNode>): ParameterNode.Group? {

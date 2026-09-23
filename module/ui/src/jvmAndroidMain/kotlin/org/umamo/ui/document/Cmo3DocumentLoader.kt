@@ -68,7 +68,7 @@ internal fun buildCmo3Document(cmo3: Cmo3Model, name: String, path: String): Doc
 	// resource inside an otherwise editable rig must not cost the rigger everything else.  Skip never
 	// returns null, so the fallback is unreachable - the shared builder's return type is nullable only
 	// to serve the Fail policy.
-	val pageSet = cmo3AtlasPages(root, cmo3::extractLayerPng)
+	val pageSet = cmo3AtlasPages(root, imported.atlasIngest, cmo3::extractLayerPng)
 	val textures =
 		buildPuppetTextures(
 			pageSet.pageBytes,

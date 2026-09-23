@@ -89,6 +89,7 @@ import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.canvasCenterWorldOriginX
 import org.umamo.runtime.model.canvasCenterWorldOriginZ
 import org.umamo.runtime.model.deriveRenderRoot
+import org.umamo.runtime.model.storedToArtAffineForTile
 
 /**
  * Maps a parsed CMO3 model graph (`:format`) into the concrete [PuppetModel] (`:runtime`).
@@ -424,7 +425,9 @@ object Cmo3Import {
 
 		val drawables =
 			orderedDrawableSources.map { source ->
-				val mesh = meshOf(source, textureFrames)
+				// A placed tile's drawable takes its coordinates on the tile's page (Cmo3TextureFrames).
+				val storedToArt = atlasIngest.tileIdByDrawableId[idStrOf(source.id).orEmpty()]?.let { tileId -> atlasIngest.atlas.storedToArtAffineForTile(tileId) }
+				val mesh = meshOf(source, textureFrames, storedToArt)
 				// One bundled grid, then split into per-vertex deltas and the render channels.
 				val fannedMesh =
 					buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid) { form ->
@@ -741,19 +744,20 @@ object Cmo3Import {
 	 * Reads an art mesh's rest-pose geometry. CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`
 	 * (interleaved x,y), `indices` is an `int-array` (3 per triangle).
 	 *
-	 * The stored `uvs` reach the model through [Cmo3TextureFrames.modelUvsOf]: a drawable that stores the
-	 * editor's cache frame (unpacked, or over a reduced cache copy) is brought into its model image's raster
-	 * frame, and every other drawable's coordinates already address the image it is shown from.
+	 * The stored `uvs` reach the model through [Cmo3TextureFrames.modelUvsOf]: coordinates on an atlas page
+	 * stay as they are, anything else is brought into its model image's raster frame (out of the editor's
+	 * cache frame when unpacked or over a reduced copy), and a placed tile's then go on onto its page.
 	 *
 	 * @param CArtMeshSource    source        The art-mesh source.
 	 * @param Cmo3TextureFrames textureFrames The document's texture frames.
+	 * @param FloatArray?       storedToArt   The drawable's tile's model-to-art affine, or null without a tile.
 	 * @return DrawableMesh? The base mesh, or null when the source carries no positions.
 	 */
-	private fun meshOf(source: CArtMeshSource, textureFrames: Cmo3TextureFrames): DrawableMesh? {
+	private fun meshOf(source: CArtMeshSource, textureFrames: Cmo3TextureFrames, storedToArt: FloatArray?): DrawableMesh? {
 		val positions = source.positions as? FloatArray ?: return null
 		val storedUvs = source.uvs as? FloatArray ?: FloatArray(0)
 		val indices = source.indices as? IntArray ?: IntArray(0)
-		return DrawableMesh(positions, textureFrames.modelUvsOf(source, storedUvs), indices)
+		return DrawableMesh(positions, textureFrames.modelUvsOf(source, storedUvs, storedToArt), indices)
 	}
 
 	/**
@@ -762,7 +766,7 @@ object Cmo3Import {
 	 * image it samples, and they stay there even when the model is toggled back to combined-layer display; a
 	 * never-packed drawable keeps its `uvs` in the editor's cache frame.  A model with no atlas at all
 	 * (MultiplyScreenColors) has only model-image inputs, so every drawable returns false.  Which frame a
-	 * drawable's coordinates are in is [Cmo3TextureFrames.storedUvsInCacheFrame]'s call, of which this is one half.
+	 * drawable's coordinates are in is [Cmo3TextureFrames.storedFrameOf]'s call, of which this is one part.
 	 *
 	 * CMO3: CArtMeshSource _extensions -> CTextureInputExtension._textureInputs holds a
 	 * CTextureInput_ModelImage and, once packed, a CTextureInput_TextureAtlasRegion.  See docs/format/CMO3.md §4.

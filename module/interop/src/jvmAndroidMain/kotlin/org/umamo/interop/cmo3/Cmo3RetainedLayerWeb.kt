@@ -34,6 +34,7 @@ import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.lineageRoot
+import org.umamo.runtime.model.storedToArtAffineForTile
 import kotlin.math.roundToInt
 
 /*
@@ -494,7 +495,7 @@ internal class Cmo3RetainedLayerWeb(
 			return
 		}
 		// The frames as they are before any texture moves: shared textures make a later read stale.
-		val cacheFrameBefore = shownFromImage.associateWith { source -> textureFrames.storedUvsInCacheFrame(source) }
+		val frameBefore = shownFromImage.associateWith { source -> textureFrames.storedFrameOf(source) }
 		val scaleBefore = shownFromImage.associateWith { source -> affineValuesOf((source.texture as? GTexture2D)?.transformImageResource01toLogical01) }
 		val releasedCopies = HashSet<CImageResource>()
 		val retargeted = HashSet<GTexture2D>()
@@ -514,16 +515,18 @@ internal class Cmo3RetainedLayerWeb(
 			editor.ensureChildSlot(texture, "GTexture2D", "mipmapLevel", "isPremultiplied")
 		}
 		for (source in shownFromImage) {
-			val inCacheFrame = textureFrames.storedUvsInCacheFrame(source)
+			val frameNow = textureFrames.storedFrameOf(source)
 			val scaleNow = affineValuesOf((source.texture as? GTexture2D)?.transformImageResource01toLogical01)
-			val meaningChanged = inCacheFrame != cacheFrameBefore[source] || (inCacheFrame && !scaleNow.contentEquals(scaleBefore[source]))
+			val meaningChanged = frameNow != frameBefore[source] || (frameNow == Cmo3StoredFrame.Cache && !scaleNow.contentEquals(scaleBefore[source]))
 			if (!meaningChanged) {
 				continue
 			}
 			val drawableId = (source.id as? Id)?.idstr ?: continue
-			val editedUvs = editedDrawableById[drawableId]?.mesh?.uvs ?: continue
+			val editedDrawable = editedDrawableById[drawableId] ?: continue
+			val editedUvs = editedDrawable.mesh?.uvs ?: continue
+			val storedToArt = editedDrawable.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) }
 			// CMO3: CArtMeshSource field uvs.
-			source.uvs = textureFrames.storedUvsOf(source, editedUvs)
+			source.uvs = textureFrames.storedUvsOf(source, editedUvs, storedToArt)
 			editor.ensureChildSlot(source, "CArtMeshSource", "uvs", "texture")
 		}
 		for (copy in releasedCopies) {

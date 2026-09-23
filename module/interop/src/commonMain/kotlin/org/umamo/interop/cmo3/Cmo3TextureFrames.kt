@@ -11,6 +11,22 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.invertUvAffine
+
+/**
+ * The frame a drawable's stored texture coordinates are in, read off the image its texture names.
+ */
+internal enum class Cmo3StoredFrame {
+	/** An atlas page's own [0,1]: the drawable samples the page. */
+	Page,
+
+	/** Its model image's raster's own [0,1]: a packed drawable sampling the raster. */
+	Raster,
+
+	/** The editor's cache frame, the raster padded to a multiple of 64: unpacked, or over a reduced copy. */
+	Cache,
+}
 
 /**
  * Which image each CMO3 drawable is shown from, and how its stored texture coordinates reach that image -
@@ -25,19 +41,27 @@ import org.umamo.format.cmo3.model.type.CAffine
  * carries the raster-to-cache scale (raster size over its 64-aligned padding, per axis), so the cache frame
  * reaches the raster through that affine's inverse.
  *
- * Umamo keeps no cache frame and no reduced copy.  Every drawable's model coordinates address either its
- * atlas page or its model image's raster, and a drawable over a reduced copy is shown from the raster - the
- * copy is the editor's display cache and has no meaning outside it.  The export applies the affine forward
- * again, so the file keeps the frame the editor reads.
+ * Umamo keeps no cache frame and no reduced copy, and reads every placed tile off its page.  A drawable
+ * whose tile the editor packed (it has an atlas entry, so the tile has a placement) takes model coordinates
+ * in that PAGE's frame whatever its texture names: a model saved in source-layer display points its
+ * drawables at model images or their copies, yet its atlas page is in the file and is what the editor shows
+ * with the source artwork off.  Any other drawable takes its model image's raster frame, and a drawable
+ * over a reduced copy is shown from the raster - the copy is the editor's display cache and has no meaning
+ * outside it.  The export runs the same chain backward, so the file keeps the frame the editor reads.
+ *
+ * The tile's placement arrives as its stored-to-art affine ([org.umamo.runtime.model.storedToArtAffineForTile]):
+ * the import's atlas on the way in, the EDITED model's on the way out, so a repack's new placement converts
+ * correctly while the art frame - which a repack never moves - is what reaches the file.
  *
  * The set of reduced copies is taken once, from the graph as it was read.  An export that rewrites a model
  * image rebuilds its cache and would otherwise make its copy vanish in the middle of the pass; each query
  * reads the drawable's CURRENT texture against that set, so only a deliberate retarget of the texture moves
- * a drawable out of the cache frame.
+ * a drawable out of the cache frame.  The atlas pages, by contrast, are read live: a pack-in points its
+ * drawable at a page the same export may have just minted, and that drawable stores the page's frame.
  *
  * @param CModelSource modelSource The CMO3's root model source, as read.
  */
-internal class Cmo3TextureFrames(modelSource: CModelSource) {
+internal class Cmo3TextureFrames(private val modelSource: CModelSource) {
 	/** Each reduced copy in the graph as read, to the model image it is a copy of; compared by identity. */
 	private val ownerByReducedCopy: Map<CImageResource, CModelImage> = reducedCopiesOf(modelSource)
 
@@ -50,12 +74,19 @@ internal class Cmo3TextureFrames(modelSource: CModelSource) {
 	fun samplesReducedCopy(source: CArtMeshSource): Boolean = sampledResourceOf(source)?.let { resource -> resource in ownerByReducedCopy } == true
 
 	/**
-	 * Whether a drawable's stored coordinates are in the cache frame rather than its sampled image's own.
+	 * The frame a drawable's stored coordinates are in.
 	 *
 	 * @param CArtMeshSource source The drawable's graph source.
-	 * @return Boolean True for an unpacked drawable and for one over a reduced copy.
+	 * @return Cmo3StoredFrame Page over an atlas page; Cache when unpacked or over a reduced copy; else Raster.
 	 */
-	fun storedUvsInCacheFrame(source: CArtMeshSource): Boolean = !Cmo3Import.hasAtlasRegion(source) || samplesReducedCopy(source)
+	fun storedFrameOf(source: CArtMeshSource): Cmo3StoredFrame {
+		val sampled = sampledResourceOf(source)
+		return when {
+			sampled != null && isAtlasPage(sampled) -> Cmo3StoredFrame.Page
+			!Cmo3Import.hasAtlasRegion(source) || samplesReducedCopy(source) -> Cmo3StoredFrame.Cache
+			else -> Cmo3StoredFrame.Raster
+		}
+	}
 
 	/**
 	 * The image Umamo shows a drawable from: its model image's raster in place of a reduced copy, else the
@@ -71,50 +102,82 @@ internal class Cmo3TextureFrames(modelSource: CModelSource) {
 	}
 
 	/**
-	 * The model coordinates of a drawable's stored ones: into the raster frame through the inverse of the
-	 * raster-to-cache affine when they are in the cache frame, else verbatim.
+	 * The model coordinates of a drawable's stored ones.  Page coordinates are taken verbatim.  Otherwise
+	 * the stored coordinates reach the raster frame - verbatim from Raster, through the inverse of the
+	 * raster-to-cache affine from Cache - and a placed tile's then go on through its placement onto its page.
 	 *
-	 * @param CArtMeshSource source     The drawable's graph source.
-	 * @param FloatArray     storedUvs  The stored coordinates, interleaved (u, v).
+	 * @param CArtMeshSource source      The drawable's graph source.
+	 * @param FloatArray     storedUvs   The stored coordinates, interleaved (u, v).
+	 * @param FloatArray?    storedToArt The drawable's tile's model-to-art affine, or null (or the identity)
+	 *   when the tile is not placed.
 	 * @return FloatArray The model coordinates; the same array when no remap applies.
 	 */
-	fun modelUvsOf(source: CArtMeshSource, storedUvs: FloatArray): FloatArray {
-		if (!storedUvsInCacheFrame(source)) {
+	fun modelUvsOf(source: CArtMeshSource, storedUvs: FloatArray, storedToArt: FloatArray? = null): FloatArray {
+		val frame = storedFrameOf(source)
+		if (frame == Cmo3StoredFrame.Page) {
 			return storedUvs
 		}
-		val affine = cacheAffineOf(source) ?: return storedUvs
-		val determinant = affine.m00 * affine.m11 - affine.m01 * affine.m10
-		// A degenerate affine would invert to NaN or infinity; the coordinates stay as stored.
-		if (determinant == 0f) {
-			return storedUvs
-		}
-		val modelUvs = FloatArray(storedUvs.size)
-		var componentIndex = 0
-		while (componentIndex + 1 < storedUvs.size) {
-			modelUvs[componentIndex] = inverseU(affine, determinant, storedUvs[componentIndex], storedUvs[componentIndex + 1])
-			modelUvs[componentIndex + 1] = inverseV(affine, determinant, storedUvs[componentIndex], storedUvs[componentIndex + 1])
-			componentIndex += 2
-		}
-		return modelUvs
+		val artUvs = if (frame == Cmo3StoredFrame.Cache) rasterUvsOfCache(source, storedUvs) else storedUvs
+		val artToModel = storedToArt?.takeUnless(::isIdentityAffine)?.let(::invertUvAffine) ?: return artUvs
+		return applyUvAffine(artUvs, artToModel)
 	}
 
 	/**
-	 * The stored coordinates of a drawable's model ones: through the raster-to-cache affine when the drawable
-	 * stores the cache frame, else verbatim.
+	 * Cache-frame coordinates brought into the raster frame through the inverse of the raster-to-cache affine.
 	 *
-	 * A coordinate pair the edit left alone keeps its stored value, so the affine's float round trip cannot
-	 * drift a file the rigger did not touch there.  That needs both the stored and the baseline model
-	 * coordinates; without them every pair is converted, and a converted pair re-imports within a few ULPs
-	 * of the model's value: through a scale, not every float has a float that maps onto it exactly.
+	 * @param CArtMeshSource source    The drawable's graph source.
+	 * @param FloatArray     cacheUvs  The coordinates in the cache frame.
+	 * @return FloatArray The raster-frame coordinates; the same array when the affine is absent or degenerate.
+	 */
+	private fun rasterUvsOfCache(source: CArtMeshSource, cacheUvs: FloatArray): FloatArray {
+		val affine = cacheAffineOf(source) ?: return cacheUvs
+		val determinant = affine.m00 * affine.m11 - affine.m01 * affine.m10
+		// A degenerate affine would invert to NaN or infinity; the coordinates stay as stored.
+		if (determinant == 0f) {
+			return cacheUvs
+		}
+		val rasterUvs = FloatArray(cacheUvs.size)
+		var componentIndex = 0
+		while (componentIndex + 1 < cacheUvs.size) {
+			rasterUvs[componentIndex] = inverseU(affine, determinant, cacheUvs[componentIndex], cacheUvs[componentIndex + 1])
+			rasterUvs[componentIndex + 1] = inverseV(affine, determinant, cacheUvs[componentIndex], cacheUvs[componentIndex + 1])
+			componentIndex += 2
+		}
+		return rasterUvs
+	}
+
+	/**
+	 * The stored coordinates of a drawable's model ones - [modelUvsOf] run backward.  Page coordinates are
+	 * stored verbatim.  Otherwise a placed tile's model coordinates come off its page through the placement
+	 * into the raster frame, which Raster stores verbatim and Cache through the raster-to-cache affine.
+	 *
+	 * A coordinate pair the edit left alone keeps its stored value, so the float round trip cannot drift a
+	 * file the rigger did not touch there.  That needs both the stored and the baseline model coordinates,
+	 * and is only sound when the tile's placement is the one those were read under - the caller passes them
+	 * only then.  Without them every pair is converted, and a converted pair re-imports within a few ULPs of
+	 * the model's value: through a scale, not every float has a float that maps onto it exactly.
 	 *
 	 * @param CArtMeshSource source      The drawable's graph source.
 	 * @param FloatArray     modelUvs    The model coordinates to store, interleaved (u, v).
+	 * @param FloatArray?    storedToArt The drawable's tile's model-to-art affine in the model being stored,
+	 *   or null (or the identity) when the tile is not placed.
 	 * @param FloatArray?    storedUvs   The coordinates the graph stores now, or null.
 	 * @param FloatArray?    baselineUvs The model coordinates [storedUvs] import to, or null.
 	 * @return FloatArray The coordinates to store, a fresh array.
 	 */
-	fun storedUvsOf(source: CArtMeshSource, modelUvs: FloatArray, storedUvs: FloatArray? = null, baselineUvs: FloatArray? = null): FloatArray {
-		val affine = cacheAffineOf(source)?.takeIf { storedUvsInCacheFrame(source) } ?: return modelUvs.copyOf()
+	fun storedUvsOf(
+		source: CArtMeshSource,
+		modelUvs: FloatArray,
+		storedToArt: FloatArray? = null,
+		storedUvs: FloatArray? = null,
+		baselineUvs: FloatArray? = null,
+	): FloatArray {
+		val frame = storedFrameOf(source)
+		if (frame == Cmo3StoredFrame.Page) {
+			return modelUvs.copyOf()
+		}
+		val artUvs = storedToArt?.takeUnless(::isIdentityAffine)?.let { affine -> applyUvAffine(modelUvs, affine) } ?: modelUvs
+		val cacheAffine = if (frame == Cmo3StoredFrame.Cache) cacheAffineOf(source) else null
 		val keptStored = storedUvs?.takeIf { stored -> stored.size == modelUvs.size && baselineUvs?.size == modelUvs.size }
 		val result = FloatArray(modelUvs.size)
 		var componentIndex = 0
@@ -126,15 +189,38 @@ internal class Cmo3TextureFrames(modelSource: CModelSource) {
 			if (keptStored != null && unchangedPair) {
 				result[componentIndex] = keptStored[componentIndex]
 				result[componentIndex + 1] = keptStored[componentIndex + 1]
+			} else if (cacheAffine != null) {
+				val u = artUvs[componentIndex]
+				val v = artUvs[componentIndex + 1]
+				result[componentIndex] = cacheAffine.m00 * u + cacheAffine.m01 * v + cacheAffine.m02
+				result[componentIndex + 1] = cacheAffine.m10 * u + cacheAffine.m11 * v + cacheAffine.m12
 			} else {
-				val u = modelUvs[componentIndex]
-				val v = modelUvs[componentIndex + 1]
-				result[componentIndex] = affine.m00 * u + affine.m01 * v + affine.m02
-				result[componentIndex + 1] = affine.m10 * u + affine.m11 * v + affine.m12
+				result[componentIndex] = artUvs[componentIndex]
+				result[componentIndex + 1] = artUvs[componentIndex + 1]
 			}
 			componentIndex += 2
 		}
 		return result
+	}
+
+	/**
+	 * Whether a resource is one of the graph's atlas pages right now.
+	 *
+	 * The page's own instance, or a twin naming the same archive entry: a graph built rather than read can
+	 * hand a texture a second resource record for the page's pixels, and it samples the page all the same.
+	 *
+	 * @param CImageResource resource The resource.
+	 * @return Boolean True when some texture atlas holds it, or its archive entry, as its page image.
+	 */
+	fun isAtlasPage(resource: CImageResource): Boolean {
+		// CMO3: CImageResource field imageFileBuf - the archive entry holding the pixels.
+		val archivePath = resource.imageFileBuf?.archivePath
+		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases -> CTextureAtlas
+		// field cachedAtlasImage.
+		return Cmo3Import.elementsOf((modelSource.textureManager as? CTextureManager)?._textureAtlases).any { atlas ->
+			val page = (atlas as? CTextureAtlas)?.cachedAtlasImage as? CImageResource
+			page != null && (page === resource || (archivePath != null && page.imageFileBuf?.archivePath == archivePath))
+		}
 	}
 
 	/**
@@ -160,6 +246,15 @@ internal class Cmo3TextureFrames(modelSource: CModelSource) {
 	fun isReducedCopy(resource: CImageResource): Boolean = resource in ownerByReducedCopy
 
 	private companion object {
+		/**
+		 * Whether a 2x3 uv affine changes nothing.
+		 *
+		 * @param FloatArray affine The affine (m00, m01, m02, m10, m11, m12).
+		 * @return Boolean True for the identity.
+		 */
+		fun isIdentityAffine(affine: FloatArray): Boolean =
+			affine[0] == 1f && affine[1] == 0f && affine[2] == 0f && affine[3] == 0f && affine[4] == 1f && affine[5] == 0f
+
 		/**
 		 * The model u a stored pair imports to: the cache frame's inverse, the one expression import uses.
 		 *
