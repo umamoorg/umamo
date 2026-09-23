@@ -965,7 +965,7 @@
 	<string name="settings_import_watch_mode_notify">Notify Only</string>
 	<string name="settings_import_watch_mode_off">Off</string>
 	<string name="settings_import_delete_art_ignores_layer">When deleting art in the sources, also mark the layer as ignored.</string>
-	<string name="settings_import_layer_positions_from_world_axes">In the sources, measure layer positions from the world axes instead of the art file's top-left corner.</string>
+	<string name="settings_import_layer_positions_from_world_axes">In the Sources area, measure layer positions from the world axes instead of the art file's top-left corner.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
