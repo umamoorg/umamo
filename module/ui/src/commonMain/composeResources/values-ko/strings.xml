@@ -167,6 +167,7 @@
 	<string name="menu_web_site">웹사이트…</string>
 	<string name="menu_documentation">공식 문서…</string>
 	<string name="menu_credits">제작진…</string>
+	<string name="menu_quick_setup">빠른 설정…</string>
 	<string name="menu_about">Umamo에 대해서…</string>
 	<string name="about_title">Umamo에 대해서</string>
 	<string name="about_version">버전 %1$s</string>
@@ -593,6 +594,8 @@
 	<string name="cmd_preferences">설정</string>
 	<string name="settings_title">설정</string>
 	<string name="settings_close">설정 닫기</string>
+	<string name="quick_setup_title">빠른 설정</string>
+	<string name="quick_setup_continue">계속</string>
 	<string name="settings_category_interface">인터페이스</string>
 	<string name="settings_category_colors">색상</string>
 	<string name="settings_category_viewport">뷰포트</string>
@@ -605,6 +608,7 @@
 	<string name="settings_interface_language">언어</string>
 	<string name="settings_interface_history_steps">작업 내역 단계</string>
 	<string name="settings_keybindings_preset">프리셋</string>
+	<string name="settings_keybindings_preset_quick">단축키 프리셋</string>
 	<string name="settings_keymap_preset_default">기본</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>

@@ -232,6 +232,7 @@
 	<string name="menu_web_site">ホームページ…</string>
 	<string name="menu_documentation">文献集…</string>
 	<string name="menu_credits">クレジット…</string>
+	<string name="menu_quick_setup">クイックセットアップ…</string>
 	<string name="menu_about">Umamoについて…</string>
 	<!-- ヘルプダイアログ（クレジットは同梱の CREDITS.md、バージョン情報は名称・バージョン・ライセンス・リンク）。 -->
 	<string name="about_title">Umamoについて</string>
@@ -866,6 +867,8 @@
 	<string name="cmd_preferences">設定</string>
 	<string name="settings_title">設定</string>
 	<string name="settings_close">設定を閉じる</string>
+	<string name="quick_setup_title">クイックセットアップ</string>
+	<string name="quick_setup_continue">続ける</string>
 	<string name="settings_category_interface">インターフェース</string>
 	<string name="settings_category_colors">カラー</string>
 	<string name="settings_category_viewport">ビューポート</string>
@@ -882,6 +885,7 @@
 	<string name="settings_interface_history_steps">履歴のステップ数</string>
 	<!-- キーバインド設定：プリセット選択とコマンドごとの再割り当て編集。 -->
 	<string name="settings_keybindings_preset">プリセット</string>
+	<string name="settings_keybindings_preset_quick">キーバインドのプリセット</string>
 	<string name="settings_keymap_preset_default">デフォルト</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>

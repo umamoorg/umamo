@@ -32,6 +32,7 @@ import org.umamo.ui.kit.MenuBarController
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_mesh_grab
+import org.umamo.ui.settings.QuickSetupState
 import org.umamo.ui.viewport.pieMenuEntriesFor
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 import kotlin.test.Test
@@ -426,12 +427,13 @@ class ModalKeyLadderTest {
 
 	@Test
 	fun theSelfFocusedOverlaysTakeEscapeAndYieldOtherKeys() {
-		// Preferences, the two Help dialogs, the palette, and the export-options dialog are one family:
-		// Escape closes, anything else falls through to the overlay's own content (its search field, its
-		// scroll, its links, its number field's type-in).
+		// Preferences, Quick Setup, the two Help dialogs, the palette, and the export-options dialog are one
+		// family: Escape closes, anything else falls through to the overlay's own content (its search field,
+		// its scroll, its links, its number field's type-in).
 		val cases =
 			listOf<Triple<String, ShellOverlayState, (ShellOverlayState) -> Boolean>>(
 				Triple("preferences", ShellOverlayState().apply { settingsVisible = true }, { it.settingsVisible }),
+				Triple("quick setup", ShellOverlayState().apply { quickSetupVisible = true }, { it.quickSetupVisible }),
 				Triple("about", ShellOverlayState().apply { aboutVisible = true }, { it.aboutVisible }),
 				Triple("credits", ShellOverlayState().apply { creditsVisible = true }, { it.creditsVisible }),
 				Triple("palette", ShellOverlayState().apply { paletteVisible = true }, { it.paletteVisible }),
@@ -470,6 +472,50 @@ class ModalKeyLadderTest {
 
 		assertTrue(escape(state))
 		assertFalse(overlays.aboutVisible, "a second Escape takes the next one down")
+	}
+
+	@Test
+	fun quickSetupSitsAbovePreferences() {
+		val overlays =
+			ShellOverlayState().apply {
+				settingsVisible = true
+				quickSetupVisible = true
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertFalse(overlays.quickSetupVisible, "Quick Setup closes before preferences")
+		assertTrue(overlays.settingsVisible, "which survives the first Escape")
+	}
+
+	@Test
+	fun quickSetupLivesInTheAppsHolderNotTheShell() {
+		// The shell's overlay state is rebuilt on every document swap; Quick Setup's visibility is the app's,
+		// so a new shell over the same holder opens with it still up, and closing it closes it for the app.
+		val quickSetup = QuickSetupState(visible = true)
+		assertTrue(ShellOverlayState(quickSetup).quickSetupVisible, "open in the first shell")
+
+		val rebuilt = ShellOverlayState(quickSetup)
+		assertTrue(rebuilt.quickSetupVisible, "and still open in the shell a document swap rebuilds")
+
+		assertTrue(escape(ShellModalState(overlays = rebuilt)))
+		assertFalse(quickSetup.visible, "Escape in the new shell closes it in the app's holder")
+	}
+
+	@Test
+	fun aConfirmOverQuickSetupTakesEscapeWhileQuickSetupStaysOpen() {
+		// A first launch can raise an alert or a confirm under Quick Setup; the alert arms sit above the
+		// self-focused arm, so their keys never reach Quick Setup's Escape-to-close.
+		val overlays =
+			ShellOverlayState().apply {
+				quickSetupVisible = true
+				pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {}
+			}
+		val state = ShellModalState(overlays = overlays)
+
+		assertTrue(escape(state))
+		assertNull(overlays.pendingConfirm, "Escape cancels the confirm")
+		assertTrue(overlays.quickSetupVisible, "and Quick Setup stays open")
 	}
 
 	@Test

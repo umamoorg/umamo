@@ -10,6 +10,7 @@ import org.umamo.ui.model.AtlasRepackReport
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.dialog_cancel
 import org.umamo.ui.resources.dialog_confirm
+import org.umamo.ui.settings.QuickSetupState
 
 /**
  * A confirmation's third choice beside Cancel and Confirm - "Don't Save" beside "Save".
@@ -60,18 +61,30 @@ internal data class ConfirmRequest(
 )
 
 /**
- * The shell's transient overlay flags in one place: which modal chrome (palette, preferences, Help
- * dialogs, confirm dialog, file-open alert, export report, repack refusal report) is currently up.
- * The command handlers toggle these, the modal key ladder routes Escape/Enter by them, the
- * focus-reclaim effect watches their aggregate, and the shell renders the matching overlay for each -
+ * The shell's transient overlay flags in one place: which modal chrome (palette, preferences, Quick
+ * Setup, Help dialogs, confirm dialog, file-open alert, export report, repack refusal report) is
+ * currently up.  The command handlers toggle these, the modal key ladder routes Escape/Enter by them,
+ * the focus-reclaim effect watches their aggregate, and the shell renders the matching overlay for each -
  * one holder instead of eight loose vars, so the pieces that must agree read the same state.
+ *
+ * @param QuickSetupState quickSetup The Quick Setup modal's visibility, which the app holds for its whole
+ *   life because this state is rebuilt with the shell on every document swap; a standalone shell has its own.
  */
-internal class ShellOverlayState {
+internal class ShellOverlayState(
+	private val quickSetup: QuickSetupState = QuickSetupState(visible = false),
+) {
 	/** The command palette's visible flag - toggled by palette.toggle. */
 	var paletteVisible: Boolean by mutableStateOf(false)
 
 	/** The preferences overlay's visible flag - toggled by the edit.preferences command. */
 	var settingsVisible: Boolean by mutableStateOf(false)
+
+	/** The Quick Setup modal's visible flag - open on a first run, toggled by the help.quickSetup command. */
+	var quickSetupVisible: Boolean
+		get() = quickSetup.visible
+		set(value) {
+			quickSetup.visible = value
+		}
 
 	/** The About dialog's visible flag - toggled by the help.about command. */
 	var aboutVisible: Boolean by mutableStateOf(false)
@@ -193,11 +206,11 @@ internal class ShellOverlayState {
 
 	/**
 	 * True while an overlay that holds its own focus is open (the palette's search field, the
-	 * preferences window's popups, the Help dialogs, the export-options dialog's fields).  While one
-	 * is up the shell must NOT steal focus; it reclaims when this flips false.
+	 * preferences window's and Quick Setup's popups, the Help dialogs, the export-options dialog's
+	 * fields).  While one is up the shell must NOT steal focus; it reclaims when this flips false.
 	 */
 	val selfFocusedOverlayOpen: Boolean
-		get() = paletteVisible || settingsVisible || aboutVisible || creditsVisible || pendingExportOptions != null
+		get() = paletteVisible || settingsVisible || quickSetupVisible || aboutVisible || creditsVisible || pendingExportOptions != null
 
 	/**
 	 * Closes the topmost open self-focused overlay, if any - what Escape does to this family.
@@ -209,6 +222,7 @@ internal class ShellOverlayState {
 	fun closeTopmostSelfFocused() {
 		when {
 			pendingExportOptions != null -> pendingExportOptions = null
+			quickSetupVisible -> quickSetupVisible = false
 			settingsVisible -> settingsVisible = false
 			aboutVisible -> aboutVisible = false
 			creditsVisible -> creditsVisible = false

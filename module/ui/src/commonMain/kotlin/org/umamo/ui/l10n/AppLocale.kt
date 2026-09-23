@@ -17,10 +17,54 @@ import org.umamo.settings.Settings
 val LocalAppLocale = staticCompositionLocalOf { "en" }
 
 /** The settings key holding the UI language tag. */
-private const val LOCALE_SETTINGS_KEY: String = "localization.locale"
+const val LOCALE_SETTINGS_KEY: String = "localization.locale"
 
-/** The language the UI falls back to when the setting holds none. */
-private const val FALLBACK_LOCALE_TAG: String = "en"
+/** The language the UI falls back to when the setting holds none, and when no system language has a catalog. */
+const val FALLBACK_LOCALE_TAG: String = "en"
+
+/**
+ * The UI languages Umamo ships, in display order: one entry per composeResources/values-<tag>/ catalog, keyed
+ * by the BCP-47 tag written to localization.locale (which applyAppLocale feeds to the resource environment).
+ *
+ * The values are endonyms ("English" / "日本語" / "한국어"), shown verbatim whatever the active UI language: a
+ * language's own name is identity, not chrome to translate, and it is what a rigger who cannot read the
+ * current language looks for.
+ */
+val UI_LANGUAGE_ENDONYMS: Map<String, String> = linkedMapOf("en" to "English", "ja" to "日本語", "ko" to "한국어")
+
+/**
+ * The operating system's preferred UI languages as BCP-47 tags, most preferred first; empty when the platform
+ * reports none.  Reads the system's own preference, never the process default [applyAppLocale] overrides, so
+ * the answer is the same before and after the app applies its language.
+ *
+ * @return List<String> The preferred language tags.
+ */
+expect fun systemLanguageTags(): List<String>
+
+/**
+ * Picks the UI language for a list of preferred language tags: the first preferred tag with a catalog wins.
+ * Each tag is tried at its most specific first - the whole tag, then language-region, then the language alone -
+ * so a region catalog ("zh-CN") is matched before a bare language one would be.  `_` separators (the JVM and
+ * POSIX spelling) read as `-`, and case does not matter.
+ *
+ * @param List       preferredTags The preferred language tags, most preferred first.
+ * @param Collection supported     The tags that have a catalog.
+ * @return String The matched supported tag, or [FALLBACK_LOCALE_TAG] when none matches.
+ */
+fun matchUiLanguage(preferredTags: List<String>, supported: Collection<String>): String {
+	val supportedByLowercase = supported.associateBy { tag -> tag.lowercase() }
+	for (preferredTag in preferredTags) {
+		val subtags = preferredTag.replace('_', '-').lowercase().split('-').filter { subtag -> subtag.isNotEmpty() }
+		val language = subtags.firstOrNull() ?: continue
+		// A region is the two-letter or three-digit subtag after the language (and any four-letter script).
+		val region = subtags.drop(1).firstOrNull { subtag -> subtag.length == 2 || (subtag.length == 3 && subtag.all(Char::isDigit)) }
+		val candidates = listOfNotNull(subtags.joinToString("-"), region?.let { "$language-$it" }, language)
+		for (candidate in candidates) {
+			supportedByLowercase[candidate]?.let { matched -> return matched }
+		}
+	}
+	return FALLBACK_LOCALE_TAG
+}
 
 /**
  * The UI language tag as live state: read from the localization.locale setting and updated when it

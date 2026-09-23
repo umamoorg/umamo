@@ -121,6 +121,7 @@ data class UmamoIcons(
 	val refresh: UmamoIcon,
 	val refreshAlert: UmamoIcon,
 	val wand: UmamoIcon,
+	val language: UmamoIcon,
 	val editorModeObject: UmamoIcon,
 	val editorModeEdit: UmamoIcon,
 	val meshSelectVertex: UmamoIcon,
@@ -297,6 +298,8 @@ val LocalUmamoIcons =
 		refreshAlert = simpleIcon("M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4 M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4 M12 9l0 3 M12 15l.01 0"),
 		// Tabler "wand" (viewBox 0 0 24 24, stroked).
 		wand = simpleIcon("M6 21l15 -15l-3 -3l-15 15l3 3 M15 6l3 3 M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2 M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2"),
+		// Tabler "language" (viewBox 0 0 24 24, stroked).
+		language = simpleIcon("M9 6.371c0 4.418 -2.239 6.629 -5 6.629 M4 6.371h7 M5 9c0 2.144 2.252 3.908 6 4 M12 20l4 -9l4 9 M19.1 18h-6.2 M6.694 3l.793 .582"),
 		// The icons below are adapted from the Blender project's icon set (GPL-2.0-or-later, compatible
 		// with this project's GPL-3.0; source SVGs archived under docs/design/icons/).  Each keeps
 		// Blender's two-tone contrast: a full-strength highlight layer over a muted context layer.

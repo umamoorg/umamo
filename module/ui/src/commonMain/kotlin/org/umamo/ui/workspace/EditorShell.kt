@@ -87,6 +87,8 @@ import org.umamo.ui.properties.PropertyTab
 import org.umamo.ui.properties.defaultPropertyTabRegistry
 import org.umamo.ui.properties.runtimeFeatureLabelRes
 import org.umamo.ui.resources.*
+import org.umamo.ui.settings.LocalQuickSetup
+import org.umamo.ui.settings.QuickSetupDialog
 import org.umamo.ui.settings.SettingsWindow
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.UmamoTheme
@@ -174,7 +176,10 @@ fun EditorShell(
 	val currentArtwork by rememberUpdatedState(artwork)
 	val workspaces =
 		remember { WorkspaceLayoutController(initialLayout) { newLayout -> currentOnLayoutChange(newLayout) } }
-	val overlays = remember { ShellOverlayState() }
+	// Quick Setup's visibility is the app's, held across the document swaps that rebuild this shell; read once,
+	// since the app's holder lives as long as the app and the command tables below close over these overlays.
+	val quickSetup = LocalQuickSetup.current
+	val overlays = remember { quickSetup?.let(::ShellOverlayState) ?: ShellOverlayState() }
 	// The localized base name new and imported workspaces are named from (deduped) - the same string the "+"
 	// button passes to onCreate, so the menu's New Workspace and the tab strip agree.
 	val newWorkspaceBaseName = stringResource(Res.string.workspace_new_name)
@@ -560,9 +565,9 @@ fun EditorShell(
 					// full-window scrims cover the menu bar and tab strip too: a click anywhere outside the
 					// overlay's card dismisses it, and the chrome behind is not interactable while it is open
 					// (so the palette cannot be left open under a menu-bar-launched window).  Painted
-					// bottom-to-top: palette, preferences, the Help dialogs, the export-options dialog, the
-					// file-open alert, the export report, the repack refusal report, then the confirm dialog
-					// (the topmost modal).
+					// bottom-to-top: palette, preferences, the Help dialogs, Quick Setup, the export-options
+					// dialog, the file-open alert, the export report, the repack refusal report, then the confirm
+					// dialog (the topmost modal).
 					if (overlays.paletteVisible) {
 						// The space the palette was summoned over, read once per open.  The palette's scrim
 						// keeps every leaf from stamping while it is up, so this is also the surface the
@@ -596,6 +601,11 @@ fun EditorShell(
 					}
 					if (overlays.creditsVisible) {
 						CreditsDialog(onDismiss = { overlays.creditsVisible = false })
+					}
+					// Quick Setup, open on a first run.  Above the Help dialogs, and below the alerts, so a message a
+					// first launch raises (a read-only document from the command line) still shows over it.
+					if (overlays.quickSetupVisible) {
+						QuickSetupDialog(onDismiss = { overlays.quickSetupVisible = false })
 					}
 					// The export-options dialog, the last of the self-focused family (its number field owns
 					// focus); the modal alerts below still paint above it.  The request's continuation runs

@@ -7,6 +7,10 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.staticCompositionLocalOf
 import org.umamo.settings.Settings
 import org.umamo.storage.AppStorage
+import org.umamo.ui.l10n.LOCALE_SETTINGS_KEY
+import org.umamo.ui.l10n.UI_LANGUAGE_ENDONYMS
+import org.umamo.ui.l10n.matchUiLanguage
+import org.umamo.ui.l10n.systemLanguageTags
 import org.umamo.ui.resources.Res
 
 /**
@@ -29,7 +33,7 @@ val LocalSettings = staticCompositionLocalOf<Settings> { error("LocalSettings no
 @Composable
 fun ProvideSettings(storage: AppStorage, content: @Composable () -> Unit) {
 	val settings by produceState<Settings?>(initialValue = null, storage) {
-		value = Settings.load(storage, defaultSettingsJson())
+		value = loadAppSettings(storage)
 	}
 	settings?.let { loaded ->
 		CompositionLocalProvider(LocalSettings provides loaded, content = content)
@@ -43,3 +47,32 @@ fun ProvideSettings(storage: AppStorage, content: @Composable () -> Unit) {
  * @return String The default settings JSON.
  */
 suspend fun defaultSettingsJson(): String = Res.readBytes("files/defaultSettings.json").decodeToString()
+
+/**
+ * Loads the app's settings - the bundled defaults under the user's file - and seeds a first run's choices, so
+ * every platform starts from the same state.  The one load path both apps take: the desktop entrypoint calls
+ * it directly (it must hold settings before its window opens), and [ProvideSettings] calls it for Android.
+ *
+ * @param AppStorage storage The platform storage (config directory + IO).
+ * @return Settings The loaded, first-run-seeded settings.
+ */
+suspend fun loadAppSettings(storage: AppStorage): Settings = Settings.load(storage, defaultSettingsJson()).also { settings -> seedFirstRunSettings(settings) }
+
+/**
+ * Seeds what a first run decides before anything is shown: the UI language, matched from the operating
+ * system's preferred languages (English when none has a catalog).  Runs only when no user settings file was
+ * found at load, so a language the rigger chose is never overridden.
+ *
+ * The match is written even when it is English: it pins the language the app first opened in, and it creates
+ * the user file, so the next launch finds settings and does not treat itself as a first run.  The Quick Setup
+ * modal a first run opens then shows this language already selected.
+ *
+ * @param Settings settings   The freshly loaded settings.
+ * @param List     systemTags The operating system's preferred language tags, most preferred first.
+ */
+fun seedFirstRunSettings(settings: Settings, systemTags: List<String> = systemLanguageTags()) {
+	if (settings.foundUserFile) {
+		return
+	}
+	settings.setString(LOCALE_SETTINGS_KEY, matchUiLanguage(systemTags, UI_LANGUAGE_ENDONYMS.keys))
+}
