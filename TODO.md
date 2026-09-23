@@ -32,12 +32,7 @@
 
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
-
-## Read/Write Filing Handling
-* Save should be muted/disabled in the menu if the document is not dirty.
-
-## UI Dialog
-* Still not sizing properly for short messages.  "Could not open EricaTEST.uma."
+* Automatic visual matching of imported artwork layers to layers cut from a texture atlas after a MOC3 to CMO3 conversion.
 
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat
