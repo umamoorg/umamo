@@ -31,7 +31,7 @@ val FIELD_ROW_SPACING = 14.dp
 val FIELD_CONTROL_HEIGHT = 20.dp
 
 /** The drawn size of a [FieldRow]'s optional label icon. */
-private val FIELD_ROW_ICON_SIZE = 14.dp
+private val FIELD_ROW_ICON_SIZE = 16.dp
 
 /**
  * One labelled control row: a fixed-width label on the left and its [control] on the right, so the
