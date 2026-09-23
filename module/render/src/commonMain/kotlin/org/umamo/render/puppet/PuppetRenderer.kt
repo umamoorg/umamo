@@ -97,6 +97,12 @@ const val SNAPSHOT_SUPERSAMPLE = 2
 const val SNAPSHOT_TILE_EDGE = 2048
 
 /**
+ * The smallest posed opacity that leaves any coverage in an 8-bit image: below half of one alpha step the
+ * drawable rounds to nothing, so a capture's framing does not measure it.
+ */
+private const val MINIMUM_DRAWN_OPACITY = 0.5f / 255f
+
+/**
  * GPU-deforming puppet renderer, over a [RenderDevice].
  *
  * The keyform morph + deformer cascade run in the vertex shader; the CPU only prepares the cheap per-pose
@@ -1083,14 +1089,22 @@ class PuppetRenderer(
 	}
 
 	/**
-	 * The world-space extent of the current pose's shown drawables, from the same CPU deform as
+	 * The world-space extent of what the current pose actually draws, from the same CPU deform as
 	 * [pickGeometry] - so, like it, safe from the UI thread.  Where [contentBounds] measures the rest pose
 	 * a view fits to, this measures the pose on screen, which is what a capture of it frames.
 	 *
+	 * A shown drawable whose posed opacity leaves no coverage in an 8-bit image is not measured: a guide or
+	 * effect keyed to zero opacity draws nothing, and framing it would pad the capture with empty pixels.
+	 * The view fit keeps measuring it, since a rigger fitting the view wants every drawable the rig can show.
+	 *
 	 * @param Set<DrawableId> shownIds The drawables actually drawn (the resolved visibility cascade).
-	 * @return ContentBounds? The extent, or null before the first pose or when no shown drawable has a vertex.
+	 * @return ContentBounds? The extent, or null before the first pose or when nothing drawn has a vertex.
 	 */
-	fun posedContentBounds(shownIds: Set<DrawableId>): ContentBounds? = pickGeometry()?.let { geometry -> contentBoundsOf(geometry, shownIds) }
+	fun posedContentBounds(shownIds: Set<DrawableId>): ContentBounds? {
+		val geometry = pickGeometry() ?: return null
+		val drawnIds = shownIds.filterTo(HashSet()) { drawableId -> (geometry.opacity[drawableId] ?: 0f) >= MINIMUM_DRAWN_OPACITY }
+		return contentBoundsOf(geometry, drawnIds)
+	}
 
 	/**
 	 * The last frame's resolved draw order (back-to-front; last = front), or empty before the first pose -
@@ -1200,15 +1214,19 @@ class PuppetRenderer(
 	 * scales what is beneath it.  Where nothing lies beneath them they leave no coverage, so they drop out
 	 * of the image, as they do wherever the puppet is composited over transparency.
 	 *
-	 * Must run on the render thread with the device's context current, between frames.
+	 * Must run on the render thread with the device's context current, between frames.  A large capture is
+	 * many tiles, so [shouldContinue] is asked before each one: a host shutting down stops the capture at
+	 * the next tile rather than waiting for the whole image.
 	 *
-	 * @param ViewportCamera camera   The view: the world point at the image's center and the output pixels
-	 *   per world unit.
-	 * @param Int            width    The image width in pixels.
-	 * @param Int            height   The image height in pixels.
-	 * @param FrameBackdrop  backdrop What the puppet is drawn over.
-	 * @param Int            tileEdge The largest tile edge in output pixels (tests shrink it to force tiling).
-	 * @return RasterImage The pixels, PREMULTIPLIED, top row first.
+	 * @param ViewportCamera camera         The view: the world point at the image's center and the output
+	 *   pixels per world unit.
+	 * @param Int            width          The image width in pixels.
+	 * @param Int            height         The image height in pixels.
+	 * @param FrameBackdrop  backdrop       What the puppet is drawn over.
+	 * @param Int            tileEdge       The largest tile edge in output pixels (tests shrink it to force
+	 *   tiling).
+	 * @param Function       shouldContinue Asked before each tile; false abandons the capture.
+	 * @return RasterImage? The pixels, PREMULTIPLIED, top row first, or null when the capture was abandoned.
 	 */
 	fun renderSnapshot(
 		camera: ViewportCamera,
@@ -1216,7 +1234,8 @@ class PuppetRenderer(
 		height: Int,
 		backdrop: FrameBackdrop,
 		tileEdge: Int = SNAPSHOT_TILE_EDGE,
-	): RasterImage {
+		shouldContinue: () -> Boolean = { true },
+	): RasterImage? {
 		require(width > 0 && height > 0) { "a snapshot needs a positive size, got ${width}x$height" }
 		val maximumTile = minOf(tileEdge, device.maxRenderTargetSize() / SNAPSHOT_SUPERSAMPLE).coerceAtLeast(1)
 		val previousCamera = currentCamera
@@ -1234,6 +1253,9 @@ class PuppetRenderer(
 			for (tileTop in 0 until height step maximumTile) {
 				val tileHeight = minOf(maximumTile, height - tileTop)
 				for (tileLeft in 0 until width step maximumTile) {
+					if (!shouldContinue()) {
+						return null
+					}
 					val tileWidth = minOf(maximumTile, width - tileLeft)
 					// The tile's center in whole-image pixels, carried back into world units: x runs right
 					// in both, while image rows run down and world z runs up.

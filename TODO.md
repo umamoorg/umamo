@@ -92,10 +92,6 @@
 ## Shortcuts
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
 
-## Snapshot/Image Export
-* Add the ability to take a snapshot of the current 2D viewport with transparency.
-	* This would also help with the UMA format thumbnail.  The UMA thumbnail is based on the part/drawable thumbnailer which does basic blending and does not respect any settings.
-
 ## Properties Panel
 * The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
 * UMA serialization of the latent composite (the format work this unblocks).
@@ -162,6 +158,9 @@ See format planning document: docs/plan/uma-format.md
 ## Theme Colors
 * Ability to edit ALL the theme colors (the UmamoColors palette) for a custom look through preferences.  For example, in Blender I make my vertex colors as ff00ec(unselected), ff7a00(selected), and 7de400(active selection) since it is easier for me to see.
 	* The color-blind-assist first pass — vertex/edge/face gizmo colors plus the selection highlight — already exists in Settings > Colors.
+
+## Refactor
+* module/render/src/commonMain/kotlin/org/umamo/render/puppet/PuppetRenderer.kt
 
 ## DRY/Standardization
 * Fields like PropertyFieldRow need to take a key use use that to get the correct resource key automatically instead of passing it.

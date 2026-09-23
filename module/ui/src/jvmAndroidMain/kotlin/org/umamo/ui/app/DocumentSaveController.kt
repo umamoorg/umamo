@@ -103,7 +103,7 @@ internal class DocumentSaveController(
 				// change to the document (UMA §7).
 				val editorState =
 					buildJsonObject {
-						put(EDITOR_STATE_AREAS, context.areaViewStates.gather())
+						put(EDITOR_STATE_AREAS, context.areaViewStates.gather(context.viewport.service?.cameras().orEmpty()))
 						put(EDITOR_STATE_SESSION, sessionStateJson(activeSession.viewState(), activeSession.pose.value, snapshot))
 					}
 				val base = file.base ?: UmaModel.create(umamoWriterInfo())

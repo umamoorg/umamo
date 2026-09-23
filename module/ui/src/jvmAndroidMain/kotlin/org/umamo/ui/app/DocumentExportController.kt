@@ -10,10 +10,10 @@ import org.umamo.interop.ExportReport
 import org.umamo.interop.describeExportNotice
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.UmamoLog
+import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
 import org.umamo.ui.document.existingBundleFiles
-import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.document.exportedModelFor
 import org.umamo.ui.document.prepareCmo3Export
 import org.umamo.ui.document.prepareMoc3Export
@@ -38,12 +38,15 @@ import kotlin.time.Clock
  *
  * @property EditorAppServices        services          The app's shared collaborators.
  * @property OpenPuppet?              puppet            The open puppet document with its session and pages, or null.
+ * @property DocumentFile?            file              Where the document saves, which names the exports; null with
+ *   no document.
  * @property Moc3ExportSessionOptions moc3ExportOptions The MOC3 export dialog's session memory, sticky for the
  *   application's life and never persisted, so it outlives this controller.
  */
 internal class DocumentExportController(
 	private val services: EditorAppServices,
 	private val puppet: OpenPuppet?,
+	private val file: DocumentFile?,
 	private val moc3ExportOptions: Moc3ExportSessionOptions,
 ) {
 	/** Whether there is a puppet document to export. */
@@ -57,7 +60,7 @@ internal class DocumentExportController(
 		val exported = puppet ?: return
 		val puppetDocument = exported.document
 		services.scope.launch {
-			val suggestedName = exportSuggestedName(puppetDocument.displayName)
+			val suggestedName = file?.exportBaseName ?: services.untitledName()
 			services.filePicker.saveFile(suggestedName, FileKind.Cmo3.extension)?.let { destination ->
 				val edited = exportedModelFor(puppetDocument, exported.session)
 				// The session's resolved page set: the document's own instance until a repack
@@ -101,7 +104,7 @@ internal class DocumentExportController(
 		val moc3Document = puppetDocument as? Moc3Document
 		val seedModel = exportedModelFor(puppetDocument, exported.session)
 		services.commandRegistry.invoke(
-			"document.exportOptionsMoc3",
+			"document.exportOptions",
 			ExportOptionsRequest.Moc3(
 				initial = moc3ExportOptions.dialogOptionsFor(puppetDocument.path, seedModel),
 				physicsAvailable = moc3Document?.sidecars?.any { sidecar -> sidecar.kind == Moc3Sidecars.SidecarKind.Physics } == true,
@@ -111,7 +114,7 @@ internal class DocumentExportController(
 				onConfirm = { options ->
 					moc3ExportOptions.recordConfirmed(puppetDocument.path, options)
 					services.scope.launch {
-						services.filePicker.saveFile(exportSuggestedName(puppetDocument.displayName), FileKind.Moc3.extension)?.let { destination ->
+						services.filePicker.saveFile(file?.exportBaseName ?: services.untitledName(), FileKind.Moc3.extension)?.let { destination ->
 							val bundle =
 								prepareMoc3Export(
 									document = puppetDocument,

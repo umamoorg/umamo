@@ -35,13 +35,6 @@ class AreaViewStates(private val restoredAreas: JsonObject? = null) {
 	var layoutAreaIds: List<String> = emptyList()
 
 	/**
-	 * Reads every remembered camera from the platform's render service, parked here by whoever builds that
-	 * service and cleared when it goes; null where there is none (Android today).  The holder is the rendezvous
-	 * because both sides already meet at it by area id - the save path never has to reach into the viewport.
-	 */
-	var cameraReader: (() -> Map<AreaCameraKey, ViewportCamera>)? = null
-
-	/**
 	 * The cameras the document was saved with, by area and surface (UMA §7.3): a `[centerX, centerY, zoom]` with a
 	 * zoom above zero under each surface's name.  Anything else is skipped, and that area fits its content as a
 	 * fresh one does.  Kept apart by surface because a view of the puppet's world means nothing over a texture's
@@ -82,9 +75,11 @@ class AreaViewStates(private val restoredAreas: JsonObject? = null) {
 	 *
 	 * New blocks enter the file in [layoutAreaIds]'s order.
 	 *
+	 * @param Map cameras Every camera the platform's render service remembers, by area and surface; empty where
+	 *   there is no render service (Android today).
 	 * @return JsonObject The patch's `areas` member.
 	 */
-	fun gather(): JsonObject {
+	fun gather(cameras: Map<AreaCameraKey, ViewportCamera> = emptyMap()): JsonObject {
 		val inLayout = layoutAreaIds.toHashSet()
 		return buildJsonObject {
 			for (staleAreaId in restoredAreas?.keys.orEmpty()) {
@@ -92,7 +87,6 @@ class AreaViewStates(private val restoredAreas: JsonObject? = null) {
 					put(staleAreaId, JsonNull)
 				}
 			}
-			val cameras = cameraReader?.invoke().orEmpty()
 			for (areaId in layoutAreaIds) {
 				val spaces = scopesByAreaId[areaId]?.gather()
 				val views =

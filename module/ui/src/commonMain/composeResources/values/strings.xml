@@ -275,6 +275,7 @@
 	<!-- Export Image failures (%1$s is the file name; %2$s the reason, one of the lines below or an I/O message). -->
 	<string name="alert_export_image_failed">Could not export %1$s.  %2$s</string>
 	<string name="export_image_failed_renderer">The viewport renderer could not draw the image.</string>
+	<string name="export_image_failed_memory">There was not enough memory for a %1$d × %2$d px image.  Try a smaller scale.</string>
 
 	<!-- Help menu. -->
 	<string name="menu_help">Help</string>

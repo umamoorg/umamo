@@ -27,21 +27,25 @@ class ImageFramingTest {
 	 */
 	private fun framed(region: ImageRegion, scale: Float): ImageFrame = assertIs<ImageFrameResult.Framed>(resolveImageFrame(region, scale, areaView, canvas, content)).frame
 
+	/** View at 100% is the area's own frame, pixel for pixel. */
 	@Test
 	fun viewAtOneIsTheAreaPixelForPixel() {
 		assertEquals(areaView, framed(ImageRegion.View, 1f))
 	}
 
+	/** View's scale grows the zoom and the size together and keeps the area's center. */
 	@Test
 	fun viewScalesItsZoomAndSizeTogetherAroundTheSameCenter() {
 		assertEquals(ImageFrame(ViewportCamera(40f, -25f, 1f), 1600, 1200), framed(ImageRegion.View, 2f))
 	}
 
+	/** Canvas at 100% draws one pixel per canvas pixel, centered on the canvas. */
 	@Test
 	fun canvasAtOneIsOnePixelPerCanvasPixelCenteredOnTheCanvas() {
 		assertEquals(ImageFrame(ViewportCamera(1000f, -1500f, 1f), 2000, 3000), framed(ImageRegion.Canvas, 1f))
 	}
 
+	/** Content rounds a fractional size up to whole pixels, so nothing at its edge is cut. */
 	@Test
 	fun contentRoundsUpToWholePixelsSoItsEdgesAreNotCut() {
 		val frame = framed(ImageRegion.Content, 0.5f)
@@ -50,6 +54,7 @@ class ImageFramingTest {
 		assertEquals(ViewportCamera(250.25f, -600f, 0.5f), frame.camera)
 	}
 
+	/** Each region names what it lacks when it has nothing to frame. */
 	@Test
 	fun eachRegionRefusesWhenItHasNothingToFrame() {
 		assertEquals(ImageFrameResult.NoViewport, resolveImageFrame(ImageRegion.View, 1f, null, canvas, content))
@@ -57,11 +62,13 @@ class ImageFramingTest {
 		assertEquals(ImageFrameResult.NothingVisible, resolveImageFrame(ImageRegion.Content, 1f, areaView, canvas, null))
 	}
 
+	/** An image past the edge limit is refused, carrying the size it would have had. */
 	@Test
 	fun anImagePastTheEdgeLimitIsRefusedWithItsSize() {
 		assertEquals(ImageFrameResult.TooLarge(12000, 18000), resolveImageFrame(ImageRegion.Canvas, 6f, areaView, canvas, content))
 	}
 
+	/** The thumbnail square is filled by the longer side, with the shorter one centered. */
 	@Test
 	fun aSquareFitFillsTheLongerSideAndCentersTheShorter() {
 		val frame = fitSquare(content, 256)
@@ -70,6 +77,7 @@ class ImageFramingTest {
 		assertEquals(ViewportCamera(250.25f, -600f, 256f / 600f), frame.camera)
 	}
 
+	/** Each background choice maps onto the renderer backdrop it draws over. */
 	@Test
 	fun backgroundsMapToTheRendererBackdrop() {
 		val options = ImageExportOptions.Default
@@ -78,6 +86,7 @@ class ImageFramingTest {
 		assertEquals(FrameBackdrop.Clear(1f, 0f, 0f, 1f), options.copy(background = ImageBackground.Solid, solidColorHex = "#FFFF0000").frameBackdrop())
 	}
 
+	/** A translucent solid color reaches the renderer premultiplied, as its framebuffer is. */
 	@Test
 	fun aTranslucentSolidColorIsPremultiplied() {
 		val backdrop = assertIs<FrameBackdrop.Clear>(ImageExportOptions.Default.copy(background = ImageBackground.Solid, solidColorHex = "#80FFFFFF").frameBackdrop())

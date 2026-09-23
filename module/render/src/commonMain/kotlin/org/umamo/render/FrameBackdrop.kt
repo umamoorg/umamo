@@ -1,8 +1,8 @@
 package org.umamo.render
 
 import org.umamo.format.raster.RasterImage
-import org.umamo.format.raster.premultipliedToStraight
-import org.umamo.format.raster.withOpaqueAlpha
+import org.umamo.format.raster.setOpaqueAlphaInPlace
+import org.umamo.format.raster.unpremultiplyInPlace
 
 /**
  * What a puppet frame is drawn over.
@@ -40,17 +40,28 @@ sealed interface FrameBackdrop {
 }
 
 /**
- * Turns a premultiplied capture drawn over [backdrop] into the straight-alpha image a file stores.
+ * Turns a premultiplied capture drawn over [backdrop] into the straight-alpha image a file stores, in place.
  *
  * Over an opaque backdrop every pixel is opaque, so the color is already straight and only the alpha
  * channel is set to 255.  Over anything with coverage to spare (transparency, or a translucent fill) the
  * color divides back out by its alpha.
  *
+ * Consumes the capture: its own buffer is converted and the same image returned, because a capture can be
+ * a gigabyte and a converted copy would double that.  The caller must own the pixels.
+ *
  * @param FrameBackdrop backdrop What the capture was drawn over.
- * @return RasterImage The image, straight alpha, top row first.
+ * @return RasterImage This image, now straight alpha, top row first.
  */
-fun RasterImage.capturedOver(backdrop: FrameBackdrop): RasterImage =
-	when (backdrop) {
-		FrameBackdrop.Grid -> withOpaqueAlpha()
-		is FrameBackdrop.Clear -> if (backdrop.alpha >= 1f) withOpaqueAlpha() else premultipliedToStraight()
+fun RasterImage.capturedOver(backdrop: FrameBackdrop): RasterImage {
+	val opaque =
+		when (backdrop) {
+			FrameBackdrop.Grid -> true
+			is FrameBackdrop.Clear -> backdrop.alpha >= 1f
+		}
+	if (opaque) {
+		setOpaqueAlphaInPlace()
+	} else {
+		unpremultiplyInPlace()
 	}
+	return this
+}

@@ -59,16 +59,18 @@ internal fun ExportOptionsDialog(
  * The same scrim-and-card recipe as ConfirmDialog, one size up: the scrim click cancels, the card
  * swallows clicks so a press inside it is not read as a dismissal.
  *
- * @param String   title    The already-localized dialog title.
- * @param Function onCancel Called on Cancel, the scrim, or Escape's dismissal path.
- * @param Function onExport Called when the rigger confirms the export.
- * @param Function content  The format's option rows.
+ * @param String   title         The already-localized dialog title.
+ * @param Function onCancel      Called on Cancel, the scrim, or Escape's dismissal path.
+ * @param Function onExport      Called when the rigger confirms the export.
+ * @param Boolean  exportEnabled False while the choices can produce nothing, which disables Export.
+ * @param Function content       The format's option rows.
  */
 @Composable
 internal fun ExportOptionsCard(
 	title: String,
 	onCancel: () -> Unit,
 	onExport: () -> Unit,
+	exportEnabled: Boolean = true,
 	content: @Composable ColumnScope.() -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -98,7 +100,7 @@ internal fun ExportOptionsCard(
 					horizontalArrangement = Arrangement.spacedBy(8.dp),
 				) {
 					Button(label = stringResource(Res.string.dialog_cancel), onClick = onCancel, primary = false)
-					Button(label = stringResource(Res.string.export_options_export), onClick = onExport, primary = true)
+					Button(label = stringResource(Res.string.export_options_export), onClick = onExport, primary = true, enabled = exportEnabled)
 				}
 			}
 		}

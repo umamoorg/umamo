@@ -74,8 +74,8 @@ internal class OpenDocumentContext(
 }
 
 /**
- * Where the operations that render outside a viewport area - a save's thumbnail, Export Image - find the open
- * document's render service.
+ * Where the operations that use the renderer outside a viewport area - a save's cameras and thumbnail, Export
+ * Image - find the open document's render service.
  *
  * The service is built inside the document's composition, after the context that the controllers hold, so it
  * is handed over here rather than through the constructor: the viewport wiring fills the slot while the

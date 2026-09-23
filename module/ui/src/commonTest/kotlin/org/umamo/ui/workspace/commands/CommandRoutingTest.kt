@@ -60,6 +60,24 @@ class CommandRoutingTest {
 		assertEquals(viewportArea, live.operationStripArea(), "the workspace default is read per call, so a workspace switch is seen")
 	}
 
+	/**
+	 * The viewport a capture frames: the hovered one wins, a panel crossed on the way to the File menu yields
+	 * to the last viewport touched, and with none touched there is none.  The acting lookup keeps refusing the
+	 * fallback, since a command that acts must act where the pointer is.
+	 */
+	@Test
+	fun aCaptureFramesTheHoveredViewportElseTheLastOneTouched() {
+		val lastViewport = HoveredSurface("viewport-2", SpaceKind.Viewport2D)
+		val overViewport = CommandRouting({ HoveredSurface(viewportArea, SpaceKind.Viewport2D) }, { null }, { null }, { lastViewport })
+		assertEquals(viewportArea, overViewport.framedViewportArea(), "the hovered viewport wins")
+
+		val overPanel = CommandRouting({ HoveredSurface(sheetArea, SpaceKind.KeyformSheet) }, { null }, { null }, { lastViewport })
+		assertEquals("viewport-2", overPanel.framedViewportArea(), "a panel yields to the last viewport")
+		assertNull(overPanel.viewportArea(), "while an acting command still finds no viewport")
+
+		assertNull(CommandRouting({ HoveredSurface(uvArea, SpaceKind.UvEditor) }, { null }, { null }, { null }).framedViewportArea(), "no viewport touched yet")
+	}
+
 	private fun meshDrawable(): Drawable =
 		Drawable(
 			id = DrawableId("a"),

@@ -65,8 +65,8 @@ import org.umamo.ui.workspace.commands.ArtworkOperations
  *   with no puppet document, which hides them.
  * @param SourceWatchState? sourceWatch The document's artwork watcher's state for the Sources space, or null.
  * @param SourceSuggestionState? sourceSuggestions The published relink suggestions for the Sources space's review chips, or null.
- * @param DocumentViewportSlot? viewportSlot Where the render service is handed to the operations that render outside an
- *   area (a save's thumbnail, Export Image) while it lives; null when nothing asks.
+ * @param DocumentViewportSlot? viewportSlot Where the render service is handed to the operations that use it outside an
+ *   area (a save's cameras and thumbnail, Export Image) while it lives; null when nothing asks.
  * @param Function? exportImage Export Image over a 2D viewport area, handed to the shell for a puppet document on a
  *   platform with a renderer (the shell registers the command); null otherwise, which hides it.
  */
@@ -124,20 +124,10 @@ internal fun DocumentViewport(
 					} else {
 						null
 					}
-				// A save reads every area's camera through the holder, which is where both sides already meet by
-				// area id; the reader goes when the service does, so a save never asks a disposed engine.
+				// The render service is handed to what uses it outside an area - a save's cameras and thumbnail,
+				// Export Image - while it lives, and taken back when it goes, so nothing asks a disposed engine.  A
+				// slot already refilled by a newer service is left alone.
 				val viewportService = viewport?.service
-				DisposableEffect(areaViewStates, viewportService) {
-					val reader = viewportService?.let { service -> service::cameras }
-					areaViewStates?.cameraReader = reader
-					onDispose {
-						if (areaViewStates?.cameraReader === reader) {
-							areaViewStates?.cameraReader = null
-						}
-					}
-				}
-				// The same hand-over for the operations that render outside an area, with the same guard: a slot
-				// already refilled by a newer service is left alone.
 				DisposableEffect(viewportSlot, viewportService) {
 					viewportSlot?.service = viewportService
 					onDispose {

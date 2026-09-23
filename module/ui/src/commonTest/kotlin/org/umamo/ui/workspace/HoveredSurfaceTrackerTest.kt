@@ -80,7 +80,7 @@ class HoveredSurfaceTrackerTest {
 		assertEquals(HoveredSurface("area-1", SpaceKind.UvEditor), tracker.lastTouchedStripHost)
 
 		// The leaf releases the outgoing kind's claim before it re-stamps, as AreaLeaf's effect does.
-		tracker.releaseStripHost("area-1")
+		tracker.releaseKindClaims("area-1")
 		tracker.restampKind("area-1", SpaceKind.Outliner)
 		assertNull(tracker.lastTouchedStripHost, "a panel hosts no strip, so nothing claims the slot back")
 	}
@@ -109,5 +109,43 @@ class HoveredSurfaceTrackerTest {
 
 		assertNull(tracker.lastTouched)
 		assertNull(tracker.lastTouchedStripHost)
+	}
+
+	/**
+	 * The last viewport survives the pointer moving on to a panel, as a trip to the File menu over the
+	 * Parameters panel does, and a UV editor touched meanwhile does not take it: only a 2D viewport claims it.
+	 */
+	@Test
+	fun theLastViewportOutlivesPanelsAndUvEditorsTouchedAfterIt() {
+		val tracker = HoveredSurfaceTracker()
+		val viewport = HoveredSurface("viewport-1", SpaceKind.Viewport2D)
+		tracker.lastTouched = viewport
+		tracker.claimKind(viewport)
+
+		for (later in listOf(HoveredSurface("uv-1", SpaceKind.UvEditor), HoveredSurface("parameters-1", SpaceKind.Parameters))) {
+			tracker.lastTouched = later
+			tracker.claimKind(later)
+		}
+
+		assertEquals(viewport, tracker.lastTouchedViewport)
+		assertEquals(HoveredSurface("uv-1", SpaceKind.UvEditor), tracker.lastTouchedStripHost)
+	}
+
+	/** A viewport that is closed, or switched to another space, is no longer the last viewport. */
+	@Test
+	fun theLastViewportGoesWithItsAreaOrItsKind() {
+		val tracker = HoveredSurfaceTracker()
+		tracker.claimKind(HoveredSurface("viewport-1", SpaceKind.Viewport2D))
+		tracker.releaseArea("viewport-1")
+		assertNull(tracker.lastTouchedViewport, "a closed area")
+
+		tracker.lastTouched = HoveredSurface("viewport-2", SpaceKind.Viewport2D)
+		tracker.claimKind(HoveredSurface("viewport-2", SpaceKind.Viewport2D))
+		tracker.releaseKindClaims("viewport-2")
+		tracker.restampKind("viewport-2", SpaceKind.Outliner)
+		assertNull(tracker.lastTouchedViewport, "an area switched to a panel")
+
+		tracker.restampKind("viewport-2", SpaceKind.Viewport2D)
+		assertEquals(HoveredSurface("viewport-2", SpaceKind.Viewport2D), tracker.lastTouchedViewport, "and switched back")
 	}
 }

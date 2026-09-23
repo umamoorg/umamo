@@ -145,8 +145,8 @@ fun EditorApp(
 	// Every area's view state for this document, seeded from the editor state the file was saved with (UMA §7.3).
 	// Remembered here, beside the document read, so it is never paired with another document's areas.
 	val areaViewStates = remember(document) { AreaViewStates((document as? UmaDocument)?.uma?.editorState?.get(EDITOR_STATE_AREAS) as? JsonObject) }
-	// Where this document's render service is handed to a save's thumbnail and Export Image, filled by the
-	// viewport wiring while the service lives.
+	// Where this document's render service is handed to a save's cameras and thumbnail and Export Image, filled
+	// by the viewport wiring while the service lives.
 	val viewportSlot = remember(document) { DocumentViewportSlot() }
 
 	// Everything derived from the open document, as one value built beside the document read.  The
@@ -190,13 +190,13 @@ fun EditorApp(
 	// The per-document controllers, remade with the context so each works from one consistent document,
 	// session, and page set.  Artwork exists only for a puppet document; without one the shell hides its commands.
 	val artwork = remember(context, documentWatch) { context.puppet?.let { puppet -> ArtworkController(services, puppet, documentWatch) } }
-	val export = remember(context) { DocumentExportController(services, context.puppet, moc3ExportOptions) }
+	val export = remember(context) { DocumentExportController(services, context.puppet, context.file, moc3ExportOptions) }
 	// Export Image draws through the puppet renderer, so it exists only for a puppet document on a platform
 	// that has one; without it the shell hides the command and the menu disables its row.
 	val imageExport =
 		remember(context) {
 			context.puppet?.takeIf { viewportServiceFactory != null }?.let { puppet ->
-				ImageExportController(services, puppet, context.viewport, imageExportOptions)
+				ImageExportController(services, puppet, context.file, context.viewport, imageExportOptions)
 			}
 		}
 	val exportImage = remember(imageExport) { imageExport?.let { controller -> { viewportAreaId: String? -> controller.exportImage(viewportAreaId) } } }

@@ -291,9 +291,12 @@ internal class OffscreenRenderEngine(
 	/**
 	 * Renders every queued capture, on the render thread.  A capture that fails logs and completes null; it
 	 * never takes the render loop down with it.
+	 *
+	 * A shutdown stops the work at the next tile, so dispose() waits for one tile rather than a whole large
+	 * image; what is left in the queue is answered by the loop's teardown.
 	 */
 	private fun serveSnapshots() {
-		while (true) {
+		while (running) {
 			val snapshot = pendingSnapshots.poll() ?: break
 			try {
 				if (snapshot.backdrop == FrameBackdrop.Grid) {
@@ -301,7 +304,11 @@ internal class OffscreenRenderEngine(
 					val gridConfigApplied = gridConfigBacking
 					renderer.setGrid(gridColorsBacking, gridConfigApplied.scale, gridConfigApplied.subdivisions)
 				}
-				snapshot.result.complete(renderer.renderSnapshot(snapshot.camera, snapshot.width, snapshot.height, snapshot.backdrop))
+				val image = renderer.renderSnapshot(snapshot.camera, snapshot.width, snapshot.height, snapshot.backdrop) { running }
+				if (image == null) {
+					UmamoLog.info("[GL] image capture (${snapshot.width}x${snapshot.height}) abandoned at shutdown")
+				}
+				snapshot.result.complete(image)
 			} catch (failure: Exception) {
 				UmamoLog.error("[GL] image capture (${snapshot.width}x${snapshot.height}) failed", failure)
 				snapshot.result.complete(null)
@@ -524,8 +531,8 @@ internal class OffscreenRenderEngine(
 			return
 		}
 		UmamoLog.info("[GL] offscreen via ${context.backendName}: ${context.describeContext()}")
-		renderer.initGl()
 		try {
+			renderer.initGl()
 			var lastParams: Map<ParameterId, Float>? = null
 			var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
 			var lastShown: Set<DrawableId>? = null
@@ -672,10 +679,15 @@ internal class OffscreenRenderEngine(
 				}
 			}
 		} finally {
-			// glFinish first so the driver completes all pending GPU work BEFORE the disposers delete GL
-			// objects and the context is destroyed - otherwise a driver worker thread can be mid-copy on
-			// memory we free, which crashed (SIGSEGV in libc memcpy) on a clean window close. A single barrier
-			// here; the collaborators' dispose() must NOT call glFinish, and the context is destroyed last.
+			// Captures are answered before any GL teardown, which can itself throw: a caller awaiting one must
+			// hear back however this thread ends.
+			acceptingSnapshots = false
+			failPendingSnapshots()
+			// glFinish before any other GL call here, so the driver completes all pending GPU work BEFORE the
+			// disposers delete GL objects and the context is destroyed - otherwise a driver worker thread can be
+			// mid-copy on memory we free, which crashed (SIGSEGV in libc memcpy) on a clean window close. A
+			// single barrier here; the collaborators' dispose() must NOT call glFinish, and the context is
+			// destroyed last.
 			GL11.glFinish()
 			// Abandon in-flight read-backs (the fences/staging are freed through the device); the surface
 			// targets go the same way. The context is destroyed last.
@@ -687,8 +699,6 @@ internal class OffscreenRenderEngine(
 			// rather than being left to die with the context.
 			renderer.disposeGl()
 			pendingRasterBatches.clear()
-			acceptingSnapshots = false
-			failPendingSnapshots()
 			surface.dispose()
 			context.destroy()
 		}

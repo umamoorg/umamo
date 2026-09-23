@@ -44,20 +44,23 @@ internal sealed interface ExportOptionsRequest {
 	 * Export Image's options: the region, scale, and background of a capture of the posed puppet.
 	 *
 	 * The three rectangles are what the dialog frames its live size readout with, and what decides which
-	 * regions it offers: View only when a 2D viewport was the last surface touched, Canvas only when the
-	 * document has one.
+	 * regions it offers: View only when a 2D viewport has been touched, Canvas only when the document has
+	 * one.
 	 *
 	 * @property ImageExportOptions initial       The options to open the dialog with (the session's sticky values).
-	 * @property ImageFrame?        viewFrame     The last-touched 2D viewport's own frame, or null when none.
+	 * @property ImageFrame?        viewFrame     The framed 2D viewport's own frame (the hovered one, else the last
+	 *   touched), or null when none has been touched.
 	 * @property ContentBounds?     canvasBounds  The canvas rectangle in world space, or null when there is none.
 	 * @property ContentBounds?     contentBounds The shown content's extent at the current pose, or null when none.
-	 * @property Function           onConfirm     Continues the export with the confirmed options.
+	 * @property Function           onConfirm     Continues the export with the confirmed options, handed with what to
+	 *   remember of them: the same options, except that a region the dialog fell back from (and the rigger never
+	 *   replaced) is remembered rather than the fallback.
 	 */
 	data class Image(
 		val initial: ImageExportOptions,
 		val viewFrame: ImageFrame?,
 		val canvasBounds: ContentBounds?,
 		val contentBounds: ContentBounds?,
-		val onConfirm: (ImageExportOptions) -> Unit,
+		val onConfirm: (exported: ImageExportOptions, remembered: ImageExportOptions) -> Unit,
 	) : ExportOptionsRequest
 }

@@ -35,18 +35,20 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  * eviction-on-dispose the other per-area registries do.  An area switched to another space keeps its
  * stamp under its new kind through [restampKind]: the area still exists and the pointer has not moved,
  * so it goes on being the answer, and a header-dropdown switch sends no pointer event over the leaf to
- * wait for.  Its strip-host stamp asserts the OLD kind, so the leaf drops that first through
- * [releaseStripHost] and the re-stamp claims it again only when the new kind hosts a strip.
+ * wait for.  Its strip-host and viewport claims assert the OLD kind, so the leaf drops them first through
+ * [releaseKindClaims] and the re-stamp claims each again only when the new kind makes it.
  *
  * Stamped by [stampsHoveredSurface], installed once on every workspace leaf, so coverage is a property
  * of the area tree rather than something each space has to remember to opt into.
  *
- * [lastTouchedStripHost] is the one deliberate reach-back: the operation settings strip exists only in
- * a work surface (hostsOperationStrip), so a document-wide operation fired over a panel needs the work
- * surface the pointer touched LAST, however long ago, to place its strip.  It places a panel for an
- * operation that already ran; no command routes an action through it.  It must never name an area
- * that no longer hosts a strip: the area's host refuses a record naming a non-hosting kind, and the
- * strip would show nowhere.
+ * [lastTouchedStripHost] and [lastTouchedViewport] are the two deliberate reach-backs, and neither routes
+ * an action.  The operation settings strip exists only in a work surface (hostsOperationStrip), so a
+ * document-wide operation fired over a panel needs the work surface the pointer touched LAST, however long
+ * ago, to place its strip; it places a panel for an operation that already ran.  It must never name an area
+ * that no longer hosts a strip: the area's host refuses a record naming a non-hosting kind, and the strip
+ * would show nowhere.  [lastTouchedViewport] is the 2D viewport the pointer touched last, which Export
+ * Image READS to frame what that viewport shows - reached through the File menu, which sits over another
+ * area in every default workspace, so the hovered surface is almost never the viewport meant.
  *
  * [observedKind] is the one read composition MAY make, and it exposes the kind alone on purpose.  The
  * status bar suggests shortcuts for the space under the pointer, which needs a reactive read; an area
@@ -75,15 +77,38 @@ internal class HoveredSurfaceTracker {
 	var lastTouchedStripHost: HoveredSurface? = null
 
 	/**
-	 * Releases [areaId]'s strip-host claim, if it holds one - the leaf calls this when its space changes,
-	 * because the claim asserts the kind the area had when touched and that kind is now gone.  The
-	 * general stamp is untouched; the area still exists.
+	 * The 2D viewport the pointer last touched, or null before any was (or after it died or stopped hosting
+	 * a 2D viewport).
+	 */
+	var lastTouchedViewport: HoveredSurface? = null
+
+	/**
+	 * Releases [areaId]'s kind-specific claims, if it holds any - the strip host and the last viewport.  The
+	 * leaf calls this when its space changes, because each claim asserts the kind the area had when touched
+	 * and that kind is now gone.  The general stamp is untouched; the area still exists.
 	 *
 	 * @param String areaId The leaf whose space changed.
 	 */
-	fun releaseStripHost(areaId: String) {
+	fun releaseKindClaims(areaId: String) {
 		if (lastTouchedStripHost?.areaId == areaId) {
 			lastTouchedStripHost = null
+		}
+		if (lastTouchedViewport?.areaId == areaId) {
+			lastTouchedViewport = null
+		}
+	}
+
+	/**
+	 * Takes up the kind-specific claims [stamp]'s kind makes, as a pointer event over that area does.
+	 *
+	 * @param HoveredSurface stamp The surface the pointer is over.
+	 */
+	fun claimKind(stamp: HoveredSurface) {
+		if (stamp.kind.hostsOperationStrip) {
+			lastTouchedStripHost = stamp
+		}
+		if (stamp.kind == SpaceKind.Viewport2D) {
+			lastTouchedViewport = stamp
 		}
 	}
 
@@ -93,8 +118,8 @@ internal class HoveredSurfaceTracker {
 	 * rather than the one it hosted when the pointer last moved over it.
 	 *
 	 * Does what a pointer event over the switched area would: the stamp takes the new kind, and the
-	 * strip-host claim follows when that kind hosts a strip.  A stamp naming another area is left alone -
-	 * a space switch says nothing about where the pointer is.
+	 * kind-specific claims follow when that kind makes them ([claimKind]).  A stamp naming another area is
+	 * left alone - a space switch says nothing about where the pointer is.
 	 *
 	 * @param String areaId The leaf whose space changed.
 	 * @param SpaceKind kind The space that leaf hosts now.
@@ -106,9 +131,7 @@ internal class HoveredSurfaceTracker {
 		}
 		val stamp = HoveredSurface(areaId, kind)
 		lastTouched = stamp
-		if (kind.hostsOperationStrip) {
-			lastTouchedStripHost = stamp
-		}
+		claimKind(stamp)
 	}
 
 	/**
@@ -126,6 +149,9 @@ internal class HoveredSurfaceTracker {
 		}
 		if (lastTouchedStripHost?.areaId == areaId) {
 			lastTouchedStripHost = null
+		}
+		if (lastTouchedViewport?.areaId == areaId) {
+			lastTouchedViewport = null
 		}
 	}
 }
@@ -159,9 +185,7 @@ internal fun Modifier.stampsHoveredSurface(tracker: HoveredSurfaceTracker?, area
 				// be the common case; compare first and leave the field alone when nothing moved areas.
 				if (event.type != PointerEventType.Exit && tracker.lastTouched != stamp) {
 					tracker.lastTouched = stamp
-					if (kind.hostsOperationStrip) {
-						tracker.lastTouchedStripHost = stamp
-					}
+					tracker.claimKind(stamp)
 				}
 			}
 		}

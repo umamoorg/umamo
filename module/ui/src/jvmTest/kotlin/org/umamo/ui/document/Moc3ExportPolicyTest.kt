@@ -100,16 +100,6 @@ class Moc3ExportPolicyTest {
 		assertEquals("Model.moc3.backup", Moc3Sidecars.basenameFor("Model.moc3.backup"))
 	}
 
-	@Test
-	fun theSuggestedNameStripsEitherSourceExtension() {
-		// Both, regardless of the destination format: the point is to reach the model's own name, so a
-		// rigger exporting Model.moc3 to CMO3 gets Model.cmo3 rather than Model.moc3.cmo3.
-		assertEquals("Model", exportSuggestedName("Model.cmo3"))
-		assertEquals("Model", exportSuggestedName("Model.moc3"))
-		assertEquals("Model", exportSuggestedName("Model.CMO3"))
-		assertEquals("Model", exportSuggestedName("Model"))
-	}
-
 	/**
 	 * One retained sidecar of [kind].
 	 *

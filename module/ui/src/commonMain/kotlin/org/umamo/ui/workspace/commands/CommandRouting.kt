@@ -69,6 +69,8 @@ internal sealed interface TransformTarget {
  * @param Function defaultStripHost     Resolves the active workspace's first strip-hosting area in tree
  *   order, or null when it has none; read only by [operationStripArea], and only when the pointer has
  *   touched no work surface since the shell opened.
+ * @param Function lastTouchedViewport  Resolves the 2D viewport the pointer last touched, read only by
+ *   [framedViewportArea].
  * @warning Every resolver must read LIVE state, not a value captured when the instance was built - one
  *   instance serves the whole shell for its lifetime, across document swaps, workspace switches, and
  *   area-tree edits, so a snapshot would answer with wherever the pointer was at first composition forever.
@@ -77,6 +79,7 @@ internal class CommandRouting(
 	private val hoveredSurface: () -> HoveredSurface?,
 	private val lastTouchedStripHost: () -> HoveredSurface?,
 	private val defaultStripHost: () -> String? = { null },
+	private val lastTouchedViewport: () -> HoveredSurface? = { null },
 ) {
 	/**
 	 * A routing that remembers no work surface and knows no workspace: the strip placement yields null,
@@ -150,6 +153,16 @@ internal class CommandRouting(
 	 *   a single hovered-surface resolver exists to rule out.
 	 */
 	fun viewportArea(): String? = areaOf(SpaceKind.Viewport2D)
+
+	/**
+	 * The 2D viewport whose framing a capture reads: the hovered one, else the last one the pointer touched.
+	 *
+	 * @return String? The viewport's area id, or null when no viewport has been touched.
+	 * @note The fallback [viewportArea] rules out is right here, because nothing ACTS in this viewport: the
+	 *   caller only reads what it shows.  And it is needed, since Export Image is reached through the File
+	 *   menu, and the way there crosses another area in every default workspace.
+	 */
+	fun framedViewportArea(): String? = viewportArea() ?: lastTouchedViewport()?.areaId
 
 	/**
 	 * Where a modal Grab / Scale / Rotate runs.

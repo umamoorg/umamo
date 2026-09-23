@@ -2,6 +2,7 @@ package org.umamo.format.raster
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 
 /**
  * The read-back conversions: premultiplied framebuffer pixels to the straight alpha a PNG stores, and
@@ -25,42 +26,55 @@ class RasterAlphaTest {
 	 */
 	private fun pixel(image: RasterImage, pixelIndex: Int): List<Int> = (0 until 4).map { channel -> image.rgba[pixelIndex * 4 + channel].toInt() and 0xFF }
 
+	/**
+	 * Converts a one-row raster in place and returns it, so a case reads as one expression.
+	 *
+	 * @param IntArray channels Four premultiplied bytes per pixel, 0..255.
+	 * @return RasterImage The same raster, now straight alpha.
+	 */
+	private fun unpremultiplied(vararg channels: Int): RasterImage = row(*channels).also { image -> image.unpremultiplyInPlace() }
+
+	/** A fully opaque pixel keeps its color: premultiplied and straight are the same there. */
 	@Test
 	fun opaquePixelsKeepTheirColor() {
-		val straight = row(200, 100, 50, 255).premultipliedToStraight()
-		assertEquals(listOf(200, 100, 50, 255), pixel(straight, 0))
+		assertEquals(listOf(200, 100, 50, 255), pixel(unpremultiplied(200, 100, 50, 255), 0))
 	}
 
+	/** A pixel with no coverage becomes transparent black, whatever color was left in it. */
 	@Test
 	fun transparentPixelsBecomeTransparentBlack() {
 		// Color with no coverage (an additive draw over nothing) has no straight form.
-		val straight = row(40, 30, 20, 0).premultipliedToStraight()
-		assertEquals(listOf(0, 0, 0, 0), pixel(straight, 0))
+		assertEquals(listOf(0, 0, 0, 0), pixel(unpremultiplied(40, 30, 20, 0), 0))
 	}
 
+	/** Partial coverage divides the color back out by the alpha, rounded to nearest. */
 	@Test
 	fun partialAlphaDividesBackOutRoundedToNearest() {
 		// 64 / 128 * 255 = 127.5 rounds to 128; 32 / 128 * 255 = 63.75 rounds to 64; 1 / 128 * 255 = 1.99 rounds to 2.
-		val straight = row(64, 32, 1, 128).premultipliedToStraight()
-		assertEquals(listOf(128, 64, 2, 128), pixel(straight, 0))
+		assertEquals(listOf(128, 64, 2, 128), pixel(unpremultiplied(64, 32, 1, 128), 0))
 	}
 
+	/** A color brighter than its alpha allows clamps at full intensity instead of wrapping. */
 	@Test
 	fun colorPastItsAlphaClampsAtFullIntensity() {
-		val straight = row(200, 10, 0, 100).premultipliedToStraight()
-		assertEquals(listOf(255, 26, 0, 100), pixel(straight, 0))
+		assertEquals(listOf(255, 26, 0, 100), pixel(unpremultiplied(200, 10, 0, 100), 0))
 	}
 
+	/** The conversion writes into the raster's own buffer rather than a copy. */
 	@Test
-	fun theConversionLeavesTheSourceUntouched() {
-		val source = row(64, 32, 16, 128)
-		source.premultipliedToStraight()
-		assertEquals(listOf(64, 32, 16, 128), pixel(source, 0))
+	fun theConversionWritesIntoTheSameBuffer() {
+		val image = row(64, 32, 16, 128)
+		val buffer = image.rgba
+		image.unpremultiplyInPlace()
+		assertSame(buffer, image.rgba)
+		assertEquals(listOf(128, 64, 32, 128), pixel(image, 0))
 	}
 
+	/** Forcing opaque alpha sets every alpha to 255 and leaves every color alone. */
 	@Test
 	fun opaqueAlphaSetsEveryAlphaAndKeepsColor() {
-		val opaque = row(10, 20, 30, 0, 40, 50, 60, 128).withOpaqueAlpha()
+		val opaque = row(10, 20, 30, 0, 40, 50, 60, 128)
+		opaque.setOpaqueAlphaInPlace()
 		assertEquals(listOf(10, 20, 30, 255), pixel(opaque, 0))
 		assertEquals(listOf(40, 50, 60, 255), pixel(opaque, 1))
 	}

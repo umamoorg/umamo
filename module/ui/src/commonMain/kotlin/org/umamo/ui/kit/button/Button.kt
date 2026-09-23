@@ -27,18 +27,22 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * @param Function onClick  Click callback.
  * @param Modifier modifier Layout modifier.
  * @param Boolean  primary  Accent fill when true, neutral when false.
+ * @param Boolean  enabled  When false the button rests on the neutral fill with a disabled label, shows no
+ *   hover or press, and ignores clicks.
  */
 @Composable
-fun Button(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = true) {
+fun Button(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = true, enabled: Boolean = true) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
 	val pressed by interaction.collectIsPressedAsState()
 	// The same ramp the filled icon buttons and button-group segments use (accentControlFill), except that
-	// a secondary button's hover stays the softer rowHover it has always drawn; a press outranks a hover.
+	// a secondary button's hover stays the softer rowHover it has always drawn; a press outranks a hover, and
+	// a disabled button outranks both, showing no feedback, as a disabled IconButton does.
 	val fill =
 		when {
+			!enabled -> colors.controlBackground
 			primary && pressed -> colors.accentPressed
 			primary && hovered -> colors.accentHover
 			primary -> colors.accent
@@ -46,19 +50,25 @@ fun Button(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, pr
 			hovered -> colors.rowHover
 			else -> colors.controlBackground
 		}
+	val labelColor =
+		when {
+			!enabled -> colors.textDisabled
+			primary -> colors.accentText
+			else -> colors.text
+		}
 	Box(
 		modifier =
 			modifier
 				.clip(shapes.small)
 				.background(fill)
-				.clickable(interactionSource = interaction, indication = null, onClick = onClick)
+				.clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
 				.padding(horizontal = 8.dp, vertical = 3.dp),
 		contentAlignment = Alignment.Center,
 	) {
 		Text(
 			text = label,
 			style = LocalUmamoTypography.current.labelMedium,
-			color = if (primary) colors.accentText else colors.text,
+			color = labelColor,
 		)
 	}
 }

@@ -15,10 +15,11 @@ import org.umamo.format.png.PngCodec
 import org.umamo.render.puppet.canvasBoundsOf
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.writeReplacing
+import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.ImageExportSessionOptions
-import org.umamo.ui.document.exportSuggestedName
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.alert_export_image_failed
+import org.umamo.ui.resources.export_image_failed_memory
 import org.umamo.ui.resources.export_image_failed_renderer
 import org.umamo.ui.resources.export_options_image_no_canvas
 import org.umamo.ui.resources.export_options_image_no_viewport
@@ -41,33 +42,36 @@ import org.umamo.ui.workspace.ExportOptionsRequest
  *
  * @property EditorAppServices         services       The app's shared collaborators.
  * @property OpenPuppet                puppet         The open puppet document with its session.
+ * @property DocumentFile?             file           Where the document saves, which names the image.
  * @property DocumentViewportSlot      viewport       Where the document's render service is while it lives.
  * @property ImageExportSessionOptions sessionOptions The dialog's session memory, which outlives this controller.
  */
 internal class ImageExportController(
 	private val services: EditorAppServices,
 	private val puppet: OpenPuppet,
+	private val file: DocumentFile?,
 	private val viewport: DocumentViewportSlot,
 	private val sessionOptions: ImageExportSessionOptions,
 ) {
 	/**
 	 * Opens the Export Image dialog, framed around what there is to capture right now: the 2D viewport area the
-	 * command resolved (none when the pointer last touched another space), the canvas, and the shown content at
-	 * the current pose.  Confirming records the options and continues to the destination and the render.
+	 * command resolved (none when no 2D viewport has been touched), the canvas, and the shown content at the
+	 * current pose.  Confirming records what the dialog says to remember - the options, keeping a region it only
+	 * fell back from - and continues to the destination and the render.
 	 *
 	 * @param String? viewportAreaId The 2D viewport area the View region frames, or null for none.
 	 */
 	fun exportImage(viewportAreaId: String?) {
 		val service = viewport.service ?: return
 		services.commandRegistry.invoke(
-			"document.exportOptionsImage",
+			"document.exportOptions",
 			ExportOptionsRequest.Image(
 				initial = sessionOptions.dialogOptions(),
 				viewFrame = viewportAreaId?.let { areaId -> service.areaView(areaId) },
 				canvasBounds = canvasBoundsOf(puppet.session.model.value),
 				contentBounds = service.visibleContentBounds(),
-				onConfirm = { options ->
-					sessionOptions.recordConfirmed(options)
+				onConfirm = { options, remembered ->
+					sessionOptions.recordConfirmed(remembered)
 					services.scope.launch { export(options, viewportAreaId) }
 				},
 			),
@@ -82,7 +86,7 @@ internal class ImageExportController(
 	 * @param String?            viewportAreaId The 2D viewport area the View region frames, or null for none.
 	 */
 	private suspend fun export(options: ImageExportOptions, viewportAreaId: String?) {
-		val destination = services.filePicker.saveFile(exportSuggestedName(puppet.document.displayName), FileKind.Png.extension) ?: return
+		val destination = services.filePicker.saveFile(file?.exportBaseName ?: services.untitledName(), FileKind.Png.extension) ?: return
 		val service = viewport.service
 		if (service == null) {
 			alert(destination, getString(Res.string.export_image_failed_renderer))
@@ -106,12 +110,21 @@ internal class ImageExportController(
 					return alert(destination, getString(Res.string.export_options_image_too_large, framing.width, framing.height, MAX_IMAGE_EDGE))
 			}
 		puppet.session.emitNotice("notice.document.exportingImage", NoticePlacement.StatusBar)
-		val image = service.renderImage(frame, options.frameBackdrop())
-		if (image == null) {
-			alert(destination, getString(Res.string.export_image_failed_renderer))
-			return
-		}
-		val bytes = withContext(Dispatchers.Default) { PngCodec.write(image) }
+		val bytes =
+			try {
+				val image = service.renderImage(frame, options.frameBackdrop())
+				if (image == null) {
+					alert(destination, getString(Res.string.export_image_failed_renderer))
+					return
+				}
+				withContext(Dispatchers.Default) { PngCodec.write(image) }
+			} catch (failure: OutOfMemoryError) {
+				// The image and its encoding are the large allocations here, up to a gigabyte each at the edge
+				// limit; running short costs this export, not the editor and the rig's unsaved work.
+				UmamoLog.error("export image: ran out of memory at ${frame.width}x${frame.height}", failure)
+				alert(destination, getString(Res.string.export_image_failed_memory, frame.width, frame.height))
+				return
+			}
 		try {
 			// Once the bytes exist they land, as with a save: a torn-down composition must not leave half a file.
 			withContext(NonCancellable) { destination.writeReplacing(bytes) }
