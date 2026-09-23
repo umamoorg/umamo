@@ -1,5 +1,6 @@
 package org.umamo.edit
 
+import org.umamo.runtime.model.PuppetModel
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.round
@@ -53,6 +54,19 @@ data class GridConfig(
 fun snapToGrid(value: Float, origin: Float, step: Float): Float = round((value - origin) / step) * step + origin
 
 /**
+ * Rounds a world point to the nearest intersection of the model's world grid - the lattice the backdrop
+ * draws, anchored on the world origin.  Both axes in one call, so a caller cannot anchor x on the origin's
+ * z or the reverse.
+ *
+ * @param Float worldX The world x to snap.
+ * @param Float worldZ The world z (up) to snap.
+ * @param Float step   The grid snap increment (see [GridConfig.snapStep]).
+ * @return Pair<Float, Float> The snapped world (x, z).
+ */
+fun PuppetModel.snapToWorldGrid(worldX: Float, worldZ: Float, step: Float): Pair<Float, Float> =
+	snapToGrid(worldX, worldOriginX, step) to snapToGrid(worldZ, worldOriginZ, step)
+
+/**
  * The 2D cursor: a placeable world-space anchor, the 2D analog of Blender's 3D cursor.  Placed with
  * Shift+RightClick in the viewport, drawn by the HUD overlay, usable as a transform pivot
  * ([TransformPivotMode.Cursor]) and as the source / target of the Shift+S snap operations.  Session
@@ -63,9 +77,9 @@ fun snapToGrid(value: Float, origin: Float, step: Float): Float = round((value -
  * アンカー。取り消し履歴には乗らない一時状態。
  *
  * @property Float worldX The cursor's world-space x.
- * @property Float worldY The cursor's world-space y.
+ * @property Float worldZ The cursor's world-space z (up).
  */
-data class Cursor2d(val worldX: Float, val worldY: Float)
+data class Cursor2d(val worldX: Float, val worldZ: Float)
 
 /**
  * The UV editor's own 2D cursor: a placeable anchor in normalized atlas coordinates, the texture-space

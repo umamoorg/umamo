@@ -473,6 +473,7 @@
 	<string name="sources_source_detail">%1$s · %2$d layers</string>
 	<string name="sources_source_no_path">no path recorded</string>
 	<string name="sources_layer_detail">%1$d × %2$d at %3$d, %4$d</string>
+	<string name="sources_layer_detail_axes">%1$d × %2$d at %3$s x, %4$s z</string>
 	<string name="sources_tile_page">page %1$d</string>
 	<string name="sources_relink_title">Relink to a Layer</string>
 	<string name="sources_relink_clear">Unbind</string>
@@ -794,6 +795,84 @@
 	<string name="import_anchor_bottom">Bottom</string>
 	<string name="import_anchor_bottom_right">Bottom Right</string>
 	<string name="match_options_threshold">Match Threshold</string>
+
+	<!--
+	  Row descriptions: what a labelled Properties or operation-strip row does, shown as the tooltip over its
+	  label.  Named after the row's label key; an owner infix (_part, _deformer) marks a second description
+	  where the owner changes what the field does, and the transform rows are named after their parameter.
+	-->
+	<string name="properties_field_canvas_width_description">The canvas width, in pixels.  Resizing moves only its right edge, so the art stays where it is.</string>
+	<string name="properties_field_canvas_height_description">The canvas height, in pixels.  Resizing moves only its bottom edge, so the art and the world axes stay put while Origin Z changes by the same amount.</string>
+	<string name="properties_field_origin_x_description">Where the world axes cross, in pixels from the canvas's left edge.  The Position fields measure from these axes.</string>
+	<string name="properties_field_origin_z_description">Where the world axes cross, in pixels up from the canvas's bottom edge.  The Position fields measure from these axes.</string>
+	<string name="properties_field_source_layer_display_description">Draws each mesh from its original artwork layer instead of the packed atlas.  A mesh whose layer the document does not keep still draws from the atlas.</string>
+	<string name="properties_field_runtime_target_description">The runtime this model is made for.  Controls for features it cannot play are hidden, but nothing is removed from the document; only a MOC3 export leaves those features out.</string>
+	<string name="properties_field_position_x_description">The horizontal center of the mesh as it appears in the viewport, measured from the world axes.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_position_z_description">The vertical center of the mesh as it appears in the viewport, measured up from the world axes.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_size_x_description">The width of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_size_z_description">The height of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_base_angle_description">The deformer's base rotation, in degrees.  The angle each keyform sets is added to it.</string>
+	<string name="properties_part_ref_description">The part this item belongs to.  Clearing it moves the item out of every part.</string>
+	<string name="properties_parent_deformer_description">The deformer this item is attached to.  The item follows it as it moves, bends, or turns.</string>
+	<string name="properties_field_pinned_description">Holds this art in place on its atlas page.  Moving it by hand in the UV editor is refused, and a repack leaves it where it is unless Keep Pinned Tiles is off.</string>
+	<string name="properties_field_draw_order_description">Where this mesh stacks, from 0 to 1000: higher draws in front, and a tie goes to the one higher in the outliner.  Inside a Grouped or Isolated part, it stacks only among that part's contents.</string>
+	<string name="properties_field_opacity_description">How opaque the mesh is, from 0 (invisible) to 1 (fully opaque).</string>
+	<string name="properties_field_blend_mode_description">How the mesh's colors mix with what is drawn behind it, like a paint app's layer blend modes.  The Legacy modes ignore the Alpha setting.</string>
+	<string name="properties_field_alpha_mode_description">How the mesh's transparency combines with what is behind it.  Over stacks normally, Atop draws only over art already there, and Out erases what is behind it instead of drawing.  Conjoint and Disjoint change how soft edges overlap.</string>
+	<string name="properties_field_multiply_color_description">Multiplies the mesh's colors by this color to darken or tint it.  White leaves it unchanged.</string>
+	<string name="properties_field_screen_color_description">Screens this color over the mesh to lighten it.  Black leaves it unchanged.</string>
+	<string name="properties_field_culling_description">Hides any part of the mesh that a deformation flips over, instead of drawing it mirrored.</string>
+	<string name="properties_field_masked_by_description">Clips this mesh to the meshes listed here, so it shows only where they have art.</string>
+	<string name="properties_field_invert_mask_description">Shows the mesh only where its masks have no art, instead of only where they do.</string>
+	<string name="properties_field_opacity_deformer_description">Scales the opacity of everything this deformer moves, nested deformers included, from 0 (invisible) to 1 (unchanged).</string>
+	<string name="properties_field_multiply_color_deformer_description">Multiplies the colors of everything this deformer moves by this color.  White leaves them unchanged.</string>
+	<string name="properties_field_screen_color_deformer_description">Screens this color over everything this deformer moves.  Black leaves it unchanged.</string>
+	<string name="properties_field_quad_transform_description">Bends each lattice cell smoothly between its four corners instead of as two triangles, so the art does not fold along the cell's diagonal.  This is the new warp deformer method, which older runtimes cannot play.</string>
+	<string name="properties_field_flip_x_description">Mirrors everything this deformer moves left to right, about its pivot.</string>
+	<string name="properties_field_flip_y_description">Mirrors everything this deformer moves top to bottom, about its pivot.</string>
+	<string name="properties_field_sketch_description">Marks this part as a guide image, such as a reference sketch.  It shows in the editor, but a MOC3 export leaves it and everything in it out.</string>
+	<string name="properties_field_draw_order_part_description">Where the whole part stacks, from 0 to 1000: higher draws in front.  Used only when Group Mode is Grouped or Isolated.</string>
+	<string name="properties_field_group_mode_description">How the part's contents stack with the rest of the model.  Pass Through stacks each mesh by its own draw order, Grouped stacks the whole part at the part's draw order, and Isolated also draws it as one layer with its own opacity, blend, colors, and masks.</string>
+	<string name="properties_field_opacity_part_description">How opaque the part's combined layer is, from 0 (invisible) to 1 (fully opaque).  It applies once to the whole layer, so meshes overlapping inside the part do not show through each other.</string>
+	<string name="properties_field_blend_mode_part_description">How the part's combined layer mixes with what is drawn behind it, like a paint app's layer blend modes.  The Legacy modes ignore the Alpha setting.</string>
+	<string name="properties_field_alpha_mode_part_description">How the transparency of the part's combined layer combines with what is behind it.  Over stacks normally, Atop draws only over art already there, and Out erases what is behind it instead of drawing.  Conjoint and Disjoint change how soft edges overlap.</string>
+	<string name="properties_field_multiply_color_part_description">Multiplies the colors of the part's combined layer by this color.  White leaves it unchanged.</string>
+	<string name="properties_field_screen_color_part_description">Screens this color over the part's combined layer.  Black leaves it unchanged.</string>
+	<string name="properties_field_masked_by_part_description">Clips the part's combined layer to the meshes and parts listed here, so it shows only where they have art.</string>
+	<string name="properties_field_invert_mask_part_description">Shows the part's combined layer only where its masks have no art, instead of only where they do.</string>
+	<string name="repack_options_page_size_description">The largest page the pack may use, in pixels.  With Shrink Pages on, a page is only this large when the art needs the room.</string>
+	<string name="repack_options_gutter_description">Empty space kept around each piece of art and along the page edge, in pixels, so neighboring art cannot bleed in when the texture is sampled.</string>
+	<string name="repack_options_extrude_description">How many pixels of each piece's edge color are copied outward into the gutter, which hides seams at the art's edges.  It cannot be wider than the gutter.</string>
+	<string name="repack_options_allow_rotation_description">Lets the pack turn art a quarter turn to fit more onto a page.</string>
+	<string name="repack_options_keep_pinned_description">Leaves pinned art where it is and packs the rest around it.  Turn it off to pack pinned art like everything else.</string>
+	<string name="repack_options_power_of_two_description">Rounds each page's width and height up to a power of two, such as 1024 or 2048.</string>
+	<string name="repack_options_square_pages_description">Makes every page square.</string>
+	<string name="repack_options_shrink_pages_description">Sizes each page to the art it holds instead of always using the maximum page size.</string>
+	<string name="repack_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to count as art when the empty border around each piece is trimmed away before packing.</string>
+	<string name="placement_options_move_x_description">How far the art moved right on the page, in pixels.  Negative moves it left.</string>
+	<string name="placement_options_move_y_description">How far the art moved down the page, in pixels.  Negative moves it up.</string>
+	<string name="placement_options_angle_description">How far the art turned on the page, in degrees.</string>
+	<string name="placement_options_scale_x_description">How much the art was scaled along its own width.  1 leaves it unchanged.</string>
+	<string name="placement_options_scale_y_description">How much the art was scaled along its own height.  1 leaves it unchanged.</string>
+	<string name="import_options_align_description">Where the added file's canvas sits on the document's canvas: Top Left lines up their top-left corners, Center centers it, and so on.</string>
+	<string name="import_options_offset_x_description">Moves the added art right from where Align puts it, in pixels.  Negative moves it left.</string>
+	<string name="import_options_offset_z_description">Moves the added art up from where Align puts it, in pixels.  Negative moves it down.</string>
+	<string name="import_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to count as art when a layer's starting mesh is fitted around it.</string>
+	<string name="import_options_margin_description">How far a layer's starting mesh reaches past its visible art on every side, in pixels.</string>
+	<string name="match_options_threshold_description">How sure a match must be, as a percentage, before a lost layer is relinked to it automatically.  Weaker matches are left for review in the Sources panel.</string>
+	<string name="transform_options_move_x_description">How far the selection moved right, in pixels.  Negative moves it left.</string>
+	<string name="transform_options_move_y_description">How far the selection moved down the texture, in pixels.  Negative moves it up.</string>
+	<string name="transform_options_move_z_description">How far the selection moved up, in pixels.  Negative moves it down.</string>
+	<string name="transform_options_angle_description">How far the selection turned, in degrees.</string>
+	<string name="transform_options_scale_x_description">How much the selection was scaled horizontally.  1 leaves it unchanged.</string>
+	<string name="transform_options_scale_y_description">How much the selection was scaled vertically on the texture.  1 leaves it unchanged.</string>
+	<string name="transform_options_scale_z_description">How much the selection was scaled vertically.  1 leaves it unchanged.</string>
+	<string name="transform_options_proportional_description">Also moves the unselected vertices near the selection, less the farther away they are.</string>
+	<string name="transform_options_falloff_description">The curve the proportional influence follows as it fades out toward the edge of Proportional Size.</string>
+	<string name="transform_options_proportional_size_description">How far the proportional influence reaches from the selection, in pixels.</string>
+	<string name="transform_options_connected_description">Limits the proportional influence to vertices joined to the selection by mesh edges, measuring distance along those edges.</string>
+	<string name="transform_options_slide_factor_description">Where along its edge the vertex landed: 0 is where it started, and 1 is the neighboring vertex.</string>
+	<string name="merge_options_target_description">Where the merged vertices come together: at their center, or on the first or last vertex selected.</string>
 	<!-- Blend modes (Cubism color blend list). -->
 	<string name="blend_mode_normal">Normal</string>
 	<string name="blend_mode_additive">Additive</string>
@@ -886,6 +965,7 @@
 	<string name="settings_import_watch_mode_notify">Notify Only</string>
 	<string name="settings_import_watch_mode_off">Off</string>
 	<string name="settings_import_delete_art_ignores_layer">When deleting art in the sources, also mark the layer as ignored.</string>
+	<string name="settings_import_layer_positions_from_world_axes">In the Sources area, measure layer positions from the world axes instead of the art file's top-left corner.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->

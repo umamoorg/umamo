@@ -2,7 +2,6 @@ package org.umamo.ui.viewport
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
-import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
@@ -18,6 +17,7 @@ import org.umamo.edit.UvSnapKind
 import org.umamo.edit.isPoseNeutral
 import org.umamo.edit.selectableOf
 import org.umamo.edit.snapToGrid
+import org.umamo.edit.snapToWorldGrid
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
@@ -221,7 +221,7 @@ internal fun handleEditSnapRequest(
 			null
 		}
 	val model = session.model.value
-	val cursor = session.cursor2d.value ?: Cursor2d(model.worldOriginX, model.worldOriginY)
+	val cursor = session.cursor2dOrWorldOrigin()
 	when (kind) {
 		SnapKind.CursorToSelected -> session.setCursor2d(medianX, medianY)
 		SnapKind.CursorToActive -> {
@@ -243,19 +243,20 @@ internal fun handleEditSnapRequest(
 					when (kind) {
 						// Every covered vertex lands ON the cursor (Blender's pile-up semantics).
 						SnapKind.SelectionToCursor ->
-							MeshTransforms.collapseVertices(world, covered, cursor.worldX, cursor.worldY)
+							MeshTransforms.collapseVertices(world, covered, cursor.worldX, cursor.worldZ)
 
 						// A rigid translate: the covered median lands on the cursor, offsets kept.
 						SnapKind.SelectionToCursorOffset ->
-							MeshTransforms.translateVertices(world, covered, cursor.worldX - medianX, cursor.worldY - medianY)
+							MeshTransforms.translateVertices(world, covered, cursor.worldX - medianX, cursor.worldZ - medianY)
 
 						// Each covered vertex rounds to its own nearest grid point (the finest subdivision).
 						SnapKind.SelectionToGrid ->
 							world.copyOf().also { positions ->
 								val step = session.gridConfig.value.snapStep
 								for (vertexIndex in covered) {
-									positions[vertexIndex * 2] = snapToGrid(positions[vertexIndex * 2], model.worldOriginX, step)
-									positions[vertexIndex * 2 + 1] = snapToGrid(positions[vertexIndex * 2 + 1], model.worldOriginY, step)
+									val (snappedX, snappedZ) = model.snapToWorldGrid(positions[vertexIndex * 2], positions[vertexIndex * 2 + 1], step)
+									positions[vertexIndex * 2] = snappedX
+									positions[vertexIndex * 2 + 1] = snappedZ
 								}
 							}
 
@@ -313,7 +314,7 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 		} else {
 			combined
 		}
-	val cursor = session.cursor2d.value ?: Cursor2d(model.worldOriginX, model.worldOriginY)
+	val cursor = session.cursor2dOrWorldOrigin()
 	when (kind) {
 		SnapKind.CursorToSelected -> session.setCursor2d(combined.first, combined.second)
 		SnapKind.CursorToActive -> session.setCursor2d(activeCentroid.first, activeCentroid.second)
@@ -330,16 +331,15 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 				val (deltaX, deltaY) =
 					when (kind) {
 						// Each drawable's centroid lands ON the target (Blender's pile-up semantics)...
-						SnapKind.SelectionToCursor -> (cursor.worldX - ownCentroid.first) to (cursor.worldY - ownCentroid.second)
+						SnapKind.SelectionToCursor -> (cursor.worldX - ownCentroid.first) to (cursor.worldZ - ownCentroid.second)
 						SnapKind.SelectionToActive -> (activeCentroid.first - ownCentroid.first) to (activeCentroid.second - ownCentroid.second)
 						SnapKind.SelectionToGrid ->
-							session.gridConfig.value.snapStep.let { step ->
-								(snapToGrid(ownCentroid.first, model.worldOriginX, step) - ownCentroid.first) to
-									(snapToGrid(ownCentroid.second, model.worldOriginY, step) - ownCentroid.second)
+							model.snapToWorldGrid(ownCentroid.first, ownCentroid.second, session.gridConfig.value.snapStep).let { (snappedX, snappedZ) ->
+								(snappedX - ownCentroid.first) to (snappedZ - ownCentroid.second)
 							}
 
 						// ...while Keep Offset translates the whole selection rigidly by one shared delta.
-						SnapKind.SelectionToCursorOffset -> (cursor.worldX - combined.first) to (cursor.worldY - combined.second)
+						SnapKind.SelectionToCursorOffset -> (cursor.worldX - combined.first) to (cursor.worldZ - combined.second)
 
 						// The cursor moves were handled above; nothing else reaches here.
 						SnapKind.CursorToSelected, SnapKind.CursorToActive -> 0f to 0f

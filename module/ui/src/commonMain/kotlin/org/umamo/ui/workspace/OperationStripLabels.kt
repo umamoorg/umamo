@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace
 
 import androidx.compose.runtime.Composable
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.MergeParameterKeys
 import org.umamo.edit.MergeTarget
@@ -66,6 +67,65 @@ internal fun operatorParameterLabel(labelKey: String): String =
 		MergeParameterKeys.TARGET -> stringResource(Res.string.merge_options_target)
 		else -> choiceLabel(labelKey) ?: labelKey
 	}
+
+/**
+ * Maps an [org.umamo.edit.OperatorParameter.labelKey] to the description its row shows as a tooltip over
+ * the label: what the parameter did to the operation it adjusts.
+ *
+ * Keyed by the parameter rather than by its label, because two operations may share a label and still mean
+ * different things by it: a placement's Move Y is page pixels running down the page, while a viewport
+ * transform's vertical move is Move Z running up.  Not composable, so a test can pin that every key the
+ * strip can show has one.
+ *
+ * @param String labelKey The parameter's stable label key.
+ * @return StringResource? The description, or null for a choice entry's key or a key with none.
+ */
+internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? =
+	when (labelKey) {
+		RepackParameterKeys.PAGE_SIZE -> Res.string.repack_options_page_size_description
+		RepackParameterKeys.GUTTER -> Res.string.repack_options_gutter_description
+		RepackParameterKeys.EXTRUDE -> Res.string.repack_options_extrude_description
+		RepackParameterKeys.ALLOW_ROTATION -> Res.string.repack_options_allow_rotation_description
+		RepackParameterKeys.KEEP_PINNED -> Res.string.repack_options_keep_pinned_description
+		RepackParameterKeys.POWER_OF_TWO -> Res.string.repack_options_power_of_two_description
+		RepackParameterKeys.SQUARE_PAGES -> Res.string.repack_options_square_pages_description
+		RepackParameterKeys.SHRINK_PAGES -> Res.string.repack_options_shrink_pages_description
+		RepackParameterKeys.ALPHA_THRESHOLD -> Res.string.repack_options_alpha_threshold_description
+		PlacementParameterKeys.DELTA_X -> Res.string.placement_options_move_x_description
+		PlacementParameterKeys.DELTA_Y -> Res.string.placement_options_move_y_description
+		PlacementParameterKeys.ANGLE -> Res.string.placement_options_angle_description
+		PlacementParameterKeys.SCALE_X -> Res.string.placement_options_scale_x_description
+		PlacementParameterKeys.SCALE_Y -> Res.string.placement_options_scale_y_description
+		ImportParameterKeys.ALIGN -> Res.string.import_options_align_description
+		ImportParameterKeys.OFFSET_X -> Res.string.import_options_offset_x_description
+		ImportParameterKeys.OFFSET_Z -> Res.string.import_options_offset_z_description
+		ImportParameterKeys.ALPHA_THRESHOLD -> Res.string.import_options_alpha_threshold_description
+		ImportParameterKeys.MARGIN -> Res.string.import_options_margin_description
+		MatchParameterKeys.THRESHOLD -> Res.string.match_options_threshold_description
+		TransformParameterKeys.MOVE_X -> Res.string.transform_options_move_x_description
+		TransformParameterKeys.MOVE_Y -> Res.string.transform_options_move_y_description
+		TransformParameterKeys.MOVE_Z -> Res.string.transform_options_move_z_description
+		TransformParameterKeys.ANGLE -> Res.string.transform_options_angle_description
+		TransformParameterKeys.SCALE_X -> Res.string.transform_options_scale_x_description
+		TransformParameterKeys.SCALE_Y -> Res.string.transform_options_scale_y_description
+		TransformParameterKeys.SCALE_Z -> Res.string.transform_options_scale_z_description
+		TransformParameterKeys.PROPORTIONAL -> Res.string.transform_options_proportional_description
+		TransformParameterKeys.FALLOFF -> Res.string.transform_options_falloff_description
+		TransformParameterKeys.PROPORTIONAL_SIZE -> Res.string.transform_options_proportional_size_description
+		TransformParameterKeys.CONNECTED_ONLY -> Res.string.transform_options_connected_description
+		TransformParameterKeys.SLIDE_FACTOR -> Res.string.transform_options_slide_factor_description
+		MergeParameterKeys.TARGET -> Res.string.merge_options_target_description
+		else -> null
+	}
+
+/**
+ * The localized description of a parameter's row, or blank when it has none (which attaches no tooltip).
+ *
+ * @param String labelKey The parameter's stable label key.
+ * @return String The description, or an empty string.
+ */
+@Composable
+internal fun operatorParameterDescription(labelKey: String): String = operatorParameterDescriptionRes(labelKey)?.let { resource -> stringResource(resource) } ?: ""
 
 /**
  * The localized label of a choice entry's prefixed key: a falloff curve's, a merge target's, or an

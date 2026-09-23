@@ -8,7 +8,7 @@ import org.umamo.render.pick.drawableCentroids
 import org.umamo.render.pick.pickAllDrawables
 import org.umamo.render.pick.pickDrawable
 import org.umamo.render.pick.screenToWorldX
-import org.umamo.render.pick.screenToWorldY
+import org.umamo.render.pick.screenToWorldZ
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
@@ -114,10 +114,10 @@ internal class ViewportPicker(
 		val geometry = renderer.pickGeometry() ?: return null
 		// Screen (y-down) to world (y-up), the inverse of the camera's worldToNdc - see ScreenSpacePick.
 		val worldX = screenToWorldX(cursorXpx, camera, width)
-		val worldY = screenToWorldY(cursorYpx, camera, height)
+		val worldZ = screenToWorldZ(cursorYpx, camera, height)
 		return pickDrawable(
 			worldX,
-			worldY,
+			worldZ,
 			geometry.worldPositions,
 			pickableIndices,
 			pickableUvs,
@@ -149,10 +149,10 @@ internal class ViewportPicker(
 		}
 		val geometry = renderer.pickGeometry() ?: return emptyList()
 		val worldX = screenToWorldX(cursorXpx, camera, width)
-		val worldY = screenToWorldY(cursorYpx, camera, height)
+		val worldZ = screenToWorldZ(cursorYpx, camera, height)
 		return pickAllDrawables(
 			worldX,
-			worldY,
+			worldZ,
 			geometry.worldPositions,
 			pickableIndices,
 			pickableUvs,

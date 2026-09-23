@@ -17,8 +17,11 @@ Umamo is early alpha.
 * UI: Can now drag and drop files on the window.  Model files are opened and artworkd is added to the open document.
 * UI: When a text entry box is active the mouse cursor now displays the text entry cursor everywhere to indicate that text entry is currently active.
 * UI: Previous Workspace and Next Workspace added to Workspace menu.
+* UI: Add hover tooltips to the Properties area and Operation Strip.
 * Parameters: The parameters are now searchable.
 * Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
+* Source Artwork: Hovering a layer, art, or drawable row in the Sources panel previews its art.
+* Source Artwork: A new Import preference shows the Sources panel's layer positions measured from the world axes instead of the art file's top-left corner.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
@@ -30,6 +33,8 @@ Umamo is early alpha.
 * UI: The status bar's shortcut suggestions now follow the editor area under the pointer.  This is the first iteration of this feature and will be improved in the future.
 * UI: The popup overlap picker now uses the drawable name with the part name in parenthesis.
 * UI: Buttons now use the accent color when pressed.
+* UI: Positions in the Properties panel are now measured from the world axes, and the Origin fields place those axes from the canvas's bottom-left corner.
+* UI: Before the 2D cursor is placed, the 2D Cursor pivot now turns about the world origin, the same point the cursor snaps already used, instead of the selection's median.
 * UV Editor: Clicking inside a UV island in Object mode now selects it even where its texture is transparent.  Where islands overlap, the one with visible art under the cursor still wins.
 * UV Editor: Switching to another page or layer for the first time refits the camera then remembers the camera position from there on.
 * UV Editor: Fit View now also frames meshes that sit past the edge of the atlas page.
@@ -43,6 +48,7 @@ Umamo is early alpha.
 * UI: Double-clicking a workspace tab after reordering the tabs now renames the tab that was clicked instead of the tab that used to be in that spot.
 * Source Artwork: Removed the singleton that could be accidentally be shared across documents.
 * Format: An artwork file whose magic bytes are missing now routes to its reader by extension.
+* Format: Performance optimizations for the PNG CODEC resulting in up to 50% less memory usage and up to 50% faster loads.
 * Viewport: Camera fitting now falls back to the canvas bounds when there are no drawables.
 * Viewport: Changing an area between the UV Editor and the 2D Viewport no longer leaves the previous editor's contents and camera behind.
 * Outliner: A CTRL+Left Click or Shift+Left Click followed quickly by a plain click on the same row no longer opens rename.

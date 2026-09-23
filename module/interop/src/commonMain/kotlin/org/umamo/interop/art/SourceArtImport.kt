@@ -33,6 +33,8 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.runtime.model.canvasCenterWorldOriginX
+import org.umamo.runtime.model.canvasCenterWorldOriginZ
 import org.umamo.runtime.model.deriveRenderRoot
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -262,8 +264,8 @@ object SourceArtImport {
 		return model.copy(
 			canvasWidth = canvasWidth,
 			canvasHeight = canvasHeight,
-			worldOriginX = canvasWidth / 2f,
-			worldOriginY = -(canvasHeight / 2f),
+			worldOriginX = canvasCenterWorldOriginX(canvasWidth),
+			worldOriginZ = canvasCenterWorldOriginZ(canvasHeight),
 			rendersFromSourceLayers = true,
 		)
 	}

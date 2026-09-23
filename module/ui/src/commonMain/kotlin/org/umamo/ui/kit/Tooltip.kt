@@ -2,12 +2,19 @@ package org.umamo.ui.kit
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
+
+/**
+ * The widest a tooltip's label runs before it wraps.  A control's name never reaches it; a row's
+ * description is a sentence or two, and without the cap it would draw as one line across the window.
+ */
+private val TOOLTIP_MAX_WIDTH = 280.dp
 
 /**
  * Wraps [content] with a hover tooltip showing [text].  Desktop reveals the tooltip after a short
@@ -55,7 +62,7 @@ internal fun TooltipCard(text: String, modifier: Modifier = Modifier) {
 			text = text,
 			style = LocalUmamoTypography.current.labelMedium,
 			color = colors.text,
-			modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+			modifier = Modifier.widthIn(max = TOOLTIP_MAX_WIDTH).padding(horizontal = 8.dp, vertical = 4.dp),
 		)
 	}
 }

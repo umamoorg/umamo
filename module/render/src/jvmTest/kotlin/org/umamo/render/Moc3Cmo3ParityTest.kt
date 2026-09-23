@@ -71,7 +71,7 @@ class Moc3Cmo3ParityTest {
 		assertEquals(fromCmo3.canvasWidth, fromMoc3.canvasWidth, "canvas width")
 		assertEquals(fromCmo3.canvasHeight, fromMoc3.canvasHeight, "canvas height")
 		assertEquals(fromCmo3.worldOriginX, fromMoc3.worldOriginX, "world origin x")
-		assertEquals(fromCmo3.worldOriginY, fromMoc3.worldOriginY, "world origin y")
+		assertEquals(fromCmo3.worldOriginZ, fromMoc3.worldOriginZ, "world origin y")
 
 		// Parameters: identical axes (the bake preserves every parameter).
 		val cmo3Parameters = fromCmo3.parameters.associateBy { it.id }

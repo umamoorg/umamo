@@ -91,20 +91,20 @@ internal fun deformedWorldBounds(
 			}
 		}
 		val worldX: Float
-		var worldY: Float
+		var worldZ: Float
 		if (parentWorld != null) {
 			parentWorld.apply(localX, localY, scratch, 0)
 			worldX = scratch[0]
-			worldY = scratch[1]
+			worldZ = scratch[1]
 		} else {
 			worldX = localX
-			worldY = localY
+			worldZ = localY
 		}
-		worldY = -worldY // the renderer's final Y negation
+		worldZ = -worldZ // the renderer's final Y negation
 		minX = min(minX, worldX)
-		minY = min(minY, worldY)
+		minY = min(minY, worldZ)
 		maxX = max(maxX, worldX)
-		maxY = max(maxY, worldY)
+		maxY = max(maxY, worldZ)
 	}
 	// A non-finite extent (a warp-extrapolated vertex divided by a degenerate cell, or corrupt control
 	// points) is NOT a usable bound: publish none, so the renderer keeps the safe full-viewport path

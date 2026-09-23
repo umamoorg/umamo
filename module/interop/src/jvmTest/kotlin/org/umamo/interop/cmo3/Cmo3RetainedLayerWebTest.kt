@@ -99,7 +99,7 @@ class Cmo3RetainedLayerWebTest {
 				canvasWidth = 100f,
 				canvasHeight = 100f,
 				worldOriginX = 50f,
-				worldOriginY = -50f,
+				worldOriginZ = -50f,
 				runtimeTarget = RuntimeTarget.Cubism53,
 				atlas = PuppetAtlas(pages = listOf(AtlasPage(pageSize, pageSize)), tiles = listOf(tileEye, tileHair)),
 				sources = listOf(ArtSource(sourceA, "a.psd", "/art/a.psd", "psd", listOf(row("lyid:1576", "Eye", "Head/Eyes", 10, 20), row("lyid:5", "Hair", "", 30, 40)), contentHash = null, lastModified = 123L)),

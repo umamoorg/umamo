@@ -44,8 +44,12 @@ internal class Moc3ExportContext(
 		options.pixelsPerUnitOverride?.takeIf { override -> override > 0f }
 			?: Moc3Export.mocPixelsPerUnitFor(puppet)
 
-	/** The px↔model mapping every geometry conversion goes through. */
-	val canvas: MocCanvasMapping = MocCanvasMapping(pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)
+	/**
+	 * The px↔model mapping every geometry conversion goes through, and the origin the canvas record
+	 * writes.  MOC3 §5.3 CanvasInfo counts its origin in canvas orientation (y down), so the world
+	 * origin's z (up) is negated back.
+	 */
+	val canvas: MocCanvasMapping = MocCanvasMapping(pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginZ)
 
 	/**
 	 * Whether the target version carries the per-object color tables.

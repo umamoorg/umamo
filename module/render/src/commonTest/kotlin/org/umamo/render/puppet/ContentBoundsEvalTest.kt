@@ -74,7 +74,7 @@ class ContentBoundsEvalTest {
 	/** With no canvas either, it frames a square around the world origin, so the origin's axes are on screen. */
 	@Test
 	fun anEmptyViewWithNoCanvasFramesTheWorldOrigin() {
-		val bounds = emptyContentBoundsOf(emptyModel(canvasWidth = 0f, canvasHeight = 0f, worldOriginX = 40f, worldOriginY = -60f))
+		val bounds = emptyContentBoundsOf(emptyModel(canvasWidth = 0f, canvasHeight = 0f, worldOriginX = 40f, worldOriginZ = -60f))
 
 		assertEquals(40f, bounds.minX + bounds.width / 2f, "centered on the origin's x")
 		assertEquals(-60f, bounds.minY + bounds.height / 2f, "centered on the origin's y")
@@ -87,10 +87,10 @@ class ContentBoundsEvalTest {
 	 * @param Float canvasWidth  The canvas width, or 0 for none.
 	 * @param Float canvasHeight The canvas height, or 0 for none.
 	 * @param Float worldOriginX The world origin's x.
-	 * @param Float worldOriginY The world origin's y.
+	 * @param Float worldOriginZ The world origin's z (up).
 	 * @return PuppetModel The model.
 	 */
-	private fun emptyModel(canvasWidth: Float, canvasHeight: Float, worldOriginX: Float = 0f, worldOriginY: Float = 0f): PuppetModel =
+	private fun emptyModel(canvasWidth: Float, canvasHeight: Float, worldOriginX: Float = 0f, worldOriginZ: Float = 0f): PuppetModel =
 		PuppetModel(
 			parameters = emptyList(),
 			parts = emptyList(),
@@ -101,6 +101,6 @@ class ContentBoundsEvalTest {
 			canvasWidth = canvasWidth,
 			canvasHeight = canvasHeight,
 			worldOriginX = worldOriginX,
-			worldOriginY = worldOriginY,
+			worldOriginZ = worldOriginZ,
 		)
 }

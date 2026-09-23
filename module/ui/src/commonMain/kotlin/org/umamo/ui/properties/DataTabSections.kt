@@ -117,6 +117,7 @@ internal val TextureSection =
 								checked = tile.pinned,
 								onCheckedChange = { checked -> session?.setAtlasPins(listOf(tile.id), checked) },
 								label = stringResource(Res.string.properties_field_pinned),
+								description = stringResource(Res.string.properties_field_pinned_description),
 							)
 						},
 					)
@@ -142,6 +143,7 @@ internal val BlendSection =
 					PropertyRow(terms = listOf(Res.string.properties_field_draw_order)) { _ ->
 						KeyableScalarChannelRow(
 							label = stringResource(Res.string.properties_field_draw_order),
+							description = stringResource(Res.string.properties_field_draw_order_description),
 							owner = KeyformOwner.Drawable(drawable.id),
 							channel = FormChannel.DRAW_ORDER,
 							stored = drawable.drawOrder,
@@ -156,6 +158,7 @@ internal val BlendSection =
 					PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
 						KeyableScalarChannelRow(
 							label = stringResource(Res.string.properties_field_opacity),
+							description = stringResource(Res.string.properties_field_opacity_description),
 							owner = KeyformOwner.Drawable(drawable.id),
 							channel = FormChannel.OPACITY,
 							stored = drawable.opacity,
@@ -169,7 +172,10 @@ internal val BlendSection =
 					},
 					PropertyRow(terms = listOf(Res.string.properties_field_blend_mode)) { _ ->
 						val blendLabels = blendModeLabels()
-						PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
+						PropertyFieldRow(
+							stringResource(Res.string.properties_field_blend_mode),
+							description = stringResource(Res.string.properties_field_blend_mode_description),
+						) {
 							SelectField(
 								selected = drawable.blendMode,
 								modifier = Modifier.fillMaxWidth(),
@@ -184,7 +190,10 @@ internal val BlendSection =
 					} else {
 						PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
 							val alphaLabels = alphaBlendModeLabels()
-							PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+							PropertyFieldRow(
+								stringResource(Res.string.properties_field_alpha_mode),
+								description = stringResource(Res.string.properties_field_alpha_mode_description),
+							) {
 								SelectField(
 									selected = drawable.alphaBlendMode,
 									modifier = Modifier.fillMaxWidth(),
@@ -203,6 +212,7 @@ internal val BlendSection =
 						PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
 							KeyableColorChannelRow(
 								label = stringResource(Res.string.properties_field_multiply_color),
+								description = stringResource(Res.string.properties_field_multiply_color_description),
 								owner = KeyformOwner.Drawable(drawable.id),
 								channel = FormChannel.MULTIPLY_COLOR,
 								stored = drawable.displayMultiplyColor(),
@@ -218,6 +228,7 @@ internal val BlendSection =
 						PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
 							KeyableColorChannelRow(
 								label = stringResource(Res.string.properties_field_screen_color),
+								description = stringResource(Res.string.properties_field_screen_color_description),
 								owner = KeyformOwner.Drawable(drawable.id),
 								channel = FormChannel.SCREEN_COLOR,
 								stored = drawable.displayScreenColor(),
@@ -232,6 +243,7 @@ internal val BlendSection =
 							checked = drawable.culling,
 							onCheckedChange = { culling -> session?.setDrawableCulling(drawable.id, culling) },
 							label = stringResource(Res.string.properties_field_culling),
+							description = stringResource(Res.string.properties_field_culling_description),
 						)
 					},
 					// Clipping lives with the blend data, not under Relations: it is how the drawable is
@@ -249,6 +261,7 @@ internal val BlendSection =
 								checked = drawable.invertMask,
 								onCheckedChange = { invert -> session?.setDrawableInvertMask(drawable.id, invert) },
 								label = stringResource(Res.string.properties_field_invert_mask),
+								description = stringResource(Res.string.properties_field_invert_mask_description),
 							)
 						}
 					},
@@ -284,6 +297,7 @@ internal val DeformerSection =
 										checked = deformer.isQuadTransform,
 										onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
 										label = stringResource(Res.string.properties_field_quad_transform),
+										description = stringResource(Res.string.properties_field_quad_transform_description),
 									)
 								}
 							},
@@ -293,7 +307,10 @@ internal val DeformerSection =
 					deformerRenderChannelRows(deformer, session, target) +
 						listOf(
 							PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_base_angle)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_base_angle),
+									description = stringResource(Res.string.properties_field_base_angle_description),
+								) {
 									NumberField(
 										value = deformer.baseAngle,
 										onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
@@ -307,6 +324,7 @@ internal val DeformerSection =
 							PropertyRow(terms = listOf(Res.string.properties_field_flip_x)) { _ ->
 								KeyableFlagChannelRow(
 									label = stringResource(Res.string.properties_field_flip_x),
+									description = stringResource(Res.string.properties_field_flip_x_description),
 									owner = KeyformOwner.Deformer(deformer.id),
 									channel = FormChannel.FLIP_X,
 									stored = deformer.flipX,
@@ -318,6 +336,7 @@ internal val DeformerSection =
 							PropertyRow(terms = listOf(Res.string.properties_field_flip_y)) { _ ->
 								KeyableFlagChannelRow(
 									label = stringResource(Res.string.properties_field_flip_y),
+									description = stringResource(Res.string.properties_field_flip_y_description),
 									owner = KeyformOwner.Deformer(deformer.id),
 									channel = FormChannel.FLIP_Y,
 									stored = deformer.flipY,
@@ -350,6 +369,7 @@ internal val PartSection =
 								checked = part.isSketch,
 								onCheckedChange = { sketch -> session?.setPartSketch(part.id, sketch) },
 								label = stringResource(Res.string.properties_field_sketch),
+								description = stringResource(Res.string.properties_field_sketch_description),
 							)
 						},
 					)
@@ -358,7 +378,10 @@ internal val PartSection =
 							KeyablePropertyRow(
 								target = KeyableTarget(KeyformOwner.Part(part.id), FormChannel.DRAW_ORDER),
 							) {
-								PropertyFieldRow(stringResource(Res.string.properties_field_draw_order)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_draw_order),
+									description = stringResource(Res.string.properties_field_draw_order_part_description),
+								) {
 									val target = KeyableTarget(KeyformOwner.Part(part.id), FormChannel.DRAW_ORDER)
 									NumberField(
 										keyState = keyedFieldStateOf(KeyformOwner.Part(part.id), FormChannel.DRAW_ORDER),
@@ -391,7 +414,10 @@ internal val PartSection =
 					add(
 						PropertyRow(terms = listOf(Res.string.properties_field_group_mode)) { _ ->
 							val groupLabels = partGroupModeLabels()
-							PropertyFieldRow(stringResource(Res.string.properties_field_group_mode)) {
+							PropertyFieldRow(
+								stringResource(Res.string.properties_field_group_mode),
+								description = stringResource(Res.string.properties_field_group_mode_description),
+							) {
 								SelectField(
 									selected = part.groupMode.kind(),
 									modifier = Modifier.fillMaxWidth(),
@@ -415,6 +441,7 @@ internal val PartSection =
 							PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
 								KeyableScalarChannelRow(
 									label = stringResource(Res.string.properties_field_opacity),
+									description = stringResource(Res.string.properties_field_opacity_part_description),
 									owner = KeyformOwner.Part(part.id),
 									channel = FormChannel.OPACITY,
 									stored = composite.opacity,
@@ -432,7 +459,10 @@ internal val PartSection =
 						add(
 							PropertyRow(terms = listOf(Res.string.properties_field_blend_mode)) { _ ->
 								val blendLabels = blendModeLabels()
-								PropertyFieldRow(stringResource(Res.string.properties_field_blend_mode)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_blend_mode),
+									description = stringResource(Res.string.properties_field_blend_mode_part_description),
+								) {
 									SelectField(
 										selected = composite.blendMode,
 										modifier = Modifier.fillMaxWidth(),
@@ -447,7 +477,10 @@ internal val PartSection =
 							add(
 								PropertyRow(terms = listOf(Res.string.properties_field_alpha_mode)) { _ ->
 									val alphaLabels = alphaBlendModeLabels()
-									PropertyFieldRow(stringResource(Res.string.properties_field_alpha_mode)) {
+									PropertyFieldRow(
+										stringResource(Res.string.properties_field_alpha_mode),
+										description = stringResource(Res.string.properties_field_alpha_mode_part_description),
+									) {
 										SelectField(
 											selected = composite.alphaBlendMode,
 											modifier = Modifier.fillMaxWidth(),
@@ -463,6 +496,7 @@ internal val PartSection =
 							PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
 								KeyableColorChannelRow(
 									label = stringResource(Res.string.properties_field_multiply_color),
+									description = stringResource(Res.string.properties_field_multiply_color_part_description),
 									owner = KeyformOwner.Part(part.id),
 									channel = FormChannel.MULTIPLY_COLOR,
 									stored = composite.multiplyColor,
@@ -478,6 +512,7 @@ internal val PartSection =
 							PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
 								KeyableColorChannelRow(
 									label = stringResource(Res.string.properties_field_screen_color),
+									description = stringResource(Res.string.properties_field_screen_color_part_description),
 									owner = KeyformOwner.Part(part.id),
 									channel = FormChannel.SCREEN_COLOR,
 									stored = composite.screenColor,
@@ -500,6 +535,7 @@ internal val PartSection =
 									checked = composite.invertMask,
 									onCheckedChange = { invert -> session?.setPartComposite(part.id, composite.copy(invertMask = invert)) },
 									label = stringResource(Res.string.properties_field_invert_mask),
+									description = stringResource(Res.string.properties_field_invert_mask_part_description),
 								)
 							},
 						)
@@ -556,6 +592,7 @@ internal fun dataTabIcon(context: PropertyContext): UmamoIcon =
  * rejected.
  *
  * @param String label The row's field label.
+ * @param String description What the channel does, as the label's tooltip.
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The color channel the row edits.
  * @param ColorRgb stored The owner's static color.
@@ -566,6 +603,7 @@ internal fun dataTabIcon(context: PropertyContext): UmamoIcon =
 @Composable
 private fun KeyableColorChannelRow(
 	label: String,
+	description: String,
 	owner: KeyformOwner,
 	channel: FormChannel,
 	stored: ColorRgb,
@@ -575,7 +613,7 @@ private fun KeyableColorChannelRow(
 ) {
 	val target = KeyableTarget(owner, channel)
 	KeyablePropertyRow(target = target) {
-		PropertyFieldRow(label) {
+		PropertyFieldRow(label, description = description) {
 			HexColorField(
 				keyState = keyedFieldStateOf(owner, channel),
 				// What is APPLIED, not what is stored: on a keyed channel the static is shadowed by the
@@ -602,6 +640,7 @@ private fun KeyableColorChannelRow(
  * field on the pivot form - but from the row's point of view it keys exactly like the others.
  *
  * @param String label The checkbox's label.
+ * @param String description What the channel does, as the label's tooltip.
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The flag channel the row edits.
  * @param Boolean stored The owner's static value.
@@ -612,6 +651,7 @@ private fun KeyableColorChannelRow(
 @Composable
 private fun KeyableFlagChannelRow(
 	label: String,
+	description: String,
 	owner: KeyformOwner,
 	channel: FormChannel,
 	stored: Boolean,
@@ -629,6 +669,7 @@ private fun KeyableFlagChannelRow(
 				session?.editKeyedChannel(target, ChannelValue.Flag(flag), changeFor(flag)) { writeStatic(flag) }
 			},
 			label = label,
+			description = description,
 		)
 	}
 }
@@ -656,6 +697,7 @@ private fun deformerRenderChannelRows(
 		PropertyRow(terms = listOf(Res.string.properties_field_opacity)) { _ ->
 			KeyableScalarChannelRow(
 				label = stringResource(Res.string.properties_field_opacity),
+				description = stringResource(Res.string.properties_field_opacity_deformer_description),
 				owner = owner,
 				channel = FormChannel.OPACITY,
 				stored = deformer.opacity,
@@ -674,6 +716,7 @@ private fun deformerRenderChannelRows(
 			PropertyRow(terms = listOf(Res.string.properties_field_multiply_color)) { _ ->
 				KeyableColorChannelRow(
 					label = stringResource(Res.string.properties_field_multiply_color),
+					description = stringResource(Res.string.properties_field_multiply_color_deformer_description),
 					owner = owner,
 					channel = FormChannel.MULTIPLY_COLOR,
 					stored = deformer.multiplyColor,
@@ -689,6 +732,7 @@ private fun deformerRenderChannelRows(
 			PropertyRow(terms = listOf(Res.string.properties_field_screen_color)) { _ ->
 				KeyableColorChannelRow(
 					label = stringResource(Res.string.properties_field_screen_color),
+					description = stringResource(Res.string.properties_field_screen_color_deformer_description),
 					owner = owner,
 					channel = FormChannel.SCREEN_COLOR,
 					stored = deformer.screenColor,
@@ -705,6 +749,7 @@ private fun deformerRenderChannelRows(
  * One keyable SCALAR channel's field row: [KeyableColorChannelRow]'s counterpart for a number field.
  *
  * @param String label The row's field label.
+ * @param String description What the channel does, as the label's tooltip.
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The scalar channel the row edits.
  * @param Float stored The owner's static value.
@@ -718,6 +763,7 @@ private fun deformerRenderChannelRows(
 @Composable
 private fun KeyableScalarChannelRow(
 	label: String,
+	description: String,
 	owner: KeyformOwner,
 	channel: FormChannel,
 	stored: Float,
@@ -730,7 +776,7 @@ private fun KeyableScalarChannelRow(
 ) {
 	val target = KeyableTarget(owner, channel)
 	KeyablePropertyRow(target = target) {
-		PropertyFieldRow(label) {
+		PropertyFieldRow(label, description = description) {
 			NumberField(
 				keyState = keyedFieldStateOf(owner, channel),
 				// What is APPLIED: a keyed channel's track shadows the static.

@@ -72,16 +72,11 @@ I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
 	* Extrude(E) - Extrude an edge creates triangle cut quad automatically.
 
-## Sources Space
-* Improvements
-	* Hover to show thumbnail of layer, reuse thumbnailer.
-
 ## Texture Authoring/UV Editor
 * Follow Selection Header Control - Split it into options and images.
 	* New custom image selection control.  This will also be an entry point for adding artwork.
 	* Support renaming images.
 * Improvements
-	* Add tooltip for properties_field_source_layer_display.
 	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
 * Bugs
 	* When relinking EricaTamamo.psd in EricaTamamo.cmo3 it results in some layers getting fringe artifacts like what was experienced in the past.
@@ -146,6 +141,10 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 * Automatic Backup
 
 ### UMA (Native File Format)
+* Improvements
+	* Preview thumbnail should take a snapshot of the 2D space and not from the part thumbnailer.  The part thumbnail does not respect visbility and so on.
+	* Format icon helper - Display thumbnail as the icon with the Umamo logo overlaid.  Requires an installer.
+
 See the roadmap: docs/plan/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
 See format planning document: docs/plan/uma-format.md
 
@@ -190,8 +189,13 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 * Ability to edit ALL the theme colors (the UmamoColors palette) for a custom look through preferences.  For example, in Blender I make my vertex colors as ff00ec(unselected), ff7a00(selected), and 7de400(active selection) since it is easier for me to see.
 	* The color-blind-assist first pass — vertex/edge/face gizmo colors plus the selection highlight — already exists in Settings > Colors.
 
+## DRY/Standardization
+* Fields like PropertyFieldRow need to take a key use use that to get the correct resource key automatically instead of passing it.
+	* For Example: properties_field_base_angle - "base_angle" -> Expanded out to `properties_field_base_angle` and `properties_field_base_angle_description`.
+	* There are plenty of places in the code base that are passing the values around like this at the moment.  Difficulty: .* import level maybe?  I need to read up on the Kotlin compiler optimization to determine if this will be an issue.
+	* operatorParameterDescriptionRes also is the start of something of what I am thinking, but hardcoded.
+
 ## Settings
-* Settings Window - Curated settings.  Not everything from the settings.json can be exposed.  So each tab/section will be manually built.
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
 * Pen Binding (JPen, Wacom) - input.pen (Includes pen, pressure, and things related to the radial menu.)
 * New Startup Settings Screen
@@ -243,6 +247,7 @@ Sketch:
 * The first iteration to improve the status bar hints was a good success.  Eventually:
 	* Hint icons (Mouse button indicator, etc.)
 	* Better contextual hints: Swap out anything that is irrelevant when selecting for example and just show selection relevant shortcuts.
+* Why did the notice area get offset?  Look into the flexible space.
 
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.

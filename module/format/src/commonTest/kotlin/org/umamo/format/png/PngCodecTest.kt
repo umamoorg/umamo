@@ -5,6 +5,7 @@ import org.umamo.format.raster.RasterImage
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -32,9 +33,22 @@ class PngCodecTest {
 	 * @param Int rowBytes      Bytes per scanline (excluding the filter byte).
 	 * @param ByteArray? palette The PLTE bytes, or null.
 	 * @param ByteArray? trns    The tRNS bytes, or null.
+	 * @param Int compressionMethod The IHDR compression method byte.
+	 * @param Function1 idatPieces  Splits the zlib stream into the data of the IDAT chunks to write.
 	 * @return ByteArray The complete `.png` file.
 	 */
-	private fun buildPng(width: Int, height: Int, bitDepth: Int, colorType: Int, samples: ByteArray, rowBytes: Int, palette: ByteArray? = null, trns: ByteArray? = null): ByteArray {
+	private fun buildPng(
+		width: Int,
+		height: Int,
+		bitDepth: Int,
+		colorType: Int,
+		samples: ByteArray,
+		rowBytes: Int,
+		palette: ByteArray? = null,
+		trns: ByteArray? = null,
+		compressionMethod: Int = 0,
+		idatPieces: (ByteArray) -> List<ByteArray> = { stream -> listOf(stream) },
+	): ByteArray {
 		val filtered = Buffer()
 		for (rowIndex in 0 until height) {
 			filtered.writeByte(0) // filter type None
@@ -45,7 +59,7 @@ class PngCodecTest {
 		ihdr.writeInt(height)
 		ihdr.writeByte(bitDepth)
 		ihdr.writeByte(colorType)
-		ihdr.writeByte(0) // compression
+		ihdr.writeByte(compressionMethod)
 		ihdr.writeByte(0) // filter method
 		ihdr.writeByte(0) // interlace: none
 
@@ -58,7 +72,9 @@ class PngCodecTest {
 		if (trns != null) {
 			writeChunk(out, "tRNS", trns)
 		}
-		writeChunk(out, "IDAT", deflateIdat(filtered.readByteArray()))
+		for (piece in idatPieces(deflateIdat(filtered.readByteArray()))) {
+			writeChunk(out, "IDAT", piece)
+		}
 		writeChunk(out, "IEND", ByteArray(0))
 		return out.readByteArray()
 	}
@@ -115,10 +131,107 @@ class PngCodecTest {
 	}
 
 	@Test
-	fun decodes16BitGrayscaleKeepingHighByte() {
-		val png = buildPng(width = 2, height = 1, bitDepth = 16, colorType = 0, samples = bytes(0x12, 0x34, 0xAB, 0xCD), rowBytes = 4)
+	fun decodes16BitGrayscaleByTheSpecLinearEquation() {
+		// Every 16-bit value once, 256 per row, big-endian (PNG spec §7.2).
+		val samples = ByteArray(65536 * 2)
+		for (value in 0 until 65536) {
+			samples[value * 2] = (value ushr 8).toByte()
+			samples[value * 2 + 1] = value.toByte()
+		}
+		val png = buildPng(width = 256, height = 256, bitDepth = 16, colorType = 0, samples = samples, rowBytes = 512)
 		val decoded = PngCodec.read(png)
-		assertContentEquals(bytes(0x12, 0x12, 0x12, 255, 0xAB, 0xAB, 0xAB, 255), decoded.rgba)
+		for (value in 0 until 65536) {
+			// PNG spec §13.12: floor(value * 255 / 65535 + 0.5), evaluated as one exact integer division.
+			val expected = ((2L * value * 255 + 65535) / (2L * 65535)).toInt()
+			assertEquals(expected, decoded.rgba[value * 4].toInt() and 0xFF, "16-bit sample $value")
+		}
+	}
+
+	@Test
+	fun decodes16BitRgbaByTheSpecLinearEquation() {
+		// 0x00FF rounds up to 1 and 0xFF00 down to 254, where keeping the high byte would give 0 and 255.
+		val png = buildPng(width = 1, height = 1, bitDepth = 16, colorType = 6, samples = bytes(0x00, 0xFF, 0xFF, 0x00, 0x80, 0x80, 0xFF, 0xFF), rowBytes = 8)
+		assertContentEquals(bytes(1, 254, 128, 255), PngCodec.read(png).rgba)
+	}
+
+	@Test
+	fun sixteenBitTransparentKeyMatchesBeforeRescaling() {
+		// PNG spec §13.12: the tRNS comparison is exact, on the raw samples.  The second pixel's red
+		// differs from the key by one, so both pixels rescale to the same color but only the first is
+		// transparent.
+		val trns = bytes(0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC)
+		val samples = bytes(0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0x12, 0x35, 0x56, 0x78, 0x9A, 0xBC)
+		val png = buildPng(width = 2, height = 1, bitDepth = 16, colorType = 2, samples = samples, rowBytes = 12, trns = trns)
+		val decoded = PngCodec.read(png)
+		assertContentEquals(bytes(0x12, 0x56, 0x9A, 0, 0x12, 0x56, 0x9A, 255), decoded.rgba)
+	}
+
+	@Test
+	fun decodesGrayscaleAlpha8() {
+		val png = buildPng(width = 2, height = 1, bitDepth = 8, colorType = 4, samples = bytes(10, 20, 200, 255), rowBytes = 4)
+		assertContentEquals(bytes(10, 10, 10, 20, 200, 200, 200, 255), PngCodec.read(png).rgba)
+	}
+
+	@Test
+	fun decodesTwoBitPalette() {
+		// Indices 3,2,1,0 packed leftmost-first into one byte (PNG spec §7.2): 0b11_10_01_00.
+		val palette = bytes(255, 0, 0, 0, 255, 0, 0, 0, 255, 9, 9, 9)
+		val png = buildPng(width = 4, height = 1, bitDepth = 2, colorType = 3, samples = bytes(0xE4), rowBytes = 1, palette = palette)
+		assertContentEquals(bytes(9, 9, 9, 255, 0, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255), PngCodec.read(png).rgba)
+	}
+
+	@Test
+	fun idatSplitAcrossChunksDecodesTheSame() {
+		// PNG spec §10.2: IDAT boundaries are arbitrary, including mid-scanline and empty chunks.
+		val width = 7
+		val height = 5
+		val samples = ByteArray(width * height * 4) { (it * 37 % 251).toByte() }
+		val whole = PngCodec.read(buildPng(width, height, bitDepth = 8, colorType = 6, samples = samples, rowBytes = width * 4))
+		val split =
+			PngCodec.read(
+				buildPng(width, height, bitDepth = 8, colorType = 6, samples = samples, rowBytes = width * 4) { stream ->
+					listOf(stream.copyOfRange(0, 3), ByteArray(0), stream.copyOfRange(3, 11), stream.copyOfRange(11, stream.size))
+				},
+			)
+		assertContentEquals(samples, whole.rgba)
+		assertContentEquals(whole.rgba, split.rgba)
+	}
+
+	@Test
+	fun truncatedIdatStreamDecodesWhatItHolds() {
+		// Pseudo-random pixels keep the stream long, so half of it still reaches well past the first row.
+		val width = 256
+		val height = 64
+		var state = 12345
+		val samples =
+			ByteArray(width * height * 4) {
+				state = state * 1103515245 + 12345
+				(state ushr 16).toByte()
+			}
+		val png = buildPng(width, height, bitDepth = 8, colorType = 6, samples = samples, rowBytes = width * 4) { stream -> listOf(stream.copyOf(stream.size / 2)) }
+		val decoded = PngCodec.read(png)
+		val rowBytes = width * 4
+		assertContentEquals(samples.copyOfRange(0, rowBytes), decoded.rgba.copyOfRange(0, rowBytes), "the first row survives")
+		assertTrue(decoded.rgba.copyOfRange((height - 1) * rowBytes, height * rowBytes).all { it == 0.toByte() }, "an unreached row is transparent black")
+	}
+
+	@Test
+	fun rejectsBitDepthTheColorTypeDoesNotAllow() {
+		// PNG spec §11.2.2 Table 11.1: truecolor allows only 8 and 16 bits.
+		val png = buildPng(width = 2, height = 1, bitDepth = 4, colorType = 2, samples = bytes(0, 0, 0), rowBytes = 3)
+		assertFailsWith<IllegalArgumentException> { PngCodec.read(png) }
+	}
+
+	@Test
+	fun rejectsUnknownCompressionMethod() {
+		val png = buildPng(width = 1, height = 1, bitDepth = 8, colorType = 0, samples = bytes(0), rowBytes = 1, compressionMethod = 1)
+		assertFailsWith<IllegalArgumentException> { PngCodec.read(png) }
+	}
+
+	@Test
+	fun rejectsIndexedColorWithoutPalette() {
+		val png = buildPng(width = 1, height = 1, bitDepth = 8, colorType = 3, samples = bytes(0), rowBytes = 1)
+		assertFailsWith<IllegalArgumentException> { PngCodec.read(png) }
 	}
 
 	@Test

@@ -114,7 +114,7 @@ object Moc3Import {
 				canvasWidth = context.canvas?.width ?: 0f,
 				canvasHeight = context.canvas?.height ?: 0f,
 				worldOriginX = context.canvasOriginX,
-				worldOriginY = -context.canvasOriginY,
+				worldOriginZ = -context.canvasOriginY,
 				// Retained purely so an export can invert this import's space conversions; the evaluator and
 				// the renderer never read it.  The CANVAS's own value, not the 1f identity that
 				// Moc3ImportContext.canvasMapping substitutes for a canvas-less model - an export has to be

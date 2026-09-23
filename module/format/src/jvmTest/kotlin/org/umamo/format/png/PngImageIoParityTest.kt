@@ -40,6 +40,42 @@ class PngImageIoParityTest {
 	}
 
 	@Test
+	fun decodesImageIoInterlacedGray8() {
+		// 8-bit grayscale decodes through the per-sample lookup table rather than the RGBA copy, so
+		// its Adam7 scatter is a separate path.
+		val image = BufferedImage(19, 13, BufferedImage.TYPE_BYTE_GRAY)
+		for (y in 0 until image.height) {
+			for (x in 0 until image.width) {
+				image.raster.setSample(x, y, 0, (x * 13 + y * 7) and 0xFF)
+			}
+		}
+		val png = encodePng(image, interlaced = true)
+		if ((png[28].toInt() and 0xFF) != 1) {
+			println("ImageIO did not produce an interlaced PNG on this JDK; skipping Adam7 assertion")
+			return
+		}
+		assertGraySamplesMatch(image, PngCodec.read(png)) { sample -> sample }
+	}
+
+	@Test
+	fun decodesImageIoInterlacedGray16() {
+		// 16-bit grayscale decodes sample by sample and rescales by PNG spec §13.12's linear equation.
+		val image = BufferedImage(19, 13, BufferedImage.TYPE_USHORT_GRAY)
+		for (y in 0 until image.height) {
+			for (x in 0 until image.width) {
+				image.raster.setSample(x, y, 0, (x * 3001 + y * 1733) and 0xFFFF)
+			}
+		}
+		val png = encodePng(image, interlaced = true)
+		assertEquals(16, png[24].toInt() and 0xFF, "ImageIO writes TYPE_USHORT_GRAY as a 16-bit PNG")
+		if ((png[28].toInt() and 0xFF) != 1) {
+			println("ImageIO did not produce an interlaced PNG on this JDK; skipping Adam7 assertion")
+			return
+		}
+		assertGraySamplesMatch(image, PngCodec.read(png)) { sample -> ((2L * sample * 255 + 65535) / (2L * 65535)).toInt() }
+	}
+
+	@Test
 	fun readsWidthAndHeightFromRealImageIoPng() {
 		// A quick guard that a standard single-IDAT ImageIO PNG decodes via the same public path.
 		val image = gradientArgbImage(4, 4)
@@ -115,6 +151,29 @@ class PngImageIoParityTest {
 				assertEquals((packed ushr 8) and 0xFF, decoded.rgba[base + 1].toInt() and 0xFF, "G @ ($x,$y)")
 				assertEquals(packed and 0xFF, decoded.rgba[base + 2].toInt() and 0xFF, "B @ ($x,$y)")
 				assertEquals((packed ushr 24) and 0xFF, decoded.rgba[base + 3].toInt() and 0xFF, "A @ ($x,$y)")
+			}
+		}
+	}
+
+	/**
+	 * Asserts a decoded [RasterImage] is the opaque gray a single-band reference image stores, compared
+	 * against the reference's raster samples (the values written to the file) through [toEightBits].
+	 *
+	 * @param BufferedImage reference The source single-band grayscale image.
+	 * @param RasterImage decoded      The codec's decode.
+	 * @param Function1 toEightBits    Maps a stored sample to the expected 8-bit gray.
+	 */
+	private fun assertGraySamplesMatch(reference: BufferedImage, decoded: RasterImage, toEightBits: (Int) -> Int) {
+		assertEquals(reference.width, decoded.width, "width")
+		assertEquals(reference.height, decoded.height, "height")
+		for (y in 0 until reference.height) {
+			for (x in 0 until reference.width) {
+				val expectedGray = toEightBits(reference.raster.getSample(x, y, 0))
+				val base = (y * reference.width + x) * 4
+				assertEquals(expectedGray, decoded.rgba[base].toInt() and 0xFF, "R @ ($x,$y)")
+				assertEquals(expectedGray, decoded.rgba[base + 1].toInt() and 0xFF, "G @ ($x,$y)")
+				assertEquals(expectedGray, decoded.rgba[base + 2].toInt() and 0xFF, "B @ ($x,$y)")
+				assertEquals(255, decoded.rgba[base + 3].toInt() and 0xFF, "A @ ($x,$y)")
 			}
 		}
 	}

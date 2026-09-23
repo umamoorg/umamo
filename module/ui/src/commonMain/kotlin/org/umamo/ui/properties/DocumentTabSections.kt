@@ -15,7 +15,11 @@ import org.umamo.edit.setRuntimeTarget
 import org.umamo.edit.setSourceLayerDisplay
 import org.umamo.edit.setWorldOrigin
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.runtime.model.originFromCanvasBottom
+import org.umamo.runtime.model.originFromCanvasLeft
 import org.umamo.runtime.model.unsupportedFeaturesInUse
+import org.umamo.runtime.model.worldOriginXFromCanvasLeft
+import org.umamo.runtime.model.worldOriginZFromCanvasBottom
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.NumberField
 import org.umamo.ui.kit.SelectField
@@ -43,7 +47,10 @@ internal val CanvasSection =
 					FieldStack(
 						listOf(
 							{ position ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_canvas_width)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_canvas_width),
+									description = stringResource(Res.string.properties_field_canvas_width_description),
+								) {
 									NumberField(
 										value = puppet.canvasWidth,
 										onValueChange = { newWidth -> session?.setCanvasSize(newWidth, puppet.canvasHeight) },
@@ -56,7 +63,10 @@ internal val CanvasSection =
 								}
 							},
 							{ position ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_canvas_height)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_canvas_height),
+									description = stringResource(Res.string.properties_field_canvas_height_description),
+								) {
 									NumberField(
 										value = puppet.canvasHeight,
 										onValueChange = { newHeight -> session?.setCanvasSize(puppet.canvasWidth, newHeight) },
@@ -71,17 +81,24 @@ internal val CanvasSection =
 						),
 					)
 				},
-				// The origin x / y into a second stacked group below it.
+				// The origin x / z into a second stacked group below it.  The origin places the world axes every
+				// other position reads from, so it alone is measured on the canvas: from its bottom-left corner,
+				// Z up.  Each row converts only its own axis and passes the other's stored value through.
 				PropertyRow(
 					terms = listOf(Res.string.properties_field_origin_x, Res.string.properties_field_origin_z),
 				) { _ ->
 					FieldStack(
 						listOf(
 							{ position ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_origin_x)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_origin_x),
+									description = stringResource(Res.string.properties_field_origin_x_description),
+								) {
 									NumberField(
-										value = puppet.worldOriginX,
-										onValueChange = { newX -> session?.setWorldOrigin(newX, puppet.worldOriginY) },
+										value = puppet.originFromCanvasLeft(),
+										onValueChange = { newX ->
+											session?.setWorldOrigin(puppet.worldOriginXFromCanvasLeft(newX), puppet.worldOriginZ)
+										},
 										modifier = Modifier.fillMaxWidth(),
 										range = UNBOUNDED_RANGE,
 										decimals = 1,
@@ -90,10 +107,15 @@ internal val CanvasSection =
 								}
 							},
 							{ position ->
-								PropertyFieldRow(stringResource(Res.string.properties_field_origin_z)) {
+								PropertyFieldRow(
+									stringResource(Res.string.properties_field_origin_z),
+									description = stringResource(Res.string.properties_field_origin_z_description),
+								) {
 									NumberField(
-										value = puppet.worldOriginY,
-										onValueChange = { newY -> session?.setWorldOrigin(puppet.worldOriginX, newY) },
+										value = puppet.originFromCanvasBottom(),
+										onValueChange = { newZ ->
+											session?.setWorldOrigin(puppet.worldOriginX, puppet.worldOriginZFromCanvasBottom(newZ))
+										},
 										modifier = Modifier.fillMaxWidth(),
 										range = UNBOUNDED_RANGE,
 										decimals = 1,
@@ -133,6 +155,7 @@ internal val DisplaySection =
 						checked = puppet.rendersFromSourceLayers,
 						onCheckedChange = { enabled -> session?.setSourceLayerDisplay(enabled) },
 						label = stringResource(Res.string.properties_field_source_layer_display),
+						description = stringResource(Res.string.properties_field_source_layer_display_description),
 					)
 				},
 			)
@@ -158,7 +181,10 @@ internal val RuntimeSection =
 			listOf(
 				PropertyRow(terms = listOf(Res.string.properties_field_runtime_target)) { _ ->
 					val targetLabels = runtimeTargetLabels()
-					PropertyFieldRow(stringResource(Res.string.properties_field_runtime_target)) {
+					PropertyFieldRow(
+						stringResource(Res.string.properties_field_runtime_target),
+						description = stringResource(Res.string.properties_field_runtime_target_description),
+					) {
 						SelectField(
 							selected = puppet.runtimeTarget,
 							modifier = Modifier.fillMaxWidth(),

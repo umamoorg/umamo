@@ -105,7 +105,7 @@ class AtlasRepackAdjustTest {
 				canvasWidth = 100f,
 				canvasHeight = 100f,
 				worldOriginX = 50f,
-				worldOriginY = 50f,
+				worldOriginZ = 50f,
 				atlas = PuppetAtlas(pages = emptyList(), tiles = tiles),
 			)
 		val pngByTile = tileIds.withIndex().associate { (tileIndex, tileId) -> tileId to encodeAtlasPng(rasters[tileIndex]) }

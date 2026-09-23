@@ -186,8 +186,8 @@ internal fun OperationStrip(
  * One row of the strip, rendered by the parameter's kind through the Properties panel's own row
  * primitives - a right-aligned label over a control filling the right half for the numeric and
  * choice kinds, a lone checkbox in the field column for a flag - so a strip row and a panel row are
- * the same row.  The number fields commit once per edit (a scrub's release, a typed value), which is
- * the one run per adjustment the design promises.
+ * the same row, description tooltip included.  The number fields commit once per edit (a scrub's
+ * release, a typed value), which is the one run per adjustment the design promises.
  *
  * @param OperatorParameter parameter The row's parameter.
  * @param Function          onChange  Receives the parameter with its new value.
@@ -198,10 +198,11 @@ private fun OperationParameterRow(
 	onChange: (OperatorParameter) -> Unit,
 ) {
 	val label = operatorParameterLabel(parameter.labelKey)
+	val description = operatorParameterDescription(parameter.labelKey)
 	when (parameter) {
 		is OperatorParameter.IntParameter -> {
 			val unitSuffix = parameterUnitSuffix(parameter.unit)
-			PropertyFieldRow(label) {
+			PropertyFieldRow(label, description = description) {
 				NumberField(
 					value = parameter.value,
 					onValueChange = { value -> onChange(parameter.copy(value = value)) },
@@ -214,7 +215,7 @@ private fun OperationParameterRow(
 		}
 		is OperatorParameter.FloatParameter -> {
 			val unitSuffix = parameterUnitSuffix(parameter.unit)
-			PropertyFieldRow(label) {
+			PropertyFieldRow(label, description = description) {
 				NumberField(
 					value = parameter.value,
 					onValueChange = { value -> onChange(parameter.copy(value = value)) },
@@ -231,6 +232,7 @@ private fun OperationParameterRow(
 				checked = parameter.value,
 				onCheckedChange = { checked -> onChange(parameter.copy(value = checked)) },
 				label = label,
+				description = description,
 			)
 		}
 		is OperatorParameter.ChoiceParameter -> {
@@ -239,7 +241,7 @@ private fun OperationParameterRow(
 				parameter.choices.associate { choice ->
 					choice.key to (choice.labelKey?.let { labelKey -> operatorParameterLabel(labelKey) } ?: choice.key)
 				}
-			PropertyFieldRow(label) {
+			PropertyFieldRow(label, description = description) {
 				SelectField(
 					selected = parameter.value,
 					options = parameter.choices.map { choice -> choice.key },
