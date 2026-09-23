@@ -362,7 +362,7 @@ class AtlasPackTest {
 	}
 
 	@Test
-	fun extrusionReplicatesTheTileEdgeAndNothingElse() {
+	fun extrusionBleedsTheEdgeColorAtZeroAlphaAndAddsNoCoverage() {
 		val item = opaquePackItem("a", 3, 2)
 
 		val result = packAtlas(listOf(item), AtlasPackOptions(maxPageSize = 64, gutter = 2, extrude = 2))
@@ -373,10 +373,14 @@ class AtlasPackTest {
 			for (columnOffset in -2 until placement.trimWidth + 2) {
 				val clampedColumn = columnOffset.coerceIn(0, placement.trimWidth - 1)
 				val clampedRow = rowOffset.coerceIn(0, placement.trimHeight - 1)
+				val edge = itemPixel(item, placement.trimLeft + clampedColumn, placement.trimTop + clampedRow)
+				val inside = columnOffset == clampedColumn && rowOffset == clampedRow
+				// The tile's own pixels verbatim; the band carries the nearest edge's color with no alpha, so the
+				// page past the art stays as transparent as the layer is there.
 				assertEquals(
-					itemPixel(item, placement.trimLeft + clampedColumn, placement.trimTop + clampedRow),
+					if (inside) edge else edge and 0xFF.inv(),
 					pagePixel(page, placement.pageX + columnOffset, placement.pageY + rowOffset),
-					"extruded pixel ($columnOffset, $rowOffset)",
+					if (inside) "tile pixel ($columnOffset, $rowOffset)" else "bled pixel ($columnOffset, $rowOffset)",
 				)
 			}
 		}
