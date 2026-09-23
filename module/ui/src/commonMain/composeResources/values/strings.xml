@@ -3,7 +3,7 @@
   English (default) UI string catalog. Every user-facing chrome string lives here and is read via the
   generated Res.string.* accessor through stringResource(); format-level identifiers (ParamAngleX, …)
   are NEVER localized — they are document/interop data, not chrome. The translated catalogs live
-  beside it at values-ja/strings.xml and values-ko/strings.xml.
+  beside it at values-ja/strings.xml, values-ko/strings.xml and values-fr/strings.xml.
 -->
 <resources>
 	<string name="app_name">Umamo</string>
