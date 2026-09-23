@@ -272,10 +272,10 @@ fun EditorSession.setCanvasSize(width: Float, height: Float) {
  * Sets the world origin (world space) as one undo step.
  *
  * @param Float x The new world-origin x.
- * @param Float y The new world-origin y.
+ * @param Float z The new world-origin z (up).
  */
-fun EditorSession.setWorldOrigin(x: Float, y: Float) {
-	mutate(DocumentChange.SetWorldOrigin(x, y)) { model -> model.withWorldOrigin(x, y) }
+fun EditorSession.setWorldOrigin(x: Float, z: Float) {
+	mutate(DocumentChange.SetWorldOrigin(x, z)) { model -> model.withWorldOrigin(x, z) }
 }
 
 /**

@@ -1442,19 +1442,30 @@ class EditorSession(
 	/**
 	 * The 2D cursor's world position, or null before any placement.  Transient session state like the
 	 * tool latches (deliberately NOT part of EditorSnapshot - see [Cursor2d]); placed by Shift+RightClick
-	 * in the viewport, moved by the snap commands, drawn by the HUD overlay, and read as the transform
-	 * pivot in [TransformPivotMode.Cursor].
+	 * in the viewport, moved by the snap commands, and drawn by the HUD overlay only once placed.  An
+	 * operation that uses the cursor as a point reads [cursor2dOrWorldOrigin] instead.
 	 */
 	val cursor2d: StateFlow<Cursor2d?> = latches.cursor2d
+
+	/**
+	 * Where the 2D cursor is: its placed point, or the world origin while it is unplaced.  An unplaced
+	 * cursor is not drawn, but everything that uses it as a point - the transform pivot in
+	 * [TransformPivotMode.Cursor] and the snap commands - treats it as resting on the world axes, the way
+	 * Blender's 3D cursor starts at the origin.  Resolved on read, so the persisted cursor stays unplaced.
+	 *
+	 * @return Cursor2d The cursor's world position.
+	 */
+	fun cursor2dOrWorldOrigin(): Cursor2d =
+		cursor2d.value ?: model.value.let { current -> Cursor2d(current.worldOriginX, current.worldOriginZ) }
 
 	/**
 	 * Places (or moves) the 2D cursor.
 	 *
 	 * @param Float worldX The cursor's new world-space x.
-	 * @param Float worldY The cursor's new world-space y.
+	 * @param Float worldZ The cursor's new world-space z (up).
 	 */
-	fun setCursor2d(worldX: Float, worldY: Float) {
-		latches.setCursor2d(worldX, worldY)
+	fun setCursor2d(worldX: Float, worldZ: Float) {
+		latches.setCursor2d(worldX, worldZ)
 	}
 
 	/**

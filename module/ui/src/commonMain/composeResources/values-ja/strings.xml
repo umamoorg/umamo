@@ -433,6 +433,7 @@
 	<string name="sources_source_detail">%1$s · %2$d レイヤー</string>
 	<string name="sources_source_no_path">パス未記録</string>
 	<string name="sources_layer_detail">%1$d × %2$d、位置 %3$d, %4$d</string>
+	<string name="sources_layer_detail_axes">%1$d × %2$d、位置 X %3$s, Z %4$s</string>
 	<string name="sources_tile_page">ページ %1$d</string>
 	<string name="sources_relink_title">レイヤーに再リンク</string>
 	<string name="sources_relink_clear">リンクを解除</string>
@@ -740,13 +741,13 @@
 
 	<!-- 行の説明（プロパティパネルと操作ストリップの行ラベルに表示されるツールチップ）。下訳、確認待ち。 -->
 	<string name="properties_field_canvas_width_description">キャンバスの幅（ピクセル）。キャンバスは右端で伸縮し、アートは動きません。</string>
-	<string name="properties_field_canvas_height_description">キャンバスの高さ（ピクセル）。キャンバスは下端で伸縮し、アートは動きません。</string>
-	<string name="properties_field_origin_x_description">モデルの原点の水平位置（キャンバスの左端からのピクセル）。ビューポートの軸線がここで交差します。</string>
-	<string name="properties_field_origin_z_description">モデルの原点の垂直位置（ピクセル）。Z はキャンバスの上端から上向きに数えるため、キャンバス上の点は負の値になります。</string>
+	<string name="properties_field_canvas_height_description">キャンバスの高さ（ピクセル）。キャンバスは下端で伸縮し、アートとワールド軸は動かないため、原点 Z も同じだけ変わります。</string>
+	<string name="properties_field_origin_x_description">ワールド軸が交差する位置（キャンバスの左端からのピクセル）。ほかのすべての位置はここを基準に測ります。</string>
+	<string name="properties_field_origin_z_description">ワールド軸が交差する位置（キャンバスの下端から上向きのピクセル）。ほかのすべての位置はここを基準に測ります。</string>
 	<string name="properties_field_source_layer_display_description">パックされたテクスチャアトラスではなく、原画からモデルを描画します。ドキュメントに保存されます。ドキュメントが保持していないアートはアトラスから描画されます。</string>
 	<string name="properties_field_runtime_target_description">このモデルの対象ランタイム。そのランタイムで再生できない機能は編集から隠され、下に一覧表示されます。「ターゲットなし」ではすべての機能を使えます。</string>
-	<string name="properties_field_position_x_description">ビューポートに表示されているメッシュの水平方向の中心。すべてのパラメータが初期値のときのみ編集できます。</string>
-	<string name="properties_field_position_z_description">ビューポートに表示されているメッシュの垂直方向の中心（上が正）。すべてのパラメータが初期値のときのみ編集できます。</string>
+	<string name="properties_field_position_x_description">ビューポートに表示されているメッシュの水平方向の中心（ワールド軸からの距離）。すべてのパラメータが初期値のときのみ編集できます。</string>
+	<string name="properties_field_position_z_description">ビューポートに表示されているメッシュの垂直方向の中心（ワールド軸から上が正）。すべてのパラメータが初期値のときのみ編集できます。</string>
 	<string name="properties_field_size_x_description">ビューポートに表示されているメッシュの幅。中心を基準に拡大縮小します。すべてのパラメータが初期値のときのみ編集できます。</string>
 	<string name="properties_field_size_z_description">ビューポートに表示されているメッシュの高さ。中心を基準に拡大縮小します。すべてのパラメータが初期値のときのみ編集できます。</string>
 	<string name="properties_field_base_angle_description">デフォーマの基準となる角度（度）。各キーフォームの角度はこの値に加算されます。</string>
@@ -900,6 +901,7 @@
 	<string name="settings_import_watch_mode_notify">通知のみ</string>
 	<string name="settings_import_watch_mode_off">オフ</string>
 	<string name="settings_import_delete_art_ignores_layer">「ソース」でアートを削除したとき、そのレイヤーも無視としてマークする</string>
+	<string name="settings_import_layer_positions_from_world_axes">「ソース」のレイヤー位置を、アートファイルの左上ではなくワールド軸から測って表示する</string>
 	<string name="settings_import_parameter_template_humanoid">人型</string>
 	<string name="settings_import_parameter_template_none">なし</string>
 	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->

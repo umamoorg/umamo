@@ -21,6 +21,7 @@ Umamo is early alpha.
 * Parameters: The parameters are now searchable.
 * Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
 * Source Artwork: Hovering a layer, art, or drawable row in the Sources panel previews its art.
+* Source Artwork: A new Import preference shows the Sources panel's layer positions measured from the world axes instead of the art file's top-left corner.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
@@ -32,6 +33,8 @@ Umamo is early alpha.
 * UI: The status bar's shortcut suggestions now follow the editor area under the pointer.  This is the first iteration of this feature and will be improved in the future.
 * UI: The popup overlap picker now uses the drawable name with the part name in parenthesis.
 * UI: Buttons now use the accent color when pressed.
+* UI: Positions in the Properties panel are now measured from the world axes, and the Origin fields place those axes from the canvas's bottom-left corner.
+* UI: Before the 2D cursor is placed, the 2D Cursor pivot now turns about the world origin, the same point the cursor snaps already used, instead of the selection's median.
 * UV Editor: Clicking inside a UV island in Object mode now selects it even where its texture is transparent.  Where islands overlap, the one with visible art under the cursor still wins.
 * UV Editor: Switching to another page or layer for the first time refits the camera then remembers the camera position from there on.
 * UV Editor: Fit View now also frames meshes that sit past the edge of the atlas page.

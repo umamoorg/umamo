@@ -99,7 +99,7 @@ object UmaPuppetImport {
 				canvasWidth = puppet.canvasWidth ?: 0f,
 				canvasHeight = puppet.canvasHeight ?: 0f,
 				worldOriginX = puppet.worldOriginX ?: 0f,
-				worldOriginY = puppet.worldOriginY ?: 0f,
+				worldOriginZ = puppet.worldOriginZ ?: 0f,
 				pixelsPerUnit = puppet.pixelsPerUnit,
 				runtimeTarget = puppet.runtimeTarget?.toRuntime() ?: RuntimeTarget.NoTarget,
 				rendersFromSourceLayers = puppet.rendersFromSourceLayers ?: false,

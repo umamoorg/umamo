@@ -488,7 +488,7 @@ class Cmo3ExportRoundTripTest {
 	fun worldOriginEditReportsInsteadOfSilentlyDropping() {
 		val file = skipMessageOrNull() ?: return
 		val result =
-			roundTrip(file) { puppet -> puppet.withWorldOrigin(puppet.worldOriginX + 10f, puppet.worldOriginY) }
+			roundTrip(file) { puppet -> puppet.withWorldOrigin(puppet.worldOriginX + 10f, puppet.worldOriginZ) }
 		assertTrue(
 			result.report.notices.any { notice ->
 				notice is ExportNotice.UnsupportedChange &&

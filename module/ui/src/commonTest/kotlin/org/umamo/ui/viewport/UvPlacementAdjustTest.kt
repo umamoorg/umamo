@@ -78,7 +78,7 @@ class UvPlacementAdjustTest {
 			canvasWidth = 100f,
 			canvasHeight = 100f,
 			worldOriginX = 50f,
-			worldOriginY = 50f,
+			worldOriginZ = 50f,
 			atlas = PuppetAtlas(pages = listOf(AtlasPage(pageSide, pageSide)), tiles = listOf(AtlasTile(tileId, "a", 10, 10, original))),
 		)
 

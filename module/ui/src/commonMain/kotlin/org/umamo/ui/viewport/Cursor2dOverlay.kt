@@ -51,7 +51,7 @@ internal fun Cursor2dOverlay(
 	}
 	Canvas(modifier = modifier.fillMaxSize()) {
 		drawCursorMarker(
-			center = worldToScreen(cursorToDraw.worldX, cursorToDraw.worldY, camera, IntSize(widthPx, heightPx)),
+			center = worldToScreen(cursorToDraw.worldX, cursorToDraw.worldZ, camera, IntSize(widthPx, heightPx)),
 			tint = cursorColors.viewportBadgeText,
 		)
 	}

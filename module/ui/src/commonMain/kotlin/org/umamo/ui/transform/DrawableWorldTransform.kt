@@ -29,6 +29,10 @@ import org.umamo.runtime.model.PuppetModel
  * gated on isPoseNeutral exactly as EditorSession.beginObjectOperator is - the panel disables its fields
  * rather than writing geometry it cannot invert.
  *
+ * Everything here stays in world space, whose zero is the canvas's top-left corner.  The rigger reads
+ * positions from the world axes instead, so the Position rows convert at the display boundary through the
+ * :runtime helpers (OriginRelativeCoordinates.kt) and hand this file world coordinates.
+ *
  * WHY THIS EDITS FROM :ui.  Editing logic over EditorSession belongs in :edit; this file is the standing
  * exception, and the reason is the module graph, not convenience.  World space is produced by :render's
  * deform eval (drawableLocalPosed below), and :edit and :render are SIBLINGS over :runtime - :edit cannot
@@ -42,7 +46,7 @@ import org.umamo.runtime.model.PuppetModel
  * The world-space geometry backing one drawable's Transform rows: the bounds to display, and whether they
  * can be written back.
  *
- * @property MeshBounds bounds The drawable's axis-aligned world bounds (x horizontal, y up = the panel's Z).
+ * @property MeshBounds bounds The drawable's axis-aligned world bounds (x horizontal, y up = the panel's Z), which the panel shows relative to the world origin.
  * @property Boolean editable Whether an edit can be inverted back onto the base mesh (see [drawableWorldTransform]).
  */
 internal class DrawableWorldTransform(val bounds: MeshBounds, val editable: Boolean)
@@ -74,6 +78,9 @@ internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: Drawable
 		// center's y first.  localToWorld flips y (world y grows upward), so reporting local y raw would make
 		// the Position Z row jump sign purely because an ancestor was toggled invisible.  Extents are
 		// unsigned and carry over as-is.  Not editable: without a mapping there is nothing to invert through.
+		// For a root drawable local space IS canvas space, so this is its true world center and the row's
+		// origin conversion reads it correctly.  Under a deformer it is the deformer's local space, which no
+		// origin conversion can make meaningful; the row is read-only there, so it is shown as it is.
 		val local = meshBounds(displayed)
 		return DrawableWorldTransform(
 			MeshBounds(local.centerX, -local.centerY, local.width, local.height),
@@ -117,16 +124,17 @@ private fun EditorSession.commitWorldTransform(
 }
 
 /**
- * Moves drawable [id] so its world bounds center lands on ([centerX], [centerY]) - the Transform panel's
- * Position row - as one undo step.  [centerY] is the panel's Z (world y grows upward).
+ * Moves drawable [id] so its world bounds center lands on ([centerX], [centerZ]) - the Transform panel's
+ * Position row - as one undo step.  [centerZ] grows upward, like the panel's Z.  Both are WORLD
+ * coordinates: the row converts its origin-relative value to world before calling this.
  *
  * @param DrawableId id The drawable to move.
  * @param Float centerX The world x its bounds center should land on.
- * @param Float centerY The world y (panel Z) its bounds center should land on.
+ * @param Float centerZ The world z (up) its bounds center should land on.
  */
-internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float, centerY: Float) {
+internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float, centerZ: Float) {
 	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Grab)) { world ->
-		movedToBoundsCenter(world, centerX, centerY)
+		movedToBoundsCenter(world, centerX, centerZ)
 	}
 }
 

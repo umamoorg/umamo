@@ -134,7 +134,7 @@ fun barycentricWeights(
  * レンダラの解決済み描画順に基づく（生のドローオーダー値ではない）。
  *
  * @param Float worldX                               The point X in post-deform world space.
- * @param Float worldY                               The point Y in post-deform world space.
+ * @param Float worldZ                               The point Z (up) in post-deform world space.
  * @param Map<DrawableId, FloatArray> worldPositions Interleaved (x,y) deformed vertices per drawable.
  * @param Map<DrawableId, IntArray> indices          Triangle index triples per drawable.
  * @param Map<DrawableId, FloatArray> meshUvs        Interleaved (u,v) per vertex per drawable.
@@ -145,7 +145,7 @@ fun barycentricWeights(
  */
 fun pickDrawable(
 	worldX: Float,
-	worldY: Float,
+	worldZ: Float,
 	worldPositions: Map<DrawableId, FloatArray>,
 	indices: Map<DrawableId, IntArray>,
 	meshUvs: Map<DrawableId, FloatArray>,
@@ -159,7 +159,7 @@ fun pickDrawable(
 		val triangleIndices = indices[drawableId] ?: continue
 		val uvs = meshUvs[drawableId] ?: continue
 		val rank = frontRank[drawableId] ?: continue
-		val uv = hitUv(worldX, worldY, positions, triangleIndices, uvs) ?: continue
+		val uv = hitUv(worldX, worldZ, positions, triangleIndices, uvs) ?: continue
 		if (sampleAlpha(drawableId, uv[0], uv[1]) < alphaThreshold) {
 			continue
 		}
@@ -180,7 +180,7 @@ fun pickDrawable(
  * 点の下の不透明候補すべてを前面順に返す（各々の中心度付き）。重なり選択ポップアップ用。
  *
  * @param Float worldX                               The point X in post-deform world space.
- * @param Float worldY                               The point Y in post-deform world space.
+ * @param Float worldZ                               The point Z (up) in post-deform world space.
  * @param Map<DrawableId, FloatArray> worldPositions Interleaved (x,y) deformed vertices per drawable.
  * @param Map<DrawableId, IntArray> indices          Triangle index triples per drawable.
  * @param Map<DrawableId, FloatArray> meshUvs        Interleaved (u,v) per vertex per drawable.
@@ -192,7 +192,7 @@ fun pickDrawable(
  */
 fun pickAllDrawables(
 	worldX: Float,
-	worldY: Float,
+	worldZ: Float,
 	worldPositions: Map<DrawableId, FloatArray>,
 	indices: Map<DrawableId, IntArray>,
 	meshUvs: Map<DrawableId, FloatArray>,
@@ -206,7 +206,7 @@ fun pickAllDrawables(
 		val triangleIndices = indices[drawableId] ?: continue
 		val uvs = meshUvs[drawableId] ?: continue
 		val rank = frontRank[drawableId] ?: continue
-		val uv = hitUv(worldX, worldY, positions, triangleIndices, uvs) ?: continue
+		val uv = hitUv(worldX, worldZ, positions, triangleIndices, uvs) ?: continue
 		if (sampleAlpha(drawableId, uv[0], uv[1]) < alphaThreshold) {
 			continue
 		}
@@ -284,7 +284,7 @@ fun centralityAt(
  * 点を含む最初の三角形での補間 UV を返す（無ければ null）。
  *
  * @param Float worldX             The point X.
- * @param Float worldY             The point Y.
+ * @param Float worldZ             The point Z (up).
  * @param FloatArray positions     Interleaved (x,y) deformed vertices.
  * @param IntArray triangleIndices Triangle index triples.
  * @param FloatArray uvs           Interleaved (u,v) per vertex.
@@ -292,7 +292,7 @@ fun centralityAt(
  */
 private fun hitUv(
 	worldX: Float,
-	worldY: Float,
+	worldZ: Float,
 	positions: FloatArray,
 	triangleIndices: IntArray,
 	uvs: FloatArray,
@@ -316,8 +316,8 @@ private fun hitUv(
 			val by = positions[secondVertex + 1]
 			val cx = positions[thirdVertex]
 			val cy = positions[thirdVertex + 1]
-			if (pointInTriangle(worldX, worldY, ax, ay, bx, by, cx, cy)) {
-				val weights = barycentricWeights(worldX, worldY, ax, ay, bx, by, cx, cy)
+			if (pointInTriangle(worldX, worldZ, ax, ay, bx, by, cx, cy)) {
+				val weights = barycentricWeights(worldX, worldZ, ax, ay, bx, by, cx, cy)
 				val hitU = weights[0] * uvs[firstVertex] + weights[1] * uvs[secondVertex] + weights[2] * uvs[thirdVertex]
 				val hitV = weights[0] * uvs[firstVertex + 1] + weights[1] * uvs[secondVertex + 1] + weights[2] * uvs[thirdVertex + 1]
 				return floatArrayOf(hitU, hitV)

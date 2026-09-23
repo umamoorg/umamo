@@ -284,11 +284,11 @@ interface PuppetViewportService {
 	 *
 	 * @param String areaId The area to frame in.
 	 * @param Float minX The rectangle's minimum world x.
-	 * @param Float minY The rectangle's minimum world y.
+	 * @param Float minZ The rectangle's minimum world z (up).
 	 * @param Float maxX The rectangle's maximum world x.
-	 * @param Float maxY The rectangle's maximum world y.
+	 * @param Float maxZ The rectangle's maximum world z (up).
 	 */
-	fun fitWorldRect(areaId: String, minX: Float, minY: Float, maxX: Float, maxY: Float)
+	fun fitWorldRect(areaId: String, minX: Float, minZ: Float, maxX: Float, maxZ: Float)
 
 	/**
 	 * Pushes the selected drawables; the engine re-renders their tint.

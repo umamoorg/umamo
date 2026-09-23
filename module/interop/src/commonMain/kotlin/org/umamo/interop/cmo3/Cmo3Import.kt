@@ -88,6 +88,8 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.WarpForm
+import org.umamo.runtime.model.canvasCenterWorldOriginX
+import org.umamo.runtime.model.canvasCenterWorldOriginZ
 import org.umamo.runtime.model.deriveRenderRoot
 
 /**
@@ -505,9 +507,8 @@ object Cmo3Import {
 		// every corpus model, so reading it collapses both axis lines onto the canvas corner.  The center
 		// is canvas-space, so its y negates into world space like every vertex (a positive canvas y stored
 		// raw would float a full canvas above the art - the "X axis above the head" bug).  The viewport
-		// axes cross here and snap.cursorToWorldOrigin lands here.
-		val originCanvasX = canvasWidth / 2f
-		val originCanvasY = canvasHeight / 2f
+		// axes cross here and snap.cursorToWorldOrigin lands here.  canvasCenterWorldOriginX / Z are the one
+		// definition of that center, shared with the CMO3 export's check for an origin it cannot store.
 
 		// Draw order is a pure derivation of the org tree + the parts' draw-order group flags / values, so
 		// the renderer's render-order tree is computed, never a parallel source of truth that can drift.
@@ -524,8 +525,8 @@ object Cmo3Import {
 				parameterTree = parameterTree,
 				canvasWidth = canvasWidth,
 				canvasHeight = canvasHeight,
-				worldOriginX = originCanvasX,
-				worldOriginY = -originCanvasY,
+				worldOriginX = canvasCenterWorldOriginX(canvasWidth),
+				worldOriginZ = canvasCenterWorldOriginZ(canvasHeight),
 				// CMO3: CModelSource field targetVersionNo - the authored SDK target.  The SDK(N/A)/Latest
 				// sentinel, unknown values, and an absent field all map to NoTarget, so nothing is
 				// restricted.

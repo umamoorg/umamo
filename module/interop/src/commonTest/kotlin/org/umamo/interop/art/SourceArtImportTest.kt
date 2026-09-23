@@ -286,7 +286,7 @@ class SourceArtImportTest {
 		assertEquals(200f, puppet.canvasWidth)
 		assertEquals(100f, puppet.canvasHeight)
 		assertEquals(100f, puppet.worldOriginX)
-		assertEquals(-50f, puppet.worldOriginY, "the origin is the canvas center, y negated into world space")
+		assertEquals(-50f, puppet.worldOriginZ, "the origin is the canvas center, y negated into world space")
 		assertTrue(puppet.rendersFromSourceLayers, "a fresh import shows the layers as drawn")
 		assertNull(puppet.pixelsPerUnit)
 		assertTrue(puppet.deformers.isEmpty())

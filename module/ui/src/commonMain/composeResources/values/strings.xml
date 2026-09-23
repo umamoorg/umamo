@@ -473,6 +473,7 @@
 	<string name="sources_source_detail">%1$s · %2$d layers</string>
 	<string name="sources_source_no_path">no path recorded</string>
 	<string name="sources_layer_detail">%1$d × %2$d at %3$d, %4$d</string>
+	<string name="sources_layer_detail_axes">%1$d × %2$d at %3$s x, %4$s z</string>
 	<string name="sources_tile_page">page %1$d</string>
 	<string name="sources_relink_title">Relink to a Layer</string>
 	<string name="sources_relink_clear">Unbind</string>
@@ -801,13 +802,13 @@
 	  where the owner changes what the field does, and the transform rows are named after their parameter.
 	-->
 	<string name="properties_field_canvas_width_description">The canvas width, in pixels.  The canvas grows or shrinks at its right edge, and the art stays where it is.</string>
-	<string name="properties_field_canvas_height_description">The canvas height, in pixels.  The canvas grows or shrinks at its bottom edge, and the art stays where it is.</string>
-	<string name="properties_field_origin_x_description">Where the model's origin sits horizontally, in pixels from the canvas's left edge.  The viewport's axis lines cross here.</string>
-	<string name="properties_field_origin_z_description">Where the model's origin sits vertically, in pixels.  Z counts up from the canvas's top edge, so a point on the canvas is negative.</string>
+	<string name="properties_field_canvas_height_description">The canvas height, in pixels.  The canvas grows or shrinks at its bottom edge while the art and the world axes stay where they are, so Origin Z changes by the same amount.</string>
+	<string name="properties_field_origin_x_description">Where the world axes cross, in pixels from the canvas's left edge.  Every other position is measured from here.</string>
+	<string name="properties_field_origin_z_description">Where the world axes cross, in pixels up from the canvas's bottom edge.  Every other position is measured from here.</string>
 	<string name="properties_field_source_layer_display_description">Draws the model from its source artwork instead of the packed texture atlas.  Saved with the document; art the document does not keep still draws from the atlas.</string>
 	<string name="properties_field_runtime_target_description">The runtime this model is built for.  Features it cannot play are hidden from editing and listed below; No Target allows everything.</string>
-	<string name="properties_field_position_x_description">The horizontal center of the mesh as it appears in the viewport.  Editable only while every parameter is at its default.</string>
-	<string name="properties_field_position_z_description">The vertical center of the mesh as it appears in the viewport, counting up.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_position_x_description">The horizontal center of the mesh as it appears in the viewport, measured from the world axes.  Editable only while every parameter is at its default.</string>
+	<string name="properties_field_position_z_description">The vertical center of the mesh as it appears in the viewport, measured up from the world axes.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_size_x_description">The width of the mesh as it appears in the viewport, scaled about its center.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_size_z_description">The height of the mesh as it appears in the viewport, scaled about its center.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_base_angle_description">The deformer's starting angle, in degrees.  The angle each keyform sets is added to it.</string>
@@ -964,6 +965,7 @@
 	<string name="settings_import_watch_mode_notify">Notify Only</string>
 	<string name="settings_import_watch_mode_off">Off</string>
 	<string name="settings_import_delete_art_ignores_layer">When deleting art in the sources, also mark the layer as ignored.</string>
+	<string name="settings_import_layer_positions_from_world_axes">In the Sources area, measure layer positions from the world axes instead of the art file's top-left corner.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->

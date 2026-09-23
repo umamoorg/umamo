@@ -3,6 +3,8 @@ package org.umamo.ui.document
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.canvasCenterWorldOriginX
+import org.umamo.runtime.model.canvasCenterWorldOriginZ
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
 
@@ -50,10 +52,9 @@ fun newBlankDocument(): BlankDocument {
 			rootPartId = null,
 			canvasWidth = BLANK_DOCUMENT_CANVAS_SIZE,
 			canvasHeight = BLANK_DOCUMENT_CANVAS_SIZE,
-			// World space is canvas x with canvas y negated, so the canvas center is (w/2, -h/2) - the
-			// expression SourceArtImport uses for an imported canvas.
-			worldOriginX = BLANK_DOCUMENT_CANVAS_SIZE / 2f,
-			worldOriginY = -(BLANK_DOCUMENT_CANVAS_SIZE / 2f),
+			// The canvas center, the same default origin every importer derives.
+			worldOriginX = canvasCenterWorldOriginX(BLANK_DOCUMENT_CANVAS_SIZE),
+			worldOriginZ = canvasCenterWorldOriginZ(BLANK_DOCUMENT_CANVAS_SIZE),
 		)
 	return BlankDocument(
 		puppet = puppet,

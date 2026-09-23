@@ -107,7 +107,7 @@ class Cmo3SourceLayerWebTest {
 			canvasWidth = 100f,
 			canvasHeight = 100f,
 			worldOriginX = 50f,
-			worldOriginY = -50f,
+			worldOriginZ = -50f,
 			runtimeTarget = RuntimeTarget.Cubism53,
 			atlas = PuppetAtlas(pages = listOf(AtlasPage(pageSize, pageSize)), tiles = listOf(tileEye, tileHair, tileGuide, tileWing)),
 			sources = sources,

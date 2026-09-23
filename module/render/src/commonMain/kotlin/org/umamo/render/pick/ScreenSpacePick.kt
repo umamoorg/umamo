@@ -33,16 +33,16 @@ fun worldToScreenX(worldX: Float, camera: ViewportCamera, viewportWidth: Int): F
 	(worldX - camera.centerX) * camera.zoom + viewportWidth / 2f
 
 /**
- * Maps a world y to its screen pixel y through [camera].  The Y axis flips: screen y grows downward,
- * world y grows upward.
+ * Maps a world z to its screen pixel y through [camera].  The vertical axis flips: screen y grows
+ * downward, world z grows upward.
  *
- * @param Float worldY The world-space y.
+ * @param Float worldZ The world-space z (up).
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportHeight The viewport height in pixels.
  * @return Float The screen y in pixels.
  */
-fun worldToScreenY(worldY: Float, camera: ViewportCamera, viewportHeight: Int): Float =
-	(camera.centerY - worldY) * camera.zoom + viewportHeight / 2f
+fun worldToScreenY(worldZ: Float, camera: ViewportCamera, viewportHeight: Int): Float =
+	(camera.centerY - worldZ) * camera.zoom + viewportHeight / 2f
 
 /**
  * Maps a screen pixel x back to world space - the exact inverse of [worldToScreenX].
@@ -61,9 +61,9 @@ fun screenToWorldX(screenX: Float, camera: ViewportCamera, viewportWidth: Int): 
  * @param Float screenY The screen y in pixels.
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportHeight The viewport height in pixels.
- * @return Float The world-space y.
+ * @return Float The world-space z (up).
  */
-fun screenToWorldY(screenY: Float, camera: ViewportCamera, viewportHeight: Int): Float =
+fun screenToWorldZ(screenY: Float, camera: ViewportCamera, viewportHeight: Int): Float =
 	camera.centerY - (screenY - viewportHeight / 2f) / camera.zoom
 
 /**

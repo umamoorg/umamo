@@ -420,12 +420,12 @@ private fun buildRotationWorld(
 	val angleDegrees = rotation.baseAngle + angleAccum
 	val parentAccY = parentWorld?.accY ?: 1f
 	val scale = parentAccY * scaleAccum
-	val worldOriginX: Float
-	val worldOriginY: Float
+	val worldPivotX: Float
+	val worldPivotY: Float
 	val worldAngle: Float
 	if (parentWorld == null) {
-		worldOriginX = originX
-		worldOriginY = originY
+		worldPivotX = originX
+		worldPivotY = originY
 		worldAngle = angleDegrees
 	} else {
 		// Probe the parent's local rotation at the origin: displace along -Y and read the resulting
@@ -462,12 +462,12 @@ private fun buildRotationWorld(
 		while (inherited < -PI_F) {
 			inherited += 2f * PI_F
 		}
-		worldOriginX = worldPosX
-		worldOriginY = worldPosY
+		worldPivotX = worldPosX
+		worldPivotY = worldPosY
 		worldAngle = angleDegrees - inherited * 180f / PI_F
 	}
 	return RotationWorld(
-		rotationXform(worldAngle, scale, flipX, flipY, worldOriginX, worldOriginY),
+		rotationXform(worldAngle, scale, flipX, flipY, worldPivotX, worldPivotY),
 		scale,
 		channels.opacity,
 		channels.multiplyColor,
