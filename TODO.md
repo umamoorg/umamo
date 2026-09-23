@@ -198,11 +198,9 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 ## Settings
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
 * Pen Binding (JPen, Wacom) - input.pen (Includes pen, pressure, and things related to the radial menu.)
-* New Startup Settings Screen
-	* Import from pervious version.
-	* Select from binding defaults.
-	* Theme Selection
-	* Language Selection (With universal emoji icon.) - Detect from system.
+* Quick Setup
+	* Versioned Settings
+	* Import from Previous
 * The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
 * New Settings
 	* Setting to make ALT+Click the default to activate the popup overlap picker.
@@ -245,7 +243,6 @@ Sketch:
 * The first iteration to improve the status bar hints was a good success.  Eventually:
 	* Hint icons (Mouse button indicator, etc.)
 	* Better contextual hints: Swap out anything that is irrelevant when selecting for example and just show selection relevant shortcuts.
-* Why did the notice area get offset?  Look into the flexible space.
 
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.

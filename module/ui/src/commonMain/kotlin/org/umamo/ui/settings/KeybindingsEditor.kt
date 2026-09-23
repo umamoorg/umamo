@@ -68,6 +68,7 @@ import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.settings_keybindings_clear
 import org.umamo.ui.resources.settings_keybindings_conflict
 import org.umamo.ui.resources.settings_keybindings_preset
+import org.umamo.ui.resources.settings_keybindings_preset_quick
 import org.umamo.ui.resources.settings_keybindings_press_shortcut
 import org.umamo.ui.resources.settings_keybindings_reassign
 import org.umamo.ui.resources.settings_keybindings_reset
@@ -87,6 +88,35 @@ private data class KeybindingConflict(val commandId: String, val chord: KeyChord
 private val CHORD_CHIP_MIN_WIDTH = 148.dp
 
 /**
+ * The keymap preset row, bound write-through to input.keybinding.preset: the keybindings editor and Quick
+ * Setup share it.  A switch keeps the user's per-command overrides, which layer on whichever preset is chosen.
+ *
+ * @param Function onSelect Called after a preset is picked, for the host's own bookkeeping.
+ */
+@Composable
+internal fun KeymapPresetSettingRow(onSelect: () -> Unit = {}, quick: Boolean = false) {
+	var preset by rememberStringSetting(KEYMAP_PRESET_KEY, "default")
+	// Preset display names are localized chrome; the ids stay stable (see KEYMAP_PRESET_IDS).
+	val presetLabels =
+		linkedMapOf(
+			"default" to stringResource(Res.string.settings_keymap_preset_default),
+			"cubism" to stringResource(Res.string.settings_keymap_preset_cubism),
+			"blender" to stringResource(Res.string.settings_keymap_preset_blender),
+		)
+	SettingRow(label = stringResource(if (quick) Res.string.settings_keybindings_preset_quick else Res.string.settings_keybindings_preset)) {
+		SelectField(
+			selected = preset,
+			options = KEYMAP_PRESET_IDS,
+			label = { presetId -> presetLabels[presetId] ?: presetId },
+			onSelect = { presetId ->
+				preset = presetId
+				onSelect()
+			},
+		)
+	}
+}
+
+/**
  * The keybindings editor: pick a preset, then rebind individual commands.  The preset dropdown and every
  * rebind write through settings (input.keybinding.preset / .overrides) and the shell re-resolves the live
  * [LocalKeymap] reactively, so a change takes effect across menus, the palette, and dispatch immediately.
@@ -103,31 +133,12 @@ internal fun KeybindingsEditor() {
 	val settings = LocalSettings.current
 	val commands = LocalCommands.current
 	val keymap = LocalKeymap.current
-	var preset by rememberStringSetting(KEYMAP_PRESET_KEY, "default")
 	var capturingCommandId by remember { mutableStateOf<String?>(null) }
 	var pendingConflict by remember { mutableStateOf<KeybindingConflict?>(null) }
 
-	// Preset display names are localized chrome; the ids stay stable (see KEYMAP_PRESET_IDS).
-	val presetLabels =
-		linkedMapOf(
-			"default" to stringResource(Res.string.settings_keymap_preset_default),
-			"cubism" to stringResource(Res.string.settings_keymap_preset_cubism),
-			"blender" to stringResource(Res.string.settings_keymap_preset_blender),
-		)
-
 	Box(modifier = Modifier.fillMaxSize()) {
 		Column(modifier = Modifier.fillMaxSize()) {
-			SettingRow(label = stringResource(Res.string.settings_keybindings_preset)) {
-				SelectField(
-					selected = preset,
-					options = KEYMAP_PRESET_IDS,
-					label = { presetId -> presetLabels[presetId] ?: presetId },
-					onSelect = { presetId ->
-						preset = presetId
-						capturingCommandId = null
-					},
-				)
-			}
+			KeymapPresetSettingRow(onSelect = { capturingCommandId = null })
 			Spacer(modifier = Modifier.height(SETTING_ROW_SPACING))
 			Row(modifier = Modifier.fillMaxWidth()) {
 				Button(

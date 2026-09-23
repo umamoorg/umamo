@@ -9,6 +9,7 @@ import okio.fakefilesystem.FakeFileSystem
 import org.umamo.storage.OkioAppStorage
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -72,6 +73,37 @@ class SettingsTest {
 		val (_, storage) = storageWith(userJson = "{ this is not json")
 		val settings = Settings.load(storage, """{"interface":{"theme":"dark"}}""")
 		assertEquals("dark", settings.getString("interface.theme")) // no throw; defaults stand
+	}
+
+	@Test
+	fun foundUserFileIsFalseWithNoFile() {
+		val (_, storage) = storageWith()
+		assertFalse(Settings.load(storage, "{}").foundUserFile)
+	}
+
+	@Test
+	fun foundUserFileIsTrueWithAValidFile() {
+		val (_, storage) = storageWith(userJson = """{"interface":{"theme":"light"}}""")
+		assertTrue(Settings.load(storage, "{}").foundUserFile)
+	}
+
+	@Test
+	fun foundUserFileIsTrueWithACorruptFile() {
+		// Present but unreadable is still found: the rigger's settings exist, they just did not parse.
+		val (_, storage) = storageWith(userJson = "{ this is not json")
+		assertTrue(Settings.load(storage, "{}").foundUserFile)
+	}
+
+	@Test
+	fun foundUserFileStaysFalseAfterTheFirstWrite() {
+		val (fileSystem, storage) = storageWith()
+		val settings = Settings.load(storage, """{"a":{"b":1}}""")
+		settings.setInt("a.b", 2)
+		// The write created the file, but the flag describes the load, not the disk now.
+		assertTrue(fileSystem.exists(configDir / "settings.json"))
+		assertFalse(settings.foundUserFile)
+		// The next load finds it.
+		assertTrue(Settings.load(OkioAppStorage(fileSystem, configDir, "/data".toPath()), "{}").foundUserFile)
 	}
 
 	@Test

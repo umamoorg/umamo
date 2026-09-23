@@ -19,7 +19,6 @@ import org.umamo.editor.desktop.viewport.OffscreenPuppetService
 import org.umamo.format.FileRole
 import org.umamo.format.FormatRegistry
 import org.umamo.runtime.model.ParameterId
-import org.umamo.settings.Settings
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.desktopAppStorage
 import org.umamo.storage.platformFileFromSavedPath
@@ -29,7 +28,6 @@ import org.umamo.ui.app.HostOpenRequests
 import org.umamo.ui.app.rememberDocumentFileFor
 import org.umamo.ui.app.rememberEditorSessionFor
 import org.umamo.ui.app.rememberExitGuard
-import org.umamo.ui.defaultSettingsJson
 import org.umamo.ui.document.Document
 import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.PuppetDocument
@@ -37,7 +35,10 @@ import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.newBlankDocument
+import org.umamo.ui.l10n.FALLBACK_LOCALE_TAG
+import org.umamo.ui.l10n.LOCALE_SETTINGS_KEY
 import org.umamo.ui.l10n.applyAppLocale
+import org.umamo.ui.loadAppSettings
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.app_icon
 import org.umamo.ui.resources.app_name
@@ -166,10 +167,12 @@ fun main(args: Array<String>) {
 	val initialDocumentHolder = AtomicReference(loadInitialDocument(initialPath) ?: newBlankDocument())
 	val initialDocumentPath = initialDocumentHolder.get()?.path
 	val storage = desktopAppStorage("umamo")
-	val settings = runBlocking { Settings.load(storage, defaultSettingsJson()) }
+	// A first run also seeds the system's language here, so the window - and the Quick Setup modal it opens
+	// with - is already in that language.
+	val settings = runBlocking { loadAppSettings(storage) }
 	// Apply the UI language before the window opens so the menu bar (which lives outside the shell's
 	// own locale scope) and every other stringResource resolve to the configured locale from the start.
-	applyAppLocale(settings.getString("localization.locale") ?: "en")
+	applyAppLocale(settings.getString(LOCALE_SETTINGS_KEY) ?: FALLBACK_LOCALE_TAG)
 	UmamoLog.info("config=${storage.configDirectory}")
 
 	application {

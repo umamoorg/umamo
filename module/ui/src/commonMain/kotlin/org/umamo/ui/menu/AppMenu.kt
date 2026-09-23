@@ -30,6 +30,7 @@ import org.umamo.ui.resources.menu_import_cmo3
 import org.umamo.ui.resources.menu_import_moc3
 import org.umamo.ui.resources.menu_open_recent
 import org.umamo.ui.resources.menu_preferences
+import org.umamo.ui.resources.menu_quick_setup
 import org.umamo.ui.resources.menu_redo
 import org.umamo.ui.resources.menu_source_code
 import org.umamo.ui.resources.menu_undo
@@ -199,9 +200,9 @@ fun workspaceMenu(
 	)
 
 /**
- * Builds the Help menu shared by every platform's menu bar: the project links, then Credits and About.
- * Every row dispatches its help.* command - the links open through the shell's handler and the two
- * dialogs through the overlay state the shell owns - so the palette reaches all five as well.
+ * Builds the Help menu shared by every platform's menu bar: the project links, then Quick Setup, then
+ * Credits and About.  Every row dispatches its help.* command - the links open through the shell's handler
+ * and the three dialogs through the overlay state the shell owns - so the palette reaches all six as well.
  *
  * @param Keymap       keymap   The keymap the accelerator hints are resolved against.
  * @param MenuDispatch dispatch Runs a command by id.
@@ -219,6 +220,8 @@ fun helpMenu(
 				commandRow(stringResource(Res.string.menu_source_code), "help.sourceCode", keymap, dispatch),
 				commandRow(stringResource(Res.string.menu_web_site), "help.webSite", keymap, dispatch),
 				commandRow(stringResource(Res.string.menu_documentation), "help.documentation", keymap, dispatch),
+				MenuItem.Separator,
+				commandRow(stringResource(Res.string.menu_quick_setup), "help.quickSetup", keymap, dispatch),
 				MenuItem.Separator,
 				commandRow(stringResource(Res.string.menu_credits), "help.credits", keymap, dispatch),
 				commandRow(stringResource(Res.string.menu_about), "help.about", keymap, dispatch),

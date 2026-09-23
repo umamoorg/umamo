@@ -259,6 +259,7 @@
 	<string name="menu_web_site">Web Site…</string>
 	<string name="menu_documentation">Documentation…</string>
 	<string name="menu_credits">Credits…</string>
+	<string name="menu_quick_setup">Quick Setup…</string>
 	<string name="menu_about">About Umamo…</string>
 	<!-- Help dialogs (Credits shows the bundled CREDITS.md; About shows name/version/license/links). -->
 	<string name="about_title">About Umamo</string>
@@ -928,6 +929,9 @@
 	<string name="cmd_preferences">Settings</string>
 	<string name="settings_title">Settings</string>
 	<string name="settings_close">Close settings</string>
+	<!-- Quick Setup: the first-run splash (also Help > Quick Setup…); its rows reuse the settings labels. -->
+	<string name="quick_setup_title">Quick Setup</string>
+	<string name="quick_setup_continue">Continue</string>
 	<!-- Settings categories (the left rail). -->
 	<string name="settings_category_interface">Interface</string>
 	<string name="settings_category_colors">Colors</string>
@@ -946,6 +950,7 @@
 	<string name="settings_interface_history_steps">History Steps</string>
 	<!-- Keybindings section: preset selection + the per-command rebinding editor. -->
 	<string name="settings_keybindings_preset">Preset</string>
+	<string name="settings_keybindings_preset_quick">Keybindings Preset</string>
 	<string name="settings_keymap_preset_default">Default</string>
 	<string name="settings_keymap_preset_cubism">Cubism</string>
 	<string name="settings_keymap_preset_blender">Blender</string>

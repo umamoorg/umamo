@@ -21,12 +21,17 @@ import org.umamo.storage.AppStorage
  *
  * Build it with [Settings.load]. The tree is held as a dynamic [JsonObject] (not typed `@Serializable`
  * classes) because settings are open-ended and merged; typed per-domain views can layer on top later.
+ *
+ * @property Boolean foundUserFile Whether a user settings file was on disk when these settings loaded - false
+ *   on a first launch.  A fact about the load, so it stays false for this instance's whole life, even after
+ *   the first write creates the file.  A file that exists but does not parse still counts as found.
  */
 class Settings private constructor(
 	private val storage: AppStorage,
 	private val userFile: okio.Path,
 	private val defaults: JsonObject,
 	private var user: JsonObject,
+	val foundUserFile: Boolean,
 ) {
 	private var merged: JsonObject = deepMerge(defaults, user)
 
@@ -107,8 +112,9 @@ class Settings private constructor(
 		fun load(storage: AppStorage, defaultSettingsJson: String, fileName: String = "settings.json"): Settings {
 			val defaults = parseObjectOrEmpty(defaultSettingsJson)
 			val userFile = storage.configDirectory / fileName
-			val user = storage.readText(userFile)?.let { parseObjectOrEmpty(it) } ?: JsonObject(emptyMap())
-			return Settings(storage, userFile, defaults, user)
+			val userText = storage.readText(userFile)
+			val user = userText?.let { parseObjectOrEmpty(it) } ?: JsonObject(emptyMap())
+			return Settings(storage, userFile, defaults, user, foundUserFile = userText != null)
 		}
 
 		/** Parses [text] to a [JsonObject], or an empty object when it is absent/blank/not an object/invalid. */

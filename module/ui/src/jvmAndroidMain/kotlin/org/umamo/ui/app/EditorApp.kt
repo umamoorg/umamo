@@ -26,6 +26,8 @@ import org.umamo.ui.menu.buildAppMenu
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.title_untitled_document
+import org.umamo.ui.settings.LocalQuickSetup
+import org.umamo.ui.settings.QuickSetupState
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.workspace.AreaViewStates
 import org.umamo.ui.workspace.EDITOR_STATE_AREAS
@@ -112,6 +114,9 @@ fun EditorApp(
 	// Held here rather than in the shell because it must survive document swaps (nothing in this
 	// remember block is keyed on the document), which is also why it outlives the export controller.
 	val moc3ExportOptions = remember { Moc3ExportSessionOptions() }
+	// Quick Setup opens on a first run - no user settings file when the app loaded - and is held here for the
+	// same reason: a file opened while it is up swaps the document and rebuilds the shell, which must not close it.
+	val quickSetup = remember { QuickSetupState(visible = !settings.foundUserFile) }
 	// The session's effective atlas pages: a repack swaps them and undo swaps them back, driven by the
 	// model through the resolver's collector.  Created up here rather than in the viewport wiring so
 	// a save and an export read the same page set the viewport shows.
@@ -237,7 +242,7 @@ fun EditorApp(
 	// go through the registry rather than straight to a controller - that is what gives the add the hovered
 	// area its operation strip shows in, and what keeps a drop under the same availability gate as the menu.
 	FileDropTarget(onDrop = { paths -> openDroppedFiles(paths, commandRegistry) }) {
-		CompositionLocalProvider(LocalAreaViewStates provides areaViewStates) {
+		CompositionLocalProvider(LocalAreaViewStates provides areaViewStates, LocalQuickSetup provides quickSetup) {
 			DocumentViewport(
 				document = document,
 				session = session,

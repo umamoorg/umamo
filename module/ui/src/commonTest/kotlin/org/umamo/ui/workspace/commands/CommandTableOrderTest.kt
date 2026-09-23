@@ -62,6 +62,7 @@ class CommandTableOrderTest {
 				"edit.preferences",
 				"help.about",
 				"help.credits",
+				"help.quickSetup",
 				"help.sourceCode",
 				"help.webSite",
 				"help.documentation",
