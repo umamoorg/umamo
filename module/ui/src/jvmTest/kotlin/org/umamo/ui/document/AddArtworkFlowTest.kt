@@ -158,7 +158,7 @@ class AddArtworkFlowTest {
 			assertEquals(read.art.widthPx.toFloat(), seeded.canvasWidth, "the canvas is the file's")
 			assertEquals(read.art.heightPx.toFloat(), seeded.canvasHeight, "the canvas is the file's")
 			assertEquals(seeded.canvasWidth / 2f, seeded.worldOriginX, "the world origin is the canvas center")
-			assertEquals(-(seeded.canvasHeight / 2f), seeded.worldOriginY, "the world origin is the canvas center")
+			assertEquals(-(seeded.canvasHeight / 2f), seeded.worldOriginZ, "the world origin is the canvas center")
 			assertEquals(
 				ParameterTemplate.Humanoid.parameters.map { parameter -> parameter.id },
 				seeded.parameters.map { parameter -> parameter.id },

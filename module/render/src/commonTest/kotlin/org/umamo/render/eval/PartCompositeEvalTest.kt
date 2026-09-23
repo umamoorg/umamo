@@ -143,7 +143,7 @@ class PartCompositeEvalTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		).withDerivedRenderRoot()
 	}
 
@@ -218,7 +218,7 @@ class PartCompositeEvalTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		).withDerivedRenderRoot()
 
 	/** The pose-resolved opacity of drawable [id] in [model] at the default pose. */

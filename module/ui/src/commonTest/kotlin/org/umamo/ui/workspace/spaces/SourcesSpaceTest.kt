@@ -161,4 +161,35 @@ class SourcesSpaceTest {
 		assertEquals(100, percentOf(1.2f))
 		assertEquals(0, percentOf(-0.1f))
 	}
+
+	/** A tile row and a drawable row preview themselves. */
+	@Test
+	fun tileAndDrawableRowsPreviewThemselves() {
+		val tileId = AtlasTileId("tile")
+		assertEquals(SourcesPreviewSubject.Tile(tileId), sourcesPreviewSubject(node(SourcesNodeKind.Tile(tileId), SourcesStatus.Bound)))
+		val drawableId = DrawableId("mesh")
+		assertEquals(SourcesPreviewSubject.Drawable(drawableId), sourcesPreviewSubject(node(SourcesNodeKind.Drawable(drawableId), SourcesStatus.Bound)))
+	}
+
+	/**
+	 * A layer row previews the first tile bound to it, and a layer under review still does: its binding is
+	 * what the review is about, so its old art is exactly what the rigger needs to see.
+	 */
+	@Test
+	fun aLayerRowPreviewsItsFirstBoundTile() {
+		val layerKind = SourcesNodeKind.Layer(SourceLayerRef(artA, "lyid:1", true))
+		val tiles = listOf(node(SourcesNodeKind.Tile(AtlasTileId("first")), SourcesStatus.Bound), node(SourcesNodeKind.Tile(AtlasTileId("second")), SourcesStatus.Bound))
+		val bound = node(layerKind, SourcesStatus.Bound).copy(children = tiles)
+		assertEquals(SourcesPreviewSubject.Tile(AtlasTileId("first")), sourcesPreviewSubject(bound))
+		val underReview = node(layerKind, SourcesStatus.NeedsReview).copy(children = tiles)
+		assertEquals(SourcesPreviewSubject.Tile(AtlasTileId("first")), sourcesPreviewSubject(underReview))
+	}
+
+	/** An unbound layer's pixels live in its file, not the document, and a file or the unbound group is no single piece of art. */
+	@Test
+	fun rowsWithNoArtOfTheirOwnPreviewNothing() {
+		assertNull(sourcesPreviewSubject(node(SourcesNodeKind.Layer(SourceLayerRef(artA, "lyid:1", true)), SourcesStatus.Unbound)))
+		assertNull(sourcesPreviewSubject(node(SourcesNodeKind.Source(artA), SourcesStatus.Present)))
+		assertNull(sourcesPreviewSubject(node(SourcesNodeKind.UnboundGroup, SourcesStatus.Unknown)))
+	}
 }

@@ -13,10 +13,10 @@ class ViewportCameraTest {
 	private val tolerance = 1e-3f
 
 	/** Maps a world point to a screen pixel (top-left origin) through a camera, for round-trip assertions. */
-	private fun worldToScreen(camera: ViewportCamera, worldX: Float, worldY: Float, width: Int, height: Int): Pair<Float, Float> {
+	private fun worldToScreen(camera: ViewportCamera, worldX: Float, worldZ: Float, width: Int, height: Int): Pair<Float, Float> {
 		val ndc = camera.worldToNdc(width, height)
 		val ndcX = worldX * ndc[0] + ndc[2]
-		val ndcY = worldY * ndc[1] + ndc[3]
+		val ndcY = worldZ * ndc[1] + ndc[3]
 		return Pair((ndcX + 1f) / 2f * width, (1f - ndcY) / 2f * height)
 	}
 
@@ -56,10 +56,10 @@ class ViewportCameraTest {
 		val cursorY = 60f
 		// The world point currently under the cursor (the camera's own inverse).
 		val worldX = camera.centerX + (cursorX - width / 2f) / camera.zoom
-		val worldY = camera.centerY + (height / 2f - cursorY) / camera.zoom
+		val worldZ = camera.centerY + (height / 2f - cursorY) / camera.zoom
 		val zoomed = camera.zoomAtCursorByPercent(deltaPercent = 25f, stepPercent = 1f, cursorXpx = cursorX, cursorYpx = cursorY, viewportWidth = width, viewportHeight = height)
 		assertEquals(1.75f, zoomed.zoom, tolerance, "150% + 25 points = 175%")
-		val (screenX, screenY) = worldToScreen(zoomed, worldX, worldY, width, height)
+		val (screenX, screenY) = worldToScreen(zoomed, worldX, worldZ, width, height)
 		assertEquals(cursorX, screenX, tolerance, "the pinned world point stays under the cursor X")
 		assertEquals(cursorY, screenY, tolerance, "the pinned world point stays under the cursor Y")
 	}
@@ -111,8 +111,8 @@ class ViewportCameraTest {
 		// The world point under the box center (via the OLD camera inverse) maps to the viewport center
 		// under the NEW camera.
 		val worldX = camera.centerX + ((left + right) / 2f - width / 2f) / camera.zoom
-		val worldY = camera.centerY + (height / 2f - (top + bottom) / 2f) / camera.zoom
-		val (screenX, screenY) = worldToScreen(framed, worldX, worldY, width, height)
+		val worldZ = camera.centerY + (height / 2f - (top + bottom) / 2f) / camera.zoom
+		val (screenX, screenY) = worldToScreen(framed, worldX, worldZ, width, height)
 		assertEquals(width / 2f, screenX, tolerance, "box center X frames to viewport center")
 		assertEquals(height / 2f, screenY, tolerance, "box center Y frames to viewport center")
 	}

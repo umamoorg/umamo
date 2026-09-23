@@ -196,7 +196,7 @@ private fun dumpPuppetSummary(puppet: PuppetModel) {
 	)
 	println(
 		"# canvas ${formatSixSignificant(puppet.canvasWidth)}x${formatSixSignificant(puppet.canvasHeight)} " +
-			"origin=${formatSixSignificant(puppet.worldOriginX)},${formatSixSignificant(puppet.worldOriginY)} " +
+			"origin=${formatSixSignificant(puppet.worldOriginX)},${formatSixSignificant(puppet.worldOriginZ)} " +
 			"target=${puppet.runtimeTarget.name}",
 	)
 	puppet.parameters.forEachIndexed { parameterIndex, parameter ->

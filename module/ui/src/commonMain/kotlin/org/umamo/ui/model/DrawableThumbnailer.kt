@@ -20,7 +20,7 @@ import kotlin.math.roundToInt
  * Longest edge (in texels) of a single art-mesh crop. The drawable's atlas crop is nearest-downsampled to
  * fit within this box so the cache stays small even for large atlas pages; the consumer then scales the
  * result to its display slot. 96px is comfortably above the slots that show it (the overlap picker's
- * ~44dp, the Outliner hover's ~120dp) at any reasonable display density, so the preview stays crisp.
+ * ~44dp, the Outliner and Sources hovers' ~120dp) at any reasonable display density, so the preview stays crisp.
  */
 private const val CROP_MAX_DIMENSION = 96
 
@@ -32,7 +32,7 @@ private const val PART_COMPOSITE_MAX_DIMENSION = 128
 
 /**
  * Crops small art-mesh previews from the loaded model's atlas pages, the shared source for the viewport's
- * overlap picker and the Outliner's hover preview (per-drawable [thumbnailFor] and combined
+ * overlap picker and the Outliner's and Sources space's hover previews (per-drawable [thumbnailFor] and combined
  * [partThumbnailFor]), and for the model icon a CMO3 export writes ([modelRasterFor]). Pure CPU over the
  * immutable decoded atlas bytes ([PuppetTextures.atlases]) and the drawables' mesh data - no GL, no
  * render-thread hand-off - so it is safe to call straight from the Compose UI thread. Results are memoized;

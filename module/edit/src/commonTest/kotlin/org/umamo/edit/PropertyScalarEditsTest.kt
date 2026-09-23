@@ -85,7 +85,7 @@ class PropertyScalarEditsTest {
 			canvasWidth = 100f,
 			canvasHeight = 200f,
 			worldOriginX = 50f,
-			worldOriginY = 100f,
+			worldOriginZ = 100f,
 		)
 
 	@Test

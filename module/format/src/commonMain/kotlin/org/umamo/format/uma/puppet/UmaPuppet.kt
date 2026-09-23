@@ -18,7 +18,7 @@ import kotlinx.serialization.Serializable
  * @property Float?                  canvasWidth             UMA §4.2: the canvas width in world units.
  * @property Float?                  canvasHeight            UMA §4.2: the canvas height in world units.
  * @property Float?                  worldOriginX            UMA §4.2: the world origin's x in world space.
- * @property Float?                  worldOriginY            UMA §4.2: the world origin's y in world space.
+ * @property Float?                  worldOriginZ            UMA §4.2: the world origin's z (up) in world space.
  * @property Float?                  pixelsPerUnit           UMA §4.2: the bake scale, absent when the document has none.
  * @property UmaRuntimeTarget?       runtimeTarget           UMA §4.2: the runtime-compatibility target.
  * @property Boolean?                rendersFromSourceLayers UMA §4.2: whether the puppet displays its source art.
@@ -37,7 +37,7 @@ public data class UmaPuppet(
 	val canvasWidth: Float? = null,
 	val canvasHeight: Float? = null,
 	val worldOriginX: Float? = null,
-	val worldOriginY: Float? = null,
+	val worldOriginZ: Float? = null,
 	val pixelsPerUnit: Float? = null,
 	val runtimeTarget: UmaRuntimeTarget? = null,
 	val rendersFromSourceLayers: Boolean? = null,

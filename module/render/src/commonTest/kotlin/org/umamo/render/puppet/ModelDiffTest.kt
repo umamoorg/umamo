@@ -65,7 +65,7 @@ class ModelDiffTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = 0f,
-			worldOriginY = 0f,
+			worldOriginZ = 0f,
 		)
 
 	private fun resident(vararg pairs: Pair<String, Int>): Map<DrawableId, Int> = pairs.associate { DrawableId(it.first) to it.second }

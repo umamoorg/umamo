@@ -41,7 +41,7 @@ class GridBackdropRenderTest {
 	private val paramA = ParameterId("A")
 
 	// A small keyed quad tucked into a corner so its pixels never overlap the sampled center rows/columns.
-	private fun model(originX: Float = 0f, originY: Float = 0f): PuppetModel {
+	private fun model(originX: Float = 0f, originZ: Float = 0f): PuppetModel {
 		val positions = floatArrayOf(150f, 150f, 180f, 150f, 150f, 180f, 180f, 180f)
 		val drawable =
 			Drawable(
@@ -63,7 +63,7 @@ class GridBackdropRenderTest {
 			canvasWidth = 0f,
 			canvasHeight = 0f,
 			worldOriginX = originX,
-			worldOriginY = originY,
+			worldOriginZ = originZ,
 		)
 	}
 
@@ -115,7 +115,7 @@ class GridBackdropRenderTest {
 		// origin, so the major line lands there, NOT at world 0.
 		val halfCell = gridScale / 2f
 		val device = GlRenderDevice()
-		val renderer = PuppetRenderer(model(originX = halfCell, originY = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		val renderer = PuppetRenderer(model(originX = halfCell, originZ = 0f), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 		renderer.initGl()
 		highContrastGrid(renderer)
 		renderer.setPose(emptyMap())

@@ -598,7 +598,7 @@ private fun documentFields(baseline: PuppetModel, edited: PuppetModel): Set<Docu
 		if (!floatEq(baseline.canvasWidth, edited.canvasWidth) || !floatEq(baseline.canvasHeight, edited.canvasHeight)) {
 			add(DocumentField.CANVAS_SIZE)
 		}
-		if (!floatEq(baseline.worldOriginX, edited.worldOriginX) || !floatEq(baseline.worldOriginY, edited.worldOriginY)) {
+		if (!floatEq(baseline.worldOriginX, edited.worldOriginX) || !floatEq(baseline.worldOriginZ, edited.worldOriginZ)) {
 			add(DocumentField.WORLD_ORIGIN)
 		}
 		if (baseline.runtimeTarget != edited.runtimeTarget) {

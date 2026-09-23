@@ -116,7 +116,7 @@ class Cmo3ImageChainBuilderTest {
 				canvasWidth = 100f,
 				canvasHeight = 100f,
 				worldOriginX = 50f,
-				worldOriginY = -50f,
+				worldOriginZ = -50f,
 				runtimeTarget = RuntimeTarget.Cubism53,
 			)
 		val report = Cmo3Export.apply(puppet, model, mapOf(drawableId.raw to chain.bindingByDrawableId.getValue(drawableId.raw)))

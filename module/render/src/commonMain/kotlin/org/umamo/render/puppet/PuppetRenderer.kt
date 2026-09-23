@@ -1581,7 +1581,7 @@ class PuppetRenderer(
 				viewportWidth,
 				viewportHeight,
 				currentModel.worldOriginX,
-				currentModel.worldOriginY,
+				currentModel.worldOriginZ,
 				gridScale,
 				gridScale,
 				gridSubdivisions,
@@ -1592,7 +1592,7 @@ class PuppetRenderer(
 		if (worldAxesVisible) {
 			// The axes sit between the backdrop and the drawables, reading as part of the canvas.
 			val originNdcX = affine.scaleX * currentModel.worldOriginX + affine.offsetX
-			val originNdcY = affine.scaleY * currentModel.worldOriginY + affine.offsetY
+			val originNdcY = affine.scaleY * currentModel.worldOriginZ + affine.offsetY
 			val axisColors = WorldAxisColors.Classic
 			pass.setPipeline(axisPipeline!!)
 			pass.drawAxisLine(AxisLineUniforms(originNdcY, vertical = false, axisColors.xRed, axisColors.xGreen, axisColors.xBlue))

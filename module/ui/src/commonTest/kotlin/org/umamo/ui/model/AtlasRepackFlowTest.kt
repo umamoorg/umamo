@@ -51,7 +51,7 @@ class AtlasRepackFlowTest {
 			canvasWidth = 100f,
 			canvasHeight = 100f,
 			worldOriginX = 50f,
-			worldOriginY = 50f,
+			worldOriginZ = 50f,
 			atlas = PuppetAtlas(pages = listOf(AtlasPage(64, 64)), tiles = listOf(boundTile, freeTile)),
 		)
 	}
