@@ -45,7 +45,7 @@ internal class Moc3ExportContext(
 			?: Moc3Export.mocPixelsPerUnitFor(puppet)
 
 	/** The px↔model mapping every geometry conversion goes through. */
-	val canvas: MocCanvasMapping = MocCanvasMapping(pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginY)
+	val canvas: MocCanvasMapping = MocCanvasMapping(pixelsPerUnit, puppet.worldOriginX, -puppet.worldOriginZ)
 
 	/**
 	 * Whether the target version carries the per-object color tables.

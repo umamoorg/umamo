@@ -63,7 +63,7 @@ internal fun snapCommands(
 		},
 		Command("snap.cursorToWorldOrigin", title = Res.string.cmd_snap_cursor_world_origin, availability = availability.hasDocument) {
 			editorSession?.let { live ->
-				live.setCursor2d(live.model.value.worldOriginX, live.model.value.worldOriginY)
+				live.setCursor2d(live.model.value.worldOriginX, live.model.value.worldOriginZ)
 				live.closePieMenu()
 			}
 		},
@@ -71,13 +71,13 @@ internal fun snapCommands(
 			editorSession?.let { live ->
 				val model = live.model.value
 				// An unplaced cursor snaps from the world origin (its conceptual resting place).
-				val cursor = live.cursor2d.value ?: Cursor2d(model.worldOriginX, model.worldOriginY)
+				val cursor = live.cursor2d.value ?: Cursor2d(model.worldOriginX, model.worldOriginZ)
 				val step = live.gridConfig.value.snapStep
 				// Round relative to the world origin, so the snap targets the same lines the grid draws
 				// (a major line crosses the origin, not an arbitrary mid-cell point).
 				live.setCursor2d(
 					snapToGrid(cursor.worldX, model.worldOriginX, step),
-					snapToGrid(cursor.worldY, model.worldOriginY, step),
+					snapToGrid(cursor.worldZ, model.worldOriginZ, step),
 				)
 				live.closePieMenu()
 			}

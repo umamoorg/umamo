@@ -19,7 +19,7 @@ import org.umamo.runtime.model.originFromCanvasBottom
 import org.umamo.runtime.model.originFromCanvasLeft
 import org.umamo.runtime.model.unsupportedFeaturesInUse
 import org.umamo.runtime.model.worldOriginXFromCanvasLeft
-import org.umamo.runtime.model.worldOriginYFromCanvasBottom
+import org.umamo.runtime.model.worldOriginZFromCanvasBottom
 import org.umamo.ui.kit.FieldStack
 import org.umamo.ui.kit.NumberField
 import org.umamo.ui.kit.SelectField
@@ -97,7 +97,7 @@ internal val CanvasSection =
 									NumberField(
 										value = puppet.originFromCanvasLeft(),
 										onValueChange = { newX ->
-											session?.setWorldOrigin(puppet.worldOriginXFromCanvasLeft(newX), puppet.worldOriginY)
+											session?.setWorldOrigin(puppet.worldOriginXFromCanvasLeft(newX), puppet.worldOriginZ)
 										},
 										modifier = Modifier.fillMaxWidth(),
 										range = UNBOUNDED_RANGE,
@@ -114,7 +114,7 @@ internal val CanvasSection =
 									NumberField(
 										value = puppet.originFromCanvasBottom(),
 										onValueChange = { newZ ->
-											session?.setWorldOrigin(puppet.worldOriginX, puppet.worldOriginYFromCanvasBottom(newZ))
+											session?.setWorldOrigin(puppet.worldOriginX, puppet.worldOriginZFromCanvasBottom(newZ))
 										},
 										modifier = Modifier.fillMaxWidth(),
 										range = UNBOUNDED_RANGE,

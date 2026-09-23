@@ -16,7 +16,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.originRelativeX
 import org.umamo.runtime.model.originRelativeZ
 import org.umamo.runtime.model.worldXFromOriginRelative
-import org.umamo.runtime.model.worldYFromOriginRelative
+import org.umamo.runtime.model.worldZFromOriginRelative
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -90,7 +90,7 @@ class DrawableWorldTransformTest {
 			canvasWidth = canvasSize,
 			canvasHeight = canvasSize,
 			worldOriginX = canvasSize / 2f,
-			worldOriginY = -(canvasSize / 2f),
+			worldOriginZ = -(canvasSize / 2f),
 		)
 
 	@Test
@@ -167,7 +167,7 @@ class DrawableWorldTransformTest {
 		assertEquals(0f, puppet.originRelativeZ(centered.bounds.centerY), "and Z 0, not the -500 world y")
 
 		// Typing (10, 20) goes through the same conversions the Position rows use, one axis at a time.
-		session.setDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(10f), puppet.worldYFromOriginRelative(20f))
+		session.setDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(10f), puppet.worldZFromOriginRelative(20f))
 
 		val moved = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!
 		assertEquals(10f, session.model.value.originRelativeX(moved.bounds.centerX), "what you type is what the readout becomes")

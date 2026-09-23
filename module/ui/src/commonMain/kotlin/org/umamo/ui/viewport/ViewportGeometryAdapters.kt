@@ -5,7 +5,7 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.MeshElement
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.screenToWorldX
-import org.umamo.render.pick.screenToWorldY
+import org.umamo.render.pick.screenToWorldZ
 import org.umamo.render.pick.worldToScreenX
 import org.umamo.render.pick.worldToScreenY
 
@@ -25,15 +25,15 @@ internal const val HIT_RADIUS_PX = 10f
  * Y flips between the spaces (screen y grows downward, world y grows upward).
  *
  * @param Float worldX The world-space x.
- * @param Float worldY The world-space y.
+ * @param Float worldZ The world-space z (up).
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
  * @return Offset The screen pixel position.
  */
-internal fun worldToScreen(worldX: Float, worldY: Float, camera: ViewportCamera, size: IntSize): Offset =
+internal fun worldToScreen(worldX: Float, worldZ: Float, camera: ViewportCamera, size: IntSize): Offset =
 	Offset(
 		worldToScreenX(worldX, camera, size.width),
-		worldToScreenY(worldY, camera, size.height),
+		worldToScreenY(worldZ, camera, size.height),
 	)
 
 /**
@@ -46,7 +46,7 @@ internal fun worldToScreen(worldX: Float, worldY: Float, camera: ViewportCamera,
  * @return Pair<Float, Float> The (x, y) world-space position.
  */
 internal fun screenToWorld(screenX: Float, screenY: Float, camera: ViewportCamera, size: IntSize): Pair<Float, Float> =
-	screenToWorldX(screenX, camera, size.width) to screenToWorldY(screenY, camera, size.height)
+	screenToWorldX(screenX, camera, size.width) to screenToWorldZ(screenY, camera, size.height)
 
 /**
  * Flattens an edge list into the interleaved endpoint array ScreenSpacePick consumes (two vertex

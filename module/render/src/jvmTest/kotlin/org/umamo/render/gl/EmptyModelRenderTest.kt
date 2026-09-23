@@ -41,7 +41,7 @@ class EmptyModelRenderTest {
 			canvasWidth = canvasSize,
 			canvasHeight = canvasSize,
 			worldOriginX = canvasSize / 2f,
-			worldOriginY = -(canvasSize / 2f),
+			worldOriginZ = -(canvasSize / 2f),
 		)
 
 	@Test

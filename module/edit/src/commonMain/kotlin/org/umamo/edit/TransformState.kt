@@ -63,9 +63,9 @@ fun snapToGrid(value: Float, origin: Float, step: Float): Float = round((value -
  * アンカー。取り消し履歴には乗らない一時状態。
  *
  * @property Float worldX The cursor's world-space x.
- * @property Float worldY The cursor's world-space y.
+ * @property Float worldZ The cursor's world-space z (up).
  */
-data class Cursor2d(val worldX: Float, val worldY: Float)
+data class Cursor2d(val worldX: Float, val worldZ: Float)
 
 /**
  * The UV editor's own 2D cursor: a placeable anchor in normalized atlas coordinates, the texture-space

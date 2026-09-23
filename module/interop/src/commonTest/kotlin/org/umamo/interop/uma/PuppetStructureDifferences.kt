@@ -252,7 +252,7 @@ internal fun puppetStructureDifferences(expected: PuppetModel, actual: PuppetMod
 		bits("canvasWidth", expected.canvasWidth, actual.canvasWidth)
 		bits("canvasHeight", expected.canvasHeight, actual.canvasHeight)
 		bits("worldOriginX", expected.worldOriginX, actual.worldOriginX)
-		bits("worldOriginY", expected.worldOriginY, actual.worldOriginY)
+		bits("worldOriginZ", expected.worldOriginZ, actual.worldOriginZ)
 		same("pixelsPerUnit bits", expected.pixelsPerUnit?.toRawBits(), actual.pixelsPerUnit?.toRawBits())
 		same("runtimeTarget", expected.runtimeTarget, actual.runtimeTarget)
 		same("rendersFromSourceLayers", expected.rendersFromSourceLayers, actual.rendersFromSourceLayers)

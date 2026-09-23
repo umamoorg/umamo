@@ -638,9 +638,9 @@ sealed interface DocumentChange : Change {
 	 * it marks the document dirty.
 	 *
 	 * @property Float x The new world-origin x.
-	 * @property Float y The new world-origin y.
+	 * @property Float z The new world-origin z (up).
 	 */
-	data class SetWorldOrigin(val x: Float, val y: Float) : DocumentChange {
+	data class SetWorldOrigin(val x: Float, val z: Float) : DocumentChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.document.worldOrigin"
 	}

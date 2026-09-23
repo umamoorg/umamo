@@ -525,7 +525,7 @@ object Cmo3Import {
 				canvasWidth = canvasWidth,
 				canvasHeight = canvasHeight,
 				worldOriginX = originCanvasX,
-				worldOriginY = -originCanvasY,
+				worldOriginZ = -originCanvasY,
 				// CMO3: CModelSource field targetVersionNo - the authored SDK target.  The SDK(N/A)/Latest
 				// sentinel, unknown values, and an absent field all map to NoTarget, so nothing is
 				// restricted.

@@ -82,10 +82,10 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 		val halfWidth = viewportWidth / 2f
 		val halfHeight = viewportHeight / 2f
 		val worldX = centerX + (cursorXpx - halfWidth) / zoom
-		val worldY = centerY + (halfHeight - cursorYpx) / zoom
+		val worldZ = centerY + (halfHeight - cursorYpx) / zoom
 		return ViewportCamera(
 			worldX - (cursorXpx - halfWidth) / newZoom,
-			worldY - (halfHeight - cursorYpx) / newZoom,
+			worldZ - (halfHeight - cursorYpx) / newZoom,
 			newZoom,
 		)
 	}
@@ -152,8 +152,8 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 		// Unproject the box center through the CURRENT camera (screen->world; Y flips), the inverse of the
 		// same affine worldToNdc applies, so the box center lands at the viewport center under the new camera.
 		val worldCenterX = centerX + (rectCenterXpx - viewportWidth / 2f) / zoom
-		val worldCenterY = centerY + (viewportHeight / 2f - rectCenterYpx) / zoom
-		return ViewportCamera(worldCenterX, worldCenterY, newZoom)
+		val worldCenterZ = centerY + (viewportHeight / 2f - rectCenterYpx) / zoom
+		return ViewportCamera(worldCenterX, worldCenterZ, newZoom)
 	}
 
 	companion object {

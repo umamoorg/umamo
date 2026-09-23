@@ -247,6 +247,7 @@ Sketch:
 * The first iteration to improve the status bar hints was a good success.  Eventually:
 	* Hint icons (Mouse button indicator, etc.)
 	* Better contextual hints: Swap out anything that is irrelevant when selecting for example and just show selection relevant shortcuts.
+* Why did the notice area get offset?  Look into the flexible space.
 
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.

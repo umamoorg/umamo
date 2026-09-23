@@ -156,10 +156,10 @@ fun ViewportObjectGizmoOverlay(
 	// converts to world units by the zoom; the center unprojects to world space to match the cached centroids.
 	fun circleStamp(working: Selection, erasing: Boolean, screenPos: Offset, radiusPx: Float, activeCamera: ViewportCamera, size: IntSize): Selection {
 		val model = session.model.value
-		val (worldX, worldY) = screenToWorld(screenPos.x, screenPos.y, activeCamera, size)
+		val (worldX, worldZ) = screenToWorld(screenPos.x, screenPos.y, activeCamera, size)
 		val worldRadius = radiusPx / activeCamera.zoom
 		val enclosed =
-			drawablesInCircle(cachedCentroids, worldX, worldY, worldRadius)
+			drawablesInCircle(cachedCentroids, worldX, worldZ, worldRadius)
 				.map { SelectionTarget.Drawable(it) }
 				.filter { model.selectableOf(it) }
 		if (enclosed.isEmpty()) {
@@ -177,10 +177,10 @@ fun ViewportObjectGizmoOverlay(
 	// encloses (Shift adds to the current selection).  Shared by the armed (Blender B) and un-armed paths.
 	fun applyBoxSelection(start: Offset, end: Offset, additive: Boolean, activeCamera: ViewportCamera, size: IntSize) {
 		val model = session.model.value
-		val (worldStartX, worldStartY) = screenToWorld(start.x, start.y, activeCamera, size)
-		val (worldEndX, worldEndY) = screenToWorld(end.x, end.y, activeCamera, size)
+		val (worldStartX, worldStartZ) = screenToWorld(start.x, start.y, activeCamera, size)
+		val (worldEndX, worldEndZ) = screenToWorld(end.x, end.y, activeCamera, size)
 		val enclosed =
-			drawablesInBox(cachedCentroids, min(worldStartX, worldEndX), min(worldStartY, worldEndY), max(worldStartX, worldEndX), max(worldStartY, worldEndY))
+			drawablesInBox(cachedCentroids, min(worldStartX, worldEndX), min(worldStartZ, worldEndZ), max(worldStartX, worldEndX), max(worldStartZ, worldEndZ))
 				.map { SelectionTarget.Drawable(it) }
 				.filter { model.selectableOf(it) }
 		val current = session.selection.value
@@ -344,7 +344,7 @@ fun ViewportObjectGizmoOverlay(
 				(session.selection.value.active as? SelectionTarget.Drawable)?.id
 					?.let { activeId -> geometryById[activeId] }
 					?.let { geometry -> MeshTransforms.medianPivot(geometry.world, geometry.allIndices) }
-			val cursorAnchor = session.cursor2d.value?.let { cursor -> cursor.worldX to cursor.worldY }
+			val cursorAnchor = session.cursor2d.value?.let { cursor -> cursor.worldX to cursor.worldZ }
 			val transform =
 				buildModalTransformCapture(
 					sources = sources,

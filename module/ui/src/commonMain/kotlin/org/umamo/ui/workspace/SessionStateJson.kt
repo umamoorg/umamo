@@ -80,7 +80,7 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 		)
 		put("mode", if (viewState.mode == EditorMode.Edit) JsonPrimitive("edit") else JsonNull)
 		put("selectMode", if (viewState.selectMode == MeshSelectMode.Vertex) JsonNull else JsonPrimitive(selectModeWireName(viewState.selectMode)))
-		put("cursor2d", viewState.cursor2d?.let { cursor -> floatPairOrNull(cursor.worldX, cursor.worldY) } ?: JsonNull)
+		put("cursor2d", viewState.cursor2d?.let { cursor -> floatPairOrNull(cursor.worldX, cursor.worldZ) } ?: JsonNull)
 		put("uvCursor", viewState.uvCursor?.let { cursor -> floatPairOrNull(cursor.u, cursor.v) } ?: JsonNull)
 		put("pivot", if (viewState.pivotMode == TransformPivotMode.MedianPoint) JsonNull else JsonPrimitive(pivotWireName(viewState.pivotMode)))
 		put(
@@ -126,7 +126,7 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 		parameterSelection = ParameterSelection(parameterIds, parameterSelection?.let { block -> stringOf(block, "active") }?.let(::ParameterId)),
 		mode = if (stringOf(tree, "mode") == "edit") EditorMode.Edit else EditorMode.Object,
 		selectMode = stringOf(tree, "selectMode")?.let { wireName -> MeshSelectMode.entries.firstOrNull { mode -> selectModeWireName(mode) == wireName } } ?: MeshSelectMode.Vertex,
-		cursor2d = floatListOf(tree, "cursor2d", 2)?.let { (worldX, worldY) -> Cursor2d(worldX, worldY) },
+		cursor2d = floatListOf(tree, "cursor2d", 2)?.let { (worldX, worldZ) -> Cursor2d(worldX, worldZ) },
 		uvCursor = floatListOf(tree, "uvCursor", 2)?.let { (u, v) -> UvCursor(u, v) },
 		pivotMode = stringOf(tree, "pivot")?.let { wireName -> TransformPivotMode.entries.firstOrNull { mode -> pivotWireName(mode) == wireName } } ?: TransformPivotMode.MedianPoint,
 		proportionalEnabled = proportional?.let { block -> booleanOf(block, "enabled") } ?: false,

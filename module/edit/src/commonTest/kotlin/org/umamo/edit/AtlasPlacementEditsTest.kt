@@ -98,7 +98,7 @@ class AtlasPlacementEditsTest {
 			canvasWidth = 100f,
 			canvasHeight = 200f,
 			worldOriginX = 50f,
-			worldOriginY = 100f,
+			worldOriginZ = 100f,
 			atlas =
 				PuppetAtlas(
 					pages = listOf(page),

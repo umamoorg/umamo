@@ -32,13 +32,13 @@ class ScreenSpacePickTest {
 	fun projectionRoundTripsAndFlipsY() {
 		val zoomedCamera = ViewportCamera(centerX = 5f, centerY = -3f, zoom = 2f)
 		val worldX = 12.5f
-		val worldY = -7.25f
+		val worldZ = -7.25f
 		val screenX = worldToScreenX(worldX, zoomedCamera, viewportWidth)
-		val screenY = worldToScreenY(worldY, zoomedCamera, viewportHeight)
+		val screenY = worldToScreenY(worldZ, zoomedCamera, viewportHeight)
 		assertEquals(worldX, screenToWorldX(screenX, zoomedCamera, viewportWidth), 1e-4f, "x round-trips")
-		assertEquals(worldY, screenToWorldY(screenY, zoomedCamera, viewportHeight), 1e-4f, "y round-trips")
+		assertEquals(worldZ, screenToWorldZ(screenY, zoomedCamera, viewportHeight), 1e-4f, "y round-trips")
 
-		val higherY = worldToScreenY(worldY + 1f, zoomedCamera, viewportHeight)
+		val higherY = worldToScreenY(worldZ + 1f, zoomedCamera, viewportHeight)
 		assertTrue(higherY < screenY, "a higher world point draws at a smaller screen y")
 	}
 

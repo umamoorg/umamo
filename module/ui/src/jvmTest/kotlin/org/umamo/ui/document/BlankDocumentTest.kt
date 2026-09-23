@@ -46,7 +46,7 @@ class BlankDocumentTest {
 		assertEquals(BLANK_DOCUMENT_CANVAS_SIZE, puppet.canvasHeight)
 		// World space negates canvas y, so the center sits at (w/2, -h/2) - what every import computes.
 		assertEquals(BLANK_DOCUMENT_CANVAS_SIZE / 2f, puppet.worldOriginX)
-		assertEquals(-(BLANK_DOCUMENT_CANVAS_SIZE / 2f), puppet.worldOriginY)
+		assertEquals(-(BLANK_DOCUMENT_CANVAS_SIZE / 2f), puppet.worldOriginZ)
 	}
 
 	@Test

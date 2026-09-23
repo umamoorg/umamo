@@ -263,7 +263,7 @@ object SourceArtImport {
 			canvasWidth = canvasWidth,
 			canvasHeight = canvasHeight,
 			worldOriginX = canvasWidth / 2f,
-			worldOriginY = -(canvasHeight / 2f),
+			worldOriginZ = -(canvasHeight / 2f),
 			rendersFromSourceLayers = true,
 		)
 	}

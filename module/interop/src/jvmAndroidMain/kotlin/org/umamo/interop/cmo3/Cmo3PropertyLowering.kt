@@ -760,7 +760,7 @@ internal class Cmo3PropertyLowering(
 					// so only an off-center origin is unrepresentable and worth a notice.
 					val atDerivedCenter =
 						edited.worldOriginX == edited.canvasWidth / 2f &&
-							edited.worldOriginY == -(edited.canvasHeight / 2f)
+							edited.worldOriginZ == -(edited.canvasHeight / 2f)
 					if (!atDerivedCenter) {
 						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAuthoredWorldOrigin)
 					}

@@ -124,17 +124,17 @@ private fun EditorSession.commitWorldTransform(
 }
 
 /**
- * Moves drawable [id] so its world bounds center lands on ([centerX], [centerY]) - the Transform panel's
- * Position row - as one undo step.  [centerY] is the panel's Z (world y grows upward).  Both are WORLD
+ * Moves drawable [id] so its world bounds center lands on ([centerX], [centerZ]) - the Transform panel's
+ * Position row - as one undo step.  [centerZ] grows upward, like the panel's Z.  Both are WORLD
  * coordinates: the row converts its origin-relative value to world before calling this.
  *
  * @param DrawableId id The drawable to move.
  * @param Float centerX The world x its bounds center should land on.
- * @param Float centerY The world y (panel Z) its bounds center should land on.
+ * @param Float centerZ The world z (up) its bounds center should land on.
  */
-internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float, centerY: Float) {
+internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float, centerZ: Float) {
 	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Grab)) { world ->
-		movedToBoundsCenter(world, centerX, centerY)
+		movedToBoundsCenter(world, centerX, centerZ)
 	}
 }
 
