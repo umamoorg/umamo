@@ -117,18 +117,21 @@ object Cmo3Export {
 		if (diff.isEmpty) {
 			return ExportReport(ExportFormat.Cmo3, emptyList())
 		}
+		// Taken before any pass writes: a reload rewrite rebuilds a model image's cache, and every later
+		// pass must still know which textures were the editor's reduced copies.
+		val textureFrames = Cmo3TextureFrames(modelSource)
 		val notices = ArrayList<ExportNotice>()
 		val editor = target.edit()
 		// The atlas-web reconcile runs before the graph lowering so the stale-page notices know
 		// whether the stored pages already show the new packing.  Strictly diff-gated by the CALLER:
 		// an unedited document passes no pages, and the graph and archive are then never touched.
-		val webResult = Cmo3AtlasWebLowering(target, modelSource, baseline, edited, editor, tileRasters, nowMillis).reconcile(recomposedPages)
+		val webResult = Cmo3AtlasWebLowering(target, modelSource, baseline, edited, editor, tileRasters, nowMillis, textureFrames).reconcile(recomposedPages)
 		val pagesRecomposed = webResult.pagesRecomposed
 		// The model icons follow an edited export (the diff is non-empty here): the editor regenerates
 		// them on its own saves, and a thumbnail of the rest pose is what it shows for the file.
 		if (modelThumbnail != null) {
 			(modelSource.textureManager as? CTextureManager)?.let { textureManager ->
-				Cmo3RetainedLayerWeb(target, textureManager, editor, edited, tileRasters, nowMillis).replaceModelIcons(modelSource, modelThumbnail)
+				Cmo3RetainedLayerWeb(target, textureManager, editor, edited, tileRasters, nowMillis, textureFrames).replaceModelIcons(modelSource, modelThumbnail)
 			}
 		}
 		// A created drawable over art the reconcile minted binds through the binding it handed back;
@@ -152,6 +155,7 @@ object Cmo3Export {
 				editor,
 				edited,
 				notices,
+				textureFrames,
 				bindings,
 			)
 
@@ -168,6 +172,7 @@ object Cmo3Export {
 				editor,
 				edited,
 				notices,
+				textureFrames,
 				bindings,
 			)
 		}
@@ -360,6 +365,7 @@ object Cmo3Export {
 				baseline = baseline,
 				edited = edited,
 				notices = notices,
+				textureFrames = textureFrames,
 				pagesRecomposed = pagesRecomposed,
 				reconciledTileIds = webResult.reconciledTileIds,
 			)

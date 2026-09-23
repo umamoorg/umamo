@@ -29,15 +29,19 @@ import org.umamo.edit.withPartVisibility
 import org.umamo.edit.withRuntimeTarget
 import org.umamo.edit.withWorldOrigin
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CCachedImage
+import org.umamo.format.cmo3.model.gen.CCachedImageManager
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
@@ -59,6 +63,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.atlasPixelOf
 import java.io.File
+import kotlin.math.ulp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -482,6 +487,92 @@ class Cmo3ExportRoundTripTest {
 		)
 		val residual = diffPuppetModels(result.reimported, result.edited)
 		assertTrue(residual.isEmpty, "UV edits lost through export/import: $residual")
+	}
+
+	/**
+	 * The first packed drawable over a reduced cache copy of its model image, classified straight off the
+	 * file: its texture names one of the image's cached resources other than the raster.
+	 *
+	 * @param CModelSource root The CMO3's model source.
+	 * @return CArtMeshSource? The drawable's source, or null when the file has none.
+	 */
+	private fun packedReducedCopyDrawable(root: CModelSource): CArtMeshSource? {
+		val textureManager = root.textureManager as? CTextureManager ?: return null
+		val copies = HashSet<CImageResource>()
+		for (group in ((textureManager._modelImageGroups as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CModelImageGroup>()) {
+			for (modelImage in ((group._modelImages as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CModelImage>()) {
+				val manager = modelImage.cachedImageManager as? CCachedImageManager ?: continue
+				for (cached in ((manager.cachedImages as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CCachedImage>()) {
+					val resource = cached._cachedImageResource as? CImageResource ?: continue
+					if (resource !== modelImage._filteredImage) {
+						copies.add(resource)
+					}
+				}
+			}
+		}
+		val sources = (((root.drawableSourceSet as? CDrawableSourceSet)?._sources as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CArtMeshSource>()
+		return sources.firstOrNull { source ->
+			val packed =
+				((source._extensions as? Iterable<*>) ?: emptyList<Any?>()).filterIsInstance<CTextureInputExtension>().any { extension ->
+					((extension._textureInputs as? Iterable<*>) ?: emptyList<Any?>()).any { input -> input is CTextureInput_TextureAtlasRegion }
+				}
+			packed && ((source.texture as? GTexture2D)?.srcImageResource as? CImageResource) in copies && (source.uvs as? FloatArray)?.let { uvs -> uvs.size >= 4 } == true
+		}
+	}
+
+	@Test
+	fun aUvEditOverAReducedCopyStoresTheEditorsCacheFrame() {
+		val spec =
+			System.getProperty("cmo3.probe")
+				?: run {
+					println("cmo3.probe not present; skipping the reduced-copy UV round trip")
+					return
+				}
+		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
+		for (file in files) {
+			val cmo3 = Cmo3.read(file.readBytes())
+			val root = cmo3.root as? CModelSource ?: continue
+			val source = packedReducedCopyDrawable(root) ?: continue
+			val drawableId = DrawableId((source.id as Id).idstr)
+			val storedBefore = (source.uvs as FloatArray).copyOf()
+			val scale = (source.texture as GTexture2D).transformImageResource01toLogical01 as CAffine
+
+			val puppet = Cmo3Import.fromModelSource(root)
+			val movedUvs = puppet.drawables.first { drawable -> drawable.id == drawableId }.mesh!!.uvs.copyOf()
+			movedUvs[0] += 0.01f
+			movedUvs[1] += 0.01f
+			val edited = puppet.withMeshUvs(drawableId, movedUvs)
+			val report = Cmo3Export.apply(edited, cmo3)
+			assertTrue(report.notices.none { notice -> notice is ExportNotice.UnsupportedChange }, "${file.name}: a UV edit lowers fully: ${report.notices}")
+
+			val reread = Cmo3.read(Cmo3.write(cmo3))
+			val rereadRoot = reread.root as CModelSource
+			// Through a scale not every float has an exact preimage, so the edited pair comes back within a
+			// couple of ULPs; the untouched pairs, and the rest of the model, come back exactly.
+			val reimported = Cmo3Import.fromModelSource(rereadRoot)
+			val reimportedUvs = reimported.drawables.first { drawable -> drawable.id == drawableId }.mesh!!.uvs
+			for (componentIndex in 0 until 2) {
+				assertTrue(
+					kotlin.math.abs(reimportedUvs[componentIndex] - movedUvs[componentIndex]) <= 2f * movedUvs[componentIndex].ulp,
+					"${file.name}: edited component $componentIndex re-imports as ${reimportedUvs[componentIndex]}, edited ${movedUvs[componentIndex]}",
+				)
+			}
+			for (componentIndex in 2 until movedUvs.size) {
+				assertEquals(movedUvs[componentIndex].toRawBits(), reimportedUvs[componentIndex].toRawBits(), "${file.name}: untouched component $componentIndex re-imports exactly")
+			}
+			val residual = diffPuppetModels(reimported, edited.withMeshUvs(drawableId, reimportedUvs))
+			assertTrue(residual.isEmpty, "${file.name}: the export changed more than the edited UVs: $residual")
+			val rereadSources = ((rereadRoot.drawableSourceSet as CDrawableSourceSet)._sources as Iterable<*>).filterIsInstance<CArtMeshSource>()
+			val storedAfter = rereadSources.first { candidate -> (candidate.id as? Id)?.idstr == drawableId.raw }.uvs as FloatArray
+			// The edited pair is stored in the editor's cache frame, the untouched pairs byte for byte.
+			assertEquals(scale.m00 * movedUvs[0] + scale.m01 * movedUvs[1] + scale.m02, storedAfter[0], 1e-6f, "${file.name}: the edited u is stored through the cache scale")
+			assertEquals(scale.m10 * movedUvs[0] + scale.m11 * movedUvs[1] + scale.m12, storedAfter[1], 1e-6f, "${file.name}: the edited v is stored through the cache scale")
+			for (componentIndex in 2 until storedBefore.size) {
+				assertEquals(storedBefore[componentIndex].toRawBits(), storedAfter[componentIndex].toRawBits(), "${file.name}: untouched component $componentIndex keeps its stored bits")
+			}
+			return
+		}
+		println("no cmo3.probe model draws over a reduced cache copy; skipping the reduced-copy UV round trip")
 	}
 
 	@Test

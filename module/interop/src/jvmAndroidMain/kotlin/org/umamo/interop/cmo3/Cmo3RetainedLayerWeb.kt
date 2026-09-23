@@ -9,6 +9,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.custom.CWritableImage
 import org.umamo.format.cmo3.model.gen.ACLayerGroup
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CImageIcon
 import org.umamo.format.cmo3.model.gen.CLayerGroup
 import org.umamo.format.cmo3.model.gen.CLayerSelectorMap
@@ -17,9 +18,11 @@ import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.EnvValueSet
 import org.umamo.format.cmo3.model.gen.FilterEnv
+import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.LayerSet
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.gen.ModelImageFilterSet
+import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.model.type.CRect
 import org.umamo.format.cmo3.type.CArrayList
@@ -64,6 +67,7 @@ import kotlin.math.roundToInt
  * @param PuppetModel     edited         The session's model.
  * @param Function        tileRasters    The document's pixels for a tile, or null.
  * @param Long            nowMillis      The timestamp minted env values and wrappers record.
+ * @param Cmo3TextureFrames textureFrames The document's texture frames, taken before the export wrote.
  */
 internal class Cmo3RetainedLayerWeb(
 	private val target: Cmo3Model,
@@ -72,6 +76,7 @@ internal class Cmo3RetainedLayerWeb(
 	private val edited: PuppetModel,
 	private val tileRasters: (AtlasTileId) -> RasterImage?,
 	private val nowMillis: Long,
+	private val textureFrames: Cmo3TextureFrames,
 ) {
 	/**
 	 * The art a job writes: the tile, its file and inventory row, and its pixels.
@@ -124,9 +129,17 @@ internal class Cmo3RetainedLayerWeb(
 	/**
 	 * What [apply] added to the web, for the reconcile's maps.
 	 *
-	 * @property Map modelImageByTileId The model image of every minted tile, by lineage root.
+	 * @property Map     modelImageByTileId The model image of every minted tile, by lineage root.
+	 * @property Boolean releasedCopy       True when a rewrite left a reduced cache copy unreferenced and
+	 *                                      removed its pixels, so the shared pool needs a prune.
 	 */
-	internal class Applied(val modelImageByTileId: Map<String, CModelImage>)
+	internal class Applied(val modelImageByTileId: Map<String, CModelImage>, val releasedCopy: Boolean = false)
+
+	/** Set once a rewrite removes a reduced copy nothing samples any more. */
+	private var releasedCopy = false
+
+	/** The edited drawables by raw id, for the coordinates a retargeted drawable stores. */
+	private val editedDrawableById by lazy { edited.drawables.associateBy { drawable -> drawable.id.raw } }
 
 	private val sourceById = edited.sources.associateBy { source -> source.id }
 
@@ -257,7 +270,7 @@ internal class Cmo3RetainedLayerWeb(
 		for (job in mints) {
 			modelImageByTileId[job.tileId] = mint(job, siteBySourceId)
 		}
-		return Applied(modelImageByTileId)
+		return Applied(modelImageByTileId, releasedCopy)
 	}
 
 	/**
@@ -451,8 +464,89 @@ internal class Cmo3RetainedLayerWeb(
 			placement.setFromAffineArray(job.canvasAffine)
 		}
 		modelImage.cachedImageManager = Cmo3ImageChainBuilder.paddedCacheManager(filtered, job.raster.width, job.raster.height)
+		retargetDrawablesOnto(modelImage, filtered, job.raster.width, job.raster.height)
 		replaceModelImageIcon(modelImage, job.raster)
 		embedPending()
+	}
+
+	/**
+	 * Brings every drawable shown from a rewritten model image onto its new raster: the reduced cache copy
+	 * the editor made of the old art no longer shows the art, and a texture over the raster must carry the
+	 * new size's cache scale.
+	 *
+	 * Each texture over the image (its raster, or its copy as the graph was read) samples the raster with
+	 * the scale and mip level the editor writes for one, shared textures once.  A drawable whose stored
+	 * coordinates now mean something else - it moved off a copy, or it stores the cache frame and the scale
+	 * changed - stores the edited model's coordinates afresh; every other drawable's are left to the
+	 * property pass.  A copy nothing samples any more has its pixels removed, and the pool prune drops it.
+	 *
+	 * @param CModelImage    modelImage The rewritten model image.
+	 * @param CImageResource raster     Its raster, holding the new art.
+	 * @param Int            width      The new art's width in pixels.
+	 * @param Int            height     The new art's height in pixels.
+	 */
+	private fun retargetDrawablesOnto(modelImage: CModelImage, raster: CImageResource, width: Int, height: Int) {
+		val modelSource = target.root as? CModelSource ?: return
+		// CMO3: CModelSource field drawableSourceSet -> CDrawableSourceSet field _sources.
+		val drawableSources = Cmo3Import.elementsOf((modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+		val shownFromImage = drawableSources.filter { source -> textureFrames.isShownFrom(source, modelImage) }
+		if (shownFromImage.isEmpty()) {
+			return
+		}
+		// The frames as they are before any texture moves: shared textures make a later read stale.
+		val cacheFrameBefore = shownFromImage.associateWith { source -> textureFrames.storedUvsInCacheFrame(source) }
+		val scaleBefore = shownFromImage.associateWith { source -> affineValuesOf((source.texture as? GTexture2D)?.transformImageResource01toLogical01) }
+		val releasedCopies = HashSet<CImageResource>()
+		val retargeted = HashSet<GTexture2D>()
+		for (source in shownFromImage) {
+			val texture = source.texture as? GTexture2D ?: continue
+			if (!retargeted.add(texture)) {
+				continue
+			}
+			(texture.srcImageResource as? CImageResource)?.takeIf { sampled -> textureFrames.isReducedCopy(sampled) }?.let(releasedCopies::add)
+			// CMO3: GTexture2D fields srcImageResource / transformImageResource01toLogical01 / mipmapLevel -
+			// the raster, its cache scale, and the full-resolution level, as every corpus texture over a
+			// model image's raster writes them.
+			texture.srcImageResource = raster
+			texture.transformImageResource01toLogical01 = Cmo3ImageChainBuilder.paddedFrameAffine(width, height)
+			texture.mipmapLevel = Cmo3ImageChainBuilder.FULL_RESOLUTION_MIPMAP_LEVEL
+			editor.ensureChildSlot(texture, "GTexture2D", "transformImageResource01toLogical01", "mipmapLevel")
+			editor.ensureChildSlot(texture, "GTexture2D", "mipmapLevel", "isPremultiplied")
+		}
+		for (source in shownFromImage) {
+			val inCacheFrame = textureFrames.storedUvsInCacheFrame(source)
+			val scaleNow = affineValuesOf((source.texture as? GTexture2D)?.transformImageResource01toLogical01)
+			val meaningChanged = inCacheFrame != cacheFrameBefore[source] || (inCacheFrame && !scaleNow.contentEquals(scaleBefore[source]))
+			if (!meaningChanged) {
+				continue
+			}
+			val drawableId = (source.id as? Id)?.idstr ?: continue
+			val editedUvs = editedDrawableById[drawableId]?.mesh?.uvs ?: continue
+			// CMO3: CArtMeshSource field uvs.
+			source.uvs = textureFrames.storedUvsOf(source, editedUvs)
+			editor.ensureChildSlot(source, "CArtMeshSource", "uvs", "texture")
+		}
+		for (copy in releasedCopies) {
+			val stillSampled = drawableSources.any { source -> (source.texture as? GTexture2D)?.srcImageResource === copy }
+			if (stillSampled) {
+				continue
+			}
+			if (copy.imageFileBuf?.archivePath != null) {
+				target.removeLayerPng(copy)
+			}
+			releasedCopy = true
+		}
+	}
+
+	/**
+	 * A CMO3 affine's six values, identity for none, so two can be compared.
+	 *
+	 * @param Any? affine The field value.
+	 * @return FloatArray The values, m00 m01 m02 m10 m11 m12.
+	 */
+	private fun affineValuesOf(affine: Any?): FloatArray {
+		val values = affine as? CAffine ?: return floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
+		return floatArrayOf(values.m00, values.m01, values.m02, values.m10, values.m11, values.m12)
 	}
 
 	/**

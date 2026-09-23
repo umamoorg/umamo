@@ -64,8 +64,10 @@ internal class Cmo3AtlasWebLowering(
 	private val baseline: PuppetModel,
 	private val edited: PuppetModel,
 	private val editor: Cmo3GraphEditor,
-	private val tileRasters: (AtlasTileId) -> RasterImage? = { null },
-	private val nowMillis: Long = 0L,
+	private val tileRasters: (AtlasTileId) -> RasterImage?,
+	private val nowMillis: Long,
+	// The document's texture frames, taken from the graph before the export changed it.
+	private val textureFrames: Cmo3TextureFrames,
 ) {
 	/**
 	 * What the reconcile did.
@@ -139,7 +141,7 @@ internal class Cmo3AtlasWebLowering(
 		val strayEntryAtlasIndices = web.strayEntryAtlasIndices
 		val canvasAffineByTileId = HashMap(web.canvasAffineByTileId)
 		val modelImageByTileId = HashMap<String, CModelImage>(web.modelImageByTileId)
-		val retainedWeb = Cmo3RetainedLayerWeb(target, textureManager, editor, edited, tileRasters, nowMillis)
+		val retainedWeb = Cmo3RetainedLayerWeb(target, textureManager, editor, edited, tileRasters, nowMillis, textureFrames)
 
 		// --- Classify every edited tile; ANY gap declines whole. ---
 		// Every tile is keyed by its LINEAGE ROOT: a reloaded tile (`<guid>~<n>`, AtlasTile.replaces) is
@@ -532,6 +534,6 @@ internal class Cmo3AtlasWebLowering(
 				)
 		}
 
-		return Result(pagesRecomposed = true, pruneNeeded = deletedAny || packOuts.isNotEmpty(), mintedBindings = mintedBindings, reconciledTileIds = reconciledTileIds)
+		return Result(pagesRecomposed = true, pruneNeeded = deletedAny || packOuts.isNotEmpty() || applied.releasedCopy, mintedBindings = mintedBindings, reconciledTileIds = reconciledTileIds)
 	}
 }

@@ -8,9 +8,11 @@ import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.interop.AtlasPageSet
 
 /**
- * Extracts the atlas page(s) a CMO3 model's art meshes sample.  Walks each `CArtMeshSource`'s
- * `GTexture2D.srcImageResource`, collects each distinct page's embedded PNG once, and keys it by the
- * drawable id (matching `DrawableId` from [Cmo3Import]).
+ * Extracts the image(s) a CMO3 model's art meshes are shown from.  Walks each `CArtMeshSource`'s
+ * `GTexture2D.srcImageResource`, collects each distinct image's embedded PNG once, and keys it by the
+ * drawable id (matching `DrawableId` from [Cmo3Import]).  A drawable over the editor's reduced cache copy
+ * of its model image is shown from the model image's raster instead ([Cmo3TextureFrames.renderedImageOf]),
+ * the frame its imported coordinates address.
  *
  * The pixel lookup is injected rather than taken from a `Cmo3Model`, which is what keeps this in
  * commonMain: the CMO3 graph node types are all commonMain, and only the JDOM-built container wrapper
@@ -29,6 +31,7 @@ import org.umamo.interop.AtlasPageSet
 public fun cmo3AtlasPages(modelSource: CModelSource, readPng: (CImageResource) -> ByteArray?): AtlasPageSet {
 	val sources = (modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources
 	val artMeshes = Cmo3Import.elementsOf(sources).filterIsInstance<CArtMeshSource>()
+	val textureFrames = Cmo3TextureFrames(modelSource)
 
 	// Resolved once per DISTINCT resource, not per drawable: art meshes overwhelmingly share one atlas
 	// page, so a per-drawable lookup would repeat the archive fetch hundreds of times on a real model.
@@ -49,7 +52,7 @@ public fun cmo3AtlasPages(modelSource: CModelSource, readPng: (CImageResource) -
 		// premultiplied-vs-straight COMPOSITING axis rides BlendMode.isLegacy, not this flag.  See
 		// PuppetTextures.premultipliedAlpha and docs/format/CMO3.md, "Premultiplied vs straight alpha".
 		premultiplied = premultiplied || texture.isPremultiplied
-		val resource = texture.srcImageResource as? CImageResource ?: continue
+		val resource = textureFrames.renderedImageOf(mesh) ?: continue
 		val pageIndex =
 			if (resolvedPageIndexByResource.containsKey(resource)) {
 				resolvedPageIndexByResource[resource]

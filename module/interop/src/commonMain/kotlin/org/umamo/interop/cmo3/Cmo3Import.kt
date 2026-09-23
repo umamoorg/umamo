@@ -31,7 +31,6 @@ import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
 import org.umamo.format.cmo3.model.gen.ColorComposition
-import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.KeyFormMorphTarget
 import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
 import org.umamo.format.cmo3.model.gen.KeyOnParameter
@@ -44,7 +43,6 @@ import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
-import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.interop.alphaBlendOfToken
 import org.umamo.interop.colorBlendOfToken
 import org.umamo.interop.runtimeTargetOfCmo3Target
@@ -421,10 +419,12 @@ object Cmo3Import {
 		// The layered-art web, read once as model state: the atlas pages, the tiles, and which tile each
 		// drawable samples.  Metadata only - no pixel is decoded here.
 		val atlasIngest = cmo3AtlasIngest(modelSource)
+		// Which image each drawable is shown from and which frame its stored coordinates are in.
+		val textureFrames = Cmo3TextureFrames(modelSource)
 
 		val drawables =
 			orderedDrawableSources.map { source ->
-				val mesh = meshOf(source)
+				val mesh = meshOf(source, textureFrames)
 				// One bundled grid, then split into per-vertex deltas and the render channels.
 				val fannedMesh =
 					buildGrid(source.keyformGridSource, source.keyforms, paramIdByUuid) { form ->
@@ -741,34 +741,28 @@ object Cmo3Import {
 	 * Reads an art mesh's rest-pose geometry. CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`
 	 * (interleaved x,y), `indices` is an `int-array` (3 per triangle).
 	 *
-	 * An UNPACKED drawable stores its `uvs` in the model-image LOGICAL [0,1] frame, not the sampled image's
-	 * own frame, so those are remapped through [imageResourceUvs]; a PACKED drawable's UVs already index the
-	 * image and are taken verbatim (see [hasAtlasRegion]).
+	 * The stored `uvs` reach the model through [Cmo3TextureFrames.modelUvsOf]: a drawable that stores the
+	 * editor's cache frame (unpacked, or over a reduced cache copy) is brought into its model image's raster
+	 * frame, and every other drawable's coordinates already address the image it is shown from.
 	 *
-	 * @param CArtMeshSource source The art-mesh source.
+	 * @param CArtMeshSource    source        The art-mesh source.
+	 * @param Cmo3TextureFrames textureFrames The document's texture frames.
 	 * @return DrawableMesh? The base mesh, or null when the source carries no positions.
 	 */
-	private fun meshOf(source: CArtMeshSource): DrawableMesh? {
+	private fun meshOf(source: CArtMeshSource, textureFrames: Cmo3TextureFrames): DrawableMesh? {
 		val positions = source.positions as? FloatArray ?: return null
 		val storedUvs = source.uvs as? FloatArray ?: FloatArray(0)
 		val indices = source.indices as? IntArray ?: IntArray(0)
-		val uvs =
-			if (hasAtlasRegion(source)) {
-				storedUvs
-			} else {
-				imageResourceUvs(storedUvs, source.texture as? GTexture2D)
-			}
-		return DrawableMesh(positions, uvs, indices)
+		return DrawableMesh(positions, textureFrames.modelUvsOf(source, storedUvs), indices)
 	}
 
 	/**
 	 * Whether a drawable carries a `CTextureInput_TextureAtlasRegion` in its texture-input extension - i.e.
-	 * it was packed into a texture atlas at some point.  This is the join key for the UV frame convention:
-	 * packing rewrites a mesh's `uvs` into its source-image [0,1] frame (and they stay there even when the
-	 * model is toggled back to combined-layer display), while a never-packed drawable keeps its `uvs` in the
-	 * model-image logical frame.  A model with no atlas at all (MultiplyScreenColors) has only model-image
-	 * inputs, so every drawable returns false; a model built with an atlas but shown in combined-layer mode
-	 * (modelA) returns true for its packed drawables and false for any left unpacked (a stray guide layer).
+	 * it was packed into a texture atlas at some point.  Packing rewrites a mesh's `uvs` into the frame of the
+	 * image it samples, and they stay there even when the model is toggled back to combined-layer display; a
+	 * never-packed drawable keeps its `uvs` in the editor's cache frame.  A model with no atlas at all
+	 * (MultiplyScreenColors) has only model-image inputs, so every drawable returns false.  Which frame a
+	 * drawable's coordinates are in is [Cmo3TextureFrames.storedUvsInCacheFrame]'s call, of which this is one half.
 	 *
 	 * CMO3: CArtMeshSource _extensions -> CTextureInputExtension._textureInputs holds a
 	 * CTextureInput_ModelImage and, once packed, a CTextureInput_TextureAtlasRegion.  See docs/format/CMO3.md §4.
@@ -779,47 +773,6 @@ object Cmo3Import {
 	internal fun hasAtlasRegion(source: CArtMeshSource): Boolean {
 		val extension = elementsOf(source._extensions).filterIsInstance<CTextureInputExtension>().firstOrNull() ?: return false
 		return elementsOf(extension._textureInputs).any { it is CTextureInput_TextureAtlasRegion }
-	}
-
-	/**
-	 * Remaps an UNPACKED drawable's UVs from the model-image logical [0,1] frame into the [0,1] frame of the
-	 * per-layer image it samples (`GTexture2D.srcImageResource`).  Only ever called for drawables with no
-	 * atlas region ([hasAtlasRegion] is false); a packed drawable's UVs already index its image and must not
-	 * pass through here.
-	 *
-	 * `GTexture2D` carries the affine `transformImageResource01toLogical01` mapping the image's [0,1] into the
-	 * logical frame, so sampling the image needs the INVERSE of it.  Without it the smaller image overhangs
-	 * its UV region and the art renders enlarged with its outer margin clipped (the MultiplyScreenColors
-	 * "white border cut off" symptom).  A near-identity affine (image already fills the logical frame) or a
-	 * degenerate one leaves the UVs untouched.  See docs/format/CMO3.md §4.
-	 *
-	 * CMO3: GTexture2D field transformImageResource01toLogical01 - a CAffine, imageResource[0,1] to logical[0,1].
-	 *
-	 * @param FloatArray  logicalUvs The interleaved (u, v) UVs in the logical model-image frame.
-	 * @param GTexture2D? texture    The drawable's texture, holding the imageResource to logical affine.
-	 * @return FloatArray The UVs in the sampled image's [0,1] frame (the same array when no remap applies).
-	 */
-	private fun imageResourceUvs(logicalUvs: FloatArray, texture: GTexture2D?): FloatArray {
-		val affine = texture?.transformImageResource01toLogical01 as? CAffine ?: return logicalUvs
-		val determinant = affine.m00 * affine.m11 - affine.m01 * affine.m10
-		// Identity (image already fills the logical frame) or a degenerate affine: leave the UVs as-is -
-		// inverting a zero-determinant affine would yield NaN/Inf.
-		val isIdentity =
-			affine.m00 == 1f && affine.m01 == 0f && affine.m02 == 0f && affine.m10 == 0f && affine.m11 == 1f && affine.m12 == 0f
-		if (isIdentity || determinant == 0f) {
-			return logicalUvs
-		}
-		// Apply the inverse of the 2x3 affine: subtract the translation, then the inverse 2x2 linear part.
-		val result = FloatArray(logicalUvs.size)
-		var componentIndex = 0
-		while (componentIndex + 1 < logicalUvs.size) {
-			val logicalU = logicalUvs[componentIndex] - affine.m02
-			val logicalV = logicalUvs[componentIndex + 1] - affine.m12
-			result[componentIndex] = (affine.m11 * logicalU - affine.m01 * logicalV) / determinant
-			result[componentIndex + 1] = (-affine.m10 * logicalU + affine.m00 * logicalV) / determinant
-			componentIndex += 2
-		}
-		return result
 	}
 
 	/**
