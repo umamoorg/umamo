@@ -74,6 +74,27 @@ class SourcesTreeTest {
 	private fun presence(source: ArtSource): SourcePresence = if (source.id == artA) SourcePresence.Missing else SourcePresence.Unknown
 
 	@Test
+	fun layerPositionsReadFromTheFileOrTheWorldAxes() {
+		// A 64 x 64 canvas with the origin at its center, world (32, -32); file A placed 5 right and 3 down.
+		val base = model()
+		val puppet =
+			base.copy(
+				canvasWidth = 64f,
+				canvasHeight = 64f,
+				worldOriginX = 32f,
+				worldOriginZ = -32f,
+				sources = base.sources.map { source -> if (source.id == artA) source.copy(offsetX = 5, offsetZ = -3) else source },
+			)
+
+		// The Eye layer sits at document (10, 20), top-left, y down.
+		val fileFrame = buildSourcesTree(puppet, ::presence, "Unbound art")[0].children[0].detail
+		assertEquals(SourcesDetail.Layer(4, 4, 5, 17), fileFrame, "the default takes the placement back out, so the numbers match the art file")
+
+		val worldAxes = buildSourcesTree(puppet, ::presence, "Unbound art", layerPositionsFromWorldAxes = true)[0].children[0].detail
+		assertEquals(SourcesDetail.LayerOnAxes(4, 4, -22f, 12f), worldAxes, "the same corner, 22 left of and 12 above the axes")
+	}
+
+	@Test
 	fun theTreeReadsFileLayerTileDrawable() {
 		val tree = buildSourcesTree(model(), ::presence, "Unbound art")
 
@@ -379,10 +400,10 @@ class SourcesTreeTest {
 
 		fun match(key: String, score: Float): LayerMatch = LayerMatch(key, score, MatchSignals(1f, 1f, 1f, 1f, null, hashEqual = false))
 		val proposals: (ArtSourceId, String) -> List<LayerMatch> = { sourceId, key -> if (sourceId == artA && key == "lyid:9") listOf(match("lyid:5", 0.6f)) else emptyList() }
-		val lost = buildSourcesTree(puppet, ::presence, "Unbound art", proposals)[0].children.first { node -> node.id == "layer:art-0/lyid:9" }
+		val lost = buildSourcesTree(puppet, ::presence, "Unbound art", suggestionsFor = proposals)[0].children.first { node -> node.id == "layer:art-0/lyid:9" }
 		assertEquals(LayerSuggestion("lyid:5", "Brow", 0.6f, retires = listOf(AtlasTileId("tA5"))), lost.suggestion)
 		val rigged = puppet.copy(drawables = puppet.drawables.map { drawable -> if (drawable.id.raw == "e") drawable.copy(parentDeformerId = DeformerId("warp")) else drawable })
-		val riggedLost = buildSourcesTree(rigged, ::presence, "Unbound art", proposals)[0].children.first { node -> node.id == "layer:art-0/lyid:9" }
+		val riggedLost = buildSourcesTree(rigged, ::presence, "Unbound art", suggestionsFor = proposals)[0].children.first { node -> node.id == "layer:art-0/lyid:9" }
 		assertNull(riggedLost.suggestion, "under rig work the layer is passed over")
 	}
 }

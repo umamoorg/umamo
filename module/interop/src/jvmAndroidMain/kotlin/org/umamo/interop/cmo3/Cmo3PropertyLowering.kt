@@ -60,6 +60,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.inversePlacementAffine
+import org.umamo.runtime.model.isOriginAtCanvasCenter
 import org.umamo.runtime.model.lineageRoot
 
 /**
@@ -758,10 +759,7 @@ internal class Cmo3PropertyLowering(
 				DocumentField.WORLD_ORIGIN -> {
 					// An origin AT the canvas center survives implicitly (import derives exactly that),
 					// so only an off-center origin is unrepresentable and worth a notice.
-					val atDerivedCenter =
-						edited.worldOriginX == edited.canvasWidth / 2f &&
-							edited.worldOriginZ == -(edited.canvasHeight / 2f)
-					if (!atDerivedCenter) {
+					if (!edited.isOriginAtCanvasCenter()) {
 						unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.NoAuthoredWorldOrigin)
 					}
 				}

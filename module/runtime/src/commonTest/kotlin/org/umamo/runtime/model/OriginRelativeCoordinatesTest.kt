@@ -2,6 +2,8 @@ package org.umamo.runtime.model
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Unit-tests the rigger's coordinate frame: positions read from the world axes, and the Origin fields read
@@ -80,7 +82,7 @@ class OriginRelativeCoordinatesTest {
 
 		assertEquals(35f, canvasless.originRelativeX(35f))
 		assertEquals(-12f, canvasless.originRelativeZ(-12f))
-		assertEquals(0f, canvasless.originFromCanvasBottom(), "with no canvas the bottom reading is the raw world y")
+		assertEquals(0f, canvasless.originFromCanvasBottom(), "with no canvas the bottom reading is the raw world z")
 	}
 
 	@Test
@@ -92,5 +94,17 @@ class OriginRelativeCoordinatesTest {
 		assertEquals(600f, taller.originFromCanvasLeft())
 		assertEquals(centered.originRelativeX(420f), taller.originRelativeX(420f), "positions still read from the same axes")
 		assertEquals(centered.originRelativeZ(-300f), taller.originRelativeZ(-300f))
+	}
+
+	@Test
+	fun theCanvasCenterOriginIsTheImportersDefault() {
+		assertEquals(600f, canvasCenterWorldOriginX(1200f))
+		assertEquals(-400f, canvasCenterWorldOriginZ(800f), "half the height down from the top edge, negated into world z")
+		assertEquals(0f, canvasCenterWorldOriginX(0f), "no canvas keeps the (0, 0) origin")
+
+		assertTrue(centered.isOriginAtCanvasCenter())
+		assertTrue(model(0f, 0f, 0f, 0f).isOriginAtCanvasCenter(), "a canvas-less model's (0, 0) origin is its center")
+		assertFalse(centered.copy(worldOriginZ = -500f).isOriginAtCanvasCenter(), "a moved origin is off center")
+		assertFalse(centered.copy(canvasHeight = 1300f).isOriginAtCanvasCenter(), "a resized canvas leaves the origin behind")
 	}
 }

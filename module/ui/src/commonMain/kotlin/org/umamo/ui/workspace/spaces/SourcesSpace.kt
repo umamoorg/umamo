@@ -58,6 +58,7 @@ import org.umamo.ui.kit.Menu
 import org.umamo.ui.kit.MenuItem
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.IconSlot
+import org.umamo.ui.kit.formatDecimals
 import org.umamo.ui.model.LocalDrawableThumbnails
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
@@ -68,7 +69,9 @@ import org.umamo.ui.model.LocalSourceSuggestions
 import org.umamo.ui.model.LocalSourceWatch
 import org.umamo.ui.model.SourceTileThumbnails
 import org.umamo.ui.model.percentOf
+import org.umamo.ui.rememberBooleanSetting
 import org.umamo.ui.resources.*
+import org.umamo.ui.settings.IMPORT_LAYER_POSITIONS_FROM_WORLD_AXES_KEY
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -171,9 +174,17 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		}
 	val suggestionCandidates: (ArtSourceId, String) -> List<LayerMatch> =
 		{ sourceId, key -> listOfNotNull(published[sourceId to key], modelSuggestions[sourceId]?.get(key)) }
+	// Read live, so flipping the preference re-measures the layer rows at once.
+	val layerPositionsFromWorldAxes by rememberBooleanSetting(IMPORT_LAYER_POSITIONS_FROM_WORLD_AXES_KEY, false)
 	val tree =
-		remember(puppet, presenceBySource, unboundGroupLabel, published) {
-			buildSourcesTree(puppet, { source: ArtSource -> presenceBySource[source.id] ?: SourcePresence.Unknown }, unboundGroupLabel, suggestionCandidates)
+		remember(puppet, presenceBySource, unboundGroupLabel, published, layerPositionsFromWorldAxes) {
+			buildSourcesTree(
+				puppet,
+				{ source: ArtSource -> presenceBySource[source.id] ?: SourcePresence.Unknown },
+				unboundGroupLabel,
+				layerPositionsFromWorldAxes = layerPositionsFromWorldAxes,
+				suggestionsFor = suggestionCandidates,
+			)
 		}
 	val query = viewState.query
 	val filtered = remember(tree, query, viewState.filters) { filterSourcesTree(tree, query, viewState.filters) }
@@ -786,6 +797,9 @@ private fun detailText(detail: SourcesDetail): String? =
 			if (detail.hasPath) summary else "$summary · ${stringResource(Res.string.sources_source_no_path)}"
 		}
 		is SourcesDetail.Layer -> stringResource(Res.string.sources_layer_detail, detail.width, detail.height, detail.left, detail.top)
+		// One decimal, like the Properties Position rows: a half-pixel origin (an odd canvas) is real.
+		is SourcesDetail.LayerOnAxes ->
+			stringResource(Res.string.sources_layer_detail_axes, detail.width, detail.height, formatDecimals(detail.x, 1), formatDecimals(detail.z, 1))
 		is SourcesDetail.TilePage -> stringResource(Res.string.sources_tile_page, detail.pageNumber)
 		SourcesDetail.None -> null
 	}

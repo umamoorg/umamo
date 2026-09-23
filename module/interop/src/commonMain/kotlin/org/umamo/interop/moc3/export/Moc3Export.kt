@@ -121,9 +121,10 @@ object Moc3Export {
 				canvas =
 					CanvasInfo(
 						pixelsPerUnit = context.pixelsPerUnit,
-						originX = downgradedPuppet.worldOriginX,
-						// The runtime negates the canvas y into world space; storing it re-negates.
-						originY = -downgradedPuppet.worldOriginZ,
+						// MOC3 §5.3 CanvasInfo originX / originY: read off the same mapping every converted
+						// position went through, so the record and the geometry share one origin.
+						originX = context.canvas.originX,
+						originY = context.canvas.originY,
 						width = downgradedPuppet.canvasWidth,
 						height = downgradedPuppet.canvasHeight,
 					),

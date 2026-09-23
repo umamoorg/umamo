@@ -281,6 +281,29 @@ class TransformStateTest {
 		assertEquals(50f, snapToGrid(60f, origin = 50f, step = 100f), "60 snaps to the origin line at 50")
 	}
 
+	/** snapToWorldGrid anchors each axis on its own origin component, so both land on the drawn grid lines. */
+	@Test
+	fun snapToWorldGridAnchorsEachAxisOnTheOrigin() {
+		// The origin a 1200 x 800 canvas derives: world (600, -400).
+		val model = meshedSession().model.value.copy(worldOriginX = 600f, worldOriginZ = -400f)
+		// x 630 is 30 right of the origin line, so it rounds back onto it; z -345 is 55 above, so up to -300.
+		assertEquals(600f to -300f, model.snapToWorldGrid(630f, -345f, step = 100f))
+		// A point already on the lattice stays put.
+		assertEquals(700f to -500f, model.snapToWorldGrid(700f, -500f, step = 100f))
+	}
+
+	/** An unplaced cursor resolves to the world origin for every operation, without being placed. */
+	@Test
+	fun unplacedCursorResolvesToTheWorldOrigin() {
+		val session = EditorSession(meshedSession().model.value.copy(worldOriginX = 600f, worldOriginZ = -600f))
+
+		assertEquals(Cursor2d(600f, -600f), session.cursor2dOrWorldOrigin(), "an unplaced cursor rests on the world axes")
+		assertNull(session.cursor2d.value, "resolving it does not place it, so it stays undrawn and unpersisted")
+
+		session.setCursor2d(12f, 34f)
+		assertEquals(Cursor2d(12f, 34f), session.cursor2dOrWorldOrigin(), "a placed cursor is its own point")
+	}
+
 	/** GridConfig.snapStep is the finest visible spacing: scale divided by the subdivision count. */
 	@Test
 	fun gridConfigSnapStepIsScaleOverSubdivisions() {
