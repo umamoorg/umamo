@@ -101,7 +101,7 @@ class GlRenderDevice : RenderDevice {
 			pixelTypeOf(format),
 			pixelBuffer,
 		)
-		return GlTexture(handle)
+		return GlTexture(handle, filter, wrap)
 	}
 
 	override fun createFloatTexture(width: Int, height: Int, filter: TextureFilter, texels: FloatArray): GpuTexture {
@@ -114,7 +114,7 @@ class GlRenderDevice : RenderDevice {
 				flip()
 			}
 		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_RG32F, width, height, 0, GL30.GL_RG, GL11.GL_FLOAT, texelBuffer)
-		return GlTexture(handle)
+		return GlTexture(handle, filter, TextureWrap.ClampToEdge)
 	}
 
 	override fun updateFloatTexture(texture: GpuTexture, width: Int, height: Int, texels: FloatArray) {

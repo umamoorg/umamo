@@ -30,9 +30,6 @@
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
 
-## World Origin
-I should fix the naming so that origin is X and Z in the code.  Z up, Y forward.
-
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 
@@ -148,21 +145,8 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 See the roadmap: docs/plan/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
 See format planning document: docs/plan/uma-format.md
 
-Format Goals:
-* Forwards compatible - Newer editors should be able to open older version files and upgrade as necessary.
-* Best effort backwards compatible - Older editors should be able to open newer version files and not crash on unknown data.
-* Extensible - Eventually physics and animation will make it into the format.  Both of those not part of the base puppet model, but features that interacts with it driving parameters and properties.
-* Has to store atlas textures, individual layer textures.  They are all just textures.  Possibly having an "isAtlas" flag would only be data reference purposes and not treating the underlying image differently.
-* Data structures should be marked with file version and/or sub-versions.
-* Storage of editor state: Collapsed/expanded sections in different panels, tracking visibility, etc.
-
 ## Import
-Initial import and setup of art into a puppet.  Realistically, editor controls need to exist first.  There are test CMO3 files to work with to get editor controls going.
 * MOC3 sidecar discovery on Android.  MOC3 might be a desktop only feature.
-
-## Reimport
-* Detection of edited source art files when application reacquires focus.
-* (Might not be appropriate for the reimport module, but has to be reusable across every platform.) Detection of the user trying to change the source art file format(PSD -> KRA) should warn that it is destructive since layer matching heuristics are not perfect and could result in orphaned layer data.  Later on having a dialog to manually remap these layers would be nice.  A dailog for manually remapping will be needed eventually for when layer matching heuristics file even when reimporting the same source art file format.
 
 ## Render
 * GPU glue: multi-pair seam vertices — latent correctness gap; see Claude Notes § GPU glue: multi-pair seam vertices.
@@ -170,12 +154,7 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 ## Glue
 * Glue intensity is keyable but has no Properties home(glue is not selectable).  See Claude Notes § Glue intensity has no editable home.
 
-## Outliner
-* Deferred
-	* When the native UMA format exists we can track open/closed branches.  Cubism/CMO3 does not track this and it is all collapsed by default.
-
 ## UI
-* The placeholder checkerboard(EmptyViewportBackdrop) could just be the renderer showing the viewport without a model loaded.  It's fine as a placeholder for now.
 * Viewport view styles - Top right, in the header area.
 * Viewport loading overlay and mouse busy pointer.
 * AreaHeader/Viewport2DHeaderControls
@@ -203,12 +182,10 @@ Initial import and setup of art into a puppet.  Realistically, editor controls n
 	* Import from Previous
 * The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
 * New Settings
-	* Setting to make ALT+Click the default to activate the popup overlap picker.
+	* Setting to make Left Click, instead of ALT+Left Click, the default to activate the popup overlap picker.
 
 ## Keybindings
 * Audit default keybinding maps for Blender and Cubism styles.
-
-## Storage
 
 ## Future Feature Wishes
 * Pose Reference - A poseable and adjustable 3D mannequin model for overlay reference.

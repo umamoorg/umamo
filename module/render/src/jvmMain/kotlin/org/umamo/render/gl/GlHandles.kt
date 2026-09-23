@@ -8,12 +8,19 @@ import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.PipelineBlend
 import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.RenderTarget
+import org.umamo.render.device.TextureFilter
+import org.umamo.render.device.TextureWrap
 
 // The GL device's concrete handles. Each wraps the GL names its interface hides; nothing outside this
 // package can reach them, which is what keeps GL out of the shared renderer.
 
-/** A GL texture name. */
-internal class GlTexture(val handle: Int) : GpuTexture
+/**
+ * A GL texture name, with the filter and wrap it was created with.
+ *
+ * The puppet fragment shader filters art in-shader through `texelFetch`, which bypasses the sampler, so
+ * the encoder reads these to tell the shader what the sampler would have done.
+ */
+internal class GlTexture(val handle: Int, val filter: TextureFilter, val wrap: TextureWrap) : GpuTexture
 
 /**
  * A mesh's GL residency: the VAO plus every buffer it references.
@@ -46,7 +53,7 @@ internal class GlRenderTarget(
 	val width: Int,
 	val height: Int,
 ) : RenderTarget {
-	override val sampledTexture: GpuTexture? = if (colorTexture != 0) GlTexture(colorTexture) else null
+	override val sampledTexture: GpuTexture? = if (colorTexture != 0) GlTexture(colorTexture, TextureFilter.Linear, TextureWrap.ClampToEdge) else null
 }
 
 /**
@@ -114,6 +121,8 @@ internal class GlUniformLocations(program: Int) {
 	val highlightColor = GL20.glGetUniformLocation(program, "highlightColor")
 	val uvAffineRow0 = GL20.glGetUniformLocation(program, "uvAffineRow0")
 	val uvAffineRow1 = GL20.glGetUniformLocation(program, "uvAffineRow1")
+	val atlasLinear = GL20.glGetUniformLocation(program, "atlasLinear")
+	val atlasTransparentBorder = GL20.glGetUniformLocation(program, "atlasTransparentBorder")
 
 	// Atlas page
 	val pageSize = GL20.glGetUniformLocation(program, "pageSize")
