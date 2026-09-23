@@ -33,6 +33,7 @@ import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.UvSceneContent
 import java.io.File
 import java.util.ArrayDeque
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Framebuffer pixels per display pixel while supersampling is on: the whole pipeline renders 2x and
@@ -129,7 +130,7 @@ internal class OffscreenRenderEngine(
 
 	// Captures queued by the UI thread and taken up by the render thread between frames.  A queue for the same
 	// reason as the raster batches: two requests landing in one tick must both be served.
-	private val pendingSnapshots = java.util.concurrent.ConcurrentLinkedQueue<PendingSnapshot>()
+	private val pendingSnapshots = ConcurrentLinkedQueue<PendingSnapshot>()
 
 	// False once the render thread can no longer serve a capture (its context never came up, or it has shut
 	// down), so a request made after that is answered at once instead of waiting forever.
@@ -177,7 +178,7 @@ internal class OffscreenRenderEngine(
 	// Decoded artwork waiting to be uploaded, drained on the render thread.  A queue rather than a
 	// volatile slot because deliveries are chunked - two batches landing between frames must both be
 	// taken up, where a slot would silently drop the first.
-	private val pendingRasterBatches = java.util.concurrent.ConcurrentLinkedQueue<LayerRasterBatch>()
+	private val pendingRasterBatches = ConcurrentLinkedQueue<LayerRasterBatch>()
 
 	// The latest model, re-pushed on a structural edit (layer reorder / reparent, base-mesh move); seeded
 	// with the open model.
