@@ -22,6 +22,8 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.withPartVisibility
 import org.umamo.format.atlas.AtlasPackOptions
+import org.umamo.format.png.PngCodec
+import org.umamo.format.raster.RasterImage
 import org.umamo.format.uma.UmaModel
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.diffPuppetModels
@@ -43,6 +45,7 @@ import org.umamo.ui.workspace.PersistentSpaceState
 import org.umamo.ui.workspace.sessionStateJson
 import org.umamo.ui.workspace.sessionViewStateOf
 import java.io.File
+import java.util.zip.ZipFile
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -315,6 +318,51 @@ class UmaSaveGateTest {
 			for ((pageIndex, page) in reopened.textures.atlases.withIndex()) {
 				assertTrue(page.rgba.contentEquals(binding.textures.atlases[pageIndex].rgba), "page $pageIndex composes as the session showed it")
 			}
+		}
+
+	/**
+	 * A thumbnail the viewport renderer drew is the one the file stores, pixel for pixel - the writer only
+	 * composites its own when it is handed none.  The supplied image is one no composite of the sample could
+	 * produce, so finding it in the file proves which of the two landed.
+	 */
+	@Test
+	fun aRenderedThumbnailIsTheOneTheFileStores() =
+		runBlocking {
+			val file = cmo3Sample ?: return@runBlocking println("cmo3.sample not present; skipping the rendered-thumbnail save gate")
+			val document = open(file)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			// A flat color over an alpha ramp across each row, never fully transparent.
+			val rendered =
+				RasterImage(
+					UMA_THUMBNAIL_SIZE,
+					UMA_THUMBNAIL_SIZE,
+					ByteArray(UMA_THUMBNAIL_SIZE * UMA_THUMBNAIL_SIZE * 4) { byteIndex ->
+						when (byteIndex % 4) {
+							0 -> 0x40
+							1 -> 0x80
+							2 -> 0xC0
+							else -> 1 + (byteIndex / 4) % UMA_THUMBNAIL_SIZE % 255
+						}.toByte()
+					},
+				)
+			val target = File(temporaryDirectory(), "rendered-thumbnail.uma")
+
+			val outcome =
+				writeUmaDocument(
+					document,
+					UmaModel.create(umamoWriterInfo()),
+					session.model.value,
+					AtlasPageBinding(document.puppet.atlas, document.textures),
+					JsonObject(emptyMap()),
+					PlatformFile(target),
+					thumbnail = rendered,
+				)
+
+			val written = assertIs<UmaWriteOutcome.Written>(outcome, "the save succeeds: ${(outcome as? UmaWriteOutcome.Failed)?.reason}")
+			val thumbnail = assertNotNull(written.uma.textures?.thumbnail, "the file records a thumbnail")
+			assertEquals(UMA_THUMBNAIL_SIZE to UMA_THUMBNAIL_SIZE, thumbnail.width to thumbnail.height)
+			val stored = ZipFile(target).use { archive -> archive.getInputStream(assertNotNull(archive.getEntry(thumbnail.path))).readBytes() }
+			assertContentEquals(rendered.rgba, PngCodec.read(stored).rgba, "the stored thumbnail is the rendered one")
 		}
 
 	/**

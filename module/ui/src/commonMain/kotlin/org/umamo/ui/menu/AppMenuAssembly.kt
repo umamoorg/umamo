@@ -28,7 +28,8 @@ import org.umamo.ui.l10n.rememberLocaleTag
  * @param Settings       settings  The settings the keymap, the recent files, and the locale are read from.
  * @param EditorSession? session   The open document's session, or null; gates the Undo and Redo rows.
  * @param Boolean        canSave   Whether the open document can be saved (gates both Save rows).
- * @param Boolean        canExport Whether an exportable puppet document is open (gates both Export rows).
+ * @param Boolean        canExport Whether an exportable puppet document is open (gates the CMO3 and MOC3 rows).
+ * @param Boolean        canExportImage Whether the open document can be rendered to an image (gates Export Image).
  * @param MenuDispatch   dispatch  Runs a command by id; every row of the bar stands for a command, so this is
  *   all the bar needs from its host, and a rebind reaches the menu, the keyboard, and the palette alike.
  * @return List The top-level menus.
@@ -39,6 +40,7 @@ internal fun buildAppMenu(
 	session: EditorSession?,
 	canSave: Boolean,
 	canExport: Boolean,
+	canExportImage: Boolean,
 	dispatch: MenuDispatch,
 ): List<TopLevelMenu> {
 	// produceState runs unconditionally (the session may be null with no document) and re-collects when
@@ -68,7 +70,7 @@ internal fun buildAppMenu(
 	return key(locale) {
 		remember(locale) { applyAppLocale(locale) }
 		listOf(
-			fileMenu(keymap = keymap, recentFiles = recentFiles, canExport = canExport, canSave = canSave, dispatch = dispatch),
+			fileMenu(keymap = keymap, recentFiles = recentFiles, canExport = canExport, canExportImage = canExportImage, canSave = canSave, dispatch = dispatch),
 			editMenu(keymap = keymap, canUndo = canUndo, canRedo = canRedo, dispatch = dispatch),
 			workspaceMenu(keymap = keymap, dispatch = dispatch),
 			helpMenu(keymap = keymap, dispatch = dispatch),

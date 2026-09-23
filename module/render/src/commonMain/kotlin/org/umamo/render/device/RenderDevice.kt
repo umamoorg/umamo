@@ -283,6 +283,17 @@ public interface RenderDevice {
 	fun readPixels(target: RenderTarget, usedWidth: Int, usedHeight: Int): RasterImage
 
 	/**
+	 * The largest render target edge this device can allocate AND draw to, in pixels.
+	 *
+	 * The smallest of the limits a render target meets on its way through a frame: the texture size, the
+	 * renderbuffer size, and the viewport size.  A caller rendering something larger than this splits it
+	 * into tiles rather than asking the device for a target it cannot make.
+	 *
+	 * @return Int The edge, in pixels.
+	 */
+	fun maxRenderTargetSize(): Int
+
+	/**
 	 * The backend's device / driver / version as one line - a startup diagnostic confirming which backend
 	 * actually drives the viewport (a hardware driver vs a software rasterizer, say).
 	 *

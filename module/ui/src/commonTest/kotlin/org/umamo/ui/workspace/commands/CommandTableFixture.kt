@@ -147,6 +147,7 @@ internal fun everyCommandTable(session: EditorSession? = null): List<Command> {
 		displayCommands(session, availability) +
 		atlasCommands(availability, routing, null) +
 		fileArtworkCommands(routing) { null } +
+		fileImageExportCommands(routing) { null } +
 		keyformCommands(session, { null }, routing, sheets, availability) +
 		viewportChromeCommands(inMemorySettings()) +
 		workspaceFileCommands({}, {}, {}) +

@@ -3,6 +3,7 @@ package org.umamo.ui.document
 import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.ImageExportOptions
 
 /**
  * The MOC3 export dialog's session memory: what the rigger last confirmed, held for the life of the
@@ -57,6 +58,35 @@ class Moc3ExportSessionOptions {
 	fun recordConfirmed(documentPath: String?, options: Moc3ExportOptions) {
 		confirmed = options
 		confirmedDocumentPath = documentPath
+	}
+}
+
+/**
+ * The Export Image dialog's session memory: what the rigger last confirmed, held for the life of the
+ * application and never persisted, like the MOC3 dialog's.
+ *
+ * Every choice is sticky across documents: a region, a scale, and a background say how the rigger wants
+ * their images, not anything about one rig.  A region the next document cannot offer (no canvas, no
+ * viewport touched) is the dialog's to fall back from, not this store's.
+ */
+class ImageExportSessionOptions {
+	private var confirmed: ImageExportOptions? = null
+
+	/**
+	 * The options the Export Image dialog should open with: the last confirmed, or the defaults before any.
+	 *
+	 * @return ImageExportOptions The options to open the dialog with.
+	 */
+	fun dialogOptions(): ImageExportOptions = confirmed ?: ImageExportOptions.Default
+
+	/**
+	 * Records what the rigger confirmed, on the dialog's confirm rather than after the write, so the choices
+	 * survive a cancelled file picker.
+	 *
+	 * @param ImageExportOptions options The confirmed options.
+	 */
+	fun recordConfirmed(options: ImageExportOptions) {
+		confirmed = options
 	}
 }
 

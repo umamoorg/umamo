@@ -1,20 +1,26 @@
 package org.umamo.editor.desktop.viewport
 
 import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 import org.umamo.edit.GridConfig
+import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
+import org.umamo.render.FrameBackdrop
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.capturedOver
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AtlasPageBinding
+import org.umamo.ui.viewport.ImageFrame
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.RenderedFrame
@@ -179,6 +185,23 @@ class OffscreenPuppetService(
 	}
 
 	override fun drawableWorldCentroids(): Map<DrawableId, FloatArray> = picker.drawableWorldCentroids()
+
+	/**
+	 * Queues the capture on the render thread and, once its pixels arrive, converts them off the UI thread
+	 * from the framebuffer's premultiplied color to the straight alpha an image file stores.
+	 *
+	 * @param ImageFrame    frame    The camera and pixel size to render.
+	 * @param FrameBackdrop backdrop What the puppet is drawn over.
+	 * @return RasterImage? The image, straight alpha, or null when the render thread could not serve it.
+	 */
+	override suspend fun renderImage(frame: ImageFrame, backdrop: FrameBackdrop): RasterImage? {
+		val premultiplied = engine.requestSnapshot(frame.camera, frame.width, frame.height, backdrop).await() ?: return null
+		return withContext(Dispatchers.Default) { premultiplied.capturedOver(backdrop) }
+	}
+
+	override fun areaView(areaId: String): ImageFrame? = registry.viewFor(areaId)?.let { view -> ImageFrame(view.camera, view.width, view.height) }
+
+	override fun visibleContentBounds(): ContentBounds? = engine.puppetRenderer.posedContentBounds(engine.shownDrawables)
 
 	override fun thumbnailFor(id: DrawableId): ImageBitmap? = picker.thumbnailFor(id)
 

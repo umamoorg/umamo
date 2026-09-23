@@ -101,6 +101,7 @@ import org.umamo.ui.workspace.commands.chromeCommands
 import org.umamo.ui.workspace.commands.displayCommands
 import org.umamo.ui.workspace.commands.documentCommands
 import org.umamo.ui.workspace.commands.fileArtworkCommands
+import org.umamo.ui.workspace.commands.fileImageExportCommands
 import org.umamo.ui.workspace.commands.frameCommands
 import org.umamo.ui.workspace.commands.historyCommands
 import org.umamo.ui.workspace.commands.keyformCommands
@@ -144,6 +145,9 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
  *   files, relink a tile, match or replace a file's bindings) over the area the command fires in, or
  *   null (the default) when no open document can take artwork.  The shell registers the commands
  *   itself so the operation strip lands in the hovered work surface.
+ * @param Function? exportImage Export Image, handed the 2D viewport area it should frame (or null when the
+ *   pointer last touched none), or null (the default) when nothing can be captured.  The shell registers the
+ *   command itself because only its routing knows which viewport the rigger means.
  * @param String languageTag The active UI language (BCP-47).
  * @param Keymap keymap The active keymap (defaults to the built-in default preset; the persistent wrapper
  *   injects the settings-resolved keymap so a preset change or a rebind takes effect everywhere at once).
@@ -166,6 +170,7 @@ fun EditorShell(
 	onLayoutChange: (InterfaceLayout) -> Unit = {},
 	onLayoutDragChange: (Boolean) -> Unit = {},
 	artwork: ArtworkOperations? = null,
+	exportImage: ((viewportAreaId: String?) -> Unit)? = null,
 ) {
 	// The layout controller outlives recompositions, so it publishes through a live reference to the
 	// persistence hook rather than capturing the first composition's lambda.
@@ -174,6 +179,7 @@ fun EditorShell(
 	// Read at dispatch for the same reason: the command table registers once per session, and the app
 	// hands in a fresh collaborator per composition.
 	val currentArtwork by rememberUpdatedState(artwork)
+	val currentExportImage by rememberUpdatedState(exportImage)
 	val workspaces =
 		remember { WorkspaceLayoutController(initialLayout) { newLayout -> currentOnLayoutChange(newLayout) } }
 	// Quick Setup's visibility is the app's, held across the document swaps that rebuild this shell; read once,
@@ -333,7 +339,8 @@ fun EditorShell(
 					proportionalCommands(editorSession, availability) +
 					displayCommands(editorSession, availability) +
 					atlasCommands(availability, routing, repackAtlas) +
-					fileArtworkCommands(routing) { currentArtwork },
+					fileArtworkCommands(routing) { currentArtwork } +
+					fileImageExportCommands(routing) { currentExportImage },
 			)
 		onDispose { cleanup() }
 	}

@@ -48,6 +48,7 @@ internal fun ExportOptionsDialog(
 ) {
 	when (request) {
 		is ExportOptionsRequest.Moc3 -> Moc3ExportOptionsPane(request, onDismiss)
+		is ExportOptionsRequest.Image -> ImageExportOptionsPane(request, onDismiss)
 	}
 }
 

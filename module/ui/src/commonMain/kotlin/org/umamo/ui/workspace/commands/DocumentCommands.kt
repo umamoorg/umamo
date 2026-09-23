@@ -92,6 +92,9 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 		Command("document.exportOptionsMoc3", title = null) { argument ->
 			(argument as? ExportOptionsRequest)?.let { request -> overlays.pendingExportOptions = request }
 		},
+		Command("document.exportOptionsImage", title = null) { argument ->
+			(argument as? ExportOptionsRequest)?.let { request -> overlays.pendingExportOptions = request }
+		},
 		// A ready-built confirm from the app layer (the export-overwrite warning).  Unlike
 		// document.confirmReplace, whose prompt is fixed here, the caller owns the prompt and its
 		// arguments - the command only routes it into the shell's one pending-confirm slot.

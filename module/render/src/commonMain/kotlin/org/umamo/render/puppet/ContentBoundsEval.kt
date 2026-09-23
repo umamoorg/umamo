@@ -67,8 +67,21 @@ internal fun contentBoundsOf(geometry: DeformedGeometry, shownIds: Set<DrawableI
  * @return ContentBounds The rectangle to fit.
  */
 internal fun emptyContentBoundsOf(model: PuppetModel): ContentBounds =
+	canvasBoundsOf(model)
+		?: ContentBounds(model.worldOriginX - EMPTY_FRAME_EXTENT / 2f, model.worldOriginZ - EMPTY_FRAME_EXTENT / 2f, EMPTY_FRAME_EXTENT, EMPTY_FRAME_EXTENT)
+
+/**
+ * The document's canvas rectangle in world space, or null for a model that carries no canvas.
+ *
+ * World space is canvas x with canvas y negated, so a canvas spanning [0, width] x [0, height] occupies
+ * x in [0, width] and y in [-height, 0] here.
+ *
+ * @param PuppetModel model The model whose canvas to place.
+ * @return ContentBounds? The canvas rectangle, or null when either canvas dimension is not positive.
+ */
+fun canvasBoundsOf(model: PuppetModel): ContentBounds? =
 	if (model.canvasWidth > 0f && model.canvasHeight > 0f) {
 		ContentBounds(0f, -model.canvasHeight, model.canvasWidth, model.canvasHeight)
 	} else {
-		ContentBounds(model.worldOriginX - EMPTY_FRAME_EXTENT / 2f, model.worldOriginZ - EMPTY_FRAME_EXTENT / 2f, EMPTY_FRAME_EXTENT, EMPTY_FRAME_EXTENT)
+		null
 	}

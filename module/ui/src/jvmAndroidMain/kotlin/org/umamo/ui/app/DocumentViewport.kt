@@ -65,6 +65,10 @@ import org.umamo.ui.workspace.commands.ArtworkOperations
  *   with no puppet document, which hides them.
  * @param SourceWatchState? sourceWatch The document's artwork watcher's state for the Sources space, or null.
  * @param SourceSuggestionState? sourceSuggestions The published relink suggestions for the Sources space's review chips, or null.
+ * @param DocumentViewportSlot? viewportSlot Where the render service is handed to the operations that render outside an
+ *   area (a save's thumbnail, Export Image) while it lives; null when nothing asks.
+ * @param Function? exportImage Export Image over a 2D viewport area, handed to the shell for a puppet document on a
+ *   platform with a renderer (the shell registers the command); null otherwise, which hides it.
  */
 @Composable
 internal fun DocumentViewport(
@@ -78,6 +82,8 @@ internal fun DocumentViewport(
 	artwork: ArtworkOperations?,
 	sourceWatch: SourceWatchState?,
 	sourceSuggestions: SourceSuggestionState?,
+	viewportSlot: DocumentViewportSlot? = null,
+	exportImage: ((viewportAreaId: String?) -> Unit)? = null,
 ) {
 	when (document) {
 		is PuppetDocument ->
@@ -130,6 +136,16 @@ internal fun DocumentViewport(
 						}
 					}
 				}
+				// The same hand-over for the operations that render outside an area, with the same guard: a slot
+				// already refilled by a newer service is left alone.
+				DisposableEffect(viewportSlot, viewportService) {
+					viewportSlot?.service = viewportService
+					onDispose {
+						if (viewportSlot?.service === viewportService) {
+							viewportSlot?.service = null
+						}
+					}
+				}
 				val liveParamsHandle = remember(document, activeSession) { LiveParamsAdapter(document.liveParams, activeSession) }
 				// Without a viewport the thumbnails come straight from the shared thumbnailer, so the
 				// outliner's hover previews work before a platform puppet renderer exists.  Keyed on the
@@ -161,6 +177,7 @@ internal fun DocumentViewport(
 						appMenu = appMenu,
 						// Registered by the shell (see fileArtworkCommands): the strip shows in the hovered work surface.
 						artwork = artwork,
+						exportImage = exportImage,
 						filePicker = filePicker,
 					)
 				}
