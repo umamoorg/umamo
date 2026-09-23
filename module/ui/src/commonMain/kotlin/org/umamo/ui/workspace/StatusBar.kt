@@ -46,18 +46,11 @@ private val STATUS_BAR_HEIGHT = 24.dp
 // Separates the inline entries within a zone; a middot-style bar keeps the run-on counts grouped.
 private const val STAT_SEPARATOR = " | "
 
-// The hint slot's share of the flexible width, against the notice slot's 1: six hints read longer than
-// any notice, so they get the larger part of what the selected item and the stats leave over.
-private const val HINT_SLOT_WEIGHT = 2f
-
 /**
  * The bottom status strip: thin, always-present window chrome below the area tree, laid out as four
  * conceptual zones left to right - the current context's input binds, a blank flexible middle, the
  * selected item, and the model stats. Lives in commonMain so the strip is shared chrome on desktop
  * and Android.
- *
- * 下部ステータスバー。エリアツリー下に常駐する細い枠。左からコンテキスト入力割当・空白・選択項目・
- * モデル統計の四区画。
  *
  * @param Modifier modifier The layout modifier (the shell passes fillMaxWidth).
  */
@@ -79,7 +72,7 @@ fun StatusBar(modifier: Modifier = Modifier) {
 			// Weighted, and emitted even when it holds nothing: a weighted child is measured after the
 			// selected item and the stats, so a long hint run is cut before it can squeeze them, and a slot
 			// that is always there keeps the notice beside it from moving as the hints change.
-			Box(modifier = Modifier.weight(HINT_SLOT_WEIGHT), contentAlignment = Alignment.CenterStart) {
+			Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
 				ContextBindsZone()
 			}
 			// The flexible middle doubles as the transient-notice slot: a blank gap normally, a brief message

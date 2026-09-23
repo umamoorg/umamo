@@ -240,8 +240,6 @@ Sketch:
 
 ## Command Palette
 * Icons for commands - Long tail feature, would need to add a lot of icons.  We can reuse the existing icons for current commands such as editor/select modes.
-* Improvements
-	* Now that the hovered area is tracked everywhere we can filter by what commands are available per area.
 
 ## Status Bar
 * The first iteration to improve the status bar hints was a good success.  Eventually:
@@ -257,28 +255,6 @@ Right now the goal is to support sRGB from ingest to output with full correctnes
 
 
 # Claude Notes
-
-## Added artwork placement (shipped 2026-09-22) and what a CMO3 round trip loses
-
-**What.** A later artwork file is placed on the rig's canvas by the add-artwork strip's Align (nine anchors)
-and Offset X / Z rows, seeded by `import.alignment`; the resulting offset is persisted per source
-(`ArtSource.offsetX/Z`, UMA §6.2; x right and z UP like the viewport, so the placement math negates z into canvas y) and every disk read of a listed file is placed by it before the model sees the
-art (`readListedArtworkAt`), so reload, relink, and match compare the file against the inventory in one frame.
-The Sources label takes the offset back out so its numbers match the art program.  This closes the
-"compare centers" TODO line above under Texture Authoring/UV Editor.
-
-**Known open: a CMO3 export carries no offset.**  A document reopened from the export reads every file at
-offset 0 while its rows are still in the document frame; the next disk reload of a placed file then sees every
-layer as moved (untouched quads jump to the unplaced position, edited meshes keep their positions but their
-UVs slide by the offset and are flagged outgrown).  A same-size file, the common outfit workflow, has offset 0
-and is unaffected.  Fix sketch for a format cycle: write `boundsOnImageDoc` in the file's own frame, keep
-`_materialLocalToCanvasTransform` in the document frame, and have ingest recover the offset from their
-difference - needs checking against the official editor, as does whether it accepts the negative
-`boundsOnImageDoc` a file larger than the canvas now exports.
-
-**Follow-up.** "Expand Canvas to Fit" (and an anchor-aware canvas resize in Properties) needs a whole-rig
-translate op that shifts drawable bases, deformer geometry, the world origin, and every source offset; sketched
-in `docs/plan/maintenance-2026-09.md` § Backlog.
 
 ## GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 
