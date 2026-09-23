@@ -114,7 +114,7 @@ public class AtlasPackItem(
  *
  * @property Int     maxPageSize         The square page side pages are packed against, in pixels.
  * @property Int     gutter              Transparent spacing reserved around every tile and at the page border.
- * @property Int     extrude             How many pixels of each tile's edge color are replicated into the gutter.
+ * @property Int     extrude             How many pixels of gutter around each tile carry its edge color, at zero alpha.
  * @property Boolean allowRotation       Whether a tile may be quarter-turned to pack tighter.
  * @property Boolean powerOfTwoPages     Whether final page dimensions round up to a power of two.
  * @property Boolean squarePages         Whether final pages are square, as every corpus atlas is.
@@ -305,7 +305,7 @@ private class FixedFootprint(
  *
  * Each tile is trimmed to its opaque bounds (lossless at the default threshold - no antialiased edge
  * pixel is cut), reserved with a gutter on every side, placed by the MaxRects packer, blitted, and
- * extruded into its gutter.  Pages are packed against [AtlasPackOptions.maxPageSize] and then cropped
+ * its edge color bled into its gutter at zero alpha.  Pages are packed against [AtlasPackOptions.maxPageSize] and then cropped
  * to what was used, so a document that needs a 512 page gets one rather than a mostly-empty 4096.
  *
  * The result is DETERMINISTIC: tiles are ordered by descending max side, then descending area, then

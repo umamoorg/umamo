@@ -48,7 +48,7 @@ public fun derivedTileTrim(raster: DecodedImage, alphaThreshold: Int): LayerBoun
 
 /**
  * The composition policy a pack under [options] leaves on the model, so the derivation trims and
- * extrudes exactly as the pack did.
+ * bleeds exactly as the pack did.
  *
  * @param AtlasPackOptions options The options the pack ran with.
  * @return AtlasComposition The two derivation-relevant options, as model state.

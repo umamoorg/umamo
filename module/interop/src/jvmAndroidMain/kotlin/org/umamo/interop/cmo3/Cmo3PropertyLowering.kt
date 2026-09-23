@@ -18,7 +18,6 @@ import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
-import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
@@ -62,6 +61,7 @@ import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.inversePlacementAffine
 import org.umamo.runtime.model.isOriginAtCanvasCenter
 import org.umamo.runtime.model.lineageRoot
+import org.umamo.runtime.model.storedToArtAffineForTile
 
 /**
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
@@ -86,6 +86,8 @@ internal class Cmo3PropertyLowering(
 	private val baseline: PuppetModel,
 	private val edited: PuppetModel,
 	private val notices: MutableList<ExportNotice>,
+	// The document's texture frames, taken from the graph before the export changed it.
+	private val textureFrames: Cmo3TextureFrames,
 	// True when the caller replaced the stored page images with pages recomposed for the edited
 	// placements (Cmo3Export's same-count patch); the stale-page notices below are then false and stay
 	// quiet.  Defaults false so every other construction keeps the honest warning.
@@ -109,7 +111,7 @@ internal class Cmo3PropertyLowering(
 	private val keyforms = Cmo3KeyformLowering(index, editor, baseline, notices)
 
 	/** The structural engine, for topology rewrites and glue re-binding on Changed entities. */
-	private val structure = Cmo3StructureLowering(index.modelSource, index, editor, edited, notices)
+	private val structure = Cmo3StructureLowering(index.modelSource, index, editor, edited, notices, textureFrames)
 
 	private fun unsupported(
 		category: ExportEntityCategory,
@@ -519,9 +521,10 @@ internal class Cmo3PropertyLowering(
 	}
 
 	/**
-	 * Lowers edited UVs: verbatim for a packed (atlas-region) drawable, and through the FORWARD
-	 * model-image affine for an unpacked one - the inverse of the frame remap import applied.
-	 * Unchanged texel pairs keep the stored values so the affine round trip cannot drift them.
+	 * Lowers edited UVs into the frame the drawable stores ([Cmo3TextureFrames.storedUvsOf]) - the import's
+	 * remap run backward, off the edited tile's page through its EDITED placement when it has one.
+	 * Unchanged texel pairs keep the stored values so the round trip cannot drift them, but only while the
+	 * tile's placement is the one those values were read under: a moved placement moves every model pair.
 	 *
 	 * @param CArtMeshSource source         The drawable's graph source.
 	 * @param DrawableId     drawableId     The drawable's id (for notices).
@@ -533,52 +536,19 @@ internal class Cmo3PropertyLowering(
 			unsupported(ExportEntityCategory.Drawable, drawableId.raw, ExportNoticeReason.NoUvsToReconcile)
 			return
 		}
-		val storedUvs = source.uvs as? FloatArray
-		val baselineUvs = baselineDrawableById[drawableId]?.mesh?.uvs
-		if (Cmo3Import.hasAtlasRegion(source)) {
-			// CMO3: CArtMeshSource field uvs - a packed drawable stores its sampled-image frame verbatim.
-			source.uvs = newUvs.copyOf()
-		} else {
-			// CMO3: GTexture2D field transformImageResource01toLogical01 - an unpacked drawable stores
-			// uvs in the model-image LOGICAL frame; apply the forward affine (import applied the inverse).
-			val affine = (source.texture as? GTexture2D)?.transformImageResource01toLogical01 as? CAffine
-			val isIdentity =
-				affine == null ||
-					(
-						affine.m00 == 1f &&
-							affine.m01 == 0f &&
-							affine.m02 == 0f &&
-							affine.m10 == 0f &&
-							affine.m11 == 1f &&
-							affine.m12 == 0f
-					)
-			if (isIdentity) {
-				source.uvs = newUvs.copyOf()
-			} else {
-				val result = FloatArray(newUvs.size)
-				var component = 0
-				while (component + 1 < newUvs.size) {
-					val unchangedPair =
-						storedUvs != null &&
-							storedUvs.size == newUvs.size &&
-							baselineUvs != null &&
-							baselineUvs.size == newUvs.size &&
-							newUvs[component].toRawBits() == baselineUvs[component].toRawBits() &&
-							newUvs[component + 1].toRawBits() == baselineUvs[component + 1].toRawBits()
-					if (unchangedPair) {
-						result[component] = storedUvs[component]
-						result[component + 1] = storedUvs[component + 1]
-					} else {
-						val u = newUvs[component]
-						val v = newUvs[component + 1]
-						result[component] = affine.m00 * u + affine.m01 * v + affine.m02
-						result[component + 1] = affine.m10 * u + affine.m11 * v + affine.m12
-					}
-					component += 2
-				}
-				source.uvs = result
-			}
-		}
+		val baselineDrawable = baselineDrawableById[drawableId]
+		val editedToArt = editedDrawable.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) }
+		val baselineToArt = baselineDrawable?.atlasTileId?.let { tileId -> baseline.atlas.storedToArtAffineForTile(tileId) }
+		val placementKept = editedToArt.contentEquals(baselineToArt)
+		// CMO3: CArtMeshSource field uvs.
+		source.uvs =
+			textureFrames.storedUvsOf(
+				source,
+				newUvs,
+				editedToArt,
+				(source.uvs as? FloatArray).takeIf { placementKept },
+				baselineDrawable?.mesh?.uvs.takeIf { placementKept },
+			)
 		editor.ensureChildSlot(source, "CArtMeshSource", "uvs", "texture")
 	}
 

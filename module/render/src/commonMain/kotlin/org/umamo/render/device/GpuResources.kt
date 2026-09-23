@@ -74,6 +74,7 @@ public enum class TextureWrap {
 	 * still for deformation coverage, so a drawable's coordinates run past its layer image by tens to
 	 * hundreds of pixels.  Clamping to the edge would repeat the border row or column across that overhang
 	 * as a streak; transparent black reproduces what the packed atlas showed there, which is its padding.
+	 * Atlas pages take it too: a document's page can be a single model image, with no padding at all.
 	 *
 	 * @note GL_CLAMP_TO_BORDER with a zero border color on the GL family (core in GL 3.3 and GLES 3.2),
 	 *   MTLSamplerAddressMode.clampToZero on Metal.

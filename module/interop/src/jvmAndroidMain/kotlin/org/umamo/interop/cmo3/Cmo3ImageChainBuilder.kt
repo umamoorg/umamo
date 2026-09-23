@@ -274,6 +274,12 @@ internal object Cmo3ImageChainBuilder {
 		}
 	}
 
+	/**
+	 * CMO3: GTexture2D field mipmapLevel - what every corpus texture over a full-resolution image (an atlas
+	 * page or a model image's raster) writes; a texture over a reduced cache copy writes that copy's 32.
+	 */
+	internal const val FULL_RESOLUTION_MIPMAP_LEVEL = 64
+
 	/** CMO3: FilterInstance filterDefGuid for "CLayerSelector" - fixed uuid in every corpus file. */
 	private const val LAYER_SELECTOR_DEF_UUID = "5e9fe1ea-0ec3-4d68-a5fa-018fc7abe301"
 
@@ -640,7 +646,7 @@ internal object Cmo3ImageChainBuilder {
 				anisotropy = Anisotropy.ON
 				srcImageResource = resource
 				transformImageResource01toLogical01 = CAffine()
-				mipmapLevel = 64
+				mipmapLevel = FULL_RESOLUTION_MIPMAP_LEVEL
 				// CMO3: GTexture2D field isPremultiplied - true on EVERY corpus texture (178 of
 				// 178, every era), including the many whose embedded PNG bytes are straight
 				// alpha.  The flag records the editor's texture-render/upload convention, not
@@ -656,6 +662,22 @@ internal object Cmo3ImageChainBuilder {
 			}
 		return texture
 	}
+
+	/**
+	 * The raster-to-cache affine of an image: its size over its 64-aligned padding, per axis.  The cache
+	 * frame the editor keeps for every image, and the scale a texture sampling the raster carries as
+	 * `GTexture2D.transformImageResource01toLogical01` - every corpus texture over a model image's raster
+	 * writes exactly its cache's value.
+	 *
+	 * @param Int width  The image width in pixels.
+	 * @param Int height The image height in pixels.
+	 * @return CAffine A fresh diagonal affine.
+	 */
+	internal fun paddedFrameAffine(width: Int, height: Int): CAffine =
+		CAffine().apply {
+			m00 = width.toFloat() / ((width + 63) / 64 * 64)
+			m11 = height.toFloat() / ((height + 63) / 64 * 64)
+		}
 
 	/**
 	 * The cached-image manager the editor expects on every model image and texture atlas: the raw
@@ -692,11 +714,7 @@ internal object Cmo3ImageChainBuilder {
 							// corpus reductionRatio=1 cache writes exactly dim / ceil64(dim)
 							// (1073 of 1073).  Identity here makes the editor's source-image
 							// sampling stretch the art by the padding fraction.
-							transformRawImageToCachedImage =
-								CAffine().apply {
-									m00 = width.toFloat() / ((width + 63) / 64 * 64)
-									m11 = height.toFloat() / ((height + 63) / 64 * 64)
-								}
+							transformRawImageToCachedImage = paddedFrameAffine(width, height)
 						},
 					),
 				)

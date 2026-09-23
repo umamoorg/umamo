@@ -371,8 +371,7 @@ class PuppetRenderer(
 		axisPipeline = device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.WorldAxisLine, PipelineBlend.Opaque))
 		// Blending disabled: the composite shader computes the whole blend from layer + snapshot.
 		compositePipeline = device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.Composite, PipelineBlend.Opaque))
-		atlasHandles =
-			textures.atlases.map { device.createTexture(it.width, it.height, TextureFormat.Rgba8, TextureFilter.Linear, it.rgba) }
+		atlasHandles = textures.atlases.map(::atlasPageTexture)
 		val warpDeformerIds = model.deformers.filterIsInstance<Deformer.Warp>().map { it.id }.toSet()
 
 		// Glue addressing is planned in commonMain; the device holds the store and the interleaved attrs.
@@ -615,10 +614,23 @@ class PuppetRenderer(
 			device.destroyTexture(handle)
 		}
 		textures = next
-		atlasHandles =
-			next.atlases.map { device.createTexture(it.width, it.height, TextureFormat.Rgba8, TextureFilter.Linear, it.rgba) }
+		atlasHandles = next.atlases.map(::atlasPageTexture)
 		applyAtlasBinding()
 	}
+
+	/**
+	 * Uploads one atlas page.
+	 *
+	 * The page wraps to a transparent border, like a layer image: a document's pages are not always
+	 * packed atlases - a CMO3 draws some drawables straight from their model image - and a mesh
+	 * overhangs its art, so an edge-clamped page would repeat its border across the overhang as a
+	 * streak.  On a packed page the overhang lands on padding and the wrap never comes into play.
+	 *
+	 * @param DecodedImage page The page's pixels.
+	 * @return GpuTexture The texture handle.
+	 */
+	private fun atlasPageTexture(page: DecodedImage): GpuTexture =
+		device.createTexture(page.width, page.height, TextureFormat.Rgba8, TextureFilter.Linear, page.rgba, TextureWrap.ClampToTransparentBorder)
 
 	/**
 	 * Re-points every resident at its atlas page under the current [textures] - the atlas twin of

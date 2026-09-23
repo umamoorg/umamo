@@ -121,7 +121,8 @@ fun reloadTileId(previous: AtlasTileId, taken: Set<AtlasTileId>): AtlasTileId {
 
 /**
  * The policy the atlas's pages are composed under: which alpha counts as opaque when a tile is
- * trimmed to its content, and how far each tile's edge color is replicated into the gutter around it.
+ * trimmed to its content, and how far each tile's edge color is bled, at zero alpha, into the gutter
+ * around it.
  *
  * Model state because the pages are DERIVED state.  A placement records only where a tile's art
  * sits, not which opaque sub-rectangle the packer trimmed it to or how wide a band it extruded, so a
@@ -134,7 +135,7 @@ fun reloadTileId(previous: AtlasTileId, taken: Set<AtlasTileId>): AtlasTileId {
  * kept equal by the derivation gate that composes a pack's pages back from a lowered model.
  *
  * @property Int alphaThreshold Minimum alpha byte (1..255) for a pixel to count as opaque when trimming.
- * @property Int extrude        How many pixels of each tile's edge color are replicated outward.
+ * @property Int extrude        How many pixels of each tile's edge color are bled outward, at zero alpha.
  */
 data class AtlasComposition(
 	val alphaThreshold: Int = 1,

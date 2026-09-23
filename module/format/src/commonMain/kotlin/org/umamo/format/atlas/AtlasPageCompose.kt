@@ -9,15 +9,21 @@ import kotlin.math.roundToInt
 
 /*
  * Pixel composition for the atlas packer: writing one trimmed tile into a page buffer, optionally
- * quarter-turned, and extruding its edge outward into the surrounding gutter - plus the general
+ * quarter-turned, and bleeding its edge color outward into the surrounding gutter - plus the general
  * affine blit a hand-authored placement needs, since a rigger may rotate or scale a tile on the page
  * where the packer never would.
+ *
+ * The gutter band carries the edge's COLOR at zero alpha, never its coverage.  A mesh reaches past the
+ * art it samples, so anything opaque painted around a tile shows as a fringe wherever its art meets the
+ * edge of its raster; the band's only job is to give bilinear filtering the edge's color to blend
+ * toward, since the renderer filters straight alpha and a transparent black neighbor would darken the
+ * edge.  Beyond the art the page is transparent, exactly as the source layer is.
  *
  * Every writer here goes through ONE rule, writeSample: a sample never erases content.  A destination
  * pixel nobody has painted (alpha 0) takes the sample verbatim, transparent or not - which is what keeps
  * the packer's disjoint pages byte-identical, since every pixel it touches is untouched.  Over painted
  * content a transparent sample is skipped, an opaque one replaces (later placements win), a
- * translucent one composites source-over, and an extrusion band - synthetic pixels - never beats real
+ * translucent one composites source-over, and a bleed band - synthetic pixels - never beats real
  * ones.  Hand-authored placements overlap; without the rule a later tile's transparent margin cut a
  * box out of the tile beneath it.
  *
@@ -36,7 +42,7 @@ import kotlin.math.roundToInt
  * @param Int       green     The sample's green, 0..255.
  * @param Int       blue      The sample's blue, 0..255.
  * @param Int       alpha     The sample's alpha, 0..255.
- * @param Boolean   synthetic True for an extrusion sample, which only ever fills an unpainted pixel.
+ * @param Boolean   synthetic True for a bleed-band sample, which only ever fills untouched page.
  */
 private fun writeSample(
 	page: ByteArray,
@@ -49,6 +55,11 @@ private fun writeSample(
 ) {
 	val destinationAlpha = page[offset + 3].toInt() and 0xFF
 	if (destinationAlpha == 0) {
+		// A bleed band holds no alpha, so an earlier tile's band is told apart from untouched page by its
+		// color: another band never recolors it, and the gutter keeps the color of the edge it borders.
+		if (synthetic && (page[offset].toInt() != 0 || page[offset + 1].toInt() != 0 || page[offset + 2].toInt() != 0)) {
+			return
+		}
 		page[offset] = red.toByte()
 		page[offset + 1] = green.toByte()
 		page[offset + 2] = blue.toByte()
@@ -104,14 +115,12 @@ private fun compositeChannel(
  * @param Int       destinationOffset The destination pixel's byte offset.
  * @param ByteArray source            The source raster, RGBA8888.
  * @param Int       sourceOffset      The source pixel's byte offset.
- * @param Boolean   synthetic         True for an extrusion sample.
  */
 private fun writeSourcePixel(
 	page: ByteArray,
 	destinationOffset: Int,
 	source: ByteArray,
 	sourceOffset: Int,
-	synthetic: Boolean,
 ) {
 	writeSample(
 		page,
@@ -120,7 +129,33 @@ private fun writeSourcePixel(
 		source[sourceOffset + 1].toInt() and 0xFF,
 		source[sourceOffset + 2].toInt() and 0xFF,
 		source[sourceOffset + 3].toInt() and 0xFF,
-		synthetic,
+		synthetic = false,
+	)
+}
+
+/**
+ * Bleeds one source raster pixel's color into a page pixel at zero alpha: a gutter pixel that gives
+ * filtering the edge's color without adding any coverage, filled only where nothing is painted.
+ *
+ * @param ByteArray page              The destination page.
+ * @param Int       destinationOffset The destination pixel's byte offset.
+ * @param ByteArray source            The source raster, RGBA8888.
+ * @param Int       sourceOffset      The source pixel's byte offset.
+ */
+private fun bleedSourcePixel(
+	page: ByteArray,
+	destinationOffset: Int,
+	source: ByteArray,
+	sourceOffset: Int,
+) {
+	writeSample(
+		page,
+		destinationOffset,
+		source[sourceOffset].toInt() and 0xFF,
+		source[sourceOffset + 1].toInt() and 0xFF,
+		source[sourceOffset + 2].toInt() and 0xFF,
+		0,
+		synthetic = true,
 	)
 }
 
@@ -186,22 +221,24 @@ internal fun blitTile(
 				destinationRowOffset + column * 4,
 				sourceRgba,
 				sourceOffsetOfPlaced(sourceWidth, trim, column, row, quarterTurns),
-				synthetic = false,
 			)
 		}
 	}
 }
 
 /**
- * Replicates a placed tile's edge pixels outward into the surrounding gutter.
+ * Bleeds a placed tile's edge colors outward into the surrounding gutter, at zero alpha.
  *
- * Bilinear sampling at a tile's border reads half a texel past it; without this the neighboring
- * tile's artwork bleeds in.  The edge is read from the SOURCE raster, not from the page: under the
- * content-preserving rule a tile's transparent edge may not have landed on the page at all, and the
- * band must replicate the tile's own texel, never whatever another tile left there.  The caller
- * guarantees room by reserving a gutter of at least [extrude] on every side, so no clamping against
- * the page edge is needed here - and a silent clamp would hide exactly the arithmetic mistake this is
- * most likely to make.  Band pixels are synthetic: they fill unpainted pixels only.
+ * Bilinear sampling at a tile's border reads half a texel past it, and the renderer filters straight
+ * alpha, so the color it finds there tints the edge: transparent black would darken it.  The band gives
+ * it the edge's own color with no coverage, so the page past the art stays as transparent as the layer
+ * is there - a mesh reaching past its art must not find an opaque copy of the edge.  The edge is read
+ * from the SOURCE raster, not from the page: under the content-preserving rule a tile's transparent
+ * edge may not have landed on the page at all, and the band must carry the tile's own texel color,
+ * never whatever another tile left there.  The caller guarantees room by reserving a gutter of at least
+ * [extrude] on every side, so no clamping against the page edge is needed here - and a silent clamp
+ * would hide exactly the arithmetic mistake this is most likely to make.  Band pixels are synthetic:
+ * they fill unpainted pixels only.
  *
  * @param ByteArray   page         The destination page, RGBA8888 row-major from the top.
  * @param Int         pageWidth    The page width in pixels.
@@ -237,12 +274,11 @@ internal fun extrudeTileEdges(
 			if (insideVertically && columnOffset == clampedColumn) {
 				continue
 			}
-			writeSourcePixel(
+			bleedSourcePixel(
 				page,
 				((tileY + rowOffset) * pageWidth + tileX + columnOffset) * 4,
 				sourceRgba,
 				sourceOffsetOfPlaced(sourceWidth, trim, clampedColumn, clampedRow, quarterTurns),
-				synthetic = true,
 			)
 		}
 	}
@@ -262,7 +298,7 @@ internal fun extrudeTileEdges(
  * @param IntArray pageHeights Page heights in pixels, index-parallel to [pageWidths].
  * @param List     items       The tiles' pixels; every placement's key must resolve here.
  * @param List     placements  Where each tile goes.
- * @param Int      extrude     How many pixels of each tile's edge color are replicated into the gutter.
+ * @param Int      extrude     How many pixels of each tile's edge color are bled into the gutter, at zero alpha.
  * @return List The composed pages, RGBA8888, in page-index order.
  */
 public fun composeAtlasPages(
@@ -358,14 +394,15 @@ public class AtlasTilePlacement(
  * rotated, scaled, off the pixel grid, or partly off the page.
  *
  * A placement that is an exact integer translation, or an exact counter-clockwise quarter turn on
- * integer pixels, with room for its extrusion takes the packer's own blit and edge extrusion, so a
+ * integer pixels, with room for its bleed band takes the packer's own blit and edge bleed, so a
  * page composed here from a repack's placements is byte-identical to the page the packer composed,
- * turned tiles included.  Every other placement is resampled: each page pixel inside the
- * tile's footprint (its trim rectangle through the affine) reads the tile bilinearly at the pixel
- * center's pre-image, and each page pixel within [extrude] pixels outside the footprint reads the
- * nearest edge of the trim - the packer's edge replication, expressed so it holds under rotation.
- * Pixels that fall off the page are dropped rather than refused: the placement is a rigger's authored
- * choice, and clipping is what the page would show.
+ * turned tiles included.  Every other placement is resampled: each page pixel reads the tile
+ * bilinearly at its center's pre-image, against transparency beyond the trim, so an edge off the pixel
+ * grid lands with the partial coverage it has - the way the editor resamples its own pages.  A page
+ * pixel the tile does not cover within [extrude] pixels of the footprint takes the nearest edge's color
+ * at zero alpha - the packer's bleed band, expressed so it holds under rotation.  Pixels that fall off
+ * the page are dropped rather than refused: the placement is a rigger's authored choice, and clipping
+ * is what the page would show.
  *
  * Unlike the packer's placements, hand-authored footprints may overlap; they paint in list order
  * under the content-preserving rule (a later transparent sample never erases an earlier tile, a later
@@ -375,7 +412,7 @@ public class AtlasTilePlacement(
  * @param IntArray pageHeights Page heights in pixels, index-parallel to [pageWidths].
  * @param List     items       The tiles' pixels; every placement's key must resolve here.
  * @param List     placements  Where each tile goes.
- * @param Int      extrude     How many pixels of each tile's edge color are replicated outward.
+ * @param Int      extrude     How many pixels of each tile's edge color are bled outward, at zero alpha.
  * @return List The composed pages, RGBA8888 straight alpha, in page-index order.
  */
 public fun composeAtlasPagesAffine(
@@ -417,7 +454,7 @@ public fun composeAtlasPagesAffine(
 }
 
 /**
- * Paints one tile onto a page through its affine: the packer's own blit and edge extrusion when the
+ * Paints one tile onto a page through its affine: the packer's own blit and edge bleed when the
  * affine is one of the packer's exact placements with room for the band, else the resampling blit.
  *
  * The ONE path a hand-authored placement takes, whether [composeAtlasPagesAffine] derives it from a
@@ -430,7 +467,7 @@ public fun composeAtlasPagesAffine(
  * @param AtlasPackItem item       The tile's pixels.
  * @param LayerBounds   trim       The opaque sub-rectangle of the tile that is drawn, raster-local.
  * @param FloatArray    tileToPage The affine mapping tile pixels to page pixels.
- * @param Int           extrude    How many pixels of edge color to replicate outward.
+ * @param Int           extrude    How many pixels of edge color to bleed outward, at zero alpha.
  */
 internal fun paintTilePlacement(
 	page: ByteArray,
@@ -537,7 +574,7 @@ private class ExactPlacement(
  * trim-local (u, v) to (originX + v, originY + trimWidth - u), so the placed top-left sits at
  * (m02 + trim.top, m12 - trim.left - trim.width).  Recognising it here is what lets a repack that
  * turned a tile derive byte-identical pages instead of resampling through the bilinear path, whose
- * extrusion band rounds corners differently from the packer's.
+ * bleed band rounds corners differently from the packer's.
  *
  * @param FloatArray  affine The tile-to-page affine to classify.
  * @param LayerBounds trim   The tile's drawn sub-rectangle, raster-local.
@@ -595,12 +632,14 @@ private fun invertAffine2x3(affine: FloatArray): FloatArray? {
 /**
  * Resamples one trimmed tile onto a page through an affine, clipping to the page.
  *
- * Runs over the footprint's bounding box grown by [extrude] and inverse-maps each page pixel center
- * into the tile.  A center inside the trim samples the tile bilinearly there; a center outside it is
- * clamped to the trim's nearest point and drawn only when that point, mapped back to the page, lies
- * within [extrude] pixels - which paints the packer's edge extrusion as a band of constant width around
- * the footprint whatever its orientation, and leaves everything farther out untouched.  Both go
- * through the content-preserving rule; the band as synthetic.
+ * Runs over the footprint's bounding box grown by the bleed band plus the one texel a bilinear tap
+ * reaches past the trim, and inverse-maps each page pixel center into the tile.  The tile is sampled
+ * bilinearly there against TRANSPARENCY beyond the trim ([sampleBilinearCovered]), so an edge that
+ * falls between page pixels paints the partial coverage it has, and nothing paints farther out than
+ * the art reaches.  A pixel the tile does not cover at all takes the nearest edge's color at zero alpha
+ * when that edge, mapped back to the page, lies within [extrude] pixels - the packer's bleed band as a
+ * band of constant width around the footprint whatever its orientation - and is left untouched beyond
+ * it.  Both go through the content-preserving rule; the band as synthetic.
  *
  * @param ByteArray   page        The destination page, RGBA8888 row-major from the top.
  * @param Int         pageWidth   The page width in pixels.
@@ -609,7 +648,7 @@ private fun invertAffine2x3(affine: FloatArray): FloatArray? {
  * @param Int         sourceWidth The source raster's width in pixels (its row stride).
  * @param LayerBounds trim        The opaque sub-rectangle of the source to draw, raster-local.
  * @param FloatArray  tileToPage  The affine mapping tile pixels to page pixels.
- * @param Int         extrude     How many pixels of edge color to replicate outward.
+ * @param Int         extrude     How many pixels of edge color to bleed outward, at zero alpha.
  */
 internal fun blitTileAffine(
 	page: ByteArray,
@@ -626,12 +665,15 @@ internal fun blitTileAffine(
 	val trimTop = trim.top.toFloat()
 	val trimRight = (trim.left + trim.width).toFloat()
 	val trimBottom = (trim.top + trim.height).toFloat()
-	// The footprint's page-space bounding box: the four trim corners through the affine.
+	// The footprint's page-space bounding box: the four trim corners through the affine.  A bilinear tap
+	// reaches half a texel past the trim, so coverage can land up to one page pixel past the box even
+	// with no band; the scan reaches whichever is farther.
 	val bounds = affineBounds(tileToPage, trimLeft, trimTop, trimRight, trimBottom)
-	val startColumn = floor(bounds[0] - extrude).toInt().coerceAtLeast(0)
-	val endColumn = ceil(bounds[2] + extrude).toInt().coerceAtMost(pageWidth)
-	val startRow = floor(bounds[1] - extrude).toInt().coerceAtLeast(0)
-	val endRow = ceil(bounds[3] + extrude).toInt().coerceAtMost(pageHeight)
+	val reach = maxOf(extrude, 1)
+	val startColumn = floor(bounds[0] - reach).toInt().coerceAtLeast(0)
+	val endColumn = ceil(bounds[2] + reach).toInt().coerceAtMost(pageWidth)
+	val startRow = floor(bounds[1] - reach).toInt().coerceAtLeast(0)
+	val endRow = ceil(bounds[3] + reach).toInt().coerceAtMost(pageHeight)
 	if (startColumn >= endColumn || startRow >= endRow) {
 		return
 	}
@@ -645,39 +687,47 @@ internal fun blitTileAffine(
 			val centerX = pageColumn + 0.5f
 			val tileX = pageToTile[0] * centerX + pageToTile[1] * centerY + pageToTile[2]
 			val tileY = pageToTile[3] * centerX + pageToTile[4] * centerY + pageToTile[5]
+			sampleBilinearCovered(sourceRgba, sourceWidth, trim.left, trim.top, lastColumn, lastRow, tileX, tileY, sample)
+			val pageOffset = (pageRow * pageWidth + pageColumn) * 4
 			val clampedX = tileX.coerceIn(trimLeft, trimRight)
 			val clampedY = tileY.coerceIn(trimTop, trimBottom)
-			val outsideTrim = clampedX != tileX || clampedY != tileY
-			if (outsideTrim) {
-				if (extrude == 0) {
-					continue
-				}
-				val backX = tileToPage[0] * clampedX + tileToPage[1] * clampedY + tileToPage[2]
-				val backY = tileToPage[3] * clampedX + tileToPage[4] * clampedY + tileToPage[5]
-				val deltaX = backX - centerX
-				val deltaY = backY - centerY
-				if (deltaX * deltaX + deltaY * deltaY > extrudeSquared) {
-					continue
-				}
+			val insideTrim = clampedX == tileX && clampedY == tileY
+			if (sample[3] > 0 || insideTrim) {
+				// The tile's own pixels, a transparent one included, and the partial coverage of an edge.
+				writeSample(page, pageOffset, sample[0], sample[1], sample[2], sample[3], synthetic = false)
+				continue
 			}
-			sampleBilinearStraight(sourceRgba, sourceWidth, trim.left, trim.top, lastColumn, lastRow, clampedX, clampedY, sample)
-			writeSample(page, (pageRow * pageWidth + pageColumn) * 4, sample[0], sample[1], sample[2], sample[3], synthetic = outsideTrim)
+			if (extrude == 0) {
+				continue
+			}
+			val backX = tileToPage[0] * clampedX + tileToPage[1] * clampedY + tileToPage[2]
+			val backY = tileToPage[3] * clampedX + tileToPage[4] * clampedY + tileToPage[5]
+			val deltaX = backX - centerX
+			val deltaY = backY - centerY
+			if (deltaX * deltaX + deltaY * deltaY > extrudeSquared) {
+				continue
+			}
+			writeSample(page, pageOffset, sample[0], sample[1], sample[2], 0, synthetic = true)
 		}
 	}
 }
 
 /**
- * Samples the tile's color at a continuous tile-space point, bilinearly over the four surrounding
- * texels with the taps clamped into the trim.
+ * Samples the tile at a continuous tile-space point, bilinearly over the four surrounding texels, with
+ * every texel beyond the trim transparent.
  *
- * Straight-alpha texels interpolate in premultiplied space and convert back: averaging straight RGB
- * across an alpha edge drags the matte color into the visible pixels and darkens the fringe.  A point
- * that sits exactly on a texel center copies that texel verbatim, so an integer-aligned placement
- * (a quarter turn, an exact translation the packer's blit could not take) stays byte-exact.
+ * Transparent beyond the trim, not clamped to it: the art ends at the trim's edge, and a pixel center
+ * half a texel past an opaque edge must come out half covered - which is also how the editor resamples
+ * a tile it places between pixels.  A tap beyond the trim still lends the nearest edge texel's color, so
+ * a point no texel covers carries the edge's color at zero alpha, and the covered texels' colors are
+ * averaged by their alpha: straight-alpha texels interpolate in premultiplied space and convert back,
+ * because averaging straight RGB across an alpha edge drags the matte color into the visible pixels.  A
+ * point exactly on a texel center copies that texel verbatim, so an integer-aligned placement (a quarter
+ * turn, an exact translation the packer's blit could not take) stays byte-exact.
  *
  * @param ByteArray source      The source raster, RGBA8888 row-major from the top.
  * @param Int       sourceWidth The source raster's row stride in pixels.
- * @param Int       firstColumn The trim's first column (taps clamp here).
+ * @param Int       firstColumn The trim's first column.
  * @param Int       firstRow    The trim's first row.
  * @param Int       lastColumn  The trim's last column, inclusive.
  * @param Int       lastRow     The trim's last row, inclusive.
@@ -685,7 +735,7 @@ internal fun blitTileAffine(
  * @param Float     sampleY     The tile-space y to sample.
  * @param IntArray  out         Receives the sample as (red, green, blue, alpha), 0..255.
  */
-private fun sampleBilinearStraight(
+private fun sampleBilinearCovered(
 	source: ByteArray,
 	sourceWidth: Int,
 	firstColumn: Int,
@@ -702,22 +752,8 @@ private fun sampleBilinearStraight(
 	val floorY = floor(y)
 	val fractionX = x - floorX
 	val fractionY = y - floorY
-	val column0 = floorX.toInt().coerceIn(firstColumn, lastColumn)
-	val row0 = floorY.toInt().coerceIn(firstRow, lastRow)
-	if (fractionX == 0f && fractionY == 0f) {
-		val sourceOffset = (row0 * sourceWidth + column0) * 4
-		out[0] = source[sourceOffset].toInt() and 0xFF
-		out[1] = source[sourceOffset + 1].toInt() and 0xFF
-		out[2] = source[sourceOffset + 2].toInt() and 0xFF
-		out[3] = source[sourceOffset + 3].toInt() and 0xFF
-		return
-	}
-	val column1 = (floorX.toInt() + 1).coerceIn(firstColumn, lastColumn)
-	val row1 = (floorY.toInt() + 1).coerceIn(firstRow, lastRow)
-	val weight00 = (1f - fractionX) * (1f - fractionY)
-	val weight10 = fractionX * (1f - fractionY)
-	val weight01 = (1f - fractionX) * fractionY
-	val weight11 = fractionX * fractionY
+	val baseColumn = floorX.toInt()
+	val baseRow = floorY.toInt()
 	var red = 0f
 	var green = 0f
 	var blue = 0f
@@ -726,23 +762,32 @@ private fun sampleBilinearStraight(
 	var straightGreen = 0f
 	var straightBlue = 0f
 	for (tapIndex in 0 until 4) {
-		val column = if (tapIndex and 1 == 0) column0 else column1
-		val row = if (tapIndex and 2 == 0) row0 else row1
+		val column = if (tapIndex and 1 == 0) baseColumn else baseColumn + 1
+		val row = if (tapIndex and 2 == 0) baseRow else baseRow + 1
 		val weight =
 			when (tapIndex) {
-				0 -> weight00
-				1 -> weight10
-				2 -> weight01
-				else -> weight11
+				0 -> (1f - fractionX) * (1f - fractionY)
+				1 -> fractionX * (1f - fractionY)
+				2 -> (1f - fractionX) * fractionY
+				else -> fractionX * fractionY
 			}
 		if (weight == 0f) {
 			continue
 		}
-		val offset = (row * sourceWidth + column) * 4
+		val inside = column in firstColumn..lastColumn && row in firstRow..lastRow
+		val offset = (row.coerceIn(firstRow, lastRow) * sourceWidth + column.coerceIn(firstColumn, lastColumn)) * 4
 		val tapRed = (source[offset].toInt() and 0xFF).toFloat()
 		val tapGreen = (source[offset + 1].toInt() and 0xFF).toFloat()
 		val tapBlue = (source[offset + 2].toInt() and 0xFF).toFloat()
-		val tapAlpha = (source[offset + 3].toInt() and 0xFF).toFloat()
+		val tapAlpha = if (inside) (source[offset + 3].toInt() and 0xFF).toFloat() else 0f
+		if (weight == 1f) {
+			// Exactly on one texel's center: that texel, verbatim (at zero alpha when it lies beyond the trim).
+			out[0] = tapRed.toInt()
+			out[1] = tapGreen.toInt()
+			out[2] = tapBlue.toInt()
+			out[3] = tapAlpha.toInt()
+			return
+		}
 		red += weight * tapRed * tapAlpha
 		green += weight * tapGreen * tapAlpha
 		blue += weight * tapBlue * tapAlpha
@@ -756,7 +801,7 @@ private fun sampleBilinearStraight(
 		out[1] = (green / alpha).roundToInt().coerceIn(0, 255)
 		out[2] = (blue / alpha).roundToInt().coerceIn(0, 255)
 	} else {
-		// Fully transparent: keep the matte color the source carries rather than inventing black.
+		// Nothing covered: keep the color the texels carry rather than inventing black.
 		out[0] = straightRed.roundToInt().coerceIn(0, 255)
 		out[1] = straightGreen.roundToInt().coerceIn(0, 255)
 		out[2] = straightBlue.roundToInt().coerceIn(0, 255)

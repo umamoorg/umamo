@@ -4,13 +4,18 @@ import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.gen.CTextureAtlas
+import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.interop.AtlasPageSet
 
 /**
- * Extracts the atlas page(s) a CMO3 model's art meshes sample.  Walks each `CArtMeshSource`'s
- * `GTexture2D.srcImageResource`, collects each distinct page's embedded PNG once, and keys it by the
- * drawable id (matching `DrawableId` from [Cmo3Import]).
+ * Extracts the image(s) a CMO3 model's art meshes are shown from, the images their imported coordinates
+ * address: a drawable over a placed tile is shown from that tile's atlas page (`CTextureAtlas.cachedAtlasImage`)
+ * whatever its texture names - a model saved in source-layer display still carries the page - and any other
+ * drawable from the image its texture names, its model image's raster standing in for a reduced cache copy
+ * ([Cmo3TextureFrames.renderedImageOf]).  Each distinct image's embedded PNG is collected once and keyed by
+ * the drawable id (matching `DrawableId` from [Cmo3Import]).
  *
  * The pixel lookup is injected rather than taken from a `Cmo3Model`, which is what keeps this in
  * commonMain: the CMO3 graph node types are all commonMain, and only the JDOM-built container wrapper
@@ -26,9 +31,31 @@ import org.umamo.interop.AtlasPageSet
  * @param Function     readPng     Yields an image resource's embedded PNG bytes, or null when it has none.
  * @return AtlasPageSet The encoded pages + per-drawable index.
  */
-public fun cmo3AtlasPages(modelSource: CModelSource, readPng: (CImageResource) -> ByteArray?): AtlasPageSet {
+public fun cmo3AtlasPages(modelSource: CModelSource, readPng: (CImageResource) -> ByteArray?): AtlasPageSet =
+	cmo3AtlasPages(modelSource, cmo3AtlasIngest(modelSource), readPng)
+
+/**
+ * [cmo3AtlasPages] over an atlas ingest the caller already holds, so the document loader walks the web once.
+ *
+ * @param CModelSource    modelSource The CMO3's root model source.
+ * @param Cmo3AtlasIngest atlasIngest The model's atlas ingest, for each drawable's tile and placement.
+ * @param Function        readPng     Yields an image resource's embedded PNG bytes, or null when it has none.
+ * @return AtlasPageSet The encoded pages + per-drawable index.
+ */
+public fun cmo3AtlasPages(
+	modelSource: CModelSource,
+	atlasIngest: Cmo3AtlasIngest,
+	readPng: (CImageResource) -> ByteArray?,
+): AtlasPageSet {
 	val sources = (modelSource.drawableSourceSet as? CDrawableSourceSet)?._sources
 	val artMeshes = Cmo3Import.elementsOf(sources).filterIsInstance<CArtMeshSource>()
+	val textureFrames = Cmo3TextureFrames(modelSource)
+	// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases -> CTextureAtlas field
+	// cachedAtlasImage, in the order a placement's pageIndex counts.
+	val pageImages =
+		Cmo3Import.elementsOf((modelSource.textureManager as? CTextureManager)?._textureAtlases)
+			.filterIsInstance<CTextureAtlas>()
+			.map { atlas -> atlas.cachedAtlasImage as? CImageResource }
 
 	// Resolved once per DISTINCT resource, not per drawable: art meshes overwhelmingly share one atlas
 	// page, so a per-drawable lookup would repeat the archive fetch hundreds of times on a real model.
@@ -49,7 +76,14 @@ public fun cmo3AtlasPages(modelSource: CModelSource, readPng: (CImageResource) -
 		// premultiplied-vs-straight COMPOSITING axis rides BlendMode.isLegacy, not this flag.  See
 		// PuppetTextures.premultipliedAlpha and docs/format/CMO3.md, "Premultiplied vs straight alpha".
 		premultiplied = premultiplied || texture.isPremultiplied
-		val resource = texture.srcImageResource as? CImageResource ?: continue
+		val placement = atlasIngest.tileIdByDrawableId[drawableId]?.let { tileId -> atlasIngest.atlas.tileById[tileId]?.placement }
+		val resource =
+			if (placement != null) {
+				// Its coordinates are on the page; without the page's image it has nothing to show from.
+				pageImages.getOrNull(placement.pageIndex) ?: continue
+			} else {
+				textureFrames.renderedImageOf(mesh) ?: continue
+			}
 		val pageIndex =
 			if (resolvedPageIndexByResource.containsKey(resource)) {
 				resolvedPageIndexByResource[resource]

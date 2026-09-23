@@ -250,7 +250,7 @@ data class PixelRect(
 /**
  * The shown page's painted pixels - the bystanders' painted region as one surface.
  *
- * The composed page's alpha IS what is painted there (extrusion bands included), so no tile needs
+ * The composed page's alpha IS what is painted there (a bleed band carries none, so it reads empty), so no tile needs
  * decoding: one pass over the page reduces it to a bitset of 8x8 blocks for fast rejection, and the
  * exact alpha stays behind it for the pixels a sampled region actually touches.  The rectangles a
  * caller names are read as empty - the spots the movers are leaving.

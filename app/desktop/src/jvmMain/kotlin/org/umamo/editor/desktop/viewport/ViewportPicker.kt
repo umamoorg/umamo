@@ -218,6 +218,8 @@ internal class ViewportPicker(
 	 * The atlas-texel alpha (0..1) for a drawable at a full-atlas (u, v), or 1f when the drawable is
 	 * untextured (a flat draw color, treated as fully opaque). Reads the retained CPU atlas pixels; the
 	 * alpha byte is the coverage whether or not the atlas is premultiplied, so no un-premultiply is needed.
+	 * A point off the page is transparent, as the renderer draws it: a mesh overhangs its art, and when the
+	 * page is a single model image that overhang runs past the page itself.
 	 *
 	 * @param DrawableId id The drawable.
 	 * @param Float u The full-atlas U.
@@ -227,8 +229,11 @@ internal class ViewportPicker(
 	private fun sampleTexelAlpha(id: DrawableId, u: Float, v: Float): Float {
 		val atlasIndex = textures.atlasIndexByDrawableId[atlasKeyByDrawableId[id] ?: id.raw] ?: return 1f
 		val image = textures.atlases.getOrNull(atlasIndex) ?: return 1f
-		val px = (u * image.width).toInt().coerceIn(0, image.width - 1)
-		val py = (v * image.height).toInt().coerceIn(0, image.height - 1)
+		if (!(u >= 0f && u < 1f && v >= 0f && v < 1f)) {
+			return 0f
+		}
+		val px = (u * image.width).toInt().coerceAtMost(image.width - 1)
+		val py = (v * image.height).toInt().coerceAtMost(image.height - 1)
 		val alpha = image.rgba[(py * image.width + px) * 4 + 3].toInt() and 0xFF
 		return alpha / 255f
 	}

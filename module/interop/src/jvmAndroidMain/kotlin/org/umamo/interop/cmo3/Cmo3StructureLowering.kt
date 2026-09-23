@@ -11,7 +11,6 @@ import org.umamo.format.cmo3.model.gen.CParameterSource
 import org.umamo.format.cmo3.model.gen.CParameterSourceSet
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
-import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
@@ -30,6 +29,7 @@ import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.runtime.model.storedToArtAffineForTile
 
 /*
  * The structural half of the CMO3 export reconcile: set membership.  Creations synthesize an
@@ -51,6 +51,8 @@ internal class Cmo3StructureLowering(
 	private val editor: Cmo3GraphEditor,
 	private val edited: PuppetModel,
 	private val notices: MutableList<ExportNotice>,
+	// The document's texture frames, taken from the graph before the export changed it.
+	private val textureFrames: Cmo3TextureFrames,
 	private val drawableBindings: Map<String, Cmo3DrawableTextureBinding> = emptyMap(),
 ) {
 	/** True once any deletion ran - the caller prunes the shared pool exactly once at the end. */
@@ -647,7 +649,7 @@ internal class Cmo3StructureLowering(
 		editor.ensureChildSlot(source, "CArtMeshSource", "indices", "keyforms")
 		source.positions = mesh.positions.copyOf()
 		editor.ensureChildSlot(source, "CArtMeshSource", "positions", "uvs")
-		source.uvs = storedUvsFor(source, mesh.uvs)
+		source.uvs = storedUvsFor(source, mesh.uvs, editedDrawable)
 		editor.ensureChildSlot(source, "CArtMeshSource", "uvs", "texture")
 
 		val editableMesh = Cmo3Import.editableMeshOf(source)
@@ -791,40 +793,16 @@ internal class Cmo3StructureLowering(
 		}
 
 	/**
-	 * The UVs as CMO3 stores them: verbatim for a packed (atlas-region) drawable, through the
-	 * forward model-image affine for an unpacked one.
+	 * The UVs as CMO3 stores them, in the frame the drawable stores ([Cmo3TextureFrames.storedUvsOf]), off
+	 * its tile's page through the edited placement when the tile has one.
 	 *
-	 * @param CArtMeshSource source The drawable's graph source.
-	 * @param FloatArray     uvs    The model-frame UVs.
+	 * @param CArtMeshSource source         The drawable's graph source.
+	 * @param FloatArray     uvs            The model-frame UVs.
+	 * @param Drawable       editedDrawable The edited drawable, whose tile the UVs address.
 	 * @return FloatArray The stored-frame UVs.
 	 */
-	private fun storedUvsFor(source: CArtMeshSource, uvs: FloatArray): FloatArray {
-		if (Cmo3Import.hasAtlasRegion(source)) {
-			return uvs.copyOf()
-		}
-		// CMO3: GTexture2D field transformImageResource01toLogical01 (the import applied its inverse).
-		val affine = (source.texture as? GTexture2D)?.transformImageResource01toLogical01 as? CAffine ?: return uvs.copyOf()
-		val isIdentity =
-			affine.m00 == 1f &&
-				affine.m01 == 0f &&
-				affine.m02 == 0f &&
-				affine.m10 == 0f &&
-				affine.m11 == 1f &&
-				affine.m12 == 0f
-		if (isIdentity) {
-			return uvs.copyOf()
-		}
-		val result = FloatArray(uvs.size)
-		var component = 0
-		while (component + 1 < uvs.size) {
-			val u = uvs[component]
-			val v = uvs[component + 1]
-			result[component] = affine.m00 * u + affine.m01 * v + affine.m02
-			result[component + 1] = affine.m10 * u + affine.m11 * v + affine.m12
-			component += 2
-		}
-		return result
-	}
+	private fun storedUvsFor(source: CArtMeshSource, uvs: FloatArray, editedDrawable: Drawable): FloatArray =
+		textureFrames.storedUvsOf(source, uvs, editedDrawable.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) })
 
 	private fun findEditedGroup(groupId: ParameterGroupId): ParameterNode.Group? {
 		fun walk(nodes: List<ParameterNode>): ParameterNode.Group? {

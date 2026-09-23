@@ -39,8 +39,8 @@ public data class UmaTextures(
  *
  * @property Int? alphaThreshold The minimum alpha (1 to 255) a pixel needs to count as opaque when a tile is
  *   trimmed; absent means 1.
- * @property Int? extrude        How many pixels of each tile's edge are replicated into its gutter; absent
- *   means 2.
+ * @property Int? extrude        How many pixels of gutter around each tile carry its edge color, at alpha 0;
+ *   absent means 2.
  */
 @Serializable
 public data class UmaComposition(
