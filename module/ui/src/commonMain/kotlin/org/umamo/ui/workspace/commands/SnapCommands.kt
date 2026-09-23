@@ -1,12 +1,11 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.PieMenuKind
 import org.umamo.edit.SnapKind
 import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.snapToGrid
+import org.umamo.edit.snapToWorldGrid
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
@@ -69,16 +68,11 @@ internal fun snapCommands(
 		},
 		Command("snap.cursorToGrid", title = Res.string.cmd_snap_cursor_grid, availability = availability.hasDocument) {
 			editorSession?.let { live ->
-				val model = live.model.value
-				// An unplaced cursor snaps from the world origin (its conceptual resting place).
-				val cursor = live.cursor2d.value ?: Cursor2d(model.worldOriginX, model.worldOriginZ)
-				val step = live.gridConfig.value.snapStep
-				// Round relative to the world origin, so the snap targets the same lines the grid draws
-				// (a major line crosses the origin, not an arbitrary mid-cell point).
-				live.setCursor2d(
-					snapToGrid(cursor.worldX, model.worldOriginX, step),
-					snapToGrid(cursor.worldZ, model.worldOriginZ, step),
-				)
+				// An unplaced cursor snaps from the world origin (its resting place).  The world grid is anchored
+				// on the origin, so the snap targets the same lines the backdrop draws.
+				val cursor = live.cursor2dOrWorldOrigin()
+				val (snappedX, snappedZ) = live.model.value.snapToWorldGrid(cursor.worldX, cursor.worldZ, live.gridConfig.value.snapStep)
+				live.setCursor2d(snappedX, snappedZ)
 				live.closePieMenu()
 			}
 		},

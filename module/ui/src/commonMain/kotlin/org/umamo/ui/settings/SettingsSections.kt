@@ -45,6 +45,7 @@ import org.umamo.ui.resources.settings_colors_viewport
 import org.umamo.ui.resources.settings_colors_warning
 import org.umamo.ui.resources.settings_import_alignment
 import org.umamo.ui.resources.settings_import_delete_art_ignores_layer
+import org.umamo.ui.resources.settings_import_layer_positions_from_world_axes
 import org.umamo.ui.resources.settings_import_parameter_template
 import org.umamo.ui.resources.settings_import_parameter_template_humanoid
 import org.umamo.ui.resources.settings_import_parameter_template_none
@@ -149,14 +150,18 @@ internal const val IMPORT_WATCH_MODE_KEY = "import.watchMode"
 /** The settings key for whether Delete Art also marks the tile's layer ignored, so a reload does not mint the art back. */
 internal const val IMPORT_DELETE_ART_IGNORES_LAYER_KEY = "import.deleteArtIgnoresLayer"
 
+/** The settings key for whether the Sources layer rows measure positions from the world axes instead of the art file's top-left corner. */
+internal const val IMPORT_LAYER_POSITIONS_FROM_WORLD_AXES_KEY = "import.layerPositionsFromWorldAxes"
+
 /**
  * The Import section: what an artwork import seeds a new model with, where a later file is anchored
- * on the rig's canvas, what a document does when a watched artwork file changes, and whether Delete
- * Art keeps the deleted layer out of the rig.  The parameter template and the anchor are stored as
- * their keys so a later entry is one more option here and one more enum entry, nothing else; the
- * import reads them at the moment it runs, so a change applies to the next import (and the anchor is
- * only the default of the import's own Align row).  The watch mode is stored as the mode's key and
- * read live by the open document's watcher.  The Delete Art choice is read at each dispatch.
+ * on the rig's canvas, what a document does when a watched artwork file changes, whether Delete Art
+ * keeps the deleted layer out of the rig, and which frame the Sources layer rows measure positions in.
+ * The parameter template and the anchor are stored as their keys so a later entry is one more option
+ * here and one more enum entry, nothing else; the import reads them at the moment it runs, so a change
+ * applies to the next import (and the anchor is only the default of the import's own Align row).  The
+ * watch mode is stored as the mode's key and read live by the open document's watcher.  The Delete Art
+ * choice is read at each dispatch.  The layer-position frame is read live by the Sources space.
  */
 @Composable
 internal fun ImportSection() {
@@ -171,6 +176,8 @@ internal fun ImportSection() {
 	val anchorLabels = ArtworkAnchor.entries.associate { anchor -> anchor.key to artworkAnchorLabel(anchor) }
 
 	var deleteArtIgnoresLayer by rememberBooleanSetting(IMPORT_DELETE_ART_IGNORES_LAYER_KEY, false)
+
+	var layerPositionsFromWorldAxes by rememberBooleanSetting(IMPORT_LAYER_POSITIONS_FROM_WORLD_AXES_KEY, false)
 
 	var watchModeKey by rememberStringSetting(IMPORT_WATCH_MODE_KEY, WatchMode.Default.key)
 	val watchModeLabels =
@@ -214,6 +221,13 @@ internal fun ImportSection() {
 			checked = deleteArtIgnoresLayer,
 			onCheckedChange = { checked -> deleteArtIgnoresLayer = checked },
 			label = stringResource(Res.string.settings_import_delete_art_ignores_layer),
+		)
+		// Off by default: a layer row reads its position in the art file's own frame, the numbers the art
+		// program shows.  On, it reads from the world axes like every other position in the app.
+		Checkbox(
+			checked = layerPositionsFromWorldAxes,
+			onCheckedChange = { checked -> layerPositionsFromWorldAxes = checked },
+			label = stringResource(Res.string.settings_import_layer_positions_from_world_axes),
 		)
 	}
 }

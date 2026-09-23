@@ -81,3 +81,30 @@ fun PuppetModel.worldOriginXFromCanvasLeft(fromCanvasLeft: Float): Float = fromC
  * @return Float The world-origin z to store.
  */
 fun PuppetModel.worldOriginZFromCanvasBottom(fromCanvasBottom: Float): Float = fromCanvasBottom - canvasHeight
+
+/**
+ * The world-origin x of a canvas's center - the default origin every importer and a new document derive.
+ *
+ * @param Float canvasWidth The canvas width, in canvas pixels.
+ * @return Float The world-origin x.
+ */
+fun canvasCenterWorldOriginX(canvasWidth: Float): Float = canvasWidth / 2f
+
+/**
+ * The world-origin z of a canvas's center - the default origin every importer and a new document derive.
+ * The center is half the height down from the canvas's top edge, and world z is the negated canvas y.
+ *
+ * @param Float canvasHeight The canvas height, in canvas pixels.
+ * @return Float The world-origin z.
+ */
+fun canvasCenterWorldOriginZ(canvasHeight: Float): Float = -(canvasHeight / 2f)
+
+/**
+ * Whether the world origin sits exactly on the canvas center, the default [canvasCenterWorldOriginX] and
+ * [canvasCenterWorldOriginZ] derive.  A CMO3 stores no authored origin and its import derives the center, so
+ * only a centered origin survives a CMO3 round trip.
+ *
+ * @return Boolean True when the origin is the canvas center.
+ */
+fun PuppetModel.isOriginAtCanvasCenter(): Boolean =
+	worldOriginX == canvasCenterWorldOriginX(canvasWidth) && worldOriginZ == canvasCenterWorldOriginZ(canvasHeight)

@@ -339,12 +339,13 @@ fun ViewportObjectGizmoOverlay(
 					ModalCaptureSource(geometry.drawableId, geometry.world, IntArray(0), geometry.allIndices)
 				}
 			// The two per-area anchors the shared builder cannot resolve itself: the active drawable's own
-			// centroid and the 2D cursor.  The builder falls back to the combined median when either is null.
+			// centroid and the 2D cursor.  The builder falls back to the combined median when nothing is active; an
+			// unplaced cursor resolves to the world origin, like the snap commands.
 			val activeAnchor =
 				(session.selection.value.active as? SelectionTarget.Drawable)?.id
 					?.let { activeId -> geometryById[activeId] }
 					?.let { geometry -> MeshTransforms.medianPivot(geometry.world, geometry.allIndices) }
-			val cursorAnchor = session.cursor2d.value?.let { cursor -> cursor.worldX to cursor.worldZ }
+			val cursorAnchor = session.cursor2dOrWorldOrigin().let { cursor -> cursor.worldX to cursor.worldZ }
 			val transform =
 				buildModalTransformCapture(
 					sources = sources,

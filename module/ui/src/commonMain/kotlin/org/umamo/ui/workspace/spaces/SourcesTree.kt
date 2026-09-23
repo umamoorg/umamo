@@ -9,6 +9,8 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.runtime.model.drawableIdsByAtlasTile
+import org.umamo.runtime.model.originRelativeX
+import org.umamo.runtime.model.originRelativeZ
 
 /*
  * The Sources table as a tree: artwork file -> its layers (the inventory as of the last read) -> the
@@ -107,9 +109,17 @@ sealed interface SourcesDetail {
 	/**
 	 * A layer's size and position at the last read, in the FILE's own canvas (the row's document position
 	 * with the source's offset taken back out: x subtracted, z - which is up - added), so the numbers match
-	 * what the art program shows.
+	 * what the art program shows.  The one absolute position the rigger reads that does not start from the
+	 * world axes, on purpose: the default, since it is the artist's own frame.
 	 */
 	data class Layer(val width: Int, val height: Int, val left: Int, val top: Int) : SourcesDetail
+
+	/**
+	 * A layer's size and the position of its top-left corner measured from the world axes, x right and z up -
+	 * [Layer]'s alternative under the `import.layerPositionsFromWorldAxes` setting, for a rigger who places art
+	 * by the rig's coordinates rather than the art program's.
+	 */
+	data class LayerOnAxes(val width: Int, val height: Int, val x: Float, val z: Float) : SourcesDetail
 
 	/** The 1-based page a placed tile sits on. */
 	data class TilePage(val pageNumber: Int) : SourcesDetail
@@ -174,6 +184,8 @@ const val SOURCES_UNBOUND_GROUP_ID: String = "unbound"
  * @param PuppetModel puppet            The rig to walk.
  * @param Function    presenceOf        Whether each file is still on disk.
  * @param String      unboundGroupLabel The localized label of the unbound-art group.
+ * @param Boolean     layerPositionsFromWorldAxes Whether layer rows read their position from the world axes
+ *   ([SourcesDetail.LayerOnAxes]) instead of the file's own top-left corner ([SourcesDetail.Layer]).
  * @param Function    suggestionsFor    The proposals for a lost binding by file and key, best first
  *   (the pixel-scored one an operation published, then the one the inventory alone ranks); the row
  *   takes the first that still holds - one naming a layer the file no longer has, or a layer bound to a
@@ -186,6 +198,7 @@ fun buildSourcesTree(
 	puppet: PuppetModel,
 	presenceOf: (ArtSource) -> SourcePresence,
 	unboundGroupLabel: String,
+	layerPositionsFromWorldAxes: Boolean = false,
 	suggestionsFor: (ArtSourceId, String) -> List<LayerMatch> = { _, _ -> emptyList() },
 ): List<SourcesNode> {
 	val drawableIdsByTile = puppet.drawableIdsByAtlasTile()
@@ -279,12 +292,20 @@ fun buildSourcesTree(
 					if (!layer.present && !tilesByBinding.containsKey(source.id to layer.key)) {
 						return@mapNotNull null
 					}
+					val detail =
+						if (layerPositionsFromWorldAxes) {
+							// The inventory sits on the document canvas (canvas x, y down), and world z is the
+							// negated canvas y, so the corner converts through the origin like any position.
+							SourcesDetail.LayerOnAxes(layer.width, layer.height, puppet.originRelativeX(layer.left.toFloat()), puppet.originRelativeZ(-layer.top.toFloat()))
+						} else {
+							SourcesDetail.Layer(layer.width, layer.height, layer.left - source.offsetX, layer.top + source.offsetZ)
+						}
 					val node =
 						layerNode(
 							source,
 							layer.key,
 							layer.name,
-							SourcesDetail.Layer(layer.width, layer.height, layer.left - source.offsetX, layer.top + source.offsetZ),
+							detail,
 							listed = layer.present,
 							emptied = layer.empty,
 							replaced = layer.replaced,

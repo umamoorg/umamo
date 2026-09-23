@@ -433,6 +433,7 @@
 	<string name="sources_source_detail">%1$s · %2$d レイヤー</string>
 	<string name="sources_source_no_path">パス未記録</string>
 	<string name="sources_layer_detail">%1$d × %2$d、位置 %3$d, %4$d</string>
+	<string name="sources_layer_detail_axes">%1$d × %2$d、位置 X %3$s, Z %4$s</string>
 	<string name="sources_tile_page">ページ %1$d</string>
 	<string name="sources_relink_title">レイヤーに再リンク</string>
 	<string name="sources_relink_clear">リンクを解除</string>
@@ -900,6 +901,7 @@
 	<string name="settings_import_watch_mode_notify">通知のみ</string>
 	<string name="settings_import_watch_mode_off">オフ</string>
 	<string name="settings_import_delete_art_ignores_layer">「ソース」でアートを削除したとき、そのレイヤーも無視としてマークする</string>
+	<string name="settings_import_layer_positions_from_world_axes">「ソース」のレイヤー位置を、アートファイルの左上ではなくワールド軸から測って表示する</string>
 	<string name="settings_import_parameter_template_humanoid">人型</string>
 	<string name="settings_import_parameter_template_none">なし</string>
 	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->
