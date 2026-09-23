@@ -15,9 +15,10 @@ import kotlin.math.roundToInt
  *
  * The gutter band carries the edge's COLOR at zero alpha, never its coverage.  A mesh reaches past the
  * art it samples, so anything opaque painted around a tile shows as a fringe wherever its art meets the
- * edge of its raster; the band's only job is to give bilinear filtering the edge's color to blend
- * toward, since the renderer filters straight alpha and a transparent black neighbor would darken the
- * edge.  Beyond the art the page is transparent, exactly as the source layer is.
+ * edge of its raster; the band's only job is to give a straight-alpha bilinear filter the edge's color to
+ * blend toward, so a transparent black neighbor does not darken the edge.  Umamo's renderer filters
+ * premultiplied and never sees the band's color, but a page also leaves in an export, and Cubism's own
+ * pages carry the same band.  Beyond the art the page is transparent, exactly as the source layer is.
  *
  * Every writer here goes through ONE rule, writeSample: a sample never erases content.  A destination
  * pixel nobody has painted (alpha 0) takes the sample verbatim, transparent or not - which is what keeps

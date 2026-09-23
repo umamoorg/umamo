@@ -23,6 +23,8 @@ import org.umamo.render.device.LoadAction
 import org.umamo.render.device.RenderPassEncoder
 import org.umamo.render.device.RenderPassSpec
 import org.umamo.render.device.RenderPipeline
+import org.umamo.render.device.TextureFilter
+import org.umamo.render.device.TextureWrap
 import org.umamo.render.device.WorldToNdc
 import org.umamo.render.glsl.UNIT_ATLAS
 import org.umamo.render.glsl.UNIT_CP
@@ -239,6 +241,10 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		val atlas = textures.atlas
 		if (fragment.useTexture && atlas != null) {
 			bindTexture2D(UNIT_ATLAS, atlas)
+			// The shader filters linear art itself, past the sampler, so it is told what the sampler would do.
+			val glAtlas = atlas as GlTexture
+			GL20.glUniform1i(locations.atlasLinear, if (glAtlas.filter == TextureFilter.Linear) 1 else 0)
+			GL20.glUniform1i(locations.atlasTransparentBorder, if (glAtlas.wrap == TextureWrap.ClampToTransparentBorder) 1 else 0)
 		} else {
 			GL20.glUniform4f(locations.drawColor, fragment.colorRed, fragment.colorGreen, fragment.colorBlue, fragment.colorAlpha)
 		}

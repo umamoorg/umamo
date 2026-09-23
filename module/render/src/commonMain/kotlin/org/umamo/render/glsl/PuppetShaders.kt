@@ -75,6 +75,15 @@ internal fun glueVertexShader(dialect: GlslDialect): String =
  * affine (or a flat color), applies the clip mask, tints the selection highlight, and writes
  * PREMULTIPLIED alpha (`rgb * alpha, alpha`) - which is why every blend mode's source factor is `GL_ONE`.
  *
+ * A linear art texture is filtered in-shader, in premultiplied space: four `texelFetch` taps, each
+ * weighted by its own coverage, then converted back to straight color for the tint math.  Art is stored
+ * straight, and the hardware filter averages straight colors, so an alpha edge takes on whatever color
+ * the neighboring transparent texels hold - black on every CMO3 layer image, and on any page composed
+ * from them - as a dark, texel-stepped fringe.  Because the taps bypass the sampler, the shader applies
+ * the texture's wrap itself, told by the `atlasTransparentBorder` flag; a nearest texture reads one
+ * texel, where the two color spaces agree, so it keeps the hardware lookup.  A port must keep this
+ * filter rather than trade it back for a plain `texture()` call.
+ *
  * The mask is sampled by `gl_FragCoord.xy / screenTexSize` - screen space, with the divisor the mask
  * texture's ALLOCATED size (equal to the viewport size only when the texture is exactly viewport-sized;
  * side targets are grow-only, so it is usually the high-water capacity).  The coverage pass renders at
@@ -109,10 +118,41 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 		// for a drawable sampling the atlas it was authored against.
 		uniform vec3 uvAffineRow0;
 		uniform vec3 uvAffineRow1;
+		// How the bound art texture was created: 1 when it filters linearly (0 nearest), and 1 when it
+		// wraps to a transparent border (0 to its edge texels).
+		uniform int atlasLinear;
+		uniform int atlasTransparentBorder;
+		// One art texel, premultiplied.  A texel outside the image reads as the texture's wrap says.
+		vec4 premultipliedTexel(ivec2 texel, ivec2 size) {
+			if (atlasTransparentBorder == 1 && (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size)))) {
+				return vec4(0.0);
+			}
+			vec4 straight = texelFetch(atlas, clamp(texel, ivec2(0), size - ivec2(1)), 0);
+			return vec4(straight.rgb * straight.a, straight.a);
+		}
+		// The art at a texture coordinate, as straight color.  Linear filtering blends the four surrounding
+		// texels premultiplied, so a transparent texel's color never reaches the edge it borders.
+		vec4 sampleArt(vec2 uv) {
+			if (atlasLinear == 0) {
+				return texture(atlas, uv);
+			}
+			ivec2 size = textureSize(atlas, 0);
+			vec2 corner = uv * vec2(size) - 0.5;
+			vec2 cornerFloor = floor(corner);
+			vec2 fraction = corner - cornerFloor;
+			ivec2 origin = ivec2(cornerFloor);
+			vec4 firstRow = mix(premultipliedTexel(origin, size), premultipliedTexel(origin + ivec2(1, 0), size), fraction.x);
+			vec4 secondRow = mix(premultipliedTexel(origin + ivec2(0, 1), size), premultipliedTexel(origin + ivec2(1, 1), size), fraction.x);
+			vec4 premultiplied = mix(firstRow, secondRow, fraction.y);
+			if (premultiplied.a <= 0.0) {
+				return vec4(0.0);
+			}
+			return vec4(min(premultiplied.rgb / premultiplied.a, vec3(1.0)), premultiplied.a);
+		}
 		void main() {
 			vec3 uvHomogeneous = vec3(vUv, 1.0);
 			vec2 sampleUv = vec2(dot(uvAffineRow0, uvHomogeneous), dot(uvAffineRow1, uvHomogeneous));
-			vec4 base = (useTexture == 1) ? texture(atlas, sampleUv) : drawColor;
+			vec4 base = (useTexture == 1) ? sampleArt(sampleUv) : drawColor;
 			float alpha = base.a * opacity;
 			if (useMask == 1) {
 				float coverage = texture(maskTexture, gl_FragCoord.xy / screenTexSize).a;
