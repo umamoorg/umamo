@@ -165,15 +165,14 @@ class AreaViewStatesTest {
 		holder.layoutAreaIds = listOf("area-view", "area-both", "area-panel")
 		holder.scopeFor("area-both").spaceState("outliner") { ListState() }.values = listOf("part:1")
 		holder.scopeFor("area-panel").spaceState("outliner") { ListState() }
-		holder.cameraReader = {
+		val cameras =
 			mapOf(
 				AreaCameraKey("area-view", CameraSurface.Viewport) to ViewportCamera(1f, 2f, 3f),
 				AreaCameraKey("area-both", CameraSurface.Uv) to ViewportCamera(4f, 5f, 6f),
 				AreaCameraKey("area-closed", CameraSurface.Viewport) to ViewportCamera(7f, 8f, 9f),
 			)
-		}
 
-		val gathered = holder.gather()
+		val gathered = holder.gather(cameras)
 
 		assertEquals(buildJsonObject { put("viewport", viewJson(1f, 2f, 3f)) }, gathered["area-view"]!!.jsonObject["cameras"])
 		assertEquals(listOf("cameras", "outliner"), gathered["area-both"]!!.jsonObject.keys.toList(), "the cameras lead the block")

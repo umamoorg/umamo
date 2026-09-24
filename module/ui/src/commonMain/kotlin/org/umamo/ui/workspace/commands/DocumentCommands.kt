@@ -88,8 +88,9 @@ internal fun documentCommands(overlays: ShellOverlayState): List<Command> =
 			(argument as? AtlasRepackReport)?.let { report -> overlays.repackReport = report }
 		},
 		// An export with options is starting; the shell shows the options dialog and the request's
-		// continuation carries the export on from whatever the rigger confirms.
-		Command("document.exportOptionsMoc3", title = null) { argument ->
+		// continuation carries the export on from whatever the rigger confirms.  One command for every
+		// format: the dialog picks its pane by the request's type.
+		Command("document.exportOptions", title = null) { argument ->
 			(argument as? ExportOptionsRequest)?.let { request -> overlays.pendingExportOptions = request }
 		},
 		// A ready-built confirm from the app layer (the export-overwrite warning).  Unlike

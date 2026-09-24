@@ -1,10 +1,14 @@
 package org.umamo.editor.desktop.viewport
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import org.lwjgl.opengl.GL11
 import org.umamo.edit.GridConfig
 import org.umamo.format.png.PngCodec
+import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
+import org.umamo.render.FrameBackdrop
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
@@ -29,6 +33,7 @@ import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.UvSceneContent
 import java.io.File
 import java.util.ArrayDeque
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Framebuffer pixels per display pixel while supersampling is on: the whole pipeline renders 2x and
@@ -106,6 +111,32 @@ internal class OffscreenRenderEngine(
 	// In-flight read-backs in submission order; polled front-first each loop tick. Render-thread only.
 	private val pendingFrames = ArrayDeque<PendingFrame>()
 
+	/**
+	 * An image capture waiting for the render thread: what to draw, and where its pixels go.
+	 *
+	 * @property ViewportCamera                      camera   The capture's camera.
+	 * @property Int                                 width    The image width in pixels.
+	 * @property Int                                 height   The image height in pixels.
+	 * @property FrameBackdrop                       backdrop What the puppet is drawn over.
+	 * @property CompletableDeferred<RasterImage?>   result   Completed with the premultiplied pixels, or null.
+	 */
+	private class PendingSnapshot(
+		val camera: ViewportCamera,
+		val width: Int,
+		val height: Int,
+		val backdrop: FrameBackdrop,
+		val result: CompletableDeferred<RasterImage?>,
+	)
+
+	// Captures queued by the UI thread and taken up by the render thread between frames.  A queue for the same
+	// reason as the raster batches: two requests landing in one tick must both be served.
+	private val pendingSnapshots = ConcurrentLinkedQueue<PendingSnapshot>()
+
+	// False once the render thread can no longer serve a capture (its context never came up, or it has shut
+	// down), so a request made after that is answered at once instead of waiting forever.
+	@Volatile
+	private var acceptingSnapshots = true
+
 	@Volatile
 	private var running = true
 
@@ -147,7 +178,7 @@ internal class OffscreenRenderEngine(
 	// Decoded artwork waiting to be uploaded, drained on the render thread.  A queue rather than a
 	// volatile slot because deliveries are chunked - two batches landing between frames must both be
 	// taken up, where a slot would silently drop the first.
-	private val pendingRasterBatches = java.util.concurrent.ConcurrentLinkedQueue<LayerRasterBatch>()
+	private val pendingRasterBatches = ConcurrentLinkedQueue<LayerRasterBatch>()
 
 	// The latest model, re-pushed on a structural edit (layer reorder / reparent, base-mesh move); seeded
 	// with the open model.
@@ -216,6 +247,78 @@ internal class OffscreenRenderEngine(
 	fun dispose() {
 		running = false
 		renderThread.join(2000)
+		acceptingSnapshots = false
+		failPendingSnapshots()
+	}
+
+	/**
+	 * The drawables actually drawn (the resolved visibility cascade), as last pushed - what a capture's
+	 * framing measures.
+	 */
+	val shownDrawables: Set<DrawableId>
+		get() = shownBacking
+
+	/**
+	 * Queues an image capture of the current pose for the render thread, which takes it up between frames
+	 * with the latest model, pages, artwork, shown set, and pose applied.
+	 *
+	 * Always completes: with the premultiplied pixels, or with null when the render thread cannot serve it.
+	 * The check comes after the enqueue, so a shutdown racing the request still sweeps it up.
+	 *
+	 * @param ViewportCamera camera   The capture's camera.
+	 * @param Int            width    The image width in pixels.
+	 * @param Int            height   The image height in pixels.
+	 * @param FrameBackdrop  backdrop What the puppet is drawn over.
+	 * @return Deferred<RasterImage?> The premultiplied pixels, top row first, or null.
+	 */
+	fun requestSnapshot(camera: ViewportCamera, width: Int, height: Int, backdrop: FrameBackdrop): Deferred<RasterImage?> {
+		val snapshot = PendingSnapshot(camera, width, height, backdrop, CompletableDeferred())
+		pendingSnapshots.add(snapshot)
+		if (!acceptingSnapshots) {
+			failPendingSnapshots()
+		}
+		return snapshot.result
+	}
+
+	/** Answers every queued capture with null: the render thread will not serve them. */
+	private fun failPendingSnapshots() {
+		while (true) {
+			val snapshot = pendingSnapshots.poll() ?: break
+			snapshot.result.complete(null)
+		}
+	}
+
+	/**
+	 * Renders every queued capture, on the render thread.  A capture that fails logs and completes null; it
+	 * never takes the render loop down with it.
+	 *
+	 * A shutdown stops the work at the next tile, so dispose() waits for one tile rather than a whole large
+	 * image; what is left in the queue is answered by the loop's teardown.
+	 */
+	private fun serveSnapshots() {
+		while (running) {
+			val snapshot = pendingSnapshots.poll() ?: break
+			try {
+				if (snapshot.backdrop == FrameBackdrop.Grid) {
+					// The area renders apply the grid per render; a capture over it applies its own the same way.
+					val gridConfigApplied = gridConfigBacking
+					renderer.setGrid(gridColorsBacking, gridConfigApplied.scale, gridConfigApplied.subdivisions)
+				}
+				val image = renderer.renderSnapshot(snapshot.camera, snapshot.width, snapshot.height, snapshot.backdrop) { running }
+				if (image == null) {
+					UmamoLog.info("[GL] image capture (${snapshot.width}x${snapshot.height}) abandoned at shutdown")
+				}
+				snapshot.result.complete(image)
+			} catch (failure: Exception) {
+				UmamoLog.error("[GL] image capture (${snapshot.width}x${snapshot.height}) failed", failure)
+				snapshot.result.complete(null)
+			} catch (failure: OutOfMemoryError) {
+				// The stitched image is the one large allocation here, and running short of it costs this
+				// capture, not the viewport.
+				UmamoLog.error("[GL] image capture (${snapshot.width}x${snapshot.height}) ran out of memory", failure)
+				snapshot.result.complete(null)
+			}
+		}
 	}
 
 	/**
@@ -423,11 +526,13 @@ internal class OffscreenRenderEngine(
 	private fun renderLoop() {
 		if (!context.createAndMakeCurrent()) {
 			UmamoLog.warn("[GL] offscreen context unavailable (${context.backendName}); viewport will stay blank")
+			acceptingSnapshots = false
+			failPendingSnapshots()
 			return
 		}
 		UmamoLog.info("[GL] offscreen via ${context.backendName}: ${context.describeContext()}")
-		renderer.initGl()
 		try {
+			renderer.initGl()
 			var lastParams: Map<ParameterId, Float>? = null
 			var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
 			var lastShown: Set<DrawableId>? = null
@@ -488,6 +593,10 @@ internal class OffscreenRenderEngine(
 					lastShown = shown
 					paramsVersion++
 				}
+				// Captures run after the hand-offs above, so each one shows exactly the state the areas are about
+				// to render.  A capture leaves the renderer's camera, scale, and selection as it found them, and
+				// every area render sets its own anyway.
+				serveSnapshots()
 				var pendingWork = pendingFrames.isNotEmpty()
 				val nowNanos = System.nanoTime()
 				val settleScale = if (supersampleBacking) RENDER_SUPERSAMPLE else 1
@@ -570,10 +679,15 @@ internal class OffscreenRenderEngine(
 				}
 			}
 		} finally {
-			// glFinish first so the driver completes all pending GPU work BEFORE the disposers delete GL
-			// objects and the context is destroyed - otherwise a driver worker thread can be mid-copy on
-			// memory we free, which crashed (SIGSEGV in libc memcpy) on a clean window close. A single barrier
-			// here; the collaborators' dispose() must NOT call glFinish, and the context is destroyed last.
+			// Captures are answered before any GL teardown, which can itself throw: a caller awaiting one must
+			// hear back however this thread ends.
+			acceptingSnapshots = false
+			failPendingSnapshots()
+			// glFinish before any other GL call here, so the driver completes all pending GPU work BEFORE the
+			// disposers delete GL objects and the context is destroyed - otherwise a driver worker thread can be
+			// mid-copy on memory we free, which crashed (SIGSEGV in libc memcpy) on a clean window close. A
+			// single barrier here; the collaborators' dispose() must NOT call glFinish, and the context is
+			// destroyed last.
 			GL11.glFinish()
 			// Abandon in-flight read-backs (the fences/staging are freed through the device); the surface
 			// targets go the same way. The context is destroyed last.

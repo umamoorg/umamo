@@ -17,6 +17,7 @@ import org.umamo.ui.resources.menu_edit
 import org.umamo.ui.resources.menu_exit
 import org.umamo.ui.resources.menu_export
 import org.umamo.ui.resources.menu_export_cmo3
+import org.umamo.ui.resources.menu_export_image
 import org.umamo.ui.resources.menu_export_moc3
 import org.umamo.ui.resources.menu_file
 import org.umamo.ui.resources.menu_file_new
@@ -80,15 +81,17 @@ private fun commandRow(
  * `.uma` document; artwork, CMO3, and MOC3 come in through the Import submenu (artwork first: it is the
  * headline workflow's entry), and CMO3 / MOC3 are interop boundaries that leave through Export.  Every
  * row dispatches its file.* command, so the menu, the keyboard, and the palette share one path.  Both
- * Save rows are gated on [canSave] (a puppet document that did not open read-only) and both Export rows
- * on [canExport] (a puppet document is open; the CMO3 export reconciles onto a CMO3-origin document's
- * retained graph and synthesizes a fresh one otherwise); Open Recent labels each stored path via
+ * Save rows are gated on [canSave] (a puppet document that did not open read-only), the CMO3 and MOC3
+ * Export rows on [canExport] (a puppet document is open; the CMO3 export reconciles onto a CMO3-origin
+ * document's retained graph and synthesizes a fresh one otherwise), and Export Image on [canExportImage]
+ * (a puppet document is open on a platform with a puppet renderer to draw it); Open Recent labels each stored path via
  * fileDisplayName, disables itself when the list is empty, and hands the path to file.openPath, which
  * opens or imports by what the file is.
  *
  * @param Keymap       keymap      The keymap the accelerator hints are resolved against.
  * @param List         recentFiles The recent file paths for the Open Recent submenu, most-recent first.
- * @param Boolean      canExport   Whether an exportable puppet document is open (gates both Export rows).
+ * @param Boolean      canExport   Whether an exportable puppet document is open (gates the CMO3 and MOC3 rows).
+ * @param Boolean      canExportImage Whether the open document can be rendered to an image (gates Export Image).
  * @param Boolean      canSave     Whether the open document can be saved (gates both Save rows).
  * @param MenuDispatch dispatch    Runs a command by id.
  * @return TopLevelMenu The File menu.
@@ -98,6 +101,7 @@ fun fileMenu(
 	keymap: Keymap,
 	recentFiles: List<String>,
 	canExport: Boolean,
+	canExportImage: Boolean,
 	canSave: Boolean,
 	dispatch: MenuDispatch,
 ): TopLevelMenu =
@@ -131,6 +135,7 @@ fun fileMenu(
 						listOf(
 							commandRow(stringResource(Res.string.menu_export_cmo3), "file.exportCmo3", keymap, dispatch, enabled = canExport),
 							commandRow(stringResource(Res.string.menu_export_moc3), "file.exportMoc3", keymap, dispatch, enabled = canExport),
+							commandRow(stringResource(Res.string.menu_export_image), "file.exportImage", keymap, dispatch, enabled = canExportImage),
 						),
 				),
 				MenuItem.Separator,

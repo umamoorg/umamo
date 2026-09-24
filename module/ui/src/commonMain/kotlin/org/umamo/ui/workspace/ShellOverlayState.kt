@@ -198,7 +198,7 @@ internal class ShellOverlayState(
 	var repackReport: AtlasRepackReport? by mutableStateOf(null)
 
 	/**
-	 * The export-options dialog's payload - set by the document.exportOptionsMoc3 command when an
+	 * The export-options dialog's payload - set by the document.exportOptions command when an
 	 * export with options begins, cleared by Cancel, the scrim, Escape, or the Export button (which
 	 * first runs the request's continuation).  Null while none shows.
 	 */

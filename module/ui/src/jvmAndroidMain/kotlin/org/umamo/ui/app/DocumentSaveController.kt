@@ -3,15 +3,19 @@ package org.umamo.ui.app
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
 import kotlinx.coroutines.async
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.buildJsonObject
 import org.umamo.edit.NoticePlacement
 import org.umamo.format.FileKind
+import org.umamo.format.raster.RasterImage
 import org.umamo.format.uma.UmaModel
+import org.umamo.render.FrameBackdrop
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.document.Cmo3Document
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.PuppetDocument
+import org.umamo.ui.document.UMA_THUMBNAIL_SIZE
 import org.umamo.ui.document.UmaWriteOutcome
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.fileDisplayName
@@ -19,11 +23,18 @@ import org.umamo.ui.document.umamoWriterInfo
 import org.umamo.ui.document.writeUmaDocument
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.alert_save_failed
+import org.umamo.ui.viewport.fitSquare
 import org.umamo.ui.workspace.AlertRequest
 import org.umamo.ui.workspace.EDITOR_STATE_AREAS
 import org.umamo.ui.workspace.EDITOR_STATE_SESSION
 import org.umamo.ui.workspace.commands.DirtyDocumentPrompt
 import org.umamo.ui.workspace.sessionStateJson
+
+/**
+ * How long a save waits for the renderer to draw its thumbnail before compositing one itself.  A capture
+ * this small takes a frame or two; the wait only matters when the render thread is stuck.
+ */
+private const val THUMBNAIL_RENDER_TIMEOUT_MILLIS = 5_000L
 
 /**
  * Save and Save As, and the two gates that stand in front of anything that would discard the session:
@@ -92,7 +103,7 @@ internal class DocumentSaveController(
 				// change to the document (UMA §7).
 				val editorState =
 					buildJsonObject {
-						put(EDITOR_STATE_AREAS, context.areaViewStates.gather())
+						put(EDITOR_STATE_AREAS, context.areaViewStates.gather(context.viewport.service?.cameras().orEmpty()))
 						put(EDITOR_STATE_SESSION, sessionStateJson(activeSession.viewState(), activeSession.pose.value, snapshot))
 					}
 				val base = file.base ?: UmaModel.create(umamoWriterInfo())
@@ -100,7 +111,7 @@ internal class DocumentSaveController(
 				activeSession.emitNotice("notice.document.saving", NoticePlacement.StatusBar)
 				val outcome =
 					try {
-						writeUmaDocument(puppet.document, base, snapshot, binding, editorState, destination)
+						writeUmaDocument(puppet.document, base, snapshot, binding, editorState, destination, renderedThumbnail(context.viewport))
 					} finally {
 						file.saving = false
 					}
@@ -140,6 +151,31 @@ internal class DocumentSaveController(
 					}
 				}
 			}
+	}
+
+	/**
+	 * The saved thumbnail as the viewport renderer draws it (UMA §5.6): the pose on screen, the drawables the
+	 * editor shows, blended, masked, and colored as the viewport has them, fitted into the square over
+	 * transparency.
+	 *
+	 * The render thread draws its own latest model, which can trail the snapshot this save writes by a frame; a
+	 * thumbnail is a picture of the document, and a frame's lag does not change what it shows.
+	 *
+	 * @param DocumentViewportSlot viewport Where the document's render service is.
+	 * @return RasterImage? The thumbnail, or null when there is no renderer, nothing is shown, or the render did
+	 *   not come back in time - the writer then composites one itself.
+	 */
+	private suspend fun renderedThumbnail(viewport: DocumentViewportSlot): RasterImage? {
+		val service = viewport.service ?: return null
+		val bounds = service.visibleContentBounds() ?: return null
+		val thumbnail =
+			withTimeoutOrNull(THUMBNAIL_RENDER_TIMEOUT_MILLIS) {
+				service.renderImage(fitSquare(bounds, UMA_THUMBNAIL_SIZE), FrameBackdrop.Transparent)
+			}
+		if (thumbnail == null) {
+			UmamoLog.warn("save: the renderer did not draw the thumbnail; compositing it instead")
+		}
+		return thumbnail
 	}
 
 	/**

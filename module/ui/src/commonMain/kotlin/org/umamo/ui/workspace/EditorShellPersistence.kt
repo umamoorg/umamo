@@ -49,6 +49,8 @@ private const val PERSIST_DEBOUNCE_MS = 400L
  * @param List appMenu The application menu-bar contents, forwarded to the shell (empty renders no bar).
  * @param ArtworkOperations? artwork The app's artwork orchestrations over the hovered area, forwarded
  *   to the shell; null (the default) when no open document can take artwork.
+ * @param Function? exportImage Export Image over the 2D viewport area the shell resolves, forwarded to the
+ *   shell; null (the default) when nothing can be captured.
  * @param FilePicker filePicker The native open and save dialogs the workspace file commands and the log
  *   export go through; the app passes the one it already holds.
  */
@@ -60,6 +62,7 @@ fun PersistentEditorShell(
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
 	appMenu: List<TopLevelMenu> = emptyList(),
 	artwork: ArtworkOperations? = null,
+	exportImage: ((viewportAreaId: String?) -> Unit)? = null,
 	filePicker: FilePicker = remember { FileKitFilePicker() },
 ) {
 	val settings = LocalSettings.current
@@ -141,6 +144,7 @@ fun PersistentEditorShell(
 			onLayoutChange = { layout -> latestLayout = layout },
 			onLayoutDragChange = { dragActive -> savePacer.setDragActive(dragActive, latestLayout) },
 			artwork = artwork,
+			exportImage = exportImage,
 		)
 	}
 }

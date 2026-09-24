@@ -16,6 +16,7 @@ import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.settings.IMPORT_ALIGNMENT_KEY
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
 import org.umamo.ui.viewport.AtlasPageBinding
+import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.workspace.AreaViewStates
 
 /**
@@ -53,6 +54,7 @@ internal class OpenPuppet(
  * @property DocumentFile?      file           Where the document saves, or null with no document.
  * @property SessionAtlasPages? atlasPages     The session's resolved atlas pages, or null with no puppet document.
  * @property AreaViewStates     areaViewStates Every area's view state for this document.
+ * @property DocumentViewportSlot viewport     The document's render service while one is live.
  */
 internal class OpenDocumentContext(
 	val document: Document?,
@@ -60,6 +62,7 @@ internal class OpenDocumentContext(
 	val file: DocumentFile?,
 	val atlasPages: SessionAtlasPages?,
 	val areaViewStates: AreaViewStates,
+	val viewport: DocumentViewportSlot = DocumentViewportSlot(),
 ) {
 	/** The puppet document with its session and pages, or null unless a puppet document is open with its session. */
 	val puppet: OpenPuppet? =
@@ -68,6 +71,20 @@ internal class OpenDocumentContext(
 		} else {
 			null
 		}
+}
+
+/**
+ * Where the operations that use the renderer outside a viewport area - a save's cameras and thumbnail, Export
+ * Image - find the open document's render service.
+ *
+ * The service is built inside the document's composition, after the context that the controllers hold, so it
+ * is handed over here rather than through the constructor: the viewport wiring fills the slot while the
+ * service lives and clears it when the service goes, so nothing ever asks a disposed engine.  Empty on a
+ * platform without a puppet renderer, where those operations fall back or hide.
+ */
+internal class DocumentViewportSlot {
+	/** The live render service, or null while there is none. */
+	var service: PuppetViewportService? = null
 }
 
 /**

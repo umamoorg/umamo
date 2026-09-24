@@ -446,6 +446,14 @@ class GlRenderDevice : RenderDevice {
 		return RasterImage(usedWidth, usedHeight, flipRowsVertically(bottomUp, usedWidth, usedHeight))
 	}
 
+	override fun maxRenderTargetSize(): Int {
+		val viewportDimensions = IntArray(2)
+		GL11.glGetIntegerv(GL11.GL_MAX_VIEWPORT_DIMS, viewportDimensions)
+		val textureSize = GL11.glGetInteger(GL11.GL_MAX_TEXTURE_SIZE)
+		val renderbufferSize = GL11.glGetInteger(GL30.GL_MAX_RENDERBUFFER_SIZE)
+		return minOf(textureSize, renderbufferSize, viewportDimensions[0], viewportDimensions[1])
+	}
+
 	override fun describeBackend(): String {
 		val renderer = GL11.glGetString(GL11.GL_RENDERER)
 		val version = GL11.glGetString(GL11.GL_VERSION)

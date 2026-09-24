@@ -76,6 +76,7 @@
 	<string name="menu_import_artwork">Artwork…</string>
 	<string name="menu_export_cmo3">CMO3…</string>
 	<string name="menu_export_moc3">MOC3…</string>
+	<string name="menu_export_image">Image…</string>
 	<string name="cmd_file_new">New Document</string>
 	<string name="cmd_file_open">Open Document…</string>
 	<string name="cmd_file_save">Save Document</string>
@@ -90,6 +91,7 @@
 	<string name="cmd_sources_delete_art">Delete Art</string>
 	<string name="cmd_export_cmo3">Export CMO3…</string>
 	<string name="cmd_export_moc3">Export MOC3…</string>
+	<string name="cmd_export_image">Export Image…</string>
 	<string name="menu_exit">Exit</string>
 
 	<!-- Edit menu. -->
@@ -239,6 +241,24 @@
 	<string name="export_options_include_displayinfo">Display info (cdi3.json)</string>
 	<string name="export_options_pixels_per_unit">Pixels per unit</string>
 	<string name="export_options_canvas_in_units">Canvas: %1$s × %2$s units</string>
+	<!-- Export Image options (the document.exportOptionsImage command).  The size readout's %1$d/%2$d are the
+	     image width and height in pixels; the too-large line's %3$d is the largest edge allowed. -->
+	<string name="export_options_title_image">Export Image</string>
+	<string name="export_options_section_region">Region</string>
+	<string name="export_options_region_view">Viewport</string>
+	<string name="export_options_region_canvas">Canvas</string>
+	<string name="export_options_region_content">Visible Content</string>
+	<string name="export_options_image_scale">Scale</string>
+	<string name="export_options_section_background">Background</string>
+	<string name="export_options_background_transparent">Transparent</string>
+	<string name="export_options_background_solid">Solid Color</string>
+	<string name="export_options_background_grid">Viewport Grid</string>
+	<string name="export_options_background_color">Color</string>
+	<string name="export_options_image_size">%1$d × %2$d px</string>
+	<string name="export_options_image_nothing_visible">Nothing is visible to capture.</string>
+	<string name="export_options_image_no_viewport">No viewport to capture.  Point at a 2D viewport before exporting.</string>
+	<string name="export_options_image_no_canvas">The document has no canvas.</string>
+	<string name="export_options_image_too_large">%1$d × %2$d px is past the %3$d px limit.</string>
 	<!-- File-open failure alert (the document.openFailed command; %1$s is the file name). -->
 	<string name="dialog_okay">Okay</string>
 	<string name="open_failed_read">Could not read %1$s.</string>
@@ -252,6 +272,10 @@
 	<!-- Modal messages the app layer raises through document.alert; %2$s lists entry paths, document data. -->
 	<string name="alert_document_read_only">%1$s opened read-only.  It holds entries this version of Umamo cannot interpret, so Save is unavailable: %2$s</string>
 	<string name="alert_save_failed">Could not save %1$s.  %2$s</string>
+	<!-- Export Image failures (%1$s is the file name; %2$s the reason, one of the lines below or an I/O message). -->
+	<string name="alert_export_image_failed">Could not export %1$s.  %2$s</string>
+	<string name="export_image_failed_renderer">The viewport renderer could not draw the image.</string>
+	<string name="export_image_failed_memory">There was not enough memory for a %1$d × %2$d px image.  Try a smaller scale.</string>
 
 	<!-- Help menu. -->
 	<string name="menu_help">Help</string>
@@ -588,6 +612,8 @@
 	<string name="notice_import_artwork_added">Artwork added.</string>
 	<string name="notice_document_saving">Saving…</string>
 	<string name="notice_document_saved">Saved %1$s.</string>
+	<string name="notice_document_exporting_image">Exporting image…</string>
+	<string name="notice_document_exported_image">Exported %1$s.</string>
 	<string name="notice_document_save_busy">A save is already in progress.</string>
 	<string name="notice_document_waiting_for_save">Waiting on save to finish…</string>
 	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3 structure Umamo does not model is not carried in this file; exports from this session still reconcile onto the original.</string>

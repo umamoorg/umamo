@@ -1,11 +1,14 @@
 package org.umamo.render.puppet
 
+import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
+import org.umamo.render.FrameBackdrop
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
+import org.umamo.render.SupersampledSurface
 import org.umamo.render.ViewportCamera
 import org.umamo.render.WorldAxisColors
 import org.umamo.render.device.AxisLineUniforms
@@ -78,6 +81,26 @@ import kotlin.math.floor
  * GPU memory against a document carrying hundreds of layers.
  */
 private const val UNDERLAY_TEXTURE_CACHE_SIZE = 4
+
+/**
+ * Framebuffer pixels per output pixel for an image capture.  Two, and only two: the resolve is a
+ * filtered blit, which at exactly 2:1 samples the midpoint of each 2x2 block and so IS the box average,
+ * while at 4:1 it would sample 4 of 16 texels and alias.
+ */
+const val SNAPSHOT_SUPERSAMPLE = 2
+
+/**
+ * The largest tile an image capture renders in one piece, in output pixels.  At the 2x supersample a
+ * tile's targets are at most 4096 square (64 MiB each), so a capture's GPU memory stays bounded whatever
+ * the image size - a 1:1 capture of a tall Live2D canvas is thousands of pixels on a side.
+ */
+const val SNAPSHOT_TILE_EDGE = 2048
+
+/**
+ * The smallest posed opacity that leaves any coverage in an 8-bit image: below half of one alpha step the
+ * drawable rounds to nothing, so a capture's framing does not measure it.
+ */
+private const val MINIMUM_DRAWN_OPACITY = 0.5f / 255f
 
 /**
  * GPU-deforming puppet renderer, over a [RenderDevice].
@@ -1066,6 +1089,24 @@ class PuppetRenderer(
 	}
 
 	/**
+	 * The world-space extent of what the current pose actually draws, from the same CPU deform as
+	 * [pickGeometry] - so, like it, safe from the UI thread.  Where [contentBounds] measures the rest pose
+	 * a view fits to, this measures the pose on screen, which is what a capture of it frames.
+	 *
+	 * A shown drawable whose posed opacity leaves no coverage in an 8-bit image is not measured: a guide or
+	 * effect keyed to zero opacity draws nothing, and framing it would pad the capture with empty pixels.
+	 * The view fit keeps measuring it, since a rigger fitting the view wants every drawable the rig can show.
+	 *
+	 * @param Set<DrawableId> shownIds The drawables actually drawn (the resolved visibility cascade).
+	 * @return ContentBounds? The extent, or null before the first pose or when nothing drawn has a vertex.
+	 */
+	fun posedContentBounds(shownIds: Set<DrawableId>): ContentBounds? {
+		val geometry = pickGeometry() ?: return null
+		val drawnIds = shownIds.filterTo(HashSet()) { drawableId -> (geometry.opacity[drawableId] ?: 0f) >= MINIMUM_DRAWN_OPACITY }
+		return contentBoundsOf(geometry, drawnIds)
+	}
+
+	/**
 	 * The last frame's resolved draw order (back-to-front; last = front), or empty before the first pose -
 	 * the hierarchy-correct front/back ranking picking uses to choose among overlapping meshes.
 	 *
@@ -1085,11 +1126,13 @@ class PuppetRenderer(
 	 * not exist on a backend with no bound-framebuffer concept, and even on GL, discovering it hid a real
 	 * coupling with whoever bound it first.
 	 *
-	 * @param RenderTarget target         The surface to draw into.
-	 * @param Int          viewportWidth  The target width in pixels.
-	 * @param Int          viewportHeight The target height in pixels.
+	 * @param RenderTarget  target         The surface to draw into.
+	 * @param Int           viewportWidth  The target width in pixels.
+	 * @param Int           viewportHeight The target height in pixels.
+	 * @param FrameBackdrop backdrop       What the puppet is drawn over: the grid (the viewport), or a flat
+	 *   fill (an image capture).
 	 */
-	fun render(target: RenderTarget, viewportWidth: Int, viewportHeight: Int) {
+	fun render(target: RenderTarget, viewportWidth: Int, viewportHeight: Int, backdrop: FrameBackdrop = FrameBackdrop.Grid) {
 		ensureSideTargets(viewportWidth, viewportHeight)
 		val frame = device.beginFrame()
 
@@ -1125,12 +1168,152 @@ class PuppetRenderer(
 		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
 
 		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
-		var pass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
-		drawBackdrop(pass, affine, viewportWidth, viewportHeight)
+		// A flat backdrop is the pass's own clear, and the puppet blends over it exactly as over the grid.
+		var pass =
+			when (backdrop) {
+				FrameBackdrop.Grid -> {
+					val gridPass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
+					drawBackdrop(gridPass, affine, viewportWidth, viewportHeight)
+					gridPass
+				}
+
+				is FrameBackdrop.Clear ->
+					frame.beginRenderPass(
+						passSpec(
+							target,
+							LoadAction.Clear,
+							viewportWidth,
+							viewportHeight,
+							clearRed = backdrop.red,
+							clearGreen = backdrop.green,
+							clearBlue = backdrop.blue,
+							clearAlpha = backdrop.alpha,
+						),
+					)
+			}
 		pass = renderPlanNodes(frame, currentPlan, target, 0, affine, viewportWidth, viewportHeight, pass, scissor = null)
 		pass.end()
 		frame.endFrame()
 	}
+
+	/**
+	 * Renders the current pose into a CPU image: the puppet as the viewport draws it, over [backdrop], with
+	 * no selection tint and no editor chrome.
+	 *
+	 * The image renders at [SNAPSHOT_SUPERSAMPLE] into a surface of its own and is resolved and read back
+	 * synchronously, in tiles of at most [tileEdge] output pixels (and never past what the device can
+	 * allocate), stitched into one image.  A tile is the same camera re-centered on its own rectangle, so
+	 * the pieces meet exactly: tile edges fall on whole output pixels, and the resolve never averages
+	 * across one.
+	 *
+	 * Nothing the host set is disturbed: the camera, render scale, and selection are restored afterwards,
+	 * and the side targets are released again when the capture grew them, so a large capture does not
+	 * leave its high-water allocation behind for the viewport to carry.
+	 *
+	 * Over a transparent backdrop, a fixed-function Additive drawable adds color but no alpha, and Multiply
+	 * scales what is beneath it.  Where nothing lies beneath them they leave no coverage, so they drop out
+	 * of the image, as they do wherever the puppet is composited over transparency.
+	 *
+	 * Must run on the render thread with the device's context current, between frames.  A large capture is
+	 * many tiles, so [shouldContinue] is asked before each one: a host shutting down stops the capture at
+	 * the next tile rather than waiting for the whole image.
+	 *
+	 * @param ViewportCamera camera         The view: the world point at the image's center and the output
+	 *   pixels per world unit.
+	 * @param Int            width          The image width in pixels.
+	 * @param Int            height         The image height in pixels.
+	 * @param FrameBackdrop  backdrop       What the puppet is drawn over.
+	 * @param Int            tileEdge       The largest tile edge in output pixels (tests shrink it to force
+	 *   tiling).
+	 * @param Function       shouldContinue Asked before each tile; false abandons the capture.
+	 * @return RasterImage? The pixels, PREMULTIPLIED, top row first, or null when the capture was abandoned.
+	 */
+	fun renderSnapshot(
+		camera: ViewportCamera,
+		width: Int,
+		height: Int,
+		backdrop: FrameBackdrop,
+		tileEdge: Int = SNAPSHOT_TILE_EDGE,
+		shouldContinue: () -> Boolean = { true },
+	): RasterImage? {
+		require(width > 0 && height > 0) { "a snapshot needs a positive size, got ${width}x$height" }
+		val maximumTile = minOf(tileEdge, device.maxRenderTargetSize() / SNAPSHOT_SUPERSAMPLE).coerceAtLeast(1)
+		val previousCamera = currentCamera
+		val previousPixelScale = gridPixelScale
+		val previousSelection = selectedIds
+		val previousActive = activeId
+		val previousCapacityWidth = sideTargetCapacityWidth
+		val previousCapacityHeight = sideTargetCapacityHeight
+		val surface = SupersampledSurface(device, SNAPSHOT_SUPERSAMPLE)
+		val stitched = ByteArray(width * height * 4)
+		try {
+			selectedIds = emptySet()
+			activeId = null
+			gridPixelScale = SNAPSHOT_SUPERSAMPLE.toFloat()
+			for (tileTop in 0 until height step maximumTile) {
+				val tileHeight = minOf(maximumTile, height - tileTop)
+				for (tileLeft in 0 until width step maximumTile) {
+					if (!shouldContinue()) {
+						return null
+					}
+					val tileWidth = minOf(maximumTile, width - tileLeft)
+					// The tile's center in whole-image pixels, carried back into world units: x runs right
+					// in both, while image rows run down and world z runs up.
+					val tileCenterX = camera.centerX + (tileLeft + tileWidth / 2f - width / 2f) / camera.zoom
+					val tileCenterY = camera.centerY - (tileTop + tileHeight / 2f - height / 2f) / camera.zoom
+					currentCamera = ViewportCamera(tileCenterX, tileCenterY, camera.zoom * SNAPSHOT_SUPERSAMPLE)
+					val drawTarget = surface.ensure(tileWidth, tileHeight)
+					render(drawTarget, tileWidth * SNAPSHOT_SUPERSAMPLE, tileHeight * SNAPSHOT_SUPERSAMPLE, backdrop)
+					surface.resolve()
+					val tile = device.readPixels(surface.resolveTarget, tileWidth, tileHeight)
+					for (tileRow in 0 until tileHeight) {
+						tile.rgba.copyInto(
+							stitched,
+							((tileTop + tileRow) * width + tileLeft) * 4,
+							tileRow * tileWidth * 4,
+							(tileRow + 1) * tileWidth * 4,
+						)
+					}
+				}
+			}
+		} finally {
+			currentCamera = previousCamera
+			gridPixelScale = previousPixelScale
+			selectedIds = previousSelection
+			activeId = previousActive
+			surface.dispose()
+			if (sideTargetCapacityWidth > previousCapacityWidth || sideTargetCapacityHeight > previousCapacityHeight) {
+				releaseSideTargets()
+			}
+		}
+		return RasterImage(width, height, stitched)
+	}
+
+	/**
+	 * Frees the mask, destination-snapshot, and composite-layer targets and resets their shared capacity,
+	 * so the next [render] allocates them afresh at its own size.  The capacity is otherwise grow-only;
+	 * this is how a one-off large render gives the memory back.
+	 */
+	fun releaseSideTargets() {
+		maskTarget?.let { target -> device.destroyRenderTarget(target) }
+		maskTarget = null
+		for (target in compositeTargets) {
+			device.destroyRenderTarget(target)
+		}
+		compositeTargets.clear()
+		snapshotTarget?.let { target -> device.destroyRenderTarget(target) }
+		snapshotTarget = null
+		sideTargetCapacityWidth = 0
+		sideTargetCapacityHeight = 0
+	}
+
+	/**
+	 * The shared side-target capacity (mask, destination snapshot, composite pool) as (width, height), for
+	 * tests that pin a capture's release of it.
+	 *
+	 * @return Pair<Int, Int> The capacity in pixels.
+	 */
+	internal fun sideTargetCapacity(): Pair<Int, Int> = sideTargetCapacityWidth to sideTargetCapacityHeight
 
 	/**
 	 * Walks a render-plan span into [target]: plain drawables draw directly (with the mask-coverage
@@ -1870,7 +2053,7 @@ class PuppetRenderer(
 		return compositeTargets[depth]
 	}
 
-	/** A render-pass spec for [target] at [load], with an optional clear and pass scissor. */
+	/** A render-pass spec for [target] at [load], with an optional clear color and pass scissor. */
 	private fun passSpec(
 		target: RenderTarget,
 		load: LoadAction,
@@ -1878,11 +2061,17 @@ class PuppetRenderer(
 		viewportHeight: Int,
 		clearAlpha: Float = 0f,
 		scissor: ScissorRect? = null,
+		clearRed: Float = 0f,
+		clearGreen: Float = 0f,
+		clearBlue: Float = 0f,
 	) = org.umamo.render.device.RenderPassSpec(
 		colorTarget = target,
 		loadAction = load,
 		viewportWidth = viewportWidth,
 		viewportHeight = viewportHeight,
+		clearRed = clearRed,
+		clearGreen = clearGreen,
+		clearBlue = clearBlue,
 		clearAlpha = clearAlpha,
 		scissor = scissor,
 	)

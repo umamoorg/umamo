@@ -25,7 +25,7 @@ import org.umamo.ui.model.DrawableThumbnailer
 import org.umamo.ui.viewport.AtlasPageBinding
 
 /** The size the saved thumbnail is fitted into (UMA §5.6). */
-private const val THUMBNAIL_SIZE = 256
+const val UMA_THUMBNAIL_SIZE = 256
 
 /**
  * Writes [model] as a `.uma` at [destination], laid over [base].
@@ -42,7 +42,8 @@ private const val THUMBNAIL_SIZE = 256
  *    entry) and is encoded from its decoded raster otherwise.
  *  - The render pages are stored as the file or the origin had them while the atlas is at the document's
  *    baseline - the same identity gate the CMO3 export uses - and derive from the tiles after any repack (UMA §5.5).
- *  - The thumbnail is the rest pose fitted into [THUMBNAIL_SIZE] pixels (UMA §5.6).
+ *  - The thumbnail is [thumbnail] when the caller rendered one - the pose on screen as the viewport draws it -
+ *    and otherwise the rest pose composited on the CPU, fitted into [UMA_THUMBNAIL_SIZE] pixels (UMA §5.6).
  *
  * Editor state rides on the save as a merge patch over what the base holds (docs/format/UMA.md § 7.5) and is never
  * a reason to refuse one: an editor entry too new for this version to merge into is carried as it is.
@@ -53,6 +54,7 @@ private const val THUMBNAIL_SIZE = 256
  * @param AtlasPageBinding binding     The session's atlas pages as snapshotted.
  * @param JsonObject       editorState The editor entry's merge patch as gathered; empty when there is none to write.
  * @param PlatformFile     destination Where to write.
+ * @param RasterImage?     thumbnail   The thumbnail as rendered, [UMA_THUMBNAIL_SIZE] square, or null to composite one here.
  * @return UmaWriteOutcome The written document, or why nothing complete was written.
  */
 suspend fun writeUmaDocument(
@@ -62,11 +64,12 @@ suspend fun writeUmaDocument(
 	binding: AtlasPageBinding,
 	editorState: JsonObject,
 	destination: PlatformFile,
+	thumbnail: RasterImage? = null,
 ): UmaWriteOutcome {
 	val encoded =
 		withContext(Dispatchers.Default) {
 			try {
-				val modelDocument = UmaDocumentBridge.documentOf(base, model, pixelSourceFor(document, base, model, binding))
+				val modelDocument = UmaDocumentBridge.documentOf(base, model, pixelSourceFor(document, base, model, binding, thumbnail))
 				// UMA §7.5: the patch is laid over the entry the base holds, unless that entry is one this version cannot read.
 				val written = if (modelDocument.holdsTooNewEntry(UmaEntryKind.Editor)) modelDocument else modelDocument.withEditorState(editorState)
 				UmaWriteOutcome.Written(written) to Uma.write(written)
@@ -102,13 +105,18 @@ suspend fun writeUmaDocument(
  * The tile PNGs are gathered up front rather than inside the source's lambda, so the layout - which asks
  * for them one by one - never runs a decode or an encode of its own.
  *
- * @param PuppetDocument   document The open document.
- * @param UmaModel         base     The document the save lays over.
- * @param PuppetModel      model    The model being written.
- * @param AtlasPageBinding binding  The atlas pages as snapshotted.
+ * The thumbnail is the rendered one when the caller had a renderer to draw it.  Otherwise it is the rest
+ * pose composited on the CPU, which knows the art and the visible drawables but none of the blending,
+ * masks, or colors the renderer applies; a platform without a puppet renderer still saves a thumbnail.
+ *
+ * @param PuppetDocument   document  The open document.
+ * @param UmaModel         base      The document the save lays over.
+ * @param PuppetModel      model     The model being written.
+ * @param AtlasPageBinding binding   The atlas pages as snapshotted.
+ * @param RasterImage?     thumbnail The rendered thumbnail, or null to composite one.
  * @return UmaPixelSource The pixels.
  */
-private fun pixelSourceFor(document: PuppetDocument, base: UmaModel, model: PuppetModel, binding: AtlasPageBinding): UmaPixelSource {
+private fun pixelSourceFor(document: PuppetDocument, base: UmaModel, model: PuppetModel, binding: AtlasPageBinding, thumbnail: RasterImage?): UmaPixelSource {
 	val heldByBase = base.textures?.tiles.orEmpty().mapNotNull { tile -> tile.path?.let { tile.id } }.toHashSet()
 	val tilePngs = HashMap<String, ByteArray?>()
 	for (tile in model.atlas.tiles) {
@@ -125,8 +133,8 @@ private fun pixelSourceFor(document: PuppetDocument, base: UmaModel, model: Pupp
 			document is Moc3Document -> UmaRenderPagePixels.Stored(document.pagePngs(), document.textures.atlasIndexByDrawableId)
 			else -> UmaRenderPagePixels.Derived
 		}
-	val thumbnail = DrawableThumbnailer(model, binding.textures).modelRasterFor()?.fittedInto(THUMBNAIL_SIZE)?.let(PngCodec::write)
-	return UmaPixelSource({ tileId -> tilePngs[tileId] }, renderPages, thumbnail)
+	val thumbnailRaster = thumbnail ?: DrawableThumbnailer(model, binding.textures).modelRasterFor()?.fittedInto(UMA_THUMBNAIL_SIZE)
+	return UmaPixelSource({ tileId -> tilePngs[tileId] }, renderPages, thumbnailRaster?.let(PngCodec::write))
 }
 
 /**

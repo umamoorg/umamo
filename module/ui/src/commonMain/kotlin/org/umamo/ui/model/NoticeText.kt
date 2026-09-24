@@ -44,6 +44,8 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.document.saving" -> stringResource(Res.string.notice_document_saving)
 		"notice.document.saved" -> stringResource(Res.string.notice_document_saved, arguments.firstOrNull().orEmpty())
 		"notice.document.saveBusy" -> stringResource(Res.string.notice_document_save_busy)
+		"notice.document.exportingImage" -> stringResource(Res.string.notice_document_exporting_image)
+		"notice.document.exportedImage" -> stringResource(Res.string.notice_document_exported_image, arguments.firstOrNull().orEmpty())
 		"notice.document.waitingForSave" -> stringResource(Res.string.notice_document_waiting_for_save)
 		"notice.document.cmo3Loss" -> stringResource(Res.string.notice_document_cmo3_loss)
 		"notice.document.moc3Loss" -> stringResource(Res.string.notice_document_moc3_loss)

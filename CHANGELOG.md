@@ -22,6 +22,7 @@ Umamo is early alpha.
 * Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
 * Source Artwork: Hovering a layer, art, or drawable row in the Sources panel previews its art.
 * Source Artwork: A new Import preference shows the Sources panel's layer positions measured from the world axes instead of the art file's top-left corner.
+* Export: Image export of the current 2D Viewport with options for transparent, solid, and grid backgrounds.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
