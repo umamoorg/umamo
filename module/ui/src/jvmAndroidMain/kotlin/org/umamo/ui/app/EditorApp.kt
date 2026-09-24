@@ -8,6 +8,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.JsonObject
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
@@ -95,6 +97,8 @@ fun rememberDocumentFileFor(document: Document?): DocumentFile? = remember(docum
  *   null on a platform without a puppet renderer yet (viewport areas render placeholders).
  * @param HostOpenRequests? openRequests Files the operating system asks the running editor to open, or null for
  *   a host that receives none.
+ * @param HostHeap? hostHeap The memory limit the host started the editor with, or null for a host that has no
+ *   say in it; a jar launch with a small one is warned at launch and told how to raise it when an export runs out.
  */
 @Composable
 fun EditorApp(
@@ -106,6 +110,7 @@ fun EditorApp(
 	exitGuard: ExitGuard,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 	openRequests: HostOpenRequests? = null,
+	hostHeap: HostHeap? = null,
 ) {
 	val settings = LocalSettings.current
 	val scope = rememberCoroutineScope()
@@ -173,6 +178,7 @@ fun EditorApp(
 				current = { currentContext },
 				onOpen = { opened -> currentOnOpen(opened) },
 				untitledName = { currentUntitledName },
+				hostHeap = hostHeap,
 			)
 		}
 	val save = remember { DocumentSaveController(services) }
@@ -182,6 +188,15 @@ fun EditorApp(
 	// on Android - opens the way a recent file does, unsaved-changes check included.
 	LaunchedEffect(openRequests) {
 		openRequests?.requests?.collect { requestedPath -> open.openStoredPath(requestedPath) }
+	}
+
+	// A jar launch with a small memory limit is told how to raise it, once per launch: this composable outlives
+	// document swaps, which rebuild only the shell below.  It waits for Quick Setup on a first run so the two
+	// dialogs never stack, then for the shell's alert command, which registers from the shell's own effect.
+	LaunchedEffect(Unit) {
+		val notice = lowMemoryNoticeRequest(hostHeap, settings) ?: return@LaunchedEffect
+		snapshotFlow { quickSetup.visible }.first { visible -> !visible }
+		snapshotFlow { commandRegistry.revision }.first { commandRegistry.invoke("document.alert", notice) }
 	}
 
 	// The document's artwork watcher with its whole life (see rememberDocumentWatch): it follows the

@@ -4,10 +4,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
- * The severity of a logged line.  Nominal today (the stdout transport prints every level identically),
- * but retained on each entry so an in-app console can color Warn and Error distinctly.
+ * The severity of a logged line.  The stdout transport prints every level identically; the in-app console
+ * colors Warn and Error distinctly, and a file sink tags each line with it.
  */
 enum class LogLevel {
 	Info,
@@ -25,11 +27,42 @@ enum class LogLevel {
 data class LogEntry(val level: LogLevel, val message: String)
 
 /**
+ * One logged line as a sink receives it: the retained entry's level and composed message, plus the moment
+ * it was logged and the originating failure, whose stack trace the in-memory entry does not keep.
+ *
+ * @property Instant    timestamp When the line was logged.
+ * @property LogLevel   level     The severity the call site named.
+ * @property String     message   The fully-composed message, identical to the retained entry's.
+ * @property Throwable? cause     The failure an error was logged with, or null.
+ */
+class LogRecord(
+	val timestamp: Instant,
+	val level: LogLevel,
+	val message: String,
+	val cause: Throwable?,
+)
+
+/**
+ * A destination for logged lines beyond stdout and the in-memory buffer, such as the desktop's session log
+ * file.  Called synchronously on the logging thread, from any thread, so a line is as durable as the sink
+ * makes it by the time the log call returns.
+ */
+fun interface LogSink {
+	/**
+	 * Takes one logged line.  Never throws: a sink that fails disables itself rather than turning a log call
+	 * into a crash.
+	 *
+	 * @param LogRecord record The line to take.
+	 */
+	fun write(record: LogRecord)
+}
+
+/**
  * The app's minimal diagnostic log.  A seam, not a framework: call sites name a severity instead of
- * hardcoding the transport, so routing (a file via AppStorage, logcat, an in-app console) can change
- * in one place later.  The transport today is stdout with the established "[Umamo]" prefix, plus a
- * bounded in-memory buffer ([entries]) the editor's Logs panel collects - so a user who launched
- * without a terminal can still read the output.
+ * hardcoding the transport, so routing can change in one place.  Every line goes to stdout with the
+ * established "[Umamo]" prefix, to a bounded in-memory buffer ([entries]) the editor's Logs panel collects -
+ * so a user who launched without a terminal can still read the output - and to every sink attached with
+ * [addSink], which is how the desktop keeps a log file per session.
  *
  * Lives in :storage because it is the bottom-most shared module every target already depends on;
  * logging is platform plumbing in the same sense as config directories and file IO.
@@ -48,14 +81,27 @@ object UmamoLog {
 
 	private val mutableEntries = MutableStateFlow<List<LogEntry>>(emptyList())
 
+	/** The attached sinks, replaced whole on attach and detach so a line in flight reads one consistent list. */
+	private val sinks = MutableStateFlow<List<LogSink>>(emptyList())
+
+	/**
+	 * Attaches a sink that receives every line logged from now on.
+	 *
+	 * @param LogSink sink The sink to attach.
+	 * @return Function Detaches the sink again.
+	 */
+	fun addSink(sink: LogSink): () -> Unit {
+		sinks.update { attached -> attached + sink }
+		return { sinks.update { attached -> attached - sink } }
+	}
+
 	/**
 	 * Logs a routine status line (startup info, a completed save/export).
 	 *
 	 * @param String message The already-formatted message.
 	 */
 	fun info(message: String) {
-		println("[Umamo] $message")
-		record(LogLevel.Info, message)
+		emit(LogLevel.Info, message, null)
 	}
 
 	/**
@@ -64,8 +110,7 @@ object UmamoLog {
 	 * @param String message The already-formatted message.
 	 */
 	fun warn(message: String) {
-		println("[Umamo] $message")
-		record(LogLevel.Warn, message)
+		emit(LogLevel.Warn, message, null)
 	}
 
 	/**
@@ -82,8 +127,27 @@ object UmamoLog {
 			} else {
 				message
 			}
+		emit(LogLevel.Error, composed, cause)
+	}
+
+	/**
+	 * Sends one line to every transport.  The sinks go first: a crash handler's line is on disk before
+	 * anything else this call does can fail.
+	 *
+	 * @param LogLevel   level    The line's severity.
+	 * @param String     composed The fully-composed message text.
+	 * @param Throwable? cause    The failure an error was logged with, or null.
+	 */
+	private fun emit(level: LogLevel, composed: String, cause: Throwable?) {
+		val attached = sinks.value
+		if (attached.isNotEmpty()) {
+			val logged = LogRecord(Clock.System.now(), level, composed, cause)
+			for (sink in attached) {
+				sink.write(logged)
+			}
+		}
 		println("[Umamo] $composed")
-		record(LogLevel.Error, composed)
+		record(level, composed)
 	}
 
 	/**

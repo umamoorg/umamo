@@ -1,15 +1,20 @@
 package org.umamo.ui.app
 
+import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
-import io.github.vinceglb.filekit.write
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okio.IOException
+import org.jetbrains.compose.resources.getString
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.interop.ExportReport
 import org.umamo.interop.describeExportNotice
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.UmamoLog
+import org.umamo.storage.writeReplacing
 import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
@@ -20,10 +25,14 @@ import org.umamo.ui.document.prepareMoc3Export
 import org.umamo.ui.document.writeMoc3Bundle
 import org.umamo.ui.model.DrawableThumbnailer
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.alert_export_failed
 import org.umamo.ui.resources.confirm_export_overwrite
 import org.umamo.ui.resources.dialog_overwrite
+import org.umamo.ui.resources.export_failed_unexpected
+import org.umamo.ui.workspace.AlertRequest
 import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.ExportOptionsRequest
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
 import kotlin.time.Clock
 
@@ -58,39 +67,55 @@ internal class DocumentExportController(
 	 */
 	fun exportCmo3() {
 		val exported = puppet ?: return
-		val puppetDocument = exported.document
 		services.scope.launch {
 			val suggestedName = file?.exportBaseName ?: services.untitledName()
 			services.filePicker.saveFile(suggestedName, FileKind.Cmo3.extension)?.let { destination ->
-				val edited = exportedModelFor(puppetDocument, exported.session)
-				// The session's resolved page set: the document's own instance until a repack
-				// composed a new one, which is exactly the gate the archive patch keys on.
-				val effectiveTextures = exported.pageBinding().textures
-				// Named in the log because both outcomes are otherwise silent: an unedited model exports
-				// the graph as-is with an empty report, and the document's own pages mean no page patch.
-				UmamoLog.info(
-					"export: model ${if (edited === puppetDocument.puppet) "is the unedited import" else "carries session edits"}" +
-						" (atlas ${if (edited.atlas === puppetDocument.puppet.atlas) "unchanged" else "repacked"});" +
-						" pages ${if (effectiveTextures === puppetDocument.textures) "are the document's own" else "are the session's (${effectiveTextures.atlases.size})"}",
-				)
-				// The model's own icons come from the outliner's rest-pose composite, over the same
-				// pages the export writes - pure CPU, so the Android shell writes them too.
-				val modelThumbnail = DrawableThumbnailer(edited, effectiveTextures).modelRasterFor()
-				val prepared =
-					prepareCmo3Export(
-						document = puppetDocument,
-						edited = edited,
-						effectiveTextures = effectiveTextures,
-						modelName = suggestedName,
-						nowMillis = Clock.System.now().toEpochMilliseconds(),
-						obfuscateKey = Random.nextInt(),
-						modelThumbnail = modelThumbnail,
-					)
-				destination.write(Cmo3.write(prepared.model))
-				reportExport(prepared.report)
-				UmamoLog.info("exported ${destination.absolutePath()}")
+				services.alertingExportFailures(destination.name) {
+					writeCmo3(exported, destination, suggestedName)
+				}
 			}
 		}
+	}
+
+	/**
+	 * Lowers the open document into a CMO3 and writes it to [destination].  The bytes land through a
+	 * replace-write, as a save's do, so a failed write leaves whatever was there rather than half a file.
+	 *
+	 * @param OpenPuppet   exported      The document being exported, with its session and pages.
+	 * @param PlatformFile destination   The picked file.
+	 * @param String       suggestedName The display name a synthesized skeleton records.
+	 */
+	private suspend fun writeCmo3(exported: OpenPuppet, destination: PlatformFile, suggestedName: String) {
+		val puppetDocument = exported.document
+		val edited = exportedModelFor(puppetDocument, exported.session)
+		// The session's resolved page set: the document's own instance until a repack
+		// composed a new one, which is exactly the gate the archive patch keys on.
+		val effectiveTextures = exported.pageBinding().textures
+		// Named in the log because both outcomes are otherwise silent: an unedited model exports
+		// the graph as-is with an empty report, and the document's own pages mean no page patch.
+		UmamoLog.info(
+			"export: model ${if (edited === puppetDocument.puppet) "is the unedited import" else "carries session edits"}" +
+				" (atlas ${if (edited.atlas === puppetDocument.puppet.atlas) "unchanged" else "repacked"});" +
+				" pages ${if (effectiveTextures === puppetDocument.textures) "are the document's own" else "are the session's (${effectiveTextures.atlases.size})"}",
+		)
+		// The model's own icons come from the outliner's rest-pose composite, over the same
+		// pages the export writes - pure CPU, so the Android shell writes them too.
+		val modelThumbnail = DrawableThumbnailer(edited, effectiveTextures).modelRasterFor()
+		val prepared =
+			prepareCmo3Export(
+				document = puppetDocument,
+				edited = edited,
+				effectiveTextures = effectiveTextures,
+				modelName = suggestedName,
+				nowMillis = Clock.System.now().toEpochMilliseconds(),
+				obfuscateKey = Random.nextInt(),
+				modelThumbnail = modelThumbnail,
+			)
+		val bytes = Cmo3.write(prepared.model)
+		// Once the bytes exist they land: a torn-down composition must not leave half a file.
+		withContext(NonCancellable) { destination.writeReplacing(bytes) }
+		reportExport(prepared.report)
+		UmamoLog.info("exported ${destination.absolutePath()}")
 	}
 
 	/**
@@ -116,22 +141,26 @@ internal class DocumentExportController(
 					services.scope.launch {
 						services.filePicker.saveFile(file?.exportBaseName ?: services.untitledName(), FileKind.Moc3.extension)?.let { destination ->
 							val bundle =
-								prepareMoc3Export(
-									document = puppetDocument,
-									// Re-resolved at write time: the dialog is modeless enough that the
-									// session could undo between confirm and the picker closing.
-									edited = exportedModelFor(puppetDocument, exported.session),
-									effectiveTextures = exported.pageBinding().textures,
-									// FileKit appends the extension, so the picked handle's own name is authoritative.
-									destinationName = destination.name,
-									options = options,
-								)
+								services.alertingExportFailures(destination.name) {
+									prepareMoc3Export(
+										document = puppetDocument,
+										// Re-resolved at write time: the dialog is modeless enough that the
+										// session could undo between confirm and the picker closing.
+										edited = exportedModelFor(puppetDocument, exported.session),
+										effectiveTextures = exported.pageBinding().textures,
+										// FileKit appends the extension, so the picked handle's own name is authoritative.
+										destinationName = destination.name,
+										options = options,
+									)
+								} ?: return@let
 
 							fun writeAndReport() {
 								services.scope.launch {
-									val written = writeMoc3Bundle(destination, bundle)
-									reportExport(bundle.report)
-									UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
+									services.alertingExportFailures(destination.name) {
+										val written = writeMoc3Bundle(destination, bundle)
+										reportExport(bundle.report)
+										UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
+									}
 								}
 							}
 							// The native save dialog confirmed the picked file only; the rest of the family
@@ -175,3 +204,35 @@ internal class DocumentExportController(
 		}
 	}
 }
+
+/**
+ * Runs one export's work and turns its failure into an alert, so a failed export costs the export rather than
+ * the session: left alone, a failure escapes the app's scope to Compose's window exception handler, which shows a
+ * bare Java error and asks the window to close.  Running out of memory is named as such, with a jar launch's way out;
+ * an I/O failure carries its own message; anything else is an export bug, logged with its stack for the report.
+ * Cancellation passes through untouched.
+ *
+ * @param String   destinationName The file the export writes, named in the alert and the log.
+ * @param Function work            The export's work.
+ * @return T? The work's result, or null when it failed and was reported.
+ */
+internal suspend fun <T> EditorAppServices.alertingExportFailures(destinationName: String, work: suspend () -> T): T? =
+	try {
+		work()
+	} catch (cancelled: CancellationException) {
+		throw cancelled
+	} catch (failure: OutOfMemoryError) {
+		// The export's own allocations are unreachable once this unwinds, so the editor carries on.
+		val limit = hostHeap?.let { launchHeap -> " (the heap may grow to ${describeHeapLimit(launchHeap.maxBytes)})" }.orEmpty()
+		UmamoLog.error("export: ran out of memory writing $destinationName$limit", failure)
+		commandRegistry.invoke("document.alert", exportOutOfMemoryAlert(destinationName, hostHeap))
+		null
+	} catch (failure: IOException) {
+		UmamoLog.error("export: could not write $destinationName", failure)
+		commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_export_failed, listOf(destinationName, failure.message ?: destinationName)))
+		null
+	} catch (failure: Exception) {
+		UmamoLog.error("export: $destinationName failed", failure)
+		commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_export_failed, listOf(destinationName, getString(Res.string.export_failed_unexpected))))
+		null
+	}

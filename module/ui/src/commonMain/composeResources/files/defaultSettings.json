@@ -60,6 +60,7 @@
 		"layerPositionsFromWorldAxes": false
 	},
 	"app": {
-		"launchCount": 0
+		"launchCount": 0,
+		"showLowMemoryNotice": true
 	}
 }

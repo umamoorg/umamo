@@ -19,6 +19,10 @@ kotlinxSerialization = "1.11.0"
 okio = "3.17.0"
 # kotlinx-coroutines — for :settings' change-event SharedFlow (the reactive spine the UI/History want).
 kotlinxCoroutines = "1.11.0"
+# atomicfu — the common lock :storage's session log file writes under (the stdlib has none outside the
+# JVM).  Pinned to the version the Compose runtime already puts on the desktop classpath, so declaring
+# it adds no second copy.
+atomicfu = "0.28.0"
 # kotlinx-datetime — the local wall clock the CAFF zip timestamp needs. The Kotlin stdlib has a common
 # Clock but no time ZONE, and a DOS timestamp is local time, so this is the smallest thing that closes
 # the gap without reintroducing an expect/actual. See docs/formats/CMO3.md §1.
@@ -73,6 +77,7 @@ okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 # okio's in-memory FileSystem for tests — :settings unit tests run with no real disk.
 okio-fakefilesystem = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okio" }
 kotlinxCoroutinesCore = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 kotlinxDatetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 kotlinxCoroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 # FileKit dialogs — open/save pickers (FileKit.openFilePicker/openFileSaver) plus the PlatformFile type

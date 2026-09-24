@@ -327,6 +327,23 @@ class ModalKeyLadderTest {
 	}
 
 	@Test
+	fun enterAndEscapeNeverPickAnAlertsAlternative() {
+		var alternativeCount = 0
+		val overlays = ShellOverlayState()
+		val state = ShellModalState(overlays = overlays)
+
+		// "Don't Show Again" is a deliberate click: the keys that acknowledge an alert mean OK.
+		for (acknowledge in listOf<(ShellModalState) -> Boolean>({ modalState -> enter(modalState) }, { modalState -> escape(modalState) })) {
+			overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab, alternative = DialogAlternative(Res.string.cmd_mesh_grab) { alternativeCount++ })
+			assertTrue(acknowledge(state))
+			assertNull(overlays.pendingAlert)
+			press(Key.Enter, state, isDown = false)
+		}
+
+		assertEquals(0, alternativeCount)
+	}
+
+	@Test
 	fun theOpenFailureAlertTakesEscapeOrEnter() {
 		val overlays =
 			ShellOverlayState().apply { openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") }

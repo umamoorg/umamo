@@ -99,6 +99,8 @@ internal class DocumentViewportSlot {
  *   launch from asking about whichever document was open then - none at all, on a normal launch.
  * @property Function        onOpen          Swaps a newly opened document in.
  * @property Function        untitledName    The localized name a never-saved document's Save As suggests.
+ * @property HostHeap?       hostHeap        The memory limit the host started the editor with, which an export
+ *   that runs out of memory names; null for a host that has no say in it.
  */
 internal class EditorAppServices(
 	val settings: Settings,
@@ -108,6 +110,7 @@ internal class EditorAppServices(
 	val current: () -> OpenDocumentContext,
 	val onOpen: (Document) -> Unit,
 	val untitledName: () -> String,
+	val hostHeap: HostHeap? = null,
 ) {
 	/**
 	 * What an artwork import seeds with and where it places a later file, read at the moment the import

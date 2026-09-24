@@ -26,10 +26,12 @@ import org.umamo.ui.workspace.AreaViewStates
  * the app's holder hands them the live composition's context - so a test swaps the document by assigning
  * [context], exactly as opening one does.
  *
- * @param CoroutineScope scope The scope the controllers' work runs in (a test's own scope).
+ * @param CoroutineScope scope    The scope the controllers' work runs in (a test's own scope).
+ * @param HostHeap?      hostHeap The launch's memory limit the controllers see, or null for a host with none.
  */
 internal class AppControllerFixture(
 	private val scope: CoroutineScope,
+	hostHeap: HostHeap? = null,
 ) {
 	/** Every command the controllers dispatched, in order, with its argument. */
 	val invocations = ArrayList<Pair<String, Any?>>()
@@ -66,6 +68,7 @@ internal class AppControllerFixture(
 				current = { context },
 				onOpen = { document -> opened.add(document) },
 				untitledName = { "Untitled" },
+				hostHeap = hostHeap,
 			)
 	}
 

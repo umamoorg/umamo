@@ -98,6 +98,7 @@
 	<string name="dialog_quit_without_saving">保存せずに終了</string>
 	<string name="dialog_save">保存</string>
 	<string name="dialog_dont_save">保存しない</string>
+	<string name="dialog_dont_show_again">今後表示しない</string>
 	<string name="confirm_reset_workspace">このワークスペースを既定のレイアウトに戻しますか？</string>
 	<string name="confirm_import_replace">インポートしたファイルですべてのワークスペースを置き換えますか？</string>
 	<string name="confirm_discard_unsaved">現在のドキュメントには保存していない変更があります。破棄しますか？</string>
@@ -244,9 +245,13 @@
 	<string name="open_failed_newer_format">%1$s はより新しいバージョンの Umamo で作成されたため、このバージョンでは開けません。</string>
 	<string name="alert_document_read_only">%1$s は読み取り専用で開きました。このバージョンの Umamo が解釈できないエントリを含むため、保存はできません: %2$s</string>
 	<string name="alert_save_failed">%1$s を保存できませんでした。 %2$s</string>
-	<string name="alert_export_image_failed">%1$s をエクスポートできませんでした。 %2$s</string>
+	<string name="alert_export_failed">%1$s をエクスポートできませんでした。 %2$s</string>
 	<string name="export_image_failed_renderer">ビューポートのレンダラーが画像を描画できませんでした。</string>
 	<string name="export_image_failed_memory">%1$d × %2$d px の画像を作るためのメモリが足りません。倍率を下げてください。</string>
+	<string name="export_failed_unexpected">予期しないエラーで中断しました。詳細はログに記録されています。開いているドキュメントには影響ありません。</string>
+	<string name="alert_export_out_of_memory">%1$s をエクスポートできませんでした。メモリが足りなくなりました。開いているドキュメントには影響ありません。</string>
+	<string name="alert_export_out_of_memory_jar">%1$s をエクスポートできませんでした。Umamo が使えるメモリ (%2$s) が足りなくなりました。開いているドキュメントには影響ありません。このコンピューターのメモリの半分まで使えるようにするには、保存して Umamo を終了し、ターミナルから次のコマンドで起動してください: %3$s</string>
+	<string name="alert_low_memory_jar">Umamo が使えるメモリは最大 %1$s で、大きなモデルのエクスポートでは足りなくなることがあります。jar から起動すると、この上限は Java が決めます。このコンピューターのメモリの半分まで使えるようにするには、Umamo を終了してターミナルから次のコマンドで起動してください: %2$s</string>
 
 	<string name="menu_help">ヘルプ</string>
 	<string name="menu_source_code">ソースコード…</string>

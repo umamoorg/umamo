@@ -363,9 +363,9 @@ fun EditorShell(
 	//  - structuralEditCount: area-tree edits and popup-invoked workspace CRUD;
 	//  - selfFocusedOverlayOpen / inline edit: reclaim when the palette, preferences, Help dialogs, or an
 	//    inline rename CLOSE (while one is open it owns focus, so the effect waits);
-	//  - modalAlertOpen: the confirm dialog, the file-open alert, the export report, and the repack
-	//    refusal report do NOT own focus - root focus is (re)claimed on open too, so their Escape/Enter
-	//    route through the modal ladder while open;
+	//  - modalAlertOpen: the confirm dialog, the file-open alert, the app layer's alerts, the export report,
+	//    and the repack refusal report do NOT own focus - root focus is (re)claimed on open too, so their
+	//    Escape/Enter route through the modal ladder while open;
 	//  - menu-bar close: an open menu's popup holds focus and its teardown takes it along.
 	// The two-frame wait lets a closing popup's teardown finish stealing focus first - an immediate
 	// request would be nulled right back out (the menu bar demonstrably needs this; it is harmless for
@@ -636,6 +636,10 @@ fun EditorShell(
 						MessageDialog(
 							message = stringResource(alert.message, *alert.arguments.toTypedArray()),
 							onDismiss = { overlays.pendingAlert = null },
+							alternative =
+								alert.alternative?.let { alternative ->
+									DialogChoice(stringResource(alternative.label)) { overlays.chooseAlertAlternative() }
+								},
 						)
 					}
 					// The export report, in the same modal family: advisory only - the export has already

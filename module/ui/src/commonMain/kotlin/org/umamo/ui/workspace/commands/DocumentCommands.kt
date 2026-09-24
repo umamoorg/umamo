@@ -6,8 +6,8 @@ import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.model.AtlasRepackReport
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.AlertRequest
-import org.umamo.ui.workspace.ConfirmAlternative
 import org.umamo.ui.workspace.ConfirmRequest
+import org.umamo.ui.workspace.DialogAlternative
 import org.umamo.ui.workspace.ExportOptionsRequest
 import org.umamo.ui.workspace.ShellOverlayState
 
@@ -38,7 +38,7 @@ private fun dirtyDocumentRequest(prompt: DirtyDocumentPrompt, quitting: Boolean)
 		ConfirmRequest(
 			message = if (quitting) Res.string.confirm_save_before_quit else Res.string.confirm_save_before_replace,
 			confirmLabel = Res.string.dialog_save,
-			alternative = ConfirmAlternative(Res.string.dialog_dont_save) { prompt.discard() },
+			alternative = DialogAlternative(Res.string.dialog_dont_save) { prompt.discard() },
 			onConfirm = save,
 		)
 	} else {

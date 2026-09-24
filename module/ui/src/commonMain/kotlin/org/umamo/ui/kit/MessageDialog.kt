@@ -4,9 +4,13 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
@@ -27,17 +31,20 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * [message] and a single OK button - [ConfirmDialog]'s one-button sibling for alerts that only inform
  * (a failed file open, a rejected import).  Presentation-only and shell-agnostic: the caller owns the
  * visible state and supplies [onDismiss].  Clicking the scrim, like OK, dismisses; the card swallows
- * clicks so a press inside it does not count as a scrim dismissal.
+ * clicks so a press inside it does not count as a scrim dismissal.  An [alternative] ("Don't Show Again")
+ * sits apart at the left, as a confirmation's does, and OK stays the primary button.
  *
- * @param String   message   The already-localized message shown in the card.
- * @param Function onDismiss Called when the user dismisses (OK button or scrim click).
- * @param Modifier modifier  Layout modifier for the scrim.
+ * @param String        message     The already-localized message shown in the card.
+ * @param Function      onDismiss   Called when the user dismisses (OK button or scrim click).
+ * @param Modifier      modifier    Layout modifier for the scrim.
+ * @param DialogChoice? alternative A second button at the left, or null for OK alone.
  */
 @Composable
 fun MessageDialog(
 	message: String,
 	onDismiss: () -> Unit,
 	modifier: Modifier = Modifier,
+	alternative: DialogChoice? = null,
 ) {
 	val colors = LocalUmamoColors.current
 	Box(
@@ -60,8 +67,20 @@ fun MessageDialog(
 		) {
 			Column(modifier = Modifier.padding(20.dp)) {
 				Text(text = message, style = LocalUmamoTypography.current.bodyMedium)
-				Box(modifier = Modifier.padding(top = 20.dp).align(Alignment.End)) {
-					Button(label = stringResource(Res.string.dialog_okay), onClick = onDismiss, primary = true)
+				if (alternative == null) {
+					Box(modifier = Modifier.padding(top = 20.dp).align(Alignment.End)) {
+						Button(label = stringResource(Res.string.dialog_okay), onClick = onDismiss, primary = true)
+					}
+				} else {
+					Row(
+						modifier = Modifier.padding(top = 20.dp).fillMaxWidth(),
+						horizontalArrangement = Arrangement.spacedBy(8.dp),
+						verticalAlignment = Alignment.CenterVertically,
+					) {
+						Button(label = alternative.label, onClick = alternative.onSelect, primary = false)
+						Spacer(modifier = Modifier.weight(1f))
+						Button(label = stringResource(Res.string.dialog_okay), onClick = onDismiss, primary = true)
+					}
 				}
 			}
 		}

@@ -118,6 +118,8 @@
 	<string name="dialog_quit_without_saving">Quit Without Saving</string>
 	<string name="dialog_save">Save</string>
 	<string name="dialog_dont_save">Don’t Save</string>
+	<!-- An alert's second button, beside OK, that stops it from showing again. -->
+	<string name="dialog_dont_show_again">Don’t Show Again</string>
 	<string name="confirm_reset_workspace">Reset this workspace to its default layout?</string>
 	<string name="confirm_import_replace">Replace all workspaces with the imported file?</string>
 	<string name="confirm_discard_unsaved">The document has unsaved changes.  Discard them?</string>
@@ -272,10 +274,16 @@
 	<!-- Modal messages the app layer raises through document.alert; %2$s lists entry paths, document data. -->
 	<string name="alert_document_read_only">%1$s opened read-only.  It holds entries this version of Umamo cannot interpret, so Save is unavailable: %2$s</string>
 	<string name="alert_save_failed">Could not save %1$s.  %2$s</string>
-	<!-- Export Image failures (%1$s is the file name; %2$s the reason, one of the lines below or an I/O message). -->
-	<string name="alert_export_image_failed">Could not export %1$s.  %2$s</string>
+	<!-- Export failures (%1$s is the file name; %2$s the reason: one of the Export Image lines below, or an I/O message). -->
+	<string name="alert_export_failed">Could not export %1$s.  %2$s</string>
 	<string name="export_image_failed_renderer">The viewport renderer could not draw the image.</string>
 	<string name="export_image_failed_memory">There was not enough memory for a %1$d × %2$d px image.  Try a smaller scale.</string>
+	<string name="export_failed_unexpected">Something unexpected stopped it; the details are in the log.  The open document is unaffected.</string>
+	<!-- A CMO3 or MOC3 export that ran out of memory.  %1$s is the file name, %2$s the memory limit ("2.0 GB"), %3$s the command that raises it; none is translated. -->
+	<string name="alert_export_out_of_memory">Could not export %1$s: Umamo ran out of memory.  The open document is unaffected.</string>
+	<string name="alert_export_out_of_memory_jar">Could not export %1$s: Umamo ran out of the %2$s of memory it can use.  The open document is unaffected.  To allocate up to 50% of the system RAM for Umamo: Save, quit, and start it from a terminal with: %3$s</string>
+	<!-- Shown at launch when Umamo was started from the jar with a small memory limit.  %1$s is the limit, %2$s the command that raises it. -->
+	<string name="alert_low_memory_jar">Umamo can use at most %1$s of memory, which a large export can run out of.  Java sets that limit when Umamo starts from the jar.  To allocate up to 50% of the system RAM for Umamo: Quit and start it from a terminal with: %2$s</string>
 
 	<!-- Help menu. -->
 	<string name="menu_help">Help</string>

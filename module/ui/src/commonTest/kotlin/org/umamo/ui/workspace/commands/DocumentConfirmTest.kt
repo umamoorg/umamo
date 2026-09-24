@@ -10,8 +10,8 @@ import org.umamo.ui.resources.dialog_dont_save
 import org.umamo.ui.resources.dialog_quit_without_saving
 import org.umamo.ui.resources.dialog_save
 import org.umamo.ui.workspace.AlertRequest
-import org.umamo.ui.workspace.ConfirmAlternative
 import org.umamo.ui.workspace.ConfirmRequest
+import org.umamo.ui.workspace.DialogAlternative
 import org.umamo.ui.workspace.ShellOverlayState
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -138,7 +138,7 @@ class DocumentConfirmTest {
 		overlays.pendingConfirm =
 			ConfirmRequest(
 				message = Res.string.confirm_quit_unsaved,
-				alternative = ConfirmAlternative(Res.string.dialog_discard) { alternativeCount++ },
+				alternative = DialogAlternative(Res.string.dialog_discard) { alternativeCount++ },
 				onConfirm = { confirmCount++ },
 			)
 
@@ -147,5 +147,38 @@ class DocumentConfirmTest {
 		assertNull(overlays.pendingConfirm)
 		assertEquals(1, alternativeCount)
 		assertEquals(0, confirmCount, "the third choice is not the confirm")
+	}
+
+	@Test
+	fun anAlertsAlternativeClearsTheSlotBeforeItRuns() {
+		val overlays = ShellOverlayState()
+		var slotAtRun: AlertRequest? = null
+		var alternativeCount = 0
+		overlays.pendingAlert =
+			AlertRequest(
+				message = Res.string.confirm_quit_unsaved,
+				alternative =
+					DialogAlternative(Res.string.dialog_discard) {
+						slotAtRun = overlays.pendingAlert
+						alternativeCount++
+					},
+			)
+
+		overlays.chooseAlertAlternative()
+		overlays.chooseAlertAlternative()
+
+		assertNull(overlays.pendingAlert)
+		assertNull(slotAtRun, "an alternative that raises an alert of its own keeps it")
+		assertEquals(1, alternativeCount, "a second pick with nothing pending runs nothing")
+	}
+
+	@Test
+	fun anAppLayerAlertCountsAsAModalAlert() {
+		val overlays = ShellOverlayState()
+
+		overlays.pendingAlert = AlertRequest(Res.string.confirm_quit_unsaved)
+
+		// The focus-reclaim effect keys on this, so a clicked-away alert hands focus back to the shell.
+		assertTrue(overlays.modalAlertOpen)
 	}
 }

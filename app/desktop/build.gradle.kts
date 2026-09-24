@@ -95,8 +95,13 @@ compose.desktop {
 		// override, a developer affordance pointing at a gitignored absolute host path, is set on
 		// `:desktop:run` alone at the bottom of this file.
 		//
-		// Decoding the 8192² atlas to RGBA is transiently heavy (~0.5 GB); give the preview headroom.
-		jvmArgs.add("-Xmx16g")
+		// Half of the machine's memory (docs/plan/distribution.md D6): a large model's export needs gigabytes,
+		// and the rigger's paint app runs beside the editor.  A percentage rather than a fixed size, so a small
+		// machine is never promised more than it has.  A jar cannot carry launcher options, so README, RELEASING,
+		// and the release notes print this same option for `java -jar`, as the in-app alerts do (JAR_HEAP_OPTION);
+		// LauncherHeapOptionTest holds all of them to that constant, and the release workflow checks umamo.cfg.
+		// `:desktop:run` inherits it too.
+		jvmArgs.add("-XX:MaxRAMPercentage=50")
 		nativeDistributions {
 			// packageName feeds the uber-jar base name (and any future jpackage installers);
 			// lowercase matches the project/domain and Linux package conventions.
@@ -172,19 +177,23 @@ compose.desktop {
 	}
 }
 
-// OsAssociationFilesTest reads the OS registration files straight from disk - this script, the Android manifest,
-// and the two freedesktop files - and holds them to the codec's Uma.MIME_TYPE.  None of them is on the test
-// classpath, so Gradle does not know the test depends on them: left undeclared, an edit to any one leaves
+// Two tests read files straight from disk: OsAssociationFilesTest holds the OS registration files - this script,
+// the Android manifest, and the two freedesktop files - to the codec's Uma.MIME_TYPE, and LauncherHeapOptionTest
+// holds this script, README, RELEASING, and the release workflow to the one heap option.  None of them is on the
+// test classpath, so Gradle does not know the tests depend on them: left undeclared, an edit to any one leaves
 // jvmTest UP-TO-DATE and the check silently never runs against the change it exists to catch.
-val osAssociationFiles =
+val filesReadByTests =
 	files(
 		"resources/linux/umamo-uma.xml",
 		"resources/linux/umamo.desktop",
 		"build.gradle.kts",
 		rootProject.file("app/android/src/main/AndroidManifest.xml"),
+		rootProject.file("README.md"),
+		rootProject.file("RELEASING.md"),
+		rootProject.file(".github/workflows/release.yml"),
 	)
 tasks.withType<Test>().configureEach {
-	inputs.files(osAssociationFiles).withPropertyName("osAssociationFiles").withPathSensitivity(PathSensitivity.RELATIVE)
+	inputs.files(filesReadByTests).withPropertyName("filesReadByTests").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 // `umamo.testCmo3` opens the corpus CMO3 (gitignored; the puppet preview) on launch. It is a

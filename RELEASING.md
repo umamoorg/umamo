@@ -6,10 +6,10 @@ Pushing a semantic version tag builds, tests, and publishes desktop artifacts fo
 
 Two files per target, ten in total, plus a `SHA256SUMS.txt`:
 
-| File                                       | For                                                                                      |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `umamo-<target>-<version>.zip` / `.tar.gz` | Self-contained app image (`:desktop:createDistributable`).  Bundles a jlinked JRE.       |
-| `umamo-<target>-<version>.jar`             | Uber jar (`:desktop:packageUberJarForCurrentOS`).  Needs a JDK/JRE 21 on the machine.    |
+| File                                     | Note                                                                                                                                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `umamo-<target>-<version>.zip`/`.tar.gz` | Self-contained app image (`:desktop:createDistributable`).  Bundles a jlinked JRE.                                                                                                          |
+| `umamo-<target>-<version>.jar`           | You will need Java SDK 21 or higher to run.  Start it from a terminal so it can use up to half of your computer's memory: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
 
 Targets and the runner each is built on:
 
@@ -42,23 +42,26 @@ The macOS legs publish the uber jar only until JDK 27 (the `appImage: false` not
 
 ## Cutting a release
 
-1. Bump `VERSION` in `module/ui/src/commonMain/kotlin/org/umamo/ui/help/ProjectInfo.kt`.  The workflow **verifies** the tag against it and never injects a version so a mismatch will fail with an annotation telling you what to fix.
-2. Update the `CHANGELOG.md` with new changes under a `## [X.Y.Z] - YYYY-MM-DD` heading.
+A released version is always a plain `MAJOR.MINOR.PATCH`.  Between releases master carries the next version with a `-dev` suffix (`0.4.0-dev` while `0.4.0` is being worked on), so the About dialog and every `.uma` a build writes tell a development build from the release it precedes.  Installers decide an upgrade by the numeric version alone, so two releases at one number would not upgrade cleanly: a release that would once have been "another `-dev`" bumps PATCH instead.
+
+1. Set `VERSION` in `module/ui/src/commonMain/kotlin/org/umamo/ui/help/ProjectInfo.kt` to the plain `X.Y.Z`, dropping master's `-dev`.  The workflow **verifies** the tag against it and never injects a version, so a mismatch fails with an annotation telling you what to fix; a pushed tag that carries a suffix fails the same way.
+2. In `CHANGELOG.md`, replace the `(Unreleased changes)` line with a `## X.Y.Z - YYYY-MM-DD` heading.
 3. Run the pre-flight checks below.
 4. Merge to `master`, then tag and push:
    ```bash
    git tag vX.Y.Z && git push origin vX.Y.Z
    ```
-5. The workflow creates the release as a **draft**, marked prerelease when the version carries a suffix.  Download the artifacts and launch at least one per OS before publishing.  The CI does not test the packaged binaries.
+5. The workflow creates the release as a **draft**, which publishes as a full release rather than a prerelease: GitHub's latest release, which download links and update checks follow, skips prereleases.  Download the artifacts and launch at least one per OS before publishing.  The CI does not test the packaged binaries.
 6. Publish: `gh release edit vX.Y.Z --draft=false`, or discard and re-tag:
    ```bash
    gh release delete vX.Y.Z --yes
    git push --delete origin vX.Y.Z && git tag -d vX.Y.Z
    ```
+7. Move master on to the next version: set `VERSION` to `<next>-dev` and put an `(Unreleased changes)` line back at the top of `CHANGELOG.md`.
 
-Prerelease tags are supported as well, so having `-dev` or `-rc` is fine.  However, jpackage rejects prerelease suffixes, so `project-version.gradle.kts` strips it for `packageVersion` while everything user visible keeps the full string.
+The `-dev` suffix exists only on master.  jpackage rejects suffixes, so `project-version.gradle.kts` strips it for `packageVersion` while everything user visible keeps the full string.  That makes a dev build's installer carry the NEXT release's number, so never hand one out: an installer would treat it as that release.
 
-To rehearse the whole pipeline without a tag, run the workflow manually(`gh workflow run release.yml --ref <branch>`).  With no tag, the version gate synthesizes `v<ProjectInfo.VERSION>`, sets `publish=false`, and the publish job is skipped.  All of the artifacts will be visible on the action runner page and not published as a release.
+To rehearse the whole pipeline without a tag, run the workflow manually(`gh workflow run release.yml --ref <branch>`).  With no tag, the version gate synthesizes `v<ProjectInfo.VERSION>` (a `-dev` version is fine here), sets `publish=false`, and the publish job is skipped.  All of the artifacts will be visible on the action runner page and not published as a release.
 
 ## Local Pre-flight Checks
 
@@ -76,7 +79,7 @@ export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
 Then check the app image at `app/desktop/build/compose/binaries/main/app/`:
 
-* `umamo/lib/app/umamo.cfg` — the `[JavaOptions]` block must carry `-Xmx4g` and **must not** carry `-Dumamo.testCmo3`.  Compose forwards `application.jvmArgs` to jpackage as `--java-options`, so anything added there ships; the corpus-preview override is deliberately set on the `run` task alone (see the comment at the bottom of `app/desktop/build.gradle.kts`).
+* `umamo/lib/app/umamo.cfg` — the `[JavaOptions]` block must carry `java-options=-XX:MaxRAMPercentage=50` and **must not** carry `-Dumamo.testCmo3`; the release workflow asserts both.  Compose forwards `application.jvmArgs` to jpackage as `--java-options`, so anything added there ships; the corpus-preview override is deliberately set on the `run` task alone (see the comment at the bottom of `app/desktop/build.gradle.kts`).
 * `umamo/lib/runtime/release` — the `MODULES=` line must list `java.instrument`, `java.sql`, `java.xml`, `jdk.security.auth`, and `jdk.unsupported`.  The release workflow asserts this too.
 
 `suggestRuntimeModules` under-reports: it misses reflective and service-loaded edges, and does not name `java.xml` even though JDOM — and therefore all of CMO3 read/write — needs it.  Treat its output as a lower bound and confirm with `jdeps --list-deps` when adding a dependency.
