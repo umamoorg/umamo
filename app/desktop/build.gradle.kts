@@ -190,7 +190,10 @@ compose.desktop {
 			}
 			macOS {
 				iconFile.set(project.file("icons/umamo.icns"))
-				fileAssociation(umaMimeType, umaExtension, umaDescription, project.file("icons/umamo.icns"))
+				// The document icon is a file of its own (a copy of the app icon, written by generate.sh): the bundle
+				// holds it under its file name in Contents/Resources beside the app icon, which jpackage names
+				// Umamo.icns, and macOS's case-insensitive file system reads umamo.icns as that same file.
+				fileAssociation(umaMimeType, umaExtension, umaDescription, project.file("icons/umamo-document.icns"))
 				// CFBundleIdentifier. Matches :android's applicationId so one reverse-DNS identity
 				// covers the project on both platforms. Not required for an unsigned app image (the
 				// plugin only validates it when signing), but jpackage would otherwise derive one
