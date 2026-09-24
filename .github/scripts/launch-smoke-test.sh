@@ -8,9 +8,9 @@
 # mode of its own.
 #
 # It fails when the log never says the installed launcher started it, when the app dies first, when the log
-# records an uncaught exception, or when the JVM printed a warning on stderr (the launcher options exist to
-# keep a JDK 24 or later runtime quiet).  The GL line is required only where the caller says a GL 3.3 core
-# context is available.
+# records an uncaught exception, when the JVM printed a warning on stderr (the launcher options exist to keep
+# a JDK 24 or later runtime quiet), or when LWJGL reported an error there.  The GL line is required only
+# where the caller says a GL 3.3 core context is available.
 #
 # Usage: launch-smoke-test.sh <launcher> <logs directory> <require GL: true|false>
 #
@@ -126,6 +126,10 @@ if grep -qF "uncaught exception" "${log}"; then
 fi
 if grep -n '^WARNING:' "${stderr_file}"; then
 	echo "::error::the JVM printed warnings at startup; the launcher options in app/desktop/build.gradle.kts should keep it quiet"
+	failures=$((failures + 1))
+fi
+if grep -nF '[LWJGL] [ERROR]' "${stderr_file}"; then
+	echo "::error::LWJGL reported an error at startup"
 	failures=$((failures + 1))
 fi
 
