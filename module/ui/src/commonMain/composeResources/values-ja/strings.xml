@@ -246,6 +246,7 @@
 	<string name="alert_save_failed">%1$s を保存できませんでした。 %2$s</string>
 	<string name="alert_export_image_failed">%1$s をエクスポートできませんでした。 %2$s</string>
 	<string name="export_image_failed_renderer">ビューポートのレンダラーが画像を描画できませんでした。</string>
+	<string name="export_image_failed_memory">%1$d × %2$d px の画像を作るためのメモリが足りません。倍率を下げてください。</string>
 
 	<string name="menu_help">ヘルプ</string>
 	<string name="menu_source_code">ソースコード…</string>

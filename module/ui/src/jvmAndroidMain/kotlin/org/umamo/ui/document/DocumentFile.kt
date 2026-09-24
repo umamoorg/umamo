@@ -84,4 +84,13 @@ class DocumentFile(origin: Document) {
 	 * `Erica`; null for a document with no file, which the caller names the localized untitled name.
 	 */
 	val suggestedBaseName: String? = origin.path?.let { saveSuggestedName(origin.displayName) }
+
+	/**
+	 * The name an export suggests: the `.uma` the document saves to, else the file it came from, minus the
+	 * extension - so a document saved as `hero.uma` exports as `hero`, and one opened from `hero.psd` as `hero`,
+	 * not `hero.psd`.  Read live, so it follows a Save As; null for a document with neither, which the caller
+	 * names the localized untitled name.
+	 */
+	val exportBaseName: String?
+		get() = umaPath?.let { path -> saveSuggestedName(fileDisplayName(path)) } ?: suggestedBaseName
 }

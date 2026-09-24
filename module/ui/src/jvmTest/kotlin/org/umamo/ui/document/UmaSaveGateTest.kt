@@ -232,10 +232,9 @@ class UmaSaveGateTest {
 			val areaViewStates = AreaViewStates()
 			areaViewStates.layoutAreaIds = listOf("area-view")
 			val savedView = AreaCameraKey("area-view", CameraSurface.Viewport)
-			areaViewStates.cameraReader = { mapOf(savedView to ViewportCamera(120f, -340f, 2.5f)) }
 			val editorState =
 				buildJsonObject {
-					put(EDITOR_STATE_AREAS, areaViewStates.gather())
+					put(EDITOR_STATE_AREAS, areaViewStates.gather(mapOf(savedView to ViewportCamera(120f, -340f, 2.5f))))
 					put(EDITOR_STATE_SESSION, sessionStateJson(session.viewState(), session.pose.value, session.model.value))
 				}
 			val (_, _, reopened) = saveAndReopen(document, session, binding, UmaModel.create(umamoWriterInfo()), directory, "session.uma", editorState)

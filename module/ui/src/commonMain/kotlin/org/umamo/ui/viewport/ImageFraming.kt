@@ -113,7 +113,7 @@ sealed interface ImageFrameResult {
 	 */
 	data class Framed(val frame: ImageFrame) : ImageFrameResult
 
-	/** View was asked for, but no 2D viewport was the last surface touched. */
+	/** View was asked for, but no 2D viewport has been touched. */
 	data object NoViewport : ImageFrameResult
 
 	/** Canvas was asked for, but the document has no canvas. */
@@ -140,7 +140,7 @@ sealed interface ImageFrameResult {
  *
  * @param ImageRegion    region        The part of the world to frame.
  * @param Float          scale         The size multiplier, above zero (1 is 1:1).
- * @param ImageFrame?    areaView      The 2D viewport area's own frame, or null when none was last touched.
+ * @param ImageFrame?    areaView      The 2D viewport area's own frame, or null when none has been touched.
  * @param ContentBounds? canvasBounds  The canvas rectangle in world space, or null when there is none.
  * @param ContentBounds? contentBounds The shown content's extent at the current pose, or null when none.
  * @return ImageFrameResult The frame, or why there is none.

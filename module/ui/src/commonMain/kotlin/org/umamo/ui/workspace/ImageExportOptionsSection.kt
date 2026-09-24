@@ -31,6 +31,7 @@ import org.umamo.ui.resources.export_options_region_view
 import org.umamo.ui.resources.export_options_section_background
 import org.umamo.ui.resources.export_options_section_region
 import org.umamo.ui.resources.export_options_title_image
+import org.umamo.ui.resources.unit_percent
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.viewport.ImageBackground
@@ -46,10 +47,12 @@ private val IMAGE_SCALE_PERCENT_RANGE = 1f..1600f
  * Export Image's option pane: which region to capture and at what scale, and what to draw it over, with a live
  * readout of the image size that the choices make.
  *
- * Only the regions the moment can capture are offered: View when a 2D viewport was the last surface touched,
- * Canvas when the document has a canvas, and Content always.  A remembered region the moment cannot offer
- * opens as Content.  Edits accumulate on a local copy and reach the export only through the request's
- * continuation when Export is pressed; Cancel discards them.
+ * Only the regions the moment can capture are offered: View when a 2D viewport has been touched (the hovered
+ * one, else the last), Canvas when the document has a canvas, and Content always.  A remembered region the moment cannot offer
+ * opens as Content, and stays remembered unless the rigger picks a region themselves: a fallback is this
+ * moment's, not a choice.  Edits accumulate on a local copy and reach the export only through the request's
+ * continuation when Export is pressed; Cancel discards them.  Export is disabled while the choices make no
+ * image; the size readout says why.
  *
  * @param ExportOptionsRequest.Image request   The pending request: initial values, the rectangles the readout
  *                                             frames, and the continuation.
@@ -66,9 +69,11 @@ internal fun ImageExportOptionsPane(
 			ImageRegion.Canvas.takeIf { request.canvasBounds != null },
 			ImageRegion.Content,
 		)
+	val initialRegionOffered = request.initial.region in regions
 	var edited by remember(request) {
-		mutableStateOf(if (request.initial.region in regions) request.initial else request.initial.copy(region = ImageRegion.Content))
+		mutableStateOf(if (initialRegionOffered) request.initial else request.initial.copy(region = ImageRegion.Content))
 	}
+	var regionChosen by remember(request) { mutableStateOf(initialRegionOffered) }
 	val regionLabels =
 		mapOf(
 			ImageRegion.View to stringResource(Res.string.export_options_region_view),
@@ -81,13 +86,22 @@ internal fun ImageExportOptionsPane(
 			ImageBackground.Solid to stringResource(Res.string.export_options_background_solid),
 			ImageBackground.Grid to stringResource(Res.string.export_options_background_grid),
 		)
+	val framing =
+		resolveImageFrame(
+			edited.region,
+			edited.scalePercent.coerceIn(IMAGE_SCALE_PERCENT_RANGE) / 100f,
+			request.viewFrame,
+			request.canvasBounds,
+			request.contentBounds,
+		)
 	ExportOptionsCard(
 		title = stringResource(Res.string.export_options_title_image),
 		onCancel = onDismiss,
 		onExport = {
-			request.onConfirm(edited)
+			request.onConfirm(edited, if (regionChosen) edited else edited.copy(region = request.initial.region))
 			onDismiss()
 		},
+		exportEnabled = framing is ImageFrameResult.Framed,
 	) {
 		ExportOptionsSectionLabel(stringResource(Res.string.export_options_section_region))
 		FieldRow(label = stringResource(Res.string.export_options_section_region)) {
@@ -95,7 +109,10 @@ internal fun ImageExportOptionsPane(
 				selected = edited.region,
 				options = regions,
 				label = { region -> regionLabels.getValue(region) },
-				onSelect = { region -> edited = edited.copy(region = region) },
+				onSelect = { region ->
+					edited = edited.copy(region = region)
+					regionChosen = true
+				},
 			)
 		}
 		FieldRow(label = stringResource(Res.string.export_options_image_scale)) {
@@ -105,19 +122,11 @@ internal fun ImageExportOptionsPane(
 				range = IMAGE_SCALE_PERCENT_RANGE,
 				modifier = Modifier.width(120.dp),
 				decimals = 0,
-				unitSuffix = "%",
+				unitSuffix = stringResource(Res.string.unit_percent),
 				showFill = false,
 			)
 		}
-		ImageSizeReadout(
-			resolveImageFrame(
-				edited.region,
-				edited.scalePercent.coerceIn(IMAGE_SCALE_PERCENT_RANGE) / 100f,
-				request.viewFrame,
-				request.canvasBounds,
-				request.contentBounds,
-			),
-		)
+		ImageSizeReadout(framing)
 
 		ExportOptionsSectionLabel(stringResource(Res.string.export_options_section_background))
 		FieldRow(label = stringResource(Res.string.export_options_section_background)) {

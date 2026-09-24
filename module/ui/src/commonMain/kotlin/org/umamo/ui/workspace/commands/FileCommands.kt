@@ -267,8 +267,8 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
  *
  * Registered by the SHELL for the same reason the artwork commands are: the capture can frame exactly what a
  * 2D viewport shows, and which viewport the rigger means is a question only the shell's routing answers - the
- * hovered one, else the last surface the pointer touched, and none at all when that was not a 2D viewport
- * (the dialog then offers only the regions that need no viewport).  The collaborator is read at dispatch, and
+ * hovered one, else the last 2D viewport the pointer touched, and none at all before any was (the dialog then
+ * offers only the regions that need no viewport).  The collaborator is read at dispatch, and
  * a null one - no puppet document, or no puppet renderer on this platform - hides the command.
  *
  * @param CommandRouting routing     The hovered-area resolver, read at dispatch.
@@ -282,7 +282,7 @@ internal fun fileImageExportCommands(routing: CommandRouting, exportImage: () ->
 			"file.exportImage",
 			title = Res.string.cmd_export_image,
 			availability = CommandAvailability { exportImage() != null },
-		) { exportImage()?.invoke(routing.viewportArea()) },
+		) { exportImage()?.invoke(routing.framedViewportArea()) },
 	)
 
 /**

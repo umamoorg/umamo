@@ -123,13 +123,14 @@ fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifie
 		// Both stamps assert the KIND the area had when touched, and a space change leaves the leaf alive
 		// under the same id - so the change itself settles them, without waiting for a pointer event over
 		// the area, which a header-dropdown switch followed by a key press or a command elsewhere never
-		// sends.  The outgoing kind's strip-host claim is released first: a document-wide operation fired
-		// from a panel would otherwise be routed to this area, whose host refuses a non-hosting kind, and
-		// its strip would show nowhere.  Then the area is re-stamped under the kind it hosts now, when it is
+		// sends.  The outgoing kind's strip-host and viewport claims are released first: a document-wide
+		// operation fired from a panel would otherwise be routed to this area, whose host refuses a
+		// non-hosting kind, and its strip would show nowhere; Export Image would frame a viewport that is
+		// gone.  Then the area is re-stamped under the kind it hosts now, when it is
 		// the one the pointer last touched, so dispatch, the status bar, and the palette read the new space.
 		DisposableEffect(hoveredTracker, area.id, area.space) {
 			hoveredTracker.restampKind(area.id, area.space)
-			onDispose { hoveredTracker.releaseStripHost(area.id) }
+			onDispose { hoveredTracker.releaseKindClaims(area.id) }
 		}
 	}
 

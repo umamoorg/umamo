@@ -247,6 +247,7 @@ fun EditorShell(
 				{ hoveredSurfaces.lastTouched },
 				{ hoveredSurfaces.lastTouchedStripHost },
 				{ workspaces.layout.activeWorkspace()?.root?.firstLeafOrNull { leaf -> leaf.space.hostsOperationStrip }?.id },
+				{ hoveredSurfaces.lastTouchedViewport },
 			)
 		}
 	// Read at dispatch: the chrome table registers once, and the handler the platform provides is the
