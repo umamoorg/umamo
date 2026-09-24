@@ -128,6 +128,12 @@ with open(outputPath, "wb") as icnsFile:
 	icnsFile.write(container)
 PY
 
+# The .uma document icon macOS shows in Finder: the app icon until documents get one of their own.  It has to be
+# a file of its own even while identical, because the bundle holds both under their file names in
+# Contents/Resources, where jpackage writes the app icon as Umamo.icns, and a case-insensitive file system reads
+# umamo.icns as that same file.
+cp "$desktopIcons/umamo.icns" "$desktopIcons/umamo-document.icns"
+
 # Linux single PNG.
 emitSquare 512 "$desktopIcons/umamo.png"
 

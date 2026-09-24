@@ -25,6 +25,7 @@ Umamo is early alpha.
 * Source Artwork: A new Import preference shows the Sources panel's layer positions measured from the world axes instead of the art file's top-left corner.
 * Export: Image export of the current 2D Viewport with options for transparent, solid, and grid backgrounds.
 * Diagnostics: Desktop sessions now write out the log into the `umamo/logs` directory.
+* Packaging: Apple silicon Macs get a `Umamo.app` download, bundling Java 27.  Intel Macs keep using the jar.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
@@ -43,6 +44,7 @@ Umamo is early alpha.
 * UV Editor: Fit View now also frames meshes that sit past the edge of the atlas page.
 * Texture Atlas: Repack Atlas is now available on CMO3 models saved with "Show source artwork" turned on.
 * Packaging: The application now defaults to a maximum of 50% of system RAM instead.
+* Packaging: The app starts Java with the options that keep newer Java versions from warning about native libraries and memory access.
 
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.

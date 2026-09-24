@@ -27,6 +27,14 @@ internal interface OffscreenGlContext {
 	fun createAndMakeCurrent(): Boolean
 
 	/**
+	 * Why the last [createAndMakeCurrent] failed, in the backend's own words, for the log line a bug report
+	 * reads; null when it has not failed.
+	 *
+	 * @return String? The failure's description, or null.
+	 */
+	fun failureReason(): String?
+
+	/**
 	 * The renderer / version / vendor / GLSL of the current context, for the startup diagnostic. Valid only
 	 * after a successful [createAndMakeCurrent].
 	 *
@@ -51,6 +59,13 @@ internal fun createOffscreenGlContext(): OffscreenGlContext {
 	if (osName.contains("mac") || osName.contains("darwin")) {
 		// https://javadoc.lwjgl.org/org/lwjgl/glfw/package-summary.html#using-glfw-on-macos-heading
 		Configuration.GLFW_LIBRARY_NAME.set("glfw_async")
+		// The app bundle's native libraries are re-signed when it is packaged (ad-hoc today, with the Developer ID
+		// once signing lands), so their bytes never match the reference hashes LWJGL ships, and its check would
+		// only print a false "incompatible Java and native library versions" error.  A jar or a development run
+		// loads them unmodified and keeps the check.  Set here, before anything on the render thread loads them.
+		if (System.getProperty("jpackage.app-version") != null) {
+			Configuration.DISABLE_HASH_CHECKS.set(true)
+		}
 	}
 	return GlfwOffscreenGlContext()
 }
