@@ -39,17 +39,17 @@ Every tagged version publishes desktop builds on the [Releases page](https://git
 | `umamo-<target>-<version>.zip`/`.tar.gz` | Java SDK not required, just run it directly.                                                                                                                                                |
 | `umamo-<target>-<version>.jar`           | You will need Java SDK 21 or higher to run.  Start it from a terminal so it can use up to half of your computer's memory: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
 
-Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.  Check your download against the release's `SHA256SUMS.txt`.
+Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.  Check your download against the release's `SHA256SUMS.txt`.  Apple silicon Macs get `Umamo.app` in the zip; Intel Macs use the jar.
 
 **These builds are not signed.**  Code signing and notarization cost a lot of money so I will be waiting to do that until getting to a release candidate stage.  Until then Windows and MacOS will complain about the applications being unsigned.
 
-- **MacOS:** Gatekeeper will quarantine the application and report it as *damaged*.  It is not damaged.  After unzipping run this in the Terminal, `xattr -dr com.apple.quarantine /path/to/umamo.app`, or allow the application through the settings.
+- **MacOS:** Gatekeeper refuses the first launch because the app is not notarized.  Open System Settings -> Privacy & Security and choose *Open Anyway*, or after unzipping run this in the Terminal: `xattr -dr com.apple.quarantine /path/to/Umamo.app`.
 - **Windows:** SmartScreen shows "Windows protected your PC".  Choose *More info* -> *Run anyway*.
 - **Linux:** Just run the application: `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.  Linux doesn't restrict you from running any application that you wish to run on your computer.
 
 ### Opening .uma files from the file manager
 
-Since the builds are plain archives without installers the `.uma` mimetype won't be registered automatically by the operating system.  Linux has a manual mimetype registration option while Windows and MacOS will wait for their respective installers in the future.
+Since the builds are plain archives without installers the `.uma` mimetype won't be registered automatically by the operating system, except on MacOS: `Umamo.app` declares the type itself, so Finder can open `.uma` files with it.  Linux has a manual mimetype registration option while Windows will wait for its installer in the future.
 
 - **Linux:** The archives come with freedesktop.org files to register the mimetype manually.  Put `umamo/bin/umamo` on your `PATH`(or edit the `Exec=` line in `umamo.desktop` to its full path), then register them for your user:
 ```bash

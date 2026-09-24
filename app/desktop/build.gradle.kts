@@ -28,6 +28,30 @@ val umaMimeType = "application/vnd.umamo.uma+zip"
 val umaExtension = "uma"
 val umaDescription = "Umamo Document"
 
+// The name the app image, its launcher, and its cfg take (docs/plan/distribution.md D15).  A Mac app is
+// capitalized, and this is also the name the macOS menu bar shows; everywhere else the lowercase name follows
+// the project and Linux package conventions.  The uber jar's name is set at the bottom of this file and does
+// not follow it.
+val packageBaseName =
+	if (buildTarget.startsWith("macos-")) {
+		"Umamo"
+	} else {
+		"umamo"
+	}
+
+// The JDK whose jlink and jpackage build the app image, when it is not the Gradle daemon's (D14): only JDK 27's
+// jpackage accepts a macOS version starting with 0, so the macOS arm64 release leg passes a JDK 27 here while
+// everything else, development included, stays on 21.  application.javaHome also drives `:desktop:run`, which
+// is why it is set only when asked for.  A path that is not a JDK fails now rather than as a jpackage error later.
+val packagingJavaHome =
+	providers.gradleProperty("umamo.packagingJavaHome").orNull?.let { configuredPath ->
+		val home = rootProject.file(configuredPath)
+		require(home.resolve("bin/jpackage").isFile || home.resolve("bin/jpackage.exe").isFile) {
+			"-Pumamo.packagingJavaHome=$configuredPath resolves to '${home.absolutePath}', which is not a JDK with jpackage."
+		}
+		home.absolutePath
+	}
+
 kotlin {
 	jvmToolchain(21)
 
@@ -89,6 +113,9 @@ kotlin {
 compose.desktop {
 	application {
 		mainClass = "org.umamo.editor.desktop.MainKt"
+		if (packagingJavaHome != null) {
+			javaHome = packagingJavaHome
+		}
 		// Everything in this jvmArgs list is baked into the PACKAGED launcher too — the plugin
 		// hands application.jvmArgs straight to jpackage as --java-options, which end up in
 		// umamo.cfg. So only put things here that are true for a shipped build. The corpus-preview
@@ -102,10 +129,17 @@ compose.desktop {
 		// LauncherHeapOptionTest holds all of them to that constant, and the release workflow checks umamo.cfg.
 		// `:desktop:run` inherits it too.
 		jvmArgs.add("-XX:MaxRAMPercentage=50")
+		// Native libraries and LWJGL's memory access, kept quiet on a JDK 24 or later runtime (the macOS arm64 app
+		// image bundles 27).  Skiko, LWJGL, JNA, and sqlite-jdbc load natives from the class path, which those JDKs
+		// warn about and will one day refuse without the first option.  LWJGL 3.4 picks its JDK 27 memory backend
+		// only with the second, and otherwise falls back to sun.misc.Unsafe, which warns that it will be removed.
+		// JDK 21 accepts both, so every leg shares one launcher configuration; the `=` form keeps each option one
+		// line of umamo.cfg, which the release workflow checks, and LauncherJvmOptionsTest holds the two here.
+		jvmArgs.add("--enable-native-access=ALL-UNNAMED")
+		jvmArgs.add("--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED")
 		nativeDistributions {
-			// packageName feeds the uber-jar base name (and any future jpackage installers);
-			// lowercase matches the project/domain and Linux package conventions.
-			packageName = "umamo"
+			// The app image's, launcher's, and cfg's name: Umamo on macOS, umamo elsewhere (see packageBaseName).
+			packageName = packageBaseName
 			// jpackage rejects prerelease suffixes, so installers get the numeric form; the uber jar
 			// keeps the full ProjectInfo string (below).
 			packageVersion = umamoVersionNumeric
@@ -163,6 +197,9 @@ compose.desktop {
 				// from the main-class package — and macOS keys preferences and TCC permission grants
 				// on this string, so changing it later orphans every user's saved state.
 				bundleID = "org.umamo.editor"
+				// LSMinimumSystemVersion.  11.0 is the floor of the JDK 27 runtime the arm64 app image bundles, which
+				// is every Apple silicon Mac; left alone the plugin writes 10.13, a promise the runtime cannot keep.
+				minimumSystemVersion = "11.0"
 			}
 			linux {
 				iconFile.set(project.file("icons/umamo.png"))

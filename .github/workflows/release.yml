@@ -140,20 +140,21 @@ jobs:
       # One platform failing should not hide whether the other four work — on a release run that is
       # the difference between one fix-and-retag and four.
       fail-fast: false
-      # appImage gates createDistributable and the archive/assert steps that depend on it. It is
-      # false on macOS ONLY because of a jpackage bug, not anything about the app:
-      # jdk.jpackage.internal.CFBundleVersion rejects a CFBundleVersion whose first component is
-      # zero, so any 0.x version fails createDistributable on macOS alone. JDK-8380634 deleted that
-      # check on 2026-03-30, but it landed after JDK 26 forked — 21, 25 (LTS) and 26 (latest GA) all
-      # still carry it, so there is no released JDK to move to. Rather than mangle the version or
-      # ship an early-access runtime, the macOS legs publish the uber jar only until JDK 27 is GA
-      # (~September 2026). TO RESTORE: set these two back to true. Nothing else needs to change.
+      # appImage gates createDistributable and the steps that check, archive, and smoke-test the app
+      # image. packagingJdk, when set, is the JDK whose jlink and jpackage build that image instead of
+      # the Gradle daemon's 21 (docs/plan/distribution.md D14).
+      #
+      # macOS arm64 packages with JDK 27 because jpackage before 27 rejects a CFBundleVersion whose
+      # first component is zero, so any 0.x version failed createDistributable on macOS alone.
+      # JDK-8380634 removed that check in 27 and was never backported to 21u or 25u, so the arm64 app
+      # image bundles 27. Intel Macs stay on the uber jar for good (D12): Temurin will never publish
+      # JDK 27 for macOS x64, and this runner retires in August 2027.
       matrix:
         include:
           - { target: linux-x64, runner: ubuntu-latest, appImage: true }
           - { target: linux-arm64, runner: ubuntu-24.04-arm, appImage: true }
           - { target: windows-x64, runner: windows-latest, appImage: true }
-          - { target: macos-arm64, runner: macos-latest, appImage: false }
+          - { target: macos-arm64, runner: macos-latest, appImage: true, packagingJdk: "27" }
           # macos-15-intel is the last x86-64 macOS image GitHub will offer; it retires in August
           # 2027, after which this leg has to go and Intel Mac users fall back to the uber jar under
           # an x64 JDK. (The older macos-13 label was retired in December 2025 — do not resurrect it.)
@@ -162,14 +163,26 @@ jobs:
       UMAMO_VERSION: ${{ needs.verify.outputs.version }}
       UMAMO_TARGET: ${{ matrix.target }}
       UMAMO_APP_IMAGE: ${{ matrix.appImage }}
+      UMAMO_PACKAGING_JDK: ${{ matrix.packagingJdk }}
     steps:
       - uses: actions/checkout@v7
 
+      # The packaging JDK, on the legs that name one. Set up BEFORE JDK 21 so that JAVA_HOME and PATH
+      # end on 21 for Gradle; the build step hands this one's path to Gradle as
+      # umamo.packagingJavaHome, which is all that reaches jlink and jpackage.
+      - name: Set up the packaging JDK
+        id: packaging-jdk
+        if: matrix.packagingJdk
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.packagingJdk }}
+
       # jlink and jpackage come from the JVM the Gradle DAEMON runs on, not from jvmToolchain(21) —
       # the Compose plugin defaults its javaHome to the `java.home` system property, and
-      # gradle/gradle-daemon-jvm.properties pins the daemon to 21. Temurin specifically: the plugin's
-      # checkRuntime task hard-errors on a Homebrew JDK, which is what a bare `brew install` leaves
-      # on PATH.
+      # gradle/gradle-daemon-jvm.properties pins the daemon to 21 — unless a leg names a packaging
+      # JDK above. Temurin specifically: the plugin's checkRuntime task hard-errors on a Homebrew
+      # JDK, which is what a bare `brew install` leaves on PATH.
       - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
@@ -207,6 +220,8 @@ jobs:
       # fits every runner in the matrix and is ample for a :desktop-only task graph.
       - name: Build the app image and the uber jar
         shell: bash
+        env:
+          UMAMO_PACKAGING_JAVA_HOME: ${{ steps.packaging-jdk.outputs.path }}
         run: |
           set -euo pipefail
           tasks=":desktop:packageUberJarForCurrentOS"
@@ -215,12 +230,19 @@ jobs:
           else
             echo "::notice::${UMAMO_TARGET}: app image skipped, publishing the uber jar only (see the matrix comment in this workflow)"
           fi
+          # A plain string rather than an array: macOS ships bash 3.2, where expanding an empty
+          # array under `set -u` is an error.
+          packaging_flag=""
+          if [ -n "${UMAMO_PACKAGING_JAVA_HOME:-}" ]; then
+            packaging_flag="-Pumamo.packagingJavaHome=${UMAMO_PACKAGING_JAVA_HOME}"
+          fi
           # shellcheck disable=SC2086  # tasks is a deliberate word-split list of Gradle task paths.
           ./gradlew --stacktrace \
             -Dorg.gradle.jvmargs="-Xmx2g -Dfile.encoding=UTF-8" \
             -Pkotlin.daemon.jvmargs=-Xmx2g \
             -Pumamo.target="${UMAMO_TARGET}" \
             -Pumamo.requireTargetIsHost=true \
+            ${packaging_flag:+"${packaging_flag}"} \
             ${tasks}
 
       # jlink writes a `release` descriptor listing MODULES into every runtime image and jpackage
@@ -241,6 +263,18 @@ jobs:
             exit 1
           fi
           echo "runtime descriptor: ${release_file}"
+          # The runtime must come from the JDK this leg meant to package with (D14): a leg that quietly
+          # fell back to the daemon's 21 would build a macOS image that rejects its own 0.x version.
+          expected_jdk="${UMAMO_PACKAGING_JDK:-21}"
+          java_version_line="$(grep '^JAVA_VERSION=' "${release_file}")"
+          echo "${java_version_line}"
+          case "${java_version_line}" in
+            "JAVA_VERSION=\"${expected_jdk}\""|"JAVA_VERSION=\"${expected_jdk}."*) ;;
+            *)
+              echo "::error::the bundled runtime is not JDK ${expected_jdk} — check the packaging JDK step and umamo.packagingJavaHome"
+              exit 1
+              ;;
+          esac
           modules_line="$(grep '^MODULES=' "${release_file}")"
           echo "${modules_line}"
           for module in java.base java.desktop java.instrument java.logging java.sql java.xml jdk.security.auth jdk.unsupported; do
@@ -254,16 +288,19 @@ jobs:
           done
 
       # The launcher's JVM options come from :desktop's application.jvmArgs, which jpackage copies into
-      # umamo.cfg. Check the one riggers depend on - the heap option README and the release notes
-      # promise, which LauncherHeapOptionTest holds the build script to - and that the corpus-preview
-      # override, a developer path, never ships. The cfg's depth differs per OS, so find it.
-      - name: Assert the launcher carries the heap option and no developer override
+      # the cfg. Check the ones riggers depend on - the heap option README and the release notes promise
+      # (LauncherHeapOptionTest holds the build script to it) and the two that keep a JDK 24 or later
+      # runtime quiet (LauncherJvmOptionsTest) - and that the corpus-preview override, a developer path,
+      # never ships. Each is checked as a whole line, never the exact set: the plugin adds its own. The
+      # cfg's depth differs per OS, and on macOS it is named after the bundle (Umamo.cfg), so find it
+      # without regard to case.
+      - name: Assert the launcher carries its JVM options and no developer override
         if: matrix.appImage
         shell: bash
         run: |
           set -euo pipefail
           root="app/desktop/build/compose/binaries/main/app"
-          cfg="$(find "${root}" -maxdepth 8 -type f -name umamo.cfg | head -n1)"
+          cfg="$(find "${root}" -maxdepth 8 -type f -iname umamo.cfg | head -n1)"
           if [ -z "${cfg}" ]; then
             echo "::error::no umamo.cfg under ${root} — did createDistributable actually run?"
             exit 1
@@ -271,10 +308,15 @@ jobs:
           echo "launcher config: ${cfg}"
           sed -n '/^\[JavaOptions\]/,$p' "${cfg}"
           # CR-stripped: the Windows launcher's cfg may carry CRLF line endings.
-          if ! tr -d '\r' < "${cfg}" | grep -qx 'java-options=-XX:MaxRAMPercentage=50'; then
-            echo "::error file=app/desktop/build.gradle.kts::umamo.cfg does not carry java-options=-XX:MaxRAMPercentage=50 — check application.jvmArgs"
-            exit 1
-          fi
+          for option in \
+            'java-options=-XX:MaxRAMPercentage=50' \
+            'java-options=--enable-native-access=ALL-UNNAMED' \
+            'java-options=--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED'; do
+            if ! tr -d '\r' < "${cfg}" | grep -qxF -- "${option}"; then
+              echo "::error file=app/desktop/build.gradle.kts::the launcher cfg does not carry ${option} — check application.jvmArgs"
+              exit 1
+            fi
+          done
           if grep -q 'umamo.testCmo3' "${cfg}"; then
             echo "::error file=app/desktop/build.gradle.kts::umamo.cfg carries the -Dumamo.testCmo3 developer override, which belongs on the run task alone"
             exit 1
@@ -292,12 +334,37 @@ jobs:
           tar -C "app/desktop/build/compose/binaries/main/app" \
               -czf "dist/umamo-${UMAMO_TARGET}-${UMAMO_VERSION}.tar.gz" umamo
 
-      # Currently inert — matrix.appImage is false on both macOS legs (see the matrix comment). Kept
-      # rather than deleted so restoring macOS app images at JDK 27 GA is only a matrix flip.
-      #
+      # The bundle's own identity, read back out of the Info.plist jpackage wrote: the name the menu
+      # bar and Finder show (D15), the minimum macOS the bundled JDK 27 runtime supports, and the bundle
+      # id macOS keys preferences and permission grants on. The signature is printed, not checked: an
+      # unsigned build carries Compose's ad-hoc signature, which is what lets it run on Apple silicon.
+      - name: Assert the macOS bundle's identity
+        if: matrix.appImage && runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="app/desktop/build/compose/binaries/main/app/Umamo.app"
+          plist="${app}/Contents/Info.plist"
+          if [ ! -f "${plist}" ]; then
+            echo "::error file=app/desktop/build.gradle.kts::no ${plist} — the bundle should be Umamo.app on macOS"
+            exit 1
+          fi
+          check() {
+            actual="$(plutil -extract "$1" raw -o - "${plist}")"
+            echo "$1 = ${actual}"
+            if [ "${actual}" != "$2" ]; then
+              echo "::error file=app/desktop/build.gradle.kts::Info.plist $1 is '${actual}', expected '$2'"
+              exit 1
+            fi
+          }
+          check CFBundleName Umamo
+          check CFBundleIdentifier org.umamo.editor
+          check LSMinimumSystemVersion 11.0
+          codesign -dv "${app}" 2>&1 || true
+
       # ditto, not zip: a .app is a bundle of symlinks, execute bits and extended attributes, and
       # /usr/bin/zip flattens enough of that to produce something Finder refuses to open.
-      # `-c -k --keepParent` is Apple's own recipe and keeps `umamo.app` as the archive root.
+      # `-c -k --keepParent` is Apple's own recipe and keeps `Umamo.app` as the archive root.
       - name: Archive the app image (macOS)
         if: matrix.appImage && runner.os == 'macOS'
         shell: bash
@@ -305,7 +372,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           ditto -c -k --keepParent \
-            "app/desktop/build/compose/binaries/main/app/umamo.app" \
+            "app/desktop/build/compose/binaries/main/app/Umamo.app" \
             "dist/umamo-${UMAMO_TARGET}-${UMAMO_VERSION}.zip"
 
       # 7z, not Compress-Archive: the app image is ~230 MB spread over several thousand files, a
@@ -330,6 +397,52 @@ jobs:
           } finally {
             Pop-Location
           }
+
+      # The Linux smoke test's display: Xvfb with Mesa's software GL (the same stack verification.yml
+      # uses for the GL tests; libgl1-mesa-dri carries llvmpipe) plus the X libraries AWT itself needs,
+      # which the leaner arm64 image does not always carry.
+      - name: Install a headless display for the smoke test (Linux)
+        if: matrix.appImage && runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgl1 libgl1-mesa-dri libglx-mesa0 libegl1 \
+            libxrandr2 libxinerama1 libxcursor1 libxi6 libxext6 \
+            libxtst6 libxrender1 libfontconfig1
+
+      # Unpack the archive a rigger downloads and start it (.github/scripts/launch-smoke-test.sh): the
+      # one check here that the packaged app starts at all, archive damage included. The session log
+      # carries the verdict. Linux has a GL 3.3 core context through Mesa, so its GL line is required;
+      # on macOS it is informational until a run shows what the runner's display offers.
+      - name: Smoke-test the app image (Linux, macOS)
+        if: matrix.appImage && runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke="${RUNNER_TEMP}/smoke"
+          mkdir -p "${smoke}"
+          if [ "${RUNNER_OS}" = "Linux" ]; then
+            tar -xzf "dist/umamo-${UMAMO_TARGET}-${UMAMO_VERSION}.tar.gz" -C "${smoke}"
+            Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
+            export DISPLAY=:99
+            export LIBGL_ALWAYS_SOFTWARE=1
+            bash .github/scripts/launch-smoke-test.sh "${smoke}/umamo/bin/umamo" "${XDG_DATA_HOME:-${HOME}/.local/share}/umamo/logs" true
+          else
+            ditto -x -k "dist/umamo-${UMAMO_TARGET}-${UMAMO_VERSION}.zip" "${smoke}"
+            bash .github/scripts/launch-smoke-test.sh "${smoke}/Umamo.app/Contents/MacOS/Umamo" "${HOME}/Library/Application Support/umamo/logs" false
+          fi
+
+      - name: Smoke-test the app image (Windows)
+        if: matrix.appImage && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $smoke = Join-Path $env:RUNNER_TEMP "smoke"
+          New-Item -ItemType Directory -Force -Path $smoke | Out-Null
+          7z x "dist\umamo-$env:UMAMO_TARGET-$env:UMAMO_VERSION.zip" "-o$smoke" | Out-Null
+          & .github\scripts\launch-smoke-test.ps1 -Launcher (Join-Path $smoke "umamo\umamo.exe")
 
       # An exact path, not a glob: the name is pinned by :desktop's archiveFileName override, so if
       # that convention ever changes this fails here instead of shipping a release with a hole in it.
@@ -419,14 +532,14 @@ jobs:
           Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.
           Verify your download against `SHA256SUMS.txt`.
 
-          **MacOS ships as the jar only for now.** Apple silicon Macs get an app image once the macOS legs package with JDK 27, the first JDK whose jpackage accepts a version starting with `0`; Intel Macs (`macos-x64`) will keep using the jar.  Install a JDK 21 or newer and run `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`.
+          **MacOS:** Apple silicon Macs (`macos-arm64`) get `Umamo.app` in a zip.  Intel Macs (`macos-x64`) use the jar: install a JDK 21 or newer and run `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`.
 
           ## These builds are not signed
 
           Code signing and notarization arrive at alpha. Until then:
 
           * Windows: SmartScreen shows "Windows protected your PC". Choose *More info* → *Run anyway*.
-          * MacOS: The JAR is unaffected by Gatekeeper quarantine, so nothing extra is needed while MacOS ships as a JAR.
+          * MacOS (`Umamo.app`): Gatekeeper refuses the first launch.  Open System Settings → Privacy & Security and choose *Open Anyway*, or run `xattr -dr com.apple.quarantine /path/to/Umamo.app` in Terminal.  The jar is unaffected.
           * Linux: No equivalent prompt. Extract `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.
 
           There are no installers yet and no auto-update: to upgrade, delete the old folder and unpack the new one.
