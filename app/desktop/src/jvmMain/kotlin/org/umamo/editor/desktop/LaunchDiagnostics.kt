@@ -22,8 +22,6 @@ private const val LOG_DIRECTORY_NAME = "logs"
 /** The system property the installed launcher sets (its umamo.cfg); a jar or development launch has none. */
 private const val PACKAGED_VERSION_PROPERTY = "jpackage.app-version"
 
-private const val BYTES_PER_MEBIBYTE = 1024L * 1024
-
 /**
  * Starts this session's log file under the data directory and routes every logged line into it for the rest
  * of the process.
@@ -114,6 +112,8 @@ internal fun logLaunchFacts(hostHeap: HostHeap, sessionLog: SessionLogFile?) {
 			hostHeap.jarFileName != null -> "the jar ${hostHeap.jarFileName}"
 			else -> "a development class path"
 		}
-	UmamoLog.info("started from $launch; the heap may grow to ${hostHeap.maxBytes / BYTES_PER_MEBIBYTE} MiB")
+
+	val bytesPerMebibyte = 1024L * 1024
+	UmamoLog.info("started from $launch; the heap may grow to ${hostHeap.maxBytes / bytesPerMebibyte} MiB")
 	sessionLog?.let { openLog -> UmamoLog.info("session log: ${openLog.path}") }
 }

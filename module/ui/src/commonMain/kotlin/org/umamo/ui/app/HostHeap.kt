@@ -43,8 +43,6 @@ internal const val SHOW_LOW_MEMORY_NOTICE_KEY = "app.showLowMemoryNotice"
 /** The jar's name in the printed command when the launch did not reveal it. */
 private const val JAR_FILE_NAME_PLACEHOLDER = "umamo-<target>-<version>.jar"
 
-private const val BYTES_PER_MEBIBYTE = 1024L * 1024
-
 /**
  * Whether the low-memory alert is due at launch: a jar launch below [LOW_HEAP_NOTICE_BELOW_BYTES] whose
  * rigger has not turned the alert off.  The installed launcher sets its own limit, so it is never warned.
@@ -70,7 +68,7 @@ internal fun HostHeap.jarLaunchCommand(): String = "java $JAR_HEAP_OPTION -jar $
  */
 internal fun describeHeapLimit(maxBytes: Long): String {
 	// Mebibytes first, so the multiplication cannot overflow even for Long.MAX_VALUE's "no limit".
-	val tenthsOfGigabyte = (maxBytes / BYTES_PER_MEBIBYTE * 10 + 512) / 1024
+	val tenthsOfGigabyte = (maxBytes / (1024L * 1024) * 10 + 512) / 1024
 	return "${tenthsOfGigabyte / 10}.${tenthsOfGigabyte % 10} GB"
 }
 
