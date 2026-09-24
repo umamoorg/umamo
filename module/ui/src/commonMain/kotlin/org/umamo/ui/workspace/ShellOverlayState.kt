@@ -13,27 +13,31 @@ import org.umamo.ui.resources.dialog_confirm
 import org.umamo.ui.settings.QuickSetupState
 
 /**
- * A confirmation's third choice beside Cancel and Confirm - "Don't Save" beside "Save".
+ * A dialog's extra choice beside its own buttons - "Don't Save" beside a confirmation's "Save", "Don't Show
+ * Again" beside an alert's OK.
  *
  * @property StringResource label    The button's label.
  * @property Function       onSelect The action to run when picked.
  */
-internal data class ConfirmAlternative(
+internal data class DialogAlternative(
 	val label: StringResource,
 	val onSelect: () -> Unit,
 )
 
 /**
  * A modal message with nothing to decide - a document that opened read-only, a save that failed - shown
- * until acknowledged.
+ * until acknowledged.  An [alternative] offers one more way to acknowledge it, such as asking not to be
+ * told again; OK, the scrim, Escape, and Enter never pick it.
  *
- * @property StringResource message   The message resource.
- * @property List           arguments The format arguments, in placeholder order: document data (file
+ * @property StringResource     message     The message resource.
+ * @property List               arguments   The format arguments, in placeholder order: document data (file
  *   names, entry paths), never translated.
+ * @property DialogAlternative? alternative A second button beside OK, or null for OK alone.
  */
 internal data class AlertRequest(
 	val message: StringResource,
 	val arguments: List<Any> = emptyList(),
+	val alternative: DialogAlternative? = null,
 )
 
 /**
@@ -48,7 +52,7 @@ internal data class AlertRequest(
  *                                            document data is never translated.
  * @property StringResource      confirmLabel The confirm button's label, naming the action it takes.
  * @property StringResource      cancelLabel  The cancel button's label.
- * @property ConfirmAlternative? alternative  A third choice, or null for a two-button dialog.
+ * @property DialogAlternative?  alternative  A third choice, or null for a two-button dialog.
  * @property Function            onConfirm    The action to run when confirmed.
  */
 internal data class ConfirmRequest(
@@ -56,7 +60,7 @@ internal data class ConfirmRequest(
 	val arguments: List<Any> = emptyList(),
 	val confirmLabel: StringResource = Res.string.dialog_confirm,
 	val cancelLabel: StringResource = Res.string.dialog_cancel,
-	val alternative: ConfirmAlternative? = null,
+	val alternative: DialogAlternative? = null,
 	val onConfirm: () -> Unit,
 )
 
@@ -175,6 +179,16 @@ internal class ShellOverlayState(
 	var pendingAlert: AlertRequest? by mutableStateOf(null)
 
 	/**
+	 * Runs the pending alert's alternative, when it has one, clearing the slot first as [choosePendingAlternative]
+	 * does for a confirmation.
+	 */
+	fun chooseAlertAlternative() {
+		val alternative = pendingAlert?.alternative ?: return
+		pendingAlert = null
+		alternative.onSelect()
+	}
+
+	/**
 	 * The file-open failure alert's payload - set by the document.openFailed command (dispatched by
 	 * the app's document layer), cleared by its OK button, the scrim, Escape, or Enter.  Null while
 	 * none shows.
@@ -231,10 +245,10 @@ internal class ShellOverlayState(
 	}
 
 	/**
-	 * True while a modal alert (confirm dialog, file-open failure, export report, repack refusal
-	 * report) is up.  These do NOT hold their own focus - the shell keeps root focus so their
+	 * True while a modal alert (confirm dialog, file-open failure, an app-layer alert, export report, repack
+	 * refusal report) is up.  These do NOT hold their own focus - the shell keeps root focus so their
 	 * Escape/Enter route through the modal key ladder.
 	 */
 	val modalAlertOpen: Boolean
-		get() = pendingConfirm != null || openFailure != null || exportReport != null || repackReport != null
+		get() = pendingConfirm != null || openFailure != null || pendingAlert != null || exportReport != null || repackReport != null
 }

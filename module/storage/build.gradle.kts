@@ -30,6 +30,9 @@ kotlin {
 				// `api` because UmamoLog's retained-log buffer exposes a StateFlow in its public surface, so
 				// consumers (the UI's Logs panel) see kotlinx-coroutines transitively - same rule as okio/FileKit.
 				api(libs.kotlinxCoroutinesCore)
+				// The session log file's lock: its writes are synchronous, so a crash handler's last line is
+				// on disk before the process exits.
+				implementation(libs.atomicfu)
 			}
 		}
 		commonTest {
@@ -37,6 +40,8 @@ kotlin {
 				implementation(kotlin("test"))
 				// okio's in-memory FileSystem, so OkioAppStorage's tests run with no real disk.
 				implementation(libs.okio.fakefilesystem)
+				// runTest, for the session log's concurrent-writer test.
+				implementation(libs.kotlinxCoroutinesTest)
 			}
 		}
 	}

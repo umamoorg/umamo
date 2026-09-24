@@ -18,7 +18,7 @@ import org.umamo.storage.writeReplacing
 import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.ImageExportSessionOptions
 import org.umamo.ui.resources.Res
-import org.umamo.ui.resources.alert_export_image_failed
+import org.umamo.ui.resources.alert_export_failed
 import org.umamo.ui.resources.export_image_failed_memory
 import org.umamo.ui.resources.export_image_failed_renderer
 import org.umamo.ui.resources.export_options_image_no_canvas
@@ -145,6 +145,6 @@ internal class ImageExportController(
 	 */
 	private fun alert(destination: PlatformFile, reason: String) {
 		UmamoLog.warn("export image: ${destination.name} not written: $reason")
-		services.commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_export_image_failed, listOf(destination.name, reason)))
+		services.commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_export_failed, listOf(destination.name, reason)))
 	}
 }

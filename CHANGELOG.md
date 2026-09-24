@@ -18,11 +18,13 @@ Umamo is early alpha.
 * UI: When a text entry box is active the mouse cursor now displays the text entry cursor everywhere to indicate that text entry is currently active.
 * UI: Previous Workspace and Next Workspace added to Workspace menu.
 * UI: Add hover tooltips to the Properties area and Operation Strip.
+* UI: At startup, if the memory configuration option is not set or if there is not enough system RAM, a notification will appear with instructions on how to fix it.  This appplies to JAR based distributions.
 * Parameters: The parameters are now searchable.
 * Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
 * Source Artwork: Hovering a layer, art, or drawable row in the Sources panel previews its art.
 * Source Artwork: A new Import preference shows the Sources panel's layer positions measured from the world axes instead of the art file's top-left corner.
 * Export: Image export of the current 2D Viewport with options for transparent, solid, and grid backgrounds.
+* Diagnostics: Desktop sessions now write out the log into the `umamo/logs` directory.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
@@ -40,6 +42,7 @@ Umamo is early alpha.
 * UV Editor: Switching to another page or layer for the first time refits the camera then remembers the camera position from there on.
 * UV Editor: Fit View now also frames meshes that sit past the edge of the atlas page.
 * Texture Atlas: Repack Atlas is now available on CMO3 models saved with "Show source artwork" turned on.
+* Packaging: The application now defaults to a maximum of 50% of system RAM instead.
 
 ### Fixed
 * UI: Modal key ladder issue with escape closing the preferences window first instead of the confirmation dialog.
@@ -48,6 +51,7 @@ Umamo is early alpha.
 * UI: Pressing Escape while rebinding a key would close the preferences instead of just cancelling the rebind.
 * UI: The keybindings editor's clear button no longer sits underneath the scrollbar.
 * UI: Double-clicking a workspace tab after reordering the tabs now renames the tab that was clicked instead of the tab that used to be in that spot.
+* UI: Keyboard shortcuts no longer stop working after an alert is dismissed with mouse input.
 * Source Artwork: Removed the singleton that could be accidentally be shared across documents.
 * Format: An artwork file whose magic bytes are missing now routes to its reader by extension.
 * Format: Performance optimizations for the PNG CODEC resulting in up to 50% less memory usage and up to 50% faster loads.
@@ -59,6 +63,7 @@ Umamo is early alpha.
 * Texture Atlas: Rebuilding the atlas after a reload, Replace Artwork, added artwork, or a repack no longer smears stretched pixels around art that touches the edge of its layer.
 * Texture Atlas: CMO3 models saved in Cubism with "Show source artwork" turned on now load the texture atlas as the atlas pages instead of loading every individual layer as an atlas page.
 * Viewport: Meshes that reach past the edge of their texture no longer smear the edge pixels across the overhang in the atlas display and clicking that overhang no longer selects the drawable.
+* Export: A CMO3 or MOC3 export that runs out of memory or fails now shows an alert instead of a Java error that crashes the application.
 
 
 ## 0.3.0-dev - 2026-09-15

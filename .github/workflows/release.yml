@@ -9,11 +9,12 @@ name: Release
 on:
   push:
     # These are GitHub filter patterns, not regex: `+` means "one or more of the preceding
-    # character", so `[0-9]+` is one-or-more digits and `.` is a literal dot. Two patterns rather
-    # than one trailing `*` so it is obvious that prerelease tags are supported ON PURPOSE —
-    # ProjectInfo.kt declares 0.1.0-dev today, so `v0.1.0-dev` has to be a legal release tag, and
-    # gradle/project-version.gradle.kts already strips the suffix for jpackage. The verify job
-    # re-checks the tag against a strict semver regex, so these globs are only a coarse filter.
+    # character", so `[0-9]+` is one-or-more digits and `.` is a literal dot. The second pattern
+    # matches a tag with a suffix, which is never a release (RELEASING.md: released versions are
+    # plain MAJOR.MINOR.PATCH, and `-dev` lives only on master). It stays so that a mistakenly
+    # pushed `v1.2.3-dev` starts a run whose verify job fails and says why, rather than starting
+    # nothing. The verify job re-checks the tag against a strict semver regex, so these globs are
+    # only a coarse filter.
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
       - "v[0-9]+.[0-9]+.[0-9]+-*"
@@ -44,7 +45,6 @@ jobs:
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       tag: ${{ steps.resolve.outputs.tag }}
-      prerelease: ${{ steps.resolve.outputs.prerelease }}
       publish: ${{ steps.resolve.outputs.publish }}
     steps:
       - uses: actions/checkout@v7
@@ -89,23 +89,27 @@ jobs:
             exit 1
           fi
 
+          # A release is a plain MAJOR.MINOR.PATCH. A suffix marks a development build from master
+          # (`0.4.0-dev`), which a dry run may package but a tag must never publish: installers compare
+          # the numeric version alone, so a suffixed release would share its number with the next one.
+          if [ "${publish}" = "true" ]; then
+            case "${version}" in
+              *[-+]*)
+                echo "::error file=${project_info}::tag '${tag}' carries a suffix, and released versions are plain MAJOR.MINOR.PATCH (RELEASING.md). Set VERSION to '${version%%[-+]*}', commit, delete the tag, and re-tag."
+                exit 1
+                ;;
+            esac
+          fi
+
           # THE gate. Fail loudly and say exactly what to do, because the fix is never "re-run".
           if [ "${version}" != "${declared}" ]; then
             echo "::error file=${project_info}::tag '${tag}' does not match ProjectInfo.VERSION '${declared}'. Bump the constant (and CHANGELOG.md), commit, delete the tag, and re-tag. This workflow never injects a version."
             exit 1
           fi
 
-          # A semver prerelease is anything with a '-' after MAJOR.MINOR.PATCH. 0.1.0-dev qualifies,
-          # which is correct: everything before alpha should be marked as such on the release page.
-          case "${version}" in
-            *-*) prerelease=true ;;
-            *)   prerelease=false ;;
-          esac
-
           {
             echo "version=${version}"
             echo "tag=${tag}"
-            echo "prerelease=${prerelease}"
             echo "publish=${publish}"
           } >> "${GITHUB_OUTPUT}"
 
@@ -249,6 +253,33 @@ jobs:
             esac
           done
 
+      # The launcher's JVM options come from :desktop's application.jvmArgs, which jpackage copies into
+      # umamo.cfg. Check the one riggers depend on - the heap option README and the release notes
+      # promise, which LauncherHeapOptionTest holds the build script to - and that the corpus-preview
+      # override, a developer path, never ships. The cfg's depth differs per OS, so find it.
+      - name: Assert the launcher carries the heap option and no developer override
+        if: matrix.appImage
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="app/desktop/build/compose/binaries/main/app"
+          cfg="$(find "${root}" -maxdepth 8 -type f -name umamo.cfg | head -n1)"
+          if [ -z "${cfg}" ]; then
+            echo "::error::no umamo.cfg under ${root} — did createDistributable actually run?"
+            exit 1
+          fi
+          echo "launcher config: ${cfg}"
+          sed -n '/^\[JavaOptions\]/,$p' "${cfg}"
+          # CR-stripped: the Windows launcher's cfg may carry CRLF line endings.
+          if ! tr -d '\r' < "${cfg}" | grep -qx 'java-options=-XX:MaxRAMPercentage=50'; then
+            echo "::error file=app/desktop/build.gradle.kts::umamo.cfg does not carry java-options=-XX:MaxRAMPercentage=50 — check application.jvmArgs"
+            exit 1
+          fi
+          if grep -q 'umamo.testCmo3' "${cfg}"; then
+            echo "::error file=app/desktop/build.gradle.kts::umamo.cfg carries the -Dumamo.testCmo3 developer override, which belongs on the run task alone"
+            exit 1
+          fi
+
       # tar, not zip, on Linux: it is the only one of the three archivers here that preserves the
       # execute bit on bin/umamo and the runtime's helper binaries. -C so the archive root is
       # `umamo/` rather than the whole build path.
@@ -370,7 +401,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.verify.outputs.tag }}
           VERSION: ${{ needs.verify.outputs.version }}
-          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
         run: |
           set -euo pipefail
 
@@ -381,15 +411,15 @@ jobs:
           cat > "${notes}" <<'NOTES'
           ## Downloads
 
-          | File                                       | Note                                                                                                                                     |
-          | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-          | `umamo-<target>-<version>.zip` / `.tar.gz` | Java SDK not required, just run it directly.                                                                                             |
-          | `umamo-<target>-<version>.jar`             | You will need Java SDK 21 or higher to run.  Either open through the file browser or through the command line.  `java -jar umamo-...jar` |
+          | File                                       | Note                                                                                                                                                                                        |
+          | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `umamo-<target>-<version>.zip` / `.tar.gz` | Java SDK not required, just run it directly.                                                                                                                                                |
+          | `umamo-<target>-<version>.jar`             | You will need Java SDK 21 or higher to run.  Start it from a terminal so it can use up to half of your computer's memory: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
 
           Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.
           Verify your download against `SHA256SUMS.txt`.
 
-          **MacOS ships as the jar only for now.** A jpackage bug rejects any app version starting with `0`, and the fix is not in any released JDK yet, so there is no macOS app image until JDK 27 arrives.  Install a JDK 21 or newer and run `java -jar umamo-….jar`.
+          **MacOS ships as the jar only for now.** Apple silicon Macs get an app image once the macOS legs package with JDK 27, the first JDK whose jpackage accepts a version starting with `0`; Intel Macs (`macos-x64`) will keep using the jar.  Install a JDK 21 or newer and run `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`.
 
           ## These builds are not signed
 
@@ -422,11 +452,11 @@ jobs:
               # out of the releases Atom feed, and is never "latest" — so a bad build can be deleted
               # as though it had never existed. Publishing is one click, or:
               #   gh release edit <tag> --draft=false
+              # Never --prerelease: every published tag is a plain version (the verify job refuses a
+              # suffix), and GitHub's latest release, which download links and update checks follow,
+              # skips prereleases.
               --draft
             )
-            if [ "${PRERELEASE}" = "true" ]; then
-              args+=(--prerelease)
-            fi
             gh release create "${TAG}" "${args[@]}" "${assets[@]}"
           fi
 

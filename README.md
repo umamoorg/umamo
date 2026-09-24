@@ -34,10 +34,10 @@ An open-source cross-platform modelling editor for 2D puppet animation, with fir
 
 Every tagged version publishes desktop builds on the [Releases page](https://github.com/umamoorg/umamo/releases).  There are two different releases per platform:
 
-| File                                      | Note                                                                                                                                     |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `umamo-<target>-<version>.zip`/`.tar.gz`  | Java SDK not required, just run it directly.                                                                                             |
-| `umamo-<target>-<version>.jar`            | You will need Java SDK 21 or higher to run.  Either open through the file browser or through the command line.  `java -jar umamo-...jar` |
+| File                                     | Note                                                                                                                                                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `umamo-<target>-<version>.zip`/`.tar.gz` | Java SDK not required, just run it directly.                                                                                                                                                |
+| `umamo-<target>-<version>.jar`           | You will need Java SDK 21 or higher to run.  Start it from a terminal so it can use up to half of your computer's memory: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
 
 Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.  Check your download against the release's `SHA256SUMS.txt`.
 
@@ -57,6 +57,14 @@ xdg-mime install --novendor umamo/lib/app/resources/umamo-uma.xml
 xdg-desktop-menu install --novendor umamo/lib/app/resources/umamo.desktop
 ```
 `xdg-mime uninstall` and `xdg-desktop-menu uninstall` with the same files to undo it.
+
+### Log files
+
+Log file locations:
+
+- **Linux:** `~/.local/share/umamo/logs` (or `$XDG_DATA_HOME/umamo/logs`)
+- **MacOS:** `~/Library/Application Support/umamo/logs`
+- **Windows:** `%LOCALAPPDATA%\umamo\logs`
 
 ## Building & Development
 

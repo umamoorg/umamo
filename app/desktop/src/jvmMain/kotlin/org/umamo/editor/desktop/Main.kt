@@ -140,9 +140,19 @@ internal fun isOpenableDocumentPath(path: String): Boolean = FormatRegistry.kind
  * so the window state is ready before the window opens and the window is unconditional - `application {}`
  * exits if it ever has zero windows, which an async settings gate would briefly cause.
  *
+ * The session log file and the uncaught-exception handler are set up before anything else, so every line
+ * the launch logs - and the reason for a crash - lands in the file a bug report attaches.
+ *
  * @param Array<String> args Optional: a `.uma`, `.cmo3`, or `.moc3` path.
  */
 fun main(args: Array<String>) {
+	// First, so the initial document load and everything after it reach the log file.  Building the storage
+	// does no IO; the log opens its own file under the data directory.
+	val storage = desktopAppStorage("umamo")
+	val sessionLog = attachSessionLog(storage)
+	installUncaughtExceptionLogging()
+	val hostHeap = detectHostHeap()
+	logLaunchFacts(hostHeap, sessionLog)
 	// FileKit's native dialogs need a one-time init; `appId` names the per-OS data/cache dirs it uses.
 	FileKit.init(appId = "umamo")
 	// Pick the first document argument; loadDocument then does the real magic-byte detection once the file
@@ -166,7 +176,6 @@ fun main(args: Array<String>) {
 	// A failed or absent argv load still opens a document - the new, empty one the editor starts in.
 	val initialDocumentHolder = AtomicReference(loadInitialDocument(initialPath) ?: newBlankDocument())
 	val initialDocumentPath = initialDocumentHolder.get()?.path
-	val storage = desktopAppStorage("umamo")
 	// A first run also seeds the system's language here, so the window - and the Quick Setup modal it opens
 	// with - is already in that language.
 	val settings = runBlocking { loadAppSettings(storage) }
@@ -190,6 +199,8 @@ fun main(args: Array<String>) {
 
 		fun closeApp() {
 			settings.saveWindowState(windowState)
+			// A session log that ends here was a clean quit; one that ends anywhere else was not.
+			UmamoLog.info("quit")
 			exitApplication()
 		}
 		// Every way out passes through the shell's unsaved-changes guard: the window's close button here, File >
@@ -265,6 +276,7 @@ fun main(args: Array<String>) {
 								OffscreenPuppetService(puppet, textures, liveParams).also { it.start() }
 							},
 							openRequests = openRequests,
+							hostHeap = hostHeap,
 						)
 					}
 				}
