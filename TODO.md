@@ -29,6 +29,8 @@
 * From CrystalorImLisa on Reddit: The ability to mirror deformers and drawables along with their key frames.
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
+* From @thesillydarku on Twitter: "I had to manually add the "-Xmx4g" flag otherwise got java memory heap errors when trying to export to CMO3"
+	* https://fixupx.com/thesillydarku/status/2102974212952707294
 
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
