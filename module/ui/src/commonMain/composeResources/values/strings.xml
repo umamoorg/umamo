@@ -281,9 +281,9 @@
 	<string name="export_failed_unexpected">Something unexpected stopped it; the details are in the log.  The open document is unaffected.</string>
 	<!-- A CMO3 or MOC3 export that ran out of memory.  %1$s is the file name, %2$s the memory limit ("2.0 GB"), %3$s the command that raises it; none is translated. -->
 	<string name="alert_export_out_of_memory">Could not export %1$s: Umamo ran out of memory.  The open document is unaffected.</string>
-	<string name="alert_export_out_of_memory_jar">Could not export %1$s: Umamo ran out of the %2$s of memory it can use.  The open document is unaffected.  To let it use half of this computer’s memory, save, quit, and start it from a terminal with: %3$s</string>
+	<string name="alert_export_out_of_memory_jar">Could not export %1$s: Umamo ran out of the %2$s of memory it can use.  The open document is unaffected.  To allocate up to 50% of the system RAM for Umamo: Save, quit, and start it from a terminal with: %3$s</string>
 	<!-- Shown at launch when Umamo was started from the jar with a small memory limit.  %1$s is the limit, %2$s the command that raises it. -->
-	<string name="alert_low_memory_jar">Umamo can use at most %1$s of memory, which a large export can run out of.  Java sets that limit when Umamo starts from the jar.  To let it use half of this computer’s memory, quit and start it from a terminal with: %2$s</string>
+	<string name="alert_low_memory_jar">Umamo can use at most %1$s of memory, which a large export can run out of.  Java sets that limit when Umamo starts from the jar.  To allocate up to 50% of the system RAM for Umamo: Quit and start it from a terminal with: %2$s</string>
 
 	<!-- Help menu. -->
 	<string name="menu_help">Help</string>
