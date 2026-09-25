@@ -95,4 +95,15 @@ class HostHeapTest {
 		assertEquals(plain, exportOutOfMemoryAlert("rig.cmo3", HostHeap(twoGibibytes, packagedLaunch = true, jarFileName = null)))
 		assertEquals(plain, exportOutOfMemoryAlert("rig.cmo3", null))
 	}
+
+	@Test
+	fun aJarThatRelaunchedWithTheOptionIsTreatedLikeTheLauncher() {
+		// On a machine under about 6 GB even half the memory stays under the threshold, and the command the
+		// alerts print is exactly what the relaunch already ran - so there is nothing to tell this launch.
+		val relaunched = HostHeap(twoGibibytes, packagedLaunch = false, jarFileName = "umamo-linux-x64-0.4.0.jar", heapOptionApplied = true)
+
+		assertFalse(lowHeapNoticeDue(relaunched, noticeEnabled = true))
+		assertNull(lowMemoryNoticeRequest(relaunched, freshSettings()))
+		assertEquals(AlertRequest(Res.string.alert_export_out_of_memory, listOf("rig.cmo3")), exportOutOfMemoryAlert("rig.cmo3", relaunched))
+	}
 }

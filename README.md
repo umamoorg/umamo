@@ -34,10 +34,10 @@ An open-source cross-platform modelling editor for 2D puppet animation, with fir
 
 Every tagged version publishes desktop builds on the [Releases page](https://github.com/umamoorg/umamo/releases).  There are two different releases per platform:
 
-| File                                     | Note                                                                                                                                                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `umamo-<target>-<version>.zip`/`.tar.gz` | Java SDK not required, just run it directly.                                                                                                                                                |
-| `umamo-<target>-<version>.jar`           | You will need Java SDK 21 or higher to run.  Start it from a terminal so it can use up to half of your computer's memory: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
+| File                                     | Note                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `umamo-<target>-<version>.zip`/`.tar.gz` | Java SDK not required, just run it directly.                                                                                                                                                                                                                                                          |
+| `umamo-<target>-<version>.jar`           | You will need Java SDK 21 or higher to run.  When Java's default would give Umamo less than 3 GB of memory, it restarts itself with room for up to half of your computer's memory.  To always allow half, start it from a terminal: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
 
 Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.  Check your download against the release's `SHA256SUMS.txt`.  Apple silicon Macs get `Umamo.app` in the zip; Intel Macs use the jar.
 

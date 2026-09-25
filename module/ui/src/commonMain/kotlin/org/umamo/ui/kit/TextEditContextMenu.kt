@@ -46,6 +46,8 @@ import org.umamo.ui.resources.text_menu_select_all
  * @param TextFieldValue value The field's current text and selection.
  * @param Function onValueChange Applies a clipboard action's result back to the field.
  * @param Modifier modifier Layout for the wrapping box, where the field itself cannot carry it.
+ * @param Boolean readOnly Whether the field only shows its text ([SelectableText]): its menu then offers Copy
+ *   and Select All, since there is nothing to cut from or paste into.
  * @param Function content The text field, given the modifier that opens the menu.
  */
 @Composable
@@ -53,6 +55,7 @@ internal fun TextEditContextMenuArea(
 	value: TextFieldValue,
 	onValueChange: (TextFieldValue) -> Unit,
 	modifier: Modifier = Modifier,
+	readOnly: Boolean = false,
 	content: @Composable (Modifier) -> Unit,
 ) {
 	var open by remember { mutableStateOf(false) }
@@ -75,7 +78,7 @@ internal fun TextEditContextMenuArea(
 			// clipboard once per field per frame of any neighbouring scrub.  Reading the ambient items here
 			// is still correct: this sits outside the provider that blanks them for `content`.
 			val surroundingItems = LocalContextMenuItems.current
-			val clipboardItems = textEditMenuItems(value, onValueChange)
+			val clipboardItems = textEditMenuItems(value, onValueChange, readOnly)
 			Menu(
 				items =
 					if (surroundingItems.isEmpty()) {
@@ -92,25 +95,43 @@ internal fun TextEditContextMenuArea(
 }
 
 /**
- * The four clipboard entries, each disabled when it would do nothing.
+ * The four clipboard entries, each disabled when it would do nothing, or Copy and Select All alone for
+ * read-only text.
  *
  * Cut and Copy need a non-collapsed selection, Paste needs something on the clipboard, and Select All needs
  * text to select.  Showing them greyed rather than hiding them keeps the menu's shape stable, so the entry a
- * user is reaching for does not move between right-clicks.
+ * user is reaching for does not move between right-clicks.  Read-only text leaves Cut and Paste out rather than
+ * greyed: they can never apply there, so they are not a place the entry might move to.
  *
  * @param TextFieldValue value The field's current text and selection.
  * @param Function onValueChange Applies the result back to the field.
+ * @param Boolean readOnly Whether the text can only be selected and copied.
  * @return List<MenuItem> The clipboard entries.
  */
 @Composable
-private fun textEditMenuItems(value: TextFieldValue, onValueChange: (TextFieldValue) -> Unit): List<MenuItem> {
+private fun textEditMenuItems(value: TextFieldValue, onValueChange: (TextFieldValue) -> Unit, readOnly: Boolean): List<MenuItem> {
 	@Suppress("DEPRECATION")
 	val clipboard = LocalClipboardManager.current
 	val hasSelection = !value.selection.collapsed
+	val copy =
+		MenuItem.Action(
+			label = stringResource(Res.string.text_menu_copy),
+			onSelect = { clipboard.setText(AnnotatedString(value.selectedText())) },
+			enabled = hasSelection,
+		)
+	val selectAll =
+		MenuItem.Action(
+			label = stringResource(Res.string.text_menu_select_all),
+			onSelect = { onValueChange(value.copy(selection = TextRange(0, value.text.length))) },
+			enabled = value.text.isNotEmpty(),
+		)
+	if (readOnly) {
+		return listOf(copy, selectAll)
+	}
 	// One clipboard read for both the Paste entry's enablement and its action; the caller only builds this
 	// while the menu is opening, so the cross-process query happens once per right-click.
 	val hasClipboardText = clipboard.hasText()
-	return listOf(
+	val cut =
 		MenuItem.Action(
 			label = stringResource(Res.string.text_menu_cut),
 			onSelect = {
@@ -118,23 +139,14 @@ private fun textEditMenuItems(value: TextFieldValue, onValueChange: (TextFieldVa
 				onValueChange(value.withSelectionReplaced(""))
 			},
 			enabled = hasSelection,
-		),
-		MenuItem.Action(
-			label = stringResource(Res.string.text_menu_copy),
-			onSelect = { clipboard.setText(AnnotatedString(value.selectedText())) },
-			enabled = hasSelection,
-		),
+		)
+	val paste =
 		MenuItem.Action(
 			label = stringResource(Res.string.text_menu_paste),
 			onSelect = { onValueChange(value.withSelectionReplaced(clipboard.getText()?.text.orEmpty())) },
 			enabled = hasClipboardText,
-		),
-		MenuItem.Action(
-			label = stringResource(Res.string.text_menu_select_all),
-			onSelect = { onValueChange(value.copy(selection = TextRange(0, value.text.length))) },
-			enabled = value.text.isNotEmpty(),
-		),
-	)
+		)
+	return listOf(cut, copy, paste, selectAll)
 }
 
 /** The text covered by this value's selection, or "" when the selection is a bare caret. */

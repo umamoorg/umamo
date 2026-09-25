@@ -191,6 +191,9 @@ See format planning document: docs/plan/uma-format.md
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 * A proper bone skeleton system with bendy bones.
 
+## Rights Management
+* One time, permanently dismissable message dialog informing users to not edit MOC3 files without permission from the author.
+
 ## Build and Distribute
 * Eventually get installers, signing, and automatic updates setup.
 

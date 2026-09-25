@@ -245,6 +245,29 @@ jobs:
             ${packaging_flag:+"${packaging_flag}"} \
             ${tasks}
 
+      # The uber jar's manifest: the Main-Class the plugin writes, plus what :desktop adds for `java -jar` -
+      # Multi-Release, without which the JVM ignores every merged jar's version-specific classes, and the
+      # two launch options the app image's cfg carries. Checked on every leg, since every leg ships a jar.
+      # LauncherJvmOptionsTest holds the build script to these lines.
+      - name: Assert the uber jar's manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest_directory="$(mktemp -d)"
+          jar_path="$(pwd)/app/desktop/build/compose/jars/umamo-${UMAMO_TARGET}-${UMAMO_VERSION}.jar"
+          (cd "${manifest_directory}" && jar xf "${jar_path}" META-INF/MANIFEST.MF)
+          cat "${manifest_directory}/META-INF/MANIFEST.MF"
+          for attribute in \
+            'Main-Class: org.umamo.editor.desktop.MainKt' \
+            'Multi-Release: true' \
+            'Add-Exports: java.base/jdk.internal.misc' \
+            'Enable-Native-Access: ALL-UNNAMED'; do
+            if ! tr -d '\r' < "${manifest_directory}/META-INF/MANIFEST.MF" | grep -qxF -- "${attribute}"; then
+              echo "::error file=app/desktop/build.gradle.kts::the uber jar's manifest does not carry ${attribute}"
+              exit 1
+            fi
+          done
+
       # jlink writes a `release` descriptor listing MODULES into every runtime image and jpackage
       # copies it into the app image verbatim, so this is a launch-free check that :desktop's
       # modules(...) list still covers what the app actually uses. Without it a missing module is
@@ -524,10 +547,10 @@ jobs:
           cat > "${notes}" <<'NOTES'
           ## Downloads
 
-          | File                                       | Note                                                                                                                                                                                        |
-          | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-          | `umamo-<target>-<version>.zip` / `.tar.gz` | Java SDK not required, just run it directly.                                                                                                                                                |
-          | `umamo-<target>-<version>.jar`             | You will need Java SDK 21 or higher to run.  Start it from a terminal so it can use up to half of your computer's memory: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
+          | File                                       | Note                                                                                                                                                                                                                                                                                                  |
+          | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+          | `umamo-<target>-<version>.zip` / `.tar.gz` | Java SDK not required, just run it directly.                                                                                                                                                                                                                                                          |
+          | `umamo-<target>-<version>.jar`             | You will need Java SDK 21 or higher to run.  When Java's default would give Umamo less than 3 GB of memory, it restarts itself with room for up to half of your computer's memory.  To always allow half, start it from a terminal: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
 
           Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`.
           Verify your download against `SHA256SUMS.txt`.

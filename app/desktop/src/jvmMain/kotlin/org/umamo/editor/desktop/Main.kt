@@ -140,19 +140,25 @@ internal fun isOpenableDocumentPath(path: String): Boolean = FormatRegistry.kind
  * so the window state is ready before the window opens and the window is unconditional - `application {}`
  * exits if it ever has zero windows, which an async settings gate would briefly cause.
  *
- * The session log file and the uncaught-exception handler are set up before anything else, so every line
- * the launch logs - and the reason for a crash - lands in the file a bug report attaches.
+ * A jar started with too little memory first relaunches itself with enough (JarRelaunch.kt).  Then the session
+ * log file and the uncaught-exception handler are set up before anything else, so every line the launch logs -
+ * and the reason for a crash - lands in the file a bug report attaches.
  *
  * @param Array<String> args Optional: a `.uma`, `.cmo3`, or `.moc3` path.
  */
 fun main(args: Array<String>) {
-	// First, so the initial document load and everything after it reach the log file.  Building the storage
+	// Before anything else, a jar started with too little memory starts itself again with enough and does not
+	// return (JarRelaunch.kt): ahead of AWT, so macOS shows one Dock icon, and ahead of the session log, so the
+	// short-lived first launch does not spend one of the ten kept.
+	val relaunchNote = relaunchForHeapIfDue(args)
+	// Then, so the initial document load and everything after it reach the log file.  Building the storage
 	// does no IO; the log opens its own file under the data directory.
 	val storage = desktopAppStorage("umamo")
 	val sessionLog = attachSessionLog(storage)
 	installUncaughtExceptionLogging()
 	val hostHeap = detectHostHeap()
 	logLaunchFacts(hostHeap, sessionLog)
+	relaunchNote?.let { note -> UmamoLog.warn(note) }
 	// FileKit's native dialogs need a one-time init; `appId` names the per-OS data/cache dirs it uses.
 	FileKit.init(appId = "umamo")
 	// Pick the first document argument; loadDocument then does the real magic-byte detection once the file

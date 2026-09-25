@@ -20,7 +20,7 @@ import kotlin.time.Clock
 private const val LOG_DIRECTORY_NAME = "logs"
 
 /** The system property the installed launcher sets (its umamo.cfg); a jar or development launch has none. */
-private const val PACKAGED_VERSION_PROPERTY = "jpackage.app-version"
+internal const val PACKAGED_VERSION_PROPERTY = "jpackage.app-version"
 
 /**
  * Starts this session's log file under the data directory and routes every logged line into it for the rest
@@ -74,24 +74,17 @@ internal fun detectHostHeap(): HostHeap =
 		maxBytes = Runtime.getRuntime().maxMemory(),
 		packagedLaunch = System.getProperty(PACKAGED_VERSION_PROPERTY) != null,
 		jarFileName = launchedJarFileName(System.getProperty("java.class.path").orEmpty()),
+		heapOptionApplied = System.getProperty(RELAUNCHED_PROPERTY) != null,
 	)
 
 /**
- * The jar the editor was started from, read off the class path: `java -jar` leaves exactly that one jar on it,
- * where the installed launcher and a development run list many entries.
+ * The file name of the jar the editor was started from (see [launchedJarPath]).
  *
  * @param String classPath     The `java.class.path` value.
  * @param String pathSeparator The class path's entry separator.
  * @return String? The jar's file name, or null when the class path is not a single jar.
  */
-internal fun launchedJarFileName(classPath: String, pathSeparator: String = File.pathSeparator): String? {
-	val entries = classPath.split(pathSeparator).filter { entry -> entry.isNotBlank() }
-	val onlyEntry = entries.singleOrNull() ?: return null
-	if (!onlyEntry.endsWith(".jar", ignoreCase = true)) {
-		return null
-	}
-	return File(onlyEntry).name
-}
+internal fun launchedJarFileName(classPath: String, pathSeparator: String = File.pathSeparator): String? = launchedJarPath(classPath, pathSeparator)?.let { jarPath -> File(jarPath).name }
 
 /**
  * Logs what a bug report needs to know about this launch: the version, the Java and the OS it runs on, how it
@@ -115,5 +108,6 @@ internal fun logLaunchFacts(hostHeap: HostHeap, sessionLog: SessionLogFile?) {
 
 	val bytesPerMebibyte = 1024L * 1024
 	UmamoLog.info("started from $launch; the heap may grow to ${hostHeap.maxBytes / bytesPerMebibyte} MiB")
+	relaunchLogLine(System.getProperty(RELAUNCHED_PROPERTY))?.let { relaunchLine -> UmamoLog.info(relaunchLine) }
 	sessionLog?.let { openLog -> UmamoLog.info("session log: ${openLog.path}") }
 }
