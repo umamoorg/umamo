@@ -19,6 +19,7 @@ Umamo is early alpha.
 * UI: Previous Workspace and Next Workspace added to Workspace menu.
 * UI: Add hover tooltips to the Properties area and Operation Strip.
 * UI: At startup, if the memory configuration option is not set or if there is not enough system RAM, a notification will appear with instructions on how to fix it.  This appplies to JAR based distributions.
+* UI: The text of an alert can now be selected and copied.
 * Parameters: The parameters are now searchable.
 * Source Artwork: The operation strip now offers to adjust the canvas placement of imported artwork to an existing document.  The alignment and offset can be changed.
 * Source Artwork: Hovering a layer, art, or drawable row in the Sources panel previews its art.
@@ -26,6 +27,7 @@ Umamo is early alpha.
 * Export: Image export of the current 2D Viewport with options for transparent, solid, and grid backgrounds.
 * Diagnostics: Desktop sessions now write out the log into the `umamo/logs` directory.
 * Packaging: Apple silicon Macs get a `Umamo.app` download, bundling Java 27.  Intel Macs keep using the jar.
+* Packaging: A JAr started without a memory option restarts itself with room for up to half of the system RAM when Java's default would give Umamo less than 3 GB.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
@@ -66,6 +68,7 @@ Umamo is early alpha.
 * Texture Atlas: CMO3 models saved in Cubism with "Show source artwork" turned on now load the texture atlas as the atlas pages instead of loading every individual layer as an atlas page.
 * Viewport: Meshes that reach past the edge of their texture no longer smear the edge pixels across the overhang in the atlas display and clicking that overhang no longer selects the drawable.
 * Export: A CMO3 or MOC3 export that runs out of memory or fails now shows an alert instead of a Java error that crashes the application.
+* Packaging: JAR releases no longer print native access warnings on Java 24 and newer, and runs the Java 25 code paths of its libraries on Java 25 and newer.
 
 
 ## 0.3.0-dev - 2026-09-15

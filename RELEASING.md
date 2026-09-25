@@ -6,10 +6,10 @@ Pushing a semantic version tag builds, tests, and publishes desktop artifacts fo
 
 Two files per target except `macos-x64`, which ships the jar alone, so nine in all, plus a `SHA256SUMS.txt`.  The `macos-arm64` zip holds `Umamo.app`; the other app images unpack to an `umamo/` folder:
 
-| File                                     | Note                                                                                                                                                                                        |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `umamo-<target>-<version>.zip`/`.tar.gz` | Self-contained app image (`:desktop:createDistributable`).  Bundles a jlinked JRE.                                                                                                          |
-| `umamo-<target>-<version>.jar`           | You will need Java SDK 21 or higher to run.  Start it from a terminal so it can use up to half of your computer's memory: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
+| File                                     | Note                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `umamo-<target>-<version>.zip`/`.tar.gz` | Self-contained app image (`:desktop:createDistributable`).  Bundles a jlinked JRE.                                                                                                                                                                                                                    |
+| `umamo-<target>-<version>.jar`           | You will need Java SDK 21 or higher to run.  When Java's default would give Umamo less than 3 GB of memory, it restarts itself with room for up to half of your computer's memory.  To always allow half, start it from a terminal: `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`. |
 
 Targets and the runner each is built on:
 
@@ -53,7 +53,7 @@ A released version is always a plain `MAJOR.MINOR.PATCH`.  Between releases mast
    ```bash
    git tag vX.Y.Z && git push origin vX.Y.Z
    ```
-5. The workflow creates the release as a **draft**, which publishes as a full release rather than a prerelease: GitHub's latest release, which download links and update checks follow, skips prereleases.  Every app image passes a launch smoke test in CI first (`.github/scripts/launch-smoke-test.sh` and `.ps1`: they start the unpacked archive and read its session log), so by hand before publishing check only what CI cannot see: Gatekeeper and Finder on a real Mac, SmartScreen on Windows, and a real GPU.
+5. The workflow creates the release as a **draft**, which publishes as a full release rather than a prerelease: GitHub's latest release, which download links and update checks follow, skips prereleases.  Every app image passes a launch smoke test in CI first (`.github/scripts/launch-smoke-test.sh` and `.ps1`: they start the unpacked archive and read its session log), so by hand before publishing check only what CI cannot see: Gatekeeper and Finder on a real Mac, SmartScreen on Windows, a real GPU, and a jar started by double-click (one window and one Dock icon after its relaunch).
 6. Publish: `gh release edit vX.Y.Z --draft=false`, or discard and re-tag:
    ```bash
    gh release delete vX.Y.Z --yes
@@ -84,5 +84,7 @@ Then check the app image at `app/desktop/build/compose/binaries/main/app/`:
 * `umamo/lib/app/umamo.cfg` (`Umamo.app/Contents/app/Umamo.cfg` on macOS) — the `[JavaOptions]` block must carry `java-options=-XX:MaxRAMPercentage=50`, `java-options=--enable-native-access=ALL-UNNAMED`, and `java-options=--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED`, and **must not** carry `-Dumamo.testCmo3`; the release workflow asserts all four.  Compose forwards `application.jvmArgs` to jpackage as `--java-options`, so anything added there ships; the corpus-preview override is deliberately set on the `run` task alone (see the comment at the bottom of `app/desktop/build.gradle.kts`).
 * `umamo/lib/runtime/release` — the `MODULES=` line must list `java.instrument`, `java.sql`, `java.xml`, `jdk.security.auth`, and `jdk.unsupported`, and `JAVA_VERSION` must be the leg's packaging JDK.  The release workflow asserts both.
 * The launch smoke test runs locally too, against an unpacked app image and a display (Xvfb on WSL or a headless Linux): `bash .github/scripts/launch-smoke-test.sh umamo/bin/umamo ~/.local/share/umamo/logs true`.
+
+And the jar at `app/desktop/build/compose/jars/`: `jar xf <jar> META-INF/MANIFEST.MF` must carry `Multi-Release: true`, `Add-Exports: java.base/jdk.internal.misc`, and `Enable-Native-Access: ALL-UNNAMED` beside the `Main-Class`, and the release workflow asserts all four.  Without `Multi-Release` the JVM ignores the version-specific classes the merged jars carry, and the other two are the launcher's options in the form `java -jar` reads.  A manifest cannot set the heap, so a jar started without a heap option relaunches itself with `-XX:MaxRAMPercentage=50` when Java's default leaves it under 3 GB (`JarRelaunch.kt`); its session log says so on the line after "started from the jar".
 
 `suggestRuntimeModules` under-reports: it misses reflective and service-loaded edges, and does not name `java.xml` even though JDOM — and therefore all of CMO3 read/write — needs it.  Treat its output as a lower bound and confirm with `jdeps --list-deps` when adding a dependency.

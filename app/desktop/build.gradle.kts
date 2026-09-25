@@ -269,4 +269,18 @@ tasks.withType<JavaExec>().matching { execTask -> execTask.name == "run" }
 tasks.withType<org.gradle.jvm.tasks.Jar>().matching { jarTask -> jarTask.name == "packageUberJarForCurrentOS" }
 	.configureEach {
 		archiveFileName.set("umamo-$buildTarget-$umamoVersion.jar")
+		// What `java -jar` reads from the manifest, beside the Main-Class the plugin adds to the same map.  Without
+		// Multi-Release the JVM ignores the version-specific classes of every multi-release jar merged in here -
+		// LWJGL's JDK 25 and 27 paths among them.  The other two are the app image launcher's options
+		// (application.jvmArgs) in the manifest's spelling, so a jar on JDK 24 or later starts as quietly; JDK 21
+		// ignores the attribute it does not know.  A manifest cannot carry a heap size, which is why the jar
+		// relaunches itself when it starts with too little (JarRelaunch.kt).  LauncherJvmOptionsTest holds these to
+		// the release workflow's check of the built jar.
+		manifest.attributes(
+			mapOf(
+				"Multi-Release" to "true",
+				"Add-Exports" to "java.base/jdk.internal.misc",
+				"Enable-Native-Access" to "ALL-UNNAMED",
+			),
+		)
 	}

@@ -60,19 +60,20 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 			// The file-open alert is modal like the confirm dialog: Escape or Enter dismisses it
-			// (like its OK button); every other key is swallowed so no shortcut fires behind it.
+			// (like its OK button); every other key is swallowed so no shortcut fires behind it - except the
+			// copy chord, which goes on to the alert's selectable text (a message is often worth copying).
 			overlays.openFailure != null -> {
 				if (isEscapeDown || isEnterDown) {
 					overlays.openFailure = null
 				}
-				true
+				!isCopyChord(stroke)
 			}
 			// A message from the app layer (a read-only open, a failed save) dismisses the same way.
 			overlays.pendingAlert != null -> {
 				if (isEscapeDown || isEnterDown) {
 					overlays.pendingAlert = null
 				}
-				true
+				!isCopyChord(stroke)
 			}
 			// The export-report alert is modal the same way: Escape or Enter dismisses it (the export
 			// itself already happened; this only acknowledges the notices).
@@ -80,14 +81,14 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				if (isEscapeDown || isEnterDown) {
 					overlays.exportReport = null
 				}
-				true
+				!isCopyChord(stroke)
 			}
 			// The repack refusal report dismisses the same way: it only acknowledges why nothing happened.
 			overlays.repackReport != null -> {
 				if (isEscapeDown || isEnterDown) {
 					overlays.repackReport = null
 				}
-				true
+				!isCopyChord(stroke)
 			}
 			// An open menu owns the keyboard like the overlays below it: Escape closes it, every other key
 			// is inert.  It has to claim the rest rather than pass them on - the bar's dropdowns open
@@ -296,3 +297,13 @@ private fun handleShellKey(stroke: ShellKeyStroke, keymap: Keymap, registry: Com
 	val commandId = keymap.commandFor(chord) ?: return false
 	return registry.invoke(commandId)
 }
+
+/**
+ * Whether a stroke is the platform copy chord: the primary modifier with C, or a dedicated Copy key.  An alert
+ * lets it through to its selectable text; everything else it swallows.  Neither the keymap nor anything behind
+ * the alert sees it, because the ladder returns before the keymap is consulted.
+ *
+ * @param ShellKeyStroke stroke The stroke.
+ * @return Boolean Whether it copies.
+ */
+private fun isCopyChord(stroke: ShellKeyStroke): Boolean = stroke.key == Key.Copy || (stroke.key == Key.C && stroke.primaryModifier)

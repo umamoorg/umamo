@@ -32,7 +32,8 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * (a failed file open, a rejected import).  Presentation-only and shell-agnostic: the caller owns the
  * visible state and supplies [onDismiss].  Clicking the scrim, like OK, dismisses; the card swallows
  * clicks so a press inside it does not count as a scrim dismissal.  An [alternative] ("Don't Show Again")
- * sits apart at the left, as a confirmation's does, and OK stays the primary button.
+ * sits apart at the left, as a confirmation's does, and OK stays the primary button.  The message is
+ * [SelectableText], so a command or an error in it can be copied out.
  *
  * @param String        message     The already-localized message shown in the card.
  * @param Function      onDismiss   Called when the user dismisses (OK button or scrim click).
@@ -66,7 +67,7 @@ fun MessageDialog(
 			shadowElevation = 8.dp,
 		) {
 			Column(modifier = Modifier.padding(20.dp)) {
-				Text(text = message, style = LocalUmamoTypography.current.bodyMedium)
+				SelectableText(text = message, style = LocalUmamoTypography.current.bodyMedium)
 				if (alternative == null) {
 					Box(modifier = Modifier.padding(top = 20.dp).align(Alignment.End)) {
 						Button(label = stringResource(Res.string.dialog_okay), onClick = onDismiss, primary = true)

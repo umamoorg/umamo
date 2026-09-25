@@ -327,6 +327,35 @@ class ModalKeyLadderTest {
 	}
 
 	@Test
+	fun theCopyChordPassesThroughEveryAlertToItsText() {
+		val alerts =
+			listOf<Pair<String, (ShellOverlayState) -> Unit>>(
+				"open failure" to { overlays -> overlays.openFailure = DocumentOpenFailure(DocumentOpenError.ReadFailed, "model.cmo3") },
+				"app alert" to { overlays -> overlays.pendingAlert = AlertRequest(Res.string.cmd_mesh_grab) },
+				"export report" to { overlays -> overlays.exportReport = ExportReport(ExportFormat.Cmo3, emptyList()) },
+			)
+		for ((label, raise) in alerts) {
+			val overlays = ShellOverlayState().apply(raise)
+			val state = ShellModalState(overlays = overlays)
+
+			// Not consumed: the event goes on to the alert's selectable text, which copies it.
+			assertFalse(press(Key.C, state, primaryModifier = true), "$label: Ctrl/Cmd+C reaches the text")
+			assertFalse(press(Key.Copy, state), "$label: a Copy key reaches the text")
+			assertTrue(overlays.modalAlertOpen, "$label: copying leaves the alert up")
+			// Everything else is still swallowed, a plain C and the other primary chords included.
+			assertTrue(press(Key.C, state), "$label: a plain C is swallowed")
+			assertTrue(press(Key.V, state, primaryModifier = true), "$label: Ctrl/Cmd+V is swallowed")
+		}
+	}
+
+	@Test
+	fun aConfirmDialogStillSwallowsTheCopyChord() {
+		val overlays = ShellOverlayState().apply { pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {} }
+
+		assertTrue(press(Key.C, ShellModalState(overlays = overlays), primaryModifier = true))
+	}
+
+	@Test
 	fun enterAndEscapeNeverPickAnAlertsAlternative() {
 		var alternativeCount = 0
 		val overlays = ShellOverlayState()

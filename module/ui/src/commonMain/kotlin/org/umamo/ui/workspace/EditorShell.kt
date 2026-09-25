@@ -385,14 +385,15 @@ fun EditorShell(
 	// node - whatever was focused before the blur stays unfocused, so onPreviewKeyEvent never fires and
 	// every shortcut is dead until something focusable is clicked.  Reclaim root focus on window-focus
 	// regain.  Skipped while an overlay that owns its own focus is up (the reclaim effect above covers
-	// their close); the guard reads the live state inside the collector, never captures.
+	// their close); the guard reads the live state inside the collector, never captures.  A modal alert does
+	// not own focus - its Escape and Enter route through the ladder on the root - so it is no reason to skip:
+	// copying an alert's text out to another window and coming back is the everyday case.
 	val windowInfo = LocalWindowInfo.current
 	LaunchedEffect(windowInfo) {
 		snapshotFlow { windowInfo.isWindowFocused }.collect { windowFocused ->
 			val overlayOwnsFocus =
 				inlineEditController.cancel != null ||
-					overlays.selfFocusedOverlayOpen ||
-					overlays.modalAlertOpen
+					overlays.selfFocusedOverlayOpen
 			if (windowFocused && !overlayOwnsFocus) {
 				focusRequester.requestFocus()
 			}
