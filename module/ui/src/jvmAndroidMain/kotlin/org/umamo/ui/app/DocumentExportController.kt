@@ -3,25 +3,30 @@ package org.umamo.ui.app
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okio.IOException
 import org.jetbrains.compose.resources.getString
+import org.umamo.edit.NoticePlacement
 import org.umamo.format.FileKind
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.interop.ExportReport
 import org.umamo.interop.describeExportNotice
+import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.writeReplacing
+import org.umamo.ui.document.Cmo3Document
 import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.Moc3Document
 import org.umamo.ui.document.Moc3ExportSessionOptions
+import org.umamo.ui.document.RenderedCmo3Export
 import org.umamo.ui.document.existingBundleFiles
 import org.umamo.ui.document.exportedModelFor
 import org.umamo.ui.document.prepareCmo3Export
 import org.umamo.ui.document.prepareMoc3Export
+import org.umamo.ui.document.renderCmo3Export
 import org.umamo.ui.document.writeMoc3Bundle
 import org.umamo.ui.model.DrawableThumbnailer
 import org.umamo.ui.resources.Res
@@ -67,19 +72,26 @@ internal class DocumentExportController(
 	 */
 	fun exportCmo3() {
 		val exported = puppet ?: return
-		services.scope.launch {
-			val suggestedName = file?.exportBaseName ?: services.untitledName()
-			services.filePicker.saveFile(suggestedName, FileKind.Cmo3.extension)?.let { destination ->
-				services.alertingExportFailures(destination.name) {
-					writeCmo3(exported, destination, suggestedName)
+		val started =
+			services.modelExports.tryStart(services.scope) {
+				val suggestedName = file?.exportBaseName ?: services.untitledName()
+				services.filePicker.saveFile(suggestedName, FileKind.Cmo3.extension)?.let { destination ->
+					services.alertingExportFailures(destination.name) {
+						writeCmo3(exported, destination, suggestedName)
+					}
 				}
 			}
+		if (!started) {
+			exported.session.emitNotice("notice.document.exportBusy", NoticePlacement.StatusBar)
 		}
 	}
 
 	/**
 	 * Lowers the open document into a CMO3 and writes it to [destination].  The bytes land through a
 	 * replace-write, as a save's do, so a failed write leaves whatever was there rather than half a file.
+	 *
+	 * The model and the page set are read here, on the UI thread, and the seconds of work that turn them into
+	 * bytes run off it, so the editor stays usable while a large model exports.
 	 *
 	 * @param OpenPuppet   exported      The document being exported, with its session and pages.
 	 * @param PlatformFile destination   The picked file.
@@ -98,24 +110,24 @@ internal class DocumentExportController(
 				" (atlas ${if (edited.atlas === puppetDocument.puppet.atlas) "unchanged" else "repacked"});" +
 				" pages ${if (effectiveTextures === puppetDocument.textures) "are the document's own" else "are the session's (${effectiveTextures.atlases.size})"}",
 		)
-		// The model's own icons come from the outliner's rest-pose composite, over the same
-		// pages the export writes - pure CPU, so the Android shell writes them too.
-		val modelThumbnail = DrawableThumbnailer(edited, effectiveTextures).modelRasterFor()
-		val prepared =
-			prepareCmo3Export(
-				document = puppetDocument,
-				edited = edited,
-				effectiveTextures = effectiveTextures,
-				modelName = suggestedName,
-				nowMillis = Clock.System.now().toEpochMilliseconds(),
-				obfuscateKey = Random.nextInt(),
-				modelThumbnail = modelThumbnail,
-			)
-		val bytes = Cmo3.write(prepared.model)
+		exported.session.emitNotice("notice.document.exportingModel", NoticePlacement.StatusBar)
+		val nowMillis = Clock.System.now().toEpochMilliseconds()
+		val obfuscateKey = Random.nextInt()
+		val rendered =
+			if (puppetDocument is Cmo3Document) {
+				// The reconcile edits the retained graph that the document's own rasters read on this thread, so it
+				// stays here; the thumbnail and the serialization only read, and leave.
+				val modelThumbnail = withContext(Dispatchers.Default) { DrawableThumbnailer(edited, effectiveTextures).modelRasterFor() }
+				val prepared = prepareCmo3Export(puppetDocument, edited, effectiveTextures, suggestedName, nowMillis, obfuscateKey, modelThumbnail)
+				RenderedCmo3Export(withContext(Dispatchers.Default) { Cmo3.write(prepared.model) }, prepared.report)
+			} else {
+				withContext(Dispatchers.Default) { renderCmo3Export(puppetDocument, edited, effectiveTextures, suggestedName, nowMillis, obfuscateKey) }
+			}
 		// Once the bytes exist they land: a torn-down composition must not leave half a file.
-		withContext(NonCancellable) { destination.writeReplacing(bytes) }
-		reportExport(prepared.report)
+		withContext(NonCancellable) { destination.writeReplacing(rendered.bytes) }
+		reportExport(rendered.report)
 		UmamoLog.info("exported ${destination.absolutePath()}")
+		exported.session.emitNotice("notice.document.exportedModel", NoticePlacement.StatusBar, listOf(destination.name))
 	}
 
 	/**
@@ -125,6 +137,10 @@ internal class DocumentExportController(
 	 */
 	fun exportMoc3() {
 		val exported = puppet ?: return
+		if (services.modelExports.isBusy) {
+			exported.session.emitNotice("notice.document.exportBusy", NoticePlacement.StatusBar)
+			return
+		}
 		val puppetDocument = exported.document
 		val moc3Document = puppetDocument as? Moc3Document
 		val seedModel = exportedModelFor(puppetDocument, exported.session)
@@ -138,55 +154,84 @@ internal class DocumentExportController(
 				canvasHeight = seedModel.canvasHeight,
 				onConfirm = { options ->
 					moc3ExportOptions.recordConfirmed(puppetDocument.path, options)
-					services.scope.launch {
-						services.filePicker.saveFile(file?.exportBaseName ?: services.untitledName(), FileKind.Moc3.extension)?.let { destination ->
-							val bundle =
-								services.alertingExportFailures(destination.name) {
-									prepareMoc3Export(
-										document = puppetDocument,
-										// Re-resolved at write time: the dialog is modeless enough that the
-										// session could undo between confirm and the picker closing.
-										edited = exportedModelFor(puppetDocument, exported.session),
-										effectiveTextures = exported.pageBinding().textures,
-										// FileKit appends the extension, so the picked handle's own name is authoritative.
-										destinationName = destination.name,
-										options = options,
-									)
-								} ?: return@let
-
-							fun writeAndReport() {
-								services.scope.launch {
-									services.alertingExportFailures(destination.name) {
-										val written = writeMoc3Bundle(destination, bundle)
-										reportExport(bundle.report)
-										UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
-									}
-								}
-							}
-							// The native save dialog confirmed the picked file only; the rest of the family
-							// (manifest, cdi3, textures, sidecars) lands beside it unannounced, so anything
-							// already there gets one warning naming what an OK would replace.
-							val existing = existingBundleFiles(destination, bundle)
-							if (existing.isEmpty()) {
-								writeAndReport()
-							} else {
-								services.commandRegistry.invoke(
-									"document.confirm",
-									ConfirmRequest(
-										message = Res.string.confirm_export_overwrite,
-										// File names are document data, listed in full - the dialog wraps, and a
-										// name the warning omitted is a file the rigger did not agree to lose.
-										arguments = listOf(existing.size, existing.joinToString()),
-										confirmLabel = Res.string.dialog_overwrite,
-										onConfirm = ::writeAndReport,
-									),
-								)
-							}
-						}
+					// Checked again: another export can have started while the options dialog was up.
+					if (!services.modelExports.tryStart(services.scope) { prepareMoc3(exported, options) }) {
+						exported.session.emitNotice("notice.document.exportBusy", NoticePlacement.StatusBar)
 					}
 				},
 			),
 		)
+	}
+
+	/**
+	 * Asks where the moc family goes, builds it off the UI thread, and writes it - at once when nothing of the
+	 * family is already there, else after the overwrite warning.
+	 *
+	 * @param OpenPuppet        exported The document being exported, with its session and pages.
+	 * @param Moc3ExportOptions options  What the rigger chose to include.
+	 */
+	private suspend fun prepareMoc3(exported: OpenPuppet, options: Moc3ExportOptions) {
+		val puppetDocument = exported.document
+		val destination = services.filePicker.saveFile(file?.exportBaseName ?: services.untitledName(), FileKind.Moc3.extension) ?: return
+		// Re-resolved at write time: the dialog is modeless enough that the session could undo between confirm and
+		// the picker closing.  Read here, on the UI thread; only the build leaves it.
+		val edited = exportedModelFor(puppetDocument, exported.session)
+		val effectiveTextures = exported.pageBinding().textures
+		exported.session.emitNotice("notice.document.exportingModel", NoticePlacement.StatusBar)
+		val bundle =
+			services.alertingExportFailures(destination.name) {
+				withContext(Dispatchers.Default) {
+					prepareMoc3Export(
+						document = puppetDocument,
+						edited = edited,
+						effectiveTextures = effectiveTextures,
+						// FileKit appends the extension, so the picked handle's own name is authoritative.
+						destinationName = destination.name,
+						options = options,
+					)
+				}
+			} ?: return
+		// The native save dialog confirmed the picked file only; the rest of the family (manifest, cdi3,
+		// textures, sidecars) lands beside it unannounced, so anything already there gets one warning naming
+		// what an OK would replace.
+		val existing = existingBundleFiles(destination, bundle)
+		if (existing.isEmpty()) {
+			writeMoc3(exported, destination, bundle)
+			return
+		}
+		services.commandRegistry.invoke(
+			"document.confirm",
+			ConfirmRequest(
+				message = Res.string.confirm_export_overwrite,
+				// File names are document data, listed in full - the dialog wraps, and a name the warning omitted
+				// is a file the rigger did not agree to lose.
+				arguments = listOf(existing.size, existing.joinToString()),
+				confirmLabel = Res.string.dialog_overwrite,
+				// The warning holds no claim on the gate - a dismissed confirm has no callback that could release
+				// one - so the write takes its own.
+				onConfirm = {
+					if (!services.modelExports.tryStart(services.scope) { writeMoc3(exported, destination, bundle) }) {
+						exported.session.emitNotice("notice.document.exportBusy", NoticePlacement.StatusBar)
+					}
+				},
+			),
+		)
+	}
+
+	/**
+	 * Writes a built moc family beside [destination] and reports it.
+	 *
+	 * @param OpenPuppet          exported    The document being exported, for its status notices.
+	 * @param PlatformFile        destination The picked `.moc3` file.
+	 * @param Moc3Sidecars.Bundle bundle      The family to write.
+	 */
+	private suspend fun writeMoc3(exported: OpenPuppet, destination: PlatformFile, bundle: Moc3Sidecars.Bundle) {
+		services.alertingExportFailures(destination.name) {
+			val written = withContext(Dispatchers.IO) { writeMoc3Bundle(destination, bundle) }
+			reportExport(bundle.report)
+			UmamoLog.info("exported $written file(s) as ${destination.absolutePath()}")
+			exported.session.emitNotice("notice.document.exportedModel", NoticePlacement.StatusBar, listOf(destination.name))
+		}
 	}
 
 	/**

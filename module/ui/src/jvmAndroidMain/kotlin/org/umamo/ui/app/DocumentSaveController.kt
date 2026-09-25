@@ -86,7 +86,7 @@ internal class DocumentSaveController(
 			return
 		}
 		// Kept on the holder as the save in flight, so a quit or a document replace asked for meanwhile waits
-		// for it instead of racing it (afterPendingSave below); it completes true only when the file landed.
+		// for it instead of racing it (afterPendingWrites below); it completes true only when the file landed.
 		file.saveJob =
 			services.scope.async {
 				val knownPath = file.umaPath
@@ -179,26 +179,33 @@ internal class DocumentSaveController(
 	}
 
 	/**
-	 * Runs [action] once no save is being written.  A save still in flight settles before anything that
-	 * would end the process or replace the document: the write runs on a thread the process does not wait
-	 * for, so a quit that went ahead mid-save would kill it - and a clean document (an import never edited)
-	 * has nothing unsaved to stop the quit with.  Waiting also keeps the unsaved-changes prompt from
-	 * appearing over a running save, where its Save button could only answer that one is in progress.
+	 * Runs [action] once no save or model export is being written.  Either one still in flight settles before
+	 * anything that would end the process or replace the document: the write runs on a thread the process does
+	 * not wait for, so a quit that went ahead mid-write would kill it - and a clean document (an import never
+	 * edited) has nothing unsaved to stop the quit with.  A replace that went ahead mid-export would also keep
+	 * the old document resident under the export while the new one loads beside it.  Waiting also keeps the
+	 * unsaved-changes prompt from appearing over a running save, where its Save button could only answer that
+	 * one is in progress.
 	 *
 	 * @param Function action What to do once nothing is being written.
 	 */
-	private fun afterPendingSave(action: () -> Unit) {
-		val context = services.current()
-		val file = context.file
-		if (file == null) {
-			action()
-			return
-		}
-		file.afterPendingSave(
+	private fun afterPendingWrites(action: () -> Unit) {
+		services.modelExports.afterPendingExport(
 			services.scope,
-			onWaiting = { context.session?.emitNotice("notice.document.waitingForSave", NoticePlacement.StatusBar) },
-			action = action,
-		)
+			onWaiting = { services.current().session?.emitNotice("notice.document.waitingForExport", NoticePlacement.StatusBar) },
+		) {
+			val context = services.current()
+			val file = context.file
+			if (file == null) {
+				action()
+				return@afterPendingExport
+			}
+			file.afterPendingSave(
+				services.scope,
+				onWaiting = { context.session?.emitNotice("notice.document.waitingForSave", NoticePlacement.StatusBar) },
+				action = action,
+			)
+		}
 	}
 
 	/**
@@ -223,7 +230,7 @@ internal class DocumentSaveController(
 	 * @param Function proceed Replaces the document.
 	 */
 	fun confirmIfDirty(proceed: () -> Unit) {
-		afterPendingSave {
+		afterPendingWrites {
 			if (services.current().session?.dirty?.value == true) {
 				services.commandRegistry.invoke("document.confirmReplace", dirtyDocumentPrompt(proceed))
 			} else {
@@ -240,7 +247,7 @@ internal class DocumentSaveController(
 	 * @param Function exit Closes the application.
 	 */
 	fun confirmExit(exit: () -> Unit) {
-		afterPendingSave {
+		afterPendingWrites {
 			if (services.current().session?.dirty?.value == true) {
 				services.commandRegistry.invoke("document.confirmExit", dirtyDocumentPrompt(exit))
 			} else {

@@ -1,6 +1,8 @@
 package org.umamo.ui.app
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import okio.IOException
 import org.jetbrains.compose.resources.getString
 import org.umamo.storage.LogLevel
@@ -43,6 +45,18 @@ class ExportFailureAlertTest {
 			assertNull(result)
 			assertEquals(listOf<Any?>(exportOutOfMemoryAlert("oom-jar.cmo3", jarLaunch)), fixture.argumentsOf("document.alert"))
 			assertTrue(loggedErrorFor("oom-jar.cmo3").orEmpty().contains("ran out of memory"))
+		}
+
+	@Test
+	fun runningOutOfMemoryOffTheUiThreadStillBecomesTheAlert() =
+		runTest {
+			val fixture = AppControllerFixture(this, hostHeap = jarLaunch)
+
+			// Where the export's work runs: the error crosses back to the guard through withContext.
+			val result = fixture.services.alertingExportFailures("oom-background.cmo3") { withContext(Dispatchers.Default) { throw OutOfMemoryError("Java heap space") } }
+
+			assertNull(result)
+			assertEquals(listOf<Any?>(exportOutOfMemoryAlert("oom-background.cmo3", jarLaunch)), fixture.argumentsOf("document.alert"))
 		}
 
 	@Test

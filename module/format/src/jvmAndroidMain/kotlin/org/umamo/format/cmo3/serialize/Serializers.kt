@@ -151,8 +151,20 @@ internal class ReflectiveClassSerializer(
 		properties
 			.filter { classDefaultIfDefault || it.findAnnotation<DontSerializeIfDefault>() != null }
 			.map { it.name }.toSet()
+
+	// A class that will not instantiate has no default to compare against, so its fields are all written.  An
+	// Error is not that case: caught here, an OutOfMemoryError would be remembered as "no default" for the rest
+	// of the write, and a file that finished writing would carry every default-valued field it should skip.
 	private val defaultInstance: Any? by lazy {
-		if (skipIfDefault.isEmpty()) null else runCatching { newInstance() }.getOrNull()
+		if (skipIfDefault.isEmpty()) {
+			null
+		} else {
+			try {
+				newInstance()
+			} catch (_: Exception) {
+				null
+			}
+		}
 	}
 
 	// Serializer for the (serializable, non-Object) superclass, if any.

@@ -2,7 +2,9 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.atlas.AtlasPackItem
 import org.umamo.format.atlas.AtlasPackOptions
+import org.umamo.format.atlas.AtlasPackPlacement
 import org.umamo.format.atlas.AtlasPackReserve
+import org.umamo.format.atlas.AtlasPackSkip
 import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.format.png.PngCodec
@@ -129,41 +131,12 @@ internal object Cmo3AtlasUndedup {
 			return Result(puppet, pages, pageIndexByDrawableId, emptyList())
 		}
 
-		// Each job's patch is cut out of its source page and handed to the shared packer as a tile
-		// whose reserve is the whole patch: the mesh's uv box reaches into the transparent margin
-		// around the opaque art, and the reserve keeps that margin on the tile's own transparent space
-		// rather than on a neighbor's pixels.  The key is the job's first drawable, stable and unique,
-		// so the pack is deterministic run to run.
-		val decodedPages = HashMap<Int, RasterImage>()
+		// The key is the job's first drawable, stable and unique, so the pack is deterministic run to run.
 		val jobByKey = LinkedHashMap<String, DuplicationJob>()
-		val items =
-			jobs.map { job ->
-				val sourcePage = decodedPages.getOrPut(job.sourcePageIndex) { PngCodec.read(pages[job.sourcePageIndex].pngBytes) }
-				val key = job.drawableIds.first()
-				jobByKey[key] = job
-				val width = job.sourceRect[2] - job.sourceRect[0]
-				val height = job.sourceRect[3] - job.sourceRect[1]
-				AtlasPackItem(key, width, height, cutPatch(sourcePage, job.sourceRect), reserve = AtlasPackReserve(0, 0, width, height))
-			}
-		// Extrusion stays off and the trim threshold at one: the image chain crops each layer PNG by
-		// its uv box, so an extruded band inside the reserved margin would put edge color where the
-		// bake had transparent pixels, and a lossless trim blitted into a transparent reserve
-		// reproduces the patch verbatim.
-		val pageCap = maxOf(1024, pages.maxOf { page -> maxOf(page.width, page.height) })
-		val packed =
-			packAtlas(
-				items,
-				AtlasPackOptions(
-					maxPageSize = pageCap,
-					gutter = PACK_GUTTER,
-					extrude = 0,
-					allowRotation = false,
-					powerOfTwoPages = true,
-					squarePages = true,
-					shrinkPages = true,
-					alphaThreshold = 1,
-				),
-			)
+		for (job in jobs) {
+			jobByKey[job.drawableIds.first()] = job
+		}
+		val packed = packDuplicates(jobs, pages)
 
 		// Remap the duplicated drawables' uvs onto the synthesized pages.
 		val newPageIndexByDrawableId = HashMap(pageIndexByDrawableId)
@@ -193,7 +166,7 @@ internal object Cmo3AtlasUndedup {
 			packed.skipped
 				.filter { skip -> skip.reason == AtlasPackSkipReason.LargerThanPage }
 				.flatMap { skip -> jobByKey.getValue(skip.key).drawableIds }
-		val builtPages = pages + packed.pages.map { page -> Cmo3Conversion.AtlasPage(PngCodec.write(page), page.width, page.height) }
+		val builtPages = pages + packed.pages
 
 		val remappedDrawables =
 			puppet.drawables.map { drawable ->
@@ -215,6 +188,81 @@ internal object Cmo3AtlasUndedup {
 			duplicatedIds,
 			sharedIds,
 		)
+	}
+
+	/** The pack of the duplicated patches, its pages already encoded: all the un-dedup keeps of it. */
+	private class PackedDuplicates(
+		val placements: List<AtlasPackPlacement>,
+		val skipped: List<AtlasPackSkip>,
+		val pages: List<Cmo3Conversion.AtlasPage>,
+	)
+
+	/**
+	 * Cuts every job's patch, packs them onto synthesized pages, and encodes those pages.
+	 *
+	 * Each patch goes to the shared packer as a tile whose reserve is the whole patch: the mesh's uv box
+	 * reaches into the transparent margin around the opaque art, and the reserve keeps that margin on the
+	 * tile's own transparent space rather than on a neighbor's pixels.  Only the encoded pages leave this
+	 * function, so the cut patches and the packer's page rasters are gone before the image chain decodes
+	 * anything of its own.  A synthesized page carries no decoded pixels: the image chain decodes it once,
+	 * when it reaches that page, rather than every such page staying resident for the whole conversion.
+	 *
+	 * @param List jobs  The duplication jobs, in slot order.
+	 * @param List pages The source atlas pages.
+	 * @return PackedDuplicates The placements, the skips, and the encoded synthesized pages.
+	 */
+	private fun packDuplicates(jobs: List<DuplicationJob>, pages: List<Cmo3Conversion.AtlasPage>): PackedDuplicates {
+		val patches = cutPatches(jobs, pages)
+		val items =
+			jobs.mapIndexed { jobIndex, job ->
+				val width = job.sourceRect[2] - job.sourceRect[0]
+				val height = job.sourceRect[3] - job.sourceRect[1]
+				AtlasPackItem(job.drawableIds.first(), width, height, patches[jobIndex], reserve = AtlasPackReserve(0, 0, width, height))
+			}
+		// Extrusion stays off and the trim threshold at one: the image chain crops each layer PNG by
+		// its uv box, so an extruded band inside the reserved margin would put edge color where the
+		// bake had transparent pixels, and a lossless trim blitted into a transparent reserve
+		// reproduces the patch verbatim.
+		val pageCap = maxOf(1024, pages.maxOf { page -> maxOf(page.width, page.height) })
+		val packed =
+			packAtlas(
+				items,
+				AtlasPackOptions(
+					maxPageSize = pageCap,
+					gutter = PACK_GUTTER,
+					extrude = 0,
+					allowRotation = false,
+					powerOfTwoPages = true,
+					squarePages = true,
+					shrinkPages = true,
+					alphaThreshold = 1,
+				),
+			)
+		val encodedPages = packed.pages.map { page -> Cmo3Conversion.AtlasPage(PngCodec.write(page), page.width, page.height) }
+		return PackedDuplicates(packed.placements, packed.skipped, encodedPages)
+	}
+
+	/**
+	 * Every job's patch pixels, index-parallel to [jobs], reading one source page at a time.
+	 *
+	 * A page the caller handed over decoded is read in place; any other is decoded here, cut for every job
+	 * that samples it, and released before the next page is decoded, so at most one decode of this
+	 * function's own is resident at once however many pages carry twins.
+	 *
+	 * @param List jobs  The duplication jobs.
+	 * @param List pages The source atlas pages.
+	 * @return List Each job's patch, row-major RGBA from its top row.
+	 */
+	private fun cutPatches(jobs: List<DuplicationJob>, pages: List<Cmo3Conversion.AtlasPage>): List<ByteArray> {
+		val patches = arrayOfNulls<ByteArray>(jobs.size)
+		val jobIndicesByPage = jobs.indices.groupBy { jobIndex -> jobs[jobIndex].sourcePageIndex }
+		for ((pageIndex, jobIndices) in jobIndicesByPage) {
+			val sourcePage = pages[pageIndex].decodedPixels()
+			for (jobIndex in jobIndices) {
+				patches[jobIndex] = cutPatch(sourcePage, jobs[jobIndex].sourceRect)
+			}
+		}
+		return patches.map { patch -> checkNotNull(patch) { "every job's source page was cut" } }
 	}
 
 	/**
