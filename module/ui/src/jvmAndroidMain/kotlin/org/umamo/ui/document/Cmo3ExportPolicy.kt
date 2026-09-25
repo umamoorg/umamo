@@ -1,11 +1,15 @@
 package org.umamo.ui.document
 
+import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
+import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.encodeAtlasPng
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.model.DrawableThumbnailer
 
 /*
  * Decides WHAT a CMO3 export writes; the app layer picks the destination and writes the bytes.
@@ -87,7 +91,7 @@ fun prepareCmo3Export(
 			val result =
 				Cmo3Conversion.freshCmo3(
 					puppet = edited,
-					pages = effectiveTextures.atlases.map { page -> Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height) },
+					pages = effectiveTextures.atlases.map { page -> Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage()) },
 					pageIndexByDrawableId = effectiveTextures.atlasIndexByDrawableId,
 					modelName = modelName,
 					nowMillis = nowMillis,
@@ -105,7 +109,7 @@ fun prepareCmo3Export(
 			val stored = document.storedPages?.takeIf { pageSet -> effectiveTextures === document.textures && pageSet.pageBytes.size == effectiveTextures.atlases.size }
 			val pages =
 				effectiveTextures.atlases.mapIndexed { pageIndex, page ->
-					Cmo3Conversion.AtlasPage(stored?.pageBytes?.get(pageIndex) ?: encodeAtlasPng(page), page.width, page.height)
+					Cmo3Conversion.AtlasPage(stored?.pageBytes?.get(pageIndex) ?: encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage())
 				}
 			val result =
 				Cmo3Conversion.freshCmo3(
@@ -138,14 +142,69 @@ fun prepareCmo3Export(
 	}
 
 /**
+ * The encoded CMO3 an export writes, with the report of anything it could not represent.
+ *
+ * @property ByteArray    bytes  The whole `.cmo3` file.
+ * @property ExportReport report The lowering's report.
+ */
+class RenderedCmo3Export(val bytes: ByteArray, val report: ExportReport)
+
+/**
+ * Renders [edited] into the bytes of a CMO3: the model icons' thumbnail, the lowering ([prepareCmo3Export]),
+ * and the serialization, in one call that hands back only the bytes and the report.
+ *
+ * One call so that nothing else outlives it: the lowered model graph with every PNG entry it carries is
+ * unreachable by the time the caller writes the bytes anywhere, rather than held across the write.  Reads only
+ * immutable state, so the caller may run it off the UI thread - except for a [Cmo3Document], whose lowering
+ * edits the retained graph the document's own rasters read from the UI thread, and which the caller therefore
+ * lowers there itself.
+ *
+ * @param PuppetDocument document          The document being exported.
+ * @param PuppetModel    edited            The model to write; see [exportedModelFor].
+ * @param PuppetTextures effectiveTextures The session's page set, which the thumbnail and the pages come from.
+ * @param String         modelName         The display name a synthesized skeleton records.
+ * @param Long           nowMillis         The timestamp a synthesized image chain records.
+ * @param Int            obfuscateKey      The container XOR key.
+ * @return RenderedCmo3Export The file's bytes and the report.
+ */
+fun renderCmo3Export(
+	document: PuppetDocument,
+	edited: PuppetModel,
+	effectiveTextures: PuppetTextures,
+	modelName: String,
+	nowMillis: Long,
+	obfuscateKey: Int,
+): RenderedCmo3Export {
+	// The model's own icons come from the outliner's rest-pose composite, over the same pages the export
+	// writes - pure CPU, so the Android shell writes them too.
+	val modelThumbnail = DrawableThumbnailer(edited, effectiveTextures).modelRasterFor()
+	val prepared = prepareCmo3Export(document, edited, effectiveTextures, modelName, nowMillis, obfuscateKey, modelThumbnail)
+	return RenderedCmo3Export(Cmo3.write(prepared.model), prepared.report)
+}
+
+/**
  * The atlas pages a fresh-graph synthesis builds its image chain from: the document's page PNGs
- * ([Moc3Document.pagePngs], which says why the decoded set is the list) with each decoded page's size.
+ * ([Moc3Document.pagePngs], which says why the decoded set is the list) with each decoded page's size and
+ * pixels.
+ *
+ * The pixels come from the document's own page set, the one those PNGs were decoded into - never the
+ * session's, which a repack of added artwork can replace while the PNGs stay the document's.
  *
  * @param Moc3Document document The MOC3-origin document being converted.
  * @return List The pages, in decoded page order.
  */
-private fun conversionPagesFor(document: Moc3Document): List<Cmo3Conversion.AtlasPage> =
+internal fun conversionPagesFor(document: Moc3Document): List<Cmo3Conversion.AtlasPage> =
 	document.pagePngs().mapIndexed { pageIndex, pngBytes ->
 		val decoded = document.textures.atlases[pageIndex]
-		Cmo3Conversion.AtlasPage(pngBytes = pngBytes, width = decoded.width, height = decoded.height)
+		Cmo3Conversion.AtlasPage(pngBytes = pngBytes, width = decoded.width, height = decoded.height, decoded = decoded.asRasterImage())
 	}
+
+/**
+ * This decoded page as the raster the conversion reads, over the same pixel buffer rather than a copy.
+ *
+ * The viewport draws from that buffer and the conversion only reads it, so a copy would cost the export a
+ * page's worth of memory for nothing.
+ *
+ * @return RasterImage The page's pixels.
+ */
+private fun DecodedImage.asRasterImage(): RasterImage = RasterImage(width, height, rgba)

@@ -112,6 +112,9 @@ internal class EditorAppServices(
 	val untitledName: () -> String,
 	val hostHeap: HostHeap? = null,
 ) {
+	/** The model export running now, which a second export, a quit, and a document replace all defer to. */
+	val modelExports: ModelExportGate = ModelExportGate()
+
 	/**
 	 * What an artwork import seeds with and where it places a later file, read at the moment the import
 	 * runs so the preferences rows apply to the next import without a restart.

@@ -12,7 +12,10 @@ import org.umamo.runtime.model.RuntimeTarget
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class Cmo3AtlasUndedupTest {
@@ -210,6 +213,98 @@ class Cmo3AtlasUndedupTest {
 		assertContentEquals(result.pages[1].pngBytes, again.pages[1].pngBytes)
 		assertContentEquals(a2, again.puppet.drawables.single { drawable -> drawable.id.raw == "A2" }.mesh!!.uvs)
 		assertContentEquals(b2, again.puppet.drawables.single { drawable -> drawable.id.raw == "B2" }.mesh!!.uvs)
+	}
+
+	/**
+	 * [page] as the caller that already holds it decoded hands it over: its pixels, beside PNG bytes of a
+	 * different, blank page, so a conversion that decoded the bytes instead would cut blank patches.
+	 */
+	private fun decodedStandIn(page: Cmo3Conversion.AtlasPage): Cmo3Conversion.AtlasPage {
+		val blank = PngCodec.write(RasterImage(page.width, page.height, ByteArray(page.width * page.height * 4)))
+		return Cmo3Conversion.AtlasPage(blank, page.width, page.height, decoded = PngCodec.read(page.pngBytes))
+	}
+
+	/** The fields of two un-dedup results that decide what the conversion writes, compared. */
+	private fun assertSameUndedup(expected: Cmo3AtlasUndedup.Result, actual: Cmo3AtlasUndedup.Result) {
+		assertEquals(expected.duplicatedDrawableIds, actual.duplicatedDrawableIds)
+		assertEquals(expected.sharedDrawableIds, actual.sharedDrawableIds)
+		assertEquals(expected.pageIndexByDrawableId, actual.pageIndexByDrawableId)
+		assertEquals(expected.pages.map { page -> page.width to page.height }, actual.pages.map { page -> page.width to page.height })
+		for (drawable in expected.puppet.drawables) {
+			assertContentEquals(drawable.mesh?.uvs, actual.puppet.drawables.single { candidate -> candidate.id == drawable.id }.mesh?.uvs, "${drawable.id.raw} uvs")
+		}
+	}
+
+	/** Three slots over two source pages, so the jobs alternate pages: A on page 0, B on page 1, C on page 0. */
+	private val slotCUvs = floatArrayOf(36f / 64f, 4f / 64f, 60f / 64f, 4f / 64f, 36f / 64f, 28f / 64f, 60f / 64f, 28f / 64f)
+
+	private fun twoPageTwins(): Triple<PuppetModel, List<Cmo3Conversion.AtlasPage>, Map<String, Int>> {
+		val pages =
+			listOf(
+				widePage(listOf(intArrayOf(10, 12, 15, 19, 40), intArrayOf(44, 10, 50, 17, 120))),
+				widePage(listOf(intArrayOf(44, 40, 50, 47, 90))),
+			)
+		val model =
+			puppet(
+				listOf(
+					drawableOver("A1", slotAUvs, 0f),
+					drawableOver("B1", slotBUvs, 0f),
+					drawableOver("C1", slotCUvs, 0f),
+					drawableOver("A2", slotAUvs, 50f),
+					drawableOver("B2", slotBUvs, 70f),
+					drawableOver("C2", slotCUvs, 90f),
+				),
+			)
+		val pageIndexByDrawableId = mapOf("A1" to 0, "A2" to 0, "B1" to 1, "B2" to 1, "C1" to 0, "C2" to 0)
+		return Triple(model, pages, pageIndexByDrawableId)
+	}
+
+	@Test
+	fun twinsOnTwoSourcePagesEachCarryTheirOwnPagesPixels() {
+		val (model, pages, pageIndexByDrawableId) = twoPageTwins()
+		val result = Cmo3AtlasUndedup.undeduplicate(model, pages, pageIndexByDrawableId)
+
+		assertEquals(listOf("A2", "B2", "C2"), result.duplicatedDrawableIds.sorted())
+		assertPatchCarriedWhole("A2", result, pages[0], slotAUvs)
+		assertPatchCarriedWhole("B2", result, pages[1], slotBUvs)
+		assertPatchCarriedWhole("C2", result, pages[0], slotCUvs)
+	}
+
+	@Test
+	fun decodedPagesStandInForTheirPngBytes() {
+		val (model, pages, pageIndexByDrawableId) = twoPageTwins()
+		val fromBytes = Cmo3AtlasUndedup.undeduplicate(model, pages, pageIndexByDrawableId)
+		val fromDecoded = Cmo3AtlasUndedup.undeduplicate(model, pages.map { page -> decodedStandIn(page) }, pageIndexByDrawableId)
+
+		assertSameUndedup(fromBytes, fromDecoded)
+		for (pageIndex in pages.size until fromBytes.pages.size) {
+			assertContentEquals(fromBytes.pages[pageIndex].pngBytes, fromDecoded.pages[pageIndex].pngBytes, "synthesized page $pageIndex")
+		}
+	}
+
+	@Test
+	fun synthesizedPagesCarryNoDecodedPixelsAndSourcePagesKeepTheirs() {
+		val (model, pages, pageIndexByDrawableId) = twoPageTwins()
+		val handedOver = pages.map { page -> decodedStandIn(page) }
+		val result = Cmo3AtlasUndedup.undeduplicate(model, handedOver, pageIndexByDrawableId)
+
+		for (pageIndex in handedOver.indices) {
+			assertSame(handedOver[pageIndex], result.pages[pageIndex], "a source page passes through as handed over")
+		}
+		for (pageIndex in handedOver.size until result.pages.size) {
+			assertNull(result.pages[pageIndex].decoded, "synthesized page $pageIndex is decoded when the image chain reaches it")
+		}
+	}
+
+	@Test
+	fun decodedPixelsMustBeThePagesOwnSize() {
+		val page = page()
+		assertFailsWith<IllegalArgumentException> {
+			Cmo3Conversion.AtlasPage(page.pngBytes, pageSize, pageSize, decoded = RasterImage(pageSize / 2, pageSize, ByteArray(pageSize / 2 * pageSize * 4)))
+		}
+		assertFailsWith<IllegalArgumentException> {
+			Cmo3Conversion.AtlasPage(page.pngBytes, pageSize, pageSize, decoded = RasterImage(pageSize, pageSize, ByteArray(pageSize)))
+		}
 	}
 
 	@Test

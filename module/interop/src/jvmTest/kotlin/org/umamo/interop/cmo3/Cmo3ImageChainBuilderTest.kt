@@ -169,6 +169,42 @@ class Cmo3ImageChainBuilderTest {
 	}
 
 	@Test
+	fun cropsComeFromTheDecodedPixelsWhenThePageCarriesThem() {
+		// A page with a different value in every pixel, so any crop taken from the wrong pixels differs.
+		val pageSize = 32
+		val pageRgba = ByteArray(pageSize * pageSize * 4) { index -> (index * 7 + index / 128).toByte() }
+		for (pixelIndex in 0 until pageSize * pageSize) {
+			pageRgba[pixelIndex * 4 + 3] = 0xFF.toByte()
+		}
+		val pagePng = PngCodec.write(RasterImage(pageSize, pageSize, pageRgba))
+		val uvs = floatArrayOf(4f / 32f, 4f / 32f, 28f / 32f, 4f / 32f, 4f / 32f, 28f / 32f)
+		val positions = FloatArray(uvs.size) { index -> uvs[index] * pageSize }
+		val regions = listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("DecodedDrawable", uvs, positions, intArrayOf(0, 1, 2))))
+
+		/**
+		 * The PNG entries a chain over [page] writes, the page's own entry left out.
+		 *
+		 * @param Cmo3Conversion.AtlasPage page The page.
+		 * @return List The other entries' bytes, in order.
+		 */
+		fun cropEntries(page: Cmo3Conversion.AtlasPage): List<ByteArray> {
+			val skeleton = Cmo3SkeletonBuilder.buildBlank("Decoded Test", 32, 32, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
+			val chain = Cmo3ImageChainBuilder.populate(skeleton.root, listOf(page), regions, nowMillis = 1_700_000_000_000L)
+			return chain.pngEntries.filter { entry -> entry.pngBytes !== page.pngBytes }.map { entry -> entry.pngBytes }
+		}
+		val fromBytes = cropEntries(Cmo3Conversion.AtlasPage(pagePng, pageSize, pageSize))
+		// The bytes beside the decoded pixels are a blank page's: a crop read from them would be blank.
+		val blankPng = PngCodec.write(RasterImage(pageSize, pageSize, ByteArray(pageSize * pageSize * 4)))
+		val fromDecoded = cropEntries(Cmo3Conversion.AtlasPage(blankPng, pageSize, pageSize, decoded = PngCodec.read(pagePng)))
+
+		assertTrue(fromBytes.isNotEmpty(), "the chain wrote a crop")
+		assertEquals(fromBytes.size, fromDecoded.size)
+		for (entryIndex in fromBytes.indices) {
+			assertContentEquals(fromBytes[entryIndex], fromDecoded[entryIndex], "entry $entryIndex")
+		}
+	}
+
+	@Test
 	fun cropTrimsToOpaquePixelBounds() {
 		val skeleton = Cmo3SkeletonBuilder.buildBlank("Trim Test", 32, 32, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
 		// A transparent page with one opaque block at x 10..14, y 12..18: the mesh's uv bbox is

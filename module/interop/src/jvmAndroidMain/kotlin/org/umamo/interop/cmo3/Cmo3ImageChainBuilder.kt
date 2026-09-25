@@ -1380,7 +1380,7 @@ internal object Cmo3ImageChainBuilder {
 		// Patch webs, shared across drawables sampling the same crop with the same mesh (mirror
 		// twins get ONE material like official files; each twin's placement rides its own
 		// region input, and the shared image keeps the first drawable's placement).
-		val decodedPage = PngCodec.read(page.pngBytes)
+		val decodedPage = page.decodedPixels()
 		val patchWebByKey = HashMap<PatchWebKey, PatchWeb>()
 
 		/**
