@@ -9,7 +9,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
@@ -28,16 +31,19 @@ import org.umamo.ui.kit.FileDropTarget
 import org.umamo.ui.menu.buildAppMenu
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.alert_log_folder_failed
 import org.umamo.ui.resources.title_untitled_document
 import org.umamo.ui.settings.LocalQuickSetup
 import org.umamo.ui.settings.QuickSetupState
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
+import org.umamo.ui.workspace.AlertRequest
 import org.umamo.ui.workspace.AreaViewStates
 import org.umamo.ui.workspace.EDITOR_STATE_AREAS
 import org.umamo.ui.workspace.EDITOR_STATE_SESSION
 import org.umamo.ui.workspace.LocalAreaViewStates
 import org.umamo.ui.workspace.commands.fileCommands
 import org.umamo.ui.workspace.commands.fileExportCommands
+import org.umamo.ui.workspace.commands.logFolderCommands
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.sessionViewStateOf
 
@@ -99,6 +105,9 @@ fun rememberDocumentFileFor(document: Document?): DocumentFile? = remember(docum
  *   a host that receives none.
  * @param HostHeap? hostHeap The memory limit the host started the editor with, or null for a host that has no
  *   say in it; a jar launch with a small one is warned at launch and told how to raise it when an export runs out.
+ * @param Function? openLogFolder Hands the session-log folder to the platform's file manager, returning null once it
+ *   did or the folder's path when it could not; null for a host with no file manager to hand it to, which leaves
+ *   Help > Open Log Folder out.
  */
 @Composable
 fun EditorApp(
@@ -111,6 +120,7 @@ fun EditorApp(
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 	openRequests: HostOpenRequests? = null,
 	hostHeap: HostHeap? = null,
+	openLogFolder: (() -> String?)? = null,
 ) {
 	val settings = LocalSettings.current
 	val scope = rememberCoroutineScope()
@@ -243,6 +253,27 @@ fun EditorApp(
 			)
 		onDispose { cleanup() }
 	}
+	// Help > Open Log Folder, where the host can show a folder.  The host's call can wait on the desktop's file manager,
+	// so it runs off the UI thread; when it fails, the alert names the folder, whose path the rigger can copy.
+	DisposableEffect(commandRegistry, openLogFolder) {
+		val hostOpensLogFolder = openLogFolder
+		val cleanup =
+			if (hostOpensLogFolder == null) {
+				{}
+			} else {
+				commandRegistry.registerAll(
+					logFolderCommands {
+						scope.launch {
+							val unopenedFolder = withContext(Dispatchers.IO) { hostOpensLogFolder() }
+							if (unopenedFolder != null) {
+								commandRegistry.invoke("document.alert", AlertRequest(Res.string.alert_log_folder_failed, listOf(unopenedFolder)))
+							}
+						}
+					},
+				)
+			}
+		onDispose { cleanup() }
+	}
 	// Keyed on the export controller, which is remade with the document and the session: the handlers
 	// always reach the pair the export reconciles from, consistent by construction.
 	DisposableEffect(commandRegistry, export) {
@@ -267,6 +298,7 @@ fun EditorApp(
 			canExport = export.canExport,
 			canExportImage = imageExport != null,
 			dispatch = { commandId, argument -> commandRegistry.invoke(commandId, argument) },
+			canOpenLogFolder = openLogFolder != null,
 		)
 	// A file dropped on the window takes the same way in as one chosen from a dialog: a document replaces
 	// what is open (through the unsaved-changes gate file.openPath carries), artwork is added to it.  Both

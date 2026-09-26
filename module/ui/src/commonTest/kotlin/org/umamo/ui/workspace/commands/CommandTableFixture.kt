@@ -152,6 +152,7 @@ internal fun everyCommandTable(session: EditorSession? = null): List<Command> {
 		viewportChromeCommands(inMemorySettings()) +
 		workspaceFileCommands({}, {}, {}) +
 		logCommands {} +
+		logFolderCommands {} +
 		fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, {}) +
 		fileExportCommands({ true }, {}, {})
 }

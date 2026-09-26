@@ -233,6 +233,21 @@ class CommandTableOrderTest {
 		assertEquals(listOf("workspace.import", "workspace.exportThis", "workspace.exportAll", "logs.export"), commands.map { command -> command.id })
 	}
 
+	/**
+	 * Open Log Folder is a table of its own, registered by the app only when its host can show a folder, and its handler
+	 * is the host's call and nothing else.
+	 */
+	@Test
+	fun theLogFolderTableRunsTheHostsOpener() {
+		var opened = 0
+		val commands = logFolderCommands { opened++ }
+
+		assertEquals(listOf("help.openLogFolder"), commands.map { command -> command.id })
+		commands.single().handler.run(null)
+
+		assertEquals(1, opened)
+	}
+
 	/** The viewport chrome toggles the settings-backed shell registers; they write settings, so they build over an in-memory tree. */
 	@Test
 	fun viewportChromeTableIsComplete() {

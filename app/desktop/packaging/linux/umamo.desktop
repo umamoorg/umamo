@@ -6,11 +6,8 @@ GenericName=2D Puppet Modelling Editor
 GenericName[ja]=2Dパペット モデリングエディター
 Comment=Model 2D puppets in the Live2D Ecosystem
 Comment[ja]=Live2Dエコシステムにおける2Dパペットのモデリング
-# The launcher is named by PATH: an unpacked archive has no fixed location.  Put bin/umamo on the PATH, or
-# replace this with its absolute path, then:  xdg-desktop-menu install --novendor umamo.desktop
-Exec=umamo %f
-TryExec=umamo
-Icon=umamo
+Exec=APPLICATION_LAUNCHER %f
+Icon=APPLICATION_ICON
 Terminal=false
 Categories=Graphics;2DGraphics;
 MimeType=application/vnd.umamo.uma+zip;

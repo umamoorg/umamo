@@ -26,8 +26,11 @@ Umamo is early alpha.
 * Source Artwork: A new Import preference shows the Sources panel's layer positions measured from the world axes instead of the art file's top-left corner.
 * Export: Image export of the current 2D Viewport with options for transparent, solid, and grid backgrounds.
 * Diagnostics: Desktop sessions now write out the log into the `umamo/logs` directory.
+* Diagnostics: Help -> Open Log Folder opens the folder holding the session logs.
+* Diagnostics: Starting the desktop app with `--self-check` runs a headless check of its Java runtime, native libraries, and file formats then prints the results, and exits.
 * Packaging: Apple silicon Macs get a `Umamo.app` download, bundling Java 27.  Intel Macs keep using the jar.
 * Packaging: A JAR started without a memory option restarts itself with room for up to half of the system RAM when Java's default would give Umamo less than 3 GB.
+* Packaging: Installers are now built, but they are not code signed yet.
 
 ### Changed
 * UI: The CTRL+O keybinding was changed to file open instead of import CMO3.
@@ -71,6 +74,7 @@ Umamo is early alpha.
 * Export: A CMO3 or MOC3 export that runs out of memory or fails now shows an alert instead of a Java error that crashes the application.
 * Export: Exporting a CMO3 from a MOC3 model now uses up to 30% less memory by reusing textures from memory instead of decoding the textures again from the source.
 * Packaging: JAR releases no longer print native access warnings on Java 24 and newer, and runs the Java 25 code paths of its libraries on Java 25 and newer.
+* Packaging: The Linux tarball's desktop entry now names Umamo's window class, so the desktop matches the running window to its menu entry and icon.
 
 
 ## 0.3.0-dev - 2026-09-15

@@ -293,6 +293,8 @@
 	<string name="menu_credits">Credits…</string>
 	<string name="menu_quick_setup">Quick Setup…</string>
 	<string name="menu_about">About Umamo…</string>
+	<string name="menu_open_log_folder">Open Log Folder…</string>
+	<string name="alert_log_folder_failed">Could not open the log folder.  The session logs are in:\n%1$s</string>
 	<!-- Help dialogs (Credits shows the bundled CREDITS.md; About shows name/version/license/links). -->
 	<string name="about_title">About Umamo</string>
 	<!-- %1$s is the application version. -->

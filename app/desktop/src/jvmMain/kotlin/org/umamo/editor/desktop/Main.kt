@@ -49,6 +49,7 @@ import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.viewport.LiveParams
 import java.awt.Desktop
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.system.exitProcess
 
 /**
  * Applies the `UMAMO_DUMP_PARAMS` environment override (e.g. `ParamAngleX=30,ParamAngleY=-10`) to the
@@ -144,9 +145,16 @@ internal fun isOpenableDocumentPath(path: String): Boolean = FormatRegistry.kind
  * log file and the uncaught-exception handler are set up before anything else, so every line the launch logs -
  * and the reason for a crash - lands in the file a bug report attaches.
  *
- * @param Array<String> args Optional: a `.uma`, `.cmo3`, or `.moc3` path.
+ * @param Array<String> args Optional: a `.uma`, `.cmo3`, or `.moc3` path; or `--self-check` and an optional report
+ *   file, which runs the headless checks an installer test asks for instead of the editor.
  */
 fun main(args: Array<String>) {
+	// The headless self-check an installer test runs (SelfCheck.kt), ahead of everything else: it opens no window,
+	// reads and writes no setting, writes no session log, and never needs the jar's relaunch.
+	if (args.firstOrNull() == SELF_CHECK_FLAG) {
+		prepareSelfCheckProcess()
+		exitProcess(runSelfCheck(args.getOrNull(1)))
+	}
 	// Before anything else, a jar started with too little memory starts itself again with enough and does not
 	// return (JarRelaunch.kt): ahead of AWT, so macOS shows one Dock icon, and ahead of the session log, so the
 	// short-lived first launch does not spend one of the ten kept.
@@ -283,6 +291,7 @@ fun main(args: Array<String>) {
 							},
 							openRequests = openRequests,
 							hostHeap = hostHeap,
+							openLogFolder = { openLogFolder(storage) },
 						)
 					}
 				}
