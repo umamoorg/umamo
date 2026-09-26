@@ -1,6 +1,8 @@
 // :desktop (app/desktop) — desktop entrypoint (Compose Desktop + LWJGL viewport interop).
 // :desktop — デスクトップ起動点（Compose Desktop ＋ LWJGL ビューポート連携）。
 
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
 	alias(libs.plugins.composeMultiplatform)
@@ -28,16 +30,30 @@ val umaMimeType = "application/vnd.umamo.uma+zip"
 val umaExtension = "uma"
 val umaDescription = "Umamo Document"
 
+// Who made the app and under what terms, stamped into every installer: the plugin's (the Windows exe version resource, the
+// macOS Info.plist, the MSI) and packageLinuxDeb / packageLinuxRpm below.
+val appVendor = "Umamo Project"
+val appDescription = "Cross-platform 2D puppet modelling editor with Live2D Cubism .cmo3 interop."
+val appCopyright = "Copyright (C) Umamo Project contributors.  Licensed under the GPL-3.0-only."
+val appLicenseIdentifier = "GPL-3.0-only"
+val appAboutUrl = "https://umamo.org"
+
 // The name the app image, its launcher, and its cfg take (docs/plan/distribution.md D15).  A Mac app is
-// capitalized, and this is also the name the macOS menu bar shows; everywhere else the lowercase name follows
-// the project and Linux package conventions.  The uber jar's name is set at the bottom of this file and does
-// not follow it.
+// capitalized, and this is also the name the macOS menu bar shows.  Windows follows, because the MSI names its
+// Start-menu entry and its Settings > Apps entry after it.  Linux keeps the lowercase name of its package and launcher
+// conventions.  Folders a rigger's files live in stay lowercase on every OS - the Windows install folder among them.  The settings and log folders are "umamo" everywhere (desktopAppStorage),
+// and the uber jar's name is set at the bottom of this file; neither follows this.
 val packageBaseName =
-	if (buildTarget.startsWith("macos-")) {
+	if (buildTarget.startsWith("macos-") || buildTarget.startsWith("windows-")) {
 		"Umamo"
 	} else {
 		"umamo"
 	}
+
+// The version the installers record, when a CI run needs an OLDER installer of the same build to upgrade from.
+// Never set for anything published: the release workflow builds its upgrade fixtures with it and keeps them out
+// of the release.  It reaches only the installer tasks, never packageVersion, so the app image is the same one.
+val installerVersion = providers.gradleProperty("umamo.installerVersionOverride").orNull ?: umamoVersionNumeric
 
 // The JDK whose jlink and jpackage build the app image, when it is not the Gradle daemon's (D14): only JDK 27's
 // jpackage accepts a macOS version starting with 0, so the macOS arm64 release leg passes a JDK 27 here while
@@ -82,6 +98,8 @@ kotlin {
 				implementation(project(":storage"))
 				// Explicit (also transitive via :runtime) — Document loading calls FormatRegistry/Cmo3 directly.
 				implementation(project(":format"))
+				// The headless self-check converts an empty puppet to a CMO3 and back (SelfCheck.kt).
+				implementation(project(":interop"))
 
 				// JNA: a tiny Win32 FFI for desktop window chrome (the DWM title-bar caption tint).
 				// Already on the runtime classpath via FileKit; declared here so jvmMain compiles
@@ -123,7 +141,7 @@ compose.desktop {
 		// `:desktop:run` alone at the bottom of this file.
 		//
 		// Half of the machine's memory (docs/plan/distribution.md D6): a large model's export needs gigabytes,
-		// and the rigger's paint app runs beside the editor.  A percentage rather than a fixed size, so a small
+		// and the user's paint app runs beside the editor.  A percentage rather than a fixed size, so a small
 		// machine is never promised more than it has.  A jar cannot carry launcher options, so README, RELEASING,
 		// and the release notes print this same option for `java -jar`, as the in-app alerts do (JAR_HEAP_OPTION);
 		// LauncherHeapOptionTest holds all of them to that constant, and the release workflow checks umamo.cfg.
@@ -138,19 +156,27 @@ compose.desktop {
 		jvmArgs.add("--enable-native-access=ALL-UNNAMED")
 		jvmArgs.add("--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED")
 		nativeDistributions {
-			// The app image's, launcher's, and cfg's name: Umamo on macOS, umamo elsewhere (see packageBaseName).
+			// The app image's, launcher's, and cfg's name: Umamo on macOS and Windows, umamo on Linux (see
+			// packageBaseName).
 			packageName = packageBaseName
 			// jpackage rejects prerelease suffixes, so installers get the numeric form; the uber jar
 			// keeps the full ProjectInfo string (below).
 			packageVersion = umamoVersionNumeric
 
+			// The installer the plugin builds: the DMG (D3), on macOS only.  The MSI, DEB, and RPM are built by
+			// packageWindowsMsi, packageLinuxDeb, and packageLinuxRpm below instead - the plugin's own tasks cannot take
+			// the WiX template, desktop entry, and RPM spec the project needs.  The plugin checks every listed format's
+			// version rules while it configures, on every OS, and the numeric packageVersion meets them.
+			targetFormats(TargetFormat.Dmg)
+
 			// Identity metadata. jpackage stamps vendor/description/copyright into the Windows exe
-			// version resource and the macOS Info.plist, and copies licenseFile into the app image
-			// — so even an unsigned build says who made it and under what terms.
-			vendor = "Umamo Project"
-			description = "Cross-platform 2D puppet modelling editor with Live2D Cubism .cmo3 interop."
-			copyright = "Copyright (C) Umamo Project contributors.  Licensed under the GPL-3.0."
-			licenseFile.set(rootProject.file("LICENSE"))
+			// version resource and the macOS Info.plist, so even an unsigned build says who made it.  No
+			// licenseFile: the plugin would hand it to the DMG as an Agree/Disagree dialog and to the MSI as
+			// an "I accept" page, and the GPL asks no one to accept it to run the program (GPLv3 section 9).
+			// The license text ships inside the app image instead (prepareAppResources below).
+			vendor = appVendor
+			description = appDescription
+			copyright = appCopyright
 
 			// The jlink module set for the bundled runtime. Compose's default is
 			// [java.base, java.desktop, java.logging, jdk.crypto.ec] and modules(...) APPENDS to
@@ -175,18 +201,17 @@ compose.desktop {
 			// that OS.  These feed createDistributable / the native installers (not the uber jar,
 			// which carries no icon).  Regenerate from the mascot with docs/design/appicon/generate.sh.
 			//
-			// The .uma document type (docs/format/UMA.md § 2), declared per OS because that is where the plugin
-			// puts it.  What it does depends on what is being built:
+			// The .uma document type (docs/format/UMA.md § 2).  Where it is registered depends on what is installed:
 			//   * macOS: the plugin writes CFBundleDocumentTypes into the app image's own Info.plist, so an
-			//     unpacked Umamo.app is already the handler for .uma - no installer needed.
-			//   * Windows and Linux: the plugin hands it to jpackage as --file-associations, which jpackage
-			//     accepts for INSTALLERS only.  It is inert for createDistributable, the only thing a release
-			//     ships today, and takes effect the day an msi / deb is built.  Until then Linux registers the
-			//     type per user from the two files under resources/linux (see appResourcesRootDir below).
+			//     unpacked Umamo.app is already the handler for .uma - the DMG adds nothing.
+			//   * Windows: packageWindowsMsi passes it to jpackage as --file-associations (windowsFileAssociation below),
+			//     which only an installer applies: the MSI registers it, the zip does not.
+			//   * Linux: packageLinuxDeb / packageLinuxRpm pass the same three values (linuxFileAssociation below);
+			//     the tarball registers the type per user from the two files under resources/linux.
 			// The document reuses the application icon until it has one of its own.
+			// The MSI's own settings are packageWindowsMsi's, below.
 			windows {
 				iconFile.set(project.file("icons/umamo.ico"))
-				fileAssociation(umaMimeType, umaExtension, umaDescription, project.file("icons/umamo.ico"))
 			}
 			macOS {
 				iconFile.set(project.file("icons/umamo.icns"))
@@ -206,7 +231,6 @@ compose.desktop {
 			}
 			linux {
 				iconFile.set(project.file("icons/umamo.png"))
-				fileAssociation(umaMimeType, umaExtension, umaDescription, project.file("icons/umamo.png"))
 			}
 
 			// Files copied into the app image beside the jars (lib/app/resources on Linux).  resources/linux
@@ -214,6 +238,206 @@ compose.desktop {
 			// make the file manager open .uma with an unpacked Umamo.
 			appResourcesRootDir.set(project.layout.projectDirectory.dir("resources"))
 		}
+	}
+}
+
+// The GPL's text goes into the app image beside the appResourcesRootDir files (lib/app/resources/LICENSE on Linux), so
+// the archive and every installer made from the image carry it without asking anyone to agree to it.  Matched lazily:
+// the plugin registers the task after this script has run.
+val projectLicense = rootProject.file("LICENSE")
+tasks.withType<Sync>().matching { syncTask -> syncTask.name == "prepareAppResources" }
+	.configureEach {
+		from(projectLicense)
+	}
+
+// The JDK whose jlink built the app image: the one passed as umamo.packagingJavaHome, else the plugin's default.  The
+// Linux installer tasks run ITS jpackage, because jpackage refuses an app image another jpackage version built.
+val imageJavaHome = compose.desktop.application.javaHome
+
+// The Windows installer (D2): a per-user MSI, built by jpackage over createDistributable's image - the very image the
+// Windows zip ships - so what the smoke test launches, what the zip carries, and what the installer installs are one set
+// of files, and Phase 3b can sign the exe in the image before the MSI takes it.  It is built here rather than by the
+// plugin's packageMsi because the project needs a WiX template of its own (packaging/windows/main.wxs), and the plugin
+// fixes jpackage's resource directory and empties it on every run.  The install folder is %LOCALAPPDATA%\Programs\umamo,
+// Windows' place for per-user programs (FOLDERID_UserProgramFiles), and a per-user MSI must remove every folder it
+// creates in the user profile (WiX's ICE64 validation): jpackage does so for the install folder but writes nothing for
+// Programs above it, which the template adds.  The template is JDK 21's copy with that one component, so moving the
+// packaging JDK means re-diffing it (RELEASING.md).  WiX 3.11 is the plugin's own download - the root project's
+// unzipWix, which the plugin registers on every Windows host - or the folder WIX_PATH names, as for the plugin's tasks.
+//
+// Identities, never changed: the upgrade code (minted once on 2026-09-26) is how every later MSI finds and replaces this
+// one, and the install folder is where every install lives.  Moving either strands existing installs beside the new one.
+val windowsUpgradeUuid = "bed289f4-0c1c-41c6-a315-70e44eeede4a"
+val windowsInstallDirectory = "Programs\\umamo"
+val windowsFileAssociation =
+	tasks.register<WriteProperties>("windowsFileAssociation") {
+		description = "Writes the .uma file association jpackage reads for the Windows installer."
+		destinationFile.set(layout.buildDirectory.file("compose/tmp/windows/uma-file-association.properties"))
+		property("mime-type", umaMimeType)
+		property("extension", umaExtension)
+		property("description", umaDescription)
+		property("icon", project.file("icons/umamo.ico").absolutePath)
+	}
+val isWindowsHost = System.getProperty("os.name").startsWith("Windows")
+run {
+	val imageDirectory = layout.buildDirectory.dir("compose/binaries/main/app/$packageBaseName").get().asFile
+	val destinationDirectory = layout.buildDirectory.dir("compose/binaries/main/msi").get().asFile
+	val associationFile = layout.buildDirectory.file("compose/tmp/windows/uma-file-association.properties").get().asFile
+	val wixDirectory =
+		providers.environmentVariable("WIX_PATH").orElse(rootProject.layout.buildDirectory.dir("wix311").map { directory -> directory.asFile.absolutePath })
+	// A local copy: a task action that read the script's own property would capture the script object, which the
+	// configuration cache cannot store.
+	val buildsOnWindows = isWindowsHost
+	tasks.register<Exec>("packageWindowsMsi") {
+		group = "compose desktop"
+		description = "Builds the Windows .msi installer from createDistributable's app image."
+		dependsOn("createDistributable", windowsFileAssociation, rootProject.tasks.matching { rootTask -> rootTask.name == "unzipWix" })
+		onlyIf("the Windows installer is built on Windows") { buildsOnWindows }
+		inputs.dir(imageDirectory).withPropertyName("appImage")
+		inputs.dir("packaging/windows").withPropertyName("packagingTemplates")
+		inputs.file(associationFile).withPropertyName("fileAssociation")
+		inputs.property("installerVersion", installerVersion)
+		outputs.dir(destinationDirectory)
+		doFirst {
+			// jpackage will not write over an installer that is already there.
+			destinationDirectory.deleteRecursively()
+			destinationDirectory.mkdirs()
+			// jpackage finds WiX on the PATH, as the plugin's own tasks arrange.  Windows spells the variable in any case,
+			// so every spelling is replaced by the one.
+			val execTask = this as Exec
+			val inheritedPath = execTask.environment.entries.firstOrNull { (name, _) -> name.equals("PATH", ignoreCase = true) }?.value
+			execTask.environment =
+				execTask.environment.filterKeys { name -> !name.equals("PATH", ignoreCase = true) } +
+				("PATH" to listOfNotNull(wixDirectory.get(), inheritedPath).joinToString(File.pathSeparator))
+		}
+		val options =
+			listOf(
+				"--type" to "msi",
+				"--app-image" to imageDirectory.absolutePath,
+				"--dest" to destinationDirectory.absolutePath,
+				// The name the Start menu and Settings > Apps show.
+				"--name" to packageBaseName,
+				"--app-version" to installerVersion,
+				"--vendor" to appVendor,
+				"--description" to appDescription,
+				"--copyright" to appCopyright,
+				"--about-url" to appAboutUrl,
+				"--resource-dir" to project.file("packaging/windows").absolutePath,
+				"--file-associations" to associationFile.absolutePath,
+				"--install-dir" to windowsInstallDirectory,
+				"--win-upgrade-uuid" to windowsUpgradeUuid,
+				// A Start-menu entry in an Umamo folder.
+				"--win-menu-group" to "Umamo",
+			)
+		// Per user, so no administrator prompt: riggers on managed or shared machines often have no admin rights, and
+		// winget checks a non-admin install.  No folder page and no desktop shortcut: one click is what a per-user
+		// install is for.  Verbose, because a WiX failure is otherwise reported only as jpackage's exit code.
+		val arguments =
+			listOf(File(imageJavaHome, "bin/jpackage.exe").absolutePath) +
+				options.flatMap { (option, value) -> listOf(option, value) } +
+				listOf("--win-per-user-install", "--win-menu", "--verbose")
+		commandLine(arguments)
+	}
+}
+
+// The Linux installers (D4): a .deb and an .rpm, built by jpackage over createDistributable's image rather than by
+// the plugin's packageDeb / packageRpm.  The plugin fixes jpackage's resource directory and empties it on every run,
+// and the project needs files of its own there (packaging/linux):
+//   * umamo.desktop - jpackage's own menu entry reads "umamo" and starts the launcher without the file it was
+//     asked to open (no %f), so a double-clicked .uma would open an empty editor.
+//   * umamo.spec - JDK 21's spec removes the menu entry and the .uma registration in %preun without checking for an
+//     upgrade (JDK-8301856, fixed in 22), and an RPM upgrade runs the OLD package's %preun after the new %post.
+//     The guarded spec has to be in the first RPM ever published, since that is the one whose %preun runs.
+//   * control - the .deb's Depends, curated so one package installs on Ubuntu 22.04 and 24.04 alike (jpackage
+//     computes the list from the build machine, which names only 24.04's t64 packages).
+//   * postinst and prerm - the menu entry and the .uma registration installed and removed best-effort, as the spec
+//     does too: on a system with no desktop menu directories xdg-desktop-menu fails, which would otherwise leave the
+//     .deb half-configured or impossible to remove.
+// All but the desktop entry are copies of JDK 21's templates: moving the packaging JDK means re-diffing them
+// (RELEASING.md).
+// An RPM built on Debian declares no library dependencies of its own, so the libraries AWT and Skiko load are
+// declared as sonames, which Fedora and openSUSE both resolve.
+val linuxFileAssociation =
+	tasks.register<WriteProperties>("linuxFileAssociation") {
+		description = "Writes the .uma file association jpackage reads for the Linux installers."
+		destinationFile.set(layout.buildDirectory.file("compose/tmp/linux/uma-file-association.properties"))
+		property("mime-type", umaMimeType)
+		property("extension", umaExtension)
+		property("description", umaDescription)
+		property("icon", project.file("icons/umamo.png").absolutePath)
+	}
+// Every library the image's native code links from outside it (readelf over the Temurin-built image, 2026-09-26):
+// AWT's X11 libraries and the sound library, and Skiko's GL, X11, fontconfig, and C++ runtime - plus EGL, which
+// Skiko's arm64 build links and its x64 build does not (2026-09-27).  glibc goes without saying; Temurin carries its
+// own freetype.  The .deb's control file names the same set as Debian packages.
+val linuxRpmLibraryRequirements =
+	listOf(
+		"libstdc++.so.6()(64bit)",
+		"libGL.so.1()(64bit)",
+		"libEGL.so.1()(64bit)",
+		"libX11.so.6()(64bit)",
+		"libXext.so.6()(64bit)",
+		"libXi.so.6()(64bit)",
+		"libXrender.so.1()(64bit)",
+		"libXtst.so.6()(64bit)",
+		"libfontconfig.so.1()(64bit)",
+		"libasound.so.2()(64bit)",
+	)
+val isLinuxHost = System.getProperty("os.name").startsWith("Linux")
+for (packageType in listOf("deb", "rpm")) {
+	val imageDirectory = layout.buildDirectory.dir("compose/binaries/main/app/$packageBaseName").get().asFile
+	val destinationDirectory = layout.buildDirectory.dir("compose/binaries/main/$packageType").get().asFile
+	val associationFile = layout.buildDirectory.file("compose/tmp/linux/uma-file-association.properties").get().asFile
+	// A local copy: a task action that read the script's own property would capture the script object, which the
+	// configuration cache cannot store.
+	val buildsOnLinux = isLinuxHost
+	tasks.register<Exec>("packageLinux" + packageType.replaceFirstChar(Char::uppercaseChar)) {
+		group = "compose desktop"
+		description = "Builds the Linux .$packageType installer from createDistributable's app image."
+		dependsOn("createDistributable", linuxFileAssociation)
+		onlyIf("the Linux installers are built on Linux") { buildsOnLinux }
+		inputs.dir(imageDirectory).withPropertyName("appImage")
+		inputs.dir("packaging/linux").withPropertyName("packagingTemplates")
+		inputs.file("icons/umamo.png").withPropertyName("icon")
+		inputs.file(associationFile).withPropertyName("fileAssociation")
+		inputs.property("installerVersion", installerVersion)
+		outputs.dir(destinationDirectory)
+		// jpackage will not write over an installer that is already there.
+		doFirst {
+			destinationDirectory.deleteRecursively()
+			destinationDirectory.mkdirs()
+		}
+		val options =
+			mutableListOf(
+				"--type" to packageType,
+				"--app-image" to imageDirectory.absolutePath,
+				"--dest" to destinationDirectory.absolutePath,
+				"--name" to "umamo",
+				"--app-version" to installerVersion,
+				// Without it jpackage puts its own default icon over lib/umamo.png.
+				"--icon" to project.file("icons/umamo.png").absolutePath,
+				"--vendor" to appVendor,
+				"--description" to appDescription,
+				"--copyright" to appCopyright,
+				"--license-file" to rootProject.file("LICENSE").absolutePath,
+				"--about-url" to appAboutUrl,
+				"--resource-dir" to project.file("packaging/linux").absolutePath,
+				"--file-associations" to associationFile.absolutePath,
+				// Identities: the package name and /opt/umamo, which every later package upgrades in place.
+				"--install-dir" to "/opt",
+				"--linux-package-name" to "umamo",
+				"--linux-deb-maintainer" to "umamo@proton.me",
+				"--linux-rpm-license-type" to appLicenseIdentifier,
+				"--linux-app-category" to "graphics",
+			)
+		if (packageType == "rpm") {
+			options += "--linux-package-deps" to linuxRpmLibraryRequirements.joinToString(", ")
+		}
+		val arguments =
+			listOf(File(imageJavaHome, "bin/jpackage").absolutePath) +
+				options.flatMap { (option, value) -> listOf(option, value) } +
+				"--linux-shortcut"
+		commandLine(arguments)
 	}
 }
 
@@ -226,6 +450,12 @@ val filesReadByTests =
 	files(
 		"resources/linux/umamo-uma.xml",
 		"resources/linux/umamo.desktop",
+		"packaging/windows/main.wxs",
+		"packaging/linux/umamo.desktop",
+		"packaging/linux/umamo.spec",
+		"packaging/linux/control",
+		"packaging/linux/postinst",
+		"packaging/linux/prerm",
 		"build.gradle.kts",
 		rootProject.file("app/android/src/main/AndroidManifest.xml"),
 		rootProject.file("README.md"),

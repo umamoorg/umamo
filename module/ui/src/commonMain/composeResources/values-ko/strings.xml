@@ -169,6 +169,8 @@
 	<string name="menu_credits">제작진…</string>
 	<string name="menu_quick_setup">빠른 설정…</string>
 	<string name="menu_about">Umamo에 대해서…</string>
+	<string name="menu_open_log_folder">로그 폴더 열기…</string>
+	<string name="alert_log_folder_failed">로그 폴더를 열 수 없습니다.  세션 로그 위치:\n%1$s</string>
 	<string name="about_title">Umamo에 대해서</string>
 	<string name="about_version">버전 %1$s</string>
 	<string name="about_license">GNU General Public License v3.0에 따라 라이선스가 부여됨</string>

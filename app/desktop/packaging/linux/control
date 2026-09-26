@@ -1,0 +1,11 @@
+Package: APPLICATION_PACKAGE
+Version: APPLICATION_VERSION_WITH_RELEASE
+Section: APPLICATION_SECTION
+Maintainer: APPLICATION_MAINTAINER
+Priority: optional
+Architecture: APPLICATION_ARCH
+Provides: APPLICATION_PACKAGE
+Description: APPLICATION_DESCRIPTION
+Depends: libc6, libstdc++6, libgl1, libegl1, libx11-6, libxext6, libxi6, libxrender1, libxtst6, libfontconfig1, libasound2t64 | libasound2, xdg-utils
+Installed-Size: APPLICATION_INSTALLED_SIZE
+APPLICATION_HOMEPAGE

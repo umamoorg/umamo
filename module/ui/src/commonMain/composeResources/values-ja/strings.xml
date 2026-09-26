@@ -260,6 +260,8 @@
 	<string name="menu_credits">クレジット…</string>
 	<string name="menu_quick_setup">クイックセットアップ…</string>
 	<string name="menu_about">Umamoについて…</string>
+	<string name="menu_open_log_folder">ログフォルダーを開く…</string>
+	<string name="alert_log_folder_failed">ログフォルダーを開けませんでした。セッションログの場所：\n%1$s</string>
 	<!-- ヘルプダイアログ（クレジットは同梱の CREDITS.md、バージョン情報は名称・バージョン・ライセンス・リンク）。 -->
 	<string name="about_title">Umamoについて</string>
 	<!-- %1$s はアプリケーションのバージョン。 -->

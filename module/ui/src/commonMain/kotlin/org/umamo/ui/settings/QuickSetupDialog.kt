@@ -152,12 +152,10 @@ private fun SplashBanner() {
 					.padding(horizontal = 8.dp, vertical = 6.dp),
 			verticalAlignment = Alignment.CenterVertically,
 		) {
-			// Decorative: the name beside it says what it is.
 			Image(painter = painterResource(Res.drawable.app_icon), contentDescription = null, modifier = Modifier.size(36.dp))
 			Spacer(modifier = Modifier.width(8.dp))
 			Text(text = stringResource(Res.string.app_name), style = typography.titleLarge, color = colors.viewportBadgeText)
 		}
-		// The version is data, not chrome, so it shows bare rather than through a localized "Version %s".
 		Text(
 			text = ProjectInfo.VERSION,
 			style = typography.bodySmall,
@@ -165,6 +163,17 @@ private fun SplashBanner() {
 			modifier =
 				Modifier
 					.align(Alignment.TopEnd)
+					.padding(10.dp)
+					.background(colors.viewportBadgeBackground, badgeShape)
+					.padding(horizontal = 6.dp, vertical = 2.dp),
+		)
+		Text(
+			text = "ARTIST CREDIT",
+			style = typography.bodySmall,
+			color = colors.viewportBadgeText,
+			modifier =
+				Modifier
+					.align(Alignment.BottomEnd)
 					.padding(10.dp)
 					.background(colors.viewportBadgeBackground, badgeShape)
 					.padding(horizontal = 6.dp, vertical = 2.dp),
