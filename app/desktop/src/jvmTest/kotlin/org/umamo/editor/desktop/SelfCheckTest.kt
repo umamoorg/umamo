@@ -1,8 +1,10 @@
 package org.umamo.editor.desktop
 
 import java.io.File
+import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -42,5 +44,38 @@ class SelfCheckTest {
 			listOf("sound: OK fine", "broken: FAILED java.lang.IllegalStateException: the reason", "self-check: 1 check(s) failed"),
 			lines,
 		)
+	}
+
+	@Test
+	fun aFailureNamesTheCauseUnderIt() {
+		val lines = ArrayList<String>()
+		val missingLibrary = UnsatisfiedLinkError("libEGL.so.1: cannot open shared object file")
+		val checks = listOf(SelfCheck("skia") { throw ExceptionInInitializerError(missingLibrary) })
+
+		runSelfCheck(null, checks) { line -> lines += line }
+
+		assertEquals(
+			"skia: FAILED java.lang.ExceptionInInitializerError: null <- java.lang.UnsatisfiedLinkError: libEGL.so.1: cannot open shared object file",
+			lines.first(),
+		)
+	}
+
+	@Test
+	fun theImagesRuntimeIsFoundThroughASymbolicLink() {
+		val root = Files.createTempDirectory("umamo-self-check-image")
+		try {
+			val realImage = Files.createDirectories(root.resolve("private/umamo"))
+			Files.createDirectories(realImage.resolve("bin"))
+			val launcher = Files.createFile(realImage.resolve("bin/umamo"))
+			val runtime = Files.createDirectories(realImage.resolve("lib/runtime"))
+			val otherRuntime = Files.createDirectories(root.resolve("elsewhere/jdk"))
+			val linkedImage = Files.createSymbolicLink(root.resolve("umamo"), realImage)
+
+			assertTrue(runtimeBelongsToImage(linkedImage.resolve("bin/umamo"), runtime), "the launcher reached through the link")
+			assertTrue(runtimeBelongsToImage(launcher, runtime))
+			assertFalse(runtimeBelongsToImage(linkedImage.resolve("bin/umamo"), otherRuntime), "a runtime outside the image")
+		} finally {
+			root.toFile().deleteRecursively()
+		}
 	}
 }

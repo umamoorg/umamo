@@ -427,7 +427,9 @@ jobs:
           rpm_requires="$(rpm -qp --requires "${rpm_file}")"
           echo "${rpm_requires}"
           [ "$(rpm -qp --qf '%{NAME} %{VERSION} %{LICENSE}' "${rpm_file}")" = "umamo ${numeric} GPL-3.0-only" ] || fail "the .rpm is not umamo ${numeric} under GPL-3.0-only"
-          grep -qxF 'libGL.so.1()(64bit)' <<< "${rpm_requires}" || fail "the .rpm does not require the libraries Skia loads"
+          for library in 'libGL.so.1()(64bit)' 'libEGL.so.1()(64bit)'; do
+            grep -qxF "${library}" <<< "${rpm_requires}" || fail "the .rpm does not require ${library}, which Skia loads"
+          done
           rpm_scripts="$(rpm -qp --scripts "${rpm_file}")"
           # shellcheck disable=SC2016  # the scriptlet's own text, matched literally.
           grep -qF 'if [ "$1" = 0 ]; then' <<< "${rpm_scripts}" || fail "the .rpm's preun is not packaging/linux/umamo.spec's guarded one"

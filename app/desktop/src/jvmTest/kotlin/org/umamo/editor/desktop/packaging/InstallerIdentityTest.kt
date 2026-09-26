@@ -112,6 +112,8 @@ class InstallerIdentityTest {
 
 		assertTrue("libasound2t64 | libasound2" in depends, "24.04's renamed package, or 22.04's")
 		assertTrue("xdg-utils" in depends, "the menu entry and the .uma registration are installed with xdg-utils")
+		assertTrue("libegl1" in depends, "Skiko's arm64 build links EGL")
+		assertTrue("\"libEGL.so.1()(64bit)\"" in buildScript.readText(), "and so does the RPM's list")
 		assertFalse("PACKAGE_DEFAULT_DEPENDENCIES" in depends, "not the list jpackage would compute on the build machine")
 	}
 }

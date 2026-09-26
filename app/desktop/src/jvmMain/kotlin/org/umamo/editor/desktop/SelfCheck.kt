@@ -63,8 +63,9 @@ internal fun selfChecks(): List<SelfCheck> =
 			// happens to satisfy every other check.
 			if (System.getProperty("jpackage.app-version") != null) {
 				val launcherPath = checkNotNull(System.getProperty("jpackage.app-path")) { "the launcher did not say where it is" }
-				val imageRoot = Path.of(launcherPath).parent.parent
-				check(Path.of(javaHome).startsWith(imageRoot)) { "the runtime at $javaHome is not the app's own, under $imageRoot" }
+				check(runtimeBelongsToImage(Path.of(launcherPath), Path.of(javaHome))) {
+					"the runtime at ${Path.of(javaHome).toRealPath()} is not the app's own, under ${Path.of(launcherPath).toRealPath().parent.parent}"
+				}
 			}
 			"Java ${System.getProperty("java.version")} (${System.getProperty("java.vendor")}) at $javaHome"
 		},
@@ -173,7 +174,7 @@ internal fun runSelfCheck(
 				"${selfCheck.name}: OK ${selfCheck.check()}"
 			} catch (failure: Throwable) {
 				failures++
-				"${selfCheck.name}: FAILED ${failure::class.java.name}: ${failure.message}"
+				"${selfCheck.name}: FAILED ${describeFailure(failure)}"
 			}
 		output(line)
 		reportFile?.appendText(line + "\n")
@@ -183,6 +184,32 @@ internal fun runSelfCheck(
 	reportFile?.appendText(summary + "\n")
 	return if (failures == 0) 0 else 1
 }
+
+/**
+ * Whether a runtime lies inside the app image its launcher belongs to, taken as the folder two levels above the
+ * launcher: the image root on Linux (umamo/bin/umamo) and the bundle's Contents on macOS (Contents/MacOS/Umamo), and on
+ * Windows, whose launcher sits at the image root, the folder holding the image.  Both paths are compared resolved, since
+ * the launcher reports the path it was started by and java.home the real one, and those differ wherever a symbolic
+ * link leads to the app, as macOS's /var does to /private/var.
+ *
+ * @param Path launcherPath The launcher, as jpackage.app-path gives it.
+ * @param Path runtimeHome  The runtime, as java.home gives it.
+ * @return Boolean True when the runtime is inside the launcher's image.
+ */
+internal fun runtimeBelongsToImage(launcherPath: Path, runtimeHome: Path): Boolean =
+	runtimeHome.toRealPath().startsWith(launcherPath.toRealPath().parent.parent)
+
+/**
+ * Describes a failure with every cause under it, on one line: a native library that fails to load surfaces as an
+ * ExceptionInInitializerError with no message of its own, and only its cause names the library that is missing.
+ *
+ * @param Throwable failure The failure a check threw.
+ * @return String Each throwable in the chain as `ClassName: message`, outermost first, joined by " <- ".
+ */
+private fun describeFailure(failure: Throwable): String =
+	generateSequence(failure) { throwable -> throwable.cause?.takeIf { cause -> cause !== throwable } }
+		.take(8)
+		.joinToString(" <- ") { throwable -> "${throwable::class.java.name}: ${throwable.message}" }
 
 /**
  * Prepares the process for [runSelfCheck] as a command: no display is used, and a daemon watchdog ends the process

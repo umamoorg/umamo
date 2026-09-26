@@ -367,12 +367,14 @@ val linuxFileAssociation =
 		property("icon", project.file("icons/umamo.png").absolutePath)
 	}
 // Every library the image's native code links from outside it (readelf over the Temurin-built image, 2026-09-26):
-// AWT's X11 libraries and the sound library, and Skiko's GL, X11, fontconfig, and C++ runtime.  glibc goes
-// without saying; Temurin carries its own freetype.  The .deb's control file names the same set as Debian packages.
+// AWT's X11 libraries and the sound library, and Skiko's GL, X11, fontconfig, and C++ runtime - plus EGL, which
+// Skiko's arm64 build links and its x64 build does not (2026-09-27).  glibc goes without saying; Temurin carries its
+// own freetype.  The .deb's control file names the same set as Debian packages.
 val linuxRpmLibraryRequirements =
 	listOf(
 		"libstdc++.so.6()(64bit)",
 		"libGL.so.1()(64bit)",
+		"libEGL.so.1()(64bit)",
 		"libX11.so.6()(64bit)",
 		"libXext.so.6()(64bit)",
 		"libXi.so.6()(64bit)",
