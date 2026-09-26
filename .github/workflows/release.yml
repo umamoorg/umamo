@@ -394,22 +394,28 @@ jobs:
             echo "::error file=app/desktop/build.gradle.kts::$1"
             exit 1
           }
+          # Each listing is captured whole and searched afterwards, never piped into grep -q: grep -q stops
+          # reading at its first match, and under pipefail the writer it leaves behind fails the pipeline.
           deb="$(ls "${binaries}"/deb/*.deb)"
           dpkg-deb --info "${deb}"
           [ "$(dpkg-deb -f "${deb}" Package)" = "umamo" ] || fail "the .deb's package is not umamo"
           [ "$(dpkg-deb -f "${deb}" Version)" = "${numeric}" ] || fail "the .deb's version is not ${numeric}"
-          dpkg-deb -f "${deb}" Maintainer | grep -qF 'umamo@proton.me' || fail "the .deb's maintainer is not umamo@proton.me"
+          deb_maintainer="$(dpkg-deb -f "${deb}" Maintainer)"
+          grep -qF 'umamo@proton.me' <<< "${deb_maintainer}" || fail "the .deb's maintainer is not umamo@proton.me"
           expected_depends="$(sed -n 's/^Depends: //p' app/desktop/packaging/linux/control)"
           [ "$(dpkg-deb -f "${deb}" Depends)" = "${expected_depends}" ] || fail "the .deb's Depends is not packaging/linux/control's curated list"
-          dpkg-deb -c "${deb}" | grep -q ' ./opt/umamo/bin/umamo$' || fail "the .deb does not install /opt/umamo/bin/umamo"
-          dpkg-deb -c "${deb}" | grep -q ' ./opt/umamo/lib/umamo-umamo.desktop$' || fail "the .deb carries no menu entry"
+          deb_contents="$(dpkg-deb -c "${deb}")"
+          grep -q ' ./opt/umamo/bin/umamo$' <<< "${deb_contents}" || fail "the .deb does not install /opt/umamo/bin/umamo"
+          grep -q ' ./opt/umamo/lib/umamo-umamo.desktop$' <<< "${deb_contents}" || fail "the .deb carries no menu entry"
           rpm_file="$(ls "${binaries}"/rpm/*.rpm)"
           rpm -qip "${rpm_file}"
-          rpm -qp --requires "${rpm_file}"
+          rpm_requires="$(rpm -qp --requires "${rpm_file}")"
+          echo "${rpm_requires}"
           [ "$(rpm -qp --qf '%{NAME} %{VERSION} %{LICENSE}' "${rpm_file}")" = "umamo ${numeric} GPL-3.0-only" ] || fail "the .rpm is not umamo ${numeric} under GPL-3.0-only"
-          rpm -qp --requires "${rpm_file}" | grep -qxF 'libGL.so.1()(64bit)' || fail "the .rpm does not require the libraries Skia loads"
+          grep -qxF 'libGL.so.1()(64bit)' <<< "${rpm_requires}" || fail "the .rpm does not require the libraries Skia loads"
+          rpm_scripts="$(rpm -qp --scripts "${rpm_file}")"
           # shellcheck disable=SC2016  # the scriptlet's own text, matched literally.
-          rpm -qp --scripts "${rpm_file}" | grep -qF 'if [ "$1" = 0 ]; then' || fail "the .rpm's preun is not packaging/linux/umamo.spec's guarded one"
+          grep -qF 'if [ "$1" = 0 ]; then' <<< "${rpm_scripts}" || fail "the .rpm's preun is not packaging/linux/umamo.spec's guarded one"
 
       # The MSI's identity, read out of its Property table: the upgrade code every later MSI finds this one by
       # (InstallerIdentityTest holds the build script to it), the name the Start menu and Settings > Apps show,
