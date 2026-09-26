@@ -52,7 +52,7 @@ Targets: `linux-x64`, `linux-arm64`, `windows-x64`, `macos-arm64`, `macos-x64`. 
 
 ### Installing
 
-- **Windows:** Run `umamo-windows-x64-<version>.msi`.  It installs Umamo for your user into `%LOCALAPPDATA%\Programs\Umamo`, adds it to the Start menu, and makes it the application that opens `.uma` files.  Remove it from Settings -> Apps.  The zip archive needs no installing: unpack it and run `Umamo\Umamo.exe`.
+- **Windows:** Run `umamo-windows-x64-<version>.msi`.  It installs Umamo for your user into `%LOCALAPPDATA%\Programs\umamo`, adds it to the Start menu, and makes it the application that opens `.uma` files.  Remove it from Settings -> Apps.  The zip archive needs no installing: unpack it and run `Umamo\Umamo.exe`.
 - **Debian, Ubuntu, Linux Mint:** `sudo apt install ./umamo-linux-<arch>-<version>.deb`.  Remove it with `sudo apt remove umamo`.
 - **Fedora:** `sudo dnf install ./umamo-linux-x64-<version>.rpm`.  Fedora 45 and newer refuse a package that is not signed: Add `--no-gpgchecks` to the command.  Remove it with `sudo dnf remove umamo`.
 - **Other Linux:** `tar xzf umamo-linux-x64-<version>.tar.gz` and run `umamo/bin/umamo`.

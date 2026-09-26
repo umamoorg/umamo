@@ -4,10 +4,11 @@
 # What it proves, in order:
 #   * the older MSI installs, then the new one replaces it: one Umamo in the uninstall list, at the new version (the
 #     upgrade code in app/desktop/build.gradle.kts, which every later MSI finds the installed one by);
-#   * the app sits in %LOCALAPPDATA%\Programs\Umamo, clear of the data folder, with its Start-menu entry, and .uma
-#     opens with it, the file handed over as an argument;
+#   * the app sits in %LOCALAPPDATA%\Programs\umamo with its Start-menu entry, and .uma opens with it, the file handed
+#     over as an argument;
 #   * the installed app's self-check and launch smoke test pass;
-#   * uninstalling removes the app, its uninstall entry, and the .uma registration, and leaves the settings alone.
+#   * uninstalling removes the app, its folder, its uninstall entry, and the .uma registration, and leaves the settings
+#     (%APPDATA%\umamo) and the session logs (%LOCALAPPDATA%\umamo) alone.
 #
 # msiexec and Umamo.exe are both GUI programs, which PowerShell's call operator does not wait for: each is started and
 # waited on explicitly.
@@ -22,12 +23,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 $scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
-$installDirectory = Join-Path $env:LOCALAPPDATA "Programs\Umamo"
+$installDirectory = Join-Path $env:LOCALAPPDATA "Programs\umamo"
 $launcher = Join-Path $installDirectory "Umamo.exe"
 $startMenuEntry = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Umamo\Umamo.lnk"
 $settingsDirectory = Join-Path $env:APPDATA "umamo"
+$dataDirectory = Join-Path $env:LOCALAPPDATA "umamo"
 $logDirectory = Join-Path $env:RUNNER_TEMP "msiexec-logs"
-New-Item -ItemType Directory -Force -Path $logDirectory, $settingsDirectory | Out-Null
+New-Item -ItemType Directory -Force -Path $logDirectory, $settingsDirectory, $dataDirectory | Out-Null
 
 $failures = 0
 # Reports a failed check and carries on, so one run names every problem.
@@ -80,6 +82,7 @@ function Get-UmaOpenCommand {
 }
 
 Set-Content -Path (Join-Path $settingsDirectory "installer-test-sentinel") -Value "a rigger's settings"
+Set-Content -Path (Join-Path $dataDirectory "installer-test-sentinel") -Value "a rigger's session logs"
 
 Write-Host "---- installing the older MSI $OlderMsi"
 Invoke-Msiexec @("/i", "`"$OlderMsi`"") "older-install.log"
@@ -125,14 +128,17 @@ Invoke-Msiexec @("/x", "`"$Msi`"") "uninstall.log"
 if (@(Get-UmamoUninstallEntries).Count -ne 0) {
 	Report-Failure "Umamo is still in the uninstall list after the uninstall"
 }
-if (Test-Path $launcher) {
-	Report-Failure "$launcher is still there after the uninstall"
+if (Test-Path $installDirectory) {
+	Report-Failure "$installDirectory is still there after the uninstall"
 }
 if (Get-UmaOpenCommand) {
 	Report-Failure ".uma is still registered after the uninstall"
 }
 if (-not (Test-Path (Join-Path $settingsDirectory "installer-test-sentinel"))) {
 	Report-Failure "the uninstall touched the settings folder"
+}
+if (-not (Test-Path (Join-Path $dataDirectory "installer-test-sentinel"))) {
+	Report-Failure "the uninstall touched the session log folder"
 }
 
 if ($failures -ne 0) {

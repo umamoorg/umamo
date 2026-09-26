@@ -2,7 +2,6 @@
 // :desktop — デスクトップ起動点（Compose Desktop ＋ LWJGL ビューポート連携）。
 
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
-import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
@@ -41,8 +40,8 @@ val appAboutUrl = "https://umamo.org"
 
 // The name the app image, its launcher, and its cfg take (docs/plan/distribution.md D15).  A Mac app is
 // capitalized, and this is also the name the macOS menu bar shows.  Windows follows, because the MSI names its
-// Start-menu entry, its Settings > Apps entry, and its install folder after it.  Linux keeps the lowercase name
-// of its package and launcher conventions.  The settings and log folders are "umamo" everywhere (desktopAppStorage),
+// Start-menu entry and its Settings > Apps entry after it.  Linux keeps the lowercase name of its package and launcher
+// conventions.  Folders a rigger's files live in stay lowercase on every OS - the Windows install folder among them.  The settings and log folders are "umamo" everywhere (desktopAppStorage),
 // and the uber jar's name is set at the bottom of this file; neither follows this.
 val packageBaseName =
 	if (buildTarget.startsWith("macos-") || buildTarget.startsWith("windows-")) {
@@ -164,11 +163,11 @@ compose.desktop {
 			// keeps the full ProjectInfo string (below).
 			packageVersion = umamoVersionNumeric
 
-			// The installers the plugin builds: the MSI (D2) and the DMG (D3), each only on its own OS.  The DEB and RPM
-			// are built by packageLinuxDeb / packageLinuxRpm below instead - the plugin's own Linux tasks cannot take the
-			// desktop entry and RPM spec the project needs.  The plugin checks every listed format's version rules while it
-			// configures, on every OS, and the numeric packageVersion meets them.
-			targetFormats(TargetFormat.Msi, TargetFormat.Dmg)
+			// The installer the plugin builds: the DMG (D3), on macOS only.  The MSI, DEB, and RPM are built by
+			// packageWindowsMsi, packageLinuxDeb, and packageLinuxRpm below instead - the plugin's own tasks cannot take
+			// the WiX template, desktop entry, and RPM spec the project needs.  The plugin checks every listed format's
+			// version rules while it configures, on every OS, and the numeric packageVersion meets them.
+			targetFormats(TargetFormat.Dmg)
 
 			// Identity metadata. jpackage stamps vendor/description/copyright into the Windows exe
 			// version resource and the macOS Info.plist, so even an unsigned build says who made it.  No
@@ -205,32 +204,14 @@ compose.desktop {
 			// The .uma document type (docs/format/UMA.md § 2).  Where it is registered depends on what is installed:
 			//   * macOS: the plugin writes CFBundleDocumentTypes into the app image's own Info.plist, so an
 			//     unpacked Umamo.app is already the handler for .uma - the DMG adds nothing.
-			//   * Windows: the plugin hands it to jpackage as --file-associations, which only an installer applies:
-			//     the MSI registers it, the zip does not.
+			//   * Windows: packageWindowsMsi passes it to jpackage as --file-associations (windowsFileAssociation below),
+			//     which only an installer applies: the MSI registers it, the zip does not.
 			//   * Linux: packageLinuxDeb / packageLinuxRpm pass the same three values (linuxFileAssociation below);
 			//     the tarball registers the type per user from the two files under resources/linux.
 			// The document reuses the application icon until it has one of its own.
+			// The MSI's own settings are packageWindowsMsi's, below.
 			windows {
 				iconFile.set(project.file("icons/umamo.ico"))
-				fileAssociation(umaMimeType, umaExtension, umaDescription, project.file("icons/umamo.ico"))
-				// The MSI (D2).  upgradeUuid is how every later MSI finds and replaces this one: an identity, minted once on
-				// 2026-09-26, and changing it strands every existing install beside the new one.
-				upgradeUuid = "4de3a745-151a-4a49-b7bb-1ba57a9006d5"
-				// Per user, so no administrator prompt: riggers on managed or shared machines often have no admin rights, and
-				// winget checks a non-admin install.
-				perUserInstall = true
-				// A per-user install lands in %LOCALAPPDATA%\<installationPath>, which would otherwise be the app name -
-				// %LOCALAPPDATA%\Umamo, the folder the logs live in (Windows ignores case).  Programs\Umamo is where per-user
-				// applications conventionally go.  An identity too: moving it later moves every install on upgrade.  The
-				// separator is written twice because the plugin hands the value to jpackage quoted in an @argfile, where a
-				// backslash escapes the character after it: a single one reaches jpackage as ProgramsUmamo.
-				installationPath = "Programs\\\\Umamo"
-				// A Start-menu entry in an Umamo folder, no desktop shortcut, and no folder page: the plugin turns the chooser
-				// on unless told otherwise, and one click is what a per-user install is for.
-				menuGroup = "Umamo"
-				shortcut = false
-				dirChooser = false
-				msiPackageVersion = installerVersion
 			}
 			macOS {
 				iconFile.set(project.file("icons/umamo.icns"))
@@ -273,17 +254,91 @@ tasks.withType<Sync>().matching { syncTask -> syncTask.name == "prepareAppResour
 // Linux installer tasks run ITS jpackage, because jpackage refuses an app image another jpackage version built.
 val imageJavaHome = compose.desktop.application.javaHome
 
-// The MSI packs the app image createDistributable built - the very image the Windows zip ships - instead of
-// letting the plugin build a second one, so what the smoke test launches, what the zip carries, and what the
-// installer installs are one set of files.  That is also where Phase 3b's signing has to happen: an exe signed in
-// the image then reaches the MSI.  On Windows the plugin passes the folder through as --app-image unchanged.  The
-// About link goes to the installer alone: jpackage refuses it for an app image.
-tasks.withType<AbstractJPackageTask>().matching { packageTask -> packageTask.name == "packageMsi" }
-	.configureEach {
-		dependsOn("createDistributable")
-		appImage.set(layout.buildDirectory.dir("compose/binaries/main/app/$packageBaseName"))
-		freeArgs.addAll("--about-url", appAboutUrl)
+// The Windows installer (D2): a per-user MSI, built by jpackage over createDistributable's image - the very image the
+// Windows zip ships - so what the smoke test launches, what the zip carries, and what the installer installs are one set
+// of files, and Phase 3b can sign the exe in the image before the MSI takes it.  It is built here rather than by the
+// plugin's packageMsi because the project needs a WiX template of its own (packaging/windows/main.wxs), and the plugin
+// fixes jpackage's resource directory and empties it on every run.  The install folder is %LOCALAPPDATA%\Programs\umamo,
+// Windows' place for per-user programs (FOLDERID_UserProgramFiles), and a per-user MSI must remove every folder it
+// creates in the user profile (WiX's ICE64 validation): jpackage does so for the install folder but writes nothing for
+// Programs above it, which the template adds.  The template is JDK 21's copy with that one component, so moving the
+// packaging JDK means re-diffing it (RELEASING.md).  WiX 3.11 is the plugin's own download - the root project's
+// unzipWix, which the plugin registers on every Windows host - or the folder WIX_PATH names, as for the plugin's tasks.
+//
+// Identities, never changed: the upgrade code (minted once on 2026-09-26) is how every later MSI finds and replaces this
+// one, and the install folder is where every install lives.  Moving either strands existing installs beside the new one.
+val windowsUpgradeUuid = "bed289f4-0c1c-41c6-a315-70e44eeede4a"
+val windowsInstallDirectory = "Programs\\umamo"
+val windowsFileAssociation =
+	tasks.register<WriteProperties>("windowsFileAssociation") {
+		description = "Writes the .uma file association jpackage reads for the Windows installer."
+		destinationFile.set(layout.buildDirectory.file("compose/tmp/windows/uma-file-association.properties"))
+		property("mime-type", umaMimeType)
+		property("extension", umaExtension)
+		property("description", umaDescription)
+		property("icon", project.file("icons/umamo.ico").absolutePath)
 	}
+val isWindowsHost = System.getProperty("os.name").startsWith("Windows")
+run {
+	val imageDirectory = layout.buildDirectory.dir("compose/binaries/main/app/$packageBaseName").get().asFile
+	val destinationDirectory = layout.buildDirectory.dir("compose/binaries/main/msi").get().asFile
+	val associationFile = layout.buildDirectory.file("compose/tmp/windows/uma-file-association.properties").get().asFile
+	val wixDirectory =
+		providers.environmentVariable("WIX_PATH").orElse(rootProject.layout.buildDirectory.dir("wix311").map { directory -> directory.asFile.absolutePath })
+	// A local copy: a task action that read the script's own property would capture the script object, which the
+	// configuration cache cannot store.
+	val buildsOnWindows = isWindowsHost
+	tasks.register<Exec>("packageWindowsMsi") {
+		group = "compose desktop"
+		description = "Builds the Windows .msi installer from createDistributable's app image."
+		dependsOn("createDistributable", windowsFileAssociation, rootProject.tasks.matching { rootTask -> rootTask.name == "unzipWix" })
+		onlyIf("the Windows installer is built on Windows") { buildsOnWindows }
+		inputs.dir(imageDirectory).withPropertyName("appImage")
+		inputs.dir("packaging/windows").withPropertyName("packagingTemplates")
+		inputs.file(associationFile).withPropertyName("fileAssociation")
+		inputs.property("installerVersion", installerVersion)
+		outputs.dir(destinationDirectory)
+		doFirst {
+			// jpackage will not write over an installer that is already there.
+			destinationDirectory.deleteRecursively()
+			destinationDirectory.mkdirs()
+			// jpackage finds WiX on the PATH, as the plugin's own tasks arrange.  Windows spells the variable in any case,
+			// so every spelling is replaced by the one.
+			val execTask = this as Exec
+			val inheritedPath = execTask.environment.entries.firstOrNull { (name, _) -> name.equals("PATH", ignoreCase = true) }?.value
+			execTask.environment =
+				execTask.environment.filterKeys { name -> !name.equals("PATH", ignoreCase = true) } +
+				("PATH" to listOfNotNull(wixDirectory.get(), inheritedPath).joinToString(File.pathSeparator))
+		}
+		val options =
+			listOf(
+				"--type" to "msi",
+				"--app-image" to imageDirectory.absolutePath,
+				"--dest" to destinationDirectory.absolutePath,
+				// The name the Start menu and Settings > Apps show.
+				"--name" to packageBaseName,
+				"--app-version" to installerVersion,
+				"--vendor" to appVendor,
+				"--description" to appDescription,
+				"--copyright" to appCopyright,
+				"--about-url" to appAboutUrl,
+				"--resource-dir" to project.file("packaging/windows").absolutePath,
+				"--file-associations" to associationFile.absolutePath,
+				"--install-dir" to windowsInstallDirectory,
+				"--win-upgrade-uuid" to windowsUpgradeUuid,
+				// A Start-menu entry in an Umamo folder.
+				"--win-menu-group" to "Umamo",
+			)
+		// Per user, so no administrator prompt: riggers on managed or shared machines often have no admin rights, and
+		// winget checks a non-admin install.  No folder page and no desktop shortcut: one click is what a per-user
+		// install is for.  Verbose, because a WiX failure is otherwise reported only as jpackage's exit code.
+		val arguments =
+			listOf(File(imageJavaHome, "bin/jpackage.exe").absolutePath) +
+				options.flatMap { (option, value) -> listOf(option, value) } +
+				listOf("--win-per-user-install", "--win-menu", "--verbose")
+		commandLine(arguments)
+	}
+}
 
 // The Linux installers (D4): a .deb and an .rpm, built by jpackage over createDistributable's image rather than by
 // the plugin's packageDeb / packageRpm.  The plugin fixes jpackage's resource directory and empties it on every run,
@@ -393,6 +448,7 @@ val filesReadByTests =
 	files(
 		"resources/linux/umamo-uma.xml",
 		"resources/linux/umamo.desktop",
+		"packaging/windows/main.wxs",
 		"packaging/linux/umamo.desktop",
 		"packaging/linux/umamo.spec",
 		"packaging/linux/control",

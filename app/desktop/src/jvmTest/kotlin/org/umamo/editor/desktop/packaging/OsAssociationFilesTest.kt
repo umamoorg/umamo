@@ -162,9 +162,9 @@ class OsAssociationFilesTest {
 		val script = buildScript.readText()
 		assertTrue("val umaMimeType = \"${Uma.MIME_TYPE}\"" in script, "the package's file association names the type")
 		assertTrue("val umaExtension = \"${Uma.kind.extension}\"" in script, "and the extension")
-		assertEquals(2, Regex("fileAssociation\\(umaMimeType, umaExtension,").findAll(script).count(), "declared to the plugin for Windows and macOS")
-		assertTrue("property(\"mime-type\", umaMimeType)" in script, "and to the Linux installers' jpackage")
-		assertTrue("property(\"extension\", umaExtension)" in script, "with the extension")
+		assertEquals(1, Regex("fileAssociation\\(umaMimeType, umaExtension,").findAll(script).count(), "declared to the plugin for macOS")
+		assertEquals(2, Regex("property\\(\"mime-type\", umaMimeType\\)").findAll(script).count(), "and to the Windows and Linux installers' jpackage")
+		assertEquals(2, Regex("property\\(\"extension\", umaExtension\\)").findAll(script).count(), "with the extension")
 
 		val manifest = androidManifest.readText()
 		assertTrue("android:mimeType=\"${Uma.MIME_TYPE}\"" in manifest, "the Android intent filter names the type")

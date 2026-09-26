@@ -160,7 +160,7 @@ jobs:
         include:
           - { target: linux-x64, runner: ubuntu-latest, appImage: true, installerTasks: ":desktop:packageLinuxDeb :desktop:packageLinuxRpm", fixtureTasks: ":desktop:packageLinuxDeb :desktop:packageLinuxRpm" }
           - { target: linux-arm64, runner: ubuntu-24.04-arm, appImage: true, installerTasks: ":desktop:packageLinuxDeb :desktop:packageLinuxRpm", fixtureTasks: ":desktop:packageLinuxDeb :desktop:packageLinuxRpm" }
-          - { target: windows-x64, runner: windows-latest, appImage: true, installerTasks: ":desktop:packageMsi", fixtureTasks: ":desktop:packageMsi" }
+          - { target: windows-x64, runner: windows-latest, appImage: true, installerTasks: ":desktop:packageWindowsMsi", fixtureTasks: ":desktop:packageWindowsMsi" }
           - { target: macos-arm64, runner: macos-latest, appImage: true, packagingJdk: "27", installerTasks: ":desktop:packageDmg" }
           # macos-15-intel is the last x86-64 macOS image GitHub will offer; it retires in August
           # 2027, after which this leg has to go and Intel Mac users fall back to the uber jar under
@@ -453,7 +453,7 @@ jobs:
             return $value
           }
           $expected = [ordered]@{
-            UpgradeCode = "4DE3A745-151A-4A49-B7BB-1BA57A9006D5"
+            UpgradeCode = "BED289F4-0C1C-41C6-A315-70E44EEEDE4A"
             ProductName = "Umamo"
             ProductVersion = $env:UMAMO_VERSION.Split("-")[0]
           }
@@ -671,6 +671,21 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
+
+      # The plugin's jpackage tasks (the image and the DMG) write jpackage's own output to log files and report
+      # only its exit code, so a failed leg prints the files here. The installer tasks of our own (the MSI, DEB,
+      # and RPM) print jpackage's output straight into the build log.
+      - name: Print jpackage's logs
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for log in app/desktop/build/compose/logs/*/*.txt; do
+            echo "::group::${log}"
+            cat "${log}"
+            echo "::endgroup::"
+          done
 
   # -----------------------------------------------------------------------------------------------
   # 4. Install tests, each on a clean runner that never built anything: every installer is installed
