@@ -23,9 +23,18 @@ if [ "$#" -lt 2 ]; then
 	echo "usage: $0 <package> <expected version> [<older package> [<package-manager flag>]]" >&2
 	exit 2
 fi
-package="$1"
+# absolute_path <file>: the file's absolute path.  apt-get and dnf take an argument for a local package file only
+# when it is a path, starting with / or ./; anything else is looked up as a package name in the repositories.
+absolute_path() {
+	echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+}
+
+package="$(absolute_path "$1")"
 expected_version="$2"
-older_package="${3:-}"
+older_package=""
+if [ -n "${3:-}" ]; then
+	older_package="$(absolute_path "$3")"
+fi
 manager_flag="${4:-}"
 script_directory="$(cd "$(dirname "$0")" && pwd)"
 

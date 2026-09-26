@@ -142,7 +142,7 @@ compose.desktop {
 		// `:desktop:run` alone at the bottom of this file.
 		//
 		// Half of the machine's memory (docs/plan/distribution.md D6): a large model's export needs gigabytes,
-		// and the rigger's paint app runs beside the editor.  A percentage rather than a fixed size, so a small
+		// and the user's paint app runs beside the editor.  A percentage rather than a fixed size, so a small
 		// machine is never promised more than it has.  A jar cannot carry launcher options, so README, RELEASING,
 		// and the release notes print this same option for `java -jar`, as the in-app alerts do (JAR_HEAP_OPTION);
 		// LauncherHeapOptionTest holds all of them to that constant, and the release workflow checks umamo.cfg.
@@ -171,13 +171,13 @@ compose.desktop {
 			targetFormats(TargetFormat.Msi, TargetFormat.Dmg)
 
 			// Identity metadata. jpackage stamps vendor/description/copyright into the Windows exe
-			// version resource and the macOS Info.plist, and hands licenseFile to the installers (the
-			// MSI's license page, the DEB's copyright file) - so even an unsigned build says who made it
-			// and under what terms.
+			// version resource and the macOS Info.plist, so even an unsigned build says who made it.  No
+			// licenseFile: the plugin would hand it to the DMG as an Agree/Disagree dialog and to the MSI as
+			// an "I accept" page, and the GPL asks no one to accept it to run the program (GPLv3 section 9).
+			// The license text ships inside the app image instead (prepareAppResources below).
 			vendor = appVendor
 			description = appDescription
 			copyright = appCopyright
-			licenseFile.set(rootProject.file("LICENSE"))
 
 			// The jlink module set for the bundled runtime. Compose's default is
 			// [java.base, java.desktop, java.logging, jdk.crypto.ec] and modules(...) APPENDS to
@@ -221,8 +221,10 @@ compose.desktop {
 				perUserInstall = true
 				// A per-user install lands in %LOCALAPPDATA%\<installationPath>, which would otherwise be the app name -
 				// %LOCALAPPDATA%\Umamo, the folder the logs live in (Windows ignores case).  Programs\Umamo is where per-user
-				// applications conventionally go.  An identity too: moving it later moves every install on upgrade.
-				installationPath = "Programs\\Umamo"
+				// applications conventionally go.  An identity too: moving it later moves every install on upgrade.  The
+				// separator is written twice because the plugin hands the value to jpackage quoted in an @argfile, where a
+				// backslash escapes the character after it: a single one reaches jpackage as ProgramsUmamo.
+				installationPath = "Programs\\\\Umamo"
 				// A Start-menu entry in an Umamo folder, no desktop shortcut, and no folder page: the plugin turns the chooser
 				// on unless told otherwise, and one click is what a per-user install is for.
 				menuGroup = "Umamo"
@@ -257,6 +259,15 @@ compose.desktop {
 		}
 	}
 }
+
+// The GPL's text goes into the app image beside the appResourcesRootDir files (lib/app/resources/LICENSE on Linux), so
+// the archive and every installer made from the image carry it without asking anyone to agree to it.  Matched lazily:
+// the plugin registers the task after this script has run.
+val projectLicense = rootProject.file("LICENSE")
+tasks.withType<Sync>().matching { syncTask -> syncTask.name == "prepareAppResources" }
+	.configureEach {
+		from(projectLicense)
+	}
 
 // The JDK whose jlink built the app image: the one passed as umamo.packagingJavaHome, else the plugin's default.  The
 // Linux installer tasks run ITS jpackage, because jpackage refuses an app image another jpackage version built.

@@ -31,7 +31,10 @@ class InstallerIdentityTest {
 
 		assertTrue("upgradeUuid = \"$upgradeUuid\"" in script, "the upgrade code every later MSI finds this one by")
 		assertTrue("perUserInstall = true" in script, "a per-user install, with no administrator prompt")
-		assertTrue("installationPath = \"Programs\\\\Umamo\"" in script, "under %LOCALAPPDATA%\\Programs, clear of the data folder")
+		assertTrue(
+			"installationPath = \"Programs" + "\\".repeat(4) + "Umamo\"" in script,
+			"under %LOCALAPPDATA%\\Programs, clear of the data folder; the separator doubled for jpackage's @argfile",
+		)
 		assertTrue("menuGroup = \"Umamo\"" in script, "a Start-menu entry in an Umamo folder")
 		assertTrue("dirChooser = false" in script, "no folder page: the plugin would offer one")
 		assertTrue("shortcut = false" in script, "no desktop shortcut")

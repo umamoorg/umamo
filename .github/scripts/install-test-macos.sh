@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Opens the Umamo DMG the way a rigger does - mount it, drag Umamo.app out - and checks the copy: the bundle and the
-# Applications link are on the image, the copied app's self-check passes, and it starts.
+# Opens the Umamo DMG the way the user does - mount it, drag Umamo.app out - and checks the copy: the DMG opens with
+# no prompt, the bundle and the Applications link are on the image, the copied app's self-check passes, and it
+# starts.
 #
 # The DMG is built and tested on every release run but published only once it can be notarized (docs/plan/
 # distribution.md D5).  A DMG has no install or uninstall of its own: an upgrade is dragging the new app over the
@@ -30,7 +31,12 @@ fail() {
 	failures=$((failures + 1))
 }
 
-hdiutil attach -nobrowse -readonly -mountpoint "${mount_point}" "${dmg}"
+# Nothing answers here, so a DMG that asks a question - a license agreement, which the build leaves out because the
+# license ships inside the app - fails to mount.
+if ! hdiutil attach -nobrowse -readonly -mountpoint "${mount_point}" "${dmg}" < /dev/null; then
+	echo "::error::the DMG did not mount without an answer: does it carry a license agreement again?"
+	exit 1
+fi
 ls -la "${mount_point}"
 [ -d "${mount_point}/Umamo.app" ] || fail "the DMG holds no Umamo.app"
 [ -L "${mount_point}/Applications" ] || fail "the DMG has no Applications link to drag onto"

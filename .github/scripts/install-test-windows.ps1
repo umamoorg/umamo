@@ -105,16 +105,19 @@ if (-not $openCommand -or $openCommand -notlike '*Umamo.exe*' -or $openCommand -
 	Report-Failure "a .uma does not open with the installed Umamo.exe, handed over as an argument"
 }
 
-# A script that succeeds without calling exit leaves $LASTEXITCODE as it was, so each check starts from zero.
-$global:LASTEXITCODE = 0
-& (Join-Path $scriptDirectory "self-check.ps1") -Launcher $launcher
-if ($LASTEXITCODE -ne 0) {
-	Report-Failure "the installed app's self-check failed"
-}
-$global:LASTEXITCODE = 0
-& (Join-Path $scriptDirectory "launch-smoke-test.ps1") -Launcher $launcher
-if ($LASTEXITCODE -ne 0) {
-	Report-Failure "the installed app's launch smoke test failed"
+# Both need the launcher, whose absence is already reported; skipping them keeps the uninstall checks below running.
+if (Test-Path $launcher) {
+	# A script that succeeds without calling exit leaves $LASTEXITCODE as it was, so each check starts from zero.
+	$global:LASTEXITCODE = 0
+	& (Join-Path $scriptDirectory "self-check.ps1") -Launcher $launcher
+	if ($LASTEXITCODE -ne 0) {
+		Report-Failure "the installed app's self-check failed"
+	}
+	$global:LASTEXITCODE = 0
+	& (Join-Path $scriptDirectory "launch-smoke-test.ps1") -Launcher $launcher
+	if ($LASTEXITCODE -ne 0) {
+		Report-Failure "the installed app's launch smoke test failed"
+	}
 }
 
 Write-Host "---- uninstalling"

@@ -343,6 +343,21 @@ jobs:
             esac
           done
 
+      # The GPL's text rides inside the app image (prepareAppResources in app/desktop/build.gradle.kts), so the
+      # archive and every installer made from the image carry it: no installer asks anyone to agree to it.
+      - name: Assert the app image carries the license
+        if: matrix.appImage
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="app/desktop/build/compose/binaries/main/app"
+          license="$(find "${root}" -maxdepth 8 -type f -path '*/resources/LICENSE' | head -n1)"
+          if [ -z "${license}" ] || ! cmp -s "${license}" LICENSE; then
+            echo "::error file=app/desktop/build.gradle.kts::the app image's resources do not carry the repository's LICENSE"
+            exit 1
+          fi
+          echo "license: ${license}"
+
       # The launcher's JVM options come from :desktop's application.jvmArgs, which jpackage copies into
       # the cfg. Check the ones riggers depend on - the heap option README and the release notes promise
       # (LauncherHeapOptionTest holds the build script to it) and the two that keep a JDK 24 or later
@@ -729,9 +744,10 @@ jobs:
 
       # Headless, so the self-check stands in for the launch: in a bare container it also proves each
       # package's dependencies bring every library the runtime and Skia load. Fedora's images come from
-      # Fedora's own registry. Fedora 45 is Rawhide until it is released.
+      # Fedora's own registry. Fedora 45 is Rawhide until it is released. Runs even when the runner's own
+      # test failed, so one run reports every distribution.
       - name: Install the DEB and RPM in distribution containers (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && !cancelled()
         shell: bash
         run: |
           set -euo pipefail
