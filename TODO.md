@@ -46,6 +46,9 @@
 	* (Check the bullshit the AI did without my permission.)  CDI3 - Export mesh display names as a separate array.
 	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
 
+## Deleted References (Unused Data)
+* Add a Blender like unused data to inspect and clean up dead references.
+
 ## Tools, Shortcuts, and Gizmos
 * Improvements
 	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.
@@ -79,6 +82,7 @@
 	* Support renaming images.
 * Improvements
 	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
+	* Ability to have unplaced tiles.  For example, guide images don't need to be in the atlas, but any imported at the moment are forced into an atlas.
 * Bugs
 	* When relinking EricaTamamo.psd in EricaTamamo.cmo3 it results in some layers getting fringe artifacts like what was experienced in the past.
 
@@ -259,25 +263,6 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 	buffer) and loop the welds in the shader **in the CPU's pair order** so the sequential result matches.
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
-
-## Deformer keeps no rest geometry once its last axis is collapsed (found 2026-09-04)
-
-**What.** `withAxisCollapsed` returns null when the last axis goes, and `withParameterDeleted` stores that
-null as a warp's or rotation's `geometryGrid` - so the deformer's lattice / pivot, which lived only in that
-grid, is gone from the model.  The CMO3 export then has nothing to write for it and removes the source's
-`keyformGridSource`; the official editor refuses a source without a default keyform (`setKeyformGridSource`
-rejects null, `getDefaultKeyForm` throws "no KeyForms" - the same refusal that crashed it on the first
-artwork-origin export, fixed for drawables/parts/glue by writing one default cell in
-`Cmo3KeyformLowering.buildBundle`).
-
-**Why it's fine right now.** Nothing in the editor deletes a parameter that keys a deformer's geometry
-except the parameter-delete flow, and the structure round-trip gate only reaches the case by choosing a
-victim parameter that keys deformer geometry.
-
-**Fix sketch.** Keep the rest cell: a last-axis collapse should yield an axis-less one-cell grid holding the
-form at the kept key (the deformer's rest lattice / pivot), not null - for drawables too, since the export
-then writes the same shape the corpus does.  Once that holds, `writeGridWeb`'s empty-bundle branch becomes
-unreachable and can go.
 
 ## Glue intensity has no editable home (deferred 2026-07-29)
 

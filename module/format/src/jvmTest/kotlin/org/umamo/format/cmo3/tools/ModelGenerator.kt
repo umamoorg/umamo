@@ -33,10 +33,12 @@ class ModelGenerator {
 	 * Fields that must ALWAYS serialize, overriding the sometimes-present inference.
 	 *
 	 * The `@DontSerializeIfDefault` rule is "the corpus does not always carry this field", which is
-	 * a statement about the SAMPLES.  For these four the official editor's custom deserializers
+	 * a statement about the SAMPLES.  For these the official editor's custom deserializers
 	 * dereference the field unconditionally and NPE at load when it is absent, so omitting it
 	 * writes a file Cubism cannot open - the corpus merely happens to include older-era samples
-	 * that predate the field.  Corpus evidence cannot express that, so the exception lives here,
+	 * that predate the field.  Only a FRESH object honors the annotation (a read one replays the
+	 * fields it was read with), so an entry here changes what Umamo creates and nothing it
+	 * round-trips.  Corpus evidence cannot express that, so the exception lives here,
 	 * in the generator, and NOT as a hand-edit of the output: a from-scratch regeneration (the
 	 * output file deleted) has to reproduce it, and a hand-edit would not survive that.
 	 *
@@ -48,6 +50,9 @@ class ModelGenerator {
 			"ACParameterControllableSource.internalColor_direct_argb" to "the editor always writes this field, as an explicit null",
 			"CPartSource.useOffscreen" to "CPartSource.deserialize dereferences this unconditionally",
 			"CPartSource.invertClippingMask" to "CPartSource.deserialize dereferences this unconditionally",
+			// The pre-5.3 drawOrder-only form omits it legally, but every form Umamo creates carries
+			// its colors, and a form with colors and no opacity is a shape no corpus file has.
+			"CPartForm.opacity" to "CPartForm.deserialize dereferences this once the form carries its colors",
 		)
 
 	private val primitiveTags =

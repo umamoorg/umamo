@@ -669,7 +669,7 @@ internal object Cmo3ImageChainBuilder {
 	/**
 	 * The texture a drawable over never-packed art samples: its model image's raster, through the raster's
 	 * padding scale, shared by every drawable over that art.  Every corpus drawable with no atlas region
-	 * writes this shape (G8's `Cmo3UnpackedDrawableProbeTest`, 10 drawables in 7 files): the raster as
+	 * writes this shape (G8's `Cmo3UnpackedDrawableProbeTest`, 10 drawables in 6 files): the raster as
 	 * `srcImageResource`, its dims over its 64-aligned padding as `transformImageResource01toLogical01` (so
 	 * the stored coordinates are in the cache frame), mip level 64, and the page texture's fixed sampling
 	 * fields.
