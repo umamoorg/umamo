@@ -67,6 +67,12 @@ internal class ObjectModalTransform(
 	val gesture = ModalGestureState<ObjectGesture>()
 
 	/**
+	 * The keyform movement of each drawable in the gesture's latest preview, kept beside the preview's base
+	 * positions so the confirm commits both (MeshBaseMove).
+	 */
+	private var previewKeyformMovements: Map<DrawableId, DoubleArray> = emptyMap()
+
+	/**
 	 * Starts the gesture as an operator latches in this area: freezes each selected drawable's world
 	 * geometry at the current object-mode pose and hands the shared builder its sources plus this area's
 	 * active-element / cursor anchors.  Drops the operator when nothing transformable survives.
@@ -166,7 +172,7 @@ internal class ObjectModalTransform(
 		if (committed != null && gestureData != null && committed.isNotEmpty()) {
 			val transform = gestureData.transform
 			val modelBefore = session.model.value
-			session.commitObjectPositions(MeshChange.TransformDrawables(transform.drawableIds, transform.operatorKind), committed)
+			session.commitObjectPositions(MeshChange.TransformDrawables(transform.drawableIds, transform.operatorKind), committed, previewKeyformMovements)
 			// A commit that recorded nothing (the drawables landed where they started) has no step of its
 			// own to amend, so it registers nothing.
 			if (parameters != null && session.model.value !== modelBefore) {
@@ -202,17 +208,20 @@ internal class ObjectModalTransform(
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
 		gesture.lastParameters = parameters
 		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
+		val movementByDrawable = LinkedHashMap<DrawableId, DoubleArray>(transform.entries.size)
 		var folded = session.model.value
 		for (entry in transform.entries) {
 			val geometry = gestureData.geometryById.getValue(entry.drawableId)
 			// Proportional editing is an Edit-mode feature: object mode moves whole drawables, so there
 			// are no unselected vertices to weight.
 			val transformedWorld = applyOperator(operator, entry.positions, entry.groups, parameters, emptyMap())
-			val newBase = geometry.worldToBase(transformedWorld, entry.coveredIndices)
-			newBaseByDrawable[entry.drawableId] = newBase
-			folded = folded.withMeshPositions(entry.drawableId, newBase)
+			val move = geometry.worldToBaseMove(transformedWorld, entry.coveredIndices)
+			newBaseByDrawable[entry.drawableId] = move.positions
+			movementByDrawable[entry.drawableId] = move.keyformMovement
+			folded = folded.withMeshPositions(entry.drawableId, move.positions)
 		}
 		gesture.preview = newBaseByDrawable
+		previewKeyformMovements = movementByDrawable
 		pushPreview(folded)
 		return true
 	}

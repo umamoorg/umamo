@@ -12,6 +12,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -42,7 +43,7 @@ class DeformerCascadeTest {
 	}
 
 	private fun zeroDeltaMesh(vertexCount: Int): KeyformGrid<MeshDeltaForm> =
-		KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(vertexCount * 2)))))
+		KeyformGrid(singleKeyAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(vertexCount * 2).toDoubleArray()))))
 
 	@Test
 	fun meshUnderTranslatedWarp() {

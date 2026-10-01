@@ -89,7 +89,7 @@ class Cmo3ExportStructureRoundTripTest {
 		if (editedGrid != null && reimportedGrid != null) {
 			val reimportedByCoordinate =
 				reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
-			var maxComponentDifference = 0f
+			var maxComponentDifference = 0.0
 			for (cell in editedGrid.cells) {
 				val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()]
 				assertTrue(reimportedDeltas != null, "$label: cell ${cell.coordinate.toList()} vanished")
@@ -101,7 +101,7 @@ class Cmo3ExportStructureRoundTripTest {
 						)
 				}
 			}
-			assertTrue(maxComponentDifference < 1e-3f, "$label: geometry drifted by $maxComponentDifference")
+			assertTrue(maxComponentDifference < 1e-3, "$label: geometry drifted by $maxComponentDifference")
 		}
 		val residual = diffPuppetModels(result.reimported, result.edited)
 		if (residual.isEmpty) {

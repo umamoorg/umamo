@@ -964,13 +964,22 @@ class EditorSession(
 	 * is document content), so it marks the document dirty; a no-op (every array unchanged / mismatched)
 	 * records nothing.
 	 *
+	 * The keyforms move with the base and settle at the floats a file stores ([withMeshPositionsCommitted]);
+	 * a drawable with an entry in [keyformMovementsByDrawable] moves them by that rather than by what the
+	 * rounded base moved.
+	 *
 	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformVertices]).
 	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each edited drawable's committed rest positions.
+	 * @param Map<DrawableId, DoubleArray> keyformMovementsByDrawable The movement each drawable's keyforms make, where known.
 	 */
-	fun commitMeshPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
+	fun commitMeshPositions(
+		change: MeshChange,
+		newPositionsByDrawable: Map<DrawableId, FloatArray>,
+		keyformMovementsByDrawable: Map<DrawableId, DoubleArray> = emptyMap(),
+	) {
 		val newModel =
 			newPositionsByDrawable.entries.fold(mutableModel.value) { model, (drawableId, newPositions) ->
-				model.withMeshPositions(drawableId, newPositions)
+				model.withMeshPositionsCommitted(drawableId, newPositions, keyformMovementsByDrawable[drawableId])
 			}
 		commit(change, newModel, mutablePose.value)
 	}
@@ -983,13 +992,22 @@ class EditorSession(
 	 * is a single step. A model edit (rest geometry is document content), so it marks the document dirty; a
 	 * no-op (every array unchanged / mismatched, so the fold returns the same instance) records nothing.
 	 *
+	 * The keyforms move with the base and settle at the floats a file stores ([withMeshPositionsCommitted]);
+	 * a drawable with an entry in [keyformMovementsByDrawable] moves them by that rather than by what the
+	 * rounded base moved.
+	 *
 	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformDrawables]).
 	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each moved drawable's committed rest positions.
+	 * @param Map<DrawableId, DoubleArray> keyformMovementsByDrawable The movement each drawable's keyforms make, where known.
 	 */
-	fun commitObjectPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
+	fun commitObjectPositions(
+		change: MeshChange,
+		newPositionsByDrawable: Map<DrawableId, FloatArray>,
+		keyformMovementsByDrawable: Map<DrawableId, DoubleArray> = emptyMap(),
+	) {
 		val newModel =
 			newPositionsByDrawable.entries.fold(mutableModel.value) { model, (drawableId, newPositions) ->
-				model.withMeshPositions(drawableId, newPositions)
+				model.withMeshPositionsCommitted(drawableId, newPositions, keyformMovementsByDrawable[drawableId])
 			}
 		commit(change, newModel, mutablePose.value)
 	}

@@ -14,6 +14,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -39,7 +40,7 @@ class MeshTopologyEditsTest {
 	private val stripMesh = DrawableMesh(stripPositions, stripUvs, stripIndices)
 
 	// Per-vertex deltas 10*(index+1) on x, 0 on y - distinguishable per vertex.
-	private fun stripForm(): MeshDeltaForm = MeshDeltaForm(floatArrayOf(10f, 0f, 20f, 0f, 30f, 0f, 40f, 0f))
+	private fun stripForm(): MeshDeltaForm = MeshDeltaForm(floatArrayOf(10f, 0f, 20f, 0f, 30f, 0f, 40f, 0f).toDoubleArray())
 
 	private fun stripDrawable(id: String): Drawable =
 		Drawable(
@@ -94,10 +95,10 @@ class MeshTopologyEditsTest {
 		val editedDrawable = edited.drawables.first { it.id == DrawableId("d") }
 		assertSame(newMesh, editedDrawable.mesh, "the replacement mesh swaps in")
 		val deltas = editedDrawable.geometryGrid!!.cells.single().form.positionDeltas
-		assertEquals(10f, deltas[0], "v0 copies its delta")
-		assertEquals(20f, deltas[2], "v1 copies its delta")
-		assertEquals(35f, deltas[4], "the merge survivor averages v2 and v3 (30 + 40) / 2")
-		assertEquals(12.5f, deltas[6], 1e-4f, "the split point lerps v0 and v1 by t = 0.25")
+		assertEquals(10.0, deltas[0], "v0 copies its delta")
+		assertEquals(20.0, deltas[2], "v1 copies its delta")
+		assertEquals(35.0, deltas[4], "the merge survivor averages v2 and v3 (30 + 40) / 2")
+		assertEquals(12.5, deltas[6], 1e-4, "the split point lerps v0 and v1 by t = 0.25")
 
 		// Glue: pair on old v1 remaps to new v1 (same slot); pair on old v3 collapses onto the survivor.
 		val glue = edited.glues.single()

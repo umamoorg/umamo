@@ -13,7 +13,7 @@ import org.umamo.edit.rederiveProportionalHalos
 import org.umamo.edit.slideParameters
 import org.umamo.edit.transformGestureParametersOf
 import org.umamo.edit.transformParameters
-import org.umamo.edit.withMeshPositions
+import org.umamo.edit.withMeshPositionsCommitted
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.viewport.gizmo.applyOperator
@@ -72,7 +72,8 @@ internal fun registerMeshTransformAdjustment(
 			transform.entries.fold(record.baseSnapshot.model) { model, entry ->
 				val geometry = geometryById[entry.drawableId] ?: return@fold model
 				val world = applyOperator(kind, entry.positions, entry.groups, adjusted, entry.influence)
-				model.withMeshPositions(entry.drawableId, geometry.worldToBase(world, entry.movedIndices))
+				val move = geometry.worldToBaseMove(world, entry.movedIndices)
+				model.withMeshPositionsCommitted(entry.drawableId, move.positions, move.keyformMovement)
 			}
 		if (session.amendLastCommit(record, landed) && proportionalRows != null) {
 			onProportional(proportionalRows.asState())
@@ -110,7 +111,8 @@ internal fun registerSlideAdjustment(
 		val geometry = geometryById[drawableId] ?: return@registerAdjustableOperation
 		val adjustedFactor = record.parameters.floatValue(TransformParameterKeys.SLIDE_FACTOR, factor)
 		val world = slideVertexByFactor(entry.positions, vertexIndex, neighborIndex, adjustedFactor)
-		session.amendLastCommit(record, record.baseSnapshot.model.withMeshPositions(drawableId, geometry.worldToBase(world, entry.movedIndices)))
+		val move = geometry.worldToBaseMove(world, entry.movedIndices)
+		session.amendLastCommit(record, record.baseSnapshot.model.withMeshPositionsCommitted(drawableId, move.positions, move.keyformMovement))
 	}
 
 /**
@@ -144,7 +146,8 @@ internal fun registerObjectTransformAdjustment(
 			transform.entries.fold(record.baseSnapshot.model) { model, entry ->
 				val geometry = geometryById[entry.drawableId] ?: return@fold model
 				val world = applyOperator(kind, entry.positions, entry.groups, adjusted, emptyMap())
-				model.withMeshPositions(entry.drawableId, geometry.worldToBase(world, entry.coveredIndices))
+				val move = geometry.worldToBaseMove(world, entry.coveredIndices)
+				model.withMeshPositionsCommitted(entry.drawableId, move.positions, move.keyformMovement)
 			}
 		session.amendLastCommit(record, landed)
 	}

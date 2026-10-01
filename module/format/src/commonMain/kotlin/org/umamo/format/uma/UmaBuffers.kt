@@ -34,9 +34,10 @@ import org.umamo.format.binary.ByteReader
 /** UMA §4.9: the alignment of an accessor whose component type this reader does not know, the largest a type may need. */
 private const val UNKNOWN_COMPONENT_ALIGNMENT = 8
 
-/** UMA §4.9: the component types this reader interprets, each four bytes little-endian. */
+/** UMA §4.9: the component types this reader interprets, each little-endian. */
 internal object UmaComponentType {
 	const val FLOAT32 = "float32"
+	const val FLOAT64 = "float64"
 	const val INT32 = "int32"
 
 	/**
@@ -48,6 +49,7 @@ internal object UmaComponentType {
 	fun sizeOf(componentType: String): Int? =
 		when (componentType) {
 			FLOAT32, INT32 -> 4
+			FLOAT64 -> 8
 			else -> null
 		}
 }
@@ -192,6 +194,21 @@ internal class UmaScratchBuffer {
 	}
 
 	/**
+	 * Appends [values] as float64 and returns the accessor naming them.  The scratch offset is not aligned here:
+	 * the layout copies every array into the owned buffer on its own component boundary.
+	 *
+	 * @param DoubleArray values The array.
+	 * @return UmaAccessor The accessor.
+	 */
+	fun appendDoubles(values: DoubleArray): UmaAccessor {
+		val offset = output.size.toInt()
+		for (value in values) {
+			output.writeLongLe(value.toRawBits())
+		}
+		return UmaAccessor(UmaAccessor.SCRATCH_BUFFER, offset, values.size * 8, values.size, UmaComponentType.FLOAT64)
+	}
+
+	/**
 	 * Appends [values] as int32 and returns the accessor naming them.
 	 *
 	 * @param IntArray values The array.
@@ -305,9 +322,52 @@ private class Float32AccessorSerializer(
 	 * @return FloatArray The array.
 	 */
 	override fun deserialize(decoder: Decoder): FloatArray {
-		val (accessor, bytes) = resolveAccessor(decoder, UmaComponentType.FLOAT32, buffers)
+		val (accessor, bytes) = resolveAccessor(decoder, setOf(UmaComponentType.FLOAT32), buffers)
 		val reader = ByteReader(bytes, littleEndian = true)
 		return FloatArray(accessor.count) { componentIndex -> Float.fromBits(reader.u32AsInt(accessor.byteOffset + componentIndex * 4)) }
+	}
+}
+
+/**
+ * Reads accessors into double arrays while decoding, and writes double arrays out as float64 accessors while
+ * encoding.  A float32 accessor reads too, each component widened exactly: UMA §4.11 lets a reader take the
+ * float32 position deltas Umamo 0.4.0 wrote.
+ *
+ * @param Function          buffers Resolves a buffer path to its bytes, for decoding.
+ * @param UmaScratchBuffer? scratch The buffer new arrays append to, for encoding.
+ */
+private class Float64AccessorSerializer(
+	private val buffers: (String) -> ByteArray?,
+	private val scratch: UmaScratchBuffer?,
+) : KSerializer<DoubleArray> {
+	override val descriptor: SerialDescriptor = buildClassSerialDescriptor("org.umamo.format.uma.Float64Accessor")
+
+	/**
+	 * Writes [value] into the scratch buffer and its accessor into the tree.
+	 *
+	 * @param Encoder     encoder The JSON encoder.
+	 * @param DoubleArray value   The array.
+	 */
+	override fun serialize(encoder: Encoder, value: DoubleArray) {
+		val sink = scratch ?: throw SerializationException("no buffer to write a float64 array into")
+		(encoder as JsonEncoder).encodeJsonElement(sink.appendDoubles(value).toJson())
+	}
+
+	/**
+	 * Reads the accessor at the decoder's position and slices its components out of the buffer it names,
+	 * widening float32 ones.
+	 *
+	 * @param Decoder decoder The JSON decoder.
+	 * @return DoubleArray The array.
+	 */
+	override fun deserialize(decoder: Decoder): DoubleArray {
+		val (accessor, bytes) = resolveAccessor(decoder, setOf(UmaComponentType.FLOAT64, UmaComponentType.FLOAT32), buffers)
+		val reader = ByteReader(bytes, littleEndian = true)
+		return if (accessor.componentType == UmaComponentType.FLOAT64) {
+			DoubleArray(accessor.count) { componentIndex -> Double.fromBits(reader.u64(accessor.byteOffset + componentIndex * 8)) }
+		} else {
+			DoubleArray(accessor.count) { componentIndex -> Float.fromBits(reader.u32AsInt(accessor.byteOffset + componentIndex * 4)).toDouble() }
+		}
 	}
 }
 
@@ -341,7 +401,7 @@ private class Int32AccessorSerializer(
 	 * @return IntArray The array.
 	 */
 	override fun deserialize(decoder: Decoder): IntArray {
-		val (accessor, bytes) = resolveAccessor(decoder, UmaComponentType.INT32, buffers)
+		val (accessor, bytes) = resolveAccessor(decoder, setOf(UmaComponentType.INT32), buffers)
 		val reader = ByteReader(bytes, littleEndian = true)
 		return IntArray(accessor.count) { componentIndex -> reader.u32AsInt(accessor.byteOffset + componentIndex * 4) }
 	}
@@ -349,23 +409,25 @@ private class Int32AccessorSerializer(
 
 /**
  * The accessor at [decoder]'s position and the bytes of the buffer it names, checked against the component
- * type the field requires.
+ * types the field accepts.
  *
- * @param Decoder  decoder       The JSON decoder.
- * @param String   componentType The component type the field requires.
- * @param Function buffers       Resolves a buffer path to its bytes.
+ * @param Decoder     decoder        The JSON decoder.
+ * @param Set<String> componentTypes The component types the field accepts, each one this reader knows.
+ * @param Function    buffers        Resolves a buffer path to its bytes.
  * @return Pair The accessor and its buffer's bytes.
- * @throws SerializationException When the value is not a sound accessor of that type.
+ * @throws SerializationException When the value is not a sound accessor of an accepted type.
  */
-private fun resolveAccessor(decoder: Decoder, componentType: String, buffers: (String) -> ByteArray?): Pair<UmaAccessor, ByteArray> {
+private fun resolveAccessor(decoder: Decoder, componentTypes: Set<String>, buffers: (String) -> ByteArray?): Pair<UmaAccessor, ByteArray> {
+	val expected = componentTypes.joinToString(" or ")
 	val element = (decoder as JsonDecoder).decodeJsonElement()
-	val accessor = UmaAccessor.of(element) ?: throw SerializationException("expected a $componentType accessor, found $element")
-	if (accessor.componentType != componentType) {
-		throw SerializationException("expected a $componentType accessor, found ${accessor.componentType}")
+	val accessor = UmaAccessor.of(element) ?: throw SerializationException("expected a $expected accessor, found $element")
+	if (accessor.componentType !in componentTypes) {
+		throw SerializationException("expected a $expected accessor, found ${accessor.componentType}")
 	}
+	val componentSize = checkNotNull(UmaComponentType.sizeOf(accessor.componentType)) { "an accepted component type must be one this reader knows" }
 	val bytes = buffers(accessor.buffer) ?: throw SerializationException("the accessor names the buffer '${accessor.buffer}', which the archive does not hold")
-	if (accessor.byteLength.toLong() != accessor.count.toLong() * 4 || accessor.byteOffset.toLong() + accessor.byteLength > bytes.size) {
-		throw SerializationException("the $componentType accessor does not fit the buffer '${accessor.buffer}'")
+	if (accessor.byteLength.toLong() != accessor.count.toLong() * componentSize || accessor.byteOffset.toLong() + accessor.byteLength > bytes.size) {
+		throw SerializationException("the ${accessor.componentType} accessor does not fit the buffer '${accessor.buffer}'")
 	}
 	return accessor to bytes
 }
@@ -383,6 +445,7 @@ internal fun umaEntryJsonWithBuffers(buffers: (String) -> ByteArray?, scratch: U
 		serializersModule =
 			SerializersModule {
 				contextual(FloatArray::class, Float32AccessorSerializer(buffers, scratch))
+				contextual(DoubleArray::class, Float64AccessorSerializer(buffers, scratch))
 				contextual(IntArray::class, Int32AccessorSerializer(buffers, scratch))
 			}
 	}

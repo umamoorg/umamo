@@ -103,7 +103,7 @@ class UmaBufferTest {
 		 */
 		fun objectOf(text: String): JsonObject = kotlinx.serialization.json.Json.parseToJsonElement(text) as JsonObject
 		assertNotNull(UmaAccessor.of(objectOf(accessor(bufferPath, 0, 2, "float32"))), "the five keys")
-		assertNotNull(UmaAccessor.of(objectOf(accessor(bufferPath, 0, 2, "float64", byteLength = 16))), "an unknown component type is still an accessor")
+		assertNotNull(UmaAccessor.of(objectOf(accessor(bufferPath, 0, 2, "int64", byteLength = 16))), "an unknown component type is still an accessor")
 		assertNull(UmaAccessor.of(objectOf("""{ "buffer": "b", "byteOffset": 0, "byteLength": 8, "count": 2, "componentType": "float32", "stride": 4 }""")), "an extra key")
 		assertNull(UmaAccessor.of(objectOf("""{ "buffer": "b", "byteOffset": "0", "byteLength": 8, "count": 2, "componentType": "float32" }""")), "a quoted offset")
 		assertNull(UmaAccessor.of(objectOf("""{ "buffer": "b", "byteOffset": -4, "byteLength": 8, "count": 2, "componentType": "float32" }""")), "a negative offset")
@@ -226,16 +226,46 @@ class UmaBufferTest {
 	@Test
 	fun unknownComponentTypesAlignToEight() {
 		val oddRun = byteArrayOf(1, 2, 3)
-		val doubleBytes = byteArrayOf(10, 11, 12, 13, 14, 15, 16, 17)
+		val longBytes = byteArrayOf(10, 11, 12, 13, 14, 15, 16, 17)
 		val puppetJson =
-			"""{ "drawables": [ { "id": "D", "name": "D", "futureBytes": ${accessor(bufferPath, 0, 3, "uint8", byteLength = 3)}, "futureDouble": ${accessor(bufferPath, 3, 1, "float64", byteLength = 8)} } ] }"""
-		val document = Uma.read(fileWith(puppetJson, oddRun + doubleBytes))
+			"""{ "drawables": [ { "id": "D", "name": "D", "futureBytes": ${accessor(bufferPath, 0, 3, "uint8", byteLength = 3)}, "futureLong": ${accessor(bufferPath, 3, 1, "int64", byteLength = 8)} } ] }"""
+		val document = Uma.read(fileWith(puppetJson, oddRun + longBytes))
 		val saved = Uma.read(Uma.write(document.withPuppet(document.puppet!!)))
 		val drawable = ((saved.liveContent(UmaEntryKind.Puppet)!!["drawables"] as JsonArray).single() as JsonObject)
-		val doubleAccessor = assertNotNull(UmaAccessor.of(drawable["futureDouble"]!!))
-		assertEquals(0, doubleAccessor.byteOffset % 8, "the run starts on a multiple of 8: ${doubleAccessor.byteOffset}")
+		val longAccessor = assertNotNull(UmaAccessor.of(drawable["futureLong"]!!))
+		assertEquals(0, longAccessor.byteOffset % 8, "the run starts on a multiple of 8: ${longAccessor.byteOffset}")
 		val buffer = saved.bufferBytes(bufferPath)!!
-		assertContentEquals(doubleBytes, buffer.copyOfRange(doubleAccessor.byteOffset, doubleAccessor.byteOffset + doubleAccessor.byteLength), "with its own bytes")
+		assertContentEquals(longBytes, buffer.copyOfRange(longAccessor.byteOffset, longAccessor.byteOffset + longAccessor.byteLength), "with its own bytes")
+	}
+
+	/**
+	 * Position deltas Umamo 0.4.0 wrote as float32 still read, each widened exactly, and the next save writes them
+	 * as float64 (UMA §4.11), keeping every bit - a canvas-scale delta, a tiny one, and a negative zero alike.
+	 */
+	@Test
+	fun float32PositionDeltasReadWidenedAndSaveAsFloat64() {
+		val firstCell = floatArrayOf(-4069.7283f, 0.36849776f, 1e-7f, -0f, 2.5f, -3f)
+		val secondCell = floatArrayOf(-4069.7212f, 0.5f, -1e-7f, 0f, 2.25f, -3.125f)
+		val geometryJson =
+			"""{ "axes": [ { "parameter": "P0", "keys": [0, 1] } ], "cells": [ { "coordinate": [0], "positionDeltas": ${accessor(bufferPath, 60, 6, "float32")} }, { "coordinate": [1], "positionDeltas": ${accessor(bufferPath, 84, 6, "float32")} } ] }"""
+		val puppetJson =
+			"""{ "parameters": [ { "id": "P0", "name": "P0", "min": 0, "max": 1, "default": 0 } ], "drawables": [ { "id": "D", "name": "D", "mesh": ${triangleMeshJson(0)}, "geometry": $geometryJson } ] }"""
+		val document = Uma.read(fileWith(puppetJson, triangleBytes + float32(*firstCell) + float32(*secondCell)))
+		val cells = assertNotNull(document.puppet!!.drawables!!.single().geometry).cells
+		assertContentEquals(DoubleArray(firstCell.size) { componentIndex -> firstCell[componentIndex].toDouble() }, cells[0].positionDeltas, "the first cell widened exactly")
+		assertContentEquals(DoubleArray(secondCell.size) { componentIndex -> secondCell[componentIndex].toDouble() }, cells[1].positionDeltas, "the second cell widened exactly")
+
+		val saved = Uma.read(Uma.write(document.withPuppet(document.puppet!!)))
+		val savedGeometry = ((saved.liveContent(UmaEntryKind.Puppet)!!["drawables"] as JsonArray).single() as JsonObject)["geometry"] as JsonObject
+		val savedCells = savedGeometry["cells"] as JsonArray
+		for (savedCell in savedCells) {
+			val deltasAccessor = assertNotNull(UmaAccessor.of((savedCell as JsonObject)["positionDeltas"]!!))
+			assertEquals("float64", deltasAccessor.componentType, "a save writes deltas as float64")
+			assertEquals(6 * 8, deltasAccessor.byteLength)
+		}
+		val reread = assertNotNull(saved.puppet!!.drawables!!.single().geometry).cells
+		assertContentEquals(cells[0].positionDeltas, reread[0].positionDeltas, "the float64 round trip keeps every bit")
+		assertContentEquals(cells[1].positionDeltas, reread[1].positionDeltas, "the float64 round trip keeps every bit")
 	}
 
 	/**

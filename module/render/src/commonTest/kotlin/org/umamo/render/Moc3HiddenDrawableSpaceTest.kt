@@ -15,6 +15,7 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertNotNull
@@ -83,8 +84,8 @@ class Moc3HiddenDrawableSpaceTest {
 					KeyformGrid(
 						listOf(KeyformAxis(toggle, floatArrayOf(0.5f, 1f))),
 						listOf(
-							KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(parentLocal.size))),
-							KeyformCell(intArrayOf(1), MeshDeltaForm(FloatArray(parentLocal.size))),
+							KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(parentLocal.size).toDoubleArray())),
+							KeyformCell(intArrayOf(1), MeshDeltaForm(FloatArray(parentLocal.size).toDoubleArray())),
 						),
 					),
 			)

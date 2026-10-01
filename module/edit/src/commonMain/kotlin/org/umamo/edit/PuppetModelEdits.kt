@@ -15,6 +15,10 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.KeyformCell
+import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
+import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.OrgInsertion
 import org.umamo.runtime.model.OrgSlot
@@ -222,6 +226,77 @@ fun PuppetModel.withMeshPositions(id: DrawableId, newPositions: FloatArray): Pup
 	}
 	val updated = drawables.toMutableList()
 	updated[index] = updated[index].copy(mesh = DrawableMesh(newPositions, mesh.uvs, mesh.indices))
+	return copy(drawables = updated)
+}
+
+/**
+ * Commits a move of drawable [id]'s base to [newPositions]: every keyform cell and blend form moves with it by
+ * [keyformMovement], and each one is stored at the float its absolute position rounds to.
+ *
+ * [withMeshPositions] keeps the deltas, so each keyform moves by exactly what the base moved - right for a
+ * gesture's preview frames, which must not rebuild the grid (that would turn a cheap base update into a full
+ * re-upload every frame).  A commit is where the model settles, and two things are wrong with stopping there.
+ * A deformer child's keyforms are in its parent's space while its base is the canvas-space mesh, so the float
+ * base cannot carry the gesture's movement finer than the canvas magnitude's step; [keyformMovement] carries
+ * it instead.  And `base + delta` is no longer a float once the base moves, while a CMO3 stores every keyform
+ * as absolute floats; storing each one at its float now keeps the model and the file the same, so an export
+ * and re-import gives back exactly the deltas the model holds.  A component the move leaves at rest keeps its
+ * delta bit for bit whenever its keyform was already a float.
+ *
+ * The same no-op rules as [withMeshPositions] apply.  With no movement anywhere, nothing but the base changes.
+ *
+ * @param DrawableId   id              The drawable whose mesh moves.
+ * @param FloatArray   newPositions    The new interleaved (x, y) rest positions, the current length.
+ * @param DoubleArray? keyformMovement The movement per component the keyforms make, or null for exactly what
+ *                                     the base moved (`newPositions − positions`, exact in double).
+ * @return PuppetModel The model with that drawable moved, or [this] if nothing changed.
+ */
+fun PuppetModel.withMeshPositionsCommitted(id: DrawableId, newPositions: FloatArray, keyformMovement: DoubleArray? = null): PuppetModel {
+	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
+	if (index < 0) {
+		return this
+	}
+	val drawable = drawables[index]
+	val mesh = drawable.mesh
+	if (mesh == null || newPositions === mesh.positions || newPositions.size != mesh.positions.size) {
+		return this
+	}
+	val oldBase = mesh.positions
+	val movement = keyformMovement ?: DoubleArray(newPositions.size) { componentIndex -> newPositions[componentIndex].toDouble() - oldBase[componentIndex].toDouble() }
+	if (movement.all { component -> component == 0.0 }) {
+		return withMeshPositions(id, newPositions)
+	}
+
+	/**
+	 * One delta array moved and stored at its float absolutes.
+	 *
+	 * @param DoubleArray deltas The deltas against the old base.
+	 * @return DoubleArray The deltas against the new base.
+	 */
+	fun moved(deltas: DoubleArray): DoubleArray =
+		DoubleArray(deltas.size) { componentIndex ->
+			if (componentIndex >= oldBase.size) {
+				deltas[componentIndex]
+			} else {
+				val absolute = oldBase[componentIndex].toDouble() + deltas[componentIndex] + movement.getOrElse(componentIndex) { 0.0 }
+				absolute.toFloat().toDouble() - newPositions[componentIndex].toDouble()
+			}
+		}
+	val movedGrid =
+		drawable.geometryGrid?.let { grid ->
+			KeyformGrid(grid.axes, grid.cells.map { cell -> KeyformCell(cell.coordinate, MeshDeltaForm(moved(cell.form.positionDeltas))) })
+		}
+	val movedBlendShapes =
+		drawable.blendShapes.map { binding ->
+			binding.copy(
+				forms =
+					binding.forms.map { form ->
+						form?.let { meshForm -> MeshForm(moved(meshForm.positionDeltas), meshForm.drawOrder, meshForm.opacity, meshForm.multiplyColor, meshForm.screenColor) }
+					},
+			)
+		}
+	val updated = drawables.toMutableList()
+	updated[index] = drawable.copy(mesh = DrawableMesh(newPositions, mesh.uvs, mesh.indices), geometryGrid = movedGrid, blendShapes = movedBlendShapes)
 	return copy(drawables = updated)
 }
 

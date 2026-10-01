@@ -516,19 +516,9 @@ internal fun deformMeshWorldFromCorners(
 	parent: DeformerWorld?,
 	blend: MeshBlendState? = null,
 ): FloatArray {
-	val local = blendLocalFromCorners(grid, base, corners)
-	// Blend shapes: additive per-vertex deltas (form minus the grid-at-default reference) on top of
-	// the grid blend, before the parent transform. Binding-free drawables never reach this loop.
-	if (blend != null) {
-		for (contribution in blend.contributions) {
-			val deltas = contribution.form.positionDeltas
-			val count = minOf(local.size, deltas.size)
-			for (componentIndex in 0 until count) {
-				val reference = blend.referenceDeltas?.get(componentIndex) ?: 0f
-				local[componentIndex] += contribution.weight * (deltas[componentIndex] - reference)
-			}
-		}
-	}
+	// Blend shapes add per-vertex deltas (form minus the grid-at-default reference) on top of the grid
+	// blend, before the parent transform, in the same double accumulation (blendedMeshLocal).
+	val local = blendedMeshLocal(grid, base, corners, blend)
 	val world = FloatArray(local.size)
 	val vertexCount = local.size / 2
 	for (vertexIndex in 0 until vertexCount) {

@@ -316,13 +316,13 @@ internal object UmaPuppetShape {
 	/**
 	 * Checks position deltas hold one x, y pair per vertex of [mesh]; nothing to check without a mesh.
 	 *
-	 * @param FloatArray deltas The deltas.
-	 * @param UmaMesh?   mesh   The drawable's mesh, if any.
-	 * @param String     path   Where the deltas sit.
+	 * @param DoubleArray deltas The deltas.
+	 * @param UmaMesh?    mesh   The drawable's mesh, if any.
+	 * @param String      path   Where the deltas sit.
 	 */
-	private fun checkDeltas(deltas: FloatArray, mesh: UmaMesh?, path: String) {
+	private fun checkDeltas(deltas: DoubleArray, mesh: UmaMesh?, path: String) {
 		if (mesh != null && deltas.size != mesh.positions.size) {
-			problem("$path holds ${deltas.size} floats against the mesh's ${mesh.positions.size} positions")
+			problem("$path holds ${deltas.size} components against the mesh's ${mesh.positions.size} positions")
 		}
 	}
 

@@ -90,7 +90,7 @@ class RenderPassStructureTest {
 	private fun restGrid(coordinateCount: Int): KeyformGrid<MeshDeltaForm> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(coordinateCount)))),
+			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(DoubleArray(coordinateCount)))),
 		)
 
 	/**

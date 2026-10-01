@@ -17,6 +17,7 @@ import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import org.umamo.ui.tracks.TrackRow
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -119,8 +120,8 @@ class KeyformSheetRowsTest {
 				KeyformGrid(
 					listOf(KeyformAxis(angleX, floatArrayOf(-1f, 1f))),
 					listOf(
-						KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f))),
-						KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(1f, 0f))),
+						KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f).toDoubleArray())),
+						KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(1f, 0f).toDoubleArray())),
 					),
 				),
 			channelGrids = ChannelGrids(mapOf(FormChannel.OPACITY to intensityTrack())),
@@ -130,7 +131,7 @@ class KeyformSheetRowsTest {
 						parameterId = angleX,
 						keys = floatArrayOf(0f, 1f),
 						neutralIndex = 0,
-						forms = listOf(null, MeshForm(floatArrayOf(0f, 0f))),
+						forms = listOf(null, MeshForm(floatArrayOf(0f, 0f).toDoubleArray())),
 					),
 				),
 		)
@@ -230,7 +231,7 @@ class KeyformSheetRowsTest {
 				parameterId = angleX,
 				keys = floatArrayOf(0f, 1f),
 				neutralIndex = 0,
-				forms = listOf(null, MeshForm(floatArrayOf(0f, 0f))),
+				forms = listOf(null, MeshForm(floatArrayOf(0f, 0f).toDoubleArray())),
 			)
 		val drawable =
 			Drawable(

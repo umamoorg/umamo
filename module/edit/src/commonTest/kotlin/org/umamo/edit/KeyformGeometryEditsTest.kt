@@ -15,6 +15,7 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -43,9 +44,9 @@ class KeyformGeometryEditsTest {
 			axes = listOf(KeyformAxis(angleX, floatArrayOf(-30f, 0f, 30f))),
 			cells =
 				listOf(
-					KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(-1f, 0f))),
-					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(0f, 0f))),
-					KeyformCell(intArrayOf(2), MeshDeltaForm(floatArrayOf(1f, 0f))),
+					KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(-1f, 0f).toDoubleArray())),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(0f, 0f).toDoubleArray())),
+					KeyformCell(intArrayOf(2), MeshDeltaForm(floatArrayOf(1f, 0f).toDoubleArray())),
 				),
 		)
 
@@ -117,7 +118,7 @@ class KeyformGeometryEditsTest {
 		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, keyIndex = 1, toValue = 12f)
 		assertEquals(listOf(-30f, 12f, 30f), keysOf(moved))
 		assertEquals(
-			listOf(-1f, 0f, 1f),
+			listOf(-1.0, 0.0, 1.0),
 			assertNotNull(moved.drawables.single().geometryGrid)
 				.cells
 				.sortedBy { cell -> cell.coordinate[0] }
@@ -137,7 +138,7 @@ class KeyformGeometryEditsTest {
 		val moved = model().withGeometryKeyMoved(KeyformOwner.Drawable(drawableId), parameter, keyIndex = 1, toValue = 99f)
 		assertEquals(listOf(-30f, 30f, 99f), keysOf(moved), "the axis re-sorts")
 		assertEquals(
-			listOf(-1f, 1f, 0f),
+			listOf(-1.0, 1.0, 0.0),
 			assertNotNull(moved.drawables.single().geometryGrid)
 				.cells
 				.sortedBy { cell -> cell.coordinate[0] }
@@ -154,7 +155,7 @@ class KeyformGeometryEditsTest {
 		val grid = assertNotNull(inserted.drawables.single().geometryGrid)
 		// Halfway between the deltas at 0 and 30, which hold 0 and 1.
 		val insertedCell = assertNotNull(grid.cells.firstOrNull { cell -> cell.coordinate[0] == 2 })
-		assertEquals(0.5f, insertedCell.form.positionDeltas[0], 1e-5f)
+		assertEquals(0.5, insertedCell.form.positionDeltas[0], 1e-5)
 	}
 
 	/** Removing down past two keys collapses a drawable's axis - it falls back to its rest mesh. */

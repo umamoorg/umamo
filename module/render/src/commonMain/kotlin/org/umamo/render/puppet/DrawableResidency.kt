@@ -169,7 +169,9 @@ internal class DrawableResidency(
 					existing.maskIds = action.drawable.maskedBy
 					existing.invertMask = action.drawable.invertMask
 					action.positions?.let {
-						device.updateMeshPositions(existing.mesh, it)
+						// The grid is unchanged on this tier, so its upload reference still holds; only the rest
+						// positions it offsets move.
+						device.updateMeshPositions(existing.mesh, reBasedRestPositions(it, existing.restReference))
 						// Re-point the bounds walk at the new rest positions too, or the composite scissor
 						// would keep sizing to the pre-edit geometry and clip the moved vertices.
 						existing.boundsBase = it
@@ -276,15 +278,18 @@ internal class DrawableResidency(
 		// the texture build reduces to the plain grid texels.
 		val blendLayout = blendColumnLayout(drawable, cellCount)
 		val defaults = defaultParameters.associate { it.id to it.default }
+		// The float32 shader sums small numbers only: the grid deltas go up relative to a reference in the
+		// keyform's own space, and the rest positions carry it (deltaUploadReference).
+		val restReference = deltaUploadReference(cells, vertexCount, cellCount)
 		val texels =
 			if (blendLayout.blendColumnCount > 0) {
-				buildDeltaTexelsWithBlend(grid, drawable, { defaults[it] ?: 0f }, vertexCount, blendLayout, cells)
+				buildDeltaTexelsWithBlend(grid, drawable, { defaults[it] ?: 0f }, vertexCount, blendLayout, cells, restReference)
 			} else {
-				buildDeltaTexels(grid, vertexCount, cellCount, cells)
+				buildDeltaTexels(grid, vertexCount, cellCount, cells, restReference)
 			}
 		val deltaTexture =
 			device.createFloatTexture(cellCount + blendLayout.blendColumnCount, vertexCount, TextureFilter.Nearest, texels)
-		val gpuMesh = device.createMesh(MeshSpec(mesh.positions, mesh.uvs, mesh.indices, glueAttributes))
+		val gpuMesh = device.createMesh(MeshSpec(reBasedRestPositions(mesh.positions, restReference), mesh.uvs, mesh.indices, glueAttributes))
 		// A warp-parented drawable needs a control-point texture a pose re-specifies. Created as a
 		// 1x1 placeholder here so updateFloatTexture always has a handle to overwrite.
 		val cpTexture =
@@ -312,6 +317,7 @@ internal class DrawableResidency(
 			blendLayout = blendLayout,
 			boundsBase = mesh.positions,
 			boundsCells = cells,
+			restReference = restReference,
 		)
 	}
 

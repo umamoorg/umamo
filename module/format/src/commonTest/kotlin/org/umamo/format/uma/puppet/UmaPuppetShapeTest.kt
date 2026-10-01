@@ -70,7 +70,7 @@ class UmaPuppetShapeTest {
 							"D",
 							"D",
 							mesh = mesh,
-							geometry = UmaMeshGrid(listOf(UmaAxis("P0", listOf(0f, 0f, 1f))), listOf(UmaMeshCell(listOf(2), FloatArray(6)))),
+							geometry = UmaMeshGrid(listOf(UmaAxis("P0", listOf(0f, 0f, 1f))), listOf(UmaMeshCell(listOf(2), DoubleArray(6)))),
 							channels = mapOf(UmaFormChannel.MultiplyColor to UmaChannelGrid(emptyList(), listOf(UmaChannelCell(emptyList(), JsonArray(listOf(JsonPrimitive(1), JsonPrimitive(0.5), JsonPrimitive(0))))))),
 						),
 					),
@@ -109,9 +109,9 @@ class UmaPuppetShapeTest {
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(positions, floatArrayOf(0f, 0f), intArrayOf(0, 1, 2)))), "drawables[D].mesh.uvs")
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(positions, positions.copyOf(), intArrayOf(0, 1)))), "drawables[D].mesh.indices")
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(positions, positions.copyOf(), intArrayOf(0, 1, 3)))), "drawables[D].mesh.indices[2]")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(0), FloatArray(4)))))), "drawables[D].geometry.cells[0].positionDeltas")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(2), FloatArray(6)))))), "drawables[D].geometry.cells[0].coordinate[0]")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(0, 0), FloatArray(6)))))), "drawables[D].geometry.cells[0].coordinate")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(0), DoubleArray(4)))))), "drawables[D].geometry.cells[0].positionDeltas")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(2), DoubleArray(6)))))), "drawables[D].geometry.cells[0].coordinate[0]")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(0, 0), DoubleArray(6)))))), "drawables[D].geometry.cells[0].coordinate")
 		assertRefused(
 			withDrawable(UmaDrawable("D", "D", channels = mapOf(UmaFormChannel.Opacity to UmaChannelGrid(listOf(axis), listOf(UmaChannelCell(listOf(0), JsonPrimitive(true))))))),
 			"drawables[D].channels.opacity.cells[0].value",
@@ -121,12 +121,12 @@ class UmaPuppetShapeTest {
 			"drawables[D].channels.flipX.cells[0].value",
 		)
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(0f, 1f), 0, listOf(null))))), "drawables[D].blendShapes[0]")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(0f, 1f), 2, listOf(null, UmaMeshForm(FloatArray(6))))))), "drawables[D].blendShapes[0].neutralIndex")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(UmaAxis("P0", listOf(1f, 0f))), listOf(UmaMeshCell(listOf(0), FloatArray(6)))))), "drawables[D].geometry.axes[0].keys[1]")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(1f, 0f), 0, listOf(null, UmaMeshForm(FloatArray(6))))))), "drawables[D].blendShapes[0].keys[1]")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(0f, 1f), 2, listOf(null, UmaMeshForm(DoubleArray(6))))))), "drawables[D].blendShapes[0].neutralIndex")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(UmaAxis("P0", listOf(1f, 0f))), listOf(UmaMeshCell(listOf(0), DoubleArray(6)))))), "drawables[D].geometry.axes[0].keys[1]")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(1f, 0f), 0, listOf(null, UmaMeshForm(DoubleArray(6))))))), "drawables[D].blendShapes[0].keys[1]")
 		val descendingLimit = UmaBlendLimit("P0", listOf(UmaBlendLimitPoint(1f, 1f), UmaBlendLimitPoint(0f, 0f)))
 		assertRefused(
-			withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(0f, 1f), 0, listOf(null, UmaMeshForm(FloatArray(6))), listOf(descendingLimit))))),
+			withDrawable(UmaDrawable("D", "D", mesh = mesh, blendShapes = listOf(UmaMeshBlendShape("P1", listOf(0f, 1f), 0, listOf(null, UmaMeshForm(DoubleArray(6))), listOf(descendingLimit))))),
 			"drawables[D].blendShapes[0].limits[0].points[1]",
 		)
 

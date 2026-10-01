@@ -14,6 +14,7 @@ import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,7 +35,7 @@ class PosedBoundsTest {
 		val grid =
 			KeyformGrid(
 				listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-				listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(deltas))),
+				listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(deltas.toDoubleArray()))),
 			)
 		return cellsByLinearIndex(grid)
 	}
@@ -61,8 +62,8 @@ class PosedBoundsTest {
 		val cells = oneCellCells(floatArrayOf(0f, 0f))
 		val blend =
 			MeshBlendState(
-				contributions = listOf(MeshBlendContribution(bindingIndex = 0, keyIndex = 0, form = MeshForm(floatArrayOf(4f, 6f)), weight = 0.5f)),
-				referenceDeltas = floatArrayOf(1f, 2f),
+				contributions = listOf(MeshBlendContribution(bindingIndex = 0, keyIndex = 0, form = MeshForm(floatArrayOf(4f, 6f).toDoubleArray()), weight = 0.5f)),
+				referenceDeltas = doubleArrayOf(1.0, 2.0),
 				referenceDrawOrder = 0f,
 				referenceOpacity = 1f,
 			)

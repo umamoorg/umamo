@@ -20,6 +20,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import java.nio.ByteBuffer
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -65,7 +66,7 @@ class SelectionTintTest {
 			mesh = DrawableMesh(positions.copyOf(), quadUvs, quadIndices),
 			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped by the
 			// renderer); the base mesh alone drives its shape.
-			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
+			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size).toDoubleArray())))),
 		)
 
 	private fun twoQuadModel(): PuppetModel {

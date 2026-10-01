@@ -108,7 +108,7 @@ class Moc3VersionDowngradeTest {
 							parameterId = morphParameter,
 							keys = floatArrayOf(0f, 1f),
 							neutralIndex = 0,
-							forms = listOf<MeshForm?>(null, MeshForm(FloatArray(0))),
+							forms = listOf<MeshForm?>(null, MeshForm(DoubleArray(0))),
 						),
 					),
 			)

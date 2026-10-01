@@ -24,6 +24,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -81,7 +82,7 @@ class PuppetSnapshotRenderTest {
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2, 1, 3, 2)),
 			// A single zero-delta keyform so the drawable is keyed; the base mesh alone drives its shape.
-			geometryGrid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
+			geometryGrid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size).toDoubleArray())))),
 			opacity = opacity,
 		)
 	}

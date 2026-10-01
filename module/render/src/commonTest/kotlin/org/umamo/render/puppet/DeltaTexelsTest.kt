@@ -5,6 +5,7 @@ import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -48,8 +49,8 @@ class DeltaTexelsTest {
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
 				cells =
 					listOf(
-						KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f, 5f, 6f))),
-						KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(7f, 8f, 0f, 0f))),
+						KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f, 5f, 6f).toDoubleArray())),
+						KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(7f, 8f, 0f, 0f).toDoubleArray())),
 					),
 			)
 		val texels = buildDeltaTexels(grid, vertexCount = 2, cellCount = 2)
@@ -67,7 +68,7 @@ class DeltaTexelsTest {
 		val grid =
 			KeyformGrid(
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f)), KeyformAxis(paramB, floatArrayOf(0f, 1f))),
-				cells = listOf(KeyformCell(intArrayOf(0, 1), MeshDeltaForm(floatArrayOf(9f, 9f)))),
+				cells = listOf(KeyformCell(intArrayOf(0, 1), MeshDeltaForm(floatArrayOf(9f, 9f).toDoubleArray()))),
 			)
 		val texels = buildDeltaTexels(grid, vertexCount = 1, cellCount = 4)
 		assertEquals(9f to 9f, texelAt(texels, 4, vertexIndex = 0, cellIndex = 2), "coordinate (0,1) lands in column 2")
@@ -80,7 +81,7 @@ class DeltaTexelsTest {
 		val grid =
 			KeyformGrid(
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
-				cells = listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(3f, 4f)))),
+				cells = listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(3f, 4f).toDoubleArray()))),
 			)
 		val texels = buildDeltaTexels(grid, vertexCount = 1, cellCount = 2)
 		assertEquals(3f to 4f, texelAt(texels, 2, 0, 0))
@@ -94,7 +95,7 @@ class DeltaTexelsTest {
 		val grid =
 			KeyformGrid(
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-				cells = listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(1f, 2f)))),
+				cells = listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(1f, 2f).toDoubleArray()))),
 			)
 		val texels = buildDeltaTexels(grid, vertexCount = 3, cellCount = 1)
 		assertEquals(1f to 2f, texelAt(texels, 1, vertexIndex = 0, cellIndex = 0))

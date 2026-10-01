@@ -13,10 +13,15 @@ package org.umamo.runtime.model
 /**
  * A drawable keyform's geometry: per-vertex position deltas (interleaved x,y) relative to the mesh base.
  *
- * Stored as deltas rather than absolute positions to match the GPU vertex-shader morph `p = base + Σ wᵢ·Δᵢ`
- * - the delta table is exactly what the shader texel-fetches per active corner.
+ * Stored as deltas rather than absolute positions to match the morph `p = base + Σ wᵢ·Δᵢ`.  Double, not
+ * float: the base is the canvas-space editable mesh (thousands of pixels) while a deformer child's keyform
+ * is in its parent's space (a warp's 0..1), so a delta is the difference of two numbers four orders of
+ * magnitude apart.  In float32 that difference keeps only 1/4096 of a unit, and every rebuilt keyform lands
+ * on that grid; in double `abs − base` is exact for two floats, so `(base + Δ).toFloat()` gives the keyform
+ * back bit for bit.  Every reconstruction therefore adds in double and rounds once.  The GPU never sees
+ * these values directly: the upload re-bases them onto a reference in the keyform's own space.
  */
-class MeshDeltaForm(val positionDeltas: FloatArray)
+class MeshDeltaForm(val positionDeltas: DoubleArray)
 
 /**
  * A warp deformer keyform's geometry: the ABSOLUTE FFD lattice control-point positions (interleaved x,y).

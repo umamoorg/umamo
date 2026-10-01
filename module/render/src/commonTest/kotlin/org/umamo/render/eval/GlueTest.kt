@@ -12,6 +12,7 @@ import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -22,7 +23,7 @@ import kotlin.test.assertEquals
 class GlueTest {
 	/** A direct (deformer-less) one-vertex drawable resting at `(x, y)` - evaluates to world `(x, −y)`. */
 	private fun pointDrawable(raw: String, x: Float, y: Float): Drawable {
-		val grid = KeyformGrid(emptyList<KeyformAxis>(), listOf(KeyformCell(intArrayOf(), MeshDeltaForm(floatArrayOf(0f, 0f)))))
+		val grid = KeyformGrid(emptyList<KeyformAxis>(), listOf(KeyformCell(intArrayOf(), MeshDeltaForm(floatArrayOf(0f, 0f).toDoubleArray()))))
 		return Drawable(
 			id = DrawableId(raw),
 			name = raw,

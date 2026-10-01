@@ -35,6 +35,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.runtime.model.reloadTileId
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -77,8 +78,8 @@ class PuppetModelDiffTest {
 		KeyformGrid(
 			listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f))),
 			listOf(
-				KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f))),
-				KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(firstDelta, 0f, 0f, 0f, 0f, 0f))),
+				KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f, 0f, 0f, 0f, 0f).toDoubleArray())),
+				KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(firstDelta, 0f, 0f, 0f, 0f, 0f).toDoubleArray())),
 			),
 		)
 

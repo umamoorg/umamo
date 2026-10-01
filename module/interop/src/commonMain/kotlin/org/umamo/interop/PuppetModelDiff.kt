@@ -724,7 +724,7 @@ private fun restOnlyAsUnkeyed(grid: KeyformGrid<MeshDeltaForm>?): KeyformGrid<Me
 		return grid
 	}
 	val deltas = grid.cells.single().form.positionDeltas
-	return if (deltas.all { delta -> delta == 0f }) null else grid
+	return if (deltas.all { delta -> delta == 0.0 }) null else grid
 }
 
 private fun <TForm> gridEquals(

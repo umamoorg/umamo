@@ -15,6 +15,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -62,7 +63,7 @@ class ParameterDeleteRestPoseTest {
 			parameterId = parameterId,
 			keys = floatArrayOf(0f, 1f),
 			neutralIndex = 0,
-			forms = listOf(null, MeshForm(floatArrayOf(3f, 1f, 3f, 1f, 3f, 1f))),
+			forms = listOf(null, MeshForm(floatArrayOf(3f, 1f, 3f, 1f, 3f, 1f).toDoubleArray())),
 			limits = limits,
 		)
 

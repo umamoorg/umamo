@@ -15,6 +15,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -39,7 +40,7 @@ class DrawableSpaceMappingTest {
 
 	private fun axis() = listOf(KeyformAxis(paramA, floatArrayOf(0f)))
 
-	private fun zeroMeshGrid(coordCount: Int) = KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(coordCount)))))
+	private fun zeroMeshGrid(coordCount: Int) = KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(DoubleArray(coordCount)))))
 
 	private fun drawable(parent: DeformerId?, positions: FloatArray) =
 		Drawable(drawableId, "M", parent, BlendMode.Normal, emptyList(), DrawableMesh(positions, FloatArray(0), IntArray(0)), zeroMeshGrid(positions.size))
@@ -142,8 +143,8 @@ class DrawableSpaceMappingTest {
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f, 10f))),
 				cells =
 					listOf(
-						KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f))),
-						KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(4f, 0f))),
+						KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f).toDoubleArray())),
+						KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(4f, 0f).toDoubleArray())),
 					),
 			)
 		val blendDrawable =

@@ -2,6 +2,8 @@ package org.umamo.render.puppet
 
 import org.umamo.render.eval.DeformerWorld
 import org.umamo.render.eval.MeshBlendState
+import org.umamo.render.eval.meshLocalComponent
+import org.umamo.render.eval.resolveMeshCorners
 import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.MeshDeltaForm
@@ -63,33 +65,14 @@ internal fun deformedWorldBounds(
 	var maxX = Float.NEGATIVE_INFINITY
 	var maxY = Float.NEGATIVE_INFINITY
 	val scratch = FloatArray(2)
+	// The keyform blend and the blend shapes, through the evaluator's own per-component helper so the bound
+	// and the rendered geometry cannot disagree.
+	val resolvedCorners = resolveMeshCorners(cells, corners)
 	for (vertexIndex in 0 until vertexCount) {
 		val componentX = vertexIndex * 2
 		val componentY = componentX + 1
-		var localX = base[componentX]
-		var localY = base[componentY]
-		// The multilinear keyform blend: base + Sigma w_i * delta_i (a missing cell or short delta
-		// array contributes zero, exactly as buildDeltaTexels and blendLocalFromCorners treat it).
-		for (corner in corners) {
-			val deltas = cells[corner.linearIndex]?.form?.positionDeltas ?: continue
-			if (componentY < deltas.size) {
-				localX += corner.weight * deltas[componentX]
-				localY += corner.weight * deltas[componentY]
-			}
-		}
-		// Blend shapes: additive per-vertex deltas relative to the grid-at-default reference, on top
-		// of the grid blend, before the parent transform - the exact deformMeshWorldFromCorners loop.
-		if (blend != null) {
-			for (contribution in blend.contributions) {
-				val deltas = contribution.form.positionDeltas
-				if (componentY < deltas.size) {
-					val referenceX = blend.referenceDeltas?.getOrNull(componentX) ?: 0f
-					val referenceY = blend.referenceDeltas?.getOrNull(componentY) ?: 0f
-					localX += contribution.weight * (deltas[componentX] - referenceX)
-					localY += contribution.weight * (deltas[componentY] - referenceY)
-				}
-			}
-		}
+		val localX = meshLocalComponent(base, componentX, resolvedCorners, blend)
+		val localY = meshLocalComponent(base, componentY, resolvedCorners, blend)
 		val worldX: Float
 		var worldZ: Float
 		if (parentWorld != null) {

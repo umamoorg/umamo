@@ -25,6 +25,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -52,7 +53,7 @@ class PoseResolveTest {
 			geometryGrid =
 				KeyformGrid(
 					listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-					listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
+					listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size).toDoubleArray()))),
 				),
 		)
 	}

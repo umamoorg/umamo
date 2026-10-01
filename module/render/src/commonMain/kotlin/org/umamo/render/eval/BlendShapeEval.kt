@@ -114,7 +114,7 @@ internal class MeshBlendContribution(
  */
 internal class MeshBlendState(
 	val contributions: List<MeshBlendContribution>,
-	val referenceDeltas: FloatArray?,
+	val referenceDeltas: DoubleArray?,
 	val referenceDrawOrder: Float,
 	val referenceOpacity: Float,
 	// Default to the channel identities: a drawable with no color tables has no reference to subtract,

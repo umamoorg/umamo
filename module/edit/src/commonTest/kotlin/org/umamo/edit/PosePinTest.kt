@@ -103,7 +103,7 @@ class PosePinTest {
 		val geometryTrack =
 			KeyformGrid(
 				listOf(KeyformAxis(angleX, floatArrayOf(-30f, 30f))),
-				listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(6))), KeyformCell(intArrayOf(1), MeshDeltaForm(FloatArray(6)))),
+				listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(DoubleArray(6))), KeyformCell(intArrayOf(1), MeshDeltaForm(DoubleArray(6)))),
 			)
 		val opacityTrack =
 			KeyformGrid(

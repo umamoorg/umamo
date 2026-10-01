@@ -17,6 +17,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -38,8 +39,8 @@ class Moc3RestMeshTest {
 			KeyformGrid(
 				listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),
 				listOf(
-					KeyformCell(intArrayOf(0), MeshForm(FloatArray(6), drawOrder = 400f, opacity = 0.25f, multiplyColor = blueMultiply, screenColor = warmScreen)),
-					KeyformCell(intArrayOf(1), MeshForm(FloatArray(6) { 2f }, drawOrder = 600f, opacity = 0.75f, multiplyColor = blueMultiply, screenColor = warmScreen)),
+					KeyformCell(intArrayOf(0), MeshForm(DoubleArray(6), drawOrder = 400f, opacity = 0.25f, multiplyColor = blueMultiply, screenColor = warmScreen)),
+					KeyformCell(intArrayOf(1), MeshForm(FloatArray(6) { 2f }.toDoubleArray(), drawOrder = 600f, opacity = 0.75f, multiplyColor = blueMultiply, screenColor = warmScreen)),
 				),
 			).fanOutMesh()
 		val drawable =
@@ -58,7 +59,7 @@ class Moc3RestMeshTest {
 							parameterId = paramA,
 							keys = floatArrayOf(0f, 1f),
 							neutralIndex = 0,
-							forms = listOf(null, MeshForm(FloatArray(6) { 1f }, drawOrder = 500f, opacity = 0.5f, multiplyColor = blueMultiply, screenColor = warmScreen)),
+							forms = listOf(null, MeshForm(FloatArray(6) { 1f }.toDoubleArray(), drawOrder = 500f, opacity = 0.5f, multiplyColor = blueMultiply, screenColor = warmScreen)),
 						),
 					),
 			)
@@ -114,10 +115,10 @@ class Moc3RestMeshTest {
 			val originalForm = originalDrawable.geometryGrid!!.cells[cellIndex].form
 			val rebasedForm = rebasedDrawable.geometryGrid!!.cells[cellIndex].form
 			for (coordIndex in 0 until 6) {
+				// The rebase runs in double, so the rebuilt absolute is the original float bit for bit.
 				assertEquals(
-					originalDrawable.mesh!!.positions[coordIndex] + originalForm.positionDeltas[coordIndex],
-					rebasedDrawable.mesh!!.positions[coordIndex] + rebasedForm.positionDeltas[coordIndex],
-					absoluteTolerance = 1e-4f,
+					(originalDrawable.mesh!!.positions[coordIndex].toDouble() + originalForm.positionDeltas[coordIndex]).toFloat(),
+					(rebasedDrawable.mesh!!.positions[coordIndex].toDouble() + rebasedForm.positionDeltas[coordIndex]).toFloat(),
 				)
 			}
 		}

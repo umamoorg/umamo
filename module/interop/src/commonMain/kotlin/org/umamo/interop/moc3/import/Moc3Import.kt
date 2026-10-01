@@ -26,7 +26,7 @@ import org.umamo.runtime.model.partByDrawable
  *    runtime's pixel world; rotation-parented rotations keep their scale verbatim.  One caveat: the
  *    runtime's rest mesh (Drawable.mesh.positions) is canvas-space EDITING geometry in the CMO3
  *    convention, which a MOC does not store - this import leaves the rest mesh in parent space (exact
- *    for evaluation, since the base cancels out of the keyform blend), and `:render`'s
+ *    for evaluation, since the base cancels out of the keyform blend and the deltas are double), and `:render`'s
  *    restMeshesToCanvasSpace finishes the job by evaluating the default pose (the document loader
  *    applies it).
  *  - Names.  The binary stores ids (deformers included, §5.6 s11) but no display names; parameter/part

@@ -36,6 +36,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.toDoubleArray
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -86,7 +87,7 @@ class UmaPuppetGeometryBridgeTest {
 	 */
 	private fun geometryModel(): PuppetModel {
 		val axes = listOf(KeyformAxis(ParameterId("P0"), floatArrayOf(-30f, 0f, 30f)), KeyformAxis(ParameterId("P1"), floatArrayOf(-0.0f, 1f)))
-		val denseCells = (0 until 2).flatMap { secondKey -> (0 until 3).map { firstKey -> KeyformCell(intArrayOf(firstKey, secondKey), MeshDeltaForm(quadFloats(firstKey + secondKey * 3f))) } }
+		val denseCells = (0 until 2).flatMap { secondKey -> (0 until 3).map { firstKey -> KeyformCell(intArrayOf(firstKey, secondKey), MeshDeltaForm(quadFloats(firstKey + secondKey * 3f).toDoubleArray())) } }
 		val quad = DrawableMesh(floatArrayOf(0f, 0f, 10f, 0f, 10f, 10f, 0f, 10f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
 		val colorTracks =
 			ChannelGrids(
@@ -153,7 +154,7 @@ class UmaPuppetGeometryBridgeTest {
 						mesh = quad,
 						geometryGrid = KeyformGrid(axes, denseCells),
 						channelGrids = colorTracks,
-						blendShapes = listOf(BlendShapeBinding(ParameterId("P1"), floatArrayOf(0f, 1f), 0, listOf(null, MeshForm(quadFloats(9f), 510f, 0.5f, ColorRgb(0.9f, 0.9f, 0.9f), ColorRgb(0.1f, 0f, 0f))), limits)),
+						blendShapes = listOf(BlendShapeBinding(ParameterId("P1"), floatArrayOf(0f, 1f), 0, listOf(null, MeshForm(quadFloats(9f).toDoubleArray(), 510f, 0.5f, ColorRgb(0.9f, 0.9f, 0.9f), ColorRgb(0.1f, 0f, 0f))), limits)),
 					),
 					Drawable(
 						id = DrawableId("D1"),
@@ -200,7 +201,7 @@ class UmaPuppetGeometryBridgeTest {
 		val model = geometryModel()
 		val drawable = model.drawables.first()
 		val grid = drawable.geometryGrid!!
-		val flipped = grid.cells.first().form.positionDeltas.copyOf().also { deltas -> deltas[5] = Float.fromBits(deltas[5].toRawBits() xor 1) }
+		val flipped = grid.cells.first().form.positionDeltas.copyOf().also { deltas -> deltas[5] = Double.fromBits(deltas[5].toRawBits() xor 1L) }
 		val changedGrid = KeyformGrid(grid.axes, listOf(KeyformCell(grid.cells.first().coordinate, MeshDeltaForm(flipped))) + grid.cells.drop(1))
 		val changed = model.copy(drawables = listOf(drawable.copy(geometryGrid = changedGrid)) + model.drawables.drop(1))
 		assertEquals(listOf("drawables[0].geometry.cells[0].positionDeltas[5]"), puppetStructureDifferences(model, changed).map { difference -> difference.substringBefore(':') })

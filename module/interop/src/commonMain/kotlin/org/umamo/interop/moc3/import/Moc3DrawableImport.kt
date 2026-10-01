@@ -11,6 +11,8 @@ import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.deltasFromBase
+import org.umamo.runtime.model.toDoubleArray
 
 /**
  * Imports every art mesh, in file order.
@@ -127,20 +129,20 @@ private fun blendModeOf(constantFlags: Int): BlendMode =
 	}
 
 /**
- * Per-vertex deltas of [positions] vs [base] (`positions − base`), or a copy of positions when
- * there is no size-matching base, so the form is kept absolute rather than dropped (matching
- * `Cmo3Import`'s convention).
+ * Per-vertex deltas of [positions] vs [base] (`positions − base`, in double so `base + delta` gives the
+ * keyform back exactly; see MeshDeltaForm), or the positions widened when there is no size-matching base, so
+ * the form is kept absolute rather than dropped (matching `Cmo3Import`'s convention).
  *
  * @param FloatArray? base      The rest-mesh positions.
  * @param FloatArray  positions The keyform's absolute positions.
- * @return FloatArray The deltas, or a copy of positions.
+ * @return DoubleArray The deltas, or the positions widened.
  */
 private fun deltaVsBase(
 	base: FloatArray?,
 	positions: FloatArray,
-): FloatArray {
+): DoubleArray {
 	if (base == null || base.size != positions.size) {
-		return positions.copyOf()
+		return positions.toDoubleArray()
 	}
-	return FloatArray(positions.size) { coordIndex -> positions[coordIndex] - base[coordIndex] }
+	return deltasFromBase(positions, base)
 }

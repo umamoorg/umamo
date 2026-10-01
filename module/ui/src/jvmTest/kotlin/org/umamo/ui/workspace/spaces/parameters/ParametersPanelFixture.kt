@@ -269,7 +269,7 @@ internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTa
 			geometryGrid =
 				KeyformGrid(
 					listOf(KeyformAxis(PanelIds.bodyX, floatArrayOf(0f))),
-					listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(6)))),
+					listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(DoubleArray(6)))),
 				),
 		)
 	return PuppetModel(

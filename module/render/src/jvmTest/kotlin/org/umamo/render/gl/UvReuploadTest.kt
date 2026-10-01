@@ -21,6 +21,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import java.nio.ByteBuffer
 import kotlin.math.abs
 import kotlin.test.Test
@@ -79,7 +80,7 @@ class UvReuploadTest {
 				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-						listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size)))),
+						listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size).toDoubleArray()))),
 					),
 			)
 		return PuppetModel(

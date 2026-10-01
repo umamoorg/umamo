@@ -17,6 +17,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -48,7 +49,7 @@ class ChannelOverrideEvalTest {
 				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-						listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
+						listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size).toDoubleArray()))),
 					),
 				channelGrids = channelGrids,
 				opacity = 0.25f,

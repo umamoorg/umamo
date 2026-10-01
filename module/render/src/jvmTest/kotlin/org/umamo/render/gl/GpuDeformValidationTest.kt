@@ -21,7 +21,10 @@ import org.umamo.render.glsl.GlslDialect
 import org.umamo.render.glsl.tfDeformVertexShader
 import org.umamo.render.glsl.tfDiscardFragmentShader
 import org.umamo.render.puppet.blendColumnLayout
+import org.umamo.render.puppet.buildDeltaTexels
 import org.umamo.render.puppet.buildDeltaTexelsWithBlend
+import org.umamo.render.puppet.deltaUploadReference
+import org.umamo.render.puppet.reBasedRestPositions
 import org.umamo.runtime.eval.WeightedCell
 import org.umamo.runtime.eval.cellsByLinearIndex
 import org.umamo.runtime.model.Drawable
@@ -46,9 +49,12 @@ import kotlin.test.assertTrue
  * Run: `./gradlew :render:jvmTest -Dcmo3.sample=… --tests *GpuDeformValidationTest`.
  */
 class GpuDeformValidationTest {
-	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas, so this is well sub-pixel). It
-	// tolerates float32 GPU-vs-CPU rounding and the shader's approximate out-of-grid warp extrapolation.
-	private val toleranceUnits = 0.5
+	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas).  The upload re-bases each drawable's
+	// morph onto a reference in its keyforms' own space (deltaUploadReference), so the shader sums small numbers
+	// and lands within a few float steps of the canvas magnitude: measured 0.00098 on the corpus sample's mesh
+	// poses and 0.00049 on its blend poses, so this keeps a tenfold margin for the shader's approximate
+	// out-of-grid warp extrapolation and a different GPU's rounding.
+	private val toleranceUnits = 0.01
 
 	@Test
 	fun gpuDeformMatchesCpuPerVertex() {
@@ -196,10 +202,15 @@ class GpuDeformValidationTest {
 		val vertexCount = base.size / 2
 		val cellCount = maxOf(1, grid.axes.fold(1) { count, axis -> count * axis.keys.size })
 
+		// The shipped upload: rest positions and grid texels re-based onto the drawable's reference
+		// (DrawableResidency.uploadDrawable), so the shader sums small numbers only.
+		val cells = cellsByLinearIndex(grid)
+		val restReference = deltaUploadReference(cells, vertexCount, cellCount)
+		val restPositions = reBasedRestPositions(base, restReference)
 		val vao = GL30.glGenVertexArrays()
 		GL30.glBindVertexArray(vao)
-		val baseBuffer = BufferUtils.createFloatBuffer(base.size)
-		baseBuffer.put(base).flip()
+		val baseBuffer = BufferUtils.createFloatBuffer(restPositions.size)
+		baseBuffer.put(restPositions).flip()
 		val baseVbo = GL15.glGenBuffers()
 		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, baseVbo)
 		GL15.glBufferData(GL15.GL_ARRAY_BUFFER, baseBuffer, GL15.GL_STATIC_DRAW)
@@ -216,24 +227,10 @@ class GpuDeformValidationTest {
 			}
 		val deltaTexture =
 			if (blendLayout != null && defaultValue != null && blendDrawable != null) {
-				val texels = buildDeltaTexelsWithBlend(grid, blendDrawable, defaultValue, vertexCount, blendLayout)
-				val data = BufferUtils.createFloatBuffer(texels.size)
-				data.put(texels).flip()
-				val texture = nearestTexture()
-				GL11.glTexImage2D(
-					GL11.GL_TEXTURE_2D,
-					0,
-					GL30.GL_RG32F,
-					cellCount + blendLayout.blendColumnCount,
-					vertexCount,
-					0,
-					GL30.GL_RG,
-					GL11.GL_FLOAT,
-					data,
-				)
-				texture
+				val texels = buildDeltaTexelsWithBlend(grid, blendDrawable, defaultValue, vertexCount, blendLayout, cells, restReference)
+				uploadDeltaTexture(texels, cellCount + blendLayout.blendColumnCount, vertexCount)
 			} else {
-				uploadDeltaTexture(grid, vertexCount, cellCount)
+				uploadDeltaTexture(buildDeltaTexels(grid, vertexCount, cellCount, cells, restReference), cellCount, vertexCount)
 			}
 
 		setCornerUniforms(program, corners)
@@ -299,24 +296,20 @@ class GpuDeformValidationTest {
 		return out
 	}
 
-	/** Uploads the per-keyform-cell vertex deltas as an RG32F texture (col = cell, row = vertex), matching
-	 *  [PuppetRenderer]'s layout so the test exercises the renderer's real delta indexing. */
-	private fun uploadDeltaTexture(grid: KeyformGrid<MeshDeltaForm>, vertexCount: Int, cellCount: Int): Int {
-		val cells = cellsByLinearIndex(grid)
-		val data = BufferUtils.createFloatBuffer(vertexCount * cellCount * 2)
-		for (vertexIndex in 0 until vertexCount) {
-			for (cellIndex in 0 until cellCount) {
-				val deltas = cells[cellIndex]?.form?.positionDeltas
-				if (deltas != null && vertexIndex * 2 + 1 < deltas.size) {
-					data.put(deltas[vertexIndex * 2]).put(deltas[vertexIndex * 2 + 1])
-				} else {
-					data.put(0f).put(0f)
-				}
-			}
-		}
-		data.flip()
+	/**
+	 * Uploads delta texels the shipped builder made as an RG32F texture (col = cell, row = vertex), so the test
+	 * exercises the renderer's real delta indexing and re-base.
+	 *
+	 * @param FloatArray texels The texels, row-major.
+	 * @param Int        width  The column count.
+	 * @param Int        height The vertex count.
+	 * @return Int The texture name.
+	 */
+	private fun uploadDeltaTexture(texels: FloatArray, width: Int, height: Int): Int {
+		val data = BufferUtils.createFloatBuffer(texels.size)
+		data.put(texels).flip()
 		val texture = nearestTexture()
-		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_RG32F, cellCount, vertexCount, 0, GL30.GL_RG, GL11.GL_FLOAT, data)
+		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_RG32F, width, height, 0, GL30.GL_RG, GL11.GL_FLOAT, data)
 		return texture
 	}
 

@@ -14,6 +14,7 @@ import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpForm
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -40,7 +41,7 @@ class ParameterKeyMarksTest {
 			geometryGrid =
 				KeyformGrid(
 					listOf(KeyformAxis(paramId, keys)),
-					keys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), MeshDeltaForm(floatArrayOf(0f, 0f))) },
+					keys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), MeshDeltaForm(floatArrayOf(0f, 0f).toDoubleArray())) },
 				),
 		)
 
@@ -74,7 +75,7 @@ class ParameterKeyMarksTest {
 			parameterId = parameterId,
 			keys = keys,
 			neutralIndex = neutralIndex,
-			forms = keys.indices.map { if (it == neutralIndex) null else MeshForm(floatArrayOf(0f, 0f)) },
+			forms = keys.indices.map { if (it == neutralIndex) null else MeshForm(floatArrayOf(0f, 0f).toDoubleArray()) },
 		)
 
 	private fun warpBinding(parameterId: ParameterId, keys: FloatArray, neutralIndex: Int): BlendShapeBinding<WarpForm> =

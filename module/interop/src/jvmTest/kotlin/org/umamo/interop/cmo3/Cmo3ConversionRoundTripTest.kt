@@ -235,7 +235,7 @@ class Cmo3ConversionRoundTripTest {
 	 * Absolutes, not raw deltas: the exported source-level base is the rest-pose CANVAS frame
 	 * while a MOC3-origin puppet's base is parent-deformer-local, so the re-imported deltas shift
 	 * by exactly the base difference.  The blended geometry - base plus delta - is the semantic
-	 * invariant (grids sum to one, so the base cancels out of every rendered pose).
+	 * invariant (the keyform blend is Σ wᵢ·(base + Δᵢ), so the base's frame does not move a rendered pose).
 	 *
 	 * @param PuppetModel source     The conversion source.
 	 * @param PuppetModel reimported The re-imported model.
@@ -258,8 +258,8 @@ class Cmo3ConversionRoundTripTest {
 		for (cell in sourceGrid.cells) {
 			val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()] ?: return Float.MAX_VALUE
 			for (component in cell.form.positionDeltas.indices) {
-				val sourceAbsolute = sourceBase.getOrElse(component) { 0f } + cell.form.positionDeltas[component]
-				val reimportedAbsolute = reimportedBase.getOrElse(component) { 0f } + reimportedDeltas.getOrElse(component) { 0f }
+				val sourceAbsolute = (sourceBase.getOrElse(component) { 0f }.toDouble() + cell.form.positionDeltas[component]).toFloat()
+				val reimportedAbsolute = (reimportedBase.getOrElse(component) { 0f }.toDouble() + reimportedDeltas.getOrElse(component) { 0.0 }).toFloat()
 				maxDifference = maxOf(maxDifference, abs(sourceAbsolute - reimportedAbsolute))
 			}
 		}

@@ -25,8 +25,10 @@ private const val LATTICE_CENTRE: Float = 0.5f
  * The runtime convention (set by CMO3, verified against the corpus): Drawable.mesh.positions is the
  * EDITABLE canvas-space geometry - what the gizmo overlay edits and the viewport maps gestures into -
  * while each MeshForm's absolute positions (base + delta) live in the drawable's PARENT-DEFORMER
- * space.  The deformation eval only ever sees `base + Σ wᵢ·Δᵢ` with weights summing to 1, so the base
- * cancels and this mixed-space encoding is exact, not an approximation.
+ * space.  The base cancels out of the blend only in exact arithmetic: a delta is the difference of a
+ * canvas-scale base and a parent-space keyform four orders of magnitude smaller, so it is held in double
+ * (MeshDeltaForm), every reconstruction adds in double and rounds once, and the GPU upload re-bases onto
+ * a reference in the keyform's own space.  This pass re-expresses the deltas in double for the same reason.
  *
  * A `.moc3` stores only the parent-space keyforms, so :interop's `Moc3Import` can give
  * a warp/rotation-parented drawable nothing better than a parent-local base.  This pass finishes the
@@ -95,8 +97,8 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 							KeyformCell(
 								cell.coordinate,
 								MeshDeltaForm(
-									FloatArray(oldDeltas.size) { coordIndex ->
-										(mesh.positions[coordIndex] + oldDeltas[coordIndex]) - canvasBase[coordIndex]
+									DoubleArray(oldDeltas.size) { coordIndex ->
+										(mesh.positions[coordIndex].toDouble() + oldDeltas[coordIndex]) - canvasBase[coordIndex].toDouble()
 									},
 								),
 							)
@@ -110,8 +112,8 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 							binding.forms.map { form ->
 								form?.let { meshForm ->
 									MeshForm(
-										FloatArray(meshForm.positionDeltas.size) { coordIndex ->
-											(mesh.positions[coordIndex] + meshForm.positionDeltas[coordIndex]) - canvasBase[coordIndex]
+										DoubleArray(meshForm.positionDeltas.size) { coordIndex ->
+											(mesh.positions[coordIndex].toDouble() + meshForm.positionDeltas[coordIndex]) - canvasBase[coordIndex].toDouble()
 										},
 										meshForm.drawOrder,
 										meshForm.opacity,

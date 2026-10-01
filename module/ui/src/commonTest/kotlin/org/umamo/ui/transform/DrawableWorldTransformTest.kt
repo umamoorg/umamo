@@ -15,6 +15,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.originRelativeX
 import org.umamo.runtime.model.originRelativeZ
+import org.umamo.runtime.model.toDoubleArray
 import org.umamo.runtime.model.worldXFromOriginRelative
 import org.umamo.runtime.model.worldZFromOriginRelative
 import kotlin.test.Test
@@ -78,9 +79,9 @@ class DrawableWorldTransformTest {
 								axes = listOf(KeyformAxis(parameterId, floatArrayOf(-1f, 0f, 1f))),
 								cells =
 									listOf(
-										KeyformCell(intArrayOf(0), MeshDeltaForm(neutralDeltas.copyOf())),
-										KeyformCell(intArrayOf(1), MeshDeltaForm(neutralDeltas.copyOf())),
-										KeyformCell(intArrayOf(2), MeshDeltaForm(neutralDeltas.copyOf())),
+										KeyformCell(intArrayOf(0), MeshDeltaForm(neutralDeltas.toDoubleArray())),
+										KeyformCell(intArrayOf(1), MeshDeltaForm(neutralDeltas.toDoubleArray())),
+										KeyformCell(intArrayOf(2), MeshDeltaForm(neutralDeltas.toDoubleArray())),
 									),
 							),
 					),
