@@ -132,7 +132,7 @@ internal class DocumentSaveController(
 							// rigger is told what the new file leaves behind.
 							when (puppet.document) {
 								is Cmo3Document -> {
-									UmamoLog.info("saved $path from a CMO3: the CMO3 structure Umamo does not model is not in the .uma; exports from this session still reconcile onto the original")
+									UmamoLog.info("saved $path from a CMO3: its physics, guides, keyform notes, random pose, model state sets, user data, and other editor settings are not in the .uma; CMO3 exports from this session still keep them, one exported after reopening the .uma will not")
 									activeSession.emitNotice("notice.document.cmo3Loss", NoticePlacement.StatusBar)
 								}
 								is Moc3Document -> {

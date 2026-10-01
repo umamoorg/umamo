@@ -10,6 +10,9 @@ import org.umamo.format.moc3.json.DisplayPart
 import org.umamo.format.moc3.json.FileReferences
 import org.umamo.format.moc3.json.Model3Json
 import org.umamo.format.moc3.moc.MocVersion
+import org.umamo.interop.ExportEntityCategory
+import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
 import org.umamo.interop.moc3.export.CanvasToParentSpace
 import org.umamo.interop.moc3.export.Moc3Export
@@ -176,7 +179,34 @@ object Moc3Sidecars {
 				hitAreas = source?.hitAreas,
 			)
 		files.add(BundleFile("$basename.model3.json", Moc3.writeModel3(manifest).encodeToByteArray()))
-		return Bundle(files, mocFileName, report)
+		val sidecarNotices = sidecars.filter { sidecar -> sidecar.kind == SidecarKind.Physics }.mapNotNull { sidecar -> unwrittenPhysicsParameters(sidecar, lowered.writtenIds) }
+		return Bundle(files, mocFileName, if (sidecarNotices.isEmpty()) report else report.copy(notices = report.notices + sidecarNotices))
+	}
+
+	/**
+	 * The notice for a physics sidecar carried through verbatim that names parameters the moc does not contain
+	 * - deleted since the import, or written under a shortened id - or null when it names none, or cannot be
+	 * read (it is carried as it is either way; its runtime reader has the last word on it).
+	 *
+	 * @param PassThroughSidecar sidecar    The physics sidecar.
+	 * @param Moc3WrittenIds     writtenIds The ids the moc was written with.
+	 * @return ExportNotice? The notice, or null.
+	 */
+	private fun unwrittenPhysicsParameters(sidecar: PassThroughSidecar, writtenIds: Moc3WrittenIds): ExportNotice? {
+		val physics = runCatching { Moc3.readPhysics3(sidecar.text) }.getOrNull() ?: return null
+		val written = writtenIds.writtenParameterIds()
+		// physics3: PhysicsSettings[].Input[].Source and Output[].Destination, a (Target, Id) pair whose Target is
+		// "Parameter" for a parameter (MOC3.md, physics3.json).
+		val missing =
+			physics.physicsSettings
+				.flatMap { setting -> setting.input.map { input -> input.source } + setting.output.map { output -> output.destination } }
+				.filter { target -> target.target == "Parameter" && target.id !in written }
+				.map { target -> target.id }
+				.distinct()
+		if (missing.isEmpty()) {
+			return null
+		}
+		return ExportNotice.UnsupportedChange(ExportEntityCategory.Document, sidecar.fileName, ExportNoticeReason.SidecarNamesUnwrittenParameters(sidecar.fileName, missing))
 	}
 
 	/**

@@ -1,14 +1,19 @@
 package org.umamo.ui.document
 
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
+import org.umamo.interop.cmo3.modelPageIndexByDrawableId
+import org.umamo.interop.cmo3.modelPageRenderIndices
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
+import org.umamo.render.deriveAtlasTextures
 import org.umamo.render.encodeAtlasPng
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 
 /*
@@ -108,21 +113,18 @@ fun prepareCmo3Export(
 				)
 			PreparedCmo3Export(result.model, result.report)
 		}
-		// A UMA document has no retained graph either: a fresh graph is synthesized as for an artwork
-		// document, with the file's stored render pages as the image chain while the atlas is at the
-		// document's baseline (the same identity gate as the CMO3 branch), and a re-encode of the effective
-		// pages otherwise.  The document's own rasters ride along so every tile writes its real layer.
+		// A UMA document has no retained graph either (docs/plan/uma-format.md D34): a fresh graph is
+		// synthesized as for an artwork document, with the file's stored render pages as the image chain while
+		// the atlas is at the document's baseline (the same identity gate as the CMO3 branch), put into the
+		// model's page order, and a re-encode of the effective pages otherwise.  The document's own rasters
+		// ride along so every tile writes its real layer.
 		is UmaDocument -> {
-			val stored = document.storedPages?.takeIf { pageSet -> effectiveTextures === document.textures && pageSet.pageBytes.size == effectiveTextures.atlases.size }
-			val pages =
-				effectiveTextures.atlases.mapIndexed { pageIndex, page ->
-					Cmo3Conversion.AtlasPage(stored?.pageBytes?.get(pageIndex) ?: encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage())
-				}
+			val conversion = conversionPagesFor(document, edited, effectiveTextures)
 			val result =
 				Cmo3Conversion.freshCmo3(
 					puppet = edited,
-					pages = pages,
-					pageIndexByDrawableId = effectiveTextures.atlasIndexByDrawableId,
+					pages = conversion.pages,
+					pageIndexByDrawableId = conversion.pageIndexByDrawableId,
 					modelName = modelName,
 					nowMillis = nowMillis,
 					obfuscateKey = obfuscateKey,
@@ -204,6 +206,58 @@ internal fun conversionPagesFor(document: Moc3Document): List<Cmo3Conversion.Atl
 		val decoded = document.textures.atlases[pageIndex]
 		Cmo3Conversion.AtlasPage(pngBytes = pngBytes, width = decoded.width, height = decoded.height, decoded = decoded.asRasterImage())
 	}
+
+/**
+ * The pages a fresh-graph synthesis builds its image chain from, and each drawable's page among them.
+ *
+ * @property List pages                 The pages, in the model's page order.
+ * @property Map  pageIndexByDrawableId Each drawable id's page index into [pages].
+ */
+internal class ConversionPages(
+	val pages: List<Cmo3Conversion.AtlasPage>,
+	val pageIndexByDrawableId: Map<String, Int>,
+)
+
+/**
+ * The pages a fresh-graph synthesis of a UMA document builds from.
+ *
+ * While the atlas is at the document's baseline and the file stores render pages, those are the pages - but
+ * in the render numbering, where a CMO3 import lists every image a drawable samples in the order its loader
+ * met them, an unpacked drawable's raster among them (docs/format/UMA.md §5.5).  Handed over as they are,
+ * each raster would become an atlas of its own and a placed tile's entry would land on whatever page shares
+ * its index.  So a document whose model has atlas pages takes them in the MODEL's order: each model page is
+ * the render page its placed drawables sample ([modelPageRenderIndices]), else the page the tiles compose,
+ * else a transparent page of the recorded size.  A document with no model pages (a MOC3's) keeps its render
+ * pages, which are its texture order; a derived page set is in the model's order by construction.
+ *
+ * @param UmaDocument    document          The document being exported.
+ * @param PuppetModel    edited            The model being written.
+ * @param PuppetTextures effectiveTextures The session's page set.
+ * @return ConversionPages The pages and the page map.
+ */
+internal fun conversionPagesFor(document: UmaDocument, edited: PuppetModel, effectiveTextures: PuppetTextures): ConversionPages {
+	val stored = document.storedPages?.takeIf { pageSet -> effectiveTextures === document.textures && pageSet.pageBytes.size == effectiveTextures.atlases.size }
+	val renderPages =
+		effectiveTextures.atlases.mapIndexed { pageIndex, page ->
+			Cmo3Conversion.AtlasPage(stored?.pageBytes?.get(pageIndex) ?: encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage())
+		}
+	if (stored == null || edited.atlas.pages.isEmpty()) {
+		return ConversionPages(renderPages, effectiveTextures.atlasIndexByDrawableId)
+	}
+	val renderIndices = modelPageRenderIndices(edited, effectiveTextures.atlasIndexByDrawableId)
+	val derived by lazy { deriveAtlasTextures(edited, document.artRasters, effectiveTextures.premultipliedAlpha) }
+	val pages =
+		edited.atlas.pages.mapIndexed { modelPageIndex, modelPage ->
+			renderIndices[modelPageIndex]?.let(renderPages::getOrNull)
+				?: derived?.atlases?.getOrNull(modelPageIndex)?.let { page -> Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage()) }
+				?: run {
+					UmamoLog.warn("CMO3 export: no image shows atlas page ${modelPageIndex + 1}, so it is written transparent")
+					val blank = RasterImage(modelPage.width, modelPage.height, ByteArray(modelPage.width * modelPage.height * 4))
+					Cmo3Conversion.AtlasPage(PngCodec.write(blank), blank.width, blank.height, decoded = blank)
+				}
+		}
+	return ConversionPages(pages, modelPageIndexByDrawableId(edited, renderIndices, effectiveTextures.atlasIndexByDrawableId))
+}
 
 /**
  * This decoded page as the raster the conversion reads, over the same pixel buffer rather than a copy.

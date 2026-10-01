@@ -216,8 +216,10 @@ private fun scoreSource(
 	inventory: List<ArtSourceLayer>,
 	tileRaster: (AtlasTileId) -> LayerRaster?,
 ): Map<String, LayerMatch> {
-	val rasterByKey = art.layers.filter { layer -> layer.kind == SourceLayerKind.Raster }.associate { layer -> layer.id.raw to layer.raster }
-	return suggestionsAgainstRead(model, sourceId, inventory, tileRaster, { key -> rasterByKey[key] }, InventoryLayerMatcher)
+	// A candidate's pixels are read only when the matcher asks for them: a layer's raster can decode on first use
+	// (a CMO3's layers, the document's own tiles), and the matcher scores pixels for a few candidates, not all.
+	val layerByKey = art.layers.filter { layer -> layer.kind == SourceLayerKind.Raster }.associateBy { layer -> layer.id.raw }
+	return suggestionsAgainstRead(model, sourceId, inventory, tileRaster, { key -> layerByKey[key]?.raster }, InventoryLayerMatcher)
 }
 
 /**
@@ -290,7 +292,20 @@ private fun matchOutcome(
 		val retire = acceptedByLostKey.values.flatMapTo(HashSet()) { candidateKey -> retirable[candidateKey].orEmpty() }
 		val plan =
 			ArtworkReloadPlanner.planMatches(model, entry.sourceId, entry.art, accepted, options, tileRaster, entry.contentHash, inventory = entry.inventory, lastModified = entry.lastModified, retire = retire)
-				?: continue
+		// A confident match the plan could not pull - its layer has no art this read can give, as a layer no tile
+		// binds has none when the file is read from the document's own tiles - stays a suggestion for its row
+		// rather than vanishing from both the step and the review.
+		val rebound = plan?.reload?.replacedTiles?.mapTo(HashSet()) { replaced -> replaced.oldId }.orEmpty()
+		for ((tileId, _) in accepted) {
+			if (tileId in rebound) {
+				continue
+			}
+			val lostKey = model.atlas.tileById[tileId]?.source?.layerKey ?: continue
+			suggestions[lostKey]?.let { match -> remaining[entry.sourceId to lostKey] = match }
+		}
+		if (plan == null) {
+			continue
+		}
 		val next = model.withArtworkReloaded(plan.reload)
 		if (next === model) {
 			UmamoLog.error("match artwork: the plan for '${plan.reload.source.name}' collides with the document's ids; that file was skipped")
@@ -448,7 +463,7 @@ suspend fun runMatchArtwork(host: AtlasRepackHost, request: MatchArtworkRequest,
 		}
 	if (!landMatch(host, "match artwork", modelAtStart, outcome, publish) { model -> session.commitArtworkMatched(outcome.appliedChange<DocumentChange.MatchArtwork>(), model) }) {
 		if (outcome is MatchOutcome.NothingApplied) {
-			UmamoLog.info("match artwork: no binding scored at or above ${percentOf(request.threshold)}% across ${request.entries.size} file(s); ${outcome.suggestions.size} suggestion(s) published")
+			UmamoLog.info("match artwork: nothing was rebound at ${percentOf(request.threshold)}% across ${request.entries.size} file(s); ${outcome.suggestions.size} suggestion(s) published")
 			// No suggestion at all means no candidate was left to score - every layer is bound to rig
 			// work - which is a different thing to tell a person than a bar nothing reached.
 			session.emitNotice(if (outcome.suggestions.isEmpty()) "notice.match.noCandidates" else "notice.match.nothing", NoticePlacement.StatusBar)

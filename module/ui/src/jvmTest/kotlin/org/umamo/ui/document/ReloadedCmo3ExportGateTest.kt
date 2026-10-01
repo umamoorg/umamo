@@ -236,8 +236,8 @@ class ReloadedCmo3ExportGateTest {
 			// Read the way the app's relink reads it: the artist's file is not on this machine, so the read
 			// falls back to the layers the official editor decomposed into the CMO3.
 			val listed = before.sources.first { source -> source.id == targetRef.sourceId }
-			val read = assertNotNull(readSourceArt(document, listed) { false }, "the file reads back from the CMO3")
-			assertTrue(read.fromCmo3)
+			val read = assertNotNull(readSourceArt(document, before, listed) { false }, "the file reads back from the CMO3")
+			assertEquals(SourceReadOrigin.Cmo3Layers, read.origin)
 			val art = read.art
 			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(tile.id, targetRef, art, SourceArtImportOptions()), areaId = null), "the relink pulls the decomposed layer")
 			val relinked = session.model.value

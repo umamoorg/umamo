@@ -55,18 +55,22 @@ import org.umamo.ui.model.repack.AtlasRepackReport
  *   on the refreshed source so the watcher knows this save was taken; null keeps the record's.
  * @property Long?       lastModified The file's modification time when read, recorded beside the hash;
  *   null keeps the record's.
+ * @property List?       inventoryOverride The inventory to keep for the file instead of [art]'s own, or null:
+ *   art read from the document's own tiles rather than the file carries no hashes or review flags to
+ *   rewrite the record's rows with, so the record's rows stand.
  */
 class ReloadEntry(
 	val sourceId: ArtSourceId,
 	val art: SourceArt,
 	val contentHash: String? = null,
 	val lastModified: Long? = null,
+	val inventoryOverride: List<ArtSourceLayer>? = null,
 ) {
 	/**
 	 * The inventory of [art], computed once for the entry's life: it hashes every layer's pixels, and
 	 * the planner, the scorer, and every strip adjustment over this read want the same rows.
 	 */
-	val inventory: List<ArtSourceLayer> by lazy { SourceArtImport.inventoryOf(art) }
+	val inventory: List<ArtSourceLayer> by lazy { inventoryOverride ?: SourceArtImport.inventoryOf(art) }
 }
 
 /** How a reload ended - what the watcher needs to know to wait, retry, or let go. */
@@ -123,6 +127,10 @@ class ReloadArtworkRequest(
  * @property List<AtlasTileId>      retire  The tiles bound to the target layer that go with the move -
  *   the fresh drawable a reload minted for it, named by the proposal being accepted; each is re-checked
  *   for rig work before it leaves.  Empty for a relink by hand or a drop.
+ * @property List?                  inventoryOverride The inventory to keep for the file instead of [art]'s
+ *   own, or null (see [ReloadEntry.inventoryOverride]).
+ * @property Boolean                fromDocument Whether [art] is the art the document holds rather than
+ *   the file, which the notice says when a pull lands.
  */
 class RelinkArtworkRequest(
 	val tileIds: List<AtlasTileId>,
@@ -130,6 +138,8 @@ class RelinkArtworkRequest(
 	val art: SourceArt?,
 	val options: SourceArtImportOptions,
 	val retire: List<AtlasTileId> = emptyList(),
+	val inventoryOverride: List<ArtSourceLayer>? = null,
+	val fromDocument: Boolean = false,
 ) {
 	/**
 	 * The one-tile form.
@@ -144,7 +154,7 @@ class RelinkArtworkRequest(
 	/**
 	 * The inventory of [art], computed once for the request's life; empty without the file.
 	 */
-	val inventory: List<ArtSourceLayer> by lazy { art?.let(SourceArtImport::inventoryOf).orEmpty() }
+	val inventory: List<ArtSourceLayer> by lazy { inventoryOverride ?: art?.let(SourceArtImport::inventoryOf).orEmpty() }
 
 	private val decoded = DecodedLayerRasters(art?.layers.orEmpty())
 
@@ -654,7 +664,8 @@ private inline fun landRelink(
 	val committed = commit(outcome.model)
 	prewarmPages(host, committed, outcome.textures)
 	reportReload(outcome, committed)
-	session.emitNotice(if (outcome.outgrown.isEmpty()) "notice.relink.pulled" else "notice.reload.outgrown", NoticePlacement.StatusBar)
+	val pulledNotice = if (request.fromDocument) "notice.relink.pulledFromDocument" else "notice.relink.pulled"
+	session.emitNotice(if (outcome.outgrown.isEmpty()) pulledNotice else "notice.reload.outgrown", NoticePlacement.StatusBar)
 	return true
 }
 

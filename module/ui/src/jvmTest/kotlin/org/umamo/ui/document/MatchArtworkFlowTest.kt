@@ -8,8 +8,10 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.OperatorParameter
 import org.umamo.format.FileKind
 import org.umamo.format.art.LayerBounds
+import org.umamo.format.art.LayerRaster
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.documentSourceArtOf
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.ui.model.SessionAtlasPages
@@ -120,6 +122,49 @@ class MatchArtworkFlowTest {
 			assertSame(before, session.model.value)
 			session.redo()
 			assertEquals(setOf("lyid:5", "lyid:6"), session.model.value.atlas.tiles.mapNotNull { tile -> tile.source?.layerKey }.toSet())
+			follower.cancel()
+		}
+
+	/**
+	 * A match confident on everything but pixels, where the layer has no pixels to pull - the file read from
+	 * the document's own tiles, whose unbound rows have none (docs/plan/uma-format.md D40) - applies nothing and
+	 * stays a suggestion on the lost binding's row, rather than vanishing from both the step and the review.
+	 */
+	@Test
+	fun aConfidentMatchWithNoArtToPullStaysASuggestion() =
+		runBlocking {
+			val load = buildArtDocument(InMemoryArt(listOf(hair, eye)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			// The file lost the hair's key and lists a layer of the same name, folder, and bounds under a new one.
+			val imported = document.puppet
+			val rows = imported.sources.single().layers
+			val hairRow = rows.first { row -> row.key == "lyid:1" }
+			val renamedRow = hairRow.copy(key = "lyid:5")
+			val model = imported.copy(sources = listOf(imported.sources.single().copy(layers = rows.map { row -> if (row.key == "lyid:1") row.copy(present = false) else row } + renamedRow)))
+			val session = EditorSession(model, document.liveParams.values)
+			val sessionAtlasPages = SessionAtlasPages(session, model.atlas, document.textures, document.artRasters)
+			val follower = launch { sessionAtlasPages.follow() }
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = sessionAtlasPages,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the match must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			var published: SourceSuggestions = emptyMap()
+			val held = assertNotNull(documentSourceArtOf(model, sourceId) { tileId -> document.artRasters.decodeRaster(tileId)?.let { decoded -> LayerRaster(decoded.width, decoded.height, decoded.rgba) } })
+			val entry = ReloadEntry(sourceId, held, inventoryOverride = model.sources.single().layers.filter { row -> row.present })
+			val request = MatchArtworkRequest(listOf(entry), threshold = 0.7f, options)
+
+			assertFalse(runMatchArtwork(host, request, areaId = null) { suggestions -> published = suggestions }, "nothing is pulled")
+			assertSame(model, session.model.value, "and nothing is applied")
+			val suggestion = assertNotNull(published[sourceId to "lyid:1"], "the confident match is kept as the row's suggestion")
+			assertEquals("lyid:5", suggestion.key)
+			assertTrue(suggestion.score >= 0.7f, "it was confident: ${suggestion.score}")
+			assertNull(suggestion.signals.pixels, "on everything but pixels")
 			follower.cancel()
 		}
 

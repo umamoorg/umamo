@@ -295,8 +295,9 @@ data class Drawable(
 	 * The drawable whose texture-atlas binding this one shares, or null when it binds by its own [id].
 	 * The atlas page mapping is keyed by the SOURCE format's drawable ids (see PuppetTextures), so a
 	 * session-created copy (Object-mode duplicate) carries its source's id here and the renderer
-	 * resolves the atlas through it; a copy of a copy inherits the original.  Editor-only - no source
-	 * format persists it.
+	 * resolves the atlas through it; a copy of a copy inherits the original.  It is a key into that
+	 * mapping, not a reference to a live drawable: deleting the source keeps the copy's key, and the copy
+	 * keeps its art.  UMA persists it (docs/format/UMA.md §4.6); no Cubism format does.
 	 */
 	val textureSourceId: DrawableId? = null,
 	/**

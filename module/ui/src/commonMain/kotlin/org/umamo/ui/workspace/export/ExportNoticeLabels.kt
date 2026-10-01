@@ -211,6 +211,16 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 				Res.string.export_reason_blend_shape_parameter_no_source,
 				listOf(ExportNoticeArgument.Literal(reason.parameterId)),
 			)
+		is ExportNoticeReason.PhysicsNamesDeletedParameter ->
+			ExportNoticePhrase(
+				Res.string.export_reason_physics_names_deleted_parameter,
+				listOf(ExportNoticeArgument.Literal(reason.settingNames.joinToString(", "))),
+			)
+		is ExportNoticeReason.SidecarNamesUnwrittenParameters ->
+			ExportNoticePhrase(
+				Res.string.export_reason_sidecar_names_unwritten_parameters,
+				listOf(ExportNoticeArgument.Literal(reason.fileName), ExportNoticeArgument.Literal(reason.parameterIds.joinToString(", "))),
+			)
 		ExportNoticeReason.KeyformsWithoutBaseMesh ->
 			ExportNoticePhrase(Res.string.export_reason_keyforms_without_base_mesh)
 		ExportNoticeReason.FractionalDrawOrderNotStorable ->

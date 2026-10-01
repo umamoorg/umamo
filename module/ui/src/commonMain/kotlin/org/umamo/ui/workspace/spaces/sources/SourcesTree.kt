@@ -76,13 +76,20 @@ internal enum class SourcesStatus {
 	/** A present layer no tile binds that the rigger keeps out of the rig: a reload never mints it. */
 	Ignored,
 
+	/**
+	 * A tile bound to a file the document does not list - a file whose sources entry this version could not
+	 * read, or one a foreign writer dropped (docs/format/UMA.md §3.6).  The binding is carried as it is and
+	 * waits on a person, like a lost layer.
+	 */
+	SourceNotListed,
+
 	/** A row with no status of its own. */
 	None,
 	;
 
-	/** Whether the row stands for a binding waiting on a person: a layer lost, erased, or lost to a replacement. */
+	/** Whether the row stands for a binding waiting on a person: a layer lost, erased, or lost to a replacement, or a file the document does not list. */
 	val isReview: Boolean
-		get() = this == NeedsReview || this == Emptied || this == SourceReplaced
+		get() = this == NeedsReview || this == Emptied || this == SourceReplaced || this == SourceNotListed
 
 	/**
 	 * Whether a layer row carries the ignore toggle: an unbound present layer, or one already ignored.  A
@@ -132,6 +139,9 @@ internal sealed interface SourcesDetail {
 
 	/** The 1-based page a placed tile sits on. */
 	data class TilePage(val pageNumber: Int) : SourcesDetail
+
+	/** The binding a tile carries to a file the document does not list, shown as the tile carries it. */
+	data class UnlistedBinding(val sourceId: ArtSourceId, val layerKey: String) : SourcesDetail
 
 	/** No secondary text. */
 	data object None : SourcesDetail
@@ -235,7 +245,8 @@ internal const val SOURCES_UNBOUND_GROUP_ID: String = "unbound"
  * tile still binds reads as needing review, named and sized as the inventory last saw it, with the
  * proposed relink when there is one and its own status when a replacement lost it; an unbound layer
  * the rigger ignored reads as ignored - then any tile bound to a key the inventory never listed, the
- * drawables over each tile, and last the unbound group when any tile has no binding.
+ * drawables over each tile, and last the unbound group when any tile has no binding or is bound to a file
+ * the document does not list (those read as needing review, with the binding they carry).
  *
  * @param PuppetModel puppet            The rig to walk.
  * @param Function    presenceOf        Whether each file is still on disk.
@@ -260,17 +271,29 @@ internal fun buildSourcesTree(
 	val drawableIdsByTile = puppet.drawableIdsByAtlasTile()
 	val drawableNameById = puppet.drawables.associate { drawable -> drawable.id to drawable.name }
 	val tilesByBinding = puppet.atlas.tiles.filter { tile -> tile.source != null }.groupBy { tile -> tile.source!!.sourceId to tile.source!!.layerKey }
+	val listedSourceIds = puppet.sources.mapTo(HashSet()) { source -> source.id }
 
 	fun tileNode(tileId: AtlasTileId): SourcesNode {
 		val tile = puppet.atlas.tileById.getValue(tileId)
 		val placement = tile.placement
 		val drawableIds = drawableIdsByTile[tile.id].orEmpty()
+		val unlisted = tile.source?.takeIf { ref -> ref.sourceId !in listedSourceIds }
 		return SourcesNode(
 			id = "tile:${tile.id.raw}",
 			label = tile.name,
-			detail = if (placement != null) SourcesDetail.TilePage(placement.pageIndex + 1) else SourcesDetail.None,
+			detail =
+				when {
+					unlisted != null -> SourcesDetail.UnlistedBinding(unlisted.sourceId, unlisted.layerKey)
+					placement != null -> SourcesDetail.TilePage(placement.pageIndex + 1)
+					else -> SourcesDetail.None
+				},
 			kind = SourcesNodeKind.Tile(tile.id),
-			status = if (placement == null) SourcesStatus.Unplaced else SourcesStatus.None,
+			status =
+				when {
+					unlisted != null -> SourcesStatus.SourceNotListed
+					placement == null -> SourcesStatus.Unplaced
+					else -> SourcesStatus.None
+				},
 			children =
 				drawableIds.map { drawableId ->
 					SourcesNode(
@@ -401,7 +424,9 @@ internal fun buildSourcesTree(
 				children = inventoryRows + strayRows,
 			)
 		}
-	val unboundTiles = puppet.atlas.tiles.filter { tile -> tile.source == null }
+	// The trailing group holds every tile no file row lists: the ones bound to no layer, and the ones bound to a
+	// file the document does not list, which would otherwise appear nowhere (UMA §3.6).
+	val unboundTiles = puppet.atlas.tiles.filter { tile -> tile.source == null || tile.source!!.sourceId !in listedSourceIds }
 	if (unboundTiles.isEmpty()) {
 		return sourceNodes
 	}
@@ -415,17 +440,6 @@ internal fun buildSourcesTree(
 			children = unboundTiles.map { tile -> tileNode(tile.id) },
 		)
 }
-
-/**
- * Whether a layer key reads as format-minted: the PSD name-and-order fallback (`name:` or a `#` order
- * suffix) is the one weak shape the readers produce; everything else (a lyid, a CLIP or Krita uuid)
- * survives a rename.  Used only to type a binding to a layer no tile is bound to - a bound layer's
- * tiles say what its key is (relinkTargetRef).
- *
- * @param String key The reader's layer key.
- * @return Boolean True when the key looks stable.
- */
-internal fun layerKeyLooksStable(key: String): Boolean = !key.startsWith("name:") && !key.contains('#')
 
 /**
  * Prunes the tree to [filters] and [query]: a row survives when it is of an enabled kind (or sits
