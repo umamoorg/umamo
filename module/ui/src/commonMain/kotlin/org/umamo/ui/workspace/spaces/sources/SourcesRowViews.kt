@@ -328,5 +328,6 @@ private fun detailText(detail: SourcesDetail): String? =
 		is SourcesDetail.LayerOnAxes ->
 			stringResource(Res.string.sources_layer_detail_axes, detail.width, detail.height, formatDecimals(detail.x, 1), formatDecimals(detail.z, 1))
 		is SourcesDetail.TilePage -> stringResource(Res.string.sources_tile_page, detail.pageNumber)
+		is SourcesDetail.UnlistedBinding -> stringResource(Res.string.sources_tile_unlisted_binding, detail.sourceId.raw, detail.layerKey)
 		SourcesDetail.None -> null
 	}

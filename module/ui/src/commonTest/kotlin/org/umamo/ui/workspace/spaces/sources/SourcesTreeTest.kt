@@ -18,6 +18,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.runtime.model.layerKeyLooksStable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -128,6 +129,32 @@ class SourcesTreeTest {
 		assertEquals(listOf("tile:tLoose"), unbound.children.map { node -> node.id })
 		assertNull(unbound.children[0].binding, "a tile bound to no layer")
 		assertEquals(listOf(DrawableId("d")), unbound.children[0].drawableIds)
+	}
+
+	/**
+	 * A tile bound to a file the document does not list - a sources entry too new to read, or one a foreign
+	 * writer dropped - is never invisible: it joins the unbound group reading as needing review, with the
+	 * binding it carries, and the review filter finds it (UMA §3.6).
+	 */
+	@Test
+	fun aTileBoundToAnUnlistedFileIsShownForReview() {
+		val base = model()
+		val orphan = AtlasTile(AtlasTileId("tOrphan"), "Orphan", 4, 4, placement = AtlasPlacement(0, 1f, 1f, 1f, 1f, 0f), source = SourceLayerRef(ArtSourceId("art-9"), "lyid:7", true))
+		val puppet = base.copy(atlas = base.atlas.copy(tiles = base.atlas.tiles + orphan))
+		val tree = buildSourcesTree(puppet, ::presence, "Unbound art")
+		val group = tree.last()
+		assertEquals(SourcesNodeKind.UnboundGroup, group.kind)
+		assertEquals(listOf("tile:tLoose", "tile:tOrphan"), group.children.map { node -> node.id }, "the unlisted binding joins the group")
+		val row = group.children[1]
+		assertEquals(SourcesStatus.SourceNotListed, row.status, "it waits on a decision")
+		assertEquals(SourcesDetail.UnlistedBinding(ArtSourceId("art-9"), "lyid:7"), row.detail, "and shows the binding it carries")
+		assertEquals(SourceLayerRef(ArtSourceId("art-9"), "lyid:7", true), row.binding, "which the relink chip unbinds or moves")
+		val review = filterSourcesTree(tree, "", setOf(SourcesFilter.NeedsReview))
+		assertTrue(review.any { node -> node.children.any { child -> child.id == "tile:tOrphan" } }, "the review filter finds it")
+		val unlisted = puppet.copy(sources = emptyList())
+		val onlyGroup = buildSourcesTree(unlisted, ::presence, "Unbound art")
+		assertEquals(listOf(SOURCES_UNBOUND_GROUP_ID), onlyGroup.map { node -> node.id }, "with no file listed, every tile is in the group")
+		assertEquals(4, onlyGroup.single().children.size, "all four tiles, none lost")
 	}
 
 	/** A search that lists only some of a tile's drawables leaves the tile's own list whole. */

@@ -9,6 +9,10 @@ import org.umamo.format.cmo3.model.gen.CParameterGroup
 import org.umamo.format.cmo3.model.gen.CParameterGroupSet
 import org.umamo.format.cmo3.model.gen.CParameterSource
 import org.umamo.format.cmo3.model.gen.CParameterSourceSet
+import org.umamo.format.cmo3.model.gen.CPhysicsInput
+import org.umamo.format.cmo3.model.gen.CPhysicsOutput
+import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSource
+import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.Type
@@ -155,15 +159,50 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
-	/** Removes a deleted parameter's source. */
+	/**
+	 * Removes a deleted parameter's source, and reports any physics setting the graph retained that still reads
+	 * or drives it: Umamo does not model physics, so the settings are written back as they were and the notice
+	 * is what tells the rigger they now name a parameter the file lacks.
+	 *
+	 * @param ParameterId parameterId The deleted parameter.
+	 */
 	fun deleteParameter(parameterId: ParameterId) {
 		val sourceSet = modelSource.parameterSourceSet as? CParameterSourceSet ?: return
+		val deleted = Cmo3Import.elementsOf(sourceSet._sources).filterIsInstance<CParameterSource>().firstOrNull { entry -> Cmo3Import.idStrOf(entry.id) == parameterId.raw }
 		if (removeFromCollection(sourceSet._sources) { entry ->
 				entry is CParameterSource && Cmo3Import.idStrOf(entry.id) == parameterId.raw
 			}
 		) {
 			deletedAnything = true
 		}
+		val settingNames = deleted?.guid?.let(::physicsSettingsNaming).orEmpty()
+		if (settingNames.isNotEmpty()) {
+			unsupported(ExportEntityCategory.Parameter, parameterId.raw, ExportNoticeReason.PhysicsNamesDeletedParameter(settingNames))
+		}
+	}
+
+	/**
+	 * The names of the physics settings whose inputs or outputs name the parameter whose guid is [parameterGuid].
+	 *
+	 * @param Any parameterGuid The parameter source's guid.
+	 * @return List<String> The settings' names, in the graph's order.
+	 */
+	private fun physicsSettingsNaming(parameterGuid: Any): List<String> {
+		val uuid = Cmo3Import.uuidOf(parameterGuid)
+
+		fun names(reference: Any?): Boolean = reference === parameterGuid || (uuid != null && Cmo3Import.uuidOf(reference) == uuid)
+
+		// CMO3: CModelSource field physicsSettingsSourceSet -> CPhysicsSettingsSourceSet field _sourceCubismPhysics
+		// -> CPhysicsSettingsSource fields inputs / outputs -> CPhysicsInput field source and CPhysicsOutput field
+		// destination, each the parameter source's own guid object (721 of 721 in the corpus,
+		// Cmo3PhysicsReferenceProbeTest).
+		val physicsSet = modelSource.physicsSettingsSourceSet as? CPhysicsSettingsSourceSet ?: return emptyList()
+		return Cmo3Import.elementsOf(physicsSet._sourceCubismPhysics)
+			.filterIsInstance<CPhysicsSettingsSource>()
+			.filter { setting ->
+				Cmo3Import.elementsOf(setting.inputs).filterIsInstance<CPhysicsInput>().any { input -> names(input.source) } ||
+					Cmo3Import.elementsOf(setting.outputs).filterIsInstance<CPhysicsOutput>().any { output -> names(output.destination) }
+			}.map { setting -> setting.name?.takeIf { name -> name.isNotBlank() } ?: Cmo3Import.idStrOf(setting.id).orEmpty() }
 	}
 
 	/**
@@ -262,9 +301,16 @@ internal class Cmo3StructureLowering(
 				textureState = textureSource.textureState
 			} else {
 				// CMO3: the fresh-graph binding - the page's SHARED GTexture2D plus a per-drawable
-				// CTextureInput_TextureAtlasRegion, so UVs stay in the atlas frame (hasAtlasRegion).
+				// CTextureInput_TextureAtlasRegion, so UVs stay in the atlas frame (hasAtlasRegion); or, for
+				// art never packed, the raster texture over its model image, in the MODEL_IMAGE state every
+				// corpus unpacked drawable carries.
 				texture = binding!!.texture
-				textureState = org.umamo.format.cmo3.model.gen.TextureState.TEXTURE_ATLAS
+				textureState =
+					if (binding.isUnpacked) {
+						org.umamo.format.cmo3.model.gen.TextureState.MODEL_IMAGE
+					} else {
+						org.umamo.format.cmo3.model.gen.TextureState.TEXTURE_ATLAS
+					}
 			}
 			_extensions =
 				CArrayList<Any?>().apply {
@@ -304,7 +350,8 @@ internal class Cmo3StructureLowering(
 	/**
 	 * Builds the per-drawable texture-input extension for a fresh-graph binding: both input kinds
 	 * (model image + atlas region), with the one the document's display mode samples made active,
-	 * mirroring the editor's packed drawables.
+	 * mirroring the editor's packed drawables; or, for an unpacked binding, the model image alone,
+	 * active in either mode, as the editor writes a drawable it never packed.
 	 *
 	 * @param CArtMeshSource             owner       The drawable source under construction.
 	 * @param Cmo3DrawableTextureBinding binding     The drawable's texture web (page texture + patch).
@@ -318,16 +365,18 @@ internal class Cmo3StructureLowering(
 	): CTextureInputExtension {
 		val extension = CTextureInputExtension()
 		val atlasRegion =
-			org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion().apply {
-				// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
-				// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
-				// The transform places the atlas page's pixel frame on the canvas so this drawable's
-				// texture patch coincides with its base mesh - the editor inverts it to draw the mesh
-				// over the texture in the atlas and mesh-edit views.
-				optionalTransformOnCanvas = CAffine()
-				_owner = extension
-				textureAtlasGuid = binding.textureAtlasGuid
-				inputImageLocalToCanvasTransform = binding.inputImageLocalToCanvasTransform
+			binding.textureAtlasGuid?.let { atlasGuid ->
+				org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion().apply {
+					// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
+					// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
+					// The transform places the atlas page's pixel frame on the canvas so this drawable's
+					// texture patch coincides with its base mesh - the editor inverts it to draw the mesh
+					// over the texture in the atlas and mesh-edit views.
+					optionalTransformOnCanvas = CAffine()
+					_owner = extension
+					textureAtlasGuid = atlasGuid
+					inputImageLocalToCanvasTransform = binding.inputImageLocalToCanvasTransform
+				}
 			}
 		val modelImage =
 			binding.modelImageGuid?.let { imageGuid ->
@@ -351,13 +400,14 @@ internal class Cmo3StructureLowering(
 			_textureInputs =
 				CArrayList<Any?>().apply {
 					modelImage?.let(::add)
-					add(atlasRegion)
+					atlasRegion?.let(::add)
 				}
 			// CMO3: CTextureInputExtension field currentTextureInputData - which input the document's
 			// display mode samples.  A drawable created in a layer-mode document must point at its model
-			// image, or the file's flag and its drawables disagree.
+			// image, or the file's flag and its drawables disagree; an unpacked drawable has only its model
+			// image, which is current in both modes.
 			currentTextureInputData =
-				if (edited.rendersFromSourceLayers) {
+				if (edited.rendersFromSourceLayers || atlasRegion == null) {
 					modelImage ?: atlasRegion
 				} else {
 					atlasRegion

@@ -65,6 +65,8 @@ class ExportNoticeLabelsTest {
 			ExportNoticeReason.KeyformCannotBundle(KeyformBundleRejection.KeysOutsideGeometrySpan),
 			ExportNoticeReason.AxisParameterHasNoSource("ParamAngleX"),
 			ExportNoticeReason.BlendShapeParameterHasNoSource("ParamSmile"),
+			ExportNoticeReason.PhysicsNamesDeletedParameter(listOf("Hair Front", "Hair Back")),
+			ExportNoticeReason.SidecarNamesUnwrittenParameters("rig.physics3.json", listOf("ParamGone")),
 			ExportNoticeReason.KeyformsWithoutBaseMesh,
 			ExportNoticeReason.FractionalDrawOrderNotStorable,
 			ExportNoticeReason.StaticGlueIntensityWithoutKeyforms,

@@ -1154,7 +1154,8 @@ internal class Cmo3PropertyLowering(
 	 * (docs/format/CMO3.md §4), so writing only the flag would leave every drawable pointing at the
 	 * input the OTHER mode samples - a file that says one thing and points at another.  A drawable
 	 * missing the input the mode needs keeps the pointer it has and takes a notice, rather than being
-	 * given a dangling one.
+	 * given a dangling one - except a drawable that was never packed, whose model image is its one input
+	 * and stays current in atlas mode too, as the editor writes it.
 	 */
 	private fun lowerSourceLayerDisplay() {
 		// CMO3: CModelSource field textureManager -> CTextureManager field isTextureInputModelImageMode.
@@ -1179,9 +1180,15 @@ internal class Cmo3PropertyLowering(
 					inputs.filterIsInstance<CTextureInput_TextureAtlasRegion>().firstOrNull()
 				}
 			if (wanted == null) {
-				// An unpacked drawable in atlas mode, or one with no model image in layer mode.  Leaving
-				// the live pointer alone keeps the file self-consistent; the notice names the gap.
-				unsupported(ExportEntityCategory.Drawable, drawable.name, ExportNoticeReason.NoTextureInputForDisplayMode)
+				// A drawable the editor never packed has no atlas region, and it samples its model image in
+				// either mode: every corpus drawable without a region keeps that input current, atlas-mode
+				// files included, so there is nothing to retarget and nothing to report.
+				val neverPacked = inputs.none { input -> input is CTextureInput_TextureAtlasRegion } && inputs.any { input -> input is CTextureInput_ModelImage }
+				if (!neverPacked) {
+					// One with no model image in layer mode.  Leaving the live pointer alone keeps the file
+					// self-consistent; the notice names the gap.
+					unsupported(ExportEntityCategory.Drawable, drawable.name, ExportNoticeReason.NoTextureInputForDisplayMode)
+				}
 				continue
 			}
 			extension.currentTextureInputData = wanted

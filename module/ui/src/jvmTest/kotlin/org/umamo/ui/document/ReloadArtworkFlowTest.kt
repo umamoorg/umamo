@@ -228,6 +228,9 @@ class ReloadArtworkFlowTest {
 			val refA = SourceLayerRef(sourceId, "lyid:1", true)
 			assertFalse(runRelinkArtwork(host, RelinkArtworkRequest(pulled.id, refA, art = null, options), areaId = null), "no file, no art")
 			assertEquals(refA, session.model.value.atlas.tileById.getValue(pulled.id).source, "but the binding changed")
+			// Art read from the document's own tiles pulls the same way, and the notice says where it came from.
+			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(listOf(pulled.id), refB, InMemoryArt(listOf(layerARepainted, layerB, layerC)), options, fromDocument = true), areaId = null))
+			assertEquals("notice.relink.pulledFromDocument", session.notice.value?.messageKey)
 			follower.cancel()
 		}
 

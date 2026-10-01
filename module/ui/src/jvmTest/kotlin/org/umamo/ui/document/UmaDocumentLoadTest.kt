@@ -1,6 +1,22 @@
 package org.umamo.ui.document
 
+import org.umamo.format.png.PngCodec
+import org.umamo.format.raster.RasterImage
 import org.umamo.format.uma.Uma
+import org.umamo.format.uma.UmaModel
+import org.umamo.format.uma.textures.UmaPixelSource
+import org.umamo.format.uma.textures.UmaRenderPagePixels
+import org.umamo.interop.uma.UmaDocumentBridge
+import org.umamo.runtime.model.ArtSource
+import org.umamo.runtime.model.ArtSourceId
+import org.umamo.runtime.model.ArtSourceLayer
+import org.umamo.runtime.model.AtlasTile
+import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.PuppetAtlas
+import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.ui.workspace.spaces.sources.SourcePresence
+import org.umamo.ui.workspace.spaces.sources.SourcesStatus
+import org.umamo.ui.workspace.spaces.sources.buildSourcesTree
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -73,6 +89,43 @@ class UmaDocumentLoadTest {
 		val failure = assertIs<DocumentLoad.Failed>(loadDocument(bytes, "rig.uma", "/rigs/rig.uma")).failure
 
 		assertEquals(DocumentOpenError.NewerFormat, failure.error)
+	}
+
+	/**
+	 * A sources entry too new for this version is carried, so the document lists no file while its tiles still
+	 * name one.  The bindings survive the open as they were, and the Sources space shows every such tile for
+	 * review rather than losing it (UMA §3.6).
+	 */
+	@Test
+	fun aTooNewSourcesEntryLeavesEveryBindingShown() {
+		val sourceId = ArtSourceId("art-0")
+		val tileId = AtlasTileId("art-0/lyid:1")
+		val blank = newBlankDocument().puppet
+		val puppet =
+			blank.copy(
+				atlas = PuppetAtlas(pages = emptyList(), tiles = listOf(AtlasTile(tileId, "Eye", 4, 4, source = SourceLayerRef(sourceId, "lyid:1", true)))),
+				sources = listOf(ArtSource(sourceId, "eye.psd", null, "psd", listOf(ArtSourceLayer("lyid:1", "Eye", "", 0, 0, 4, 4, true)))),
+			)
+		val tilePng = PngCodec.write(RasterImage(4, 4, ByteArray(4 * 4 * 4)))
+		val written = Uma.write(UmaDocumentBridge.documentOf(UmaModel.create(umamoWriterInfo()), puppet, UmaPixelSource({ tilePng }, UmaRenderPagePixels.Derived, null)))
+		val bytes =
+			rewritten(written) { manifest ->
+				// The sources record: raise its version and the floor a reader must meet above this version's.
+				val sourcesRecord = Regex("(\"kind\":\\s*\"sources\",\\s*\"version\":\\s*)1(,\\s*\"minVersion\":\\s*)1")
+				val patched = sourcesRecord.replace(manifest) { match -> "${match.groupValues[1]}2${match.groupValues[2]}2" }
+				check(patched != manifest) { "the sources record was not found: $manifest" }
+				patched
+			}
+
+		val document = assertIs<UmaDocument>(assertIs<DocumentLoad.Loaded>(loadDocument(bytes, "rig.uma", "/rigs/rig.uma")).document)
+
+		assertFalse(document.isReadOnly, "an optional entry too new to read leaves the document editable")
+		assertTrue(document.puppet.sources.isEmpty(), "the carried entry lists nothing this version can read")
+		assertEquals(SourceLayerRef(sourceId, "lyid:1", true), document.puppet.atlas.tiles.single().source, "the tile keeps its binding")
+		val tree = buildSourcesTree(document.puppet, { SourcePresence.Unknown }, "Unbound art")
+		val shown = tree.single().children.single()
+		assertEquals("tile:${tileId.raw}", shown.id, "the tile is listed")
+		assertEquals(SourcesStatus.SourceNotListed, shown.status, "for review")
 	}
 
 	@Test

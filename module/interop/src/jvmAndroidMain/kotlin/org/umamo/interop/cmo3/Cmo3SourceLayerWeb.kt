@@ -28,7 +28,8 @@ import kotlin.math.roundToInt
  * the bridge opened) writes in place of the crop stand-in.  One CLayeredImage per artwork file with
  * the file's folders as CLayerGroups and one CLayer per tile holding the document's own raster for
  * it, one CModelImage per tile at the layer's canvas origin, an entry on the tile's page for every
- * placed tile, and a binding for every drawable over it - the shape the official editor writes when
+ * placed tile, and a binding for every drawable over it (an unplaced tile's drawables sample its model
+ * image's raster directly, with no entry) - the shape the official editor writes when
  * it imports a PSD, so the file reopens in either editor with its real art and, through the Photoshop
  * layer ids, re-imports against the PSD by key.
  */
@@ -42,7 +43,9 @@ internal object Cmo3SourceLayerWeb {
 	 * One tile with real art, as the conversion routes it here.
 	 *
 	 * @property String          tileId      The tile's id.
-	 * @property String          name        The layer's name, which is the tile's.
+	 * @property String          name        The tile's name, which its model image takes.
+	 * @property String          layerName   The layer's name as the file lists it, which the CLayer takes - a
+	 *   name key re-imports from it, and a CMO3's model image can be named apart from its layer.
 	 * @property String          layerKey    The binding key; a "lyid:<n>" key writes Photoshop's layer id.
 	 * @property String          groupPath   The folder path in the file, "" at the root.
 	 * @property Boolean         visible     The layer's visibility as last read.
@@ -57,6 +60,7 @@ internal object Cmo3SourceLayerWeb {
 	internal class SourceLayerInput(
 		val tileId: String,
 		val name: String,
+		val layerName: String,
 		val layerKey: String,
 		val groupPath: String,
 		val visible: Boolean,
@@ -92,19 +96,25 @@ internal object Cmo3SourceLayerWeb {
 	 *
 	 * @property LayeredImageWrapper wrapper             The layered image, for the texture manager's raw-image list.
 	 * @property CModelImageGroup    group               The file's model-image group.
-	 * @property Map                 bindingByDrawableId The texture web of every drawable over a placed tile.
+	 * @property Map                 bindingByDrawableId The texture web of every drawable over a tile of the file.
+	 * @property List                rasterTextures      The textures its unplaced tiles' drawables sample, one per such tile.
 	 */
 	internal class Written(
 		val wrapper: LayeredImageWrapper,
 		val group: CModelImageGroup,
 		val bindingByDrawableId: Map<String, Cmo3DrawableTextureBinding>,
+		val rasterTextures: List<GTexture2D> = emptyList(),
 	)
 
 	/**
 	 * Routes [puppet]'s tiles into per-file inputs: every tile bound to a listed file whose binding
 	 * names an inventory row (present or lost - its tile still holds the art) and for which
 	 * [tileRasters] has pixels, in the file's inventory order.  A tile nothing samples is still a
-	 * layer of its file; a tile with no row or no raster is left to the crop path.
+	 * layer of its file.  A tile with pixels but no such binding - bound to no layer, as a CMO3's
+	 * multi-layer model image or a hit area is - becomes a single-layer image of its own, the shape the
+	 * official editor gives a flat image import, at the canvas origin its drawables put it, so its whole
+	 * raster and its placement cross the export as they are; only a tile with no pixels is left to the
+	 * crop path.
 	 *
 	 * The layered image's frame is the document canvas: an import sets the canvas from the art, and
 	 * the inventory's canvas coordinates live in that frame - a later file's rows already carry the
@@ -118,10 +128,13 @@ internal object Cmo3SourceLayerWeb {
 	internal fun inputsOf(puppet: PuppetModel, tileRasters: (AtlasTileId) -> RasterImage?): List<SourceImageInput> {
 		val drawableIdsByTile = HashMap<AtlasTileId, MutableList<String>>()
 		val artUvsByTile = HashMap<AtlasTileId, MutableMap<String, FloatArray>>()
+		val positionsByTile = HashMap<AtlasTileId, MutableList<Pair<FloatArray, FloatArray>>>()
 		for (drawable in puppet.drawables) {
 			val tileId = drawable.atlasTileId ?: continue
 			drawableIdsByTile.getOrPut(tileId) { ArrayList() }.add(drawable.id.raw)
-			Cmo3Icons.artUvsOf(puppet, drawable)?.let { artUvs -> artUvsByTile.getOrPut(tileId) { HashMap() }[drawable.id.raw] = artUvs }
+			val artUvs = Cmo3Icons.artUvsOf(puppet, drawable) ?: continue
+			artUvsByTile.getOrPut(tileId) { HashMap() }[drawable.id.raw] = artUvs
+			drawable.mesh?.positions?.let { positions -> positionsByTile.getOrPut(tileId) { ArrayList() }.add(positions to artUvs) }
 		}
 		val canvasWidth = puppet.canvasWidth.roundToInt()
 		val canvasHeight = puppet.canvasHeight.roundToInt()
@@ -145,6 +158,7 @@ internal object Cmo3SourceLayerWeb {
 						SourceLayerInput(
 							tileId = tile.id.raw,
 							name = tile.name,
+							layerName = row.name,
 							layerKey = ref.layerKey,
 							groupPath = row.groupPath,
 							visible = row.visible,
@@ -163,7 +177,60 @@ internal object Cmo3SourceLayerWeb {
 			// A stable sort: two tiles bound to one row (a double binding) keep their atlas order.
 			images.add(SourceImageInput(source.name, source.path, source.lastModified, canvasWidth, canvasHeight, ordered.sortedBy { (rowIndex, _) -> rowIndex }.map { (_, layer) -> layer }))
 		}
+		val rowKeysBySource = puppet.sources.associate { source -> source.id to source.layers.mapTo(HashSet()) { row -> row.key } }
+		for (tile in puppet.atlas.tiles) {
+			val ref = tile.source
+			if (ref != null && rowKeysBySource[ref.sourceId]?.contains(ref.layerKey) == true) {
+				continue
+			}
+			val raster = tileRasters(tile.id) ?: continue
+			val (canvasLeft, canvasTop) = fittedCanvasOrigin(positionsByTile[tile.id].orEmpty(), raster)
+			val layer =
+				SourceLayerInput(
+					tileId = tile.id.raw,
+					name = tile.name,
+					layerName = tile.name,
+					layerKey = "name:${tile.name}",
+					groupPath = "",
+					visible = true,
+					canvasLeft = canvasLeft,
+					canvasTop = canvasTop,
+					raster = raster,
+					placement = tile.placement,
+					drawableIds = drawableIdsByTile[tile.id].orEmpty(),
+					artUvsByDrawableId = artUvsByTile[tile.id].orEmpty(),
+				)
+			images.add(SourceImageInput(tile.name, null, null, canvasWidth, canvasHeight, listOf(layer)))
+		}
 		return images
+	}
+
+	/**
+	 * The canvas origin of an unbound tile's art frame, fitted from the drawables over it: the mean offset between
+	 * each vertex's canvas position and the art pixel its coordinates name, rounded to whole pixels as every official
+	 * layer origin is.  The origin the rest of the chain composes the entry and the region input through; with no
+	 * drawable to read it from, the canvas corner.
+	 *
+	 * @param List        meshes Each drawable's canvas positions paired with its art-frame coordinates.
+	 * @param RasterImage raster The tile's pixels, whose size scales the coordinates.
+	 * @return Pair<Int, Int> The origin's canvas x and y.
+	 */
+	private fun fittedCanvasOrigin(meshes: List<Pair<FloatArray, FloatArray>>, raster: RasterImage): Pair<Int, Int> {
+		var sumX = 0.0
+		var sumY = 0.0
+		var vertexTotal = 0
+		for ((positions, artUvs) in meshes) {
+			val vertexCount = minOf(positions.size, artUvs.size) / 2
+			for (vertexIndex in 0 until vertexCount) {
+				sumX += positions[2 * vertexIndex] - artUvs[2 * vertexIndex].toDouble() * raster.width
+				sumY += positions[2 * vertexIndex + 1] - artUvs[2 * vertexIndex + 1].toDouble() * raster.height
+				vertexTotal++
+			}
+		}
+		if (vertexTotal == 0) {
+			return 0 to 0
+		}
+		return (sumX / vertexTotal).roundToInt() to (sumY / vertexTotal).roundToInt()
 	}
 
 	/**
@@ -214,6 +281,7 @@ internal object Cmo3SourceLayerWeb {
 			return folder
 		}
 		val bindings = HashMap<String, Cmo3DrawableTextureBinding>()
+		val rasterTextures = ArrayList<GTexture2D>()
 		for (layerInput in image.layers) {
 			val raster = layerInput.raster
 			val pngBytes = PngCodec.write(raster)
@@ -223,7 +291,7 @@ internal object Cmo3SourceLayerWeb {
 			val folder = folderAt(layerInput.groupPath)
 			val layer =
 				layerOver(
-					name = layerInput.name,
+					name = layerInput.layerName,
 					layerKey = layerInput.layerKey,
 					visible = layerInput.visible,
 					canvasLeft = layerInput.canvasLeft,
@@ -239,7 +307,30 @@ internal object Cmo3SourceLayerWeb {
 			layerEntryList.add(layer)
 			val modelImage = Cmo3ImageChainBuilder.modelImageOver(layerInput.name, layeredImage, layer, resource, raster, layerPlacement(layerInput.canvasLeft, layerInput.canvasTop), group, names, pngEntries, nowMillis)
 			groupModelImages.add(modelImage)
-			val tilePlacement = layerInput.placement ?: continue
+			val tilePlacement = layerInput.placement
+			if (tilePlacement == null) {
+				// Art never packed: no atlas entry, and every drawable over it samples the model image's raster
+				// through one texture of the tile's own - the shape the official editor writes for an unpacked
+				// drawable.  Its coordinates are stored in the raster's cache frame by the reconcile, which
+				// reads that frame off the texture (Cmo3TextureFrames).
+				if (layerInput.drawableIds.isNotEmpty()) {
+					val texture = Cmo3ImageChainBuilder.rasterTexture(layerInput.name, resource)
+					rasterTextures.add(texture)
+					for (drawableId in layerInput.drawableIds) {
+						val patch = Cmo3Icons.patchOf(raster, layerInput.artUvsByDrawableId[drawableId])
+						bindings[drawableId] =
+							Cmo3DrawableTextureBinding(
+								texture,
+								null,
+								modelImage.guid as Guid,
+								null,
+								icon32 = Cmo3Icons.iconOf(patch, 32, names.nextIconPath(), pngEntries),
+								icon16 = Cmo3Icons.iconOf(patch, 16, names.nextIconPath(), pngEntries),
+							)
+					}
+				}
+				continue
+			}
 			val atlas = atlases.getOrNull(tilePlacement.pageIndex) ?: continue
 			val texture = textures[tilePlacement.pageIndex]
 			// The entry pair: the packing as the placement records it, and the atlas-to-canvas half
@@ -271,7 +362,7 @@ internal object Cmo3SourceLayerWeb {
 					)
 			}
 		}
-		return Written(minted.wrapper, group, bindings)
+		return Written(minted.wrapper, group, bindings, rasterTextures)
 	}
 
 	/**

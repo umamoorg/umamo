@@ -15,6 +15,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.interop.cmo3.Cmo3Import
@@ -56,8 +57,9 @@ class Cmo3ExportStructureRoundTripTest {
 		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report)
 	}
 
-	private fun assertLossless(result: RoundTrip, label: String) {
-		assertTrue(result.report.isEmpty, "$label: expected no notices, got ${result.report.notices}")
+	private fun assertLossless(result: RoundTrip, label: String, expected: (ExportNotice) -> Boolean = { false }) {
+		val unexpected = result.report.notices.filterNot(expected)
+		assertTrue(unexpected.isEmpty(), "$label: expected no notices, got $unexpected")
 		val residual = diffPuppetModels(result.reimported, result.edited)
 		assertTrue(residual.isEmpty, "$label: edits lost through export/import: $residual")
 	}
@@ -134,6 +136,7 @@ class Cmo3ExportStructureRoundTripTest {
 	@Test
 	fun parameterCreateAndDeleteSurviveRoundTrip() {
 		val file = skipMessageOrNull() ?: return
+		var deletedId: String? = null
 		val result =
 			roundTrip(file) { puppet ->
 				var model = puppet.withParameterCreated(ParameterId("UmamoTestParam"), "Umamo Test Param")
@@ -155,11 +158,16 @@ class Cmo3ExportStructureRoundTripTest {
 					}
 				val victim = model.parameters.firstOrNull { it.id !in referenced && it.id.raw != "UmamoTestParam" }
 				if (victim != null) {
+					deletedId = victim.id.raw
 					model = model.withParameterDeleted(victim.id)
 				}
 				model
 			}
-		assertLossless(result, "parameter create/delete")
+		// Physics the file retained may still read or drive the victim (EricaTamamo's ParamAngleZ feeds 43
+		// settings): Umamo writes physics back as it was, and the one notice it owes is that report.
+		assertLossless(result, "parameter create/delete") { notice ->
+			notice is ExportNotice.UnsupportedChange && notice.subject == deletedId && notice.reason is ExportNoticeReason.PhysicsNamesDeletedParameter
+		}
 	}
 
 	@Test

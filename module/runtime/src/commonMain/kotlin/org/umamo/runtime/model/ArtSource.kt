@@ -243,3 +243,14 @@ data class ArtworkReload(
 	val retiredTiles: List<AtlasTileId> = emptyList(),
 	val drawableVisibility: Map<DrawableId, Boolean> = emptyMap(),
 )
+
+/**
+ * Whether a layer key reads as format-minted: the PSD name-and-order fallback (`name:` or a `#` order
+ * suffix) is the one weak shape the readers produce; everything else (a lyid, a CLIP or Krita uuid)
+ * survives a rename.  Used only to type a binding to a layer no tile is bound to - a bound layer's
+ * tiles say what its key is.
+ *
+ * @param String key The reader's layer key.
+ * @return Boolean True when the key looks stable.
+ */
+fun layerKeyLooksStable(key: String): Boolean = !key.startsWith("name:") && !key.contains('#')

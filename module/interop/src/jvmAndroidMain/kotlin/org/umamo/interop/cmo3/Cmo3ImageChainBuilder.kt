@@ -148,12 +148,15 @@ internal object Cmo3ImageChainBuilder {
 	 * @property Int  cropDrawableCount    How many drawables took the crop path - the stand-in sliced
 	 *   out of a page - which is what the missing-source-art notice reports; zero when every
 	 *   drawable's art came from a real layer.
+	 * @property List rasterTextures       The textures unpacked drawables sample, one per never-packed
+	 *   tile, each over its model image's raster.
 	 */
 	internal class BuiltImageChain(
 		val pngEntries: List<Cmo3FreshFile.PngEntry>,
 		val bindingByDrawableId: Map<String, Cmo3DrawableTextureBinding>,
 		val pageFallbackBindings: List<Cmo3DrawableTextureBinding>,
 		val cropDrawableCount: Int = 0,
+		val rasterTextures: List<GTexture2D> = emptyList(),
 	)
 
 	/**
@@ -660,6 +663,26 @@ internal object Cmo3ImageChainBuilder {
 				magFilter = MagFilter.LINEAR
 				owner = texture
 			}
+		return texture
+	}
+
+	/**
+	 * The texture a drawable over never-packed art samples: its model image's raster, through the raster's
+	 * padding scale, shared by every drawable over that art.  Every corpus drawable with no atlas region
+	 * writes this shape (G8's `Cmo3UnpackedDrawableProbeTest`, 10 drawables in 7 files): the raster as
+	 * `srcImageResource`, its dims over its 64-aligned padding as `transformImageResource01toLogical01` (so
+	 * the stored coordinates are in the cache frame), mip level 64, and the page texture's fixed sampling
+	 * fields.
+	 *
+	 * @param String?        textureName The texture's name; the corpus names it after its model image.
+	 * @param CImageResource resource    The model image's raster, which is also its layer's resource.
+	 * @return GTexture2D The raster texture.
+	 */
+	internal fun rasterTexture(textureName: String?, resource: CImageResource): GTexture2D {
+		val texture = pageTexture(textureName, resource)
+		// CMO3: GTexture2D field transformImageResource01toLogical01 - the raster's padding scale, which is
+		// what puts an unpacked drawable's stored coordinates in the cache frame (Cmo3TextureFrames).
+		texture.transformImageResource01toLogical01 = paddedFrameAffine(resource.width, resource.height)
 		return texture
 	}
 
@@ -1200,11 +1223,13 @@ internal object Cmo3ImageChainBuilder {
 			textureAtlases.add(atlas)
 		}
 		cropGroup?.let { group -> modelImageGroups.add(group.group) }
+		val rasterTextures = ArrayList<GTexture2D>()
 		for (image in sourceImages) {
 			val written = Cmo3SourceLayerWeb.write(image, atlases, textures, names, pngEntries, nowMillis)
 			rawImages.add(written.wrapper)
 			modelImageGroups.add(written.group)
 			bindingByDrawableId.putAll(written.bindingByDrawableId)
+			rasterTextures.addAll(written.rasterTextures)
 		}
 		// CMO3: CTextureManager field isTextureInputModelImageMode - the document's own display mode.
 		// The synthesized web carries BOTH inputs per drawable (a model image and an atlas region), so
@@ -1212,7 +1237,7 @@ internal object Cmo3ImageChainBuilder {
 		// match.  This path is not covered by that lowering, so it reads the model directly rather than
 		// hardcoding a mode the document may not be in.
 		textureManager.isTextureInputModelImageMode = fromSourceLayers
-		return BuiltImageChain(pngEntries, bindingByDrawableId, pageFallbackBindings, cropDrawableCount)
+		return BuiltImageChain(pngEntries, bindingByDrawableId, pageFallbackBindings, cropDrawableCount, rasterTextures)
 	}
 
 	/**

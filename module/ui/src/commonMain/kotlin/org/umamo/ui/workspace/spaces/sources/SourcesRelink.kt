@@ -5,6 +5,7 @@ import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.runtime.model.layerKeyLooksStable
 
 /**
  * One artwork file's rows in the relink list: the file as a heading, the layers beneath it.

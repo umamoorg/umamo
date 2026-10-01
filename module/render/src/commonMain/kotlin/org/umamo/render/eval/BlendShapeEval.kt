@@ -2,6 +2,7 @@ package org.umamo.render.eval
 
 import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.meshGridDefaultDeltas
+import org.umamo.runtime.eval.multiplierAt
 import org.umamo.runtime.eval.rotationFormAt
 import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.eval.warpControlPointsAt
@@ -96,40 +97,7 @@ internal fun activeBlendKeys(
  * @param Function paramValue Current value per parameter id.
  * @return Float The multiplier in [0..1] (whatever the curves yield).
  */
-internal fun limitMultiplier(limits: List<BlendWeightLimit>, paramValue: (ParameterId) -> Float): Float {
-	var multiplier = 1f
-	for (limit in limits) {
-		val points = limit.points
-		if (points.isEmpty()) {
-			continue
-		}
-		val value = paramValue(limit.parameterId)
-		val capped =
-			when {
-				value <= points.first().value -> points.first().weight
-				value >= points.last().value -> points.last().weight
-				else -> {
-					var lowerPointIndex = 0
-					while (lowerPointIndex + 1 < points.size && points[lowerPointIndex + 1].value <= value) {
-						lowerPointIndex++
-					}
-					val lower = points[lowerPointIndex]
-					val upper = points[lowerPointIndex + 1]
-					val span = upper.value - lower.value
-					if (span > 0f) {
-						val fraction = (value - lower.value) / span
-						lower.weight + fraction * (upper.weight - lower.weight)
-					} else {
-						lower.weight
-					}
-				}
-			}
-		if (capped < multiplier) {
-			multiplier = capped
-		}
-	}
-	return multiplier
-}
+internal fun limitMultiplier(limits: List<BlendWeightLimit>, paramValue: (ParameterId) -> Float): Float = limits.multiplierAt(paramValue)
 
 /** One active mesh blend contribution: the form, its net weight, and its (binding, key) identity. */
 internal class MeshBlendContribution(

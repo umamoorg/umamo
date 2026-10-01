@@ -18,6 +18,7 @@ import org.umamo.storage.UmamoLog
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.document.ReadArtwork
+import org.umamo.ui.document.SourceReadOrigin
 import org.umamo.ui.document.artworkImportExtensions
 import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.document.fileDisplayName
@@ -277,9 +278,9 @@ internal class ArtworkController(
 
 	/**
 	 * Rebinds one or more tiles as one step.  An unbind is the plain binding edit; a binding to a layer
-	 * pulls the layer's art in when its file is on disk - or, for a CMO3-origin document whose file is not,
-	 * from the layer PNGs the official editor decomposed into the CMO3 at import - and changes the bindings
-	 * alone when neither can be read.
+	 * pulls the layer's art in when its file is on disk - or, when it is not, from the layer PNGs the official
+	 * editor decomposed into a CMO3 the document is open from, else from the tile the document holds for that
+	 * layer (docs/plan/uma-format.md D40) - and changes the bindings alone when none has art for the layer.
 	 *
 	 * @param RelinkRequest request The tiles and the binding they take.
 	 * @param String?       areaId  The area the operation strip shows in.
@@ -291,12 +292,22 @@ internal class ArtworkController(
 			return
 		}
 		services.scope.launch {
-			val source = puppet.session.model.value.sources.firstOrNull { candidate -> candidate.id == ref.sourceId }
-			val read = source?.let { listed -> readSourceArt(puppet.document, listed) }
-			if (read?.fromCmo3 == true) {
-				UmamoLog.info("relink artwork: '${ref.layerKey}' read from the CMO3's own decomposed layer image, since its file could not be read on this machine")
-			}
-			runRelinkArtwork(host, RelinkArtworkRequest(request.tileIds, ref, read?.art, artworkImportOptions(), request.retire), areaId)
+			val model = puppet.session.model.value
+			val source = model.sources.firstOrNull { candidate -> candidate.id == ref.sourceId }
+			val read = source?.let { listed -> readSourceArt(puppet.document, model, listed) }
+			runRelinkArtwork(
+				host,
+				RelinkArtworkRequest(
+					request.tileIds,
+					ref,
+					read?.art,
+					artworkImportOptions(),
+					request.retire,
+					inventoryOverride = read?.inventory,
+					fromDocument = read?.origin == SourceReadOrigin.DocumentTiles,
+				),
+				areaId,
+			)
 		}
 	}
 
@@ -310,12 +321,13 @@ internal class ArtworkController(
 	private fun matchArtwork(areaId: String?) {
 		services.scope.launch {
 			val entries = ArrayList<ReloadEntry>()
-			for (source in puppet.session.model.value.sources) {
-				val read = readSourceArt(puppet.document, source) ?: continue
-				entries.add(ReloadEntry(source.id, read.art, read.contentHash, read.lastModified))
+			val model = puppet.session.model.value
+			for (source in model.sources) {
+				val read = readSourceArt(puppet.document, model, source) ?: continue
+				entries.add(ReloadEntry(source.id, read.art, read.contentHash, read.lastModified, inventoryOverride = read.inventory))
 			}
 			if (entries.isEmpty()) {
-				puppet.session.emitNotice("notice.reload.noFiles", NoticePlacement.StatusBar)
+				puppet.session.emitNotice("notice.match.noFiles", NoticePlacement.StatusBar)
 				return@launch
 			}
 			val covered = entries.mapTo(HashSet()) { entry -> entry.sourceId }

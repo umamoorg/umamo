@@ -4,6 +4,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.withDerivedRenderRoot
@@ -32,9 +33,11 @@ private fun Deformer.reboundToPart(newPart: PartId?): Deformer =
 
 /**
  * Returns a copy of [this] with every drawable in [ids] removed and every reference to them scrubbed: the
- * drawables list, the org tree (their [OrgChild.Drawable] entries), any other drawable's clip mask, and any
- * glue whose either partner was deleted. The render order is NOT re-derived here - the caller does that once
- * it has finished its structural changes. An empty set returns the same instance.
+ * drawables list, the org tree (their [OrgChild.Drawable] entries), any other drawable's clip mask, any
+ * part's composite mask, and any glue whose either partner was deleted. A drawable's `textureSourceId` is
+ * left alone: it keys the atlas page mapping rather than naming a live drawable, so a copy keeps its art
+ * when its source goes. The render order is NOT re-derived here - the caller does that once it has
+ * finished its structural changes. An empty set returns the same instance.
  *
  * @param Set<DrawableId> ids The drawables to delete.
  * @return PuppetModel The model with those drawables and their references gone.
@@ -54,10 +57,48 @@ internal fun PuppetModel.removingDrawables(ids: Set<DrawableId>): PuppetModel {
 	val cleanedParts =
 		parts.map { part ->
 			val kids = part.children.filterNot { child -> child is OrgChild.Drawable && child.id in ids }
-			if (kids.size != part.children.size) part.copy(children = kids) else part
+			val masks = part.composite.maskedBy.filterNot { maskId -> maskId in ids }
+			if (kids.size == part.children.size && masks.size == part.composite.maskedBy.size) {
+				part
+			} else {
+				part.copy(children = kids, composite = part.composite.copy(maskedBy = masks))
+			}
 		}
 	return copy(drawables = remaining, glues = cleanedGlues, rootChildren = cleanedRoot, parts = cleanedParts)
 }
+
+/**
+ * These parts with every id in [deleted] taken out of their composites' part masks.
+ *
+ * @param Set<PartId> deleted The parts being deleted.
+ * @return List The parts, each the same instance when it named none of them.
+ */
+private fun List<Part>.withPartMasksRemoved(deleted: Set<PartId>): List<Part> =
+	map { part ->
+		val masks = part.composite.maskedByParts.filterNot { maskId -> maskId in deleted }
+		if (masks.size == part.composite.maskedByParts.size) part else part.copy(composite = part.composite.copy(maskedByParts = masks))
+	}
+
+/**
+ * These parts with the dissolved part [dissolved] replaced, in every composite that masks by it, by its own
+ * direct children - child parts as part masks, child drawables as drawable masks - so ungrouping a folder
+ * keeps the coverage it gave.  A part never takes itself as a mask, and a mask already present is not added
+ * twice.
+ *
+ * @param Part dissolved The part an ungroup dissolves.
+ * @return List The parts, each the same instance when it did not mask by [dissolved].
+ */
+private fun List<Part>.withPartMaskUngrouped(dissolved: Part): List<Part> =
+	map { part ->
+		if (dissolved.id !in part.composite.maskedByParts) {
+			return@map part
+		}
+		val childParts = dissolved.children.filterIsInstance<OrgChild.Part>().map { child -> child.id }.filter { childId -> childId != part.id }
+		val childDrawables = dissolved.children.filterIsInstance<OrgChild.Drawable>().map { child -> child.id }
+		val partMasks = (part.composite.maskedByParts.flatMap { maskId -> if (maskId == dissolved.id) childParts else listOf(maskId) }).distinct()
+		val drawableMasks = (part.composite.maskedBy + childDrawables).distinct()
+		part.copy(composite = part.composite.copy(maskedByParts = partMasks, maskedBy = drawableMasks))
+	}
 
 /**
  * Returns a copy of [this] with the single drawable [id] deleted (mask / glue / tree references scrubbed,
@@ -139,6 +180,7 @@ fun PuppetModel.withPartDeleted(id: PartId, cascade: Boolean): PuppetModel {
 		val remainingParts =
 			parts.filterNot { it.id in subtree }
 				.map { candidate -> if (partRef in candidate.children) candidate.copy(children = candidate.children - partRef) else candidate }
+				.withPartMasksRemoved(subtree)
 		val cleanedRoot = rootChildren.filter { it != partRef }
 		// A deformer's organizational partId may point into the deleted subtree; clear it so nothing dangles.
 		val cleanedDeformers =
@@ -153,7 +195,7 @@ fun PuppetModel.withPartDeleted(id: PartId, cascade: Boolean): PuppetModel {
 		// Ungroup: replace the part ref with the part's own children, in place, wherever it sits.
 		fun splice(children: List<OrgChild>): List<OrgChild> = children.flatMap { if (it == partRef) part.children else listOf(it) }
 		val cleanedRoot = splice(rootChildren)
-		val remainingParts = parts.filterNot { it.id == id }.map { it.copy(children = splice(it.children)) }
+		val remainingParts = parts.filterNot { it.id == id }.map { it.copy(children = splice(it.children)) }.withPartMaskUngrouped(part)
 		val cleanedDeformers = deformers.map { deformer -> if (deformer.partId == id) deformer.reboundToPart(grandParentId) else deformer }
 		copy(
 			parts = remainingParts,

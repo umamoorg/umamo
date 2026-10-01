@@ -712,21 +712,28 @@ class EditorSession(
 	 * grid (its axis collapses to the default slice), and the live pose - as one undo step. A model edit,
 	 * so it marks the document dirty; dropping the pose entry rides the same step so undo restores both.
 	 * A member (not a mutate extension) because it commits a new model and a new pose together, like
-	 * [setParameterRange]. A no-op (no such parameter) records nothing.
+	 * [setParameterRange]. A no-op (no such parameter) records nothing. When the delete moves the rest pose
+	 * of any object - a default between two keys, or a blend shape its scrub cannot keep exact
+	 * ([ownersWhoseRestChangesOnDeleting]) - a notice says how many.
 	 *
 	 * @param ParameterId id The parameter to delete.
 	 */
 	fun deleteParameter(id: ParameterId) {
-		val newModel = mutableModel.value.withParameterDeleted(id)
-		if (newModel === mutableModel.value) {
+		val before = mutableModel.value
+		val newModel = before.withParameterDeleted(id)
+		if (newModel === before) {
 			return
 		}
+		val restChanged = before.ownersWhoseRestChangesOnDeleting(id)
 		// The target must never dangle on a parameter the model no longer has - pruned BEFORE the commit,
 		// so the pushed snapshot carries the pruned selection and a later redo (or a History jump to this
 		// entry) cannot restore the dangling id.
 		mutableParameterSelection.value =
 			mutableParameterSelection.value.prunedTo(newModel.parameters.mapTo(HashSet()) { parameter -> parameter.id })
 		commit(ParameterChange.Delete(id), newModel, mutablePose.value - id)
+		if (restChanged.isNotEmpty()) {
+			emitNotice("notice.parameter.deleteChangedRest", arguments = listOf(restChanged.size.toString()))
+		}
 	}
 
 	/**

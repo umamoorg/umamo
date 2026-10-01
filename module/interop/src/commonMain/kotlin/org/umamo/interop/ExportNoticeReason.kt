@@ -208,6 +208,23 @@ sealed interface ExportNoticeReason {
 	 */
 	data class BlendShapeParameterHasNoSource(val parameterId: String) : ExportNoticeReason
 
+	/**
+	 * A parameter the edit deleted is still read or driven by physics settings the CMO3 retained, which Umamo
+	 * does not model and wrote back as they were (docs/plan/uma-format.md D38).
+	 *
+	 * @property List settingNames The physics settings that still name the parameter.
+	 */
+	data class PhysicsNamesDeletedParameter(val settingNames: List<String>) : ExportNoticeReason
+
+	/**
+	 * A sidecar carried through verbatim names parameters the MOC3 does not contain - deleted, or written under
+	 * a shortened id - so a runtime reading it finds nothing for those inputs and outputs.
+	 *
+	 * @property String fileName     The sidecar's file name.
+	 * @property List   parameterIds The ids it names that the MOC3 does not contain.
+	 */
+	data class SidecarNamesUnwrittenParameters(val fileName: String, val parameterIds: List<String>) : ExportNoticeReason
+
 	/** Keyforms with no base mesh to bundle against. */
 	data object KeyformsWithoutBaseMesh : ExportNoticeReason
 

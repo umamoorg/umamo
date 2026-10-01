@@ -3,6 +3,8 @@ package org.umamo.edit
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
@@ -22,9 +24,12 @@ import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -174,9 +179,12 @@ class ParameterCrudEditsTest {
 		assertEquals(11f, byCoordinate[1], "cell (angleY key 1) kept the default-slice form")
 	}
 
-	/** Deleting the sole axis of a grid leaves the entity unkeyed (null grid). */
+	/**
+	 * Deleting the sole axis of a drawable's grid keeps the default slice as a one-cell grid with no axes, so
+	 * the drawable keeps the look it had rather than snapping back to its base mesh.
+	 */
 	@Test
-	fun deleteSoleAxisGridBecomesNull() {
+	fun deleteSoleAxisGridKeepsTheDefaultSliceAsOneCell() {
 		val singleAxis =
 			keyedDrawable().copy(
 				geometryGrid =
@@ -191,7 +199,39 @@ class ParameterCrudEditsTest {
 			)
 		val session = EditorSession(model(listOf(parameter(angleX)), drawables = listOf(singleAxis)))
 		session.deleteParameter(angleX)
-		assertNull(session.model.value.drawables.single().geometryGrid, "the last-axis grid becomes null")
+		val grid = assertNotNull(session.model.value.drawables.single().geometryGrid, "the last-axis grid keeps a cell")
+		assertTrue(grid.axes.isEmpty(), "the kept grid has no axes")
+		assertEquals(1f, grid.cells.single().form.positionDeltas.single(), "the kept cell is the default slice (key 0)")
+		assertEquals(0, grid.cells.single().coordinate.size, "the kept cell has an empty coordinate")
+	}
+
+	/** A warp whose only axis is deleted keeps its lattice at the default slice, since the lattice lives only in its cells. */
+	@Test
+	fun deleteSoleAxisOfAWarpKeepsItsLattice() {
+		val warp =
+			Deformer.Warp(
+				id = DeformerId("warp"),
+				name = "warp",
+				parent = null,
+				partId = null,
+				rows = 1,
+				columns = 1,
+				isQuadTransform = false,
+				geometryGrid =
+					KeyformGrid(
+						listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f))),
+						listOf(
+							KeyformCell(intArrayOf(0), WarpLatticeForm(FloatArray(8) { component -> component.toFloat() })),
+							KeyformCell(intArrayOf(1), WarpLatticeForm(FloatArray(8) { component -> 10f + component })),
+						),
+					),
+			)
+		val start = model(listOf(parameter(angleX))).copy(deformers = listOf(warp))
+		val after = start.withParameterDeleted(angleX)
+		val lattice = assertNotNull((after.deformers.single() as Deformer.Warp).geometryGrid, "the warp keeps its lattice")
+		assertTrue(lattice.axes.isEmpty(), "the kept lattice grid has no axes")
+		assertContentEquals(FloatArray(8) { component -> component.toFloat() }, lattice.cells.single().form.controlPoints, "the kept lattice is the default slice")
+		assertTrue(start.ownersWhoseRestChangesOnDeleting(angleX).isEmpty(), "a default on a key keeps the rest pose")
 	}
 
 	/** Deleting a parameter not present in a grid leaves that grid's entity untouched by identity. */

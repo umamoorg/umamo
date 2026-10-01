@@ -23,7 +23,8 @@ internal class SourcesRowVisual(
 /**
  * The icon a row draws with, carrying the row's status the way a traffic light does: green for a
  * layer bound by a stable key, amber for one bound by name (a binding that holds only while the
- * layer keeps its name and place), a tile on no page, or a binding whose layer the file lost, red for
+ * layer keeps its name and place), a tile on no page or bound to a file the document does not list, or a
+ * binding whose layer the file lost, red for
  * an unbound layer, a missing file, or the unbound-art group, and the muted text color for a layer the
  * rigger ignored.  The glyph itself already says what the
  * row is - a file, a link, a tile, a mesh - and a missing file swaps to the missing-file glyph, so the
@@ -57,10 +58,11 @@ internal fun sourcesRowVisual(node: SourcesNode, icons: UmamoIcons, colors: Umam
 				else -> SourcesRowVisual(icons.linked, colors.signalGood, Res.string.sources_status_bound)
 			}
 		is SourcesNodeKind.Tile ->
-			if (node.status == SourcesStatus.Unplaced) {
-				SourcesRowVisual(icons.spaceTexture, colors.signalCaution, Res.string.sources_status_unplaced)
-			} else {
-				SourcesRowVisual(icons.spaceTexture, colors.text, null)
+			when (node.status) {
+				SourcesStatus.Unplaced -> SourcesRowVisual(icons.spaceTexture, colors.signalCaution, Res.string.sources_status_unplaced)
+				// Bound to a file the document does not list: the binding waits on a decision, like a lost layer's.
+				SourcesStatus.SourceNotListed -> SourcesRowVisual(icons.spaceTexture, colors.signalCaution, Res.string.sources_status_source_not_listed)
+				else -> SourcesRowVisual(icons.spaceTexture, colors.text, null)
 			}
 		is SourcesNodeKind.Drawable -> SourcesRowVisual(icons.mesh, colors.outlinerObjectTint, null)
 		// Every tile under the group is unbound; the one red marker at the heading is the group's status.
