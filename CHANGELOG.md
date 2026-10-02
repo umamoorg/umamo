@@ -7,12 +7,26 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+* Format: Art that was never packed into the atlas is now written to a CMO3 export instead of being reported and left out, so a CMO3-origin document reopened from a `.uma` exports every drawable it holds.  Art bound to no layer(A hit area, a multi-layer image) is written whole as an image of its own rather than cropped out of a page.
+* Artwork: Relink and Match Automatically keep working when an artwork file is missing, reading the art the document holds for it.
+* Export: CMO3 and MOC export reports now list physic settings that reference deleted parameters.
 
 ### Changed
+* Format: The notice on the first save of a CMO3 as UMA now notifies of what was dropped: Physics, guides, keyform notes, random pose, model state sets, and user data.
+* Format: UMA files store mesh keyform offsets in float64 precision.  Previous versions of Umamo will not open newer files.
 
 ### Fixed
+* Format: A CMO3 export from a `.uma` no longer writes an extra texture atlas for each piece of art that was never packed.
+* Format: A CMO3 export no longer leaves the opacity out of a part keyform at zero opacity.  This caused the Cubism Editor to throw a null pointer exception.
+* Edit: Deleting a parameter now removes the blend shapes it drives and the weight limits it sets instead of leaving them naming a parameter that is gone.
+* Edit: Deleting the last parameter a deformer is keyed on keeps the deformer's shape instead of losing it, so its CMO3 export opens in the Cubism Editor.
+* Edit: Deleting a drawable or a part removes it from other parts' masks.
+* Edit: Removing a folder in the middle of a chain or otherwise would leave part and drawable masks dangling.  Now they are resolved and set to the parent instead.
+* Edit: Keyforms of art meshes under a deformer now use float64 precision through import, editing, `.uma` saves, and CMO3 and MOC3 exports.
+* Sources: Art bound to a file the document does not list is shown for review instead of disappearing from the Sources space.
+* Artwork: Match Automatically no longer loses a confident match it could not apply; it stays as the row's suggestion.
 
-## 0.4.0 - 2026-10-02
+## 0.4.0 - 2026-10-01
 
 NOTE: Going forward the `-dev` suffix will be dropped for production releases due to a build script change.
 
@@ -25,7 +39,7 @@ NOTE: Going forward the `-dev` suffix will be dropped for production releases du
 * UI: The unsaved-changes prompts when replacing a document or quitting now offer Save, Don’t Save, and Cancel.
 * UI: Added save confirmation for dirty files when closing the application.
 * UI: Opens to a new document by default with New and Open file menu operations available.
-* UI: Can now drag and drop files on the window.  Model files are opened and artworkd is added to the open document.
+* UI: Can now drag and drop files on the window.  Model files are opened and artwork is added to the open document.
 * UI: When a text entry box is active the mouse cursor now displays the text entry cursor everywhere to indicate that text entry is currently active.
 * UI: Previous Workspace and Next Workspace added to Workspace menu.
 * UI: Add hover tooltips to the Properties area and Operation Strip.

@@ -116,7 +116,7 @@ Apps load settings at startup and provide the instance through a `LocalSettings`
 
 ### Deformation (the core math)
 
-Parameter-driven morph blending, **not** skeletal: `p = base + Σ wᵢ·Δᵢ`, multilinear interpolation across an N-dimensional grid of keyforms.  Warp deformers are FFD lattices; rotation deformers are a nesting pivot-transform hierarchy.  Weights are computed CPU-side per frame (cheap; depend only on parameters); the per-vertex weighted delta-sum runs in a vertex shader.  None of this maps onto any engine's built-in rig — it is ours.
+Parameter-driven morph blending, **not** skeletal: `p = base + Σ wᵢ·Δᵢ`, multilinear interpolation across an N-dimensional grid of keyforms.  Warp deformers are FFD lattices; rotation deformers are a nesting pivot-transform hierarchy.  Weights are computed CPU-side per frame (cheap; depend only on parameters); the per-vertex weighted delta-sum runs in a vertex shader.  The base is the canvas-space editable mesh while a deformer child's keyforms are parent-space, so mesh deltas are `DoubleArray`: every `base + Δ` adds in double and rounds once, and the GPU upload re-bases onto a same-space reference (`deltaUploadReference`) so the float32 shader sums small numbers.  None of this maps onto any engine's built-in rig — it is ours.
 
 ### Mesh-editing interaction model
 
