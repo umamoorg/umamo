@@ -55,13 +55,14 @@ public data class UmaMeshGrid(
 /**
  * UMA §4.11: one cell of a drawable's geometry grid.
  *
- * @property List<Int>  coordinate     The key index per axis.
- * @property FloatArray positionDeltas x, y per vertex, relative to the rest mesh (an accessor).
+ * @property List<Int>   coordinate     The key index per axis.
+ * @property DoubleArray positionDeltas x, y per vertex, relative to the rest mesh (a float64 accessor; a
+ *                                      float32 one reads widened).
  */
 @Serializable
 public class UmaMeshCell(
 	val coordinate: List<Int>,
-	@Contextual val positionDeltas: FloatArray,
+	@Contextual val positionDeltas: DoubleArray,
 )
 
 /**
@@ -173,7 +174,8 @@ public data class UmaBlendLimit(
 /**
  * UMA §4.13: a drawable's blend-shape form.
  *
- * @property FloatArray   positionDeltas x, y per vertex, relative to the rest mesh (an accessor).
+ * @property DoubleArray  positionDeltas x, y per vertex, relative to the rest mesh (a float64 accessor; a
+ *                                       float32 one reads widened).
  * @property Float?       drawOrder      Absent at 500.
  * @property Float?       opacity        Absent at 1.
  * @property List<Float>? multiplyColor  Absent at white.
@@ -181,7 +183,7 @@ public data class UmaBlendLimit(
  */
 @Serializable
 public class UmaMeshForm(
-	@Contextual val positionDeltas: FloatArray,
+	@Contextual val positionDeltas: DoubleArray,
 	val drawOrder: Float? = null,
 	val opacity: Float? = null,
 	val multiplyColor: List<Float>? = null,

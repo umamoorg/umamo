@@ -17,6 +17,7 @@ import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -127,8 +128,8 @@ class BlendShapeEvalTest {
 			KeyformGrid(
 				listOf(KeyformAxis(axis, floatArrayOf(0f, 1f))),
 				listOf(
-					KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(5f, 0f))),
-					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(9f, 0f))),
+					KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(5f, 0f).toDoubleArray())),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(9f, 0f).toDoubleArray())),
 				),
 			)
 		val meshBinding =
@@ -136,7 +137,7 @@ class BlendShapeEvalTest {
 				parameterId = shrink,
 				keys = floatArrayOf(-1f, 0f),
 				neutralIndex = 1,
-				forms = listOf(MeshForm(floatArrayOf(11f, 4f)), null),
+				forms = listOf(MeshForm(floatArrayOf(11f, 4f).toDoubleArray()), null),
 			)
 		val drawable =
 			Drawable(
@@ -154,7 +155,7 @@ class BlendShapeEvalTest {
 		assertEquals(1, state.contributions.size)
 		assertEquals(1f, state.contributions[0].weight)
 		// Reference = the default-pose grid form's deltas: (5, 0).
-		assertEquals(listOf(5f, 0f), state.referenceDeltas?.toList())
+		assertEquals(listOf(5.0, 0.0), state.referenceDeltas?.toList())
 		// The eval adds w * (form - reference) = (11-5, 4-0) = (6, 4) on top of the grid result.
 	}
 

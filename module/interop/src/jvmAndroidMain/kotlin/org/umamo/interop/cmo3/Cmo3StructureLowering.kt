@@ -693,8 +693,9 @@ internal class Cmo3StructureLowering(
 		// CMO3: CArtMeshSource fields indices / positions / uvs.  The positions are CANVAS-frame
 		// in every official file, and mesh.positions is canvas-frame by the runtime's contract:
 		// the MOC3 document loader normalizes parent-local rest meshes through :render's
-		// restMeshesToCanvasSpace at import (rendering never notices the base's frame - grids sum
-		// to one - but the editor's atlas and mesh-edit views read this field as canvas geometry).
+		// restMeshesToCanvasSpace at import (rendering does not depend on the base's frame - the
+		// keyform blend is Σ wᵢ·(base + Δᵢ) over double deltas - but the editor's atlas and mesh-edit
+		// views read this field as canvas geometry).
 		source.indices = mesh.indices.copyOf()
 		editor.ensureChildSlot(source, "CArtMeshSource", "indices", "keyforms")
 		source.positions = mesh.positions.copyOf()

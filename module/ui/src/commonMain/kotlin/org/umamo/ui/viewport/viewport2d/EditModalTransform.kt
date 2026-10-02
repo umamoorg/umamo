@@ -85,6 +85,12 @@ internal class EditModalTransform(
 	private var slideLanding: SlideLanding? = null
 
 	/**
+	 * The keyform movement of each drawable in the gesture's latest preview, kept beside the preview's base
+	 * positions so the confirm commits both (MeshBaseMove).
+	 */
+	private var previewKeyformMovements: Map<DrawableId, DoubleArray> = emptyMap()
+
+	/**
 	 * Starts the gesture as an operator latches in this area.  The capture covers only the session meshes
 	 * with covered vertices (an edge or face selection moves the union of vertices its elements cover); a
 	 * mesh with nothing selected does not move.  The shared pivot is the median of every covered vertex
@@ -245,6 +251,7 @@ internal class EditModalTransform(
 				session.commitMeshPositions(
 					MeshChange.TransformVertices(vertexIndicesByDrawable, transform.operatorKind),
 					newPositionsByDrawable,
+					previewKeyformMovements,
 				)
 				// The strip's rows for the step just pushed, over the RETAINED capture so an adjustment
 				// replays the same frozen geometry - registered before the operator clears, since the
@@ -328,6 +335,7 @@ internal class EditModalTransform(
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
 		gesture.lastParameters = parameters
 		val newPreview = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
+		val newMovements = LinkedHashMap<DrawableId, DoubleArray>(transform.entries.size)
 		var folded = session.model.value
 		for (entry in transform.entries) {
 			val geometry = gestureData.geometryById.getValue(entry.drawableId)
@@ -350,11 +358,13 @@ internal class EditModalTransform(
 				} else {
 					applyOperator(operator, entry.positions, entry.groups, parameters, entry.influence)
 				}
-			val newBase = geometry.worldToBase(transformedWorld, entry.movedIndices)
-			newPreview[entry.drawableId] = newBase
-			folded = folded.withMeshPositions(entry.drawableId, newBase)
+			val move = geometry.worldToBaseMove(transformedWorld, entry.movedIndices)
+			newPreview[entry.drawableId] = move.positions
+			newMovements[entry.drawableId] = move.keyformMovement
+			folded = folded.withMeshPositions(entry.drawableId, move.positions)
 		}
 		gesture.preview = newPreview
+		previewKeyformMovements = newMovements
 		pushPreview(folded)
 		return true
 	}

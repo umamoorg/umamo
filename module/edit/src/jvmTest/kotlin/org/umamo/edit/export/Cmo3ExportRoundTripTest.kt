@@ -15,7 +15,7 @@ import org.umamo.edit.withDrawableName
 import org.umamo.edit.withDrawableParentDeformer
 import org.umamo.edit.withDrawableSelectable
 import org.umamo.edit.withDrawableVisibility
-import org.umamo.edit.withMeshPositions
+import org.umamo.edit.withMeshPositionsCommitted
 import org.umamo.edit.withMeshUvs
 import org.umamo.edit.withOrgChildMoved
 import org.umamo.edit.withParameterGroupRenamed
@@ -422,7 +422,9 @@ class Cmo3ExportRoundTripTest {
 				val nudged = drawable.mesh!!.positions.copyOf()
 				nudged[0] += 3f
 				nudged[1] -= 2f
-				puppet.withMeshPositions(drawable.id, nudged)
+				// The committed form of the edit (what EditorSession's commits apply): the keyforms move with
+				// the base and settle at the floats the file stores.
+				puppet.withMeshPositionsCommitted(drawable.id, nudged)
 			}
 		// Exported geometry is written as authored rather than re-welded to Cubism's own topology,
 		// so the geometry survives exactly while the weld-divergence notice names the edited mesh.

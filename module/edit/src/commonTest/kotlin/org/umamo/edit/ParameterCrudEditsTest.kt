@@ -25,6 +25,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.toDoubleArray
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -77,7 +78,7 @@ class ParameterCrudEditsTest {
 			buildList {
 				for (xIndex in 0..2) {
 					for (yIndex in 0..1) {
-						add(KeyformCell(intArrayOf(xIndex, yIndex), MeshDeltaForm(floatArrayOf(xIndex * 10f + yIndex))))
+						add(KeyformCell(intArrayOf(xIndex, yIndex), MeshDeltaForm(floatArrayOf(xIndex * 10f + yIndex).toDoubleArray())))
 					}
 				}
 			}
@@ -175,8 +176,8 @@ class ParameterCrudEditsTest {
 		assertEquals(2, grid.cells.size, "the 3x2 grid collapsed to the 2 cells of the kept slice")
 		// The surviving forms are the angleX-index-1 slice: xIndex*10 + yIndex = 10 and 11.
 		val byCoordinate = grid.cells.associate { it.coordinate.single() to it.form.positionDeltas.single() }
-		assertEquals(10f, byCoordinate[0], "cell (angleY key 0) kept the default-slice form")
-		assertEquals(11f, byCoordinate[1], "cell (angleY key 1) kept the default-slice form")
+		assertEquals(10.0, byCoordinate[0], "cell (angleY key 0) kept the default-slice form")
+		assertEquals(11.0, byCoordinate[1], "cell (angleY key 1) kept the default-slice form")
 	}
 
 	/**
@@ -191,9 +192,9 @@ class ParameterCrudEditsTest {
 					KeyformGrid(
 						listOf(KeyformAxis(angleX, floatArrayOf(-1f, 0f, 1f))),
 						listOf(
-							KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f))),
-							KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(1f))),
-							KeyformCell(intArrayOf(2), MeshDeltaForm(floatArrayOf(2f))),
+							KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f).toDoubleArray())),
+							KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(1f).toDoubleArray())),
+							KeyformCell(intArrayOf(2), MeshDeltaForm(floatArrayOf(2f).toDoubleArray())),
 						),
 					),
 			)
@@ -201,7 +202,7 @@ class ParameterCrudEditsTest {
 		session.deleteParameter(angleX)
 		val grid = assertNotNull(session.model.value.drawables.single().geometryGrid, "the last-axis grid keeps a cell")
 		assertTrue(grid.axes.isEmpty(), "the kept grid has no axes")
-		assertEquals(1f, grid.cells.single().form.positionDeltas.single(), "the kept cell is the default slice (key 0)")
+		assertEquals(1.0, grid.cells.single().form.positionDeltas.single(), "the kept cell is the default slice (key 0)")
 		assertEquals(0, grid.cells.single().coordinate.size, "the kept cell has an empty coordinate")
 	}
 

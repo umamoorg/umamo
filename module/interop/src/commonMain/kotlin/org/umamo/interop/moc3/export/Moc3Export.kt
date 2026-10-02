@@ -22,10 +22,11 @@ import org.umamo.runtime.model.PuppetModel
  * therefore exports exactly like a MOC3-origin one.
  *
  * THE LOAD-BEARING INVARIANT, which every geometry path here depends on:
- * `drawable.mesh.positions[i] + cell.positionDeltas[i]` is the drawable's ABSOLUTE position in its
- * parent-deformer space, for every document origin.  `restMeshesToCanvasSpace` rewrites the base
- * and compensates the deltas so the sum is untouched, and CMO3 stores the same mixed-space
- * convention natively - which is what lets one lowering serve both.
+ * `drawable.mesh.positions[i] + cell.positionDeltas[i]`, added in double and rounded once to float, is
+ * the drawable's ABSOLUTE position in its parent-deformer space, for every document origin.
+ * `restMeshesToCanvasSpace` rewrites the base and compensates the deltas so the sum is untouched, and
+ * CMO3 stores the same mixed-space convention natively - which is what lets one lowering serve both.
+ * Double because the base is canvas-scale while the keyform is parent-space (MeshDeltaForm).
  *
  * An export ALWAYS writes.  Anything it cannot express becomes an [ExportNotice] rather than a
  * silent drop, including hidden objects, which by default are CARRIED with their flag clear rather

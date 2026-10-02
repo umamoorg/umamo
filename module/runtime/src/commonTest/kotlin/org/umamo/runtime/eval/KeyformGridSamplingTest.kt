@@ -10,6 +10,7 @@ import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -194,8 +195,8 @@ class KeyformGridSamplingTest {
 			KeyformGrid(
 				listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f))),
 				listOf(
-					KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f))),
-					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(2f, 4f))),
+					KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f).toDoubleArray())),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(2f, 4f).toDoubleArray())),
 				),
 			)
 		assertNull(meshGridDefaultDeltas(gridded(grid)) { 5f })
@@ -208,12 +209,12 @@ class KeyformGridSamplingTest {
 			KeyformGrid(
 				listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f))),
 				listOf(
-					KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f))),
-					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(2f, 4f))),
+					KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f).toDoubleArray())),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(2f, 4f).toDoubleArray())),
 				),
 			)
 		val deltas = assertNotNull(meshGridDefaultDeltas(gridded(grid)) { 0.5f })
-		assertEquals(listOf(1f, 2f), deltas.toList())
+		assertEquals(listOf(1.0, 2.0), deltas.toList())
 	}
 
 	/** A one-axis warp grid with the given control points per key. */

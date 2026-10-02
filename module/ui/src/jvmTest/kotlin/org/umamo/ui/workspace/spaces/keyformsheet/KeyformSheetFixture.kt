@@ -122,7 +122,7 @@ internal fun sheetFixtureModel(): PuppetModel {
 private fun geometryGridOn(parameterId: ParameterId, vararg keys: Float): KeyformGrid<MeshDeltaForm> =
 	KeyformGrid(
 		listOf(KeyformAxis(parameterId, keys)),
-		keys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), MeshDeltaForm(FloatArray(6))) },
+		keys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), MeshDeltaForm(DoubleArray(6))) },
 	)
 
 /**

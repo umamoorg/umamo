@@ -20,6 +20,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import java.nio.ByteBuffer
 import kotlin.math.abs
 import kotlin.test.Test
@@ -61,7 +62,7 @@ class StructuralReconcileTest {
 			maskedBy = emptyList(),
 			mesh = DrawableMesh(positions, quadUvs, indices),
 			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped).
-			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
+			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size).toDoubleArray())))),
 			textureSourceId = textureSourceId,
 		)
 

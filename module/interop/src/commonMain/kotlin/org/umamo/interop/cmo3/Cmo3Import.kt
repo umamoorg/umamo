@@ -88,8 +88,10 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.canvasCenterWorldOriginX
 import org.umamo.runtime.model.canvasCenterWorldOriginZ
+import org.umamo.runtime.model.deltasFromBase
 import org.umamo.runtime.model.deriveRenderRoot
 import org.umamo.runtime.model.storedToArtAffineForTile
+import org.umamo.runtime.model.toDoubleArray
 
 /**
  * Maps a parsed CMO3 model graph (`:format`) into the concrete [PuppetModel] (`:runtime`).
@@ -1015,18 +1017,22 @@ object Cmo3Import {
 	}
 
 	/**
-	 * Per-vertex deltas of [positions] vs [base] (`positions − base`), or a copy of positions when
+	 * Per-vertex deltas of [positions] vs [base] (`positions − base`), or the positions widened when
 	 * there is no size-matching base, so the form is kept absolute rather than dropped.
+	 *
+	 * In double: the base is the canvas-space editable mesh (CArtMeshSource.positions) while a deformer
+	 * child's form is in its parent's space, so the float difference would keep only 1/4096 of a unit
+	 * and every keyform would come back off the grid it was authored on (see MeshDeltaForm).
 	 *
 	 * @param FloatArray? base      The mesh base positions.
 	 * @param FloatArray  positions The form's absolute positions.
-	 * @return FloatArray The deltas, or a copy of positions.
+	 * @return DoubleArray The deltas, or the positions widened.
 	 */
-	private fun deltaVsBase(base: FloatArray?, positions: FloatArray): FloatArray {
+	private fun deltaVsBase(base: FloatArray?, positions: FloatArray): DoubleArray {
 		if (base == null || base.size != positions.size) {
-			return positions.copyOf()
+			return positions.toDoubleArray()
 		}
-		return FloatArray(positions.size) { positions[it] - base[it] }
+		return deltasFromBase(positions, base)
 	}
 }
 

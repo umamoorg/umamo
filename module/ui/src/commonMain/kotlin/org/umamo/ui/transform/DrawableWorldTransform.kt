@@ -120,7 +120,8 @@ private fun EditorSession.commitWorldTransform(
 	if (targetWorld === captured.world) {
 		return
 	}
-	commitObjectPositions(change, mapOf(id to captured.worldToBase(targetWorld)))
+	val move = captured.worldToBaseMove(targetWorld)
+	commitObjectPositions(change, mapOf(id to move.positions), mapOf(id to move.keyformMovement))
 }
 
 /**

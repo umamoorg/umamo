@@ -85,6 +85,22 @@ private class DifferenceCollector(val differences: MutableList<String> = ArrayLi
 	}
 
 	/**
+	 * Records a difference when two double arrays differ in length or in any bit.
+	 *
+	 * @param String      path     Where the arrays sit.
+	 * @param DoubleArray expected The expected array.
+	 * @param DoubleArray actual   The actual array.
+	 */
+	fun doubles(path: String, expected: DoubleArray, actual: DoubleArray) {
+		if (expected.size != actual.size) {
+			differences += "$path: expected ${expected.size} doubles, got ${actual.size}"
+			return
+		}
+		val first = expected.indices.firstOrNull { valueIndex -> expected[valueIndex].toRawBits() != actual[valueIndex].toRawBits() } ?: return
+		differences += "$path[$first]: expected ${expected[first]}, got ${actual[first]}"
+	}
+
+	/**
 	 * Records a difference when two int arrays differ.
 	 *
 	 * @param String   path     Where the arrays sit.
@@ -354,7 +370,7 @@ internal fun puppetStructureDifferences(expected: PuppetModel, actual: PuppetMod
 			same("$path.texturePage", left.texturePage, right.texturePage)
 			same("$path.atlasTileId", left.atlasTileId, right.atlasTileId)
 			mesh("$path.mesh", left.mesh, right.mesh)
-			grid("$path.geometry", left.geometryGrid, right.geometryGrid) { formPath, leftForm, rightForm -> floats("$formPath.positionDeltas", leftForm.positionDeltas, rightForm.positionDeltas) }
+			grid("$path.geometry", left.geometryGrid, right.geometryGrid) { formPath, leftForm, rightForm -> doubles("$formPath.positionDeltas", leftForm.positionDeltas, rightForm.positionDeltas) }
 			channels(path, left.channelGrids, right.channelGrids)
 			blendShapes(path, left.blendShapes, right.blendShapes) { formPath, leftForm: MeshForm, rightForm -> meshForm(formPath, leftForm, rightForm) }
 		}
@@ -464,7 +480,7 @@ internal fun documentDifferences(expected: PuppetModel, actual: PuppetModel): Li
  * @param MeshForm actual   The actual form.
  */
 private fun DifferenceCollector.meshForm(path: String, expected: MeshForm, actual: MeshForm) {
-	floats("$path.positionDeltas", expected.positionDeltas, actual.positionDeltas)
+	doubles("$path.positionDeltas", expected.positionDeltas, actual.positionDeltas)
 	bits("$path.drawOrder", expected.drawOrder, actual.drawOrder)
 	bits("$path.opacity", expected.opacity, actual.opacity)
 	color("$path.multiplyColor", expected.multiplyColor, actual.multiplyColor)

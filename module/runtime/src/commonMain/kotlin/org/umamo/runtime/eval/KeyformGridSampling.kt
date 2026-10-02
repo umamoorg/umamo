@@ -144,19 +144,34 @@ public fun <TForm> cellsByLinearIndex(grid: KeyformGrid<TForm>): Map<Int, Keyfor
  * of the grid's range (the reference is then zero). Static per drawable: the CPU pose prep, the
  * GPU delta-texture bake, and the MOC3 import all call this and must agree.
  *
+ * Accumulated in double and divided by the corners' summed weight.  The float corner weights of a
+ * fractional default need not sum to exactly 1, and a delta is thousands of units when the base is the
+ * canvas-space mesh and the keyform is in a parent deformer's space, so an unnormalized sum would carry
+ * `delta·(1 − Σw)` - the same 1/4096 error the double deltas exist to remove.  A missing corner cell is
+ * the rest mesh (a zero delta) and still counts toward the sum.  A cell shorter than the first one
+ * contributes only the components it has.
+ *
  * @param Drawable drawable     The drawable.
  * @param Function defaultValue Default value per parameter id.
- * @return FloatArray? The interleaved reference deltas, or null.
+ * @return DoubleArray? The interleaved reference deltas, or null.
  */
-public fun meshGridDefaultDeltas(drawable: Drawable, defaultValue: (ParameterId) -> Float): FloatArray? {
+public fun meshGridDefaultDeltas(drawable: Drawable, defaultValue: (ParameterId) -> Float): DoubleArray? {
 	val grid = drawable.geometryGrid ?: return null
 	val defaultCorners = gridCorners(grid, defaultValue) ?: return null
-	val deltas = FloatArray(grid.cells.firstOrNull()?.form?.positionDeltas?.size ?: 0)
+	val deltas = DoubleArray(grid.cells.firstOrNull()?.form?.positionDeltas?.size ?: 0)
 	val byLinearIndex = cellsByLinearIndex(grid)
+	var weightSum = 0.0
 	for (corner in defaultCorners) {
+		weightSum += corner.weight
 		val form = byLinearIndex[corner.linearIndex]?.form ?: continue
-		for (componentIndex in deltas.indices) {
+		val sharedLength = minOf(deltas.size, form.positionDeltas.size)
+		for (componentIndex in 0 until sharedLength) {
 			deltas[componentIndex] += corner.weight * form.positionDeltas[componentIndex]
+		}
+	}
+	if (weightSum > 0.0 && weightSum != 1.0) {
+		for (componentIndex in deltas.indices) {
+			deltas[componentIndex] /= weightSum
 		}
 	}
 	return deltas

@@ -23,6 +23,7 @@ import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -53,7 +54,7 @@ class Moc3BlendShapeSpaceTest {
 			parameterId = morphParameter,
 			keys = floatArrayOf(0f, 1f),
 			neutralIndex = 0,
-			forms = listOf(null, MeshForm(authoredDeltas.copyOf())),
+			forms = listOf(null, MeshForm(authoredDeltas.toDoubleArray())),
 		)
 
 	/**
@@ -86,8 +87,8 @@ class Moc3BlendShapeSpaceTest {
 					axes = listOf(KeyformAxis(poseParameter, floatArrayOf(0f, 1f))),
 					cells =
 						listOf(
-							KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(authoredDeltas.size))),
-							KeyformCell(intArrayOf(1), MeshDeltaForm(FloatArray(authoredDeltas.size))),
+							KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(authoredDeltas.size).toDoubleArray())),
+							KeyformCell(intArrayOf(1), MeshDeltaForm(FloatArray(authoredDeltas.size).toDoubleArray())),
 						),
 				),
 			blendShapes = listOf(morphBinding()),

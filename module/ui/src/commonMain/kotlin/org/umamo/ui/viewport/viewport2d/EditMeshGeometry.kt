@@ -2,6 +2,7 @@ package org.umamo.ui.viewport.viewport2d
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import org.umamo.edit.MeshBaseMove
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshTopology
 import org.umamo.render.eval.DrawableSpaceMapping
@@ -54,6 +55,16 @@ internal class EditMeshGeometry(
 	 * @return FloatArray The new base positions (a fresh array).
 	 */
 	fun worldToBase(transformedWorld: FloatArray, indices: Set<Int>): FloatArray = worldGeometry.worldToBase(transformedWorld, indices)
+
+	/**
+	 * Inverts a transformed world shape onto the base mesh with the keyform movement kept beside it
+	 * ([DrawableWorldGeometry.worldToBaseMove]).
+	 *
+	 * @param FloatArray transformedWorld The transformed world positions.
+	 * @param Set<Int>   indices          The vertices the transform touched.
+	 * @return MeshBaseMove The new base positions and the keyform movement.
+	 */
+	fun worldToBaseMove(transformedWorld: FloatArray, indices: Set<Int>): MeshBaseMove = worldGeometry.worldToBaseMove(transformedWorld, indices)
 }
 
 /**

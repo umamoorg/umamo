@@ -60,6 +60,11 @@ internal class GpuDrawable(
 	var boundsBase: FloatArray,
 	/** Grid cells by linear index for the bounds walk; a keyform edit re-uploads whole (Reupload). */
 	val boundsCells: Map<Int, KeyformCell<MeshDeltaForm>>,
+	/**
+	 * The reference the delta texture's grid columns were uploaded relative to (deltaUploadReference), or
+	 * null for a plain upload.  The in-place base-mesh move re-bases its new rest positions with it.
+	 */
+	val restReference: DoubleArray? = null,
 ) {
 	/**
 	 * The texture this drawable actually samples: its source artwork when the document displays from

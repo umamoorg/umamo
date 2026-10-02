@@ -14,6 +14,7 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -71,7 +72,7 @@ class ParameterRowQueriesTest {
 						geometryGrid =
 							KeyformGrid(
 								listOf(KeyformAxis(bodyX, floatArrayOf(0f))),
-								listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f)))),
+								listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f).toDoubleArray()))),
 							),
 					),
 				),

@@ -23,6 +23,7 @@ import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.math.abs
 import kotlin.test.Test
@@ -51,7 +52,7 @@ class CompositeEditReconcileTest {
 	private fun restGrid(positions: FloatArray): KeyformGrid<MeshDeltaForm> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size)))),
+			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size).toDoubleArray()))),
 		)
 
 	private fun drawable(

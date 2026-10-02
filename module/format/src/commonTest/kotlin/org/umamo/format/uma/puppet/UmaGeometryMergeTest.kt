@@ -52,7 +52,7 @@ class UmaGeometryMergeTest {
 						id = "A",
 						name = "A",
 						mesh = triangle(),
-						geometry = UmaMeshGrid(listOf(axis), (0 until 3).map { keyIndex -> UmaMeshCell(listOf(keyIndex), FloatArray(6) { keyIndex.toFloat() }) }),
+						geometry = UmaMeshGrid(listOf(axis), (0 until 3).map { keyIndex -> UmaMeshCell(listOf(keyIndex), DoubleArray(6) { keyIndex.toDouble() }) }),
 						channels = linkedMapOf(UmaFormChannel.DrawOrder to track(500f), UmaFormChannel.Opacity to track(0.5f)),
 						blendShapes =
 							listOf(
@@ -60,7 +60,7 @@ class UmaGeometryMergeTest {
 									parameter = "P1",
 									keys = listOf(0f, 1f),
 									neutralIndex = 0,
-									forms = listOf(null, UmaMeshForm(FloatArray(6) { 1f })),
+									forms = listOf(null, UmaMeshForm(DoubleArray(6) { 1.0 })),
 									limits = listOf(UmaBlendLimit("P0", listOf(UmaBlendLimitPoint(-1f, 0f), UmaBlendLimitPoint(1f, 1f)))),
 								),
 							),
@@ -117,9 +117,9 @@ class UmaGeometryMergeTest {
 			drawableA.copy(
 				name = "A renamed",
 				mesh = UmaMesh(floatArrayOf(0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f), FloatArray(8), intArrayOf(0, 1, 2, 0, 2, 3)),
-				geometry = drawableA.geometry!!.copy(cells = drawableA.geometry.cells.drop(1).map { cell -> UmaMeshCell(cell.coordinate, FloatArray(8) { 3f }) }),
+				geometry = drawableA.geometry!!.copy(cells = drawableA.geometry.cells.drop(1).map { cell -> UmaMeshCell(cell.coordinate, DoubleArray(8) { 3.0 }) }),
 				channels = drawableA.channels!!.filterKeys { channel -> channel != UmaFormChannel.DrawOrder },
-				blendShapes = drawableA.blendShapes!!.map { binding -> binding.copy(forms = listOf(null, UmaMeshForm(FloatArray(8) { 2f }))) },
+				blendShapes = drawableA.blendShapes!!.map { binding -> binding.copy(forms = listOf(null, UmaMeshForm(DoubleArray(8) { 2.0 }))) },
 			)
 		val edited = puppet.copy(drawables = puppet.drawables.map { drawable -> if (drawable.id == "A") editedA else drawable }, glues = puppet.glues!!.drop(1))
 		val saved = Uma.read(Uma.write(document.withPuppet(edited)))
@@ -205,12 +205,12 @@ class UmaGeometryMergeTest {
 	@Test
 	fun cellKeysFollowTheirKeyValues() {
 		val oneAxis = UmaAxis("P0", listOf(-1f, 0f, 1f))
-		val saved = Uma.read(Uma.write(UmaModel.create(TEST_WRITER).withPuppet(trackPuppet(UmaChannelGrid(listOf(oneAxis), (0 until 3).map { keyIndex -> UmaChannelCell(listOf(keyIndex), JsonPrimitive(keyIndex)) }), UmaMeshGrid(listOf(oneAxis), (0 until 3).map { keyIndex -> UmaMeshCell(listOf(keyIndex), FloatArray(6)) })))))
+		val saved = Uma.read(Uma.write(UmaModel.create(TEST_WRITER).withPuppet(trackPuppet(UmaChannelGrid(listOf(oneAxis), (0 until 3).map { keyIndex -> UmaChannelCell(listOf(keyIndex), JsonPrimitive(keyIndex)) }), UmaMeshGrid(listOf(oneAxis), (0 until 3).map { keyIndex -> UmaMeshCell(listOf(keyIndex), DoubleArray(6)) })))))
 		val planted = plantedCells(saved) { cellIndex -> "at ${oneAxis.keys[cellIndex]}" }
 
 		// A key added below every other: each old cell's coordinate moves up by one.
 		val widened = UmaAxis("P0", listOf(-2f, -1f, 0f, 1f))
-		val inserted = trackPuppet(UmaChannelGrid(listOf(widened), (0 until 4).map { keyIndex -> UmaChannelCell(listOf(keyIndex), JsonPrimitive(keyIndex)) }), UmaMeshGrid(listOf(widened), (0 until 4).map { keyIndex -> UmaMeshCell(listOf(keyIndex), FloatArray(6)) }))
+		val inserted = trackPuppet(UmaChannelGrid(listOf(widened), (0 until 4).map { keyIndex -> UmaChannelCell(listOf(keyIndex), JsonPrimitive(keyIndex)) }), UmaMeshGrid(listOf(widened), (0 until 4).map { keyIndex -> UmaMeshCell(listOf(keyIndex), DoubleArray(6)) }))
 		val afterInsert = Uma.read(Uma.write(planted.withPuppet(inserted)))
 		val expected = mapOf("[0]" to null, "[1]" to plantedValue("at -1.0"), "[2]" to plantedValue("at 0.0"), "[3]" to plantedValue("at 1.0"))
 		assertEquals(expected, markersOf(afterInsert, "opacity"), "a channel cell keeps its key at its key value")

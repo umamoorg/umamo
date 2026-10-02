@@ -1,5 +1,6 @@
 package org.umamo.ui.transform
 
+import org.umamo.edit.MeshBaseMove
 import org.umamo.edit.Pose
 import org.umamo.render.eval.DrawableSpaceMapping
 import org.umamo.render.eval.drawableLocalPosed
@@ -57,9 +58,21 @@ internal class DrawableWorldGeometry(
 	 * @param Set<Int> indices The vertices the transform touched (the whole mesh for an object transform).
 	 * @return FloatArray The new base positions (a fresh array).
 	 */
-	fun worldToBase(transformedWorld: FloatArray, indices: Set<Int> = allIndices): FloatArray {
+	fun worldToBase(transformedWorld: FloatArray, indices: Set<Int> = allIndices): FloatArray = worldToBaseMove(transformedWorld, indices).positions
+
+	/**
+	 * [worldToBase] with the movement it made kept beside the new base: a commit hands both to the session, so a
+	 * deformer child's keyforms move by the gesture's movement in their own space rather than by what the
+	 * canvas-space float base could store (see MeshBaseMove).
+	 *
+	 * @param FloatArray transformedWorld The reshaped world positions.
+	 * @param Set<Int> indices The vertices the transform touched (the whole mesh for an object transform).
+	 * @return MeshBaseMove The new base positions and the keyform movement.
+	 */
+	fun worldToBaseMove(transformedWorld: FloatArray, indices: Set<Int> = allIndices): MeshBaseMove {
 		val transformedLocal = mapping.worldToLocalLinearized(transformedWorld, displayed, world, indices)
-		return movementToBase(base, transformedLocal, displayed)
+		val movement = displayedMovement(base.size, transformedLocal, displayed)
+		return MeshBaseMove(FloatArray(base.size) { coordIndex -> (base[coordIndex].toDouble() + movement[coordIndex]).toFloat() }, movement)
 	}
 }
 
@@ -83,25 +96,25 @@ internal fun captureDrawableWorld(model: PuppetModel, pose: Pose, drawableId: Dr
 }
 
 /**
- * Transfers a displayed-shape movement onto the base mesh: `newBase = base + (after - before)`. The rest
- * shape a rigger sees is base + the neutral keyform blend; because the blend cancels out of the
- * subtraction, the moved rest shape re-renders exactly at `after` while only DrawableMesh.positions is
- * written - no keyform cell is touched, and blend-shape deltas (relative to base) follow the edit. For a
- * grid-less drawable `before` equals base, so this degenerates to `newBase = after`.
+ * The displayed-shape movement a write-back transfers onto the base mesh: `after - before`, in double, so
+ * `newBase = base + movement`.  The rest shape a rigger sees is base + the neutral keyform blend; because the
+ * blend cancels out of the subtraction, the moved rest shape re-renders at `after` while only the base is
+ * written - and blend-shape deltas (relative to base) follow the edit.  For a grid-less drawable `before`
+ * equals base, so the new base is `after`.
  *
- * The one caller is [DrawableWorldGeometry.worldToBase], which owns the second half of every whole-drawable
- * write-back; the overlays and the Properties panel all reach it through that method rather than directly.
+ * In double because the base is canvas-space and the displayed shape of a deformer child is in its parent's
+ * space: the movement is small and exact in double, and the commit moves the keyforms by it (MeshBaseMove).
  *
- * @param FloatArray base The rest positions captured at gesture start.
- * @param FloatArray after The transformed displayed shape.
+ * @param Int        size   The base's component count.
+ * @param FloatArray after  The transformed displayed shape.
  * @param FloatArray before The displayed shape captured at gesture start.
- * @return FloatArray The new base positions (a fresh array).
+ * @return DoubleArray The movement per component, zero past either shape's end.
  */
-private fun movementToBase(base: FloatArray, after: FloatArray, before: FloatArray): FloatArray =
-	FloatArray(base.size) { coordIndex ->
+private fun displayedMovement(size: Int, after: FloatArray, before: FloatArray): DoubleArray =
+	DoubleArray(size) { coordIndex ->
 		if (coordIndex < after.size && coordIndex < before.size) {
-			base[coordIndex] + after[coordIndex] - before[coordIndex]
+			after[coordIndex].toDouble() - before[coordIndex].toDouble()
 		} else {
-			base[coordIndex]
+			0.0
 		}
 	}

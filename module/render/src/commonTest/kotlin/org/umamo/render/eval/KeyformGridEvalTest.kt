@@ -6,6 +6,7 @@ import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -63,9 +64,9 @@ class KeyformGridEvalTest {
 
 	@Test
 	fun reproducesAndInterpolatesCellForms() {
-		val cell0 = KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(10f, 0f)))
-		val cell1 = KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(20f, 0f)))
-		val cell2 = KeyformCell(intArrayOf(2), MeshDeltaForm(floatArrayOf(30f, 0f)))
+		val cell0 = KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(10f, 0f).toDoubleArray()))
+		val cell1 = KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(20f, 0f).toDoubleArray()))
+		val cell2 = KeyformCell(intArrayOf(2), MeshDeltaForm(floatArrayOf(30f, 0f).toDoubleArray()))
 		val grid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 0f, 1f))), listOf(cell0, cell1, cell2))
 		val base = floatArrayOf(0f, 0f)
 		// At an exact key the output equals that cell's absolute form (base + delta).
@@ -77,8 +78,8 @@ class KeyformGridEvalTest {
 
 	@Test
 	fun directMeshBlendsThenNegatesY() {
-		val cell0 = KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(10f, 5f)))
-		val cell1 = KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(20f, 7f)))
+		val cell0 = KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(10f, 5f).toDoubleArray()))
+		val cell1 = KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(20f, 7f).toDoubleArray()))
 		val grid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 1f))), listOf(cell0, cell1))
 		val base = floatArrayOf(0f, 0f)
 		// At a key: world = (formX, -formY) - only Y flips.
@@ -89,7 +90,7 @@ class KeyformGridEvalTest {
 
 	@Test
 	fun directMeshHiddenWhenOutOfRange() {
-		val cell = KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(10f, 5f)))
+		val cell = KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(10f, 5f).toDoubleArray()))
 		val grid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(-1f, 1f))), listOf(cell))
 		assertNull(evalDirectMeshWorld(grid, floatArrayOf(0f, 0f), values(paramA to 5f)))
 	}

@@ -24,6 +24,7 @@ import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.toDoubleArray
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -187,7 +188,7 @@ class PartCompositeEvalTest {
 		val fanned =
 			KeyformGrid(
 				listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-				listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size), opacity = ownOpacity))),
+				listOf(KeyformCell(intArrayOf(0), MeshForm(FloatArray(positions.size).toDoubleArray(), opacity = ownOpacity))),
 			).fanOutMesh()
 		return Drawable(
 			id = DrawableId(id),
@@ -262,7 +263,7 @@ class PartCompositeEvalTest {
 				listOf(
 					KeyformCell(
 						intArrayOf(0),
-						MeshForm(FloatArray(positions.size), multiplyColor = ColorRgb(1f, 0f, 0f), screenColor = ColorRgb(0f, 0f, 0.5f)),
+						MeshForm(FloatArray(positions.size).toDoubleArray(), multiplyColor = ColorRgb(1f, 0f, 0f), screenColor = ColorRgb(0f, 0f, 0.5f)),
 					),
 				),
 			).fanOutMesh()

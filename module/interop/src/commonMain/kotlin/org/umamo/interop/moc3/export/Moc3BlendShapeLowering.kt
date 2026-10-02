@@ -150,7 +150,7 @@ internal fun lowerBlendShapes(
 		}
 		val localIndex = plan.drawableIndex(drawable.id)
 		val space = spaceOfParent(drawable.parentDeformerId)
-		val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
+		val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: DoubleArray(0)
 		val referenceDrawOrder =
 			drawable.channelGrids.scalarAt(FormChannel.DRAW_ORDER, drawable.drawOrder, defaultValue)
 		val referenceOpacity = drawable.channelGrids.scalarAt(FormChannel.OPACITY, drawable.opacity, defaultValue)
@@ -170,8 +170,10 @@ internal fun lowerBlendShapes(
 								convertDeltasToMoc(
 									space,
 									FloatArray(vertexCount) { component ->
-										form.positionDeltas.getOrElse(component) { 0f } -
-											referenceDeltas.getOrElse(component) { 0f }
+										(
+											form.positionDeltas.getOrElse(component) { 0.0 } -
+												referenceDeltas.getOrElse(component) { 0.0 }
+										).toFloat()
 									},
 									canvas,
 								)

@@ -29,7 +29,7 @@ class CpuDeformationEvaluatorTest {
 
 	private fun axis() = listOf(KeyformAxis(paramA, floatArrayOf(0f)))
 
-	private fun zeroMeshGrid(coordCount: Int) = KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(coordCount)))))
+	private fun zeroMeshGrid(coordCount: Int) = KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(DoubleArray(coordCount)))))
 
 	private fun model(deformers: List<Deformer>, drawable: Drawable) =
 		PuppetModel(

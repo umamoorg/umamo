@@ -61,6 +61,21 @@ internal class ByteReader(
 	fun u32AsInt(at: Int): Int = u32(at).toInt()
 
 	/**
+	 * Reads a 64-bit value at [at] in the current byte order as its raw bits, without moving [position]: the
+	 * Long holds the eight bytes as they are, so a value past Long.MAX_VALUE reads negative and a double's bits
+	 * survive `Double.fromBits` exactly.
+	 *
+	 * @param Int at Absolute offset of the first byte.
+	 * @return Long The 64 bits.
+	 */
+	fun u64(at: Int): Long =
+		if (littleEndian) {
+			u32(at) or (u32(at + 4) shl 32)
+		} else {
+			(u32(at) shl 32) or u32(at + 4)
+		}
+
+	/**
 	 * Reads an unsigned byte at [position], then advances by one.
 	 *
 	 * @return Int The value in 0..255.

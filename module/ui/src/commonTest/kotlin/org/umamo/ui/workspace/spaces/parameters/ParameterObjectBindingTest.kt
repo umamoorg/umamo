@@ -19,6 +19,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -57,7 +58,7 @@ class ParameterObjectBindingTest {
 			mesh = null,
 			geometryGrid =
 				ownParamId?.let {
-					KeyformGrid(listOf(KeyformAxis(it, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f)))))
+					KeyformGrid(listOf(KeyformAxis(it, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f, 0f).toDoubleArray()))))
 				},
 		)
 
@@ -126,7 +127,7 @@ class ParameterObjectBindingTest {
 				parameterId = shrink,
 				keys = floatArrayOf(-1f, 0f),
 				neutralIndex = 1,
-				forms = listOf(MeshForm(floatArrayOf(0f, 0f)), null),
+				forms = listOf(MeshForm(floatArrayOf(0f, 0f).toDoubleArray()), null),
 			)
 		val art =
 			drawable("d", parentDeformerId = warpWithBlendShape.id, ownParamId = null)

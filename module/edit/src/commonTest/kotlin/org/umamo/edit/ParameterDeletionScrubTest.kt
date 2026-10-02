@@ -21,6 +21,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.toDoubleArray
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -52,7 +53,7 @@ class ParameterDeletionScrubTest {
 			parameterId = parameterId,
 			keys = floatArrayOf(0f, 1f),
 			neutralIndex = 0,
-			forms = listOf(null, MeshForm(floatArrayOf(2f, 4f), drawOrder = 510f, opacity = 0.5f)),
+			forms = listOf(null, MeshForm(floatArrayOf(2f, 4f).toDoubleArray(), drawOrder = 510f, opacity = 0.5f)),
 			limits = limits,
 		)
 
@@ -123,7 +124,7 @@ class ParameterDeletionScrubTest {
 		assertNull(kept.forms[0], "the neutral stays a hole")
 		val form = kept.forms[1]!!
 		// The drawable is ungridded, so its reference is the rest: zero deltas, draw order 500, opacity 1.
-		assertContentEquals(floatArrayOf(1f, 2f), form.positionDeltas, "the deltas are halved")
+		assertContentEquals(doubleArrayOf(1.0, 2.0), form.positionDeltas, "the deltas are halved")
 		assertEquals(505f, form.drawOrder, "the draw order moves half as far from 500")
 		assertEquals(0.75f, form.opacity, "the opacity moves half as far from 1")
 		assertTrue(start.ownersWhoseRestChangesOnDeleting(deletedId).isEmpty(), "baking the cap is exact")

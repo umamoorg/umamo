@@ -178,6 +178,7 @@ internal fun handleEditSnapRequest(
 				return
 			}
 			val newPositionsByDrawable = LinkedHashMap<DrawableId, FloatArray>(coveredByMesh.size)
+			val keyformMovementsByDrawable = LinkedHashMap<DrawableId, DoubleArray>(coveredByMesh.size)
 			val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(coveredByMesh.size)
 			for ((geometry, covered) in coveredByMesh) {
 				val world = geometry.worldPosed
@@ -214,13 +215,16 @@ internal fun handleEditSnapRequest(
 						// The cursor moves were handled above; nothing else reaches here.
 						SnapKind.CursorToSelected, SnapKind.CursorToActive -> world
 					}
-				newPositionsByDrawable[geometry.drawableId] = geometry.worldToBase(transformedWorld, covered)
+				val move = geometry.worldToBaseMove(transformedWorld, covered)
+				newPositionsByDrawable[geometry.drawableId] = move.positions
+				keyformMovementsByDrawable[geometry.drawableId] = move.keyformMovement
 				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
 			}
 			// A snap relocates geometry without scaling or turning it, so it files under the move label.
 			session.commitMeshPositions(
 				MeshChange.TransformVertices(movedIndicesByDrawable, MeshOperatorKind.Grab),
 				newPositionsByDrawable,
+				keyformMovementsByDrawable,
 			)
 		}
 	}
@@ -266,6 +270,7 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 				return
 			}
 			val newPositionsByDrawable = LinkedHashMap<DrawableId, FloatArray>(ids.size)
+			val keyformMovementsByDrawable = LinkedHashMap<DrawableId, DoubleArray>(ids.size)
 			for (geometry in geometries) {
 				val world = geometry.world
 				val allIndices = geometry.allIndices
@@ -290,12 +295,15 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 					continue
 				}
 				val transformedWorld = MeshTransforms.translateVertices(world, allIndices, deltaX, deltaY)
-				newPositionsByDrawable[geometry.drawableId] = geometry.worldToBase(transformedWorld, allIndices)
+				val move = geometry.worldToBaseMove(transformedWorld, allIndices)
+				newPositionsByDrawable[geometry.drawableId] = move.positions
+				keyformMovementsByDrawable[geometry.drawableId] = move.keyformMovement
 			}
 			if (newPositionsByDrawable.isNotEmpty()) {
 				session.commitObjectPositions(
 					MeshChange.TransformDrawables(newPositionsByDrawable.keys.toList(), MeshOperatorKind.Grab),
 					newPositionsByDrawable,
+					keyformMovementsByDrawable,
 				)
 			}
 		}

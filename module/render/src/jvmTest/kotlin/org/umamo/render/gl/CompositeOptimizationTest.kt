@@ -56,7 +56,7 @@ class CompositeOptimizationTest {
 	private fun restGrid(size: Int): KeyformGrid<MeshDeltaForm> =
 		KeyformGrid(
 			listOf(KeyformAxis(paramA, floatArrayOf(0f))),
-			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(size)))),
+			listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(DoubleArray(size)))),
 		)
 
 	private fun quad(id: String, positions: FloatArray = bandQuad): Drawable =

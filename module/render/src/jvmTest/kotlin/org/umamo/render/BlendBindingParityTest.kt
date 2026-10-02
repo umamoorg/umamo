@@ -64,7 +64,7 @@ class BlendBindingParityTest {
 						assertEquals(cmo3Form.positionDeltas.size, moc3Form.positionDeltas.size, "$name: mesh form size")
 						for (componentIndex in 0 until componentCount) {
 							maxComponentDelta =
-								maxOf(maxComponentDelta, abs(cmo3Form.positionDeltas[componentIndex] - moc3Form.positionDeltas[componentIndex]))
+								maxOf(maxComponentDelta, abs(cmo3Form.positionDeltas[componentIndex] - moc3Form.positionDeltas[componentIndex]).toFloat())
 						}
 						maxMeshDelta = maxOf(maxMeshDelta, maxComponentDelta)
 						maxScalarDelta = maxOf(maxScalarDelta, abs(cmo3Form.drawOrder - moc3Form.drawOrder))

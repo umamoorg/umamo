@@ -186,10 +186,10 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
 private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSource>, oldVertexCount: Int): MeshDeltaForm {
 	val oldDeltas = form.positionDeltas
 
-	fun oldDeltaX(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 < oldDeltas.size) oldDeltas[oldIndex * 2] else 0f
+	fun oldDeltaX(oldIndex: Int): Double = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 < oldDeltas.size) oldDeltas[oldIndex * 2] else 0.0
 
-	fun oldDeltaY(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 + 1 < oldDeltas.size) oldDeltas[oldIndex * 2 + 1] else 0f
-	val newDeltas = FloatArray(vertexSources.size * 2)
+	fun oldDeltaY(oldIndex: Int): Double = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 + 1 < oldDeltas.size) oldDeltas[oldIndex * 2 + 1] else 0.0
+	val newDeltas = DoubleArray(vertexSources.size * 2)
 	vertexSources.forEachIndexed { newIndex, source ->
 		when (source) {
 			is VertexSource.FromOld -> {
@@ -199,8 +199,8 @@ private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSourc
 
 			is VertexSource.AverageOf -> {
 				if (source.oldIndices.isNotEmpty()) {
-					var sumX = 0f
-					var sumY = 0f
+					var sumX = 0.0
+					var sumY = 0.0
 					for (oldIndex in source.oldIndices) {
 						sumX += oldDeltaX(oldIndex)
 						sumY += oldDeltaY(oldIndex)
@@ -211,8 +211,8 @@ private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSourc
 			}
 
 			is VertexSource.LerpOf -> {
-				newDeltas[newIndex * 2] = oldDeltaX(source.oldA) + (oldDeltaX(source.oldB) - oldDeltaX(source.oldA)) * source.t
-				newDeltas[newIndex * 2 + 1] = oldDeltaY(source.oldA) + (oldDeltaY(source.oldB) - oldDeltaY(source.oldA)) * source.t
+				newDeltas[newIndex * 2] = oldDeltaX(source.oldA) + (oldDeltaX(source.oldB) - oldDeltaX(source.oldA)) * source.t.toDouble()
+				newDeltas[newIndex * 2 + 1] = oldDeltaY(source.oldA) + (oldDeltaY(source.oldB) - oldDeltaY(source.oldA)) * source.t.toDouble()
 			}
 		}
 	}

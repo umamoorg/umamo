@@ -153,6 +153,17 @@ internal fun <TForm : Any> List<BlendShapeBinding<TForm>>.scrubbedOf(
 private fun scaledAround(reference: Float, value: Float, factor: Float): Float = reference + factor * (value - reference)
 
 /**
+ * [value] moved toward [reference] as [scaledAround] moves a float, in double: a mesh delta is thousands of
+ * units when its base is the canvas-space mesh, so the float form would lose the keyform's low bits.
+ *
+ * @param Double reference The reference value.
+ * @param Double value     The value.
+ * @param Float  factor    The share of the distance kept.
+ * @return Double The scaled value.
+ */
+private fun scaledAround(reference: Double, value: Double, factor: Float): Double = reference + factor.toDouble() * (value - reference)
+
+/**
  * [value] moved toward [reference] per channel, as [scaledAround] moves a scalar.
  *
  * @param ColorRgb reference The reference color.
@@ -182,7 +193,7 @@ internal fun Drawable.meshFormScaler(defaultOf: (ParameterId) -> Float): (MeshFo
 	val referenceScreen = channelGrids.colorAt(FormChannel.SCREEN_COLOR, screenColor, defaultOf)
 	return { form, factor ->
 		MeshForm(
-			positionDeltas = FloatArray(form.positionDeltas.size) { componentIndex -> scaledAround(referenceDeltas?.getOrNull(componentIndex) ?: 0f, form.positionDeltas[componentIndex], factor) },
+			positionDeltas = DoubleArray(form.positionDeltas.size) { componentIndex -> scaledAround(referenceDeltas?.getOrNull(componentIndex) ?: 0.0, form.positionDeltas[componentIndex], factor) },
 			drawOrder = scaledAround(referenceDrawOrder, form.drawOrder, factor),
 			opacity = scaledAround(referenceOpacity, form.opacity, factor),
 			multiplyColor = scaledColorAround(referenceMultiply, form.multiplyColor, factor),

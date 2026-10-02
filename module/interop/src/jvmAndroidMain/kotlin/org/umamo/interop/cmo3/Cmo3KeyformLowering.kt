@@ -487,7 +487,7 @@ internal class Cmo3KeyformLowering(
 		val template =
 			templateForm<CArtMeshForm>(source.keyforms, index.drawableSources.map { it.keyforms })
 
-		fun writeMeshForm(existing: CArtMeshForm?, deltas: FloatArray?, channels: Map<FormChannel, ChannelValue>): CArtMeshForm {
+		fun writeMeshForm(existing: CArtMeshForm?, deltas: DoubleArray?, channels: Map<FormChannel, ChannelValue>): CArtMeshForm {
 			val form =
 				existing
 					?: CArtMeshForm().apply {
@@ -505,16 +505,20 @@ internal class Cmo3KeyformLowering(
 						coordType = template?.coordType ?: formCoordType(editedDrawable.parentDeformerId != null)
 					}
 			val origAbsolute = (existing?.positions as? FloatArray)?.takeIf { it.size == editedBase.size }
+			// The import's delta is `abs − base` in double (Cmo3Import.deltaVsBase); a delta equal to that
+			// expression on the stored values is an unchanged component, so the stored float is kept bit for bit
+			// (it also keeps a -0.0 the reconstruction would turn into +0.0).  Anything else is rebuilt in
+			// double and rounded once.
 			val absolute =
 				FloatArray(editedBase.size) { component ->
-					val delta = deltas?.getOrNull(component) ?: 0f
+					val delta = deltas?.getOrNull(component) ?: 0.0
 					val reusable =
 						origAbsolute != null &&
 							baselineBase != null &&
 							baselineBase.size == editedBase.size &&
 							editedBase[component].toRawBits() == baselineBase[component].toRawBits() &&
-							delta.toRawBits() == (origAbsolute[component] - baselineBase[component]).toRawBits()
-					if (reusable) origAbsolute[component] else editedBase[component] + delta
+							delta.toRawBits() == (origAbsolute[component].toDouble() - baselineBase[component].toDouble()).toRawBits()
+					if (reusable) origAbsolute[component] else (editedBase[component].toDouble() + delta).toFloat()
 				}
 			// CMO3: CArtMeshForm field positions (absolute), ACDrawableForm fields drawOrder /
 			// opacity / multiplyColor / screenColor.
@@ -569,7 +573,7 @@ internal class Cmo3KeyformLowering(
 								if (editedBase[component].toRawBits() == origBase[component].toRawBits()) {
 									origAbsolute[component]
 								} else {
-									editedBase[component] + (origAbsolute[component] - origBase[component])
+									(editedBase[component].toDouble() + (origAbsolute[component].toDouble() - origBase[component].toDouble())).toFloat()
 								}
 							}
 						editor.ensureChildSlot(morphForm, "CArtMeshForm", "positions")

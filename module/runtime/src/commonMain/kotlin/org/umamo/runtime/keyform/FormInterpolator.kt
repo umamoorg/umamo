@@ -83,7 +83,36 @@ internal fun blendComponents(lower: FloatArray, upper: FloatArray, fraction: Flo
 	return blended
 }
 
-/** Interpolates a drawable's per-vertex position deltas. */
+/**
+ * Blends two doubles with the evaluator's own corner-weight expression: the weights are the float
+ * `(1 - fraction)` and `fraction` that `gridCorners` builds, widened, so a double delta blends with exactly
+ * the weights the evaluator gives its corners.
+ *
+ * @param Double lower The lower key's value.
+ * @param Double upper The upper key's value.
+ * @param Float fraction The blend position in 0..1.
+ * @return Double The blended value.
+ */
+internal fun blendScalar(lower: Double, upper: Double, fraction: Float): Double = (1f - fraction).toDouble() * lower + fraction.toDouble() * upper
+
+/**
+ * Blends two interleaved double arrays component-wise, taking the shorter length as the float overload does.
+ *
+ * @param DoubleArray lower The lower key's components.
+ * @param DoubleArray upper The upper key's components.
+ * @param Float fraction The blend position in 0..1.
+ * @return DoubleArray The blended components.
+ */
+internal fun blendComponents(lower: DoubleArray, upper: DoubleArray, fraction: Float): DoubleArray {
+	val length = minOf(lower.size, upper.size)
+	val blended = DoubleArray(length)
+	for (componentIndex in 0 until length) {
+		blended[componentIndex] = blendScalar(lower[componentIndex], upper[componentIndex], fraction)
+	}
+	return blended
+}
+
+/** Interpolates a drawable's per-vertex position deltas, in double (see MeshDeltaForm). */
 object MeshDeltaInterpolator : FormInterpolator<MeshDeltaForm> {
 	override fun interpolate(lower: MeshDeltaForm, upper: MeshDeltaForm, fraction: Float): MeshDeltaForm =
 		MeshDeltaForm(blendComponents(lower.positionDeltas, upper.positionDeltas, fraction))

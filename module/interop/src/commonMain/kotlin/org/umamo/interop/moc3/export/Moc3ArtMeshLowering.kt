@@ -13,6 +13,7 @@ import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.MeshDeltaForm
+import org.umamo.runtime.model.positionsFromDeltas
 
 /**
  * Lowers every exportable drawable into its MOC3 art-mesh record.
@@ -119,14 +120,12 @@ internal fun lowerArtMeshes(
 			keyformBindingIndex = keyforms?.bindingIndex ?: 0,
 			keyforms =
 				(0 until cellCount).map { cellIndex ->
-					// THE load-bearing invariant: base + delta is the absolute parent-space position.
+					// THE load-bearing invariant: base + delta is the absolute parent-space position, added in
+					// double and rounded once (MeshDeltaForm).
 					val deltas =
 						(bundle?.cells?.getOrNull(cellIndex)?.geometry as? MeshDeltaForm)
 							?.positionDeltas
-					val absolute =
-						FloatArray(basePositions.size) { coordinate ->
-							basePositions[coordinate] + (deltas?.getOrNull(coordinate) ?: 0f)
-						}
+					val absolute = if (deltas != null) positionsFromDeltas(basePositions, deltas) else basePositions.copyOf()
 					ArtMeshKeyform(
 						vertexPositions = convertPointsToMoc(space, absolute, context.canvas),
 						opacity =

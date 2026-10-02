@@ -96,7 +96,7 @@ class Cmo3ExportKeyformRoundTripTest {
 		assertTrue(editedGrid != null && reimportedGrid != null, "$label: geometry grid vanished")
 		val reimportedByCoordinate =
 			reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
-		var maxComponentDifference = 0f
+		var maxComponentDifference = 0.0
 		for (cell in editedGrid.cells) {
 			val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()]
 			assertTrue(reimportedDeltas != null, "$label: cell ${cell.coordinate.toList()} vanished")
@@ -108,7 +108,7 @@ class Cmo3ExportKeyformRoundTripTest {
 					)
 			}
 		}
-		assertTrue(maxComponentDifference < 1e-3f, "$label: geometry drifted by $maxComponentDifference")
+		assertTrue(maxComponentDifference < 1e-3, "$label: geometry drifted by $maxComponentDifference")
 	}
 
 	private fun skipMessageOrNull(): File? {
@@ -500,7 +500,7 @@ class Cmo3ExportKeyformRoundTripTest {
 			reimportedDrawable.blendShapes.size == editedDrawable.blendShapes.size,
 			"base move + keyform edit: blend-shape binding count changed",
 		)
-		var maxDeltaDrift = 0f
+		var maxDeltaDrift = 0.0
 		for (bindingIndex in editedDrawable.blendShapes.indices) {
 			val editedBinding = editedDrawable.blendShapes[bindingIndex]
 			val reimportedBinding = reimportedDrawable.blendShapes[bindingIndex]
@@ -517,6 +517,6 @@ class Cmo3ExportKeyformRoundTripTest {
 				}
 			}
 		}
-		assertTrue(maxDeltaDrift < 1e-3f, "base move + keyform edit: blend-shape deltas drifted by $maxDeltaDrift")
+		assertTrue(maxDeltaDrift < 1e-3, "base move + keyform edit: blend-shape deltas drifted by $maxDeltaDrift")
 	}
 }

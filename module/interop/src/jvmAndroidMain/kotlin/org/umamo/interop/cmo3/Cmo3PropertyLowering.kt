@@ -500,7 +500,9 @@ internal class Cmo3PropertyLowering(
 					if (newBase[component].toRawBits() == origBase[component].toRawBits()) {
 						origAbsolute[component]
 					} else {
-						newBase[component] + (origAbsolute[component] - origBase[component])
+						// In double: a deformer child's absolute is in its parent's space while the base is the
+						// canvas-space mesh, so the float difference would round the keyform to 1/4096.
+						(newBase[component].toDouble() + (origAbsolute[component].toDouble() - origBase[component].toDouble())).toFloat()
 					}
 				}
 			// CMO3: CArtMeshForm field positions - absolute vertex positions.

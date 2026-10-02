@@ -56,7 +56,7 @@ internal fun meshBlendShapesOf(
 	records: List<MocBlendShape>,
 ): List<BlendShapeBinding<MeshForm>> {
 	val defaultValue: (ParameterId) -> Float = context::defaultValueOf
-	val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
+	val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: DoubleArray(0)
 	// The scalar reference is each channel's own value at the DEFAULT pose. An untracked or
 	// out-of-range channel falls back to the drawable's static, which for an imported drawable is
 	// Cubism's 500 / full opacity - the same fallback meshBlendState uses, so the evaluator's
@@ -283,12 +283,29 @@ private fun blendLimitsOf(
 	}
 
 /**
- * Elementwise sum of [reference] and [deltas] (sized like [deltas]; a size-mismatched
+ * Elementwise sum of [reference] and [deltas] in double (sized like [deltas]; a size-mismatched
  * reference contributes only its overlapping prefix, mirroring the evaluator's guards).
  *
- * @param FloatArray reference The grid-at-default reference components.
+ * @param DoubleArray reference The grid-at-default reference components.
+ * @param FloatArray  deltas    The converted delta components.
+ * @return DoubleArray The synthesized absolute/rest-relative components.
+ */
+private fun addReference(
+	reference: DoubleArray,
+	deltas: FloatArray,
+): DoubleArray =
+	DoubleArray(deltas.size) { componentIndex ->
+		deltas[componentIndex].toDouble() + (reference.getOrNull(componentIndex) ?: 0.0)
+	}
+
+/**
+ * Elementwise sum of a warp's [reference] lattice and its [deltas] (sized like [deltas]; a size-mismatched
+ * reference contributes only its overlapping prefix).  Float: a warp's control points are absolute in one
+ * space, so there is no canvas-scale base to lose bits against.
+ *
+ * @param FloatArray reference The grid-at-default control points.
  * @param FloatArray deltas    The converted delta components.
- * @return FloatArray The synthesized absolute/rest-relative components.
+ * @return FloatArray The synthesized control points.
  */
 private fun addReference(
 	reference: FloatArray,

@@ -76,8 +76,8 @@ class UnkeyedDrawableRenderTest {
 			KeyformGrid(
 				listOf(KeyformAxis(paramA, floatArrayOf(0.5f, 1f))),
 				listOf(
-					KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(4))),
-					KeyformCell(intArrayOf(1), MeshDeltaForm(FloatArray(4))),
+					KeyformCell(intArrayOf(0), MeshDeltaForm(DoubleArray(4))),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(DoubleArray(4))),
 				),
 			)
 		val drawable = Drawable(drawableId, "M", null, BlendMode.Normal, emptyList(), mesh(), geometryGrid = grid)
