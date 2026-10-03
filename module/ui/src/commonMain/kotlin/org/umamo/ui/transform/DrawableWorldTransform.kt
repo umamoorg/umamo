@@ -16,18 +16,20 @@ import org.umamo.runtime.model.PuppetModel
 /*
  * The Properties Transform panel's coordinate space.
  *
- * A drawable's Drawable.mesh.positions is its BASE array, and that is NOT the geometry on screen: the
- * displayed shape is `base + Σ wᵢ·Δᵢ` from the keyform grid, then mapped through the parent deformer chain
- * into world space.  For a drawable parented to a deformer the two diverge wildly - a corpus model has an
- * art mesh whose base array is 1.9 units wide while the drawable itself is 183.8 wide - so reading or
- * writing the base array directly shows meaningless numbers and turns a small typed nudge into a huge
- * transform.
+ * Neither of a drawable's rest arrays is the geometry on screen.  The displayed shape is
+ * `localPositions + Σ wᵢ·Δᵢ` from the keyform grid, then mapped through the parent deformer chain into
+ * world space; for a drawable parented to a deformer the base is in the deformer's space - a corpus model has
+ * an art mesh whose base is 1.9 units wide while the drawable itself is 183.8 wide - and the canvas mesh
+ * (Drawable.mesh.positions) is only the editable mesh as it was last laid out, which a deformer edit leaves
+ * behind.  Reading or writing either directly shows meaningless numbers and turns a small typed nudge into a
+ * huge transform.
  *
  * So the panel works in WORLD space, the same space the viewport and the object gizmo use, and reuses the
- * gizmo's round trip: capture world, transform world, invert to local, difference back onto base.  The
- * inverse (worldToLocalLinearized) is exact only at the neutral pose, which is why every write here is
- * gated on isPoseNeutral exactly as EditorSession.beginObjectOperator is - the panel disables its fields
- * rather than writing geometry it cannot invert.
+ * gizmo's round trip: capture world, transform world, invert to local, difference back onto the base, and
+ * move the canvas mesh by the same world movement.  The inverse (worldToLocalLinearized) is exact only at
+ * the neutral pose, which is why every write here is gated on isPoseNeutral exactly as
+ * EditorSession.beginObjectOperator is - the panel disables its fields rather than writing geometry it
+ * cannot invert.
  *
  * Everything here stays in world space, whose zero is the canvas's top-left corner.  The rigger reads
  * positions from the world axes instead, so the Position rows convert at the display boundary through the
@@ -65,7 +67,7 @@ internal class DrawableWorldTransform(val bounds: MeshBounds, val editable: Bool
  * @return DrawableWorldTransform? The bounds and their editability, or null when the drawable has no mesh.
  */
 internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: DrawableId): DrawableWorldTransform? {
-	val base = model.drawables.firstOrNull { drawable -> drawable.id == id }?.mesh?.positions ?: return null
+	val base = model.drawables.firstOrNull { drawable -> drawable.id == id }?.mesh?.localPositions ?: return null
 	if (base.size < 2) {
 		return null
 	}
@@ -95,8 +97,8 @@ internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: Drawable
  *
  * The round trip mirrors the object gizmo: project the posed local geometry to world, let the caller
  * reshape it there, invert the result back to local through the deformer chain, then difference that
- * against the posed local shape to recover the new BASE array (a keyformed drawable's base is not its
- * displayed shape, so the delta is what carries over).  Refuses off the neutral pose, on a missing mesh or
+ * against the posed local shape to recover the new base (a keyformed drawable's base is not its displayed
+ * shape, so the delta is what carries over); the canvas mesh moves by the world movement.  Refuses off the neutral pose, on a missing mesh or
  * mapping, and on a transform that returned its input unchanged - each records nothing.
  *
  * @param DrawableId id The drawable to transform.
@@ -120,7 +122,7 @@ private fun EditorSession.commitWorldTransform(
 	if (targetWorld === captured.world) {
 		return
 	}
-	commitObjectPositions(change, mapOf(id to captured.worldToBase(targetWorld)))
+	commitObjectPositions(change, mapOf(id to captured.worldToRest(targetWorld)))
 }
 
 /**

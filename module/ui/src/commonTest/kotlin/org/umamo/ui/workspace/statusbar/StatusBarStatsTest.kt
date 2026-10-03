@@ -31,7 +31,7 @@ class StatusBarStatsTest {
 		val mesh =
 			triangleCount?.let { count ->
 				val vertexCount = count + 2
-				DrawableMesh(
+				DrawableMesh.withLocalEqualToCanvas(
 					positions = FloatArray(vertexCount * 2),
 					uvs = FloatArray(vertexCount * 2),
 					indices = IntArray(count * 3) { indexSlot -> indexSlot % vertexCount },

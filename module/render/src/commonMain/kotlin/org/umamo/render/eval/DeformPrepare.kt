@@ -100,7 +100,7 @@ internal fun preparePose(
 	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue, channelOverrides)
 	val drawables = ArrayList<DrawableDeformInputs>(model.drawables.size)
 	for (drawable in model.drawables) {
-		if (drawable.mesh?.positions == null) {
+		if (drawable.mesh?.localPositions == null) {
 			continue
 		}
 		// An UNKEYED drawable renders at its rest mesh rather than vanishing: one full-weight corner into
@@ -314,7 +314,8 @@ internal fun applyCpuDeform(model: PuppetModel, inputs: PoseDeformInputs): Defor
 			continue
 		}
 		val drawable = drawableById[drawableInputs.drawableId] ?: continue
-		val base = drawable.mesh?.positions ?: continue
+		// The keyform-space base: the deltas are measured from it, and the parent chain maps it (DrawableMesh).
+		val base = drawable.mesh?.localPositions ?: continue
 		// A null grid is an unkeyed drawable, which deforms to its rest mesh - see preparePose.
 		worldPositions[drawableInputs.drawableId] =
 			deformMeshWorldFromCorners(drawable.geometryGrid, base, corners, drawableInputs.parentWorld, drawableInputs.blend)

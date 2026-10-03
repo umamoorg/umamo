@@ -106,7 +106,7 @@ object MeshTopologyOps {
 			sources.add(VertexSource.FromOld(oldIndex))
 		}
 		val newElements = copyIndexByOld.values.map { copyIndex -> MeshElement.Vertex(copyIndex) }.toSet<MeshElement>()
-		return TopologyOpResult(MeshTopologyEdit(DrawableMesh(newPositions, newUvs, newIndices), sources), newElements)
+		return TopologyOpResult(MeshTopologyEdit(editedMesh(mesh, newPositions, newUvs, newIndices, sources), sources), newElements)
 	}
 
 	/**
@@ -200,7 +200,7 @@ object MeshTopologyOps {
 		}
 		sources.add(survivorSource)
 		return TopologyOpResult(
-			MeshTopologyEdit(DrawableMesh(newPositions, newUvs, newIndices.toIntArray()), sources),
+			MeshTopologyEdit(editedMesh(mesh, newPositions, newUvs, newIndices.toIntArray(), sources), sources),
 			setOf(MeshElement.Vertex(survivorIndex)),
 		)
 	}
@@ -285,7 +285,7 @@ object MeshTopologyOps {
 			sources.add(VertexSource.FromOld(oldIndex))
 		}
 		val newElements = copyIndexByOld.values.map { copyIndex -> MeshElement.Vertex(copyIndex) }.toSet<MeshElement>()
-		return TopologyOpResult(MeshTopologyEdit(DrawableMesh(newPositions, newUvs, newIndices), sources), newElements)
+		return TopologyOpResult(MeshTopologyEdit(editedMesh(mesh, newPositions, newUvs, newIndices, sources), sources), newElements)
 	}
 
 	/**
@@ -463,7 +463,7 @@ object MeshTopologyOps {
 					add(MeshElement.Vertex(crossingIndex))
 				}
 			}
-		return TopologyOpResult(MeshTopologyEdit(DrawableMesh(newPositions, newUvs, newIndices.toIntArray()), sources), newElements)
+		return TopologyOpResult(MeshTopologyEdit(editedMesh(mesh, newPositions, newUvs, newIndices.toIntArray(), sources), sources), newElements)
 	}
 
 	/**
@@ -501,4 +501,27 @@ object MeshTopologyOps {
 		}
 		return edgeT
 	}
+}
+
+/**
+ * The replacement mesh a topology op ends with: [newPositions] as the canvas mesh, and the old keyform-space
+ * base carried to the new vertex count through the same [sources] the keyform deltas follow, so every
+ * rebuilt keyform (base plus delta) keeps the shape it had at each kept vertex.  A mesh whose base is its
+ * canvas mesh keeps the one shared array.
+ *
+ * @param DrawableMesh mesh The mesh before the op.
+ * @param FloatArray newPositions The op's canvas positions, two per new vertex.
+ * @param FloatArray newUvs The op's texture coordinates.
+ * @param IntArray newIndices The op's triangle indices.
+ * @param List<VertexSource> sources One source per new vertex.
+ * @return DrawableMesh The replacement mesh.
+ */
+private fun editedMesh(mesh: DrawableMesh, newPositions: FloatArray, newUvs: FloatArray, newIndices: IntArray, sources: List<VertexSource>): DrawableMesh {
+	val newLocal =
+		if (mesh.localPositions === mesh.positions) {
+			newPositions
+		} else {
+			remapPerVertex(mesh.localPositions, sources, mesh.vertexCount)
+		}
+	return DrawableMesh(positions = newPositions, localPositions = newLocal, uvs = newUvs, indices = newIndices)
 }

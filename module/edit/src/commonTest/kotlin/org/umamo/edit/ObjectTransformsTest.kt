@@ -25,7 +25,7 @@ import kotlin.test.assertTrue
  * Object-mode transform while any parameter is scrubbed away from its default.
  */
 class ObjectTransformsTest {
-	private fun mesh(): DrawableMesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2))
+	private fun mesh(): DrawableMesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2))
 
 	private fun drawable(id: String, withMesh: Boolean): Drawable =
 		Drawable(

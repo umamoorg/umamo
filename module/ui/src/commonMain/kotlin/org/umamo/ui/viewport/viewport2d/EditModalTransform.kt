@@ -7,6 +7,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.ModalCaptureSource
@@ -74,9 +75,9 @@ internal class EditModalTransform(
 	/**
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, area origin,
 	 * cursor wrap, pointer controller).  The capture is the Edit-mode gesture; preview holds each moving
-	 * mesh's new BASE positions.
+	 * mesh's new rest shape.
 	 */
-	val gesture = ModalGestureState<EditGesture>()
+	val gesture = ModalGestureState<EditGesture, MeshRestPositions>()
 
 	// The Vertex Slide's most recent landing (edge + factor), written by the drive and read by the confirm's
 	// strip registration.  Plain state, like ModalGestureState.lastParameters: nothing composed or drawn
@@ -96,7 +97,7 @@ internal class EditModalTransform(
 	 *   lead it when a commit and a latch share one call stack, as the rip auto-grab does).
 	 */
 	fun begin(kind: MeshOperatorKind, geometries: List<EditMeshGeometry>, selection: MeshSelection) {
-		// Freeze a COPY of each moving mesh's world geometry (base / displayed / world) so the whole drag
+		// Freeze a COPY of each moving mesh's world geometry (rest / displayed / world) so the whole drag
 		// transforms a fixed snapshot, and offer it to the shared capture builder as a source.  A mesh with
 		// nothing selected does not move.
 		val frozenById = LinkedHashMap<DrawableId, DrawableWorldGeometry>()
@@ -110,14 +111,7 @@ internal class EditModalTransform(
 			if (coveredIndices.isEmpty()) {
 				continue
 			}
-			val frozen =
-				DrawableWorldGeometry(
-					geometry.drawableId,
-					geometry.mapping,
-					geometry.mesh.positions.copyOf(),
-					geometry.displayed.copyOf(),
-					geometry.worldPosed.copyOf(),
-				)
+			val frozen = geometry.worldGeometry.frozenCopy()
 			frozenById[geometry.drawableId] = frozen
 			sources.add(ModalCaptureSource(geometry.drawableId, frozen.world, geometry.mesh.indices, coveredIndices))
 		}
@@ -220,10 +214,10 @@ internal class EditModalTransform(
 	}
 
 	/**
-	 * Confirms the in-flight gesture: commits each moving mesh's new base positions as ONE undo step,
+	 * Confirms the in-flight gesture: commits each moving mesh's new rest shape as ONE undo step,
 	 * registers that step on the operation settings strip, then clears the operator (its teardown resyncs
 	 * the renderer).  A null preview means no movement, so nothing is committed.  The preview already holds
-	 * base positions (the drive inverted them via worldToBase), so they are committed directly.
+	 * rest shapes (the drive inverted them via worldToRest), so they are committed directly.
 	 */
 	override fun confirm() {
 		val committed = gesture.preview
@@ -231,20 +225,20 @@ internal class EditModalTransform(
 		val parameters = gesture.lastParameters
 		if (committed != null && gestureData != null) {
 			val transform = gestureData.transform
-			val newPositionsByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
+			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(transform.entries.size)
 			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(transform.entries.size)
 			for (entry in transform.entries) {
 				val transformed = committed[entry.drawableId] ?: continue
-				newPositionsByDrawable[entry.drawableId] = transformed
+				restByDrawable[entry.drawableId] = transformed
 				// The moved set, not just the covered set: proportional editing moves weighted
 				// unselected vertices too, and the change metadata must name every vertex the edit touched.
 				vertexIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()
 			}
-			if (newPositionsByDrawable.isNotEmpty()) {
+			if (restByDrawable.isNotEmpty()) {
 				val modelBefore = session.model.value
 				session.commitMeshPositions(
 					MeshChange.TransformVertices(vertexIndicesByDrawable, transform.operatorKind),
-					newPositionsByDrawable,
+					restByDrawable,
 				)
 				// The strip's rows for the step just pushed, over the RETAINED capture so an adjustment
 				// replays the same frozen geometry - registered before the operator clears, since the
@@ -306,8 +300,8 @@ internal class EditModalTransform(
 
 	/**
 	 * Drives the preview for one virtual-pointer position: applies the operator (or the Vertex Slide edge
-	 * projection) per captured mesh, inverts each transformed world shape back onto the base mesh through
-	 * the shared worldToBase round trip, and pushes the folded model to the renderer.  Shared by Move
+	 * projection) per captured mesh, inverts each transformed world shape back onto the rest arrays through
+	 * the shared worldToRest round trip, and pushes the folded model to the renderer.  Shared by Move
 	 * (pointer motion) and Scroll (a proportional radius change must re-derive the preview from the same
 	 * frozen originals without waiting for the next pointer move).
 	 *
@@ -327,7 +321,7 @@ internal class EditModalTransform(
 		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
 		gesture.lastParameters = parameters
-		val newPreview = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
+		val newPreview = LinkedHashMap<DrawableId, MeshRestPositions>(transform.entries.size)
 		var folded = session.model.value
 		for (entry in transform.entries) {
 			val geometry = gestureData.geometryById.getValue(entry.drawableId)
@@ -350,9 +344,9 @@ internal class EditModalTransform(
 				} else {
 					applyOperator(operator, entry.positions, entry.groups, parameters, entry.influence)
 				}
-			val newBase = geometry.worldToBase(transformedWorld, entry.movedIndices)
-			newPreview[entry.drawableId] = newBase
-			folded = folded.withMeshPositions(entry.drawableId, newBase)
+			val newRest = geometry.worldToRest(transformedWorld, entry.movedIndices)
+			newPreview[entry.drawableId] = newRest
+			folded = folded.withMeshPositions(entry.drawableId, newRest)
 		}
 		gesture.preview = newPreview
 		pushPreview(folded)

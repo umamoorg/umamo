@@ -6,6 +6,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshTransforms
 import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.ModalTransformCapture
@@ -64,7 +65,7 @@ internal class ObjectModalTransform(
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, cursor wrap,
 	 * pointer controller); the capture is the Object-mode gesture.
 	 */
-	val gesture = ModalGestureState<ObjectGesture>()
+	val gesture = ModalGestureState<ObjectGesture, MeshRestPositions>()
 
 	/**
 	 * Starts the gesture as an operator latches in this area: freezes each selected drawable's world
@@ -155,7 +156,7 @@ internal class ObjectModalTransform(
 	}
 
 	/**
-	 * Confirms the in-flight object transform: commits every drawable's new base positions as one undo step
+	 * Confirms the in-flight object transform: commits every drawable's new rest shape as one undo step
 	 * (a null / empty preview means no movement, so nothing commits), registers that step on the operation
 	 * settings strip over the retained capture, then clears the operator - its teardown resyncs the renderer.
 	 */
@@ -201,18 +202,18 @@ internal class ObjectModalTransform(
 		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
 		gesture.lastParameters = parameters
-		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
+		val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(transform.entries.size)
 		var folded = session.model.value
 		for (entry in transform.entries) {
 			val geometry = gestureData.geometryById.getValue(entry.drawableId)
 			// Proportional editing is an Edit-mode feature: object mode moves whole drawables, so there
 			// are no unselected vertices to weight.
 			val transformedWorld = applyOperator(operator, entry.positions, entry.groups, parameters, emptyMap())
-			val newBase = geometry.worldToBase(transformedWorld, entry.coveredIndices)
-			newBaseByDrawable[entry.drawableId] = newBase
-			folded = folded.withMeshPositions(entry.drawableId, newBase)
+			val newRest = geometry.worldToRest(transformedWorld, entry.coveredIndices)
+			restByDrawable[entry.drawableId] = newRest
+			folded = folded.withMeshPositions(entry.drawableId, newRest)
 		}
-		gesture.preview = newBaseByDrawable
+		gesture.preview = restByDrawable
 		pushPreview(folded)
 		return true
 	}

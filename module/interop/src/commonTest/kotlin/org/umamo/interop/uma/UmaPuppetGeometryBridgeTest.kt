@@ -87,7 +87,7 @@ class UmaPuppetGeometryBridgeTest {
 	private fun geometryModel(): PuppetModel {
 		val axes = listOf(KeyformAxis(ParameterId("P0"), floatArrayOf(-30f, 0f, 30f)), KeyformAxis(ParameterId("P1"), floatArrayOf(-0.0f, 1f)))
 		val denseCells = (0 until 2).flatMap { secondKey -> (0 until 3).map { firstKey -> KeyformCell(intArrayOf(firstKey, secondKey), MeshDeltaForm(quadFloats(firstKey + secondKey * 3f))) } }
-		val quad = DrawableMesh(floatArrayOf(0f, 0f, 10f, 0f, 10f, 10f, 0f, 10f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
+		val quad = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 10f, 0f, 10f, 10f, 0f, 10f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
 		val colorTracks =
 			ChannelGrids(
 				linkedMapOf(
@@ -161,7 +161,7 @@ class UmaPuppetGeometryBridgeTest {
 						parentDeformerId = null,
 						blendMode = BlendMode.Normal,
 						maskedBy = emptyList(),
-						mesh = DrawableMesh(quad.positions.copyOf(), quad.uvs.copyOf(), quad.indices.copyOf()),
+						mesh = DrawableMesh.withLocalEqualToCanvas(quad.positions.copyOf(), quad.uvs.copyOf(), quad.indices.copyOf()),
 						// A sparse grid: one of the six cells is missing, and the others keep their order.
 						geometryGrid = KeyformGrid(axes, denseCells.filterIndexed { cellIndex, _ -> cellIndex != 4 }.reversed()),
 					),
@@ -213,7 +213,7 @@ class UmaPuppetGeometryBridgeTest {
 	fun bufferCarriesNaNWhileInlineRefuses() {
 		val base = geometryModel()
 		val payloadNaN = Float.fromBits(0x7FC00001)
-		val withNaN = base.copy(drawables = base.drawables.map { drawable -> if (drawable.id == DrawableId("D1")) drawable.copy(mesh = DrawableMesh(floatArrayOf(payloadNaN, 0f, 10f, 0f, 10f, 10f, 0f, 10f), drawable.mesh!!.uvs, drawable.mesh!!.indices)) else drawable })
+		val withNaN = base.copy(drawables = base.drawables.map { drawable -> if (drawable.id == DrawableId("D1")) drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(payloadNaN, 0f, 10f, 0f, 10f, 10f, 0f, 10f), drawable.mesh!!.uvs, drawable.mesh!!.indices)) else drawable })
 		val reopened = roundTrip(withNaN)
 		assertEquals(payloadNaN.toRawBits(), reopened.drawables.first { drawable -> drawable.id == DrawableId("D1") }.mesh!!.positions[0].toRawBits(), "the payload survives")
 

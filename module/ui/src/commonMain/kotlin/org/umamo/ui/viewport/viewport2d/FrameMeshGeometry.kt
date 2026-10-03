@@ -68,7 +68,7 @@ internal fun frameMeshGeometries(
 			}
 		// The deformers do not move during a mesh drag, so liveEntry.mapping (built once from the session
 		// model) projects the frame's changed local positions correctly - no per-frame buildDeformerWorlds.
-		val frameDisplayed = drawableLocalPosed(frameModel, emptyMap(), drawableId) ?: frameMesh.positions
+		val frameDisplayed = drawableLocalPosed(frameModel, emptyMap(), drawableId) ?: frameMesh.localPositions
 		val frameGeometry =
 			FrameMeshGeometry(
 				indices = frameMesh.indices,

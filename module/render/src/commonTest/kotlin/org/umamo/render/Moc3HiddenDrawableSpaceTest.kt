@@ -78,7 +78,7 @@ class Moc3HiddenDrawableSpaceTest {
 				parentDeformerId = deformerId,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(parentLocal, FloatArray(parentLocal.size), intArrayOf(0, 1, 2)),
+				mesh = DrawableMesh.withLocalEqualToCanvas(parentLocal, FloatArray(parentLocal.size), intArrayOf(0, 1, 2)),
 				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(toggle, floatArrayOf(0.5f, 1f))),

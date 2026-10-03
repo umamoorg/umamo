@@ -30,7 +30,6 @@ internal class Moc3ExportContext(
 	val version: MocVersion,
 	val eligibility: Moc3ExportEligibility,
 	val plan: Moc3IndexPlan,
-	val canvasToParentSpace: CanvasToParentSpace?,
 	options: Moc3ExportOptions = Moc3ExportOptions.Default,
 ) {
 	/**

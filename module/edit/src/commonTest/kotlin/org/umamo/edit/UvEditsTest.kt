@@ -29,7 +29,7 @@ class UvEditsTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), uvs, intArrayOf(0, 1, 2)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), uvs, intArrayOf(0, 1, 2)),
 			geometryGrid = null,
 		)
 

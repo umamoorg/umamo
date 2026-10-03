@@ -64,7 +64,7 @@ class UvPlacementAdjustTest {
 						blendMode = BlendMode.Normal,
 						maskedBy = emptyList(),
 						mesh =
-							DrawableMesh(
+							DrawableMesh.withLocalEqualToCanvas(
 								floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f),
 								floatArrayOf(4f / 64, 4f / 64, 14f / 64, 4f / 64, 4f / 64, 14f / 64, 14f / 64, 14f / 64),
 								indices,

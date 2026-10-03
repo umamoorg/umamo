@@ -195,7 +195,7 @@ class PartCompositeEvalTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)),
 			// Bundled then fanned, so the fixture matches importer output and the opacity lands on its
 			// own track rather than being hand-placed.
 			geometryGrid = fanned.geometry,
@@ -273,7 +273,7 @@ class PartCompositeEvalTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)),
+				mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)),
 				geometryGrid = fanned.geometry,
 				channelGrids = fanned.channels,
 			)

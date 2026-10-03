@@ -5,9 +5,9 @@ import org.umamo.runtime.model.PuppetModel
 
 /**
  * The drawables an object-mode Grab / Scale / Rotate may transform, or null when the gesture must be
- * blocked.  Object G / S / R writes only DrawableMesh.positions, so it can move a drawable but not a
- * deformer (whose shape lives in absolute per-keyform forms with no writer) nor a part (a container with
- * no geometry of its own).  Those ineligible targets are silently IGNORED rather than blocking: a Select
+ * blocked.  Object G / S / R writes only a drawable's rest arrays (DrawableMesh.positions and
+ * localPositions), so it can move a drawable but not a deformer (whose shape lives in absolute per-keyform
+ * forms with no writer) nor a part (a container with no geometry of its own).  Those ineligible targets are silently IGNORED rather than blocking: a Select
  * All / Invert sweeps parts and deformers into the selection, and the user expectation is that G still
  * moves the meshes it can.  Only a selection with nothing transformable at all (empty, or holding only
  * parts / deformers / mesh-less drawables) returns null, and the caller blocks with a note.

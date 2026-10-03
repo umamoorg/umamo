@@ -11,7 +11,6 @@ import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.PuppetTextures
 import org.umamo.render.UndecodablePagePolicy
 import org.umamo.render.buildPuppetTextures
-import org.umamo.render.canvasToParentSpaceFor
 import org.umamo.render.encodeAtlasPng
 import org.umamo.render.withTexturePagesFrom
 import java.io.File
@@ -102,7 +101,6 @@ private fun convertCmo3ToMoc3Family(loaded: LoadedInput.Cmo3Input, outputFile: F
 			puppet = puppet,
 			basename = basename,
 			pages = pages,
-			canvasToParentSpace = canvasToParentSpaceFor(puppet),
 		)
 
 	// Overwrites without confirmation.

@@ -101,16 +101,6 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 			ExportNoticePhrase(Res.string.export_reason_hidden_part_omitted_by_option)
 		ExportNoticeReason.HiddenDrawableOmittedByExportOption ->
 			ExportNoticePhrase(Res.string.export_reason_hidden_drawable_omitted_by_option)
-		ExportNoticeReason.UnkeyedDrawableUnderDeformerHasNoParentGeometry ->
-			ExportNoticePhrase(Res.string.export_reason_unkeyed_drawable_under_deformer)
-		is ExportNoticeReason.RestMeshConversionSizeMismatch ->
-			ExportNoticePhrase(
-				Res.string.export_reason_rest_mesh_conversion_size_mismatch,
-				listOf(
-					ExportNoticeArgument.Literal(reason.convertedCoordinateCount),
-					ExportNoticeArgument.Literal(reason.expectedCoordinateCount),
-				),
-			)
 		ExportNoticeReason.NoAtlasPageBound ->
 			ExportNoticePhrase(Res.string.export_reason_no_atlas_page_bound)
 		is ExportNoticeReason.ClippingMaskNotInExport ->

@@ -103,7 +103,7 @@ class Cmo3ImageChainBuilderTest {
 							blendMode = BlendMode.Normal,
 							maskedBy = emptyList(),
 							mesh =
-								DrawableMesh(
+								DrawableMesh.withLocalEqualToCanvas(
 									positions = positions,
 									uvs = uvs,
 									indices = intArrayOf(0, 1, 2),

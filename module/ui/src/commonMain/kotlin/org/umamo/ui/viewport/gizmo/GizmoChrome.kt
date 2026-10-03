@@ -74,7 +74,7 @@ internal fun DrawScope.drawAxisConstraintLine(constraint: TransformAxisConstrain
  *
  * @param Boolean owned Whether the caller's gate says this area draws the HUD.
  * @param Pair<Float, Float>? pivotWorld The capture's pivot, or null when no capture has landed.
- * @param ModalGestureState<*> gesture The area's modal gesture state.
+ * @param ModalGestureState<*, *> gesture The area's modal gesture state.
  * @param State axisConstraint The session's axis constraint.
  * @param ViewportCamera camera The camera the pivot projects through.
  * @param IntSize size The area size in pixels.
@@ -85,7 +85,7 @@ internal fun DrawScope.drawAxisConstraintLine(constraint: TransformAxisConstrain
 internal fun DrawScope.drawOwnedModalTransformHud(
 	owned: Boolean,
 	pivotWorld: Pair<Float, Float>?,
-	gesture: ModalGestureState<*>,
+	gesture: ModalGestureState<*, *>,
 	axisConstraint: State<TransformAxisConstraint?>,
 	camera: ViewportCamera,
 	size: IntSize,

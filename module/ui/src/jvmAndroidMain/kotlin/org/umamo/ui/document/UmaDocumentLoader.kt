@@ -15,6 +15,7 @@ import org.umamo.render.SourceArtRasters
 import org.umamo.render.UndecodablePagePolicy
 import org.umamo.render.buildPuppetTextures
 import org.umamo.render.deriveAtlasTextures
+import org.umamo.render.withLocalPositionsFromCanvas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.help.ProjectInfo
@@ -95,7 +96,14 @@ internal fun buildUmaDocument(bytes: ByteArray, name: String, path: String): Doc
 		return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NewerFormat, name))
 	}
 	// A puppet entry the file lacks fails here as a parse failure, through the caller's catch.
-	val puppet = UmaDocumentBridge.modelOf(uma)
+	val read = UmaDocumentBridge.readModel(uma)
+	// A 0.4.0 file's unkeyed drawables under a deformer kept only their canvas mesh; their base is that mesh
+	// mapped into the deformer's space, so they render where the canvas mesh is.
+	val derived = withLocalPositionsFromCanvas(read.model, read.basesToDerive)
+	if (derived.unconverted.isNotEmpty()) {
+		UmamoLog.warn("opened $path: ${derived.unconverted.size} drawable(s) under a deformer kept their canvas mesh as their base, since the deformer could not map it: " + derived.unconverted.joinToString { drawableId -> drawableId.raw })
+	}
+	val puppet = derived.model
 	val pages = UmaDocumentBridge.pagesOf(uma)
 	// The document's own store, over the file's tile PNGs: artwork brought in later decodes into it.
 	val artRasters = SourceArtRasters.fromPng { tileId -> pages.tilePng(tileId) }

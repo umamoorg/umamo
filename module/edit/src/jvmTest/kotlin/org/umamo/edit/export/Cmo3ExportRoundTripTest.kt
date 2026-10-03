@@ -1,5 +1,6 @@
 package org.umamo.edit.export
 
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.withAtlasPlacement
 import org.umamo.edit.withCanvasSize
 import org.umamo.edit.withDeformerBaseAngle
@@ -32,6 +33,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CCachedImage
 import org.umamo.format.cmo3.model.gen.CCachedImageManager
@@ -56,6 +58,7 @@ import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PartGroupMode
@@ -419,10 +422,7 @@ class Cmo3ExportRoundTripTest {
 		val result =
 			roundTrip(file) { puppet ->
 				val drawable = puppet.drawables.first { it.mesh != null }
-				val nudged = drawable.mesh!!.positions.copyOf()
-				nudged[0] += 3f
-				nudged[1] -= 2f
-				puppet.withMeshPositions(drawable.id, nudged)
+				puppet.withMeshPositions(drawable.id, nudgedFirstVertex(drawable.mesh!!))
 			}
 		// Exported geometry is written as authored rather than re-welded to Cubism's own topology,
 		// so the geometry survives exactly while the weld-divergence notice names the edited mesh.
@@ -434,6 +434,82 @@ class Cmo3ExportRoundTripTest {
 		)
 		val residual = diffPuppetModels(result.reimported, result.edited)
 		assertTrue(residual.isEmpty, "vertex nudge lost through export/import: $residual")
+	}
+
+	/**
+	 * The first vertex of [mesh] nudged the way an Edit-mode move nudges it: three canvas pixels right and two
+	 * up on the canvas mesh, and the same small fraction of the base's own extent on the base, since the base
+	 * of a deformer child lives in the deformer's space.  A mesh that shares one array keeps sharing it.
+	 *
+	 * @param DrawableMesh mesh The mesh to nudge.
+	 * @return MeshRestPositions The nudged rest shape.
+	 */
+	private fun nudgedFirstVertex(mesh: DrawableMesh): MeshRestPositions {
+		val canvas = mesh.positions.copyOf()
+		canvas[0] += 3f
+		canvas[1] -= 2f
+		if (mesh.localPositions === mesh.positions) {
+			return MeshRestPositions.shared(canvas)
+		}
+		val local = mesh.localPositions.copyOf()
+		val xs = local.filterIndexed { componentIndex, _ -> componentIndex % 2 == 0 }
+		val ys = local.filterIndexed { componentIndex, _ -> componentIndex % 2 == 1 }
+		local[0] += (xs.max() - xs.min()) * 0.01f
+		local[1] -= (ys.max() - ys.min()) * 0.01f
+		return MeshRestPositions(canvas, local)
+	}
+
+	/**
+	 * Every CArtMeshForm's stored positions in [root], keyed by the source id and the form's index, copied so a
+	 * later export's writes cannot reach them.
+	 *
+	 * @param CModelSource root The CMO3's model source.
+	 * @return Map<String, FloatArray> The positions per form.
+	 */
+	private fun artMeshFormPositions(root: CModelSource): Map<String, FloatArray> {
+		val positionsByForm = LinkedHashMap<String, FloatArray>()
+		val sources = elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+		for (source in sources) {
+			val sourceId = (source.id as? Id)?.idstr ?: continue
+			elementsOf(source.keyforms).filterIsInstance<CArtMeshForm>().forEachIndexed { formIndex, form ->
+				val positions = form.positions as? FloatArray ?: return@forEachIndexed
+				positionsByForm["$sourceId#$formIndex"] = positions.copyOf()
+			}
+		}
+		return positionsByForm
+	}
+
+	/**
+	 * A canvas-only edit - the editable mesh moves and the keyform-space base does not - writes the source's
+	 * canvas mesh and nothing else: the forms are rebuilt from the base, which did not move, so every
+	 * CArtMeshForm in the file keeps its stored floats bit for bit.
+	 */
+	@Test
+	fun aCanvasOnlyEditLeavesEveryFormBitIdentical() {
+		val file = skipMessageOrNull() ?: return
+		val cmo3 = Cmo3.read(file.readBytes())
+		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+		val formsBefore = artMeshFormPositions(modelSource)
+		val puppet = Cmo3Import.fromModelSource(modelSource)
+		val drawable = puppet.drawables.first { candidate -> candidate.mesh != null && candidate.geometryGrid?.axes?.isNotEmpty() == true }
+		val mesh = drawable.mesh!!
+		val movedCanvas = FloatArray(mesh.positions.size) { componentIndex -> mesh.positions[componentIndex] + if (componentIndex % 2 == 0) 3f else -2f }
+		val edited = puppet.withMeshPositions(drawable.id, MeshRestPositions(movedCanvas, mesh.localPositions))
+
+		val report = Cmo3Export.apply(edited, cmo3)
+		assertTrue(report.notices.none { notice -> notice is ExportNotice.UnsupportedChange }, "a canvas edit lowers fully: ${report.notices}")
+		val reread = Cmo3.read(Cmo3.write(cmo3)).root as CModelSource
+		val formsAfter = artMeshFormPositions(reread)
+		assertEquals(formsBefore.keys, formsAfter.keys, "the export adds or drops no form")
+		for ((formKey, before) in formsBefore) {
+			val after = formsAfter.getValue(formKey)
+			assertEquals(before.map(Float::toRawBits), after.map(Float::toRawBits), "$formKey keeps its stored floats")
+		}
+		val rereadSource =
+			elementsOf((reread.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>().first { candidate ->
+				(candidate.id as? Id)?.idstr == drawable.id.raw
+			}
+		assertEquals(movedCanvas.map(Float::toRawBits), (rereadSource.positions as FloatArray).map(Float::toRawBits), "the canvas mesh is written as edited")
 	}
 
 	@Test

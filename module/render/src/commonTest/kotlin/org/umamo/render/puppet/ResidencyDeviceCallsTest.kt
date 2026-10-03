@@ -70,7 +70,7 @@ class ResidencyDeviceCallsTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(positions, floatArrayOf(0f, 1f, 1f, 1f, 0f, 0f, 1f, 0f), intArrayOf(0, 1, 2, 1, 3, 2)),
+				mesh = DrawableMesh.withLocalEqualToCanvas(positions, floatArrayOf(0f, 1f, 1f, 1f, 0f, 0f, 1f, 0f), intArrayOf(0, 1, 2, 1, 3, 2)),
 				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(paramA, floatArrayOf(0f))),
@@ -113,7 +113,7 @@ class ResidencyDeviceCallsTest {
 		indices: IntArray? = null,
 	): Drawable {
 		val mesh = drawable.mesh ?: error("the probe carries a mesh")
-		return drawable.copy(mesh = DrawableMesh(positions ?: mesh.positions, uvs ?: mesh.uvs, indices ?: mesh.indices))
+		return drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(positions ?: mesh.positions, uvs ?: mesh.uvs, indices ?: mesh.indices))
 	}
 
 	/**

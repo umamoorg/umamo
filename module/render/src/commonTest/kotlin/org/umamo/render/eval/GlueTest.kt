@@ -29,7 +29,7 @@ class GlueTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(floatArrayOf(x, y), floatArrayOf(0f, 0f), IntArray(0)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(x, y), floatArrayOf(0f, 0f), IntArray(0)),
 			geometryGrid = grid,
 		)
 	}

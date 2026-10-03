@@ -52,7 +52,7 @@ internal class ViewportSpaceCamera(
 					continue
 				}
 				val mapping = drawableSpaceMapping(model, emptyMap(), drawableId) ?: continue
-				val world = mapping.localToWorld(drawableLocalPosed(model, emptyMap(), drawableId) ?: mesh.positions)
+				val world = mapping.localToWorld(drawableLocalPosed(model, emptyMap(), drawableId) ?: mesh.localPositions)
 				include(world, covered)
 			}
 		} else {
@@ -62,7 +62,7 @@ internal class ViewportSpaceCamera(
 			for (drawableId in eligibleIds) {
 				val mesh = model.drawables.firstOrNull { it.id == drawableId }?.mesh ?: continue
 				val mapping = drawableSpaceMapping(model, pose, drawableId) ?: continue
-				val world = mapping.localToWorld(drawableLocalPosed(model, pose, drawableId) ?: mesh.positions)
+				val world = mapping.localToWorld(drawableLocalPosed(model, pose, drawableId) ?: mesh.localPositions)
 				include(world, 0 until world.size / 2)
 			}
 		}

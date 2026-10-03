@@ -201,7 +201,7 @@ internal fun UvEditGizmoOverlay(
 	// The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, area origin,
 	// cursor wrap, pointer controller), the Edit overlay's shape.  The capture is the UV gesture (shared
 	// transform capture + the frozen authoring frame); preview holds each moving mesh's display-space coordinates.
-	val gesture = remember(areaId) { ModalGestureState<UvGesture>() }
+	val gesture = remember(areaId) { ModalGestureState<UvGesture, FloatArray>() }
 
 	// The UV editor's own proportional influence radius, in display (texel) units, delegating to the
 	// host's state so the sibling UvHudOverlay badge reads what the gesture machinery writes here.

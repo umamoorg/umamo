@@ -39,7 +39,7 @@ class ArtworkEditsTest {
 	private val sourceA = ArtSource(ArtSourceId("art-0"), "a.psd", "/a.psd", "psd", listOf(ArtSourceLayer("lyid:1", "L1", "", 0, 0, 4, 4, true)))
 	private val refA1 = SourceLayerRef(ArtSourceId("art-0"), "lyid:1", stableKey = true)
 
-	private fun quad(): DrawableMesh = DrawableMesh(floatArrayOf(0f, 0f, 4f, 0f, 4f, 4f, 0f, 4f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
+	private fun quad(): DrawableMesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 4f, 0f, 4f, 4f, 0f, 4f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
 
 	private fun drawable(id: String, tileId: String): Drawable =
 		Drawable(DrawableId(id), id, null, BlendMode.Normal, emptyList(), quad(), null, atlasTileId = AtlasTileId(tileId))
@@ -143,7 +143,7 @@ class ArtworkEditsTest {
 	@Test
 	fun aReloadSwapsTheTileCarriesTheDrawablesAndAppendsTheAdditions() {
 		val base = model()
-		val newMesh = DrawableMesh(floatArrayOf(0f, 0f, 6f, 0f, 6f, 6f, 0f, 6f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
+		val newMesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 6f, 0f, 6f, 6f, 0f, 6f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
 		val replacement = AtlasTile(AtlasTileId("art-0/lyid:1~1"), "L1", 6, 6, source = refA1, pinned = true, replaces = AtlasTileId("art-0/lyid:1"))
 		val added = drawable("ArtMesh2", "art-0/lyid:2")
 		val refreshed = sourceA.copy(layers = listOf(ArtSourceLayer("lyid:1", "L1", "", 0, 0, 6, 6, true), ArtSourceLayer("lyid:2", "L2", "", 9, 9, 4, 4, true)))

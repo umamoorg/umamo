@@ -62,7 +62,7 @@ class GeometryReuploadTest {
 			parentDeformerId = parentDeformerId,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(quadPositions.copyOf(), quadUvs, quadIndices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions.copyOf(), quadUvs, quadIndices),
 			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped by the
 			// renderer); the base mesh alone drives its shape.
 			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size))))),
@@ -85,7 +85,7 @@ class GeometryReuploadTest {
 			FloatArray(quadPositions.size) { coordIndex ->
 				drawable.mesh!!.positions[coordIndex] + if (coordIndex % 2 == 0) shiftWorld else 0f
 			}
-		return source.copy(drawables = listOf(drawable.copy(mesh = DrawableMesh(shifted, quadUvs, quadIndices))))
+		return source.copy(drawables = listOf(drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(shifted, quadUvs, quadIndices))))
 	}
 
 	@Test

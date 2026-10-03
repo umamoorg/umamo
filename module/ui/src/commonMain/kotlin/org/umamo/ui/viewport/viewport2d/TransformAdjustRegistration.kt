@@ -72,7 +72,7 @@ internal fun registerMeshTransformAdjustment(
 			transform.entries.fold(record.baseSnapshot.model) { model, entry ->
 				val geometry = geometryById[entry.drawableId] ?: return@fold model
 				val world = applyOperator(kind, entry.positions, entry.groups, adjusted, entry.influence)
-				model.withMeshPositions(entry.drawableId, geometry.worldToBase(world, entry.movedIndices))
+				model.withMeshPositions(entry.drawableId, geometry.worldToRest(world, entry.movedIndices))
 			}
 		if (session.amendLastCommit(record, landed) && proportionalRows != null) {
 			onProportional(proportionalRows.asState())
@@ -110,7 +110,7 @@ internal fun registerSlideAdjustment(
 		val geometry = geometryById[drawableId] ?: return@registerAdjustableOperation
 		val adjustedFactor = record.parameters.floatValue(TransformParameterKeys.SLIDE_FACTOR, factor)
 		val world = slideVertexByFactor(entry.positions, vertexIndex, neighborIndex, adjustedFactor)
-		session.amendLastCommit(record, record.baseSnapshot.model.withMeshPositions(drawableId, geometry.worldToBase(world, entry.movedIndices)))
+		session.amendLastCommit(record, record.baseSnapshot.model.withMeshPositions(drawableId, geometry.worldToRest(world, entry.movedIndices)))
 	}
 
 /**
@@ -144,7 +144,7 @@ internal fun registerObjectTransformAdjustment(
 			transform.entries.fold(record.baseSnapshot.model) { model, entry ->
 				val geometry = geometryById[entry.drawableId] ?: return@fold model
 				val world = applyOperator(kind, entry.positions, entry.groups, adjusted, emptyMap())
-				model.withMeshPositions(entry.drawableId, geometry.worldToBase(world, entry.coveredIndices))
+				model.withMeshPositions(entry.drawableId, geometry.worldToRest(world, entry.coveredIndices))
 			}
 		session.amendLastCommit(record, landed)
 	}

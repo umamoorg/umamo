@@ -68,7 +68,7 @@ private fun rigDrawable(id: DrawableId, positions: FloatArray, indices: IntArray
 		parentDeformerId = parentDeformerId,
 		blendMode = BlendMode.Normal,
 		maskedBy = emptyList(),
-		mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
+		mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), indices),
 		geometryGrid = null,
 	)
 

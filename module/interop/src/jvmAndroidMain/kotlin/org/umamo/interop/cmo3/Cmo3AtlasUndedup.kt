@@ -9,7 +9,6 @@ import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
-import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 
 /**
@@ -179,7 +178,7 @@ internal object Cmo3AtlasUndedup {
 					newUvs[componentIndex + 1] = (mesh.uvs[componentIndex + 1] * remap[3] + remap[1]) / remap[5]
 					componentIndex += 2
 				}
-				drawable.copy(mesh = DrawableMesh(mesh.positions, newUvs, mesh.indices))
+				drawable.copy(mesh = mesh.withUvs(newUvs))
 			}
 		return Result(
 			puppet.copy(drawables = remappedDrawables),

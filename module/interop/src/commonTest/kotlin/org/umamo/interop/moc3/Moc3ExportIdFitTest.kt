@@ -58,7 +58,7 @@ class Moc3ExportIdFitTest {
 			// Bound to a page, so the only notice a rig here can raise is about its ids.
 			texturePage = 0,
 			mesh =
-				DrawableMesh(
+				DrawableMesh.withLocalEqualToCanvas(
 					positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
 					uvs = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
 					indices = intArrayOf(0, 1, 2),

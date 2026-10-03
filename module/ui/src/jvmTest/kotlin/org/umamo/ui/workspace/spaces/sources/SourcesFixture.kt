@@ -226,7 +226,7 @@ internal fun sourcesFixtureModel(): PuppetModel {
 internal fun sourcesMergeModel(): PuppetModel {
 	val base = sourcesFixtureModel()
 	// The quad an import mints over the Brow layer's frame: 4 x 4 at (12, 22), sampling the whole tile.
-	val birthQuad = DrawableMesh(floatArrayOf(12f, 22f, 16f, 22f, 16f, 26f, 12f, 26f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
+	val birthQuad = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(12f, 22f, 16f, 22f, 16f, 26f, 12f, 26f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
 	val fresh = fixtureDrawable(SourcesIds.browMeshNew, SourcesNames.BROW_MESH_NEW, SourcesIds.browArtNew).copy(mesh = birthQuad)
 	return base.copy(
 		drawables = base.drawables + fresh,

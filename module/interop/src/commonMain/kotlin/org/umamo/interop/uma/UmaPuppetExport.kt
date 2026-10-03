@@ -277,7 +277,7 @@ object UmaPuppetExport {
 			textureSource = drawable.textureSourceId?.raw,
 			texturePage = drawable.texturePage.takeIf { page -> page != -1 },
 			atlasTile = drawable.atlasTileId?.raw,
-			mesh = drawable.mesh?.let { mesh -> UmaMesh(mesh.positions, mesh.uvs, mesh.indices) },
+			mesh = drawable.mesh?.let { mesh -> UmaMesh(canvasPositions = mesh.positions, localPositions = mesh.localPositions, uvs = mesh.uvs, indices = mesh.indices) },
 			geometry = drawable.geometryGrid?.let { grid -> meshGridOf(grid, "$path.geometry") },
 			channels = channelsOf(drawable.channelGrids, path),
 			blendShapes = drawable.blendShapes.mapIndexed { bindingIndex, binding -> meshBlendShapeOf(binding, "$path.blendShapes[$bindingIndex]") }.ifEmpty { null },

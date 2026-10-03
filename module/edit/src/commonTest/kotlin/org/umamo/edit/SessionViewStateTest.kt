@@ -37,7 +37,7 @@ class SessionViewStateTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = if (meshed) DrawableMesh(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), FloatArray(6), intArrayOf(0, 1, 2)) else null,
+			mesh = if (meshed) DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), FloatArray(6), intArrayOf(0, 1, 2)) else null,
 			geometryGrid = null,
 		)
 

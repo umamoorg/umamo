@@ -260,7 +260,7 @@ internal class DrawableResidency(
 		// its rest mesh. Refusing to upload it would leave a freshly created (or freshly unbound) drawable
 		// invisible - the one state where the rigger most needs to see it.
 		val grid = drawable.geometryGrid
-		if (mesh.positions.isEmpty()) {
+		if (mesh.localPositions.isEmpty()) {
 			return null
 		}
 		val isGlue = glueAttributes != null
@@ -268,7 +268,7 @@ internal class DrawableResidency(
 			return null // a non-glue mesh with no triangles draws nothing and is no weld partner
 		}
 		val cellCount = keyformCellCount(grid)
-		val vertexCount = mesh.positions.size / 2
+		val vertexCount = mesh.localPositions.size / 2
 		// Built once and shared: the delta-texel bake and the composite-bounds walk both need it. An
 		// unkeyed drawable has no cells, so every lookup misses and contributes a zero offset.
 		val cells = if (grid != null) cellsByLinearIndex(grid) else emptyMap()
@@ -284,7 +284,8 @@ internal class DrawableResidency(
 			}
 		val deltaTexture =
 			device.createFloatTexture(cellCount + blendLayout.blendColumnCount, vertexCount, TextureFilter.Nearest, texels)
-		val gpuMesh = device.createMesh(MeshSpec(mesh.positions, mesh.uvs, mesh.indices, glueAttributes))
+		// The shader's base is the keyform-space mesh the deltas are measured from; the canvas mesh is never drawn.
+		val gpuMesh = device.createMesh(MeshSpec(mesh.localPositions, mesh.uvs, mesh.indices, glueAttributes))
 		// A warp-parented drawable needs a control-point texture a pose re-specifies. Created as a
 		// 1x1 placeholder here so updateFloatTexture always has a handle to overwrite.
 		val cpTexture =
@@ -310,7 +311,7 @@ internal class DrawableResidency(
 			isGlueMesh = isGlue,
 			glueBaseOffset = glueBaseOffset,
 			blendLayout = blendLayout,
-			boundsBase = mesh.positions,
+			boundsBase = mesh.localPositions,
 			boundsCells = cells,
 		)
 	}

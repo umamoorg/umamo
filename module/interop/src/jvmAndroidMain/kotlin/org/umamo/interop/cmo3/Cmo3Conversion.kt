@@ -147,9 +147,9 @@ public object Cmo3Conversion {
 			)
 		// Each page's drawable regions feed the per-drawable patch webs (crop + placement fit).
 		// The puppet's mesh.positions MUST be canvas-frame here: the app's MOC3 document loader
-		// normalizes parent-local rest meshes through :render's restMeshesToCanvasSpace before any
-		// export, and callers converting a raw Moc3Import puppet must do the same (the official
-		// source-level positions and the whole placement web are canvas geometry).
+		// derives each canvas mesh through :render's restMeshesToCanvasSpace before any export, and
+		// callers converting a raw Moc3Import puppet must do the same (the official source-level
+		// positions and the whole placement web are canvas geometry).
 		val regionsByPage = List(effectivePages.size) { ArrayList<Cmo3ImageChainBuilder.DrawableRegion>() }
 		for (drawable in effectivePuppet.drawables) {
 			val pageIndex = effectivePageIndexByDrawableId[drawable.id.raw] ?: continue

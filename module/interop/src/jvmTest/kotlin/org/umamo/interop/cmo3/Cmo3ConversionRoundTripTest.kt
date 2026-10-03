@@ -232,10 +232,9 @@ class Cmo3ConversionRoundTripTest {
 	 * The largest per-component ABSOLUTE keyform-position difference between the two models'
 	 * drawable grids (base + delta per cell).
 	 *
-	 * Absolutes, not raw deltas: the exported source-level base is the rest-pose CANVAS frame
-	 * while a MOC3-origin puppet's base is parent-deformer-local, so the re-imported deltas shift
-	 * by exactly the base difference.  The blended geometry - base plus delta - is the semantic
-	 * invariant (grids sum to one, so the base cancels out of every rendered pose).
+	 * Absolutes, not raw deltas: each import takes its base from its own reference cell, so the
+	 * re-imported deltas shift by exactly the base difference.  The blended geometry - base plus delta
+	 * - is the semantic invariant (grids sum to one, so the base cancels out of every rendered pose).
 	 *
 	 * @param PuppetModel source     The conversion source.
 	 * @param PuppetModel reimported The re-imported model.
@@ -251,8 +250,8 @@ class Cmo3ConversionRoundTripTest {
 		val reimportedDrawable = reimported.drawables.firstOrNull { it.id.raw == drawableIdRaw }
 		val sourceGrid = sourceDrawable?.geometryGrid ?: return 0f
 		val reimportedGrid = reimportedDrawable?.geometryGrid ?: return 0f
-		val sourceBase = sourceDrawable.mesh?.positions ?: return 0f
-		val reimportedBase = reimportedDrawable.mesh?.positions ?: return 0f
+		val sourceBase = sourceDrawable.mesh?.localPositions ?: return 0f
+		val reimportedBase = reimportedDrawable.mesh?.localPositions ?: return 0f
 		val reimportedByCoordinate = reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
 		var maxDifference = 0f
 		for (cell in sourceGrid.cells) {

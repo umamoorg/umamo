@@ -26,10 +26,11 @@ private const val RIGID_INVERSE_MAX_ITERATIONS = 24
 
 /**
  * Maps between a drawable's local mesh space and the evaluator's world space at one fixed pose - the
- * `DeformedGeometry.worldPositions` space the viewport camera and picker use. Local space is whatever
- * the drawable's `DrawableMesh.positions` are stored in: model space for a direct (deformer-less)
+ * `DeformedGeometry.worldPositions` space the viewport camera and picker use. Local space is the space
+ * the drawable's keyforms and `DrawableMesh.localPositions` live in: model space for a direct (deformer-less)
  * drawable, the parent's normalized lattice UV for a warp child, the parent's affine frame for a
- * rotation child. The parent transform here is the FULLY COMPOSED chain (`buildDeformerWorlds` bakes
+ * rotation child.  `DrawableMesh.positions` is the canvas editable mesh and is never local, not even for a
+ * drawable with no keyforms. The parent transform here is the FULLY COMPOSED chain (`buildDeformerWorlds` bakes
  * every ancestor in), so both directions are a single transform, never a chain walk.
  *
  * The Edit-mode gizmo is the intended caller: it projects the active drawable's local shape to world
@@ -260,10 +261,10 @@ fun drawableLocalPosed(model: PuppetModel, parameters: Map<ParameterId, Float>, 
 	val mesh = drawable.mesh ?: return null
 	// An unkeyed drawable sits at its rest mesh, which is exactly the state a rigger needs the gizmo to
 	// show - returning null here would hide the vertices of the drawable they are about to key.
-	val grid = drawable.geometryGrid ?: return mesh.positions.copyOf()
+	val grid = drawable.geometryGrid ?: return mesh.localPositions.copyOf()
 	val defaults = model.parameters.associate { it.id to it.default }
 	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
-	return sampleMeshLocal(grid, mesh.positions, paramValue)
+	return sampleMeshLocal(grid, mesh.localPositions, paramValue)
 }
 
 /**

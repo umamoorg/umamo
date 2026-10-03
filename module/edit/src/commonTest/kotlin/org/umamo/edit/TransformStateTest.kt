@@ -44,7 +44,7 @@ class TransformStateTest {
 	}
 
 	private fun meshedSession(): EditorSession {
-		val mesh = DrawableMesh(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), FloatArray(6), intArrayOf(0, 1, 2))
+		val mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), FloatArray(6), intArrayOf(0, 1, 2))
 		val drawable =
 			Drawable(
 				id = DrawableId("d"),

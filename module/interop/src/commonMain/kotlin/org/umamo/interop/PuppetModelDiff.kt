@@ -24,6 +24,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.holdsOnlyTheRest
 import org.umamo.runtime.model.lineageRoot
 
 /*
@@ -499,7 +500,7 @@ private fun drawableFields(baseline: Drawable, edited: Drawable): Set<DrawableFi
 			add(DrawableField.ATLAS_TILE)
 		}
 		addAll(meshFields(baseline.mesh, edited.mesh))
-		if (!gridEquals(restOnlyAsUnkeyed(baseline.geometryGrid), restOnlyAsUnkeyed(edited.geometryGrid), ::meshDeltaFormEqual)) {
+		if (!meshGeometryEqual(baseline, edited)) {
 			add(DrawableField.GEOMETRY)
 		}
 		if (!channelGridsEqual(baseline.channelGrids, edited.channelGrids)) {
@@ -513,16 +514,22 @@ private fun drawableFields(baseline: Drawable, edited: Drawable): Set<DrawableFi
 		) {
 			add(DrawableField.STATICS)
 		}
-		if (!blendShapesEqual(baseline.blendShapes, edited.blendShapes, ::meshFormEqual)) {
+		val baselineLocal = baseline.mesh?.localPositions
+		val editedLocal = edited.mesh?.localPositions
+		// The same bindings over a moved base are moved blend forms, so the shared-list shortcut holds only for one base.
+		val blendFormEqual = { baselineForm: MeshForm, editedForm: MeshForm -> meshFormEqual(baselineLocal, baselineForm, editedLocal, editedForm) }
+		if (!blendShapesEqual(baseline.blendShapes, edited.blendShapes, blendFormEqual, sameInstanceIsEqual = baselineLocal === editedLocal)) {
 			add(DrawableField.BLEND_SHAPES)
 		}
 	}
 
 /**
  * The mesh aspect of a drawable diff.  A vertex-count or triangulation change (or a mesh appearing/
- * disappearing) is MESH_TOPOLOGY; with topology intact, moved vertices are MESH_POSITIONS and
+ * disappearing) is MESH_TOPOLOGY; with topology intact, a moved canvas editable mesh is MESH_POSITIONS and
  * remapped texels MESH_UVS - the split the lowering dispatches on, since topology forces a full
- * GEditableMesh2 rebuild while the others patch arrays in place.
+ * GEditableMesh2 rebuild while the others patch arrays in place.  The keyform-space base
+ * (`DrawableMesh.localPositions`) is not a mesh field: what it changes is the keyforms, so it surfaces as
+ * GEOMETRY and BLEND_SHAPES through [meshGeometryEqual].
  *
  * @param DrawableMesh? baseline The baseline's mesh.
  * @param DrawableMesh? edited   The edited model's mesh.
@@ -710,29 +717,75 @@ private fun flattenGroups(tree: List<ParameterNode>): List<ParameterNode.Group> 
 private fun floatEq(baseline: Float, edited: Float): Boolean = baseline.toRawBits() == edited.toRawBits()
 
 /**
- * A drawable's geometry grid with the rest-only shape read as unkeyed: an axis-less grid holding one
- * cell of zero deltas IS the unkeyed drawable, since both mean "the base mesh, nothing keyed".  The
- * two spellings arise from the formats - every CMO3 source carries a default form, so an unkeyed
- * drawable exports as that one cell and re-imports as this grid - and neither is an edit of the
- * other, so the diff must not call it one.
+ * Whether two drawables' keyform geometry is the same: the same axes and keys, and every cell rebuilding the same
+ * absolute floats, `localPositions + Δ`, against each drawable's own base.
  *
- * @param KeyformGrid? grid The drawable's geometry grid.
- * @return KeyformGrid? The grid, or null when it is the rest-only shape.
+ * Absolutes rather than raw deltas, because the absolutes are the geometry: a base move with its deltas left
+ * alone moves every keyform and is an edit, while two delta arrays that rebuild the same floats from bases that
+ * differ by the same amount are not.  A CMO3 round trip relies on that - the file stores absolutes, the import
+ * derives each delta from them, and a delta re-derived from a rebuilt float can differ in its last bit from the
+ * one it was rebuilt from while giving the float back exactly.  A grid that holds only the rest shape (no grid,
+ * or one axis-less cell of zero deltas; both spellings come from the formats) compares as its base alone.
+ *
+ * @param Drawable baseline The baseline's drawable.
+ * @param Drawable edited   The edited drawable.
+ * @return Boolean True when the keyform geometry is unchanged.
  */
-private fun restOnlyAsUnkeyed(grid: KeyformGrid<MeshDeltaForm>?): KeyformGrid<MeshDeltaForm>? {
-	if (grid == null || grid.axes.isNotEmpty() || grid.cells.size != 1) {
-		return grid
+private fun meshGeometryEqual(baseline: Drawable, edited: Drawable): Boolean {
+	val baselineLocal = baseline.mesh?.localPositions
+	val editedLocal = edited.mesh?.localPositions
+	val baselineRestOnly = baseline.geometryGrid.holdsOnlyTheRest()
+	val editedRestOnly = edited.geometryGrid.holdsOnlyTheRest()
+	if (baselineRestOnly || editedRestOnly) {
+		if (baselineRestOnly != editedRestOnly) {
+			return false
+		}
+		return baselineLocal === editedLocal || (baselineLocal != null && editedLocal != null && rawBitsEqual(baselineLocal, editedLocal))
 	}
-	val deltas = grid.cells.single().form.positionDeltas
-	return if (deltas.all { delta -> delta == 0f }) null else grid
+	// One grid over a moved base is a moved set of keyforms, so the shared-grid shortcut holds only for one base.
+	val cellEqual = { baselineForm: MeshDeltaForm, editedForm: MeshDeltaForm -> rebuildsEqual(baselineLocal, baselineForm.positionDeltas, editedLocal, editedForm.positionDeltas) }
+	return gridEquals(baseline.geometryGrid, edited.geometryGrid, cellEqual, sameInstanceIsEqual = baselineLocal === editedLocal)
+}
+
+/**
+ * Whether two float arrays hold the same bits.
+ *
+ * @param FloatArray baseline The baseline's array.
+ * @param FloatArray edited   The edited array.
+ * @return Boolean True when every component matches bit for bit.
+ */
+private fun rawBitsEqual(baseline: FloatArray, edited: FloatArray): Boolean =
+	baseline.size == edited.size && baseline.indices.all { componentIndex -> floatEq(baseline[componentIndex], edited[componentIndex]) }
+
+/**
+ * Whether two keyforms rebuild the same absolute floats, `local + Δ` per component, each against its own base.
+ * Without a base on both sides (a malformed drawable with deltas and no mesh) the deltas compare as they are.
+ *
+ * @param FloatArray? baselineLocal  The baseline's base.
+ * @param FloatArray  baselineDeltas The baseline's deltas.
+ * @param FloatArray? editedLocal    The edited base.
+ * @param FloatArray  editedDeltas   The edited deltas.
+ * @return Boolean True when the rebuilt keyforms match bit for bit.
+ */
+private fun rebuildsEqual(baselineLocal: FloatArray?, baselineDeltas: FloatArray, editedLocal: FloatArray?, editedDeltas: FloatArray): Boolean {
+	if (baselineLocal === editedLocal && baselineDeltas === editedDeltas) {
+		return true
+	}
+	if (baselineLocal == null || editedLocal == null || baselineDeltas.size != editedDeltas.size || baselineLocal.size < baselineDeltas.size || editedLocal.size < editedDeltas.size) {
+		return baselineDeltas.contentEquals(editedDeltas)
+	}
+	return baselineDeltas.indices.all { componentIndex ->
+		floatEq(baselineLocal[componentIndex] + baselineDeltas[componentIndex], editedLocal[componentIndex] + editedDeltas[componentIndex])
+	}
 }
 
 private fun <TForm> gridEquals(
 	baseline: KeyformGrid<TForm>?,
 	edited: KeyformGrid<TForm>?,
 	formEqual: (TForm, TForm) -> Boolean,
+	sameInstanceIsEqual: Boolean = true,
 ): Boolean {
-	if (baseline === edited) {
+	if (baseline === edited && (sameInstanceIsEqual || baseline == null)) {
 		return true
 	}
 	if (baseline == null || edited == null) {
@@ -772,7 +825,7 @@ private fun channelGridsEqual(baseline: ChannelGrids, edited: ChannelGrids): Boo
 	}
 	for ((channel, baselineGrid) in baseline.gridsByChannel) {
 		val editedGrid = edited.gridsByChannel.getValue(channel)
-		if (!gridEquals(baselineGrid, editedGrid) { baselineValue, editedValue -> baselineValue == editedValue }) {
+		if (!gridEquals(baselineGrid, editedGrid, { baselineValue, editedValue -> baselineValue == editedValue })) {
 			return false
 		}
 	}
@@ -783,8 +836,9 @@ private fun <TForm : Any> blendShapesEqual(
 	baseline: List<BlendShapeBinding<TForm>>,
 	edited: List<BlendShapeBinding<TForm>>,
 	formEqual: (TForm, TForm) -> Boolean,
+	sameInstanceIsEqual: Boolean = true,
 ): Boolean {
-	if (baseline === edited) {
+	if (baseline === edited && sameInstanceIsEqual) {
 		return true
 	}
 	if (baseline.size != edited.size) {
@@ -819,9 +873,6 @@ private fun <TForm : Any> blendShapesEqual(
 	return true
 }
 
-private fun meshDeltaFormEqual(baseline: MeshDeltaForm, edited: MeshDeltaForm): Boolean =
-	baseline === edited || baseline.positionDeltas.contentEquals(edited.positionDeltas)
-
 private fun warpLatticeFormEqual(baseline: WarpLatticeForm, edited: WarpLatticeForm): Boolean =
 	baseline === edited || baseline.controlPoints.contentEquals(edited.controlPoints)
 
@@ -834,10 +885,19 @@ private fun rotationPivotFormEqual(baseline: RotationPivotForm, edited: Rotation
 				floatEq(baseline.scale, edited.scale)
 		)
 
-private fun meshFormEqual(baseline: MeshForm, edited: MeshForm): Boolean =
-	baseline === edited ||
+/**
+ * Whether two mesh blend forms are the same: the same rebuilt absolutes ([rebuildsEqual]) and the same channels.
+ *
+ * @param FloatArray? baselineLocal The baseline drawable's base.
+ * @param MeshForm    baseline      The baseline's form.
+ * @param FloatArray? editedLocal   The edited drawable's base.
+ * @param MeshForm    edited        The edited form.
+ * @return Boolean True when the forms match.
+ */
+private fun meshFormEqual(baselineLocal: FloatArray?, baseline: MeshForm, editedLocal: FloatArray?, edited: MeshForm): Boolean =
+	(baseline === edited && baselineLocal === editedLocal) ||
 		(
-			baseline.positionDeltas.contentEquals(edited.positionDeltas) &&
+			rebuildsEqual(baselineLocal, baseline.positionDeltas, editedLocal, edited.positionDeltas) &&
 				floatEq(baseline.drawOrder, edited.drawOrder) &&
 				floatEq(baseline.opacity, edited.opacity) &&
 				baseline.multiplyColor == edited.multiplyColor &&

@@ -40,7 +40,7 @@ class Cmo3AtlasUndedupTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions = positions, uvs = uvs.copyOf(), indices = indices.copyOf()),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions = positions, uvs = uvs.copyOf(), indices = indices.copyOf()),
 			geometryGrid = null,
 		)
 
@@ -150,7 +150,7 @@ class Cmo3AtlasUndedupTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions = FloatArray(slotUvs.size) { index -> slotUvs[index] * wideSize + if (index % 2 == 0) shiftX else 0f }, uvs = slotUvs.copyOf(), indices = indices.copyOf()),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions = FloatArray(slotUvs.size) { index -> slotUvs[index] * wideSize + if (index % 2 == 0) shiftX else 0f }, uvs = slotUvs.copyOf(), indices = indices.copyOf()),
 			geometryGrid = null,
 		)
 

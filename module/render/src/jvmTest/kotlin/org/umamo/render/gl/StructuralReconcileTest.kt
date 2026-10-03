@@ -59,7 +59,7 @@ class StructuralReconcileTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, quadUvs, indices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, quadUvs, indices),
 			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped).
 			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
 			textureSourceId = textureSourceId,
