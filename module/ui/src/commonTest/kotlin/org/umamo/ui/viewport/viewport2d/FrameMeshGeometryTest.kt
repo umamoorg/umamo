@@ -1,5 +1,6 @@
 package org.umamo.ui.viewport.viewport2d
 
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.withMeshPositions
 import org.umamo.runtime.model.Drawable
@@ -23,7 +24,7 @@ class FrameMeshGeometryTest {
 	/** A frame posed from moved positions carries them to world, z negated like the live projection. */
 	@Test
 	fun theFramePosesItsOwnPositions() {
-		val frameModel = liveModel.withMeshPositions(RIG_QUAD, floatArrayOf(5f, 1f, 20f, 0f, 20f, 20f, 0f, 20f))
+		val frameModel = liveModel.withMeshPositions(RIG_QUAD, MeshRestPositions.shared(floatArrayOf(5f, 1f, 20f, 0f, 20f, 20f, 0f, 20f)))
 
 		val frame = frameMeshGeometries(frameModel, liveGeometry, HashMap())
 
@@ -35,7 +36,7 @@ class FrameMeshGeometryTest {
 	fun anEntryIsReusedByDrawableIdentity() {
 		val reuse = HashMap<DrawableId, Pair<Drawable, FrameMeshGeometry>>()
 		val first = frameMeshGeometries(liveModel, liveGeometry, reuse)
-		val folded = liveModel.withMeshPositions(RIG_QUAD, floatArrayOf(5f, 0f, 20f, 0f, 20f, 20f, 0f, 20f))
+		val folded = liveModel.withMeshPositions(RIG_QUAD, MeshRestPositions.shared(floatArrayOf(5f, 0f, 20f, 0f, 20f, 20f, 0f, 20f)))
 
 		val second = frameMeshGeometries(folded, liveGeometry, reuse)
 
@@ -46,7 +47,7 @@ class FrameMeshGeometryTest {
 	/** While the frame shares the live indices array, it shares the live edge set too. */
 	@Test
 	fun theLiveEdgesAreSharedWhileTheTopologyIs() {
-		val folded = liveModel.withMeshPositions(RIG_QUAD, floatArrayOf(5f, 0f, 20f, 0f, 20f, 20f, 0f, 20f))
+		val folded = liveModel.withMeshPositions(RIG_QUAD, MeshRestPositions.shared(floatArrayOf(5f, 0f, 20f, 0f, 20f, 20f, 0f, 20f)))
 
 		val frame = frameMeshGeometries(folded, liveGeometry, HashMap())
 
@@ -62,7 +63,7 @@ class FrameMeshGeometryTest {
 				drawables =
 					liveModel.drawables.map { drawable ->
 						if (drawable.id == RIG_QUAD) {
-							drawable.copy(mesh = DrawableMesh(drawable.mesh!!.positions, drawable.mesh!!.uvs, triangleIndices))
+							drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(drawable.mesh!!.positions, drawable.mesh!!.uvs, triangleIndices))
 						} else {
 							drawable
 						}

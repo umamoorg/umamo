@@ -68,7 +68,7 @@ class CompositeOptimizationTest {
 			alphaBlendMode = AlphaBlendMode.Over,
 			culling = false,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), frontIndices),
 			geometryGrid = restGrid(positions.size),
 			isVisible = true,
 		)

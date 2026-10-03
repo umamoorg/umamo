@@ -51,7 +51,7 @@ class Moc3ExportOptionsTest {
 			texturePage = 0,
 			isVisible = isVisible,
 			mesh =
-				DrawableMesh(
+				DrawableMesh.withLocalEqualToCanvas(
 					positions = floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f),
 					uvs = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
 					indices = intArrayOf(0, 1, 2),

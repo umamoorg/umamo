@@ -193,7 +193,7 @@ internal fun UvObjectGizmoOverlay(
 
 	// The per-area modal-gesture bookkeeping (the Edit overlay's shape); the capture is the placement
 	// gesture and the preview holds each moving island's display positions.
-	val gesture = remember(areaId) { ModalGestureState<PlacementGesture>() }
+	val gesture = remember(areaId) { ModalGestureState<PlacementGesture, FloatArray>() }
 	var placementDragStatus by placementDragStatusState
 
 	// A committed move's crops linger at their new spots until the resolver's pages catch up with the

@@ -39,19 +39,16 @@ internal class Moc3ExportEligibility(
  * predicates below, so passing the un-stripped rig would be invisible today - which is exactly why the
  * order is stated rather than left to be rediscovered.
  *
- * Structural drops (sketch subtree, no mesh, no parent-space inverse) are decided before the
- * option-driven hidden drops, so the mask exemption below can never resurrect a drawable the file
- * has no way to write.
+ * Structural drops (sketch subtree, no mesh) are decided before the option-driven hidden drops, so the
+ * mask exemption below can never resurrect a drawable the file has no way to write.
  *
  * @param PuppetModel puppet The rig to export, already stripped to the target version.
- * @param CanvasToParentSpace? canvasToParentSpace The unkeyed-drawable space inverse, or null.
  * @param Moc3ExportOptions options What the rigger chose to include; the default is the
  *   options-less behavior (hidden objects carried, guides dropped).
  * @return Moc3ExportEligibility The surviving objects and the drop reasons.
  */
 internal fun resolveExportEligibility(
 	puppet: PuppetModel,
-	canvasToParentSpace: CanvasToParentSpace?,
 	options: Moc3ExportOptions = Moc3ExportOptions.Default,
 ): Moc3ExportEligibility {
 	// A SKETCH part is a guide overlay - a scan or a rough the rigger traces over - and the official
@@ -92,13 +89,6 @@ internal fun resolveExportEligibility(
 			dropped[drawable.id] = ExportNoticeReason.SketchPartIsNotRuntimeContent
 		} else if (drawable.mesh == null) {
 			dropped[drawable.id] = ExportNoticeReason.DrawableHasNoMesh
-		} else if (drawable.geometryGrid == null && drawable.parentDeformerId != null && canvasToParentSpace == null) {
-			// The rest mesh is CANVAS-space while a parented drawable stores parent-local values, and
-			// with no grid there are no deltas to recover the parent-local form from.  Inverting the
-			// deformer chain needs :render's damped-Newton warp inverse, which :interop cannot reach -
-			// so without the injected seam the drawable is dropped rather than written at the wrong
-			// scale, which is what a canvas-space value under a warp would be.
-			dropped[drawable.id] = ExportNoticeReason.UnkeyedDrawableUnderDeformerHasNoParentGeometry
 		} else if (partByDrawable[drawable.id] in hiddenParts) {
 			dropped[drawable.id] = ExportNoticeReason.HiddenPartOmittedByExportOption
 		} else if (!options.exportHiddenDrawables && !drawable.isVisible) {

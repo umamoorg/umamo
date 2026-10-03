@@ -34,7 +34,7 @@ class UnkeyedDrawableRenderTest {
 	private val paramA = ParameterId("A")
 	private val drawableId = DrawableId("M")
 
-	private fun mesh(): DrawableMesh = DrawableMesh(floatArrayOf(10f, 5f, 20f, 7f), FloatArray(0), intArrayOf(0, 1, 0))
+	private fun mesh(): DrawableMesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(10f, 5f, 20f, 7f), FloatArray(0), intArrayOf(0, 1, 0))
 
 	private fun model(drawable: Drawable): PuppetModel =
 		PuppetModel(

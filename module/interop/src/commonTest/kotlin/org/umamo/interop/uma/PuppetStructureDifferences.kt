@@ -110,6 +110,7 @@ private class DifferenceCollector(val differences: MutableList<String> = ArrayLi
 			return
 		}
 		floats("$path.positions", expected.positions, actual.positions)
+		floats("$path.localPositions", expected.localPositions, actual.localPositions)
 		floats("$path.uvs", expected.uvs, actual.uvs)
 		ints("$path.indices", expected.indices, actual.indices)
 	}

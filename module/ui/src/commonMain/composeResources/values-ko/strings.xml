@@ -89,8 +89,6 @@
 	<string name="export_reason_sketch_part_not_runtime_content">가이드 이미지(스케치) 파트는 런타임 콘텐츠가 아니므로 제외되었습니다.</string>
 	<string name="export_reason_hidden_part_omitted_by_option">파트가 숨겨져 있고 내보내기 옵션에서 숨겨진 파트 제외가 설정되어 있어 해당 내용이 제외되었습니다.</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">드로어블이 숨겨져 있고 내보내기 옵션에서 숨겨진 아트메쉬 제외가 설정되어 있어 제외되었습니다.</string>
-	<string name="export_reason_unkeyed_drawable_under_deformer">디포머 아래의 키가 지정되지 않은 드로어블에는 기록할 상위 공간 지오메트리가 없어 제외되었습니다.</string>
-	<string name="export_reason_rest_mesh_conversion_size_mismatch">캔버스에서 상위 공간으로의 변환 결과 %2$d에 대해 %1$d개의 좌표만 반환되어, 나머지 메쉬에는 변환을 적용하지 않고 기록했습니다.</string>
 	<string name="export_reason_no_atlas_page_bound">이 드로어블에 연결된 아틀라스 페이지가 없어 0번 페이지를 가리키도록 기록했습니다.</string>
 	<string name="export_reason_clipping_mask_not_in_export">클리핑 마스크 %1$s가 이 내보내기에 포함되지 않아 메쉬에 해당 마스크를 적용하지 않은 상태로 기록했습니다.</string>
 	<string name="export_reason_offscreen_mask_not_in_export">클리핑 마스크가 기록할 수 없는 드로어블을 지정하고 있어 오프스크린에서 제외되었습니다.</string>

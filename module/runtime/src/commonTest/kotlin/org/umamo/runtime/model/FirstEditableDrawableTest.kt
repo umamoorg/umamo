@@ -11,7 +11,7 @@ import kotlin.test.assertNull
  * cascade, the empty-tree flat fallback, and the nothing-editable null.
  */
 class FirstEditableDrawableTest {
-	private fun mesh(): DrawableMesh = DrawableMesh(floatArrayOf(0f, 0f), floatArrayOf(0f, 0f), intArrayOf())
+	private fun mesh(): DrawableMesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f), floatArrayOf(0f, 0f), intArrayOf())
 
 	private fun drawable(id: String, hasMesh: Boolean = true, isVisible: Boolean = true): Drawable =
 		Drawable(

@@ -198,30 +198,35 @@ fun PuppetModel.withDeformerSelectable(id: DeformerId, selectable: Boolean): Pup
 }
 
 /**
- * Returns a copy of [this] with the drawable [id]'s base art-mesh positions replaced by [newPositions],
- * sharing every other drawable and the rest of the model. Copy-on-write at the mesh leaf: it wraps
- * [newPositions] in a NEW [DrawableMesh] and shares the unchanged uvs / indices arrays by reference, so a
- * prior snapshot's positions array is never mutated. A no-op (no such drawable, no mesh, the same array
- * instance, or a length mismatch - vertex count is fixed in this slice) returns the same instance so the
+ * Returns a copy of [this] with the drawable [id]'s rest shape replaced by [rest] - both the canvas editable
+ * mesh and the keyform-space base the deltas are measured from - sharing every other drawable and the rest
+ * of the model.  Copy-on-write at the mesh leaf: it wraps the new arrays in a NEW [DrawableMesh] and shares
+ * the unchanged uvs / indices arrays by reference, so a prior snapshot's arrays are never mutated.  No
+ * keyform delta is touched: a delta measured from the moved base moves with it, which is what keeps every
+ * keyed shape following a rest-shape edit.  A no-op (no such drawable, no mesh, both arrays the same
+ * instances, or a length mismatch - vertex count is fixed in this slice) returns the same instance so the
  * session records nothing.
  *
- * The caller must pass a freshly built array (e.g. from [MeshTransforms]); never the live mesh array.
+ * The caller must pass freshly built arrays (e.g. from [MeshTransforms]); never the live mesh arrays.
  *
- * @param DrawableId id The drawable whose mesh to retarget.
- * @param FloatArray newPositions The new interleaved (x, y) rest positions, same length as the current.
+ * @param DrawableId        id   The drawable whose mesh to retarget.
+ * @param MeshRestPositions rest The new canvas mesh and base, each the current length.
  * @return PuppetModel The model with that mesh updated, or [this] if nothing changed.
  */
-fun PuppetModel.withMeshPositions(id: DrawableId, newPositions: FloatArray): PuppetModel {
+fun PuppetModel.withMeshPositions(id: DrawableId, rest: MeshRestPositions): PuppetModel {
 	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
 	if (index < 0) {
 		return this
 	}
-	val mesh = drawables[index].mesh
-	if (mesh == null || newPositions === mesh.positions || newPositions.size != mesh.positions.size) {
+	val mesh = drawables[index].mesh ?: return this
+	if (rest.positions === mesh.positions && rest.localPositions === mesh.localPositions) {
+		return this
+	}
+	if (rest.positions.size != mesh.positions.size || rest.localPositions.size != mesh.localPositions.size) {
 		return this
 	}
 	val updated = drawables.toMutableList()
-	updated[index] = updated[index].copy(mesh = DrawableMesh(newPositions, mesh.uvs, mesh.indices))
+	updated[index] = updated[index].copy(mesh = DrawableMesh(positions = rest.positions, localPositions = rest.localPositions, uvs = mesh.uvs, indices = mesh.indices))
 	return copy(drawables = updated)
 }
 
@@ -250,7 +255,7 @@ fun PuppetModel.withMeshUvs(id: DrawableId, newUvs: FloatArray): PuppetModel {
 		return this
 	}
 	val updated = drawables.toMutableList()
-	updated[index] = updated[index].copy(mesh = DrawableMesh(mesh.positions, newUvs, mesh.indices))
+	updated[index] = updated[index].copy(mesh = mesh.withUvs(newUvs))
 	return copy(drawables = updated)
 }
 
@@ -414,21 +419,43 @@ fun PuppetModel.withDrawableInvertMask(id: DrawableId, invert: Boolean): PuppetM
 /**
  * Returns a copy of [this] with the drawable [id] bound to the deformer [parentDeformerId] (null unbinds),
  * sharing every other entity. A no-op id (no such drawable, or the binding already matches) returns the
- * same instance. A drawable is deformed by, but never a child of, a deformer - so this is a flat field
- * write with no tree surgery and no render-order rederive.
+ * same instance. A drawable is deformed by, but never a child of, a deformer - so this is no tree surgery
+ * and no render-order rederive.
  *
- * @param DrawableId id The drawable to rebind.
+ * The drawable's keyform-space base lives in its parent's space, so a rebinding that should leave the art
+ * where it is passes the base in the new parent's space as [localPositions] (the caller derives it, since
+ * that takes the evaluator).  Without one - or with one of the wrong length - the base is kept as it is, a
+ * flat write under which the art follows the new parent.
+ *
+ * @param DrawableId  id               The drawable to rebind.
  * @param DeformerId? parentDeformerId The deformer that deforms it, or null to unbind.
+ * @param FloatArray? localPositions   The base in the new parent's space, or null to keep the base.
  * @return PuppetModel The model with that binding updated, or [this] if nothing changed.
  */
-fun PuppetModel.withDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?): PuppetModel {
+fun PuppetModel.withDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?, localPositions: FloatArray? = null): PuppetModel {
 	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
 	if (index < 0 || drawables[index].parentDeformerId == parentDeformerId) {
 		return this
 	}
 	val updated = drawables.toMutableList()
-	updated[index] = updated[index].copy(parentDeformerId = parentDeformerId)
+	updated[index] = updated[index].rebound(parentDeformerId, localPositions)
 	return copy(drawables = updated)
+}
+
+/**
+ * This drawable bound to [parentDeformerId], its base replaced by [localPositions] when that is one of the
+ * mesh's length.  The canvas mesh is kept: the art does not move on the canvas.
+ *
+ * @param DeformerId? parentDeformerId The new parent, or null.
+ * @param FloatArray? localPositions   The base in the new parent's space, or null to keep the base.
+ * @return Drawable The drawable.
+ */
+internal fun Drawable.rebound(parentDeformerId: DeformerId?, localPositions: FloatArray?): Drawable {
+	val mesh = mesh
+	if (mesh == null || localPositions == null || localPositions.size != mesh.localPositions.size) {
+		return copy(parentDeformerId = parentDeformerId)
+	}
+	return copy(parentDeformerId = parentDeformerId, mesh = DrawableMesh(positions = mesh.positions, localPositions = localPositions, uvs = mesh.uvs, indices = mesh.indices))
 }
 
 /**
@@ -1199,7 +1226,7 @@ private fun List<Drawable>.remappedOver(remapByTile: Map<AtlasTileId, AtlasTileR
 		val remap = drawable.atlasTileId?.let { tileId -> remapByTile[tileId] } ?: return@map drawable
 		val mesh = drawable.mesh ?: return@map drawable
 		val artUvs = applyUvAffine(mesh.uvs, remap.storedToArt)
-		drawable.copy(mesh = DrawableMesh(mesh.positions, applyUvAffine(artUvs, remap.artToStored), mesh.indices))
+		drawable.copy(mesh = mesh.withUvs(applyUvAffine(artUvs, remap.artToStored)))
 	}
 }
 

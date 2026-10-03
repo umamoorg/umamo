@@ -118,7 +118,7 @@ class RenderPassStructureTest {
 			parentDeformerId = parentDeformerId,
 			blendMode = blendMode,
 			maskedBy = maskedBy,
-			mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), indices),
 			geometryGrid = restGrid(positions.size),
 		)
 

@@ -85,7 +85,7 @@ class AtlasRepackAdjustTest {
 					blendMode = BlendMode.Normal,
 					maskedBy = emptyList(),
 					mesh =
-						DrawableMesh(
+						DrawableMesh.withLocalEqualToCanvas(
 							floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f),
 							floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f),
 							intArrayOf(0, 1, 2, 1, 3, 2),

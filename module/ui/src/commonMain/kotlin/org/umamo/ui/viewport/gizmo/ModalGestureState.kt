@@ -19,17 +19,18 @@ import org.umamo.runtime.model.DrawableId
  * same pattern [MarqueeSelectController] uses.
  *
  * [TCapture] is the overlay's own capture type (each overlay holds extra per-mesh data the shared
- * [org.umamo.edit.ModalTransformCapture] does not).
+ * [org.umamo.edit.ModalTransformCapture] does not), and [TPreview] what its preview holds per drawable: a
+ * viewport gesture's rest shape, a UV gesture's coordinates.
  */
-internal class ModalGestureState<TCapture> {
+internal class ModalGestureState<TCapture, TPreview> {
 	/** The most recent pointer position in area-local pixels, tracked for the geometry-dependent effects. */
 	var lastPointer by mutableStateOf(Offset.Zero)
 
 	/** The frozen gesture capture, or null when no modal gesture is in flight. */
 	var capture by mutableStateOf<TCapture?>(null)
 
-	/** The live preview the drive loop pushes: new positions (or UVs) per drawable, or null before the first drive. */
-	var preview by mutableStateOf<Map<DrawableId, FloatArray>?>(null)
+	/** The live preview the drive loop pushes: the new rest shape (or UVs) per drawable, or null before the first drive. */
+	var preview by mutableStateOf<Map<DrawableId, TPreview>?>(null)
 
 	/** The pointer position the gesture started at (the transform's origin), or null when idle. */
 	var gestureStart by mutableStateOf<Offset?>(null)

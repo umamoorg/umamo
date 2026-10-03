@@ -33,7 +33,7 @@ class MergeAdjustTest {
 						parentDeformerId = null,
 						blendMode = BlendMode.Normal,
 						maskedBy = emptyList(),
-						mesh = DrawableMesh(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f, 10f, 10f), FloatArray(8), intArrayOf(0, 1, 2, 1, 3, 2)),
+						mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f, 10f, 10f), FloatArray(8), intArrayOf(0, 1, 2, 1, 3, 2)),
 						geometryGrid = null,
 					),
 				),

@@ -21,7 +21,7 @@ class PuppetModelQueriesTest {
 	 * @return DrawableMesh The mesh.
 	 */
 	private fun quadMesh(): DrawableMesh =
-		DrawableMesh(
+		DrawableMesh.withLocalEqualToCanvas(
 			positions = floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f, 10f, 10f),
 			uvs = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f),
 			indices = intArrayOf(0, 1, 2, 1, 3, 2),

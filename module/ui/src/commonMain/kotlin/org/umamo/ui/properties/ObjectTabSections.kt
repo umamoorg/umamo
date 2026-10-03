@@ -18,7 +18,6 @@ import org.umamo.edit.moveDeformer
 import org.umamo.edit.moveOrgChild
 import org.umamo.edit.setDeformerBaseAngle
 import org.umamo.edit.setDeformerPart
-import org.umamo.edit.setDrawableParentDeformer
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -40,6 +39,7 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.transform.drawableWorldTransform
+import org.umamo.ui.transform.setDrawableParentDeformerKeepingRest
 import org.umamo.ui.transform.setDrawableWorldCenter
 import org.umamo.ui.transform.setDrawableWorldSize
 
@@ -317,7 +317,7 @@ internal val RelationsSection =
 							context = context,
 							selectedDeformerId = drawable.parentDeformerId,
 							owner = "drawable.parentDeformer:${drawable.id.raw}",
-						) { deformerId -> session?.setDrawableParentDeformer(drawable.id, deformerId) }
+						) { deformerId -> session?.setDrawableParentDeformerKeepingRest(drawable.id, deformerId) }
 					},
 				)
 			} else if (deformer != null) {

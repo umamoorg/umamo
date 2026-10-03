@@ -36,7 +36,7 @@ class UmaGeometryMergeTest {
 	 *
 	 * @return UmaMesh The mesh.
 	 */
-	private fun triangle(): UmaMesh = UmaMesh(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), FloatArray(6), intArrayOf(0, 1, 2))
+	private fun triangle(): UmaMesh = UmaMesh(canvasPositions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), localPositions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), uvs = FloatArray(6), indices = intArrayOf(0, 1, 2))
 
 	/**
 	 * A puppet with one of every geometry object kind that carries keys of its own.
@@ -116,7 +116,7 @@ class UmaGeometryMergeTest {
 		val editedA =
 			drawableA.copy(
 				name = "A renamed",
-				mesh = UmaMesh(floatArrayOf(0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f), FloatArray(8), intArrayOf(0, 1, 2, 0, 2, 3)),
+				mesh = UmaMesh(canvasPositions = floatArrayOf(0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f), localPositions = floatArrayOf(0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f), uvs = FloatArray(8), indices = intArrayOf(0, 1, 2, 0, 2, 3)),
 				geometry = drawableA.geometry!!.copy(cells = drawableA.geometry.cells.drop(1).map { cell -> UmaMeshCell(cell.coordinate, FloatArray(8) { 3f }) }),
 				channels = drawableA.channels!!.filterKeys { channel -> channel != UmaFormChannel.DrawOrder },
 				blendShapes = drawableA.blendShapes!!.map { binding -> binding.copy(forms = listOf(null, UmaMeshForm(FloatArray(8) { 2f }))) },
@@ -128,7 +128,7 @@ class UmaGeometryMergeTest {
 
 		assertEquals(JsonPrimitive("A renamed"), drawable["name"], "the rename lands")
 		assertEquals(plantedValue("mesh"), (drawable["mesh"] as JsonObject)["futureMesh"], "a mesh keeps its key through a mesh edit")
-		assertContentEquals(floatArrayOf(0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f), saved.puppet!!.drawables!!.first { candidate -> candidate.id == "A" }.mesh!!.positions, "and the edit lands")
+		assertContentEquals(floatArrayOf(0f, 0f, 2f, 0f, 2f, 2f, 0f, 2f), saved.puppet!!.drawables!!.first { candidate -> candidate.id == "A" }.mesh!!.canvasPositions, "and the edit lands")
 
 		val geometry = drawable["geometry"] as JsonObject
 		assertEquals(plantedValue("axis"), ((geometry["axes"] as JsonArray).single() as JsonObject)["futureAxis"], "an axis keeps its key")

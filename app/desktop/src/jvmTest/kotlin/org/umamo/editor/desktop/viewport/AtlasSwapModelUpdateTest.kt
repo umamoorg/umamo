@@ -89,7 +89,7 @@ class AtlasSwapModelUpdateTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(quadPositions.copyOf(), uvs, quadIndices),
+				mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions.copyOf(), uvs, quadIndices),
 				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(paramA, floatArrayOf(0f))),
@@ -179,7 +179,7 @@ class AtlasSwapModelUpdateTest {
 					drawables =
 						listOf(
 							repackedModel.drawables.single().let { drawable ->
-								drawable.copy(mesh = DrawableMesh(drawable.mesh!!.positions, quadUvs(0.75f, 0.5f), drawable.mesh!!.indices))
+								drawable.copy(mesh = drawable.mesh!!.withUvs(quadUvs(0.75f, 0.5f)))
 							},
 						),
 				)

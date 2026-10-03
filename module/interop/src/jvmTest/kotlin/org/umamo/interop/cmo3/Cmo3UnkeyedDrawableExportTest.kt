@@ -40,7 +40,7 @@ class Cmo3UnkeyedDrawableExportTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(base.copyOf(), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3)),
+				mesh = DrawableMesh.withLocalEqualToCanvas(base.copyOf(), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3)),
 				geometryGrid = null,
 			)
 		return PuppetModel(

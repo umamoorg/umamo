@@ -67,7 +67,7 @@ class CompositeEditReconcileTest {
 			parentDeformerId = null,
 			blendMode = blendMode,
 			maskedBy = maskedBy,
-			mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), frontIndices),
 			geometryGrid = restGrid(positions),
 			isVisible = isVisible,
 		)

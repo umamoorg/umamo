@@ -346,7 +346,7 @@ class PropertyScalarEditsTest {
 		val moved = AtlasPlacement(0, 32f, 16f, scaleX = 1f, scaleY = 1f, rotationDegrees = 0f)
 		val meshed =
 			drawable.copy(
-				mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 1f), floatArrayOf(0f, 0f, 0.25f, 0.5f), intArrayOf(0, 0, 0)),
+				mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 1f), floatArrayOf(0f, 0f, 0.25f, 0.5f), intArrayOf(0, 0, 0)),
 				atlasTileId = tileId,
 			)
 		val packed =

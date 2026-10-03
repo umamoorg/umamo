@@ -164,12 +164,14 @@ fun EditorSession.setDrawableScreenColor(id: DrawableId, color: ColorRgb) {
 /**
  * Binds drawable [id] to the deformer that deforms it (null unbinds) as one undo step.
  *
- * @param DrawableId id The drawable to rebind.
+ * @param DrawableId  id               The drawable to rebind.
  * @param DeformerId? parentDeformerId The deformer that deforms it, or null to unbind.
+ * @param FloatArray? localPositions   The base in the new parent's space that keeps the art where it rests, or
+ *   null to keep the base (see [withDrawableParentDeformer]).
  */
-fun EditorSession.setDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?) {
+fun EditorSession.setDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?, localPositions: FloatArray? = null) {
 	mutate(DrawableChange.SetParentDeformer(id, parentDeformerId)) { model ->
-		model.withDrawableParentDeformer(id, parentDeformerId)
+		model.withDrawableParentDeformer(id, parentDeformerId, localPositions)
 	}
 }
 

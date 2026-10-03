@@ -138,8 +138,6 @@
 	<string name="export_reason_sketch_part_not_runtime_content">下絵（スケッチ）パーツはランタイムの内容ではないため、除外しました。</string>
 	<string name="export_reason_hidden_part_omitted_by_option">非表示のパーツを書き出さない設定のため、このパーツの内容を除外しました。</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">非表示のアートメッシュを書き出さない設定のため、このアートメッシュを除外しました。</string>
-	<string name="export_reason_unkeyed_drawable_under_deformer">デフォーマ配下でキーを持たない描画オブジェクトは親空間の形状を書き出せないため、除外しました。</string>
-	<string name="export_reason_rest_mesh_conversion_size_mismatch">キャンバスから親空間への変換が %2$d に対して %1$d 個の座標を返したため、元のメッシュを変換せずに書き出しました。</string>
 	<string name="export_reason_no_atlas_page_bound">この描画オブジェクトにはアトラスページが割り当てられていないため、ページ 0 を指す状態で書き出しました。</string>
 	<string name="export_reason_clipping_mask_not_in_export">クリッピングマスク %1$s はこの書き出しに含まれないため、メッシュはそのマスクなしで書き出しました。</string>
 	<string name="export_reason_offscreen_mask_not_in_export">クリッピングマスクが書き出せなかった描画オブジェクトを指しているため、オフスクリーンから除外しました。</string>

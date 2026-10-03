@@ -40,7 +40,7 @@ class GlueLayoutTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), IntArray(0)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), IntArray(0)),
 			geometryGrid =
 				KeyformGrid(
 					listOf(KeyformAxis(paramA, floatArrayOf(0f))),
