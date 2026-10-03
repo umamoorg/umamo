@@ -17,7 +17,7 @@ import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.DrawableWorldGeometry
-import org.umamo.ui.transform.captureDrawableWorld
+import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.viewport.gizmo.ModalGestureState
 import org.umamo.ui.viewport.gizmo.ModalTransformTarget
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
@@ -77,9 +77,9 @@ internal class ObjectModalTransform(
 		val model = session.model.value
 		val pose = session.pose.value
 		val eligibleIds = eligibleTransformDrawables(session.selection.value, model)
-		// A drawable with a hidden ancestor has no world mapping and captures as null - skip it rather than
-		// abort the whole gesture (the others still transform).
-		val geometries = eligibleIds.orEmpty().mapNotNull { drawableId -> captureDrawableWorld(model, pose, drawableId) }
+		// A drawable with a hidden ancestor has no world mapping and the batch drops it rather than abort
+		// the whole gesture (the others still transform).  One batch: the deformer chain bakes once per latch.
+		val geometries = captureDrawableWorlds(model, pose, eligibleIds.orEmpty())
 		val geometryById = geometries.associateBy { geometry -> geometry.drawableId }
 		// Object mode moves every vertex of each drawable, so the covered set is the whole mesh.  Triangle
 		// connectivity is unused here (WholeMesh pivots, no proportional editing), so an empty array serves.

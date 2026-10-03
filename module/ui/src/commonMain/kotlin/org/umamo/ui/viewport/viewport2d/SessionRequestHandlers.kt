@@ -17,7 +17,7 @@ import org.umamo.edit.snapToWorldGrid
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
-import org.umamo.ui.transform.captureDrawableWorld
+import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.activeElementMedian
 import org.umamo.ui.viewport.gizmo.worldToScreen
@@ -239,9 +239,9 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 	val model = session.model.value
 	val pose = session.pose.value
 	val eligibleIds = org.umamo.edit.eligibleTransformDrawables(session.selection.value, model) ?: return
-	// Per-drawable posed geometry, the same capture a transform freezes.
-	// A drawable with a hidden ancestor captures as null - skip it, the rest still snap.
-	val geometries = eligibleIds.mapNotNull { drawableId -> captureDrawableWorld(model, pose, drawableId) }
+	// Per-drawable posed geometry, the same batched capture a transform freezes.
+	// A drawable with a hidden ancestor is dropped by the batch - the rest still snap.
+	val geometries = captureDrawableWorlds(model, pose, eligibleIds)
 	if (geometries.isEmpty()) {
 		return
 	}

@@ -2,7 +2,7 @@ package org.umamo.render
 
 import org.umamo.render.eval.CpuDeformationEvaluator
 import org.umamo.render.eval.DeformedGeometry
-import org.umamo.render.eval.drawableSpaceMapping
+import org.umamo.render.eval.DrawableSpaceResolver
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -190,15 +190,19 @@ fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> Flo
 	val preGlueModel = puppet.copy(glues = emptyList())
 	val defaultPose = CpuDeformationEvaluator().evaluate(preGlueModel, emptyMap())
 	val fallback = defaultPoseFallbackFor(puppet, defaultPose)
+	// Likewise the mappings: one resolver per pose bakes the deformer chain once for the whole export,
+	// where a per-drawable mapping would bake it once per drawable written.
+	val neutralSpaces = DrawableSpaceResolver(puppet, emptyMap())
+	val clampedSpaces = fallback?.let { DrawableSpaceResolver(puppet, it.clampedDefaults) }
 
 	return { drawableId, positions ->
-		val pose =
-			if (fallback != null && drawableId in fallback.hiddenIds) {
-				fallback.clampedDefaults
+		val spaces =
+			if (fallback != null && clampedSpaces != null && drawableId in fallback.hiddenIds) {
+				clampedSpaces
 			} else {
-				emptyMap()
+				neutralSpaces
 			}
-		drawableSpaceMapping(puppet, pose, drawableId)?.let { mapping ->
+		spaces.mapping(drawableId)?.let { mapping ->
 			// worldToLocal expects the renderer's Y-negated world space, and every vertex is solved.
 			val world = FloatArray(positions.size) { index -> if (index % 2 == 0) positions[index] else -positions[index] }
 			// The seed matters only for the warp inverse, and it must be a LATTICE UV, not a canvas

@@ -17,12 +17,14 @@ import org.umamo.render.SupersampledSurface
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.gl.GlRenderDevice
+import org.umamo.render.puppet.ModelUpdateKind
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.differsOnlyInMeshPositions
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.graphics.RgbaAlphaType
@@ -433,15 +435,22 @@ internal class OffscreenRenderEngine(
 	 * instance bumps the puppet render version so every area re-renders once.
 	 *
 	 * @param PuppetModel model The current model.
-	 * @return Boolean True when the model actually changed (so the caller rebuilds model-derived state).
+	 * @return ModelUpdateKind? How the model relates to the last one published, or null when it is the
+	 *   same instance, so the caller rebuilds nothing.
 	 */
-	fun setModel(model: PuppetModel): Boolean {
-		if (model !== modelBacking) {
-			modelBacking = model
-			doPuppetRenderBump()
-			return true
+	fun setModel(model: PuppetModel): ModelUpdateKind? {
+		if (model === modelBacking) {
+			return null
 		}
-		return false
+		val kind =
+			if (model.differsOnlyInMeshPositions(modelBacking)) {
+				ModelUpdateKind.PositionsOnly
+			} else {
+				ModelUpdateKind.Structural
+			}
+		modelBacking = model
+		doPuppetRenderBump()
+		return kind
 	}
 
 	/**
@@ -580,17 +589,24 @@ internal class OffscreenRenderEngine(
 				// visibility toggle or a layer reorder leaves the params untouched, so without these checks the
 				// draw list would never refresh. setShownDrawables / updateModel run first so setPose uses them.
 				// The override map is compared by identity like the params map: both are swapped wholesale on
-				// the UI thread, so a reference change is exactly "something moved".
+				// the UI thread, so a reference change is exactly "something moved".  A push that moved mesh
+				// positions alone - every preview push of a Grab - keeps the pose: the renderer kept its pose
+				// inputs and refreshed what reads positions, so a rebake would only redo them.
 				val overrides = liveParams.channelOverrides
-				if (params !== lastParams || overrides !== lastOverrides || shown !== lastShown || orderModel !== lastModel) {
+				val modelChanged = orderModel !== lastModel
+				val poseInputsChanged = params !== lastParams || overrides !== lastOverrides || shown !== lastShown
+				if (poseInputsChanged || modelChanged) {
 					renderer.setShownDrawables(shown)
-					if (orderModel !== lastModel) {
+					var modelUpdate: ModelUpdateKind? = null
+					if (modelChanged) {
 						// Re-point the renderer at the edited model so the next setPose re-derives the draw order
 						// and (for a deformer reparent) the deform chain.
-						renderer.updateModel(orderModel)
+						modelUpdate = renderer.updateModel(orderModel)
 						lastModel = orderModel
 					}
-					renderer.setPose(params, overrides)
+					if (poseFollowsHandoff(poseInputsChanged, modelUpdate)) {
+						renderer.setPose(params, overrides)
+					}
 					lastParams = params
 					lastOverrides = overrides
 					lastShown = shown
@@ -956,3 +972,20 @@ internal fun resolveAtlasPairing(
 		}
 	return AtlasPairingDecision(orderModel, applyBinding)
 }
+
+/**
+ * Whether a render-loop tick that handed the renderer new inputs must also rebuild the pose.  The
+ * pose's own inputs (the parameters, the channel overrides, the shown set) always do; a model push
+ * does only when it was structural, because a positions-only push leaves the renderer's pose valid
+ * (its inputs hold no positions, and the renderer refreshes the glue store and the composite bounds
+ * itself).
+ *
+ * Pure, like [resolveAtlasPairing], so the rule is testable without a render thread.
+ *
+ * @param Boolean poseInputsChanged True when the parameters, the overrides, or the shown set changed.
+ * @param ModelUpdateKind? modelUpdate How the renderer classified this tick's model push, or null when
+ *   the model did not change.
+ * @return Boolean True when setPose must run this tick.
+ */
+internal fun poseFollowsHandoff(poseInputsChanged: Boolean, modelUpdate: ModelUpdateKind?): Boolean =
+	poseInputsChanged || modelUpdate == ModelUpdateKind.Structural

@@ -15,6 +15,7 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.capturedOver
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.ModelUpdateKind
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.DrawableThumbnailProvider
@@ -157,15 +158,16 @@ class OffscreenPuppetService(
 	override fun deliverSourceLayerRasters(batch: LayerRasterBatch) = engine.deliverSourceLayerRasters(batch)
 
 	/**
-	 * Pushes the latest model to the render engine and, when it actually changed, rebuilds the picker's
-	 * model-derived lookup maps so session-created drawables stay pickable / sampleable / labeled.
+	 * Pushes the latest model to the render engine and, when it actually changed, refreshes the picker:
+	 * its model-derived lookup maps when the push was structural (so session-created drawables stay
+	 * pickable / sampleable / labeled), and only its position-keyed caches when the push moved mesh
+	 * positions alone - every preview push of a Grab, and the commit that follows it.
 	 *
 	 * @param PuppetModel model The current model.
 	 */
 	override fun setModel(model: PuppetModel) {
-		if (engine.setModel(model)) {
-			picker.updateModel(model)
-		}
+		val kind = engine.setModel(model) ?: return
+		picker.updateModel(model, positionsOnly = kind == ModelUpdateKind.PositionsOnly)
 	}
 
 	override fun setSelectionHighlightColor(red: Float, green: Float, blue: Float) =

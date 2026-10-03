@@ -161,4 +161,6 @@ umamoTestCorpus {
 	sampleWithCorpusDefault("cmo3.repackSample", "cmo3/invalid/modelG.cmo3")
 	// The artwork-import gate's fixture: a real layered PSD, imported, packed at open, and exported.
 	sampleWithCorpusDefault("psd.sample", "psd/EricaTamamo.psd")
+	// The Edit-mode perf probe's rig (EditGrabPerfProbeTest): print-only, and it self-skips without it.
+	sample("moc3.perfSample")
 }
