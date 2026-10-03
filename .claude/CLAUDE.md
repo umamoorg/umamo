@@ -196,6 +196,9 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             → :runtime (api), kotlinx-coroutines (api)
 :render       commonMain  — deformation eval (CPU) + the puppet renderer + morph-blend shaders,
                   + GL impl   over a `RenderDevice` backend seam.  → :runtime (api), :format (api).
+                            The renderer also draws the Edit-mode mesh overlay (`MeshOverlay`: edges,
+                            dots, face fills) that :ui derives and publishes; Compose draws only the
+                            gesture chrome over it.
                             The whole renderer is backend-neutral commonMain now: the eval, the pure
                             render logic (`puppet/`: glue layout, pose resolve, model diff, delta
                             texels, bounds), the GL-family GLSL (`glsl/`, shared by GL 3.3 + GLES 3.0

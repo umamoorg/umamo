@@ -3,7 +3,6 @@ package org.umamo.editor.desktop.viewport
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.device.RenderDevice
-import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.viewport.RenderedFrame
@@ -23,7 +22,6 @@ internal class FrameReadbackQueue(private val device: RenderDevice) {
 		val ticket: ReadbackTicket,
 		val areaId: String,
 		val camera: ViewportCamera,
-		val model: PuppetModel,
 	)
 
 	// In-flight read-backs in submission order; polled front-first each loop tick.
@@ -34,16 +32,15 @@ internal class FrameReadbackQueue(private val device: RenderDevice) {
 		get() = pendingFrames.isNotEmpty()
 
 	/**
-	 * Records a read-back just begun, bound to the camera it was rendered at and the model its geometry
-	 * reflects, so the frame can be published against them.
+	 * Records a read-back just begun, bound to the camera it was rendered at, so the frame can be published
+	 * against it.
 	 *
 	 * @param ReadbackTicket ticket The device's ticket for the read-back.
 	 * @param String         areaId The area the frame is for.
 	 * @param ViewportCamera camera The plain (non-supersampled) camera the frame was rendered at.
-	 * @param PuppetModel    model  The model the frame's geometry reflects.
 	 */
-	fun issue(ticket: ReadbackTicket, areaId: String, camera: ViewportCamera, model: PuppetModel) {
-		pendingFrames.addLast(PendingFrame(ticket, areaId, camera, model))
+	fun issue(ticket: ReadbackTicket, areaId: String, camera: ViewportCamera) {
+		pendingFrames.addLast(PendingFrame(ticket, areaId, camera))
 	}
 
 	/**
@@ -65,7 +62,7 @@ internal class FrameReadbackQueue(private val device: RenderDevice) {
 			// RGB, so it is opaque - the shared seam's Opaque path ignores the alpha bytes (no per-frame
 			// alpha pass) and gives the eventual Android viewport the same conversion for free.
 			val bitmap = rgbaToImageBitmap(pixels.rgba, pixels.width, pixels.height, RgbaAlphaType.Opaque)
-			slot.imageState.value = RenderedFrame(bitmap, pending.camera, pending.model)
+			slot.imageState.value = RenderedFrame(bitmap, pending.camera)
 		}
 	}
 

@@ -407,4 +407,39 @@ class MeshSelectionOpsTest {
 		assertEquals(vertices(1, 2), afterOtherGone.elementsOf(drawableD))
 		assertEquals(ActiveMeshElement(drawableD, MeshElement.Vertex(2)), afterOtherGone.activeElement, "active kept when it survives")
 	}
+
+	/**
+	 * An additive box keeps a mesh's set INSTANCE when it adds nothing to it - an empty entry, or elements
+	 * the mesh already has - so a consumer keyed on the set's identity (the GPU overlay's flags) sees that
+	 * mesh as untouched.  A brush stroke passes every session mesh on every stamp.
+	 */
+	@Test
+	fun anAdditiveBoxKeepsAnUntouchedMeshSetByIdentity() {
+		val seeded = MeshSelectionOps.box(dual, mapOf(drawableD to vertices(0, 1), drawableE to vertices(2)), additive = false)
+		val keptSet = seeded.elementsOf(drawableE)
+
+		val emptyEntry = MeshSelectionOps.box(seeded, mapOf(drawableD to vertices(3), drawableE to emptySet()), additive = true)
+		assertSame(keptSet, emptyEntry.elementsOf(drawableE), "an empty entry leaves the mesh's set as it was")
+		assertEquals(vertices(0, 1, 3), emptyEntry.elementsOf(drawableD), "while the touched mesh grows")
+
+		val knownEntry = MeshSelectionOps.box(seeded, mapOf(drawableE to vertices(2)), additive = true)
+		assertSame(keptSet, knownEntry.elementsOf(drawableE), "elements the mesh already has leave its set as it was")
+	}
+
+	/**
+	 * A remove keeps a mesh's set INSTANCE when it removes nothing from it: an empty entry, or elements the
+	 * mesh does not have.
+	 */
+	@Test
+	fun aRemoveKeepsAnUntouchedMeshSetByIdentity() {
+		val seeded = MeshSelectionOps.box(dual, mapOf(drawableD to vertices(0, 1), drawableE to vertices(2)), additive = false)
+		val keptSet = seeded.elementsOf(drawableE)
+
+		val emptyEntry = MeshSelectionOps.remove(seeded, mapOf(drawableD to vertices(1), drawableE to emptySet()))
+		assertSame(keptSet, emptyEntry.elementsOf(drawableE), "an empty entry leaves the mesh's set as it was")
+		assertEquals(vertices(0), emptyEntry.elementsOf(drawableD), "while the touched mesh shrinks")
+
+		val absentEntry = MeshSelectionOps.remove(seeded, mapOf(drawableE to vertices(3)))
+		assertSame(keptSet, absentEntry.elementsOf(drawableE), "elements the mesh does not have leave its set as it was")
+	}
 }
