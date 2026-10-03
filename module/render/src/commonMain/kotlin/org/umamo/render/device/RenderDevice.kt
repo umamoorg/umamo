@@ -111,9 +111,10 @@ public interface RenderDevice {
 	fun createRenderTarget(spec: RenderTargetSpec): RenderTarget
 
 	/**
-	 * Allocates the shared pass-1 deformed-position store.
+	 * Allocates a deformed-position store of [vertexCapacity] vertices: the glue store pass 1 fills, or
+	 * the mesh overlay's.  Sized by its caller and freed by [destroyDeformedPositionStore].
 	 *
-	 * @param Int vertexCapacity The total glue vertex count across every glue mesh.
+	 * @param Int vertexCapacity The total vertex count the store must hold.
 	 * @return DeformedPositionStore The store.
 	 */
 	fun createDeformedPositionStore(vertexCapacity: Int): DeformedPositionStore
@@ -141,6 +142,42 @@ public interface RenderDevice {
 
 	/** Frees [target]. */
 	fun destroyRenderTarget(target: RenderTarget)
+
+	/**
+	 * Frees [store].  A caller that outgrows a store frees it and allocates a larger one.
+	 *
+	 * @param DeformedPositionStore store The store to free.
+	 */
+	fun destroyDeformedPositionStore(store: DeformedPositionStore)
+
+	/**
+	 * Uploads one mesh's overlay instance data: per-instance buffers of edge endpoints, triangle corners,
+	 * and the three flag arrays, in the mesh's own vertex indices.  On the GL family these are instanced
+	 * vertex attributes (divisor 1), core in GL 3.3 and GLES 3.0; a Metal backend binds them as
+	 * per-instance buffers and reads the corner from the vertex id and the primitive from the instance id.
+	 *
+	 * @param OverlayMeshSpec spec The data to upload.
+	 * @return OverlayMeshBuffers The resident buffers.
+	 */
+	fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers
+
+	/**
+	 * Replaces the three flag arrays of [buffers] in place, at the sizes they were created with: the
+	 * selection-change path, which uploads flags and nothing else.
+	 *
+	 * @param OverlayMeshBuffers buffers The resident buffers.
+	 * @param ByteArray vertexFlags One flag per vertex.
+	 * @param ByteArray edgeFlags One flag per edge.
+	 * @param ByteArray faceFlags One flag per triangle.
+	 */
+	fun updateOverlayMeshFlags(buffers: OverlayMeshBuffers, vertexFlags: ByteArray, edgeFlags: ByteArray, faceFlags: ByteArray)
+
+	/**
+	 * Frees [buffers].
+	 *
+	 * @param OverlayMeshBuffers buffers The resident buffers to free.
+	 */
+	fun destroyOverlayMeshBuffers(buffers: OverlayMeshBuffers)
 
 	// --- Frame recording ---
 
@@ -521,6 +558,48 @@ public interface RenderPassEncoder {
 	 * @param AxisLineUniforms uniforms The line's inputs.
 	 */
 	fun drawAxisLine(uniforms: AxisLineUniforms)
+
+	/**
+	 * Draws the mesh overlay's face fills of one mesh: every triangle in [buffers] as one instance,
+	 * positions fetched from [store], or the one active triangle when the uniforms say so.  The bound
+	 * pipeline must be [PipelinePurpose.OverlayFaceFill] - never a glue pipeline, whose encoder latches
+	 * the glue store on the position unit.
+	 *
+	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
+	 * @param DeformedPositionStore store The overlay's deformed positions.
+	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 */
+	fun drawOverlayFaceFill(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
+
+	/**
+	 * Draws the mesh overlay's edges of one mesh, as [drawOverlayFaceFill] draws its fills; the bound
+	 * pipeline must be [PipelinePurpose.OverlayEdge].
+	 *
+	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
+	 * @param DeformedPositionStore store The overlay's deformed positions.
+	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 */
+	fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
+
+	/**
+	 * Draws the mesh overlay's vertex dots of one mesh: one instance per vertex, the instance index being
+	 * the vertex index; the bound pipeline must be [PipelinePurpose.OverlayVertexDot].
+	 *
+	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
+	 * @param DeformedPositionStore store The overlay's deformed positions.
+	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 */
+	fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
+
+	/**
+	 * Draws the mesh overlay's face-centroid dots of one mesh: one instance per triangle; the bound
+	 * pipeline must be [PipelinePurpose.OverlayFaceDot].
+	 *
+	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
+	 * @param DeformedPositionStore store The overlay's deformed positions.
+	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 */
+	fun drawOverlayFaceDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
 
 	/** Ends the pass. */
 	fun end()

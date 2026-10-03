@@ -500,6 +500,9 @@ internal class RenderPlanEncoder(
  * @property Map<PartId, PartRenderState> compositeStates      The pose-blended composite channels per
  *   isolated part.
  * @property CompositeAcceleration        acceleration         The pose's composite acceleration state.
+ * @property MeshOverlay?                 overlay              The mesh overlay drawn over the art, or null
+ *   for none (a capture).
+ * @property MeshOverlayPalette           overlayPalette       The colors the overlay draws with.
  */
 internal class FrameInputs(
 	val affine: WorldToNdc,
@@ -513,6 +516,8 @@ internal class FrameInputs(
 	val boundsScissorEnabled: Boolean,
 	val compositeStates: Map<PartId, PartRenderState>,
 	val acceleration: CompositeAcceleration,
+	val overlay: MeshOverlay?,
+	val overlayPalette: MeshOverlayPalette,
 )
 
 /**

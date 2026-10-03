@@ -165,6 +165,17 @@ class PuppetRenderer(
 	// The pose's render plan, recorded as passes: the draws, the mask coverage, and the layer composites.
 	private val planEncoder = RenderPlanEncoder(device, pipelines, sideTargets, residency)
 
+	// The mesh overlay: the Edit-mode wireframe, dots, and fills drawn over the art.  The value and the
+	// palette are swapped whole by the UI thread; a frame reads each once.  Its device objects are brought
+	// to the value between frames, on the render thread, and its store is captured when stale.
+	@Volatile
+	private var meshOverlay: MeshOverlay? = null
+
+	@Volatile
+	private var meshOverlayPalette: MeshOverlayPalette = MeshOverlayPalette.Classic
+	private val overlayResidency = MeshOverlayResidency(device)
+	private val overlayEncoder = MeshOverlayEncoder(pipelines, sideTargets, overlayResidency)
+
 	// The live model used for the per-pose deform eval, the render order, and the reconcile diff. A var so
 	// an edit can re-push it via updateModel. @Volatile because the render thread writes it while the UI
 	// thread reads it (pickGeometry); a PuppetModel is immutable, so the reference swap is a safe publish.
@@ -264,11 +275,11 @@ class PuppetRenderer(
 	 *
 	 * The artwork and underlay caches are created and destroyed across the renderer's life rather than
 	 * uploaded once, so letting them die with the context is no longer enough: an engine that outlives
-	 * one renderer would leak everything the previous one had admitted.  The pipelines and the shared
-	 * position store are not freed here because the device seam exposes no way to - they remain
-	 * context-lifetime objects.
+	 * one renderer would leak everything the previous one had admitted.  The pipelines are not freed
+	 * here because the device seam exposes no way to - they remain context-lifetime objects.
 	 */
 	fun disposeGl() {
+		overlayResidency.dispose()
 		residency.dispose()
 		art.dispose()
 		backdrop.dispose()
@@ -292,6 +303,7 @@ class PuppetRenderer(
 		val inputs = preparePose(currentModel, parameters, channelOverrides)
 		lastPoseInputs = inputs // publish for on-demand picking (CPU deform re-run at click time)
 		residency.glueStoreStale = true // the pose moved: pass 1 must re-deform the shared store next render
+		overlayResidency.storeStale = true
 		// Resolve first, in backend-neutral terms; then apply onto the resident drawables and upload.
 		val resolved =
 			resolvePose(
@@ -350,6 +362,26 @@ class PuppetRenderer(
 		gridColors = colors
 		gridScale = scale
 		gridSubdivisions = subdivisions
+	}
+
+	/**
+	 * Sets the mesh overlay the viewport draws over the art, or none.  A whole-value swap the next frame
+	 * takes up: it brings its device objects to the value (uploading only what changed by identity) and
+	 * captures the overlay meshes' positions.  Safe from any thread; a capture never draws it.
+	 *
+	 * @param MeshOverlay? overlay The overlay, or null for none.
+	 */
+	fun setMeshOverlay(overlay: MeshOverlay?) {
+		meshOverlay = overlay
+	}
+
+	/**
+	 * Sets the colors the mesh overlay draws with, from the editor settings; the classic palette until then.
+	 *
+	 * @param MeshOverlayPalette palette The palette.
+	 */
+	fun setMeshOverlayPalette(palette: MeshOverlayPalette) {
+		meshOverlayPalette = palette
 	}
 
 	/**
@@ -422,6 +454,10 @@ class PuppetRenderer(
 	fun updateModel(newModel: PuppetModel): ModelUpdateKind {
 		val positionsOnly = lastPoseInputs != null && newModel.differsOnlyInMeshPositions(currentModel)
 		residency.reconcile(currentModel, newModel, art::atlasTextureAtUpload)
+		// The residents may have been rebuilt and their positions have moved, so the overlay re-pairs (it
+		// uploads nothing when nothing of its own changed) and re-captures on the next frame.
+		overlayResidency.residencyChanged = true
+		overlayResidency.storeStale = true
 		currentModel = newModel
 		currentRenderRoot = newModel.renderRoot
 		baseOrder = newModel.drawables.map { it.id }
@@ -532,7 +568,10 @@ class PuppetRenderer(
 	 *   fill (an image capture).
 	 */
 	fun render(target: RenderTarget, viewportWidth: Int, viewportHeight: Int, backdrop: FrameBackdrop = FrameBackdrop.Grid) {
-		renderFrame(target, viewportWidth, viewportHeight, backdrop, effectiveCamera(viewportWidth, viewportHeight), gridPixelScale, selectedIds, activeId)
+		// Read once, so the frame applies and draws the same value whatever the UI thread swaps in meanwhile.
+		val overlay = meshOverlay
+		overlayResidency.apply(overlay, residency.residents, currentModel)
+		renderFrame(target, viewportWidth, viewportHeight, backdrop, effectiveCamera(viewportWidth, viewportHeight), gridPixelScale, selectedIds, activeId, overlay)
 	}
 
 	/**
@@ -547,6 +586,8 @@ class PuppetRenderer(
 	 * @param Float           pixelScale     Framebuffer pixels per on-screen pixel.
 	 * @param Set<DrawableId> selected       The drawables tinted as selected.
 	 * @param DrawableId?     active         The drawable tinted as active, or null.
+	 * @param MeshOverlay?    overlay        The mesh overlay drawn over the art, or null for none; its
+	 *   device objects must already reflect it (the viewport applies before each frame, a capture passes null).
 	 */
 	private fun renderFrame(
 		target: RenderTarget,
@@ -557,11 +598,15 @@ class PuppetRenderer(
 		pixelScale: Float,
 		selected: Set<DrawableId>,
 		active: DrawableId?,
+		overlay: MeshOverlay?,
 	) {
 		sideTargets.ensure(viewportWidth, viewportHeight)
 		val frame = device.beginFrame()
 
 		planEncoder.encodeGlueCapture(frame)
+		if (overlay != null) {
+			overlayEncoder.encodeCapture(frame)
+		}
 
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
 		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
@@ -603,8 +648,13 @@ class PuppetRenderer(
 				boundsScissorEnabled = compositeBoundsScissorEnabled,
 				compositeStates = currentCompositeStates,
 				acceleration = compositeAcceleration,
+				overlay = overlay,
+				overlayPalette = meshOverlayPalette,
 			)
 		pass = planEncoder.encodePlan(frame, inputs, currentPlan, target, pass)
+		if (overlay != null) {
+			overlayEncoder.encodeDraws(pass, inputs)
+		}
 		pass.end()
 		frame.endFrame()
 	}
@@ -662,6 +712,7 @@ class PuppetRenderer(
 					pixelScale = SNAPSHOT_SUPERSAMPLE.toFloat(),
 					selected = emptySet(),
 					active = null,
+					overlay = null,
 				)
 			}
 		} finally {

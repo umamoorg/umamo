@@ -91,7 +91,26 @@ internal class RecordedCapturePipeline : DeformCapturePipeline
  */
 internal class RecordedStore(
 	val vertexCapacity: Int,
-) : DeformedPositionStore
+) : DeformedPositionStore {
+	var destroyed: Boolean = false
+}
+
+/**
+ * One mesh's overlay instance buffers the recorder handed out.  The flag arrays are held by reference and
+ * replaced by an in-place update, the way [RecordedMesh.restPositions] is.
+ *
+ * @property Int serial The creation ordinal, for a failure message.
+ * @property OverlayMeshSpec spec The spec it was created from.
+ */
+internal class RecordedOverlayBuffers(
+	val serial: Int,
+	val spec: OverlayMeshSpec,
+) : OverlayMeshBuffers {
+	var vertexFlags: ByteArray = spec.vertexFlags
+	var edgeFlags: ByteArray = spec.edgeFlags
+	var faceFlags: ByteArray = spec.faceFlags
+	var destroyed: Boolean = false
+}
 
 /**
  * A read-back claim ticket.
@@ -301,8 +320,72 @@ internal class RecordedPageDraw(
 	val pageHeight: Float,
 ) : RecordedDraw
 
+/**
+ * One mesh-overlay draw with the values its uniform struct held at call time, copied out as a backend
+ * marshals them.
+ *
+ * @property RenderPipelineSpec pipeline The pipeline bound.
+ * @property PipelinePurpose purpose Which overlay domain drew.
+ * @property RecordedOverlayBuffers buffers The mesh's overlay buffers.
+ * @property RecordedStore store The store the positions came from.
+ * @property Int baseOffset The mesh's first vertex in the store.
+ * @property Float viewportWidth The pass viewport width the sizes expand in.
+ * @property Float viewportHeight The pass viewport height.
+ * @property Float sizePx The half-width or radius in framebuffer pixels.
+ * @property Boolean fillIdle Whether idle faces fill.
+ * @property Boolean activeDraw Whether this drew the one active primitive.
+ * @property List<Int> activeIndices The active primitive's local indices.
+ * @property List<Float> idleColor The idle color, straight RGBA.
+ * @property List<Float> selectedColor The selected color.
+ * @property List<Float> activeColor The active color.
+ */
+internal class RecordedOverlayDraw(
+	override val pipeline: RenderPipelineSpec,
+	val purpose: PipelinePurpose,
+	val buffers: RecordedOverlayBuffers,
+	val store: RecordedStore,
+	val baseOffset: Int,
+	val viewportWidth: Float,
+	val viewportHeight: Float,
+	val sizePx: Float,
+	val fillIdle: Boolean,
+	val activeDraw: Boolean,
+	val activeIndices: List<Int>,
+	val idleColor: List<Float>,
+	val selectedColor: List<Float>,
+	val activeColor: List<Float>,
+) : RecordedDraw
+
 /** One resource operation, in the order the renderer issued it. */
 internal sealed interface ResourceEvent
+
+/** A deformed-position store was allocated. */
+internal class StoreCreated(
+	val store: RecordedStore,
+) : ResourceEvent
+
+/** A deformed-position store was freed. */
+internal class StoreDestroyed(
+	val store: RecordedStore,
+) : ResourceEvent
+
+/** A mesh's overlay instance buffers were uploaded. */
+internal class OverlayBuffersCreated(
+	val buffers: RecordedOverlayBuffers,
+) : ResourceEvent
+
+/** A mesh's overlay flags were replaced in place. */
+internal class OverlayFlagsUpdated(
+	val buffers: RecordedOverlayBuffers,
+	val vertexFlags: ByteArray,
+	val edgeFlags: ByteArray,
+	val faceFlags: ByteArray,
+) : ResourceEvent
+
+/** A mesh's overlay instance buffers were freed. */
+internal class OverlayBuffersDestroyed(
+	val buffers: RecordedOverlayBuffers,
+) : ResourceEvent
 
 /** A texture was created. */
 internal class TextureCreated(
@@ -442,6 +525,13 @@ internal class RecordingRenderDevice : RenderDevice {
 	fun meshDrawsOf(positions: FloatArray): List<RecordedMeshDraw> = meshDraws().filter { draw -> draw.mesh.restPositions === positions }
 
 	/**
+	 * Every mesh-overlay draw in every recorded pass, in issue order.
+	 *
+	 * @return List<RecordedOverlayDraw> The draws.
+	 */
+	fun overlayDraws(): List<RecordedOverlayDraw> = passes().flatMap { pass -> pass.draws.filterIsInstance<RecordedOverlayDraw>() }
+
+	/**
 	 * The pass a draw was recorded into.
 	 *
 	 * @param RecordedDraw draw The draw.
@@ -516,7 +606,11 @@ internal class RecordingRenderDevice : RenderDevice {
 		return target
 	}
 
-	override fun createDeformedPositionStore(vertexCapacity: Int): DeformedPositionStore = RecordedStore(vertexCapacity)
+	override fun createDeformedPositionStore(vertexCapacity: Int): DeformedPositionStore {
+		val store = RecordedStore(vertexCapacity)
+		recordedResourceEvents.add(StoreCreated(store))
+		return store
+	}
 
 	override fun createRenderPipeline(spec: RenderPipelineSpec): RenderPipeline = pipelinesBySpec.getOrPut(spec) { RecordedPipeline(spec) }
 
@@ -540,6 +634,39 @@ internal class RecordingRenderDevice : RenderDevice {
 		recorded.destroyed = true
 		recorded.sampledTexture?.destroyed = true
 		recordedResourceEvents.add(TargetDestroyed(recorded))
+	}
+
+	override fun destroyDeformedPositionStore(store: DeformedPositionStore) {
+		val recorded = liveStore(store, "destroyDeformedPositionStore")
+		recorded.destroyed = true
+		recordedResourceEvents.add(StoreDestroyed(recorded))
+	}
+
+	override fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers {
+		check(spec.edgeEndpoints.size % 2 == 0) { "overlay edge endpoints come in pairs" }
+		check(spec.faceCorners.size % 3 == 0) { "overlay face corners come in threes" }
+		check(spec.edgeFlags.size == spec.edgeEndpoints.size / 2) { "one overlay edge flag per edge" }
+		check(spec.faceFlags.size == spec.faceCorners.size / 3) { "one overlay face flag per triangle" }
+		val buffers = RecordedOverlayBuffers(nextSerial++, spec)
+		recordedResourceEvents.add(OverlayBuffersCreated(buffers))
+		return buffers
+	}
+
+	override fun updateOverlayMeshFlags(buffers: OverlayMeshBuffers, vertexFlags: ByteArray, edgeFlags: ByteArray, faceFlags: ByteArray) {
+		val recorded = liveOverlayBuffers(buffers, "updateOverlayMeshFlags")
+		check(vertexFlags.size == recorded.vertexFlags.size) { "updateOverlayMeshFlags changes the vertex flag count of overlay buffers #${recorded.serial}" }
+		check(edgeFlags.size == recorded.edgeFlags.size) { "updateOverlayMeshFlags changes the edge flag count of overlay buffers #${recorded.serial}" }
+		check(faceFlags.size == recorded.faceFlags.size) { "updateOverlayMeshFlags changes the face flag count of overlay buffers #${recorded.serial}" }
+		recorded.vertexFlags = vertexFlags
+		recorded.edgeFlags = edgeFlags
+		recorded.faceFlags = faceFlags
+		recordedResourceEvents.add(OverlayFlagsUpdated(recorded, vertexFlags, edgeFlags, faceFlags))
+	}
+
+	override fun destroyOverlayMeshBuffers(buffers: OverlayMeshBuffers) {
+		val recorded = liveOverlayBuffers(buffers, "destroyOverlayMeshBuffers")
+		recorded.destroyed = true
+		recordedResourceEvents.add(OverlayBuffersDestroyed(recorded))
 	}
 
 	override fun beginFrame(): FrameEncoder {
@@ -692,6 +819,32 @@ internal class RecordingRenderDevice : RenderDevice {
 		return recorded
 	}
 
+	/**
+	 * The recorded store behind a handle, failing when it was freed.
+	 *
+	 * @param DeformedPositionStore store The handle.
+	 * @param String operation What the renderer was doing, for the failure message.
+	 * @return RecordedStore The live store.
+	 */
+	private fun liveStore(store: DeformedPositionStore, operation: String): RecordedStore {
+		val recorded = store as RecordedStore
+		check(!recorded.destroyed) { "$operation on a deformed-position store that was freed" }
+		return recorded
+	}
+
+	/**
+	 * The recorded overlay buffers behind a handle, failing when they were freed.
+	 *
+	 * @param OverlayMeshBuffers buffers The handle.
+	 * @param String operation What the renderer was doing, for the failure message.
+	 * @return RecordedOverlayBuffers The live buffers.
+	 */
+	private fun liveOverlayBuffers(buffers: OverlayMeshBuffers, operation: String): RecordedOverlayBuffers {
+		val recorded = buffers as RecordedOverlayBuffers
+		check(!recorded.destroyed) { "$operation on overlay buffers #${recorded.serial} that were freed" }
+		return recorded
+	}
+
 	/** Records one frame's passes, holding them to the no-nesting rule. */
 	private inner class RecordingFrame : FrameEncoder {
 		override fun beginRenderPass(spec: RenderPassSpec): RenderPassEncoder {
@@ -707,7 +860,7 @@ internal class RecordingRenderDevice : RenderDevice {
 		override fun beginDeformCapturePass(pipeline: DeformCapturePipeline, store: DeformedPositionStore): DeformCapturePassEncoder {
 			check(frameOpen) { "beginDeformCapturePass after the frame ended" }
 			check(openPass == null && openCapture == null) { "beginDeformCapturePass while another pass is open" }
-			val capture = RecordedCapturePass(store as RecordedStore)
+			val capture = RecordedCapturePass(liveStore(store, "beginDeformCapturePass"))
 			recordedSteps.add(capture)
 			openCapture = capture
 			return RecordingCapture(capture)
@@ -716,7 +869,7 @@ internal class RecordingRenderDevice : RenderDevice {
 		override fun barrier(store: DeformedPositionStore) {
 			check(frameOpen) { "barrier after the frame ended" }
 			check(openPass == null && openCapture == null) { "barrier while a pass is open" }
-			recordedSteps.add(RecordedBarrier(store as RecordedStore))
+			recordedSteps.add(RecordedBarrier(liveStore(store, "barrier")))
 		}
 
 		override fun endFrame() {
@@ -785,6 +938,7 @@ internal class RecordingRenderDevice : RenderDevice {
 			textures: DrawTextures,
 		) {
 			val pipeline = pipelineFor(PipelinePurpose.PuppetGlueDraw, "drawGlueMesh")
+			liveStore(store, "drawGlueMesh")
 			pass.draws.add(
 				RecordedMeshDraw(
 					pipeline = pipeline,
@@ -845,6 +999,59 @@ internal class RecordingRenderDevice : RenderDevice {
 
 		override fun drawAxisLine(uniforms: AxisLineUniforms) {
 			pass.draws.add(RecordedAxisDraw(pipelineFor(PipelinePurpose.WorldAxisLine, "drawAxisLine"), uniforms))
+		}
+
+		override fun drawOverlayFaceFill(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+			recordOverlayDraw(PipelinePurpose.OverlayFaceFill, "drawOverlayFaceFill", buffers, store, uniforms)
+		}
+
+		override fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+			recordOverlayDraw(PipelinePurpose.OverlayEdge, "drawOverlayEdges", buffers, store, uniforms)
+		}
+
+		override fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+			recordOverlayDraw(PipelinePurpose.OverlayVertexDot, "drawOverlayVertexDots", buffers, store, uniforms)
+		}
+
+		override fun drawOverlayFaceDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+			recordOverlayDraw(PipelinePurpose.OverlayFaceDot, "drawOverlayFaceDots", buffers, store, uniforms)
+		}
+
+		/**
+		 * Records one overlay draw of any domain, copying the uniform values out as a backend marshals them.
+		 *
+		 * @param PipelinePurpose purpose The domain's pipeline purpose, which the bound pipeline must match.
+		 * @param String operation The draw being issued, for the failure message.
+		 * @param OverlayMeshBuffers buffers The mesh's overlay buffers.
+		 * @param DeformedPositionStore store The overlay's store.
+		 * @param OverlayDrawUniforms uniforms The draw's inputs.
+		 */
+		private fun recordOverlayDraw(
+			purpose: PipelinePurpose,
+			operation: String,
+			buffers: OverlayMeshBuffers,
+			store: DeformedPositionStore,
+			uniforms: OverlayDrawUniforms,
+		) {
+			val pipeline = pipelineFor(purpose, operation)
+			pass.draws.add(
+				RecordedOverlayDraw(
+					pipeline = pipeline,
+					purpose = purpose,
+					buffers = liveOverlayBuffers(buffers, operation),
+					store = liveStore(store, operation),
+					baseOffset = uniforms.baseOffset,
+					viewportWidth = uniforms.viewportWidth,
+					viewportHeight = uniforms.viewportHeight,
+					sizePx = uniforms.sizePx,
+					fillIdle = uniforms.fillIdle,
+					activeDraw = uniforms.activeDraw,
+					activeIndices = listOf(uniforms.activeIndexA, uniforms.activeIndexB, uniforms.activeIndexC),
+					idleColor = uniforms.idleColor.toList(),
+					selectedColor = uniforms.selectedColor.toList(),
+					activeColor = uniforms.activeColor.toList(),
+				),
+			)
 		}
 
 		override fun end() {

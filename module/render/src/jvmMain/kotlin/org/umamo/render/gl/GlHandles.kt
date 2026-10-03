@@ -5,6 +5,7 @@ import org.umamo.render.device.DeformCapturePipeline
 import org.umamo.render.device.DeformedPositionStore
 import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
+import org.umamo.render.device.OverlayMeshBuffers
 import org.umamo.render.device.PipelineBlend
 import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.RenderTarget
@@ -57,7 +58,8 @@ internal class GlRenderTarget(
 }
 
 /**
- * The shared pass-1 position store: a buffer plus the texture-buffer view pass 2 samples it through.
+ * A deformed-position store (the glue store pass 1 fills, or the mesh overlay's): a buffer plus the
+ * texture-buffer view the draws sample it through.
  *
  * A texture buffer object today, which is desktop-GL only (GLES has them at 3.2, and the Android baseline
  * is 3.0).  The GLES port repacks this as a 2D texture; nothing above the device sees the difference.
@@ -148,7 +150,35 @@ internal class GlUniformLocations(program: Int) {
 	val linePositionNdc = GL20.glGetUniformLocation(program, "linePositionNdc")
 	val lineVertical = GL20.glGetUniformLocation(program, "lineVertical")
 	val lineColor = GL20.glGetUniformLocation(program, "lineColor")
+
+	// Mesh overlay (viewportSize, worldToNdc, positionBuffer, and baseOffset are shared with the draws above)
+	val sizePx = GL20.glGetUniformLocation(program, "sizePx")
+	val fillIdle = GL20.glGetUniformLocation(program, "fillIdle")
+	val activeDraw = GL20.glGetUniformLocation(program, "activeDraw")
+	val activeIndices = GL20.glGetUniformLocation(program, "activeIndices")
+	val idleColor = GL20.glGetUniformLocation(program, "idleColor")
+	val selectedColor = GL20.glGetUniformLocation(program, "selectedColor")
+	val activeColor = GL20.glGetUniformLocation(program, "activeColor")
 }
+
+/**
+ * One mesh's resident overlay instance data: a VAO per primitive domain over its per-instance index
+ * buffer and its per-instance flag buffer.  A domain the mesh lacks (no edges, no triangles) has 0 for
+ * its names and draws nothing.
+ */
+internal class GlOverlayMeshBuffers(
+	val edgeVao: Int,
+	val edgeVbo: Int,
+	val edgeFlagVbo: Int,
+	val edgeCount: Int,
+	val faceVao: Int,
+	val faceVbo: Int,
+	val faceFlagVbo: Int,
+	val faceCount: Int,
+	val vertexVao: Int,
+	val vertexFlagVbo: Int,
+	val vertexCount: Int,
+) : OverlayMeshBuffers
 
 /** A linked draw program with its blend, cull state, and resolved uniform locations. */
 internal class GlRenderPipeline(

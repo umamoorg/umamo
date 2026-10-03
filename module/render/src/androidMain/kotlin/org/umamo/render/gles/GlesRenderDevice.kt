@@ -7,6 +7,8 @@ import org.umamo.render.device.FrameEncoder
 import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.MeshSpec
+import org.umamo.render.device.OverlayMeshBuffers
+import org.umamo.render.device.OverlayMeshSpec
 import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.RenderPipeline
@@ -44,6 +46,11 @@ import org.umamo.render.device.TextureWrap
  * `GpuGlueValidationTest` are the correctness bar, run on-device or on an emulator.
  *
  * Android GLES 3.0 デバイスのスタブ。デスクトップ GL デバイスの移植入口。未実装。
+ * The mesh overlay (the Edit-mode wireframe, dots, and fills) is four more pipelines, instanced over a
+ * deformed-position store of its own: on this backend the per-instance index and flag buffers go through
+ * glVertexAttribDivisor and glDrawArraysInstanced (core in ES 3.0), and its samplerBuffer read needs the
+ * 320 es header like the glue draw.
+ *
  */
 class GlesRenderDevice : RenderDevice {
 	override fun createTexture(
@@ -86,6 +93,17 @@ class GlesRenderDevice : RenderDevice {
 	override fun destroyMesh(mesh: GpuMesh): Unit = TODO("GLES port")
 
 	override fun destroyRenderTarget(target: RenderTarget): Unit = TODO("GLES port")
+
+	override fun destroyDeformedPositionStore(store: DeformedPositionStore): Unit =
+		TODO("GLES port: glDeleteTextures + glDeleteBuffers of the store's texture buffer and buffer (texture buffers are core in ES 3.2)")
+
+	override fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers =
+		TODO("GLES port: transliterate GlRenderDevice.createOverlayMeshBuffers (glVertexAttribDivisor and glDrawArraysInstanced are core in ES 3.0)")
+
+	override fun updateOverlayMeshFlags(buffers: OverlayMeshBuffers, vertexFlags: ByteArray, edgeFlags: ByteArray, faceFlags: ByteArray): Unit =
+		TODO("GLES port: glBufferSubData on the three flag buffers")
+
+	override fun destroyOverlayMeshBuffers(buffers: OverlayMeshBuffers): Unit = TODO("GLES port: delete the overlay VAOs and buffers")
 
 	override fun beginFrame(): FrameEncoder = TODO("GLES port: transliterate GlFrameEncoder")
 

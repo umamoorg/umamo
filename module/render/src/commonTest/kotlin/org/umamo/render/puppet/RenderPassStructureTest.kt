@@ -5,18 +5,25 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.FloatTextureUpdated
 import org.umamo.render.device.LoadAction
+import org.umamo.render.device.OverlayBuffersCreated
+import org.umamo.render.device.OverlayBuffersDestroyed
+import org.umamo.render.device.OverlayFlagsUpdated
 import org.umamo.render.device.PipelineBlend
+import org.umamo.render.device.PipelinePurpose
 import org.umamo.render.device.RecordedBarrier
 import org.umamo.render.device.RecordedCapturePass
 import org.umamo.render.device.RecordedCompositeDraw
 import org.umamo.render.device.RecordedGridDraw
 import org.umamo.render.device.RecordedMeshDraw
+import org.umamo.render.device.RecordedOverlayDraw
 import org.umamo.render.device.RecordedPass
 import org.umamo.render.device.RecordedResolve
 import org.umamo.render.device.RecordedTarget
 import org.umamo.render.device.RecordingRenderDevice
 import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.ScissorRect
+import org.umamo.render.device.StoreCreated
+import org.umamo.render.device.StoreDestroyed
 import org.umamo.render.device.TargetCreated
 import org.umamo.render.device.TextureFormat
 import org.umamo.runtime.model.AlphaBlendMode
@@ -44,6 +51,7 @@ import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -66,6 +74,7 @@ class RenderPassStructureTest {
 	private val viewportSize = 64
 	private val paramA = ParameterId("A")
 	private val quadIndices = intArrayOf(0, 1, 2, 1, 3, 2)
+	private val quadEdges = intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3)
 
 	/**
 	 * A quad covering the whole viewport at the fixed 1:1 camera.
@@ -228,6 +237,7 @@ class RenderPassStructureTest {
 								is RecordedMeshDraw -> "mesh(${draw.mesh.restPositions.size / 2} vertices, ${draw.pipeline.blend}, opacity ${draw.opacity})"
 								is RecordedCompositeDraw -> "composite"
 								is RecordedGridDraw -> "grid"
+								is RecordedOverlayDraw -> "overlay ${draw.purpose}${if (draw.activeDraw) " active" else ""}"
 								else -> "other"
 							}
 						}
@@ -608,6 +618,7 @@ class RenderPassStructureTest {
 		val renderer = posedRenderer(source, device)
 		renderer.setSelection(setOf(DrawableId("art")))
 		renderer.setActiveSelection(DrawableId("art"))
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("art")))
 		val target = mainTarget(device)
 
 		device.clearLog()
@@ -615,7 +626,12 @@ class RenderPassStructureTest {
 		val viewportGrid = device.passes().single().draws.filterIsInstance<RecordedGridDraw>().single()
 		val viewportDraw = device.meshDraws().single()
 		assertTrue(viewportDraw.highlight > 0f, "the viewport tints the selected drawable")
+		assertEquals(3, device.overlayDraws().size, "the viewport draws the overlay over the art")
+		assertEquals(1, device.resourceEvents.filterIsInstance<OverlayBuffersCreated>().size, "the overlay's buffers are uploaded for the viewport")
 
+		// A pose between the viewport's frame and the capture leaves the overlay store stale; the capture
+		// still leaves it alone, since nothing of the overlay is a capture's business.
+		renderer.setPose(emptyMap())
 		device.clearLog()
 		val captureCamera = ViewportCamera(10f, 5f, 3f)
 		val image = assertNotNull(renderer.renderSnapshot(captureCamera, 40, 30, FrameBackdrop.Grid))
@@ -634,17 +650,22 @@ class RenderPassStructureTest {
 			"the capture projects through its own camera",
 		)
 		assertEquals(0f, device.meshDraws().single().highlight, "the capture draws the selected drawable untinted")
+		assertTrue(device.overlayDraws().isEmpty(), "the capture draws no overlay")
+		assertTrue(device.capturePasses().isEmpty(), "and captures no overlay positions, stale as the store is")
 
 		device.clearLog()
 		assertNotNull(renderer.renderSnapshot(captureCamera, 40, 30, FrameBackdrop.Transparent, tileEdge = 16))
 		assertEquals(6, device.passes().size, "a 40x30 capture in 16-pixel tiles is three columns by two rows")
 		assertTrue(device.meshDraws().all { draw -> draw.highlight == 0f }, "no tile tints the selected drawable")
+		assertTrue(device.overlayDraws().isEmpty(), "no tile draws the overlay")
 
 		device.clearLog()
 		renderer.render(target, viewportSize, viewportSize)
 		assertEquals(viewportGrid.uniforms, device.passes().single().draws.filterIsInstance<RecordedGridDraw>().single().uniforms, "the viewport's view is as it was")
 		assertEquals(viewportDraw.highlight, device.meshDraws().single().highlight, "the viewport still tints the selected drawable")
 		assertEquals(viewportDraw.highlightColor, device.meshDraws().single().highlightColor, "the viewport tints toward the same color")
+		assertEquals(3, device.overlayDraws().size, "the viewport draws the overlay again")
+		assertTrue(device.resourceEvents.filterIsInstance<OverlayBuffersCreated>().isEmpty(), "over the buffers it kept through the capture")
 	}
 
 	/** A push that moved a glue mesh keeps the pose but re-captures the store the weld reads. */
@@ -711,5 +732,270 @@ class RenderPassStructureTest {
 
 		val (freshDevice, freshTarget) = recordFrame(moved)
 		assertEquals(describe(freshDevice, freshTarget), keptPose, "the kept pose records the same passes, draws, and scissors as a fresh one")
+	}
+
+	/**
+	 * The step sequence every existing fixture records with NO overlay set, as literals: the always-on
+	 * guard that the overlay pass adds nothing to a frame that shows none.
+	 */
+	@Test
+	fun aFrameWithNoOverlayRecordsTheBaselineSteps() {
+		val flat =
+			model(
+				drawables = listOf(drawable("back", fullQuad()), drawable("front", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("back")), OrgChild.Drawable(DrawableId("front"))),
+			)
+		val (flatDevice, flatTarget) = recordFrame(flat)
+		val (compositeDevice, compositeTarget) = recordFrame(compositeModel())
+
+		val anchorPositions = floatArrayOf(-30f, -10f, -10f, -10f, -30f, 10f, -10f, 10f)
+		val weldedPositions = floatArrayOf(10f, -10f, 30f, -10f, 10f, 10f, 30f, 10f)
+		val glued =
+			model(
+				drawables = listOf(drawable("anchor", anchorPositions, indices = IntArray(0)), drawable("welded", weldedPositions)),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("anchor")), OrgChild.Drawable(DrawableId("welded"))),
+				glues = listOf(Glue(DrawableId("anchor"), DrawableId("welded"), listOf(GluePair(1, 0, 0f, 1f), GluePair(3, 2, 0f, 1f)))),
+			)
+		val (glueDevice, glueTarget) = recordFrame(glued)
+
+		val expected =
+			mapOf(
+				"flat" to listOf("pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), mesh(4 vertices, Normal, opacity 1.0)]"),
+				"composite" to
+					listOf(
+						"pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0)]",
+						"pass side Clear scissor=ScissorRect(x=14, y=38, width=36, height=26) [mesh(4 vertices, Normal, opacity 1.0)]",
+						"copy region=ScissorRect(x=14, y=38, width=36, height=26)",
+						"pass main Load scissor=ScissorRect(x=14, y=38, width=36, height=26) [composite]",
+						"pass main Load scissor=null [mesh(4 vertices, Normal, opacity 1.0)]",
+					),
+				"glue" to listOf("capture 2", "barrier", "pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0)]"),
+			)
+		val recorded =
+			mapOf(
+				"flat" to describe(flatDevice, flatTarget),
+				"composite" to describe(compositeDevice, compositeTarget),
+				"glue" to describe(glueDevice, glueTarget),
+			)
+		assertEquals(expected, recorded, "a frame with no overlay records exactly the steps it always did")
+	}
+
+	/** Disposing the renderer frees the glue store along with the residents. */
+	@Test
+	fun disposeGlFreesTheGlueStore() {
+		val anchorPositions = floatArrayOf(-30f, -10f, -10f, -10f, -30f, 10f, -10f, 10f)
+		val weldedPositions = floatArrayOf(10f, -10f, 30f, -10f, 10f, 10f, 30f, 10f)
+		val source =
+			model(
+				drawables = listOf(drawable("anchor", anchorPositions, indices = IntArray(0)), drawable("welded", weldedPositions)),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("anchor")), OrgChild.Drawable(DrawableId("welded"))),
+				glues = listOf(Glue(DrawableId("anchor"), DrawableId("welded"), listOf(GluePair(1, 0, 0f, 1f), GluePair(3, 2, 0f, 1f)))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		device.clearLog()
+
+		renderer.disposeGl()
+
+		assertEquals(1, device.resourceEvents.filterIsInstance<StoreDestroyed>().size, "the glue store is freed with the residents")
+	}
+
+	/** An Edit overlay captures its store once per pose and draws, domain-major, after the art. */
+	@Test
+	fun anEditOverlayCapturesOncePerPoseAndDrawsAfterThePlan() {
+		val source =
+			model(
+				drawables = listOf(drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("art"), activeVertex = 3, activeEdge = 4))
+		device.clearLog()
+
+		renderer.render(target, viewportSize, viewportSize)
+		assertEquals(
+			listOf(
+				"capture 1",
+				"barrier",
+				"pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), overlay OverlayFaceFill, overlay OverlayEdge, overlay OverlayEdge active, overlay OverlayVertexDot, overlay OverlayVertexDot active]",
+			),
+			describe(device, target),
+			"the first frame captures the overlay's positions and draws it over the art, actives last",
+		)
+		assertEquals(1, device.resourceEvents.filterIsInstance<StoreCreated>().size, "the overlay store is allocated")
+		assertEquals(1, device.resourceEvents.filterIsInstance<OverlayBuffersCreated>().size, "and the mesh's buffers uploaded")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		assertTrue(device.capturePasses().isEmpty(), "a still frame re-captures nothing")
+		assertTrue(device.resourceEvents.isEmpty(), "and uploads nothing")
+		assertEquals(5, device.overlayDraws().size, "but still draws the overlay")
+
+		device.clearLog()
+		renderer.setPose(emptyMap())
+		renderer.render(target, viewportSize, viewportSize)
+		assertEquals(1, device.capturePasses().size, "a new pose captures the overlay again")
+
+		device.clearLog()
+		assertEquals(ModelUpdateKind.PositionsOnly, renderer.updateModel(withPositions(source, "art", fullQuad())))
+		renderer.render(target, viewportSize, viewportSize)
+		assertEquals(1, device.capturePasses().size, "a preview push captures the moved positions")
+		assertTrue(
+			device.resourceEvents.none { event -> event is OverlayBuffersCreated || event is OverlayFlagsUpdated },
+			"and uploads no overlay data",
+		)
+	}
+
+	/** The select mode decides which domains draw and how the fills apply. */
+	@Test
+	fun aSelectModeDecidesTheOverlayDraws() {
+		val source =
+			model(
+				drawables = listOf(drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+
+		val vertexDraws = overlayDrawsFor(renderer, device, target, overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("art")))
+		assertEquals(listOf(PipelinePurpose.OverlayFaceFill, PipelinePurpose.OverlayEdge, PipelinePurpose.OverlayVertexDot), vertexDraws.map { draw -> draw.purpose })
+		assertFalse(vertexDraws[0].fillIdle, "outside Face mode only the selected faces fill")
+
+		val faceDraws = overlayDrawsFor(renderer, device, target, overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Face, listOf("art")))
+		assertEquals(listOf(PipelinePurpose.OverlayFaceFill, PipelinePurpose.OverlayEdge, PipelinePurpose.OverlayFaceDot), faceDraws.map { draw -> draw.purpose })
+		assertTrue(faceDraws[0].fillIdle, "Face mode fills every face")
+		assertEquals(1f, faceDraws[2].idleColor[3], "the face dots render opaque whatever the fill alpha")
+
+		val edgeDraws = overlayDrawsFor(renderer, device, target, overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Edge, listOf("art")))
+		assertEquals(listOf(PipelinePurpose.OverlayFaceFill, PipelinePurpose.OverlayEdge), edgeDraws.map { draw -> draw.purpose })
+		assertFalse(edgeDraws[0].fillIdle, "Edge mode draws no dots and fills only the selected faces")
+	}
+
+	/** The object wireframe draws every listed mesh's edges and nothing else. */
+	@Test
+	fun anObjectWireframeDrawsEdgesOnly() {
+		val source =
+			model(
+				drawables = listOf(drawable("back", fullQuad()), drawable("front", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("back")), OrgChild.Drawable(DrawableId("front"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+
+		val draws = overlayDrawsFor(renderer, device, target, overlayOver(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, listOf("back", "front")))
+
+		assertEquals(listOf(PipelinePurpose.OverlayEdge, PipelinePurpose.OverlayEdge), draws.map { draw -> draw.purpose }, "one edge batch per mesh, no fills, no dots")
+		assertEquals(listOf(0, 4), draws.map { draw -> draw.baseOffset }, "each mesh reads its own store region")
+		assertEquals(1, device.capturePasses().size, "the wireframe still needs the positions captured")
+	}
+
+	/** An overlay mesh whose resident disagrees with it is left out of the frame, and the frame is as without it. */
+	@Test
+	fun anOverlayMeshWhoseResidentDisagreesIsSkipped() {
+		val source =
+			model(
+				drawables = listOf(drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("art"), vertexCount = 5))
+		device.clearLog()
+
+		renderer.render(target, viewportSize, viewportSize)
+
+		assertEquals(listOf("pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0)]"), describe(device, target), "nothing of the overlay reaches the frame")
+		assertTrue(device.resourceEvents.none { event -> event is StoreCreated || event is OverlayBuffersCreated }, "and nothing is uploaded for it")
+	}
+
+	/** A topology edit replaces the resident; the next frame rebuilds that mesh's buffers and re-captures. */
+	@Test
+	fun aStructuralPushRepairsTheOverlay() {
+		val source =
+			model(
+				drawables = listOf(drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("art")))
+		renderer.render(target, viewportSize, viewportSize)
+		val remeshed =
+			source.copy(
+				drawables =
+					source.drawables.map { drawable ->
+						val mesh = drawable.mesh ?: error("the fixture carries meshes")
+						drawable.copy(mesh = DrawableMesh(mesh.positions, mesh.uvs, quadIndices.copyOf()))
+					},
+			)
+		device.clearLog()
+
+		assertEquals(ModelUpdateKind.Structural, renderer.updateModel(remeshed))
+		// The engine poses after every structural push; the new resident has no pose until then.
+		renderer.setPose(emptyMap())
+		renderer.render(target, viewportSize, viewportSize)
+
+		assertEquals(1, device.resourceEvents.filterIsInstance<OverlayBuffersDestroyed>().size, "the replaced resident's buffers are freed")
+		assertEquals(1, device.resourceEvents.filterIsInstance<OverlayBuffersCreated>().size, "and rebuilt over the new one")
+		assertEquals(1, device.capturePasses().size, "and the positions are captured again")
+		assertEquals(3, device.overlayDraws().size, "the overlay draws as before")
+	}
+
+	/**
+	 * An overlay over the fixture's quads, every flag idle except the given actives.
+	 *
+	 * @param MeshOverlayKind kind The overlay kind.
+	 * @param MeshOverlaySelectMode selectMode The select mode.
+	 * @param List<String> ids The quads, in layout order.
+	 * @param Int vertexCount The vertex count each entry claims; 4 pairs with a quad.
+	 * @param Int? activeVertex The active vertex on every entry, or null.
+	 * @param Int? activeEdge The active edge ordinal on every entry, or null.
+	 * @return MeshOverlay The overlay.
+	 */
+	private fun overlayOver(
+		kind: MeshOverlayKind,
+		selectMode: MeshOverlaySelectMode,
+		ids: List<String>,
+		vertexCount: Int = 4,
+		activeVertex: Int? = null,
+		activeEdge: Int? = null,
+	): MeshOverlay =
+		MeshOverlay(
+			kind,
+			selectMode,
+			ids.map { id ->
+				val vertexFlags = ByteArray(vertexCount)
+				if (activeVertex != null) {
+					vertexFlags[activeVertex] = OVERLAY_FLAG_ACTIVE
+				}
+				val edgeFlags = ByteArray(quadEdges.size / 2)
+				if (activeEdge != null) {
+					edgeFlags[activeEdge] = OVERLAY_FLAG_ACTIVE
+				}
+				MeshOverlayMesh(DrawableId(id), vertexCount, quadEdges, vertexFlags, edgeFlags, ByteArray(2), activeVertex, activeEdge, null)
+			},
+			MeshOverlaySizes(3.5f, 1f, 2.5f),
+		)
+
+	/**
+	 * The overlay draws one frame records for [overlay].
+	 *
+	 * @param PuppetRenderer renderer The posed renderer.
+	 * @param RecordingRenderDevice device Its device.
+	 * @param RecordedTarget target The frame target.
+	 * @param MeshOverlay overlay The overlay to draw.
+	 * @return List<RecordedOverlayDraw> The overlay draws, in issue order.
+	 */
+	private fun overlayDrawsFor(renderer: PuppetRenderer, device: RecordingRenderDevice, target: RecordedTarget, overlay: MeshOverlay): List<RecordedOverlayDraw> {
+		renderer.setMeshOverlay(overlay)
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		return device.overlayDraws()
 	}
 }

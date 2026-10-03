@@ -220,14 +220,15 @@ internal class DrawableResidency(
 	}
 
 	/**
-	 * Frees every resident drawable's device objects and empties the residency.  The shared position
-	 * store stays, because the device seam exposes no way to free it.  Must run with the device's context
-	 * current.
+	 * Frees every resident drawable's device objects and the glue store, and empties the residency.  Must
+	 * run with the device's context current.
 	 */
 	fun dispose() {
 		for (gpuDrawable in residents.values) {
 			deleteDrawable(gpuDrawable)
 		}
+		positionStore?.let { store -> device.destroyDeformedPositionStore(store) }
+		positionStore = null
 		residents = emptyMap()
 		glueDeformList = emptyList()
 		renderableById = emptyMap()
