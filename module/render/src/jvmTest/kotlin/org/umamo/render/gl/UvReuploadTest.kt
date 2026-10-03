@@ -73,7 +73,7 @@ class UvReuploadTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(quadPositions.copyOf(), leftHalfUvs.copyOf(), quadIndices),
+				mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions.copyOf(), leftHalfUvs.copyOf(), quadIndices),
 				// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped
 				// by the renderer); the base mesh alone drives its shape.
 				geometryGrid =
@@ -100,7 +100,7 @@ class UvReuploadTest {
 	private fun uvShiftedModel(source: PuppetModel): PuppetModel {
 		val drawable = source.drawables.single()
 		val mesh = drawable.mesh!!
-		return source.copy(drawables = listOf(drawable.copy(mesh = DrawableMesh(mesh.positions, rightHalfUvs.copyOf(), mesh.indices))))
+		return source.copy(drawables = listOf(drawable.copy(mesh = mesh.withUvs(rightHalfUvs.copyOf()))))
 	}
 
 	@Test

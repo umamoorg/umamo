@@ -208,7 +208,7 @@ class MeshOverlayResidencyTest {
 				drawables =
 					model.drawables.map { drawable ->
 						if (drawable.id == first) {
-							drawable.copy(mesh = DrawableMesh(drawable.mesh!!.positions, drawable.mesh!!.uvs, quadIndices.copyOf()))
+							drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(drawable.mesh!!.positions, drawable.mesh!!.uvs, quadIndices.copyOf()))
 						} else {
 							drawable
 						}
@@ -264,7 +264,7 @@ class MeshOverlayResidencyTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), quadIndices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), quadIndices),
 			geometryGrid = KeyformGrid(listOf(KeyformAxis(paramA, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),
 		)
 	}

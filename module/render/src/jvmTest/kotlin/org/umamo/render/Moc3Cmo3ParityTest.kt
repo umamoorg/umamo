@@ -142,9 +142,9 @@ class Moc3Cmo3ParityTest {
 			compareMeshKeyforms(
 				drawableId,
 				cmo3Drawable.geometryGrid,
-				cmo3Mesh.positions,
+				cmo3Mesh.localPositions,
 				moc3Drawable.geometryGrid,
-				moc3Mesh.positions,
+				moc3Mesh.localPositions,
 				keyformTolerance(moc3Drawable.parentDeformerId),
 			)
 			compareMeshChannels(drawableId, cmo3Drawable.channelGrids, moc3Drawable.channelGrids)
@@ -166,9 +166,9 @@ class Moc3Cmo3ParityTest {
 	 *
 	 * @param DrawableId   drawableId The drawable under comparison (for failure messages).
 	 * @param KeyformGrid? cmo3Grid   The CMO3 grid (deltas vs [cmo3Base]).
-	 * @param FloatArray   cmo3Base   The CMO3 rest positions.
+	 * @param FloatArray   cmo3Base   The CMO3 keyform-space base (DrawableMesh.localPositions).
 	 * @param KeyformGrid? moc3Grid   The MOC3 grid (deltas vs [moc3Base]).
-	 * @param FloatArray   moc3Base   The MOC3 rest positions.
+	 * @param FloatArray   moc3Base   The MOC3 keyform-space base.
 	 * @param Float        tolerance  The per-coordinate tolerance in the drawable's parent space.
 	 */
 

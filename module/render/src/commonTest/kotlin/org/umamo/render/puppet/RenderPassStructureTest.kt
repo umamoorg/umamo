@@ -128,7 +128,7 @@ class RenderPassStructureTest {
 			parentDeformerId = parentDeformerId,
 			blendMode = blendMode,
 			maskedBy = maskedBy,
-			mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), indices),
 			geometryGrid = restGrid(positions.size),
 		)
 
@@ -278,7 +278,7 @@ class RenderPassStructureTest {
 				source.drawables.map { drawable ->
 					if (drawable.id == DrawableId(id)) {
 						val mesh = drawable.mesh ?: error("the fixture carries meshes")
-						drawable.copy(mesh = DrawableMesh(positions, mesh.uvs, mesh.indices))
+						drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(positions, mesh.uvs, mesh.indices))
 					} else {
 						drawable
 					}
@@ -932,7 +932,7 @@ class RenderPassStructureTest {
 				drawables =
 					source.drawables.map { drawable ->
 						val mesh = drawable.mesh ?: error("the fixture carries meshes")
-						drawable.copy(mesh = DrawableMesh(mesh.positions, mesh.uvs, quadIndices.copyOf()))
+						drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(mesh.positions, mesh.uvs, quadIndices.copyOf()))
 					},
 			)
 		device.clearLog()

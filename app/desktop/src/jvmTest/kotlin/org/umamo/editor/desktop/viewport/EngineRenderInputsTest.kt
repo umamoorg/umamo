@@ -76,7 +76,7 @@ class EngineRenderInputsTest {
 			atlas = atlas,
 		)
 
-	private val model = modelWith(drawableWith(DrawableMesh(quadPositions, quadUvs, quadIndices)))
+	private val model = modelWith(drawableWith(DrawableMesh.withLocalEqualToCanvas(quadPositions, quadUvs, quadIndices)))
 
 	private fun inputs(): EngineRenderInputs = EngineRenderInputs(model, textures)
 
@@ -193,7 +193,7 @@ class EngineRenderInputsTest {
 		// else carried by reference.
 		val drawable = model.drawables.single()
 		val mesh = drawable.mesh!!
-		val movedMesh = DrawableMesh(floatArrayOf(-50f, -50f, 50f, -50f, -50f, 50f, 50f, 50f), mesh.uvs, mesh.indices)
+		val movedMesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(-50f, -50f, 50f, -50f, -50f, 50f, 50f, 50f), mesh.uvs, mesh.indices)
 		val moved = model.copy(drawables = listOf(drawable.copy(mesh = movedMesh)))
 		assertEquals(ModelUpdateKind.PositionsOnly, inputs.setModel(moved))
 		assertSame(moved, inputs.model)

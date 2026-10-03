@@ -11,10 +11,12 @@ package org.umamo.runtime.model
  */
 
 /**
- * A drawable keyform's geometry: per-vertex position deltas (interleaved x,y) relative to the mesh base.
+ * A drawable keyform's geometry: per-vertex position deltas (interleaved x,y) relative to the mesh's
+ * keyform-space base (DrawableMesh.localPositions).
  *
  * Stored as deltas rather than absolute positions to match the GPU vertex-shader morph `p = base + Σ wᵢ·Δᵢ`
- * - the delta table is exactly what the shader texel-fetches per active corner.
+ * - the delta table is exactly what the shader texel-fetches per active corner.  The base is in the
+ * keyforms' own space, so each delta is a difference within one space, which float32 holds.
  */
 class MeshDeltaForm(val positionDeltas: FloatArray)
 

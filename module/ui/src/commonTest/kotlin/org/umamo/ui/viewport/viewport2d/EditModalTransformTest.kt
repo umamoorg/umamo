@@ -11,6 +11,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
@@ -402,7 +403,7 @@ class EditModalTransformTest {
 
 			rig.session.commitMeshPositions(
 				MeshChange.TransformVertices(mapOf(RIG_OTHER to listOf(0)), MeshOperatorKind.Grab),
-				mapOf(RIG_OTHER to floatArrayOf(45f, 0f, 60f, 0f, 40f, 20f)),
+				mapOf(RIG_OTHER to MeshRestPositions.shared(floatArrayOf(45f, 0f, 60f, 0f, 40f, 20f))),
 			)
 			runCurrent()
 

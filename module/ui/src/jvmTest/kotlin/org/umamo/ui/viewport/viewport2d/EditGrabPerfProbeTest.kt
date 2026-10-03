@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.RotationAngleTracker
@@ -317,11 +318,11 @@ class EditGrabPerfProbeTest {
 				transformedById[entry.drawableId] = applyOperator(MeshOperatorKind.Grab, entry.positions, entry.groups, parameters, entry.influence)
 			}
 		}
-		val newBaseById = HashMap<DrawableId, FloatArray>()
-		timed("C1b   worldToBase (deformer inverse + movementToBase) over every entry") {
+		val newBaseById = HashMap<DrawableId, MeshRestPositions>()
+		timed("C1b   worldToRest (deformer inverse + movementOnto + canvas move) over every entry") {
 			for (entry in transform.entries) {
 				val geometry = geometryById.getValue(entry.drawableId)
-				newBaseById[entry.drawableId] = geometry.worldToBase(transformedById.getValue(entry.drawableId), entry.movedIndices)
+				newBaseById[entry.drawableId] = geometry.worldToRest(transformedById.getValue(entry.drawableId), entry.movedIndices)
 			}
 		}
 		timed("C1c   withMeshPositions fold over every entry, one drawable at a time") {

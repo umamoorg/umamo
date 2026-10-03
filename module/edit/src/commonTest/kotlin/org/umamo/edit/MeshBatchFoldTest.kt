@@ -25,16 +25,17 @@ class MeshBatchFoldTest {
 	@Test
 	fun theBatchFoldsTheSameModelAsTheSerialFold() {
 		val model = model()
-		val edits = mapOf(first to triangle(5f), third to triangle(7f))
+		val edits = mapOf(first to MeshRestPositions.shared(triangle(5f)), third to MeshRestPositions.shared(triangle(7f)))
 
 		val batch = model.withMeshPositions(edits)
-		val serial = edits.entries.fold(model) { folded, (drawableId, positions) -> folded.withMeshPositions(drawableId, positions) }
+		val serial = edits.entries.fold(model) { folded, (drawableId, rest) -> folded.withMeshPositions(drawableId, rest) }
 
 		assertEquals(serial.drawables.map { drawable -> drawable.id }, batch.drawables.map { drawable -> drawable.id })
 		for (drawableIndex in serial.drawables.indices) {
 			val serialMesh = serial.drawables[drawableIndex].mesh
 			val batchMesh = batch.drawables[drawableIndex].mesh
 			assertSame(serialMesh?.positions, batchMesh?.positions, "drawable $drawableIndex's positions")
+			assertSame(serialMesh?.localPositions, batchMesh?.localPositions, "and its base")
 			assertSame(serialMesh?.uvs, batchMesh?.uvs, "and its uvs")
 		}
 		assertSame(model.drawables[1], batch.drawables[1], "an untouched drawable is shared")
@@ -50,6 +51,7 @@ class MeshBatchFoldTest {
 		val mesh = batch.drawables[1].mesh!!
 		assertSame(newUvs, mesh.uvs)
 		assertSame(model.drawables[1].mesh!!.positions, mesh.positions, "the rest geometry is shared")
+		assertSame(model.drawables[1].mesh!!.localPositions, mesh.localPositions, "and so is the base")
 		assertSame(model.drawables[0], batch.drawables[0])
 	}
 
@@ -59,12 +61,13 @@ class MeshBatchFoldTest {
 		val held = model.drawables[0].mesh!!
 
 		assertSame(model, model.withMeshPositions(emptyMap()), "no edits")
-		assertSame(model, model.withMeshPositions(mapOf(DrawableId("missing") to triangle(1f))), "an unknown id")
-		assertSame(model, model.withMeshPositions(mapOf(first to held.positions)), "the array it holds")
-		assertSame(model, model.withMeshPositions(mapOf(first to FloatArray(4))), "a length mismatch")
+		assertSame(model, model.withMeshPositions(mapOf(DrawableId("missing") to MeshRestPositions.shared(triangle(1f)))), "an unknown id")
+		assertSame(model, model.withMeshPositions(mapOf(first to MeshRestPositions(held.positions, held.localPositions))), "the arrays it holds")
+		assertSame(model, model.withMeshPositions(mapOf(first to MeshRestPositions.shared(FloatArray(4)))), "a length mismatch")
+		assertSame(model, model.withMeshPositions(mapOf(first to MeshRestPositions(triangle(1f), FloatArray(4)))), "a base of the wrong length")
 		assertSame(model, model.withMeshUvs(mapOf(first to held.uvs)), "the uvs it holds")
 		val meshless = model.copy(drawables = model.drawables + drawable("bare", null))
-		assertSame(meshless, meshless.withMeshPositions(mapOf(DrawableId("bare") to triangle(1f))), "a drawable with no mesh")
+		assertSame(meshless, meshless.withMeshPositions(mapOf(DrawableId("bare") to MeshRestPositions.shared(triangle(1f)))), "a drawable with no mesh")
 	}
 
 	@Test
@@ -72,7 +75,7 @@ class MeshBatchFoldTest {
 		val model = model()
 		val moved = triangle(9f)
 
-		val batch = model.withMeshPositions(mapOf(first to FloatArray(4), second to moved))
+		val batch = model.withMeshPositions(mapOf(first to MeshRestPositions.shared(FloatArray(4)), second to MeshRestPositions.shared(moved)))
 
 		assertNotSame(model, batch)
 		assertSame(model.drawables[0], batch.drawables[0], "the mismatched entry is left alone")
@@ -85,11 +88,11 @@ class MeshBatchFoldTest {
 		val duplicated = model.copy(drawables = model.drawables + drawable(first.raw, triangle(0f)))
 		val moved = triangle(3f)
 
-		val batch = duplicated.withMeshPositions(mapOf(first to moved))
+		val batch = duplicated.withMeshPositions(mapOf(first to MeshRestPositions.shared(moved)))
 
 		assertSame(moved, batch.drawables[0].mesh!!.positions, "the first one moves")
 		assertSame(duplicated.drawables[3], batch.drawables[3], "the second one does not, as with the per-drawable fold")
-		assertContentEquals(duplicated.withMeshPositions(first, moved).drawables[3].mesh!!.positions, batch.drawables[3].mesh!!.positions)
+		assertContentEquals(duplicated.withMeshPositions(first, MeshRestPositions.shared(moved)).drawables[3].mesh!!.positions, batch.drawables[3].mesh!!.positions)
 	}
 
 	/**
@@ -121,7 +124,7 @@ class MeshBatchFoldTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = positions?.let { meshPositions -> DrawableMesh(meshPositions, triangle(0.25f), intArrayOf(0, 1, 2)) },
+			mesh = positions?.let { meshPositions -> DrawableMesh.withLocalEqualToCanvas(meshPositions, triangle(0.25f), intArrayOf(0, 1, 2)) },
 			geometryGrid = null,
 		)
 

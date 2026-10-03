@@ -61,7 +61,7 @@ class MaskCoverageBlendTest {
 			parentDeformerId = null,
 			blendMode = blendMode,
 			maskedBy = maskedBy,
-			mesh = DrawableMesh(fullQuad, FloatArray(fullQuad.size), intArrayOf(0, 1, 2, 1, 3, 2)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(fullQuad, FloatArray(fullQuad.size), intArrayOf(0, 1, 2, 1, 3, 2)),
 			geometryGrid = restGrid(fullQuad),
 		)
 

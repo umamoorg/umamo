@@ -84,7 +84,7 @@ class Cmo3SourceLayerWebTest {
 	private val rasters = mapOf(tileEye.id to gradient(1), tileHair.id to gradient(2), tileGuide.id to gradient(3), tileWing.id to gradient(4))
 
 	private fun quad(left: Float, top: Float): DrawableMesh =
-		DrawableMesh(
+		DrawableMesh.withLocalEqualToCanvas(
 			positions = floatArrayOf(left, top, left + 4f, top, left + 4f, top + 4f, left, top + 4f),
 			uvs = floatArrayOf(0.1f, 0.1f, 0.35f, 0.1f, 0.35f, 0.35f, 0.1f, 0.35f),
 			indices = intArrayOf(0, 1, 2, 0, 2, 3),

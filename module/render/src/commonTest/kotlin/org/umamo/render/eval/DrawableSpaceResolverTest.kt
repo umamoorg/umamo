@@ -177,5 +177,5 @@ class DrawableSpaceResolverTest {
 	 * @return Drawable The drawable.
 	 */
 	private fun drawable(id: DrawableId, parent: DeformerId?, positions: FloatArray, grid: KeyformGrid<MeshDeltaForm>?): Drawable =
-		Drawable(id, id.raw, parent, BlendMode.Normal, emptyList(), DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)), grid)
+		Drawable(id, id.raw, parent, BlendMode.Normal, emptyList(), DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)), grid)
 }

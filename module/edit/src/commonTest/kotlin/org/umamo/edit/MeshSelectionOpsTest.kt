@@ -26,11 +26,11 @@ class MeshSelectionOpsTest {
 	// The "spoke" fixture: center triangle T (face 0, vertices 0-1-2) shares each of its three edges with
 	// exactly one neighbor - A (face 1) across (0,1), B (face 2) across (1,2), C (face 3) across (0,2).
 	private val spokeIndices = intArrayOf(0, 1, 2, 0, 1, 3, 1, 2, 4, 2, 0, 5)
-	private val spokeMesh = DrawableMesh(FloatArray(12), FloatArray(12), spokeIndices)
+	private val spokeMesh = DrawableMesh.withLocalEqualToCanvas(FloatArray(12), FloatArray(12), spokeIndices)
 
 	// Two triangles sharing the (1, 2) edge - the second session mesh's smaller topology.
 	private val stripIndices = intArrayOf(0, 1, 2, 1, 3, 2)
-	private val stripMesh = DrawableMesh(FloatArray(8), FloatArray(8), stripIndices)
+	private val stripMesh = DrawableMesh.withLocalEqualToCanvas(FloatArray(8), FloatArray(8), stripIndices)
 
 	// The mesh provider the whole-session ops resolve topology through.
 	private fun meshOf(drawableId: DrawableId): DrawableMesh? =

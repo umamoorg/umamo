@@ -42,7 +42,7 @@ class DrawableSpaceMappingTest {
 	private fun zeroMeshGrid(coordCount: Int) = KeyformGrid(axis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(coordCount)))))
 
 	private fun drawable(parent: DeformerId?, positions: FloatArray) =
-		Drawable(drawableId, "M", parent, BlendMode.Normal, emptyList(), DrawableMesh(positions, FloatArray(0), IntArray(0)), zeroMeshGrid(positions.size))
+		Drawable(drawableId, "M", parent, BlendMode.Normal, emptyList(), DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(0), IntArray(0)), zeroMeshGrid(positions.size))
 
 	private fun model(deformers: List<Deformer>, drawable: Drawable) =
 		PuppetModel(listOf(Parameter(paramA, "A", -1f, 1f, 0f)), emptyList(), deformers, listOf(drawable), emptyList(), null)
@@ -147,7 +147,7 @@ class DrawableSpaceMappingTest {
 					),
 			)
 		val blendDrawable =
-			Drawable(drawableId, "M", null, BlendMode.Normal, emptyList(), DrawableMesh(floatArrayOf(1f, 2f), FloatArray(0), IntArray(0)), blendGrid)
+			Drawable(drawableId, "M", null, BlendMode.Normal, emptyList(), DrawableMesh.withLocalEqualToCanvas(floatArrayOf(1f, 2f), FloatArray(0), IntArray(0)), blendGrid)
 		val puppet = PuppetModel(listOf(Parameter(paramA, "A", 0f, 10f, 0f)), emptyList(), emptyList(), listOf(blendDrawable), emptyList(), null)
 		val halfway = assertNotNull(drawableLocalPosed(puppet, mapOf(paramA to 5f), drawableId))
 		assertEquals(3f, halfway[0], tol, "base 1 + half of delta 4")

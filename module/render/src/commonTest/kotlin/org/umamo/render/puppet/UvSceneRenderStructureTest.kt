@@ -531,7 +531,7 @@ class UvSceneRenderStructureTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(positions, FloatArray(positions.size), quadIndices),
+				mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), quadIndices),
 				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(parameterId, floatArrayOf(0f))),

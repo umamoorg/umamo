@@ -925,7 +925,7 @@ class EditorSessionTest {
 	 */
 	private fun meshModel(): PuppetModel {
 		val mesh =
-			DrawableMesh(
+			DrawableMesh.withLocalEqualToCanvas(
 				positions = floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f),
 				uvs = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
 				indices = intArrayOf(0, 1, 2),
@@ -935,8 +935,8 @@ class EditorSessionTest {
 
 	/** A model with two meshed drawables, for the Alt+Q switch and the per-mesh selection memory. */
 	private fun twoMeshModel(): PuppetModel {
-		val meshA = DrawableMesh(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), FloatArray(6), intArrayOf(0, 1, 2))
-		val meshB = DrawableMesh(floatArrayOf(10f, 0f, 12f, 0f, 10f, 2f), FloatArray(6), intArrayOf(0, 1, 2))
+		val meshA = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f), FloatArray(6), intArrayOf(0, 1, 2))
+		val meshB = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(10f, 0f, 12f, 0f, 10f, 2f), FloatArray(6), intArrayOf(0, 1, 2))
 		return model().copy(
 			parts = emptyList(),
 			drawables =
@@ -1010,15 +1010,41 @@ class EditorSessionTest {
 		val beforeMesh = before.drawables.first().mesh!!
 		val newPositions = floatArrayOf(5f, 5f, 2f, 0f, 0f, 2f)
 
-		val after = before.withMeshPositions(DrawableId("d"), newPositions)
+		val after = before.withMeshPositions(DrawableId("d"), MeshRestPositions.shared(newPositions))
 		val afterMesh = after.drawables.first().mesh!!
 
 		assertSame(beforeMesh.uvs, afterMesh.uvs, "uvs shared by reference")
 		assertSame(beforeMesh.indices, afterMesh.indices, "indices shared by reference")
 		assertEquals(5f, afterMesh.positions[0], "new positions applied")
 		assertEquals(0f, beforeMesh.positions[0], "the prior mesh's array is unmutated (COW)")
-		assertSame(before, before.withMeshPositions(DrawableId("d"), beforeMesh.positions), "same array is a no-op")
-		assertSame(before, before.withMeshPositions(DrawableId("missing"), newPositions), "missing id is a no-op")
+		assertSame(before, before.withMeshPositions(DrawableId("d"), MeshRestPositions(beforeMesh.positions, beforeMesh.localPositions)), "same array is a no-op")
+		assertSame(before, before.withMeshPositions(DrawableId("missing"), MeshRestPositions.shared(newPositions)), "missing id is a no-op")
+	}
+
+	/**
+	 * withMeshPositions sets the canvas mesh and the keyform-space base apart: an array the rest shape
+	 * passes back unchanged keeps its instance, so a canvas-only edit leaves the base (and with it every
+	 * rebuilt keyform) alone, and a size mismatch on either array is a no-op.
+	 */
+	@Test
+	fun withMeshPositionsSetsTheCanvasMeshAndTheBaseApart() {
+		val canvas = floatArrayOf(100f, 200f, 120f, 200f, 100f, 220f)
+		val local = floatArrayOf(0.25f, 0.5f, 0.75f, 0.5f, 0.25f, 0.75f)
+		val mesh = DrawableMesh(positions = canvas, localPositions = local, uvs = FloatArray(6), indices = intArrayOf(0, 1, 2))
+		val before = model().copy(drawables = listOf(drawable.copy(mesh = mesh)))
+		val movedCanvas = floatArrayOf(110f, 200f, 130f, 200f, 110f, 220f)
+
+		val canvasOnly = before.withMeshPositions(DrawableId("d"), MeshRestPositions(movedCanvas, local)).drawables.first().mesh!!
+		assertSame(movedCanvas, canvasOnly.positions, "the canvas mesh takes the new array")
+		assertSame(local, canvasOnly.localPositions, "the base keeps its instance")
+
+		val movedLocal = floatArrayOf(0.3f, 0.5f, 0.8f, 0.5f, 0.3f, 0.75f)
+		val both = before.withMeshPositions(DrawableId("d"), MeshRestPositions(movedCanvas, movedLocal)).drawables.first().mesh!!
+		assertSame(movedCanvas, both.positions)
+		assertSame(movedLocal, both.localPositions)
+
+		assertSame(before, before.withMeshPositions(DrawableId("d"), MeshRestPositions(movedCanvas, FloatArray(4))), "a short base is a no-op")
+		assertSame(before, before.withMeshPositions(DrawableId("d"), MeshRestPositions(FloatArray(8), local)), "a long canvas mesh is a no-op")
 	}
 
 	/** A mesh edit is one undo step that marks dirty; undo restores the original array instance and clears dirty. */
@@ -1029,7 +1055,7 @@ class EditorSessionTest {
 		val originalArray = initial.drawables.first().mesh!!.positions
 		val moved = floatArrayOf(9f, 9f, 2f, 0f, 0f, 2f)
 
-		session.commitMeshPositions(MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0)), MeshOperatorKind.Grab), mapOf(DrawableId("d") to moved))
+		session.commitMeshPositions(MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0)), MeshOperatorKind.Grab), mapOf(DrawableId("d") to MeshRestPositions.shared(moved)))
 		assertTrue(session.dirty.value, "a mesh edit dirties the document")
 		assertTrue(session.canUndo.value)
 		assertEquals(9f, session.model.value.drawables.first().mesh!!.positions[0])
@@ -1061,7 +1087,7 @@ class EditorSessionTest {
 
 		session.commitMeshPositions(
 			MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0, 1)), MeshOperatorKind.Grab),
-			mapOf(DrawableId("d") to floatArrayOf(9f, 9f, 9f, 0f, 0f, 2f)),
+			mapOf(DrawableId("d") to MeshRestPositions.shared(floatArrayOf(9f, 9f, 9f, 0f, 0f, 2f))),
 		)
 		session.setMeshSelection(MeshSelectionOps.replace(session.meshSelection.value, DrawableId("d"), MeshElement.Vertex(2)))
 		assertEquals(setOf<MeshElement>(MeshElement.Vertex(2)), session.meshSelection.value.elementsOf(DrawableId("d")))
@@ -1176,7 +1202,7 @@ class EditorSessionTest {
 	@Test
 	fun editModeAutoSelectsTopmostDrawableOnFreshLoad() {
 		val mesh =
-			DrawableMesh(
+			DrawableMesh.withLocalEqualToCanvas(
 				positions = floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f),
 				uvs = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
 				indices = intArrayOf(0, 1, 2),
@@ -1330,8 +1356,8 @@ class EditorSessionTest {
 		session.commitMeshPositions(
 			MeshChange.TransformVertices(mapOf(DrawableId("d") to listOf(0), DrawableId("d2") to listOf(1)), MeshOperatorKind.Grab),
 			mapOf(
-				DrawableId("d") to floatArrayOf(9f, 9f, 2f, 0f, 0f, 2f),
-				DrawableId("d2") to floatArrayOf(0f, 0f, 7f, 7f, 0f, 2f),
+				DrawableId("d") to MeshRestPositions.shared(floatArrayOf(9f, 9f, 2f, 0f, 0f, 2f)),
+				DrawableId("d2") to MeshRestPositions.shared(floatArrayOf(0f, 0f, 7f, 7f, 0f, 2f)),
 			),
 		)
 		assertEquals(stepsBefore + 1, session.historyView.value.steps.size, "two meshes, one undo step")

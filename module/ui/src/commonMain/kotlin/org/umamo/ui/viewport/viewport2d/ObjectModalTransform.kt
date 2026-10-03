@@ -6,6 +6,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshTransforms
 import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.ModalTransformCapture
@@ -65,7 +66,7 @@ internal class ObjectModalTransform(
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, cursor wrap,
 	 * pointer controller); the capture is the Object-mode gesture.
 	 */
-	val gesture = ModalGestureState<ObjectGesture>()
+	val gesture = ModalGestureState<ObjectGesture, MeshRestPositions>()
 
 	/**
 	 * The drive: requests resolved per pointer event, the drawables computed off the UI thread in parallel,
@@ -176,7 +177,7 @@ internal class ObjectModalTransform(
 
 	/**
 	 * Confirms the in-flight object transform at the latest pointer: settles a drive the worker has not
-	 * published yet, commits every drawable's new base positions as one undo step (a null / empty preview
+	 * published yet, commits every drawable's new rest shape as one undo step (a null / empty preview
 	 * means no movement, so nothing commits), registers that step on the operation settings strip over the
 	 * retained capture, then clears the operator - its teardown resyncs the renderer.
 	 */

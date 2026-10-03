@@ -1,6 +1,7 @@
 package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.ProportionalInfluence
 import org.umamo.edit.TransformGestureParameters
@@ -17,7 +18,7 @@ import org.umamo.ui.viewport.gizmo.slideVertexByFactor
 /*
  * The 2D modal drive's compute, shared by the Edit and Object transforms and the operation settings strip's
  * replays: each moving mesh's frozen world shape through the operator (or the Vertex Slide), back through its
- * deformer chain onto the base mesh, then one batch fold into the model.  Pure over its request, so the
+ * deformer chain onto its rest arrays, then one batch fold into the model.  Pure over its request, so the
  * drive worker can run it off the UI thread, and the per-mesh step in parallel.
  */
 
@@ -66,7 +67,7 @@ internal class SlideMove(
  * @property TransformGestureParameters parameters The parameters every mesh applies.
  * @property List<MeshDriveJob> jobs The moving meshes, in capture order.
  * @property SlideMove? slide The Vertex Slide's landing, or null (for a slide, the pointer landed on no edge).
- * @property PuppetModel baseModel The model the new positions fold onto.
+ * @property PuppetModel baseModel The model the new rest shapes fold onto.
  */
 internal class MeshDriveRequest(
 	val operator: MeshOperatorKind,
@@ -79,11 +80,11 @@ internal class MeshDriveRequest(
 /**
  * One drive's result.
  *
- * @property Map<DrawableId, FloatArray> preview Each moving mesh's new base positions, in capture order.
+ * @property Map<DrawableId, MeshRestPositions> preview Each moving mesh's new rest shape, in capture order.
  * @property PuppetModel folded The request's base model with them folded in.
  */
 internal class MeshDriveResult(
-	val preview: Map<DrawableId, FloatArray>,
+	val preview: Map<DrawableId, MeshRestPositions>,
 	val folded: PuppetModel,
 )
 
@@ -110,15 +111,15 @@ internal fun meshDriveJobs(
 	}
 
 /**
- * One mesh's new base positions under a request: its frozen world shape through the operator (a Vertex
- * Slide moves only the slide mesh's vertex, and nothing when the pointer landed on no edge), inverted back
- * onto the base mesh over its moved vertices.  Pure; the parallel compute runs it per mesh on any thread.
+ * One mesh's new rest shape under a request: its frozen world shape through the operator (a Vertex Slide
+ * moves only the slide mesh's vertex, and nothing when the pointer landed on no edge), inverted back onto
+ * the rest arrays over its moved vertices.  Pure; the parallel compute runs it per mesh on any thread.
  *
  * @param MeshDriveJob job The mesh.
  * @param MeshDriveRequest request The request.
- * @return FloatArray The new base positions.
+ * @return MeshRestPositions The new canvas mesh and base.
  */
-internal fun meshJobBase(job: MeshDriveJob, request: MeshDriveRequest): FloatArray {
+internal fun meshJobRest(job: MeshDriveJob, request: MeshDriveRequest): MeshRestPositions {
 	val transformedWorld =
 		if (request.operator == MeshOperatorKind.VertexSlide) {
 			val slide = request.slide
@@ -130,7 +131,7 @@ internal fun meshJobBase(job: MeshDriveJob, request: MeshDriveRequest): FloatArr
 		} else {
 			applyOperator(request.operator, job.positions, job.groups, request.parameters, job.influence)
 		}
-	return job.geometry.worldToBase(transformedWorld, job.movedIndices)
+	return job.geometry.worldToRest(transformedWorld, job.movedIndices)
 }
 
 /**
@@ -139,7 +140,7 @@ internal fun meshJobBase(job: MeshDriveJob, request: MeshDriveRequest): FloatArr
  * @param MeshDriveRequest request The request.
  * @return MeshDriveResult The result.
  */
-internal fun computeMeshDrive(request: MeshDriveRequest): MeshDriveResult = foldMeshDrive(request, request.jobs.map { job -> meshJobBase(job, request) })
+internal fun computeMeshDrive(request: MeshDriveRequest): MeshDriveResult = foldMeshDrive(request, request.jobs.map { job -> meshJobRest(job, request) })
 
 /**
  * The drive with its meshes in parallel chunks on the caller's dispatcher, weighted by how many vertices
@@ -150,21 +151,21 @@ internal fun computeMeshDrive(request: MeshDriveRequest): MeshDriveResult = fold
  * @return MeshDriveResult The result.
  */
 internal suspend fun computeMeshDriveParallel(request: MeshDriveRequest, minChunkWeight: Int = DRIVE_MIN_CHUNK_WEIGHT): MeshDriveResult {
-	val bases = mapInBalancedChunks(request.jobs, { job -> job.movedIndices.size + 1 }, minChunkWeight) { job -> meshJobBase(job, request) }
-	return foldMeshDrive(request, bases)
+	val rests = mapInBalancedChunks(request.jobs, { job -> job.movedIndices.size + 1 }, minChunkWeight) { job -> meshJobRest(job, request) }
+	return foldMeshDrive(request, rests)
 }
 
 /**
- * Pairs each job with its new base positions and folds them onto the request's model in one pass.
+ * Pairs each job with its new rest shape and folds them onto the request's model in one pass.
  *
  * @param MeshDriveRequest request The request.
- * @param List<FloatArray> bases Each job's new base positions, in job order.
+ * @param List<MeshRestPositions> rests Each job's new rest shape, in job order.
  * @return MeshDriveResult The result.
  */
-private fun foldMeshDrive(request: MeshDriveRequest, bases: List<FloatArray>): MeshDriveResult {
-	val preview = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
+private fun foldMeshDrive(request: MeshDriveRequest, rests: List<MeshRestPositions>): MeshDriveResult {
+	val preview = LinkedHashMap<DrawableId, MeshRestPositions>(request.jobs.size)
 	for ((jobIndex, job) in request.jobs.withIndex()) {
-		preview[job.drawableId] = bases[jobIndex]
+		preview[job.drawableId] = rests[jobIndex]
 	}
 	return MeshDriveResult(preview, request.baseModel.withMeshPositions(preview))
 }

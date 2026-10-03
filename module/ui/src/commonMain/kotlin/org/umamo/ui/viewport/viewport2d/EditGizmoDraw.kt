@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveOperator
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.TransformAxisConstraint
@@ -28,7 +29,7 @@ import org.umamo.ui.viewport.gizmo.drawSelectToolAffordances
  * state arrive as State holders because they are read only for the gesture this area owns.
  *
  * @param MarqueeSelectController<MeshSelection> marquee The area's box / circle machinery.
- * @param ModalGestureState<EditGesture> gesture The area's modal gesture state.
+ * @param ModalGestureState<EditGesture, MeshRestPositions> gesture The area's modal gesture state.
  * @param ActiveSelectTool? ownedSelectTool The select tool armed in this area, or null.
  * @param ActiveOperator? hudOperator The latched mesh operator, whichever area owns it.
  * @param State axisConstraint The session's axis constraint.
@@ -41,7 +42,7 @@ import org.umamo.ui.viewport.gizmo.drawSelectToolAffordances
  */
 internal fun DrawScope.drawEditGizmoChrome(
 	marquee: MarqueeSelectController<MeshSelection>,
-	gesture: ModalGestureState<EditGesture>,
+	gesture: ModalGestureState<EditGesture, MeshRestPositions>,
 	ownedSelectTool: ActiveSelectTool?,
 	hudOperator: ActiveOperator?,
 	axisConstraint: State<TransformAxisConstraint?>,

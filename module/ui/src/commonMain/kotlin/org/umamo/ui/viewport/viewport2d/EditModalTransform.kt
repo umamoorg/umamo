@@ -7,6 +7,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.ModalCaptureSource
@@ -74,9 +75,9 @@ internal class EditModalTransform(
 	/**
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, area origin,
 	 * cursor wrap, pointer controller).  The capture is the Edit-mode gesture; preview holds each moving
-	 * mesh's new BASE positions.
+	 * mesh's new rest shape.
 	 */
-	val gesture = ModalGestureState<EditGesture>()
+	val gesture = ModalGestureState<EditGesture, MeshRestPositions>()
 
 	// The Vertex Slide's most recent landing (edge + factor), written as a drive publishes and read by the
 	// confirm's strip registration.  Plain state, like ModalGestureState.lastParameters: nothing composed or
@@ -113,7 +114,7 @@ internal class EditModalTransform(
 	 *   lead it when a commit and a latch share one call stack, as the rip auto-grab does).
 	 */
 	fun begin(kind: MeshOperatorKind, geometries: List<EditMeshGeometry>, selection: MeshSelection) {
-		// Freeze a COPY of each moving mesh's world geometry (base / displayed / world) so the whole drag
+		// Freeze a COPY of each moving mesh's world geometry (rest / displayed / world) so the whole drag
 		// transforms a fixed snapshot, and offer it to the shared capture builder as a source.  A mesh with
 		// nothing selected does not move.
 		val frozenById = LinkedHashMap<DrawableId, DrawableWorldGeometry>()
@@ -128,14 +129,7 @@ internal class EditModalTransform(
 			if (coveredIndices.isEmpty()) {
 				continue
 			}
-			val frozen =
-				DrawableWorldGeometry(
-					geometry.drawableId,
-					geometry.mapping,
-					geometry.mesh.positions.copyOf(),
-					geometry.displayed.copyOf(),
-					geometry.worldPosed.copyOf(),
-				)
+			val frozen = geometry.worldGeometry.frozenCopy()
 			frozenById[geometry.drawableId] = frozen
 			sources.add(ModalCaptureSource(geometry.drawableId, frozen.world, geometry.mesh.indices, coveredIndices))
 		}
@@ -247,10 +241,10 @@ internal class EditModalTransform(
 
 	/**
 	 * Confirms the in-flight gesture at the latest pointer: settles a drive the worker has not published
-	 * yet, commits each moving mesh's new base positions as ONE undo step, registers that step on the
+	 * yet, commits each moving mesh's new rest shape as ONE undo step, registers that step on the
 	 * operation settings strip, then clears the operator (its teardown resyncs the renderer).  A null
-	 * preview means no movement, so nothing is committed.  The preview already holds base positions (the
-	 * drive inverted them via worldToBase), so they are committed directly.
+	 * preview means no movement, so nothing is committed.  The preview already holds rest shapes (the
+	 * drive inverted them via worldToRest), so they are committed directly.
 	 */
 	override fun confirm() {
 		drive.settle()
@@ -262,23 +256,23 @@ internal class EditModalTransform(
 
 		if (committed != null && gestureData != null && request != null) {
 			val transform = gestureData.transform
-			val newPositionsByDrawable = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
+			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(request.jobs.size)
 			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(request.jobs.size)
 
 			for (job in request.jobs) {
 				val transformed = committed[job.drawableId] ?: continue
-				newPositionsByDrawable[job.drawableId] = transformed
+				restByDrawable[job.drawableId] = transformed
 				// The moved set, not just the covered set: proportional editing moves weighted
 				// unselected vertices too, and the change metadata must name every vertex the edit touched,
 				// as the drive that computed these positions moved them.
 				vertexIndicesByDrawable[job.drawableId] = job.movedIndices.toList()
 			}
 
-			if (newPositionsByDrawable.isNotEmpty()) {
+			if (restByDrawable.isNotEmpty()) {
 				val modelBefore = session.model.value
 				session.commitMeshPositions(
 					MeshChange.TransformVertices(vertexIndicesByDrawable, transform.operatorKind),
-					newPositionsByDrawable,
+					restByDrawable,
 				)
 
 				// The strip's rows for the step just pushed, over the RETAINED capture so an adjustment

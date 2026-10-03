@@ -198,32 +198,17 @@ fun PuppetModel.withDeformerSelectable(id: DeformerId, selectable: Boolean): Pup
 }
 
 /**
- * Returns a copy of [this] with the drawable [id]'s base art-mesh positions replaced by [newPositions],
- * sharing every other drawable and the rest of the model. Copy-on-write at the mesh leaf: it wraps
- * [newPositions] in a NEW [DrawableMesh] and shares the unchanged uvs / indices arrays by reference, so a
- * prior snapshot's positions array is never mutated. A no-op (no such drawable, no mesh, the same array
- * instance, or a length mismatch - vertex count is fixed in this slice) returns the same instance so the
- * session records nothing.
+ * Returns a copy of [this] with the drawable [id]'s rest shape replaced by [rest] - both the canvas editable
+ * mesh and the keyform-space base the deltas are measured from - sharing every other drawable and the rest
+ * of the model.  The one-drawable form of the batch below, under its rules.
  *
- * The caller must pass a freshly built array (e.g. from [MeshTransforms]); never the live mesh array.
+ * The caller must pass freshly built arrays (e.g. from [MeshTransforms]); never the live mesh arrays.
  *
- * @param DrawableId id The drawable whose mesh to retarget.
- * @param FloatArray newPositions The new interleaved (x, y) rest positions, same length as the current.
+ * @param DrawableId        id   The drawable whose mesh to retarget.
+ * @param MeshRestPositions rest The new canvas mesh and base, each the current length.
  * @return PuppetModel The model with that mesh updated, or [this] if nothing changed.
  */
-fun PuppetModel.withMeshPositions(id: DrawableId, newPositions: FloatArray): PuppetModel {
-	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
-	if (index < 0) {
-		return this
-	}
-	val mesh = drawables[index].mesh
-	if (mesh == null || newPositions === mesh.positions || newPositions.size != mesh.positions.size) {
-		return this
-	}
-	val updated = drawables.toMutableList()
-	updated[index] = updated[index].copy(mesh = DrawableMesh(newPositions, mesh.uvs, mesh.indices))
-	return copy(drawables = updated)
-}
+fun PuppetModel.withMeshPositions(id: DrawableId, rest: MeshRestPositions): PuppetModel = withMeshPositions(mapOf(id to rest))
 
 /**
  * Returns a copy of [this] with the drawable [id]'s texture UVs replaced by [newUvs], sharing every
@@ -250,23 +235,33 @@ fun PuppetModel.withMeshUvs(id: DrawableId, newUvs: FloatArray): PuppetModel {
 		return this
 	}
 	val updated = drawables.toMutableList()
-	updated[index] = updated[index].copy(mesh = DrawableMesh(mesh.positions, newUvs, mesh.indices))
+	updated[index] = updated[index].copy(mesh = mesh.withUvs(newUvs))
 	return copy(drawables = updated)
 }
 
 /**
- * Returns a copy of [this] with several drawables' base art-mesh positions replaced at once: the batch form
- * of [withMeshPositions], one pass over the drawables instead of one per entry, under the same per-entry
- * rules (an unknown id, a drawable with no mesh, the same array instance, or a length mismatch is skipped,
- * and only the first drawable of an id is touched).  The drawable list is copied on the first real change
- * and every untouched drawable is shared, and when nothing changes the same instance comes back, which is
- * how the session tells a no-op commit from an edit.
+ * Returns a copy of [this] with several drawables' rest shapes replaced at once - each the canvas editable
+ * mesh and the keyform-space base the deltas are measured from - in one pass over the drawables rather than
+ * one per entry.  Copy-on-write at the mesh leaf: each new [DrawableMesh] shares the unchanged uvs / indices
+ * arrays, so a prior snapshot's arrays are never mutated.  No keyform delta is touched: a delta measured from
+ * the moved base moves with it, which is what keeps every keyed shape following a rest-shape edit.  An
+ * unknown id, a drawable with no mesh, both arrays the instances it holds, or a length mismatch on either is
+ * skipped, and only the first drawable of an id is touched.  The drawable list is copied on the first real
+ * change and every untouched drawable is shared, and when nothing changes the same instance comes back,
+ * which is how the session tells a no-op commit from an edit.
  *
- * @param Map<DrawableId, FloatArray> newPositionsById Each drawable's new interleaved (x, y) rest positions.
+ * @param Map<DrawableId, MeshRestPositions> restById Each drawable's new canvas mesh and base.
  * @return PuppetModel The model with those meshes updated, or [this] if nothing changed.
  */
-fun PuppetModel.withMeshPositions(newPositionsById: Map<DrawableId, FloatArray>): PuppetModel =
-	withMeshArrays(newPositionsById, { mesh -> mesh.positions }) { mesh, positions -> DrawableMesh(positions, mesh.uvs, mesh.indices) }
+fun PuppetModel.withMeshPositions(restById: Map<DrawableId, MeshRestPositions>): PuppetModel =
+	withMeshEntries(
+		restById,
+		{ mesh, rest ->
+			(rest.positions === mesh.positions && rest.localPositions === mesh.localPositions) ||
+				rest.positions.size != mesh.positions.size ||
+				rest.localPositions.size != mesh.localPositions.size
+		},
+	) { mesh, rest -> DrawableMesh(positions = rest.positions, localPositions = rest.localPositions, uvs = mesh.uvs, indices = mesh.indices) }
 
 /**
  * Returns a copy of [this] with several drawables' texture UVs replaced at once: the batch form of
@@ -276,35 +271,34 @@ fun PuppetModel.withMeshPositions(newPositionsById: Map<DrawableId, FloatArray>)
  * @return PuppetModel The model with those meshes' UVs updated, or [this] if nothing changed.
  */
 fun PuppetModel.withMeshUvs(newUvsById: Map<DrawableId, FloatArray>): PuppetModel =
-	withMeshArrays(newUvsById, { mesh -> mesh.uvs }) { mesh, uvs -> DrawableMesh(mesh.positions, uvs, mesh.indices) }
+	withMeshEntries(newUvsById, { mesh, uvs -> uvs === mesh.uvs || uvs.size != mesh.uvs.size }) { mesh, uvs -> mesh.withUvs(uvs) }
 
 /**
- * The one pass both batch folds share: each drawable named in [arraysById], at its first occurrence, takes
- * the new array through [rebuild] unless it has no mesh, the array is the one it holds, or the lengths
- * differ.
+ * The one pass both batch folds share: each drawable named in [entriesById], at its first occurrence, takes
+ * its entry through [rebuild] unless it has no mesh or [skips] says the entry changes nothing it can apply.
  *
- * @param Map<DrawableId, FloatArray> arraysById The new arrays by drawable.
- * @param Function current The array a mesh holds now.
- * @param Function rebuild A new mesh carrying the new array.
+ * @param Map<DrawableId, TEntry> entriesById The new values by drawable.
+ * @param Function skips Whether an entry leaves a mesh as it is: the arrays it already holds, or a length mismatch.
+ * @param Function rebuild A new mesh carrying the entry.
  * @return PuppetModel The edited model, or [this] if nothing changed.
  */
-private inline fun PuppetModel.withMeshArrays(
-	arraysById: Map<DrawableId, FloatArray>,
-	current: (DrawableMesh) -> FloatArray,
-	rebuild: (DrawableMesh, FloatArray) -> DrawableMesh,
+private inline fun <TEntry> PuppetModel.withMeshEntries(
+	entriesById: Map<DrawableId, TEntry>,
+	skips: (DrawableMesh, TEntry) -> Boolean,
+	rebuild: (DrawableMesh, TEntry) -> DrawableMesh,
 ): PuppetModel {
-	if (arraysById.isEmpty()) {
+	if (entriesById.isEmpty()) {
 		return this
 	}
 	var updated: MutableList<Drawable>? = null
-	val visited = HashSet<DrawableId>(arraysById.size)
+	val visited = HashSet<DrawableId>(entriesById.size)
 	for ((drawableIndex, drawable) in drawables.withIndex()) {
-		val next = arraysById[drawable.id] ?: continue
+		val next = entriesById[drawable.id] ?: continue
 		if (!visited.add(drawable.id)) {
 			continue
 		}
 		val mesh = drawable.mesh
-		if (mesh == null || next === current(mesh) || next.size != current(mesh).size) {
+		if (mesh == null || skips(mesh, next)) {
 			continue
 		}
 		val target = updated ?: drawables.toMutableList().also { copied -> updated = copied }
@@ -473,21 +467,43 @@ fun PuppetModel.withDrawableInvertMask(id: DrawableId, invert: Boolean): PuppetM
 /**
  * Returns a copy of [this] with the drawable [id] bound to the deformer [parentDeformerId] (null unbinds),
  * sharing every other entity. A no-op id (no such drawable, or the binding already matches) returns the
- * same instance. A drawable is deformed by, but never a child of, a deformer - so this is a flat field
- * write with no tree surgery and no render-order rederive.
+ * same instance. A drawable is deformed by, but never a child of, a deformer - so this is no tree surgery
+ * and no render-order rederive.
  *
- * @param DrawableId id The drawable to rebind.
+ * The drawable's keyform-space base lives in its parent's space, so a rebinding that should leave the art
+ * where it is passes the base in the new parent's space as [localPositions] (the caller derives it, since
+ * that takes the evaluator).  Without one - or with one of the wrong length - the base is kept as it is, a
+ * flat write under which the art follows the new parent.
+ *
+ * @param DrawableId  id               The drawable to rebind.
  * @param DeformerId? parentDeformerId The deformer that deforms it, or null to unbind.
+ * @param FloatArray? localPositions   The base in the new parent's space, or null to keep the base.
  * @return PuppetModel The model with that binding updated, or [this] if nothing changed.
  */
-fun PuppetModel.withDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?): PuppetModel {
+fun PuppetModel.withDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?, localPositions: FloatArray? = null): PuppetModel {
 	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
 	if (index < 0 || drawables[index].parentDeformerId == parentDeformerId) {
 		return this
 	}
 	val updated = drawables.toMutableList()
-	updated[index] = updated[index].copy(parentDeformerId = parentDeformerId)
+	updated[index] = updated[index].rebound(parentDeformerId, localPositions)
 	return copy(drawables = updated)
+}
+
+/**
+ * This drawable bound to [parentDeformerId], its base replaced by [localPositions] when that is one of the
+ * mesh's length.  The canvas mesh is kept: the art does not move on the canvas.
+ *
+ * @param DeformerId? parentDeformerId The new parent, or null.
+ * @param FloatArray? localPositions   The base in the new parent's space, or null to keep the base.
+ * @return Drawable The drawable.
+ */
+internal fun Drawable.rebound(parentDeformerId: DeformerId?, localPositions: FloatArray?): Drawable {
+	val mesh = mesh
+	if (mesh == null || localPositions == null || localPositions.size != mesh.localPositions.size) {
+		return copy(parentDeformerId = parentDeformerId)
+	}
+	return copy(parentDeformerId = parentDeformerId, mesh = DrawableMesh(positions = mesh.positions, localPositions = localPositions, uvs = mesh.uvs, indices = mesh.indices))
 }
 
 /**
@@ -1258,7 +1274,7 @@ private fun List<Drawable>.remappedOver(remapByTile: Map<AtlasTileId, AtlasTileR
 		val remap = drawable.atlasTileId?.let { tileId -> remapByTile[tileId] } ?: return@map drawable
 		val mesh = drawable.mesh ?: return@map drawable
 		val artUvs = applyUvAffine(mesh.uvs, remap.storedToArt)
-		drawable.copy(mesh = DrawableMesh(mesh.positions, applyUvAffine(artUvs, remap.artToStored), mesh.indices))
+		drawable.copy(mesh = mesh.withUvs(applyUvAffine(artUvs, remap.artToStored)))
 	}
 }
 

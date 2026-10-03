@@ -54,6 +54,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.deltaReaching
 
 /*
  * The keyform half of the CMO3 export reconcile: re-bundling Umamo's split representation (a
@@ -446,22 +447,22 @@ internal class Cmo3KeyformLowering(
 	 * @param Drawable       editedDrawable The edited drawable.
 	 * @param Boolean        rebuildGrid   Whether the grid/channel/static state changed.
 	 * @param Boolean        rebuildMorphs Whether the blend shapes changed.
-	 * @param Boolean        alsoWriteBase Whether the base mesh moved too (positions rewritten here).
 	 */
 	fun lowerDrawable(
 		source: CArtMeshSource,
 		editedDrawable: Drawable,
 		rebuildGrid: Boolean,
 		rebuildMorphs: Boolean,
-		alsoWriteBase: Boolean,
 	) {
 		val subject = editedDrawable.id.raw
-		val editedBase = editedDrawable.mesh?.positions
+		// The keyform-space base the deltas are measured from (DrawableMesh.localPositions); the canvas mesh is
+		// CArtMeshSource.positions, written by the property lowering.
+		val editedBase = editedDrawable.mesh?.localPositions
 		if (editedBase == null) {
 			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.KeyformsWithoutBaseMesh)
 			return
 		}
-		val baselineBase = baselineDrawableById[editedDrawable.id]?.mesh?.positions
+		val baselineBase = baselineDrawableById[editedDrawable.id]?.mesh?.localPositions
 		val statics =
 			mapOf<FormChannel, ChannelValue>(
 				FormChannel.DRAW_ORDER to ChannelValue.Scalar(editedDrawable.drawOrder),
@@ -505,6 +506,9 @@ internal class Cmo3KeyformLowering(
 						coordType = template?.coordType ?: formCoordType(editedDrawable.parentDeformerId != null)
 					}
 			val origAbsolute = (existing?.positions as? FloatArray)?.takeIf { it.size == editedBase.size }
+			// The keyform is rebuilt from the keyform-space base as `local + Δ`.  A component whose base and delta
+			// are what the import derived from the stored float (Cmo3Import's deltaReaching) is unchanged, and keeps
+			// that float bit for bit - a -0.0 included, which the rebuild would turn into +0.0.
 			val absolute =
 				FloatArray(editedBase.size) { component ->
 					val delta = deltas?.getOrNull(component) ?: 0f
@@ -513,7 +517,7 @@ internal class Cmo3KeyformLowering(
 							baselineBase != null &&
 							baselineBase.size == editedBase.size &&
 							editedBase[component].toRawBits() == baselineBase[component].toRawBits() &&
-							delta.toRawBits() == (origAbsolute[component] - baselineBase[component]).toRawBits()
+							delta.toRawBits() == deltaReaching(baselineBase[component], origAbsolute[component]).toRawBits()
 					if (reusable) origAbsolute[component] else editedBase[component] + delta
 				}
 			// CMO3: CArtMeshForm field positions (absolute), ACDrawableForm fields drawOrder /
@@ -542,47 +546,6 @@ internal class Cmo3KeyformLowering(
 			for (cell in bundle.cells) {
 				val existing = existingForms[valueKey(cell.values)] as? CArtMeshForm
 				gridForms.add(writeMeshForm(existing, (cell.geometry as? MeshDeltaForm)?.positionDeltas, cell.channels))
-			}
-			if (alsoWriteBase) {
-				// Morph-target absolutes follow the base move (import re-derives blend-shape deltas
-				// as absolute minus base), so surviving morph forms rebase BEFORE the base swap -
-				// the same recompute lowerMeshPositions applies to its pool.  Grid forms were just
-				// rewritten against the new base above and must not shift twice (identity skip),
-				// and a morph rebuild below writes fresh absolutes itself.
-				val origBase = source.positions as? FloatArray
-				if (!rebuildMorphs && origBase != null && origBase.size == editedBase.size) {
-					val rewrittenGridForms = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
-					gridForms.forEach { gridForm -> rewrittenGridForms.add(gridForm) }
-					for (morphForm in existingMorphForms(source.keyformMorphTargetSet, source.keyforms)) {
-						if (morphForm in rewrittenGridForms || morphForm !is CArtMeshForm) {
-							continue
-						}
-						val origAbsolute = morphForm.positions as? FloatArray
-						if (origAbsolute == null || origAbsolute.size != editedBase.size) {
-							continue
-						}
-						// CMO3: CArtMeshForm field positions - absolute vertex positions.  Unchanged
-						// base components keep the stored value bit-identically (recompute the delta
-						// from the stored values, never (a-b)+b through IEEE rounding).
-						morphForm.positions =
-							FloatArray(origAbsolute.size) { component ->
-								if (editedBase[component].toRawBits() == origBase[component].toRawBits()) {
-									origAbsolute[component]
-								} else {
-									editedBase[component] + (origAbsolute[component] - origBase[component])
-								}
-							}
-						editor.ensureChildSlot(morphForm, "CArtMeshForm", "positions")
-					}
-				}
-				source.positions = editedBase.copyOf()
-				editor.ensureChildSlot(source, "CArtMeshSource", "positions", "uvs")
-				val editableMesh = Cmo3Import.editableMeshOf(source)
-				val pointArray = editableMesh?.point as? FloatArray
-				if (editableMesh != null && (pointArray == null || pointArray.size == editedBase.size)) {
-					editableMesh.point = editedBase.copyOf()
-					editor.ensureChildSlot(editableMesh, "GEditableMesh2", "point", "pointPriority")
-				}
 			}
 			if (!writeGridWeb(source, subject, source.keyformGridSource, { source.keyformGridSource = it }, bundle, gridForms)) {
 				return

@@ -80,7 +80,7 @@ class UmaDocumentRoundTripCorpusTest {
 		val writeNanos = System.nanoTime() - writeStart
 		val readStart = System.nanoTime()
 		val document = Uma.read(bytes)
-		val reopened = UmaDocumentBridge.modelOf(document)
+		val reopened = UmaDocumentBridge.readModel(document).model
 		val readNanos = System.nanoTime() - readStart
 		val differences = documentDifferences(model, reopened)
 		assertTrue(differences.isEmpty(), "$label: ${differences.size} differences, first ${differences.take(20)}")

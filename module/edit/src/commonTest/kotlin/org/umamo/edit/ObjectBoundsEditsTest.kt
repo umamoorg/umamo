@@ -45,7 +45,7 @@ class ObjectBoundsEditsTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = positions?.let { DrawableMesh(it, FloatArray(it.size), intArrayOf(0, 1, 2)) },
+			mesh = positions?.let { DrawableMesh.withLocalEqualToCanvas(it, FloatArray(it.size), intArrayOf(0, 1, 2)) },
 			geometryGrid = null,
 		)
 

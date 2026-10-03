@@ -151,7 +151,7 @@ class EditMeshOverlayProducerTest {
 
 	@Test
 	fun aMalformedMeshIsLeftOutRatherThanThrown() {
-		val broken = withQuadMesh(gizmoRigModel()) { mesh -> DrawableMesh(mesh.positions, mesh.uvs, intArrayOf(0, 1, 7, 0, 2, 3)) }
+		val broken = withQuadMesh(gizmoRigModel()) { mesh -> DrawableMesh.withLocalEqualToCanvas(mesh.positions, mesh.uvs, intArrayOf(0, 1, 7, 0, 2, 3)) }
 		val producer = EditMeshOverlayProducer()
 		assertNull(producer.produce(EditorMode.Edit, MeshSelection.editing(listOf(RIG_QUAD)), broken, sizes), "the only session mesh is left out")
 		val overlay = assertNotNull(producer.produce(EditorMode.Edit, MeshSelection.editing(listOf(RIG_QUAD, RIG_OTHER)), broken, sizes))
@@ -174,7 +174,7 @@ class EditMeshOverlayProducerTest {
 		val selection = selectionOf(MeshSelectMode.Vertex, listOf(MeshElement.Vertex(0)))
 		val model = gizmoRigModel()
 		val before = assertNotNull(producer.produce(EditorMode.Edit, selection, model, sizes))
-		val moved = withQuadMesh(model) { mesh -> DrawableMesh(mesh.positions.map { coordinate -> coordinate + 5f }.toFloatArray(), mesh.uvs, mesh.indices) }
+		val moved = withQuadMesh(model) { mesh -> DrawableMesh.withLocalEqualToCanvas(mesh.positions.map { coordinate -> coordinate + 5f }.toFloatArray(), mesh.uvs, mesh.indices) }
 		val after = producer.produce(EditorMode.Edit, selection, moved, sizes)
 		assertSame(before, after, "a Grab's commit moves positions only, which the overlay does not carry")
 	}
@@ -205,7 +205,7 @@ class EditMeshOverlayProducerTest {
 		val model = gizmoRigModel()
 		val selection = MeshSelection.editing(listOf(RIG_QUAD, RIG_OTHER))
 		val before = assertNotNull(producer.produce(EditorMode.Edit, selection, model, sizes))
-		val flipped = withQuadMesh(model) { mesh -> DrawableMesh(mesh.positions, mesh.uvs, intArrayOf(0, 1, 3, 1, 2, 3)) }
+		val flipped = withQuadMesh(model) { mesh -> DrawableMesh.withLocalEqualToCanvas(mesh.positions, mesh.uvs, intArrayOf(0, 1, 3, 1, 2, 3)) }
 		val after = assertNotNull(producer.produce(EditorMode.Edit, selection, flipped, sizes))
 		assertNotSame(before.meshes[0].edgeEndpoints, after.meshes[0].edgeEndpoints, "the re-triangulated quad gets a new edge list")
 		assertTrue(flagOf(after.meshes[0], 1, 3) >= 0, "with the new diagonal")

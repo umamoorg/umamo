@@ -180,7 +180,7 @@ class MeshOverlayLiveEngineTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(quadPositions, quadUvs, quadIndices),
+				mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions, quadUvs, quadIndices),
 				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(paramA, floatArrayOf(0f))),

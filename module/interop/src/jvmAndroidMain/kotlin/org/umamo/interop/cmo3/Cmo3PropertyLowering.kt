@@ -4,7 +4,6 @@ import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.gen.ACDeformerSource
 import org.umamo.format.cmo3.model.gen.ACParameterControllableSource
-import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CImageCanvas
 import org.umamo.format.cmo3.model.gen.CLayeredImage
@@ -417,11 +416,10 @@ internal class Cmo3PropertyLowering(
 								}
 							}
 							DrawableField.MESH_POSITIONS -> {
-								// A base move combined with keyform-delta edits routes through the grid
-								// rebuild below, which writes the base and the absolutes together.
-								if (DrawableField.GEOMETRY !in diff.fields) {
-									lowerMeshPositions(source, diff.id, editedDrawable)
-								}
+								// The canvas editable mesh only: the keyforms are absolutes rebuilt from the
+								// keyform-space base, so a move of that base surfaces as GEOMETRY and BLEND_SHAPES
+								// and is written by the keyform rebuild below.
+								lowerMeshPositions(source, diff.id, editedDrawable)
 								if (baselineDrawableById[diff.id] != null) {
 									weldDivergedDrawableNames.add(editedDrawable.name)
 								}
@@ -452,7 +450,6 @@ internal class Cmo3PropertyLowering(
 							editedDrawable = editedDrawable,
 							rebuildGrid = rebuildGrid,
 							rebuildMorphs = rebuildMorphs,
-							alsoWriteBase = DrawableField.MESH_POSITIONS in diff.fields && DrawableField.GEOMETRY in diff.fields,
 						)
 					}
 				}
@@ -472,50 +469,31 @@ internal class Cmo3PropertyLowering(
 	}
 
 	/**
-	 * Lowers an edited base mesh: rewrites CArtMeshSource.positions, mirrors the editable mesh's
-	 * point array, and rebases every CArtMeshForm's ABSOLUTE positions onto the new base - keeping
-	 * untouched vertices bit-identical by recomputing each delta from the stored values rather than
-	 * re-deriving (a-b)+b through IEEE rounding.
+	 * Lowers an edited canvas editable mesh: rewrites CArtMeshSource.positions and mirrors the editable mesh's
+	 * point array.  The forms are not touched: CMO3 stores them as absolutes in the keyforms' own space, which the
+	 * keyform lowering rebuilds from the drawable's keyform-space base, so a canvas move leaves every form's floats
+	 * as they are.
 	 *
 	 * @param CArtMeshSource source         The drawable's graph source.
 	 * @param DrawableId     drawableId     The drawable's id (for notices).
 	 * @param Drawable       editedDrawable The edited drawable.
 	 */
 	private fun lowerMeshPositions(source: CArtMeshSource, drawableId: DrawableId, editedDrawable: Drawable) {
-		val origBase = source.positions as? FloatArray
-		val newBase = editedDrawable.mesh?.positions
-		if (origBase == null || newBase == null || origBase.size != newBase.size) {
+		val origCanvas = source.positions as? FloatArray
+		val newCanvas = editedDrawable.mesh?.positions
+		if (origCanvas == null || newCanvas == null || origCanvas.size != newCanvas.size) {
 			unsupported(ExportEntityCategory.Drawable, drawableId.raw, ExportNoticeReason.BaseGeometryVertexCountMismatch)
 			return
 		}
-		// Rebase the forms BEFORE swapping the base: CMO3 stores absolutes, so every form follows
-		// the base move (grid cells and morph-target forms live in the same pool and rebase alike).
-		for (form in Cmo3Import.elementsOf(source.keyforms).filterIsInstance<CArtMeshForm>()) {
-			val origAbsolute = form.positions as? FloatArray ?: continue
-			if (origAbsolute.size != newBase.size) {
-				continue
-			}
-			val rebased =
-				FloatArray(origAbsolute.size) { component ->
-					if (newBase[component].toRawBits() == origBase[component].toRawBits()) {
-						origAbsolute[component]
-					} else {
-						newBase[component] + (origAbsolute[component] - origBase[component])
-					}
-				}
-			// CMO3: CArtMeshForm field positions - absolute vertex positions.
-			form.positions = rebased
-			editor.ensureChildSlot(form, "CArtMeshForm", "positions")
-		}
-		// CMO3: CArtMeshSource field positions - the rest/default geometry.
-		source.positions = newBase.copyOf()
+		// CMO3: CArtMeshSource field positions - the canvas-space editable mesh.
+		source.positions = newCanvas.copyOf()
 		editor.ensureChildSlot(source, "CArtMeshSource", "positions", "uvs")
 		// CMO3: GEditableMesh2 field point mirrors the positions as its OWN float-array (the corpus
 		// never shares the two array objects, and a shared object would hoist as an xs.ref).
 		val editableMesh = Cmo3Import.editableMeshOf(source)
 		val pointArray = editableMesh?.point as? FloatArray
-		if (editableMesh != null && (pointArray == null || pointArray.size == newBase.size)) {
-			editableMesh.point = newBase.copyOf()
+		if (editableMesh != null && (pointArray == null || pointArray.size == newCanvas.size)) {
+			editableMesh.point = newCanvas.copyOf()
 			editor.ensureChildSlot(editableMesh, "GEditableMesh2", "point", "pointPriority")
 		}
 	}

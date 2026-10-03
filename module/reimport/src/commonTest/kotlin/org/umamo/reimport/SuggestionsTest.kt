@@ -25,10 +25,10 @@ class SuggestionsTest {
 		ArtSourceLayer(key, name, "", left, top, 10, 10, visible = true, present = present)
 
 	/** A birth quad over a 10 x 10 tile whose layer sits at (50, 50): what an import mints, and nothing more. */
-	private val freshQuad = DrawableMesh(floatArrayOf(50f, 50f, 60f, 50f, 60f, 60f, 50f, 60f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
+	private val freshQuad = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(50f, 50f, 60f, 50f, 60f, 60f, 50f, 60f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
 
 	/** A three-vertex mesh: edited, so rig work. */
-	private val editedMesh = DrawableMesh(floatArrayOf(50f, 50f, 51f, 50f, 50f, 51f), floatArrayOf(0f, 0f, 0.1f, 0f, 0f, 0.1f), intArrayOf(0, 1, 2))
+	private val editedMesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(50f, 50f, 51f, 50f, 50f, 51f), floatArrayOf(0f, 0f, 0.1f, 0f, 0f, 0.1f), intArrayOf(0, 1, 2))
 
 	private fun drawable(id: String, tileId: String, mesh: DrawableMesh): Drawable =
 		Drawable(DrawableId(id), id, null, BlendMode.Normal, emptyList(), mesh, null, atlasTileId = AtlasTileId(tileId))

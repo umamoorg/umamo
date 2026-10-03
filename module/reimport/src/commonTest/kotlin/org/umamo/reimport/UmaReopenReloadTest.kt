@@ -97,7 +97,7 @@ class UmaReopenReloadTest {
 		val pngByTile = imported.rasterByTile.mapKeys { (tileId, _) -> tileId.raw }.mapValues { (_, raster) -> PngCodec.write(RasterImage(raster.width, raster.height, raster.rgba)) }
 		val saved = UmaDocumentBridge.documentOf(UmaModel.create(UmaWriterInfo("Umamo", "test")), model, UmaPixelSource({ tileId -> pngByTile[tileId] }, UmaRenderPagePixels.Derived, null))
 		val document = Uma.read(Uma.write(saved))
-		val reopened: PuppetModel = UmaDocumentBridge.modelOf(document)
+		val reopened: PuppetModel = UmaDocumentBridge.readModel(document).model
 		assertEquals(offset.x to offset.z, reopened.sources.single().let { record -> record.offsetX to record.offsetZ }, "the placement survives the save")
 		val pages = UmaDocumentBridge.pagesOf(document)
 		val reopenedRasterOf: (AtlasTileId) -> LayerRaster? = { tileId -> pages.tilePng(tileId)?.let(PngCodec::read)?.let { image -> LayerRaster(image.width, image.height, image.rgba) } }

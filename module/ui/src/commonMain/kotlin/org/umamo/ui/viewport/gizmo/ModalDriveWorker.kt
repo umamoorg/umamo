@@ -70,7 +70,7 @@ internal fun ModalDriveEffect(worker: ModalDriveWorker<*, *>) {
  * @param Function publish Lands a result on the UI thread.
  */
 internal class ModalDriveWorker<TRequest : Any, TResult : Any>(
-	private val gesture: ModalGestureState<*>,
+	private val gesture: ModalGestureState<*, *>,
 	private val computeSequential: (TRequest) -> TResult,
 	private val computeOffThread: suspend (TRequest) -> TResult = { request -> computeSequential(request) },
 	private val publish: (TRequest, TResult) -> Unit,

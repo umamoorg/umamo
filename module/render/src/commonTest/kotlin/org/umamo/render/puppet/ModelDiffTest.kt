@@ -50,7 +50,7 @@ class ModelDiffTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, uvs, indices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, uvs, indices),
 			geometryGrid = keyforms ?: grid(positions),
 		)
 

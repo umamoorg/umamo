@@ -434,7 +434,7 @@ class SourcesTreeTest {
 	@Test
 	fun aProposalNamingALayerUnderAFreshDrawableStandsAndSaysWhatItRetires() {
 		val base = model()
-		val freshQuad = DrawableMesh(floatArrayOf(12f, 22f, 16f, 22f, 16f, 26f, 12f, 26f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
+		val freshQuad = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(12f, 22f, 16f, 22f, 16f, 26f, 12f, 26f), floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f, 0f, 1f), intArrayOf(0, 1, 2, 0, 2, 3))
 		val fresh = drawable("e", "tA5").copy(mesh = freshQuad)
 		val puppet =
 			base.copy(

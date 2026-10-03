@@ -101,6 +101,10 @@ internal object UmaPuppetEntry {
 		// UMA §4.8: a reader refuses a puppet that breaks a shape rule or repeats an identity, so a save that wrote one
 		// could never be reopened.
 		UmaPuppetShape.firstProblem(puppet)?.let { problem -> throw UmaWriteException(path, problem) }
+		// UMA §4.10: the 0.4.0 mesh shape is read and converted, never written - its deltas mean something else.
+		puppet.drawables.orEmpty().firstOrNull { drawable -> drawable.mesh?.isLegacy == true }?.let { drawable ->
+			throw UmaWriteException(path, "drawables[${drawable.id}].mesh is the 0.4.0 shape, which a writer does not write")
+		}
 		val tree =
 			try {
 				umaEntryJsonWithBuffers({ null }, scratch).encodeToJsonElement(UmaPuppet.serializer(), puppet) as JsonObject

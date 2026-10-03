@@ -21,7 +21,7 @@ import org.umamo.ui.viewport.gizmo.drawOwnedModalTransformHud
  * operator latch names.
  *
  * @param MarqueeSelectController<Selection> marquee The area's box machinery.
- * @param ModalGestureState<PlacementGesture> gesture The area's placement gesture state.
+ * @param ModalGestureState<PlacementGesture, FloatArray> gesture The area's placement gesture state.
  * @param Boolean owned Whether the latched UV operator is this area's.
  * @param State axisConstraint The session's axis constraint.
  * @param ViewportCamera camera The frame camera.
@@ -31,7 +31,7 @@ import org.umamo.ui.viewport.gizmo.drawOwnedModalTransformHud
  */
 internal fun DrawScope.drawUvObjectGizmoChrome(
 	marquee: MarqueeSelectController<Selection>,
-	gesture: ModalGestureState<PlacementGesture>,
+	gesture: ModalGestureState<PlacementGesture, FloatArray>,
 	owned: Boolean,
 	axisConstraint: State<TransformAxisConstraint?>,
 	camera: ViewportCamera,

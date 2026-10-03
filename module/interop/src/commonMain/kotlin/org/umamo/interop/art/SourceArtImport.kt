@@ -931,7 +931,7 @@ object SourceArtImport {
 		val canvasTop = layer.bounds.top.toFloat()
 		val tileWidth = layer.raster.width.toFloat()
 		val tileHeight = layer.raster.height.toFloat()
-		return DrawableMesh(
+		return DrawableMesh.withLocalEqualToCanvas(
 			positions =
 				floatArrayOf(
 					canvasLeft + left,

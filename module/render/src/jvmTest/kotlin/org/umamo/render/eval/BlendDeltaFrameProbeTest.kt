@@ -74,7 +74,7 @@ class BlendDeltaFrameProbeTest {
 			val parameterId = document.parameters[record.parameterIndex].id
 			val drawable = puppet.drawables.firstOrNull { it.id.raw == meshId } ?: continue
 			val binding = drawable.blendShapes.firstOrNull { it.parameterId.raw == parameterId } ?: continue
-			val base = drawable.mesh?.positions ?: continue
+			val base = drawable.mesh?.localPositions ?: continue
 
 			// The grid form at the DEFAULT pose, multilinearly interpolated (null when ungridded).
 			val gridAtDefault =

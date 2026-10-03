@@ -5,6 +5,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
@@ -75,6 +76,30 @@ class RelationEditsTest {
 		assertSame(base, base.withDrawableParentDeformer(drawableId, null))
 		assertSame(bound, bound.withDrawableParentDeformer(drawableId, warpId))
 		assertSame(base, base.withDrawableParentDeformer(DrawableId("missing"), warpId))
+	}
+
+	/**
+	 * A rebinding that keeps the art in place takes a base in the new parent's space and keeps the canvas mesh;
+	 * a base of the wrong length is ignored for the flat write.  Deleting a deformer applies each re-homed
+	 * drawable's base the same way.
+	 */
+	@Test
+	fun aRebindingTakesTheBaseItIsGiven() {
+		val canvas = floatArrayOf(120f, 120f, 160f, 120f, 160f, 160f)
+		val meshed = model().copy(drawables = listOf(drawable(drawableId).copy(mesh = DrawableMesh.withLocalEqualToCanvas(canvas, FloatArray(6), intArrayOf(0, 1, 2))), drawable(otherDrawableId)))
+		val local = floatArrayOf(0.1f, 0.1f, 0.3f, 0.1f, 0.3f, 0.3f)
+
+		val bound = meshed.withDrawableParentDeformer(drawableId, warpId, local).drawables.first { it.id == drawableId }
+		assertSame(local, bound.mesh!!.localPositions, "the base is the one given")
+		assertSame(canvas, bound.mesh!!.positions, "the canvas mesh is kept")
+		val flat = meshed.withDrawableParentDeformer(drawableId, warpId, FloatArray(4)).drawables.first { it.id == drawableId }
+		assertEquals(warpId, flat.parentDeformerId)
+		assertSame(canvas, flat.mesh!!.localPositions, "a base of the wrong length is ignored")
+
+		val underWarp = meshed.withDrawableParentDeformer(drawableId, warpId, local)
+		val rehomed = underWarp.withDeformerDeleted(warpId, mapOf(drawableId to canvas.copyOf())).drawables.first { it.id == drawableId }
+		assertNull(rehomed.parentDeformerId)
+		assertEquals(canvas.toList(), rehomed.mesh!!.localPositions.toList(), "the re-homed drawable takes its base")
 	}
 
 	@Test

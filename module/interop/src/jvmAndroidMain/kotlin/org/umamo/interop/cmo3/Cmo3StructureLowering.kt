@@ -676,7 +676,7 @@ internal class Cmo3StructureLowering(
 	}
 
 	/**
-	 * Rewrites a drawable's topology surface: indices, base positions, UVs, and the full
+	 * Rewrites a drawable's topology surface: indices, canvas positions, UVs, and the full
 	 * GEditableMesh2 rebuild (point mirror, freshly minted vertex uids, the unique triangle-edge
 	 * set), then re-binds every glue touching the drawable to the new uid table.
 	 *
@@ -692,10 +692,10 @@ internal class Cmo3StructureLowering(
 			return false
 		}
 		// CMO3: CArtMeshSource fields indices / positions / uvs.  The positions are CANVAS-frame
-		// in every official file, and mesh.positions is canvas-frame by the runtime's contract:
-		// the MOC3 document loader normalizes parent-local rest meshes through :render's
-		// restMeshesToCanvasSpace at import (rendering never notices the base's frame - grids sum
-		// to one - but the editor's atlas and mesh-edit views read this field as canvas geometry).
+		// in every official file, and mesh.positions is the canvas editable mesh by the runtime's
+		// contract (a MOC3 import derives it through :render's restMeshesToCanvasSpace at load); the
+		// editor's atlas and mesh-edit views read this field as canvas geometry.  The forms are the
+		// keyform lowering's, rebuilt from mesh.localPositions.
 		source.indices = mesh.indices.copyOf()
 		editor.ensureChildSlot(source, "CArtMeshSource", "indices", "keyforms")
 		source.positions = mesh.positions.copyOf()

@@ -194,7 +194,7 @@ class UmaArtDocumentGateTest {
 		val thumbnail = DrawableThumbnailer(puppet, document.textures).modelRasterFor()?.fittedInto(256)?.let(PngCodec::write)
 		val saved = UmaDocumentBridge.documentOf(UmaModel.create(writer), puppet, UmaPixelSource({ tileId -> tilePngs[tileId] }, UmaRenderPagePixels.Derived, thumbnail))
 		val uma = Uma.read(Uma.write(saved))
-		val reopened = UmaDocumentBridge.modelOf(uma)
+		val reopened = UmaDocumentBridge.readModel(uma).model
 		assertEquals(puppet.atlas, reopened.atlas, "${sample.name}: the atlas")
 		assertEquals(puppet.sources, reopened.sources, "${sample.name}: the sources")
 		if (thumbnail != null) {

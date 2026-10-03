@@ -139,6 +139,62 @@ public fun gridCorners(grid: KeyformGrid<*>, paramValue: (ParameterId) -> Float)
 public fun <TForm> cellsByLinearIndex(grid: KeyformGrid<TForm>): Map<Int, KeyformCell<TForm>> = grid.cellsByLinearIndex
 
 /**
+ * The cell a drawable's keyform-space base is taken from: on every axis the key nearest the parameter's default
+ * (ties to the lower key), or the grid's first cell when no cell sits at that coordinate.  An importer makes
+ * this cell's absolute positions the base (DrawableMesh.localPositions), so its delta is exactly zero and the
+ * base is the rest shape whenever the default lands on keys.  The MOC3 import's index rule
+ * (`Moc3KeyformImport.defaultCellIndexOf`) picks the same cell over the moc's own grid layout.
+ *
+ * @param KeyformGrid grid      The grid.
+ * @param Function    defaultOf The default value per parameter id.
+ * @return KeyformCell? The reference cell, or null for a grid with no cells.
+ */
+public fun <TForm> referenceCellOf(grid: KeyformGrid<TForm>, defaultOf: (ParameterId) -> Float): KeyformCell<TForm>? {
+	if (grid.cells.isEmpty()) {
+		return null
+	}
+	val coordinate =
+		IntArray(grid.axes.size) { axisIndex ->
+			val axis = grid.axes[axisIndex]
+			val defaultValue = defaultOf(axis.parameterId)
+			var nearestKey = 0
+			for (keyIndex in axis.keys.indices) {
+				if (kotlin.math.abs(axis.keys[keyIndex] - defaultValue) < kotlin.math.abs(axis.keys[nearestKey] - defaultValue)) {
+					nearestKey = keyIndex
+				}
+			}
+			nearestKey
+		}
+	return cellsByLinearIndex(grid)[grid.linearIndexOf(coordinate)] ?: grid.cells.first()
+}
+
+/**
+ * The keyform-space base an importer gives a drawable whose keyforms it read as absolute positions: the
+ * [referenceCellOf] cell's absolutes, copied.  [canvas] itself (one shared array) when there is no grid, when
+ * the reference form's length does not match the mesh, or when its values are the canvas mesh's own - a
+ * drawable with no deformer whose rest shape is its editable mesh.
+ *
+ * @param FloatArray  canvas     The canvas editable mesh.
+ * @param KeyformGrid grid       The keyforms as read, or null for an unkeyed drawable.
+ * @param Function    defaultOf  The default value per parameter id.
+ * @param Function    absoluteOf A form's absolute positions.
+ * @return FloatArray The base.
+ */
+public fun <TForm> keyformBaseOf(
+	canvas: FloatArray,
+	grid: KeyformGrid<TForm>?,
+	defaultOf: (ParameterId) -> Float,
+	absoluteOf: (TForm) -> FloatArray,
+): FloatArray {
+	val reference = grid?.let { keyedGrid -> referenceCellOf(keyedGrid, defaultOf) } ?: return canvas
+	val absolute = absoluteOf(reference.form)
+	if (absolute.size != canvas.size || absolute.contentEquals(canvas)) {
+		return canvas
+	}
+	return absolute.copyOf()
+}
+
+/**
  * The drawable's grid form at the DEFAULT pose as position deltas vs the rest mesh - the shared
  * blend-shape delta reference (E5). Null when the drawable is ungridded or the default pose is out
  * of the grid's range (the reference is then zero). Static per drawable: the CPU pose prep, the

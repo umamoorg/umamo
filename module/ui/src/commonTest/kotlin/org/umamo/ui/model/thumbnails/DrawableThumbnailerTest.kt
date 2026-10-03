@@ -57,7 +57,7 @@ class DrawableThumbnailerTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions = positions, uvs = uvs, indices = intArrayOf()),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions = positions, uvs = uvs, indices = intArrayOf()),
 			geometryGrid = null,
 		)
 
