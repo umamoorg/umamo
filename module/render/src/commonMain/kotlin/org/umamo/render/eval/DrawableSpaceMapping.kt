@@ -38,8 +38,6 @@ private const val RIGID_INVERSE_MAX_ITERATIONS = 24
  * for drawing and hit-testing (forward), and converts a world-space drag back into local vertex
  * positions to write into the model (inverse).
  *
- * ドロウアブルのローカル座標と評価器のワールド座標を、固定ポーズで相互変換する。
- *
  * @property DeformerWorld? parentWorld The baked parent world this mapping composes, or null for a
  *   direct drawable.  Internal so a test can pin that drawables resolved together by one
  *   [DrawableSpaceResolver] share one instance; nothing outside the evaluator reads it.
