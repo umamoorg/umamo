@@ -29,6 +29,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
+import org.umamo.runtime.model.differsOnlyInMeshPositions
 import org.umamo.runtime.model.visibleDrawableIds
 import kotlin.concurrent.Volatile
 
@@ -406,9 +407,20 @@ class PuppetRenderer(
 	 * The diff compares against [currentModel] and therefore runs BEFORE the reassignment, keeping the
 	 * invariant "GPU buffer contents === currentModel's arrays".
 	 *
+	 * A push that moved mesh positions alone - every preview push of a Grab - keeps the last pose: its
+	 * inputs, the render plan, the composite states, and the draw order hold no positions, and the
+	 * residents' pose stamps survive because the reconcile reuses the resident instances.  What reads
+	 * positions is refreshed here instead - the glue store is marked stale so pass 1 re-captures it, and
+	 * the composite acceleration is re-planned over the moved bounds - so the next render is right without
+	 * a [setPose].  Reported as [ModelUpdateKind.PositionsOnly] only once a pose exists; before one there
+	 * is nothing to keep.
+	 *
 	 * @param PuppetModel newModel The current model.
+	 * @return ModelUpdateKind Whether the caller may keep the pose ([ModelUpdateKind.PositionsOnly]) or
+	 *   must rebuild it ([ModelUpdateKind.Structural]).
 	 */
-	fun updateModel(newModel: PuppetModel) {
+	fun updateModel(newModel: PuppetModel): ModelUpdateKind {
+		val positionsOnly = lastPoseInputs != null && newModel.differsOnlyInMeshPositions(currentModel)
 		residency.reconcile(currentModel, newModel, art::atlasTextureAtUpload)
 		currentModel = newModel
 		currentRenderRoot = newModel.renderRoot
@@ -417,6 +429,22 @@ class PuppetRenderer(
 		// document displays from - otherwise an edit silently drops that drawable back to the atlas.
 		art.applySourceLayerDisplay()
 		bboxReady = false
+		if (!positionsOnly) {
+			return ModelUpdateKind.Structural
+		}
+		// The two pose-derived things that read positions: pass 1 deforms the mesh buffers into the glue
+		// store, and the composite scissors walk each resident's rest bounds.
+		residency.glueStoreStale = true
+		compositeAcceleration =
+			planCompositeAcceleration(
+				plan = currentPlan,
+				compositeStates = currentCompositeStates,
+				residents = residency.residents,
+				gluePartnersById = residency.gluePartnersById,
+				flattenEnabled = compositeFlattenEnabled,
+				boundsScissorEnabled = compositeBoundsScissorEnabled,
+			)
+		return ModelUpdateKind.PositionsOnly
 	}
 
 	/**

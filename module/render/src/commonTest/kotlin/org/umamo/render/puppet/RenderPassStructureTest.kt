@@ -44,6 +44,7 @@ import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -251,6 +252,40 @@ class RenderPassStructureTest {
 	 */
 	private fun holds(rect: ScissorRect, left: Int, top: Int, right: Int, bottom: Int): Boolean =
 		rect.x <= left && rect.y <= top && rect.x + rect.width >= right && rect.y + rect.height >= bottom
+
+	/**
+	 * The model with one drawable's positions replaced, its uvs and indices shared: the shape of a
+	 * preview push.
+	 *
+	 * @param PuppetModel source    The model to edit.
+	 * @param String      id        The drawable to move.
+	 * @param FloatArray  positions Its new rest positions.
+	 * @return PuppetModel The edited model.
+	 */
+	private fun withPositions(source: PuppetModel, id: String, positions: FloatArray): PuppetModel =
+		source.copy(
+			drawables =
+				source.drawables.map { drawable ->
+					if (drawable.id == DrawableId(id)) {
+						val mesh = drawable.mesh ?: error("the fixture carries meshes")
+						drawable.copy(mesh = DrawableMesh(positions, mesh.uvs, mesh.indices))
+					} else {
+						drawable
+					}
+				},
+		)
+
+	/**
+	 * The isolated-composite fixture: a base quad, a band inside an isolated part, and a following quad.
+	 *
+	 * @return PuppetModel The model.
+	 */
+	private fun compositeModel(): PuppetModel =
+		model(
+			drawables = listOf(drawable("base", fullQuad()), drawable("layered", bandQuad()), drawable("following", fullQuad())),
+			parts = listOf(isolatedPart("fx", "layered", PartComposite(opacity = 0.5f))),
+			backToFront = listOf(OrgChild.Drawable(DrawableId("base")), OrgChild.Part(PartId("fx")), OrgChild.Drawable(DrawableId("following"))),
+		)
 
 	/** Plain drawables draw into one pass that paints the backdrop itself, with no copy between targets. */
 	@Test
@@ -610,5 +645,71 @@ class RenderPassStructureTest {
 		assertEquals(viewportGrid.uniforms, device.passes().single().draws.filterIsInstance<RecordedGridDraw>().single().uniforms, "the viewport's view is as it was")
 		assertEquals(viewportDraw.highlight, device.meshDraws().single().highlight, "the viewport still tints the selected drawable")
 		assertEquals(viewportDraw.highlightColor, device.meshDraws().single().highlightColor, "the viewport tints toward the same color")
+	}
+
+	/** A push that moved a glue mesh keeps the pose but re-captures the store the weld reads. */
+	@Test
+	fun aPositionsOnlyPushRecapturesTheGlueStoreWithoutAPose() {
+		val anchorPositions = floatArrayOf(-30f, -10f, -10f, -10f, -30f, 10f, -10f, 10f)
+		val weldedPositions = floatArrayOf(10f, -10f, 30f, -10f, 10f, 10f, 30f, 10f)
+		val source =
+			model(
+				drawables = listOf(drawable("anchor", anchorPositions, indices = IntArray(0)), drawable("welded", weldedPositions)),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("anchor")), OrgChild.Drawable(DrawableId("welded"))),
+				glues = listOf(Glue(DrawableId("anchor"), DrawableId("welded"), listOf(GluePair(1, 0, 0f, 1f), GluePair(3, 2, 0f, 1f)))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		assertEquals(1, device.capturePasses().size, "precondition: the first render captures the store once")
+
+		val movedPositions = floatArrayOf(14f, -10f, 34f, -10f, 14f, 10f, 34f, 10f)
+		assertEquals(ModelUpdateKind.PositionsOnly, renderer.updateModel(withPositions(source, "welded", movedPositions)), "a moved glue mesh is a positions-only push")
+		renderer.render(target, viewportSize, viewportSize)
+
+		val captures = device.capturePasses()
+		assertEquals(2, captures.size, "the moved mesh re-captures the store without a pose")
+		assertTrue(captures.last().captures.any { captured -> captured.mesh.restPositions === movedPositions }, "the second capture deforms the moved positions")
+	}
+
+	/** A push that moved an isolated part's drawable keeps the pose but re-plans the composite scissor. */
+	@Test
+	fun aPositionsOnlyPushMovesTheCompositeScissorWithoutAPose() {
+		val source = compositeModel()
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		val firstBounds = assertNotNull(device.passOf(device.compositeDraws().single()).spec.scissor, "precondition: the composite is scissored")
+		device.clearLog()
+
+		// The band slides 12 world units left: pixels 16..48 become 4..36, which the first scissor cannot hold.
+		val movedBand = floatArrayOf(-28f, 8f, 4f, 8f, -28f, 30f, 4f, 30f)
+		assertEquals(ModelUpdateKind.PositionsOnly, renderer.updateModel(withPositions(source, "layered", movedBand)))
+		renderer.render(target, viewportSize, viewportSize)
+
+		val movedBounds = assertNotNull(device.passOf(device.compositeDraws().single()).spec.scissor, "the composite is still scissored")
+		assertTrue(holds(movedBounds, left = 4, top = 40, right = 36, bottom = 62), "the scissor follows the moved band, got $movedBounds")
+		assertNotEquals(firstBounds, movedBounds, "the scissor moved with the band")
+	}
+
+	/** The frame a positions-only push draws without a pose is the frame a fresh pose over the moved model draws. */
+	@Test
+	fun aPositionsOnlyPushDrawsTheSameFrameAsAFreshPose() {
+		val source = compositeModel()
+		val moved = withPositions(source, "layered", floatArrayOf(-28f, 8f, 4f, 8f, -28f, 30f, 4f, 30f))
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		device.clearLog()
+		assertEquals(ModelUpdateKind.PositionsOnly, renderer.updateModel(moved))
+		renderer.render(target, viewportSize, viewportSize)
+		val keptPose = describe(device, target)
+
+		val (freshDevice, freshTarget) = recordFrame(moved)
+		assertEquals(describe(freshDevice, freshTarget), keptPose, "the kept pose records the same passes, draws, and scissors as a fresh one")
 	}
 }

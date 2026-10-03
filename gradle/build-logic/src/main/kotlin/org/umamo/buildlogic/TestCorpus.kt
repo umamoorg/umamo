@@ -129,6 +129,10 @@ fun sharedCorpusDefault(
 		// The whole moc3 tree — the decode/lowering/bake/probe gates walk it.
 		"moc3.samples" -> corpusDirectory.resolve("moc3").takeIf { it.isDirectory }?.absolutePath
 
+		// The perf probes' rig.  modelF is the largest corpus model (1330 drawables, 220k vertices), which
+		// is the point: a probe over a small rig measures nothing.  Same meaning in :ui and :render.
+		"moc3.perfSample" -> corpusDirectory.resolve("moc3/modelF/modelF.moc3").takeIf { it.isFile }?.absolutePath
+
 		// Deliberately absent, and worth stating: `moc3.sample` (singular). :ui defaults it to the one
 		// corpus family that is complete on disk, while :interop and :render want it explicit-only —
 		// a table entry here would switch their gated tests on as a side effect.
