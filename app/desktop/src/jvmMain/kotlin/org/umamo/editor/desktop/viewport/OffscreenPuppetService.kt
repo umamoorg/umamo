@@ -36,9 +36,11 @@ import org.umamo.ui.viewport.UvSceneContent
  *
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
+ *   - [EngineRenderInputs] - the render inputs the UI thread publishes (selection / shown / model / atlas
+ *     pages / source artwork / grid / highlight colors / supersample policy), each a volatile swap that
+ *     bumps the engine's freshness.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
- *     async read-back, plus the render-input state (selection / shown / model / atlas pages / source
- *     artwork / grid / highlight colors).
+ *     async read-back, and reads those inputs each frame.
  *   - [ViewportPicker] - CPU hit-testing and art thumbnails, on the UI thread (no GL).
  *
  * The GL context is chosen per OS behind [OffscreenGlContext], which is a hidden GLFW window on every
@@ -57,7 +59,8 @@ class OffscreenPuppetService(
 	liveParams: LiveParams,
 ) : PuppetViewportService {
 	private val registry = ViewportAreaRegistry()
-	private val engine = OffscreenRenderEngine(puppet, textures, liveParams, registry)
+	private val inputs = EngineRenderInputs(puppet, textures)
+	private val engine = OffscreenRenderEngine(puppet, textures, liveParams, registry, inputs)
 
 	// The picker shares the engine's renderer for its pure-CPU pickGeometry()/drawnOrder() snapshots (the
 	// same instance the render thread draws with - those reads are CPU-only and UI-thread-safe).
@@ -81,27 +84,27 @@ class OffscreenPuppetService(
 		}
 
 	override var supersampleEnabled: Boolean
-		get() = engine.supersampleEnabled
+		get() = inputs.supersampleEnabled
 		set(value) {
-			engine.supersampleEnabled = value
+			inputs.supersampleEnabled = value
 		}
 
 	override var supersampleWhileResizing: Boolean
-		get() = engine.supersampleWhileResizing
+		get() = inputs.supersampleWhileResizing
 		set(value) {
-			engine.supersampleWhileResizing = value
+			inputs.supersampleWhileResizing = value
 		}
 
 	override var gridColors: GridColors
-		get() = engine.gridColors
+		get() = inputs.gridColors
 		set(value) {
-			engine.gridColors = value
+			inputs.gridColors = value
 		}
 
 	override var gridConfig: GridConfig
-		get() = engine.gridConfig
+		get() = inputs.gridConfig
 		set(value) {
-			engine.gridConfig = value
+			inputs.gridConfig = value
 		}
 
 	override fun register(areaId: String): StateFlow<RenderedFrame?> = registry.register(areaId)
@@ -140,22 +143,22 @@ class OffscreenPuppetService(
 	override fun fitWorldRect(areaId: String, minX: Float, minZ: Float, maxX: Float, maxZ: Float) =
 		registry.fitWorldRect(areaId, minX, minZ, maxX, maxZ)
 
-	override fun setSelection(ids: Set<DrawableId>) = engine.setSelection(ids)
+	override fun setSelection(ids: Set<DrawableId>) = inputs.setSelection(ids)
 
-	override fun setActiveSelection(id: DrawableId?) = engine.setActiveSelection(id)
+	override fun setActiveSelection(id: DrawableId?) = inputs.setActiveSelection(id)
 
-	override fun setShownDrawables(ids: Set<DrawableId>) = engine.setShownDrawables(ids)
+	override fun setShownDrawables(ids: Set<DrawableId>) = inputs.setShownDrawables(ids)
 
-	override fun setSourceLayerPlan(plan: LayerDrawPlan) = engine.setSourceLayerPlan(plan)
+	override fun setSourceLayerPlan(plan: LayerDrawPlan) = inputs.setSourceLayerPlan(plan)
 
 	override fun setAtlasPages(binding: AtlasPageBinding) {
-		engine.setAtlasPages(binding)
+		inputs.setAtlasPages(binding)
 		// The picker samples page alpha CPU-side, so its pixels must move with the GPU's - a stale set
 		// would reject clicks on visible art at the re-derived coordinates.
 		picker.setTextures(binding.textures)
 	}
 
-	override fun deliverSourceLayerRasters(batch: LayerRasterBatch) = engine.deliverSourceLayerRasters(batch)
+	override fun deliverSourceLayerRasters(batch: LayerRasterBatch) = inputs.deliverSourceLayerRasters(batch)
 
 	/**
 	 * Pushes the latest model to the render engine and, when it actually changed, refreshes the picker:
@@ -166,15 +169,15 @@ class OffscreenPuppetService(
 	 * @param PuppetModel model The current model.
 	 */
 	override fun setModel(model: PuppetModel) {
-		val kind = engine.setModel(model) ?: return
+		val kind = inputs.setModel(model) ?: return
 		picker.updateModel(model, positionsOnly = kind == ModelUpdateKind.PositionsOnly)
 	}
 
 	override fun setSelectionHighlightColor(red: Float, green: Float, blue: Float) =
-		engine.setSelectionHighlightColor(red, green, blue)
+		inputs.setSelectionHighlightColor(red, green, blue)
 
 	override fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float) =
-		engine.setActiveSelectionHighlightColor(red, green, blue)
+		inputs.setActiveSelectionHighlightColor(red, green, blue)
 
 	override fun pickAt(areaId: String, cursorXpx: Float, cursorYpx: Float): DrawableId? {
 		val view = registry.viewFor(areaId) ?: return null
@@ -203,7 +206,7 @@ class OffscreenPuppetService(
 
 	override fun areaView(areaId: String): ImageFrame? = registry.viewFor(areaId)?.let { view -> ImageFrame(view.camera, view.width, view.height) }
 
-	override fun visibleContentBounds(): ContentBounds? = engine.puppetRenderer.posedContentBounds(engine.shownDrawables)
+	override fun visibleContentBounds(): ContentBounds? = engine.puppetRenderer.posedContentBounds(inputs.shownDrawables)
 
 	override fun thumbnailFor(id: DrawableId): ImageBitmap? = picker.thumbnailFor(id)
 
