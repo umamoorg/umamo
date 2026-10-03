@@ -115,6 +115,21 @@ public enum class PipelinePurpose {
 	 * fixed-function-expressible), writing with blending DISABLED.  Pair with [PipelineBlend.Opaque].
 	 */
 	Composite,
+
+	/**
+	 * The mesh overlay's face fills: one instance per triangle over a deformed-position store, the three
+	 * corners fetched by the vertex index; blends Normal, premultiplied in-shader.
+	 */
+	OverlayFaceFill,
+
+	/** The mesh overlay's edges: one instance per edge, expanded to a screen-space six-vertex band. */
+	OverlayEdge,
+
+	/** The mesh overlay's vertex dots: one instance per vertex, a round-masked six-vertex quad. */
+	OverlayVertexDot,
+
+	/** The mesh overlay's face-centroid dots: one instance per triangle, the quad at the mean of its corners. */
+	OverlayFaceDot,
 }
 
 /**
@@ -187,4 +202,30 @@ public class MeshSpec(
 	val uvs: FloatArray,
 	val indices: IntArray,
 	val glueAttributes: GlueVertexAttributes?,
+)
+
+/**
+ * One mesh's resident overlay instance data: the per-primitive buffers the overlay draws read, in the
+ * mesh's OWN vertex indices.  Opaque, like every handle; the device frees it through
+ * [RenderDevice.destroyOverlayMeshBuffers].
+ */
+public interface OverlayMeshBuffers
+
+/**
+ * One mesh's overlay instance data to upload: its edges and triangles as the mesh's own vertex indices
+ * (the draw adds the mesh's store offset), plus the flag of every vertex, edge, and triangle.  The flag
+ * arrays are updated in place by [RenderDevice.updateOverlayMeshFlags] at the same sizes.
+ *
+ * @property IntArray edgeEndpoints Two vertex indices per edge.
+ * @property IntArray faceCorners Three vertex indices per triangle.
+ * @property ByteArray vertexFlags One flag per vertex; its size is the mesh's vertex count.
+ * @property ByteArray edgeFlags One flag per edge.
+ * @property ByteArray faceFlags One flag per triangle.
+ */
+public class OverlayMeshSpec(
+	val edgeEndpoints: IntArray,
+	val faceCorners: IntArray,
+	val vertexFlags: ByteArray,
+	val edgeFlags: ByteArray,
+	val faceFlags: ByteArray,
 )

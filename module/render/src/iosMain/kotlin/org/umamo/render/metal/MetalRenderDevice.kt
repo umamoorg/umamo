@@ -7,6 +7,8 @@ import org.umamo.render.device.FrameEncoder
 import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.MeshSpec
+import org.umamo.render.device.OverlayMeshBuffers
+import org.umamo.render.device.OverlayMeshSpec
 import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.RenderPipeline
@@ -53,6 +55,11 @@ import org.umamo.render.device.TextureWrap
  *  - The uniform structs ([org.umamo.render.device.DeformUniforms] etc.) are MUTABLE AND REUSED per
  *    draw: marshal every field before returning (`setVertexBytes` copies, so that is natural) and
  *    never retain the instance.
+ * The mesh overlay (the Edit-mode wireframe, dots, and fills) is four more pipelines, instanced over a
+ * deformed-position store of its own: on this backend the per-instance index and flag buffers go through
+ * per-instance buffers (stepFunction perInstance), the corner from [[vertex_id]] and the primitive from
+ * [[instance_id]].
+ *
  */
 class MetalRenderDevice : RenderDevice {
 	override fun createTexture(
@@ -98,6 +105,16 @@ class MetalRenderDevice : RenderDevice {
 	override fun destroyMesh(mesh: GpuMesh): Unit = TODO("Metal port")
 
 	override fun destroyRenderTarget(target: RenderTarget): Unit = TODO("Metal port")
+
+	override fun destroyDeformedPositionStore(store: DeformedPositionStore): Unit = TODO("Metal port: release the store's MTLBuffer")
+
+	override fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers =
+		TODO("Metal port: per-instance MTLBuffers (stepFunction perInstance) for the indices and the flags; the corner comes from [[vertex_id]], the primitive from [[instance_id]]")
+
+	override fun updateOverlayMeshFlags(buffers: OverlayMeshBuffers, vertexFlags: ByteArray, edgeFlags: ByteArray, faceFlags: ByteArray): Unit =
+		TODO("Metal port: copy the three flag arrays into their buffers")
+
+	override fun destroyOverlayMeshBuffers(buffers: OverlayMeshBuffers): Unit = TODO("Metal port: release the overlay buffers")
 
 	override fun beginFrame(): FrameEncoder =
 		TODO("Metal port: open a command buffer; passes are encoders; barrier() is a genuine no-op; endFrame commits")

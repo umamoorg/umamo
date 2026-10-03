@@ -10,6 +10,7 @@ import org.lwjgl.opengl.GL21
 import org.lwjgl.opengl.GL30
 import org.lwjgl.opengl.GL31
 import org.lwjgl.opengl.GL32
+import org.lwjgl.opengl.GL33
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.device.DeformCapturePipeline
 import org.umamo.render.device.DeformedPositionStore
@@ -17,6 +18,8 @@ import org.umamo.render.device.FrameEncoder
 import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.MeshSpec
+import org.umamo.render.device.OverlayMeshBuffers
+import org.umamo.render.device.OverlayMeshSpec
 import org.umamo.render.device.PipelinePurpose
 import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.device.RenderDevice
@@ -29,6 +32,7 @@ import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
 import org.umamo.render.device.TextureWrap
 import org.umamo.render.glsl.GlslDialect
+import org.umamo.render.glsl.OverlayShape
 import org.umamo.render.glsl.atlasPageVertexShader
 import org.umamo.render.glsl.axisFragmentShader
 import org.umamo.render.glsl.axisVertexShader
@@ -37,6 +41,10 @@ import org.umamo.render.glsl.compositeVertexShader
 import org.umamo.render.glsl.glueVertexShader
 import org.umamo.render.glsl.gridFragmentShader
 import org.umamo.render.glsl.gridVertexShader
+import org.umamo.render.glsl.overlayDotVertexShader
+import org.umamo.render.glsl.overlayEdgeVertexShader
+import org.umamo.render.glsl.overlayFaceFillVertexShader
+import org.umamo.render.glsl.overlayFragmentShader
 import org.umamo.render.glsl.puppetFragmentShader
 import org.umamo.render.glsl.puppetVertexShader
 import org.umamo.render.glsl.tfDeformVertexShader
@@ -214,6 +222,10 @@ class GlRenderDevice : RenderDevice {
 	}
 
 	override fun createDeformedPositionStore(vertexCapacity: Int): DeformedPositionStore {
+		// The overlay store is the first one sized to a whole rig, so the texture-buffer limit is checked
+		// here rather than found as a silent read of zeros past the end.
+		val maxTexels = GL11.glGetInteger(GL31.GL_MAX_TEXTURE_BUFFER_SIZE)
+		check(vertexCapacity <= maxTexels) { "a deformed-position store of $vertexCapacity vertices exceeds this GL's texture buffer limit of $maxTexels texels" }
 		val buffer = GL15.glGenBuffers()
 		GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, buffer)
 		GL15.glBufferData(GL31.GL_TEXTURE_BUFFER, vertexCapacity.toLong() * 2 * Float.SIZE_BYTES, GL15.GL_DYNAMIC_COPY)
@@ -255,6 +267,86 @@ class GlRenderDevice : RenderDevice {
 		}
 		if (glMesh.indexEbo != 0) {
 			GL15.glDeleteBuffers(glMesh.indexEbo)
+		}
+	}
+
+	override fun destroyDeformedPositionStore(store: DeformedPositionStore) {
+		val glStore = store as GlDeformedPositionStore
+		GL11.glDeleteTextures(glStore.textureBuffer)
+		GL15.glDeleteBuffers(glStore.buffer)
+	}
+
+	override fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers {
+		val edgeCount = spec.edgeEndpoints.size / 2
+		val faceCount = spec.faceCorners.size / 3
+		val vertexCount = spec.vertexFlags.size
+		check(spec.edgeFlags.size == edgeCount) { "one edge flag per edge: ${spec.edgeFlags.size} flags for $edgeCount edges" }
+		check(spec.faceFlags.size == faceCount) { "one face flag per triangle: ${spec.faceFlags.size} flags for $faceCount triangles" }
+		var edgeVao = 0
+		var edgeVbo = 0
+		var edgeFlagVbo = 0
+		if (edgeCount > 0) {
+			edgeVao = GL30.glGenVertexArrays()
+			GL30.glBindVertexArray(edgeVao)
+			edgeVbo = uploadIntArrayBuffer(spec.edgeEndpoints)
+			GL20.glEnableVertexAttribArray(0)
+			GL30.glVertexAttribIPointer(0, 2, GL11.GL_INT, 2 * Int.SIZE_BYTES, 0L)
+			GL33.glVertexAttribDivisor(0, 1)
+			edgeFlagVbo = uploadFlagBuffer(spec.edgeFlags)
+			bindFlagAttribute()
+		}
+		var faceVao = 0
+		var faceVbo = 0
+		var faceFlagVbo = 0
+		if (faceCount > 0) {
+			faceVao = GL30.glGenVertexArrays()
+			GL30.glBindVertexArray(faceVao)
+			faceVbo = uploadIntArrayBuffer(spec.faceCorners)
+			GL20.glEnableVertexAttribArray(0)
+			GL30.glVertexAttribIPointer(0, 3, GL11.GL_INT, 3 * Int.SIZE_BYTES, 0L)
+			GL33.glVertexAttribDivisor(0, 1)
+			faceFlagVbo = uploadFlagBuffer(spec.faceFlags)
+			bindFlagAttribute()
+		}
+		var vertexVao = 0
+		var vertexFlagVbo = 0
+		if (vertexCount > 0) {
+			vertexVao = GL30.glGenVertexArrays()
+			GL30.glBindVertexArray(vertexVao)
+			vertexFlagVbo = uploadFlagBuffer(spec.vertexFlags)
+			bindFlagAttribute()
+		}
+		GL30.glBindVertexArray(0)
+		return GlOverlayMeshBuffers(edgeVao, edgeVbo, edgeFlagVbo, edgeCount, faceVao, faceVbo, faceFlagVbo, faceCount, vertexVao, vertexFlagVbo, vertexCount)
+	}
+
+	override fun updateOverlayMeshFlags(buffers: OverlayMeshBuffers, vertexFlags: ByteArray, edgeFlags: ByteArray, faceFlags: ByteArray) {
+		val glBuffers = buffers as GlOverlayMeshBuffers
+		check(vertexFlags.size == glBuffers.vertexCount) { "vertex flags must keep their size: ${vertexFlags.size} for ${glBuffers.vertexCount} vertices" }
+		check(edgeFlags.size == glBuffers.edgeCount) { "edge flags must keep their size: ${edgeFlags.size} for ${glBuffers.edgeCount} edges" }
+		check(faceFlags.size == glBuffers.faceCount) { "face flags must keep their size: ${faceFlags.size} for ${glBuffers.faceCount} triangles" }
+		if (glBuffers.vertexFlagVbo != 0) {
+			subDataFlagBuffer(glBuffers.vertexFlagVbo, vertexFlags)
+		}
+		if (glBuffers.edgeFlagVbo != 0) {
+			subDataFlagBuffer(glBuffers.edgeFlagVbo, edgeFlags)
+		}
+		if (glBuffers.faceFlagVbo != 0) {
+			subDataFlagBuffer(glBuffers.faceFlagVbo, faceFlags)
+		}
+	}
+
+	override fun destroyOverlayMeshBuffers(buffers: OverlayMeshBuffers) {
+		val glBuffers = buffers as GlOverlayMeshBuffers
+		for (vao in intArrayOf(glBuffers.edgeVao, glBuffers.faceVao, glBuffers.vertexVao)) {
+			if (vao != 0) {
+				GL30.glDeleteVertexArrays(vao)
+			}
+		}
+		for (vbo in intArrayOf(glBuffers.edgeVbo, glBuffers.edgeFlagVbo, glBuffers.faceVbo, glBuffers.faceFlagVbo, glBuffers.vertexFlagVbo)) {
+			if (vbo != 0) {
+				GL15.glDeleteBuffers(vbo)
+			}
 		}
 	}
 
@@ -471,6 +563,10 @@ class GlRenderDevice : RenderDevice {
 			PipelinePurpose.GridBackdrop -> gridVertexShader(DIALECT) to gridFragmentShader(DIALECT)
 			PipelinePurpose.WorldAxisLine -> axisVertexShader(DIALECT) to axisFragmentShader(DIALECT)
 			PipelinePurpose.Composite -> compositeVertexShader(DIALECT) to compositeFragmentShader(DIALECT)
+			PipelinePurpose.OverlayFaceFill -> overlayFaceFillVertexShader(DIALECT) to overlayFragmentShader(DIALECT, OverlayShape.Fill)
+			PipelinePurpose.OverlayEdge -> overlayEdgeVertexShader(DIALECT) to overlayFragmentShader(DIALECT, OverlayShape.Band)
+			PipelinePurpose.OverlayVertexDot -> overlayDotVertexShader(DIALECT, fromFaceCentroid = false) to overlayFragmentShader(DIALECT, OverlayShape.Round)
+			PipelinePurpose.OverlayFaceDot -> overlayDotVertexShader(DIALECT, fromFaceCentroid = true) to overlayFragmentShader(DIALECT, OverlayShape.Round)
 		}
 
 	/**
@@ -502,6 +598,71 @@ class GlRenderDevice : RenderDevice {
 	private fun pixelFormatOf(format: TextureFormat): Int = if (format == TextureFormat.Rgba8) GL11.GL_RGBA else GL30.GL_RG
 
 	private fun pixelTypeOf(format: TextureFormat): Int = if (format == TextureFormat.Rgba8) GL11.GL_UNSIGNED_BYTE else GL11.GL_FLOAT
+
+	/**
+	 * Uploads [values] as a static array buffer and leaves it bound, for a VAO being built.
+	 *
+	 * @param IntArray values The per-instance indices.
+	 * @return Int The buffer name.
+	 */
+	private fun uploadIntArrayBuffer(values: IntArray): Int {
+		val buffer =
+			BufferUtils.createIntBuffer(values.size).apply {
+				put(values)
+				flip()
+			}
+		val vbo = GL15.glGenBuffers()
+		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo)
+		GL15.glBufferData(GL15.GL_ARRAY_BUFFER, buffer, GL15.GL_STATIC_DRAW)
+		return vbo
+	}
+
+	/**
+	 * Uploads [flags] as a dynamic array buffer and leaves it bound, for a VAO being built: the flags are
+	 * the part a selection change replaces in place.
+	 *
+	 * @param ByteArray flags The per-instance flags.
+	 * @return Int The buffer name.
+	 */
+	private fun uploadFlagBuffer(flags: ByteArray): Int {
+		val vbo = GL15.glGenBuffers()
+		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo)
+		GL15.glBufferData(GL15.GL_ARRAY_BUFFER, flagBufferOf(flags), GL15.GL_DYNAMIC_DRAW)
+		return vbo
+	}
+
+	/**
+	 * Replaces a flag buffer's contents in place.
+	 *
+	 * @param Int vbo The buffer name.
+	 * @param ByteArray flags The new flags, at the buffer's size.
+	 */
+	private fun subDataFlagBuffer(vbo: Int, flags: ByteArray) {
+		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo)
+		GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, 0L, flagBufferOf(flags))
+	}
+
+	/**
+	 * Declares the bound array buffer as the per-instance flag attribute (location 1, one unsigned byte
+	 * per instance) of the VAO being built.
+	 */
+	private fun bindFlagAttribute() {
+		GL20.glEnableVertexAttribArray(1)
+		GL30.glVertexAttribIPointer(1, 1, GL11.GL_UNSIGNED_BYTE, 1, 0L)
+		GL33.glVertexAttribDivisor(1, 1)
+	}
+
+	/**
+	 * A native buffer holding [flags], ready to upload.
+	 *
+	 * @param ByteArray flags The flags.
+	 * @return ByteBuffer The buffer, flipped for reading.
+	 */
+	private fun flagBufferOf(flags: ByteArray): ByteBuffer =
+		BufferUtils.createByteBuffer(flags.size).apply {
+			put(flags)
+			flip()
+		}
 
 	/** Uploads a float array into a fresh GL_ARRAY_BUFFER with the given usage; leaves it bound. */
 	private fun uploadArrayBuffer(values: FloatArray, usage: Int): Int {

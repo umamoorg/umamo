@@ -10,7 +10,13 @@ import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.TextureFormat
 import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.MAX_GLUES
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayKind
+import org.umamo.render.puppet.MeshOverlayMesh
+import org.umamo.render.puppet.MeshOverlaySelectMode
+import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.ModelUpdateKind
+import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.render.puppet.resolvePose
 import org.umamo.render.restMeshesToCanvasSpace
@@ -31,7 +37,8 @@ private const val LABEL_WIDTH = 86
  * 220k vertices): what one whole-selection Grab preview push costs the renderer on the path the engine
  * runs - the reconcile and position re-upload with the positions-only refresh, the pose rebake when
  * the push was structural, the frame, and the read-back - and then, in a second loop, the rebake a
- * positions-only push no longer pays, split into its CPU halves.  Runs on whatever GL the host has
+ * positions-only push no longer pays, split into its CPU halves, and in a third the frame with the Edit
+ * overlay a select-all publishes over every mesh.  Runs on whatever GL the host has
  * (software under CI and WSLg, so the GPU rows are indicative and the CPU rows are what matter).  Pins
  * nothing - see docs/plan/edit-mode-performance.md for the numbers and what each phase is expected to
  * move.  Skips without a GL context or the corpus.  Standard streams are off in the build, so the rows
@@ -73,6 +80,7 @@ class EditGrabRenderPerfProbeTest {
 
 		val current = probeEnginePath(renderer, device, target, puppet)
 		probeForcedRebake(renderer, current)
+		probeOverlayFrames(renderer, target, current)
 
 		device.destroyRenderTarget(target)
 		renderer.disposeGl()
@@ -161,6 +169,108 @@ class EditGrabRenderPerfProbeTest {
 		stats("G2a   preparePose, standalone (deformer worlds + corners + channels)", prepareTimes)
 		stats("G2b   resolvePose, standalone (draw order + plan; approximate residency set)", resolveTimes)
 		stats("G2c   remainder = G2r - G2a - G2b (applyPose + planCompositeAcceleration), derived", forcedTimes.indices.map { index -> forcedTimes[index] - prepareTimes[index] - resolveTimes[index] })
+	}
+
+	/**
+	 * The frame with the Edit overlay over every mesh, as a select-all in Vertex mode publishes it: the
+	 * first frame pays the buffer uploads and the capture; a frame with nothing moved pays the draws
+	 * alone; a frame after a preview push pays the re-capture and the draws.
+	 *
+	 * @param PuppetRenderer renderer The posed renderer.
+	 * @param RenderTarget target The frame target.
+	 * @param PuppetModel start The model the renderer holds.
+	 */
+	private fun probeOverlayFrames(renderer: PuppetRenderer, target: RenderTarget, start: PuppetModel) {
+		val buildStart = System.nanoTime()
+		val overlay = selectAllOverlay(start)
+		val buildNanos = System.nanoTime() - buildStart
+		report(
+			"overlay: ${overlay.meshes.size} meshes, ${overlay.meshes.sumOf { mesh -> mesh.vertexCount }} vertices, " +
+				"${overlay.meshes.sumOf { mesh -> mesh.edgeCount }} edges; value built in %.1f ms (probe only)".format(buildNanos / 1e6),
+		)
+		renderer.setMeshOverlay(overlay)
+		val firstStart = System.nanoTime()
+		renderer.render(target, viewportWidth, viewportHeight)
+		GL11.glFinish()
+		val firstNanos = System.nanoTime() - firstStart
+		val stillTimes = ArrayList<Long>(rounds)
+		val pushedTimes = ArrayList<Long>(rounds)
+		var current = start
+		for (round in 0 until rounds) {
+			val stillStart = System.nanoTime()
+			renderer.render(target, viewportWidth, viewportHeight)
+			GL11.glFinish()
+			stillTimes.add(System.nanoTime() - stillStart)
+			current = translateEveryMesh(current, 2f * (round + 1))
+			renderer.updateModel(current)
+			GL11.glFinish()
+			val pushedStart = System.nanoTime()
+			renderer.render(target, viewportWidth, viewportHeight)
+			GL11.glFinish()
+			pushedTimes.add(System.nanoTime() - pushedStart)
+		}
+		renderer.setMeshOverlay(null)
+		report("G5 first frame with the overlay (buffer uploads + capture + draws): %.1f ms".format(firstNanos / 1e6))
+		stats("G6 renderer.render with the overlay, nothing moved (draws only) [per frame; host GL]", stillTimes)
+		stats("G7 renderer.render with the overlay after a preview push (re-capture + draws) [per frame; host GL]", pushedTimes)
+	}
+
+	/**
+	 * The Edit overlay a select-all in Vertex mode publishes over [model]: every renderable mesh with its
+	 * unique edges in first-encounter order, every vertex, edge, and face flagged selected, no active
+	 * element, at the viewport's default sizes.
+	 *
+	 * @param PuppetModel model The model.
+	 * @return MeshOverlay The overlay.
+	 */
+	private fun selectAllOverlay(model: PuppetModel): MeshOverlay {
+		val meshes =
+			model.drawables.mapNotNull { drawable ->
+				val mesh = drawable.mesh
+				if (mesh == null || mesh.indices.isEmpty()) {
+					return@mapNotNull null
+				}
+				val vertexCount = mesh.positions.size / 2
+				val edges = uniqueEdgesOf(mesh.indices)
+				MeshOverlayMesh(
+					drawableId = drawable.id,
+					vertexCount = vertexCount,
+					edgeEndpoints = edges,
+					vertexFlags = ByteArray(vertexCount) { OVERLAY_FLAG_SELECTED },
+					edgeFlags = ByteArray(edges.size / 2) { OVERLAY_FLAG_SELECTED },
+					faceFlags = ByteArray(mesh.indices.size / 3) { OVERLAY_FLAG_SELECTED },
+					activeVertex = null,
+					activeEdge = null,
+					activeFace = null,
+				)
+			}
+		return MeshOverlay(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, meshes, MeshOverlaySizes(3.5f, 1f, 2.5f))
+	}
+
+	/**
+	 * The unique undirected edges of a triangle list, low index first, in first-encounter order.
+	 *
+	 * @param IntArray indices The triangle corners, three per triangle.
+	 * @return IntArray Two endpoints per edge.
+	 */
+	private fun uniqueEdgesOf(indices: IntArray): IntArray {
+		val seen = HashSet<Long>(indices.size)
+		val edges = ArrayList<Int>(indices.size * 2)
+		var triangleStart = 0
+		while (triangleStart + 2 < indices.size) {
+			for (cornerIndex in 0 until 3) {
+				val first = indices[triangleStart + cornerIndex]
+				val second = indices[triangleStart + (cornerIndex + 1) % 3]
+				val low = minOf(first, second)
+				val high = maxOf(first, second)
+				if (seen.add((low.toLong() shl 32) or high.toLong())) {
+					edges.add(low)
+					edges.add(high)
+				}
+			}
+			triangleStart += 3
+		}
+		return edges.toIntArray()
 	}
 
 	/**
