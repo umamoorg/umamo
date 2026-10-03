@@ -193,11 +193,11 @@ internal class OffscreenRenderEngine(
 			renderer.initGl()
 			while (running) {
 				readbacks.collect(registry.areas)
-				val orderModel = applyHandoffs()
+				applyHandoffs()
 				// Captures run after the hand-offs, so each one shows exactly the state the areas are about
 				// to render.
 				serveSnapshots()
-				val pendingWork = scheduleAreas(orderModel)
+				val pendingWork = scheduleAreas()
 				if (!pendingWork) {
 					Thread.sleep(IDLE_MILLIS)
 				} else if (readbacks.hasPending) {
@@ -213,12 +213,10 @@ internal class OffscreenRenderEngine(
 	 * Hands the renderer what the UI thread published since the last tick: the atlas pages and the model
 	 * as one consistent pair, the artwork mapping and the decoded pixels that arrived for it, and the pose
 	 * when any of its inputs moved.  Each hand-off that changes what the puppet areas show bumps
-	 * [paramsVersion].
-	 *
-	 * @return PuppetModel The model this tick renders: the published one, or the previous one while the
-	 *   pages for the published one's atlas are still in flight.
+	 * [paramsVersion].  The model this tick renders is the published one, or the previous one while the
+	 * pages for the published one's atlas are still in flight.
 	 */
-	private fun applyHandoffs(): PuppetModel {
+	private fun applyHandoffs() {
 		val params = liveParams.values
 		val shown = inputs.shownDrawables
 		// Pages and model apply as a consistent PAIR - the decision itself is pure and tested
@@ -278,7 +276,6 @@ internal class OffscreenRenderEngine(
 			lastShown = shown
 			paramsVersion++
 		}
-		return orderModel
 	}
 
 	/**
@@ -302,11 +299,10 @@ internal class OffscreenRenderEngine(
 	 * area, which coalesces a flurry of slider moves), as is one whose only staleness is a size still
 	 * being dragged inside the throttle window.
 	 *
-	 * @param PuppetModel orderModel The model this tick renders, stamped onto each frame.
 	 * @return Boolean True when a read-back is in flight or was just issued, so the loop keeps its short
 	 *   poll; false lets it idle.
 	 */
-	private fun scheduleAreas(orderModel: PuppetModel): Boolean {
+	private fun scheduleAreas(): Boolean {
 		var pendingWork = readbacks.hasPending
 		val nowNanos = System.nanoTime()
 		val settleScale = if (inputs.supersampleEnabled) RENDER_SUPERSAMPLE else 1
@@ -348,7 +344,7 @@ internal class OffscreenRenderEngine(
 					if (width != slot.renderedWidth || height != slot.renderedHeight) {
 						slot.resizeRenderNanos = nowNanos
 					}
-					issueRender(areaId, slot, width, height, camera, orderModel, decision.scale)
+					issueRender(areaId, slot, width, height, camera, decision.scale)
 					pendingWork = true
 				}
 			}
@@ -366,7 +362,6 @@ internal class OffscreenRenderEngine(
 	 * @param Int width The render width in pixels.
 	 * @param Int height The render height in pixels.
 	 * @param ViewportCamera camera The view to project through.
-	 * @param PuppetModel orderModel The model whose geometry this render reflects (stamped onto the frame).
 	 * @param Int renderScale Framebuffer pixels per display pixel for THIS render: the settle scale for
 	 *   a still frame, the interactive scale while the size is in motion.
 	 */
@@ -376,7 +371,6 @@ internal class OffscreenRenderEngine(
 		width: Int,
 		height: Int,
 		camera: ViewportCamera,
-		orderModel: PuppetModel,
 		renderScale: Int,
 	) {
 		val renderWidth = width * renderScale
@@ -399,6 +393,12 @@ internal class OffscreenRenderEngine(
 		renderer.setGrid(inputs.gridColors, gridConfigApplied.scale, gridConfigApplied.subdivisions)
 		renderer.setSelection(inputs.selection)
 		renderer.setActiveSelection(inputs.activeSelection)
+		// Read AFTER the version above, like the selection: a publish stores its value before it bumps, so one
+		// landing after that read leaves this render stamped with the older version and the area renders again.
+		// Applying these in the hand-off instead would let an area stamp itself fresh over a frame that drew the
+		// outgoing overlay.  The UV scenes never draw the overlay, so handing it over for them costs nothing.
+		renderer.setMeshOverlay(inputs.meshOverlay)
+		renderer.setMeshOverlayPalette(inputs.meshOverlayPalette)
 
 		// The shown set is applied in the hand-off's pose block (before setPose filters the draw list by it).
 		renderer.setSelectionHighlightColor(inputs.highlightRed, inputs.highlightGreen, inputs.highlightBlue)
@@ -429,11 +429,10 @@ internal class OffscreenRenderEngine(
 		// A synchronous client read-back; safe here because no PBO is bound yet.
 		firstFrameDump.dumpOnce(device, surface.resolveTarget, width, height)
 
-		// Bind the frame to the camera it was rendered at (the plain, non-supersampled camera) and to
-		// orderModel, the geometry this render reflects, so the overlay projects/poses against them - keeping
-		// the mesh glued to the raster along both the navigation and edit axes.  The resolve target is
-		// capacity-sized (grow-only), so the read-back covers only the used region.
-		readbacks.issue(device.beginReadback(surface.resolveTarget, width, height), areaId, camera, orderModel)
+		// Bind the frame to the camera it was rendered at (the plain, non-supersampled camera), so the gizmo
+		// chrome projects against it and stays glued to the raster during pan and zoom.  The resolve target
+		// is capacity-sized (grow-only), so the read-back covers only the used region.
+		readbacks.issue(device.beginReadback(surface.resolveTarget, width, height), areaId, camera)
 		slot.inFlight = true
 		slot.renderedWidth = width
 		slot.renderedHeight = height

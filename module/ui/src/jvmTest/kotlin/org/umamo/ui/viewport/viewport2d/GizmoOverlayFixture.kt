@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -39,10 +38,10 @@ import org.umamo.ui.workspace.spaces.parameters.GESTURE_STEP_MILLIS
 /*
  * The viewport gizmo overlays, with the Zoom Region overlay above them, mounted the way
  * PuppetViewportBinding mounts them, twice: two areas side by side over ONE session and ONE render
- * service, so a case can check that a gesture belongs to the area it started in.  The render service is the stub, which records what the overlays push; the frame each
- * overlay draws against is the session's committed model (the stub never renders, so a landed frame is
- * always the committed one), and the camera is the rig's.  Density is one, so a dp is a pixel and the
- * rig's screen coordinates are the pointer coordinates the helpers below take.
+ * service, so a case can check that a gesture belongs to the area it started in.  The render service is
+ * the stub, which records what the overlays push and never renders, and the camera is the rig's.  Density
+ * is one, so a dp is a pixel and the rig's screen coordinates are the pointer coordinates the helpers
+ * below take.
  *
  * Pointer moves stay well inside an area and never cross into the other: a modal overlay drives on Exit
  * as well as Move, and a move within WRAP_MARGIN_PX of an edge would warp the real cursor.
@@ -97,7 +96,6 @@ internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession): GizmoOver
 		CompositionLocalProvider(LocalSettings provides fixture.settings) {
 			UmamoTheme {
 				CompositionLocalProvider(LocalDensity provides Density(1f)) {
-					val frameModel by session.model.collectAsState()
 					Row {
 						for (areaId in listOf(LEFT_AREA, RIGHT_AREA)) {
 							key(areaId) {
@@ -124,7 +122,6 @@ internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession): GizmoOver
 											service = fixture.service,
 											session = session,
 											camera = RIG_CAMERA,
-											frameModel = frameModel,
 											widthPx = RIG_AREA_WIDTH,
 											heightPx = RIG_AREA_HEIGHT,
 											areaPointer = areaPointer,

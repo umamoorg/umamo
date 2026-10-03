@@ -26,6 +26,37 @@ object MeshTopology {
 	}
 
 	/**
+	 * The unique undirected edges of a triangle index list as flat endpoint pairs: exactly [uniqueEdges]'
+	 * edges, in the same first-encounter order, low endpoint first, so an edge's ordinal means the same
+	 * here as in the boxed list.  For a consumer that ships edges as data (the GPU mesh overlay), without a
+	 * boxed element per edge.
+	 *
+	 * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).
+	 * @return IntArray Two endpoints per unique edge.
+	 */
+	fun uniqueEdgeEndpoints(triangleIndices: IntArray): IntArray {
+		val triangleCount = triangleIndices.size / 3
+		val seen = HashSet<Long>(triangleCount * 2)
+		val endpoints = IntArray(triangleCount * 6)
+		var written = 0
+		for (triangleIndex in 0 until triangleCount) {
+			val triangleStart = triangleIndex * 3
+			for (cornerIndex in 0 until 3) {
+				val from = triangleIndices[triangleStart + cornerIndex]
+				val to = triangleIndices[triangleStart + (cornerIndex + 1) % 3]
+				val low = minOf(from, to)
+				val high = maxOf(from, to)
+				if (seen.add((low.toLong() shl 32) or high.toLong())) {
+					endpoints[written] = low
+					endpoints[written + 1] = high
+					written += 2
+				}
+			}
+		}
+		return endpoints.copyOf(written)
+	}
+
+	/**
 	 * The three canonical edges of one triangle.
 	 *
 	 * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).

@@ -146,4 +146,18 @@ class MeshTopologyTest {
 
 		assertEquals(emptyList(), MeshTopology.selectionIslands(adjacency, emptySet()), "an empty selection has no islands")
 	}
+
+	/**
+	 * uniqueEdgeEndpoints is uniqueEdges flattened: the same edges in the same first-encounter order, low
+	 * endpoint first, so an edge's ordinal means the same thing to the overlay and to the selection.
+	 */
+	@Test
+	fun uniqueEdgeEndpointsMatchesUniqueEdges() {
+		// A triangle listed twice, wound the other way the second time, adds no edges.
+		val repeatedIndices = intArrayOf(0, 1, 2, 2, 1, 0)
+		for (indices in listOf(stripIndices, spokeIndices, repeatedIndices, IntArray(0))) {
+			val expected = MeshTopology.uniqueEdges(indices).flatMap { edge -> listOf(edge.endpointLow, edge.endpointHigh) }
+			assertEquals(expected, MeshTopology.uniqueEdgeEndpoints(indices).toList(), "edges of ${indices.toList()}")
+		}
+	}
 }

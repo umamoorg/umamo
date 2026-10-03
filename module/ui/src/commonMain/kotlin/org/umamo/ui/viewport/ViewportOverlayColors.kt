@@ -3,6 +3,8 @@ package org.umamo.ui.viewport
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import org.umamo.render.puppet.MeshOverlayPalette
+import org.umamo.render.puppet.OverlayColor
 import org.umamo.ui.graphics.parseHexColor
 import org.umamo.ui.rememberStringSetting
 
@@ -128,6 +130,32 @@ internal fun rememberViewportOverlayColors(): ViewportOverlayColors =
 		selectionHighlight = settingColor(ViewportColorSettings.SELECTION_HIGHLIGHT_KEY, ViewportColorSettings.SELECTION_HIGHLIGHT_DEFAULT),
 		activeSelectionHighlight = settingColor(ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY, ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_DEFAULT),
 	)
+
+/**
+ * The nine Edit-mode element colors as the renderer's mesh overlay palette, straight alpha, each channel
+ * the color's own 0..1 component.  The off-key trio is drawn nowhere and stays out.
+ *
+ * @return MeshOverlayPalette The palette.
+ */
+internal fun ViewportOverlayColors.toMeshOverlayPalette(): MeshOverlayPalette =
+	MeshOverlayPalette(
+		vertexIdle = vertexIdle.toOverlayColor(),
+		vertexSelected = vertexSelected.toOverlayColor(),
+		vertexActive = vertexActive.toOverlayColor(),
+		edgeIdle = edgeIdle.toOverlayColor(),
+		edgeSelected = edgeSelected.toOverlayColor(),
+		edgeActive = edgeActive.toOverlayColor(),
+		faceIdle = faceIdle.toOverlayColor(),
+		faceSelected = faceSelected.toOverlayColor(),
+		faceActive = faceActive.toOverlayColor(),
+	)
+
+/**
+ * One Compose color as an overlay color, straight alpha.
+ *
+ * @return OverlayColor The color.
+ */
+private fun Color.toOverlayColor(): OverlayColor = OverlayColor(red, green, blue, alpha)
 
 /**
  * Binds one color setting reactively and parses it, falling back to the bundled default when the stored

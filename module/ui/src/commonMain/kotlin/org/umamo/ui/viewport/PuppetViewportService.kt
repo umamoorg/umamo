@@ -13,6 +13,8 @@ import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
@@ -26,20 +28,16 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 typealias PuppetViewportServiceFactory = (PuppetModel, PuppetTextures, LiveParams) -> PuppetViewportService
 
 /**
- * A rendered puppet frame together with the camera AND the model it was rendered from. The engine
- * renders asynchronously, so a frame lands a few ticks behind the live state; the overlay draws itself
- * as a pure function of this frame - projecting through [camera] and posing its geometry from [model] -
- * so the vector overlay stays glued to the raster along both the navigation axis (pan/zoom, the camera)
- * and the edit axis (mesh geometry, the model) instead of racing ahead of it. Bundling all three in one
- * immutable value keeps the publish atomic, so the bitmap, its camera, and its geometry can never tear
- * apart across the frame flow.
+ * A rendered puppet frame together with the camera it was rendered with. The engine renders
+ * asynchronously, so a frame lands a few ticks behind the live state; the gizmo overlays project their
+ * chrome through [camera] so it stays glued to the raster during pan and zoom instead of racing ahead of
+ * it, and the mesh overlay is drawn into the pixels themselves. Bundling both in one immutable value keeps
+ * the publish atomic, so the bitmap and its camera can never tear apart across the frame flow.
  *
  * @property ImageBitmap bitmap The area's rendered pixels (already downscaled to the area size).
  * @property ViewportCamera camera The camera the pixels were rendered with.
- * @property PuppetModel model The model whose geometry the pixels reflect (the overlay poses from it so
- *           the wireframe lags with the raster during an edit instead of leading it).
  */
-data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera, val model: PuppetModel)
+data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera)
 
 /**
  * What a UV-editor area draws under its wireframe overlays.
@@ -378,6 +376,23 @@ interface PuppetViewportService {
 	 * @param Float blue The blue component.
 	 */
 	fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float)
+
+	/**
+	 * Sets the mesh overlay every 2D area draws over the art: the Edit-mode wireframe, dots, and face fills
+	 * of the session meshes, or null for none.  The value holds no positions (the renderer reads the art's
+	 * own deformed positions), so a gesture's preview pushes leave it as it is; a new value replaces the
+	 * old by identity.
+	 *
+	 * @param MeshOverlay? overlay The overlay, or null.
+	 */
+	fun setMeshOverlay(overlay: MeshOverlay?)
+
+	/**
+	 * Sets the nine colors the mesh overlay draws in (straight alpha, from settings).
+	 *
+	 * @param MeshOverlayPalette palette The palette.
+	 */
+	fun setMeshOverlayPalette(palette: MeshOverlayPalette)
 
 	/**
 	 * Hit-tests the front-most opaque drawable under the cursor, or null on empty canvas.
