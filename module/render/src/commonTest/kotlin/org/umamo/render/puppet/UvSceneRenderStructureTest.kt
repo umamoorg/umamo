@@ -3,6 +3,8 @@ package org.umamo.render.puppet
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
+import org.umamo.render.LayerDrawPlan
+import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.OverlayBuffersCreated
@@ -11,8 +13,8 @@ import org.umamo.render.device.OverlayFlagsUpdated
 import org.umamo.render.device.RecordedBarrier
 import org.umamo.render.device.RecordedGridDraw
 import org.umamo.render.device.RecordedOverlayDraw
-import org.umamo.render.device.RecordedPageDraw
 import org.umamo.render.device.RecordedPass
+import org.umamo.render.device.RecordedQuadDraw
 import org.umamo.render.device.RecordedStore
 import org.umamo.render.device.RecordedTarget
 import org.umamo.render.device.RecordingRenderDevice
@@ -21,6 +23,7 @@ import org.umamo.render.device.StoreCreated
 import org.umamo.render.device.StoreDestroyed
 import org.umamo.render.device.StorePositionsUpdated
 import org.umamo.render.device.TextureCreated
+import org.umamo.render.device.TextureDestroyed
 import org.umamo.render.device.TextureFormat
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
@@ -37,6 +40,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.withDerivedRenderRoot
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -55,6 +59,7 @@ class UvSceneRenderStructureTest {
 	private val sizes = MeshOverlaySizes(3.5f, 1f, 2.5f)
 	private val baselinePass = "pass main DontCare scissor=null [grid, page]"
 	private val editPass = "pass main DontCare scissor=null [grid, page, overlay OverlayFaceFill, overlay OverlayEdge, overlay OverlayVertexDot]"
+	private val identitySample = listOf(1f, 0f, 0f, 0f, 1f, 0f)
 
 	/** A UV scene with no overlay opens one pass, draws the grid and the page, and touches no resource. */
 	@Test
@@ -331,6 +336,162 @@ class UvSceneRenderStructureTest {
 		assertTrue(device.overlayDraws().all { draw -> draw.baseOffset == 0 }, "from the start of the store")
 	}
 
+	/** A page or a layer is the quad diag(W, H) over its whole image, sampled at the identity. */
+	@Test
+	fun thePageQuadIsTheDiagonalAffine() {
+		val (device, renderer, target) = uvRenderer()
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize)
+		val page = quadDraws(device).single()
+		assertEquals(listOf(16f, 0f, 0f, 0f, 16f, 0f), page.quadToWorld, "the page's quad")
+		assertEquals(identitySample, page.uvAffine, "sampled at the identity")
+		assertEquals(16, assertNotNull(page.texture).width)
+
+		device.clearLog()
+		renderer.renderUnderlayImage(target, DecodedImage(ByteArray(8 * 12 * 4), 8, 12), viewportSize, viewportSize)
+		assertEquals(listOf(8f, 0f, 0f, 0f, 12f, 0f), quadDraws(device).single().quadToWorld, "a layer's")
+	}
+
+	/**
+	 * An islands overlay draws island by island in its own order (the producer's back to front), each
+	 * island's fill and then its edges in the colors of its roles, with no dots.
+	 */
+	@Test
+	fun anIslandsOverlayDrawsIslandMajorBackToFront() {
+		val (device, renderer, target) = uvRenderer()
+		val palette = MeshOverlayPalette.Classic
+		renderer.setMeshOverlayPalette(palette)
+		val islands =
+			islandsOf(
+				"back" to IslandStyle(IslandFillRole.Idle, IslandEdgeRole.Idle),
+				"middle" to IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Active),
+				"front" to IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Warning),
+			)
+		device.clearLog()
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islands)
+
+		assertEquals(
+			listOf("pass main DontCare scissor=null [grid, page" + ", overlay OverlayFaceFill, overlay OverlayEdge".repeat(3) + "]"),
+			describe(device, target),
+			"each island fills then outlines before the next",
+		)
+		val draws = device.overlayDraws()
+		assertEquals(listOf(0, 0, 4, 4, 8, 8), draws.map { draw -> draw.baseOffset }, "in the overlay's order")
+		assertEquals(
+			listOf(palette.faceIdle, palette.edgeIdle, palette.faceSelected, palette.edgeActive, palette.faceSelected, palette.warning).map(::channels),
+			draws.map { draw -> draw.idleColor },
+			"each in its roles' colors",
+		)
+		assertTrue(draws.all { draw -> draw.fillIdle }, "every face of an island fills")
+
+		val pinned = MeshOverlayPalette.Classic.copy(pinnedPlacement = OverlayColor(0.1f, 0.2f, 0.3f, 1f))
+		renderer.setMeshOverlayPalette(pinned)
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islandsOf("only" to IslandStyle(IslandFillRole.Idle, IslandEdgeRole.Pinned)))
+		assertEquals(channels(pinned.pinnedPlacement), device.overlayDraws()[1].idleColor, "the pinned role takes the palette's pinned color")
+	}
+
+	/** A placement preview draws over the page and under the islands: the scrims, the crops, then the ghost's crops. */
+	@Test
+	fun thePlacementPreviewDrawsUnderTheIslands() {
+		val (device, renderer, target) = uvRenderer()
+		val scrim = OverlayColor(0f, 0f, 0f, 0.5f)
+		val oldSpot = floatArrayOf(4f, 0f, 2f, 0f, -4f, 10f)
+		val newSpot = floatArrayOf(4f, 0f, 9f, 0f, -4f, 10f)
+		val ghostSpot = floatArrayOf(0f, 4f, 1f, -4f, 0f, 14f)
+		val placement =
+			PlacementPreview(
+				scrim,
+				listOf(oldSpot),
+				listOf(PlacementCropQuad("moving", cropImage(), newSpot, floatArrayOf(0.5f, 0f, 0.25f, 0f, 0.5f, 0.25f))),
+				null,
+				listOf(PlacementCropQuad("ghost", cropImage(), ghostSpot, identitySample.toFloatArray())),
+			)
+		device.clearLog()
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islandsOf("only" to null), placement)
+
+		assertEquals(
+			listOf("pass main DontCare scissor=null [grid, page, scrim, crop, crop, overlay OverlayFaceFill, overlay OverlayEdge]"),
+			describe(device, target),
+		)
+		val quads = quadDraws(device)
+		assertEquals(oldSpot.toList(), quads[1].quadToWorld, "the scrim covers the old spot")
+		assertEquals(channels(scrim), quads[1].drawColor, "in the scrim color")
+		assertNull(quads[1].texture, "flat")
+		assertEquals(newSpot.toList(), quads[2].quadToWorld, "the crop draws at its new spot")
+		assertEquals(identitySample, quads[2].uvAffine, "an uploaded crop is the trim itself, sampled at the identity")
+		assertEquals(ghostSpot.toList(), quads[3].quadToWorld, "the ghost at its committed spot")
+		assertEquals(2, device.resourceEvents.filterIsInstance<TextureCreated>().size, "each crop uploaded once")
+	}
+
+	/** A crop whose tile has a resident layer texture samples the tile through it and uploads nothing. */
+	@Test
+	fun aResidentLayerTextureServesTheCrop() {
+		val (device, renderer, target) = uvRenderer()
+		val tile = DecodedImage(ByteArray(16 * 16 * 4), 16, 16)
+		renderer.setSourceLayerPlan(LayerDrawPlan(emptyMap(), mapOf("tileA" to 16L * 16L * 4L)))
+		renderer.deliverSourceLayerRasters(LayerRasterBatch(mapOf("tileA" to tile)))
+		val layerTexture = device.resourceEvents.filterIsInstance<TextureCreated>().last().texture
+		val sampleAffine = floatArrayOf(0.5f, 0f, 0.25f, 0f, 0.5f, 0.25f)
+		val placement = PlacementPreview(OverlayColor(0f, 0f, 0f, 0.5f), emptyList(), listOf(PlacementCropQuad("tileA", cropImage(), floatArrayOf(8f, 0f, 2f, 0f, 8f, 2f), sampleAffine)), null, emptyList())
+		device.clearLog()
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", null, placement)
+
+		val crop = quadDraws(device)[1]
+		assertSame(layerTexture, crop.texture, "the crop samples the tile's layer texture")
+		assertEquals(sampleAffine.toList(), crop.uvAffine, "through the trim's place in the tile")
+		assertTrue(device.resourceEvents.none { event -> event is TextureCreated }, "and uploads nothing")
+	}
+
+	/** An uploaded crop is made once per image and freed on the first render that no longer shows it, or with the scene. */
+	@Test
+	fun anUploadedCropLivesAsLongAsItIsShown() {
+		val (device, renderer, target) = uvRenderer()
+		val first = cropImage()
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", null, cropPreview(first))
+		val firstTexture = device.resourceEvents.filterIsInstance<TextureCreated>().single().texture
+
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", null, cropPreview(first))
+		assertTrue(device.resourceEvents.isEmpty(), "a new preview over the same crop image uploads nothing")
+
+		val second = cropImage()
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", null, cropPreview(second))
+		assertEquals(1, device.resourceEvents.filterIsInstance<TextureCreated>().size, "a new crop image uploads")
+		assertEquals(listOf(firstTexture), device.resourceEvents.filterIsInstance<TextureDestroyed>().map { event -> event.texture }, "and the one no longer shown is freed")
+		val secondTexture = device.resourceEvents.filterIsInstance<TextureCreated>().single().texture
+
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1")
+		assertEquals(listOf(secondTexture), device.resourceEvents.filterIsInstance<TextureDestroyed>().map { event -> event.texture }, "no preview frees it")
+		assertEquals(listOf(baselinePass), describe(device, target), "and draws nothing of it")
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", null, cropPreview(first))
+		device.clearLog()
+		renderer.retainUvScenes { false }
+		assertEquals(1, device.resourceEvents.filterIsInstance<TextureDestroyed>().size, "a dropped area frees its crops")
+	}
+
+	/** A new islands value over the same arrays (a selection change re-styles islands) uploads nothing. */
+	@Test
+	fun anIslandSelectionChangeUploadsNothing() {
+		val (device, renderer, target) = uvRenderer()
+		val positions = mapOf("left" to quadPositions(1f, 1f), "right" to quadPositions(8f, 8f))
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islandsOver(positions, mapOf("left" to null, "right" to null)))
+		device.clearLog()
+
+		val restyled = IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Active)
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islandsOver(positions, mapOf("left" to restyled, "right" to null)))
+
+		assertTrue(device.resourceEvents.isEmpty(), "no flags, buffers, or positions upload for a re-style")
+		assertEquals(channels(MeshOverlayPalette.Classic.edgeActive), device.overlayDraws()[1].idleColor, "but the island draws in its new role")
+	}
+
 	/**
 	 * A recording renderer over an empty model with one 16x16 page, behind the 1:1 camera, and its target.
 	 *
@@ -420,6 +581,82 @@ class UvSceneRenderStructureTest {
 		)
 
 	/**
+	 * An islands overlay of 4x4 quads side by side, in the order given, each with its style.
+	 *
+	 * @param Pair<String, IslandStyle?> islands Each island's id and style, back to front.
+	 * @return DirectMeshOverlay The overlay.
+	 */
+	private fun islandsOf(vararg islands: Pair<String, IslandStyle?>): DirectMeshOverlay =
+		islandsOver(islands.withIndex().associate { (islandIndex, island) -> island.first to quadPositions(islandIndex * 4f, 2f) }, islands.toMap())
+
+	/**
+	 * An islands overlay over given positions, in the styles' order.
+	 *
+	 * @param Map<String, FloatArray> positions Each island's display positions.
+	 * @param Map<String, IslandStyle?> styles Each island's style, in layout order.
+	 * @return DirectMeshOverlay The overlay.
+	 */
+	private fun islandsOver(positions: Map<String, FloatArray>, styles: Map<String, IslandStyle?>): DirectMeshOverlay {
+		val meshes =
+			styles.map { (id, style) ->
+				MeshOverlayMesh(DrawableId(id), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, style)
+			}
+		return DirectMeshOverlay(
+			MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, meshes, sizes),
+			positions.mapKeys { (id, _) -> DrawableId(id) },
+			meshes.associate { mesh -> mesh.drawableId to quadIndices },
+		)
+	}
+
+	/**
+	 * A 4x4 crop image, a new instance each call so crops tell apart by identity.
+	 *
+	 * @return DecodedImage The image.
+	 */
+	private fun cropImage(): DecodedImage = DecodedImage(ByteArray(4 * 4 * 4), 4, 4)
+
+	/**
+	 * A preview of one mover's crop and nothing else.
+	 *
+	 * @param DecodedImage crop The crop.
+	 * @return PlacementPreview The preview.
+	 */
+	private fun cropPreview(crop: DecodedImage): PlacementPreview =
+		PlacementPreview(OverlayColor(0f, 0f, 0f, 0.5f), emptyList(), listOf(PlacementCropQuad("moving", crop, floatArrayOf(4f, 0f, 2f, 0f, 4f, 2f), identitySample.toFloatArray())), null, emptyList())
+
+	/**
+	 * The image quads the device recorded, in issue order.
+	 *
+	 * @param RecordingRenderDevice device The device.
+	 * @return List<RecordedQuadDraw> The quads.
+	 */
+	private fun quadDraws(device: RecordingRenderDevice): List<RecordedQuadDraw> = device.passes().flatMap { pass -> pass.draws.filterIsInstance<RecordedQuadDraw>() }
+
+	/**
+	 * A color's four channels as the recorder holds them.
+	 *
+	 * @param OverlayColor color The color.
+	 * @return List<Float> Red, green, blue, alpha.
+	 */
+	private fun channels(color: OverlayColor): List<Float> = listOf(color.red, color.green, color.blue, color.alpha)
+
+	/**
+	 * What an image quad is, for the frame's description: a flat scrim, the surface's page (its quad the
+	 * diagonal over the origin), or a crop.
+	 *
+	 * @param RecordedQuadDraw draw The quad.
+	 * @return String The role.
+	 */
+	private fun quadRole(draw: RecordedQuadDraw): String {
+		val quad = draw.quadToWorld
+		return when {
+			draw.texture == null -> "scrim"
+			quad[1] == 0f && quad[2] == 0f && quad[3] == 0f && quad[5] == 0f -> "page"
+			else -> "crop"
+		}
+	}
+
+	/**
 	 * The one grid draw the device recorded.
 	 *
 	 * @param RecordingRenderDevice device The device.
@@ -458,7 +695,7 @@ class UvSceneRenderStructureTest {
 					step.draws.joinToString(", ") { draw ->
 						when (draw) {
 							is RecordedGridDraw -> "grid"
-							is RecordedPageDraw -> "page"
+							is RecordedQuadDraw -> quadRole(draw)
 							is RecordedOverlayDraw -> "overlay ${draw.purpose}${if (draw.activeDraw) " active" else ""}"
 							else -> "other"
 						}

@@ -2,11 +2,7 @@ package org.umamo.ui.viewport.uv
 
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,56 +13,12 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.setAtlasPlacements
-import org.umamo.format.art.LayerBounds
 import org.umamo.render.ViewportCamera
-import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.applyUvAffine
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
-
-/**
- * One tile crop drawn at a committed placement while the page resolver is still composing the pixels
- * for that commit.
- *
- * @property ImageBitmap    crop      The trim's pixels.
- * @property LayerBounds    trim      The trim the crop covers, raster-local.
- * @property AtlasPlacement placement Where the tile was committed to.
- */
-internal class GhostCrop(
-	val crop: ImageBitmap,
-	val trim: LayerBounds,
-	val placement: AtlasPlacement,
-)
-
-/**
- * A committed placement move's crops, drawn at their new spots until the resolver publishes pages for
- * the committed atlas - so the islands never sit over the OLD pixels for the derivation's duration.
- *
- * @property PuppetAtlas atlas      The atlas instance the commit published (the resolver keys by identity).
- * @property Int         pageHeight The page height, for the display flip.
- * @property List        crops      The crops and where they were committed.
- */
-internal class PlacementGhost(
-	val atlas: PuppetAtlas,
-	val pageHeight: Int,
-	val crops: List<GhostCrop>,
-)
-
-/**
- * The ghost to draw now: a committed move's crops stay up while the committed atlas is the one they were
- * published for and the page resolver has not yet bound pages to it.  Both tests are by IDENTITY - the
- * resolver keys its pages by the atlas instance, and an undo restores the very instance a snapshot holds.
- *
- * @param PlacementGhost? ghost The last published ghost, or null.
- * @param PuppetAtlas committedAtlas The session's committed atlas.
- * @param PuppetAtlas? bindingAtlas The atlas the resolver's current pages belong to, or null without one.
- * @return PlacementGhost? The ghost to draw, or null when there is none or its pages have landed.
- */
-internal fun activePlacementGhost(ghost: PlacementGhost?, committedAtlas: PuppetAtlas, bindingAtlas: PuppetAtlas?): PlacementGhost? =
-	ghost?.takeIf { pending -> pending.atlas === committedAtlas && bindingAtlas !== pending.atlas }
 
 /**
  * The commit side of the UV Object overlay's placement gesture: a UV operator latched in its area in Object
@@ -74,9 +26,10 @@ internal fun activePlacementGhost(ghost: PlacementGhost?, committedAtlas: Puppet
  * drawable over it together, so the vertex-to-art mapping never changes.  The capture freezes the movers
  * (their placements, trims, mesh reserves, and crops), the page's bystanders, and the moving islands'
  * display positions; each drive evaluates the placements through the shared operator parameters
- * (UvPlacementGesture.kt) and publishes the host's readout; confirm commits ONE undo step through
- * setAtlasPlacements, leaves the crops drawn at their new spots until the session's page resolver
- * recomposes the pixels, and registers the gesture on the operation settings strip.  Nothing is pushed to
+ * (UvPlacementGesture.kt) and publishes the host's readout and the drag's share of the area's scene (the
+ * scrims, the crops, and the moving islands' positions, which the renderer draws); confirm commits ONE undo
+ * step through setAtlasPlacements, leaves the crops drawn at their new spots (the ghost) until the pages for
+ * the commit are applied, and registers the gesture on the operation settings strip.  Nothing is pushed to
  * the puppet renderer: a placement move is invisible in the 2D viewport by construction.
  *
  * The capture builds off the UI thread (it decodes rasters and wraps crops), so [begin] suspends; a latch
@@ -87,20 +40,18 @@ internal fun activePlacementGhost(ghost: PlacementGhost?, committedAtlas: Puppet
  * @param State<SessionAtlasPages?> atlasPages The session's page resolver, or null without one (no ghost is
  *   ever published then, since no pages would come to retire it).
  * @param State<MutableState<PlacementDragStatus?>> dragStatus The host's drag readout for this area.
+ * @param State<UvPlacementSceneState> sceneState The host's placement scene for this area.
  */
 internal class UvPlacementModalTransform(
 	areaId: String,
 	session: EditorSession,
 	private val atlasPages: State<SessionAtlasPages?>,
 	private val dragStatus: State<MutableState<PlacementDragStatus?>>,
+	private val sceneState: State<UvPlacementSceneState>,
 ) : UvModalTransform<PlacementGesture>(areaId, session) {
-	/** The last committed move's crops, drawn while [activePlacementGhost] says their pages are still pending. */
-	var ghost by mutableStateOf<PlacementGhost?>(null)
-		private set
-
-	/** Takes the ghost down once its pages have landed (or the atlas it was published for is gone). */
+	/** Takes the last landing's ghost down: its atlas is no longer committed, or the overlay is leaving. */
 	fun dismissGhost() {
-		ghost = null
+		sceneState.value.ghost = null
 	}
 
 	/**
@@ -159,14 +110,17 @@ internal class UvPlacementModalTransform(
 	}
 
 	/**
-	 * Tears the gesture down and clears the host's readout.  Clearing it whether or not a gesture was live
-	 * is safe: only this area's overlay writes this area's readout, and only while it holds a capture.
+	 * Tears the gesture down and clears the host's readout and the drag's share of the scene; a landing's
+	 * ghost stays, since it stands in for pages still being composed.  Clearing them whether or not a gesture
+	 * was live is safe: only this area's overlay writes this area's readout and scene, and only while it
+	 * holds a capture.
 	 *
 	 * @return Boolean True when this area owned a gesture.
 	 */
 	override fun end(): Boolean {
 		val ended = super.end()
 		dragStatus.value.value = null
+		sceneState.value.drag = null
 		return ended
 	}
 
@@ -226,12 +180,13 @@ internal class UvPlacementModalTransform(
 		}
 		gesture.preview = preview
 		dragStatus.value.value = result.status
+		sceneState.value.drag = PlacementDragView(gestureData, result, preview)
 		return true
 	}
 
 	/**
-	 * What a landed evaluation shows: the crops as ghosts at their committed spots until the resolver's
-	 * pages land, and a notice when the result collides or spills.  Shared by the confirm and by every
+	 * What a landed evaluation shows: the crops as ghosts at their committed spots until the pages for the
+	 * commit are applied, and a notice when the result collides or spills.  Shared by the confirm and by every
 	 * adjustment from the operation settings strip.
 	 *
 	 * @param PlacementGesture gestureData The frozen gesture.
@@ -241,10 +196,10 @@ internal class UvPlacementModalTransform(
 		val crops =
 			gestureData.movers.mapNotNull { mover ->
 				val crop = mover.crop ?: return@mapNotNull null
-				GhostCrop(crop, mover.trim, result.placementByTile.getValue(mover.tileId))
+				GhostCrop(mover.tileId, crop, mover.trim, result.placementByTile.getValue(mover.tileId))
 			}
 		if (atlasPages.value != null && crops.isNotEmpty()) {
-			ghost = PlacementGhost(session.model.value.atlas, gestureData.pageHeight, crops)
+			sceneState.value.ghost = PlacementGhost(session.model.value.atlas, gestureData.pageHeight, crops)
 		}
 		if (result.overlappingTileIds.isNotEmpty()) {
 			session.emitNotice("notice.uv.placement.overlap", NoticePlacement.NearCursor)

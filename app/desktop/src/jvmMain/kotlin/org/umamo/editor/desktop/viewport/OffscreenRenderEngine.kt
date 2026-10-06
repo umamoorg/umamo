@@ -423,8 +423,17 @@ internal class OffscreenRenderEngine(
 			RenderScene.UvScene ->
 				when (uvContent) {
 					// An atlas page the engine already uploaded, addressed by index.
+					// Its placement preview goes through the ghost rule against the pages applied right now.
 					is UvSceneContent.AtlasPage ->
-						renderer.renderAtlasPage(drawTarget, uvContent.pageIndex, renderWidth, renderHeight, areaId, uvContent.overlay)
+						renderer.renderAtlasPage(
+							drawTarget,
+							uvContent.pageIndex,
+							renderWidth,
+							renderHeight,
+							areaId,
+							uvContent.overlay,
+							placementToDraw(uvContent.placement, appliedAtlasBinding.atlas),
+						)
 					// Artwork the engine has never uploaded, so the renderer takes the pixels rather than an
 					// index and caches the texture it makes from them.
 					is UvSceneContent.SourceLayer ->

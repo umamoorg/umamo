@@ -118,6 +118,9 @@ internal class UvGizmoOverlayFixture(
 	/** Where the pointer last was in each area, tracked by the host. */
 	val areaPointerByArea = mapOf(LEFT_AREA to mutableStateOf(Offset.Zero), RIGHT_AREA to mutableStateOf(Offset.Zero))
 
+	/** Each area's placement scene, the host's per-area state the Object overlay's placement gesture writes. */
+	val placementSceneByArea = mapOf(LEFT_AREA to UvPlacementSceneState(), RIGHT_AREA to UvPlacementSceneState())
+
 	/** Each area's live circle stroke, the host's per-area state the Edit overlay's marquee writes. */
 	val circleStrokeByArea = mapOf(LEFT_AREA to mutableStateOf<MeshSelection?>(null), RIGHT_AREA to mutableStateOf<MeshSelection?>(null))
 
@@ -222,6 +225,7 @@ internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession, placemen
 											heightPx = UV_RIG_AREA_HEIGHT,
 											placementSurface = if (surface.layer) null else fixture.placementSurface,
 											placementDragStatusState = fixture.placementDragStatusByArea.getValue(areaId),
+											placementSceneState = fixture.placementSceneByArea.getValue(areaId),
 											onOverlapRequest = { anchor, candidates -> fixture.overlapRequests.add(Triple(areaId, anchor, candidates)) },
 										)
 										UvEditGizmoOverlay(

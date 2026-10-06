@@ -184,10 +184,11 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL11.glDrawElements(GL11.GL_TRIANGLES, glMesh.indexCount, GL11.GL_UNSIGNED_INT, 0L)
 	}
 
-	override fun drawAtlasPage(atlas: GpuTexture, pageWidth: Float, pageHeight: Float, fragment: FragmentUniforms) {
+	override fun drawImageQuad(texture: GpuTexture?, quadToWorld: FloatArray, fragment: FragmentUniforms) {
 		val locations = current.locations
-		GL20.glUniform2f(locations.pageSize, pageWidth, pageHeight)
-		setFragmentUniforms(current, fragment, DrawTextures().also { it.atlas = atlas })
+		GL20.glUniform3f(locations.quadRow0, quadToWorld[0], quadToWorld[1], quadToWorld[2])
+		GL20.glUniform3f(locations.quadRow1, quadToWorld[3], quadToWorld[4], quadToWorld[5])
+		setFragmentUniforms(current, fragment, DrawTextures().also { it.atlas = texture })
 		GL30.glBindVertexArray(emptyVao)
 		GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 0, 4)
 	}

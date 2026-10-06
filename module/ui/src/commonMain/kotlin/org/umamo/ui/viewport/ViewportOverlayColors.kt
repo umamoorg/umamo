@@ -132,8 +132,9 @@ internal fun rememberViewportOverlayColors(): ViewportOverlayColors =
 	)
 
 /**
- * The nine Edit-mode element colors as the renderer's mesh overlay palette, straight alpha, each channel
- * the color's own 0..1 component.  The off-key trio is drawn nowhere and stays out.
+ * The nine Edit-mode element colors and the two placement colors as the renderer's mesh overlay palette,
+ * straight alpha, each channel the color's own 0..1 component.  The off-key trio is drawn nowhere and stays
+ * out.
  *
  * @return MeshOverlayPalette The palette.
  */
@@ -148,6 +149,8 @@ internal fun ViewportOverlayColors.toMeshOverlayPalette(): MeshOverlayPalette =
 		faceIdle = faceIdle.toOverlayColor(),
 		faceSelected = faceSelected.toOverlayColor(),
 		faceActive = faceActive.toOverlayColor(),
+		warning = warning.toOverlayColor(),
+		pinnedPlacement = pinnedPlacement.toOverlayColor(),
 	)
 
 /**

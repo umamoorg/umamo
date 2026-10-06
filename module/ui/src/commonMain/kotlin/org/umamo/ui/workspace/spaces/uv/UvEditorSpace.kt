@@ -30,6 +30,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.atlasBindingForTile
 import org.umamo.ui.action.LocalCommands
@@ -58,6 +59,7 @@ import org.umamo.ui.viewport.uv.UvCursorOverlay
 import org.umamo.ui.viewport.uv.UvEditGizmoOverlay
 import org.umamo.ui.viewport.uv.UvHudOverlay
 import org.umamo.ui.viewport.uv.UvObjectGizmoOverlay
+import org.umamo.ui.viewport.uv.UvPlacementSceneState
 import org.umamo.ui.viewport.uv.UvPlacementSurface
 import org.umamo.ui.viewport.uv.UvShownScene
 import org.umamo.ui.viewport.uv.UvSpaceCamera
@@ -83,9 +85,9 @@ import org.umamo.ui.workspace.spaces.PlaceholderSpace
  * always on - Umamo UVs are strictly per-vertex, so the viewport and the UV editor agree by
  * construction).  In Edit mode the composed [UvEditGizmoOverlay] owns the interactions: element picking
  * and box select over the shared mesh selection, and the modal G / S / R operators over the texture
- * coordinates with live GPU preview.  In Object mode [UvObjectGizmoOverlay] draws every visible island
- * on the shown surface and owns island selection - click, box, and the Alt overlap stack, writing the
- * session's object selection, so a selection made here flows out to the viewport and the outliner.
+ * coordinates with live GPU preview.  In Object mode the frame shows every visible island on the shown
+ * surface, and [UvObjectGizmoOverlay] owns island selection - click, box, and the Alt overlap stack, writing
+ * the session's object selection, so a selection made here flows out to the viewport and the outliner.
  * Middle-drag pans and the wheel zooms in both modes, through this space's own navigation loop.
  *
  * FULL VIEWPORT-SERVICE PARITY: the surface is rendered by the SAME offscreen GL engine the 2D viewport
@@ -272,11 +274,20 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// The area's live circle stroke, written by the Edit overlay's marquee and drawn over this area alone:
 	// held here and read only by the publish below, so a stamp recomposes nothing.
 	val circleStrokeState = remember(scope.areaId) { mutableStateOf<MeshSelection?>(null) }
+	// The area's placement scene (the drag's scrims, crops, and moving islands, and a landing's ghost),
+	// written by the Object overlay's placement gesture and read only by the publish below, so a drive
+	// recomposes nothing.
+	val placementSceneState = remember(scope.areaId) { UvPlacementSceneState() }
 	// The scene the engine draws: the surface and its extent, with the Edit-mode wireframe of the shown
-	// session meshes laid on it, derived off the UI thread and published as the area's content whenever it
-	// changes (UvSceneOverlay.kt).  The geometry follows the preview model, so every UV area showing a
-	// dragged mesh follows the drag.
-	val shownScene = remember(sceneContent, islandExtent, model, geometries) { UvShownScene(sceneContent, islandExtent, model, geometries) }
+	// session meshes, or in Object mode the shown islands and the placement preview, laid on it - derived off
+	// the UI thread and published as the area's content whenever it changes (UvSceneOverlay.kt).  The
+	// geometry follows the preview model, so every UV area showing a dragged mesh follows the drag.
+	val scrim = LocalUmamoColors.current.overlayScrim
+	val scrimColor = remember(scrim) { OverlayColor(scrim.red, scrim.green, scrim.blue, scrim.alpha) }
+	val shownScene =
+		remember(sceneContent, islandExtent, model, geometries, frontRank, scrimColor) {
+			UvShownScene(sceneContent, islandExtent, model, geometries, frontRank, scrimColor)
+		}
 	val liveShownScene = rememberUpdatedState(shownScene)
 	val overlaySizes = rememberUpdatedState(editMeshOverlaySizes(LocalDensity.current))
 	LaunchedEffect(scope.areaId, service, session) {
@@ -287,6 +298,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 			shownScene = snapshotFlow { liveShownScene.value },
 			circleStroke = snapshotFlow { circleStrokeState.value },
 			sizes = snapshotFlow { overlaySizes.value },
+			placement = snapshotFlow { placementSceneState.snapshot() },
 		)
 	}
 	DisposableEffect(scope.areaId, service) {
@@ -440,7 +452,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				}
 				// The mode-exclusive sibling overlays, each self-gated on the session's mode (the
 				// viewport pair's convention, so both mount unconditionally): Object mode's island
-				// selection surface (every island drawn, click / box / Alt-stack picking and
+				// selection surface (click / box / Alt-stack picking, the placement gesture, and
 				// Shift+RightClick cursor placement over the session's object selection), then Edit
 				// mode's interaction core (element selection, box select, and the modal G / S / R
 				// operators with live GPU preview).  Both are locked to the frame camera
@@ -462,6 +474,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					heightPx = heightPx,
 					placementSurface = placementSurface,
 					placementDragStatusState = placementDragStatus,
+					placementSceneState = placementSceneState,
 					onOverlapRequest = { position, candidates ->
 						// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
 						overlap =

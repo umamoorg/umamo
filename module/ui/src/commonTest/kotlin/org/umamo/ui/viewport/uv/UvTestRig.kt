@@ -7,10 +7,12 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
+import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.TransformPivotMode
 import org.umamo.render.DecodedImage
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.ViewportCamera
@@ -26,6 +28,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.applyUvAffine
 import org.umamo.ui.model.PuppetRenderSync
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.worldToScreen
@@ -358,4 +361,36 @@ internal class RecordingPuppetRenderSync : PuppetRenderSync {
 		previewState.value = null
 		resyncs++
 	}
+}
+
+/**
+ * A placement Grab over the placed rig, built and driven by the gesture's own code: the selected tiles moved
+ * [deltaTexels] page pixels right, as one drive publishes it.
+ *
+ * @param PuppetModel model The placed model.
+ * @param DrawableId selected The selected drawable, active.
+ * @param Float deltaTexels The move in page pixels, rightward.
+ * @return PlacementDragView The drive.
+ */
+internal fun uvRigPlacementDrag(model: PuppetModel = uvRigPlacedModel(), selected: DrawableId = UV_RIG_QUAD, deltaTexels: Float = 10f): PlacementDragView {
+	val selection = Selection(setOf(SelectionTarget.Drawable(selected)), SelectionTarget.Drawable(selected))
+	val geometries = uvRigGeometries(model, uvRigPageFrame())
+	val build = buildPlacementGesture(model, uvRigPlacementSurface(), selection, geometries, TransformPivotMode.MedianPoint, selected, null, MeshOperatorKind.Grab)
+	val gesture = (build as PlacementGestureBuild.Ready).gesture
+	val result =
+		evaluatePlacementDrag(
+			MeshOperatorKind.Grab,
+			PlacementGestureParameters(deltaTexels, 0f, 1f, 1f, 0f),
+			gesture.movers,
+			gesture.bystanders,
+			gesture.occupancy,
+			gesture.pageWidth,
+			gesture.pageHeight,
+			gesture.extrude,
+		)
+	val preview =
+		gesture.frozenPositionsByDrawable.mapValues { (drawableId, frozen) ->
+			applyUvAffine(frozen, result.displayAffineByTile.getValue(gesture.tileByDrawable.getValue(drawableId)))
+		}
+	return PlacementDragView(gesture, result, preview)
 }

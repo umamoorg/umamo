@@ -76,6 +76,38 @@ internal class BackdropEncoder(
 	}
 
 	/**
+	 * Draws a placement preview into an open pass over the page: every scrim as a flat quad, then every crop
+	 * sampled through its resolved texture, in the order given (the movers', then the ghost's).  All through
+	 * the underlay's quad pipeline and the page's camera.
+	 *
+	 * @param RenderPassEncoder pass      The open pass.
+	 * @param ResolvedPlacement placement The preview, its crop textures resolved.
+	 * @param GridUniforms      grid      The grid's inputs, carrying the camera affine and the viewport size.
+	 */
+	fun encodePlacement(pass: RenderPassEncoder, placement: ResolvedPlacement, grid: GridUniforms) {
+		if (placement.scrimQuads.isEmpty() && placement.crops.isEmpty()) {
+			return
+		}
+		pass.setPipeline(pipelines.atlasPage)
+		pass.setCamera(grid.worldToNdc, grid.viewportWidth, grid.viewportHeight)
+		val scrim = placement.scrimColor
+		for (quad in placement.scrimQuads) {
+			fragmentScratch.reset()
+			fragmentScratch.colorRed = scrim.red
+			fragmentScratch.colorGreen = scrim.green
+			fragmentScratch.colorBlue = scrim.blue
+			fragmentScratch.colorAlpha = scrim.alpha
+			pass.drawImageQuad(null, quad, fragmentScratch)
+		}
+		for (crop in placement.crops) {
+			fragmentScratch.reset()
+			fragmentScratch.useTexture = true
+			crop.sampleAffine.copyInto(fragmentScratch.uvAffine)
+			pass.drawImageQuad(crop.texture, crop.quadToWorld, fragmentScratch)
+		}
+	}
+
+	/**
 	 * Fills an open pass with the flat underlay both UV scenes share: the themed grid backdrop (bounded by
 	 * the shown surface when the grid carries one), then the image as a single textured quad at the world
 	 * origin.  A null image or handle paints the grid alone.  The caller owns the frame and the pass, so
@@ -96,7 +128,7 @@ internal class BackdropEncoder(
 			pass.setCamera(grid.worldToNdc, grid.viewportWidth, grid.viewportHeight)
 			fragmentScratch.reset()
 			fragmentScratch.useTexture = true
-			pass.drawAtlasPage(handle, image.width.toFloat(), image.height.toFloat(), fragmentScratch)
+			pass.drawImageQuad(handle, floatArrayOf(image.width.toFloat(), 0f, 0f, 0f, image.height.toFloat(), 0f), fragmentScratch)
 		}
 	}
 

@@ -22,6 +22,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -41,11 +42,13 @@ class UvPlacementModalTransformTest {
 	 * @property EditorSession session The session.
 	 * @property UvPlacementModalTransform transform The transform.
 	 * @property MutableState dragStatus The host's readout for the left area.
+	 * @property UvPlacementSceneState sceneState The host's placement scene for the left area.
 	 */
 	private class Rig(
 		val session: EditorSession,
 		val transform: UvPlacementModalTransform,
 		val dragStatus: MutableState<PlacementDragStatus?>,
+		val sceneState: UvPlacementSceneState,
 	)
 
 	/**
@@ -57,9 +60,10 @@ class UvPlacementModalTransformTest {
 	private fun rigOver(atlasPagesOf: (EditorSession) -> SessionAtlasPages? = { null }): Rig {
 		val session = uvObjectSession(model = uvRigPlacedModel())
 		val dragStatus = mutableStateOf<PlacementDragStatus?>(null)
-		val transform = UvPlacementModalTransform(LEFT_AREA, session, mutableStateOf(atlasPagesOf(session)), mutableStateOf(dragStatus))
+		val sceneState = UvPlacementSceneState()
+		val transform = UvPlacementModalTransform(LEFT_AREA, session, mutableStateOf(atlasPagesOf(session)), mutableStateOf(dragStatus), mutableStateOf(sceneState))
 		transform.gesture.lastPointer = UV_RIG_GESTURE_START
-		return Rig(session, transform, dragStatus)
+		return Rig(session, transform, dragStatus, sceneState)
 	}
 
 	/**
@@ -202,7 +206,7 @@ class UvPlacementModalTransformTest {
 
 			assertEquals(uvRigTilePlacement(110f), uvRigPlacementOf(rig.session, UV_RIG_QUAD_TILE), "with resolver = $withResolver")
 			assertNull(rig.session.activeUvOperator.value)
-			val ghost = rig.transform.ghost
+			val ghost = rig.sceneState.ghost
 			if (withResolver) {
 				assertSame(rig.session.model.value.atlas, assertNotNull(ghost).atlas, "published for the committed atlas")
 				assertEquals(1, ghost.crops.size)
@@ -246,19 +250,55 @@ class UvPlacementModalTransformTest {
 		assertEquals(RIGHT_AREA, rig.session.activeUvOperator.value?.areaId)
 	}
 
-	/** The ghost stays up only while the committed atlas is the very instance it was published for and no pages are bound to it. */
+	/**
+	 * The UI keeps a ghost only while the committed atlas is the very instance it was published for; when its
+	 * pages land is the engine's call (PlacementGhostRuleTest).
+	 */
 	@Test
-	fun theActiveGhostComparesAtlasesByIdentity() {
+	fun theActiveGhostComparesTheCommittedAtlasByIdentity() {
 		val atlas = uvRigPlacedModel().atlas
 		val equalAtlas = atlas.copy()
 		val ghost = PlacementGhost(atlas, UV_RIG_PAGE_SIDE, emptyList())
 
 		assertEquals(atlas, equalAtlas, "the copy is equal")
-		assertSame(ghost, activePlacementGhost(ghost, atlas, null))
-		assertNull(activePlacementGhost(ghost, equalAtlas, null), "an equal atlas that is not the published one retires it")
-		assertNull(activePlacementGhost(ghost, atlas, atlas), "pages bound to it retire it")
-		assertSame(ghost, activePlacementGhost(ghost, atlas, equalAtlas), "pages bound to an equal atlas do not")
-		assertNull(activePlacementGhost(null, atlas, null))
+		assertSame(ghost, activePlacementGhost(ghost, atlas))
+		assertNull(activePlacementGhost(ghost, equalAtlas), "an equal atlas that is not the published one retires it")
+		assertNull(activePlacementGhost(null, atlas))
+	}
+
+	/**
+	 * Each drive publishes the drag's share of the area's scene, and the end clears it; a landing's ghost
+	 * outlives the end, and only its dismissal takes it down.
+	 */
+	@Test
+	fun theDragLivesInTheSceneUntilTheEndAndTheGhostUntilItsDismissal() {
+		val rig =
+			rigOver { session ->
+				val blankPage = DecodedImage(ByteArray(UV_RIG_PAGE_SIDE * UV_RIG_PAGE_SIDE * 4), UV_RIG_PAGE_SIDE, UV_RIG_PAGE_SIDE)
+				SessionAtlasPages(session, session.model.value.atlas, PuppetTextures(listOf(blankPage), emptyMap(), premultipliedAlpha = false), uvRigArtRasters())
+			}
+		val operator = rig.latch()
+		runBlocking { rig.begin(operator, uvRigPlacementSurface()) }
+		assertNull(rig.sceneState.drag, "nothing before the first drive")
+
+		rig.transform.drivePreview(UV_RIG_TEN_TEXELS_RIGHT, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+		val first = assertNotNull(rig.sceneState.drag, "a drive publishes the drag")
+		assertEquals(uvRigTilePlacement(110f), first.result.placementByTile[UV_RIG_QUAD_TILE], "with its placement")
+		assertTrue(first.previewPositionsById.isNotEmpty(), "and the moving islands' positions")
+		rig.transform.drivePreview(UV_RIG_GESTURE_START, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+		assertNotSame(first, rig.sceneState.drag, "every drive publishes anew")
+
+		rig.transform.drivePreview(UV_RIG_TEN_TEXELS_RIGHT, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+		rig.transform.confirm()
+		val ghost = assertNotNull(rig.sceneState.ghost, "the landing publishes its ghost")
+		assertSame(rig.session.model.value.atlas, ghost.atlas)
+		assertEquals(UV_RIG_QUAD_TILE, ghost.crops.single().tileId, "naming the tile whose layer may stand in")
+		rig.transform.end()
+		assertNull(rig.sceneState.drag, "the end takes the drag down")
+		assertSame(ghost, rig.sceneState.ghost, "and leaves the ghost")
+
+		rig.transform.dismissGhost()
+		assertNull(rig.sceneState.ghost)
 	}
 
 	private companion object {

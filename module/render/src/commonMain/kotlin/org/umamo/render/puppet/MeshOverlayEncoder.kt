@@ -39,7 +39,8 @@ internal class OverlayFrame(
  * is stale, followed by a barrier.  The draws go domain-major - every mesh's face fills, then every mesh's
  * edges, then the active edges, then the dots - so each domain binds its pipeline once rather than once
  * per mesh, and so the actives land on top of every batch; an entry the current pose leaves unposed (a
- * hidden ancestor, a grid out of range) is skipped in both.
+ * hidden ancestor, a grid out of range) is skipped in both.  An islands overlay goes island-major instead
+ * (see [drawIslands]): its stacking is the point, so each island's fill covers the islands behind it.
  *
  * @param DrawPipelines pipelines The capture and overlay pipelines.
  * @param SideTargetPool sideTargets The side targets, whose capacity names the screen-space divisor.
@@ -138,6 +139,10 @@ internal class MeshOverlayEncoder(
 		if (entries.isEmpty()) {
 			return
 		}
+		if (overlay.kind == MeshOverlayKind.Islands) {
+			drawIslands(pass, overlay, entries, store, frame)
+			return
+		}
 		val palette = frame.palette
 		val sizes = overlay.sizes
 		val editing = overlay.kind == MeshOverlayKind.Edit
@@ -205,6 +210,54 @@ internal class MeshOverlayEncoder(
 					pass.drawOverlayFaceDots(entry.buffers, store, uniformsScratch)
 				}
 			}
+		}
+	}
+
+	/**
+	 * Records an islands overlay island-major, in the entries' order, which the producer makes back to front:
+	 * each island fills its every face in its fill role's color, then outlines its every edge in its edge
+	 * role's color, so a nearer island's fill covers the outlines of the islands behind it, the way the
+	 * islands stack for the pick.  No dots and no active primitive: an island is selected whole.  The roles
+	 * resolve against the palette here, so a palette change re-colors without a new overlay, and a role
+	 * change re-colors without an upload, since every island's flags are all idle.
+	 *
+	 * @param RenderPassEncoder pass The open pass.
+	 * @param MeshOverlay overlay The islands overlay (its sizes).
+	 * @param List<OverlayDrawEntry> entries The islands, back to front.
+	 * @param DeformedPositionStore store The store the islands' positions are in.
+	 * @param OverlayFrame frame The pass's camera, viewport, scale, and palette.
+	 */
+	private fun drawIslands(pass: RenderPassEncoder, overlay: MeshOverlay, entries: List<OverlayDrawEntry>, store: DeformedPositionStore, frame: OverlayFrame) {
+		val palette = frame.palette
+		val edgeHalfWidth = overlay.sizes.edgeWidthPx * frame.pixelScale / 2f
+		uniformsScratch.viewportWidth = frame.viewportWidth.toFloat()
+		uniformsScratch.viewportHeight = frame.viewportHeight.toFloat()
+		uniformsScratch.fillIdle = true
+		for (entry in entries) {
+			val style = entry.islandStyle
+			val fill =
+				when (style?.fill ?: IslandFillRole.Idle) {
+					IslandFillRole.Idle -> palette.faceIdle
+					IslandFillRole.Selected -> palette.faceSelected
+				}
+			val edge =
+				when (style?.edge ?: IslandEdgeRole.Idle) {
+					IslandEdgeRole.Idle -> palette.edgeIdle
+					IslandEdgeRole.Selected -> palette.edgeSelected
+					IslandEdgeRole.Active -> palette.edgeActive
+					IslandEdgeRole.Warning -> palette.warning
+					IslandEdgeRole.Pinned -> palette.pinnedPlacement
+				}
+			bind(pass, pipelines.overlayFaceFill, frame)
+			setColors(fill, fill, fill, opaque = false)
+			uniformsScratch.sizePx = 0f
+			batch(entry)
+			pass.drawOverlayFaceFill(entry.buffers, store, uniformsScratch)
+			bind(pass, pipelines.overlayEdge, frame)
+			setColors(edge, edge, edge, opaque = false)
+			uniformsScratch.sizePx = edgeHalfWidth
+			batch(entry)
+			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
 		}
 	}
 

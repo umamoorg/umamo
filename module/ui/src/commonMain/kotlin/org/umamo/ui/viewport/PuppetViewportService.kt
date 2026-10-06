@@ -16,6 +16,7 @@ import org.umamo.render.pick.PickCandidate
 import org.umamo.render.puppet.DirectMeshOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayPalette
+import org.umamo.render.puppet.PlacementPreview
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
@@ -48,11 +49,11 @@ data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera)
  * uploaded for the puppet) while a source layer arrives as pixels the engine has never seen.  Keeping
  * them distinct is also what lets an area switch between them without re-registering.
  *
- * The overlay rides the content rather than a channel of its own, so a surface and the overlay drawn over
- * it reach the render thread as one value and can never mismatch, and the area's freshness (the rendered
- * content against the current one, by equality) sees a new overlay without a version of its own.  A
- * [DirectMeshOverlay] compares by identity, so only a newly published overlay re-renders the area.  The
- * camera keys only the surface, never the overlay.
+ * The overlay (and over a page, the placement drag's preview) rides the content rather than a channel of
+ * its own, so a surface and what is drawn over it reach the render thread as one value and can never
+ * mismatch, and the area's freshness (the rendered content against the current one, by equality) sees a
+ * new overlay without a version of its own.  A [DirectMeshOverlay] and a [PlacementPreview] compare by
+ * identity, so only a newly published one re-renders the area.  The camera keys only the surface.
  */
 sealed interface UvSceneContent {
 	/** The area's mesh overlay, in the surface's display positions, or null for none. */
@@ -63,8 +64,14 @@ sealed interface UvSceneContent {
 	 *
 	 * @property Int? pageIndex The page to draw, or null for none (grid only).
 	 * @property DirectMeshOverlay? overlay The mesh overlay drawn over it, or null for none.
+	 * @property PlacementPreview? placement The placement drag's preview drawn between the page and the
+	 *   overlay, or null for none.
 	 */
-	data class AtlasPage(val pageIndex: Int?, override val overlay: DirectMeshOverlay? = null) : UvSceneContent
+	data class AtlasPage(
+		val pageIndex: Int?,
+		override val overlay: DirectMeshOverlay? = null,
+		val placement: PlacementPreview? = null,
+	) : UvSceneContent
 
 	/**
 	 * A source layer's own artwork, decoded by the caller.
