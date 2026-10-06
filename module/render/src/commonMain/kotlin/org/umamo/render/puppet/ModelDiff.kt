@@ -16,8 +16,9 @@ internal sealed interface DrawableAction {
 	val drawableId: DrawableId
 
 	/**
-	 * The backend has never seen this drawable - an Object-mode duplicate, or one skipped at load for
-	 * having no geometry. Upload it whole. Never part of the load-time glue layout, so it welds nothing.
+	 * The backend has never seen this drawable - an Object-mode duplicate, a deleted drawable an undo
+	 * restored, or one skipped earlier for having no geometry. Upload it whole, with its entry in the
+	 * current glue layout.
 	 */
 	class Upload(val drawable: Drawable) : DrawableAction {
 		override val drawableId: DrawableId get() = drawable.id
