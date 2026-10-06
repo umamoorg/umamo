@@ -17,7 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -72,6 +71,7 @@ import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.parseSelectionHighlightColor
 import org.umamo.ui.viewport.rememberViewportOverlayColors
 import org.umamo.ui.viewport.toMeshOverlayPalette
+import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.workspace.ViewportHost
 
 /*
@@ -503,17 +503,7 @@ fun rememberPuppetViewportHost(
 								Modifier
 									.fillMaxSize()
 									.pointerHoverIcon(if (panning) grabCursor else PointerIcon.Default)
-									// Watch-only: it consumes nothing, so the navigation loop below and the
-									// gizmo overlays above all still see every event.  Initial pass so the
-									// position is current even while a child owns the gesture.
-									.pointerInput(areaId) {
-										awaitPointerEventScope {
-											while (true) {
-												val event = awaitPointerEvent(PointerEventPass.Initial)
-												event.changes.lastOrNull()?.let { change -> areaPointer.value = change.position }
-											}
-										}
-									}
+									.tracksAreaPointer(areaId, areaPointer)
 									.pointerInput(areaId) {
 										viewportNavigation(service, areaId, session) { panning = it }
 									},

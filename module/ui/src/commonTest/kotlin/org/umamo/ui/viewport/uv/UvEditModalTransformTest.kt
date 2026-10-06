@@ -16,6 +16,8 @@ import org.umamo.edit.withParameter
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.gizmo.LEFT_AREA
+import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -28,25 +30,16 @@ import kotlin.test.assertTrue
 /**
  * Pins the UV Edit overlay's modal transform ([UvEditModalTransform]) over a real session, without Compose:
  * what a latch captures and when it drops, what a drive previews, what a confirm commits and registers,
- * that the proportional radius is always the shown surface's - read through the host's holder each time,
- * except for a confirmed step's strip adjustment, which writes back to the surface the gesture ran on - and
- * that an abandon clears only this area's latch.
+ * that the proportional radius is the one of the surface a gesture began on - the shown surface's at the
+ * latch, kept through a switch mid-gesture and by a confirmed step's strip adjustment - and that an abandon
+ * clears only this area's latch.
  */
 class UvEditModalTransformTest {
-	/** Where the pointer rests as the gesture latches: the gesture measures from here. */
-	private val gestureStart = Offset(200f, 150f)
-
-	/** Forty pixels right of [gestureStart]: ten display texels at the rig's zoom. */
-	private val tenTexelsRight = Offset(240f, 150f)
-
-	/** The quad's stored coordinates as the rig builds them. */
-	private val quadUvs = listOf(100f / 256, 1f - 100f / 256, 120f / 256, 1f - 100f / 256, 120f / 256, 1f - 120f / 256, 100f / 256, 1f - 120f / 256)
-
 	/**
 	 * The transform under test, the holders the overlay would hand it, and every model it pushed.
 	 *
 	 * @property EditorSession session The session.
-	 * @property MutableState shownFrame The shown surface's frame, as the overlay's live holder.
+	 * @property MutableState shownFrame The shown surface's frame, which the overlay's latch effect hands begin.
 	 * @property MutableState radiusHolder The shown surface's radius state, as the overlay's live holder.
 	 * @property UvEditModalTransform transform The transform.
 	 * @property MutableList pushed Every preview model pushed.
@@ -69,7 +62,7 @@ class UvEditModalTransformTest {
 		val pushed = ArrayList<PuppetModel>()
 		val shownFrame = mutableStateOf(uvRigPageFrame())
 		val radiusHolder = mutableStateOf<MutableState<Float?>>(mutableStateOf(null))
-		val transform = UvEditModalTransform(LEFT_AREA_ID, session, shownFrame, radiusHolder) { model -> pushed.add(model) }
+		val transform = UvEditModalTransform(LEFT_AREA, session, radiusHolder) { model -> pushed.add(model) }
 		return Rig(session, shownFrame, radiusHolder, transform, pushed)
 	}
 
@@ -79,9 +72,9 @@ class UvEditModalTransformTest {
 	 * @param MeshOperatorKind kind The operator.
 	 */
 	private fun Rig.latch(kind: MeshOperatorKind) {
-		session.beginUvOperator(kind, LEFT_AREA_ID)
+		session.beginUvOperator(kind, LEFT_AREA)
 		assertEquals(kind, session.activeUvOperator.value?.kind, "the session latched the operator")
-		transform.gesture.lastPointer = gestureStart
+		transform.gesture.lastPointer = UV_RIG_GESTURE_START
 		val frame = shownFrame.value
 		transform.begin(kind, uvRigGeometries(session.model.value, frame), session.meshSelection.value, frame)
 	}
@@ -111,7 +104,7 @@ class UvEditModalTransformTest {
 	@Test
 	fun aLatchOverNothingDrops() {
 		val rig = rigOver(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
-		rig.session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA_ID)
+		rig.session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
 		val frame = rig.shownFrame.value
 
 		rig.transform.begin(MeshOperatorKind.Grab, uvRigGeometries(rig.session.model.value, frame), MeshSelectionOps.clear(rig.session.meshSelection.value), frame)
@@ -129,15 +122,15 @@ class UvEditModalTransformTest {
 		val stepsBefore = session.historyView.value.steps.size
 		rig.latch(MeshOperatorKind.Grab)
 
-		assertTrue(rig.driveTo(tenTexelsRight))
+		assertTrue(rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT))
 		assertEquals(110f / 256, rig.pushed.single().drawables.first { drawable -> drawable.id == UV_RIG_QUAD }.mesh!!.uvs[0], "the preview moved vertex 0")
-		assertEquals(quadUvs, uvRigUvsOf(session, UV_RIG_QUAD), "a preview commits nothing")
+		assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD), "a preview commits nothing")
 
 		rig.transform.confirm()
 
-		assertEquals(listOf(110f / 256) + quadUvs.drop(1), uvRigUvsOf(session, UV_RIG_QUAD))
+		assertEquals(listOf(110f / 256) + UV_RIG_QUAD_UVS.drop(1), uvRigUvsOf(session, UV_RIG_QUAD))
 		assertEquals(stepsBefore + 1, session.historyView.value.steps.size)
-		assertEquals(LEFT_AREA_ID, assertNotNull(session.adjustableOperation.value).areaId)
+		assertEquals(LEFT_AREA, assertNotNull(session.adjustableOperation.value).areaId)
 		assertNull(session.activeUvOperator.value)
 		assertTrue(rig.transform.end(), "the gesture is torn down by the caller's effect")
 		assertFalse(rig.transform.end(), "and only once")
@@ -162,16 +155,16 @@ class UvEditModalTransformTest {
 		val rig = rigOver(session)
 		rig.shownFrame.value = frame
 		val camera = uvRigCameraOver(uvRigGeometries(session.model.value, frame))
-		session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA_ID)
-		rig.transform.gesture.lastPointer = gestureStart
+		session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
+		rig.transform.gesture.lastPointer = UV_RIG_GESTURE_START
 		rig.transform.begin(MeshOperatorKind.Grab, uvRigGeometries(session.model.value, frame), session.meshSelection.value, frame)
 
-		rig.transform.drivePreview(tenTexelsRight, camera, UV_RIG_AREA_SIZE)
+		rig.transform.drivePreview(UV_RIG_TEN_TEXELS_RIGHT, camera, UV_RIG_AREA_SIZE)
 		rig.transform.confirm()
 
 		val committed = uvRigUvsOf(session, UV_RIG_QUAD)
-		assertNotEquals(quadUvs.take(2), committed.take(2), "vertex 0 moved")
-		assertEquals(quadUvs.drop(2), committed.drop(2), "every other coordinate bit-identical")
+		assertNotEquals(UV_RIG_QUAD_UVS.take(2), committed.take(2), "vertex 0 moved")
+		assertEquals(UV_RIG_QUAD_UVS.drop(2), committed.drop(2), "every other coordinate bit-identical")
 	}
 
 	/** A confirm before any drive has no preview to commit: no step, no registration, and the latch clears. */
@@ -205,7 +198,7 @@ class UvEditModalTransformTest {
 		session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f))
 		val rig = rigOver(session)
 		rig.latch(MeshOperatorKind.Grab)
-		rig.driveTo(tenTexelsRight)
+		rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT)
 
 		rig.transform.onScroll(-1f, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
 
@@ -214,9 +207,12 @@ class UvEditModalTransformTest {
 		assertEquals(2, rig.pushed.size, "the scroll drove a second preview")
 	}
 
-	/** After the host hands over another surface's radius, the wheel seeds and resizes that one and leaves the old one be. */
+	/**
+	 * A surface switch mid-gesture leaves the wheel on the radius the gesture began with: the capture is still
+	 * measured in the page's texels, so the layer's radius would be a different length in them.
+	 */
 	@Test
-	fun theWheelFollowsTheHoldersSwap() {
+	fun theWheelKeepsTheGesturesRadiusThroughASwitch() {
 		val session = uvEditSession(elements = listOf(MeshElement.Vertex(0)))
 		session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f))
 		val rig = rigOver(session)
@@ -226,8 +222,62 @@ class UvEditModalTransformTest {
 
 		rig.transform.onScroll(-1f, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
 
+		assertEquals(UV_RIG_PAGE_SIDE / 8f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(pageRadius.value), 1e-4f, "the page's radius grew")
+		assertNull(layerRadius.value, "the layer's radius is untouched, not even seeded")
+	}
+
+	/** A mid-gesture switch keeps the proportional weights on the gesture's radius too. */
+	@Test
+	fun aMidGestureProportionalChangeKeepsTheGesturesRadiusThroughASwitch() {
+		val rig = rigOver(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
+		rig.latch(MeshOperatorKind.Grab)
+		val layerRadius = rig.showLayer()
+		layerRadius.value = 1f
+
+		rig.transform.reapplyProportional(ProportionalEditState(ProportionalFalloff.Linear, 10f))
+
+		val entry = assertNotNull(rig.transform.gesture.capture).transform.entries.single()
+		assertTrue(entry.influence.isNotEmpty(), "vertex 1 lies twenty texels away, inside the page's thirty-two, not the layer's one")
+	}
+
+	/** A gesture begun after the host hands over another surface's radius seeds and resizes that one. */
+	@Test
+	fun aGestureAfterASwitchTakesTheShownSurfacesRadius() {
+		val session = uvEditSession(elements = listOf(MeshElement.Vertex(0)))
+		session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f))
+		val rig = rigOver(session)
+		rig.latch(MeshOperatorKind.Grab)
+		rig.transform.cancel()
+		rig.transform.end()
+		val pageRadius = rig.radiusHolder.value
+		val layerRadius = rig.showLayer()
+		rig.latch(MeshOperatorKind.Grab)
+
+		rig.transform.onScroll(-1f, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+
 		assertEquals(UV_RIG_LAYER_SIDE / 8f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(layerRadius.value), 1e-4f, "seeded from the layer, then grown")
 		assertEquals(UV_RIG_PAGE_SIDE / 8f, pageRadius.value, "the page's radius is untouched")
+	}
+
+	/** A switch between the latch and the confirm leaves the strip row and its write-back on the gesture's surface. */
+	@Test
+	fun aSwitchMidGestureLeavesTheStripOnTheGesturesSurface() {
+		val session = uvEditSession(elements = listOf(MeshElement.Vertex(0)))
+		session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f))
+		val rig = rigOver(session)
+		rig.latch(MeshOperatorKind.Grab)
+		val pageRadius = rig.radiusHolder.value
+		rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT)
+		val layerRadius = rig.showLayer()
+		rig.transform.confirm()
+		val record = assertNotNull(session.adjustableOperation.value)
+		val sizeRow = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.PROPORTIONAL_SIZE } as OperatorParameter.FloatParameter
+		assertEquals(UV_RIG_PAGE_SIDE / 8f, sizeRow.value, "the row holds the page's radius")
+
+		session.adjustLastOperation(record.parameters.withParameter(TransformParameterKeys.PROPORTIONAL_SIZE, sizeRow.copy(value = 12f)))
+
+		assertEquals(12f, pageRadius.value, "the step's own surface")
+		assertNull(layerRadius.value, "not the surface shown now")
 	}
 
 	/** A confirmed step's strip adjustment writes back to the radius of the surface the gesture ran on. */
@@ -237,7 +287,7 @@ class UvEditModalTransformTest {
 		session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f))
 		val rig = rigOver(session)
 		rig.latch(MeshOperatorKind.Grab)
-		rig.driveTo(tenTexelsRight)
+		rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT)
 		rig.transform.confirm()
 		val pageRadius = rig.radiusHolder.value
 		val layerRadius = rig.showLayer()
@@ -268,9 +318,9 @@ class UvEditModalTransformTest {
 	@Test
 	fun anotherAreasLatchDrivesNothing() {
 		val rig = rigOver(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
-		rig.session.beginUvOperator(MeshOperatorKind.Grab, RIGHT_AREA_ID)
+		rig.session.beginUvOperator(MeshOperatorKind.Grab, RIGHT_AREA)
 
-		assertFalse(rig.driveTo(tenTexelsRight))
+		assertFalse(rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT))
 		assertTrue(rig.pushed.isEmpty())
 	}
 
@@ -279,13 +329,13 @@ class UvEditModalTransformTest {
 	fun abandoningALiveGestureClearsItsLatch() {
 		val rig = rigOver(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
 		rig.latch(MeshOperatorKind.Grab)
-		rig.driveTo(tenTexelsRight)
+		rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT)
 
 		assertTrue(rig.transform.abandon(), "a gesture was in flight")
 
 		assertNull(rig.session.activeUvOperator.value)
 		assertNull(rig.transform.gesture.capture)
-		assertEquals(quadUvs, uvRigUvsOf(rig.session, UV_RIG_QUAD), "nothing committed")
+		assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(rig.session, UV_RIG_QUAD), "nothing committed")
 		assertFalse(rig.transform.abandon(), "and only once")
 	}
 
@@ -293,16 +343,11 @@ class UvEditModalTransformTest {
 	@Test
 	fun abandoningLeavesAnotherAreasLatch() {
 		val rig = rigOver(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
-		rig.session.beginUvOperator(MeshOperatorKind.Grab, RIGHT_AREA_ID)
+		rig.session.beginUvOperator(MeshOperatorKind.Grab, RIGHT_AREA)
 		val latched = rig.session.activeUvOperator.value
 
 		assertFalse(rig.transform.abandon())
 
 		assertSame(latched, rig.session.activeUvOperator.value)
-	}
-
-	private companion object {
-		const val LEFT_AREA_ID = "left"
-		const val RIGHT_AREA_ID = "right"
 	}
 }

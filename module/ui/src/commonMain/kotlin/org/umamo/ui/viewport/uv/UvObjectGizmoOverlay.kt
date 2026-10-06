@@ -142,6 +142,8 @@ internal fun UvObjectGizmoOverlay(
 	val liveSurface = rememberUpdatedState(placementSurface)
 	val liveAtlasPages = rememberUpdatedState(sessionAtlasPages)
 	val liveDragStatus = rememberUpdatedState(placementDragStatusState)
+	// The host's overlap callback closes over its render service, which can change while the area lives.
+	val liveOverlapRequest = rememberUpdatedState(onOverlapRequest)
 
 	// The placement gesture's commit side, one per area: the pointer loop and the collectors below keep the
 	// instance they started with (see UvPlacementModalTransform).  Its gesture state is what the Box, the
@@ -163,7 +165,12 @@ internal fun UvObjectGizmoOverlay(
 	val marquee = remember(areaId) { uvObjectMarquee(session, liveGeometries) }
 
 	// The idle click-pick / un-armed box flow bound to the island domain, one per area (see uvObjectPick).
-	val objectPick = remember(areaId) { uvObjectPick(session, marquee, liveIslandPick, liveFrame, liveCamera, liveSize, onOverlapRequest) }
+	val objectPick =
+		remember(areaId) {
+			uvObjectPick(session, marquee, liveIslandPick, liveFrame, liveCamera, liveSize) { position, candidates ->
+				liveOverlapRequest.value(position, candidates)
+			}
+		}
 
 	// The unmount guard: area death (corner-join, space switch, workspace tab switch), leaving Object mode, or
 	// losing the frame camera mid-gesture disposes this overlay, which cancels the latch effect below WITHOUT

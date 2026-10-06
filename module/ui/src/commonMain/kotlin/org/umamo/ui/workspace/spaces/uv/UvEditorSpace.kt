@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.isShiftPressed
@@ -49,6 +48,7 @@ import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.overlapStateFrom
+import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.viewport.uv.PlacementDragStatus
 import org.umamo.ui.viewport.uv.UvCursorOverlay
 import org.umamo.ui.viewport.uv.UvEditGizmoOverlay
@@ -382,17 +382,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 						// content instead of re-rasterizing the wireframe.  Only a real UV change re-records it.
 						.graphicsLayer()
 						.clipToBounds()
-						// Watch-only: it consumes nothing, so the navigation loop below and the gizmo overlays
-						// above all still see every event.  Initial pass so the position is current even while a
-						// child owns the gesture.
-						.pointerInput(scope.areaId) {
-							awaitPointerEventScope {
-								while (true) {
-									val event = awaitPointerEvent(PointerEventPass.Initial)
-									event.changes.lastOrNull()?.let { change -> areaPointer.value = change.position }
-								}
-							}
-						}
+						.tracksAreaPointer(scope.areaId, areaPointer)
 						// Navigation lives on the PARENT box, not the drawing canvas.  In Edit mode the gizmo
 						// overlay is a child on top; as the parent, this loop sees the Main pass after the overlay,
 						// so pan / zoom work in both modes - the 2D viewport's setup.

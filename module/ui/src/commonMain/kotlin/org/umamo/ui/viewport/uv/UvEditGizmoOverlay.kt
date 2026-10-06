@@ -44,7 +44,8 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  *   - UvEditModalTransform.kt: this overlay's modal G / S / R over texture coordinates (capture, drive,
  *     confirm, the wheel, the proportional radius) - the ModalTransformTarget the pointer loop hands a
  *     gesture's events to.
- *   - UvEditGizmoRequests.kt: the area-gated collectors for Mirror U / V, Select Linked, and the snaps.
+ *   - UvEditGizmoRequests.kt: the area-gated collectors for Mirror U / V, Select Linked, and the snaps, and
+ *     the drop of a latch made over a surface with nothing to edit.
  *   - UvEditGizmoPointerInput.kt: the pointer loop (modal transform, circle brush, idle selection).
  *   - UvEditGizmoSelection.kt: the element pick and the wireframe highlights; the marquee is the shared
  *     gizmo/GizmoSelectionInput.kt meshMarquee.
@@ -84,8 +85,8 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  * @param State areaPointer Where the pointer last was in this area, tracked by the HOST so the
  *   pointer-addressed requests still resolve while the overlay's own pointer loop is not mounted.
  * @param MutableState<Float?> proportionalRadiusDisplayState The host-owned proportional radius of the shown
- *   surface, in display (texel) units: this overlay's gesture machinery seeds and resizes it, and the host's
- *   UvHudOverlay badge reads it - sibling overlays share state only through the session or the host.
+ *   surface, in display (texel) units: a gesture begun here takes it, seeds it, and resizes it, and the
+ *   host's UvHudOverlay badge reads it - sibling overlays share state only through the session or the host.
  * @param Modifier modifier The layout modifier.
  */
 @Composable
@@ -136,6 +137,13 @@ internal fun UvEditGizmoOverlay(
 	}
 
 	if (geometries.isEmpty()) {
+		// Over a surface with nothing to edit, a G / S / R or a B / C gets what a request gets: the parts below
+		// that would begin, drive, and resolve it are not mounted, so a latch made here, or a tool still armed
+		// as the surface emptied, is dropped with the requests' notice rather than left holding the area's pan
+		// and zoom off.
+		LaunchedEffect(activeOperator, activeSelectTool) {
+			dropUvEditLatchesWithNothingToEdit(areaId, session)
+		}
 		return
 	}
 
@@ -150,7 +158,7 @@ internal fun UvEditGizmoOverlay(
 	// loop, and the chrome read.
 	val modalTransform =
 		remember(areaId) {
-			UvEditModalTransform(areaId, session, liveFrame, liveRadiusState) { folded -> liveRenderSync.value?.previewModel(folded) }
+			UvEditModalTransform(areaId, session, liveRadiusState) { folded -> liveRenderSync.value?.previewModel(folded) }
 		}
 	val gesture = modalTransform.gesture
 
@@ -232,7 +240,7 @@ internal fun UvEditGizmoOverlay(
 	val highlightByDrawable = remember(effectiveSelection, geometries) { uvEditHighlights(effectiveSelection, geometries) }
 
 	// clipToBounds: Canvas drawing is not clipped to the layout bounds by default, so an off-page vertex
-	// would otherwise paint over the AreaHeader and neighbouring areas.
+	// would otherwise paint over the AreaHeader and neighboring areas.
 	Box(
 		modifier =
 			modifier
@@ -285,7 +293,6 @@ internal fun UvEditGizmoOverlay(
 				hudOperator = activeOperator,
 				axisConstraint = axisConstraintState,
 				proportionalEdit = proportionalEditState,
-				proportionalRadius = proportionalRadiusDisplayState,
 				camera = camera,
 				size = IntSize(widthPx, heightPx),
 				style = overlayStyle,
