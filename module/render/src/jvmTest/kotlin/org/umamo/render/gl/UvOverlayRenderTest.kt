@@ -3,11 +3,16 @@ package org.umamo.render.gl
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
+import org.umamo.render.LayerDrawPlan
+import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.TextureFormat
 import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.IslandEdgeRole
+import org.umamo.render.puppet.IslandFillRole
+import org.umamo.render.puppet.IslandStyle
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlayMesh
@@ -15,6 +20,8 @@ import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.OverlayColor
+import org.umamo.render.puppet.PlacementCropQuad
+import org.umamo.render.puppet.PlacementPreview
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
@@ -46,6 +53,8 @@ class UvOverlayRenderTest {
 	private val cyan = OverlayColor(0f, 1f, 1f, 1f)
 	private val halfGray = OverlayColor(0.5f, 0.5f, 0.5f, 0.5f)
 	private val halfYellow = OverlayColor(1f, 1f, 0f, 0.5f)
+	private val orange = OverlayColor(1f, 0.5f, 0f, 1f)
+	private val purple = OverlayColor(0.5f, 0f, 1f, 1f)
 	private val surround = listOf(0, 0, 255, 255)
 	private val frameColor = listOf(0, 255, 0, 255)
 
@@ -83,6 +92,8 @@ class UvOverlayRenderTest {
 			faceIdle = halfGray,
 			faceSelected = halfYellow,
 			faceActive = magenta,
+			warning = orange,
+			pinnedPlacement = purple,
 		)
 
 	@Test
@@ -140,6 +151,102 @@ class UvOverlayRenderTest {
 	}
 
 	@Test
+	fun islandRolesColorFillsAndEdges() {
+		requireHeadlessGl("[uv-overlay]")
+		val scene = UvScene(fitCamera())
+		val reference = scene.render(null)
+
+		val frame =
+			scene.render(
+				islands(
+					quad(8f, 8f, 24f, 24f) to IslandStyle(IslandFillRole.Idle, IslandEdgeRole.Warning),
+					quad(40f, 40f, 56f, 56f) to IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Pinned),
+				),
+			)
+
+		assertClose(rgba(orange), frame.at(16, 56), 1, "a warning island outlines in the warning color")
+		// Interiors sampled clear of each quad's diagonal (x + y = 32 and x + y = 96) as well as its edges.
+		assertClose(blend(reference.at(12, 52), halfGray), frame.at(12, 52), 2, "and fills idle over the page")
+		assertClose(rgba(purple), frame.at(48, 24), 1, "a pinned island outlines in the pinned color")
+		assertClose(blend(reference.at(44, 20), halfYellow), frame.at(44, 20), 2, "and a selected one fills selected")
+	}
+
+	@Test
+	fun aFrontIslandsFillCoversABackIslandsEdge() {
+		requireHeadlessGl("[uv-overlay]")
+		val scene = UvScene(fitCamera())
+
+		// The back island's right edge (x = 40) runs through the front island's interior.
+		val frame =
+			scene.render(
+				islands(
+					quad(8f, 8f, 40f, 40f) to IslandStyle(IslandFillRole.Idle, IslandEdgeRole.Idle),
+					quad(24f, 16f, 56f, 32f) to IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Idle),
+				),
+			)
+
+		val underTheFront = frame.at(40, 44)
+		assertNotEquals(rgba(cyan), underTheFront, "the back edge does not draw over the front island")
+		assertClose(blend(rgba(cyan), halfYellow), underTheFront, 2, "the front island's fill lies over it")
+	}
+
+	@Test
+	fun aCropDrawsAtItsNewPlacement() {
+		requireHeadlessGl("[uv-overlay]")
+		val scene = UvScene(fitCamera())
+		val reference = scene.render(null)
+		// The crop turned a quarter: its right runs up the page and its top runs left, so its red top half
+		// lands at x 32 to 40 and its blue bottom half at x 40 to 48, over y 24 to 40.
+		val turned = floatArrayOf(0f, -16f, 48f, 16f, 0f, 24f)
+		val scrim = OverlayColor(0f, 0f, 0f, 0.5f)
+		val placement =
+			PlacementPreview(
+				scrim,
+				listOf(floatArrayOf(16f, 0f, 4f, 0f, 16f, 4f)),
+				listOf(PlacementCropQuad("moving", halvesImage(8), turned, floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f))),
+				null,
+				emptyList(),
+			)
+
+		val frame = scene.render(null, placement)
+
+		assertEquals(listOf(255, 0, 0, 255), frame.at(36, 32), "the crop's top half, turned to the left")
+		assertEquals(listOf(0, 0, 255, 255), frame.at(44, 32), "its bottom half, turned to the right")
+		assertEquals(reference.at(52, 32), frame.at(52, 32), "outside the crop the page shows")
+		assertClose(blend(reference.at(12, 52), scrim), frame.at(12, 52), 2, "the old spot lies under the scrim")
+	}
+
+	@Test
+	fun theLayerTextureAndTheUploadedCropDrawTheSamePixels() {
+		requireHeadlessGl("[uv-overlay]")
+		val scene = UvScene(fitCamera())
+		// A 16-pixel tile whose opaque art is its middle 8 pixels; the crop is that trim.
+		val tile = DecodedImage(ByteArray(16 * 16 * 4), 16, 16)
+		val trim = halvesImage(8)
+		for (rowIndex in 0 until 8) {
+			trim.rgba.copyInto(tile.rgba, ((rowIndex + 4) * 16 + 4) * 4, rowIndex * 8 * 4, (rowIndex + 1) * 8 * 4)
+		}
+		// Twice its size, so the bilinear sampling runs across the trim's edges.
+		val placement =
+			PlacementPreview(
+				OverlayColor(0f, 0f, 0f, 0f),
+				emptyList(),
+				listOf(PlacementCropQuad("tileA", trim, floatArrayOf(17f, 0f, 21.5f, 0f, 15f, 19.25f), floatArrayOf(0.5f, 0f, 0.25f, 0f, 0.5f, 0.25f))),
+				null,
+				emptyList(),
+			)
+		val fromCrop = scene.render(null, placement)
+
+		scene.renderer.setSourceLayerPlan(LayerDrawPlan(emptyMap(), mapOf("tileA" to 16L * 16L * 4L)))
+		scene.renderer.deliverSourceLayerRasters(LayerRasterBatch(mapOf("tileA" to tile)))
+		val fromLayer = scene.render(null, placement)
+
+		val worst = fromCrop.rgba.indices.maxOf { byteIndex -> abs((fromCrop.rgba[byteIndex].toInt() and 0xFF) - (fromLayer.rgba[byteIndex].toInt() and 0xFF)) }
+		assertTrue(worst <= 1, "the two sources draw the same pixels (worst channel difference $worst)")
+		assertEquals(listOf(255, 0, 0, 255), fromLayer.at(30, 32), "and the layer path draws the crop at all, its red half here")
+	}
+
+	@Test
 	fun theOverlayDrawsOverTheBorder() {
 		requireHeadlessGl("[uv-overlay]")
 		val scene = UvScene(zoomedOutCamera())
@@ -150,6 +257,43 @@ class UvOverlayRenderTest {
 
 		assertEquals(rgba(yellow), frame.at(15, 32), "the dot covers the border beside its vertex")
 		assertNotEquals(frameColor, frame.at(15, 26), "and the left edge's band covers it below the dot")
+	}
+
+	/**
+	 * An islands overlay of quads, in the order given (back to front), each in its style.
+	 *
+	 * @param Pair<FloatArray, IslandStyle> islands Each island's display positions and style.
+	 * @return DirectMeshOverlay The overlay.
+	 */
+	private fun islands(vararg islands: Pair<FloatArray, IslandStyle>): DirectMeshOverlay {
+		val meshes =
+			islands.mapIndexed { islandIndex, island ->
+				MeshOverlayMesh(DrawableId("island$islandIndex"), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, island.second)
+			}
+		return DirectMeshOverlay(
+			MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, meshes, sizes),
+			meshes.withIndex().associate { (islandIndex, mesh) -> mesh.drawableId to islands[islandIndex].first },
+			meshes.associate { mesh -> mesh.drawableId to quadIndices },
+		)
+	}
+
+	/**
+	 * A square image, top half opaque red and bottom half opaque blue (top row first).
+	 *
+	 * @param Int side Its side in pixels.
+	 * @return DecodedImage The image.
+	 */
+	private fun halvesImage(side: Int): DecodedImage {
+		val rgba = ByteArray(side * side * 4)
+		for (rowIndex in 0 until side) {
+			for (columnIndex in 0 until side) {
+				val pixel = (rowIndex * side + columnIndex) * 4
+				rgba[pixel] = (if (rowIndex < side / 2) 255 else 0).toByte()
+				rgba[pixel + 2] = (if (rowIndex < side / 2) 0 else 255).toByte()
+				rgba[pixel + 3] = 255.toByte()
+			}
+		}
+		return DecodedImage(rgba, side, side)
 	}
 
 	/**
@@ -290,7 +434,7 @@ class UvOverlayRenderTest {
 	) {
 		private val device = GlRenderDevice()
 		private val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
-		private val renderer =
+		val renderer =
 			PuppetRenderer(
 				PuppetModel(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), null),
 				PuppetTextures(listOf(quadrantPage(viewportSize)), emptyMap(), premultipliedAlpha = false),
@@ -305,13 +449,14 @@ class UvOverlayRenderTest {
 		}
 
 		/**
-		 * Renders the page with [overlay] over it and reads the frame back.
+		 * Renders the page with [overlay] and [placement] over it and reads the frame back.
 		 *
 		 * @param DirectMeshOverlay? overlay The overlay, or null for none.
+		 * @param PlacementPreview? placement The placement preview, or null for none.
 		 * @return RasterImage The frame, top row first.
 		 */
-		fun render(overlay: DirectMeshOverlay?): RasterImage {
-			renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv", overlay)
+		fun render(overlay: DirectMeshOverlay?, placement: PlacementPreview? = null): RasterImage {
+			renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv", overlay, placement)
 			return device.readPixels(target)
 		}
 	}

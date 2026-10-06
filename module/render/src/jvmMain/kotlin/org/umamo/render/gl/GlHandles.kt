@@ -127,7 +127,8 @@ internal class GlUniformLocations(program: Int) {
 	val atlasTransparentBorder = GL20.glGetUniformLocation(program, "atlasTransparentBorder")
 
 	// Atlas page
-	val pageSize = GL20.glGetUniformLocation(program, "pageSize")
+	val quadRow0 = GL20.glGetUniformLocation(program, "quadRow0")
+	val quadRow1 = GL20.glGetUniformLocation(program, "quadRow1")
 
 	// Layer composite
 	val layerTexture = GL20.glGetUniformLocation(program, "layerTexture")

@@ -2,13 +2,9 @@ package org.umamo.ui.viewport.uv
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.IntSize
 import org.umamo.format.art.AlphaContour
 import org.umamo.format.art.LayerBounds
@@ -17,46 +13,7 @@ import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.ui.viewport.gizmo.worldToScreen
 
 /**
- * Draws the placement drag's preview under the islands: each mover's original spot dimmed (the art is
- * leaving it) and its crop drawn where the placement now puts it, then a committed move's ghost crops while
- * the resolver composes the real pixels.
- *
- * @param PlacementGesture? capture The in-flight placement gesture, or null.
- * @param PlacementDragResult? result Its latest evaluation, or null before the first drive.
- * @param PlacementGhost? ghost The committed move's crops to draw, or null.
- * @param Color scrimColor The dimming over a mover's original spot.
- * @param ViewportCamera camera The frame camera.
- * @param IntSize size The area size in pixels.
- */
-internal fun DrawScope.drawPlacementPreview(
-	capture: PlacementGesture?,
-	result: PlacementDragResult?,
-	ghost: PlacementGhost?,
-	scrimColor: Color,
-	camera: ViewportCamera,
-	size: IntSize,
-) {
-	if (capture != null && result != null) {
-		for (mover in capture.movers) {
-			drawTileQuad(mover.trim, mover.placement, capture.pageHeight, camera, size) { quad ->
-				drawPath(quad, scrimColor)
-			}
-		}
-		for (mover in capture.movers) {
-			val crop = mover.crop ?: continue
-			val placement = result.placementByTile[mover.tileId] ?: continue
-			drawTileCrop(crop, mover.trim, placement, capture.pageHeight, camera, size)
-		}
-	}
-	ghost?.let { pending ->
-		for (ghostCrop in pending.crops) {
-			drawTileCrop(ghostCrop.crop, ghostCrop.trim, ghostCrop.placement, pending.pageHeight, camera, size)
-		}
-	}
-}
-
-/**
- * Draws the painter's side of a collision on top of the islands: a mover whose paint lies under another
+ * Draws the painter's side of a collision on top of the frame's islands: a mover whose paint lies under another
  * tile's triangles outlines its opaque region with the art's own contour (never a box), and a spill outlines
  * the trim that leaves the page.  A bystander painter has no contour without a decode; its tinted islands
  * stand for it.
@@ -106,41 +63,6 @@ private fun tileToScreen(tileX: Float, tileY: Float, tileToDisplay: FloatArray, 
 	val displayX = tileToDisplay[0] * tileX + tileToDisplay[1] * tileY + tileToDisplay[2]
 	val displayY = tileToDisplay[3] * tileX + tileToDisplay[4] * tileY + tileToDisplay[5]
 	return worldToScreen(displayX, displayY, camera, size)
-}
-
-/**
- * Draws a tile's trim crop where [placement] puts it: the crop's pixel grid is carried by a matrix
- * fitted to three transformed trim corners, so rotation and scale come along, bilinear-filtered.
- *
- * @param ImageBitmap crop The trim's pixels.
- * @param LayerBounds trim The trim the crop covers, raster-local.
- * @param AtlasPlacement placement Where the tile sits.
- * @param Int pageHeight The page height, for the display flip.
- * @param ViewportCamera camera The area camera.
- * @param IntSize size The area size in pixels.
- */
-private fun DrawScope.drawTileCrop(
-	crop: ImageBitmap,
-	trim: LayerBounds,
-	placement: AtlasPlacement,
-	pageHeight: Int,
-	camera: ViewportCamera,
-	size: IntSize,
-) {
-	val tileToDisplay = tileToDisplayAffine(placement, pageHeight)
-	val origin = tileToScreen(trim.left.toFloat(), trim.top.toFloat(), tileToDisplay, camera, size)
-	val xAxis = tileToScreen(trim.left + 1f, trim.top.toFloat(), tileToDisplay, camera, size) - origin
-	val yAxis = tileToScreen(trim.left.toFloat(), trim.top + 1f, tileToDisplay, camera, size) - origin
-	val matrix = Matrix()
-	matrix.values[Matrix.ScaleX] = xAxis.x
-	matrix.values[Matrix.SkewY] = xAxis.y
-	matrix.values[Matrix.SkewX] = yAxis.x
-	matrix.values[Matrix.ScaleY] = yAxis.y
-	matrix.values[Matrix.TranslateX] = origin.x
-	matrix.values[Matrix.TranslateY] = origin.y
-	withTransform({ transform(matrix) }) {
-		drawImage(image = crop, dstSize = IntSize(crop.width, crop.height), filterQuality = FilterQuality.Low)
-	}
 }
 
 /**

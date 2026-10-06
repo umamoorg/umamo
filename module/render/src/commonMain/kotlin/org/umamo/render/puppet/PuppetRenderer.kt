@@ -757,7 +757,8 @@ class PuppetRenderer(
 	 * rendering exactly.
 	 *
 	 * When the area's content carries a mesh overlay, it draws over the page in the same pass, from the
-	 * positions uploaded into the area's own store ([sceneKey] names the area; see [retainUvScenes]).
+	 * positions uploaded into the area's own store ([sceneKey] names the area; see [retainUvScenes]).  A
+	 * placement drag's preview draws between the page and the overlay.
 	 *
 	 * @param RenderTarget       target         The surface to draw into.
 	 * @param Int                pageIndex      The atlas page to draw, or null for none.
@@ -765,6 +766,7 @@ class PuppetRenderer(
 	 * @param Int                viewportHeight The target height in pixels.
 	 * @param String             sceneKey       The UV area this render is for.
 	 * @param DirectMeshOverlay? overlay        The area's mesh overlay, or null for none.
+	 * @param PlacementPreview?  placement      The area's placement preview, or null for none.
 	 */
 	fun renderAtlasPage(
 		target: RenderTarget,
@@ -773,9 +775,10 @@ class PuppetRenderer(
 		viewportHeight: Int,
 		sceneKey: String = "",
 		overlay: DirectMeshOverlay? = null,
+		placement: PlacementPreview? = null,
 	) {
 		val page = pageIndex?.let { art.pageImage(it) }
-		renderUnderlay(target, page, pageIndex?.let { art.pageTexture(it) }, viewportWidth, viewportHeight, sceneKey, overlay)
+		renderUnderlay(target, page, pageIndex?.let { art.pageTexture(it) }, viewportWidth, viewportHeight, sceneKey, overlay, placement)
 	}
 
 	/**
@@ -801,12 +804,12 @@ class PuppetRenderer(
 		sceneKey: String = "",
 		overlay: DirectMeshOverlay? = null,
 	) {
-		renderUnderlay(target, image, image?.let { backdrop.underlayTextureFor(it) }, viewportWidth, viewportHeight, sceneKey, overlay)
+		renderUnderlay(target, image, image?.let { backdrop.underlayTextureFor(it) }, viewportWidth, viewportHeight, sceneKey, overlay, null)
 	}
 
 	/**
 	 * Frees the scene residency of every UV area [keep] rejects: an area that closed, or stopped showing a
-	 * UV scene, gives its overlay store and buffers back.  Render thread only; the engine calls it once per
+	 * UV scene, gives its overlay store, buffers, and uploaded crops back.  Render thread only; the engine calls it once per
 	 * tick with the live UV areas.
 	 *
 	 * @param Function keep Whether the area of a key is still a live UV scene.
@@ -825,11 +828,12 @@ class PuppetRenderer(
 	/**
 	 * The flat underlay frame both UV scenes share, in one pass: the themed grid backdrop bounded by the
 	 * shown surface (the surround color beyond it and the border just outside its edge), the image as a
-	 * single textured quad at the world origin, then the area's mesh overlay over it.  A null image or
-	 * handle paints the grid alone over a unit surface.
+	 * single textured quad at the world origin, the placement preview's scrims and crops, then the area's
+	 * mesh overlay over them.  A null image or handle paints the grid alone over a unit surface.
 	 *
-	 * The area's residency is brought to [overlay] BEFORE the frame opens, since its uploads are resource
-	 * operations; an area that shows no overlay frees its buffers and keeps its store.
+	 * The area's residency is brought to [overlay] and [placement] BEFORE the frame opens, since its uploads
+	 * are resource operations; an area that shows no overlay frees its buffers and keeps its store, and one
+	 * that shows no placement frees its uploaded crops.
 	 *
 	 * @param RenderTarget       target         The surface to draw into.
 	 * @param DecodedImage?      image          The image whose extent the quad and grid tile take, or null.
@@ -838,6 +842,7 @@ class PuppetRenderer(
 	 * @param Int                viewportHeight The target height in pixels.
 	 * @param String             sceneKey       The UV area this render is for.
 	 * @param DirectMeshOverlay? overlay        The area's mesh overlay, or null for none.
+	 * @param PlacementPreview?  placement      The area's placement preview, or null for none.
 	 */
 	private fun renderUnderlay(
 		target: RenderTarget,
@@ -847,9 +852,11 @@ class PuppetRenderer(
 		viewportHeight: Int,
 		sceneKey: String,
 		overlay: DirectMeshOverlay?,
+		placement: PlacementPreview?,
 	) {
-		val scene = if (overlay != null) uvScenes.getOrPut(sceneKey) { UvSceneResidency(device) } else uvScenes[sceneKey]
+		val scene = if (overlay != null || placement != null) uvScenes.getOrPut(sceneKey) { UvSceneResidency(device) } else uvScenes[sceneKey]
 		scene?.applyOverlay(overlay)
+		scene?.applyPlacement(placement) { layerKey -> art.layerTexture(layerKey) }
 		val palette = meshOverlayPalette
 		val camera = effectiveCamera(viewportWidth, viewportHeight)
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
@@ -880,6 +887,7 @@ class PuppetRenderer(
 		val frame = device.beginFrame()
 		val pass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
 		backdrop.encodeUnderlay(pass, image, handle, grid)
+		scene?.placement?.let { resolved -> backdrop.encodePlacement(pass, resolved, grid) }
 		if (scene != null) {
 			overlayEncoder.encodeDirectDraws(
 				pass,

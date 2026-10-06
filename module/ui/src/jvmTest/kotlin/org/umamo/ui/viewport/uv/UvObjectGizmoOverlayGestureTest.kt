@@ -22,6 +22,7 @@ import org.umamo.ui.viewport.gizmo.withKeyHeld
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -132,17 +133,26 @@ class UvObjectGizmoOverlayGestureTest {
 			assertNull(fixture.placementDragStatusByArea.getValue(LEFT_AREA).value)
 		}
 
-	/** A placement is invisible in the 2D viewport by construction: nothing is previewed or resynced. */
+	/**
+	 * A placement drag pushes no model preview and leaves the renderer nothing to resync: what it shows goes
+	 * through the area's own scene, which changes on every drive and clears as the gesture ends.
+	 */
 	@Test
-	fun nothingReachesTheRenderer() =
+	fun noModelPreviewIsPushed() =
 		runComposeUiTest {
 			val fixture = mountPlaced()
+			val scene = fixture.placementSceneByArea.getValue(LEFT_AREA)
 			latchPlacementGrab(fixture)
 			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
+			val first = assertNotNull(scene.drag, "a drive writes the area's scene")
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT + Offset(8f, 0f)))
+			assertNotSame(first, scene.drag, "and every drive anew")
+			assertNull(fixture.placementSceneByArea.getValue(RIGHT_AREA).drag, "the other area's scene is untouched")
 			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT)
 
 			assertEquals(uvRigTilePlacement(110f), uvRigPlacementOf(fixture.session, UV_RIG_QUAD_TILE), "the placement did land")
-			assertTrue(fixture.renderSync.previewed.isEmpty(), "no preview")
+			assertNull(scene.drag, "the end takes the drag down")
+			assertTrue(fixture.renderSync.previewed.isEmpty(), "no model preview")
 			assertEquals(0, fixture.renderSync.resyncs, "no resync")
 		}
 
@@ -282,6 +292,39 @@ class UvObjectGizmoOverlayGestureTest {
 			assertNull(session.activeUvOperator.value)
 			assertNull(fixture.placementDragStatusByArea.getValue(LEFT_AREA).value)
 			assertEquals(uvRigTilePlacement(100f), uvRigPlacementOf(session, UV_RIG_QUAD_TILE))
+		}
+
+	/**
+	 * A landing's ghost stands in the area's scene while its atlas is the committed one, goes once another
+	 * atlas is committed, and goes with the overlay when the mode leaves Object.
+	 */
+	@Test
+	fun leavingObjectModeDropsTheGhost() =
+		runComposeUiTest {
+			val fixture = mountPlaced()
+			val session = fixture.session
+			val scene = fixture.placementSceneByArea.getValue(LEFT_AREA)
+			scene.ghost = PlacementGhost(session.model.value.atlas, UV_RIG_PAGE_SIDE, emptyList())
+			waitForIdle()
+			assertNotNull(scene.ghost, "a ghost of the committed atlas stands")
+
+			session.setMode(EditorMode.Edit)
+			waitForIdle()
+
+			assertNull(scene.ghost, "leaving Object mode takes it down with the overlay")
+		}
+
+	/** A ghost whose atlas is no longer the committed one (an undo, a newer commit) is taken down. */
+	@Test
+	fun aGhostOfAnUncommittedAtlasIsDismissed() =
+		runComposeUiTest {
+			val fixture = mountPlaced()
+			val scene = fixture.placementSceneByArea.getValue(LEFT_AREA)
+
+			scene.ghost = PlacementGhost(fixture.session.model.value.atlas.copy(), UV_RIG_PAGE_SIDE, emptyList())
+			waitForIdle()
+
+			assertNull(scene.ghost, "an equal atlas that is not the committed instance does not hold it")
 		}
 
 	/** Unmounting mid-placement cancels it: the latch and the readout go with the overlay. */

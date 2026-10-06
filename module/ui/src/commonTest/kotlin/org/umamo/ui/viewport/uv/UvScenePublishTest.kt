@@ -12,7 +12,9 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.render.ContentBounds
+import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.OverlayColor
 import org.umamo.ui.viewport.StubPuppetViewportService
 import org.umamo.ui.viewport.UvSceneContent
 import kotlin.test.Test
@@ -20,26 +22,72 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
  * Pins what a UV area publishes to the render service as its session and scene change: the surface and its
- * extent, with the Edit wireframe laid on it while the session edits and none in Object mode; one publish
- * per change of what is shown, none for inputs that show the same; the area's circle stroke shown before it
- * commits, its commit settling without another publish; and a density change republishing the same meshes.
+ * extent, with the Edit wireframe laid on it while the session edits and the islands in Object mode; one
+ * publish per change of what is shown, none for inputs that show the same; the area's circle stroke shown
+ * before it commits, its commit settling without another publish; a density change republishing the same
+ * meshes; and the placement drag's preview riding the page in Object mode only.
  */
 class UvScenePublishTest {
 	private val sizes = MeshOverlaySizes(3.5f, 1f, 2.5f)
 	private val extent = ContentBounds(100f, 100f, 60f, 20f)
 
 	@Test
-	fun objectModePublishesTheSurfaceWithNoOverlay() =
+	fun objectModePublishesTheIslandsOverThePage() =
 		runTest {
 			val publish = publishing(uvObjectSession())
 
 			val pushed = publish.service.pushedUvContents.single()
 			assertEquals("uv", pushed.areaId)
-			assertEquals(UvSceneContent.AtlasPage(0), pushed.content, "the page, carrying no overlay")
+			val content = pushed.content as UvSceneContent.AtlasPage
+			assertEquals(0, content.pageIndex)
+			val islands = assertNotNull(content.overlay, "the islands ride the page")
+			assertEquals(MeshOverlayKind.Islands, islands.overlay.kind)
+			assertEquals(setOf(UV_RIG_QUAD, UV_RIG_OTHER), islands.overlay.meshes.map { mesh -> mesh.drawableId }.toSet(), "every shown island")
+			assertNull(content.placement, "and no drag preview while nothing drags")
 			assertEquals(extent, pushed.islandExtent, "with the extent beside it")
+		}
+
+	@Test
+	fun aPlacementDrivePublishesItsPreviewOverThePage() =
+		runTest {
+			val session = uvObjectSession(model = uvRigPlacedModel())
+			val publish = publishing(session)
+			val drag = uvRigPlacementDrag(session.model.value)
+
+			publish.placement.value = UvPlacementScene(drag, null)
+			runCurrent()
+
+			assertEquals(2, publish.service.pushedUvContents.size, "a drive publishes")
+			val content = publish.service.pushedUvContents.last().content as UvSceneContent.AtlasPage
+			val preview = assertNotNull(content.placement)
+			assertEquals(1, preview.crops.size, "the mover's crop rides the page")
+			assertSame(drag.previewPositionsById.getValue(UV_RIG_QUAD), assertNotNull(content.overlay).positionsById[UV_RIG_QUAD], "with the island moved beside it")
+
+			publish.placement.value = UvPlacementScene(uvRigPlacementDrag(session.model.value, deltaTexels = 20f), null)
+			runCurrent()
+			assertEquals(3, publish.service.pushedUvContents.size, "every drive publishes")
+
+			publish.placement.value = UvPlacementScene(null, null)
+			runCurrent()
+			assertNull((publish.service.pushedUvContents.last().content as UvSceneContent.AtlasPage).placement, "the end takes it down")
+		}
+
+	@Test
+	fun editModePublishesNoPlacement() =
+		runTest {
+			val session = uvEditSession(model = uvRigPlacedModel())
+			val publish = publishing(session)
+			val drag = uvRigPlacementDrag(session.model.value)
+
+			publish.placement.value = UvPlacementScene(drag, PlacementGhost(session.model.value.atlas, UV_RIG_PAGE_SIDE, emptyList()))
+			runCurrent()
+
+			assertTrue(publish.service.pushedUvContents.all { pushed -> (pushed.content as UvSceneContent.AtlasPage).placement == null }, "Edit mode draws the wireframe alone")
+			assertEquals(MeshOverlayKind.Edit, assertNotNull(publish.service.pushedUvContents.last().content.overlay).overlay.kind)
 		}
 
 	@Test
@@ -58,7 +106,7 @@ class UvScenePublishTest {
 			session.setMode(EditorMode.Object)
 			runCurrent()
 			assertEquals(2, publish.service.pushedUvContents.size, "leaving Edit publishes once more")
-			assertNull(publish.service.pushedUvContents.last().content.overlay, "and takes the wireframe down")
+			assertEquals(MeshOverlayKind.Islands, assertNotNull(publish.service.pushedUvContents.last().content.overlay).overlay.kind, "trading the wireframe for the islands")
 		}
 
 	@Test
@@ -68,7 +116,7 @@ class UvScenePublishTest {
 			val overlay = publish.service.pushedUvContents.single().content.overlay
 
 			val shown = publish.scene.value
-			publish.scene.value = UvShownScene(UvSceneContent.AtlasPage(1), shown.islandExtent, shown.model, shown.geometries)
+			publish.scene.value = UvShownScene(UvSceneContent.AtlasPage(1), shown.islandExtent, shown.model, shown.geometries, shown.frontRankById, shown.scrimColor)
 			runCurrent()
 
 			assertEquals(2, publish.service.pushedUvContents.size)
@@ -106,7 +154,7 @@ class UvScenePublishTest {
 			val publish = publishing(session)
 
 			val shown = publish.scene.value
-			publish.scene.value = UvShownScene(shown.content, shown.islandExtent, shown.model, shown.geometries)
+			publish.scene.value = UvShownScene(shown.content, shown.islandExtent, shown.model, shown.geometries, shown.frontRankById, shown.scrimColor)
 			session.setMeshSelection(session.meshSelection.value)
 			publish.sizes.value = sizes.copy()
 			runCurrent()
@@ -136,12 +184,14 @@ class UvScenePublishTest {
 	 * @property MutableStateFlow<UvShownScene> scene What the area shows.
 	 * @property MutableStateFlow<MeshSelection?> stroke The area's circle stroke.
 	 * @property MutableStateFlow<MeshOverlaySizes> sizes The overlay sizes.
+	 * @property MutableStateFlow<UvPlacementScene> placement The area's placement scene.
 	 */
 	private class Publishing(
 		val service: StubPuppetViewportService,
 		val scene: MutableStateFlow<UvShownScene>,
 		val stroke: MutableStateFlow<MeshSelection?>,
 		val sizes: MutableStateFlow<MeshOverlaySizes>,
+		val placement: MutableStateFlow<UvPlacementScene>,
 	)
 
 	/**
@@ -157,12 +207,13 @@ class UvScenePublishTest {
 		val publishing =
 			Publishing(
 				StubPuppetViewportService(),
-				MutableStateFlow(UvShownScene(UvSceneContent.AtlasPage(0), extent, model, uvRigGeometries(model, uvRigPageFrame(), shown))),
+				MutableStateFlow(UvShownScene(UvSceneContent.AtlasPage(0), extent, model, uvRigGeometries(model, uvRigPageFrame(), shown), emptyMap(), OverlayColor(0f, 0f, 0f, 0.5f))),
 				MutableStateFlow(null),
 				MutableStateFlow(sizes),
+				MutableStateFlow(UvPlacementScene(null, null)),
 			)
 		backgroundScope.launch {
-			publishUvScene(publishing.service, "uv", session, publishing.scene, publishing.stroke, publishing.sizes, StandardTestDispatcher(testScheduler))
+			publishUvScene(publishing.service, "uv", session, publishing.scene, publishing.stroke, publishing.sizes, publishing.placement, StandardTestDispatcher(testScheduler))
 		}
 		runCurrent()
 		return publishing

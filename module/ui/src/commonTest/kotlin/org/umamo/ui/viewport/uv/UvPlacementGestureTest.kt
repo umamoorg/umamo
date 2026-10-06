@@ -18,7 +18,10 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -288,6 +291,31 @@ class UvPlacementGestureTest {
 		val stacked = evaluate(MeshOperatorKind.Grab, parameters(deltaX = 0f), listOf(moverA, mover("b", placement(28f, 30f), 33f, 45f)))
 		assertEquals(setOf(AtlasTileId("a"), AtlasTileId("b")), stacked.overlappingTileIds)
 		assertEquals(setOf(AtlasTileId("a"), AtlasTileId("b")), stacked.samplingTileIds)
+	}
+
+	/**
+	 * A mover's crop is its trim's own pixels, row by row and straight alpha as stored, for the scene to upload
+	 * when no layer texture stands in; and the gesture cuts it from the tile it moves.
+	 */
+	@Test
+	fun theMoverCropIsTheTrimsStraightPixels() {
+		val raster = DecodedImage(ByteArray(6 * 5 * 4) { byteIndex -> byteIndex.toByte() }, 6, 5)
+		val trim = LayerBounds(1, 2, 3, 2)
+
+		val crop = assertNotNull(cropRaster(raster, trim))
+
+		assertEquals(3, crop.width)
+		assertEquals(2, crop.height)
+		for (rowIndex in 0 until 2) {
+			val sourceStart = ((2 + rowIndex) * 6 + 1) * 4
+			assertContentEquals(raster.rgba.copyOfRange(sourceStart, sourceStart + 12), crop.rgba.copyOfRange(rowIndex * 12, rowIndex * 12 + 12), "row $rowIndex is the trim's, unpremultiplied")
+		}
+		assertNull(cropRaster(raster, LayerBounds(1, 1, 0, 3)), "an empty trim has no crop")
+
+		val mover = uvRigPlacementDrag().gesture.movers.single()
+		val moverCrop = assertNotNull(mover.crop)
+		assertEquals(mover.trim.width, moverCrop.width, "the gesture crops its mover to the trim")
+		assertEquals(mover.trim.height, moverCrop.height)
 	}
 
 	@Test

@@ -13,13 +13,45 @@ const val OVERLAY_FLAG_ACTIVE: Byte = 2
 
 /**
  * What a mesh overlay is for, which decides what it draws: the Edit-mode wireframe with its per-element
- * flags, or the plain object wireframe of every listed mesh's edges in the idle color, with no fills and
- * no dots.
+ * flags; the plain object wireframe of every listed mesh's edges in the idle color, with no fills and no
+ * dots; or a UV area's Object-mode islands, each mesh filled and outlined whole in the colors of its own
+ * [IslandStyle], island by island in the overlay's order (back to front), with no dots.
  */
 enum class MeshOverlayKind {
 	Edit,
 	ObjectWireframe,
+	Islands,
 }
+
+/** Which face color an island fills with: the idle fill, or the selected fill (a selected or active island). */
+enum class IslandFillRole {
+	Idle,
+	Selected,
+}
+
+/**
+ * Which color an island outlines in: the idle, selected, or active edge color, the warning color of a tile
+ * in a placement collision, or the pinned color of a pinned tile.
+ */
+enum class IslandEdgeRole {
+	Idle,
+	Selected,
+	Active,
+	Warning,
+	Pinned,
+}
+
+/**
+ * One island's colors, as roles the renderer resolves against the palette, so a palette change re-colors
+ * every island without a new overlay.
+ *
+ * @property IslandFillRole fill The fill role.
+ * @property IslandEdgeRole edge The outline role.
+ */
+data class IslandStyle(
+	val fill: IslandFillRole,
+	val edge: IslandEdgeRole,
+)
 
 /**
  * The Edit-mode select mode the overlay mirrors, which decides the dot kind and the fill rule: vertex
@@ -73,6 +105,8 @@ data class MeshOverlaySizes(
  * @property Int? activeVertex The active vertex, or null; also flagged active in [vertexFlags].
  * @property Int? activeEdge The active edge's ordinal in [edgeEndpoints], or null.
  * @property Int? activeFace The active triangle's ordinal, or null.
+ * @property IslandStyle? islandStyle The island's colors in an [MeshOverlayKind.Islands] overlay; null
+ *   there reads as idle, and every other kind ignores it.
  */
 class MeshOverlayMesh(
 	val drawableId: DrawableId,
@@ -84,6 +118,7 @@ class MeshOverlayMesh(
 	val activeVertex: Int?,
 	val activeEdge: Int?,
 	val activeFace: Int?,
+	val islandStyle: IslandStyle? = null,
 ) {
 	/** How many unique edges the mesh carries. */
 	val edgeCount: Int get() = edgeEndpoints.size / 2
@@ -102,8 +137,8 @@ class MeshOverlayMesh(
 }
 
 /**
- * The mesh overlay the renderer draws over the art: the Edit-mode wireframe, dots, and face fills, or
- * the object wireframe.  Immutable; the UI builds a new value when the selection, the mode, or the
+ * The mesh overlay the renderer draws over the art: the Edit-mode wireframe, dots, and face fills, the
+ * object wireframe, or a UV area's Object-mode islands.  Immutable; the UI builds a new value when the selection, the mode, or the
  * session's meshes change, never when a preview push moves positions.
  *
  * The mesh ORDER defines the overlay's position-store layout, the way the glue layout's walk order does.

@@ -11,10 +11,14 @@ import kotlinx.coroutines.flow.map
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
+import org.umamo.edit.Selection
 import org.umamo.render.ContentBounds
 import org.umamo.render.puppet.DirectMeshOverlay
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.OverlayColor
+import org.umamo.render.puppet.PlacementPreview
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvSceneContent
@@ -23,10 +27,12 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /*
  * A UV area's scene as the render service draws it: the shown surface, the extent a fit takes in beside
- * it, and, in Edit mode, the session meshes' overlay over the surface, published together as the area's
- * UvSceneContent so a surface and the overlay drawn over it reach the render thread as one value.  The
- * renderer draws the overlay from the meshes' display positions (UvDisplayMapping.kt), which this hands
- * over by identity, so a drive uploads only the meshes it moved.  Nothing here draws.
+ * it, and the overlay over the surface - the session meshes' Edit wireframe in Edit mode, every shown
+ * island in Object mode, with the placement drag's preview under the islands over a page
+ * (UvObjectSceneOverlay.kt) - published together as the area's UvSceneContent so a surface and what is
+ * drawn over it reach the render thread as one value.  The renderer draws the overlay from the meshes'
+ * display positions (UvDisplayMapping.kt), which this hands over by identity, so a drive uploads only the
+ * meshes it moved.  Nothing here draws.
  */
 
 /**
@@ -37,23 +43,29 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
  * @property PuppetModel model The model the geometries were projected from: the live preview while a
  *   gesture runs, so every area follows the drag.
  * @property List<GizmoMeshGeometry> geometries The shown meshes in display space.
+ * @property Map<DrawableId, Float> frontRankById The rest-pose front rank the islands stack by (larger is nearer).
+ * @property OverlayColor scrimColor The placement scrim's color, from the theme.
  */
 internal class UvShownScene(
 	val content: UvSceneContent,
 	val islandExtent: ContentBounds?,
 	val model: PuppetModel,
 	val geometries: List<GizmoMeshGeometry>,
+	val frontRankById: Map<DrawableId, Float>,
+	val scrimColor: OverlayColor,
 )
 
 /**
  * Publishes a UV area's scene to [service] for as long as it runs: the shown surface and its extent, with
- * the Edit overlay of the shown session meshes laid on the surface while the session edits, derived from
- * the mode, the area's live circle stroke or else the committed mesh selection, the shown scene, and the
- * sizes.  It publishes whenever the content (the overlay by identity) or the extent changes, so a Grab's
- * confirm, which commits what the preview already showed, publishes nothing.
+ * the Edit overlay of the shown session meshes laid on the surface while the session edits (from the area's
+ * live circle stroke or else the committed mesh selection), and otherwise the shown islands in the object
+ * selection's styles, with the placement gesture's preview over a page.  It publishes whenever the content
+ * (the overlay and the preview by identity) or the extent changes, so a Grab's confirm, which commits what
+ * the preview already showed, publishes nothing.
  *
  * The circle stroke is the area's own rather than the session's preview selection: the stroke a UV area
- * paints is drawn over that area alone.
+ * paints is drawn over that area alone.  So is the placement scene, which only the area's own Object
+ * overlay writes.
  *
  * The derive runs on [deriveDispatcher], one input at a time with the latest winning, and the publish
  * lands back on the caller's dispatcher.
@@ -64,6 +76,7 @@ internal class UvShownScene(
  * @param Flow<UvShownScene> shownScene What the area shows, re-emitted as it changes.
  * @param Flow<MeshSelection?> circleStroke The area's live circle stroke, or null while none is in flight.
  * @param Flow<MeshOverlaySizes> sizes The overlay sizes, re-emitted when the density changes.
+ * @param Flow<UvPlacementScene> placement The area's placement scene.
  * @param CoroutineDispatcher deriveDispatcher Where the derive runs.
  */
 internal suspend fun publishUvScene(
@@ -73,16 +86,28 @@ internal suspend fun publishUvScene(
 	shownScene: Flow<UvShownScene>,
 	circleStroke: Flow<MeshSelection?>,
 	sizes: Flow<MeshOverlaySizes>,
+	placement: Flow<UvPlacementScene>,
 	deriveDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
-	val producer = UvEditOverlayProducer()
-	combine(session.mode, session.meshSelection, circleStroke, shownScene, sizes) { mode, committed, stroke, scene, overlaySizes ->
-		UvSceneInputs(mode, stroke ?: committed, scene, overlaySizes)
+	val editProducer = UvEditOverlayProducer()
+	val objectProducer = UvObjectOverlayProducer()
+	val sessionState =
+		combine(session.mode, session.meshSelection, session.selection, session.model) { mode, meshSelection, objectSelection, model ->
+			UvSessionInputs(mode, meshSelection, objectSelection, model.atlas)
+		}
+	combine(sessionState, circleStroke, shownScene, sizes, placement) { sessionInputs, stroke, scene, overlaySizes, placementScene ->
+		UvSceneInputs(sessionInputs, stroke ?: sessionInputs.meshSelection, scene, overlaySizes, placementScene)
 	}
 		.conflate()
 		.map { inputs ->
-			val overlay = producer.produce(inputs.mode, inputs.selection, inputs.scene, inputs.sizes)
-			UvScenePublish(withOverlay(inputs.scene.content, overlay), inputs.scene.islandExtent)
+			val content =
+				if (inputs.session.mode == EditorMode.Edit) {
+					withScene(inputs.scene.content, editProducer.produce(inputs.session.mode, inputs.selection, inputs.scene, inputs.sizes), null)
+				} else {
+					val objectScene = objectProducer.produce(inputs.session.objectSelection, inputs.scene, inputs.placement, inputs.session.committedAtlas, inputs.sizes)
+					withScene(inputs.scene.content, objectScene.islands, objectScene.placement)
+				}
+			UvScenePublish(content, inputs.scene.islandExtent)
 		}
 		.flowOn(deriveDispatcher)
 		.conflate()
@@ -91,19 +116,36 @@ internal suspend fun publishUvScene(
 }
 
 /**
+ * The session's share of one derive's inputs.
+ *
+ * @property EditorMode mode The editor mode.
+ * @property MeshSelection meshSelection The committed mesh selection.
+ * @property Selection objectSelection The object selection.
+ * @property PuppetAtlas committedAtlas The committed atlas, which a ghost must still be.
+ */
+private class UvSessionInputs(
+	val mode: EditorMode,
+	val meshSelection: MeshSelection,
+	val objectSelection: Selection,
+	val committedAtlas: PuppetAtlas,
+)
+
+/**
  * One derive's inputs, taken together so the derive never pairs one emission's selection with another's
  * scene by accident of timing.
  *
- * @property EditorMode mode The editor mode.
- * @property MeshSelection selection The selection to show: the area's circle stroke while one is live.
+ * @property UvSessionInputs session The session's state.
+ * @property MeshSelection selection The mesh selection to show: the area's circle stroke while one is live.
  * @property UvShownScene scene What the area shows.
  * @property MeshOverlaySizes sizes The overlay sizes.
+ * @property UvPlacementScene placement The area's placement scene.
  */
 private class UvSceneInputs(
-	val mode: EditorMode,
+	val session: UvSessionInputs,
 	val selection: MeshSelection,
 	val scene: UvShownScene,
 	val sizes: MeshOverlaySizes,
+	val placement: UvPlacementScene,
 )
 
 /**
@@ -118,15 +160,17 @@ private class UvScenePublish(
 )
 
 /**
- * The content with [overlay] laid on it, whatever surface it shows.
+ * The content with [overlay] and [placement] laid on it; a layer carries no placement, which moves on a
+ * page only.
  *
  * @param UvSceneContent content The surface.
  * @param DirectMeshOverlay? overlay The overlay, or null for none.
- * @return UvSceneContent The content carrying the overlay.
+ * @param PlacementPreview? placement The placement preview, or null for none.
+ * @return UvSceneContent The content carrying them.
  */
-private fun withOverlay(content: UvSceneContent, overlay: DirectMeshOverlay?): UvSceneContent =
+private fun withScene(content: UvSceneContent, overlay: DirectMeshOverlay?, placement: PlacementPreview?): UvSceneContent =
 	when (content) {
-		is UvSceneContent.AtlasPage -> content.copy(overlay = overlay)
+		is UvSceneContent.AtlasPage -> content.copy(overlay = overlay, placement = placement)
 		is UvSceneContent.SourceLayer -> content.copy(overlay = overlay)
 	}
 

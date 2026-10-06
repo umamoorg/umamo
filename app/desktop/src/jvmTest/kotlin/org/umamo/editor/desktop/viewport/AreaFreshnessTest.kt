@@ -8,6 +8,8 @@ import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.OverlayColor
+import org.umamo.render.puppet.PlacementPreview
 import org.umamo.ui.viewport.UvSceneContent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -159,6 +161,27 @@ class AreaFreshnessTest {
 			"a layer's too",
 		)
 	}
+
+	/** A page's placement preview rides its content the same way: the same instance is fresh, a new one renders. */
+	@Test
+	fun aUvAreaWatchesItsPlacementByIdentity() {
+		val placement = placementPreview()
+		val shown =
+			freshUvSlot().apply {
+				uvContent = UvSceneContent.AtlasPage(0, placement = placement)
+				renderedUvContent = UvSceneContent.AtlasPage(0, placement = placement)
+			}
+		assertEquals(AreaRenderDecision.Fresh, decide(shown), "the same preview instance is fresh")
+		assertEquals(AreaRenderDecision.Render(2), decide(shown.apply { uvContent = UvSceneContent.AtlasPage(0, placement = placementPreview()) }), "a new drive's preview renders")
+		assertEquals(UvSceneContent.AtlasPage(0).surfaceId, UvSceneContent.AtlasPage(0, placement = placement).surfaceId, "the camera keys the surface alone")
+	}
+
+	/**
+	 * An empty placement preview, a new instance each call.
+	 *
+	 * @return PlacementPreview The preview.
+	 */
+	private fun placementPreview(): PlacementPreview = PlacementPreview(OverlayColor(0f, 0f, 0f, 0.5f), emptyList(), emptyList(), null, emptyList())
 
 	/**
 	 * An empty direct overlay, a new instance each call.

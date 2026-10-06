@@ -537,14 +537,17 @@ public interface RenderPassEncoder {
 	)
 
 	/**
-	 * Draws the atlas-page underlay quad.
+	 * Draws one image quad of a UV scene (the pipeline must be [PipelinePurpose.AtlasPageDraw]): the unit
+	 * square's corners carried into world space by [quadToWorld], textured through the fragment's uvAffine
+	 * from the quad's V-flipped unit coordinates (corner (0, 1) samples the image's top-left), or filled with
+	 * the fragment's flat color when [texture] is null and the fragment says so.  An atlas page is the quad
+	 * diag(W, H) over its whole image; the placement drag's crops and scrims are the others.
 	 *
-	 * @param GpuTexture       atlas      The page.
-	 * @param Float            pageWidth  The page width in texels.
-	 * @param Float            pageHeight The page height in texels.
-	 * @param FragmentUniforms fragment   Its appearance.
+	 * @param GpuTexture?      texture     The image, or null for a flat-color quad.
+	 * @param FloatArray       quadToWorld The unit-corner-to-world affine, rows first (m00 m01 m02 m10 m11 m12).
+	 * @param FragmentUniforms fragment    Its appearance.
 	 */
-	fun drawAtlasPage(atlas: GpuTexture, pageWidth: Float, pageHeight: Float, fragment: FragmentUniforms)
+	fun drawImageQuad(texture: GpuTexture?, quadToWorld: FloatArray, fragment: FragmentUniforms)
 
 	/**
 	 * Fills the target with the grid backdrop.

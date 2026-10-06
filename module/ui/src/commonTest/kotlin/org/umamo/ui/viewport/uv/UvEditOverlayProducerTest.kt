@@ -5,6 +5,7 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
@@ -130,5 +131,6 @@ class UvEditOverlayProducerTest {
 	 * @param List<GizmoMeshGeometry> geometries The shown geometry.
 	 * @return UvShownScene The scene, a new instance each call.
 	 */
-	private fun sceneOf(model: PuppetModel, geometries: List<GizmoMeshGeometry>): UvShownScene = UvShownScene(UvSceneContent.AtlasPage(0), null, model, geometries)
+	private fun sceneOf(model: PuppetModel, geometries: List<GizmoMeshGeometry>): UvShownScene =
+		UvShownScene(UvSceneContent.AtlasPage(0), null, model, geometries, emptyMap(), OverlayColor(0f, 0f, 0f, 0.5f))
 }

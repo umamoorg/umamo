@@ -10,7 +10,7 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * What one overlay mesh's draws need, whichever scene it is drawn in: its per-instance buffers, its first
  * vertex's index in the position store, and its active primitive resolved to local vertex indices (-1 when
- * the domain has no active primitive).
+ * the domain has no active primitive), and its colors when it is an island.
  *
  * @property OverlayMeshBuffers buffers Its per-instance device buffers.
  * @property Int baseOffset Its first vertex's index in the position store.
@@ -20,6 +20,7 @@ import org.umamo.runtime.model.PuppetModel
  * @property Int activeFaceA The active triangle's first corner, or -1.
  * @property Int activeFaceB The active triangle's second corner, or -1.
  * @property Int activeFaceC The active triangle's third corner, or -1.
+ * @property IslandStyle? islandStyle Its island colors, read only by an islands overlay.
  */
 internal class OverlayDrawEntry(
 	val buffers: OverlayMeshBuffers,
@@ -30,6 +31,7 @@ internal class OverlayDrawEntry(
 	val activeFaceA: Int,
 	val activeFaceB: Int,
 	val activeFaceC: Int,
+	val islandStyle: IslandStyle?,
 )
 
 /**
@@ -75,6 +77,7 @@ internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers
 		activeFaceA = if (faceResolved) faceCorners[faceStart] else -1,
 		activeFaceB = if (faceResolved) faceCorners[faceStart + 1] else -1,
 		activeFaceC = if (faceResolved) faceCorners[faceStart + 2] else -1,
+		islandStyle = mesh.islandStyle,
 	)
 }
 

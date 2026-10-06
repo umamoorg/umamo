@@ -7,6 +7,8 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ModalTransformCapture
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
 import org.umamo.edit.withMeshPositions
 import org.umamo.edit.withMeshUvs
 import org.umamo.format.moc3.Moc3
@@ -15,6 +17,7 @@ import org.umamo.render.ContentBounds
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
@@ -35,7 +38,10 @@ import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.gestureParameters
 import org.umamo.ui.viewport.uv.UvEditOverlayProducer
+import org.umamo.ui.viewport.uv.UvObjectOverlayProducer
+import org.umamo.ui.viewport.uv.UvPlacementScene
 import org.umamo.ui.viewport.uv.UvShownScene
+import org.umamo.ui.viewport.uv.restFrontRank
 import org.umamo.ui.workspace.spaces.uv.UvGizmoGeometryCache
 import org.umamo.ui.workspace.spaces.uv.shownSurfaceDrawables
 import java.io.File
@@ -145,18 +151,36 @@ class EditGrabPerfProbeTest {
 
 		val sizes = MeshOverlaySizes(3.5f, 1f, 2.5f)
 		val content = UvSceneContent.AtlasPage(0)
+		val noScrim = OverlayColor(0f, 0f, 0f, 0f)
 		timed("U2 UV overlay derive, cold (every mesh's edges and flags) [on Edit entry]", 3) {
-			UvEditOverlayProducer().produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries), sizes)
+			UvEditOverlayProducer().produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries, emptyMap(), noScrim), sizes)
 		}
 		val producer = UvEditOverlayProducer()
-		val first = producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries), sizes)
-		val again = timed("U2w UV overlay derive, warm (same geometry) [per positions-only commit]") { producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries), sizes) }
+		val first = producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries, emptyMap(), noScrim), sizes)
+		val again = timed("U2w UV overlay derive, warm (same geometry) [per positions-only commit]") { producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries, emptyMap(), noScrim), sizes) }
 		report("U2w handed back the same instance: ${again === first}")
 		timed("U2o UV overlay derive, one mesh moved [per drive, one-mesh UV Grab]") { round ->
-			producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, if (round % 2 == 0) oneGeometries else geometries), sizes)
+			producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, if (round % 2 == 0) oneGeometries else geometries, emptyMap(), noScrim), sizes)
 		}
 		timed("U2a UV overlay derive, every mesh moved [per drive, whole-selection UV Grab]") { round ->
-			producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, if (round % 2 == 0) allGeometries else geometries), sizes)
+			producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, if (round % 2 == 0) allGeometries else geometries, emptyMap(), noScrim), sizes)
+		}
+
+		// The Object-mode islands over the same surface: every island back to front in its role.  A placement
+		// drive cannot be measured here: a MOC3 origin has no tiles to place.
+		val islandScene = UvShownScene(content, null, model, geometries, restFrontRank(model), noScrim)
+		val everyObject = Selection(shown.mapTo(HashSet()) { drawable -> SelectionTarget.Drawable(drawable.id) }, SelectionTarget.Drawable(firstId))
+		val oneObject = Selection(setOf(SelectionTarget.Drawable(firstId)), SelectionTarget.Drawable(firstId))
+		val noPlacement = UvPlacementScene(null, null)
+		timed("U3 UV islands derive, cold (every island's edges, style, and order) [on Object entry]", 3) {
+			UvObjectOverlayProducer().produce(everyObject, islandScene, noPlacement, model.atlas, sizes)
+		}
+		val islandProducer = UvObjectOverlayProducer()
+		val firstIslands = islandProducer.produce(everyObject, islandScene, noPlacement, model.atlas, sizes).islands
+		val warmIslands = timed("U3w UV islands derive, warm (nothing changed)") { islandProducer.produce(everyObject, islandScene, noPlacement, model.atlas, sizes).islands }
+		report("U3w handed back the same instance: ${warmIslands === firstIslands}")
+		timed("U3s UV islands derive, a selection change (every island re-styled) [per click]") { round ->
+			islandProducer.produce(if (round % 2 == 0) oneObject else everyObject, islandScene, noPlacement, model.atlas, sizes)
 		}
 	}
 
