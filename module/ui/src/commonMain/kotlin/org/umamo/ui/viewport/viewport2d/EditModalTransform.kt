@@ -118,6 +118,7 @@ internal class EditModalTransform(
 		// nothing selected does not move.
 		val frozenById = LinkedHashMap<DrawableId, DrawableWorldGeometry>()
 		val sources = ArrayList<ModalCaptureSource>()
+
 		for (geometry in geometries) {
 			val elements = selection.elementsOf(geometry.drawableId)
 			if (elements.isEmpty()) {
@@ -138,6 +139,7 @@ internal class EditModalTransform(
 			frozenById[geometry.drawableId] = frozen
 			sources.add(ModalCaptureSource(geometry.drawableId, frozen.world, geometry.mesh.indices, coveredIndices))
 		}
+
 		// The Active-Element anchor the builder cannot resolve itself: the active element's own covered
 		// median.  Null falls back to the shared covered median inside the builder.
 		val activeAnchor = activeElementMedian(selection, geometries.map { geometry -> geometry.gizmo })
@@ -152,11 +154,13 @@ internal class EditModalTransform(
 				activeAnchor = activeAnchor,
 				cursorAnchor = cursorAnchor,
 			)
+
 		if (transform == null) {
 			// Nothing movable (the selection emptied between latch and capture): drop the operator.
 			session.clearMeshOperator()
 			return
 		}
+
 		// Proportional editing weights the unselected vertices near the selection; Vertex Slide is
 		// positions-only single-vertex math, so it never takes weights - and a suppressed latch (the
 		// duplicate / rip auto-grab) opts out the same way.
@@ -167,14 +171,17 @@ internal class EditModalTransform(
 				null
 			}
 		transform.applyProportional(proportionalState, proportionalState?.radiusWorld ?: 0f)
+
 		// Vertex Slide needs an active vertex with at least one incident neighbor; only the CANDIDATES
 		// freeze here - the best edge is re-picked from the live pointer every move (Blender re-picks
 		// continuously, so the slide hops between connected edges mid-drag).  Without candidates the
 		// operator drops, AFTER the gesture begins, so the teardown resyncs the renderer as for any gesture.
 		val slide = if (kind == MeshOperatorKind.VertexSlide) slideContextFor(selection, geometries) else null
+
 		gesture.begin(EditGesture(transform, frozenById, slide), gesture.lastPointer)
 		slideLanding = null
 		publishedRequest = null
+
 		if (kind == MeshOperatorKind.VertexSlide && slide == null) {
 			session.clearMeshOperator()
 		}
@@ -234,6 +241,7 @@ internal class EditModalTransform(
 	override fun drivePreview(virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean {
 		// Defensive ownership check (the pointer loop already gates): only the initiating area drives.
 		val operator = session.activeMeshOperator.value?.takeIf { it.areaId == areaId } ?: return false
+
 		return submitDrive(operator.kind, virtualPointer, camera, size)
 	}
 
@@ -246,14 +254,17 @@ internal class EditModalTransform(
 	 */
 	override fun confirm() {
 		drive.settle()
+
 		val committed = gesture.preview
 		val gestureData = gesture.capture
 		val parameters = gesture.lastParameters
 		val request = publishedRequest
+
 		if (committed != null && gestureData != null && request != null) {
 			val transform = gestureData.transform
 			val newPositionsByDrawable = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
 			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(request.jobs.size)
+
 			for (job in request.jobs) {
 				val transformed = committed[job.drawableId] ?: continue
 				newPositionsByDrawable[job.drawableId] = transformed
@@ -262,12 +273,14 @@ internal class EditModalTransform(
 				// as the drive that computed these positions moved them.
 				vertexIndicesByDrawable[job.drawableId] = job.movedIndices.toList()
 			}
+
 			if (newPositionsByDrawable.isNotEmpty()) {
 				val modelBefore = session.model.value
 				session.commitMeshPositions(
 					MeshChange.TransformVertices(vertexIndicesByDrawable, transform.operatorKind),
 					newPositionsByDrawable,
 				)
+
 				// The strip's rows for the step just pushed, over the RETAINED capture so an adjustment
 				// replays the same frozen geometry - registered before the operator clears, since the
 				// teardown drops the capture.  A commit that recorded nothing (the geometry landed where it
@@ -275,6 +288,7 @@ internal class EditModalTransform(
 				if (session.model.value !== modelBefore) {
 					val slide = gestureData.slide
 					val landing = slideLanding
+
 					if (transform.operatorKind == MeshOperatorKind.VertexSlide) {
 						if (slide != null && landing != null) {
 							registerSlideAdjustment(session, areaId, transform, gestureData.geometryById, slide.drawableId, slide.activeVertex, landing.neighborIndex, landing.factor)
@@ -318,6 +332,7 @@ internal class EditModalTransform(
 		val operator = session.activeMeshOperator.value?.takeIf { it.areaId == areaId } ?: return
 		val proportional = session.proportionalEdit.value
 		val gestureData = gesture.capture
+
 		if (steps != 0f && proportional != null && gestureData != null && session.meshOperatorTakesProportional(operator.kind)) {
 			session.setProportionalRadius(proportional.radiusWorld * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
 			val updated = session.proportionalEdit.value
@@ -357,8 +372,10 @@ internal class EditModalTransform(
 			} else {
 				null
 			}
+
 		val jobs = meshDriveJobs(transform, gestureData.geometryById, wholeMeshes = false)
 		drive.submit(MeshDriveRequest(operator, parameters, jobs, slideMove, session.model.value))
+
 		return true
 	}
 
@@ -377,6 +394,7 @@ internal class EditModalTransform(
 		publishedRequest = request
 		gesture.preview = result.preview
 		val current = session.model.value
+
 		pushPreview(if (request.baseModel === current) result.folded else current.withMeshPositions(result.preview))
 	}
 }

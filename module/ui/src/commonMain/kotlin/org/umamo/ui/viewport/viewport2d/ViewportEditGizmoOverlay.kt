@@ -124,6 +124,7 @@ fun ViewportEditGizmoOverlay(
 	if (mode != EditorMode.Edit || sessionDrawableIds.isEmpty() || camera == null) {
 		return
 	}
+
 	// The shared two-tone marching-ants style for the box / circle / crosshair affordances.
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 

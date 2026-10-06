@@ -113,6 +113,7 @@ internal class ModalDriveWorker<TRequest : Any, TResult : Any>(
 			publishResult(request, computeSequential(request), submittedSequence)
 			return
 		}
+
 		tickets.trySend(Ticket(gesture.epoch, submittedSequence, request))
 	}
 
@@ -126,6 +127,7 @@ internal class ModalDriveWorker<TRequest : Any, TResult : Any>(
 		if (latestEpoch != gesture.epoch || doneSequence >= submittedSequence) {
 			return
 		}
+
 		publishResult(request, computeSequential(request), submittedSequence)
 	}
 
@@ -200,6 +202,7 @@ internal suspend fun <TItem, TResult> mapInBalancedChunks(
 	if (chunks.size <= 1) {
 		return items.map(transform)
 	}
+
 	return coroutineScope {
 		chunks
 			.map { chunk ->
@@ -233,14 +236,17 @@ internal fun <TItem> balancedChunks(
 	if (items.isEmpty()) {
 		return emptyList()
 	}
+
 	var totalWeight = 0L
 	for (item in items) {
 		totalWeight += weightOf(item)
 	}
+
 	val chunkWeight = maxOf(minChunkWeight.toLong(), (totalWeight + targetChunks - 1) / targetChunks)
 	if (totalWeight <= chunkWeight) {
 		return listOf(items.indices)
 	}
+
 	val chunks = ArrayList<IntRange>()
 	var chunkStart = 0
 	var runningWeight = 0L
@@ -252,8 +258,10 @@ internal fun <TItem> balancedChunks(
 			runningWeight = 0L
 		}
 	}
+
 	if (chunkStart < items.size) {
 		chunks.add(chunkStart until items.size)
 	}
+
 	return chunks
 }

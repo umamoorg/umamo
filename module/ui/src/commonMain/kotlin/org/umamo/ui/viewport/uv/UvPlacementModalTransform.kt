@@ -95,6 +95,7 @@ internal class UvPlacementModalTransform(
 			session.clearUvOperator()
 			return
 		}
+
 		val model = session.model.value
 		val pivotMode = session.pivotMode.value
 		val activeDrawableId = (selection.active as? SelectionTarget.Drawable)?.id
@@ -103,10 +104,12 @@ internal class UvPlacementModalTransform(
 			withContext(buildDispatcher) {
 				buildPlacementGesture(model, surface, selection, shownGeometries, pivotMode, activeDrawableId, cursorDisplay, operator.kind)
 			}
+
 		// By value, not identity: see the docblock for the same-operator re-latch this lets begin.
 		if (session.activeUvOperator.value != operator) {
 			return
 		}
+
 		when (build) {
 			PlacementGestureBuild.NotOnPage -> {
 				session.emitNotice("notice.uv.placement.notOnPage", NoticePlacement.NearCursor)
@@ -178,6 +181,7 @@ internal class UvPlacementModalTransform(
 		val pointerFrame = TransformGestureFrame(gestureData.transform.anchor, start, virtualPointer, constraint, camera, size)
 		val parameters = placementGestureParameters(operator, pointerFrame, gestureData.transform.rotationTracker)
 		drive.submit(PlacementDriveRequest(operator, parameters, gestureData))
+
 		return true
 	}
 
@@ -211,9 +215,11 @@ internal class UvPlacementModalTransform(
 				val crop = mover.crop ?: return@mapNotNull null
 				GhostCrop(mover.tileId, crop, mover.trim, result.placementByTile.getValue(mover.tileId))
 			}
+
 		if (atlasPages.value != null && crops.isNotEmpty()) {
 			sceneState.value.ghost = PlacementGhost(session.model.value.atlas, gestureData.pageHeight, crops)
 		}
+
 		if (result.overlappingTileIds.isNotEmpty()) {
 			session.emitNotice("notice.uv.placement.overlap", NoticePlacement.NearCursor)
 		} else if (result.offPageTileIds.isNotEmpty()) {

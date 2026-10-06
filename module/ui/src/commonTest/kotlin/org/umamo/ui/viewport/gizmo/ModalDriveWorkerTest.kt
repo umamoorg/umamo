@@ -70,6 +70,7 @@ class ModalDriveWorkerTest {
 	private fun TestScope.attach(rig: Rig): Job {
 		val job = backgroundScope.launch { rig.worker.run(StandardTestDispatcher(testScheduler)) }
 		runCurrent()
+
 		return job
 	}
 

@@ -91,16 +91,19 @@ internal class ObjectModalTransform(
 		val model = session.model.value
 		val pose = session.pose.value
 		val eligibleIds = eligibleTransformDrawables(session.selection.value, model)
+
 		// A drawable with a hidden ancestor has no world mapping and the batch drops it rather than abort
 		// the whole gesture (the others still transform).  One batch: the deformer chain bakes once per latch.
 		val geometries = captureDrawableWorlds(model, pose, eligibleIds.orEmpty())
 		val geometryById = geometries.associateBy { geometry -> geometry.drawableId }
+
 		// Object mode moves every vertex of each drawable, so the covered set is the whole mesh.  Triangle
 		// connectivity is unused here (WholeMesh pivots, no proportional editing), so an empty array serves.
 		val sources =
 			geometries.map { geometry ->
 				ModalCaptureSource(geometry.drawableId, geometry.world, IntArray(0), geometry.allIndices)
 			}
+
 		// The two per-area anchors the shared builder cannot resolve itself: the active drawable's own
 		// centroid and the 2D cursor.  The builder falls back to the combined median when nothing is active; an
 		// unplaced cursor resolves to the world origin, like the snap commands.
@@ -119,6 +122,7 @@ internal class ObjectModalTransform(
 				activeAnchor = activeAnchor,
 				cursorAnchor = cursorAnchor,
 			)
+
 		if (transform == null) {
 			// Nothing transformable survived (all hidden, or the selection changed): drop the operator.
 			session.clearObjectOperator()
@@ -151,6 +155,7 @@ internal class ObjectModalTransform(
 		if (session.activeObjectOperator.value?.areaId == areaId) {
 			session.clearObjectOperator()
 		}
+
 		return gesture.end()
 	}
 
@@ -165,6 +170,7 @@ internal class ObjectModalTransform(
 	override fun drivePreview(virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean {
 		// Defensive ownership check (the pointer loop already gates): only the initiating area drives.
 		val operator = session.activeObjectOperator.value?.takeIf { it.areaId == areaId } ?: return false
+
 		return submitDrive(operator.kind, virtualPointer, camera, size)
 	}
 
@@ -179,6 +185,7 @@ internal class ObjectModalTransform(
 		val committed = gesture.preview
 		val gestureData = gesture.capture
 		val parameters = gesture.lastParameters
+
 		if (committed != null && gestureData != null && committed.isNotEmpty()) {
 			val transform = gestureData.transform
 			val modelBefore = session.model.value
@@ -217,7 +224,9 @@ internal class ObjectModalTransform(
 		// Proportional editing is an Edit-mode feature: object mode moves whole drawables, so there are no
 		// unselected vertices to weight.
 		val jobs = meshDriveJobs(transform, gestureData.geometryById, wholeMeshes = true)
+
 		drive.submit(MeshDriveRequest(operator, parameters, jobs, null, session.model.value))
+
 		return true
 	}
 

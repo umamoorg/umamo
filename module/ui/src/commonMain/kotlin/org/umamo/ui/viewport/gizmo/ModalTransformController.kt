@@ -120,7 +120,9 @@ internal class ModalTransformController(
 
 			else -> {}
 		}
+
 		change.consume()
+
 		return pointer
 	}
 }

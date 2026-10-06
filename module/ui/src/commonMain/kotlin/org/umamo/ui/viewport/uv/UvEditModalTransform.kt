@@ -124,6 +124,7 @@ internal class UvEditModalTransform(
 			}
 			sources.add(ModalCaptureSource(geometry.drawableId, geometry.positions.copyOf(), geometry.indices, coveredIndices))
 		}
+
 		// The two per-area anchors the shared builder cannot resolve itself, in display space: the active
 		// element's own covered median and the UV cursor.  Null falls back to the shared median.
 		val transform =
@@ -136,12 +137,14 @@ internal class UvEditModalTransform(
 				activeAnchor = activeElementMedian(selection, geometries),
 				cursorAnchor = uvCursorDisplay(session, frame),
 			)
+
 		if (transform == null) {
 			// Nothing movable on the shown surface (the selection's covered meshes live elsewhere or carry
 			// no editable UVs): drop the operator.
 			session.clearUvOperator()
 			return
 		}
+
 		// The radius resolves here even with proportional editing off, so the surface's first gesture seeds it.
 		val radiusState = proportionalRadius.value
 		transform.applyProportional(session.proportionalEdit.value, resolvedProportionalRadius(radiusState, frame))
@@ -175,6 +178,7 @@ internal class UvEditModalTransform(
 		val gestureData = gesture.capture
 		val parameters = gesture.lastParameters
 		val request = publishedRequest
+
 		if (committed != null && gestureData != null && request != null) {
 			val transform = gestureData.transform
 			val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
@@ -226,6 +230,7 @@ internal class UvEditModalTransform(
 		val operator = ownedOperator() ?: return
 		val proportional = session.proportionalEdit.value
 		val gestureData = gesture.capture
+
 		if (steps != 0f && proportional != null && gestureData != null) {
 			val radiusState = gestureData.proportionalRadius
 			val maxRadius = 4f * maxOf(gestureData.frame.displayWidth, gestureData.frame.displayHeight)
@@ -256,7 +261,9 @@ internal class UvEditModalTransform(
 		val transform = gestureData.transform
 		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, camera, size)
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
+
 		drive.submit(UvDriveRequest(operator, parameters, uvDriveJobs(transform), gestureData.frame, session.model.value))
+
 		return true
 	}
 
@@ -272,6 +279,7 @@ internal class UvEditModalTransform(
 		gesture.lastParameters = request.parameters
 		publishedRequest = request
 		gesture.preview = result.preview
+
 		val current = session.model.value
 		pushPreview(if (request.baseModel === current) result.folded else current.withMeshUvs(result.storedUvs))
 	}
@@ -285,11 +293,14 @@ internal class UvEditModalTransform(
 	 */
 	private fun resolvedProportionalRadius(radiusState: MutableState<Float?>, frame: UvEditFrame): Float {
 		val current = radiusState.value
+
 		if (current != null) {
 			return current
 		}
+
 		val seeded = (minOf(frame.displayWidth, frame.displayHeight) / 8f).coerceAtLeast(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY)
 		radiusState.value = seeded
+
 		return seeded
 	}
 }
