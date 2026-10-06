@@ -90,6 +90,29 @@ class OverlayDrawGlTest {
 		rig.dispose()
 	}
 
+	/**
+	 * Positions uploaded straight into a store (a UV scene's overlay) feed the draws from the offset they
+	 * were written at, with no capture: a decoy block fills the store, the triangle overwrites it from
+	 * vertex 1, and the dots drawn from base offset 1 land on the triangle's corners and never on the decoy.
+	 */
+	@Test
+	fun uploadedPositionsFeedTheDraw() {
+		val rig = rig()
+		val uploaded = rig.device.createDeformedPositionStore(5)
+		rig.device.updateDeformedPositions(uploaded, 0, FloatArray(10) { 28f })
+		// World positions, y up: the space a capture writes, so these corners land where captured ones would.
+		rig.device.updateDeformedPositions(uploaded, 1, floatArrayOf(-20f, -20f, 20f, -20f, -20f, 20f))
+
+		val dots = rig.renderPass { pass -> rig.drawVertexDots(pass, idle = red, activeVertex = null, positions = uploaded, baseOffset = 1) }
+
+		assertEquals(listOf(255, 0, 0, 255), dots.at(12, 52).toList(), "the first uploaded vertex")
+		assertEquals(listOf(255, 0, 0, 255), dots.at(52, 52).toList(), "the second")
+		assertEquals(listOf(255, 0, 0, 255), dots.at(12, 12).toList(), "the third")
+		assertEquals(black.toList(), dots.at(60, 4).toList(), "the decoy left at vertex 0 is never read")
+		rig.device.destroyDeformedPositionStore(uploaded)
+		rig.dispose()
+	}
+
 	@Test
 	fun freeingTheOverlayResourcesLeavesNoGlError() {
 		val rig = rig()
@@ -164,6 +187,21 @@ class OverlayDrawGlTest {
 		}
 
 		/**
+		 * One frame with no capture: a pass cleared to opaque black, [draw], and the read-back.
+		 *
+		 * @param Function draw The overlay draws to issue into the open pass.
+		 * @return RasterImage The frame, top row first.
+		 */
+		fun renderPass(draw: (RenderPassEncoder) -> Unit): RasterImage {
+			val frame = device.beginFrame()
+			val pass = frame.beginRenderPass(RenderPassSpec(target, LoadAction.Clear, viewportSize, viewportSize, clearAlpha = 1f))
+			draw(pass)
+			pass.end()
+			frame.endFrame()
+			return device.readPixels(target)
+		}
+
+		/**
 		 * Draws the triangle's face fill with the idle color red and the selected color green.
 		 *
 		 * @param RenderPassEncoder pass The open pass.
@@ -197,14 +235,22 @@ class OverlayDrawGlTest {
 		 * @param RenderPassEncoder pass The open pass.
 		 * @param FloatArray idle The idle color.
 		 * @param Int? activeVertex The active vertex, or null for the batch alone.
+		 * @param DeformedPositionStore positions The store the positions are read from.
+		 * @param Int baseOffset The triangle's first vertex in that store.
 		 */
-		fun drawVertexDots(pass: RenderPassEncoder, idle: FloatArray, activeVertex: Int?) {
+		fun drawVertexDots(
+			pass: RenderPassEncoder,
+			idle: FloatArray,
+			activeVertex: Int?,
+			positions: DeformedPositionStore = store,
+			baseOffset: Int = 0,
+		) {
 			bind(pass, PipelinePurpose.OverlayVertexDot)
-			fill(sizePx = 4f, fillIdle = true, idle = idle, active = null)
-			pass.drawOverlayVertexDots(buffers, store, uniforms)
+			fill(sizePx = 4f, fillIdle = true, idle = idle, active = null, baseOffset = baseOffset)
+			pass.drawOverlayVertexDots(buffers, positions, uniforms)
 			if (activeVertex != null) {
-				fill(sizePx = 4f, fillIdle = true, idle = idle, active = intArrayOf(activeVertex, -1, -1))
-				pass.drawOverlayVertexDots(buffers, store, uniforms)
+				fill(sizePx = 4f, fillIdle = true, idle = idle, active = intArrayOf(activeVertex, -1, -1), baseOffset = baseOffset)
+				pass.drawOverlayVertexDots(buffers, positions, uniforms)
 			}
 		}
 
@@ -247,9 +293,10 @@ class OverlayDrawGlTest {
 		 * @param Boolean fillIdle Whether idle faces fill.
 		 * @param FloatArray idle The idle color.
 		 * @param IntArray? active The active primitive's indices for an active draw, or null for a batch.
+		 * @param Int baseOffset The mesh's first vertex in the store.
 		 */
-		private fun fill(sizePx: Float, fillIdle: Boolean, idle: FloatArray, active: IntArray?) {
-			uniforms.baseOffset = 0
+		private fun fill(sizePx: Float, fillIdle: Boolean, idle: FloatArray, active: IntArray?, baseOffset: Int = 0) {
+			uniforms.baseOffset = baseOffset
 			uniforms.viewportWidth = viewportSize.toFloat()
 			uniforms.viewportHeight = viewportSize.toFloat()
 			uniforms.sizePx = sizePx

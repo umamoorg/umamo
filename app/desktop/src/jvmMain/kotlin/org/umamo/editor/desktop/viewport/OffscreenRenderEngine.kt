@@ -120,6 +120,9 @@ internal class OffscreenRenderEngine(
 	// shutdown stops either at its next step.
 	private val stillRunning: () -> Boolean = { running }
 
+	// Which UV scenes the renderer keeps per tick: an area still registered and still showing a UV surface.
+	private val isLiveUvArea: (String) -> Boolean = { areaId -> registry.areas[areaId]?.scene == RenderScene.UvScene }
+
 	// Daemon so it can never block JVM exit; clean teardown still happens via dispose() -> join.
 	private val renderThread = Thread({ renderLoop() }, "umamo-offscreen-gl").apply { isDaemon = true }
 
@@ -310,6 +313,8 @@ internal class OffscreenRenderEngine(
 		// inert by construction (the preferences UI disables its checkbox to say so).
 		val interactiveScale = if (inputs.supersampleWhileResizing) settleScale else 1
 		val tick = RenderTick(paramsVersion, settleScale, interactiveScale, nowNanos)
+		// A UV area that closed, or now shows the puppet, gives its overlay store and buffers back.
+		renderer.retainUvScenes(isLiveUvArea)
 		for ((areaId, slot) in registry.areas) {
 			val width = slot.width
 			val height = slot.height
@@ -393,10 +398,11 @@ internal class OffscreenRenderEngine(
 		renderer.setGrid(inputs.gridColors, gridConfigApplied.scale, gridConfigApplied.subdivisions)
 		renderer.setSelection(inputs.selection)
 		renderer.setActiveSelection(inputs.activeSelection)
-		// Read AFTER the version above, like the selection: a publish stores its value before it bumps, so one
+		// Read AFTER the versions above, like the selection: a publish stores its value before it bumps, so one
 		// landing after that read leaves this render stamped with the older version and the area renders again.
 		// Applying these in the hand-off instead would let an area stamp itself fresh over a frame that drew the
-		// outgoing overlay.  The UV scenes never draw the overlay, so handing it over for them costs nothing.
+		// outgoing overlay.  The puppet's overlay is renderer-wide state a UV render never reads (a UV area's
+		// overlay rides its content, below); the palette colors both.
 		renderer.setMeshOverlay(inputs.meshOverlay)
 		renderer.setMeshOverlayPalette(inputs.meshOverlayPalette)
 
@@ -411,16 +417,19 @@ internal class OffscreenRenderEngine(
 		val uvContent = slot.uvContent
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
-			// A UV area draws its flat surface instead; the pose / selection / shown state pushed above are
-			// harmless no-ops for it (neither UV draw reads any of them - just the grid and the surface quad).
+			// A UV area draws its flat surface and the overlay its content carries instead; the pose / selection /
+			// shown state pushed above are harmless no-ops for it (no UV draw reads any of them).  The overlay's
+			// positions upload into the area's own store, keyed by the area id.
 			RenderScene.UvScene ->
 				when (uvContent) {
 					// An atlas page the engine already uploaded, addressed by index.
-					is UvSceneContent.AtlasPage -> renderer.renderAtlasPage(drawTarget, uvContent.pageIndex, renderWidth, renderHeight)
+					is UvSceneContent.AtlasPage ->
+						renderer.renderAtlasPage(drawTarget, uvContent.pageIndex, renderWidth, renderHeight, areaId, uvContent.overlay)
 					// Artwork the engine has never uploaded, so the renderer takes the pixels rather than an
 					// index and caches the texture it makes from them.
-					is UvSceneContent.SourceLayer -> renderer.renderUnderlayImage(drawTarget, uvContent.image, renderWidth, renderHeight)
-					null -> renderer.renderAtlasPage(drawTarget, null, renderWidth, renderHeight)
+					is UvSceneContent.SourceLayer ->
+						renderer.renderUnderlayImage(drawTarget, uvContent.image, renderWidth, renderHeight, areaId, uvContent.overlay)
+					null -> renderer.renderAtlasPage(drawTarget, null, renderWidth, renderHeight, areaId, null)
 				}
 		}
 

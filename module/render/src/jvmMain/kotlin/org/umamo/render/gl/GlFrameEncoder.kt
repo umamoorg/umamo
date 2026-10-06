@@ -223,6 +223,14 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL20.glUniform3f(locations.backgroundColor, colors.backgroundRed, colors.backgroundGreen, colors.backgroundBlue)
 		GL20.glUniform3f(locations.majorColor, colors.majorRed, colors.majorGreen, colors.majorBlue)
 		GL20.glUniform3f(locations.minorColor, colors.minorRed, colors.minorGreen, colors.minorBlue)
+		val surface = uniforms.surface
+		GL20.glUniform1i(locations.useSurface, if (surface != null) 1 else 0)
+		if (surface != null) {
+			GL20.glUniform4f(locations.surfaceBounds, surface.minX, surface.minY, surface.minX + surface.width, surface.minY + surface.height)
+			GL20.glUniform3f(locations.surroundColor, colors.surroundRed, colors.surroundGreen, colors.surroundBlue)
+			GL20.glUniform3f(locations.frameColor, colors.frameRed, colors.frameGreen, colors.frameBlue)
+			GL20.glUniform1f(locations.frameWidthPx, uniforms.frameWidthPx)
+		}
 		GL30.glBindVertexArray(emptyVao)
 		GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, 3)
 	}

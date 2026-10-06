@@ -13,6 +13,7 @@ import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.DirectMeshOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.runtime.model.DrawableId
@@ -40,20 +41,30 @@ typealias PuppetViewportServiceFactory = (PuppetModel, PuppetTextures, LiveParam
 data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera)
 
 /**
- * What a UV-editor area draws under its wireframe overlays.
+ * What a UV-editor area draws: its surface, and the mesh overlay over it when the area shows one.
  *
  * Two shapes rather than one nullable image because the atlas page is addressed by INDEX into the
  * document's pages (the engine resolves the pixels itself, and re-uses the textures it already
  * uploaded for the puppet) while a source layer arrives as pixels the engine has never seen.  Keeping
  * them distinct is also what lets an area switch between them without re-registering.
+ *
+ * The overlay rides the content rather than a channel of its own, so a surface and the overlay drawn over
+ * it reach the render thread as one value and can never mismatch, and the area's freshness (the rendered
+ * content against the current one, by equality) sees a new overlay without a version of its own.  A
+ * [DirectMeshOverlay] compares by identity, so only a newly published overlay re-renders the area.  The
+ * camera keys only the surface, never the overlay.
  */
 sealed interface UvSceneContent {
+	/** The area's mesh overlay, in the surface's display positions, or null for none. */
+	val overlay: DirectMeshOverlay?
+
 	/**
 	 * One of the document's packed atlas pages.
 	 *
 	 * @property Int? pageIndex The page to draw, or null for none (grid only).
+	 * @property DirectMeshOverlay? overlay The mesh overlay drawn over it, or null for none.
 	 */
-	data class AtlasPage(val pageIndex: Int?) : UvSceneContent
+	data class AtlasPage(val pageIndex: Int?, override val overlay: DirectMeshOverlay? = null) : UvSceneContent
 
 	/**
 	 * A source layer's own artwork, decoded by the caller.
@@ -61,10 +72,11 @@ sealed interface UvSceneContent {
 	 * The key is the layer's identity and the image is only its pixels: the engine remembers a view per
 	 * layer by the key, so a re-decoded image of the same layer keeps the view it had.
 	 *
-	 * @property String        layerKey The shown layer's key in the document's source-art store.
-	 * @property DecodedImage? image    The layer raster to draw, or null for none (grid only).
+	 * @property String             layerKey The shown layer's key in the document's source-art store.
+	 * @property DecodedImage?      image    The layer raster to draw, or null for none (grid only).
+	 * @property DirectMeshOverlay? overlay  The mesh overlay drawn over it, or null for none.
 	 */
-	data class SourceLayer(val layerKey: String, val image: DecodedImage?) : UvSceneContent
+	data class SourceLayer(val layerKey: String, val image: DecodedImage?, override val overlay: DirectMeshOverlay? = null) : UvSceneContent
 }
 
 /**

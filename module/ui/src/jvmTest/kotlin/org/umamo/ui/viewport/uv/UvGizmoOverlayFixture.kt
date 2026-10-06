@@ -20,6 +20,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshSelection
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
@@ -116,6 +117,9 @@ internal class UvGizmoOverlayFixture(
 
 	/** Where the pointer last was in each area, tracked by the host. */
 	val areaPointerByArea = mapOf(LEFT_AREA to mutableStateOf(Offset.Zero), RIGHT_AREA to mutableStateOf(Offset.Zero))
+
+	/** Each area's live circle stroke, the host's per-area state the Edit overlay's marquee writes. */
+	val circleStrokeByArea = mapOf(LEFT_AREA to mutableStateOf<MeshSelection?>(null), RIGHT_AREA to mutableStateOf<MeshSelection?>(null))
 
 	/**
 	 * Shows a surface in an area.
@@ -230,6 +234,7 @@ internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession, placemen
 											heightPx = UV_RIG_AREA_HEIGHT,
 											areaPointer = areaPointer,
 											proportionalRadiusDisplayState = radiusState,
+											circleStrokeState = fixture.circleStrokeByArea.getValue(areaId),
 										)
 										// Above the gizmos, as the host mounts it; inert unless Zoom Region is armed here.
 										ViewportRegionOverlay(

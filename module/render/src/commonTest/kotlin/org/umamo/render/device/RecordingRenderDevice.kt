@@ -369,6 +369,19 @@ internal class StoreDestroyed(
 	val store: RecordedStore,
 ) : ResourceEvent
 
+/**
+ * Positions were written into a deformed-position store directly (a UV scene's overlay).
+ *
+ * @property RecordedStore store The store written.
+ * @property Int vertexOffset The first vertex written.
+ * @property FloatArray positions The positions, by reference.
+ */
+internal class StorePositionsUpdated(
+	val store: RecordedStore,
+	val vertexOffset: Int,
+	val positions: FloatArray,
+) : ResourceEvent
+
 /** A mesh's overlay instance buffers were uploaded. */
 internal class OverlayBuffersCreated(
 	val buffers: RecordedOverlayBuffers,
@@ -641,6 +654,16 @@ internal class RecordingRenderDevice : RenderDevice {
 		recorded.destroyed = true
 		recorded.sampledTexture?.destroyed = true
 		recordedResourceEvents.add(TargetDestroyed(recorded))
+	}
+
+	override fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray) {
+		val recorded = liveStore(store, "updateDeformedPositions")
+		check(!frameOpen) { "updateDeformedPositions inside a frame: positions upload between frames" }
+		check(positions.size % 2 == 0) { "updateDeformedPositions: positions come in x, y pairs" }
+		check(vertexOffset >= 0 && vertexOffset + positions.size / 2 <= recorded.vertexCapacity) {
+			"updateDeformedPositions: ${positions.size / 2} vertices at $vertexOffset overrun a store of ${recorded.vertexCapacity}"
+		}
+		recordedResourceEvents.add(StorePositionsUpdated(recorded, vertexOffset, positions))
 	}
 
 	override fun destroyDeformedPositionStore(store: DeformedPositionStore) {

@@ -6,11 +6,8 @@ import org.umamo.render.device.AxisLineUniforms
 import org.umamo.render.device.FragmentUniforms
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.GridUniforms
-import org.umamo.render.device.LoadAction
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.RenderPassEncoder
-import org.umamo.render.device.RenderPassSpec
-import org.umamo.render.device.RenderTarget
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
 import org.umamo.render.device.WorldToNdc
@@ -79,20 +76,20 @@ internal class BackdropEncoder(
 	}
 
 	/**
-	 * The flat underlay frame both UV scenes share: the themed grid backdrop, then the image as a single
-	 * textured quad at the world origin.  A null image or handle paints the grid alone.
+	 * Fills an open pass with the flat underlay both UV scenes share: the themed grid backdrop (bounded by
+	 * the shown surface when the grid carries one), then the image as a single textured quad at the world
+	 * origin.  A null image or handle paints the grid alone.  The caller owns the frame and the pass, so
+	 * what a scene draws over its surface lands in the same pass.
 	 *
 	 * The quad samples through the same premultiplied fragment shader the puppet uses, so an underlay
 	 * matches the puppet's texel rendering exactly.
 	 *
-	 * @param RenderTarget  target The surface to draw into.
-	 * @param DecodedImage? image  The image whose extent the quad takes, or null.
-	 * @param GpuTexture?   handle The uploaded texture for [image], or null.
-	 * @param GridUniforms  grid   The grid's inputs, carrying the camera affine and the viewport size.
+	 * @param RenderPassEncoder pass   The open pass on the area's target.
+	 * @param DecodedImage?     image  The image whose extent the quad takes, or null.
+	 * @param GpuTexture?       handle The uploaded texture for [image], or null.
+	 * @param GridUniforms      grid   The grid's inputs, carrying the camera affine and the viewport size.
 	 */
-	fun encodeUnderlay(target: RenderTarget, image: DecodedImage?, handle: GpuTexture?, grid: GridUniforms) {
-		val frame = device.beginFrame()
-		val pass = frame.beginRenderPass(RenderPassSpec(target, LoadAction.DontCare, grid.viewportWidth, grid.viewportHeight))
+	fun encodeUnderlay(pass: RenderPassEncoder, image: DecodedImage?, handle: GpuTexture?, grid: GridUniforms) {
 		encodeGrid(pass, grid)
 		if (image != null && handle != null) {
 			pass.setPipeline(pipelines.atlasPage)
@@ -101,8 +98,6 @@ internal class BackdropEncoder(
 			fragmentScratch.useTexture = true
 			pass.drawAtlasPage(handle, image.width.toFloat(), image.height.toFloat(), fragmentScratch)
 		}
-		pass.end()
-		frame.endFrame()
 	}
 
 	/**

@@ -17,9 +17,9 @@ import org.umamo.ui.viewport.ViewportOverlayColors
 /**
  * Draws one mesh's wireframe with its selection highlights - the shared gizmo mesh rendering: face
  * fills first (under the wireframe), then edges, then vertex dots in vertex mode and face centroid
- * dots in face mode (the click affordances, like Blender's).  Geometry-source agnostic: the Edit
- * overlay feeds deformer-projected world shapes, and a UV editor feeds raw texture coordinates over
- * the atlas image - both through the same positions-plus-topology arguments.
+ * dots in face mode (the click affordances, like Blender's).  The UV editor's Object islands are its one
+ * caller now: both surfaces' Edit wireframes are drawn by the renderer from the overlay the session
+ * derives (EditMeshOverlayProducer.kt).
  *
  * Every element batches by color into one path or point-set, so a mesh draws in a handful of commands
  * regardless of vertex count.  This matters beyond the lambda's own run cost: the window surface

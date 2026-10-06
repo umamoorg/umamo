@@ -52,7 +52,8 @@ data class MeshOverlaySizes(
  *
  * The value pairs with the model it was built against through [vertexCount] (and the face flag count,
  * when faces draw): a mesh whose resident disagrees is skipped for that frame and self-heals on the next
- * publish, the rule the Compose wireframe applied to ordinals a newer highlight set named.  A producer
+ * publish, rather than drawn against ordinals a newer highlight set named.  A UV scene's overlay pairs
+ * each mesh with its own positions and indices instead ([DirectMeshOverlay]), under the same rule.  A producer
  * that keeps a flag array's INSTANCE across publishes avoids a re-upload, since the renderer compares
  * the arrays by identity.
  *

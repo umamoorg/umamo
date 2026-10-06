@@ -111,8 +111,9 @@ public interface RenderDevice {
 	fun createRenderTarget(spec: RenderTargetSpec): RenderTarget
 
 	/**
-	 * Allocates a deformed-position store of [vertexCapacity] vertices: the glue store pass 1 fills, or
-	 * the mesh overlay's.  Sized by its caller and freed by [destroyDeformedPositionStore].
+	 * Allocates a deformed-position store of [vertexCapacity] vertices: the glue store pass 1 fills, the
+	 * 2D mesh overlay's, or a UV scene's, which [updateDeformedPositions] fills directly.  Sized by its
+	 * caller and freed by [destroyDeformedPositionStore].
 	 *
 	 * @param Int vertexCapacity The total vertex count the store must hold.
 	 * @return DeformedPositionStore The store.
@@ -142,6 +143,17 @@ public interface RenderDevice {
 
 	/** Frees [target]. */
 	fun destroyRenderTarget(target: RenderTarget)
+
+	/**
+	 * Writes [positions] (x then y per vertex) into [store] from vertex [vertexOffset] on: the direct fill
+	 * a UV scene's overlay uses, where nothing deforms and every vertex already sits where it is shown.  A
+	 * resource operation between frames, like [updateMeshPositions]; a draw in a later frame reads it.
+	 *
+	 * @param DeformedPositionStore store The store to write.
+	 * @param Int vertexOffset The first vertex written.
+	 * @param FloatArray positions The positions, two floats per vertex.
+	 */
+	fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray)
 
 	/**
 	 * Frees [store].  A caller that outgrows a store frees it and allocates a larger one.

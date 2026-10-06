@@ -62,3 +62,61 @@ internal fun planOverlayLayout(
 	}
 	return OverlayLayout(placed, totalVertexCount)
 }
+
+/**
+ * One direct overlay mesh's place in a UV scene's position store, with the arrays it uploads and draws.
+ *
+ * @property MeshOverlayMesh mesh The mesh.
+ * @property FloatArray positions Its display positions.
+ * @property IntArray triangleIndices Its triangle indices.
+ * @property Int baseOffset Its first vertex's index in the store.
+ */
+internal class DirectOverlayPlacement(
+	val mesh: MeshOverlayMesh,
+	val positions: FloatArray,
+	val triangleIndices: IntArray,
+	val baseOffset: Int,
+)
+
+/**
+ * The addressing plan for a direct overlay's position store.
+ *
+ * @property List<DirectOverlayPlacement> placed The placed meshes, in overlay order.
+ * @property Int totalVertexCount The store's total vertex count.
+ */
+internal class DirectOverlayLayout(
+	val placed: List<DirectOverlayPlacement>,
+	val totalVertexCount: Int,
+)
+
+/**
+ * Plans a direct overlay's store layout: the meshes are walked in overlay order and each placed one gets the
+ * next region, as [planOverlayLayout] does, but each mesh pairs against its OWN positions and triangle
+ * indices rather than a resident drawable.  A mesh is placed only when it carries positions of exactly its
+ * vertex count, triangle indices in whole triangles that all name one of its vertices, and, when faces
+ * draw, face flags that are empty or one per triangle; a disagreeing mesh is left out rather than guessed
+ * at.  Pure, so the rule is testable without a device.
+ *
+ * @param DirectMeshOverlay direct The overlay to place.
+ * @return DirectOverlayLayout The plan; empty when nothing pairs.
+ */
+internal fun planDirectOverlayLayout(direct: DirectMeshOverlay): DirectOverlayLayout {
+	val placed = ArrayList<DirectOverlayPlacement>(direct.overlay.meshes.size)
+	var totalVertexCount = 0
+	for (mesh in direct.overlay.meshes) {
+		val positions = direct.positionsById[mesh.drawableId] ?: continue
+		val triangleIndices = direct.triangleIndicesById[mesh.drawableId] ?: continue
+		if (positions.size != mesh.vertexCount * 2 || triangleIndices.size % 3 != 0) {
+			continue
+		}
+		if (triangleIndices.any { index -> index !in 0 until mesh.vertexCount }) {
+			continue
+		}
+		if (direct.overlay.kind == MeshOverlayKind.Edit && mesh.faceFlags.isNotEmpty() && mesh.faceFlags.size != triangleIndices.size / 3) {
+			continue
+		}
+		placed.add(DirectOverlayPlacement(mesh, positions, triangleIndices, totalVertexCount))
+		totalVertexCount += mesh.vertexCount
+	}
+	return DirectOverlayLayout(placed, totalVertexCount)
+}

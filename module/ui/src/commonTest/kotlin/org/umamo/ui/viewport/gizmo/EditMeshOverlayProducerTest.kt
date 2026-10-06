@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport.viewport2d
+package org.umamo.ui.viewport.gizmo
 
 import org.umamo.edit.ActiveMeshElement
 import org.umamo.edit.EditorMode
@@ -12,6 +12,10 @@ import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.viewport2d.RIG_HIDDEN
+import org.umamo.ui.viewport.viewport2d.RIG_OTHER
+import org.umamo.ui.viewport.viewport2d.RIG_QUAD
+import org.umamo.ui.viewport.viewport2d.gizmoRigModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -49,6 +53,19 @@ class EditMeshOverlayProducerTest {
 			assertNull(mesh.activeVertex ?: mesh.activeEdge ?: mesh.activeFace, "${mesh.drawableId} has no active element")
 		}
 		assertEquals(5, overlay.meshes.first().edgeCount, "the quad's five unique edges")
+	}
+
+	/** A surface showing only some session meshes narrows the list to them, still in the session's order. */
+	@Test
+	fun shownIdsRestrictTheEntries() {
+		val producer = EditMeshOverlayProducer()
+		val selection = MeshSelection.editing(listOf(RIG_QUAD, RIG_OTHER))
+
+		val narrowed = assertNotNull(producer.produce(EditorMode.Edit, selection, gizmoRigModel(), sizes, shownIds = setOf(RIG_OTHER)))
+		assertEquals(listOf(RIG_OTHER), narrowed.meshes.map { mesh -> mesh.drawableId }, "only the shown session mesh")
+		assertNull(producer.produce(EditorMode.Edit, selection, gizmoRigModel(), sizes, shownIds = emptySet()), "a surface showing none of them shows no overlay")
+		val unnarrowed = assertNotNull(producer.produce(EditorMode.Edit, selection, gizmoRigModel(), sizes, shownIds = null))
+		assertEquals(listOf(RIG_QUAD, RIG_OTHER), unnarrowed.meshes.map { mesh -> mesh.drawableId }, "no shown set lists every session mesh")
 	}
 
 	@Test

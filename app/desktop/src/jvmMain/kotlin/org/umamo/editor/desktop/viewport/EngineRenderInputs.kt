@@ -381,8 +381,9 @@ internal class EngineRenderInputs(
 	}
 
 	/**
-	 * Sets the mesh overlay's colors.  A change bumps the puppet render version; an equal palette is a
-	 * no-op, whichever instance carries it.
+	 * Sets the mesh overlay's colors.  A change bumps both render versions, since the puppet areas and the
+	 * UV areas draw their overlays in the same palette; an equal palette is a no-op, whichever instance
+	 * carries it.
 	 *
 	 * @param MeshOverlayPalette palette The palette.
 	 */
@@ -390,6 +391,7 @@ internal class EngineRenderInputs(
 		if (palette != meshOverlayPaletteBacking) {
 			meshOverlayPaletteBacking = palette
 			doPuppetRenderBump()
+			doAtlasRenderBump()
 		}
 	}
 

@@ -8,14 +8,12 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 
 /**
- * One overlay mesh as the renderer holds it: its value, the resident it draws over, its place in the
- * overlay store, its device buffers, and its active primitive resolved to local vertex indices (-1 when
+ * What one overlay mesh's draws need, whichever scene it is drawn in: its per-instance buffers, its first
+ * vertex's index in the position store, and its active primitive resolved to local vertex indices (-1 when
  * the domain has no active primitive).
  *
- * @property MeshOverlayMesh mesh The mesh's overlay value.
- * @property GpuDrawable gpuDrawable The resident drawable whose deformed positions it reads.
- * @property Int baseOffset Its first vertex's index in the overlay store.
  * @property OverlayMeshBuffers buffers Its per-instance device buffers.
+ * @property Int baseOffset Its first vertex's index in the position store.
  * @property Int activeVertex The active vertex, or -1.
  * @property Int activeEdgeA The active edge's first endpoint, or -1.
  * @property Int activeEdgeB The active edge's second endpoint, or -1.
@@ -23,11 +21,9 @@ import org.umamo.runtime.model.PuppetModel
  * @property Int activeFaceB The active triangle's second corner, or -1.
  * @property Int activeFaceC The active triangle's third corner, or -1.
  */
-internal class OverlayResident(
-	val mesh: MeshOverlayMesh,
-	val gpuDrawable: GpuDrawable,
-	val baseOffset: Int,
+internal class OverlayDrawEntry(
 	val buffers: OverlayMeshBuffers,
+	val baseOffset: Int,
 	val activeVertex: Int,
 	val activeEdgeA: Int,
 	val activeEdgeB: Int,
@@ -35,6 +31,77 @@ internal class OverlayResident(
 	val activeFaceB: Int,
 	val activeFaceC: Int,
 )
+
+/**
+ * One overlay mesh as the 2D renderer holds it: its value, the resident it draws over, and its draw entry.
+ *
+ * @property MeshOverlayMesh mesh The mesh's overlay value.
+ * @property GpuDrawable gpuDrawable The resident drawable whose deformed positions it reads.
+ * @property OverlayDrawEntry entry Its buffers, store offset, and resolved actives.
+ */
+internal class OverlayResident(
+	val mesh: MeshOverlayMesh,
+	val gpuDrawable: GpuDrawable,
+	val entry: OverlayDrawEntry,
+) {
+	/** Its first vertex's index in the overlay store. */
+	val baseOffset: Int get() = entry.baseOffset
+
+	/** Its per-instance device buffers. */
+	val buffers: OverlayMeshBuffers get() = entry.buffers
+}
+
+/**
+ * One mesh's draw entry, with its active primitive resolved to local indices: an edge to its two
+ * endpoints, a face to its three corners (a face outside [faceCorners] is no active face).
+ *
+ * @param MeshOverlayMesh mesh The mesh's overlay value.
+ * @param OverlayMeshBuffers buffers Its device buffers.
+ * @param Int baseOffset Its place in the position store.
+ * @param IntArray faceCorners Its triangle indices.
+ * @return OverlayDrawEntry The entry.
+ */
+internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers, baseOffset: Int, faceCorners: IntArray): OverlayDrawEntry {
+	val activeEdge = mesh.activeEdge
+	val activeFace = mesh.activeFace
+	val faceResolved = activeFace != null && activeFace * 3 + 2 < faceCorners.size
+	val faceStart = if (faceResolved) activeFace * 3 else 0
+	return OverlayDrawEntry(
+		buffers = buffers,
+		baseOffset = baseOffset,
+		activeVertex = mesh.activeVertex ?: -1,
+		activeEdgeA = if (activeEdge != null) mesh.edgeEndpoints[activeEdge * 2] else -1,
+		activeEdgeB = if (activeEdge != null) mesh.edgeEndpoints[activeEdge * 2 + 1] else -1,
+		activeFaceA = if (faceResolved) faceCorners[faceStart] else -1,
+		activeFaceB = if (faceResolved) faceCorners[faceStart + 1] else -1,
+		activeFaceC = if (faceResolved) faceCorners[faceStart + 2] else -1,
+	)
+}
+
+/**
+ * The flag array the device gets: the value's own, or all-idle zeros of the domain's count when the value
+ * carries none (the object wireframe), so the device always sees exact sizes.
+ *
+ * @param ByteArray flags The value's flags, possibly empty.
+ * @param Int count The domain's primitive count.
+ * @return ByteArray The flags to upload.
+ */
+internal fun overlayFlagsOrZeros(flags: ByteArray, count: Int): ByteArray =
+	if (flags.isEmpty()) {
+		ByteArray(count)
+	} else {
+		flags
+	}
+
+/**
+ * Whether two flag arrays differ by identity, with two empty arrays counting as the same (both mean all
+ * idle, and a producer may mint a fresh empty array per value).
+ *
+ * @param ByteArray previous The flags the buffers hold.
+ * @param ByteArray next The flags the new value carries.
+ * @return Boolean True when the device must take [next].
+ */
+internal fun overlayFlagsDiffer(previous: ByteArray, next: ByteArray): Boolean = previous !== next && !(previous.isEmpty() && next.isEmpty())
 
 /**
  * The mesh overlay's device objects and what they reflect: the overlay store the capture writes, and one
@@ -115,15 +182,15 @@ internal class MeshOverlayResidency(
 			val resident = residents.getValue(mesh.drawableId)
 			val faceCorners = drawableById[mesh.drawableId]?.mesh?.indices ?: IntArray(0)
 			val previous = previousById[mesh.drawableId]
-			val vertexFlags = flagsOrZeros(mesh.vertexFlags, mesh.vertexCount)
-			val edgeFlags = flagsOrZeros(mesh.edgeFlags, mesh.edgeCount)
-			val faceFlags = flagsOrZeros(mesh.faceFlags, faceCorners.size / 3)
+			val vertexFlags = overlayFlagsOrZeros(mesh.vertexFlags, mesh.vertexCount)
+			val edgeFlags = overlayFlagsOrZeros(mesh.edgeFlags, mesh.edgeCount)
+			val faceFlags = overlayFlagsOrZeros(mesh.faceFlags, faceCorners.size / 3)
 			val buffers: OverlayMeshBuffers
 			if (previous != null && previous.gpuDrawable === resident && previous.mesh.edgeEndpoints === mesh.edgeEndpoints) {
 				buffers = previous.buffers
-				if (flagsDiffer(previous.mesh.vertexFlags, mesh.vertexFlags) ||
-					flagsDiffer(previous.mesh.edgeFlags, mesh.edgeFlags) ||
-					flagsDiffer(previous.mesh.faceFlags, mesh.faceFlags)
+				if (overlayFlagsDiffer(previous.mesh.vertexFlags, mesh.vertexFlags) ||
+					overlayFlagsDiffer(previous.mesh.edgeFlags, mesh.edgeFlags) ||
+					overlayFlagsDiffer(previous.mesh.faceFlags, mesh.faceFlags)
 				) {
 					device.updateOverlayMeshFlags(buffers, vertexFlags, edgeFlags, faceFlags)
 				}
@@ -176,46 +243,6 @@ internal class MeshOverlayResidency(
 	 * @param IntArray faceCorners Its triangle indices.
 	 * @return OverlayResident The resident.
 	 */
-	private fun residentOf(mesh: MeshOverlayMesh, gpuDrawable: GpuDrawable, baseOffset: Int, buffers: OverlayMeshBuffers, faceCorners: IntArray): OverlayResident {
-		val activeEdge = mesh.activeEdge
-		val activeFace = mesh.activeFace
-		val faceResolved = activeFace != null && activeFace * 3 + 2 < faceCorners.size
-		return OverlayResident(
-			mesh = mesh,
-			gpuDrawable = gpuDrawable,
-			baseOffset = baseOffset,
-			buffers = buffers,
-			activeVertex = mesh.activeVertex ?: -1,
-			activeEdgeA = if (activeEdge != null) mesh.edgeEndpoints[activeEdge * 2] else -1,
-			activeEdgeB = if (activeEdge != null) mesh.edgeEndpoints[activeEdge * 2 + 1] else -1,
-			activeFaceA = if (faceResolved) faceCorners[activeFace!! * 3] else -1,
-			activeFaceB = if (faceResolved) faceCorners[activeFace!! * 3 + 1] else -1,
-			activeFaceC = if (faceResolved) faceCorners[activeFace!! * 3 + 2] else -1,
-		)
-	}
-
-	/**
-	 * The flag array the device gets: the value's own, or all-idle zeros of the domain's count when the
-	 * value carries none (the object wireframe), so the device always sees exact sizes.
-	 *
-	 * @param ByteArray flags The value's flags, possibly empty.
-	 * @param Int count The domain's primitive count.
-	 * @return ByteArray The flags to upload.
-	 */
-	private fun flagsOrZeros(flags: ByteArray, count: Int): ByteArray =
-		if (flags.isEmpty()) {
-			ByteArray(count)
-		} else {
-			flags
-		}
-
-	/**
-	 * Whether two flag arrays differ by identity, with two empty arrays counting as the same (both mean
-	 * all idle, and a producer may mint a fresh empty array per value).
-	 *
-	 * @param ByteArray previous The flags the buffers hold.
-	 * @param ByteArray next The flags the new value carries.
-	 * @return Boolean True when the device must take [next].
-	 */
-	private fun flagsDiffer(previous: ByteArray, next: ByteArray): Boolean = previous !== next && !(previous.isEmpty() && next.isEmpty())
+	private fun residentOf(mesh: MeshOverlayMesh, gpuDrawable: GpuDrawable, baseOffset: Int, buffers: OverlayMeshBuffers, faceCorners: IntArray): OverlayResident =
+		OverlayResident(mesh, gpuDrawable, overlayDrawEntry(mesh, buffers, baseOffset, faceCorners))
 }

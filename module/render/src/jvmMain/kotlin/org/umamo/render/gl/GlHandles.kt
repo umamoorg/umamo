@@ -145,6 +145,11 @@ internal class GlUniformLocations(program: Int) {
 	val majorColor = GL20.glGetUniformLocation(program, "majorColor")
 	val minorColor = GL20.glGetUniformLocation(program, "minorColor")
 	val gridOrigin = GL20.glGetUniformLocation(program, "gridOrigin")
+	val useSurface = GL20.glGetUniformLocation(program, "useSurface")
+	val surfaceBounds = GL20.glGetUniformLocation(program, "surfaceBounds")
+	val surroundColor = GL20.glGetUniformLocation(program, "surroundColor")
+	val frameColor = GL20.glGetUniformLocation(program, "frameColor")
+	val frameWidthPx = GL20.glGetUniformLocation(program, "frameWidthPx")
 
 	// Axis line
 	val linePositionNdc = GL20.glGetUniformLocation(program, "linePositionNdc")

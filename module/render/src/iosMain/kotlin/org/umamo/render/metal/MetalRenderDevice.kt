@@ -106,6 +106,9 @@ class MetalRenderDevice : RenderDevice {
 
 	override fun destroyRenderTarget(target: RenderTarget): Unit = TODO("Metal port")
 
+	override fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray): Unit =
+		TODO("Metal port: copy into the store MTLBuffer's contents() at the offset (shared storage), or a blit")
+
 	override fun destroyDeformedPositionStore(store: DeformedPositionStore): Unit = TODO("Metal port: release the store's MTLBuffer")
 
 	override fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers =

@@ -15,7 +15,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
@@ -24,6 +23,7 @@ import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshSelection
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.theme.LocalUmamoColors
@@ -33,12 +33,12 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.meshMarquee
 import org.umamo.ui.viewport.gizmo.selectToolKind
-import org.umamo.ui.viewport.rememberViewportOverlayColors
 
 /*
  * The UV editor's Edit-mode gizmo overlay.  This file is the wiring: what the overlay collects, its guards,
- * what it holds per area and for how long, the effects in the order they launch, and the two layers it
- * draws.  Its parts:
+ * what it holds per area and for how long, the effects in the order they launch, and the chrome layer it
+ * draws.  The wireframe itself is the render service's, drawn into the area's frame from the scene the
+ * host publishes (UvSceneOverlay.kt).  Its parts:
  *   - UvModalTransform.kt: the commit side both UV overlays share (the latch ownership rule, cancel, end,
  *     abandon).
  *   - UvEditModalTransform.kt: this overlay's modal G / S / R over texture coordinates (capture, drive,
@@ -47,9 +47,9 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  *   - UvEditGizmoRequests.kt: the area-gated collectors for Mirror U / V, Select Linked, and the snaps, and
  *     the drop of a latch made over a surface with nothing to edit.
  *   - UvEditGizmoPointerInput.kt: the pointer loop (modal transform, circle brush, idle selection).
- *   - UvEditGizmoSelection.kt: the element pick and the wireframe highlights; the marquee is the shared
- *     gizmo/GizmoSelectionInput.kt meshMarquee.
- *   - UvEditGizmoDraw.kt: the wireframes and the gesture chrome, read in the draw phase.
+ *   - UvEditGizmoSelection.kt: the element pick; the marquee is the shared gizmo/GizmoSelectionInput.kt
+ *     meshMarquee.
+ *   - UvEditGizmoDraw.kt: the gesture chrome, read in the draw phase.
  * The UV cursor helpers both overlays use are in UvCursorOverlay.kt, the snap handler in
  * UvSessionRequestHandlers.kt, and the strip registration in UvTransformAdjustRegistration.kt.
  */
@@ -59,8 +59,9 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  * underlay - the atlas page or the source layer's artwork the area is showing.  Self-gates to Edit mode
  * with a camera - the mode-exclusive sibling of [UvObjectGizmoOverlay], so the host mounts both
  * unconditionally (the viewport overlay pair's convention).
- * Draws the shown meshes' UV wireframes (from the live preview during a gesture), runs the idle element
- * selection (click pick with Shift/Ctrl toggle, empty-drag box, sub-threshold-click clear), and drives the
+ * Draws the gesture chrome, runs the idle element selection (click pick with Shift/Ctrl toggle, empty-drag
+ * box, sub-threshold-click clear, the circle brush, whose live stroke it writes to the host's
+ * [circleStrokeState] for the area's published wireframe), and drives the
  * modal G / S / R operators over raw texture coordinates through the shared
  * [org.umamo.ui.viewport.gizmo.ModalTransformController] - the same pointer semantics as the viewport
  * overlays (stale discard, virtual pointer, cursor wrap, LMB-confirm / RMB-cancel), with no deformer inverse
@@ -69,8 +70,8 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  *
  * Live preview streams through [LocalPuppetRenderSync]: each pointer frame folds the transformed UVs into an
  * uncommitted model and pushes it to the puppet renderer, so the 2D viewport shows the art resampling as the
- * mapping moves; confirm commits ONE undo step via commitMeshUvs and the session's model bridge republishes
- * the committed model.  Gating follows the area-ownership contract: the capture effect and pointer drive key
+ * mapping moves, and every UV area's wireframe follows it through the host's geometry; confirm commits ONE
+ * undo step via commitMeshUvs and the session's model bridge republishes the committed model.  Gating follows the area-ownership contract: the capture effect and pointer drive key
  * on the UV latch's own areaId, bystander areas stay inert, and teardown resyncs the raster only when this
  * overlay owned a gesture.
  *
@@ -87,6 +88,9 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  * @param MutableState<Float?> proportionalRadiusDisplayState The host-owned proportional radius of the shown
  *   surface, in display (texel) units: a gesture begun here takes it, seeds it, and resizes it, and the
  *   host's UvHudOverlay badge reads it - sibling overlays share state only through the session or the host.
+ * @param MutableState<MeshSelection?> circleStrokeState The host-owned live circle stroke of this area: the
+ *   marquee writes each stamp and null as the stroke ends, and the host's scene publish reads it.  Never
+ *   read here, so a stamp recomposes nothing.
  * @param Modifier modifier The layout modifier.
  */
 @Composable
@@ -100,17 +104,16 @@ internal fun UvEditGizmoOverlay(
 	heightPx: Int,
 	areaPointer: State<Offset>,
 	proportionalRadiusDisplayState: MutableState<Float?>,
+	circleStrokeState: MutableState<MeshSelection?>,
 	modifier: Modifier = Modifier,
 ) {
 	val mode by session.mode.collectAsState()
-	val meshSelection by session.meshSelection.collectAsState()
 	val activeOperator by session.activeUvOperator.collectAsState()
 	val activeSelectTool by session.activeSelectTool.collectAsState()
 	// Held as State, not read here: the chrome reads them only while drawing a gesture this area owns.
 	val axisConstraintState = session.axisConstraint.collectAsState()
 	val proportionalEditState = session.proportionalEdit.collectAsState()
 	val renderSync = LocalPuppetRenderSync.current
-	val viewportOverlayColors = rememberViewportOverlayColors()
 	val overlayColors = LocalUmamoColors.current
 	if (mode != EditorMode.Edit || camera == null) {
 		return
@@ -126,6 +129,7 @@ internal fun UvEditGizmoOverlay(
 	val liveFrame = rememberUpdatedState(frame)
 	val liveRenderSync = rememberUpdatedState(renderSync)
 	val liveRadiusState = rememberUpdatedState(proportionalRadiusDisplayState)
+	val liveStrokeState = rememberUpdatedState(circleStrokeState)
 
 	// The keymap-command collectors, mounted above the EMPTY-SURFACE guard below but still inside the mode and
 	// camera guard above it: this overlay is Edit-mode-only and so are these commands.  What they must outlive
@@ -147,8 +151,12 @@ internal fun UvEditGizmoOverlay(
 		return
 	}
 
-	// The box-select and circle-select machinery over the shared session selection, one per area.
-	val marquee = remember(areaId) { meshMarquee(session, { liveGeometries.value }) }
+	// The box-select and circle-select machinery over the shared session selection, one per area.  The live
+	// stroke goes to the host, whose scene publish draws it over this area alone.
+	val marquee =
+		remember(areaId) {
+			meshMarquee(session, { liveGeometries.value }, previewStroke = { stroke -> liveStrokeState.value.value = stroke })
+		}
 
 	// The element pick and box select, armed or not, one per area (see uvEditMeshPick).
 	val meshPick = remember(areaId) { uvEditMeshPick(session, marquee, liveGeometries, liveFrame) }
@@ -232,15 +240,8 @@ internal fun UvEditGizmoOverlay(
 		}
 	}
 
-	// What the draw pass reflects: the live circle stroke while one is in flight, else the committed
-	// selection - so painted elements light up immediately during a Circle stroke.
-	val effectiveSelection = marquee.circleStroke ?: meshSelection
-
-	// What the draw pass highlights per mesh and domain (Blender's derive-up / flush-down rules).
-	val highlightByDrawable = remember(effectiveSelection, geometries) { uvEditHighlights(effectiveSelection, geometries) }
-
-	// clipToBounds: Canvas drawing is not clipped to the layout bounds by default, so an off-page vertex
-	// would otherwise paint over the AreaHeader and neighboring areas.
+	// clipToBounds: Canvas drawing is not clipped to the layout bounds by default, so chrome near an edge (the
+	// HUD's axis line, the brush circle) would otherwise paint over the AreaHeader and neighboring areas.
 	Box(
 		modifier =
 			modifier
@@ -258,34 +259,18 @@ internal fun UvEditGizmoOverlay(
 					},
 				),
 	) {
-		// Two sibling canvases, each in its OWN layer: a draw-state invalidation re-records every draw lambda
-		// sharing a layer, so the gesture chrome (band, affordances, modal HUD) lives in a small layer of its
-		// own and the wireframes - the expensive pass - stay cached in this one.  The chrome reads
-		// gesture.lastPointer, which updates on every pointer event (hover included), so its layer redraws per
-		// move; this layer re-records only when the geometry, the selection, or a live modal preview changes -
-		// and it composites OFFSCREEN, because a default layer retains a display list that every window
-		// repaint replays (re-stroking every edge), where the offscreen buffer rasterizes once per content
-		// change and blits per frame.
+		// The gesture chrome (band, affordances, modal HUD) in a layer of its own, which also takes the pointer:
+		// it reads gesture.lastPointer, which updates on every pointer event (hover included), so this small
+		// layer redraws per move and nothing else does.
 		Canvas(
 			modifier =
 				Modifier
 					.fillMaxSize()
-					.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+					.graphicsLayer()
 					.pointerInput(areaId) {
 						uvEditGizmoPointerLoop(areaId, session, modalTransform, marquee, meshPick, liveCamera, liveSize)
 					},
 		) {
-			drawUvEditWireframes(
-				geometries = geometries,
-				highlightByDrawable = highlightByDrawable,
-				gesture = gesture,
-				selectMode = effectiveSelection.selectMode,
-				colors = viewportOverlayColors,
-				camera = camera,
-				size = IntSize(widthPx, heightPx),
-			)
-		}
-		Canvas(modifier = Modifier.fillMaxSize().graphicsLayer()) {
 			drawUvEditGizmoChrome(
 				marquee = marquee,
 				gesture = gesture,

@@ -8,6 +8,7 @@ import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.withMeshPositions
+import org.umamo.edit.withMeshUvs
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.ContentBounds
@@ -27,9 +28,16 @@ import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.viewport.UvSceneContent
+import org.umamo.ui.viewport.gizmo.EditMeshOverlayProducer
+import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.gestureParameters
+import org.umamo.ui.viewport.uv.UvEditOverlayProducer
+import org.umamo.ui.viewport.uv.UvShownScene
+import org.umamo.ui.workspace.spaces.uv.UvGizmoGeometryCache
+import org.umamo.ui.workspace.spaces.uv.shownSurfaceDrawables
 import java.io.File
 import kotlin.test.Test
 
@@ -81,6 +89,84 @@ class EditGrabPerfProbeTest {
 		probeObjectMode(session, camera, size, pushed)
 		probeEditMode(session, model, camera, size, pushed)
 	}
+
+	/**
+	 * The UV Edit wireframe's derive over every meshed drawable shown on one 4096-texel surface, the most a
+	 * UV area can show (modelF's own pages split it): the area's geometry cache and the overlay producer,
+	 * each cold, warm, with one mesh moved (a one-mesh UV Grab's drive), and with every mesh moved (a
+	 * whole-selection UV Grab's drive).  The moved rows alternate between two models, so every round
+	 * re-derives what moved.
+	 */
+	@Test
+	fun probeUvSceneDerive() {
+		val mocFile = sample
+		if (mocFile == null) {
+			println("moc3.perfSample not present; skipping perf probe")
+			return
+		}
+		val model = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(mocFile.readBytes()), null))
+		val session = EditorSession(model)
+		session.selectAllObjects()
+		session.setMode(EditorMode.Edit)
+		if (session.mode.value != EditorMode.Edit) {
+			report("could not enter Edit mode; skipping the UV rows")
+			return
+		}
+		session.selectAllMeshElements()
+		val selection = session.meshSelection.value
+		val shown = shownSurfaceDrawables(model, EditorMode.Edit, selection) { true }
+		val side = 4096
+		report("UV surface: ${side}x$side, shown meshes=${shown.size}, vertices=${shown.sumOf { drawable -> drawable.mesh!!.uvs.size / 2 }}")
+		val firstId = shown.first().id
+		val movedOne = model.withMeshUvs(firstId, shiftedUvs(shown.first().mesh!!.uvs))
+		val movedAll = shown.fold(model) { moving, drawable -> moving.withMeshUvs(drawable.id, shiftedUvs(drawable.mesh!!.uvs)) }
+
+		/**
+		 * The area's geometry through [cache] over [source].
+		 *
+		 * @param UvGizmoGeometryCache cache The cache.
+		 * @param PuppetModel source The model.
+		 * @return List<GizmoMeshGeometry> The geometry.
+		 */
+		fun geometriesOf(cache: UvGizmoGeometryCache, source: PuppetModel): List<GizmoMeshGeometry> {
+			val drawables = shownSurfaceDrawables(source, EditorMode.Edit, selection) { true }
+			return cache.geometries(drawables, cache.surfaceUvs(drawables, source, null), side, side)
+		}
+
+		timed("U1 UV geometry cache, cold (every mesh's edges and display positions) [on a surface switch]", 3) { geometriesOf(UvGizmoGeometryCache(), model) }
+		val cache = UvGizmoGeometryCache()
+		val geometries = geometriesOf(cache, model)
+		val warm = timed("U1w UV geometry cache, warm (nothing moved) [per UV area recomposition]") { geometriesOf(cache, model) }
+		report("U1w kept every geometry: ${warm.indices.all { geometryIndex -> warm[geometryIndex] === geometries[geometryIndex] }}")
+		timed("U1o UV geometry cache, one mesh moved [per drive, one-mesh UV Grab]") { round -> geometriesOf(cache, if (round % 2 == 0) movedOne else model) }
+		timed("U1a UV geometry cache, every mesh moved [per drive, whole-selection UV Grab]") { round -> geometriesOf(cache, if (round % 2 == 0) movedAll else model) }
+		val oneGeometries = geometriesOf(UvGizmoGeometryCache(), movedOne)
+		val allGeometries = geometriesOf(UvGizmoGeometryCache(), movedAll)
+
+		val sizes = MeshOverlaySizes(3.5f, 1f, 2.5f)
+		val content = UvSceneContent.AtlasPage(0)
+		timed("U2 UV overlay derive, cold (every mesh's edges and flags) [on Edit entry]", 3) {
+			UvEditOverlayProducer().produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries), sizes)
+		}
+		val producer = UvEditOverlayProducer()
+		val first = producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries), sizes)
+		val again = timed("U2w UV overlay derive, warm (same geometry) [per positions-only commit]") { producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries), sizes) }
+		report("U2w handed back the same instance: ${again === first}")
+		timed("U2o UV overlay derive, one mesh moved [per drive, one-mesh UV Grab]") { round ->
+			producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, if (round % 2 == 0) oneGeometries else geometries), sizes)
+		}
+		timed("U2a UV overlay derive, every mesh moved [per drive, whole-selection UV Grab]") { round ->
+			producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, if (round % 2 == 0) allGeometries else geometries), sizes)
+		}
+	}
+
+	/**
+	 * Texture coordinates moved a quarter texel of a 4096 surface right and up, in a new array.
+	 *
+	 * @param FloatArray uvs The coordinates.
+	 * @return FloatArray The moved copy.
+	 */
+	private fun shiftedUvs(uvs: FloatArray): FloatArray = FloatArray(uvs.size) { componentIndex -> uvs[componentIndex] + if (componentIndex % 2 == 0) 1f / 16384 else -1f / 16384 }
 
 	/**
 	 * The Object-mode rows: the whole-selection latch (one capture per eligible drawable) and the drive.

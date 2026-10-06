@@ -176,6 +176,10 @@ class PuppetRenderer(
 	private val overlayResidency = MeshOverlayResidency(device)
 	private val overlayEncoder = MeshOverlayEncoder(pipelines, sideTargets, overlayResidency)
 
+	// Each UV area's scene residency (its overlay's store and buffers), by the area's key, so two areas
+	// showing different surfaces never re-upload each other's meshes.  Render thread only.
+	private val uvScenes = HashMap<String, UvSceneResidency>()
+
 	// The live model used for the per-pose deform eval, the render order, and the reconcile diff. A var so
 	// an edit can re-push it via updateModel. @Volatile because the render thread writes it while the UI
 	// thread reads it (pickGeometry); a PuppetModel is immutable, so the reference swap is a safe publish.
@@ -279,6 +283,10 @@ class PuppetRenderer(
 	 * here because the device seam exposes no way to - they remain context-lifetime objects.
 	 */
 	fun disposeGl() {
+		for (scene in uvScenes.values) {
+			scene.dispose()
+		}
+		uvScenes.clear()
 		overlayResidency.dispose()
 		residency.dispose()
 		art.dispose()
@@ -748,14 +756,26 @@ class PuppetRenderer(
 	 * atlas, through the same premultiplied fragment shader, so the underlay matches the puppet's texel
 	 * rendering exactly.
 	 *
-	 * @param RenderTarget target         The surface to draw into.
-	 * @param Int          pageIndex      The atlas page to draw, or null for none.
-	 * @param Int          viewportWidth  The target width in pixels.
-	 * @param Int          viewportHeight The target height in pixels.
+	 * When the area's content carries a mesh overlay, it draws over the page in the same pass, from the
+	 * positions uploaded into the area's own store ([sceneKey] names the area; see [retainUvScenes]).
+	 *
+	 * @param RenderTarget       target         The surface to draw into.
+	 * @param Int                pageIndex      The atlas page to draw, or null for none.
+	 * @param Int                viewportWidth  The target width in pixels.
+	 * @param Int                viewportHeight The target height in pixels.
+	 * @param String             sceneKey       The UV area this render is for.
+	 * @param DirectMeshOverlay? overlay        The area's mesh overlay, or null for none.
 	 */
-	fun renderAtlasPage(target: RenderTarget, pageIndex: Int?, viewportWidth: Int, viewportHeight: Int) {
+	fun renderAtlasPage(
+		target: RenderTarget,
+		pageIndex: Int?,
+		viewportWidth: Int,
+		viewportHeight: Int,
+		sceneKey: String = "",
+		overlay: DirectMeshOverlay? = null,
+	) {
 		val page = pageIndex?.let { art.pageImage(it) }
-		renderUnderlay(target, page, pageIndex?.let { art.pageTexture(it) }, viewportWidth, viewportHeight)
+		renderUnderlay(target, page, pageIndex?.let { art.pageTexture(it) }, viewportWidth, viewportHeight, sceneKey, overlay)
 	}
 
 	/**
@@ -766,27 +786,58 @@ class PuppetRenderer(
 	 * swap) rather than one image at a time, a layer image arrives whenever the editor is pointed at
 	 * one, so its texture is created on first sight and cached.  A null image paints the grid only.
 	 *
-	 * @param RenderTarget target         The surface to draw into.
-	 * @param DecodedImage image          The image to draw, or null for none.
-	 * @param Int          viewportWidth  The target width in pixels.
-	 * @param Int          viewportHeight The target height in pixels.
+	 * @param RenderTarget       target         The surface to draw into.
+	 * @param DecodedImage       image          The image to draw, or null for none.
+	 * @param Int                viewportWidth  The target width in pixels.
+	 * @param Int                viewportHeight The target height in pixels.
+	 * @param String             sceneKey       The UV area this render is for.
+	 * @param DirectMeshOverlay? overlay        The area's mesh overlay, or null for none.
 	 */
-	fun renderUnderlayImage(target: RenderTarget, image: DecodedImage?, viewportWidth: Int, viewportHeight: Int) {
-		renderUnderlay(target, image, image?.let { backdrop.underlayTextureFor(it) }, viewportWidth, viewportHeight)
+	fun renderUnderlayImage(
+		target: RenderTarget,
+		image: DecodedImage?,
+		viewportWidth: Int,
+		viewportHeight: Int,
+		sceneKey: String = "",
+		overlay: DirectMeshOverlay? = null,
+	) {
+		renderUnderlay(target, image, image?.let { backdrop.underlayTextureFor(it) }, viewportWidth, viewportHeight, sceneKey, overlay)
 	}
 
 	/**
-	 * The flat underlay draw both UV scenes share: the themed grid backdrop, then the image as a single
-	 * textured quad at the world origin.  A null image or handle paints the grid alone.
+	 * Frees the scene residency of every UV area [keep] rejects: an area that closed, or stopped showing a
+	 * UV scene, gives its overlay store and buffers back.  Render thread only; the engine calls it once per
+	 * tick with the live UV areas.
 	 *
-	 * The quad samples through the same premultiplied fragment shader the puppet uses, so an underlay
-	 * matches the puppet's texel rendering exactly.
+	 * @param Function keep Whether the area of a key is still a live UV scene.
+	 */
+	fun retainUvScenes(keep: (String) -> Boolean) {
+		val entries = uvScenes.entries.iterator()
+		while (entries.hasNext()) {
+			val entry = entries.next()
+			if (!keep(entry.key)) {
+				entry.value.dispose()
+				entries.remove()
+			}
+		}
+	}
+
+	/**
+	 * The flat underlay frame both UV scenes share, in one pass: the themed grid backdrop bounded by the
+	 * shown surface (the surround color beyond it and the border just outside its edge), the image as a
+	 * single textured quad at the world origin, then the area's mesh overlay over it.  A null image or
+	 * handle paints the grid alone over a unit surface.
 	 *
-	 * @param RenderTarget  target         The surface to draw into.
-	 * @param DecodedImage? image          The image whose extent the quad and grid tile take, or null.
-	 * @param GpuTexture?   handle         The uploaded texture for [image], or null.
-	 * @param Int           viewportWidth  The target width in pixels.
-	 * @param Int           viewportHeight The target height in pixels.
+	 * The area's residency is brought to [overlay] BEFORE the frame opens, since its uploads are resource
+	 * operations; an area that shows no overlay frees its buffers and keeps its store.
+	 *
+	 * @param RenderTarget       target         The surface to draw into.
+	 * @param DecodedImage?      image          The image whose extent the quad and grid tile take, or null.
+	 * @param GpuTexture?        handle         The uploaded texture for [image], or null.
+	 * @param Int                viewportWidth  The target width in pixels.
+	 * @param Int                viewportHeight The target height in pixels.
+	 * @param String             sceneKey       The UV area this render is for.
+	 * @param DirectMeshOverlay? overlay        The area's mesh overlay, or null for none.
 	 */
 	private fun renderUnderlay(
 		target: RenderTarget,
@@ -794,7 +845,12 @@ class PuppetRenderer(
 		handle: GpuTexture?,
 		viewportWidth: Int,
 		viewportHeight: Int,
+		sceneKey: String,
+		overlay: DirectMeshOverlay?,
 	) {
+		val scene = if (overlay != null) uvScenes.getOrPut(sceneKey) { UvSceneResidency(device) } else uvScenes[sceneKey]
+		scene?.applyOverlay(overlay)
+		val palette = meshOverlayPalette
 		val camera = effectiveCamera(viewportWidth, viewportHeight)
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
 		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
@@ -804,8 +860,35 @@ class PuppetRenderer(
 		val majorSpacingY = image?.height?.toFloat() ?: gridScale
 
 		// The UV grid's unit tile starts at the image origin (UV 0,0 = image-pixel 0,0), so anchor at (0, 0).
-		val grid = GridUniforms(affine, viewportWidth, viewportHeight, 0f, 0f, majorSpacingX, majorSpacingY, gridSubdivisions, gridPixelScale, gridColors)
-		backdrop.encodeUnderlay(target, image, handle, grid)
+		// The surface is the image's tile, or the unit square an untextured mesh's UVs map into.
+		val surface = ContentBounds(0f, 0f, image?.width?.toFloat() ?: 1f, image?.height?.toFloat() ?: 1f)
+		val grid =
+			GridUniforms(
+				affine,
+				viewportWidth,
+				viewportHeight,
+				0f,
+				0f,
+				majorSpacingX,
+				majorSpacingY,
+				gridSubdivisions,
+				gridPixelScale,
+				gridColors,
+				surface = surface,
+				frameWidthPx = gridColors.frameWidthPx * gridPixelScale,
+			)
+		val frame = device.beginFrame()
+		val pass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
+		backdrop.encodeUnderlay(pass, image, handle, grid)
+		if (scene != null) {
+			overlayEncoder.encodeDirectDraws(
+				pass,
+				scene,
+				OverlayFrame(affine, viewportWidth, viewportHeight, gridPixelScale, palette, viewportWidth, viewportHeight),
+			)
+		}
+		pass.end()
+		frame.endFrame()
 	}
 
 	/**

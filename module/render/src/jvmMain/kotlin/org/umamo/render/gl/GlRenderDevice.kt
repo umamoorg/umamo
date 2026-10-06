@@ -270,6 +270,21 @@ class GlRenderDevice : RenderDevice {
 		}
 	}
 
+	override fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray) {
+		val glStore = store as GlDeformedPositionStore
+		check(positions.size % 2 == 0) { "positions come in x, y pairs: ${positions.size} floats" }
+		check(vertexOffset >= 0 && vertexOffset + positions.size / 2 <= glStore.vertexCapacity) {
+			"${positions.size / 2} vertices at $vertexOffset overrun a store of ${glStore.vertexCapacity}"
+		}
+		if (uploadScratch.capacity() < positions.size) {
+			uploadScratch = BufferUtils.createFloatBuffer(positions.size)
+		}
+		uploadScratch.clear()
+		uploadScratch.put(positions).flip()
+		GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, glStore.buffer)
+		GL15.glBufferSubData(GL31.GL_TEXTURE_BUFFER, vertexOffset.toLong() * 2 * Float.SIZE_BYTES, uploadScratch)
+	}
+
 	override fun destroyDeformedPositionStore(store: DeformedPositionStore) {
 		val glStore = store as GlDeformedPositionStore
 		GL11.glDeleteTextures(glStore.textureBuffer)

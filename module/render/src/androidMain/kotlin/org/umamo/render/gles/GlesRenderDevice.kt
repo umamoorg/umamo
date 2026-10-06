@@ -94,6 +94,9 @@ class GlesRenderDevice : RenderDevice {
 
 	override fun destroyRenderTarget(target: RenderTarget): Unit = TODO("GLES port")
 
+	override fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray): Unit =
+		TODO("GLES port: glTexSubImage2D over the rows the vertices span in the RG32F 2D-texture store, or glBufferSubData on an ES 3.2 texture buffer")
+
 	override fun destroyDeformedPositionStore(store: DeformedPositionStore): Unit =
 		TODO("GLES port: glDeleteTextures + glDeleteBuffers of the store's texture buffer and buffer (texture buffers are core in ES 3.2)")
 
