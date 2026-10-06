@@ -91,10 +91,12 @@ internal fun uvDriveJobs(transform: ModalTransformCapture): List<UvDriveJob> =
 internal fun computeUvDrive(request: UvDriveRequest): UvDriveResult {
 	val preview = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
 	val storedUvs = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
+
 	for (job in request.jobs) {
 		val transformedDisplay = applyOperator(request.operator, job.positions, job.groups, request.parameters, job.influence)
 		preview[job.drawableId] = transformedDisplay
 		storedUvs[job.drawableId] = request.frame.storedUvs(transformedDisplay)
 	}
+
 	return UvDriveResult(preview, storedUvs, request.baseModel.withMeshUvs(storedUvs))
 }

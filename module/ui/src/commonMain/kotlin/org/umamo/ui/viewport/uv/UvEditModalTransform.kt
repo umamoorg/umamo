@@ -115,13 +115,17 @@ internal class UvEditModalTransform(
 		val sources = ArrayList<ModalCaptureSource>()
 		for (geometry in geometries) {
 			val elements = selection.elementsOf(geometry.drawableId)
+
 			if (elements.isEmpty()) {
 				continue
 			}
+
 			val coveredIndices = MeshTopology.coveredVertexIndices(elements, geometry.indices)
+
 			if (coveredIndices.isEmpty()) {
 				continue
 			}
+
 			sources.add(ModalCaptureSource(geometry.drawableId, geometry.positions.copyOf(), geometry.indices, coveredIndices))
 		}
 
@@ -160,6 +164,7 @@ internal class UvEditModalTransform(
 	 */
 	fun reapplyProportional(state: ProportionalEditState?) {
 		val gestureData = gesture.capture
+
 		if (gestureData != null && session.activeUvOperator.value != null) {
 			gestureData.transform.applyProportional(state, resolvedProportionalRadius(gestureData.proportionalRadius, gestureData.frame))
 		}
@@ -183,6 +188,7 @@ internal class UvEditModalTransform(
 			val transform = gestureData.transform
 			val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
 			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(request.jobs.size)
+
 			for (job in request.jobs) {
 				val transformed = committed[job.drawableId] ?: continue
 				// Only the moved vertices are written; untouched ones keep their exact stored values (see
@@ -194,9 +200,12 @@ internal class UvEditModalTransform(
 				// computed these coordinates moved them.
 				vertexIndicesByDrawable[job.drawableId] = job.movedIndices.toList()
 			}
+
 			if (newUvsByDrawable.isNotEmpty()) {
 				val modelBefore = session.model.value
+
 				session.commitMeshUvs(MeshChange.TransformUvs(vertexIndicesByDrawable, transform.operatorKind), newUvsByDrawable)
+
 				// The strip's rows for the step just pushed, over the RETAINED capture and frame so an
 				// adjustment replays the same frozen coordinates - registered before the operator clears,
 				// since the teardown drops the capture.  A commit that recorded nothing has no step to amend.

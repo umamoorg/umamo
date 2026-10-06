@@ -52,6 +52,7 @@ internal abstract class UvModalTransform<TCapture>(
 	final override fun drivePreview(virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean {
 		// Defensive ownership check (the pointer loop already gates): only the initiating area drives.
 		val operator = ownedOperator() ?: return false
+
 		return submitDrive(operator.kind, virtualPointer, camera, size)
 	}
 
