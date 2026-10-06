@@ -1,20 +1,10 @@
 package org.umamo.ui.viewport.viewport2d
 
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asComposeCanvas
-import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
-import org.jetbrains.skia.PictureRecorder
-import org.jetbrains.skia.Rect
-import org.jetbrains.skia.Surface
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.withMeshPositions
@@ -23,9 +13,9 @@ import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.ContentBounds
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
+import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.Deformer
-import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasKeyByDrawable
@@ -34,13 +24,9 @@ import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.runtime.model.pickableIndicesByDrawable
 import org.umamo.runtime.model.pickableUvsByDrawable
 import org.umamo.ui.graphics.RgbaAlphaType
-import org.umamo.ui.graphics.parseHexColor
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import org.umamo.ui.transform.DrawableWorldGeometry
-import org.umamo.ui.viewport.ViewportColorSettings
-import org.umamo.ui.viewport.ViewportOverlayColors
-import org.umamo.ui.viewport.gizmo.MeshHighlightSets
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.gestureParameters
@@ -59,11 +45,11 @@ private const val LABEL_WIDTH = 86
 /**
  * Print-only Edit-mode and Object-mode Grab perf probe on the moc3.perfSample model (modelF by default:
  * 1330 drawables, 220k vertices): the wall time of each stage of the UI-thread work a whole-selection
- * Grab does - the per-commit geometry capture, the latch, the per-pointer-event drive and its halves,
- * the per-push picker rebuild, and the Edit overlay's per-frame re-pose, wireframe record, and wireframe
- * raster - plus the Object-mode latch and drive over the same rig.  The wireframe is recorded into a
- * Skia picture and then rasterized onto a CPU surface, so the record and the raster are separate rows;
- * the app rasterizes through GPU-backed Skia, which this cannot measure.  Pins nothing - see
+ * Grab does - the per-commit geometry capture, the mesh overlay's derive (cold on Edit entry, warm when
+ * a commit moved positions only, and with one mesh's selection changed), the latch, the per-pointer-event
+ * drive and its halves, the per-push picker rebuild, and the frame image conversion - plus the
+ * Object-mode latch and drive over the same rig.  The overlay's draw is the renderer's, measured by the
+ * render-side probe.  Pins nothing - see
  * docs/plan/edit-mode-performance.md for the numbers and what each phase is expected to move.  Skips
  * without the corpus.  Standard streams are off in the build, so the rows show with --info or in
  * build/test-results.
@@ -148,7 +134,7 @@ class EditGrabPerfProbeTest {
 		report("session: edit meshes=${drawableIds.size} selectedElements=${drawableIds.sumOf { drawableId -> meshSelection.elementsOf(drawableId).size }}")
 
 		val liveGeometry = timed("A1 editMeshGeometries [once per commit; also the latch's input]", 3) { editMeshGeometries(model, drawableIds) }
-		val highlights = timed("A2 editHighlights [once per selection change]", 3) { editHighlights(meshSelection, liveGeometry) }
+		probeOverlayDerive(model, meshSelection)
 
 		val modalTransform = EditModalTransform(PROBE_AREA_ID, session) { folded -> pushed.add(folded) }
 		session.beginMeshOperator(MeshOperatorKind.Grab, PROBE_AREA_ID)
@@ -171,7 +157,7 @@ class EditGrabPerfProbeTest {
 		}
 		probeDriveHalves(capture.transform, capture.geometryById, model, camera, size)
 		probePushRebuilds(model, previews)
-		probeFrameRows(liveGeometry, highlights, meshSelection, previews, camera, size)
+		probeFrameImage()
 		session.clearMeshOperator()
 		modalTransform.end()
 	}
@@ -237,93 +223,35 @@ class EditGrabPerfProbeTest {
 	}
 
 	/**
-	 * The Edit overlay's per-rendered-frame work: the re-pose of every moving mesh, then the wireframe
-	 * record and raster in vertex and edge modes, then the frame image conversion.
+	 * The mesh overlay's derive over the whole selection: a fresh producer (every mesh's edges and flags,
+	 * as on Edit entry), the same inputs again (a commit that moved positions only, which must hand back
+	 * the same instance), and one mesh's selection changing back and forth (a click or a brush stamp).
 	 *
-	 * @param List<EditMeshGeometry> liveGeometry The session meshes' live geometry.
-	 * @param Map highlights The vertex-mode highlight sets.
+	 * @param PuppetModel model The committed model.
 	 * @param MeshSelection meshSelection The whole-selection mesh selection.
-	 * @param List<PuppetModel> previews The drives' preview models, oldest first.
-	 * @param ViewportCamera camera The area camera.
-	 * @param IntSize size The area size in pixels.
 	 */
-	private fun probeFrameRows(
-		liveGeometry: List<EditMeshGeometry>,
-		highlights: Map<DrawableId, MeshHighlightSets>,
-		meshSelection: MeshSelection,
-		previews: List<PuppetModel>,
-		camera: ViewportCamera,
-		size: IntSize,
-	) {
-		val reuse = HashMap<DrawableId, Pair<Drawable, FrameMeshGeometry>>()
-		timed("D1 frameMeshGeometries (re-pose every moving mesh) [per rendered frame, UI thread]") { round ->
-			frameMeshGeometries(previews[round % previews.size], liveGeometry, reuse)
+	private fun probeOverlayDerive(model: PuppetModel, meshSelection: MeshSelection) {
+		val sizes = MeshOverlaySizes(3.5f, 1f, 2.5f)
+		timed("A2 mesh overlay derive, cold (every mesh's edges and flags) [on Edit entry]", 3) {
+			EditMeshOverlayProducer().produce(EditorMode.Edit, meshSelection, model, sizes)
 		}
-		val frameGeometry = frameMeshGeometries(previews.last(), liveGeometry, HashMap())
-		val colors = defaultOverlayColors()
-		val surface = Surface.makeRasterN32Premul(areaWidth, areaHeight)
-		for (selectMode in listOf(MeshSelectMode.Vertex, MeshSelectMode.Edge)) {
-			val modeHighlights =
-				if (selectMode == meshSelection.selectMode) {
-					highlights
-				} else {
-					editHighlights(meshSelection.copy(selectMode = selectMode), liveGeometry)
-				}
-			probeWireframe(selectMode, liveGeometry, modeHighlights, frameGeometry, colors, camera, size, surface)
+		val producer = EditMeshOverlayProducer()
+		val first = producer.produce(EditorMode.Edit, meshSelection, model, sizes)
+		val warm = timed("A2w mesh overlay derive, warm (nothing it shows changed) [per positions-only commit]") { producer.produce(EditorMode.Edit, meshSelection, model, sizes) }
+		report("A2w handed back the same instance: ${warm === first}")
+		val firstId = meshSelection.drawableIds.first()
+		val trimmed = meshSelection.copy(elementsByDrawable = meshSelection.elementsByDrawable + (firstId to meshSelection.elementsOf(firstId).drop(1).toSet()))
+		timed("A2s mesh overlay derive, one mesh's selection changed [per click or brush stamp]") { round ->
+			producer.produce(EditorMode.Edit, if (round % 2 == 0) trimmed else meshSelection, model, sizes)
 		}
-		surface.close()
+	}
+
+	/** The frame image conversion every rendered frame pays on the render thread. */
+	private fun probeFrameImage() {
 		val rgba = ByteArray(areaWidth * areaHeight * 4)
 		timed("F1 rgbaToImageBitmap ${areaWidth}x$areaHeight [per rendered frame, render thread]") {
 			rgbaToImageBitmap(rgba, areaWidth, areaHeight, RgbaAlphaType.Opaque)
 		}
-	}
-
-	/**
-	 * Records the wireframe pass into a Skia picture and rasterizes it onto [surface], [rounds] times,
-	 * printing the record and the raster as separate rows.
-	 *
-	 * @param MeshSelectMode selectMode The select mode drawn.
-	 * @param List<EditMeshGeometry> liveGeometry The session meshes' live geometry.
-	 * @param Map highlights The highlight sets for [selectMode].
-	 * @param Map frameGeometry The displayed frame's geometry per mesh.
-	 * @param ViewportOverlayColors colors The mesh gizmo palette.
-	 * @param ViewportCamera camera The area camera.
-	 * @param IntSize size The area size in pixels.
-	 * @param Surface surface The CPU raster surface the picture plays back onto.
-	 */
-	private fun probeWireframe(
-		selectMode: MeshSelectMode,
-		liveGeometry: List<EditMeshGeometry>,
-		highlights: Map<DrawableId, MeshHighlightSets>,
-		frameGeometry: Map<DrawableId, FrameMeshGeometry>,
-		colors: ViewportOverlayColors,
-		camera: ViewportCamera,
-		size: IntSize,
-		surface: Surface,
-	) {
-		val recordTimes = ArrayList<Long>(rounds)
-		val rasterTimes = ArrayList<Long>(rounds)
-		val areaSize = Size(areaWidth.toFloat(), areaHeight.toFloat())
-		repeat(rounds) {
-			val recorder = PictureRecorder()
-			val recordCanvas = recorder.beginRecording(Rect.makeWH(areaSize.width, areaSize.height))
-			val recordStart = System.nanoTime()
-			CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, recordCanvas.asComposeCanvas(), areaSize) {
-				drawEditWireframes(liveGeometry, highlights, frameGeometry, selectMode, colors, camera, size)
-			}
-			val picture = recorder.finishRecordingAsPicture()
-			val recordEnd = System.nanoTime()
-			surface.canvas.clear(0)
-			surface.canvas.drawPicture(picture)
-			surface.flushAndSubmit()
-			val rasterEnd = System.nanoTime()
-			recordTimes.add(recordEnd - recordStart)
-			rasterTimes.add(rasterEnd - recordEnd)
-			picture.close()
-			recorder.close()
-		}
-		stats("E1 drawEditWireframes RECORD ($selectMode mode) [per rendered frame, UI thread]", recordTimes)
-		stats("E2 drawEditWireframes RASTER on CPU Skia ($selectMode mode) [per rendered frame]", rasterTimes)
 	}
 
 	/**
@@ -372,39 +300,6 @@ class EditGrabPerfProbeTest {
 		}
 		return ViewportCamera.fit(ContentBounds(minX, minWorldY, maxX - minX, maxWorldY - minWorldY), areaWidth, areaHeight)
 	}
-
-	/**
-	 * The mesh gizmo palette at its settings defaults.
-	 *
-	 * @return ViewportOverlayColors The palette.
-	 */
-	private fun defaultOverlayColors(): ViewportOverlayColors =
-		ViewportOverlayColors(
-			vertexIdle = defaultColor(ViewportColorSettings.VERTEX_IDLE_DEFAULT),
-			vertexSelected = defaultColor(ViewportColorSettings.VERTEX_SELECTED_DEFAULT),
-			vertexActive = defaultColor(ViewportColorSettings.VERTEX_ACTIVE_DEFAULT),
-			vertexOffKey = defaultColor(ViewportColorSettings.VERTEX_OFFKEY_DEFAULT),
-			edgeIdle = defaultColor(ViewportColorSettings.EDGE_IDLE_DEFAULT),
-			edgeSelected = defaultColor(ViewportColorSettings.EDGE_SELECTED_DEFAULT),
-			edgeActive = defaultColor(ViewportColorSettings.EDGE_ACTIVE_DEFAULT),
-			edgeOffKey = defaultColor(ViewportColorSettings.EDGE_OFFKEY_DEFAULT),
-			faceIdle = defaultColor(ViewportColorSettings.FACE_IDLE_DEFAULT),
-			faceSelected = defaultColor(ViewportColorSettings.FACE_SELECTED_DEFAULT),
-			faceActive = defaultColor(ViewportColorSettings.FACE_ACTIVE_DEFAULT),
-			faceOffKey = defaultColor(ViewportColorSettings.FACE_OFFKEY_DEFAULT),
-			warning = defaultColor(ViewportColorSettings.WARNING_COLOR_DEFAULT),
-			pinnedPlacement = defaultColor(ViewportColorSettings.PINNED_PLACEMENT_COLOR_DEFAULT),
-			selectionHighlight = defaultColor(ViewportColorSettings.SELECTION_HIGHLIGHT_DEFAULT),
-			activeSelectionHighlight = defaultColor(ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_DEFAULT),
-		)
-
-	/**
-	 * One settings default parsed to a color; the defaults are literals, so a parse failure is a bug.
-	 *
-	 * @param String hex The default's hex text.
-	 * @return Color The color.
-	 */
-	private fun defaultColor(hex: String): Color = checkNotNull(parseHexColor(hex)) { "unparseable default color $hex" }
 
 	/**
 	 * The virtual pointer for one drive round: a different landing per round, so no drive is a no-op.

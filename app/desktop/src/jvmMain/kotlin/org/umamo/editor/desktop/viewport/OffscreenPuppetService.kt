@@ -15,6 +15,8 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.capturedOver
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.ModelUpdateKind
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
@@ -37,8 +39,8 @@ import org.umamo.ui.viewport.UvSceneContent
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
  *   - [EngineRenderInputs] - the render inputs the UI thread publishes (selection / shown / model / atlas
- *     pages / source artwork / grid / highlight colors / supersample policy), each a volatile swap that
- *     bumps the engine's freshness.
+ *     pages / source artwork / grid / highlight colors / mesh overlay and palette / supersample policy),
+ *     each a volatile swap that bumps the engine's freshness.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
  *     async read-back, and reads those inputs each frame.
  *   - [ViewportPicker] - CPU hit-testing and art thumbnails, on the UI thread (no GL).
@@ -178,6 +180,10 @@ class OffscreenPuppetService(
 
 	override fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float) =
 		inputs.setActiveSelectionHighlightColor(red, green, blue)
+
+	override fun setMeshOverlay(overlay: MeshOverlay?) = inputs.setMeshOverlay(overlay)
+
+	override fun setMeshOverlayPalette(palette: MeshOverlayPalette) = inputs.setMeshOverlayPalette(palette)
 
 	override fun pickAt(areaId: String, cursorXpx: Float, cursorYpx: Float): DrawableId? {
 		val view = registry.viewFor(areaId) ?: return null

@@ -212,3 +212,29 @@ public data class AxisLineUniforms(
 	val green: Float,
 	val blue: Float,
 )
+
+/**
+ * One mesh-overlay draw's inputs.  MUTABLE AND REUSED on the [DeformUniforms] contract: the backend
+ * marshals every field at the draw and retains nothing.
+ *
+ * The camera comes from [RenderPassEncoder.setCamera]; the viewport here is the PASS viewport in
+ * framebuffer pixels (not the side-target capacity the screen-texture size names), since the lines and
+ * dots are expanded in pixels.  The size is the line half-width or the dot radius, with the render scale
+ * already applied.  The colors are STRAIGHT RGBA; the shader premultiplies.  An active draw paints ONE
+ * primitive, the one at the active indices (a vertex uses A, an edge A and B, a triangle all three), in
+ * the active color, ignoring the instance buffers.
+ */
+public class OverlayDrawUniforms {
+	var baseOffset: Int = 0
+	var viewportWidth: Float = 0f
+	var viewportHeight: Float = 0f
+	var sizePx: Float = 0f
+	var fillIdle: Boolean = true
+	val idleColor: FloatArray = FloatArray(4)
+	val selectedColor: FloatArray = FloatArray(4)
+	val activeColor: FloatArray = FloatArray(4)
+	var activeDraw: Boolean = false
+	var activeIndexA: Int = -1
+	var activeIndexB: Int = -1
+	var activeIndexC: Int = -1
+}

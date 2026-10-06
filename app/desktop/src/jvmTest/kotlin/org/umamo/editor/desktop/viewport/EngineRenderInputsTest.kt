@@ -5,7 +5,14 @@ import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayKind
+import org.umamo.render.puppet.MeshOverlayMesh
+import org.umamo.render.puppet.MeshOverlayPalette
+import org.umamo.render.puppet.MeshOverlaySelectMode
+import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.ModelUpdateKind
+import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
@@ -100,6 +107,8 @@ class EngineRenderInputsTest {
 		inputs.setSelectionHighlightColor(0.20f, 0.55f, 1.0f)
 		inputs.setActiveSelectionHighlightColor(0.49f, 0.89f, 0.0f)
 		inputs.setSourceLayerPlan(LayerDrawPlan.EMPTY)
+		inputs.setMeshOverlay(null)
+		inputs.setMeshOverlayPalette(MeshOverlayPalette.Classic)
 		assertNull(inputs.setModel(model), "the same model instance is reported as no change")
 		assertBumps(inputs, 0, 0, "identical values")
 	}
@@ -191,4 +200,52 @@ class EngineRenderInputsTest {
 		assertNull(inputs.setModel(renamed))
 		assertBumps(inputs, 2, 0, "the same instance again")
 	}
+
+	/**
+	 * The mesh overlay publishes by identity: a new instance bumps the puppet version once, the same one
+	 * again does nothing, and an equal-looking new instance still counts (the producer hands back the
+	 * same instance whenever nothing it shows changed, so a new one means new content).
+	 */
+	@Test
+	fun aMeshOverlayPublishBumpsOnlyOnANewInstance() {
+		val inputs = inputs()
+		val first = overlayOverTheProbe()
+		inputs.setMeshOverlay(first)
+		assertSame(first, inputs.meshOverlay)
+		assertBumps(inputs, 1, 0, "a first overlay")
+		inputs.setMeshOverlay(first)
+		assertBumps(inputs, 1, 0, "the same instance again")
+		inputs.setMeshOverlay(overlayOverTheProbe())
+		assertBumps(inputs, 2, 0, "a new instance over the same meshes")
+		inputs.setMeshOverlay(null)
+		assertNull(inputs.meshOverlay)
+		assertBumps(inputs, 3, 0, "taking the overlay down")
+		inputs.setMeshOverlay(null)
+		assertBumps(inputs, 3, 0, "none again")
+	}
+
+	/** The palette publishes by equality: an equal copy is a no-op, a changed color bumps the puppet version. */
+	@Test
+	fun aMeshOverlayPaletteBumpsOnlyOnAChange() {
+		val inputs = inputs()
+		inputs.setMeshOverlayPalette(MeshOverlayPalette.Classic.copy())
+		assertBumps(inputs, 0, 0, "an equal palette, another instance")
+		val magentaFaces = MeshOverlayPalette.Classic.copy(faceSelected = OverlayColor(1f, 0f, 1f, 1f))
+		inputs.setMeshOverlayPalette(magentaFaces)
+		assertEquals(magentaFaces, inputs.meshOverlayPalette)
+		assertBumps(inputs, 1, 0, "a changed color")
+	}
+
+	/**
+	 * An Edit overlay over the probe quad with nothing selected.
+	 *
+	 * @return MeshOverlay The overlay.
+	 */
+	private fun overlayOverTheProbe(): MeshOverlay =
+		MeshOverlay(
+			MeshOverlayKind.Edit,
+			MeshOverlaySelectMode.Vertex,
+			listOf(MeshOverlayMesh(probeId, 4, intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3), ByteArray(0), ByteArray(0), ByteArray(0), null, null, null)),
+			MeshOverlaySizes(3.5f, 1f, 2.5f),
+		)
 }

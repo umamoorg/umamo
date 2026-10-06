@@ -31,6 +31,13 @@ internal class DrawPipelines(
 	private var compositePipeline: RenderPipeline? = null
 	private var capturePipeline: DeformCapturePipeline? = null
 
+	// The mesh overlay's four pipelines are created on the first overlay frame, not in create(), so a
+	// renderer that never shows an overlay (a capture, a UV area) links nothing for it.
+	private var overlayFaceFillPipeline: RenderPipeline? = null
+	private var overlayEdgePipeline: RenderPipeline? = null
+	private var overlayVertexDotPipeline: RenderPipeline? = null
+	private var overlayFaceDotPipeline: RenderPipeline? = null
+
 	/** The pipeline that captures glue meshes' deformed positions.  Read only after [create]. */
 	val capture: DeformCapturePipeline get() = capturePipeline!!
 
@@ -45,6 +52,22 @@ internal class DrawPipelines(
 
 	/** The pipeline that composites a rendered layer over its destination.  Read only after [create]. */
 	val composite: RenderPipeline get() = compositePipeline!!
+
+	/** The overlay's face-fill pipeline, created on first use. */
+	val overlayFaceFill: RenderPipeline
+		get() = overlayFaceFillPipeline ?: overlayPipeline(PipelinePurpose.OverlayFaceFill).also { created -> overlayFaceFillPipeline = created }
+
+	/** The overlay's edge pipeline, created on first use. */
+	val overlayEdge: RenderPipeline
+		get() = overlayEdgePipeline ?: overlayPipeline(PipelinePurpose.OverlayEdge).also { created -> overlayEdgePipeline = created }
+
+	/** The overlay's vertex-dot pipeline, created on first use. */
+	val overlayVertexDot: RenderPipeline
+		get() = overlayVertexDotPipeline ?: overlayPipeline(PipelinePurpose.OverlayVertexDot).also { created -> overlayVertexDotPipeline = created }
+
+	/** The overlay's face-dot pipeline, created on first use. */
+	val overlayFaceDot: RenderPipeline
+		get() = overlayFaceDotPipeline ?: overlayPipeline(PipelinePurpose.OverlayFaceDot).also { created -> overlayFaceDotPipeline = created }
 
 	/** Creates the fixed-purpose pipelines.  Must run with the device's context current. */
 	fun create() {
@@ -72,6 +95,15 @@ internal class DrawPipelines(
 			device.createRenderPipeline(RenderPipelineSpec(purpose, blendOf(blendMode), cullBackFaces))
 		}
 	}
+
+	/**
+	 * One overlay pipeline: every overlay domain blends Normal over the art, premultiplied in-shader,
+	 * and culls nothing.
+	 *
+	 * @param PipelinePurpose purpose The overlay domain.
+	 * @return RenderPipeline The pipeline.
+	 */
+	private fun overlayPipeline(purpose: PipelinePurpose): RenderPipeline = device.createRenderPipeline(RenderPipelineSpec(purpose, PipelineBlend.Normal))
 
 	/**
 	 * The fixed-function blend a drawable's blend mode draws with.

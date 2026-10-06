@@ -8,61 +8,17 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveOperator
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.render.ViewportCamera
-import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.SelectionOverlayStyle
 import org.umamo.ui.theme.drawRubberBand
-import org.umamo.ui.viewport.ViewportOverlayColors
 import org.umamo.ui.viewport.gizmo.MarqueeSelectController
-import org.umamo.ui.viewport.gizmo.MeshHighlightSets
 import org.umamo.ui.viewport.gizmo.ModalGestureState
-import org.umamo.ui.viewport.gizmo.drawMeshWireframe
 import org.umamo.ui.viewport.gizmo.drawOwnedModalTransformHud
 import org.umamo.ui.viewport.gizmo.drawSelectToolAffordances
-
-/**
- * Draws every session mesh from the DISPLAYED frame's geometry, so the wireframes lag together with the
- * raster during a transform instead of leading it (the preview still feeds the commit, just not the
- * draw).  Falls back to the live session shape only when the frame lacks a drawable - a pathological
- * transient.
- *
- * @param List<EditMeshGeometry> geometries The session meshes' live geometry.
- * @param Map highlightByDrawable What each mesh highlights; a mesh with no entry is not drawn.
- * @param Map frameGeometryByDrawable The displayed frame's geometry per mesh.
- * @param MeshSelectMode selectMode The domain the highlight shows (the live circle stroke's, mid-stroke).
- * @param ViewportOverlayColors colors The mesh gizmo palette.
- * @param ViewportCamera camera The camera the displayed frame was rendered at.
- * @param IntSize size The area size in pixels.
- */
-internal fun DrawScope.drawEditWireframes(
-	geometries: List<EditMeshGeometry>,
-	highlightByDrawable: Map<DrawableId, MeshHighlightSets>,
-	frameGeometryByDrawable: Map<DrawableId, FrameMeshGeometry>,
-	selectMode: MeshSelectMode,
-	colors: ViewportOverlayColors,
-	camera: ViewportCamera,
-	size: IntSize,
-) {
-	for (geometry in geometries) {
-		val highlight = highlightByDrawable[geometry.drawableId] ?: continue
-		val frameGeometry = frameGeometryByDrawable[geometry.drawableId]
-		drawMeshWireframe(
-			positions = frameGeometry?.worldPosed ?: geometry.worldPosed,
-			indices = frameGeometry?.indices ?: geometry.mesh.indices,
-			edges = frameGeometry?.edges ?: geometry.edges,
-			highlight = highlight,
-			selectMode = selectMode,
-			colors = colors,
-			camera = camera,
-			size = size,
-		)
-	}
-}
 
 /**
  * Draws the Edit overlay's gesture chrome: the rubber band, the armed select tool's affordance, and the

@@ -75,4 +75,24 @@ class EditGizmoRecompositionTest {
 
 			assertNothingRan(counter, "a radius and an axis change")
 		}
+
+	/**
+	 * Painting with the circle brush publishes the stroke to the session for the renderer's overlay and
+	 * runs no composable: nothing that composes reads the stroke.
+	 */
+	@Test
+	fun aCircleStampRunsNothing() =
+		countingGizmoRuns { counter ->
+			val fixture = mountGizmoOverlays(gizmoEditSession())
+			fixture.session.beginCircleSelect(LEFT_AREA)
+			waitForIdle()
+			pressIn(LEFT_AREA, rigScreenOf(20f, -20f))
+			waitForIdle()
+			counter.reset()
+
+			moveIn(LEFT_AREA, listOf(rigScreenOf(10f, -20f), rigScreenOf(0f, -20f), rigScreenOf(0f, -10f)))
+
+			assertNothingRan(counter, "a circle stroke's stamps")
+			releaseIn(LEFT_AREA)
+		}
 }

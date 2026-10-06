@@ -12,6 +12,8 @@ import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
@@ -19,12 +21,19 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 
 /**
  * A render service with no renderer behind it, for tests of the viewport overlays: it records every model
- * an overlay pushes through [setModel] (a gesture's previews and the resync that ends it) and answers the
- * picks from a table the test fills.  Everything else does nothing, since no overlay under test reads it.
+ * an overlay pushes through [setModel] (a gesture's previews and the resync that ends it), every mesh
+ * overlay and palette published to it, and answers the picks from a table the test fills.  Everything else
+ * does nothing, since no overlay under test reads it.
  */
 internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every model pushed through [setModel], oldest first. */
 	val pushedModels = ArrayList<PuppetModel>()
+
+	/** Every mesh overlay published through [setMeshOverlay], oldest first, nulls included. */
+	val pushedOverlays = ArrayList<MeshOverlay?>()
+
+	/** Every palette published through [setMeshOverlayPalette], oldest first. */
+	val pushedPalettes = ArrayList<MeshOverlayPalette>()
 
 	/** What [pickAllAt] answers per area, front-most first; an area with no entry answers nothing. */
 	val stackByArea = HashMap<String, List<PickCandidate>>()
@@ -254,6 +263,24 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	 * @param Float blue The blue channel.
 	 */
 	override fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float) {}
+
+	/**
+	 * Records the overlay.
+	 *
+	 * @param MeshOverlay? overlay The overlay, or null.
+	 */
+	override fun setMeshOverlay(overlay: MeshOverlay?) {
+		pushedOverlays.add(overlay)
+	}
+
+	/**
+	 * Records the palette.
+	 *
+	 * @param MeshOverlayPalette palette The palette.
+	 */
+	override fun setMeshOverlayPalette(palette: MeshOverlayPalette) {
+		pushedPalettes.add(palette)
+	}
 
 	/**
 	 * The front-most entry of the area's stack.

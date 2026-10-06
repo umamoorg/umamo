@@ -43,7 +43,7 @@ internal class EditMeshGeometry(
 	/** The displayed shape projected to world space. */
 	val worldPosed: FloatArray get() = worldGeometry.world
 
-	/** The geometry-source-agnostic view the shared element queries and wireframe draw take. */
+	/** The geometry-source-agnostic view the shared element queries take. */
 	val gizmo = GizmoMeshGeometry(drawableId, mesh.indices, edges, worldGeometry.world)
 
 	/**

@@ -5,6 +5,8 @@ import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.ModelUpdateKind
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
@@ -15,8 +17,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * The render inputs the UI thread pushes and the render thread reads each frame: the selection, the
- * shown set, the model, the atlas pages, the source artwork, the grid, the highlight colors, and the
- * supersample policy.  Each is a volatile publish of an immutable value or a plain scalar.  A change
+ * shown set, the model, the atlas pages, the source artwork, the grid, the highlight colors, the mesh
+ * overlay and its palette, and the supersample policy.  Each is a volatile publish of an immutable value or a plain scalar.  A change
  * bumps a render-version counter the loop folds into per-area freshness, so a state-only change (no
  * resize / pose / camera change) still forces exactly one redraw: the puppet areas watch
  * [puppetRenderBump]; the UV editor's flat scenes (atlas page, source layer) watch [atlasRenderBump],
@@ -70,6 +72,15 @@ internal class EngineRenderInputs(
 	// volatile slot because deliveries are chunked - two batches landing between frames must both be
 	// taken up, where a slot would silently drop the first.
 	private val pendingRasterBatches = ConcurrentLinkedQueue<LayerRasterBatch>()
+
+	// The Edit-mode mesh overlay every puppet area draws over the art, or null for none.  Published whole and
+	// compared by identity: the producer hands back the same instance while nothing it shows has changed.
+	@Volatile
+	private var meshOverlayBacking: MeshOverlay? = null
+
+	// The nine overlay colors, from settings; Classic until the host pushes the user's.
+	@Volatile
+	private var meshOverlayPaletteBacking: MeshOverlayPalette = MeshOverlayPalette.Classic
 
 	// The latest model, re-pushed on a structural edit (layer reorder / reparent, base-mesh move); seeded
 	// with the open model.
@@ -167,6 +178,14 @@ internal class EngineRenderInputs(
 	/** The latest page binding published; the loop applies it paired with the model it was composed for. */
 	val atlasBinding: AtlasPageBinding
 		get() = atlasBindingBacking
+
+	/** The mesh overlay as last pushed, or null when none is shown. */
+	val meshOverlay: MeshOverlay?
+		get() = meshOverlayBacking
+
+	/** The mesh overlay's colors as last pushed. */
+	val meshOverlayPalette: MeshOverlayPalette
+		get() = meshOverlayPaletteBacking
 
 	/**
 	 * Takes the next decoded artwork batch waiting for upload, or null when none is.  The render thread
@@ -341,6 +360,35 @@ internal class EngineRenderInputs(
 			activeHighlightRed = red
 			activeHighlightGreen = green
 			activeHighlightBlue = blue
+			doPuppetRenderBump()
+		}
+	}
+
+	/**
+	 * Sets the mesh overlay every puppet area draws.  A new instance bumps the puppet render version AFTER
+	 * the value is stored, and the loop hands the value to the renderer only after it reads the version
+	 * for a render, so a publish that lands mid-render always earns that area another one.  The same
+	 * instance again is a no-op: the overlay holds no positions, so nothing a gesture's preview moves
+	 * re-publishes it.
+	 *
+	 * @param MeshOverlay? overlay The overlay, or null for none.
+	 */
+	fun setMeshOverlay(overlay: MeshOverlay?) {
+		if (overlay !== meshOverlayBacking) {
+			meshOverlayBacking = overlay
+			doPuppetRenderBump()
+		}
+	}
+
+	/**
+	 * Sets the mesh overlay's colors.  A change bumps the puppet render version; an equal palette is a
+	 * no-op, whichever instance carries it.
+	 *
+	 * @param MeshOverlayPalette palette The palette.
+	 */
+	fun setMeshOverlayPalette(palette: MeshOverlayPalette) {
+		if (palette != meshOverlayPaletteBacking) {
+			meshOverlayPaletteBacking = palette
 			doPuppetRenderBump()
 		}
 	}

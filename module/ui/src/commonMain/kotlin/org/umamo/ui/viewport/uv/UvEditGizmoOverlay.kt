@@ -583,7 +583,7 @@ internal fun UvEditGizmoOverlay(
 					},
 		) {
 			// The wireframes draw from the live preview arrays during a gesture - this Canvas IS the
-			// display (no asynchronous raster to lag behind, unlike the viewport overlays' frame model).
+			// display (no asynchronous raster to lag behind).
 			// The live circle stroke drives the highlighted domain so painted elements light up mid-stroke.
 			val activePreview = gesture.preview.takeIf { gesture.capture != null }
 			for (geometry in geometries) {
