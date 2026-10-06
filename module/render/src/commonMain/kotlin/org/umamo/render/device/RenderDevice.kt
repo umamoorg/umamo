@@ -576,9 +576,9 @@ public interface RenderPassEncoder {
 
 	/**
 	 * Draws the mesh overlay's face fills of one mesh: every triangle in [buffers] as one instance,
-	 * positions fetched from [store], or the one active triangle when the uniforms say so.  The bound
-	 * pipeline must be [PipelinePurpose.OverlayFaceFill] - never a glue pipeline, whose encoder latches
-	 * the glue store on the position unit.
+	 * positions fetched from [store].  There is no active fill (the active face fills as selected), so a
+	 * fill draw is never an active draw.  The bound pipeline must be [PipelinePurpose.OverlayFaceFill] -
+	 * never a glue pipeline, whose encoder latches the glue store on the position unit.
 	 *
 	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
 	 * @param DeformedPositionStore store The overlay's deformed positions.
@@ -587,8 +587,8 @@ public interface RenderPassEncoder {
 	fun drawOverlayFaceFill(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
 
 	/**
-	 * Draws the mesh overlay's edges of one mesh, as [drawOverlayFaceFill] draws its fills; the bound
-	 * pipeline must be [PipelinePurpose.OverlayEdge].
+	 * Draws the mesh overlay's edges of one mesh, as [drawOverlayFaceFill] draws its fills, or the one
+	 * active edge when the uniforms say so; the bound pipeline must be [PipelinePurpose.OverlayEdge].
 	 *
 	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
 	 * @param DeformedPositionStore store The overlay's deformed positions.

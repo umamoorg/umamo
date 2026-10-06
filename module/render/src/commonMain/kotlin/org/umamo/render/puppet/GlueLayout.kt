@@ -38,7 +38,7 @@ public class GlueVertexAttributes(
  * @property Set   glueMeshIds       Every mesh in any glue pair, INCLUDING zero-triangle anchors, which
  *   draw nothing but whose deformed positions are weld partners.
  * @property Map   baseOffsetById    Each glue mesh's first vertex index in the shared store.
- * @property Int   globalVertexCount The store's total vertex capacity.
+ * @property Int   globalVertexCount The total glue vertex count, which the store must hold.
  * @property Map   attributesById    Each glue mesh's per-vertex weld attributes.
  */
 internal class GlueLayout(

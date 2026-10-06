@@ -407,7 +407,8 @@ interface PuppetViewportService {
 	fun setMeshOverlay(overlay: MeshOverlay?)
 
 	/**
-	 * Sets the nine colors the mesh overlay draws in (straight alpha, from settings).
+	 * Sets the colors the mesh overlay draws in, the nine Edit-mode element colors and the two placement
+	 * colors (straight alpha, from settings).
 	 *
 	 * @param MeshOverlayPalette palette The palette.
 	 */

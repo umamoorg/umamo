@@ -151,8 +151,8 @@ internal fun UvObjectGizmoOverlay(
 	val gesture = modalTransform.gesture
 
 	// A committed move's crops linger at their new spots while its atlas is the committed one; an undo or a
-	// newer commit takes them down here.  When its pages have landed is the engine's call (decision D20), and
-	// a resolver that never publishes (no page resolver at all) never gets a ghost.
+	// newer commit takes them down here.  When its pages have landed is the engine's call, and a resolver that
+	// never publishes (no page resolver at all) never gets a ghost.
 	val ghost = placementSceneState.ghost
 	val committedAtlas = committedModel.atlas
 	LaunchedEffect(ghost, committedAtlas) {

@@ -158,7 +158,8 @@ class PositionsOnlyUpdateRenderTest {
 
 	/**
 	 * The rig: a direct quad, a quad under a warp, a weld anchor and its welded quad, and a quad inside
-	 * an isolated part, each in its own quadrant of the 64-pixel frame.
+	 * an isolated part, spread over the 64-pixel frame: the direct quad and the warp child side by side in
+	 * one half, the weld pair across the other, and the isolated part's quad over the center.
 	 *
 	 * @return PuppetModel The model.
 	 */

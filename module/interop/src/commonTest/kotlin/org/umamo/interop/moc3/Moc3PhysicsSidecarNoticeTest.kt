@@ -12,8 +12,8 @@ import kotlin.test.assertTrue
 
 /**
  * Pins that a MOC3 export reports a physics sidecar it carried through verbatim when the sidecar names
- * parameters the moc does not contain - the export face of the dangling-reference rule (docs/plan/
- * uma-format.md D38): the file is written as it was, and the report says which ids now find nothing.
+ * parameters the moc does not contain - the export face of the dangling-reference rule (docs/format/UMA.md
+ * §3.6): the file is written as it was, and the report says which ids now find nothing.
  */
 class Moc3PhysicsSidecarNoticeTest {
 	/**
@@ -48,7 +48,7 @@ class Moc3PhysicsSidecarNoticeTest {
 		}
 		""".trimIndent()
 
-	/** A rig of one parameter, [ParamAngleX]. */
+	/** A rig of one parameter, `ParamAngleX`. */
 	private val puppet =
 		PuppetModel(
 			parameters = listOf(Parameter(ParameterId("ParamAngleX"), "Angle X", -30f, 30f, 0f)),

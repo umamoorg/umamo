@@ -22,8 +22,8 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 /**
  * A render service with no renderer behind it, for tests of the viewport overlays: it records every model
  * an overlay pushes through [setModel] (a gesture's previews and the resync that ends it), every mesh
- * overlay and palette published to it, and answers the picks from a table the test fills.  Everything else
- * does nothing, since no overlay under test reads it.
+ * overlay, palette, and UV scene content published to it, and answers the picks from a table the test
+ * fills.  Everything else does nothing, since no overlay under test reads it.
  */
 internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every model pushed through [setModel], oldest first. */
@@ -35,7 +35,7 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every palette published through [setMeshOverlayPalette], oldest first. */
 	val pushedPalettes = ArrayList<MeshOverlayPalette>()
 
-	/** Every UV scene content published, in order. */
+	/** Every UV scene content published through [setUvSceneContent], in order. */
 	val pushedUvContents = ArrayList<UvContentPush>()
 
 	/** What [pickAllAt] answers per area, front-most first; an area with no entry answers nothing. */

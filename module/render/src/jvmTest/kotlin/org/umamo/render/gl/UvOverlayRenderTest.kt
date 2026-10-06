@@ -37,6 +37,9 @@ import kotlin.test.assertTrue
  * page, the dots, edges, and fills land where their display positions are (surface texels, y up), in the
  * palette's colors, blended premultiplied over the page; the grid paints the surround outside the page and
  * a border just outside its edge; and the overlay draws over both, so a vertex off the page stays visible.
+ * The Object-mode islands fill and outline in their style's roles, a front island's fill over a back
+ * island's edge; and a placement preview draws a scrim over the old spot and the crop at its new
+ * placement, the same pixels from an uploaded crop as from the resident layer texture.
  *
  * Two cameras.  The fit camera shows the 64-texel page across the 64-pixel frame, so display (x, y) lands
  * at column x and top-first row 64 - y.  The zoomed-out camera centers the page at half zoom, so the page

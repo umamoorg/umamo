@@ -33,7 +33,7 @@ import org.umamo.ui.viewport.gizmo.selectToolKind
 
 /*
  * The Edit-mode gizmo overlay.  This file is the wiring: what the overlay collects, its guards, what it
- * holds per area and for how long, the effects in the order they launch, and the two layers it draws.
+ * holds per area and for how long, the effects in the order they launch, and the layer it draws.
  * Its parts:
  *   - EditModalTransform.kt: the commit side of the modal G / S / R and Vertex Slide (capture, drive,
  *     confirm, cancel, the wheel) - the ModalTransformTarget the pointer loop hands a gesture's events to.
@@ -139,7 +139,7 @@ fun ViewportEditGizmoOverlay(
 
 	// The keymap-command collectors, mounted above the EMPTY-GEOMETRY guard below but still inside every
 	// guard above it: this overlay is Edit-mode-only and so are these commands, so there is nothing to
-	// gain by outliving the mode / camera / frame checks, and a second collector live in Object mode
+	// gain by outliving the mode / selection / camera checks, and a second collector live in Object mode
 	// would only duplicate what the object overlay already runs.
 	//
 	// What they must outlive is the empty-geometry return.  liveGeometry goes empty when every drawable
@@ -250,8 +250,9 @@ fun ViewportEditGizmoOverlay(
 		}
 	}
 
-	// clipToBounds: Canvas drawing is not clipped to the layout bounds by default, so an off-screen vertex
-	// would otherwise paint over the AreaHeader and neighbouring areas.
+	// clipToBounds: Canvas drawing is not clipped to the layout bounds by default, so chrome reaching past
+	// the area (a HUD line to an off-screen pivot) would otherwise paint over the AreaHeader and neighbouring
+	// areas.
 	Box(
 		modifier =
 			modifier

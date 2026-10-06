@@ -8,7 +8,7 @@ import java.io.File
 
 /**
  * The UMAMO_DUMP_PNG developer dump: the first frame the engine resolves is written as a PNG to the path
- * the variable names, once per process, and nothing happens while it is unset.  Encoding and the file
+ * the variable names, once per engine, and nothing happens while it is unset.  Encoding and the file
  * write live here rather than in :render - reading pixels is the renderer's business, turning them into
  * a PNG on disk is not, and keeping the split means :render needs no image library at all.  Render
  * thread only.

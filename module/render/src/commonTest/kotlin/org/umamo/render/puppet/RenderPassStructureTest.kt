@@ -603,8 +603,9 @@ class RenderPassStructureTest {
 	}
 
 	/**
-	 * An image capture draws through a view of its own - its camera, the supersample's line width, and
-	 * no selection tint - and the viewport's next frame is the one it drew before the capture.
+	 * An image capture draws through a view of its own - its camera, the supersample's line width, no
+	 * selection tint, and no mesh overlay - and the viewport's next frame is the one it drew before the
+	 * capture.
 	 */
 	@Test
 	fun aCaptureDrawsWithItsOwnViewAndLeavesTheViewportsAlone() {
@@ -735,8 +736,8 @@ class RenderPassStructureTest {
 	}
 
 	/**
-	 * The step sequence every existing fixture records with NO overlay set, as literals: the always-on
-	 * guard that the overlay pass adds nothing to a frame that shows none.
+	 * The step sequence the flat, composite, and glue fixtures record with NO overlay set, as literals: the
+	 * always-on guard that the overlay pass adds nothing to a frame that shows none.
 	 */
 	@Test
 	fun aFrameWithNoOverlayRecordsTheBaselineSteps() {

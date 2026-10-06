@@ -32,7 +32,7 @@ import org.umamo.ui.viewport.gizmo.TransformGestureFrame
  * the commit are applied, and registers the gesture on the operation settings strip.  Nothing is pushed to
  * the puppet renderer: a placement move is invisible in the 2D viewport by construction.
  *
- * The capture builds off the UI thread (it decodes rasters and wraps crops), so [begin] suspends; a latch
+ * The capture builds off the UI thread (it decodes rasters and cuts crops), so [begin] suspends; a latch
  * that clears or changes while it builds begins nothing.
  *
  * @param String areaId The UV editor area the overlay covers; only an operator latched here drives.

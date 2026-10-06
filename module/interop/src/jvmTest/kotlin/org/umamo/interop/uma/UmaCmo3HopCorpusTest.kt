@@ -27,14 +27,15 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * The CMO3 hop a reopened `.uma` takes (docs/plan/uma-format.md D34): every corpus CMO3 imported, saved as UMA
- * with its pixels, reopened, and exported back to CMO3 through the fresh-graph synthesis, as the app exports a
- * CMO3-origin document it opened from a `.uma` - its stored render pages put into the model's page order, its
- * tiles' own PNGs as the layer art.  The export, read back, must hold every drawable the document held, bound
- * to the same layer of the same file, at the same placement, with the same coordinates to within 1e-4 and the
- * same layer pixels, on as many atlases as the model has pages - so a drawable over never-packed art (miku,
- * modelB, modelD, every drawable of MultiplyScreenColors) survives the hop rather than being reported and left
- * out.  Each export is kept under `build/uma-hop/` for the shape gate and the official-editor check.
+ * The CMO3 hop a reopened `.uma` takes, since a `.uma` carries no retained CMO3 graph: every corpus CMO3
+ * imported, saved as UMA with its pixels, reopened, and exported back to CMO3 through the fresh-graph
+ * synthesis, as the app exports a CMO3-origin document it opened from a `.uma` - its stored render pages put
+ * into the model's page order, its tiles' own PNGs as the layer art.  The export, read back, must hold every
+ * drawable the document held, bound to the same layer of the same file, at the same placement, with the same
+ * coordinates to within 1e-4 and the same layer pixels, on as many atlases as the model has pages - so a
+ * drawable over never-packed art (miku, modelB, modelD, every drawable of MultiplyScreenColors) survives the
+ * hop rather than being reported and left out.  Each export is kept under `build/uma-hop/` for the shape
+ * gate and the official-editor check.
  *
  * Corpus-gated on `cmo3.probe`; self-skips when it names nothing, and fails when the whole run met no unplaced
  * drawable, since the case it exists for would then go untested.

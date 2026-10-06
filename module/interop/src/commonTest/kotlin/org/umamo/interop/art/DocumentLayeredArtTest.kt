@@ -18,10 +18,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the art a document holds for a listed file (docs/plan/uma-format.md D40): one layer per present row in
- * the file's order, a bound row reading as its first bound tile's pixels at the row's position, an unbound or
- * erased row reading as a layer with no pixels, a lost row left out, the key strength its binding carries or
- * its shape suggests, and no decode until a layer's pixels are asked for.
+ * Pins the art a document holds for a listed file: one layer per present row in the file's order, a bound
+ * row reading as its first bound tile's pixels at the row's position, an unbound or erased row reading as a
+ * layer with no pixels, a lost row left out, the key strength its binding carries or its shape suggests, and
+ * no decode until a layer's pixels are asked for.
  */
 class DocumentLayeredArtTest {
 	private val sourceId = ArtSourceId("art-0")
@@ -47,7 +47,13 @@ class DocumentLayeredArtTest {
 	 */
 	private fun tile(id: String, key: String, stable: Boolean = true): AtlasTile = AtlasTile(AtlasTileId(id), id, 4, 5, source = SourceLayerRef(sourceId, key, stable))
 
-	/** A model of [rows] and [tiles] on a 200 x 100 canvas. */
+	/**
+	 * A model of [rows] and [tiles] on a 200 x 100 canvas.
+	 *
+	 * @param List rows  The file's inventory rows.
+	 * @param List tiles The atlas tiles.
+	 * @return PuppetModel The model.
+	 */
 	private fun model(rows: List<ArtSourceLayer>, tiles: List<AtlasTile>): PuppetModel =
 		PuppetModel(
 			parameters = emptyList(),

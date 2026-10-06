@@ -15,9 +15,9 @@ import kotlin.test.assertNotNull
 
 /**
  * Pins what recomposes the UV editor's Object-mode overlay.  The pointer, the placement's live evaluation,
- * the selection styling, and the modal HUD's inputs are read where they are drawn, not where the overlay
- * composes, so hovering, driving a placement, changing the object selection, and changing the axis
- * mid-placement redraw and run no composable.
+ * and the modal HUD's inputs are read where they are drawn, not where the overlay composes, and the islands
+ * and their selection styling are the render service's, so hovering, driving a placement, changing the
+ * object selection, and changing the axis mid-placement run no composable.
  */
 @OptIn(ExperimentalTestApi::class, InternalComposeTracingApi::class)
 class UvObjectGizmoRecompositionTest {
@@ -33,7 +33,7 @@ class UvObjectGizmoRecompositionTest {
 			assertNothingRan(counter, "a hover")
 		}
 
-	/** Driving a placement updates the host's readout and the drawn preview and runs no composable. */
+	/** Driving a placement updates the host's readout and placement scene and runs no composable. */
 	@Test
 	fun aPlacementDriveRunsNothing() =
 		countingUvGizmoRuns { counter ->
@@ -50,7 +50,7 @@ class UvObjectGizmoRecompositionTest {
 			assertNothingRan(counter, "a placement drive")
 		}
 
-	/** A change of the object selection restyles the islands in the draw phase and runs no composable. */
+	/** A change of the object selection runs nothing in the overlay: the islands' styles are the published scene's. */
 	@Test
 	fun anObjectSelectionChangeRunsNothing() =
 		countingUvGizmoRuns { counter ->

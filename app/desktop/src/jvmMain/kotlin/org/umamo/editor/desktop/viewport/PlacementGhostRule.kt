@@ -5,11 +5,11 @@ import org.umamo.runtime.model.PuppetAtlas
 
 /**
  * The placement preview a UV area's frame draws, given the pages the engine has applied: the area's own
- * preview, less its ghost once those pages belong to the atlas the ghost was committed into (decision D20).
- * A committed move's crops stand in at their new spots while the session recomposes the page; the frame
- * that first shows the recomposed pixels is therefore the first without the ghost, so the art is never shown
- * twice and never missing.  The atlases compare by identity, then by equality: an equal atlas has the same
- * placements, so its pages hold the same pixels.
+ * preview, less its ghost once those pages belong to the atlas the ghost was committed into.  A committed
+ * move's crops stand in at their new spots while the session recomposes the page; the frame that first
+ * shows the recomposed pixels is therefore the first without the ghost, so the art is never shown twice and
+ * never missing.  The atlases compare by identity, then by equality: an equal atlas has the same placements,
+ * so its pages hold the same pixels.
  *
  * Pure, so the engine applies it at render time, where the applied binding is known.
  *

@@ -85,7 +85,7 @@ internal class RecordedPipeline(
 internal class RecordedCapturePipeline : DeformCapturePipeline
 
 /**
- * The deformed-position store the recorder handed out.
+ * A deformed-position store the recorder handed out.
  *
  * @property Int vertexCapacity The vertex capacity it was allocated at.
  */

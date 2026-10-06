@@ -29,9 +29,10 @@ import kotlin.test.assertTrue
 /**
  * Pins what the UV editor's Object-mode gizmo overlay does with the pointer and the session's requests,
  * through the overlay itself: a placement gesture over the shown page moves the selected tiles as one step
- * with its readout on the host, previews nothing to the renderer, drops with a notice where it cannot run,
- * belongs to the area it started in, and is cancelled rather than left latched when the overlay goes away;
- * the idle pointer picks and boxes whole islands and places the UV cursor.
+ * with its readout on the host, pushes no model preview (its drag shows through the area's own scene),
+ * drops with a notice where it cannot run, belongs to the area it started in, and is cancelled rather than
+ * left latched when the overlay goes away; the idle pointer picks and boxes whole islands and places the
+ * UV cursor.
  */
 @OptIn(ExperimentalTestApi::class)
 class UvObjectGizmoOverlayGestureTest {

@@ -28,14 +28,13 @@ private const val VIEW_HEIGHT = 900
 private const val VERTEX_DOT_RADIUS_PX = 3.5
 
 /**
- * Print-only probe for decision D15 in docs/plan/edit-mode-performance.md: how far the art's weld moves a
- * glued vertex at the rest pose Edit mode is pinned to.  The Edit overlay draws a glue mesh's vertices at
- * their pre-weld positions (the cage the picks and the transforms read) while the art draws welded, so
- * this displacement is exactly how far a seam dot sits from the seam it belongs to.  For every corpus rig
- * that carries glue it prints the displacement's max and percentiles in world units and in pixels at a
- * 1600x900 fit and at four times that zoom, how many glued vertices miss by more than a pixel and by
- * more than a vertex dot's radius, and the glue that moves its vertices furthest; with the gap a pair
- * keeps after welding, which an intensity below one leaves open.
+ * Print-only probe of how far the art's weld moves a glued vertex at the rest pose Edit mode is pinned to.
+ * The Edit overlay draws a glue mesh's vertices at their pre-weld positions (the cage the picks and the
+ * transforms read) while the art draws welded, so this displacement is exactly how far a seam dot sits from
+ * the seam it belongs to.  For every corpus rig that carries glue it prints the displacement's max and
+ * percentiles in world units and in pixels at a 1600x900 fit and at four times that zoom, how many glued
+ * vertices miss by more than a pixel and by more than a vertex dot's radius, and the glue that moves its
+ * vertices furthest; with the gap a pair keeps after welding, which an intensity below one leaves open.
  *
  * Pins nothing.  The CPU weld runs the pairs in order, where the shader welds each vertex toward one
  * partner; the two agree for a vertex in a single pair.  The corpus's one exception is modelF, where the

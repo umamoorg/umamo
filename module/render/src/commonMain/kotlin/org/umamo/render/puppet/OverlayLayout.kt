@@ -30,7 +30,7 @@ internal class OverlayLayout(
  * placed one gets the next region, so the order DEFINES the addressing, as the glue layout's walk does.
  *
  * This is where the pairing rule lives: a mesh is placed only when a resident exists for it, the
- * resident's vertex count is the count the data was built against, and, when faces draw, the face flags
+ * resident's vertex count is the count the data was built against, and, in an Edit overlay, the face flags
  * are empty or one per resident triangle.  A disagreeing mesh is left out of this frame rather than
  * guessed at, and comes back on the next publish.  Pure, so the rule is testable without a device.
  *
@@ -93,8 +93,8 @@ internal class DirectOverlayLayout(
  * Plans a direct overlay's store layout: the meshes are walked in overlay order and each placed one gets the
  * next region, as [planOverlayLayout] does, but each mesh pairs against its OWN positions and triangle
  * indices rather than a resident drawable.  A mesh is placed only when it carries positions of exactly its
- * vertex count, triangle indices in whole triangles that all name one of its vertices, and, when faces
- * draw, face flags that are empty or one per triangle; a disagreeing mesh is left out rather than guessed
+ * vertex count, triangle indices in whole triangles that all name one of its vertices, and, in an Edit
+ * overlay, face flags that are empty or one per triangle; a disagreeing mesh is left out rather than guessed
  * at.  Pure, so the rule is testable without a device.
  *
  * @param DirectMeshOverlay direct The overlay to place.

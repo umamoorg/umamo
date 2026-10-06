@@ -79,8 +79,9 @@ internal class DrawableResidency(
 
 	/**
 	 * Whether [positionStore] is behind the pose.  Pass 1 only needs to re-deform the shared store when
-	 * the pose changed; on a static pose its contents are unchanged.  Set by a pose, cleared by the
-	 * render that captures.  Gating here also confines the write→read barrier to pose-change frames.
+	 * the pose changed; on a static pose its contents are unchanged.  Set by a pose, by a positions-only
+	 * model push, and by a store the layout outgrew; cleared by the render that captures.  Gating here
+	 * also confines the write→read barrier to pose-change frames.
 	 */
 	var glueStoreStale: Boolean = true
 

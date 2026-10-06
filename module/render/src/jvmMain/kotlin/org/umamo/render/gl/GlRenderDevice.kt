@@ -61,11 +61,11 @@ import java.nio.ByteBuffer
  *
  * A near-transliteration of this becomes the Android GLES 3.0 device: the calls are the same, differing
  * only in binding style (LWJGL statics vs the GLES out-param form) and the one place GLES 3.0 lacks a
- * texture buffer (the glue store, [createDeformedPositionStore], where the GLES port repacks as a 2D
- * texture behind [DeformedPositionStore]).
+ * texture buffer (the glue and overlay stores, [createDeformedPositionStore], where the GLES port repacks
+ * as a 2D texture behind [DeformedPositionStore]).
  */
 class GlRenderDevice : RenderDevice {
-	// An empty VAO for the attribute-less draws (grid, axis lines, atlas page): a core profile still
+	// An empty VAO for the attribute-less draws (grid, axis lines, image quads): a core profile still
 	// requires a bound VAO even when the vertex shader synthesises its positions from gl_VertexID.
 	private var emptyVao = 0
 

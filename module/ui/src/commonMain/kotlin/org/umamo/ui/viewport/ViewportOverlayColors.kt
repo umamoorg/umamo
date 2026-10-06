@@ -63,8 +63,8 @@ internal object ViewportColorSettings {
 
 /**
  * The resolved overlay palette: one Compose color per role, parsed from the user's settings.  Held
- * as a value so an overlay's draw pass reads plain fields, and passed whole to the wireframe drawer,
- * which substitutes per-island roles by copying it.
+ * as a value so an overlay's draw pass reads plain fields, and mapped whole onto the renderer's mesh
+ * overlay palette (toMeshOverlayPalette).
  *
  * @property Color vertexIdle Unselected vertex dots.
  * @property Color vertexSelected Selected vertex dots.

@@ -46,7 +46,7 @@ import java.nio.IntBuffer
  * writes and fixes each pipeline's blend up front, both of which read better than the ambient-state
  * idiom - and it is what a Metal backend, which does have command buffers, would map onto directly.
  *
- * @param Int emptyVao A bound VAO for the attribute-less draws (grid, axis, atlas page); a core profile
+ * @param Int emptyVao A bound VAO for the attribute-less draws (grid, axis, image quad); a core profile
  *   requires one even when the shader synthesises positions from gl_VertexID.
  */
 internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {

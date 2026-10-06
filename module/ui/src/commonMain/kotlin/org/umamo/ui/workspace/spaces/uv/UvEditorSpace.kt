@@ -92,7 +92,8 @@ import org.umamo.ui.workspace.spaces.PlaceholderSpace
  *
  * FULL VIEWPORT-SERVICE PARITY: the surface is rendered by the SAME offscreen GL engine the 2D viewport
  * uses (a per-area UV render scene, whose content is either an atlas page or a source layer's raster,
- * with the Edit-mode wireframe drawn over it from the scene this space publishes - UvSceneOverlay.kt),
+ * with the Edit-mode wireframe, or Object mode's islands and placement preview, drawn over it from the
+ * scene this space publishes - UvSceneOverlay.kt),
  * blitted here by [UvPageUnderlay]; the UV camera is owned by that service, and the Compose gizmo
  * overlays lock to the frame camera so they stay glued to the (asynchronously produced) raster during
  * pan / zoom.  With no service present (Android until the GLES engine lands) the space shows the

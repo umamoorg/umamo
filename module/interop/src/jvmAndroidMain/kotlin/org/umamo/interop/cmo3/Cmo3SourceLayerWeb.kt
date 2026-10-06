@@ -49,7 +49,8 @@ internal object Cmo3SourceLayerWeb {
 	 * @property String          layerKey    The binding key; a "lyid:<n>" key writes Photoshop's layer id.
 	 * @property String          groupPath   The folder path in the file, "" at the root.
 	 * @property Boolean         visible     The layer's visibility as last read.
-	 * @property Int             canvasLeft  The art frame's canvas x - the inventory row's origin.
+	 * @property Int             canvasLeft  The art frame's canvas x - the inventory row's origin, or the one
+	 *   fitted from its drawables for a tile with no row.
 	 * @property Int             canvasTop   The art frame's canvas y.
 	 * @property RasterImage     raster      The tile's pixels, straight alpha.
 	 * @property AtlasPlacement? placement   Where the tile sits on its page, or null when unpacked.
@@ -123,7 +124,8 @@ internal object Cmo3SourceLayerWeb {
 	 *
 	 * @param PuppetModel puppet      The model being converted.
 	 * @param Function    tileRasters The document's pixels for a tile, or null.
-	 * @return List<SourceImageInput> One input per file with at least one real tile, in the model's source order.
+	 * @return List<SourceImageInput> One input per file with at least one real tile, in the model's source order,
+	 *   then one single-layer input per tile with pixels and no inventory row, in atlas order.
 	 */
 	internal fun inputsOf(puppet: PuppetModel, tileRasters: (AtlasTileId) -> RasterImage?): List<SourceImageInput> {
 		val drawableIdsByTile = HashMap<AtlasTileId, MutableList<String>>()
@@ -244,7 +246,7 @@ internal object Cmo3SourceLayerWeb {
 	 * @param MutableList         pngEntries The PNG entry collector.
 	 * @param Long                nowMillis  The import timestamp the wrapper and env values record, standing in
 	 *   for a time the record lacks.
-	 * @return Written The wrapper, the group, and the bindings.
+	 * @return Written The wrapper, the group, the bindings, and the unplaced tiles' raster textures.
 	 */
 	internal fun write(
 		image: SourceImageInput,

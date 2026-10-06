@@ -45,12 +45,10 @@ import org.umamo.render.device.TextureWrap
  * Validate against the same oracles the desktop device passes: `GpuDeformValidationTest` and
  * `GpuGlueValidationTest` are the correctness bar, run on-device or on an emulator.
  *
- * Android GLES 3.0 デバイスのスタブ。デスクトップ GL デバイスの移植入口。未実装。
  * The mesh overlay (the Edit-mode wireframe, dots, and fills) is four more pipelines, instanced over a
  * deformed-position store of its own: on this backend the per-instance index and flag buffers go through
- * glVertexAttribDivisor and glDrawArraysInstanced (core in ES 3.0), and its samplerBuffer read needs the
- * 320 es header like the glue draw.
- *
+ * glVertexAttribDivisor and glDrawArraysInstanced (core in ES 3.0), and its `samplerBuffer` read needs the
+ * same 2D-texelFetch variant as the glue draw.
  */
 class GlesRenderDevice : RenderDevice {
 	override fun createTexture(
