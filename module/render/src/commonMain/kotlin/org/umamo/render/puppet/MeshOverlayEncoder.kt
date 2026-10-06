@@ -14,8 +14,8 @@ import org.umamo.render.device.RenderPipeline
  * The capture mirrors the glue capture: its own pass outside any render pass, once per frame whose store
  * is stale, followed by a barrier.  The draws go domain-major - every mesh's face fills, then every mesh's
  * edges, then the active edges, then the dots - so each domain binds its pipeline once rather than once
- * per mesh, and so the actives land on top of every batch; an unposed entry (a hidden ancestor) is
- * skipped in both.
+ * per mesh, and so the actives land on top of every batch; an entry the current pose leaves unposed (a
+ * hidden ancestor, a grid out of range) is skipped in both.
  *
  * @param DrawPipelines pipelines The capture and overlay pipelines.
  * @param SideTargetPool sideTargets The side targets, whose capacity names the screen-space divisor.
@@ -38,15 +38,16 @@ internal class MeshOverlayEncoder(
 	 */
 	fun encodeCapture(frame: FrameEncoder) {
 		val store = overlayResidency.store ?: return
-		// An entry without a pose (a resident the engine has not posed yet) has nothing to capture; with none
-		// posed the store stays stale for the pose that follows, rather than an empty pass clearing it.
-		if (!overlayResidency.storeStale || overlayResidency.entries.none { entry -> entry.gpuDrawable.corners != null }) {
+		// An entry the current pose leaves unposed (a hidden ancestor, a grid out of range, or no pose yet) has
+		// nothing to capture: its corners may be a stale earlier pose's, so the pose's own flag decides.  With
+		// none posed the store stays stale for the pose that follows, rather than an empty pass clearing it.
+		if (!overlayResidency.storeStale || overlayResidency.entries.none { entry -> entry.gpuDrawable.visible }) {
 			return
 		}
 		val capture = frame.beginDeformCapturePass(pipelines.capture, store)
 		for (entry in overlayResidency.entries) {
 			val gpuDrawable = entry.gpuDrawable
-			if (gpuDrawable.corners == null) {
+			if (!gpuDrawable.visible) {
 				continue
 			}
 			fillDeform(deformScratch, gpuDrawable)
@@ -71,7 +72,7 @@ internal class MeshOverlayEncoder(
 	fun encodeDraws(pass: RenderPassEncoder, inputs: FrameInputs) {
 		val overlay = inputs.overlay ?: return
 		val store = overlayResidency.store ?: return
-		val entries = overlayResidency.entries.filter { entry -> entry.gpuDrawable.corners != null }
+		val entries = overlayResidency.entries.filter { entry -> entry.gpuDrawable.visible }
 		if (entries.isEmpty()) {
 			return
 		}

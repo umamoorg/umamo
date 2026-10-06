@@ -24,8 +24,9 @@ import org.umamo.runtime.model.PuppetModel
  * This class turns each into device calls and keeps the residents they produce.
  *
  * Glue state lives here rather than in an owner of its own because it follows residency's two
- * lifecycles: the store, the glue mesh list, and the partner map are rebuilt when residency is, and the
- * intensities and the stale flag move with each pose.
+ * lifecycles: the layout, the store, the glue mesh list, and the partner map follow every upload and
+ * reconcile (an edit that moves a weld re-plans the layout, and every upload takes its entry in it), and
+ * the intensities and the stale flag move with each pose.
  *
  * The atlas page a drawable samples is looked up through a function handed in per call, never held:
  * the art textures are owned elsewhere and re-stamped onto the residents this class builds.
@@ -62,8 +63,15 @@ internal class DrawableResidency(
 	var gluePartnersById: Map<DrawableId, List<DrawableId>> = emptyMap()
 		private set
 
-	/** The shared pass-1 deformed-position store; null when the model has no glue. */
+	/** The shared pass-1 deformed-position store; null while the glue layout places no glue mesh. */
 	var positionStore: DeformedPositionStore? = null
+		private set
+
+	// The store's vertex capacity: it grows when a layout outgrows it and stays when a layout shrinks.
+	private var positionStoreCapacity = 0
+
+	/** The glue layout the residents were uploaded with: each glue mesh's weld attributes and store region. */
+	var glueLayout: GlueLayout = GlueLayout.EMPTY
 		private set
 
 	/** Per-glue weld intensity by glue index, refilled in place by each pose's resolve. */
@@ -89,18 +97,15 @@ internal class DrawableResidency(
 		val warpDeformerIds = model.deformers.filterIsInstance<Deformer.Warp>().map { it.id }.toSet()
 
 		// Glue addressing is planned in commonMain; the device holds the store and the interleaved attrs.
-		val glueLayout = planGlueLayout(model)
-		if (glueLayout.globalVertexCount > 0) {
-			positionStore = device.createDeformedPositionStore(glueLayout.globalVertexCount)
-		}
+		glueLayout = planGlueLayout(model)
+		fitGlueStore(glueLayout.globalVertexCount)
 
 		val uploaded = ArrayList<GpuDrawable>()
 		for (drawable in model.drawables) {
 			val gpuDrawable =
 				uploadDrawable(
 					drawable = drawable,
-					glueAttributes = glueLayout.attributesById[drawable.id],
-					glueBaseOffset = glueLayout.baseOffsetById[drawable.id] ?: 0,
+					glueLayout = glueLayout,
 					warpDeformerIds = warpDeformerIds,
 					defaultParameters = defaultParameters,
 					atlasTextureOf = atlasTextureOf,
@@ -118,9 +123,12 @@ internal class DrawableResidency(
 	 * four tiers are applied here as device calls: a reorder / reparent needs no buffer work; a base-mesh
 	 * move re-uploads positions; a UV edit re-uploads UVs; a structural change frees and re-uploads whole.
 	 *
-	 * Structural limits: a session-created drawable never joins the load-time glue layout (glues reference
-	 * source ids, so a fresh id welds nothing), and a REMESHED glue mesh degrades to an unwelded draw (its
-	 * store region and weld attrs index the old vertex order and are not remapped here).
+	 * The glue layout follows the model: an edit that moves a weld (a re-paired, added, removed, or
+	 * reordered glue, or a glue mesh that changed size or place) re-plans it, re-uploads every resident
+	 * whose weld attributes or store region moved, and fits the store to it, freeing the store once no
+	 * glue is left; every upload takes its entry in the current layout.  An intensity, channel, move, or
+	 * key edit re-plans nothing.  So after any reconcile the residents' glue state is what [uploadAll]
+	 * of [newModel] would produce.
 	 *
 	 * @param PuppetModel residentModel  The model the residents currently reflect.  Blend-shape deltas
 	 *   uploaded here are baked against ITS parameter defaults, not [newModel]'s.
@@ -132,14 +140,19 @@ internal class DrawableResidency(
 	fun reconcile(residentModel: PuppetModel, newModel: PuppetModel, atlasTextureOf: (Drawable) -> GpuTexture?) {
 		val warpDeformerIds = newModel.deformers.filterIsInstance<Deformer.Warp>().map { it.id }.toSet()
 		val diff = diffModel(residentModel, newModel, residents.mapValues { (_, resident) -> resident.vertexCount })
+		val previousLayout = glueLayout
+		val layout = if (glueLayoutFits(previousLayout, newModel)) previousLayout else planGlueLayout(newModel)
+		val replanned = layout !== previousLayout
+		if (replanned) {
+			fitGlueStore(layout.globalVertexCount)
+		}
 		val reconciled = LinkedHashMap<DrawableId, GpuDrawable>()
 		for (action in diff.actions) {
 			when (action) {
 				is DrawableAction.Upload ->
 					uploadDrawable(
 						action.drawable,
-						glueAttributes = null,
-						glueBaseOffset = 0,
+						glueLayout = layout,
 						warpDeformerIds = warpDeformerIds,
 						defaultParameters = residentModel.parameters,
 						atlasTextureOf = atlasTextureOf,
@@ -149,8 +162,7 @@ internal class DrawableResidency(
 					residents[action.drawableId]?.let { deleteDrawable(it) }
 					uploadDrawable(
 						action.drawable,
-						glueAttributes = null,
-						glueBaseOffset = 0,
+						glueLayout = layout,
 						warpDeformerIds = warpDeformerIds,
 						defaultParameters = residentModel.parameters,
 						atlasTextureOf = atlasTextureOf,
@@ -159,6 +171,19 @@ internal class DrawableResidency(
 
 				is DrawableAction.Keep -> {
 					val existing = residents[action.drawableId] ?: continue
+					if (replanned && glueEntryChanged(previousLayout, layout, action.drawableId)) {
+						// A mesh's weld attributes and store region are fixed at upload, so a moved entry
+						// re-uploads the mesh whole.
+						deleteDrawable(existing)
+						uploadDrawable(
+							action.drawable,
+							glueLayout = layout,
+							warpDeformerIds = warpDeformerIds,
+							defaultParameters = residentModel.parameters,
+							atlasTextureOf = atlasTextureOf,
+						)?.let { reconciled[action.drawableId] = it }
+						continue
+					}
 					reconciled[action.drawableId] = existing
 					// Re-stamp the static composite state from the edited drawable: a blend/alpha/culling/
 					// mask/invert edit does no buffer work, so it lands here, and these were otherwise
@@ -187,6 +212,7 @@ internal class DrawableResidency(
 		glueDeformList = reconciled.values.filter { it.isGlueMesh }
 		renderableById = reconciled.mapValues { (_, resident) -> resident.indexCount > 0 }
 		rebuildGluePartners(newModel)
+		glueLayout = layout
 	}
 
 	/**
@@ -229,6 +255,8 @@ internal class DrawableResidency(
 		}
 		positionStore?.let { store -> device.destroyDeformedPositionStore(store) }
 		positionStore = null
+		positionStoreCapacity = 0
+		glueLayout = GlueLayout.EMPTY
 		residents = emptyMap()
 		glueDeformList = emptyList()
 		renderableById = emptyMap()
@@ -240,8 +268,8 @@ internal class DrawableResidency(
 	 * [uploadAll] and the structural reconcile in [reconcile]; must run with the device's context current.
 	 *
 	 * @param Drawable              drawable          The model drawable.
-	 * @param GlueVertexAttributes? glueAttributes    Its planned weld attributes, or null when not glued.
-	 * @param Int                   glueBaseOffset    Its base index in the shared glue store (0 when not glued).
+	 * @param GlueLayout            glueLayout        The glue layout; the drawable's entry in it, if any, gives
+	 *   its weld attributes and its base index in the shared store.
 	 * @param Set<DeformerId>       warpDeformerIds   The model's warp deformers.
 	 * @param List<Parameter>       defaultParameters The parameters whose defaults blend-shape deltas are
 	 *   baked against.
@@ -250,8 +278,7 @@ internal class DrawableResidency(
 	 */
 	private fun uploadDrawable(
 		drawable: Drawable,
-		glueAttributes: GlueVertexAttributes?,
-		glueBaseOffset: Int,
+		glueLayout: GlueLayout,
 		warpDeformerIds: Set<DeformerId>,
 		defaultParameters: List<Parameter>,
 		atlasTextureOf: (Drawable) -> GpuTexture?,
@@ -264,6 +291,7 @@ internal class DrawableResidency(
 		if (mesh.positions.isEmpty()) {
 			return null
 		}
+		val glueAttributes = glueLayout.attributesById[drawable.id]
 		val isGlue = glueAttributes != null
 		if (!isGlue && mesh.indices.isEmpty()) {
 			return null // a non-glue mesh with no triangles draws nothing and is no weld partner
@@ -309,7 +337,7 @@ internal class DrawableResidency(
 			maskIds = drawable.maskedBy,
 			invertMask = drawable.invertMask,
 			isGlueMesh = isGlue,
-			glueBaseOffset = glueBaseOffset,
+			glueBaseOffset = glueLayout.baseOffsetById[drawable.id] ?: 0,
 			blendLayout = blendLayout,
 			boundsBase = mesh.positions,
 			boundsCells = cells,
@@ -327,6 +355,29 @@ internal class DrawableResidency(
 		device.destroyMesh(gpuDrawable.mesh)
 		device.destroyTexture(gpuDrawable.deltaTexture)
 		gpuDrawable.cpTexture?.let { device.destroyTexture(it) }
+	}
+
+	/**
+	 * Fits the shared glue store to a layout's vertex count: frees it when no glue mesh is placed, replaces
+	 * it with a larger one when the layout outgrows it (the new store is behind every pose, so it is
+	 * marked stale), and otherwise keeps it, larger than needed.  Must run with the device's context
+	 * current.
+	 *
+	 * @param Int vertexCount The layout's total glue vertex count.
+	 */
+	private fun fitGlueStore(vertexCount: Int) {
+		if (vertexCount == 0) {
+			positionStore?.let { store -> device.destroyDeformedPositionStore(store) }
+			positionStore = null
+			positionStoreCapacity = 0
+			return
+		}
+		if (vertexCount > positionStoreCapacity) {
+			positionStore?.let { store -> device.destroyDeformedPositionStore(store) }
+			positionStore = device.createDeformedPositionStore(vertexCount)
+			positionStoreCapacity = vertexCount
+			glueStoreStale = true
+		}
 	}
 
 	/**

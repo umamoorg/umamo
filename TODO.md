@@ -244,15 +244,17 @@ Right now the goal is to support sRGB from ingest to output with full correctnes
 ## GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 
 **What.** The GPU glue weld (`PuppetRenderer` two-pass; `module/render/src/commonMain/.../puppet/`) stores **one
-partner per vertex** in its per-vertex glue attribute (partner global index, glue index, weld weight; built
-in `buildGlueAttributes`, consumed by `GLUE_VERTEX_SHADER`). If a single mesh vertex participates in **more
+partner per vertex** in its per-vertex glue attribute (partner global index, glue index, weld weight; planned
+by `planGlueLayout`, consumed by `glueVertexShader`). If a single mesh vertex participates in **more
 than one** glue pair — e.g. a corner vertex shared by two seams — only the last-written pair survives, so the
 GPU applies **one** weld where the CPU `applyGluesResolved` applies **both, sequentially**. That would diverge
 from the CPU/oracle at such shared verts.
 
 **Why it's fine right now.** Erica's four glues have **disjoint** seam vertices (no vertex is in two pairs),
-so the GPU render is pixel-perfect vs the CPU (maxDiff 3/255, 0 px >8). This is a **latent** gap that only a
-model with shared seam verts would expose.
+so the GPU render is pixel-perfect vs the CPU (maxDiff 3/255, 0 px >8). The corpus has one model with shared
+seam verts: modelF, whose SIDE_HAIR_BLUE_R3 (280 vertices) is glued to four color variants with up to four
+pairs per vertex; `GlueSeamGapProbeTest` (2026-10-04) puts the CPU/GPU difference there at most 0.26 px at
+a 1600x900 fit, so the gap is real but sub-pixel on the corpus.
 
 **Detection.** Add a glue-aware per-vertex check: run the two-pass GPU glue, transform-feedback-capture the
 **post-weld** positions, and diff against the CPU `applyCpuDeform` (which includes glue) on a model whose
@@ -263,6 +265,19 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 	buffer) and loop the welds in the shader **in the CPU's pair order** so the sequential result matches.
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
+
+## Glue strength past its keyed range (found 2026-10-06)
+
+**What.** A glue intensity track sampled at a parameter outside its keys falls back to the glue's static
+intensity (1 for every MOC3 import): `ChannelGrids.scalarAt` returns the static when the pose is out of the
+track's range (`module/runtime/.../eval/ChannelSampling.kt`, read by `preparePose` in `DeformPrepare.kt`).
+That is the sampler's deliberate rule for every channel ("out of range never hides", so keying opacity on a
+narrow parameter cannot make art vanish).  `docs/format/MOC3-ThirdParty.md` (around L109) says an
+out-of-range parameter sets a glue's strength to 0 instead, and marks that claim untested itself.
+
+**Why it is not fixed.** No corpus glue is out of range at rest (`GlueSeamGapProbeTest`), the behavior
+changes the art in both the CPU and GPU paths, and which value the official runtime uses is a question for
+the oracle against the official Core, not for a guess.
 
 ## Glue intensity has no editable home (deferred 2026-07-29)
 

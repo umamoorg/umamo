@@ -56,9 +56,10 @@ data class MeshOverlaySizes(
  * that keeps a flag array's INSTANCE across publishes avoids a re-upload, since the renderer compares
  * the arrays by identity.
  *
- * A glue mesh draws at its captured pre-weld positions: the weld happens in the glue draw's own shader,
- * and the overlay reads the store the capture wrote.  Only a glue mesh's seam vertices differ, by at
- * most the weld distance.
+ * A glue mesh draws at its pre-weld positions, the cage Edit mode edits and every pick and transform
+ * reads (decision D15 in docs/plan/edit-mode-performance.md): the weld happens in the art's glue draw,
+ * and the overlay reads the store its own capture wrote.  So a seam vertex's dot sits up to its weld
+ * displacement from the art's seam, most of all on a vertex the weld pulls fully onto its partner.
  *
  * @property DrawableId drawableId The mesh's drawable.
  * @property Int vertexCount The vertex count the data was built against.

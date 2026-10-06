@@ -18,15 +18,17 @@ import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Pins [planGlueLayout] - the glue addressing the GPU weld reads.
+ * Pins [planGlueLayout] - the glue addressing the GPU weld reads - and the two questions an edit asks of
+ * it: whether a plan still fits the edited model ([glueLayoutFits]) and whether one drawable's entry moved
+ * between two plans ([glueEntryChanged]).
  *
- * This logic had NO coverage of any kind before it was extracted: `GpuDeformValidationTest` excludes glue
- * by design, and `GlueTest` / `GlueCorpusTest` only exercise the CPU weld, which does not use these
- * offsets or attributes at all. `GpuGlueValidationTest` now covers the same ground end-to-end through a
- * GPU, but needs a display; these run anywhere.
+ * `GpuDeformValidationTest` excludes glue by design, and `GlueTest` / `GlueCorpusTest` exercise only the
+ * CPU weld, which does not use these offsets or attributes; `GpuGlueValidationTest` covers the same ground
+ * end to end through a GPU, but needs a display.  These run anywhere.
  */
 class GlueLayoutTest {
 	private val paramA = ParameterId("A")
@@ -176,4 +178,91 @@ class GlueLayoutTest {
 			"no vertex is ever tagged with a glue index the shader array cannot hold",
 		)
 	}
+
+	/** Planning the same model twice moves no entry, even over a new glue list holding the same glues. */
+	@Test
+	fun aReplanOfTheSameModelChangesNoEntry() {
+		val source = pairModel(4, 4)
+		val first = planGlueLayout(source)
+		val second = planGlueLayout(source.copy(glues = source.glues.toList()))
+		assertFalse(glueEntryChanged(first, second, DrawableId("a")), "a")
+		assertFalse(glueEntryChanged(first, second, DrawableId("b")), "b")
+	}
+
+	/** A glue mesh that grows moves its own entry, and the region of every glue mesh after it. */
+	@Test
+	fun aGrownMeshMovesItsOwnEntryAndEveryLaterOne() {
+		val before = planGlueLayout(pairModel(4, 4))
+		val laterGrown = planGlueLayout(pairModel(4, 5))
+		assertFalse(glueEntryChanged(before, laterGrown, DrawableId("a")), "a mesh before the grown one keeps its entry")
+		assertTrue(glueEntryChanged(before, laterGrown, DrawableId("b")), "the grown mesh's entry moves")
+		val earlierGrown = planGlueLayout(pairModel(5, 4))
+		assertTrue(glueEntryChanged(before, earlierGrown, DrawableId("a")), "the grown mesh's entry moves")
+		assertTrue(glueEntryChanged(before, earlierGrown, DrawableId("b")), "and so does the region after it")
+	}
+
+	/** A mesh leaving the glue changes its entry; a mesh that never was glued does not. */
+	@Test
+	fun aMeshLeavingTheGlueChangesItsEntry() {
+		val source = pairModel(4, 4).let { model -> model.copy(drawables = model.drawables + drawable("loose", 3)) }
+		val before = planGlueLayout(source)
+		val after = planGlueLayout(source.copy(glues = emptyList()))
+		assertTrue(glueEntryChanged(before, after, DrawableId("b")), "b left the glue")
+		assertFalse(glueEntryChanged(before, after, DrawableId("loose")), "an unglued mesh has no entry either side")
+	}
+
+	/** Removing an earlier glue retags a later one: only that entry's glue index moves. */
+	@Test
+	fun aRetaggedGlueChangesOnlyTheGlueIndex() {
+		val drawables = listOf(drawable("c", 4), drawable("d", 4), drawable("a", 4), drawable("b", 4))
+		val earlier = Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(1, 0, 0.5f, 0.5f)))
+		val later = Glue(DrawableId("c"), DrawableId("d"), listOf(GluePair(1, 0, 0.5f, 0.5f)))
+		val before = planGlueLayout(model(drawables, listOf(earlier, later)))
+		val after = planGlueLayout(model(drawables, listOf(later)))
+		val id = DrawableId("d")
+		assertTrue(glueEntryChanged(before, after, id), "d's entry moved")
+		assertEquals(before.baseOffsetById[id], after.baseOffsetById[id], "its region did not")
+		assertContentEquals(before.attributesById.getValue(id).partnerIndex, after.attributesById.getValue(id).partnerIndex, "nor its partners")
+		assertContentEquals(before.attributesById.getValue(id).weldWeight, after.attributesById.getValue(id).weldWeight, "nor its weights")
+		assertEquals(listOf(1, 0), listOf(before.attributesById.getValue(id).glueIndex[0], after.attributesById.getValue(id).glueIndex[0]), "only its glue index")
+	}
+
+	/** Edits that move no weld leave a plan fitting the model. */
+	@Test
+	fun glueLayoutFitsEditsThatMoveNoWeld() {
+		val source = pairModel(4, 4)
+		val layout = planGlueLayout(source)
+		assertTrue(glueLayoutFits(layout, source), "the same model")
+		assertTrue(glueLayoutFits(layout, source.copy(glues = source.glues.map { glue -> glue.copy(intensity = 0.5f) })), "an intensity edit")
+		val moved = source.drawables.map { drawable -> drawable.copy(mesh = drawable.mesh!!.let { mesh -> DrawableMesh(FloatArray(mesh.positions.size) { 1f }, mesh.uvs, mesh.indices) }) }
+		assertTrue(glueLayoutFits(layout, source.copy(drawables = moved)), "meshes moved at the same size")
+		assertTrue(glueLayoutFits(layout, source.copy(drawables = source.drawables + drawable("loose", 3))), "an unglued drawable added")
+	}
+
+	/** Edits that move a weld leave a plan that no longer fits. */
+	@Test
+	fun glueLayoutFitsNoEditThatMovesAWeld() {
+		val source = pairModel(4, 4)
+		val layout = planGlueLayout(source)
+		val glue = source.glues.single()
+		assertFalse(glueLayoutFits(layout, source.copy(glues = listOf(glue.copy(pairs = glue.pairs.toList())))), "a re-paired glue")
+		assertFalse(glueLayoutFits(layout, source.copy(glues = emptyList())), "a removed glue")
+		val second = Glue(DrawableId("b"), DrawableId("a"), listOf(GluePair(2, 3, 0.5f, 0.5f)))
+		val twoGlues = source.copy(glues = listOf(glue, second))
+		assertFalse(glueLayoutFits(planGlueLayout(twoGlues), twoGlues.copy(glues = listOf(second, glue))), "reordered glues")
+		assertFalse(glueLayoutFits(layout, pairModel(4, 5).copy(glues = source.glues)), "a glue mesh that grew, over the same glues")
+	}
+
+	/**
+	 * Two glue meshes a and b of the given sizes, glued by one pair.
+	 *
+	 * @param Int aVertexCount The vertex count of a.
+	 * @param Int bVertexCount The vertex count of b.
+	 * @return PuppetModel The model.
+	 */
+	private fun pairModel(aVertexCount: Int, bVertexCount: Int): PuppetModel =
+		model(
+			listOf(drawable("a", aVertexCount), drawable("b", bVertexCount)),
+			listOf(Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(1, 0, 0.5f, 0.5f)))),
+		)
 }

@@ -231,6 +231,7 @@ class EditorSession(
 			latches.activeOperator == null &&
 				!latches.viewportGestureActive.value &&
 				latches.previewSelection.value == null &&
+				latches.meshPreviewSelection.value == null &&
 				latches.activeSelectTool.value == null &&
 				latches.activePieMenu.value == null
 
@@ -258,6 +259,26 @@ class EditorSession(
 	 */
 	fun setPreviewSelection(drawableIds: Set<DrawableId>?) {
 		latches.setPreviewSelection(drawableIds)
+	}
+
+	/**
+	 * The transient preview of what an in-flight Edit-mode circle stroke has painted so far, or null when no
+	 * stroke is live: the whole selection the stroke would commit, in [meshSelection]'s shape.  The renderer's
+	 * mesh overlay shows it in place of the committed [meshSelection], so painted elements light up under
+	 * the brush without committing each stamp (which would spam undo).  Not snapshotted, not on the bus
+	 * (transient UI coordination like [previewSelection]); the stroke commits once on release via
+	 * [setMeshSelection] and clears this back to null.
+	 */
+	val meshPreviewSelection: StateFlow<MeshSelection?> = latches.meshPreviewSelection
+
+	/**
+	 * Publishes the transient Edit-mode circle-stroke preview (see [meshPreviewSelection]); pass null to
+	 * clear it.
+	 *
+	 * @param MeshSelection? selection The selection the stroke has painted so far, or null to clear.
+	 */
+	fun setMeshPreviewSelection(selection: MeshSelection?) {
+		latches.setMeshPreviewSelection(selection)
 	}
 
 	/**
@@ -2208,6 +2229,7 @@ class EditorSession(
 		// into a snapshot of the other and drive the wrong overlay.
 		latches.clearTransient(clearAxisConstraint = true, clearViewportGesture = true)
 		latches.setPreviewSelection(null)
+		latches.setMeshPreviewSelection(null)
 		latches.closePieMenu()
 		mutableMode.value = snapshot.mode
 		refreshFlags()

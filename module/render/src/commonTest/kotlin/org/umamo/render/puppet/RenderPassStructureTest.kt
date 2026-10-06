@@ -984,6 +984,55 @@ class RenderPassStructureTest {
 		)
 
 	/**
+	 * A mesh the current pose leaves unposed (its own keyform grid out of range) is neither captured nor
+	 * drawn, even after an earlier pose posed it: posing at rest clears it from this pose's set, and the
+	 * overlay follows that, not a stale shape from the earlier pose.
+	 */
+	@Test
+	fun anOverlayMeshUnposedAtThisPoseIsNeitherCapturedNorDrawn() {
+		// Steady is keyed over A's whole range, so every pose poses it; ranged only over [0.5, 1], so rest
+		// leaves it unposed.
+		val steady = drawable("steady", bandQuad()).copy(geometryGrid = keyedOver(-1f, 1f))
+		val ranged = drawable("ranged", bandQuad()).copy(geometryGrid = keyedOver(0.5f, 1f))
+		val source =
+			model(
+				drawables = listOf(steady, ranged),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("steady")), OrgChild.Drawable(DrawableId("ranged"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		val overlay = overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("steady", "ranged"))
+
+		renderer.setPose(mapOf(paramA to 0.75f))
+		val posedDraws = overlayDrawsFor(renderer, device, target, overlay)
+		assertEquals(listOf(0, 4), device.capturePasses().single().captures.map { capture -> capture.destinationVertexOffset }, "inside its range both meshes are captured")
+		assertEquals(setOf(0, 4), posedDraws.map { draw -> draw.baseOffset }.toSet(), "and both draw")
+
+		renderer.setPose(emptyMap())
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		assertEquals(listOf(0), device.capturePasses().single().captures.map { capture -> capture.destinationVertexOffset }, "at rest only the steady mesh is captured")
+		assertEquals(setOf(0), device.overlayDraws().map { draw -> draw.baseOffset }.toSet(), "and only it draws")
+	}
+
+	/**
+	 * A two-key zero-delta grid over A from [low] to [high], so a quad is posed exactly while A is in range.
+	 *
+	 * @param Float low The lower key.
+	 * @param Float high The upper key.
+	 * @return KeyformGrid<MeshDeltaForm> The grid.
+	 */
+	private fun keyedOver(low: Float, high: Float): KeyformGrid<MeshDeltaForm> =
+		KeyformGrid(
+			listOf(KeyformAxis(paramA, floatArrayOf(low, high))),
+			listOf(
+				KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(8))),
+				KeyformCell(intArrayOf(1), MeshDeltaForm(FloatArray(8))),
+			),
+		)
+
+	/**
 	 * The overlay draws one frame records for [overlay].
 	 *
 	 * @param PuppetRenderer renderer The posed renderer.
