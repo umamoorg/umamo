@@ -199,6 +199,7 @@ internal suspend fun <TItem, TResult> mapInBalancedChunks(
 	transform: (TItem) -> TResult,
 ): List<TResult> {
 	val chunks = balancedChunks(items, weightOf, minChunkWeight, targetChunks)
+
 	if (chunks.size <= 1) {
 		return items.map(transform)
 	}
