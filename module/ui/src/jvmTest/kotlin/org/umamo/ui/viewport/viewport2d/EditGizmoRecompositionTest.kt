@@ -8,6 +8,12 @@ import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.ui.viewport.gizmo.LEFT_AREA
+import org.umamo.ui.viewport.gizmo.assertNothingRan
+import org.umamo.ui.viewport.gizmo.countingGizmoRuns
+import org.umamo.ui.viewport.gizmo.moveIn
+import org.umamo.ui.viewport.gizmo.pressIn
+import org.umamo.ui.viewport.gizmo.releaseIn
 import kotlin.test.Test
 import kotlin.test.assertTrue
 

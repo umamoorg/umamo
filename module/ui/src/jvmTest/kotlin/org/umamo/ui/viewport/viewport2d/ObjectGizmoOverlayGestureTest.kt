@@ -6,6 +6,9 @@ import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.ui.viewport.gizmo.LEFT_AREA
+import org.umamo.ui.viewport.gizmo.clickIn
+import org.umamo.ui.viewport.gizmo.moveIn
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

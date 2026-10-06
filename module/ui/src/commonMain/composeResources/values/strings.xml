@@ -669,6 +669,7 @@
 	<string name="notice_atlas_repack_unchanged">Atlas already packed; nothing changed.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 	<string name="notice_uv_no_selection">Nothing is selected to mirror.</string>
+	<string name="notice_uv_no_editable_geometry">Nothing to edit here.  None of the edited meshes are on the shown page or layer.</string>
 	<string name="notice_uv_placement_layer_addressed">The puppet's UVs address the source artwork and not the atlas so there is no placement to move.</string>
 	<string name="notice_uv_placement_no_placed_art">Nothing selected is packed on an atlas page or there is no source artwork.</string>
 	<string name="notice_uv_placement_page_view_only">Show an atlas page in the UV editor to move placements.</string>
