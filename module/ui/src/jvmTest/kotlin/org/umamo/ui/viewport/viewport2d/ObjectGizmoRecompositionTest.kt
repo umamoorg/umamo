@@ -5,6 +5,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.ui.viewport.gizmo.LEFT_AREA
+import org.umamo.ui.viewport.gizmo.assertNothingRan
+import org.umamo.ui.viewport.gizmo.countingGizmoRuns
+import org.umamo.ui.viewport.gizmo.dragIn
+import org.umamo.ui.viewport.gizmo.moveIn
+import org.umamo.ui.viewport.gizmo.pressIn
+import org.umamo.ui.viewport.gizmo.releaseIn
 import kotlin.test.Test
 import kotlin.test.assertTrue
 

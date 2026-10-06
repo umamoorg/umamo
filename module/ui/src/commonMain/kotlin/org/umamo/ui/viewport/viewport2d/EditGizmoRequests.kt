@@ -6,10 +6,10 @@ import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.umamo.edit.EditorSession
-import org.umamo.edit.NoticePlacement
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
 import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
 /**
@@ -49,7 +49,7 @@ internal suspend fun collectEditGizmoRequests(
 				if (request.areaId != areaId) {
 					return@collect
 				}
-				val editable = editableGeometryOrNotice(session, geometries.value) ?: return@collect
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
 				handleSelectLinkedRequest(
 					session,
 					editable.map { it.gizmo },
@@ -77,7 +77,7 @@ internal suspend fun collectEditGizmoRequests(
 				if (requestedAreaId != areaId) {
 					return@collect
 				}
-				val editable = editableGeometryOrNotice(session, geometries.value) ?: return@collect
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
 				handleRipRequest(session, editable, areaId, areaPointer.value, camera.value, size.value)
 			}
 		}
@@ -89,25 +89,9 @@ internal suspend fun collectEditGizmoRequests(
 				if (request.areaId != areaId) {
 					return@collect
 				}
-				val editable = editableGeometryOrNotice(session, geometries.value) ?: return@collect
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
 				handleEditSnapRequest(session, editable, request.kind)
 			}
 		}
 	}
-}
-
-/**
- * The geometry a request can run against, or null after telling the rigger there is none: every mesh
- * in the edit sits behind a hidden ancestor, so nothing could be projected.
- *
- * @param EditorSession session The session to emit the notice on.
- * @param List<EditMeshGeometry> geometries The session meshes' live geometry.
- * @return List<EditMeshGeometry>? The geometry, or null when it is empty.
- */
-private fun editableGeometryOrNotice(session: EditorSession, geometries: List<EditMeshGeometry>): List<EditMeshGeometry>? {
-	if (geometries.isEmpty()) {
-		session.emitNotice("notice.edit.noEditableGeometry", NoticePlacement.NearCursor)
-		return null
-	}
-	return geometries
 }

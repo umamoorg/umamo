@@ -28,6 +28,7 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.rip.nothing" -> stringResource(Res.string.notice_rip_nothing)
 		"notice.uv.noUvs" -> stringResource(Res.string.notice_uv_no_uvs)
 		"notice.uv.noSelection" -> stringResource(Res.string.notice_uv_no_selection)
+		"notice.uv.noEditableGeometry" -> stringResource(Res.string.notice_uv_no_editable_geometry)
 		"notice.uv.placement.layerAddressed" -> stringResource(Res.string.notice_uv_placement_layer_addressed)
 		"notice.uv.placement.noPlacedArt" -> stringResource(Res.string.notice_uv_placement_no_placed_art)
 		"notice.uv.placement.pageViewOnly" -> stringResource(Res.string.notice_uv_placement_page_view_only)

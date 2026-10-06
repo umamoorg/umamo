@@ -53,3 +53,29 @@ internal fun UvCursorOverlay(
 		)
 	}
 }
+
+/**
+ * Places the UV cursor where a Shift+RightClick lands on the shown surface: the display point converts
+ * through the surface's frame into the ATLAS coordinates the cursor is stored in.  Both UV gizmo overlays
+ * place it this way, over a page and over a source layer alike.
+ *
+ * @param EditorSession session The session owning the UV cursor.
+ * @param UvEditFrame frame The shown surface's frame.
+ * @param Float displayX The display x in texels.
+ * @param Float displayY The display y in texels.
+ */
+internal fun placeUvCursor(session: EditorSession, frame: UvEditFrame, displayX: Float, displayY: Float) {
+	val (cursorU, cursorV) = frame.storedUvAt(displayX, displayY)
+	session.setUvCursor(cursorU, cursorV)
+}
+
+/**
+ * Where the UV cursor sits on the shown surface, in display space: the Cursor pivot both UV gizmo overlays
+ * transform about.
+ *
+ * @param EditorSession session The session owning the UV cursor.
+ * @param UvEditFrame frame The shown surface's frame.
+ * @return Pair<Float, Float>? The cursor's display (x, y), or null when it is unplaced.
+ */
+internal fun uvCursorDisplay(session: EditorSession, frame: UvEditFrame): Pair<Float, Float>? =
+	session.uvCursor.value?.let { cursor -> frame.displayAt(cursor.u, cursor.v) }

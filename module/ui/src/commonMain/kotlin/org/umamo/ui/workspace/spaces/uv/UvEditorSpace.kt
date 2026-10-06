@@ -48,6 +48,7 @@ import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.overlapStateFrom
+import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.viewport.uv.PlacementDragStatus
 import org.umamo.ui.viewport.uv.UvCursorOverlay
 import org.umamo.ui.viewport.uv.UvEditGizmoOverlay
@@ -263,18 +264,17 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	}
 	val image by imageFlow.collectAsState()
 	val liveCamera by cameraFlow.collectAsState()
-	// The UV editor's proportional influence radius, in display (texel) units.  The session's
-	// radiusWorld is scaled for the puppet canvas and means nothing on a texture surface, so only the
-	// falloff curve and Connected Only are shared; the radius seeds from the shown surface's size on
-	// first use and survives across gestures (the circle-select remembered-radius pattern).  Owned here,
-	// by the overlay stack's host, because two sibling overlays need it: UvEditGizmoOverlay's gesture
-	// machinery seeds and resizes it, UvHudOverlay's status badge reads it.
-	//
-	// Kept PER SURFACE, not per area: a radius seeded on an 8192-texel page means something else
-	// entirely on a 576-texel layer, so carrying one into the other would arrive absurdly large or
-	// vanishingly small.  Each surface seeds its own from what it is actually showing.
+	// The UV editor's proportional influence radius, in display (texel) units, kept per surface for the
+	// area's life (rememberUvProportionalRadius).  Owned here, by the overlay stack's host, because two
+	// sibling overlays need it: UvEditGizmoOverlay's gesture machinery seeds and resizes it, UvHudOverlay's
+	// status badge reads it.
 	val proportionalRadiusDisplay =
-		remember(scope.areaId, displayWidth, displayHeight, layerView?.layerKey) { mutableStateOf<Float?>(null) }
+		rememberUvProportionalRadius(scope.areaId, UvRadiusSurfaceKey(displayWidth, displayHeight, layerView?.layerKey))
+
+	// Where the pointer last was in this area, for the pointer-addressed requests the Edit overlay answers
+	// (Select Linked): tracked here, by the host, so it stays current while the overlay's own pointer loop is
+	// not mounted.  Area-local, like the 2D viewport's.
+	val areaPointer = remember(scope.areaId) { mutableStateOf(Offset.Zero) }
 
 	// The overlap-picker popup's host state (the 2D viewport's pattern): the Object overlay's Alt
 	// pick requests it through overlapStateFrom, the popup mounted in the content stack resolves or
@@ -382,6 +382,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 						// content instead of re-rasterizing the wireframe.  Only a real UV change re-records it.
 						.graphicsLayer()
 						.clipToBounds()
+						.tracksAreaPointer(scope.areaId, areaPointer)
 						// Navigation lives on the PARENT box, not the drawing canvas.  In Edit mode the gizmo
 						// overlay is a child on top; as the parent, this loop sees the Main pass after the overlay,
 						// so pan / zoom work in both modes - the 2D viewport's setup.
@@ -453,6 +454,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					camera = image?.camera,
 					widthPx = widthPx,
 					heightPx = heightPx,
+					areaPointer = areaPointer,
 					proportionalRadiusDisplayState = proportionalRadiusDisplay,
 				)
 				// Zoom Region (Shift+B): mode-agnostic and self-gated on the armed area, so it composes nothing

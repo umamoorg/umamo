@@ -17,6 +17,15 @@ import org.umamo.edit.floatValue
 import org.umamo.edit.setDrawableParentDeformer
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DeformerId
+import org.umamo.ui.viewport.gizmo.LEFT_AREA
+import org.umamo.ui.viewport.gizmo.RIGHT_AREA
+import org.umamo.ui.viewport.gizmo.clickIn
+import org.umamo.ui.viewport.gizmo.dragIn
+import org.umamo.ui.viewport.gizmo.moveIn
+import org.umamo.ui.viewport.gizmo.pressIn
+import org.umamo.ui.viewport.gizmo.releaseIn
+import org.umamo.ui.viewport.gizmo.scrollIn
+import org.umamo.ui.viewport.gizmo.withKeyHeld
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
