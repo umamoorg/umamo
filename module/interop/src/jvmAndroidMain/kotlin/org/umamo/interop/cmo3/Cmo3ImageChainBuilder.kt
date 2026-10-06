@@ -669,7 +669,7 @@ internal object Cmo3ImageChainBuilder {
 	/**
 	 * The texture a drawable over never-packed art samples: its model image's raster, through the raster's
 	 * padding scale, shared by every drawable over that art.  Every corpus drawable with no atlas region
-	 * writes this shape (G8's `Cmo3UnpackedDrawableProbeTest`, 10 drawables in 6 files): the raster as
+	 * writes this shape (`Cmo3UnpackedDrawableProbeTest`, 10 drawables in 6 files): the raster as
 	 * `srcImageResource`, its dims over its 64-aligned padding as `transformImageResource01toLogical01` (so
 	 * the stored coordinates are in the cache frame), mip level 64, and the page texture's fixed sampling
 	 * fields.
@@ -1232,10 +1232,11 @@ internal object Cmo3ImageChainBuilder {
 			rasterTextures.addAll(written.rasterTextures)
 		}
 		// CMO3: CTextureManager field isTextureInputModelImageMode - the document's own display mode.
-		// The synthesized web carries BOTH inputs per drawable (a model image and an atlas region), so
-		// either mode is representable; the diff-driven lowering retargets currentTextureInputData to
-		// match.  This path is not covered by that lowering, so it reads the model directly rather than
-		// hardcoding a mode the document may not be in.
+		// The synthesized web carries BOTH inputs per packed drawable (a model image and an atlas region),
+		// and an unpacked one's model image is current in either mode, so either mode is representable;
+		// the diff-driven lowering retargets currentTextureInputData to match.  This path is not covered
+		// by that lowering, so it reads the model directly rather than hardcoding a mode the document may
+		// not be in.
 		textureManager.isTextureInputModelImageMode = fromSourceLayers
 		return BuiltImageChain(pngEntries, bindingByDrawableId, pageFallbackBindings, cropDrawableCount, rasterTextures)
 	}

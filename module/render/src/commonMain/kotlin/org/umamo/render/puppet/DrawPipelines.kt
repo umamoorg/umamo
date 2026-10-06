@@ -9,8 +9,9 @@ import org.umamo.render.device.RenderPipelineSpec
 import org.umamo.runtime.model.BlendMode
 
 /**
- * The renderer's pipelines: the fixed-purpose ones, created together by [create], and the art-mesh draw
- * pipelines, created the first time a blend and cull state is drawn and reused every frame after.
+ * The renderer's pipelines: the fixed-purpose ones, created together by [create], the mesh overlay's,
+ * created on its first frame, and the art-mesh draw pipelines, created the first time a blend and cull
+ * state is drawn and reused every frame after.
  *
  * Render thread only.  Constructing it touches no device; [create] must run with the device's context
  * current.  Nothing here is ever freed: the device seam exposes no way to free a pipeline, so they live
@@ -32,7 +33,7 @@ internal class DrawPipelines(
 	private var capturePipeline: DeformCapturePipeline? = null
 
 	// The mesh overlay's four pipelines are created on the first overlay frame, not in create(), so a
-	// renderer that never shows an overlay (a capture, a UV area) links nothing for it.
+	// renderer that never shows an overlay links nothing for it.
 	private var overlayFaceFillPipeline: RenderPipeline? = null
 	private var overlayEdgePipeline: RenderPipeline? = null
 	private var overlayVertexDotPipeline: RenderPipeline? = null

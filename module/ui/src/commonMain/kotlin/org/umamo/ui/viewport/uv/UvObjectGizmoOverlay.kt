@@ -13,7 +13,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
@@ -34,8 +33,9 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
 
 /*
  * The UV editor's Object-mode gizmo overlay.  This file is the wiring: what the overlay collects, its guard,
- * what it holds per area and for how long, the effects in the order they launch, and the two layers it
- * draws.  Its parts:
+ * what it holds per area and for how long, the effects in the order they launch, and the chrome layer it
+ * draws.  The islands and the placement drag's preview are the render service's, drawn into the area's frame
+ * from the scene the host publishes (UvSceneOverlay.kt).  Its parts:
  *   - UvModalTransform.kt: the commit side both UV overlays share (the latch ownership rule, cancel, end,
  *     abandon).
  *   - UvPlacementModalTransform.kt: this overlay's placement gesture over the shown atlas page (the
@@ -43,8 +43,9 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  *     the pointer loop hands a gesture's events to.
  *   - UvObjectGizmoSelection.kt: the marquee and the click pick over whole islands.
  *   - UvObjectGizmoPointerInput.kt: the pointer loop (placement gesture, idle pick and box).
- *   - UvObjectGizmoDraw.kt: the islands in the object-overlay style and the gesture chrome.
- *   - UvPlacementDraw.kt: the placement preview, the ghost crops, and the collision outlines.
+ *   - UvObjectGizmoDraw.kt: the gesture chrome.
+ *   - UvPlacementDraw.kt: the collision outlines.
+ *   - UvPlacementScene.kt: the drag's and the landing's share of the area's scene, which the gesture writes.
  * The placement model and its evaluation are in UvPlacementGesture.kt, the strip registration in
  * UvPlacementAdjust.kt, and the UV cursor helpers both overlays use in UvCursorOverlay.kt.
  */
@@ -52,10 +53,9 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
 /**
  * The UV editor's Object-mode gizmo overlay, the mode-exclusive sibling of [UvEditGizmoOverlay]
  * (each one self-gates on the session's mode, the viewport overlay pair's convention): every
- * visible island on the shown surface draws in the Blender object-overlay style - unselected islands
- * dim (the idle palette), selected islands highlighted, the active island's outline emphasized -
- * and the islands are click targets writing the ONE session object selection, so a selection made
- * here flows out to the viewport and the outliner.
+ * visible island on the shown surface is a click target writing the ONE session object selection, so a
+ * selection made here flows out to the viewport and the outliner.  The islands themselves draw in the area's
+ * frame, in the Blender object-overlay style (UvObjectSceneOverlay.kt).
  *
  * The interaction vocabulary is the viewport Object gizmo's, through the same
  * [org.umamo.ui.viewport.gizmo.ObjectPickController]: a sub-threshold primary click picks the front-most
@@ -72,16 +72,15 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  * alpha and places the cursor through the layer's frame, which is the whole of the difference.
  *
  * Over an ATLAS PAGE the overlay also owns the placement gesture (UvPlacementModalTransform): a UV operator
- * latched in this area in Object mode (G / S / R) moves the selected drawables' art on the page, previews the
- * crops at their new spots and the islands translated with them, outlines any footprint that collides or
- * spills off the page, and commits ONE undo step.  Nothing is pushed to the puppet renderer during the drag:
+ * latched in this area in Object mode (G / S / R) moves the selected drawables' art on the page, publishes the
+ * drag to the host's [placementSceneState] (the area's frame then shows the crops at their new spots and the
+ * islands moved with them), outlines any footprint that collides or spills off the page, and commits ONE undo
+ * step.  Nothing is pushed to the puppet renderer during the drag:
  * a placement move is invisible in the 2D viewport by construction.  Only primary-driven events are consumed
  * while idle; pan / zoom and the plain right-click (the context menu) fall through, and a modal gesture owns
  * the pointer.
  *
- * Posed from the FRAME camera so it lags with the GL image during pan / zoom, and unclipped to the
- * image tile by design, so a mapping reaching past it stays visible - which is normal, since a mesh
- * rings outside the art it samples (the hosting area still clips to its own bounds).
+ * Posed from the FRAME camera so it lags with the GL image during pan / zoom.
  *
  * @param String areaId The UV editor area this overlay covers (keys the pointer loop).
  * @param EditorSession session The session owning the object selection, the model, and the latches.
@@ -96,6 +95,8 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  *   area shows a page, or null over a source layer (a latched placement operator is then dropped).
  * @param MutableState<PlacementDragStatus?> placementDragStatusState The host-owned drag readout
  *   this overlay writes per pointer frame and the host's UvHudOverlay badge reads.
+ * @param UvPlacementSceneState placementSceneState The host-owned placement scene this overlay's gesture
+ *   writes per drive and at a landing, and the host's scene publish reads.
  * @param Function onOverlapRequest Opens the host's overlap picker for an Alt click with 2+ candidates.
  * @param Modifier modifier The layout modifier.
  */
@@ -111,6 +112,7 @@ internal fun UvObjectGizmoOverlay(
 	heightPx: Int,
 	placementSurface: UvPlacementSurface?,
 	placementDragStatusState: MutableState<PlacementDragStatus?>,
+	placementSceneState: UvPlacementSceneState,
 	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
@@ -119,14 +121,10 @@ internal fun UvObjectGizmoOverlay(
 		return
 	}
 
-	val meshSelection by session.meshSelection.collectAsState()
-	val objectSelection by session.selection.collectAsState()
 	val activeOperator by session.activeUvOperator.collectAsState()
 	// Held as State, not read here: the HUD reads it only while drawing a gesture this area owns.
 	val axisConstraintState = session.axisConstraint.collectAsState()
 	val committedModel by session.model.collectAsState()
-	val tileByDrawableId = remember(committedModel) { tileIdsByDrawable(committedModel) }
-	val pinnedTileIds = remember(committedModel) { pinnedTileIdsOf(committedModel) }
 	val sessionAtlasPages = LocalSessionAtlasPages.current
 	val viewportOverlayColors = rememberViewportOverlayColors()
 	val overlayColors = LocalUmamoColors.current
@@ -142,21 +140,23 @@ internal fun UvObjectGizmoOverlay(
 	val liveSurface = rememberUpdatedState(placementSurface)
 	val liveAtlasPages = rememberUpdatedState(sessionAtlasPages)
 	val liveDragStatus = rememberUpdatedState(placementDragStatusState)
+	val liveSceneState = rememberUpdatedState(placementSceneState)
 	// The host's overlap callback closes over its render service, which can change while the area lives.
 	val liveOverlapRequest = rememberUpdatedState(onOverlapRequest)
 
 	// The placement gesture's commit side, one per area: the pointer loop and the collectors below keep the
 	// instance they started with (see UvPlacementModalTransform).  Its gesture state is what the Box, the
 	// pointer loop, and the chrome read.
-	val modalTransform = remember(areaId) { UvPlacementModalTransform(areaId, session, liveAtlasPages, liveDragStatus) }
+	val modalTransform = remember(areaId) { UvPlacementModalTransform(areaId, session, liveAtlasPages, liveDragStatus, liveSceneState) }
 	val gesture = modalTransform.gesture
 
-	// A committed move's crops linger at their new spots until the resolver's pages catch up with the
-	// committed atlas; a resolver that never publishes (no page resolver at all) never gets a ghost.
-	val ghostData = modalTransform.ghost
-	val activeGhost = activePlacementGhost(ghostData, committedModel.atlas, sessionAtlasPages?.binding?.value?.atlas)
-	LaunchedEffect(ghostData, activeGhost) {
-		if (ghostData != null && activeGhost == null) {
+	// A committed move's crops linger at their new spots while its atlas is the committed one; an undo or a
+	// newer commit takes them down here.  When its pages have landed is the engine's call, and a resolver that
+	// never publishes (no page resolver at all) never gets a ghost.
+	val ghost = placementSceneState.ghost
+	val committedAtlas = committedModel.atlas
+	LaunchedEffect(ghost, committedAtlas) {
+		if (ghost != null && activePlacementGhost(ghost, committedAtlas) == null) {
 			modalTransform.dismissGhost()
 		}
 	}
@@ -175,13 +175,15 @@ internal fun UvObjectGizmoOverlay(
 	// The unmount guard: area death (corner-join, space switch, workspace tab switch), leaving Object mode, or
 	// losing the frame camera mid-gesture disposes this overlay, which cancels the latch effect below WITHOUT
 	// running its teardown.  The gesture is abandoned - its latch cleared while it is still this area's, so
-	// none restarts from a fresh gesture state when the overlay comes back - and the host's readout cleared;
-	// a select gesture in flight is dropped, and the area-less viewportGestureActive flag it raised comes down.
+	// none restarts from a fresh gesture state when the overlay comes back - and the host's readout and the
+	// placement scene cleared, the ghost with it; a select gesture in flight is dropped, and the area-less
+	// viewportGestureActive flag it raised comes down.
 	DisposableEffect(modalTransform) {
 		onDispose {
 			marquee.discard()
 			objectPick.cancel()
 			modalTransform.abandon()
+			modalTransform.dismissGhost()
 		}
 	}
 
@@ -238,38 +240,11 @@ internal fun UvObjectGizmoOverlay(
 					uvObjectGizmoPointerLoop(areaId, session, modalTransform, objectPick, liveCamera, liveSize)
 				},
 	) {
-		// Two sibling canvases, each in its OWN layer: a draw-state invalidation re-records every draw lambda
-		// sharing a layer, so the per-move gesture chrome (the rubber band, the modal HUD) lives in a small
-		// layer of its own and the island wireframes plus the drag preview - the expensive pass - stay cached
-		// in theirs.  The wireframe layer composites OFFSCREEN: a default layer retains a display list that
-		// every window repaint replays (re-stroking every edge), where the offscreen buffer rasterizes once
-		// per content change and blits per frame.
-		Canvas(
-			modifier =
-				Modifier.fillMaxSize().graphicsLayer {
-					compositingStrategy = CompositingStrategy.Offscreen
-				},
-		) {
-			val areaSize = IntSize(widthPx, heightPx)
-			val capture = gesture.capture
-			val result = capture?.result
-			drawPlacementPreview(capture, result, activeGhost, overlayColors.overlayScrim, camera, areaSize)
-			drawUvObjectIslands(
-				geometries = geometries,
-				frontRankById = islandPick.frontRankById,
-				selection = objectSelection,
-				selectMode = meshSelection.selectMode,
-				tileByDrawableId = tileByDrawableId,
-				pinnedTileIds = pinnedTileIds,
-				collidingTileIds = result?.overlappingTileIds ?: emptySet(),
-				preview = gesture.preview.takeIf { capture != null },
-				colors = viewportOverlayColors,
-				camera = camera,
-				size = areaSize,
-			)
-			drawPlacementCollisions(capture, result, viewportOverlayColors.warning, camera, areaSize)
-		}
+		// The chrome (the collision outlines, the rubber band, the modal HUD) in a small layer of its own: it reads
+		// the pointer and the drive's result in the draw phase, so a move redraws this layer and nothing else.
 		Canvas(modifier = Modifier.fillMaxSize().graphicsLayer()) {
+			val capture = gesture.capture
+			drawPlacementCollisions(capture, capture?.result, viewportOverlayColors.warning, camera, IntSize(widthPx, heightPx))
 			drawUvObjectGizmoChrome(
 				marquee = marquee,
 				gesture = gesture,

@@ -46,7 +46,7 @@ import java.nio.IntBuffer
  * writes and fixes each pipeline's blend up front, both of which read better than the ambient-state
  * idiom - and it is what a Metal backend, which does have command buffers, would map onto directly.
  *
- * @param Int emptyVao A bound VAO for the attribute-less draws (grid, axis, atlas page); a core profile
+ * @param Int emptyVao A bound VAO for the attribute-less draws (grid, axis, image quad); a core profile
  *   requires one even when the shader synthesises positions from gl_VertexID.
  */
 internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {
@@ -184,10 +184,11 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL11.glDrawElements(GL11.GL_TRIANGLES, glMesh.indexCount, GL11.GL_UNSIGNED_INT, 0L)
 	}
 
-	override fun drawAtlasPage(atlas: GpuTexture, pageWidth: Float, pageHeight: Float, fragment: FragmentUniforms) {
+	override fun drawImageQuad(texture: GpuTexture?, quadToWorld: FloatArray, fragment: FragmentUniforms) {
 		val locations = current.locations
-		GL20.glUniform2f(locations.pageSize, pageWidth, pageHeight)
-		setFragmentUniforms(current, fragment, DrawTextures().also { it.atlas = atlas })
+		GL20.glUniform3f(locations.quadRow0, quadToWorld[0], quadToWorld[1], quadToWorld[2])
+		GL20.glUniform3f(locations.quadRow1, quadToWorld[3], quadToWorld[4], quadToWorld[5])
+		setFragmentUniforms(current, fragment, DrawTextures().also { it.atlas = texture })
 		GL30.glBindVertexArray(emptyVao)
 		GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 0, 4)
 	}
@@ -223,6 +224,14 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL20.glUniform3f(locations.backgroundColor, colors.backgroundRed, colors.backgroundGreen, colors.backgroundBlue)
 		GL20.glUniform3f(locations.majorColor, colors.majorRed, colors.majorGreen, colors.majorBlue)
 		GL20.glUniform3f(locations.minorColor, colors.minorRed, colors.minorGreen, colors.minorBlue)
+		val surface = uniforms.surface
+		GL20.glUniform1i(locations.useSurface, if (surface != null) 1 else 0)
+		if (surface != null) {
+			GL20.glUniform4f(locations.surfaceBounds, surface.minX, surface.minY, surface.minX + surface.width, surface.minY + surface.height)
+			GL20.glUniform3f(locations.surroundColor, colors.surroundRed, colors.surroundGreen, colors.surroundBlue)
+			GL20.glUniform3f(locations.frameColor, colors.frameRed, colors.frameGreen, colors.frameBlue)
+			GL20.glUniform1f(locations.frameWidthPx, uniforms.frameWidthPx)
+		}
 		GL30.glBindVertexArray(emptyVao)
 		GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, 3)
 	}

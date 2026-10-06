@@ -111,8 +111,9 @@ public interface RenderDevice {
 	fun createRenderTarget(spec: RenderTargetSpec): RenderTarget
 
 	/**
-	 * Allocates a deformed-position store of [vertexCapacity] vertices: the glue store pass 1 fills, or
-	 * the mesh overlay's.  Sized by its caller and freed by [destroyDeformedPositionStore].
+	 * Allocates a deformed-position store of [vertexCapacity] vertices: the glue store pass 1 fills, the
+	 * 2D mesh overlay's, or a UV scene's, which [updateDeformedPositions] fills directly.  Sized by its
+	 * caller and freed by [destroyDeformedPositionStore].
 	 *
 	 * @param Int vertexCapacity The total vertex count the store must hold.
 	 * @return DeformedPositionStore The store.
@@ -142,6 +143,17 @@ public interface RenderDevice {
 
 	/** Frees [target]. */
 	fun destroyRenderTarget(target: RenderTarget)
+
+	/**
+	 * Writes [positions] (x then y per vertex) into [store] from vertex [vertexOffset] on: the direct fill
+	 * a UV scene's overlay uses, where nothing deforms and every vertex already sits where it is shown.  A
+	 * resource operation between frames, like [updateMeshPositions]; a draw in a later frame reads it.
+	 *
+	 * @param DeformedPositionStore store The store to write.
+	 * @param Int vertexOffset The first vertex written.
+	 * @param FloatArray positions The positions, two floats per vertex.
+	 */
+	fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray)
 
 	/**
 	 * Frees [store].  A caller that outgrows a store frees it and allocates a larger one.
@@ -525,14 +537,17 @@ public interface RenderPassEncoder {
 	)
 
 	/**
-	 * Draws the atlas-page underlay quad.
+	 * Draws one image quad of a UV scene (the pipeline must be [PipelinePurpose.AtlasPageDraw]): the unit
+	 * square's corners carried into world space by [quadToWorld], textured through the fragment's uvAffine
+	 * from the quad's V-flipped unit coordinates (corner (0, 1) samples the image's top-left), or filled with
+	 * the fragment's flat color when [texture] is null and the fragment says so.  An atlas page is the quad
+	 * diag(W, H) over its whole image; the placement drag's crops and scrims are the others.
 	 *
-	 * @param GpuTexture       atlas      The page.
-	 * @param Float            pageWidth  The page width in texels.
-	 * @param Float            pageHeight The page height in texels.
-	 * @param FragmentUniforms fragment   Its appearance.
+	 * @param GpuTexture?      texture     The image, or null for a flat-color quad.
+	 * @param FloatArray       quadToWorld The unit-corner-to-world affine, rows first (m00 m01 m02 m10 m11 m12).
+	 * @param FragmentUniforms fragment    Its appearance.
 	 */
-	fun drawAtlasPage(atlas: GpuTexture, pageWidth: Float, pageHeight: Float, fragment: FragmentUniforms)
+	fun drawImageQuad(texture: GpuTexture?, quadToWorld: FloatArray, fragment: FragmentUniforms)
 
 	/**
 	 * Fills the target with the grid backdrop.
@@ -561,9 +576,9 @@ public interface RenderPassEncoder {
 
 	/**
 	 * Draws the mesh overlay's face fills of one mesh: every triangle in [buffers] as one instance,
-	 * positions fetched from [store], or the one active triangle when the uniforms say so.  The bound
-	 * pipeline must be [PipelinePurpose.OverlayFaceFill] - never a glue pipeline, whose encoder latches
-	 * the glue store on the position unit.
+	 * positions fetched from [store].  There is no active fill (the active face fills as selected), so a
+	 * fill draw is never an active draw.  The bound pipeline must be [PipelinePurpose.OverlayFaceFill] -
+	 * never a glue pipeline, whose encoder latches the glue store on the position unit.
 	 *
 	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
 	 * @param DeformedPositionStore store The overlay's deformed positions.
@@ -572,8 +587,8 @@ public interface RenderPassEncoder {
 	fun drawOverlayFaceFill(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
 
 	/**
-	 * Draws the mesh overlay's edges of one mesh, as [drawOverlayFaceFill] draws its fills; the bound
-	 * pipeline must be [PipelinePurpose.OverlayEdge].
+	 * Draws the mesh overlay's edges of one mesh, as [drawOverlayFaceFill] draws its fills, or the one
+	 * active edge when the uniforms say so; the bound pipeline must be [PipelinePurpose.OverlayEdge].
 	 *
 	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
 	 * @param DeformedPositionStore store The overlay's deformed positions.

@@ -26,6 +26,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -67,6 +68,7 @@ import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.ViewportSettings
+import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.parseSelectionHighlightColor
 import org.umamo.ui.viewport.rememberViewportOverlayColors
@@ -419,9 +421,11 @@ fun rememberPuppetViewportHost(
 	// Feed the themed grid-backdrop colors into the service and keep them live: LocalUmamoColors already
 	// resolves the active scheme (including "system"), so a theme switch recomposes with new colors and this
 	// effect re-pushes them, re-tinting the viewport backdrop. Compose Color components are 0..1 sRGB, exactly
-	// what the grid shader mixes.
+	// what the grid shader mixes.  A UV area's scene also paints the panel color around its surface and the
+	// panel border, 1 dp wide, just outside the surface's edge; the 2D grid ignores both.
 	val gridPalette = LocalUmamoColors.current
-	LaunchedEffect(service, gridPalette) {
+	val surfaceFrameWidthPx = with(LocalDensity.current) { 1.dp.toPx() }
+	LaunchedEffect(service, gridPalette, surfaceFrameWidthPx) {
 		service.gridColors =
 			GridColors(
 				backgroundRed = gridPalette.viewportGridBackground.red,
@@ -433,6 +437,13 @@ fun rememberPuppetViewportHost(
 				minorRed = gridPalette.viewportGridLineMinor.red,
 				minorGreen = gridPalette.viewportGridLineMinor.green,
 				minorBlue = gridPalette.viewportGridLineMinor.blue,
+				surroundRed = gridPalette.panelBackground.red,
+				surroundGreen = gridPalette.panelBackground.green,
+				surroundBlue = gridPalette.panelBackground.blue,
+				frameRed = gridPalette.panelBorder.red,
+				frameGreen = gridPalette.panelBorder.green,
+				frameBlue = gridPalette.panelBorder.blue,
+				frameWidthPx = surfaceFrameWidthPx,
 			)
 	}
 	// The mesh overlay's colors, from the user's viewport.meshEdit settings, live: an edit in the preferences

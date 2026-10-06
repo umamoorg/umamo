@@ -243,8 +243,8 @@ class DrawableSpaceMapping internal constructor(
  */
 fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): DrawableSpaceMapping? {
 	val drawable = model.drawables.firstOrNull { it.id == drawableId } ?: return null
-	// The defaults and the bake are built only when a parent asks for a world, as a direct drawable
-	// never did before the shared tail took over.
+	// The defaults and the bake are built only when a parent asks for a world, so a direct drawable
+	// pays for neither.
 	return mappingOver(drawable) { parentDeformerId ->
 		val defaults = model.parameters.associate { it.id to it.default }
 		val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
@@ -277,12 +277,12 @@ internal fun mappingOver(drawable: Drawable, parentWorldOf: (DeformerId) -> Defo
  * @param PuppetModel model The rig.
  * @param Map parameters Parameter id -> value (partial; the rest default).
  * @param DrawableId drawableId The drawable to sample.
- * @return FloatArray? The interleaved local posed positions, or null when the drawable / mesh / grid is
+ * @return FloatArray? The interleaved local posed positions, or null when the drawable or its mesh is
  *   missing or the pose hides it (out of range).
  */
 fun drawableLocalPosed(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): FloatArray? {
 	val drawable = model.drawables.firstOrNull { it.id == drawableId } ?: return null
-	// Lazy, so an unkeyed drawable still answers without building the defaults, as before.
+	// Lazy, so an unkeyed drawable answers without building the defaults.
 	val defaults by lazy { model.parameters.associate { it.id to it.default } }
 	return localPosedOver(drawable) { parameterId -> parameters[parameterId] ?: defaults[parameterId] ?: 0f }
 }

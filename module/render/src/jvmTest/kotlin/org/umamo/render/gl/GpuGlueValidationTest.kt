@@ -39,8 +39,9 @@ import kotlin.test.assertTrue
  * per-vertex weld attributes `planGlueLayout` plans (partner GLOBAL index, glue index, weld weight), the
  * shared position buffer's per-mesh base offsets, the pass-1 transform-feedback deform, and the pass-2
  * weld shader's partner lookup.  A wrong base offset or a swapped partner index welds a vertex toward
- * garbage.  The edit stages re-plan that layout in session: a remesh, a key edit on the anchor, a vertex
- * added, a deleted anchor, and a deleted earlier glue, each of which must land where the oracle says.
+ * garbage.  The edit stages re-plan that layout, or re-upload a mesh under it, in session: a remesh, a
+ * key edit on the anchor, a vertex added, a deleted anchor, and a deleted earlier glue, each of which
+ * must land where the oracle says.
  *
  * The probe is built so the weld's effect is unmissable rather than a sub-pixel nudge. Two quads sit far
  * apart with a gap between them; the glue pulls mesh B's left edge all the way onto mesh A's right edge

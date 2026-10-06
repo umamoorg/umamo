@@ -40,8 +40,8 @@ internal fun selectToolKind(ownedSelectTool: ActiveSelectTool?): Int =
  *
  * @param EditorSession session The session owning the mesh selection, the armed tool, and the gesture flag.
  * @param Function geometries The shown meshes' gizmo geometry (the stamp and box domain), read per call.
- * @param Function previewStroke Publishes the live stroke after every stamp and null when it ends (the 2D
- *   viewport's renderer draws it); defaults to nothing, for a surface that draws its stroke itself.
+ * @param Function previewStroke Publishes the live stroke after every stamp and null when it ends (each
+ *   surface hands it to the renderer's mesh overlay, which draws it); defaults to nothing.
  * @return MarqueeSelectController<MeshSelection> The marquee.
  */
 internal fun meshMarquee(

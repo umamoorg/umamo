@@ -63,8 +63,8 @@ internal object ViewportColorSettings {
 
 /**
  * The resolved overlay palette: one Compose color per role, parsed from the user's settings.  Held
- * as a value so an overlay's draw pass reads plain fields, and passed whole to the wireframe drawer,
- * which substitutes per-island roles by copying it.
+ * as a value so an overlay's draw pass reads plain fields, and mapped whole onto the renderer's mesh
+ * overlay palette (toMeshOverlayPalette).
  *
  * @property Color vertexIdle Unselected vertex dots.
  * @property Color vertexSelected Selected vertex dots.
@@ -132,8 +132,9 @@ internal fun rememberViewportOverlayColors(): ViewportOverlayColors =
 	)
 
 /**
- * The nine Edit-mode element colors as the renderer's mesh overlay palette, straight alpha, each channel
- * the color's own 0..1 component.  The off-key trio is drawn nowhere and stays out.
+ * The nine Edit-mode element colors and the two placement colors as the renderer's mesh overlay palette,
+ * straight alpha, each channel the color's own 0..1 component.  The off-key trio is drawn nowhere and stays
+ * out.
  *
  * @return MeshOverlayPalette The palette.
  */
@@ -148,6 +149,8 @@ internal fun ViewportOverlayColors.toMeshOverlayPalette(): MeshOverlayPalette =
 		faceIdle = faceIdle.toOverlayColor(),
 		faceSelected = faceSelected.toOverlayColor(),
 		faceActive = faceActive.toOverlayColor(),
+		warning = warning.toOverlayColor(),
+		pinnedPlacement = pinnedPlacement.toOverlayColor(),
 	)
 
 /**

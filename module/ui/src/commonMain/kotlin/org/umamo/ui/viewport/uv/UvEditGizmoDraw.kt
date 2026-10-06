@@ -7,61 +7,17 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveOperator
 import org.umamo.edit.ActiveSelectTool
-import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.render.ViewportCamera
-import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.SelectionOverlayStyle
 import org.umamo.ui.theme.drawRubberBand
-import org.umamo.ui.viewport.ViewportOverlayColors
-import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.MarqueeSelectController
-import org.umamo.ui.viewport.gizmo.MeshHighlightSets
 import org.umamo.ui.viewport.gizmo.ModalGestureState
-import org.umamo.ui.viewport.gizmo.drawMeshWireframe
 import org.umamo.ui.viewport.gizmo.drawOwnedModalTransformHud
 import org.umamo.ui.viewport.gizmo.drawSelectToolAffordances
-
-/**
- * Draws the shown meshes' UV wireframes, from the live preview arrays while a gesture runs - this layer IS
- * the display, with no asynchronous raster to lag behind.  The preview and the capture are read HERE, in
- * the draw phase, so a drive redraws this layer without recomposing anything.
- *
- * @param List<GizmoMeshGeometry> geometries The shown meshes' display geometry.
- * @param Map<DrawableId, MeshHighlightSets> highlightByDrawable What each shown mesh highlights.
- * @param ModalGestureState<UvEditGesture> gesture The area's modal gesture state.
- * @param MeshSelectMode selectMode The select mode the highlights are in.
- * @param ViewportOverlayColors colors The settings-backed mesh palette.
- * @param ViewportCamera camera The frame camera.
- * @param IntSize size The area size in pixels.
- */
-internal fun DrawScope.drawUvEditWireframes(
-	geometries: List<GizmoMeshGeometry>,
-	highlightByDrawable: Map<DrawableId, MeshHighlightSets>,
-	gesture: ModalGestureState<UvEditGesture>,
-	selectMode: MeshSelectMode,
-	colors: ViewportOverlayColors,
-	camera: ViewportCamera,
-	size: IntSize,
-) {
-	val activePreview = gesture.preview.takeIf { gesture.capture != null }
-	for (geometry in geometries) {
-		val highlight = highlightByDrawable[geometry.drawableId] ?: continue
-		drawMeshWireframe(
-			positions = activePreview?.get(geometry.drawableId) ?: geometry.positions,
-			indices = geometry.indices,
-			edges = geometry.edges,
-			highlight = highlight,
-			selectMode = selectMode,
-			colors = colors,
-			camera = camera,
-			size = size,
-		)
-	}
-}
 
 /**
  * Draws the UV Edit overlay's gesture chrome: the rubber band, the armed select tool's affordance, and the

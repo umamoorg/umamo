@@ -224,7 +224,10 @@ class EngineRenderInputsTest {
 		assertBumps(inputs, 3, 0, "none again")
 	}
 
-	/** The palette publishes by equality: an equal copy is a no-op, a changed color bumps the puppet version. */
+	/**
+	 * The palette publishes by equality: an equal copy is a no-op, and a changed color bumps both versions,
+	 * since the puppet areas and the UV areas both draw their overlays in it.
+	 */
 	@Test
 	fun aMeshOverlayPaletteBumpsOnlyOnAChange() {
 		val inputs = inputs()
@@ -233,7 +236,7 @@ class EngineRenderInputsTest {
 		val magentaFaces = MeshOverlayPalette.Classic.copy(faceSelected = OverlayColor(1f, 0f, 1f, 1f))
 		inputs.setMeshOverlayPalette(magentaFaces)
 		assertEquals(magentaFaces, inputs.meshOverlayPalette)
-		assertBumps(inputs, 1, 0, "a changed color")
+		assertBumps(inputs, 1, 1, "a changed color")
 	}
 
 	/**

@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -22,11 +23,14 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshSelection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.atlasBindingForTile
 import org.umamo.ui.action.LocalCommands
@@ -47,6 +51,7 @@ import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.ViewportRegionOverlay
+import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.viewport.uv.PlacementDragStatus
@@ -54,9 +59,12 @@ import org.umamo.ui.viewport.uv.UvCursorOverlay
 import org.umamo.ui.viewport.uv.UvEditGizmoOverlay
 import org.umamo.ui.viewport.uv.UvHudOverlay
 import org.umamo.ui.viewport.uv.UvObjectGizmoOverlay
+import org.umamo.ui.viewport.uv.UvPlacementSceneState
 import org.umamo.ui.viewport.uv.UvPlacementSurface
+import org.umamo.ui.viewport.uv.UvShownScene
 import org.umamo.ui.viewport.uv.UvSpaceCamera
 import org.umamo.ui.viewport.uv.atlasPageEditFrame
+import org.umamo.ui.viewport.uv.publishUvScene
 import org.umamo.ui.viewport.uv.restFrontRank
 import org.umamo.ui.viewport.uv.sourceLayerEditFrame
 import org.umamo.ui.viewport.uv.uvIslandPick
@@ -77,16 +85,18 @@ import org.umamo.ui.workspace.spaces.PlaceholderSpace
  * always on - Umamo UVs are strictly per-vertex, so the viewport and the UV editor agree by
  * construction).  In Edit mode the composed [UvEditGizmoOverlay] owns the interactions: element picking
  * and box select over the shared mesh selection, and the modal G / S / R operators over the texture
- * coordinates with live GPU preview.  In Object mode [UvObjectGizmoOverlay] draws every visible island
- * on the shown surface and owns island selection - click, box, and the Alt overlap stack, writing the
- * session's object selection, so a selection made here flows out to the viewport and the outliner.
+ * coordinates with live GPU preview.  In Object mode the frame shows every visible island on the shown
+ * surface, and [UvObjectGizmoOverlay] owns island selection - click, box, and the Alt overlap stack, writing
+ * the session's object selection, so a selection made here flows out to the viewport and the outliner.
  * Middle-drag pans and the wheel zooms in both modes, through this space's own navigation loop.
  *
- * FULL VIEWPORT-SERVICE PARITY: the underlay is rendered by the SAME offscreen GL engine the 2D viewport
- * uses (a per-area UV render scene, whose content is either an atlas page or a source layer's raster),
- * blitted here by [UvPageUnderlay]; the UV camera is owned by that service, and the Compose wireframe /
- * gizmo overlays lock to the frame camera so they stay glued to the (asynchronously produced) raster
- * during pan / zoom.  With no service present (Android until the GLES engine lands) the space shows the
+ * FULL VIEWPORT-SERVICE PARITY: the surface is rendered by the SAME offscreen GL engine the 2D viewport
+ * uses (a per-area UV render scene, whose content is either an atlas page or a source layer's raster,
+ * with the Edit-mode wireframe, or Object mode's islands and placement preview, drawn over it from the
+ * scene this space publishes - UvSceneOverlay.kt),
+ * blitted here by [UvPageUnderlay]; the UV camera is owned by that service, and the Compose gizmo
+ * overlays lock to the frame camera so they stay glued to the (asynchronously produced) raster during
+ * pan / zoom.  With no service present (Android until the GLES engine lands) the space shows the
  * grid placeholder, exactly like the 2D viewport - there is no CPU underlay fallback.
  *
  * The working space is the display mapping of UvDisplayMapping.kt: texel units with Y up (v = 0 is the
@@ -180,14 +190,17 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		}
 	// Each shown mapping in the SHOWN surface's own frame - stored coordinates over a page, recovered
 	// ones over a layer.  One derivation feeds both the display projection and the pick's alpha gate,
-	// so the wireframe and the hit test can never disagree about where a mesh is.
+	// so the wireframe and the hit test can never disagree about where a mesh is.  Kept per mesh across
+	// derives (UvGizmoGeometryCache), so a drive, which previews new coordinates for the moved meshes
+	// alone, rebuilds those alone and hands the wireframe the same arrays for the rest.
+	val geometryCache = remember(scope.areaId) { UvGizmoGeometryCache() }
 	val shownUvs =
 		remember(shownDrawables, model, layerView) {
-			shownSurfaceUvs(shownDrawables, model, layerView)
+			geometryCache.surfaceUvs(shownDrawables, model, layerView)
 		}
 	val geometries =
 		remember(shownDrawables, shownUvs, displayWidth, displayHeight) {
-			uvGizmoGeometries(shownDrawables, shownUvs, displayWidth, displayHeight)
+			geometryCache.geometries(shownDrawables, shownUvs, displayWidth, displayHeight)
 		}
 	val liveGeometries = rememberUpdatedState(geometries)
 
@@ -233,12 +246,13 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		}
 
 	// Register this area as a UV scene on the shared GL engine and follow the frame it publishes; the
-	// content tracks the resolved texture selection via setUvSceneContent, which is also how the area
-	// switches between a page and a layer WITHOUT re-registering (a second register would take a
-	// reference-counted hold this area never releases).  The camera is owned by the service (pan / zoom /
-	// fit below drive it), and the frame carries the camera it was rendered at for the overlay glue.  The
-	// service keeps this area's view of each page and layer apart, so following the selection onto another
-	// one - or picking one - brings back the view it was left with, or fits it the first time.
+	// content tracks the resolved texture selection through the scene publish below (setUvSceneContent),
+	// which is also how the area switches between a page and a layer WITHOUT re-registering (a second
+	// register would take a reference-counted hold this area never releases).  The camera is owned by the
+	// service (pan / zoom / fit below drive it), and the frame carries the camera it was rendered at for
+	// the overlay glue.  The service keeps this area's view of each page and layer apart, so following the
+	// selection onto another one - or picking one - brings back the view it was left with, or fits it the
+	// first time.
 	//
 	// Resolving the raster here is what triggers its decode, on first sight only - the store caches
 	// thereafter, including its failures.
@@ -258,7 +272,36 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// The live service camera feeds the zoom readout: the wheel updates it immediately, where the
 	// frame's camera (image?.camera) lags the raster by a few frames.
 	val cameraFlow = remember(scope.areaId, service) { service.cameraFlow(scope.areaId) }
-	LaunchedEffect(scope.areaId, sceneContent, islandExtent) { service.setUvSceneContent(scope.areaId, sceneContent, islandExtent) }
+	// The area's live circle stroke, written by the Edit overlay's marquee and drawn over this area alone:
+	// held here and read only by the publish below, so a stamp recomposes nothing.
+	val circleStrokeState = remember(scope.areaId) { mutableStateOf<MeshSelection?>(null) }
+	// The area's placement scene (the drag's scrims, crops, and moving islands, and a landing's ghost),
+	// written by the Object overlay's placement gesture and read only by the publish below, so a drive
+	// recomposes nothing.
+	val placementSceneState = remember(scope.areaId) { UvPlacementSceneState() }
+	// The scene the engine draws: the surface and its extent, with the Edit-mode wireframe of the shown
+	// session meshes, or in Object mode the shown islands and the placement preview, laid on it - derived off
+	// the UI thread and published as the area's content whenever it changes (UvSceneOverlay.kt).  The
+	// geometry follows the preview model, so every UV area showing a dragged mesh follows the drag.
+	val scrim = LocalUmamoColors.current.overlayScrim
+	val scrimColor = remember(scrim) { OverlayColor(scrim.red, scrim.green, scrim.blue, scrim.alpha) }
+	val shownScene =
+		remember(sceneContent, islandExtent, model, geometries, frontRank, scrimColor) {
+			UvShownScene(sceneContent, islandExtent, model, geometries, frontRank, scrimColor)
+		}
+	val liveShownScene = rememberUpdatedState(shownScene)
+	val overlaySizes = rememberUpdatedState(editMeshOverlaySizes(LocalDensity.current))
+	LaunchedEffect(scope.areaId, service, session) {
+		publishUvScene(
+			service = service,
+			areaId = scope.areaId,
+			session = session,
+			shownScene = snapshotFlow { liveShownScene.value },
+			circleStroke = snapshotFlow { circleStrokeState.value },
+			sizes = snapshotFlow { overlaySizes.value },
+			placement = snapshotFlow { placementSceneState.snapshot() },
+		)
+	}
 	DisposableEffect(scope.areaId, service) {
 		onDispose { service.unregister(scope.areaId) }
 	}
@@ -379,7 +422,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 						.background(uiColors.panelBackground)
 						// Cache boundary: promote the UV editor's overlay drawing to its own layer so a sibling
 						// repaint - the 2D viewport's own pan / zoom, a parameter scrub - composites this cached
-						// content instead of re-rasterizing the wireframe.  Only a real UV change re-records it.
+						// content instead of re-rasterizing the overlays it holds.  Only a real UV change
+						// re-records it.
 						.graphicsLayer()
 						.clipToBounds()
 						.tracksAreaPointer(scope.areaId, areaPointer)
@@ -390,16 +434,9 @@ internal fun UvEditorSpace(scope: AreaScope) {
 							uvEditorNavigation(session = session, service = service, areaId = scope.areaId)
 						},
 			) {
-				// The underlay: the GL-rendered surface - atlas page or source layer - clipped to its
-				// on-screen tile with the 1.dp frame around it, or the grid placeholder before the first
-				// frame (UvPageUnderlay.kt).
-				UvPageUnderlay(
-					rendered = image,
-					pageWidth = displayWidth,
-					pageHeight = displayHeight,
-					widthPx = widthPx,
-					heightPx = heightPx,
-				)
+				// The underlay: the GL-rendered frame - the surface with its surround, border, and wireframe -
+				// or the backdrop color before the first frame (UvPageUnderlay.kt).
+				UvPageUnderlay(rendered = image)
 				// The overlap picker for an ambiguous Alt click over stacked islands (the popup is its
 				// own window; the anchor stays area-local).
 				overlap?.let { state ->
@@ -416,7 +453,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				}
 				// The mode-exclusive sibling overlays, each self-gated on the session's mode (the
 				// viewport pair's convention, so both mount unconditionally): Object mode's island
-				// selection surface (every island drawn, click / box / Alt-stack picking and
+				// selection surface (click / box / Alt-stack picking, the placement gesture, and
 				// Shift+RightClick cursor placement over the session's object selection), then Edit
 				// mode's interaction core (element selection, box select, and the modal G / S / R
 				// operators with live GPU preview).  Both are locked to the frame camera
@@ -438,6 +475,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					heightPx = heightPx,
 					placementSurface = placementSurface,
 					placementDragStatusState = placementDragStatus,
+					placementSceneState = placementSceneState,
 					onOverlapRequest = { position, candidates ->
 						// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
 						overlap =
@@ -456,6 +494,7 @@ internal fun UvEditorSpace(scope: AreaScope) {
 					heightPx = heightPx,
 					areaPointer = areaPointer,
 					proportionalRadiusDisplayState = proportionalRadiusDisplay,
+					circleStrokeState = circleStrokeState,
 				)
 				// Zoom Region (Shift+B): mode-agnostic and self-gated on the armed area, so it composes nothing
 				// until armed.  Mounted above the gizmo overlays so an armed drag is captured over them; on

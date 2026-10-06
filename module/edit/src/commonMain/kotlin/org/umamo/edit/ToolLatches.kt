@@ -7,7 +7,7 @@ import org.umamo.runtime.model.DrawableId
 
 /**
  * The session's transient tool state: the modal operator latches, the armed select tool, the zoom
- * region, the axis constraint, the viewport-gesture flag, the stroke-preview selection, the pie
+ * region, the axis constraint, the viewport-gesture flag, the Object- and Edit-mode stroke previews, the pie
  * menu, the 2D cursor, the pivot mode, and proportional editing - everything that coordinates the
  * viewport overlays without ever being snapshotted or entering the change bus.  The
  * mutual-exclusion story (a transform operator owns the pointer, so arming anything drops the

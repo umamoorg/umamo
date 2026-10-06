@@ -82,7 +82,7 @@ internal class GlDeformedPositionStore(
  * draw - 36 call sites' worth of string lookups per frame.
  */
 internal class GlUniformLocations(program: Int) {
-	// Per-pass.  viewportSize is the grid program's genuine viewport extent; screenTexSize is the
+	// Per-pass.  viewportSize is the grid and overlay programs' genuine viewport extent; screenTexSize is the
 	// puppet/composite programs' screen-space texture divisor (the side targets' allocated size,
 	// which the grow-only capacity can hold above the viewport size).
 	val worldToNdc = GL20.glGetUniformLocation(program, "worldToNdc")
@@ -126,8 +126,9 @@ internal class GlUniformLocations(program: Int) {
 	val atlasLinear = GL20.glGetUniformLocation(program, "atlasLinear")
 	val atlasTransparentBorder = GL20.glGetUniformLocation(program, "atlasTransparentBorder")
 
-	// Atlas page
-	val pageSize = GL20.glGetUniformLocation(program, "pageSize")
+	// Image quad
+	val quadRow0 = GL20.glGetUniformLocation(program, "quadRow0")
+	val quadRow1 = GL20.glGetUniformLocation(program, "quadRow1")
 
 	// Layer composite
 	val layerTexture = GL20.glGetUniformLocation(program, "layerTexture")
@@ -145,6 +146,11 @@ internal class GlUniformLocations(program: Int) {
 	val majorColor = GL20.glGetUniformLocation(program, "majorColor")
 	val minorColor = GL20.glGetUniformLocation(program, "minorColor")
 	val gridOrigin = GL20.glGetUniformLocation(program, "gridOrigin")
+	val useSurface = GL20.glGetUniformLocation(program, "useSurface")
+	val surfaceBounds = GL20.glGetUniformLocation(program, "surfaceBounds")
+	val surroundColor = GL20.glGetUniformLocation(program, "surroundColor")
+	val frameColor = GL20.glGetUniformLocation(program, "frameColor")
+	val frameWidthPx = GL20.glGetUniformLocation(program, "frameWidthPx")
 
 	// Axis line
 	val linePositionNdc = GL20.glGetUniformLocation(program, "linePositionNdc")
@@ -163,8 +169,8 @@ internal class GlUniformLocations(program: Int) {
 
 /**
  * One mesh's resident overlay instance data: a VAO per primitive domain over its per-instance index
- * buffer and its per-instance flag buffer.  A domain the mesh lacks (no edges, no triangles) has 0 for
- * its names and draws nothing.
+ * buffer (none for the vertex domain, whose instance index is the vertex) and its per-instance flag
+ * buffer.  A domain the mesh lacks (no edges, no triangles) has 0 for its names and draws nothing.
  */
 internal class GlOverlayMeshBuffers(
 	val edgeVao: Int,

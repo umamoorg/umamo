@@ -210,7 +210,7 @@ sealed interface ExportNoticeReason {
 
 	/**
 	 * A parameter the edit deleted is still read or driven by physics settings the CMO3 retained, which Umamo
-	 * does not model and wrote back as they were (docs/plan/uma-format.md D38).
+	 * does not model and wrote back as they were.
 	 *
 	 * @property List settingNames The physics settings that still name the parameter.
 	 */

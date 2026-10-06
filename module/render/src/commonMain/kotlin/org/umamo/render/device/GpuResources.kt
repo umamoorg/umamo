@@ -36,8 +36,9 @@ public interface RenderTarget {
 }
 
 /**
- * The shared store of pass-1 deformed world positions, addressed by GLOBAL vertex index across every
- * glue-involved mesh (see `org.umamo.render.puppet.planGlueLayout`).
+ * A store of deformed world positions: the shared glue store pass 1 fills, addressed by GLOBAL vertex
+ * index across every glue-involved mesh (see `org.umamo.render.puppet.planGlueLayout`), or a mesh
+ * overlay's, which its draws read by each mesh's store offset.
  *
  * How the GPU actually holds it is the backend's business - a texture buffer on desktop GL today, and a
  * 2D texture once the GLES 3.0 path lands, since texture buffers are 3.2 there.  The renderer only ever
@@ -100,7 +101,10 @@ public enum class PipelinePurpose {
 	/** A glue art mesh: read pass-1 own/partner positions, weld, project, sample the atlas. */
 	PuppetGlueDraw,
 
-	/** The UV editor's flat atlas-page underlay quad (attribute-less; corners from the vertex index). */
+	/**
+	 * A UV scene's image quad - an atlas page or source-layer underlay, or the placement drag's crops and
+	 * scrims (attribute-less; corners from the vertex index).
+	 */
 	AtlasPageDraw,
 
 	/** The world-aligned grid backdrop (attribute-less full-screen triangle). */

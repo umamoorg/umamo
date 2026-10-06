@@ -78,12 +78,12 @@ internal class EngineRenderInputs(
 	@Volatile
 	private var meshOverlayBacking: MeshOverlay? = null
 
-	// The nine overlay colors, from settings; Classic until the host pushes the user's.
+	// The eleven overlay colors, from settings; Classic until the host pushes the user's.
 	@Volatile
 	private var meshOverlayPaletteBacking: MeshOverlayPalette = MeshOverlayPalette.Classic
 
-	// The latest model, re-pushed on a structural edit (layer reorder / reparent, base-mesh move); seeded
-	// with the open model.
+	// The latest model, re-pushed on an edit (layer reorder / reparent, base-mesh move, a Grab's preview
+	// push); seeded with the open model.
 	@Volatile
 	private var modelBacking: PuppetModel = puppet
 
@@ -381,8 +381,9 @@ internal class EngineRenderInputs(
 	}
 
 	/**
-	 * Sets the mesh overlay's colors.  A change bumps the puppet render version; an equal palette is a
-	 * no-op, whichever instance carries it.
+	 * Sets the mesh overlay's colors.  A change bumps both render versions, since the puppet areas and the
+	 * UV areas draw their overlays in the same palette; an equal palette is a no-op, whichever instance
+	 * carries it.
 	 *
 	 * @param MeshOverlayPalette palette The palette.
 	 */
@@ -390,6 +391,7 @@ internal class EngineRenderInputs(
 		if (palette != meshOverlayPaletteBacking) {
 			meshOverlayPaletteBacking = palette
 			doPuppetRenderBump()
+			doAtlasRenderBump()
 		}
 	}
 
@@ -410,7 +412,7 @@ internal class EngineRenderInputs(
 
 	/**
 	 * Whether frames rendered while an area's size is actively changing keep the supersample
-	 * (viewport.rendering.supersampleWhileResizing).  False (the default) drops those frames to 1x;
+	 * (viewport.rendering.supersampleWhileResizing).  True by default; false drops those frames to 1x;
 	 * the settle render restores full quality within the settle window.  No bump on change - the next
 	 * resize simply picks up the new policy.
 	 */

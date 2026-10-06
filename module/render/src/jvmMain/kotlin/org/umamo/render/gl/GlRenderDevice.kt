@@ -61,11 +61,11 @@ import java.nio.ByteBuffer
  *
  * A near-transliteration of this becomes the Android GLES 3.0 device: the calls are the same, differing
  * only in binding style (LWJGL statics vs the GLES out-param form) and the one place GLES 3.0 lacks a
- * texture buffer (the glue store, [createDeformedPositionStore], where the GLES port repacks as a 2D
- * texture behind [DeformedPositionStore]).
+ * texture buffer (the glue and overlay stores, [createDeformedPositionStore], where the GLES port repacks
+ * as a 2D texture behind [DeformedPositionStore]).
  */
 class GlRenderDevice : RenderDevice {
-	// An empty VAO for the attribute-less draws (grid, axis lines, atlas page): a core profile still
+	// An empty VAO for the attribute-less draws (grid, axis lines, image quads): a core profile still
 	// requires a bound VAO even when the vertex shader synthesises its positions from gl_VertexID.
 	private var emptyVao = 0
 
@@ -268,6 +268,21 @@ class GlRenderDevice : RenderDevice {
 		if (glMesh.indexEbo != 0) {
 			GL15.glDeleteBuffers(glMesh.indexEbo)
 		}
+	}
+
+	override fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray) {
+		val glStore = store as GlDeformedPositionStore
+		check(positions.size % 2 == 0) { "positions come in x, y pairs: ${positions.size} floats" }
+		check(vertexOffset >= 0 && vertexOffset + positions.size / 2 <= glStore.vertexCapacity) {
+			"${positions.size / 2} vertices at $vertexOffset overrun a store of ${glStore.vertexCapacity}"
+		}
+		if (uploadScratch.capacity() < positions.size) {
+			uploadScratch = BufferUtils.createFloatBuffer(positions.size)
+		}
+		uploadScratch.clear()
+		uploadScratch.put(positions).flip()
+		GL15.glBindBuffer(GL31.GL_TEXTURE_BUFFER, glStore.buffer)
+		GL15.glBufferSubData(GL31.GL_TEXTURE_BUFFER, vertexOffset.toLong() * 2 * Float.SIZE_BYTES, uploadScratch)
 	}
 
 	override fun destroyDeformedPositionStore(store: DeformedPositionStore) {

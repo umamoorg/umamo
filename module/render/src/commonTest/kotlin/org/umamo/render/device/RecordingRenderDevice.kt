@@ -85,7 +85,7 @@ internal class RecordedPipeline(
 internal class RecordedCapturePipeline : DeformCapturePipeline
 
 /**
- * The deformed-position store the recorder handed out.
+ * A deformed-position store the recorder handed out.
  *
  * @property Int vertexCapacity The vertex capacity it was allocated at.
  */
@@ -306,18 +306,21 @@ internal class RecordedAxisDraw(
 ) : RecordedDraw
 
 /**
- * One flat underlay quad draw.
+ * One image quad draw of a UV scene: an atlas page or layer image, a placement crop, or a flat scrim, with
+ * the values its uniforms held at call time.
  *
- * @property RenderPipelineSpec pipeline   The pipeline bound.
- * @property RecordedTexture    page       The image drawn.
- * @property Float              pageWidth  The quad width in texels.
- * @property Float              pageHeight The quad height in texels.
+ * @property RenderPipelineSpec pipeline    The pipeline bound.
+ * @property RecordedTexture?   texture     The image sampled, or null for a flat-color quad.
+ * @property List<Float>        quadToWorld The unit-corner-to-world affine, rows first.
+ * @property List<Float>        uvAffine    The fragment's sample affine, rows first.
+ * @property List<Float>        drawColor   The flat color, straight RGBA (read when there is no texture).
  */
-internal class RecordedPageDraw(
+internal class RecordedQuadDraw(
 	override val pipeline: RenderPipelineSpec,
-	val page: RecordedTexture,
-	val pageWidth: Float,
-	val pageHeight: Float,
+	val texture: RecordedTexture?,
+	val quadToWorld: List<Float>,
+	val uvAffine: List<Float>,
+	val drawColor: List<Float>,
 ) : RecordedDraw
 
 /**
@@ -367,6 +370,19 @@ internal class StoreCreated(
 /** A deformed-position store was freed. */
 internal class StoreDestroyed(
 	val store: RecordedStore,
+) : ResourceEvent
+
+/**
+ * Positions were written into a deformed-position store directly (a UV scene's overlay).
+ *
+ * @property RecordedStore store The store written.
+ * @property Int vertexOffset The first vertex written.
+ * @property FloatArray positions The positions, by reference.
+ */
+internal class StorePositionsUpdated(
+	val store: RecordedStore,
+	val vertexOffset: Int,
+	val positions: FloatArray,
 ) : ResourceEvent
 
 /** A mesh's overlay instance buffers were uploaded. */
@@ -641,6 +657,16 @@ internal class RecordingRenderDevice : RenderDevice {
 		recorded.destroyed = true
 		recorded.sampledTexture?.destroyed = true
 		recordedResourceEvents.add(TargetDestroyed(recorded))
+	}
+
+	override fun updateDeformedPositions(store: DeformedPositionStore, vertexOffset: Int, positions: FloatArray) {
+		val recorded = liveStore(store, "updateDeformedPositions")
+		check(!frameOpen) { "updateDeformedPositions inside a frame: positions upload between frames" }
+		check(positions.size % 2 == 0) { "updateDeformedPositions: positions come in x, y pairs" }
+		check(vertexOffset >= 0 && vertexOffset + positions.size / 2 <= recorded.vertexCapacity) {
+			"updateDeformedPositions: ${positions.size / 2} vertices at $vertexOffset overrun a store of ${recorded.vertexCapacity}"
+		}
+		recordedResourceEvents.add(StorePositionsUpdated(recorded, vertexOffset, positions))
 	}
 
 	override fun destroyDeformedPositionStore(store: DeformedPositionStore) {
@@ -971,10 +997,20 @@ internal class RecordingRenderDevice : RenderDevice {
 			)
 		}
 
-		override fun drawAtlasPage(atlas: GpuTexture, pageWidth: Float, pageHeight: Float, fragment: FragmentUniforms) {
-			val pipeline = pipelineFor(PipelinePurpose.AtlasPageDraw, "drawAtlasPage")
-			val page = sampledTexture(atlas, pass, "drawAtlasPage") ?: error("drawAtlasPage with no page")
-			pass.draws.add(RecordedPageDraw(pipeline, page, pageWidth, pageHeight))
+		override fun drawImageQuad(texture: GpuTexture?, quadToWorld: FloatArray, fragment: FragmentUniforms) {
+			val pipeline = pipelineFor(PipelinePurpose.AtlasPageDraw, "drawImageQuad")
+			check(quadToWorld.size == 6) { "drawImageQuad takes a six-float affine, got ${quadToWorld.size}" }
+			val sampled = sampledTexture(texture, pass, "drawImageQuad")
+			check(!fragment.useTexture || sampled != null) { "drawImageQuad samples a texture it was not given" }
+			pass.draws.add(
+				RecordedQuadDraw(
+					pipeline = pipeline,
+					texture = sampled.takeIf { fragment.useTexture },
+					quadToWorld = quadToWorld.toList(),
+					uvAffine = fragment.uvAffine.toList(),
+					drawColor = listOf(fragment.colorRed, fragment.colorGreen, fragment.colorBlue, fragment.colorAlpha),
+				),
+			)
 		}
 
 		override fun drawGrid(uniforms: GridUniforms) {

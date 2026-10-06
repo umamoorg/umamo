@@ -22,8 +22,8 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 /**
  * A render service with no renderer behind it, for tests of the viewport overlays: it records every model
  * an overlay pushes through [setModel] (a gesture's previews and the resync that ends it), every mesh
- * overlay and palette published to it, and answers the picks from a table the test fills.  Everything else
- * does nothing, since no overlay under test reads it.
+ * overlay, palette, and UV scene content published to it, and answers the picks from a table the test
+ * fills.  Everything else does nothing, since no overlay under test reads it.
  */
 internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every model pushed through [setModel], oldest first. */
@@ -34,6 +34,9 @@ internal class StubPuppetViewportService : PuppetViewportService {
 
 	/** Every palette published through [setMeshOverlayPalette], oldest first. */
 	val pushedPalettes = ArrayList<MeshOverlayPalette>()
+
+	/** Every UV scene content published through [setUvSceneContent], in order. */
+	val pushedUvContents = ArrayList<UvContentPush>()
 
 	/** What [pickAllAt] answers per area, front-most first; an area with no entry answers nothing. */
 	val stackByArea = HashMap<String, List<PickCandidate>>()
@@ -82,13 +85,15 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	override fun registerUvScene(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?): StateFlow<RenderedFrame?> = MutableStateFlow(null)
 
 	/**
-	 * Does nothing.
+	 * Records the content a UV area publishes.
 	 *
 	 * @param String areaId The area.
 	 * @param UvSceneContent content The scene.
 	 * @param ContentBounds? islandExtent The island extent.
 	 */
-	override fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?) {}
+	override fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?) {
+		pushedUvContents.add(UvContentPush(areaId, content, islandExtent))
+	}
 
 	/**
 	 * Does nothing.
@@ -393,3 +398,16 @@ internal class StubPuppetViewportService : PuppetViewportService {
 		override fun partThumbnailFor(id: PartId): ImageBitmap? = null
 	}
 }
+
+/**
+ * One UV scene content publish, as the stub recorded it.
+ *
+ * @property String areaId The area.
+ * @property UvSceneContent content The content, with its overlay.
+ * @property ContentBounds? islandExtent The island extent.
+ */
+internal class UvContentPush(
+	val areaId: String,
+	val content: UvSceneContent,
+	val islandExtent: ContentBounds?,
+)

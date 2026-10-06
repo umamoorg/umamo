@@ -105,7 +105,8 @@ object Moc3Sidecars {
 	 * The complete export: every file to write, plus the lowering's advisory report.
 	 *
 	 * @property List         files  The family, moc first.
-	 * @property ExportReport report The notices from the moc lowering.
+	 * @property ExportReport report The notices from the moc lowering, plus one per carried physics sidecar
+	 *   that names a parameter the moc does not contain.
 	 */
 	class Bundle(val files: List<BundleFile>, val mocFileName: String, val report: ExportReport)
 

@@ -3,7 +3,6 @@ package org.umamo.ui.viewport.uv
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.ImageBitmap
 import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshTransforms
@@ -41,8 +40,6 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.placementAffine
-import org.umamo.ui.graphics.RgbaAlphaType
-import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.gestureRotationRadians
@@ -124,7 +121,7 @@ internal class PlacementDragStatus(
  * @property List<AlphaContour> contours     The outlines of its opaque region, raster-local, for the painter chrome.
  * @property Float             pivotDisplayX The pivot it turns and scales about, display x.
  * @property Float             pivotDisplayY The pivot's display y.
- * @property ImageBitmap?      crop          Its trim's pixels for the drag preview, or null when they could not be wrapped.
+ * @property DecodedImage?     crop          Its trim's straight-alpha pixels for the drag preview, or null for an empty trim.
  */
 internal class PlacementMover(
 	val tileId: AtlasTileId,
@@ -136,7 +133,7 @@ internal class PlacementMover(
 	val contours: List<AlphaContour>,
 	val pivotDisplayX: Float,
 	val pivotDisplayY: Float,
-	val crop: ImageBitmap?,
+	val crop: DecodedImage?,
 )
 
 /**
@@ -264,6 +261,41 @@ internal fun flipAffineFrame(affine: FloatArray, pageHeight: Int): FloatArray {
  */
 internal fun tileToDisplayAffine(placement: AtlasPlacement, pageHeight: Int): FloatArray =
 	composeAffine(floatArrayOf(1f, 0f, 0f, 0f, -1f, pageHeight.toFloat()), placementAffine(placement))
+
+/**
+ * A trim's quad on the page in DISPLAY space under [placement], as the scene's image quad takes it: the
+ * unit corner (x, y) lands on the tile pixel (left + x * width, top + (1 - y) * height), so the quad's
+ * V-flipped unit coordinates (x, 1 - y) walk the trim top row first, the way its pixels are stored.
+ *
+ * @param AtlasPlacement placement Where the tile sits.
+ * @param LayerBounds trim The trim, raster-local.
+ * @param Int pageHeight The page height, the display flip's line.
+ * @return FloatArray The unit-corner-to-display affine, rows first.
+ */
+internal fun trimQuadToDisplay(placement: AtlasPlacement, trim: LayerBounds, pageHeight: Int): FloatArray {
+	val unitToTile = floatArrayOf(trim.width.toFloat(), 0f, trim.left.toFloat(), 0f, -trim.height.toFloat(), (trim.top + trim.height).toFloat())
+	return composeAffine(tileToDisplayAffine(placement, pageHeight), unitToTile)
+}
+
+/**
+ * Where a trim quad's V-flipped unit coordinates sample the WHOLE tile's texture: the trim's own corner and
+ * extent in the tile's 0..1 texture frame.  The scene reads a crop through the tile's resident layer
+ * texture with it; an uploaded crop is the trim itself and needs none.
+ *
+ * @param LayerBounds trim The trim, raster-local.
+ * @param Int tileWidth The tile's width in pixels.
+ * @param Int tileHeight The tile's height in pixels.
+ * @return FloatArray The unit-to-texture affine, rows first.
+ */
+internal fun trimSampleAffine(trim: LayerBounds, tileWidth: Int, tileHeight: Int): FloatArray =
+	floatArrayOf(
+		trim.width.toFloat() / tileWidth,
+		0f,
+		trim.left.toFloat() / tileWidth,
+		0f,
+		trim.height.toFloat() / tileHeight,
+		trim.top.toFloat() / tileHeight,
+	)
 
 /**
  * The parameters one pointer frame yields for [operatorKind], through the same helpers the mesh
@@ -458,7 +490,7 @@ private fun vacatedRect(mover: PlacementMover, extrude: Int): PixelRect {
  * decode or disagrees with its tile refuses the gesture; a bystander in that state surfaces at the
  * commit as the resolver's own fault log.
  *
- * Decodes rasters, wraps bitmaps, and scans the page, so callers run it off the UI thread.
+ * Decodes rasters, cuts crops, and scans the page, so callers run it off the UI thread.
  *
  * @param PuppetModel model The session's committed model.
  * @param UvPlacementSurface surface The shown page and the source-art store.
@@ -529,7 +561,7 @@ internal fun buildPlacementGesture(
 				contours = analysis.contours,
 				pivotDisplayX = (footprint.left + footprint.right) / 2f,
 				pivotDisplayY = surface.pageHeight - (footprint.top + footprint.bottom) / 2f,
-				crop = cropBitmap(raster, trim),
+				crop = cropRaster(raster, trim),
 			),
 		)
 	}
@@ -608,13 +640,14 @@ internal fun buildPlacementGesture(
 private fun allVertexIndices(positions: FloatArray): Set<Int> = (0 until positions.size / 2).toSet()
 
 /**
- * The trim's pixels of a decoded tile as a Compose bitmap, straight alpha preserved.
+ * The trim's pixels of a decoded tile, straight alpha preserved, top row first: the crop the scene uploads
+ * when the tile has no resident layer texture.
  *
  * @param DecodedImage raster The tile's decoded art.
  * @param LayerBounds trim The sub-rectangle to crop, raster-local.
- * @return ImageBitmap? The crop, or null when the platform could not wrap it.
+ * @return DecodedImage? The crop, or null for an empty trim.
  */
-private fun cropBitmap(raster: DecodedImage, trim: LayerBounds): ImageBitmap? {
+internal fun cropRaster(raster: DecodedImage, trim: LayerBounds): DecodedImage? {
 	if (trim.width <= 0 || trim.height <= 0) {
 		return null
 	}
@@ -623,5 +656,5 @@ private fun cropBitmap(raster: DecodedImage, trim: LayerBounds): ImageBitmap? {
 		val sourceOffset = ((trim.top + rowIndex) * raster.width + trim.left) * 4
 		raster.rgba.copyInto(bytes, rowIndex * trim.width * 4, sourceOffset, sourceOffset + trim.width * 4)
 	}
-	return runCatching { rgbaToImageBitmap(bytes, trim.width, trim.height, RgbaAlphaType.Straight) }.getOrNull()
+	return DecodedImage(bytes, trim.width, trim.height)
 }

@@ -113,7 +113,7 @@ internal sealed interface SourcesNodeKind {
 	/** A drawable sampling a tile. */
 	data class Drawable(val drawableId: DrawableId) : SourcesNodeKind
 
-	/** The synthetic group holding every tile bound to no layer. */
+	/** The synthetic group holding every tile bound to no layer or to a file the document does not list. */
 	data object UnboundGroup : SourcesNodeKind
 }
 

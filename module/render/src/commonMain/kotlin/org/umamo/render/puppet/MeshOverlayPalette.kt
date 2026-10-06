@@ -34,10 +34,10 @@ data class OverlayColor(
 }
 
 /**
- * The nine colors the mesh overlay draws with: each domain's idle, selected, and active color.  The
- * active face color colors the active face's DOT only; a fill never uses it, the active face fills as
- * selected.  The viewport.meshEdit settings also carry an off-key color per domain, which nothing draws,
- * so it has no place here.
+ * The colors the mesh overlay draws with: each domain's idle, selected, and active color, and the two
+ * placement colors a UV area's islands outline in.  The active face color colors the active face's DOT
+ * only; a fill never uses it, the active face fills as selected.  The viewport.meshEdit settings also
+ * carry an off-key color per domain, which nothing draws, so it has no place here.
  *
  * @property OverlayColor vertexIdle An unselected vertex dot.
  * @property OverlayColor vertexSelected A selected vertex dot.
@@ -48,6 +48,8 @@ data class OverlayColor(
  * @property OverlayColor faceIdle An unselected face fill, and an unselected face dot with alpha forced to 1.
  * @property OverlayColor faceSelected A selected face fill, and a selected face dot with alpha forced to 1.
  * @property OverlayColor faceActive The active face dot, with alpha forced to 1.
+ * @property OverlayColor warning The outline of an island whose tile is in a placement collision.
+ * @property OverlayColor pinnedPlacement The outline of an island whose tile is pinned.
  */
 data class MeshOverlayPalette(
 	val vertexIdle: OverlayColor,
@@ -59,6 +61,8 @@ data class MeshOverlayPalette(
 	val faceIdle: OverlayColor,
 	val faceSelected: OverlayColor,
 	val faceActive: OverlayColor,
+	val warning: OverlayColor = OverlayColor.fromArgb(0xFFFF5A5AL),
+	val pinnedPlacement: OverlayColor = OverlayColor.fromArgb(0xFFB266FFL),
 ) {
 	companion object {
 		/** The settings defaults, so a renderer draws something sensible before the UI pushes a palette. */

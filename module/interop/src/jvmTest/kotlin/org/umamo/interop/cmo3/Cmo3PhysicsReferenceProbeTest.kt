@@ -14,8 +14,7 @@ import kotlin.test.assertTrue
 
 /**
  * Surveys how a CMO3's physics settings name the parameters they read and drive, so the export can tell when
- * a parameter it deletes is still named by retained physics (docs/format/CMO3.md §3, docs/plan/uma-format.md
- * D38).
+ * a parameter it deletes is still named by retained physics (docs/format/CMO3.md §3).
  *
  * What it tallies: the class of each `CPhysicsInput.source` and `CPhysicsOutput.destination` value, whether
  * that value is the very guid object a `CParameterSource` carries (the writer's shared-reference form) or

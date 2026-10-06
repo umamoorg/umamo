@@ -17,12 +17,12 @@ import kotlin.math.roundToInt
 
 /*
  * The art a document holds for one of its listed files, as source art: what Relink and Match read when the
- * file is not on disk and the document has no CMO3 decomposition to fall back to (docs/plan/uma-format.md
- * D40) - a reopened CMO3-origin `.uma`, or any document whose artwork file has gone.  Each tile keeps the
- * pixels its layer had when it was last read, so a layer some tile binds reads as that tile's art; a layer
- * no tile binds has no pixels anywhere in the document and reads as a layer with none, which the planners
- * treat as nothing to pull.  Like a CMO3's decomposition it is the art as last read, never the file as it is
- * now, so a reload never reads it.
+ * file is not on disk and the document has no CMO3 decomposition to fall back to - a reopened CMO3-origin
+ * `.uma`, or any document whose artwork file has gone.  Each tile keeps the pixels its layer had when it was
+ * last read, so a layer some tile binds reads as that tile's art; a layer no tile binds has no pixels
+ * anywhere in the document and reads as a layer with none, which the planners treat as nothing to pull.
+ * Like a CMO3's decomposition it is the art as last read, never the file as it is now, so a reload never
+ * reads it.
  */
 
 /**

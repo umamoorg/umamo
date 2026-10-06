@@ -3,6 +3,13 @@ package org.umamo.editor.desktop.viewport
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.ViewportCamera
+import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayKind
+import org.umamo.render.puppet.MeshOverlaySelectMode
+import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.OverlayColor
+import org.umamo.render.puppet.PlacementPreview
 import org.umamo.ui.viewport.UvSceneContent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -130,6 +137,59 @@ class AreaFreshnessTest {
 		val redecoded = sameLayer.apply { uvContent = UvSceneContent.SourceLayer("layer", DecodedImage(ByteArray(4), 1, 1)) }
 		assertEquals(AreaRenderDecision.Render(2), decide(redecoded), "a re-decoded raster is new pixels")
 	}
+
+	/**
+	 * A UV area's overlay rides its content, so it is watched by the content's equality: the same overlay
+	 * instance is fresh, an overlay appearing or a newly published one renders, and the surface the camera
+	 * keys ignores it.
+	 */
+	@Test
+	fun aUvAreaWatchesItsOverlayByIdentity() {
+		val overlay = directOverlay()
+		val shown =
+			freshUvSlot().apply {
+				uvContent = UvSceneContent.AtlasPage(0, overlay)
+				renderedUvContent = UvSceneContent.AtlasPage(0, overlay)
+			}
+		assertEquals(AreaRenderDecision.Fresh, decide(shown), "the same overlay instance is fresh")
+		assertEquals(AreaRenderDecision.Render(2), decide(freshUvSlot().apply { uvContent = UvSceneContent.AtlasPage(0, overlay) }), "an overlay appearing")
+		assertEquals(AreaRenderDecision.Render(2), decide(shown.apply { uvContent = UvSceneContent.AtlasPage(0, directOverlay()) }), "a newly published overlay, however alike")
+		assertEquals(UvSceneContent.AtlasPage(0).surfaceId, UvSceneContent.AtlasPage(0, overlay).surfaceId, "the camera keys the surface alone")
+		assertEquals(
+			UvSceneContent.SourceLayer("layer", null).surfaceId,
+			UvSceneContent.SourceLayer("layer", null, overlay).surfaceId,
+			"a layer's too",
+		)
+	}
+
+	/** A page's placement preview rides its content the same way: the same instance is fresh, a new one renders. */
+	@Test
+	fun aUvAreaWatchesItsPlacementByIdentity() {
+		val placement = placementPreview()
+		val shown =
+			freshUvSlot().apply {
+				uvContent = UvSceneContent.AtlasPage(0, placement = placement)
+				renderedUvContent = UvSceneContent.AtlasPage(0, placement = placement)
+			}
+		assertEquals(AreaRenderDecision.Fresh, decide(shown), "the same preview instance is fresh")
+		assertEquals(AreaRenderDecision.Render(2), decide(shown.apply { uvContent = UvSceneContent.AtlasPage(0, placement = placementPreview()) }), "a new drive's preview renders")
+		assertEquals(UvSceneContent.AtlasPage(0).surfaceId, UvSceneContent.AtlasPage(0, placement = placement).surfaceId, "the camera keys the surface alone")
+	}
+
+	/**
+	 * An empty placement preview, a new instance each call.
+	 *
+	 * @return PlacementPreview The preview.
+	 */
+	private fun placementPreview(): PlacementPreview = PlacementPreview(OverlayColor(0f, 0f, 0f, 0.5f), emptyList(), emptyList(), null, emptyList())
+
+	/**
+	 * An empty direct overlay, a new instance each call.
+	 *
+	 * @return DirectMeshOverlay The overlay.
+	 */
+	private fun directOverlay(): DirectMeshOverlay =
+		DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, emptyList(), MeshOverlaySizes(3.5f, 1f, 2.5f)), emptyMap(), emptyMap())
 
 	@Test
 	fun theCameraIsComparedByIdentity() {

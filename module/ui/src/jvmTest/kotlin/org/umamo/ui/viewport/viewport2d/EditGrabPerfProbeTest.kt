@@ -7,13 +7,17 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ModalTransformCapture
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
 import org.umamo.edit.withMeshPositions
+import org.umamo.edit.withMeshUvs
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.ContentBounds
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
@@ -27,9 +31,19 @@ import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.viewport.UvSceneContent
+import org.umamo.ui.viewport.gizmo.EditMeshOverlayProducer
+import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.gestureParameters
+import org.umamo.ui.viewport.uv.UvEditOverlayProducer
+import org.umamo.ui.viewport.uv.UvObjectOverlayProducer
+import org.umamo.ui.viewport.uv.UvPlacementScene
+import org.umamo.ui.viewport.uv.UvShownScene
+import org.umamo.ui.viewport.uv.restFrontRank
+import org.umamo.ui.workspace.spaces.uv.UvGizmoGeometryCache
+import org.umamo.ui.workspace.spaces.uv.shownSurfaceDrawables
 import java.io.File
 import kotlin.test.Test
 
@@ -43,16 +57,14 @@ private const val PROBE_AREA_ID = "edit-grab-perf"
 private const val LABEL_WIDTH = 86
 
 /**
- * Print-only Edit-mode and Object-mode Grab perf probe on the moc3.perfSample model (modelF by default:
- * 1330 drawables, 220k vertices): the wall time of each stage of the UI-thread work a whole-selection
- * Grab does - the per-commit geometry capture, the mesh overlay's derive (cold on Edit entry, warm when
- * a commit moved positions only, and with one mesh's selection changed), the latch, the per-pointer-event
- * drive and its halves, the per-push picker rebuild, and the frame image conversion - plus the
- * Object-mode latch and drive over the same rig.  The overlay's draw is the renderer's, measured by the
- * render-side probe.  Pins nothing - see
- * docs/plan/edit-mode-performance.md for the numbers and what each phase is expected to move.  Skips
- * without the corpus.  Standard streams are off in the build, so the rows show with --info or in
- * build/test-results.
+ * Print-only Edit-mode and Object-mode Grab perf probe on the moc3.perfSample model (modelF by default: 1330
+ * drawables, 220k vertices): the wall time of each stage of the UI-thread work a whole-selection Grab does -
+ * the per-commit geometry capture, the mesh overlay's derive (cold on Edit entry, warm when a commit moved
+ * positions only, and with one mesh's selection changed), the latch, the per-pointer-event drive and its
+ * halves, the per-push picker rebuild, and the frame image conversion - plus the Object-mode latch and drive
+ * over the same rig.  The overlay's draw is the renderer's, measured by the render-side probe.  Pins
+ * nothing.  Skips without the corpus.  Standard streams are off in the build, so the rows show with --info
+ * or in build/test-results.
  */
 class EditGrabPerfProbeTest {
 	private val areaWidth = 1600
@@ -81,6 +93,103 @@ class EditGrabPerfProbeTest {
 		probeObjectMode(session, camera, size, pushed)
 		probeEditMode(session, model, camera, size, pushed)
 	}
+
+	/**
+	 * The UV Edit wireframe's derive over every meshed drawable shown on one 4096-texel surface, the most a
+	 * UV area can show (modelF's own pages split it): the area's geometry cache and the overlay producer,
+	 * each cold, warm, with one mesh moved (a one-mesh UV Grab's drive), and with every mesh moved (a
+	 * whole-selection UV Grab's drive).  The moved rows alternate between two models, so every round
+	 * re-derives what moved.  Then the Object-mode islands' derive over the same surface: cold, warm, and
+	 * with the object selection changed.
+	 */
+	@Test
+	fun probeUvSceneDerive() {
+		val mocFile = sample
+		if (mocFile == null) {
+			println("moc3.perfSample not present; skipping perf probe")
+			return
+		}
+		val model = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(mocFile.readBytes()), null))
+		val session = EditorSession(model)
+		session.selectAllObjects()
+		session.setMode(EditorMode.Edit)
+		if (session.mode.value != EditorMode.Edit) {
+			report("could not enter Edit mode; skipping the UV rows")
+			return
+		}
+		session.selectAllMeshElements()
+		val selection = session.meshSelection.value
+		val shown = shownSurfaceDrawables(model, EditorMode.Edit, selection) { true }
+		val side = 4096
+		report("UV surface: ${side}x$side, shown meshes=${shown.size}, vertices=${shown.sumOf { drawable -> drawable.mesh!!.uvs.size / 2 }}")
+		val firstId = shown.first().id
+		val movedOne = model.withMeshUvs(firstId, shiftedUvs(shown.first().mesh!!.uvs))
+		val movedAll = shown.fold(model) { moving, drawable -> moving.withMeshUvs(drawable.id, shiftedUvs(drawable.mesh!!.uvs)) }
+
+		/**
+		 * The area's geometry through [cache] over [source].
+		 *
+		 * @param UvGizmoGeometryCache cache The cache.
+		 * @param PuppetModel source The model.
+		 * @return List<GizmoMeshGeometry> The geometry.
+		 */
+		fun geometriesOf(cache: UvGizmoGeometryCache, source: PuppetModel): List<GizmoMeshGeometry> {
+			val drawables = shownSurfaceDrawables(source, EditorMode.Edit, selection) { true }
+			return cache.geometries(drawables, cache.surfaceUvs(drawables, source, null), side, side)
+		}
+
+		timed("U1 UV geometry cache, cold (every mesh's edges and display positions) [on a surface switch]", 3) { geometriesOf(UvGizmoGeometryCache(), model) }
+		val cache = UvGizmoGeometryCache()
+		val geometries = geometriesOf(cache, model)
+		val warm = timed("U1w UV geometry cache, warm (nothing moved) [per UV area recomposition]") { geometriesOf(cache, model) }
+		report("U1w kept every geometry: ${warm.indices.all { geometryIndex -> warm[geometryIndex] === geometries[geometryIndex] }}")
+		timed("U1o UV geometry cache, one mesh moved [per drive, one-mesh UV Grab]") { round -> geometriesOf(cache, if (round % 2 == 0) movedOne else model) }
+		timed("U1a UV geometry cache, every mesh moved [per drive, whole-selection UV Grab]") { round -> geometriesOf(cache, if (round % 2 == 0) movedAll else model) }
+		val oneGeometries = geometriesOf(UvGizmoGeometryCache(), movedOne)
+		val allGeometries = geometriesOf(UvGizmoGeometryCache(), movedAll)
+
+		val sizes = MeshOverlaySizes(3.5f, 1f, 2.5f)
+		val content = UvSceneContent.AtlasPage(0)
+		val noScrim = OverlayColor(0f, 0f, 0f, 0f)
+		timed("U2 UV overlay derive, cold (every mesh's edges and flags) [on Edit entry]", 3) {
+			UvEditOverlayProducer().produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries, emptyMap(), noScrim), sizes)
+		}
+		val producer = UvEditOverlayProducer()
+		val first = producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries, emptyMap(), noScrim), sizes)
+		val again = timed("U2w UV overlay derive, warm (same geometry) [per positions-only commit]") { producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, geometries, emptyMap(), noScrim), sizes) }
+		report("U2w handed back the same instance: ${again === first}")
+		timed("U2o UV overlay derive, one mesh moved [per drive, one-mesh UV Grab]") { round ->
+			producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, if (round % 2 == 0) oneGeometries else geometries, emptyMap(), noScrim), sizes)
+		}
+		timed("U2a UV overlay derive, every mesh moved [per drive, whole-selection UV Grab]") { round ->
+			producer.produce(EditorMode.Edit, selection, UvShownScene(content, null, model, if (round % 2 == 0) allGeometries else geometries, emptyMap(), noScrim), sizes)
+		}
+
+		// The Object-mode islands over the same surface: every island back to front in its role.  A placement
+		// drive cannot be measured here: a MOC3 origin has no tiles to place.
+		val islandScene = UvShownScene(content, null, model, geometries, restFrontRank(model), noScrim)
+		val everyObject = Selection(shown.mapTo(HashSet()) { drawable -> SelectionTarget.Drawable(drawable.id) }, SelectionTarget.Drawable(firstId))
+		val oneObject = Selection(setOf(SelectionTarget.Drawable(firstId)), SelectionTarget.Drawable(firstId))
+		val noPlacement = UvPlacementScene(null, null)
+		timed("U3 UV islands derive, cold (every island's edges, style, and order) [on Object entry]", 3) {
+			UvObjectOverlayProducer().produce(everyObject, islandScene, noPlacement, model.atlas, sizes)
+		}
+		val islandProducer = UvObjectOverlayProducer()
+		val firstIslands = islandProducer.produce(everyObject, islandScene, noPlacement, model.atlas, sizes).islands
+		val warmIslands = timed("U3w UV islands derive, warm (nothing changed)") { islandProducer.produce(everyObject, islandScene, noPlacement, model.atlas, sizes).islands }
+		report("U3w handed back the same instance: ${warmIslands === firstIslands}")
+		timed("U3s UV islands derive, a selection change (every island re-styled) [per click]") { round ->
+			islandProducer.produce(if (round % 2 == 0) oneObject else everyObject, islandScene, noPlacement, model.atlas, sizes)
+		}
+	}
+
+	/**
+	 * Texture coordinates moved a quarter texel of a 4096 surface right and up, in a new array.
+	 *
+	 * @param FloatArray uvs The coordinates.
+	 * @return FloatArray The moved copy.
+	 */
+	private fun shiftedUvs(uvs: FloatArray): FloatArray = FloatArray(uvs.size) { componentIndex -> uvs[componentIndex] + if (componentIndex % 2 == 0) 1f / 16384 else -1f / 16384 }
 
 	/**
 	 * The Object-mode rows: the whole-selection latch (one capture per eligible drawable) and the drive.
@@ -113,8 +222,8 @@ class EditGrabPerfProbeTest {
 	}
 
 	/**
-	 * The Edit-mode rows: the per-commit capture, the latch, the drive and its halves, the per-push
-	 * rebuilds, and the overlay's per-frame work.
+	 * The Edit-mode rows: the per-commit capture, the mesh overlay's derive, the latch, the drive and its
+	 * halves, the per-push rebuilds, and the frame image conversion.
 	 *
 	 * @param EditorSession session The session, about to enter Edit mode.
 	 * @param PuppetModel model The committed model.
@@ -204,7 +313,8 @@ class EditGrabPerfProbeTest {
 	}
 
 	/**
-	 * What the desktop service rebuilds on every preview push: the picker's lookups and the thumbnailer.
+	 * What the desktop service rebuilds on a preview push: the picker's lookups, which a positions-only push
+	 * such as a Grab's skips, and the thumbnailer, which every push updates.
 	 *
 	 * @param PuppetModel model The committed model.
 	 * @param List<PuppetModel> previews The drives' preview models, oldest first.
@@ -276,7 +386,7 @@ class EditGrabPerfProbeTest {
 
 	/**
 	 * A camera that fits every rest mesh into the area, in the renderer's world frame (model y negated),
-	 * so the wireframe rows draw the whole rig on screen rather than clipping most of it.
+	 * so the drive rows run under the camera an area showing the whole rig would have.
 	 *
 	 * @param PuppetModel model The loaded model.
 	 * @return ViewportCamera The fitted camera.

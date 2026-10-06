@@ -3,6 +3,8 @@ package org.umamo.render.gl
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
+import org.umamo.format.raster.RasterImage
+import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -23,6 +25,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import java.nio.ByteBuffer
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -130,6 +133,59 @@ class GridBackdropRenderTest {
 		val row = center + gridScale.toInt() / 4 // off the horizontal origin line
 		assertTrue(hasRedNear(frame, center + halfCell.toInt(), row), "the major line lands on the offset world origin")
 		assertTrue(!hasRedNear(frame, center, row, radius = 3), "world x = 0 is a mid-cell gap when the origin is offset")
+	}
+
+	/**
+	 * A UV scene's grid paints the surround color outside its surface and the border in a band just outside
+	 * the surface's edge, while the 2D grid of the same renderer paints neither.  A transparent 100-texel
+	 * layer is the surface, centered by the camera, so it covers columns and top-first rows 150 to 250 and
+	 * world x lands at column 150 + x.
+	 */
+	@Test
+	fun aSurfaceBoundedGridPaintsTheSurround() {
+		requireHeadlessGl("[grid-backdrop]")
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		renderer.setGrid(
+			GridColors(0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f, surroundRed = 0f, surroundGreen = 0f, surroundBlue = 1f, frameRed = 0f, frameGreen = 1f, frameBlue = 0f, frameWidthPx = 2f),
+			gridScale,
+			subdivisions = 1,
+		)
+		renderer.setPose(emptyMap())
+		renderer.setCamera(ViewportCamera(50f, 50f, 1f))
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val surface = DecodedImage(ByteArray(100 * 100 * 4), 100, 100)
+
+		renderer.renderUnderlayImage(target, surface, viewportSize, viewportSize)
+		val uvFrame = device.readPixels(target)
+		val surroundPixel = listOf(0, 0, 255, 255)
+		val framePixel = listOf(0, 255, 0, 255)
+		assertEquals(surroundPixel, uvFrame.at(20, 200), "far left of the surface is the surround")
+		assertEquals(surroundPixel, uvFrame.at(200, 380), "far below it too")
+		assertEquals(framePixel, uvFrame.at(149, 200), "the column just outside the left edge is the border")
+		assertEquals(framePixel, uvFrame.at(148, 200), "two pixels wide")
+		assertEquals(surroundPixel, uvFrame.at(146, 200), "and no wider")
+		assertEquals(framePixel, uvFrame.at(200, 250), "the row just below the bottom edge is the border")
+		val inside = uvFrame.at(200, 175)
+		assertTrue(inside[1] < 60 && inside[2] < 60, "inside the surface is the grid's own fill, read $inside")
+
+		renderer.render(target, viewportSize, viewportSize)
+		val puppetFrame = device.readPixels(target)
+		val farLeft = puppetFrame.at(20, 175)
+		assertTrue(farLeft[1] < 60 && farLeft[2] < 60, "the 2D grid has no surround, read $farLeft")
+	}
+
+	/**
+	 * One pixel's channels, top row first.
+	 *
+	 * @param Int column The column.
+	 * @param Int row The row from the top.
+	 * @return List<Int> Red, green, blue, alpha in 0..255.
+	 */
+	private fun RasterImage.at(column: Int, row: Int): List<Int> {
+		val offset = (row * viewportSize + column) * 4
+		return (0 until 4).map { channelIndex -> rgba[offset + channelIndex].toInt() and 0xFF }
 	}
 
 	/** True when any pixel within [radius] columns of [col] on [row] reads clearly red (a major grid line). */

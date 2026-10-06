@@ -250,10 +250,14 @@ class UvEditGizmoOverlayGestureTest {
 
 			pressIn(LEFT_AREA, uvRigScreenOf(120f, 120f))
 			moveIn(LEFT_AREA, listOf(uvRigScreenOf(100f, 120f)))
-			assertNull(session.meshPreviewSelection.value, "the stroke is drawn by the UV editor itself")
+			val stroke = assertNotNull(fixture.circleStrokeByArea.getValue(LEFT_AREA).value, "the area's stroke state holds the live stroke")
+			assertEquals(setOf<MeshElement>(MeshElement.Vertex(2), MeshElement.Vertex(3)), stroke.elementsOf(UV_RIG_QUAD), "as painted so far")
+			assertNull(fixture.circleStrokeByArea.getValue(RIGHT_AREA).value, "the other area's holds nothing")
+			assertNull(session.meshPreviewSelection.value, "and the session's preview stays clear: the stroke is drawn over this area alone")
 			releaseIn(LEFT_AREA)
 
 			assertEquals(setOf<MeshElement>(MeshElement.Vertex(2), MeshElement.Vertex(3)), session.meshSelection.value.elementsOf(UV_RIG_QUAD))
+			assertNull(fixture.circleStrokeByArea.getValue(LEFT_AREA).value, "the release commits the stroke and clears the state")
 		}
 
 	/** Shift+RightClick places the UV cursor through the shown surface's frame, in stored coordinates. */

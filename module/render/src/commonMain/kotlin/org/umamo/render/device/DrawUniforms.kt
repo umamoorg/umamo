@@ -1,5 +1,6 @@
 package org.umamo.render.device
 
+import org.umamo.render.ContentBounds
 import org.umamo.render.GridColors
 import org.umamo.render.glsl.MAX_BLEND_CORNERS
 import org.umamo.render.glsl.MAX_CORNERS
@@ -181,7 +182,12 @@ public class CompositeUniforms {
  * @property Float      majorSpacingY  Major line spacing along Y, in world units.
  * @property Int        subdivisions   Minor lines per major cell.
  * @property Float      lineWidthPx    Line half-width in framebuffer pixels (accounts for supersampling).
- * @property GridColors colors         The background / major / minor colors.
+ * @property GridColors colors         The background / major / minor colors, and a UV scene's surround and
+ *   border colors.
+ * @property ContentBounds? surface    The shown surface a UV scene draws (world units), or null for the 2D
+ *   viewport's unbounded grid: with a surface the grid paints only inside it, the border just outside its
+ *   edge, and the surround color beyond.
+ * @property Float      frameWidthPx   The border's width in framebuffer pixels (render scale applied).
  */
 public data class GridUniforms(
 	val worldToNdc: WorldToNdc,
@@ -194,6 +200,8 @@ public data class GridUniforms(
 	val subdivisions: Int,
 	val lineWidthPx: Float,
 	val colors: GridColors,
+	val surface: ContentBounds? = null,
+	val frameWidthPx: Float = 0f,
 )
 
 /**
@@ -221,8 +229,8 @@ public data class AxisLineUniforms(
  * framebuffer pixels (not the side-target capacity the screen-texture size names), since the lines and
  * dots are expanded in pixels.  The size is the line half-width or the dot radius, with the render scale
  * already applied.  The colors are STRAIGHT RGBA; the shader premultiplies.  An active draw paints ONE
- * primitive, the one at the active indices (a vertex uses A, an edge A and B, a triangle all three), in
- * the active color, ignoring the instance buffers.
+ * primitive, the one at the active indices (a vertex dot uses A, an edge A and B, a face dot all three),
+ * in the active color, ignoring the instance buffers.  The face fill has no active draw.
  */
 public class OverlayDrawUniforms {
 	var baseOffset: Int = 0
