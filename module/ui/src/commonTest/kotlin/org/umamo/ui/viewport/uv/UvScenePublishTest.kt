@@ -195,8 +195,8 @@ class UvScenePublishTest {
 	)
 
 	/**
-	 * Starts the publish for area "uv" over [session], showing the rig's page with every session mesh on it,
-	 * on the test's scheduler, and lets it settle.
+	 * Starts the publish for area "uv" over [session], showing the rig's page with the edit's meshes on it in
+	 * Edit mode and both rig meshes otherwise, on the test's scheduler, and lets it settle.
 	 *
 	 * @param EditorSession session The session.
 	 * @return Publishing The inputs and the stub.

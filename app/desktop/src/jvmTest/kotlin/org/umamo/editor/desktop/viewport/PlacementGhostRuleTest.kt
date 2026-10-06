@@ -13,9 +13,9 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * Pins the ghost rule (decision D20): a placement preview draws its ghost crops until the pages the engine
- * applies belong to the ghost's atlas - by identity, or by equality, since equal atlases compose the same
- * pixels - and then draws the rest of the preview without them.
+ * Pins the ghost rule: a placement preview draws its ghost crops until the pages the engine applies belong
+ * to the ghost's atlas - by identity, or by equality, since equal atlases compose the same pixels - and then
+ * draws the rest of the preview without them.
  */
 class PlacementGhostRuleTest {
 	private val committed = PuppetAtlas(pages = listOf(AtlasPage(16, 16)))

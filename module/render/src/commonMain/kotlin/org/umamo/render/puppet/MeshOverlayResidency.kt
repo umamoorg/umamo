@@ -83,7 +83,7 @@ internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers
 
 /**
  * The flag array the device gets: the value's own, or all-idle zeros of the domain's count when the value
- * carries none (the object wireframe), so the device always sees exact sizes.
+ * carries none (the object wireframe, the islands), so the device always sees exact sizes.
  *
  * @param ByteArray flags The value's flags, possibly empty.
  * @param Int count The domain's primitive count.

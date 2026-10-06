@@ -65,6 +65,7 @@ internal fun sourcesRowVisual(node: SourcesNode, icons: UmamoIcons, colors: Umam
 				else -> SourcesRowVisual(icons.spaceTexture, colors.text, null)
 			}
 		is SourcesNodeKind.Drawable -> SourcesRowVisual(icons.mesh, colors.outlinerObjectTint, null)
-		// Every tile under the group is unbound; the one red marker at the heading is the group's status.
+		// Every tile under the group is unbound or bound to a file the document does not list; the one red
+		// marker at the heading is the group's status.
 		SourcesNodeKind.UnboundGroup -> SourcesRowVisual(icons.unlinked, colors.signalBad, Res.string.sources_status_unbound)
 	}

@@ -1,8 +1,9 @@
 package org.umamo.render
 
 /**
- * The three colors of the viewport grid backdrop, as 0..1 linear RGB triples: the flat canvas fill, the
- * major grid line color, and the minor (subdivision) grid line color.  Kept as plain floats (not a Compose
+ * The colors of the viewport grid backdrop, as 0..1 linear RGB triples: the flat canvas fill, the major
+ * grid line color, and the minor (subdivision) grid line color, plus a UV scene's surround and border
+ * colors and the border's width.  Kept as plain floats (not a Compose
  * Color) so :render stays free of any UI dependency; the editor maps its themed palette into this at the
  * call site.  [Classic] is a neutral grey grid, used as the default so a caller that does not theme the
  * backdrop still gets a sensible surface.

@@ -33,6 +33,7 @@ import org.umamo.ui.viewport.UvSceneContent
  *   - AreaFreshness.kt: the resize throttle, the size observation, and the pure fresh / deferred /
  *     render decision per area.
  *   - SceneContentBounds.kt: the rectangle an area's fit frames, per scene kind.
+ *   - PlacementGhostRule.kt: the pure rule for when a UV area's placement preview drops its ghost.
  *   - FrameReadbackQueue.kt: the asynchronous read-backs in flight and their publication to the slots.
  *   - SnapshotQueue.kt: the image captures the UI thread asks for, served between frames.
  *   - FirstFrameDump.kt: the UMAMO_DUMP_PNG developer dump.
@@ -87,7 +88,7 @@ internal class OffscreenRenderEngine(
 	// The GL backend the renderer draws through; render-thread-owned, like every GL object here.
 	private val device = GlRenderDevice()
 
-	// GL handles + async read-back state, all owned by the render thread.
+	// The renderer and its GL handles, owned by the render thread.
 	private val renderer =
 		PuppetRenderer(puppet, textures, device).apply {
 			// The editor viewport shows the world-origin axes (red X / blue Z behind the puppet); the
@@ -129,10 +130,10 @@ internal class OffscreenRenderEngine(
 	// --- The hand-off state: what the renderer currently holds, compared against the published inputs
 	// each tick by applyHandoffs.  Render-thread-only after start(), so plain fields.
 
-	// The pair the render thread has actually applied; read by the UV fit path (pageContentBounds), which
-	// also runs on the render thread.  Seeded from the inputs' construction-time pair, whose pages are the
-	// ones initGl uploads, so the loop's first tick applies nothing unless a binding was pushed before
-	// the thread started.
+	// The pair the render thread has actually applied; read by the UV fit path (contentBoundsFor) and the
+	// placement ghost rule (placementToDraw), which also run on the render thread.  Seeded from the inputs'
+	// construction-time pair, whose pages are the ones initGl uploads, so the loop's first tick applies
+	// nothing unless a binding was pushed before the thread started.
 	private var appliedAtlasBinding: AtlasPageBinding = inputs.initialAtlasBinding
 
 	// The pose inputs the renderer last posed with, each compared by identity: all three are swapped
@@ -145,8 +146,8 @@ internal class OffscreenRenderEngine(
 	private var lastModel: PuppetModel? = null
 	private var lastLayerPlan: LayerDrawPlan? = null
 
-	// The pose version: bumped whenever the renderer re-poses or takes up new pages, so every puppet area
-	// re-renders once.
+	// The pose version: bumped whenever the renderer re-poses, takes up a new model, or takes up new pages,
+	// so every puppet area re-renders once.
 	private var paramsVersion = 0L
 
 	/** Starts the render thread (call once). */
@@ -333,7 +334,8 @@ internal class OffscreenRenderEngine(
 			// area's view when the page or layer it shows has changed.
 			val camera = registry.establishCamera(slot, areaId, width, height) { scene, content -> contentBoundsFor(scene, content) }
 			// The decision is pure and tested (decideAreaRender); this block only carries it out.
-			// The render versions are read here, per area, as the loop always has.
+			// The render versions are read here, per area, so a bump landing mid-pass reaches the areas
+			// judged after it.
 			when (val decision = decideAreaRender(slot, width, height, camera, tick, inputs.puppetRenderBump, inputs.atlasRenderBump)) {
 				AreaRenderDecision.Fresh -> continue
 
@@ -471,7 +473,7 @@ internal class OffscreenRenderEngine(
 		snapshots.close()
 		// glFinish before any other GL call here, so the driver completes all pending GPU work BEFORE the
 		// disposers delete GL objects and the context is destroyed - otherwise a driver worker thread can be
-		// mid-copy on memory we free, which crashed (SIGSEGV in libc memcpy) on a clean window close. A
+		// mid-copy on memory we free, which would crash (SIGSEGV in libc memcpy) on a clean window close. A
 		// single barrier here; the collaborators' dispose() must NOT call glFinish, and the context is
 		// destroyed last.
 		GL11.glFinish()

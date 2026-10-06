@@ -57,16 +57,14 @@ private const val PROBE_AREA_ID = "edit-grab-perf"
 private const val LABEL_WIDTH = 86
 
 /**
- * Print-only Edit-mode and Object-mode Grab perf probe on the moc3.perfSample model (modelF by default:
- * 1330 drawables, 220k vertices): the wall time of each stage of the UI-thread work a whole-selection
- * Grab does - the per-commit geometry capture, the mesh overlay's derive (cold on Edit entry, warm when
- * a commit moved positions only, and with one mesh's selection changed), the latch, the per-pointer-event
- * drive and its halves, the per-push picker rebuild, and the frame image conversion - plus the
- * Object-mode latch and drive over the same rig.  The overlay's draw is the renderer's, measured by the
- * render-side probe.  Pins nothing - see
- * docs/plan/edit-mode-performance.md for the numbers and what each phase is expected to move.  Skips
- * without the corpus.  Standard streams are off in the build, so the rows show with --info or in
- * build/test-results.
+ * Print-only Edit-mode and Object-mode Grab perf probe on the moc3.perfSample model (modelF by default: 1330
+ * drawables, 220k vertices): the wall time of each stage of the UI-thread work a whole-selection Grab does -
+ * the per-commit geometry capture, the mesh overlay's derive (cold on Edit entry, warm when a commit moved
+ * positions only, and with one mesh's selection changed), the latch, the per-pointer-event drive and its
+ * halves, the per-push picker rebuild, and the frame image conversion - plus the Object-mode latch and drive
+ * over the same rig.  The overlay's draw is the renderer's, measured by the render-side probe.  Pins
+ * nothing.  Skips without the corpus.  Standard streams are off in the build, so the rows show with --info
+ * or in build/test-results.
  */
 class EditGrabPerfProbeTest {
 	private val areaWidth = 1600
@@ -101,7 +99,8 @@ class EditGrabPerfProbeTest {
 	 * UV area can show (modelF's own pages split it): the area's geometry cache and the overlay producer,
 	 * each cold, warm, with one mesh moved (a one-mesh UV Grab's drive), and with every mesh moved (a
 	 * whole-selection UV Grab's drive).  The moved rows alternate between two models, so every round
-	 * re-derives what moved.
+	 * re-derives what moved.  Then the Object-mode islands' derive over the same surface: cold, warm, and
+	 * with the object selection changed.
 	 */
 	@Test
 	fun probeUvSceneDerive() {
@@ -223,8 +222,8 @@ class EditGrabPerfProbeTest {
 	}
 
 	/**
-	 * The Edit-mode rows: the per-commit capture, the latch, the drive and its halves, the per-push
-	 * rebuilds, and the overlay's per-frame work.
+	 * The Edit-mode rows: the per-commit capture, the mesh overlay's derive, the latch, the drive and its
+	 * halves, the per-push rebuilds, and the frame image conversion.
 	 *
 	 * @param EditorSession session The session, about to enter Edit mode.
 	 * @param PuppetModel model The committed model.
@@ -314,7 +313,8 @@ class EditGrabPerfProbeTest {
 	}
 
 	/**
-	 * What the desktop service rebuilds on every preview push: the picker's lookups and the thumbnailer.
+	 * What the desktop service rebuilds on a preview push: the picker's lookups, which a positions-only push
+	 * such as a Grab's skips, and the thumbnailer, which every push updates.
 	 *
 	 * @param PuppetModel model The committed model.
 	 * @param List<PuppetModel> previews The drives' preview models, oldest first.
@@ -386,7 +386,7 @@ class EditGrabPerfProbeTest {
 
 	/**
 	 * A camera that fits every rest mesh into the area, in the renderer's world frame (model y negated),
-	 * so the wireframe rows draw the whole rig on screen rather than clipping most of it.
+	 * so the drive rows run under the camera an area showing the whole rig would have.
 	 *
 	 * @param PuppetModel model The loaded model.
 	 * @return ViewportCamera The fitted camera.

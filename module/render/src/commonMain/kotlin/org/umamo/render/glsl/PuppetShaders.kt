@@ -194,6 +194,6 @@ internal fun atlasPageVertexShader(dialect: GlslDialect): String =
 		"	float cornerY = float((gl_VertexID >> 1) & 1);\n" + // 0,0,1,1
 		"	vec3 corner = vec3(cornerX, cornerY, 1.0);\n" +
 		"	vec2 world = vec2(dot(quadRow0, corner), dot(quadRow1, corner));\n" +
-		"	vUv = vec2(cornerX, 1.0 - cornerY);\n" + // V-flip: display top (Y=H) samples the image's top row (v=0)
+		"	vUv = vec2(cornerX, 1.0 - cornerY);\n" + // V-flip: the quad's top (cornerY = 1) samples the image's top row (v=0)
 		"	gl_Position = vec4(world.x * worldToNdc.x + worldToNdc.z, world.y * worldToNdc.y + worldToNdc.w, 0.0, 1.0);\n" +
 		"}\n"

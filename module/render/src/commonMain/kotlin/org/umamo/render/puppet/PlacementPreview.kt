@@ -38,7 +38,7 @@ class PlacementCropQuad(
  * @property List<FloatArray> scrimQuads Each mover's old trim as a unit-corner-to-display affine, rows first.
  * @property List<PlacementCropQuad> crops Each mover's crop at its new placement.
  * @property PuppetAtlas? ghostAtlas The atlas the ghost crops were committed into, or null without a ghost:
- *   the engine stops drawing them on the first frame whose applied pages belong to it (decision D20).
+ *   the engine stops drawing them on the first frame whose applied pages belong to it.
  * @property List<PlacementCropQuad> ghostCrops The committed move's crops at their committed placements.
  */
 class PlacementPreview(

@@ -10,7 +10,8 @@ import kotlin.test.assertEquals
 /**
  * The selection-highlight parser: both hex widths must land on the same RGB because a hand-typed or
  * older user setting may hold #RRGGBB while the preferences HexColorField commits canonical
- * #AARRGGBB - a 6-digit-only parser would silently ignore every edit made in the window.
+ * #AARRGGBB - a 6-digit-only parser would silently ignore every edit made in the window.  It also
+ * pins the colors' mapping onto the renderer's mesh-overlay palette.
  */
 class ViewportOverlayColorsTest {
 	private val defaultComponents = parseSelectionHighlightColor(ViewportColorSettings.SELECTION_HIGHLIGHT_DEFAULT)

@@ -84,10 +84,10 @@ internal fun isSizeFresh(slot: AreaSlot, width: Int, height: Int, settleScale: I
 
 /**
  * Whether everything but the size is fresh.  A UV scene is model-independent, so its freshness ignores
- * the pose version and the puppet render version: it re-renders only on the camera / the surface it
- * shows (the page index or the layer raster), plus the grid colors and geometry it draws its backdrop
- * with - tracked by the atlas render version.  The puppet keeps the full freshness via the puppet
- * render version.
+ * the pose version and the puppet render version: it re-renders only on the camera / the content it
+ * shows (the page index or the layer raster, with the overlay and placement preview riding it), plus
+ * what the atlas render version tracks (the backdrop grid, the overlay palette, an applied page set).
+ * The puppet keeps the full freshness via the puppet render version.
  *
  * @param AreaSlot       slot             The area.
  * @param ViewportCamera camera           The camera established for this pass, compared by identity.
@@ -110,9 +110,9 @@ internal fun isRestFresh(
 				slot.puppetRenderBumpDone == puppetRenderBump
 
 		// Kind and payload are read as ONE value, so a switch can never be observed half
-		// applied.  Equality rather than identity: AtlasPage compares its index, and
-		// SourceLayer's image compares by reference, which is the freshness test either
-		// surface wants.
+		// applied.  Equality rather than identity: AtlasPage compares its index, SourceLayer's
+		// image compares by reference, and the overlay and placement preview either carries
+		// compare by identity, which is the freshness test either surface wants.
 		RenderScene.UvScene ->
 			slot.renderedUvContent == slot.uvContent &&
 				slot.renderedCamera === camera &&

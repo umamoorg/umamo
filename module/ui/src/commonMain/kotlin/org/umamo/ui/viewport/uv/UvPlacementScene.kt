@@ -80,8 +80,8 @@ internal class GhostCrop(
 /**
  * A committed placement move's crops, drawn at their new spots until the pages for the committed atlas are
  * applied - so the islands never sit over the OLD pixels for the derivation's duration.  The engine retires
- * the crops on the first frame whose applied pages are this atlas's (decision D20); the UI keeps the value
- * only while its atlas is still the committed one.
+ * the crops on the first frame whose applied pages are this atlas's; the UI keeps the value only while its
+ * atlas is still the committed one.
  *
  * @property PuppetAtlas atlas      The atlas instance the commit published (the resolver keys by identity).
  * @property Int         pageHeight The page height, for the display flip.
@@ -97,7 +97,7 @@ internal class PlacementGhost(
  * The ghost to keep publishing: a committed move's crops stand while the committed atlas is the very instance
  * they were published for.  By IDENTITY - an undo restores the very instance a snapshot holds, and any other
  * commit makes a new one.  Whether its pages have landed is the engine's call, made against the pages it has
- * applied (decision D20).
+ * applied.
  *
  * @param PlacementGhost? ghost The last published ghost, or null.
  * @param PuppetAtlas committedAtlas The session's committed atlas.

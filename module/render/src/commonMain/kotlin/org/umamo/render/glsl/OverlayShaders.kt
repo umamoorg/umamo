@@ -11,13 +11,15 @@ internal enum class OverlayShape {
 }
 
 /*
- * The mesh overlay's shaders: the Edit-mode wireframe, dots, and face fills drawn over the art.
+ * The mesh overlay's shaders: the Edit-mode wireframe, dots, and face fills drawn over the art, and the
+ * UV editor's islands.
  *
  * Every overlay draw is INSTANCED over a deformed-position store: one instance per primitive, with the
  * primitive's vertex indices (and its flag) as per-instance attributes, and the quad or triangle corner
  * taken from gl_VertexID.  No vertex buffer carries positions; the vertex stage fetches each endpoint from
- * the store by `baseOffset + localIndex`, exactly as the glue draw reads its own store, so the overlay sits
- * on the very positions the art was deformed to.  Lines and dots are expanded in framebuffer pixels, so
+ * the store by `baseOffset + localIndex`, exactly as the glue draw reads its own store, so in the 2D
+ * viewport the overlay sits on the very positions the art was deformed to (a UV scene fills its store with
+ * the shown positions directly).  Lines and dots are expanded in framebuffer pixels, so
  * their on-screen size is constant at any zoom (the grid line does the same), and their edges fade over
  * one framebuffer pixel so they stay anti-aliased when the frame renders at scale 1.
  *
@@ -76,8 +78,8 @@ private fun overlayVertexPrologue(): String =
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
- * @warning The [GlslDialect.Es300] output needs the 320 es header: `samplerBuffer` is GLES 3.2, as the
- *   glue draw's warning says.
+ * @warning The [GlslDialect.Es300] output is NOT compilable as-is: `samplerBuffer` is GLES 3.2, so it
+ *   needs the same 2D-texture store read as the glue draw - see [glueVertexShader]'s warning.
  */
 internal fun overlayFaceFillVertexShader(dialect: GlslDialect): String =
 	glslHeader(dialect) +

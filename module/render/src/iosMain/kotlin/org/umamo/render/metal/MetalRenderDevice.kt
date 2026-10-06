@@ -55,11 +55,11 @@ import org.umamo.render.device.TextureWrap
  *  - The uniform structs ([org.umamo.render.device.DeformUniforms] etc.) are MUTABLE AND REUSED per
  *    draw: marshal every field before returning (`setVertexBytes` copies, so that is natural) and
  *    never retain the instance.
+ *
  * The mesh overlay (the Edit-mode wireframe, dots, and fills) is four more pipelines, instanced over a
  * deformed-position store of its own: on this backend the per-instance index and flag buffers go through
  * per-instance buffers (stepFunction perInstance), the corner from [[vertex_id]] and the primitive from
  * [[instance_id]].
- *
  */
 class MetalRenderDevice : RenderDevice {
 	override fun createTexture(

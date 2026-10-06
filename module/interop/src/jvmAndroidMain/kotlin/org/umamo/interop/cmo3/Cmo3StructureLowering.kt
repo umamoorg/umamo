@@ -354,7 +354,8 @@ internal class Cmo3StructureLowering(
 	 * active in either mode, as the editor writes a drawable it never packed.
 	 *
 	 * @param CArtMeshSource             owner       The drawable source under construction.
-	 * @param Cmo3DrawableTextureBinding binding     The drawable's texture web (page texture + patch).
+	 * @param Cmo3DrawableTextureBinding binding     The drawable's texture web (page texture + patch, or an
+	 *   unpacked drawable's raster texture + model image).
 	 * @param String                     subjectName The drawable's display name, naming it in the display-mode notice.
 	 * @return CTextureInputExtension The fresh extension.
 	 */

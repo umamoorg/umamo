@@ -229,8 +229,8 @@ public data class AxisLineUniforms(
  * framebuffer pixels (not the side-target capacity the screen-texture size names), since the lines and
  * dots are expanded in pixels.  The size is the line half-width or the dot radius, with the render scale
  * already applied.  The colors are STRAIGHT RGBA; the shader premultiplies.  An active draw paints ONE
- * primitive, the one at the active indices (a vertex uses A, an edge A and B, a triangle all three), in
- * the active color, ignoring the instance buffers.
+ * primitive, the one at the active indices (a vertex dot uses A, an edge A and B, a face dot all three),
+ * in the active color, ignoring the instance buffers.  The face fill has no active draw.
  */
 public class OverlayDrawUniforms {
 	var baseOffset: Int = 0

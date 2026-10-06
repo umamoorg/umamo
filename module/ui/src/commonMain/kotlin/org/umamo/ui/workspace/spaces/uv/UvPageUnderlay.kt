@@ -16,7 +16,8 @@ import org.umamo.ui.viewport.RenderedFrame
  *
  * The frame is the whole scene: the shown surface (an atlas page or a source layer's artwork, upright,
  * correctly sampled, sharing the puppet's texture), the panel color the engine paints around it with the
- * 1 dp border just outside its edge, and the Edit-mode wireframe over both.  Nothing is clipped, so a
+ * 1 dp border just outside its edge, and the mesh overlay over both (the Edit-mode wireframe, or in
+ * Object mode the islands with the placement drag's preview under them).  Nothing is clipped, so a
  * mesh off the surface stays visible over the surround and the border.
  *
  * @param RenderedFrame? rendered The displayed GL frame, or null before the first frame.

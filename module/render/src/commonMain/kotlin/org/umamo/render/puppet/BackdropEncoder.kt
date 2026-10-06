@@ -20,8 +20,8 @@ import org.umamo.render.device.WorldToNdc
 private const val UNDERLAY_TEXTURE_CACHE_SIZE = 4
 
 /**
- * What is drawn behind and instead of the puppet: the grid backdrop, the world-origin axis lines, and
- * the flat image underlay a UV-editor area shows.
+ * What is drawn behind and instead of the puppet: the grid backdrop, the world-origin axis lines, the
+ * flat image underlay a UV-editor area shows, and the placement drag's preview over that underlay.
  *
  * It holds no view settings.  The grid's colors, spacing, and anchor arrive ready-built with each draw,
  * so the caller that owns them stays the one place they are set.  What it does hold is the underlay

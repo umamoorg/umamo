@@ -18,7 +18,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the CMO3 export face of the dangling-reference rule (docs/plan/uma-format.md D38): deleting a
+ * Pins the CMO3 export face of the dangling-reference rule (docs/format/UMA.md §3.6): deleting a
  * parameter that physics the file retained still drives writes those settings back as they were - Umamo does
  * not model physics - and reports them by name, so the rigger learns the exported file's physics now names a
  * parameter it lacks.

@@ -83,23 +83,23 @@ data class MeshOverlaySizes(
  * as data, derived with the edit module's rules, so the two cannot drift.
  *
  * The value pairs with the model it was built against through [vertexCount] (and the face flag count,
- * when faces draw): a mesh whose resident disagrees is skipped for that frame and self-heals on the next
+ * in an Edit overlay): a mesh whose resident disagrees is skipped for that frame and self-heals on the next
  * publish, rather than drawn against ordinals a newer highlight set named.  A UV scene's overlay pairs
  * each mesh with its own positions and indices instead ([DirectMeshOverlay]), under the same rule.  A producer
  * that keeps a flag array's INSTANCE across publishes avoids a re-upload, since the renderer compares
  * the arrays by identity.
  *
  * A glue mesh draws at its pre-weld positions, the cage Edit mode edits and every pick and transform
- * reads (decision D15 in docs/plan/edit-mode-performance.md): the weld happens in the art's glue draw,
- * and the overlay reads the store its own capture wrote.  So a seam vertex's dot sits up to its weld
- * displacement from the art's seam, most of all on a vertex the weld pulls fully onto its partner.
+ * reads: the weld happens in the art's glue draw, and the overlay reads the store its own capture wrote.
+ * So a seam vertex's dot sits up to its weld displacement from the art's seam, most of all on a vertex the
+ * weld pulls fully onto its partner.
  *
  * @property DrawableId drawableId The mesh's drawable.
  * @property Int vertexCount The vertex count the data was built against.
  * @property IntArray edgeEndpoints Two local vertex indices per unique edge, low index first, in the
  *   edit module's first-encounter order.
  * @property ByteArray vertexFlags One flag per vertex, or empty when nothing is flagged (the object
- *   wireframe).
+ *   wireframe, the islands).
  * @property ByteArray edgeFlags One flag per edge, parallel to [edgeEndpoints], or empty.
  * @property ByteArray faceFlags One flag per triangle of the mesh, in triangle order, or empty.
  * @property Int? activeVertex The active vertex, or null; also flagged active in [vertexFlags].
@@ -138,8 +138,9 @@ class MeshOverlayMesh(
 
 /**
  * The mesh overlay the renderer draws over the art: the Edit-mode wireframe, dots, and face fills, the
- * object wireframe, or a UV area's Object-mode islands.  Immutable; the UI builds a new value when the selection, the mode, or the
- * session's meshes change, never when a preview push moves positions.
+ * object wireframe, or a UV area's Object-mode islands.  Immutable; the Edit-mode producer builds a new
+ * value when the selection, the mode, or the session's meshes change, never when a preview push moves
+ * positions.
  *
  * The mesh ORDER defines the overlay's position-store layout, the way the glue layout's walk order does.
  *

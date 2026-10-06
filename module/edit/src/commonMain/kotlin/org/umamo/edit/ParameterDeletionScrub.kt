@@ -31,10 +31,9 @@ import kotlin.math.abs
 /*
  * What deleting a parameter does to the blend shapes that name it.  A binding names its driving parameter and
  * each weight limit names its constraint parameter; a delete that left either behind would write an id the
- * model no longer has into every file saved after it (docs/plan/uma-format.md § Feature entries, the G8
- * findings).  The scrub keeps the rest pose exact wherever the model can say so: the evaluator reads a
- * missing parameter as 0, the neutral key, and the grids collapse to the slice at the parameter's default, so
- * the scrub reads each binding at that same default.
+ * model no longer has into every file saved after it.  The scrub keeps the rest pose exact wherever the
+ * model can say so: the evaluator reads a missing parameter as 0, the neutral key, and the grids collapse to
+ * the slice at the parameter's default, so the scrub reads each binding at that same default.
  */
 
 /**
@@ -320,8 +319,8 @@ private fun blendScrubMovesRest(bindings: List<BlendShapeBinding<*>>, deleted: P
 
 /**
  * The owners whose look at the default pose deleting parameter [id] changes: a grid or track that keys on
- * it with its default between two keys (the collapse keeps the nearer key's slice rather than the
- * interpolated look), or a blend shape the scrub cannot keep exact ([blendBindingScrubOf]).  Everything
+ * it with its default on none of its keys (the collapse keeps the nearest key's slice rather than the look
+ * at the default), or a blend shape the scrub cannot keep exact ([blendBindingScrubOf]).  Everything
  * else a delete does leaves the rest pose as it was.  Empty for an unknown parameter.
  *
  * @param ParameterId id The parameter to delete.

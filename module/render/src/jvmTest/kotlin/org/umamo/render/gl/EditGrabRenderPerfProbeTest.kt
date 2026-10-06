@@ -39,16 +39,15 @@ private const val PROBE_TAG = "[edit-grab-render-perf]"
 private const val LABEL_WIDTH = 86
 
 /**
- * Print-only render-thread perf probe on the moc3.perfSample model (modelF by default: 1330 drawables,
- * 220k vertices): what one whole-selection Grab preview push costs the renderer on the path the engine
- * runs - the reconcile and position re-upload with the positions-only refresh, the pose rebake when
- * the push was structural, the frame, and the read-back - and then, in a second loop, the rebake a
- * positions-only push no longer pays, split into its CPU halves, and in a third the frame with the Edit
- * overlay a select-all publishes over every mesh.  Runs on whatever GL the host has
- * (software under CI and WSLg, so the GPU rows are indicative and the CPU rows are what matter).  Pins
- * nothing - see docs/plan/edit-mode-performance.md for the numbers and what each phase is expected to
- * move.  Skips without a GL context or the corpus.  Standard streams are off in the build, so the rows
- * show with --info or in build/test-results.
+ * Print-only render-thread perf probe on the moc3.perfSample model (modelF by default: 1330 drawables, 220k
+ * vertices): what one whole-selection Grab preview push costs the renderer on the path the engine runs - the
+ * reconcile and position re-upload with the positions-only refresh, the pose rebake when the push was
+ * structural, the frame, and the read-back - and then, in a second loop, the rebake a positions-only push no
+ * longer pays, split into its CPU halves, in a third the frame with the Edit overlay a select-all publishes
+ * over every mesh, and in a fourth a UV area's frame with that overlay and with the Object-mode islands.
+ * Runs on whatever GL the host has (software under CI and WSLg, so the GPU rows are indicative and the CPU
+ * rows are what matter).  Pins nothing.  Skips without a GL context or the corpus.  Standard streams are off
+ * in the build, so the rows show with --info or in build/test-results.
  */
 class EditGrabRenderPerfProbeTest {
 	private val viewportWidth = 1600
@@ -227,7 +226,8 @@ class EditGrabRenderPerfProbeTest {
 	 * it from display positions: the frame without the overlay, the first frame with it (the store, the
 	 * buffers, and every position uploaded), a still frame, and frames after one mesh and after every mesh
 	 * moved (their positions uploaded).  The moved rows alternate between two overlays, so every round
-	 * uploads what moved.
+	 * uploads what moved.  Then the Object-mode islands of every mesh: the first frame, a still one, and
+	 * one after a selection change.
 	 *
 	 * @param PuppetRenderer renderer The renderer.
 	 * @param RenderTarget target The frame target.

@@ -49,8 +49,8 @@ import kotlin.test.assertTrue
 /**
  * Pins what a UV area's scene render records: the pass it opens, the draws in it, and the resources it
  * touches.  A UV scene draws the grid and the shown surface (an atlas page or a layer image) in one pass,
- * and, when the area's content carries a mesh overlay, the overlay after the surface in that same pass,
- * from positions uploaded into the area's own store rather than captured.
+ * then any placement preview's scrims and crops, and, when the area's content carries a mesh overlay, the
+ * overlay last in that same pass, from positions uploaded into the area's own store rather than captured.
  */
 class UvSceneRenderStructureTest {
 	private val viewportSize = 64
@@ -493,7 +493,8 @@ class UvSceneRenderStructureTest {
 	}
 
 	/**
-	 * A recording renderer over an empty model with one 16x16 page, behind the 1:1 camera, and its target.
+	 * A recording renderer over an empty model with one 16x16 page, behind a camera centered on the page at
+	 * zoom 2, and its target.
 	 *
 	 * @return Triple<RecordingRenderDevice, PuppetRenderer, RecordedTarget> The device, the renderer, and
 	 *   the target.

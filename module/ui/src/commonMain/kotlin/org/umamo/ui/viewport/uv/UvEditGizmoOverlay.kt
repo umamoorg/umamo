@@ -71,9 +71,9 @@ import org.umamo.ui.viewport.gizmo.selectToolKind
  * Live preview streams through [LocalPuppetRenderSync]: each pointer frame folds the transformed UVs into an
  * uncommitted model and pushes it to the puppet renderer, so the 2D viewport shows the art resampling as the
  * mapping moves, and every UV area's wireframe follows it through the host's geometry; confirm commits ONE
- * undo step via commitMeshUvs and the session's model bridge republishes the committed model.  Gating follows the area-ownership contract: the capture effect and pointer drive key
- * on the UV latch's own areaId, bystander areas stay inert, and teardown resyncs the raster only when this
- * overlay owned a gesture.
+ * undo step via commitMeshUvs and the session's model bridge republishes the committed model.  Gating follows
+ * the area-ownership contract: the capture effect and pointer drive key on the UV latch's own areaId,
+ * bystander areas stay inert, and teardown resyncs the raster only when this overlay owned a gesture.
  *
  * @param String areaId The UV editor area this overlay covers.
  * @param EditorSession session The session owning the selection and the UV operator latch.

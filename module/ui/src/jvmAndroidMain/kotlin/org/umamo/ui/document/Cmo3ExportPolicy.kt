@@ -113,7 +113,7 @@ fun prepareCmo3Export(
 				)
 			PreparedCmo3Export(result.model, result.report)
 		}
-		// A UMA document has no retained graph either (docs/plan/uma-format.md D34): a fresh graph is
+		// A UMA document has no retained graph either, since a `.uma` never carries one: a fresh graph is
 		// synthesized as for an artwork document, with the file's stored render pages as the image chain while
 		// the atlas is at the document's baseline (the same identity gate as the CMO3 branch), put into the
 		// model's page order, and a re-encode of the effective pages otherwise.  The document's own rasters

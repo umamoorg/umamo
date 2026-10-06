@@ -490,7 +490,7 @@ private fun vacatedRect(mover: PlacementMover, extrude: Int): PixelRect {
  * decode or disagrees with its tile refuses the gesture; a bystander in that state surfaces at the
  * commit as the resolver's own fault log.
  *
- * Decodes rasters, wraps bitmaps, and scans the page, so callers run it off the UI thread.
+ * Decodes rasters, cuts crops, and scans the page, so callers run it off the UI thread.
  *
  * @param PuppetModel model The session's committed model.
  * @param UvPlacementSurface surface The shown page and the source-art store.

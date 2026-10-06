@@ -126,9 +126,9 @@ class MatchArtworkFlowTest {
 		}
 
 	/**
-	 * A match confident on everything but pixels, where the layer has no pixels to pull - the file read from
-	 * the document's own tiles, whose unbound rows have none (docs/plan/uma-format.md D40) - applies nothing and
-	 * stays a suggestion on the lost binding's row, rather than vanishing from both the step and the review.
+	 * A match confident on everything but pixels, where the layer has no pixels to pull - the file read from the
+	 * document's own tiles, whose unbound rows have none - applies nothing and stays a suggestion on the lost
+	 * binding's row, rather than vanishing from both the step and the review.
 	 */
 	@Test
 	fun aConfidentMatchWithNoArtToPullStaysASuggestion() =
