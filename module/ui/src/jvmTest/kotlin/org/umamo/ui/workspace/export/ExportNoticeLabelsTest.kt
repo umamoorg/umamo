@@ -83,6 +83,7 @@ class ExportNoticeLabelsTest {
 			ExportNoticeReason.AtlasPageNotRecomposed,
 			ExportNoticeReason.AtlasTileMetadataNotReconcilable,
 			ExportNoticeReason.AtlasTileRebindingNotLowered,
+			ExportNoticeReason.SourceLayerBindingNotInExport("a.psd", "lyid:99"),
 		)
 
 	private val sampleRejections: List<KeyformBundleRejection> =

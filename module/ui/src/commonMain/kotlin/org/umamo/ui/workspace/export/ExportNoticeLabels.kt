@@ -261,6 +261,11 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 			ExportNoticePhrase(Res.string.export_reason_atlas_tile_metadata)
 		ExportNoticeReason.AtlasTileRebindingNotLowered ->
 			ExportNoticePhrase(Res.string.export_reason_atlas_tile_rebinding)
+		is ExportNoticeReason.SourceLayerBindingNotInExport ->
+			ExportNoticePhrase(
+				Res.string.export_reason_source_layer_binding_not_in_export,
+				listOf(ExportNoticeArgument.Literal(reason.sourceName), ExportNoticeArgument.Literal(reason.layerKey)),
+			)
 	}
 
 /**

@@ -58,3 +58,40 @@ public fun modelPageIndexByDrawableId(puppet: PuppetModel, renderIndices: List<I
 	}
 	return modelPageByDrawableId
 }
+
+/**
+ * The pages a fresh-graph synthesis takes and each drawable's page among them, in the model's order.
+ *
+ * @property List pages                 The pages, in the model's page order.
+ * @property Map  pageIndexByDrawableId Each drawable id's index into [pages].
+ */
+public class ModelOrderPages<TPage>(val pages: List<TPage>, val pageIndexByDrawableId: Map<String, Int>)
+
+/**
+ * Puts a document's render pages into the model's page order for the synthesis: each model page is the render
+ * page its placed drawables sample ([modelPageRenderIndices]), else what [fallbackPage] supplies for it, and each
+ * drawable's page is renumbered to match ([modelPageIndexByDrawableId]).  A model with no atlas pages (a MOC3's)
+ * keeps its render pages, which are its texture order, and asks for no fallback.
+ *
+ * Generic over the page so the app's export policy and a test can both run the one resolution over whatever
+ * page value they hold - encoded bytes, or a page with its decoded pixels.
+ *
+ * @param PuppetModel puppet                 The model being written.
+ * @param List        renderPages            The render pages, in the order the page set numbers them.
+ * @param Map         renderPageByDrawableId Each drawable's render page, keyed by the ids the page set knows.
+ * @param Function    fallbackPage           The page to write for a model page no drawable resolves, by model page index.
+ * @return ModelOrderPages The pages and the page map.
+ */
+public fun <TPage> modelOrderPages(
+	puppet: PuppetModel,
+	renderPages: List<TPage>,
+	renderPageByDrawableId: Map<String, Int>,
+	fallbackPage: (modelPageIndex: Int) -> TPage,
+): ModelOrderPages<TPage> {
+	if (puppet.atlas.pages.isEmpty()) {
+		return ModelOrderPages(renderPages, renderPageByDrawableId)
+	}
+	val renderIndices = modelPageRenderIndices(puppet, renderPageByDrawableId)
+	val pages = List(puppet.atlas.pages.size) { modelPageIndex -> renderIndices[modelPageIndex]?.let(renderPages::getOrNull) ?: fallbackPage(modelPageIndex) }
+	return ModelOrderPages(pages, modelPageIndexByDrawableId(puppet, renderIndices, renderPageByDrawableId))
+}

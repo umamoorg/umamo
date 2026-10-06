@@ -226,6 +226,7 @@
 	<string name="export_reason_atlas_page_not_recomposed">This artwork was moved on its atlas page, but the page image still shows it at its old spot; repack to redraw it.</string>
 	<string name="export_reason_atlas_tile_metadata">This artwork's pixels, name, or size changed, which an atlas placement cannot carry; re-import the artwork instead.</string>
 	<string name="export_reason_atlas_tile_rebinding">This drawable was bound to different artwork, which needs the artwork re-imported rather than repacked.</string>
+	<string name="export_reason_source_layer_binding_not_in_export">This artwork is bound to layer %2$s of %1$s, which the document does not list, so the binding could not be written; the CMO3 carries the artwork as a flat image of its own.  Relink it in the Sources space to export the binding.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
 	     export would replace, %2$s the abbreviated file list). -->

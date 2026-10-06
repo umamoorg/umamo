@@ -27,6 +27,8 @@ import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.fittedInto
+import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
@@ -140,6 +142,50 @@ class Cmo3SourceLayerWebTest {
 		assertEquals(listOf("a.psd"), withoutWing.map { image -> image.name }, "a tile with no raster leaves its file out when it was the only one")
 	}
 
+	/**
+	 * A tile bound to a file the document does not list, or to a layer its file never inventoried, routes as a
+	 * flat image of its own that carries the binding it stands in for, and the fresh conversion reports that
+	 * binding; a tile bound to nothing routes the same way and carries none.
+	 */
+	@Test
+	fun aBindingNoListedRowResolvesRoutesAsAFlatImageAndIsReported() {
+		val unlistedSource = ArtSourceId("art-9")
+		val tileUnlisted = AtlasTile(AtlasTileId("art-9/lyid:7"), "Stray", 4, 4, source = SourceLayerRef(unlistedSource, "lyid:7", true))
+		val tileLostKey = AtlasTile(AtlasTileId("art-0/lyid:99"), "Lost", 4, 4, source = SourceLayerRef(sourceA, "lyid:99", true))
+		val tileUnbound = AtlasTile(AtlasTileId("hit"), "HitArea", 4, 4)
+		val widened = puppet.copy(atlas = puppet.atlas.copy(tiles = puppet.atlas.tiles + listOf(tileUnlisted, tileLostKey, tileUnbound)))
+		val widenedRasters = rasters + mapOf(tileUnlisted.id to gradient(5), tileLostKey.id to gradient(6), tileUnbound.id to gradient(7))
+
+		val inputs = Cmo3SourceLayerWeb.inputsOf(widened) { tileId -> widenedRasters[tileId] }
+		assertEquals(listOf("a.psd", "b.clip", "Stray", "Lost", "HitArea"), inputs.map { image -> image.name }, "the files, then one flat image per tile no row resolves")
+		val byName = inputs.associateBy { image -> image.name }
+		assertEquals(SourceLayerRef(unlistedSource, "lyid:7", true), byName.getValue("Stray").unresolvedBinding, "the unlisted file's binding rides its flat image")
+		assertEquals(SourceLayerRef(sourceA, "lyid:99", true), byName.getValue("Lost").unresolvedBinding, "so does a key the listed file never inventoried")
+		assertNull(byName.getValue("HitArea").unresolvedBinding, "a tile bound to nothing stood in for no binding")
+		assertNull(byName.getValue("a.psd").unresolvedBinding)
+		assertEquals(listOf("name:Stray", "name:Lost", "name:HitArea"), listOf("Stray", "Lost", "HitArea").map { name -> byName.getValue(name).layers.single().layerKey })
+
+		val result =
+			Cmo3Conversion.freshCmo3(
+				puppet = widened,
+				pages = listOf(page),
+				pageIndexByDrawableId = widened.drawables.associate { drawable -> drawable.id.raw to 0 },
+				modelName = "Unresolved",
+				nowMillis = now,
+				obfuscateKey = 0x1234ABCD,
+				tileRasters = { tileId -> widenedRasters[tileId] },
+			)
+		val reported = result.report.notices.filterIsInstance<ExportNotice.UnsupportedChange>().filter { notice -> notice.reason is ExportNoticeReason.SourceLayerBindingNotInExport }.map { notice -> notice.subject to notice.reason }
+		assertEquals(
+			listOf(
+				"Stray" to ExportNoticeReason.SourceLayerBindingNotInExport("art-9", "lyid:7"),
+				"Lost" to ExportNoticeReason.SourceLayerBindingNotInExport("a.psd", "lyid:99"),
+			),
+			reported,
+			"each binding that did not cross is reported once, by the file's name when the document lists it: ${result.report.notices}",
+		)
+	}
+
 	@Test
 	fun theWebWritesRealLayersFoldersEntriesAndBindingsAndReadsBack() {
 		val skeleton = Cmo3SkeletonBuilder.buildBlank("Layer Test", 100, 100, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
@@ -160,7 +206,7 @@ class Cmo3SourceLayerWebTest {
 		assertEquals("/art/a.psd", (imageA.psdFile as FileRef).textPath)
 		assertEquals(123L, imageA.psdFileLastModified)
 		assertEquals(100 to 100, imageA.width to imageA.height)
-		assertEquals("b.clip", (images[1].psdFile as FileRef).textPath, "a record with no path writes its name")
+		assertEquals("", (images[1].psdFile as FileRef).textPath, "a record with no path writes none, not its name")
 		assertEquals(now, images[1].psdFileLastModified, "a record with no time writes now")
 
 		// The folder tree: Head/Eyes holds the eye, the rest sits at the root, in file order.
