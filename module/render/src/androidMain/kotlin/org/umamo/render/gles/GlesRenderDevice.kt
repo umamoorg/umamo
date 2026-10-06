@@ -49,8 +49,6 @@ import org.umamo.render.device.TextureWrap
  * deformed-position store of its own: on this backend the per-instance index and flag buffers go through
  * glVertexAttribDivisor and glDrawArraysInstanced (core in ES 3.0), and its `samplerBuffer` read needs the
  * same 2D-texelFetch variant as the glue draw.
- *
- * Android GLES 3.0 デバイスのスタブ。デスクトップ GL デバイスの移植入口。未実装。
  */
 class GlesRenderDevice : RenderDevice {
 	override fun createTexture(
