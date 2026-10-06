@@ -12,9 +12,6 @@ import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
 import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
-/** The notice a request answers with when every mesh in the edit sits behind a hidden ancestor, so nothing could be projected. */
-private const val NO_EDITABLE_GEOMETRY_NOTICE = "notice.edit.noEditableGeometry"
-
 /**
  * Collects the keymap commands the Edit overlay executes for its area: Select Linked, Alt+Q switch
  * object, Rip, and the Shift+S snaps.  Each request carries the area its command resolved at dispatch,
@@ -52,7 +49,7 @@ internal suspend fun collectEditGizmoRequests(
 				if (request.areaId != areaId) {
 					return@collect
 				}
-				val editable = editableGeometryOrNotice(session, geometries.value, NO_EDITABLE_GEOMETRY_NOTICE) ?: return@collect
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
 				handleSelectLinkedRequest(
 					session,
 					editable.map { it.gizmo },
@@ -80,7 +77,7 @@ internal suspend fun collectEditGizmoRequests(
 				if (requestedAreaId != areaId) {
 					return@collect
 				}
-				val editable = editableGeometryOrNotice(session, geometries.value, NO_EDITABLE_GEOMETRY_NOTICE) ?: return@collect
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
 				handleRipRequest(session, editable, areaId, areaPointer.value, camera.value, size.value)
 			}
 		}
@@ -92,7 +89,7 @@ internal suspend fun collectEditGizmoRequests(
 				if (request.areaId != areaId) {
 					return@collect
 				}
-				val editable = editableGeometryOrNotice(session, geometries.value, NO_EDITABLE_GEOMETRY_NOTICE) ?: return@collect
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
 				handleEditSnapRequest(session, editable, request.kind)
 			}
 		}

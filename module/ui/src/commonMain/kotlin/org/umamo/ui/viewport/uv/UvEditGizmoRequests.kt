@@ -14,9 +14,6 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
 import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
-/** The notice the UV editor answers with when the shown page or layer holds none of the edit's meshes. */
-private const val NO_EDITABLE_GEOMETRY_NOTICE = "notice.uv.noEditableGeometry"
-
 /**
  * Collects the keymap commands the UV Edit overlay executes for its area: Mirror U / V, Select Linked, and
  * the Shift+S snaps.  Each request carries the area its command resolved at dispatch, and only that area's
@@ -58,7 +55,7 @@ internal suspend fun collectUvEditGizmoRequests(
 				if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
 					return@collect
 				}
-				val editable = editableGeometryOrNotice(session, geometries.value, NO_EDITABLE_GEOMETRY_NOTICE) ?: return@collect
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.uv.noEditableGeometry") ?: return@collect
 				session.mirrorSelectedUvs(request.mirrorU, frame.value.asUvFrame(), editable.mapTo(HashSet()) { geometry -> geometry.drawableId })
 			}
 		}
@@ -69,7 +66,7 @@ internal suspend fun collectUvEditGizmoRequests(
 				if (session.mode.value != EditorMode.Edit || request.areaId != areaId) {
 					return@collect
 				}
-				val editable = editableGeometryOrNotice(session, geometries.value, NO_EDITABLE_GEOMETRY_NOTICE) ?: return@collect
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.uv.noEditableGeometry") ?: return@collect
 				handleSelectLinkedRequest(session, editable, request.fromSelection, areaPointer.value, camera.value, size.value)
 			}
 		}
@@ -82,7 +79,7 @@ internal suspend fun collectUvEditGizmoRequests(
 				}
 				val editable =
 					if (request.kind.readsShownMeshes()) {
-						editableGeometryOrNotice(session, geometries.value, NO_EDITABLE_GEOMETRY_NOTICE) ?: return@collect
+						editableGeometryOrNotice(session, geometries.value, "notice.uv.noEditableGeometry") ?: return@collect
 					} else {
 						geometries.value
 					}
@@ -135,5 +132,5 @@ internal fun dropUvEditLatchesWithNothingToEdit(areaId: String, session: EditorS
 	if (toolHere) {
 		session.clearSelectTool()
 	}
-	session.emitNotice(NO_EDITABLE_GEOMETRY_NOTICE, NoticePlacement.NearCursor)
+	session.emitNotice("notice.uv.noEditableGeometry", NoticePlacement.NearCursor)
 }
