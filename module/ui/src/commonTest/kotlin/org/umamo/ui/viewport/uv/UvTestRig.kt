@@ -11,14 +11,20 @@ import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.render.DecodedImage
+import org.umamo.render.SourceArtRasters
 import org.umamo.render.ViewportCamera
+import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTile
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.PuppetRenderSync
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
@@ -35,11 +41,16 @@ import kotlin.test.assertEquals
  *
  * The page camera centers the quad in a 400 x 300 area at four pixels per texel: display (x, y) lands on
  * screen (200 + 4 (x - 110), 150 - 4 (y - 110)), so the quad's corners sit at (160,190) (240,190) (240,110)
- * (160,110) and the triangle's at (280,190) (360,190) (280,110).
+ * (160,110) and the triangle's at (320,190) (400,190) (320,110).
  *
  * The source layer is a 64 x 64 artwork placed at page pixel (96, 96), unscaled, which only the quad is
  * bound to.  Its frame is a real conversion (not the stored frame), and its camera centers the quad the
  * same way, so a screen point means the same vertex on either surface.
+ *
+ * The placed model (uvRigPlacedModel) adds the atlas an Object-mode placement gesture moves: each
+ * drawable over its own fully opaque 20 x 20 tile, placed unscaled where its mapping already samples - the
+ * quad's at page pixel (100, 136), the triangle's at (140, 136) (page pixels are y down, so display y 100..120
+ * is page rows 136..156).
  */
 
 /** The square the rig's tests edit. */
@@ -65,6 +76,15 @@ internal const val UV_RIG_LAYER_KEY = "quadArt"
 
 /** The source layer's side in pixels. */
 internal const val UV_RIG_LAYER_SIDE = 64
+
+/** The quad's tile in the placed model. */
+internal val UV_RIG_QUAD_TILE = AtlasTileId("quadTile")
+
+/** The triangle's tile in the placed model. */
+internal val UV_RIG_OTHER_TILE = AtlasTileId("otherTile")
+
+/** Each placed tile's side in pixels. */
+internal const val UV_RIG_TILE_SIDE = 20
 
 /** The quad's page display corners, interleaved (x, y). */
 private val QUAD_PAGE_DISPLAY = floatArrayOf(100f, 100f, 120f, 100f, 120f, 120f, 100f, 120f)
@@ -112,6 +132,67 @@ internal fun uvRigModel(): PuppetModel =
 		rootChildren = listOf(OrgChild.Drawable(UV_RIG_QUAD), OrgChild.Drawable(UV_RIG_OTHER)),
 		rootPartId = null,
 	)
+
+/**
+ * The rig's model over a placed atlas: one page, and each drawable over its own tile where its mapping
+ * already samples.
+ *
+ * @return PuppetModel The quad and the triangle, each bound to its placed tile.
+ */
+internal fun uvRigPlacedModel(): PuppetModel {
+	val model = uvRigModel()
+	val tileByDrawable = mapOf(UV_RIG_QUAD to UV_RIG_QUAD_TILE, UV_RIG_OTHER to UV_RIG_OTHER_TILE)
+	return model.copy(
+		drawables = model.drawables.map { drawable -> drawable.copy(atlasTileId = tileByDrawable.getValue(drawable.id)) },
+		atlas =
+			PuppetAtlas(
+				pages = listOf(AtlasPage(UV_RIG_PAGE_SIDE, UV_RIG_PAGE_SIDE)),
+				tiles =
+					listOf(
+						AtlasTile(UV_RIG_QUAD_TILE, UV_RIG_QUAD_TILE.raw, UV_RIG_TILE_SIDE, UV_RIG_TILE_SIDE, uvRigTilePlacement(100f)),
+						AtlasTile(UV_RIG_OTHER_TILE, UV_RIG_OTHER_TILE.raw, UV_RIG_TILE_SIDE, UV_RIG_TILE_SIDE, uvRigTilePlacement(140f)),
+					),
+			),
+	)
+}
+
+/**
+ * An unscaled, unrotated placement on the rig's page, on the row both tiles share.
+ *
+ * @param Float positionX The tile's left edge in page pixels.
+ * @return AtlasPlacement The placement.
+ */
+internal fun uvRigTilePlacement(positionX: Float): AtlasPlacement =
+	AtlasPlacement(pageIndex = 0, positionX = positionX, positionY = 136f, scaleX = 1f, scaleY = 1f, rotationDegrees = 0f)
+
+/**
+ * The source-art store of the placed model: every tile fully opaque, the same instance per tile on every
+ * call, as the store's contract asks.
+ *
+ * @return SourceArtRasters The store.
+ */
+internal fun uvRigArtRasters(): SourceArtRasters {
+	val rgba = ByteArray(UV_RIG_TILE_SIDE * UV_RIG_TILE_SIDE * 4) { byteIndex -> if (byteIndex % 4 == 3) 0xFF.toByte() else 0x80.toByte() }
+	val rasterByTile = listOf(UV_RIG_QUAD_TILE, UV_RIG_OTHER_TILE).associateWith { DecodedImage(rgba, UV_RIG_TILE_SIDE, UV_RIG_TILE_SIDE) }
+	return SourceArtRasters { tileId -> rasterByTile[tileId] }
+}
+
+/**
+ * What a UV editor showing the placed model's page hands its Object overlay.  No page pixels, so the movers
+ * test only each other.
+ *
+ * @return UvPlacementSurface The surface.
+ */
+internal fun uvRigPlacementSurface(): UvPlacementSurface = UvPlacementSurface(UV_RIG_PAGE_SIDE, UV_RIG_PAGE_SIDE, uvRigArtRasters(), pageImage = null)
+
+/**
+ * The page placement of one tile in the session's committed model.
+ *
+ * @param EditorSession session The session.
+ * @param AtlasTileId tileId The tile.
+ * @return AtlasPlacement? Its placement.
+ */
+internal fun uvRigPlacementOf(session: EditorSession, tileId: AtlasTileId): AtlasPlacement? = session.model.value.atlas.tileById.getValue(tileId).placement
 
 /**
  * The frame of a UV editor showing the rig's atlas page.

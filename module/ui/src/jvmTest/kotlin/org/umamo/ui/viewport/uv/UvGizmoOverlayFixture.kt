@@ -34,6 +34,7 @@ import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import org.umamo.ui.viewport.gizmo.gizmoAreaTag
+import org.umamo.ui.viewport.gizmo.moveIn
 import org.umamo.ui.workspace.commands.inMemorySettings
 import org.umamo.ui.workspace.spaces.uv.UvRadiusSurfaceKey
 import org.umamo.ui.workspace.spaces.uv.rememberUvProportionalRadius
@@ -75,6 +76,8 @@ internal val UV_RIG_LAYER_SURFACE = UvRigSurface(layer = true, shown = listOf(UV
 internal class UvGizmoOverlayFixture(
 	/** The session both areas run over. */
 	val session: EditorSession,
+	/** What an area showing the page hands its Object overlay for a placement gesture, or null for none. */
+	val placementSurface: UvPlacementSurface?,
 ) {
 	/** The render-sync handle both areas share. */
 	val renderSync = RecordingPuppetRenderSync()
@@ -162,11 +165,13 @@ internal class UvGizmoOverlayFixture(
  * Mounts the UV editor's Object and Edit gizmo overlays in the two areas over [session].
  *
  * @param EditorSession session The session to run the overlays over.
+ * @param UvPlacementSurface? placementSurface What an area showing the page hands its Object overlay, as
+ *   the host does over a page when the document retains its art; an area showing the layer hands nothing.
  * @return UvGizmoOverlayFixture What the case inspects.
  */
 @OptIn(ExperimentalTestApi::class)
-internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession): UvGizmoOverlayFixture {
-	val fixture = UvGizmoOverlayFixture(session)
+internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession, placementSurface: UvPlacementSurface? = null): UvGizmoOverlayFixture {
+	val fixture = UvGizmoOverlayFixture(session, placementSurface)
 	setContent {
 		CompositionLocalProvider(LocalSettings provides fixture.settings, LocalPuppetRenderSync provides fixture.renderSync) {
 			UmamoTheme {
@@ -220,7 +225,7 @@ internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession): UvGizmo
 											camera = camera,
 											widthPx = UV_RIG_AREA_WIDTH,
 											heightPx = UV_RIG_AREA_HEIGHT,
-											placementSurface = null,
+											placementSurface = if (surface.layer) null else fixture.placementSurface,
 											placementDragStatusState = fixture.placementDragStatusByArea.getValue(areaId),
 											onOverlapRequest = { anchor, candidates -> fixture.overlapRequests.add(Triple(areaId, anchor, candidates)) },
 										)
@@ -256,3 +261,27 @@ internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession): UvGizmo
 	waitForIdle()
 	return fixture
 }
+
+/**
+ * Waits for a placement gesture latched in an area to land its capture, which builds off the UI thread:
+ * the pointer nudges one pixel back and forth at [at] until the first drive publishes the host's readout.
+ * A pixel is a quarter of a page texel at the rig's zoom, and a Grab snaps to whole page pixels, so the
+ * nudges move nothing.  The gesture's origin is wherever the pointer was when the capture landed.
+ *
+ * @param UvGizmoOverlayFixture fixture The mounted fixture.
+ * @param String areaId The area the gesture latched in.
+ * @param Offset at Where the pointer rests while it waits.
+ */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.awaitPlacementCapture(fixture: UvGizmoOverlayFixture, areaId: String, at: Offset) {
+	val deadline = System.currentTimeMillis() + PLACEMENT_CAPTURE_TIMEOUT_MILLIS
+	var nudged = false
+	while (fixture.placementDragStatusByArea.getValue(areaId).value == null) {
+		check(System.currentTimeMillis() < deadline) { "the placement capture never landed" }
+		nudged = !nudged
+		moveIn(areaId, listOf(if (nudged) at + Offset(1f, 0f) else at))
+	}
+}
+
+/** How long a case waits for a placement capture to land before it fails. */
+private const val PLACEMENT_CAPTURE_TIMEOUT_MILLIS = 5000L
