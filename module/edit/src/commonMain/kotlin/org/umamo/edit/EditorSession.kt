@@ -1053,10 +1053,16 @@ class EditorSession(
 	 * conversion drops out.  Untouched vertices keep their exact stored values either way, so a mirror
 	 * never marks a vertex changed that it did not move.
 	 *
+	 * [shownDrawableIds] narrows the mirror to the meshes the authoring surface shows.  An edit can span
+	 * pages and layers, and a mesh on another one is measured in another space: its coordinates would
+	 * move the shared pivot and be reflected through a frame they are not in.
+	 *
 	 * @param Boolean mirrorU True to mirror horizontally (u about the pivot), false vertically (v).
 	 * @param UvFrame? frame The authoring frame, or null when the stored coordinates are the frame.
+	 * @param Set<DrawableId>? shownDrawableIds The meshes the authoring surface shows, or null for every
+	 *   selected mesh.
 	 */
-	fun mirrorSelectedUvs(mirrorU: Boolean, frame: UvFrame? = null) {
+	fun mirrorSelectedUvs(mirrorU: Boolean, frame: UvFrame? = null, shownDrawableIds: Set<DrawableId>? = null) {
 		if (mutableMode.value != EditorMode.Edit) {
 			return
 		}
@@ -1074,6 +1080,9 @@ class EditorSession(
 		val coveredByDrawable = LinkedHashMap<DrawableId, Set<Int>>()
 		val meshByDrawable = LinkedHashMap<DrawableId, DrawableMesh>()
 		for (drawableId in selection.drawableIds) {
+			if (shownDrawableIds != null && drawableId !in shownDrawableIds) {
+				continue
+			}
 			val mesh = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh ?: continue
 			if (mesh.uvs.isEmpty() || mesh.uvs.size != mesh.positions.size) {
 				continue

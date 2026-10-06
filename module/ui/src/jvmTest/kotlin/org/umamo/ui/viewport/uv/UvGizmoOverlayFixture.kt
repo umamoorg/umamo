@@ -13,8 +13,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
@@ -35,6 +33,7 @@ import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import org.umamo.ui.viewport.gizmo.gizmoAreaTag
 import org.umamo.ui.viewport.gizmo.moveIn
+import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.workspace.commands.inMemorySettings
 import org.umamo.ui.workspace.spaces.uv.UvRadiusSurfaceKey
 import org.umamo.ui.workspace.spaces.uv.rememberUvProportionalRadius
@@ -204,16 +203,8 @@ internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession, placemen
 										Modifier
 											.size(UV_RIG_AREA_WIDTH.dp, UV_RIG_AREA_HEIGHT.dp)
 											.testTag(gizmoAreaTag(areaId))
-											// The host's own pointer record: watch-only, on the Initial pass, so it is
-											// current even while an overlay owns the gesture.
-											.pointerInput(areaId) {
-												awaitPointerEventScope {
-													while (true) {
-														val event = awaitPointerEvent(PointerEventPass.Initial)
-														event.changes.lastOrNull()?.let { change -> areaPointer.value = change.position }
-													}
-												}
-											},
+											// The host's own pointer record, kept the way UvEditorSpace keeps it.
+											.tracksAreaPointer(areaId, areaPointer),
 								) {
 									if (areaId in fixture.mountedAreas.value) {
 										UvObjectGizmoOverlay(

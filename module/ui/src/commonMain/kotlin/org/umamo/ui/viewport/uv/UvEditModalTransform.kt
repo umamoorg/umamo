@@ -40,16 +40,20 @@ private const val MIN_UV_PROPORTIONAL_RADIUS_DISPLAY = 1f
  * coordinates directly and the result converts back through the frame to the stored coordinates.
  *
  * The frame freezes here so the display-to-uv conversion at drive and commit always matches the space the
- * originals were mapped in (the shown surface can hop mid-gesture if the active drawable changes from
- * another area).
+ * originals were mapped in (the shown surface can hop mid-gesture: the page commands still dispatch during a
+ * modal, and the active drawable can change from another area).  The radius state freezes with it, because
+ * the radius is in that frame's texels too.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).
  * @property UvEditFrame frame The space the gesture is authored in (its texel size and the conversion
  *   back to the stored coordinates).
+ * @property MutableState<Float?> proportionalRadius The proportional radius of the surface the gesture began
+ *   on, in its display texels; seeded by the time the gesture exists.
  */
 internal class UvEditGesture(
 	val transform: ModalTransformCapture,
 	val frame: UvEditFrame,
+	val proportionalRadius: MutableState<Float?>,
 )
 
 /**
@@ -60,15 +64,14 @@ internal class UvEditGesture(
  * commitMeshUvs, and resizes the proportional influence radius on scroll.
  *
  * The proportional radius is the UV editor's own, in display texels - the session's world radius is scaled
- * for the puppet canvas and means nothing on a texture surface.  The host keeps one per shown surface, so
- * this reads it through [proportionalRadius] each time it is used and never holds on to one: after a page or
- * layer switch the wheel, the weights, and the strip rows all work on the surface now shown.  The one
- * exception is a confirmed step's strip adjustment, which writes back to the radius of the surface the
- * gesture ran on, captured as it confirms.
+ * for the puppet canvas and means nothing on a texture surface.  The host keeps one per shown surface and
+ * hands over the shown one through [proportionalRadius]; a gesture takes the radius state of the surface it
+ * begins on and keeps it to the end, with its frame.  So a gesture begun after a page or layer switch works
+ * on the surface now shown, while a switch mid-gesture leaves the wheel, the weights, the strip rows, and a
+ * later strip adjustment all on the surface the gesture's coordinates are measured in.
  *
  * @param String areaId The UV editor area the overlay covers; only an operator latched here drives.
  * @param EditorSession session The session owning the mesh selection, the model, and the UV latch.
- * @param State<UvEditFrame> shownFrame The shown surface's frame, which seeds an unset radius.
  * @param State<MutableState<Float?>> proportionalRadius The shown surface's radius state, as the host
  *   currently hands it over.
  * @param Function pushPreview Pushes a folded preview model to the renderer.
@@ -76,7 +79,6 @@ internal class UvEditGesture(
 internal class UvEditModalTransform(
 	areaId: String,
 	session: EditorSession,
-	private val shownFrame: State<UvEditFrame>,
 	private val proportionalRadius: State<MutableState<Float?>>,
 	private val pushPreview: (PuppetModel) -> Unit,
 ) : UvModalTransform<UvEditGesture>(areaId, session) {
@@ -124,8 +126,9 @@ internal class UvEditModalTransform(
 			return
 		}
 		// The radius resolves here even with proportional editing off, so the surface's first gesture seeds it.
-		transform.applyProportional(session.proportionalEdit.value, resolvedProportionalRadius(proportionalRadius.value))
-		gesture.begin(UvEditGesture(transform, frame), gesture.lastPointer)
+		val radiusState = proportionalRadius.value
+		transform.applyProportional(session.proportionalEdit.value, resolvedProportionalRadius(radiusState, frame))
+		gesture.begin(UvEditGesture(transform, frame, radiusState), gesture.lastPointer)
 	}
 
 	/**
@@ -137,7 +140,7 @@ internal class UvEditModalTransform(
 	fun reapplyProportional(state: ProportionalEditState?) {
 		val gestureData = gesture.capture
 		if (gestureData != null && session.activeUvOperator.value != null) {
-			gestureData.transform.applyProportional(state, resolvedProportionalRadius(proportionalRadius.value))
+			gestureData.transform.applyProportional(state, resolvedProportionalRadius(gestureData.proportionalRadius, gestureData.frame))
 		}
 	}
 
@@ -175,8 +178,8 @@ internal class UvEditModalTransform(
 				// session's world radius as it was and lands the row's value on the surface the gesture ran
 				// on, which stays this step's surface whatever is shown when the row is edited.
 				if (parameters != null && session.model.value !== modelBefore) {
-					val radiusState = proportionalRadius.value
-					val proportional = ProportionalRows.of(session.proportionalEdit.value, resolvedProportionalRadius(radiusState))
+					val radiusState = gestureData.proportionalRadius
+					val proportional = ProportionalRows.of(session.proportionalEdit.value, resolvedProportionalRadius(radiusState, gestureData.frame))
 					registerUvTransformAdjustment(session, areaId, transform, gestureData.frame, parameters, proportional) { state, radiusDisplay ->
 						radiusState.value = radiusDisplay
 						val radiusWorld = session.proportionalEdit.value?.radiusWorld ?: DEFAULT_PROPORTIONAL_RADIUS_WORLD
@@ -202,10 +205,10 @@ internal class UvEditModalTransform(
 		val proportional = session.proportionalEdit.value
 		val gestureData = gesture.capture
 		if (steps != 0f && proportional != null && gestureData != null) {
-			val radiusState = proportionalRadius.value
+			val radiusState = gestureData.proportionalRadius
 			val maxRadius = 4f * maxOf(gestureData.frame.displayWidth, gestureData.frame.displayHeight)
 			val resized =
-				(resolvedProportionalRadius(radiusState) * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
+				(resolvedProportionalRadius(radiusState, gestureData.frame) * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
 					.coerceIn(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY, maxRadius)
 			radiusState.value = resized
 			gestureData.transform.applyProportional(proportional, resized)
@@ -248,17 +251,17 @@ internal class UvEditModalTransform(
 	}
 
 	/**
-	 * Resolves a surface's proportional radius, seeding it from the shown surface's size on first use.
+	 * Resolves a surface's proportional radius, seeding it from the surface's size on first use.
 	 *
 	 * @param MutableState<Float?> radiusState The surface's radius state.
+	 * @param UvEditFrame frame The surface's frame.
 	 * @return Float The influence radius in display units.
 	 */
-	private fun resolvedProportionalRadius(radiusState: MutableState<Float?>): Float {
+	private fun resolvedProportionalRadius(radiusState: MutableState<Float?>, frame: UvEditFrame): Float {
 		val current = radiusState.value
 		if (current != null) {
 			return current
 		}
-		val frame = shownFrame.value
 		val seeded = (minOf(frame.displayWidth, frame.displayHeight) / 8f).coerceAtLeast(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY)
 		radiusState.value = seeded
 		return seeded

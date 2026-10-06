@@ -274,6 +274,23 @@ class UvEditsTest {
 		assertEquals(listOf(0.2f, 0.1f, 0.4f, 0.1f, 0.6f, 0.4f), session.model.value.drawables[0].mesh!!.uvs.toList(), "two undos restore the original mapping")
 	}
 
+	/**
+	 * Narrowed to the shown meshes, the mirror reflects only those, about their own median: a selected mesh on
+	 * another surface neither moves nor pulls the pivot toward itself.
+	 */
+	@Test
+	fun mirrorNarrowsToTheShownMeshes() {
+		val session = editSession(selectBothDrawables = true)
+		val originalUvsB = session.model.value.drawables[1].mesh!!.uvs
+
+		session.mirrorSelectedUvs(mirrorU = true, shownDrawableIds = setOf(DrawableId("a")))
+
+		// a's covered u values are 0.2 / 0.4 / 0.6, so its own median's u is 0.4; b's 0.1 / 0.3 / 0.1 would
+		// have pulled a shared median down to 0.283.
+		assertUvsEqual(listOf(0.6f, 0.1f, 0.4f, 0.1f, 0.2f, 0.4f), session.model.value.drawables[0].mesh!!.uvs, "a reflects about its own median")
+		assertSame(originalUvsB, session.model.value.drawables[1].mesh!!.uvs, "b is untouched")
+	}
+
 	/** The Cursor pivot mode mirrors about the UV cursor, falling back to the median before any placement. */
 	@Test
 	fun mirrorSelectedUvsAboutTheCursor() {

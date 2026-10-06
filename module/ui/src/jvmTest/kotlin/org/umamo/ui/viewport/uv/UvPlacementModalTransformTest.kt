@@ -14,6 +14,8 @@ import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.viewport.gizmo.LEFT_AREA
+import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.test.Test
@@ -33,12 +35,6 @@ import kotlin.test.assertTrue
  * readout's teardown, and the abandon.
  */
 class UvPlacementModalTransformTest {
-	/** Where the pointer rests as the gesture latches: the gesture measures from here. */
-	private val gestureStart = Offset(200f, 150f)
-
-	/** Forty pixels right of [gestureStart]: ten page texels at the rig's zoom. */
-	private val tenTexelsRight = Offset(240f, 150f)
-
 	/**
 	 * The transform under test over a placed-model session in Object mode, plus the host readout it writes.
 	 *
@@ -61,8 +57,8 @@ class UvPlacementModalTransformTest {
 	private fun rigOver(atlasPagesOf: (EditorSession) -> SessionAtlasPages? = { null }): Rig {
 		val session = uvObjectSession(model = uvRigPlacedModel())
 		val dragStatus = mutableStateOf<PlacementDragStatus?>(null)
-		val transform = UvPlacementModalTransform(LEFT_AREA_ID, session, mutableStateOf(atlasPagesOf(session)), mutableStateOf(dragStatus))
-		transform.gesture.lastPointer = gestureStart
+		val transform = UvPlacementModalTransform(LEFT_AREA, session, mutableStateOf(atlasPagesOf(session)), mutableStateOf(dragStatus))
+		transform.gesture.lastPointer = UV_RIG_GESTURE_START
 		return Rig(session, transform, dragStatus)
 	}
 
@@ -73,7 +69,7 @@ class UvPlacementModalTransformTest {
 	 * @return ActiveOperator The latch.
 	 */
 	private fun Rig.latch(kind: MeshOperatorKind = MeshOperatorKind.Grab): ActiveOperator {
-		session.beginUvOperator(kind, LEFT_AREA_ID)
+		session.beginUvOperator(kind, LEFT_AREA)
 		return assertNotNull(session.activeUvOperator.value, "the session latched the placement")
 	}
 
@@ -146,11 +142,30 @@ class UvPlacementModalTransformTest {
 
 		rig.beginWhileBuilding(operator) {
 			rig.session.clearUvOperator()
-			rig.session.beginUvOperator(MeshOperatorKind.Scale, LEFT_AREA_ID)
+			rig.session.beginUvOperator(MeshOperatorKind.Scale, LEFT_AREA)
 		}
 
 		assertNull(rig.transform.gesture.capture)
 		assertEquals(MeshOperatorKind.Scale, rig.session.activeUvOperator.value?.kind, "the new latch is left to its own effect")
+	}
+
+	/**
+	 * A latch cleared and made again with the same operator while the capture builds is begun by this build:
+	 * the overlay's effect keys on the operator by value and does not restart for an equal one, so no other
+	 * build is coming for it.
+	 */
+	@Test
+	fun aBuildThatLandsAfterASameOperatorReLatchBegins() {
+		val rig = rigOver()
+		val operator = rig.latch(MeshOperatorKind.Grab)
+
+		rig.beginWhileBuilding(operator) {
+			rig.session.clearUvOperator()
+			rig.session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
+		}
+
+		assertNotNull(rig.transform.gesture.capture, "the re-latched Grab began")
+		assertEquals(operator, rig.session.activeUvOperator.value)
 	}
 
 	/** A build that lands begins the gesture at the pointer as it is when it lands, not as it was at the latch. */
@@ -182,7 +197,7 @@ class UvPlacementModalTransformTest {
 			val operator = rig.latch()
 			runBlocking { rig.begin(operator, uvRigPlacementSurface()) }
 
-			assertTrue(rig.transform.drivePreview(tenTexelsRight, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE))
+			assertTrue(rig.transform.drivePreview(UV_RIG_TEN_TEXELS_RIGHT, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE))
 			rig.transform.confirm()
 
 			assertEquals(uvRigTilePlacement(110f), uvRigPlacementOf(rig.session, UV_RIG_QUAD_TILE), "with resolver = $withResolver")
@@ -203,7 +218,7 @@ class UvPlacementModalTransformTest {
 		val rig = rigOver()
 		val operator = rig.latch()
 		runBlocking { rig.begin(operator, uvRigPlacementSurface()) }
-		rig.transform.drivePreview(tenTexelsRight, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+		rig.transform.drivePreview(UV_RIG_TEN_TEXELS_RIGHT, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
 		assertEquals(10, assertNotNull(rig.dragStatus.value).deltaX)
 
 		assertTrue(rig.transform.end(), "a gesture was in flight")
@@ -219,16 +234,16 @@ class UvPlacementModalTransformTest {
 		val rig = rigOver()
 		val operator = rig.latch()
 		runBlocking { rig.begin(operator, uvRigPlacementSurface()) }
-		rig.transform.drivePreview(tenTexelsRight, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+		rig.transform.drivePreview(UV_RIG_TEN_TEXELS_RIGHT, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
 
 		assertTrue(rig.transform.abandon())
 		assertNull(rig.session.activeUvOperator.value)
 		assertNull(rig.dragStatus.value)
 		assertEquals(uvRigTilePlacement(100f), uvRigPlacementOf(rig.session, UV_RIG_QUAD_TILE), "nothing committed")
 
-		rig.session.beginUvOperator(MeshOperatorKind.Grab, RIGHT_AREA_ID)
+		rig.session.beginUvOperator(MeshOperatorKind.Grab, RIGHT_AREA)
 		assertFalse(rig.transform.abandon())
-		assertEquals(RIGHT_AREA_ID, rig.session.activeUvOperator.value?.areaId)
+		assertEquals(RIGHT_AREA, rig.session.activeUvOperator.value?.areaId)
 	}
 
 	/** The ghost stays up only while the committed atlas is the very instance it was published for and no pages are bound to it. */
@@ -247,8 +262,6 @@ class UvPlacementModalTransformTest {
 	}
 
 	private companion object {
-		const val LEFT_AREA_ID = "left"
-		const val RIGHT_AREA_ID = "right"
 		const val BUILD_TIMEOUT_SECONDS = 5L
 	}
 }

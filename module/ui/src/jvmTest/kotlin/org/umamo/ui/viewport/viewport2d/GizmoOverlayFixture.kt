@@ -10,8 +10,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
@@ -28,6 +26,7 @@ import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import org.umamo.ui.viewport.gizmo.gizmoAreaTag
+import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.workspace.commands.inMemorySettings
 
 /*
@@ -80,22 +79,14 @@ internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession): GizmoOver
 					Row {
 						for (areaId in listOf(LEFT_AREA, RIGHT_AREA)) {
 							key(areaId) {
-								// The host's own pointer record, as PuppetViewportBinding keeps it: watch-only, on
-								// the Initial pass, so it is current even while an overlay owns the gesture.
+								// The host's own pointer record, kept the way PuppetViewportBinding keeps it.
 								val areaPointer = remember { mutableStateOf(Offset.Zero) }
 								Box(
 									modifier =
 										Modifier
 											.size(RIG_AREA_WIDTH.dp, RIG_AREA_HEIGHT.dp)
 											.testTag(gizmoAreaTag(areaId))
-											.pointerInput(areaId) {
-												awaitPointerEventScope {
-													while (true) {
-														val event = awaitPointerEvent(PointerEventPass.Initial)
-														event.changes.lastOrNull()?.let { change -> areaPointer.value = change.position }
-													}
-												}
-											},
+											.tracksAreaPointer(areaId, areaPointer),
 								) {
 									if (areaId in fixture.mountedAreas.value) {
 										ViewportEditGizmoOverlay(

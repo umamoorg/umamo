@@ -95,6 +95,15 @@ private val OTHER_PAGE_DISPLAY = floatArrayOf(140f, 100f, 160f, 100f, 140f, 120f
 /** The page camera, centered on the quad at four pixels per texel. */
 internal val UV_RIG_PAGE_CAMERA = ViewportCamera(centerX = 110f, centerY = 110f, zoom = 4f)
 
+/** The quad's stored texture coordinates, as the rig's model holds them before any edit. */
+internal val UV_RIG_QUAD_UVS: List<Float> = displayToUv(QUAD_PAGE_DISPLAY, UV_RIG_PAGE_SIDE, UV_RIG_PAGE_SIDE).toList()
+
+/** Where the pointer rests as a case's gesture latches, the quad's center on screen: the gesture measures from here. */
+internal val UV_RIG_GESTURE_START = Offset(200f, 150f)
+
+/** Forty pixels right of UV_RIG_GESTURE_START: ten display texels at either rig camera's zoom. */
+internal val UV_RIG_TEN_TEXELS_RIGHT = Offset(240f, 150f)
+
 /**
  * One rig drawable with no deformer channels.
  *

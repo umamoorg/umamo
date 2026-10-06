@@ -67,9 +67,9 @@ internal fun DrawScope.drawUvEditWireframes(
  * Draws the UV Edit overlay's gesture chrome: the rubber band, the armed select tool's affordance, and the
  * modal HUD with its proportional ring.  The pointer, the marquee corners, the capture, the axis constraint,
  * the proportional state, and the radius are read HERE, in the draw phase, never while the overlay composes
- * - so a pointer move or a mid-gesture change redraws this layer without recomposing anything.  The axis,
- * the proportional state, and the radius arrive as State holders because they are read only for the gesture
- * this area owns.
+ * - so a pointer move or a mid-gesture change redraws this layer without recomposing anything.  The axis and
+ * the proportional state arrive as State holders because they are read only for the gesture this area owns,
+ * and the ring's radius is the gesture's own (the radius of the surface it began on, see UvEditGesture).
  *
  * @param MarqueeSelectController<MeshSelection> marquee The area's box / circle machinery.
  * @param ModalGestureState<UvEditGesture> gesture The area's modal gesture state.
@@ -77,7 +77,6 @@ internal fun DrawScope.drawUvEditWireframes(
  * @param ActiveOperator? hudOperator The latched UV operator, whichever area owns it.
  * @param State axisConstraint The session's axis constraint.
  * @param State proportionalEdit The session's proportional editing state.
- * @param State proportionalRadius The shown surface's radius in display texels.
  * @param ViewportCamera camera The frame camera.
  * @param IntSize size The area size in pixels.
  * @param SelectionOverlayStyle style The marching-ants style for the band and the affordances.
@@ -90,7 +89,6 @@ internal fun DrawScope.drawUvEditGizmoChrome(
 	hudOperator: ActiveOperator?,
 	axisConstraint: State<TransformAxisConstraint?>,
 	proportionalEdit: State<ProportionalEditState?>,
-	proportionalRadius: State<Float?>,
 	camera: ViewportCamera,
 	size: IntSize,
 	style: SelectionOverlayStyle,
@@ -122,7 +120,7 @@ internal fun DrawScope.drawUvEditGizmoChrome(
 		lineColor = lineColor,
 		proportionalRadiusPx = {
 			if (proportionalEdit.value != null) {
-				(proportionalRadius.value ?: 0f).takeIf { radius -> radius > 0f }?.times(camera.zoom)
+				(gesture.capture?.proportionalRadius?.value ?: 0f).takeIf { radius -> radius > 0f }?.times(camera.zoom)
 			} else {
 				null
 			}

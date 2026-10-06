@@ -34,12 +34,6 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalTestApi::class)
 class UvObjectGizmoOverlayGestureTest {
-	/** Where the pointer rests before a gesture latches: the gesture measures from here. */
-	private val gestureStart = Offset(200f, 150f)
-
-	/** Forty pixels right of [gestureStart]: ten page texels at the rig's zoom. */
-	private val tenTexelsRight = Offset(240f, 150f)
-
 	/** Inside the triangle beside the quad. */
 	private val insideOther = Offset(340f, 170f)
 
@@ -60,16 +54,16 @@ class UvObjectGizmoOverlayGestureTest {
 		mountUvGizmoOverlays(uvObjectSession(selected, uvRigPlacedModel()), uvRigPlacementSurface())
 
 	/**
-	 * Latches a Grab in the left area with the pointer at [gestureStart] and waits for its capture to land.
+	 * Latches a Grab in the left area with the pointer at [UV_RIG_GESTURE_START] and waits for its capture to land.
 	 *
 	 * @param UvGizmoOverlayFixture fixture The mounted fixture.
 	 */
 	private fun ComposeUiTest.latchPlacementGrab(fixture: UvGizmoOverlayFixture) {
-		moveIn(LEFT_AREA, listOf(gestureStart))
+		moveIn(LEFT_AREA, listOf(UV_RIG_GESTURE_START))
 		fixture.session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
 		waitForIdle()
 		assertEquals(MeshOperatorKind.Grab, fixture.session.activeUvOperator.value?.kind, "the session latched the placement")
-		awaitPlacementCapture(fixture, LEFT_AREA, gestureStart)
+		awaitPlacementCapture(fixture, LEFT_AREA, UV_RIG_GESTURE_START)
 	}
 
 	/**
@@ -90,10 +84,10 @@ class UvObjectGizmoOverlayGestureTest {
 			val stepsBefore = session.historyView.value.steps.size
 			latchPlacementGrab(fixture)
 
-			moveIn(LEFT_AREA, listOf(tenTexelsRight))
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
 			assertEquals(10, assertNotNull(fixture.placementDragStatusByArea.getValue(LEFT_AREA).value).deltaX, "the host's readout follows the drag")
 			assertEquals(uvRigTilePlacement(100f), uvRigPlacementOf(session, UV_RIG_QUAD_TILE), "a drag commits nothing")
-			clickIn(LEFT_AREA, tenTexelsRight)
+			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT)
 
 			assertNull(session.activeUvOperator.value, "the confirm cleared the operator")
 			assertEquals(uvRigTilePlacement(110f), uvRigPlacementOf(session, UV_RIG_QUAD_TILE))
@@ -110,7 +104,7 @@ class UvObjectGizmoOverlayGestureTest {
 			val fixture = mountPlaced()
 			val session = fixture.session
 			latchPlacementGrab(fixture)
-			moveIn(LEFT_AREA, listOf(tenTexelsRight))
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
 
 			session.requestMeshConfirm()
 			waitForIdle()
@@ -128,9 +122,9 @@ class UvObjectGizmoOverlayGestureTest {
 			val session = fixture.session
 			val stepsBefore = session.historyView.value.steps.size
 			latchPlacementGrab(fixture)
-			moveIn(LEFT_AREA, listOf(tenTexelsRight))
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
 
-			clickIn(LEFT_AREA, tenTexelsRight, MouseButton.Secondary)
+			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT, MouseButton.Secondary)
 
 			assertNull(session.activeUvOperator.value)
 			assertEquals(uvRigTilePlacement(100f), uvRigPlacementOf(session, UV_RIG_QUAD_TILE), "nothing committed")
@@ -144,8 +138,8 @@ class UvObjectGizmoOverlayGestureTest {
 		runComposeUiTest {
 			val fixture = mountPlaced()
 			latchPlacementGrab(fixture)
-			moveIn(LEFT_AREA, listOf(tenTexelsRight))
-			clickIn(LEFT_AREA, tenTexelsRight)
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
+			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT)
 
 			assertEquals(uvRigTilePlacement(110f), uvRigPlacementOf(fixture.session, UV_RIG_QUAD_TILE), "the placement did land")
 			assertTrue(fixture.renderSync.previewed.isEmpty(), "no preview")
@@ -191,8 +185,8 @@ class UvObjectGizmoOverlayGestureTest {
 			val session = fixture.session
 			latchPlacementGrab(fixture)
 
-			moveIn(RIGHT_AREA, listOf(gestureStart, tenTexelsRight))
-			clickIn(RIGHT_AREA, tenTexelsRight)
+			moveIn(RIGHT_AREA, listOf(UV_RIG_GESTURE_START, UV_RIG_TEN_TEXELS_RIGHT))
+			clickIn(RIGHT_AREA, UV_RIG_TEN_TEXELS_RIGHT)
 
 			assertEquals(LEFT_AREA, session.activeUvOperator.value?.areaId, "the right area did not confirm the left area's gesture")
 			assertNull(fixture.placementDragStatusByArea.getValue(RIGHT_AREA).value)
@@ -213,7 +207,7 @@ class UvObjectGizmoOverlayGestureTest {
 				waitForIdle()
 				assertEquals(armedIn, session.activeSelectTool.value?.areaId, "armed in $armedIn")
 
-				clickIn(LEFT_AREA, gestureStart)
+				clickIn(LEFT_AREA, UV_RIG_GESTURE_START)
 
 				assertEquals(emptySet(), selectedDrawables(session), "armed in $armedIn")
 			}
@@ -226,7 +220,7 @@ class UvObjectGizmoOverlayGestureTest {
 			val fixture = mountPlaced(selected = emptyList())
 			val session = fixture.session
 
-			clickIn(LEFT_AREA, gestureStart)
+			clickIn(LEFT_AREA, UV_RIG_GESTURE_START)
 			assertEquals(setOf(UV_RIG_QUAD), selectedDrawables(session))
 			assertEquals(SelectionTarget.Drawable(UV_RIG_QUAD), session.selection.value.active)
 
@@ -266,7 +260,7 @@ class UvObjectGizmoOverlayGestureTest {
 			val fixture = mountPlaced()
 			val session = fixture.session
 
-			withKeyHeld(LEFT_AREA, Key.ShiftLeft) { clickIn(LEFT_AREA, gestureStart, MouseButton.Secondary) }
+			withKeyHeld(LEFT_AREA, Key.ShiftLeft) { clickIn(LEFT_AREA, UV_RIG_GESTURE_START, MouseButton.Secondary) }
 
 			val cursor = assertNotNull(session.uvCursor.value)
 			assertEquals(110f / 256, cursor.u, 1e-6f)
@@ -280,7 +274,7 @@ class UvObjectGizmoOverlayGestureTest {
 			val fixture = mountPlaced()
 			val session = fixture.session
 			latchPlacementGrab(fixture)
-			moveIn(LEFT_AREA, listOf(tenTexelsRight))
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
 
 			session.setMode(EditorMode.Edit)
 			waitForIdle()
@@ -297,7 +291,7 @@ class UvObjectGizmoOverlayGestureTest {
 			val fixture = mountPlaced()
 			val session = fixture.session
 			latchPlacementGrab(fixture)
-			moveIn(LEFT_AREA, listOf(tenTexelsRight))
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
 
 			fixture.mountedAreas.value = setOf(RIGHT_AREA)
 			waitForIdle()
@@ -317,7 +311,7 @@ class UvObjectGizmoOverlayGestureTest {
 			val fixture = mountPlaced()
 			val session = fixture.session
 			latchPlacementGrab(fixture)
-			moveIn(LEFT_AREA, listOf(tenTexelsRight))
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
 
 			fixture.show(LEFT_AREA, UvRigSurface(cameraLost = true))
 			waitForIdle()
@@ -326,7 +320,7 @@ class UvObjectGizmoOverlayGestureTest {
 
 			fixture.show(LEFT_AREA, UvRigSurface())
 			waitForIdle()
-			moveIn(LEFT_AREA, listOf(gestureStart, tenTexelsRight))
+			moveIn(LEFT_AREA, listOf(UV_RIG_GESTURE_START, UV_RIG_TEN_TEXELS_RIGHT))
 			session.requestMeshConfirm()
 			waitForIdle()
 

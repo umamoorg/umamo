@@ -14,15 +14,10 @@ import org.umamo.ui.workspace.spaces.parameters.GESTURE_STEP_MILLIS
 
 /*
  * The pointer and key input the gizmo overlay fixtures send, shared by the 2D viewport's fixture and the
- * UV editor's.  Each fixture mounts its overlays twice, in two areas side by side, and tags each area's box
- * with gizmoAreaTag, so these helpers address an area by its id.  Every point is area-local.
+ * UV editor's.  Each fixture mounts its overlays twice, in two areas side by side (LEFT_AREA and RIGHT_AREA,
+ * gizmo/GizmoTestAreas.kt), and tags each area's box with gizmoAreaTag, so these helpers address an area by
+ * its id.  Every point is area-local.
  */
-
-/** The left area's id. */
-internal const val LEFT_AREA = "left"
-
-/** The right area's id. */
-internal const val RIGHT_AREA = "right"
 
 /**
  * The test tag of one area's box.

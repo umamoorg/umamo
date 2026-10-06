@@ -39,38 +39,29 @@ import kotlin.test.assertTrue
  * Pins what the UV editor's Edit-mode gizmo overlay does with the pointer and the session's requests,
  * through the overlay itself: a modal transform previews through the render sync and commits one step
  * through the frame it was authored in, a gesture belongs to the area it started in, the proportional
- * radius belongs to the shown surface, a gesture that loses its surface is cancelled rather than left
- * latched, the idle pointer selects, and the requests answer once, from the asking area, even over a
- * surface with nothing of the edit on it.
+ * radius belongs to the surface a gesture began on, a gesture that loses its surface is cancelled rather
+ * than left latched and one latched over nothing is dropped, the idle pointer selects, and the requests
+ * answer once, from the asking area, even over a surface with nothing of the edit on it.
  */
 @OptIn(ExperimentalTestApi::class)
 class UvEditGizmoOverlayGestureTest {
-	/** Where the pointer rests before a gesture latches: the gesture measures from here. */
-	private val gestureStart = Offset(200f, 150f)
-
-	/** Forty pixels right of [gestureStart]: ten display texels at the rig's zoom. */
-	private val tenTexelsRight = Offset(240f, 150f)
-
-	/** The quad's stored coordinates as the rig builds them. */
-	private val quadUvs = listOf(100f / 256, 1f - 100f / 256, 120f / 256, 1f - 100f / 256, 120f / 256, 1f - 120f / 256, 100f / 256, 1f - 120f / 256)
-
 	/** The quad's stored coordinates after vertex 0 moved ten page texels right. */
-	private val quadUvsMoved = listOf(110f / 256) + quadUvs.drop(1)
+	private val quadUvsMoved = listOf(110f / 256) + UV_RIG_QUAD_UVS.drop(1)
 
 	/** A box around vertices 0 and 1, started on empty canvas. */
 	private val boxFrom = Offset(130f, 170f)
 	private val boxTo = Offset(250f, 200f)
 
 	/**
-	 * Latches a Grab in the left area with the pointer at [gestureStart] and moves it ten texels right.
+	 * Latches a Grab in the left area with the pointer at [UV_RIG_GESTURE_START] and moves it ten texels right.
 	 *
 	 * @param EditorSession session The session.
 	 */
 	private fun ComposeUiTest.grabTenTexelsRight(session: EditorSession) {
-		moveIn(LEFT_AREA, listOf(gestureStart))
+		moveIn(LEFT_AREA, listOf(UV_RIG_GESTURE_START))
 		session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
 		waitForIdle()
-		moveIn(LEFT_AREA, listOf(tenTexelsRight))
+		moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
 	}
 
 	/**
@@ -80,10 +71,10 @@ class UvEditGizmoOverlayGestureTest {
 	 * @param EditorSession session The session.
 	 */
 	private fun ComposeUiTest.seedRadiusInLeftArea(session: EditorSession) {
-		moveIn(LEFT_AREA, listOf(gestureStart))
+		moveIn(LEFT_AREA, listOf(UV_RIG_GESTURE_START))
 		session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
 		waitForIdle()
-		clickIn(LEFT_AREA, gestureStart, MouseButton.Secondary)
+		clickIn(LEFT_AREA, UV_RIG_GESTURE_START, MouseButton.Secondary)
 		assertNull(session.activeUvOperator.value, "the seeding Grab was cancelled")
 	}
 
@@ -97,8 +88,8 @@ class UvEditGizmoOverlayGestureTest {
 
 			grabTenTexelsRight(session)
 			assertTrue(fixture.renderSync.previewed.isNotEmpty(), "the move previewed through the render sync")
-			assertEquals(quadUvs, uvRigUvsOf(session, UV_RIG_QUAD), "a preview commits nothing")
-			clickIn(LEFT_AREA, tenTexelsRight)
+			assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD), "a preview commits nothing")
+			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT)
 
 			assertNull(session.activeUvOperator.value, "the confirm cleared the operator")
 			assertEquals(quadUvsMoved, uvRigUvsOf(session, UV_RIG_QUAD), "vertex 0 moved ten texels, every other coordinate bit-identical")
@@ -131,10 +122,10 @@ class UvEditGizmoOverlayGestureTest {
 			val stepsBefore = session.historyView.value.steps.size
 			grabTenTexelsRight(session)
 
-			clickIn(LEFT_AREA, tenTexelsRight, MouseButton.Secondary)
+			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT, MouseButton.Secondary)
 
 			assertNull(session.activeUvOperator.value)
-			assertEquals(quadUvs, uvRigUvsOf(session, UV_RIG_QUAD), "nothing committed")
+			assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD), "nothing committed")
 			assertEquals(stepsBefore, session.historyView.value.steps.size)
 			assertEquals(1, fixture.renderSync.resyncs, "the renderer is back on the committed model")
 		}
@@ -148,12 +139,12 @@ class UvEditGizmoOverlayGestureTest {
 			session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
 			waitForIdle()
 
-			moveIn(RIGHT_AREA, listOf(gestureStart, tenTexelsRight))
-			clickIn(RIGHT_AREA, tenTexelsRight)
+			moveIn(RIGHT_AREA, listOf(UV_RIG_GESTURE_START, UV_RIG_TEN_TEXELS_RIGHT))
+			clickIn(RIGHT_AREA, UV_RIG_TEN_TEXELS_RIGHT)
 
 			assertTrue(fixture.renderSync.previewed.isEmpty(), "the right area drove no preview")
 			assertEquals(MeshOperatorKind.Grab, session.activeUvOperator.value?.kind, "and did not confirm the left area's gesture")
-			assertEquals(quadUvs, uvRigUvsOf(session, UV_RIG_QUAD))
+			assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD))
 		}
 
 	/** The first latch seeds the shown surface's radius from its size, even with proportional editing off. */
@@ -203,8 +194,8 @@ class UvEditGizmoOverlayGestureTest {
 
 			val committed = uvRigUvsOf(session, UV_RIG_QUAD)
 			assertEquals(110f / 256, committed[0], 1e-6f, "ten layer texels are ten page texels at the rig's unscaled placement")
-			assertEquals(quadUvs[1], committed[1], 1e-6f)
-			assertEquals(quadUvs.drop(2), committed.drop(2), "every other coordinate bit-identical")
+			assertEquals(UV_RIG_QUAD_UVS[1], committed[1], 1e-6f)
+			assertEquals(UV_RIG_QUAD_UVS.drop(2), committed.drop(2), "every other coordinate bit-identical")
 		}
 
 	/** A surface switch mid-gesture still commits through the frame the gesture was captured in. */
@@ -217,7 +208,7 @@ class UvEditGizmoOverlayGestureTest {
 
 			fixture.show(LEFT_AREA, UV_RIG_LAYER_SURFACE)
 			waitForIdle()
-			moveIn(LEFT_AREA, listOf(Offset(239f, 150f), tenTexelsRight))
+			moveIn(LEFT_AREA, listOf(Offset(239f, 150f), UV_RIG_TEN_TEXELS_RIGHT))
 			session.requestMeshConfirm()
 			waitForIdle()
 
@@ -274,7 +265,7 @@ class UvEditGizmoOverlayGestureTest {
 			fixture.show(LEFT_AREA, UV_RIG_LAYER_SURFACE)
 			waitForIdle()
 
-			withKeyHeld(LEFT_AREA, Key.ShiftLeft) { clickIn(LEFT_AREA, gestureStart, MouseButton.Secondary) }
+			withKeyHeld(LEFT_AREA, Key.ShiftLeft) { clickIn(LEFT_AREA, UV_RIG_GESTURE_START, MouseButton.Secondary) }
 
 			val cursor = assertNotNull(session.uvCursor.value)
 			assertEquals(110f / 256, cursor.u, 1e-6f, "the quad's center on the layer is its center on the page")
@@ -293,7 +284,7 @@ class UvEditGizmoOverlayGestureTest {
 			waitForIdle()
 
 			assertNull(session.activeUvOperator.value)
-			assertEquals(quadUvs, uvRigUvsOf(session, UV_RIG_QUAD), "nothing committed")
+			assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD), "nothing committed")
 			assertEquals(1, fixture.renderSync.resyncs, "the renderer is back on the committed model")
 		}
 
@@ -313,7 +304,7 @@ class UvEditGizmoOverlayGestureTest {
 
 			assertNull(session.activeUvOperator.value, "the gesture was cancelled")
 			assertEquals(1, fixture.renderSync.resyncs, "the renderer is back on the committed model")
-			assertEquals(quadUvs, uvRigUvsOf(session, UV_RIG_QUAD))
+			assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD))
 		}
 
 	/** Losing the frame camera mid-gesture cancels it the same way. */
@@ -341,7 +332,7 @@ class UvEditGizmoOverlayGestureTest {
 		runComposeUiTest {
 			val fixture = mountUvGizmoOverlays(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
 			val session = fixture.session
-			moveIn(LEFT_AREA, listOf(gestureStart))
+			moveIn(LEFT_AREA, listOf(UV_RIG_GESTURE_START))
 			session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
 			waitForIdle()
 			fixture.show(LEFT_AREA, UvRigSurface(shown = emptyList()))
@@ -349,11 +340,11 @@ class UvEditGizmoOverlayGestureTest {
 			fixture.show(LEFT_AREA, UvRigSurface())
 			waitForIdle()
 
-			moveIn(LEFT_AREA, listOf(tenTexelsRight))
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
 			session.requestMeshConfirm()
 			waitForIdle()
 
-			assertEquals(quadUvs, uvRigUvsOf(session, UV_RIG_QUAD), "vertex 0 did not jump")
+			assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD), "vertex 0 did not jump")
 		}
 
 	/** Another area emptying is no reason to drop this area's gesture: its latch survives and still confirms. */
@@ -367,7 +358,7 @@ class UvEditGizmoOverlayGestureTest {
 			fixture.show(RIGHT_AREA, UvRigSurface(shown = emptyList()))
 			waitForIdle()
 			assertEquals(LEFT_AREA, session.activeUvOperator.value?.areaId, "the left area's gesture is still latched")
-			clickIn(LEFT_AREA, tenTexelsRight)
+			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT)
 
 			assertEquals(quadUvsMoved, uvRigUvsOf(session, UV_RIG_QUAD))
 		}
@@ -430,7 +421,7 @@ class UvEditGizmoOverlayGestureTest {
 		val notice = assertNotNull(session.notice.value)
 		assertEquals("notice.uv.noEditableGeometry", notice.messageKey)
 		assertEquals(serialBefore + 1, notice.serial, "one notice, not one per area")
-		assertEquals(quadUvs, uvRigUvsOf(session, UV_RIG_QUAD), "nothing moved")
+		assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD), "nothing moved")
 		assertEquals(selectionBefore, session.meshSelection.value, "nothing was selected")
 		assertEquals(cursorBefore, session.uvCursor.value, "the cursor stayed")
 	}
@@ -447,6 +438,57 @@ class UvEditGizmoOverlayGestureTest {
 			assertAnswersWithTheNotice(fixture) { session.requestUvMirror(UvMirrorRequest(mirrorU = true, areaId = LEFT_AREA)) }
 			assertAnswersWithTheNotice(fixture) { session.requestSelectLinked(fromSelection = true, areaId = LEFT_AREA) }
 			assertAnswersWithTheNotice(fixture) { session.requestUvSnap(UvSnapRequest(UvSnapKind.CursorToSelected, LEFT_AREA)) }
+		}
+
+	/**
+	 * A Grab latched over a surface with none of the edit's meshes is dropped with the notice: nothing there
+	 * could begin it, and left latched it would hold the area's pan and zoom off and begin from a fresh
+	 * gesture state at (0, 0) once the meshes showed again.  Confirming after they show moves nothing.
+	 */
+	@Test
+	fun aGrabOverAnEmptySurfaceIsDroppedWithTheNotice() =
+		runComposeUiTest {
+			val fixture = mountUvGizmoOverlays(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
+			val session = fixture.session
+			fixture.show(LEFT_AREA, UvRigSurface(shown = emptyList()))
+			waitForIdle()
+			moveIn(LEFT_AREA, listOf(UV_RIG_GESTURE_START))
+
+			session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
+			waitForIdle()
+			assertNull(session.activeUvOperator.value, "the latch was dropped")
+			assertEquals("notice.uv.noEditableGeometry", session.notice.value?.messageKey)
+
+			fixture.show(LEFT_AREA, UvRigSurface())
+			waitForIdle()
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
+			session.requestMeshConfirm()
+			waitForIdle()
+			assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD), "nothing began, so nothing moved")
+		}
+
+	/** A box armed over a surface with nothing to select is dropped the same way, and so is one armed as the surface empties. */
+	@Test
+	fun aBoxOverAnEmptySurfaceIsDropped() =
+		runComposeUiTest {
+			val fixture = mountUvGizmoOverlays(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
+			val session = fixture.session
+			fixture.show(LEFT_AREA, UvRigSurface(shown = emptyList()))
+			waitForIdle()
+
+			session.beginBoxSelect(LEFT_AREA)
+			waitForIdle()
+			assertNull(session.activeSelectTool.value, "the box armed over the empty surface was dropped")
+			assertEquals("notice.uv.noEditableGeometry", session.notice.value?.messageKey)
+
+			fixture.show(LEFT_AREA, UvRigSurface())
+			waitForIdle()
+			session.beginBoxSelect(LEFT_AREA)
+			waitForIdle()
+			assertEquals(LEFT_AREA, session.activeSelectTool.value?.areaId, "a box armed over the meshes stays")
+			fixture.show(LEFT_AREA, UvRigSurface(shown = emptyList()))
+			waitForIdle()
+			assertNull(session.activeSelectTool.value, "and goes once the surface empties")
 		}
 
 	/** Select Linked under the pointer floods the island the host's pointer is over. */
@@ -481,6 +523,28 @@ class UvEditGizmoOverlayGestureTest {
 			assertEquals(UV_RIG_LAYER_SIDE / 8f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(fixture.radiusOf(LEFT_AREA)), 1e-4f)
 		}
 
+	/**
+	 * A surface switch mid-gesture leaves the wheel on the radius the gesture began with, whose texels its
+	 * capture is still measured in; the radius of the surface now shown is not touched.
+	 */
+	@Test
+	fun aSwitchMidGestureKeepsTheWheelOnTheGesturesRadius() =
+		runComposeUiTest {
+			val fixture = mountUvGizmoOverlays(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
+			val session = fixture.session
+			session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f))
+			grabTenTexelsRight(session)
+			val pageRadius = fixture.radiusStateByArea.getValue(LEFT_AREA)
+
+			fixture.show(LEFT_AREA, UV_RIG_LAYER_SURFACE)
+			waitForIdle()
+			assertEquals(LEFT_AREA, session.activeUvOperator.value?.areaId, "the gesture goes on over the layer")
+			scrollIn(LEFT_AREA, -1f)
+
+			assertEquals(UV_RIG_PAGE_SIDE / 8f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(pageRadius.value), 1e-4f, "the page's radius grew")
+			assertNull(fixture.radiusOf(LEFT_AREA), "the layer's radius was not even seeded")
+		}
+
 	/** After a surface switch, the strip's Proportional Size row holds the radius of the surface the gesture ran on. */
 	@Test
 	fun theStripRowHoldsTheShownSurfacesRadius() =
@@ -493,7 +557,7 @@ class UvEditGizmoOverlayGestureTest {
 			waitForIdle()
 
 			grabTenTexelsRight(session)
-			clickIn(LEFT_AREA, tenTexelsRight)
+			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT)
 
 			val record = assertNotNull(session.adjustableOperation.value)
 			assertEquals(UV_RIG_LAYER_SIDE / 8f, record.parameters.floatValue(TransformParameterKeys.PROPORTIONAL_SIZE, -1f), 1e-4f)
@@ -510,7 +574,7 @@ class UvEditGizmoOverlayGestureTest {
 			fixture.show(LEFT_AREA, UV_RIG_LAYER_SURFACE)
 			waitForIdle()
 			grabTenTexelsRight(session)
-			clickIn(LEFT_AREA, tenTexelsRight)
+			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT)
 			val record = assertNotNull(session.adjustableOperation.value)
 			val sizeRow = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.PROPORTIONAL_SIZE } as OperatorParameter.FloatParameter
 
@@ -529,7 +593,7 @@ class UvEditGizmoOverlayGestureTest {
 			session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f))
 			grabTenTexelsRight(session)
 			scrollIn(LEFT_AREA, -1f)
-			clickIn(LEFT_AREA, tenTexelsRight, MouseButton.Secondary)
+			clickIn(LEFT_AREA, UV_RIG_TEN_TEXELS_RIGHT, MouseButton.Secondary)
 			val pageRadius = assertNotNull(fixture.radiusOf(LEFT_AREA))
 
 			fixture.show(LEFT_AREA, UV_RIG_LAYER_SURFACE)

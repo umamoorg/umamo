@@ -107,7 +107,10 @@ internal class UvPlacementModalTransform(
 	 * Starts the placement gesture as a UV operator latches in this area.  Over a source layer there is no
 	 * page to move on, so the latch drops with a notice.  Otherwise the capture builds off-thread from the
 	 * values read before it starts; a latch that cleared or changed while it built (Escape, a mode switch)
-	 * begins nothing, and a build that found nothing movable drops the latch with its own notice.
+	 * begins nothing, and a build that found nothing movable drops the latch with its own notice.  A latch
+	 * cleared and made again with the same operator in the same area before the overlay recomposes still
+	 * begins: the latch effect keys on the operator by value and so does not restart for it, which leaves
+	 * this build as the only one that can begin it.
 	 *
 	 * @param ActiveOperator operator The latched operator.
 	 * @param UvPlacementSurface? surface The shown page and the source-art store, or null over a source layer.
@@ -135,6 +138,7 @@ internal class UvPlacementModalTransform(
 			withContext(Dispatchers.Default) {
 				buildPlacementGesture(model, surface, selection, shownGeometries, pivotMode, activeDrawableId, cursorDisplay, operator.kind)
 			}
+		// By value, not identity: see the docblock for the same-operator re-latch this lets begin.
 		if (session.activeUvOperator.value != operator) {
 			return
 		}
