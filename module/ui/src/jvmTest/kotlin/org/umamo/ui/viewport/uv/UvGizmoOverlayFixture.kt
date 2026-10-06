@@ -30,7 +30,9 @@ import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.viewport.StubPuppetViewportService
 import org.umamo.ui.viewport.ViewportRegionOverlay
+import org.umamo.ui.viewport.gizmo.HeldDriveDispatcher
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
+import org.umamo.ui.viewport.gizmo.LocalModalDriveDispatcher
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import org.umamo.ui.viewport.gizmo.gizmoAreaTag
 import org.umamo.ui.viewport.gizmo.moveIn
@@ -87,6 +89,9 @@ internal class UvGizmoOverlayFixture(
 
 	/** The settings the gizmo colors read. */
 	val settings: Settings = inMemorySettings()
+
+	/** The drive dispatcher every overlay computes on: open (in place) unless a case holds it. */
+	val driveDispatcher = HeldDriveDispatcher()
 
 	/** Every overlap picker an overlay asked for, as the area, the anchor, and the candidates. */
 	val overlapRequests = ArrayList<Triple<String, Offset, List<PickCandidate>>>()
@@ -179,7 +184,11 @@ internal class UvGizmoOverlayFixture(
 internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession, placementSurface: UvPlacementSurface? = null): UvGizmoOverlayFixture {
 	val fixture = UvGizmoOverlayFixture(session, placementSurface)
 	setContent {
-		CompositionLocalProvider(LocalSettings provides fixture.settings, LocalPuppetRenderSync provides fixture.renderSync) {
+		CompositionLocalProvider(
+			LocalSettings provides fixture.settings,
+			LocalPuppetRenderSync provides fixture.renderSync,
+			LocalModalDriveDispatcher provides fixture.driveDispatcher,
+		) {
 			UmamoTheme {
 				CompositionLocalProvider(LocalDensity provides Density(1f)) {
 					Row {

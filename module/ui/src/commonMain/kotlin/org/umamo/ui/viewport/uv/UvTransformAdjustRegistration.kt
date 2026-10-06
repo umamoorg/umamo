@@ -11,6 +11,7 @@ import org.umamo.edit.rederiveProportionalHalos
 import org.umamo.edit.transformGestureParametersOf
 import org.umamo.edit.transformParameters
 import org.umamo.edit.withMeshUvs
+import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.viewport.gizmo.applyOperator
 
 /**
@@ -44,17 +45,24 @@ internal fun registerUvTransformAdjustment(
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
 	val rows = transformParameters(kind, parameters, TransformRowSpace.UvDisplay, proportional)
+
 	if (rows.isEmpty()) {
 		return null
 	}
+
 	return session.registerAdjustableOperation(session.model.value, areaId, rows) { record ->
 		val adjusted = transformGestureParametersOf(kind, TransformRowSpace.UvDisplay, record.parameters)
 		val proportionalRows = rederiveProportionalHalos(transform, record.parameters)
-		val landed =
-			transform.entries.fold(record.baseSnapshot.model) { model, entry ->
-				val display = applyOperator(kind, entry.positions, entry.groups, adjusted, entry.influence)
-				model.withMeshUvs(entry.drawableId, storedUvsForCommit(model, entry.drawableId, entry.movedIndices, display, frame))
-			}
+		val baseModel = record.baseSnapshot.model
+		val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
+
+		for (entry in transform.entries) {
+			val display = applyOperator(kind, entry.positions, entry.groups, adjusted, entry.influence)
+			newUvsByDrawable[entry.drawableId] = storedUvsForCommit(baseModel, entry.drawableId, entry.movedIndices, display, frame)
+		}
+
+		val landed = baseModel.withMeshUvs(newUvsByDrawable)
+
 		if (session.amendLastCommit(record, landed) && proportionalRows != null) {
 			onProportional(proportionalRows.asState(), proportionalRows.radius)
 		}

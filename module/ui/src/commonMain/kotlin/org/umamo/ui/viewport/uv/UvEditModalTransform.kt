@@ -22,9 +22,9 @@ import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
+import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.activeElementMedian
-import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.gestureParameters
 import kotlin.math.pow
 
@@ -61,7 +61,9 @@ internal class UvEditGesture(
  * shown meshes' covered vertices when an operator latches in its area, drives the shared operator math over
  * the frozen display coordinates (no deformer inverse), previews the converted coordinates through the
  * render sync so the 2D viewport shows the art resampling as the mapping moves, confirms ONE undo step via
- * commitMeshUvs, and resizes the proportional influence radius on scroll.
+ * commitMeshUvs, and resizes the proportional influence radius on scroll.  The drive runs through [drive]:
+ * each pointer event resolves a request here, on the UI thread, and the conversion runs off it, publishing
+ * back here.
  *
  * The proportional radius is the UV editor's own, in display texels - the session's world radius is scaled
  * for the puppet canvas and means nothing on a texture surface.  The host keeps one per shown surface and
@@ -82,6 +84,21 @@ internal class UvEditModalTransform(
 	private val proportionalRadius: State<MutableState<Float?>>,
 	private val pushPreview: (PuppetModel) -> Unit,
 ) : UvModalTransform<UvEditGesture>(areaId, session) {
+	// The request the published preview answers: the confirm names the vertices it moved, which a radius
+	// or falloff change since may have changed on the capture itself.
+	private var publishedRequest: UvDriveRequest? = null
+
+	/**
+	 * The drive: requests resolved per pointer event, computed off the UI thread, the result published back
+	 * on it.  The overlay runs it (ModalDriveEffect); with no worker running, a request computes inline.
+	 */
+	val drive =
+		ModalDriveWorker<UvDriveRequest, UvDriveResult>(
+			gesture = gesture,
+			computeSequential = ::computeUvDrive,
+			publish = { request, result -> publishDrive(request, result) },
+		)
+
 	/**
 	 * Starts the gesture as an operator latches in this area.  The capture covers only the shown meshes
 	 * with covered vertices; the anchor follows the pivot mode in display space.  Drops the operator when
@@ -98,15 +115,20 @@ internal class UvEditModalTransform(
 		val sources = ArrayList<ModalCaptureSource>()
 		for (geometry in geometries) {
 			val elements = selection.elementsOf(geometry.drawableId)
+
 			if (elements.isEmpty()) {
 				continue
 			}
+
 			val coveredIndices = MeshTopology.coveredVertexIndices(elements, geometry.indices)
+
 			if (coveredIndices.isEmpty()) {
 				continue
 			}
+
 			sources.add(ModalCaptureSource(geometry.drawableId, geometry.positions.copyOf(), geometry.indices, coveredIndices))
 		}
+
 		// The two per-area anchors the shared builder cannot resolve itself, in display space: the active
 		// element's own covered median and the UV cursor.  Null falls back to the shared median.
 		val transform =
@@ -119,16 +141,19 @@ internal class UvEditModalTransform(
 				activeAnchor = activeElementMedian(selection, geometries),
 				cursorAnchor = uvCursorDisplay(session, frame),
 			)
+
 		if (transform == null) {
 			// Nothing movable on the shown surface (the selection's covered meshes live elsewhere or carry
 			// no editable UVs): drop the operator.
 			session.clearUvOperator()
 			return
 		}
+
 		// The radius resolves here even with proportional editing off, so the surface's first gesture seeds it.
 		val radiusState = proportionalRadius.value
 		transform.applyProportional(session.proportionalEdit.value, resolvedProportionalRadius(radiusState, frame))
 		gesture.begin(UvEditGesture(transform, frame, radiusState), gesture.lastPointer)
+		publishedRequest = null
 	}
 
 	/**
@@ -139,38 +164,48 @@ internal class UvEditModalTransform(
 	 */
 	fun reapplyProportional(state: ProportionalEditState?) {
 		val gestureData = gesture.capture
+
 		if (gestureData != null && session.activeUvOperator.value != null) {
 			gestureData.transform.applyProportional(state, resolvedProportionalRadius(gestureData.proportionalRadius, gestureData.frame))
 		}
 	}
 
 	/**
-	 * Confirms the in-flight gesture: converts each moving mesh's display preview back to stored coordinates
-	 * and commits them as ONE undo step, registers that step on the operation settings strip, then clears the
-	 * operator (its teardown resyncs the renderer to the committed model the bridge republishes).  A null
-	 * preview means no movement, so nothing commits.
+	 * Confirms the in-flight gesture at the latest pointer: settles a drive the worker has not published yet,
+	 * converts each moving mesh's display preview back to stored coordinates and commits them as ONE undo
+	 * step, registers that step on the operation settings strip, then clears the operator (its teardown
+	 * resyncs the renderer to the committed model the bridge republishes).  A null preview means no
+	 * movement, so nothing commits.
 	 */
 	override fun confirm() {
+		drive.settle()
 		val committed = gesture.preview
 		val gestureData = gesture.capture
 		val parameters = gesture.lastParameters
-		if (committed != null && gestureData != null) {
+		val request = publishedRequest
+
+		if (committed != null && gestureData != null && request != null) {
 			val transform = gestureData.transform
-			val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
-			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(transform.entries.size)
-			for (entry in transform.entries) {
-				val transformed = committed[entry.drawableId] ?: continue
+			val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
+			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(request.jobs.size)
+
+			for (job in request.jobs) {
+				val transformed = committed[job.drawableId] ?: continue
 				// Only the moved vertices are written; untouched ones keep their exact stored values (see
 				// storedUvsWithMoved).  Same discipline as the snap path, and the reason a gesture over a
 				// wide selection does not report every mesh it covered as edited.
-				newUvsByDrawable[entry.drawableId] = storedUvsForCommit(session.model.value, entry.drawableId, entry.movedIndices, transformed, gestureData.frame)
+				newUvsByDrawable[job.drawableId] = storedUvsForCommit(session.model.value, job.drawableId, job.movedIndices, transformed, gestureData.frame)
 				// The moved set, not just the covered set: proportional editing moves weighted unselected
-				// vertices too, and the change metadata must name every vertex touched.
-				vertexIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()
+				// vertices too, and the change metadata must name every vertex touched, as the drive that
+				// computed these coordinates moved them.
+				vertexIndicesByDrawable[job.drawableId] = job.movedIndices.toList()
 			}
+
 			if (newUvsByDrawable.isNotEmpty()) {
 				val modelBefore = session.model.value
+
 				session.commitMeshUvs(MeshChange.TransformUvs(vertexIndicesByDrawable, transform.operatorKind), newUvsByDrawable)
+
 				// The strip's rows for the step just pushed, over the RETAINED capture and frame so an
 				// adjustment replays the same frozen coordinates - registered before the operator clears,
 				// since the teardown drops the capture.  A commit that recorded nothing has no step to amend.
@@ -193,8 +228,8 @@ internal class UvEditModalTransform(
 
 	/**
 	 * The wheel resizes the display-unit influence radius mid-gesture (the Edit overlay's behavior, in this
-	 * space's units): geometric steps, weights re-derived from the frozen originals, and the preview
-	 * re-driven immediately so the mapping responds without pointer motion.
+	 * space's units): geometric steps and weights re-derived from the frozen originals at once, on the UI
+	 * thread, and a drive submitted so the mapping responds without pointer motion.
 	 *
 	 * @param Float steps The scroll in wheel steps; negative (wheel up) grows the radius.
 	 * @param ViewportCamera camera The area camera.
@@ -204,6 +239,7 @@ internal class UvEditModalTransform(
 		val operator = ownedOperator() ?: return
 		val proportional = session.proportionalEdit.value
 		val gestureData = gesture.capture
+
 		if (steps != 0f && proportional != null && gestureData != null) {
 			val radiusState = gestureData.proportionalRadius
 			val maxRadius = 4f * maxOf(gestureData.frame.displayWidth, gestureData.frame.displayHeight)
@@ -212,14 +248,15 @@ internal class UvEditModalTransform(
 					.coerceIn(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY, maxRadius)
 			radiusState.value = resized
 			gestureData.transform.applyProportional(proportional, resized)
-			drive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
+			submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
 		}
 	}
 
 	/**
-	 * Drives the modal preview for one virtual-pointer position: the shared operator math over the frozen
-	 * display arrays (no deformer inverse), converted back to stored coordinates and folded into an
-	 * uncommitted model for the puppet renderer.  Shared by Move and the radius Scroll.
+	 * Resolves and submits a drive for one virtual-pointer position, on the UI thread: the pointer frame
+	 * into the parameters every mesh applies (once per event: the Rotate branch advances the accumulator,
+	 * which must see every step), each mesh's halo as it is now, and the model to fold onto.
+	 * Shared by Move and the radius Scroll.
 	 *
 	 * @param MeshOperatorKind operator The latched operator.
 	 * @param Offset virtualPointer The wrap-continuous pointer.
@@ -227,27 +264,33 @@ internal class UvEditModalTransform(
 	 * @param IntSize size The area size in pixels.
 	 * @return Boolean False when the capture has not landed yet.
 	 */
-	override fun drive(operator: MeshOperatorKind, virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean {
+	override fun submitDrive(operator: MeshOperatorKind, virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean {
 		val start = gesture.gestureStart ?: return false
 		val gestureData = gesture.capture ?: return false
 		val transform = gestureData.transform
-		// The frame resolves ONCE into the numbers every mesh applies; the confirm hands them to the
-		// settings strip.
 		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, camera, size)
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
-		gesture.lastParameters = parameters
-		val newPreview = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
-		var folded = session.model.value
-		for (entry in transform.entries) {
-			val transformedDisplay = applyOperator(operator, entry.positions, entry.groups, parameters, entry.influence)
-			newPreview[entry.drawableId] = transformedDisplay
-			// The preview converts whole arrays: it is transient and never committed, so the drift the
-			// commit avoids is invisible here.
-			folded = folded.withMeshUvs(entry.drawableId, gestureData.frame.storedUvs(transformedDisplay))
-		}
-		gesture.preview = newPreview
-		pushPreview(folded)
+
+		drive.submit(UvDriveRequest(operator, parameters, uvDriveJobs(transform), gestureData.frame, session.model.value))
+
 		return true
+	}
+
+	/**
+	 * Lands one drive on the UI thread: the parameters the confirm hands the settings strip, the preview,
+	 * and the folded model pushed to the renderer - folded again onto the session's model when a commit
+	 * replaced the one the request folded onto, so the preview always shows the current model.
+	 *
+	 * @param UvDriveRequest request The request.
+	 * @param UvDriveResult result Its result.
+	 */
+	private fun publishDrive(request: UvDriveRequest, result: UvDriveResult) {
+		gesture.lastParameters = request.parameters
+		publishedRequest = request
+		gesture.preview = result.preview
+
+		val current = session.model.value
+		pushPreview(if (request.baseModel === current) result.folded else current.withMeshUvs(result.storedUvs))
 	}
 
 	/**
@@ -259,11 +302,14 @@ internal class UvEditModalTransform(
 	 */
 	private fun resolvedProportionalRadius(radiusState: MutableState<Float?>, frame: UvEditFrame): Float {
 		val current = radiusState.value
+
 		if (current != null) {
 			return current
 		}
+
 		val seeded = (minOf(frame.displayWidth, frame.displayHeight) / 8f).coerceAtLeast(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY)
 		radiusState.value = seeded
+
 		return seeded
 	}
 }

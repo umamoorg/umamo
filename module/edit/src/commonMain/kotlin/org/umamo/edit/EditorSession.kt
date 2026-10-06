@@ -979,7 +979,7 @@ class EditorSession(
 	/**
 	 * Commits a mesh-vertex edit (a finished modal G / S / R gesture) as ONE undo step: each session
 	 * drawable's base art-mesh positions become its entry in [newPositionsByDrawable].  An Edit session
-	 * spans several meshes, so the per-drawable copy-on-write [withMeshPositions] edits fold into a
+	 * spans several meshes, so the copy-on-write [withMeshPositions] batch folds them into a
 	 * single model (one history step, like [commitObjectPositions]).  Mid-gesture preview frames reach
 	 * the renderer directly (transient), so a whole drag is a single step.  A model edit (rest geometry
 	 * is document content), so it marks the document dirty; a no-op (every array unchanged / mismatched)
@@ -989,17 +989,13 @@ class EditorSession(
 	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each edited drawable's committed rest positions.
 	 */
 	fun commitMeshPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
-		val newModel =
-			newPositionsByDrawable.entries.fold(mutableModel.value) { model, (drawableId, newPositions) ->
-				model.withMeshPositions(drawableId, newPositions)
-			}
-		commit(change, newModel, mutablePose.value)
+		commit(change, mutableModel.value.withMeshPositions(newPositionsByDrawable), mutablePose.value)
 	}
 
 	/**
 	 * Commits an Object-mode transform of several drawables (a finished modal G / S / R gesture) as ONE undo
-	 * step: each drawable's base art-mesh positions become its entry in [newPositionsByDrawable]. Folds the
-	 * per-drawable copy-on-write [withMeshPositions] edits into a single model, so N moved drawables are one
+	 * step: each drawable's base art-mesh positions become its entry in [newPositionsByDrawable]. The
+	 * copy-on-write [withMeshPositions] batch folds them into a single model, so N moved drawables are one
 	 * history step (not N). Mid-gesture preview frames reach the renderer directly (transient), so a whole drag
 	 * is a single step. A model edit (rest geometry is document content), so it marks the document dirty; a
 	 * no-op (every array unchanged / mismatched, so the fold returns the same instance) records nothing.
@@ -1008,18 +1004,14 @@ class EditorSession(
 	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each moved drawable's committed rest positions.
 	 */
 	fun commitObjectPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
-		val newModel =
-			newPositionsByDrawable.entries.fold(mutableModel.value) { model, (drawableId, newPositions) ->
-				model.withMeshPositions(drawableId, newPositions)
-			}
-		commit(change, newModel, mutablePose.value)
+		commit(change, mutableModel.value.withMeshPositions(newPositionsByDrawable), mutablePose.value)
 	}
 
 	/**
 	 * Commits a UV edit (a finished modal G / S / R gesture in the UV editor, or a Mirror command) as
 	 * ONE undo step: each edited drawable's texture coordinates become its entry in [newUvsByDrawable].
-	 * The texture-mapping twin of [commitMeshPositions] - the per-drawable copy-on-write [withMeshUvs]
-	 * edits fold into a single model, so N edited meshes are one history step.  Mid-gesture preview
+	 * The texture-mapping twin of [commitMeshPositions] - the copy-on-write [withMeshUvs] batch folds the
+	 * edits into a single model, so N edited meshes are one history step.  Mid-gesture preview
 	 * frames reach the renderer directly (transient), so a whole drag is a single step.  A model edit
 	 * (the sampled texels are document content), so it marks the document dirty; a no-op (every
 	 * array unchanged / mismatched) records nothing.
@@ -1028,11 +1020,7 @@ class EditorSession(
 	 * @param Map<DrawableId, FloatArray> newUvsByDrawable Each edited drawable's committed atlas UVs.
 	 */
 	fun commitMeshUvs(change: MeshChange, newUvsByDrawable: Map<DrawableId, FloatArray>) {
-		val newModel =
-			newUvsByDrawable.entries.fold(mutableModel.value) { model, (drawableId, newUvs) ->
-				model.withMeshUvs(drawableId, newUvs)
-			}
-		commit(change, newModel, mutablePose.value)
+		commit(change, mutableModel.value.withMeshUvs(newUvsByDrawable), mutablePose.value)
 	}
 
 	/**

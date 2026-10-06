@@ -28,6 +28,8 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
+import org.umamo.ui.viewport.gizmo.LocalModalDriveDispatcher
+import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.rememberViewportOverlayColors
 
@@ -148,7 +150,13 @@ internal fun UvObjectGizmoOverlay(
 	// instance they started with (see UvPlacementModalTransform).  Its gesture state is what the Box, the
 	// pointer loop, and the chrome read.
 	val modalTransform = remember(areaId) { UvPlacementModalTransform(areaId, session, liveAtlasPages, liveDragStatus, liveSceneState) }
+	// The placement capture builds on the drive dispatcher too, so whatever holds the drive holds the build.
+	val driveDispatcher = LocalModalDriveDispatcher.current
 	val gesture = modalTransform.gesture
+
+	// The drive's worker, alive exactly as long as the transform: each pointer event submits a drive and the
+	// result publishes back on the UI thread (see ModalDriveWorker).
+	ModalDriveEffect(modalTransform.drive)
 
 	// A committed move's crops linger at their new spots while its atlas is the committed one; an undo or a
 	// newer commit takes them down here.  When its pages have landed is the engine's call, and a resolver that
@@ -217,7 +225,7 @@ internal fun UvObjectGizmoOverlay(
 		if (operator == null) {
 			modalTransform.end()
 		} else {
-			modalTransform.begin(operator, liveSurface.value, liveGeometries.value, session.selection.value, liveFrame.value)
+			modalTransform.begin(operator, liveSurface.value, liveGeometries.value, session.selection.value, liveFrame.value, driveDispatcher)
 		}
 	}
 

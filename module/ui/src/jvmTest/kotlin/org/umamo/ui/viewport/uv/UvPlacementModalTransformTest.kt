@@ -4,8 +4,13 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.umamo.edit.ActiveOperator
 import org.umamo.edit.EditorSession
@@ -35,6 +40,7 @@ import kotlin.test.assertTrue
  * it is then.  They also pin the landing's ghost (published only where a page resolver will retire it), the
  * readout's teardown, and the abandon.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class UvPlacementModalTransformTest {
 	/**
 	 * The transform under test over a placed-model session in Object mode, plus the host readout it writes.
@@ -85,7 +91,7 @@ class UvPlacementModalTransformTest {
 	 */
 	private suspend fun Rig.begin(operator: ActiveOperator, surface: UvPlacementSurface) {
 		val frame = uvRigPageFrame()
-		transform.begin(operator, surface, uvRigGeometries(session.model.value, frame), session.selection.value, frame)
+		transform.begin(operator, surface, uvRigGeometries(session.model.value, frame), session.selection.value, frame, Dispatchers.Default)
 	}
 
 	/**
@@ -304,4 +310,71 @@ class UvPlacementModalTransformTest {
 	private companion object {
 		const val BUILD_TIMEOUT_SECONDS = 5L
 	}
+
+	/**
+	 * Runs the rig's drive worker on the test's scheduler, the way the overlay's effect runs it, so a drive
+	 * publishes only as the scheduler runs.
+	 *
+	 * @param Rig rig The rig.
+	 */
+	private fun TestScope.attachWorker(rig: Rig) {
+		backgroundScope.launch { rig.transform.drive.run(StandardTestDispatcher(testScheduler)) }
+		runCurrent()
+	}
+
+	/** With the worker attached, a drive leaves the caller at once and its readout and drag land as the worker publishes. */
+	@Test
+	fun aDriveLandsWhenTheWorkerPublishes() =
+		runTest {
+			val rig = rigOver()
+			val operator = rig.latch()
+			rig.begin(operator, uvRigPlacementSurface())
+			attachWorker(rig)
+
+			assertTrue(rig.transform.drivePreview(UV_RIG_TEN_TEXELS_RIGHT, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE), "the drive was submitted")
+			assertNull(rig.dragStatus.value, "nothing lands before the worker publishes")
+			assertNull(rig.sceneState.drag)
+
+			runCurrent()
+
+			assertEquals(10, assertNotNull(rig.dragStatus.value).deltaX)
+			assertEquals(uvRigTilePlacement(110f), assertNotNull(rig.sceneState.drag).result.placementByTile[UV_RIG_QUAD_TILE])
+		}
+
+	/** A confirm while a drive is pending commits where the pointer is now. */
+	@Test
+	fun aConfirmWhilePendingCommitsTheLatestPointer() =
+		runTest {
+			val rig = rigOver()
+			val operator = rig.latch()
+			rig.begin(operator, uvRigPlacementSurface())
+			attachWorker(rig)
+			rig.transform.drivePreview(Offset(220f, 150f), UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+			runCurrent()
+			assertEquals(5, assertNotNull(rig.dragStatus.value).deltaX, "the first drive landed")
+
+			rig.transform.drivePreview(UV_RIG_TEN_TEXELS_RIGHT, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+			rig.transform.confirm()
+
+			assertEquals(uvRigTilePlacement(110f), uvRigPlacementOf(rig.session, UV_RIG_QUAD_TILE))
+			runCurrent()
+			assertEquals(10, assertNotNull(rig.dragStatus.value).deltaX, "nothing older lands after the confirm")
+		}
+
+	/** A gesture that ends while a drive is pending leaves the readout and the drag down when it lands. */
+	@Test
+	fun anEndWhilePendingLeavesTheReadoutAndTheDragDown() =
+		runTest {
+			val rig = rigOver()
+			val operator = rig.latch()
+			rig.begin(operator, uvRigPlacementSurface())
+			attachWorker(rig)
+			rig.transform.drivePreview(UV_RIG_TEN_TEXELS_RIGHT, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+
+			assertTrue(rig.transform.end(), "a gesture was in flight")
+			runCurrent()
+
+			assertNull(rig.dragStatus.value)
+			assertNull(rig.sceneState.drag)
+		}
 }
