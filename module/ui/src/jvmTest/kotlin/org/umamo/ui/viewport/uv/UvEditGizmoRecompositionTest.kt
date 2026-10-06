@@ -2,7 +2,6 @@ package org.umamo.ui.viewport.uv
 
 import androidx.compose.runtime.InternalComposeTracingApi
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
@@ -11,29 +10,13 @@ import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.assertNothingRan
-import org.umamo.ui.viewport.gizmo.countingGizmoRuns
 import org.umamo.ui.viewport.gizmo.moveIn
 import org.umamo.ui.viewport.gizmo.pressIn
 import org.umamo.ui.viewport.gizmo.releaseIn
 import org.umamo.ui.viewport.gizmo.scrollIn
-import org.umamo.ui.workspace.spaces.parameters.ComposableRunCounter
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-
-/** The UV overlays' package, whose composables these cases count. */
-private const val UV_PACKAGE_PREFIX = "org.umamo.ui.viewport.uv."
-
-/** The UV fixture's function, whose own body and lambdas are not counted. */
-private const val UV_FIXTURE_FUNCTION = "mountUvGizmoOverlays"
-
-/**
- * Runs [body] with the UV overlays' composable runs counted.
- *
- * @param Function body The case, handed the counter.
- */
-@OptIn(ExperimentalTestApi::class)
-private fun countingUvGizmoRuns(body: ComposeUiTest.(ComposableRunCounter) -> Unit) = countingGizmoRuns(UV_PACKAGE_PREFIX, UV_FIXTURE_FUNCTION, body)
 
 /**
  * Pins what recomposes the UV editor's gizmo overlays.  The pointer, the live preview, the radius, and the
