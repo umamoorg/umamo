@@ -28,6 +28,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
 import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.selectToolKind
 
@@ -169,6 +170,10 @@ fun ViewportEditGizmoOverlay(
 	// loop, and the chrome read.
 	val modalTransform = remember(areaId) { EditModalTransform(areaId, session, service::setModel) }
 	val gesture = modalTransform.gesture
+
+	// The drive's worker, alive exactly as long as the transform: each pointer event submits a drive and the
+	// result publishes back on the UI thread (see ModalDriveWorker).
+	ModalDriveEffect(modalTransform.drive)
 
 	// The unmount-mid-gesture guard: leaving Edit mode, closing the area, or every mesh in the edit ceasing
 	// to project disposes this part of the overlay mid-gesture, which cancels the latch effect below WITHOUT

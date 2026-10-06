@@ -30,6 +30,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
+import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.meshMarquee
 import org.umamo.ui.viewport.gizmo.selectToolKind
@@ -169,6 +170,10 @@ internal fun UvEditGizmoOverlay(
 			UvEditModalTransform(areaId, session, liveRadiusState) { folded -> liveRenderSync.value?.previewModel(folded) }
 		}
 	val gesture = modalTransform.gesture
+
+	// The drive's worker, alive exactly as long as the transform: each pointer event submits a drive and the
+	// result publishes back on the UI thread (see ModalDriveWorker).
+	ModalDriveEffect(modalTransform.drive)
 
 	// The unmount-mid-gesture guard: leaving Edit mode, closing the area, losing the camera, or the shown
 	// surface ceasing to hold any of the edit's meshes disposes this part of the overlay mid-gesture, which

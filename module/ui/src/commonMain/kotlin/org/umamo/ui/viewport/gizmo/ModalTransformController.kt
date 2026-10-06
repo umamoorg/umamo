@@ -19,17 +19,22 @@ import org.umamo.render.ViewportCamera
  */
 internal interface ModalTransformTarget {
 	/**
-	 * Re-derives the live preview for the given wrap-continuous pointer and pushes it to the renderer.
+	 * Submits a drive of the live preview for the given wrap-continuous pointer: the request resolves here,
+	 * on the UI thread, and the preview reaches the renderer when the target's drive worker publishes it
+	 * (ModalDriveWorker), so this returns in microseconds however heavy the drive.
 	 *
 	 * @param Offset virtualPointer The wrap-continuous pointer in screen pixels.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
-	 * @return Boolean True when a preview was driven; false when there is nothing to drive yet (the
+	 * @return Boolean True when a drive was submitted; false when there is nothing to drive yet (the
 	 *   gesture capture has not landed), which also skips the cursor wrap for the event.
 	 */
 	fun drivePreview(virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean
 
-	/** Commits the in-flight gesture (a primary click; Enter arrives via the confirm-request bus). */
+	/**
+	 * Commits the in-flight gesture (a primary click; Enter arrives via the confirm-request bus), at the
+	 * latest pointer: a drive the worker has not published yet is settled first.
+	 */
 	fun confirm()
 
 	/** Cancels the in-flight gesture (a right-click; Escape arrives via the session's operator clear). */

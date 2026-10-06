@@ -42,17 +42,17 @@ internal abstract class UvModalTransform<TCapture>(
 	protected fun ownedOperator(): ActiveOperator? = session.activeUvOperator.value?.takeIf { operator -> operator.areaId == areaId }
 
 	/**
-	 * Drives the preview for one virtual-pointer position, when the latched operator is this area's.
+	 * Submits a drive for one virtual-pointer position, when the latched operator is this area's.
 	 *
 	 * @param Offset virtualPointer The wrap-continuous pointer.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
-	 * @return Boolean True when a preview was driven.
+	 * @return Boolean True when a drive was submitted.
 	 */
 	final override fun drivePreview(virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean {
 		// Defensive ownership check (the pointer loop already gates): only the initiating area drives.
 		val operator = ownedOperator() ?: return false
-		return drive(operator.kind, virtualPointer, camera, size)
+		return submitDrive(operator.kind, virtualPointer, camera, size)
 	}
 
 	/** Cancels the in-flight gesture; the latch effect's teardown follows as the operator clears. */
@@ -87,7 +87,8 @@ internal abstract class UvModalTransform<TCapture>(
 	}
 
 	/**
-	 * Drives the preview for one virtual-pointer position under [operator].
+	 * Resolves the drive for one virtual-pointer position under [operator] on the UI thread and submits it
+	 * to the subclass's drive worker, which publishes the preview.
 	 *
 	 * @param MeshOperatorKind operator The latched operator.
 	 * @param Offset virtualPointer The wrap-continuous pointer.
@@ -95,5 +96,5 @@ internal abstract class UvModalTransform<TCapture>(
 	 * @param IntSize size The area size in pixels.
 	 * @return Boolean False when the capture has not landed yet.
 	 */
-	protected abstract fun drive(operator: MeshOperatorKind, virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean
+	protected abstract fun submitDrive(operator: MeshOperatorKind, virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean
 }

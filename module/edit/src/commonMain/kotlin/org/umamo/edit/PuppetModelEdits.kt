@@ -255,6 +255,65 @@ fun PuppetModel.withMeshUvs(id: DrawableId, newUvs: FloatArray): PuppetModel {
 }
 
 /**
+ * Returns a copy of [this] with several drawables' base art-mesh positions replaced at once: the batch form
+ * of [withMeshPositions], one pass over the drawables instead of one per entry, under the same per-entry
+ * rules (an unknown id, a drawable with no mesh, the same array instance, or a length mismatch is skipped,
+ * and only the first drawable of an id is touched).  The drawable list is copied on the first real change
+ * and every untouched drawable is shared, and when nothing changes the same instance comes back, which is
+ * how the session tells a no-op commit from an edit.
+ *
+ * @param Map<DrawableId, FloatArray> newPositionsById Each drawable's new interleaved (x, y) rest positions.
+ * @return PuppetModel The model with those meshes updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withMeshPositions(newPositionsById: Map<DrawableId, FloatArray>): PuppetModel =
+	withMeshArrays(newPositionsById, { mesh -> mesh.positions }) { mesh, positions -> DrawableMesh(positions, mesh.uvs, mesh.indices) }
+
+/**
+ * Returns a copy of [this] with several drawables' texture UVs replaced at once: the batch form of
+ * [withMeshUvs], under the same rules as the positions batch.
+ *
+ * @param Map<DrawableId, FloatArray> newUvsById Each drawable's new interleaved (u, v) atlas coordinates.
+ * @return PuppetModel The model with those meshes' UVs updated, or [this] if nothing changed.
+ */
+fun PuppetModel.withMeshUvs(newUvsById: Map<DrawableId, FloatArray>): PuppetModel =
+	withMeshArrays(newUvsById, { mesh -> mesh.uvs }) { mesh, uvs -> DrawableMesh(mesh.positions, uvs, mesh.indices) }
+
+/**
+ * The one pass both batch folds share: each drawable named in [arraysById], at its first occurrence, takes
+ * the new array through [rebuild] unless it has no mesh, the array is the one it holds, or the lengths
+ * differ.
+ *
+ * @param Map<DrawableId, FloatArray> arraysById The new arrays by drawable.
+ * @param Function current The array a mesh holds now.
+ * @param Function rebuild A new mesh carrying the new array.
+ * @return PuppetModel The edited model, or [this] if nothing changed.
+ */
+private inline fun PuppetModel.withMeshArrays(
+	arraysById: Map<DrawableId, FloatArray>,
+	current: (DrawableMesh) -> FloatArray,
+	rebuild: (DrawableMesh, FloatArray) -> DrawableMesh,
+): PuppetModel {
+	if (arraysById.isEmpty()) {
+		return this
+	}
+	var updated: MutableList<Drawable>? = null
+	val visited = HashSet<DrawableId>(arraysById.size)
+	for ((drawableIndex, drawable) in drawables.withIndex()) {
+		val next = arraysById[drawable.id] ?: continue
+		if (!visited.add(drawable.id)) {
+			continue
+		}
+		val mesh = drawable.mesh
+		if (mesh == null || next === current(mesh) || next.size != current(mesh).size) {
+			continue
+		}
+		val target = updated ?: drawables.toMutableList().also { copied -> updated = copied }
+		target[drawableIndex] = drawable.copy(mesh = rebuild(mesh, next))
+	}
+	return updated?.let { edited -> copy(drawables = edited) } ?: this
+}
+
+/**
  * Returns a copy of [this] with the drawable [id]'s color blend mode set to [mode], sharing every other
  * entity. A no-op id (no such drawable, or the mode already matches) returns the same instance.
  *

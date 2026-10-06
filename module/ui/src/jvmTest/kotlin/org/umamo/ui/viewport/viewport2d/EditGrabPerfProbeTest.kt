@@ -2,13 +2,22 @@ package org.umamo.ui.viewport.viewport2d
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ModalTransformCapture
+import org.umamo.edit.RotationAngleTracker
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.TransformGestureParameters
 import org.umamo.edit.withMeshPositions
 import org.umamo.edit.withMeshUvs
 import org.umamo.format.moc3.Moc3
@@ -34,6 +43,7 @@ import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.gizmo.EditMeshOverlayProducer
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
+import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.gestureParameters
@@ -210,12 +220,18 @@ class EditGrabPerfProbeTest {
 		timed("O1 ObjectModalTransform.begin (captureDrawableWorld per eligible drawable) [once per gesture]", 1) {
 			objectTransform.begin(MeshOperatorKind.Grab)
 		}
-		if (objectTransform.gesture.capture == null) {
+		val capture = objectTransform.gesture.capture
+		if (capture == null) {
 			report("Object-mode capture is empty; skipping O2")
 		} else {
-			timed("O2 ObjectModalTransform.drivePreview [per pointer event, UI thread]") { round ->
+			timed("O2 ObjectModalTransform.drivePreview, no worker (inline; also a confirm's settle)") { round ->
 				objectTransform.drivePreview(pointerFor(round), camera, size)
 			}
+			timedRequests("O2r drivePreview, worker attached: the request alone [per pointer event, UI thread]", objectTransform.drive) { round ->
+				objectTransform.drivePreview(pointerFor(round), camera, size)
+			}
+			val jobs = meshDriveJobs(capture.transform, capture.geometryById, wholeMeshes = true)
+			probeComputes("O2", MeshDriveRequest(MeshOperatorKind.Grab, grabParameters(capture.transform, camera, size), jobs, null, session.model.value))
 		}
 		session.clearObjectOperator()
 		objectTransform.end()
@@ -257,8 +273,13 @@ class EditGrabPerfProbeTest {
 		report("capture: entries=${capture.transform.entries.size} groups=${capture.transform.entries.sumOf { entry -> entry.groups.size }} pivotMode=${session.pivotMode.value}")
 
 		val firstPreview = pushed.size
-		timed("C1 drivePreview end to end [per pointer event, UI thread]") { round -> modalTransform.drivePreview(pointerFor(round), camera, size) }
-		val previews = pushed.subList(firstPreview, pushed.size)
+		timed("C1 drivePreview, no worker (inline; also a confirm's settle)") { round -> modalTransform.drivePreview(pointerFor(round), camera, size) }
+		val previews = ArrayList(pushed.subList(firstPreview, pushed.size))
+		timedRequests("C1r drivePreview, worker attached: the request alone [per pointer event, UI thread]", modalTransform.drive) { round ->
+			modalTransform.drivePreview(pointerFor(round), camera, size)
+		}
+		val jobs = meshDriveJobs(capture.transform, capture.geometryById, wholeMeshes = false)
+		probeComputes("C1", MeshDriveRequest(MeshOperatorKind.Grab, grabParameters(capture.transform, camera, size), jobs, null, model))
 		if (previews.isEmpty()) {
 			report("no preview was pushed; skipping the per-push and per-frame rows")
 			session.clearMeshOperator()
@@ -303,12 +324,64 @@ class EditGrabPerfProbeTest {
 				newBaseById[entry.drawableId] = geometry.worldToBase(transformedById.getValue(entry.drawableId), entry.movedIndices)
 			}
 		}
-		timed("C1c   withMeshPositions fold over every entry") {
+		timed("C1c   withMeshPositions fold over every entry, one drawable at a time") {
 			var working = model
 			for (entry in transform.entries) {
 				working = working.withMeshPositions(entry.drawableId, newBaseById.getValue(entry.drawableId))
 			}
 			working
+		}
+		timed("C1c'  withMeshPositions batch fold over every entry (the drive's fold)") { model.withMeshPositions(newBaseById) }
+	}
+
+	/**
+	 * The drive's two computes over one request, each timed on its own: the sequential one a confirm's
+	 * settle runs on the UI thread, and the parallel one the worker runs on the default dispatcher.
+	 *
+	 * @param String prefix The row prefix (C1 for Edit mode, O2 for Object mode).
+	 * @param MeshDriveRequest request The request, as the transform would submit it.
+	 */
+	private fun probeComputes(prefix: String, request: MeshDriveRequest) {
+		timed("${prefix}w   computeMeshDrive, sequential (a confirm's settle)") { computeMeshDrive(request) }
+		timed("${prefix}p   computeMeshDriveParallel on Dispatchers.Default [the worker, off the UI thread]") {
+			runBlocking(Dispatchers.Default) { computeMeshDriveParallel(request) }
+		}
+	}
+
+	/**
+	 * The parameters a Grab resolves for the probe's fixed pointer frame, on a throwaway tracker so the
+	 * gesture's own stays untouched.
+	 *
+	 * @param ModalTransformCapture transform The gesture's capture (its anchor).
+	 * @param ViewportCamera camera The area camera.
+	 * @param IntSize size The area size in pixels.
+	 * @return TransformGestureParameters The parameters.
+	 */
+	private fun grabParameters(transform: ModalTransformCapture, camera: ViewportCamera, size: IntSize): TransformGestureParameters {
+		val frame = TransformGestureFrame(transform.anchor, Offset.Zero, Offset(40f, 20f), null, camera, size)
+		return gestureParameters(MeshOperatorKind.Grab, frame, RotationAngleTracker())
+	}
+
+	/**
+	 * Times [drive] with [worker] attached on a scheduler that never runs: each call resolves its request and
+	 * hands it over, and nothing computes, which is what a pointer event costs the UI thread.  The worker is
+	 * detached again afterwards.
+	 *
+	 * @param String label The row label.
+	 * @param ModalDriveWorker worker The transform's drive.
+	 * @param Function drive One pointer event, handed the round ordinal.
+	 */
+	@OptIn(ExperimentalCoroutinesApi::class)
+	private fun timedRequests(label: String, worker: ModalDriveWorker<*, *>, drive: (Int) -> Unit) {
+		val scheduler = TestCoroutineScheduler()
+		val uiDispatcher = StandardTestDispatcher(scheduler)
+		val job = CoroutineScope(uiDispatcher).launch { worker.run(uiDispatcher) }
+		scheduler.runCurrent()
+		try {
+			timed(label) { round -> drive(round) }
+		} finally {
+			job.cancel()
+			scheduler.runCurrent()
 		}
 	}
 

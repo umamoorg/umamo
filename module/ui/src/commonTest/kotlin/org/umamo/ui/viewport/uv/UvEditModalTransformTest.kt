@@ -3,6 +3,12 @@ package org.umamo.ui.viewport.uv
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.geometry.Offset
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
@@ -34,6 +40,7 @@ import kotlin.test.assertTrue
  * latch, kept through a switch mid-gesture and by a confirmed step's strip adjustment - and that an abandon
  * clears only this area's latch.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class UvEditModalTransformTest {
 	/**
 	 * The transform under test, the holders the overlay would hand it, and every model it pushed.
@@ -350,4 +357,72 @@ class UvEditModalTransformTest {
 
 		assertSame(latched, rig.session.activeUvOperator.value)
 	}
+
+	/**
+	 * Runs the rig's drive worker on the test's scheduler, the way the overlay's effect runs it, so a drive
+	 * publishes only as the scheduler runs.
+	 *
+	 * @param Rig rig The rig.
+	 */
+	private fun TestScope.attachWorker(rig: Rig) {
+		backgroundScope.launch { rig.transform.drive.run(StandardTestDispatcher(testScheduler)) }
+		runCurrent()
+	}
+
+	/** With the worker attached, a drive leaves the caller at once and lands as the worker publishes. */
+	@Test
+	fun aDriveLandsWhenTheWorkerPublishes() =
+		runTest {
+			val rig = rigOver(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
+			attachWorker(rig)
+			rig.latch(MeshOperatorKind.Grab)
+
+			assertTrue(rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT), "the drive was submitted")
+			assertTrue(rig.pushed.isEmpty(), "nothing lands before the worker publishes")
+			assertNull(rig.transform.gesture.preview)
+
+			runCurrent()
+
+			assertEquals(110f / 256, rig.pushed.single().drawables.first { drawable -> drawable.id == UV_RIG_QUAD }.mesh!!.uvs[0])
+		}
+
+	/** A confirm while a drive is pending commits where the pointer is now, and the pending one lands nothing after. */
+	@Test
+	fun aConfirmWhilePendingCommitsTheLatestPointer() =
+		runTest {
+			val rig = rigOver(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
+			attachWorker(rig)
+			rig.latch(MeshOperatorKind.Grab)
+			rig.driveTo(Offset(220f, 150f))
+			runCurrent()
+			assertEquals(105f / 256, rig.pushed.single().drawables.first { drawable -> drawable.id == UV_RIG_QUAD }.mesh!!.uvs[0], "the first drive landed")
+
+			rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT)
+			rig.transform.confirm()
+
+			assertEquals(listOf(110f / 256) + UV_RIG_QUAD_UVS.drop(1), uvRigUvsOf(rig.session, UV_RIG_QUAD))
+			val pushes = rig.pushed.size
+			runCurrent()
+			assertEquals(pushes, rig.pushed.size, "the pending drive lands nothing after the confirm")
+		}
+
+	/** The wheel resizes the texel radius at once, on the caller, and the re-driven preview lands as the worker publishes. */
+	@Test
+	fun theRadiusChangesAtOnceAndThePreviewLater() =
+		runTest {
+			val session = uvEditSession(elements = listOf(MeshElement.Vertex(0)))
+			session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f))
+			val rig = rigOver(session)
+			attachWorker(rig)
+			rig.latch(MeshOperatorKind.Grab)
+			rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT)
+			runCurrent()
+
+			rig.transform.onScroll(-1f, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+
+			assertEquals(UV_RIG_PAGE_SIDE / 8f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(rig.radiusHolder.value.value), 1e-4f)
+			assertEquals(1, rig.pushed.size, "the re-drive waits for the worker")
+			runCurrent()
+			assertEquals(2, rig.pushed.size, "and lands as it publishes")
+		}
 }
