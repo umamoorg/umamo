@@ -432,9 +432,9 @@ class PuppetRenderer(
 	 * buffer work; a base-mesh move re-uploads positions; a UV edit re-uploads UVs; a structural change
 	 * frees and re-uploads whole.
 	 *
-	 * Structural limits: a session-created drawable never joins the load-time glue layout (glues reference
-	 * source ids, so a fresh id welds nothing), and a REMESHED glue mesh degrades to an unwelded draw (its
-	 * store region and weld attrs index the old vertex order and are not remapped here).
+	 * The glue layout follows the model: an edit that moves a weld re-plans it, re-uploads the glue meshes
+	 * whose weld attributes or store region moved, and fits the shared store, so every glue mesh welds as
+	 * a fresh upload of [newModel] would (see [DrawableResidency.reconcile]).
 	 *
 	 * The diff compares against [currentModel] and therefore runs BEFORE the reassignment, keeping the
 	 * invariant "GPU buffer contents === currentModel's arrays".

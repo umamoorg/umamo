@@ -38,8 +38,9 @@ private const val VERTEX_DOT_RADIUS_PX = 3.5
  * keeps after welding, which an intensity below one leaves open.
  *
  * Pins nothing.  The CPU weld runs the pairs in order, where the shader welds each vertex toward one
- * partner; the two agree for a vertex in a single pair, which is the corpus's case.  Skips rigs without
- * glue and the whole run without the corpus.  Standard streams are off in the build, so the rows show
+ * partner; the two agree for a vertex in a single pair.  The corpus's one exception is modelF, where the
+ * 280 vertices of SIDE_HAIR_BLUE_R3 sit in up to four pairs each, and there the two differ by at most
+ * 0.26 px at fit.  Skips rigs without glue and the whole run without the corpus.  Standard streams are off in the build, so the rows show
  * with --info or in build/test-results.
  */
 class GlueSeamGapProbeTest {

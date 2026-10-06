@@ -577,6 +577,13 @@ internal class RecordingRenderDevice : RenderDevice {
 	}
 
 	override fun createMesh(spec: MeshSpec): GpuMesh {
+		spec.glueAttributes?.let { attributes ->
+			val vertexCount = spec.restPositions.size / 2
+			// A backend reads one weld attribute per vertex; a shorter array reads past its buffer.
+			check(attributes.partnerIndex.size == vertexCount && attributes.glueIndex.size == vertexCount && attributes.weldWeight.size == vertexCount) {
+				"createMesh: glue attributes cover ${attributes.partnerIndex.size} vertices of a $vertexCount-vertex mesh"
+			}
+		}
 		val mesh = RecordedMesh(nextSerial++, spec)
 		recordedResourceEvents.add(MeshCreated(mesh))
 		return mesh
