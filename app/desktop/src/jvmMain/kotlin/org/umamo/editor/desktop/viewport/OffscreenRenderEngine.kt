@@ -240,10 +240,12 @@ internal class OffscreenRenderEngine(
 		}
 		// The artwork hand-off, on the render thread where the uploads belong.  The mapping is
 		// compared by identity: it is published whole, so a new reference IS the change.
+		var artworkApplied = false
 		val layerPlan = inputs.sourceLayerPlan
 		if (layerPlan !== lastLayerPlan) {
 			renderer.setSourceLayerPlan(layerPlan)
 			lastLayerPlan = layerPlan
+			artworkApplied = true
 		}
 		// Then any decoded pixels that arrived since the last frame.  Drained rather than sampled:
 		// the producer chunks its deliveries so visible art lands first, and skipping a batch would
@@ -251,6 +253,13 @@ internal class OffscreenRenderEngine(
 		while (true) {
 			val batch = inputs.pollRasterBatch() ?: break
 			renderer.deliverSourceLayerRasters(batch)
+			artworkApplied = true
+		}
+		// Bumped HERE, at apply, as the pages are: a bump at publish could land after this hand-off read
+		// the plan and the queue, so an area would stamp itself fresh over a frame of the outgoing art and
+		// never re-render once the new art is applied.
+		if (artworkApplied) {
+			paramsVersion++
 		}
 		// Rebuild the pose - and thus the draw list, which setPose filters by the shown set and sorts by
 		// the render order - when the pose, the visibility cascade, OR the render order changes. A

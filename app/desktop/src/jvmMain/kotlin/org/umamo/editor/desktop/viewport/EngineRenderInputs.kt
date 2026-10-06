@@ -19,10 +19,14 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * The render inputs the UI thread pushes and the render thread reads each frame: the selection, the
  * shown set, the model, the atlas pages, the source artwork, the grid, the highlight colors, the mesh
  * overlay and its palette, and the supersample policy.  Each is a volatile publish of an immutable value or a plain scalar.  A change
- * bumps a render-version counter the loop folds into per-area freshness, so a state-only change (no
- * resize / pose / camera change) still forces exactly one redraw: the puppet areas watch
- * [puppetRenderBump]; the UV editor's flat scenes (atlas page, source layer) watch [atlasRenderBump],
- * which bumps separately so a puppet update does not needlessly re-render them.
+ * to a value the render reads as it draws bumps a render-version counter the loop folds into per-area
+ * freshness, so a state-only change (no resize / pose / camera change) still forces exactly one redraw:
+ * the puppet areas watch [puppetRenderBump]; the UV editor's flat scenes (atlas page, source layer)
+ * watch [atlasRenderBump], which bumps separately so a puppet update does not needlessly re-render them.
+ * The atlas pages and the source artwork are the exception: the loop hands them to the renderer before
+ * it schedules any area, so they publish without a bump and the loop bumps its pose version when it
+ * applies them - a bump at publish could land after that hand-off and stamp an area fresh over a frame
+ * of the outgoing art.
  *
  * The UI thread owns the writes, with one exception: the render loop bumps the atlas counter itself
  * when it applies a page binding, and a UI-thread bump landing at that moment can collapse into it -
@@ -270,15 +274,16 @@ internal class EngineRenderInputs(
 	/**
 	 * Sets which artwork the puppet's drawables map onto; an empty plan displays from the atlas.
 	 *
-	 * A volatile publish of one immutable value, like every other render input.  The render loop hands
-	 * it to the renderer, which is where the GPU work happens - this must not touch the device.
+	 * A pure volatile publish of one immutable value, like the page binding: the render loop hands it to
+	 * the renderer, which is where the GPU work happens - this must not touch the device - and bumps its
+	 * own freshness when it APPLIES it.  A bump here could land after the loop read the plan, so an area
+	 * would stamp itself fresh over a frame of the outgoing mapping and never take the new one up.
 	 *
 	 * @param LayerDrawPlan plan Each drawable's mapping into the document's artwork.
 	 */
 	fun setSourceLayerPlan(plan: LayerDrawPlan) {
 		if (plan !== layerPlanBacking) {
 			layerPlanBacking = plan
-			doPuppetRenderBump()
 		}
 	}
 
@@ -289,7 +294,6 @@ internal class EngineRenderInputs(
 	 */
 	fun deliverSourceLayerRasters(batch: LayerRasterBatch) {
 		pendingRasterBatches.add(batch)
-		doPuppetRenderBump()
 	}
 
 	/**

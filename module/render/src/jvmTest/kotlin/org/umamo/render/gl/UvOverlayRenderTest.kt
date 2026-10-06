@@ -259,7 +259,7 @@ class UvOverlayRenderTest {
 		val frame = scene.render(direct(quad(0f, 32f, 24f, 48f)))
 
 		assertEquals(rgba(yellow), frame.at(15, 32), "the dot covers the border beside its vertex")
-		assertNotEquals(frameColor, frame.at(15, 26), "and the left edge's band covers it below the dot")
+		assertNotEquals(frameColor, frame.at(15, 26), "and the left edge's band covers it above the dot")
 	}
 
 	/**

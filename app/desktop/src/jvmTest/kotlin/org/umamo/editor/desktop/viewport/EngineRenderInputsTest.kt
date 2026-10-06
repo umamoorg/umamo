@@ -37,9 +37,9 @@ import kotlin.test.assertSame
 
 /**
  * Pins the render inputs' publish rules: which changes bump which render version, that an identical
- * value is a no-op, that the atlas binding publishes without a bump (the loop bumps at apply), that
- * delivered artwork always bumps and drains in order, and how a model push is classified.  Pure: the
- * inputs hold no GL.
+ * value is a no-op, that the atlas binding, the layer plan, and delivered artwork publish without a
+ * bump (the loop bumps when it applies them), that delivered artwork drains in order, and how a model
+ * push is classified.  Pure: the inputs hold no GL.
  */
 class EngineRenderInputsTest {
 	private val paramA = ParameterId("A")
@@ -124,15 +124,11 @@ class EngineRenderInputsTest {
 		assertEquals(probeId, inputs.activeSelection)
 		inputs.setShownDrawables(emptySet())
 		assertBumps(inputs, 3, 0, "shown set")
-		val plan = LayerDrawPlan(emptyMap(), emptyMap())
-		inputs.setSourceLayerPlan(plan)
-		assertBumps(inputs, 4, 0, "layer plan")
-		assertSame(plan, inputs.sourceLayerPlan)
 		inputs.setSelectionHighlightColor(1f, 0f, 0f)
-		assertBumps(inputs, 5, 0, "selection highlight")
+		assertBumps(inputs, 4, 0, "selection highlight")
 		assertEquals(listOf(1f, 0f, 0f), listOf(inputs.highlightRed, inputs.highlightGreen, inputs.highlightBlue))
 		inputs.setActiveSelectionHighlightColor(0f, 1f, 0f)
-		assertBumps(inputs, 6, 0, "active highlight")
+		assertBumps(inputs, 5, 0, "active highlight")
 		assertEquals(listOf(0f, 1f, 0f), listOf(inputs.activeHighlightRed, inputs.activeHighlightGreen, inputs.activeHighlightBlue))
 	}
 
@@ -158,13 +154,22 @@ class EngineRenderInputsTest {
 	}
 
 	@Test
-	fun deliveredArtworkAlwaysBumpsAndDrainsInOrder() {
+	fun theLayerPlanPublishesWithoutABump() {
+		val inputs = inputs()
+		val plan = LayerDrawPlan(emptyMap(), emptyMap())
+		inputs.setSourceLayerPlan(plan)
+		assertSame(plan, inputs.sourceLayerPlan)
+		assertBumps(inputs, 0, 0, "a plan publish leaves the versions to the loop's apply")
+	}
+
+	@Test
+	fun deliveredArtworkQueuesWithoutABumpAndDrainsInOrder() {
 		val inputs = inputs()
 		val first = LayerRasterBatch(emptyMap())
 		val second = LayerRasterBatch(emptyMap())
 		inputs.deliverSourceLayerRasters(first)
 		inputs.deliverSourceLayerRasters(second)
-		assertBumps(inputs, 2, 0, "each delivery bumps")
+		assertBumps(inputs, 0, 0, "a delivery leaves the versions to the loop's drain")
 		assertSame(first, inputs.pollRasterBatch())
 		assertSame(second, inputs.pollRasterBatch())
 		assertNull(inputs.pollRasterBatch(), "drained")
