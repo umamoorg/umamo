@@ -59,6 +59,9 @@ kotlin {
 				// from :settings — coroutines is `implementation` there, so it would not leak through.
 				implementation(libs.kotlinxSerializationJson)
 				implementation(libs.kotlinxCoroutinesCore)
+				// The common lock the artwork flows' per-request raster memo fills under (the stdlib has none
+				// outside the JVM); the same artifact :storage's session log already takes.
+				implementation(libs.atomicfu)
 				implementation(project(":runtime"))
 				// Format↔runtime conversion: the CMO3/MOC3 import + export entry points the document
 				// layer calls, and the export report/notice types the shell overlays render.

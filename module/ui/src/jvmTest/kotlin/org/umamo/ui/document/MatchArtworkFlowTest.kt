@@ -12,6 +12,8 @@ import org.umamo.format.art.LayerRaster
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.art.documentSourceArtOf
+import org.umamo.reimport.LayerMatch
+import org.umamo.reimport.MatchSignals
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.ui.model.SessionAtlasPages
@@ -22,6 +24,7 @@ import org.umamo.ui.model.artwork.ReloadArtworkResult
 import org.umamo.ui.model.artwork.ReloadEntry
 import org.umamo.ui.model.artwork.ReplaceArtworkRequest
 import org.umamo.ui.model.artwork.SourceSuggestions
+import org.umamo.ui.model.artwork.reboundOf
 import org.umamo.ui.model.artwork.runMatchArtwork
 import org.umamo.ui.model.artwork.runReloadArtwork
 import org.umamo.ui.model.artwork.runReplaceArtwork
@@ -167,6 +170,25 @@ class MatchArtworkFlowTest {
 			assertNull(suggestion.signals.pixels, "on everything but pixels")
 			follower.cancel()
 		}
+
+	/**
+	 * The log names only the tiles the plan replaced: an accepted match the plan could not pull stayed a
+	 * suggestion for its row, and is not reported as rebound beside the one that did.
+	 */
+	@Test
+	fun theReboundLogNamesOnlyTheTilesThePlanReplaced() {
+		val load = buildArtDocument(InMemoryArt(listOf(hair, eye)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+		val model = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document).puppet
+		val hairTile = model.atlas.tiles.first { tile -> tile.source?.layerKey == "lyid:1" }
+		val eyeTile = model.atlas.tiles.first { tile -> tile.source?.layerKey == "lyid:2" }
+		val signals = MatchSignals(name = 1f, path = 1f, bounds = null, size = null, pixels = null, hashEqual = false)
+		val suggestions = mapOf("lyid:1" to LayerMatch("lyid:5", 0.8f, signals), "lyid:2" to LayerMatch("lyid:6", 0.75f, signals))
+		val accepted = listOf(hairTile.id to "lyid:5", eyeTile.id to "lyid:6")
+
+		val rebound = reboundOf(accepted, setOf(hairTile.id), model, suggestions, InMemoryArt(listOf(hairRenamed, eyeMoved)))
+		assertEquals(listOf(hairTile.name to "Hair Front 2"), rebound.map { entry -> entry.tileName to entry.layerName }, "the eye's match stayed a suggestion, so it is not logged as rebound")
+		assertEquals(0.8f, rebound.single().score)
+	}
 
 	@Test
 	fun raisingTheThresholdPastTheMatchAmendsTheStepBackToTheBase() =

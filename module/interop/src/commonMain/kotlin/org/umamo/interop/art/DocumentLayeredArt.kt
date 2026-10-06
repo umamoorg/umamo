@@ -76,10 +76,13 @@ private class DocumentLayeredArt(
 
 /**
  * The file [sourceId] names as the document holds it: one source layer per present inventory row, in the
- * file's layer order, each reading as the pixels of the first tile in atlas order bound to it; a row no tile
- * binds, and a row the file erased to nothing, has no pixels to give.  The rows already sit on the document
- * canvas - an inventory row records the layer where the file's offset put it - so the art is never placed
- * again.  A row the file lost is left out: read back as present it would clear its own review.
+ * file's layer order, each reading as the pixels of the tile bound to it; a row no tile binds, and a row the
+ * file erased to nothing, has no pixels to give.  Of several tiles bound to one row, the row reads as the one
+ * sized like it - a tile minted from the row's own read has that size, where a tile a person relinked to the
+ * key by binding alone keeps whatever art it had - and as the first in atlas order when none is.  The rows
+ * already sit on the document canvas - an inventory row records the layer where the file's offset put it -
+ * so the art is never placed again.  A row the file lost is left out: read back as present it would clear
+ * its own review.
  *
  * @param PuppetModel model    The model, with its current tiles (a reloaded tile's pixels included).
  * @param ArtSourceId sourceId The file to read.
@@ -92,10 +95,22 @@ fun documentSourceArtOf(model: PuppetModel, sourceId: ArtSourceId, rasterOf: (At
 	if (presentRows.isEmpty()) {
 		return null
 	}
-	val boundTileByKey = LinkedHashMap<String, AtlasTile>()
+	val rowByKey = HashMap<String, ArtSourceLayer>()
+	for (row in presentRows) {
+		if (row.key !in rowByKey) {
+			rowByKey[row.key] = row
+		}
+	}
+	val boundTileByKey = HashMap<String, AtlasTile>()
 	for (tile in model.atlas.tiles) {
 		val ref = tile.source?.takeIf { binding -> binding.sourceId == sourceId } ?: continue
-		if (ref.layerKey !in boundTileByKey) {
+		val held = boundTileByKey[ref.layerKey]
+		if (held == null) {
+			boundTileByKey[ref.layerKey] = tile
+			continue
+		}
+		val row = rowByKey[ref.layerKey] ?: continue
+		if (!sizedLike(held, row) && sizedLike(tile, row)) {
 			boundTileByKey[ref.layerKey] = tile
 		}
 	}
@@ -107,3 +122,13 @@ fun documentSourceArtOf(model: PuppetModel, sourceId: ArtSourceId, rasterOf: (At
 		}
 	return DocumentLayeredArt(layers, model.canvasWidth.roundToInt(), model.canvasHeight.roundToInt())
 }
+
+/**
+ * Whether a tile's art is the size the inventory recorded for a row, which is the size of the layer as the file
+ * last listed it.
+ *
+ * @param AtlasTile      tile The tile.
+ * @param ArtSourceLayer row  The row.
+ * @return Boolean True when the two sizes agree.
+ */
+private fun sizedLike(tile: AtlasTile, row: ArtSourceLayer): Boolean = tile.width == row.width && tile.height == row.height

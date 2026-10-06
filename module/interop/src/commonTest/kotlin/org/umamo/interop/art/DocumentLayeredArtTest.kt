@@ -19,9 +19,10 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the art a document holds for a listed file: one layer per present row in the file's order, a bound
- * row reading as its first bound tile's pixels at the row's position, an unbound or erased row reading as a
- * layer with no pixels, a lost row left out, the key strength its binding carries or its shape suggests, and
- * no decode until a layer's pixels are asked for.
+ * row reading as its bound tile's pixels at the row's position (the tile sized like the row when several
+ * bind it, else the first in atlas order), an unbound or erased row reading as a layer with no pixels, a
+ * lost row left out, the key strength its binding carries or its shape suggests, and no decode until a
+ * layer's pixels are asked for.
  */
 class DocumentLayeredArtTest {
 	private val sourceId = ArtSourceId("art-0")
@@ -89,8 +90,29 @@ class DocumentLayeredArtTest {
 		assertTrue(asked.isEmpty(), "nothing decodes until a layer's pixels are asked for")
 
 		assertContentEquals(pixels.rgba, art.layers[0].raster.rgba)
-		assertEquals(listOf(AtlasTileId("first")), asked, "the first tile in atlas order stands for a doubly bound row")
+		assertEquals(listOf(AtlasTileId("first")), asked, "the first tile in atlas order stands for a doubly bound row when neither is sized like it")
 		assertEquals(0, art.layers[1].raster.rgba.count { byte -> byte != 0.toByte() }, "a row with no tile has nothing to give")
+	}
+
+	/**
+	 * A reload mints a tile from the row's own read, so that tile is sized like the row; a tile a person later
+	 * relinked to the key by binding alone keeps the art it had.  The row reads as the former, whatever the order.
+	 */
+	@Test
+	fun aDoublyBoundRowReadsAsTheTileSizedLikeIt() {
+		val rows = listOf(row("lyid:9", 10))
+		val relinked = AtlasTile(AtlasTileId("relinked"), "relinked", 4, 5, source = SourceLayerRef(sourceId, "lyid:9", true))
+		val fromRead = AtlasTile(AtlasTileId("fromRead"), "fromRead", 3, 2, source = SourceLayerRef(sourceId, "lyid:9", true))
+		val asked = ArrayList<AtlasTileId>()
+		val art =
+			documentSourceArtOf(model(rows, listOf(relinked, fromRead)), sourceId) { tileId ->
+				asked.add(tileId)
+				LayerRaster(3, 2, ByteArray(3 * 2 * 4))
+			}!!
+
+		assertEquals(LayerBounds(10, 7, 3, 2), art.layers.single().bounds, "the row's own size, from the tile sized like it")
+		art.layers.single().raster
+		assertEquals(listOf(AtlasTileId("fromRead")), asked, "the tile minted from the row's read, not the earlier one relinked to its key")
 	}
 
 	@Test
