@@ -61,9 +61,11 @@ internal fun registerMeshTransformAdjustment(
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
 	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional)
+
 	if (rows.isEmpty()) {
 		return null
 	}
+
 	return session.registerAdjustableOperation(session.model.value, areaId, rows) { record ->
 		val adjusted = transformGestureParametersOf(kind, TransformRowSpace.World, record.parameters)
 		val proportionalRows = rederiveProportionalHalos(transform, record.parameters)
@@ -131,9 +133,11 @@ internal fun registerObjectTransformAdjustment(
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
 	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional = null)
+
 	if (rows.isEmpty()) {
 		return null
 	}
+
 	return session.registerAdjustableOperation(session.model.value, areaId, rows) { record ->
 		val adjusted = transformGestureParametersOf(kind, TransformRowSpace.World, record.parameters)
 		val jobs = meshDriveJobs(transform, geometryById, wholeMeshes = true)

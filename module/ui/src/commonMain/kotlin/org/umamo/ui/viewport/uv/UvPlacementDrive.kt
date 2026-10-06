@@ -56,11 +56,14 @@ internal fun computePlacementDrive(request: PlacementDriveRequest): PlacementDri
 			pageHeight = gestureData.pageHeight,
 			extrude = gestureData.extrude,
 		)
+
 	val preview = LinkedHashMap<DrawableId, FloatArray>()
+
 	for ((drawableId, frozen) in gestureData.frozenPositionsByDrawable) {
 		val tileId = gestureData.tileByDrawable[drawableId] ?: continue
 		val affine = evaluation.displayAffineByTile[tileId] ?: continue
 		preview[drawableId] = applyUvAffine(frozen, affine)
 	}
+
 	return PlacementDriveResult(evaluation, preview)
 }
