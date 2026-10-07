@@ -115,3 +115,34 @@ private fun duplicatedMesh(mesh: DrawableMesh): DrawableMesh {
 	val localPositions = if (mesh.localPositions === mesh.positions) positions else mesh.localPositions.copyOf()
 	return DrawableMesh(positions, localPositions, mesh.uvs, mesh.indices)
 }
+
+/**
+ * Duplicates every eligible selected drawable (Object-mode Shift+D) as ONE undo step: each copy
+ * lands after its source in the org tree, and the selection becomes the copies - the caller follows
+ * with a Grab so they pull away under the pointer, Blender-style.
+ *
+ * @return List<DrawableId> The created copies (empty when nothing was eligible).
+ */
+fun EditorSession.duplicateSelectedDrawables(): List<DrawableId> {
+	if (mode.value != EditorMode.Object) {
+		return emptyList()
+	}
+	val eligibleIds = eligibleTransformDrawables(selection.value, model.value) ?: return emptyList()
+	var newModel = model.value
+	val copies = ArrayList<DrawableId>(eligibleIds.size)
+	for (drawableId in eligibleIds) {
+		val (edited, copyId) = newModel.withDrawableDuplicated(drawableId) ?: continue
+		newModel = edited
+		copies.add(copyId)
+	}
+	if (copies.isEmpty() || newModel === model.value) {
+		return emptyList()
+	}
+	val newSelection =
+		Selection(
+			copies.map { copyId -> SelectionTarget.Drawable(copyId) }.toSet<SelectionTarget>(),
+			SelectionTarget.Drawable(copies.last()),
+		)
+	commitStep(DrawableChange.Duplicate(copies), model = newModel, selection = newSelection)
+	return copies
+}

@@ -14,6 +14,7 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshSelectionOps
+import org.umamo.edit.commitMeshPositions
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.ui.viewport.StubPuppetViewportService

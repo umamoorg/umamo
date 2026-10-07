@@ -5,6 +5,7 @@ import org.umamo.edit.MeshBounds
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Pose
+import org.umamo.edit.commitObjectPositions
 import org.umamo.edit.isPoseNeutral
 import org.umamo.edit.meshBounds
 import org.umamo.edit.movedToBoundsCenter

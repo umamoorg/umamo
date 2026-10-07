@@ -7,6 +7,7 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.MeshTransforms
 import org.umamo.edit.UvCursor
 import org.umamo.edit.UvSnapKind
+import org.umamo.edit.commitMeshUvs
 import org.umamo.edit.snapToGrid
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry

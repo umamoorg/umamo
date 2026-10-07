@@ -230,3 +230,164 @@ internal fun remapPerVertex(values: FloatArray, vertexSources: List<VertexSource
 	}
 	return newValues
 }
+
+/**
+ * Commits a topology operation on one session mesh as ONE undo step: the model takes the edit (mesh
+ * swap, keyform-delta rebuild, glue remap - see [withMeshTopologyEdit]) and the mesh selection
+ * becomes the operation's result elements on that mesh, in the SAME history push - splitting them
+ * would let undo tear the selection from the topology it indexes into.  The ops produce vertex
+ * results; they are re-derived into the CURRENT select mode (Blender keeps the mode across a
+ * topology op - a face-mode duplicate leaves the new faces selected in face mode), falling back to
+ * vertex mode only when nothing in the current domain covers them (e.g. a duplicated lone edge
+ * copies as loose vertices, which no edge or face contains - stranding them unselected would hide
+ * the copies and starve the follow-up auto-grab).  A no-op edit records nothing.
+ *
+ * @param String labelKey The operation's history label key (change.mesh.duplicate / merge / rip / connect).
+ * @param DrawableId drawableId The edited mesh.
+ * @param TopologyOpResult result The op builder's outcome.
+ * @return Boolean True when a step was recorded; false for a no-op edit, after which a caller must
+ *   not register the operation as adjustable (there is no step of its own to amend).
+ */
+fun EditorSession.commitMeshTopology(labelKey: String, drawableId: DrawableId, result: TopologyOpResult): Boolean {
+	val newModel = model.value.withMeshTopologyEdit(drawableId, result.edit)
+	if (newModel === model.value) {
+		return false
+	}
+	val current = meshSelection.value
+	val vertexResult =
+		MeshSelection(
+			drawableIds = current.drawableIds,
+			activeDrawableId = drawableId,
+			selectMode = MeshSelectMode.Vertex,
+			elementsByDrawable = if (result.newElements.isEmpty()) emptyMap() else mapOf(drawableId to result.newElements),
+			activeElement = result.newElements.firstOrNull()?.let { element -> ActiveMeshElement(drawableId, element) },
+		)
+	val newSelection = rederiveTopologyResult(vertexResult, current.selectMode, drawableId, newModel)
+	commitStep(MeshChange.TopologyEdit(drawableId, labelKey), model = newModel, meshSelection = newSelection)
+	return true
+}
+
+/**
+ * Converts a topology op's vertex-mode result selection into [selectMode] against [newModel] (the
+ * post-edit topology, where the new elements exist), via the strict derive-up rules of
+ * [MeshSelectionOps.changeSelectMode]; the first derived element becomes active.  Returns the
+ * vertex result unchanged when the session is already in vertex mode, when the op selected
+ * nothing, or when nothing in the target domain covers the new vertices (see
+ * [commitMeshTopology]'s docblock for that fallback's rationale).
+ *
+ * @param MeshSelection vertexResult The op's result selection, in vertex mode.
+ * @param MeshSelectMode selectMode The session's current select mode to re-derive into.
+ * @param DrawableId drawableId The edited mesh.
+ * @param PuppetModel newModel The model with the topology edit applied.
+ * @return MeshSelection The result selection in the kept mode, or the vertex fallback.
+ */
+private fun rederiveTopologyResult(
+	vertexResult: MeshSelection,
+	selectMode: MeshSelectMode,
+	drawableId: DrawableId,
+	newModel: PuppetModel,
+): MeshSelection {
+	if (selectMode == MeshSelectMode.Vertex || vertexResult.elementsOf(drawableId).isEmpty()) {
+		return vertexResult
+	}
+	val rederived =
+		MeshSelectionOps.changeSelectMode(vertexResult, selectMode) { candidateId ->
+			newModel.drawables.firstOrNull { drawable -> drawable.id == candidateId }?.mesh?.indices
+		}
+	val rederivedElements = rederived.elementsOf(drawableId)
+	if (rederivedElements.isEmpty()) {
+		return vertexResult
+	}
+	return rederived.copy(activeElement = ActiveMeshElement(drawableId, rederivedElements.first()))
+}
+
+/**
+ * Duplicates the ACTIVE session mesh's covered elements in place (Edit-mode Shift+D) as one undo
+ * step, leaving the copies selected - the caller follows with a Grab so the copies pull away under
+ * the pointer, Blender-style.  A no-op outside Edit mode or with nothing covered on the active mesh.
+ */
+fun EditorSession.duplicateSelectedElements() {
+	if (mode.value != EditorMode.Edit) {
+		return
+	}
+	val selection = meshSelection.value
+	val drawableId = selection.activeDrawableId ?: return
+	val mesh = model.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
+	val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), mesh.indices)
+	val result = MeshTopologyOps.duplicateElements(mesh, covered) ?: return
+	commitMeshTopology("change.mesh.duplicate", drawableId, result)
+}
+
+/**
+ * Merges the ACTIVE session mesh's selected vertices (Blender's M) as one undo step, leaving the
+ * survivor selected, and registers the step on the operation settings strip with its one row, Merge
+ * At - so a merge landed at the center can be re-landed at the first or last vertex without undoing.
+ * The rerun re-merges the SAME vertices from the record's base; every target keeps the survivor at
+ * the same index, so the survivor selection the step carries stays valid across an adjustment.
+ * Vertex mode only - the first / last targets read the selection order, which only vertex elements
+ * carry directly.  Refusals explain themselves with a near-cursor notice.
+ *
+ * @param MergeTarget target Where the survivor lands (center / first / last).
+ * @param String? areaId The area the strip shows in (opaque here, like the operator latches), or null.
+ */
+fun EditorSession.mergeSelectedVertices(target: MergeTarget, areaId: String? = null) {
+	if (mode.value != EditorMode.Edit) {
+		return
+	}
+	val selection = meshSelection.value
+	val drawableId = selection.activeDrawableId ?: return
+	if (selection.selectMode != MeshSelectMode.Vertex) {
+		emitNotice("notice.merge.needsVertices", NoticePlacement.NearCursor)
+		return
+	}
+	// The element set is insertion-ordered (a LinkedHashSet built by the gestures), so "first" is
+	// the earliest-selected vertex; "last" prefers the active element (the most recent touch).
+	val orderedVertices = selection.elementsOf(drawableId).filterIsInstance<MeshElement.Vertex>().map { vertex -> vertex.index }.toMutableList()
+	(selection.activeElement?.element as? MeshElement.Vertex)?.let { activeVertex ->
+		if (orderedVertices.remove(activeVertex.index)) {
+			orderedVertices.add(activeVertex.index)
+		}
+	}
+	if (orderedVertices.size < 2) {
+		emitNotice("notice.merge.needsVertices", NoticePlacement.NearCursor)
+		return
+	}
+	val mesh = model.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
+	val result = MeshTopologyOps.mergeVertices(mesh, orderedVertices, target) ?: return
+	if (!commitMeshTopology("change.mesh.merge", drawableId, result)) {
+		return
+	}
+	val mergedVertices = orderedVertices.toList()
+	registerAdjustableOperation(model.value, areaId, mergeParameters(target)) { record ->
+		val adjustedTarget = mergeTargetOf(record.parameters, target)
+		val baseModel = record.baseSnapshot.model
+		val baseMesh = baseModel.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return@registerAdjustableOperation
+		val rerun = MeshTopologyOps.mergeVertices(baseMesh, mergedVertices, adjustedTarget) ?: return@registerAdjustableOperation
+		amendLastCommit(record, baseModel.withMeshTopologyEdit(drawableId, rerun.edit))
+	}
+}
+
+/**
+ * Connects the ACTIVE session mesh's two selected vertices with a cut (Blender's J) as one undo
+ * step, leaving the cut path selected.  Exactly two selected vertices in vertex mode; a refusal
+ * (already connected, nothing crossed, degenerate geometry) explains itself with a notice.
+ */
+fun EditorSession.connectSelectedVertices() {
+	if (mode.value != EditorMode.Edit) {
+		return
+	}
+	val selection = meshSelection.value
+	val drawableId = selection.activeDrawableId ?: return
+	val vertices = selection.elementsOf(drawableId).filterIsInstance<MeshElement.Vertex>().map { vertex -> vertex.index }
+	if (selection.selectMode != MeshSelectMode.Vertex || vertices.size != 2) {
+		emitNotice("notice.connect.needsTwoVertices", NoticePlacement.NearCursor)
+		return
+	}
+	val mesh = model.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
+	val result = MeshTopologyOps.connectVertices(mesh, vertices[0], vertices[1])
+	if (result == null) {
+		emitNotice("notice.connect.refused", NoticePlacement.NearCursor)
+		return
+	}
+	commitMeshTopology("change.mesh.connect", drawableId, result)
+}

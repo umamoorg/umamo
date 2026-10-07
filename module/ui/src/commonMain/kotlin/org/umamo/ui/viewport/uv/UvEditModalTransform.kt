@@ -17,6 +17,7 @@ import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalRows
 import org.umamo.edit.buildModalTransformCapture
+import org.umamo.edit.commitMeshUvs
 import org.umamo.edit.withMeshUvs
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId

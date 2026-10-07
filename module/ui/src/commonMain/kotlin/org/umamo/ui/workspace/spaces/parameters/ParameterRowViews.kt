@@ -23,6 +23,8 @@ import org.umamo.edit.ParameterSelection
 import org.umamo.edit.RowDropBand
 import org.umamo.edit.renameParameter
 import org.umamo.edit.renameParameterGroup
+import org.umamo.edit.setParameterLink
+import org.umamo.edit.setParameterRange
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.kit.menu.MenuItem

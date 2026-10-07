@@ -7,6 +7,7 @@ import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.beginUvOperator
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import org.umamo.ui.viewport.gizmo.clickIn

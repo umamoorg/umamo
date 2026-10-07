@@ -18,6 +18,9 @@ import org.umamo.edit.TransformParameterKeys
 import org.umamo.edit.UvMirrorRequest
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
+import org.umamo.edit.beginBoxSelect
+import org.umamo.edit.beginCircleSelect
+import org.umamo.edit.beginUvOperator
 import org.umamo.edit.floatValue
 import org.umamo.edit.withParameter
 import org.umamo.ui.viewport.gizmo.LEFT_AREA

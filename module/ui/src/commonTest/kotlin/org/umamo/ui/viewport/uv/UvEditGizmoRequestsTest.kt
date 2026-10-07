@@ -16,6 +16,8 @@ import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.UvMirrorRequest
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
+import org.umamo.edit.beginBoxSelect
+import org.umamo.edit.beginUvOperator
 import org.umamo.edit.snapToGrid
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.LEFT_AREA

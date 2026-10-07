@@ -12,6 +12,7 @@ import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.buildModalTransformCapture
+import org.umamo.edit.commitObjectPositions
 import org.umamo.edit.eligibleTransformDrawables
 import org.umamo.edit.withMeshPositions
 import org.umamo.render.ViewportCamera

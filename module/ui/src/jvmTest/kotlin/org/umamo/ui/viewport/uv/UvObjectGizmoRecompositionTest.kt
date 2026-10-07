@@ -7,6 +7,7 @@ import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.beginUvOperator
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.assertNothingRan
 import org.umamo.ui.viewport.gizmo.moveIn

@@ -311,6 +311,34 @@ class TransformStateTest {
 		assertNull(session.activeObjectOperator.value, "restore clears the latched operator")
 	}
 
+	/**
+	 * Zoom Region is mode-agnostic and area-keyed: arming it drops a latched tool, a latched operator drops
+	 * it, a restore leaves it armed (the gesture belongs to the area, not to the step), and disarming clears it.
+	 */
+	@Test
+	fun zoomRegionArmsPerAreaAndSurvivesARestore() {
+		val session = meshedSession()
+		val target = SelectionTarget.Drawable(DrawableId("d"))
+		session.setSelection(Selection(setOf(target), target))
+
+		session.beginCircleSelect("area-a")
+		session.armZoomRegion("area-a")
+		assertEquals("area-a", session.zoomRegionArmedArea.value, "arming the region takes the area")
+		assertNull(session.activeSelectTool.value, "arming the region drops the armed tool")
+
+		session.beginObjectOperator(MeshOperatorKind.Grab, "area-b")
+		assertNull(session.zoomRegionArmedArea.value, "latching an operator disarms the region")
+		session.clearObjectOperator()
+
+		// The undo reverts the selection step; the armed region is not part of the snapshot and stays.
+		session.armZoomRegion("area-a")
+		session.undo()
+		assertEquals("area-a", session.zoomRegionArmedArea.value, "a restore leaves the region armed")
+
+		session.disarmZoomRegion()
+		assertNull(session.zoomRegionArmedArea.value, "disarming clears it")
+	}
+
 	/** snapToGrid rounds relative to the world origin, so a snap lands on the origin-anchored grid lines. */
 	@Test
 	fun snapToGridRoundsRelativeToOrigin() {

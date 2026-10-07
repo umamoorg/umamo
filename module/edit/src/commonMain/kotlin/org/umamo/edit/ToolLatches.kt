@@ -11,104 +11,105 @@ import org.umamo.runtime.model.DrawableId
  * menu, the 2D cursor, the pivot mode, and proportional editing - everything that coordinates the
  * viewport overlays without ever being snapshotted or entering the change bus.  The
  * mutual-exclusion story (a transform operator owns the pointer, so arming anything drops the
- * others) lives in [clearTransient]; [EditorSession] keeps the mode / selection / pose guards and
- * delegates the state itself here, exposing every flow unchanged.
+ * others) lives in [clearTransient].
  *
- * セッションの一時的なツール状態（モーダル演算子・選択ツール・ズーム領域・軸拘束・パイメニュー・
- * 2D カーソル・ピボット・プロポーショナル編集）。スナップショットには入らないオーバーレイ調整用。
- * 相互排他の規則は clearTransient に集約する。
+ * The public face is the two interfaces: [SessionToolLatches] for the transient latches and
+ * [SessionToolSettings] for the settings a saved document carries (cursors, pivot, grid, proportional
+ * editing).  [EditorSession] delegates both to this one instance and keeps the mode / selection / pose
+ * guards for itself: the latch, arm, and seed entry points below are the session's to call, never a
+ * caller's.
  *
  * @param Function notify Emits a transient user notice (the proportional toggles confirm through it).
  */
-internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit) {
+internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit) : SessionToolLatches, SessionToolSettings {
 	private val mutableActiveMeshOperator = MutableStateFlow<ActiveOperator?>(null)
 
-	/** The modal mesh operator currently running, or null (see [EditorSession.activeMeshOperator]). */
-	val activeMeshOperator: StateFlow<ActiveOperator?> = mutableActiveMeshOperator.asStateFlow()
+	/** The modal mesh operator currently running, or null (see [SessionToolLatches.activeMeshOperator]). */
+	override val activeMeshOperator: StateFlow<ActiveOperator?> = mutableActiveMeshOperator.asStateFlow()
 
 	private val mutableActiveObjectOperator = MutableStateFlow<ActiveOperator?>(null)
 
-	/** The modal object operator currently running, or null (see [EditorSession.activeObjectOperator]). */
-	val activeObjectOperator: StateFlow<ActiveOperator?> = mutableActiveObjectOperator.asStateFlow()
+	/** The modal object operator currently running, or null (see [SessionToolLatches.activeObjectOperator]). */
+	override val activeObjectOperator: StateFlow<ActiveOperator?> = mutableActiveObjectOperator.asStateFlow()
 
 	private val mutableActiveUvOperator = MutableStateFlow<ActiveOperator?>(null)
 
-	/** The modal UV operator currently running, or null (see [EditorSession.activeUvOperator]). */
-	val activeUvOperator: StateFlow<ActiveOperator?> = mutableActiveUvOperator.asStateFlow()
+	/** The modal UV operator currently running, or null (see [SessionToolLatches.activeUvOperator]). */
+	override val activeUvOperator: StateFlow<ActiveOperator?> = mutableActiveUvOperator.asStateFlow()
 
 	private val mutableActiveSelectTool = MutableStateFlow<ActiveSelectTool?>(null)
 
-	/** The armed Box / Circle select tool, or null (see [EditorSession.activeSelectTool]). */
-	val activeSelectTool: StateFlow<ActiveSelectTool?> = mutableActiveSelectTool.asStateFlow()
+	/** The armed Box / Circle select tool, or null (see [SessionToolLatches.activeSelectTool]). */
+	override val activeSelectTool: StateFlow<ActiveSelectTool?> = mutableActiveSelectTool.asStateFlow()
 
 	private val mutableZoomRegionArmedArea = MutableStateFlow<String?>(null)
 
-	/** The area id whose Zoom Region gesture is armed, or null (see [EditorSession.zoomRegionArmedArea]). */
-	val zoomRegionArmedArea: StateFlow<String?> = mutableZoomRegionArmedArea.asStateFlow()
+	/** The area id whose Zoom Region gesture is armed, or null (see [SessionToolLatches.zoomRegionArmedArea]). */
+	override val zoomRegionArmedArea: StateFlow<String?> = mutableZoomRegionArmedArea.asStateFlow()
 
 	private val mutableAxisConstraint = MutableStateFlow<TransformAxisConstraint?>(null)
 
-	/** The axis the in-flight modal transform is locked to, or null (see [EditorSession.axisConstraint]). */
-	val axisConstraint: StateFlow<TransformAxisConstraint?> = mutableAxisConstraint.asStateFlow()
+	/** The axis the in-flight modal transform is locked to, or null (see [SessionToolLatches.axisConstraint]). */
+	override val axisConstraint: StateFlow<TransformAxisConstraint?> = mutableAxisConstraint.asStateFlow()
 
 	private val mutableViewportGestureActive = MutableStateFlow(false)
 
-	/** True while a select drag is held (see [EditorSession.viewportGestureActive]). */
-	val viewportGestureActive: StateFlow<Boolean> = mutableViewportGestureActive.asStateFlow()
+	/** True while a select drag is held (see [SessionToolLatches.viewportGestureActive]). */
+	override val viewportGestureActive: StateFlow<Boolean> = mutableViewportGestureActive.asStateFlow()
 
 	private val mutablePreviewSelection = MutableStateFlow<Set<DrawableId>?>(null)
 
-	/** The transient circle-stroke preview selection, or null (see [EditorSession.previewSelection]). */
-	val previewSelection: StateFlow<Set<DrawableId>?> = mutablePreviewSelection.asStateFlow()
+	/** The transient circle-stroke preview selection, or null (see [SessionToolLatches.previewSelection]). */
+	override val previewSelection: StateFlow<Set<DrawableId>?> = mutablePreviewSelection.asStateFlow()
 
 	private val mutableMeshPreviewSelection = MutableStateFlow<MeshSelection?>(null)
 
-	/** The transient Edit-mode circle-stroke preview, or null (see [EditorSession.meshPreviewSelection]). */
-	val meshPreviewSelection: StateFlow<MeshSelection?> = mutableMeshPreviewSelection.asStateFlow()
+	/** The transient Edit-mode circle-stroke preview, or null (see [SessionToolLatches.meshPreviewSelection]). */
+	override val meshPreviewSelection: StateFlow<MeshSelection?> = mutableMeshPreviewSelection.asStateFlow()
 
 	private val mutableActivePieMenu = MutableStateFlow<PieMenuKind?>(null)
 
-	/** The radial pie menu currently open, or null (see [EditorSession.activePieMenu]). */
-	val activePieMenu: StateFlow<PieMenuKind?> = mutableActivePieMenu.asStateFlow()
+	/** The radial pie menu currently open, or null (see [SessionToolLatches.activePieMenu]). */
+	override val activePieMenu: StateFlow<PieMenuKind?> = mutableActivePieMenu.asStateFlow()
 
 	private val mutablePendingParameterChoice = MutableStateFlow<ParameterChoiceRequest?>(null)
 
-	/** The keyform edit waiting on an axis, or null (see [EditorSession.pendingParameterChoice]). */
-	val pendingParameterChoice: StateFlow<ParameterChoiceRequest?> = mutablePendingParameterChoice.asStateFlow()
+	/** The keyform edit waiting on an axis, or null (see [SessionToolLatches.pendingParameterChoice]). */
+	override val pendingParameterChoice: StateFlow<ParameterChoiceRequest?> = mutablePendingParameterChoice.asStateFlow()
 
 	private val mutableCursor2d = MutableStateFlow<Cursor2d?>(null)
 
-	/** The 2D cursor's world position, or null before any placement (see [EditorSession.cursor2d]). */
-	val cursor2d: StateFlow<Cursor2d?> = mutableCursor2d.asStateFlow()
+	/** The 2D cursor's world position, or null before any placement (see [SessionToolSettings.cursor2d]). */
+	override val cursor2d: StateFlow<Cursor2d?> = mutableCursor2d.asStateFlow()
 
 	private val mutableUvCursor = MutableStateFlow<UvCursor?>(null)
 
-	/** The UV editor's cursor in atlas coordinates, or null before any placement (see [EditorSession.uvCursor]). */
-	val uvCursor: StateFlow<UvCursor?> = mutableUvCursor.asStateFlow()
+	/** The UV editor's cursor in atlas coordinates, or null before any placement (see [SessionToolSettings.uvCursor]). */
+	override val uvCursor: StateFlow<UvCursor?> = mutableUvCursor.asStateFlow()
 
 	private val mutablePivotMode = MutableStateFlow(TransformPivotMode.MedianPoint)
 
-	/** What a modal Scale / Rotate turns the selection about (see [EditorSession.pivotMode]). */
-	val pivotMode: StateFlow<TransformPivotMode> = mutablePivotMode.asStateFlow()
+	/** What a modal Scale / Rotate turns the selection about (see [SessionToolSettings.pivotMode]). */
+	override val pivotMode: StateFlow<TransformPivotMode> = mutablePivotMode.asStateFlow()
 
 	private val mutableGridConfig = MutableStateFlow(GridConfig())
 
-	/** The viewport grid geometry driving the backdrop and grid snap (see [EditorSession.gridConfig]). */
-	val gridConfig: StateFlow<GridConfig> = mutableGridConfig.asStateFlow()
+	/** The viewport grid geometry driving the backdrop and grid snap (see [SessionToolSettings.gridConfig]). */
+	override val gridConfig: StateFlow<GridConfig> = mutableGridConfig.asStateFlow()
 
 	/**
 	 * Sets the viewport grid geometry.
 	 *
 	 * @param GridConfig config The new grid scale and subdivisions.
 	 */
-	fun setGridConfig(config: GridConfig) {
+	override fun setGridConfig(config: GridConfig) {
 		mutableGridConfig.value = config
 	}
 
 	private val mutableProportionalEdit = MutableStateFlow<ProportionalEditState?>(null)
 
-	/** Proportional editing, non-null while enabled (see [EditorSession.proportionalEdit]). */
-	val proportionalEdit: StateFlow<ProportionalEditState?> = mutableProportionalEdit.asStateFlow()
+	/** Proportional editing, non-null while enabled (see [SessionToolSettings.proportionalEdit]). */
+	override val proportionalEdit: StateFlow<ProportionalEditState?> = mutableProportionalEdit.asStateFlow()
 
 	// The configuration proportional editing re-enables with: the last falloff and radius survive an
 	// off/on toggle (the circle-select radius pattern), so O comes back the way it was left.
@@ -130,7 +131,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 * duplicate / rip auto-grabs, which place fresh copies and must never drag bystander vertices.
 	 * Reset whenever the operator latches or clears.
 	 */
-	var activeMeshOperatorSuppressesProportional: Boolean = false
+	override var activeMeshOperatorSuppressesProportional: Boolean = false
 		private set
 
 	/**
@@ -183,7 +184,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	}
 
 	/** Clears the active modal mesh operator (confirm or cancel), dropping the axis lock with it. */
-	fun clearMeshOperator() {
+	override fun clearMeshOperator() {
 		mutableActiveMeshOperator.value = null
 		mutableAxisConstraint.value = null
 		activeMeshOperatorSuppressesProportional = false
@@ -202,7 +203,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	}
 
 	/** Clears the active modal object operator (confirm or cancel), dropping the axis lock with it. */
-	fun clearObjectOperator() {
+	override fun clearObjectOperator() {
 		mutableActiveObjectOperator.value = null
 		mutableAxisConstraint.value = null
 	}
@@ -220,7 +221,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	}
 
 	/** Clears the active modal UV operator (confirm or cancel), dropping the axis lock with it. */
-	fun clearUvOperator() {
+	override fun clearUvOperator() {
 		mutableActiveUvOperator.value = null
 		mutableAxisConstraint.value = null
 	}
@@ -233,8 +234,28 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 * "is any transform running" read it at an instant (the shell's key ladder) and never observe it, so a
 	 * combine would advertise a reactivity nobody consumes.
 	 */
-	val activeOperator: ActiveOperator?
+	override val activeOperator: ActiveOperator?
 		get() = activeMeshOperator.value ?: activeObjectOperator.value ?: activeUvOperator.value
+
+	/** See [SessionToolLatches.isQuiescent]: no operator, gesture, stroke preview, armed tool, or open pie. */
+	override val isQuiescent: Boolean
+		get() =
+			activeOperator == null &&
+				!mutableViewportGestureActive.value &&
+				mutablePreviewSelection.value == null &&
+				mutableMeshPreviewSelection.value == null &&
+				mutableActiveSelectTool.value == null &&
+				mutableActivePieMenu.value == null
+
+	/**
+	 * See [SessionToolLatches.meshOperatorTakesProportional]: every operator but Vertex Slide, unless the
+	 * latch suppressed proportional editing.
+	 *
+	 * @param MeshOperatorKind kind The latched operator's kind.
+	 * @return Boolean True when the gesture takes proportional weights.
+	 */
+	override fun meshOperatorTakesProportional(kind: MeshOperatorKind): Boolean =
+		kind != MeshOperatorKind.VertexSlide && !activeMeshOperatorSuppressesProportional
 
 	/**
 	 * Clears whichever operator family is running, if any.
@@ -243,7 +264,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 * resets the proportional-suppression flag, so a three-way blank would quietly change the duplicate
 	 * and rip auto-grab behavior.
 	 */
-	fun clearActiveOperator() {
+	override fun clearActiveOperator() {
 		when {
 			mutableActiveMeshOperator.value != null -> clearMeshOperator()
 			mutableActiveObjectOperator.value != null -> clearObjectOperator()
@@ -278,7 +299,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param Float radiusPx The requested radius in viewport pixels.
 	 */
-	fun setCircleRadius(radiusPx: Float) {
+	override fun setCircleRadius(radiusPx: Float) {
 		val clamped = radiusPx.coerceIn(MIN_CIRCLE_RADIUS_PX, MAX_CIRCLE_RADIUS_PX)
 		lastCircleRadiusPx = clamped
 		val current = mutableActiveSelectTool.value
@@ -289,7 +310,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	}
 
 	/** Grows the Circle-select radius by one step; a no-op unless a Circle tool is live. */
-	fun growCircleRadius() {
+	override fun growCircleRadius() {
 		val current = mutableActiveSelectTool.value
 		if (current is ActiveSelectTool.Circle) {
 			setCircleRadius(current.radiusPx + CIRCLE_RADIUS_STEP_PX)
@@ -297,7 +318,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	}
 
 	/** Shrinks the Circle-select radius by one step; a no-op unless a Circle tool is live. */
-	fun shrinkCircleRadius() {
+	override fun shrinkCircleRadius() {
 		val current = mutableActiveSelectTool.value
 		if (current is ActiveSelectTool.Circle) {
 			setCircleRadius(current.radiusPx - CIRCLE_RADIUS_STEP_PX)
@@ -305,7 +326,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	}
 
 	/** Clears any armed Box / Circle select tool. */
-	fun clearSelectTool() {
+	override fun clearSelectTool() {
 		mutableActiveSelectTool.value = null
 	}
 
@@ -315,13 +336,13 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param String areaId The viewport area the gesture will run in.
 	 */
-	fun armZoomRegion(areaId: String) {
+	override fun armZoomRegion(areaId: String) {
 		clearTransient()
 		mutableZoomRegionArmedArea.value = areaId
 	}
 
 	/** Disarms the Zoom Region gesture. */
-	fun disarmZoomRegion() {
+	override fun disarmZoomRegion() {
 		mutableZoomRegionArmedArea.value = null
 	}
 
@@ -332,7 +353,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param TransformAxisConstraint axis The axis whose lock to toggle.
 	 */
-	fun toggleAxisConstraint(axis: TransformAxisConstraint) {
+	override fun toggleAxisConstraint(axis: TransformAxisConstraint) {
 		val operator = mutableActiveMeshOperator.value ?: mutableActiveObjectOperator.value ?: mutableActiveUvOperator.value ?: return
 		if (operator.kind == MeshOperatorKind.Rotate) {
 			return
@@ -345,7 +366,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param Boolean active True while the overlay's gesture owns the pointer.
 	 */
-	fun setViewportGestureActive(active: Boolean) {
+	override fun setViewportGestureActive(active: Boolean) {
 		mutableViewportGestureActive.value = active
 	}
 
@@ -354,7 +375,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param Set<DrawableId>? drawableIds The drawables currently painted by the stroke, or null.
 	 */
-	fun setPreviewSelection(drawableIds: Set<DrawableId>?) {
+	override fun setPreviewSelection(drawableIds: Set<DrawableId>?) {
 		mutablePreviewSelection.value = drawableIds
 	}
 
@@ -363,7 +384,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param MeshSelection? selection The selection the stroke has painted so far, or null.
 	 */
-	fun setMeshPreviewSelection(selection: MeshSelection?) {
+	override fun setMeshPreviewSelection(selection: MeshSelection?) {
 		mutableMeshPreviewSelection.value = selection
 	}
 
@@ -372,12 +393,12 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param PieMenuKind kind The pie to open.
 	 */
-	fun openPieMenu(kind: PieMenuKind) {
+	override fun openPieMenu(kind: PieMenuKind) {
 		mutableActivePieMenu.value = kind
 	}
 
 	/** Closes the open pie menu. */
-	fun closePieMenu() {
+	override fun closePieMenu() {
 		mutableActivePieMenu.value = null
 	}
 
@@ -386,12 +407,12 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param ParameterChoiceRequest request The parked edit and the axes to choose between.
 	 */
-	fun openParameterChoice(request: ParameterChoiceRequest) {
+	override fun requestParameterChoice(request: ParameterChoiceRequest) {
 		mutablePendingParameterChoice.value = request
 	}
 
-	/** Discards the parked keyform edit (an axis was picked, or the prompt was dismissed). */
-	fun closeParameterChoice() {
+	/** Abandons the parked keyform edit (an axis was picked, Escape, or a click outside the prompt). */
+	override fun cancelParameterChoice() {
 		mutablePendingParameterChoice.value = null
 	}
 
@@ -401,7 +422,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 * @param Float worldX The cursor's new world-space x.
 	 * @param Float worldZ The cursor's new world-space z (up).
 	 */
-	fun setCursor2d(worldX: Float, worldZ: Float) {
+	override fun setCursor2d(worldX: Float, worldZ: Float) {
 		mutableCursor2d.value = Cursor2d(worldX, worldZ)
 	}
 
@@ -411,7 +432,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 * @param Float u The cursor's new normalized atlas u coordinate.
 	 * @param Float v The cursor's new normalized atlas v coordinate.
 	 */
-	fun setUvCursor(u: Float, v: Float) {
+	override fun setUvCursor(u: Float, v: Float) {
 		mutableUvCursor.value = UvCursor(u, v)
 	}
 
@@ -420,7 +441,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param TransformPivotMode mode The pivot mode the next transforms anchor on.
 	 */
-	fun setPivotMode(mode: TransformPivotMode) {
+	override fun setPivotMode(mode: TransformPivotMode) {
 		mutablePivotMode.value = mode
 	}
 
@@ -429,7 +450,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 * re-enable and confirming either way with a near-cursor notice (an idle toggle has no other
 	 * visible effect - the influence circle only shows during a modal transform).
 	 */
-	fun toggleProportionalEdit() {
+	override fun toggleProportionalEdit() {
 		val current = mutableProportionalEdit.value
 		if (current != null) {
 			lastProportionalEdit = current
@@ -447,7 +468,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 * if it was off - and then connected mode turns ON regardless of the remembered flag, since the
 	 * command expresses the intent to use it.  Confirms either way with a near-cursor notice.
 	 */
-	fun toggleProportionalConnected() {
+	override fun toggleProportionalConnected() {
 		val current = mutableProportionalEdit.value
 		val updated =
 			if (current == null) {
@@ -470,7 +491,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param ProportionalFalloff falloff The falloff curve the influence weights follow.
 	 */
-	fun setProportionalFalloff(falloff: ProportionalFalloff) {
+	override fun setProportionalFalloff(falloff: ProportionalFalloff) {
 		val updated = (mutableProportionalEdit.value ?: lastProportionalEdit).copy(falloff = falloff)
 		lastProportionalEdit = updated
 		mutableProportionalEdit.value = updated
@@ -482,7 +503,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param Float radiusWorld The influence radius in world units (canvas px).
 	 */
-	fun setProportionalRadius(radiusWorld: Float) {
+	override fun setProportionalRadius(radiusWorld: Float) {
 		val current = mutableProportionalEdit.value ?: return
 		val updated = current.copy(radiusWorld = radiusWorld.coerceIn(MIN_PROPORTIONAL_RADIUS_WORLD, MAX_PROPORTIONAL_RADIUS_WORLD))
 		lastProportionalEdit = updated
@@ -497,7 +518,7 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 *
 	 * @param ProportionalEditState? state The state to set, or null to turn proportional editing off.
 	 */
-	fun setProportionalEdit(state: ProportionalEditState?) {
+	override fun setProportionalEdit(state: ProportionalEditState?) {
 		if (state == null) {
 			mutableProportionalEdit.value?.let { current -> lastProportionalEdit = current }
 			mutableProportionalEdit.value = null

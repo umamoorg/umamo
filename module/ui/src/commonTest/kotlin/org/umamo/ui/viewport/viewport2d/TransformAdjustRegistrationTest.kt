@@ -12,6 +12,7 @@ import org.umamo.edit.TransformGestureParameters
 import org.umamo.edit.TransformParameterKeys
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.buildModalTransformCapture
+import org.umamo.edit.commitMeshPositions
 import org.umamo.edit.withParameter
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable

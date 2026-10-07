@@ -18,7 +18,10 @@ import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformParameterKeys
+import org.umamo.edit.beginMeshOperator
+import org.umamo.edit.commitMeshPositions
 import org.umamo.edit.floatValue
+import org.umamo.edit.setMeshSelectMode
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import kotlin.math.abs

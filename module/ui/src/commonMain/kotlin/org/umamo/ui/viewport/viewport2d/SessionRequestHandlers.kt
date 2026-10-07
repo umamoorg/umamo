@@ -12,9 +12,14 @@ import org.umamo.edit.MeshTransforms
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
+import org.umamo.edit.beginMeshOperator
+import org.umamo.edit.commitMeshPositions
+import org.umamo.edit.commitMeshTopology
+import org.umamo.edit.commitObjectPositions
 import org.umamo.edit.isPoseNeutral
 import org.umamo.edit.selectableOf
 import org.umamo.edit.snapToWorldGrid
+import org.umamo.edit.switchEditDrawable
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId

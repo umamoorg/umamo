@@ -141,7 +141,7 @@ enum class PieMenuKind {
 
 /**
  * A latched modal transform operator together with the viewport area that initiated it.  The area id
- * is an opaque workspace-leaf id (the same currency as [EditorSession.zoomRegionArmedArea]): the
+ * is an opaque workspace-leaf id (the same currency as [SessionToolLatches.zoomRegionArmedArea]): the
  * session never interprets it, but the UI gates gesture capture, HUD drawing, and confirm delivery to
  * the initiating area, so a gesture latched in one split viewport can never be driven or committed
  * from another.  Both fields publish atomically in one flow emission - a paired flow could tear.

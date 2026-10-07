@@ -3,6 +3,13 @@ package org.umamo.ui.workspace.commands
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.beginBoxSelect
+import org.umamo.edit.beginCircleSelect
+import org.umamo.edit.invertMeshSelection
+import org.umamo.edit.invertObjectSelection
+import org.umamo.edit.selectAllMeshElements
+import org.umamo.edit.selectAllObjects
+import org.umamo.edit.setMeshSelectMode
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandSpaces

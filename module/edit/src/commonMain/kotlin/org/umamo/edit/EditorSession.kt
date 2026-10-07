@@ -7,40 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.umamo.runtime.model.ChannelValue
-import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.KeyableTarget
-import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
-
-/**
- * Where the shell surfaces a [Notice]: the status-bar slot, or a transient label next to the pointer
- * (Blender's near-cursor "can't do this because" style, for feedback about a blocked viewport gesture).
- */
-enum class NoticePlacement {
-	StatusBar,
-	NearCursor,
-}
-
-/**
- * A transient user notice: a stable message key plus a monotonic [serial] that distinguishes it from an
- * identical earlier message, so the UI can re-time its dismissal even when the same notice repeats.
- * Carries a key rather than display text so this module stays presentation-free and the UI layer resolves
- * the localized string (the same pattern as [Change.labelKey]).
- *
- * @property String messageKey The stable notice key the UI layer resolves to a localized message.
- * @property Long serial The stamping order (see [EditorSession.emitNotice]); higher is newer.
- * @property NoticePlacement placement Where the shell surfaces this notice.
- * @property List<String> arguments The values the localized message formats in, in its placeholder order
- *   (a count, a file name); empty for a message with none.  Strings rather than typed values so this
- *   module stays presentation-free - the UI layer only substitutes.
- */
-data class Notice(
-	val messageKey: String,
-	val serial: Long,
-	val placement: NoticePlacement,
-	val arguments: List<String> = emptyList(),
-)
 
 /**
  * The single mutable owner of one open document: the live [model], the ephemeral editor state
@@ -60,34 +28,67 @@ data class Notice(
  * Held on the UI thread (Compose drives it); the render host observes [model] / [selection] as flows.
  * Compose-free by design (its module mandate), so it exposes coroutines flows, not Compose state.
  *
+ * The primary constructor is private so the public one can hand it the [SessionCollaborators] built
+ * beforehand: the tool latches and the request buses the header delegates [SessionToolLatches],
+ * [SessionToolSettings], and [SessionRequests] to, and the notice channel the latches post through.
+ *
  * @param PuppetModel initialModel The document model at open.
- * @param Pose initialPose The pose at open (the displayed scrub values); defaults to every parameter's
- *   default. The host passes the renderer's starting values so the session, the panel, and the viewport
- *   agree from frame one (e.g. a headless dump's overridden pose is not reset to defaults).
- * @param Int initialHistoryLimit The retained-undo-step cap at open; [historyLimit] carries it and the
- *   host reassigns it when the preference changes.
- * @param SessionViewState? initialViewState The session state the document was saved with, or null for a plain
- *   open.  It is fitted to the model and laid into the FIRST snapshot and the tool latches, so what a rigger
- *   reopens to is where the history starts - never a run of undo steps, and never a dirty mark.
+ * @param Pose initialPose The pose at open.
+ * @param Int initialHistoryLimit The retained-undo-step cap at open.
+ * @param SessionViewState? initialViewState The session state the document was saved with, or null.
+ * @param SessionCollaborators collaborators The ready-made tool latches, request buses, and notice channel.
  */
-class EditorSession(
+class EditorSession private constructor(
 	initialModel: PuppetModel,
-	initialPose: Pose = initialModel.parameters.associate { parameter -> parameter.id to parameter.default },
-	initialHistoryLimit: Int = DEFAULT_HISTORY_LIMIT,
-	initialViewState: SessionViewState? = null,
-) {
+	initialPose: Pose,
+	initialHistoryLimit: Int,
+	initialViewState: SessionViewState?,
+	private val collaborators: SessionCollaborators,
+) : SessionToolLatches by collaborators.latches,
+	SessionToolSettings by collaborators.latches,
+	SessionRequests by collaborators.requestBus {
+	/**
+	 * Opens a session on [initialModel].
+	 *
+	 * @param PuppetModel initialModel The document model at open.
+	 * @param Pose initialPose The pose at open (the displayed scrub values); defaults to every parameter's
+	 *   default. The host passes the renderer's starting values so the session, the panel, and the viewport
+	 *   agree from frame one (e.g. a headless dump's overridden pose is not reset to defaults).
+	 * @param Int initialHistoryLimit The retained-undo-step cap at open; [historyLimit] carries it and the
+	 *   host reassigns it when the preference changes.
+	 * @param SessionViewState? initialViewState The session state the document was saved with, or null for a plain
+	 *   open.  It is fitted to the model and laid into the FIRST snapshot and the tool latches, so what a rigger
+	 *   reopens to is where the history starts - never a run of undo steps, and never a dirty mark.
+	 */
+	constructor(
+		initialModel: PuppetModel,
+		initialPose: Pose = initialModel.parameters.associate { parameter -> parameter.id to parameter.default },
+		initialHistoryLimit: Int = DEFAULT_HISTORY_LIMIT,
+		initialViewState: SessionViewState? = null,
+	) : this(initialModel, initialPose, initialHistoryLimit, initialViewState, SessionCollaborators())
+
 	// The saved session state with every reference the model cannot satisfy taken out, and the snapshot the
 	// session opens on.  Declared first: the history and every snapshotted flow below start from it.
 	private val openingViewState: SessionViewState? = initialViewState?.fittedTo(initialModel)
 	private val openingSnapshot: EditorSnapshot = openingSnapshotOf(initialModel, initialPose, openingViewState)
 
-	// The session's collaborators - the undo machinery (stack, saved baseline, derived flags), the
-	// area-request buses, the remembered-selection memory, and the tool latches; the members below
-	// delegate so the public API is unchanged, and every flow-write ordering stays in this facade.
+	// The session's collaborators - the undo machinery (stack, saved baseline, derived flags) and the
+	// remembered-selection memory built here, the tool latches, the area-request buses, and the notice
+	// channel handed in.  The latches and the bus are reached through the three delegated interfaces
+	// in the header; what stays below is everything that writes a snapshotted flow, so every flow-write
+	// ordering stays in this facade.  The latches and the element memory are internal, not private, for
+	// the session's own extension files (ToolArming, SelectionEdits) - no other file may touch them.
 	private val history = HistoryCore(openingSnapshot, initialHistoryLimit)
-	private val requestBus = SessionRequestBus()
-	private val elementMemory = MeshElementMemory()
-	private val latches = ToolLatches(notify = ::emitNotice).also { created -> openingViewState?.let(created::seed) }
+	internal val elementMemory = MeshElementMemory()
+	internal val latches: ToolLatches = collaborators.latches
+	private val requestBus: SessionRequestBus = collaborators.requestBus
+	private val notices: SessionNotices = collaborators.notices
+
+	init {
+		// The saved tool state is laid into the latches as the session is built, so what a rigger reopens
+		// to is where every flow starts - never a gesture, and never a notice.
+		openingViewState?.let(latches::seed)
+	}
 
 	// The live step's predecessor as of the last push - the base an operation registering itself as
 	// adjustable ran from.  Consumed by the registration and voided by a restore, so a registration can
@@ -183,125 +184,6 @@ class EditorSession(
 	val meshSelection: StateFlow<MeshSelection> = mutableMeshSelection.asStateFlow()
 
 	/**
-	 * The modal mesh operator currently running (Grab / Scale / Rotate) with its initiating viewport area,
-	 * or null. Transient UI coordination (not snapshotted, not on the bus): a registry command latches it,
-	 * the initiating area's gizmo overlay observes it to drive the gesture (bystander viewports stay
-	 * inert), and clears it on confirm / cancel.
-	 */
-	val activeMeshOperator: StateFlow<ActiveOperator?> = latches.activeMeshOperator
-
-	/**
-	 * The modal OBJECT operator currently running (Grab / Scale / Rotate over the selected drawables' whole
-	 * geometry) with its initiating viewport area, or null. The Object-mode sibling of [activeMeshOperator]:
-	 * a separate latch because the object overlay captures N drawables where the mesh overlay captures one,
-	 * so the two must be distinguishable. Transient UI coordination like [activeMeshOperator] - not
-	 * snapshotted, not on the bus - latched by a registry command, observed by the initiating area's object
-	 * gizmo overlay, cleared on confirm / cancel / leaving Object mode.
-	 */
-	val activeObjectOperator: StateFlow<ActiveOperator?> = latches.activeObjectOperator
-
-	/**
-	 * The modal UV operator currently running (Grab / Scale / Rotate over the selected vertices' texture
-	 * coordinates) with its initiating UV-editor area, or null. The UV-editor sibling of
-	 * [activeMeshOperator]: a separate latch so the puppet viewport's gizmo overlays and the UV editor's
-	 * overlay can never cross-capture one gesture (each overlay's capture effect keys on its own latch).
-	 * Transient UI coordination like the others - not snapshotted, not on the bus - latched by a registry
-	 * command, observed by the initiating area's UV overlay, cleared on confirm / cancel / leaving Edit mode.
-	 */
-	val activeUvOperator: StateFlow<ActiveOperator?> = latches.activeUvOperator
-
-	/**
-	 * The one modal transform operator running, from whichever of the three families latched it, or null.
-	 *
-	 * The families are mutually exclusive, so callers that only need to know whether SOME transform is in
-	 * flight - the shell's modal key ladder, deciding who owns Escape / Enter / the axis keys - ask this
-	 * instead of testing all three.  An instantaneous read, not a flow: see [ToolLatches.activeOperator].
-	 */
-	val activeOperator: ActiveOperator?
-		get() = latches.activeOperator
-
-	/**
-	 * Whether nothing is in flight that a model change would land under: no modal transform operator,
-	 * no viewport gesture, no circle-select stroke, no armed select tool, and no open pie menu.  The gate
-	 * a watched-file reload waits behind, so the art never changes under a hand that is mid-drag.  An
-	 * instantaneous read, like [activeOperator].
-	 */
-	val isQuiescent: Boolean
-		get() =
-			latches.activeOperator == null &&
-				!latches.viewportGestureActive.value &&
-				latches.previewSelection.value == null &&
-				latches.meshPreviewSelection.value == null &&
-				latches.activeSelectTool.value == null &&
-				latches.activePieMenu.value == null
-
-	/**
-	 * Cancels whichever modal transform operator is running, if any - the family-agnostic counterpart to
-	 * [clearMeshOperator] / [clearObjectOperator] / [clearUvOperator].
-	 */
-	fun clearActiveOperator() {
-		latches.clearActiveOperator()
-	}
-
-	/**
-	 * The transient preview of which drawables an in-flight Object-mode circle stroke is painting, or null when
-	 * no stroke is live. The GPU-tint bridge overlays this on top of the committed [selection] so painted
-	 * drawables light up immediately without committing each frame (which would spam undo). Not snapshotted,
-	 * not on the bus (transient UI coordination like [activeSelectTool]); the stroke commits once on release
-	 * via [setSelection] and clears this back to null.
-	 */
-	val previewSelection: StateFlow<Set<DrawableId>?> = latches.previewSelection
-
-	/**
-	 * Publishes the transient circle-stroke preview selection (see [previewSelection]); pass null to clear it.
-	 *
-	 * @param Set<DrawableId>? drawableIds The drawables currently painted by the stroke, or null to clear.
-	 */
-	fun setPreviewSelection(drawableIds: Set<DrawableId>?) {
-		latches.setPreviewSelection(drawableIds)
-	}
-
-	/**
-	 * The transient preview of what an in-flight Edit-mode circle stroke has painted so far, or null when no
-	 * stroke is live: the whole selection the stroke would commit, in [meshSelection]'s shape.  The renderer's
-	 * mesh overlay shows it in place of the committed [meshSelection], so painted elements light up under
-	 * the brush without committing each stamp (which would spam undo).  Not snapshotted, not on the bus
-	 * (transient UI coordination like [previewSelection]); the stroke commits once on release via
-	 * [setMeshSelection] and clears this back to null.
-	 */
-	val meshPreviewSelection: StateFlow<MeshSelection?> = latches.meshPreviewSelection
-
-	/**
-	 * Publishes the transient Edit-mode circle-stroke preview (see [meshPreviewSelection]); pass null to
-	 * clear it.
-	 *
-	 * @param MeshSelection? selection The selection the stroke has painted so far, or null to clear.
-	 */
-	fun setMeshPreviewSelection(selection: MeshSelection?) {
-		latches.setMeshPreviewSelection(selection)
-	}
-
-	/**
-	 * True while a select drag is held in a viewport or UV area - a box (armed or not) or a circle stroke,
-	 * in either mode - so navigation does not also pan, the shell routes Escape to a gesture cancel instead
-	 * of its next Escape behavior (clearing the object selection), and undo / redo wait for the release.
-	 * Transient UI coordination like [previewSelection] - not snapshotted, not on the bus; the overlay sets
-	 * it at press and clears it on release, cancel, or when it leaves composition.
-	 */
-	val viewportGestureActive: StateFlow<Boolean> = latches.viewportGestureActive
-
-	/**
-	 * Publishes whether a select drag is held (see [viewportGestureActive]).
-	 *
-	 * @param Boolean active True while the overlay's select drag owns the pointer.
-	 */
-	fun setViewportGestureActive(active: Boolean) {
-		latches.setViewportGestureActive(active)
-	}
-
-	private val mutableNotice = MutableStateFlow<Notice?>(null)
-
-	/**
 	 * The current transient user notice, or null when none is showing. A short message the shell surfaces
 	 * briefly (near the status bar) to explain why an action did nothing. Deliberately off the undo history and
 	 * the change bus - a notice is momentary feedback, never document state. Used today when an Object-mode
@@ -310,11 +192,7 @@ class EditorSession(
 	 * sees an in-flight notice; the [Notice.serial] lets the shell time its dismissal and re-trigger on a repeat
 	 * of the same text.
 	 */
-	val notice: StateFlow<Notice?> = mutableNotice.asStateFlow()
-
-	// Monotonic id stamped on each notice so an identical repeated message is still a distinct event the shell
-	// can re-time. Not a clock (unavailable here) - just a counter.
-	private var noticeSerial: Long = 0L
+	val notice: StateFlow<Notice?> = notices.notice
 
 	/**
 	 * Emits a transient user notice (see [notice]); it stays current until dismissed via [clearNotice] or
@@ -325,8 +203,7 @@ class EditorSession(
 	 * @param List<String> arguments The values the message formats in, in its placeholder order.
 	 */
 	fun emitNotice(messageKey: String, placement: NoticePlacement = NoticePlacement.StatusBar, arguments: List<String> = emptyList()) {
-		noticeSerial += 1
-		mutableNotice.value = Notice(messageKey, noticeSerial, placement, arguments)
+		notices.emit(messageKey, placement, arguments)
 	}
 
 	/**
@@ -336,24 +213,8 @@ class EditorSession(
 	 * @param Long serial The serial of the notice to dismiss (from [Notice.serial]).
 	 */
 	fun clearNotice(serial: Long) {
-		if (mutableNotice.value?.serial == serial) {
-			mutableNotice.value = null
-		}
+		notices.clear(serial)
 	}
-
-	/**
-	 * The Edit-mode selection tool currently armed (Box or Circle), or null. Transient UI coordination like
-	 * [activeMeshOperator] (not snapshotted, not on the bus): a registry command latches it, the gizmo overlay
-	 * observes it to reinterpret pointer input, and it clears on completion / cancel / leaving Edit mode.
-	 */
-	val activeSelectTool: StateFlow<ActiveSelectTool?> = latches.activeSelectTool
-
-	/**
-	 * The viewport area id whose Zoom Region gesture is armed (Blender's Shift+B), or null. Mode-agnostic -
-	 * Zoom Region works in Object and Edit mode alike - so it is keyed by area rather than gated on the mode,
-	 * and the top-level region overlay for that area reads it to capture the drag. Transient, not snapshotted.
-	 */
-	val zoomRegionArmedArea: StateFlow<String?> = latches.zoomRegionArmedArea
 
 	private val mutableChanges = MutableSharedFlow<Change>(extraBufferCapacity = 64)
 
@@ -400,6 +261,65 @@ class EditorSession(
 		mutableAdjustableOperation.value = null
 		lastBaseSnapshot = history.current
 		history.push(snapshot, change)
+	}
+
+	/**
+	 * Records one undo step whose state is the live state with the given fields replaced, and publishes it:
+	 * the snapshot is pushed, every snapshotted flow takes its value from it (model first, mode last - the
+	 * order [restore] publishes in, so an undo and the edit it reverts agree), the derived flags refresh, and
+	 * [change] goes out on the bus.  The one path every step takes: a member that pushes a step calls this
+	 * rather than writing the flows itself, and an operation in another file reaches the history only
+	 * through here.
+	 *
+	 * Every field defaults to the LIVE value, never to an empty one: a field added later is then carried
+	 * unchanged by every existing caller instead of silently recorded empty.  The one default that is not
+	 * the live value is [pendingChannelEdits]: a pose that differs from the live pose discards them, because
+	 * every pending value was chosen FOR the pose being left - the rule lives here and nowhere else.
+	 *
+	 * @param Change change The descriptor of this step (for the bus and the history-panel label).
+	 * @param PuppetModel model The document model after the step.
+	 * @param Selection selection The object selection after the step.
+	 * @param Pose pose The pose after the step.
+	 * @param MeshSelection meshSelection The Edit-mode element selection after the step.
+	 * @param EditorMode mode The interaction mode after the step.
+	 * @param ParameterSelection parameterSelection The keyform-authoring target after the step.
+	 * @param Map<KeyableTarget, ChannelValue> pendingChannelEdits The unkeyed channel edits after the step.
+	 * @param Set<TrackKeyRef> keySelection The keyform-sheet key selection after the step.
+	 */
+	internal fun commitStep(
+		change: Change,
+		model: PuppetModel = mutableModel.value,
+		selection: Selection = mutableSelection.value,
+		pose: Pose = mutablePose.value,
+		meshSelection: MeshSelection = mutableMeshSelection.value,
+		mode: EditorMode = mutableMode.value,
+		parameterSelection: ParameterSelection = mutableParameterSelection.value,
+		pendingChannelEdits: Map<KeyableTarget, ChannelValue> = if (pose == mutablePose.value) mutablePendingChannelEdits.value else emptyMap(),
+		keySelection: Set<TrackKeyRef> = mutableKeySelection.value,
+	) {
+		val snapshot = EditorSnapshot(model, selection, pose, meshSelection, mode, parameterSelection, pendingChannelEdits, keySelection)
+		pushStep(snapshot, change)
+		publish(snapshot)
+		refreshFlags()
+		mutableChanges.tryEmit(change)
+	}
+
+	/**
+	 * Writes every snapshotted flow from [snapshot], model first and mode last.  Shared by [commitStep] and
+	 * [restore] so a step and the undo that reverts it publish in one order; a field the snapshot did not
+	 * change is an equal write the flow drops.
+	 *
+	 * @param EditorSnapshot snapshot The state to publish.
+	 */
+	private fun publish(snapshot: EditorSnapshot) {
+		mutableModel.value = snapshot.model
+		mutableSelection.value = snapshot.selection
+		mutablePose.value = snapshot.pose
+		mutableMeshSelection.value = snapshot.meshSelection
+		mutableParameterSelection.value = snapshot.parameterSelection
+		mutablePendingChannelEdits.value = snapshot.pendingChannelEdits
+		mutableKeySelection.value = snapshot.keySelection
+		mutableMode.value = snapshot.mode
 	}
 
 	/**
@@ -497,30 +417,20 @@ class EditorSession(
 	 * @param PuppetModel model The new document model (same instance as now for a pose-only commit).
 	 * @param Pose pose The new live pose (same value as now for a model-only commit).
 	 */
-
 	private fun commit(change: Change, model: PuppetModel, pose: Pose) {
 		if (model === mutableModel.value && pose == mutablePose.value) {
 			return
 		}
-		// A pose move invalidates every pending edit: the value was chosen for the pose being left.
-		if (pose != mutablePose.value) {
-			clearPendingChannelEdits()
-		}
-		pushStep(snapshot(model = model, pose = pose), change)
-		mutableModel.value = model
-		mutablePose.value = pose
-		refreshFlags()
-		mutableChanges.tryEmit(change)
+		commitStep(change, model = model, pose = pose)
 	}
 
 	/**
-	 * A snapshot of the session's current state, with any field overridden.
-	 *
-	 * Every history push goes through this rather than calling [EditorSnapshot] directly.  The constructor's
-	 * own defaults are dangerous here: a field added later would default to its EMPTY value at every existing
-	 * call site, which compiles cleanly but would silently record the wrong state - for example, undoing an
-	 * unrelated edit would clear the parameter target instead of leaving it as it was.  Defaulting to live
-	 * state instead makes the omission harmless.
+	 * A snapshot of the session's current state, with any field overridden - what [amendLastCommit] rewrites
+	 * the live step with.  A push never builds its snapshot here: it goes through [commitStep], whose
+	 * parameters follow the same rule for the same reason.  [EditorSnapshot]'s own defaults are dangerous: a
+	 * field added later would default to its EMPTY value at every existing call site, which compiles cleanly
+	 * but would silently record the wrong state - for example, undoing an unrelated edit would clear the
+	 * parameter target instead of leaving it as it was.  Defaulting to live state makes the omission harmless.
 	 */
 	private fun snapshot(
 		model: PuppetModel = mutableModel.value,
@@ -604,9 +514,9 @@ class EditorSession(
 	 * the user can see take effect in the viewport, so it must be undoable independent of whether it ever
 	 * reaches the document.
 	 *
-	 * Pushes its own snapshot rather than going through [mutate] / [commit], for the same reason
-	 * [setSelection] and [setMeshSelection] do: neither the model nor the pose changes, so the commit choke
-	 * point would short-circuit and record nothing.  Not a document edit, so it leaves dirty untouched.
+	 * Pushes its own step through [commitStep] rather than going through [mutate] / [commit], for the same
+	 * reason [setSelection] and [setMeshSelection] do: neither the model nor the pose changes, so the commit
+	 * choke point would short-circuit and record nothing.  Not a document edit, so it leaves dirty untouched.
 	 *
 	 * [change] is the SAME descriptor the unkeyed path would have used, so the history entry reads "Set
 	 * Opacity" whichever branch the edit took - which branch it took is an implementation detail of where
@@ -628,18 +538,15 @@ class EditorSession(
 			setPendingChannelEdit(target, value)
 			return
 		}
-		val edits = mutablePendingChannelEdits.value + (target to value)
-		pushStep(snapshot(pendingChannelEdits = edits), change)
-		mutablePendingChannelEdits.value = edits
-		refreshFlags()
-		mutableChanges.tryEmit(change)
+		commitStep(change, pendingChannelEdits = mutablePendingChannelEdits.value + (target to value))
 	}
 
 	/**
 	 * Discards every pending unkeyed edit.
 	 *
-	 * Called on any pose move - the situation that invalidates ALL of them at once, since every pending value
-	 * was chosen for the pose being left.  A history jump does NOT call this: [restore] restores the
+	 * Called when a pose PREVIEW moves - a scrub frame that reaches the renderer without recording a step -
+	 * since every pending value was chosen for the pose being left; a recorded pose move discards them the
+	 * same way through [commitStep]'s default.  A history jump does NOT call this: [restore] publishes the
 	 * snapshot's own [EditorSnapshot.pendingChannelEdits] instead, since the pose it lands on is exactly the
 	 * pose those values were chosen for.  A keyform insert that consumed one target's value uses
 	 * [clearPendingChannelEdit] instead, because the other targets' values are still valid for the unchanged
@@ -666,98 +573,6 @@ class EditorSession(
 	}
 
 	/**
-	 * Sets parameter [id]'s range and default, and re-clamps its live pose value into the new range — all
-	 * as one undo step. A model edit (the range is document content), so it marks the document dirty; the
-	 * pose re-clamp rides the same step so undo restores both together. A no-op range records nothing.
-	 *
-	 * @param ParameterId id The parameter to retarget.
-	 * @param Float min The requested minimum.
-	 * @param Float default The requested default (clamped into the resulting range).
-	 * @param Float max The requested maximum.
-	 */
-	fun setParameterRange(id: ParameterId, min: Float, default: Float, max: Float) {
-		val newModel = mutableModel.value.withParameterRange(id, min, default, max)
-		if (newModel === mutableModel.value) {
-			return
-		}
-		// Re-clamp the live value into the resulting (normalized) range so the pose stays valid.
-		val parameter = newModel.parameters.firstOrNull { it.id == id }
-		val newPose =
-			if (parameter != null) {
-				val current = mutablePose.value[id]
-				val clamped = current?.coerceIn(parameter.min, parameter.max)
-				if (clamped != null && clamped != current) {
-					mutablePose.value + (id to clamped)
-				} else {
-					mutablePose.value
-				}
-			} else {
-				mutablePose.value
-			}
-		val change = ParameterChange.SetRange(id, parameter?.min ?: min, parameter?.default ?: default, parameter?.max ?: max)
-		commit(change, newModel, newPose)
-	}
-
-	/**
-	 * Links parameter [horizontal] with [vertical] (the next parameter below it in panel order) into
-	 * one 2D pad, or removes that link, as one undo step. A model edit (the link is document content),
-	 * so it marks the document dirty. The pose needs no care here: a link only changes presentation,
-	 * both parameters keep their live values by construction. An invalid request returns the same
-	 * model instance from [withParameterLink], so the commit short-circuit records nothing.
-	 *
-	 * @param ParameterId horizontal The X-axis (upper) parameter.
-	 * @param ParameterId vertical The Y-axis parameter.
-	 * @param Boolean linked True to create the link, false to remove it.
-	 */
-	fun setParameterLink(horizontal: ParameterId, vertical: ParameterId, linked: Boolean) {
-		val newModel = mutableModel.value.withParameterLink(horizontal, vertical, linked)
-		if (newModel === mutableModel.value) {
-			return
-		}
-		if (!linked) {
-			// A pad targets BOTH its axes; once they are two separate sliders that reads as a multi-selection
-			// the panel cannot otherwise produce, so the target narrows to the one that was active.  Narrowed
-			// BEFORE the commit, so the pushed snapshot carries the narrowed target and a later redo cannot
-			// restore the multi-selection.
-			val target = mutableParameterSelection.value
-			if (target.ids.size > 1) {
-				mutableParameterSelection.value =
-					target.active?.let { ParameterSelection.of(it) } ?: ParameterSelection()
-			}
-		}
-		commit(ParameterChange.SetLink(horizontal, vertical, linked), newModel, mutablePose.value)
-	}
-
-	/**
-	 * Deletes parameter [id] everywhere - the axis list, the panel tree, any link, every object's keyform
-	 * grid (its axis collapses to the default slice), and the live pose - as one undo step. A model edit,
-	 * so it marks the document dirty; dropping the pose entry rides the same step so undo restores both.
-	 * A member (not a mutate extension) because it commits a new model and a new pose together, like
-	 * [setParameterRange]. A no-op (no such parameter) records nothing. When the delete moves the rest pose
-	 * of any object - a default between two keys, a sparse sole-axis track or deformer grid, or a blend shape
-	 * its scrub cannot keep exact ([ParameterDeletion.restChangedOwners]) - a notice says how many.
-	 *
-	 * @param ParameterId id The parameter to delete.
-	 */
-	fun deleteParameter(id: ParameterId) {
-		val before = mutableModel.value
-		// One walk gives both the model and the owners it moved; asking the question of the model again
-		// would walk every grid and binding a second time.
-		val deletion = before.parameterDeletionOf(id) ?: return
-		val newModel = deletion.model
-		val restChanged = deletion.restChangedOwners
-		// The target must never dangle on a parameter the model no longer has - pruned BEFORE the commit,
-		// so the pushed snapshot carries the pruned selection and a later redo (or a History jump to this
-		// entry) cannot restore the dangling id.
-		mutableParameterSelection.value =
-			mutableParameterSelection.value.prunedTo(newModel.parameters.mapTo(HashSet()) { parameter -> parameter.id })
-		commit(ParameterChange.Delete(id), newModel, mutablePose.value - id)
-		if (restChanged.isNotEmpty()) {
-			emitNotice("notice.parameter.deleteChangedRest", arguments = listOf(restChanged.size.toString()))
-		}
-	}
-
-	/**
 	 * Records a selection gesture as its own undo step (the chosen Blender-faithful granularity), so a
 	 * misclick that clears the selection is recoverable. A no-op (selecting the already-current
 	 * selection) records nothing.
@@ -772,13 +587,7 @@ class EditorSession(
 		(selection.active as? SelectionTarget.Drawable)?.let { activeDrawable ->
 			elementMemory.lastActiveDrawableId = activeDrawable.id
 		}
-		pushStep(
-			snapshot(selection = selection),
-			EditorStateChange.SelectionChanged,
-		)
-		mutableSelection.value = selection
-		refreshFlags()
-		mutableChanges.tryEmit(EditorStateChange.SelectionChanged)
+		commitStep(EditorStateChange.SelectionChanged, selection = selection)
 	}
 
 	/**
@@ -795,10 +604,7 @@ class EditorSession(
 		if (parameterSelection == mutableParameterSelection.value) {
 			return
 		}
-		pushStep(snapshot(parameterSelection = parameterSelection), EditorStateChange.ParameterSelectionChanged)
-		mutableParameterSelection.value = parameterSelection
-		refreshFlags()
-		mutableChanges.tryEmit(EditorStateChange.ParameterSelectionChanged)
+		commitStep(EditorStateChange.ParameterSelectionChanged, parameterSelection = parameterSelection)
 	}
 
 	/**
@@ -853,14 +659,7 @@ class EditorSession(
 					MeshSelection()
 				}
 			}
-		pushStep(
-			snapshot(meshSelection = newMeshSelection, mode = mode),
-			EditorStateChange.ModeChanged(mode),
-		)
-		mutableMode.value = mode
-		mutableMeshSelection.value = newMeshSelection
-		refreshFlags()
-		mutableChanges.tryEmit(EditorStateChange.ModeChanged(mode))
+		commitStep(EditorStateChange.ModeChanged(mode), meshSelection = newMeshSelection, mode = mode)
 	}
 
 	/**
@@ -875,13 +674,7 @@ class EditorSession(
 		if (meshSelection == mutableMeshSelection.value) {
 			return
 		}
-		pushStep(
-			snapshot(meshSelection = meshSelection),
-			EditorStateChange.MeshSelectionChanged,
-		)
-		mutableMeshSelection.value = meshSelection
-		refreshFlags()
-		mutableChanges.tryEmit(EditorStateChange.MeshSelectionChanged)
+		commitStep(EditorStateChange.MeshSelectionChanged, meshSelection = meshSelection)
 	}
 
 	/**
@@ -908,10 +701,7 @@ class EditorSession(
 			mutableKeySelection.value = keySelection
 			return
 		}
-		pushStep(snapshot(keySelection = keySelection), EditorStateChange.KeySelectionChanged)
-		mutableKeySelection.value = keySelection
-		refreshFlags()
-		mutableChanges.tryEmit(EditorStateChange.KeySelectionChanged)
+		commitStep(EditorStateChange.KeySelectionChanged, keySelection = keySelection)
 	}
 
 	/**
@@ -965,557 +755,8 @@ class EditorSession(
 			mutablePose.value = pose
 			return
 		}
-		// A pose move invalidates every pending edit, exactly as it does through the ordinary commit path.
-		if (pose != mutablePose.value) {
-			clearPendingChannelEdits()
-		}
-		pushStep(snapshot(pose = pose, keySelection = keySelection), EditorStateChange.KeySelectionChanged)
-		mutableKeySelection.value = keySelection
-		mutablePose.value = pose
-		refreshFlags()
-		mutableChanges.tryEmit(EditorStateChange.KeySelectionChanged)
+		commitStep(EditorStateChange.KeySelectionChanged, pose = pose, keySelection = keySelection)
 	}
-
-	/**
-	 * Commits a mesh-vertex edit (a finished modal G / S / R gesture) as ONE undo step: each session
-	 * drawable's rest shape (canvas mesh and keyform-space base) becomes its entry in [restByDrawable].  An
-	 * Edit session spans several meshes, so the copy-on-write [withMeshPositions] batch folds them into a
-	 * single model (one history step, like [commitObjectPositions]).  Mid-gesture preview frames reach
-	 * the renderer directly (transient), so a whole drag is a single step.  A model edit (rest geometry
-	 * is document content), so it marks the document dirty; a no-op (every array unchanged / mismatched)
-	 * records nothing.
-	 *
-	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformVertices]).
-	 * @param Map<DrawableId, MeshRestPositions> restByDrawable Each edited drawable's committed rest shape.
-	 */
-	fun commitMeshPositions(change: MeshChange, restByDrawable: Map<DrawableId, MeshRestPositions>) {
-		commit(change, mutableModel.value.withMeshPositions(restByDrawable), mutablePose.value)
-	}
-
-	/**
-	 * Commits an Object-mode transform of several drawables (a finished modal G / S / R gesture) as ONE undo
-	 * step: each drawable's rest shape (canvas mesh and keyform-space base) becomes its entry in
-	 * [restByDrawable]. The copy-on-write [withMeshPositions] batch folds them into a single model, so N moved
-	 * drawables are one history step (not N). Mid-gesture preview frames reach the renderer directly
-	 * (transient), so a whole drag is a single step. A model edit (rest geometry is document content), so it
-	 * marks the document dirty; a no-op (every array unchanged / mismatched, so the fold returns the same
-	 * instance) records nothing.
-	 *
-	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformDrawables]).
-	 * @param Map<DrawableId, MeshRestPositions> restByDrawable Each moved drawable's committed rest shape.
-	 */
-	fun commitObjectPositions(change: MeshChange, restByDrawable: Map<DrawableId, MeshRestPositions>) {
-		commit(change, mutableModel.value.withMeshPositions(restByDrawable), mutablePose.value)
-	}
-
-	/**
-	 * Commits a UV edit (a finished modal G / S / R gesture in the UV editor, or a Mirror command) as
-	 * ONE undo step: each edited drawable's texture coordinates become its entry in [newUvsByDrawable].
-	 * The texture-mapping twin of [commitMeshPositions] - the copy-on-write [withMeshUvs] batch folds the
-	 * edits into a single model, so N edited meshes are one history step.  Mid-gesture preview
-	 * frames reach the renderer directly (transient), so a whole drag is a single step.  A model edit
-	 * (the sampled texels are document content), so it marks the document dirty; a no-op (every
-	 * array unchanged / mismatched) records nothing.
-	 *
-	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformUvs] or [MeshChange.MirrorUvs]).
-	 * @param Map<DrawableId, FloatArray> newUvsByDrawable Each edited drawable's committed atlas UVs.
-	 */
-	fun commitMeshUvs(change: MeshChange, newUvsByDrawable: Map<DrawableId, FloatArray>) {
-		commit(change, mutableModel.value.withMeshUvs(newUvsByDrawable), mutablePose.value)
-	}
-
-	/**
-	 * Mirrors the selected vertices' texture coordinates about the transform pivot as ONE undo step -
-	 * the UV editor's Mirror U / V commands, serving the duplicated-and-flipped texture regions
-	 * workflow (both eyes sampling one eye texture).  The pivot follows [pivotMode], resolved in UV
-	 * space: Median Point mirrors about the covered vertices' combined median across every edited mesh,
-	 * Individual Origins mirrors each connectivity island about its own median, Active Element anchors
-	 * on the active element's median, and Cursor anchors on the UV cursor (each falling back to the
-	 * combined median when unresolvable - a mirror should never silently do nothing because a pivot was
-	 * never placed).  Mirroring is axis-aligned, so operating directly in normalized UV space matches
-	 * the on-screen result regardless of the shown surface's size.  A no-op outside Edit mode or with an
-	 * empty selection; a notice explains when no covered mesh carries an editable UV array.
-	 *
-	 * [frame] names the space the user is mirroring in, which for this operation is the whole question:
-	 * an axis in the atlas page's frame is a different axis in a rotated or mirrored source layer's.
-	 * With no frame the stored coordinates ARE the authoring space (the page view), and the whole
-	 * conversion drops out.  Untouched vertices keep their exact stored values either way, so a mirror
-	 * never marks a vertex changed that it did not move.
-	 *
-	 * [shownDrawableIds] narrows the mirror to the meshes the authoring surface shows.  An edit can span
-	 * pages and layers, and a mesh on another one is measured in another space: its coordinates would
-	 * move the shared pivot and be reflected through a frame they are not in.
-	 *
-	 * @param Boolean mirrorU True to mirror horizontally (u about the pivot), false vertically (v).
-	 * @param UvFrame? frame The authoring frame, or null when the stored coordinates are the frame.
-	 * @param Set<DrawableId>? shownDrawableIds The meshes the authoring surface shows, or null for every
-	 *   selected mesh.
-	 */
-	fun mirrorSelectedUvs(mirrorU: Boolean, frame: UvFrame? = null, shownDrawableIds: Set<DrawableId>? = null) {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
-		val selection = mutableMeshSelection.value
-		if (selection.isEmpty) {
-			// Speaks up, unlike the mode guard above: reaching Mirror with an empty selection is an ordinary
-			// mistake a rigger makes, where a request arriving outside Edit mode is stale bus traffic the
-			// palette already gates.
-			emitNotice("notice.uv.noSelection", NoticePlacement.NearCursor)
-			return
-		}
-		val model = mutableModel.value
-		// Resolve each session mesh's covered vertices, skipping meshes without an editable UV array
-		// (imports may leave uvs empty; a malformed length is excluded by the same guard as withMeshUvs).
-		val coveredByDrawable = LinkedHashMap<DrawableId, Set<Int>>()
-		val meshByDrawable = LinkedHashMap<DrawableId, DrawableMesh>()
-		for (drawableId in selection.drawableIds) {
-			if (shownDrawableIds != null && drawableId !in shownDrawableIds) {
-				continue
-			}
-			val mesh = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh ?: continue
-			if (mesh.uvs.isEmpty() || mesh.uvs.size != mesh.positions.size) {
-				continue
-			}
-			val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), mesh.indices)
-			if (covered.isEmpty()) {
-				continue
-			}
-			coveredByDrawable[drawableId] = covered
-			meshByDrawable[drawableId] = mesh
-		}
-		if (coveredByDrawable.isEmpty()) {
-			emitNotice("notice.uv.noUvs", NoticePlacement.NearCursor)
-			return
-		}
-		// The whole operation runs in the authoring frame: pivots, island medians, and the reflection
-		// itself.  With no frame these arrays are the stored ones and the conversions are absent.
-		val frameUvsByDrawable =
-			meshByDrawable.mapValues { (_, mesh) -> frame?.toFrame(mesh.uvs) ?: mesh.uvs }
-		val sharedPivot =
-			if (latches.pivotMode.value == TransformPivotMode.IndividualOrigins) {
-				null
-			} else {
-				resolveUvMirrorPivot(coveredByDrawable, meshByDrawable, frameUvsByDrawable, selection, frame)
-			}
-		val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>()
-		for ((drawableId, covered) in coveredByDrawable) {
-			val mesh = meshByDrawable.getValue(drawableId)
-			val frameUvs = frameUvsByDrawable.getValue(drawableId)
-			val groups =
-				if (sharedPivot == null) {
-					TransformPivots.islandGroups(frameUvs, covered, mesh.indices)
-				} else {
-					TransformPivots.sharedGroup(covered, sharedPivot.first, sharedPivot.second)
-				}
-			var mirroredUvs = frameUvs
-			for (group in groups) {
-				mirroredUvs =
-					MeshTransforms.scaleVerticesAxis(
-						mirroredUvs,
-						group.vertexIndices,
-						if (mirrorU) -1f else 1f,
-						if (mirrorU) 1f else -1f,
-						group.pivotX,
-						group.pivotY,
-					)
-			}
-			// Back to the stored form, then overwrite ONLY the covered vertices onto the current stored
-			// array: a frame round trip is exact in the reals but not in floats, so rebuilding from the
-			// stored values is what keeps an untouched vertex bit-identical (and out of the export's
-			// changed-uv set).  Without a frame the mirrored array is already stored-form and this is a
-			// straight copy of the moved components.
-			val storedMirrored = frame?.fromFrame(mirroredUvs) ?: mirroredUvs
-			val newUvs = mesh.uvs.copyOf()
-			for (vertexIndex in covered) {
-				newUvs[vertexIndex * 2] = storedMirrored[vertexIndex * 2]
-				newUvs[vertexIndex * 2 + 1] = storedMirrored[vertexIndex * 2 + 1]
-			}
-			newUvsByDrawable[drawableId] = newUvs
-		}
-		commitMeshUvs(MeshChange.MirrorUvs(newUvsByDrawable.keys.toList(), mirrorU), newUvsByDrawable)
-	}
-
-	/**
-	 * Resolves the shared UV mirror pivot for the single-anchor pivot modes: Cursor anchors on the UV
-	 * cursor and Active Element on the active element's covered median, each falling back to the
-	 * combined covered median across every edited mesh - which is also the Median Point result.
-	 *
-	 * Resolved in the AUTHORING frame throughout, so every anchor means the same thing the reflection
-	 * does - including the UV cursor, which is stored in atlas coordinates and converts in like the
-	 * meshes do.
-	 *
-	 * @param Map<DrawableId, Set<Int>> coveredByDrawable Each edited mesh's covered vertex indices.
-	 * @param Map<DrawableId, DrawableMesh> meshByDrawable Each edited mesh, keyed like the covered map.
-	 * @param Map<DrawableId, FloatArray> frameUvsByDrawable Each edited mesh's uvs in the authoring frame.
-	 * @param MeshSelection selection The live selection (for the active element).
-	 * @param UvFrame? frame The authoring frame, or null when the stored coordinates are the frame.
-	 * @return Pair<Float, Float> The pivot's (u, v), in the authoring frame.
-	 */
-	private fun resolveUvMirrorPivot(
-		coveredByDrawable: Map<DrawableId, Set<Int>>,
-		meshByDrawable: Map<DrawableId, DrawableMesh>,
-		frameUvsByDrawable: Map<DrawableId, FloatArray>,
-		selection: MeshSelection,
-		frame: UvFrame?,
-	): Pair<Float, Float> {
-		when (latches.pivotMode.value) {
-			TransformPivotMode.Cursor -> {
-				val cursor = latches.uvCursor.value
-				if (cursor != null) {
-					return frame?.pointToFrame(cursor.u, cursor.v) ?: (cursor.u to cursor.v)
-				}
-			}
-
-			TransformPivotMode.ActiveElement -> {
-				val active = selection.activeElement
-				val activeMesh = active?.let { activeElement -> meshByDrawable[activeElement.drawableId] }
-				val activeFrameUvs = active?.let { activeElement -> frameUvsByDrawable[activeElement.drawableId] }
-				if (active != null && activeMesh != null && activeFrameUvs != null) {
-					val activeCovered = MeshTopology.coveredVertexIndices(setOf(active.element), activeMesh.indices)
-					if (activeCovered.isNotEmpty()) {
-						return MeshTransforms.medianPivot(activeFrameUvs, activeCovered)
-					}
-				}
-			}
-
-			TransformPivotMode.MedianPoint, TransformPivotMode.IndividualOrigins -> {}
-		}
-		var sumU = 0f
-		var sumV = 0f
-		var coveredCount = 0
-		for ((drawableId, covered) in coveredByDrawable) {
-			val uvs = frameUvsByDrawable.getValue(drawableId)
-			for (vertexIndex in covered) {
-				sumU += uvs[vertexIndex * 2]
-				sumV += uvs[vertexIndex * 2 + 1]
-				coveredCount += 1
-			}
-		}
-		if (coveredCount == 0) {
-			// Unreachable today (callers pre-filter empty covered sets); the authoring frame's center is
-			// a safe anchor.
-			return 0.5f to 0.5f
-		}
-		return (sumU / coveredCount) to (sumV / coveredCount)
-	}
-
-	/**
-	 * Switches the Edit-mode select mode (vertex / edge / face) as its own undo step, converting the
-	 * stored selection into the new domain with Blender's flush-down / derive-up rules (see
-	 * [MeshSelectionOps.changeSelectMode]). The conversion is lossy by design, so the snapshot is what
-	 * makes it recoverable. A no-op outside Edit mode — so the bound 1 / 2 / 3 commands need no context
-	 * guard of their own and the keymap stays mode-agnostic — and a no-op when already in [selectMode].
-	 * Not a document edit — leaves dirty untouched.
-	 *
-	 * @param MeshSelectMode selectMode The new select mode.
-	 */
-	fun setMeshSelectMode(selectMode: MeshSelectMode) {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
-		val current = mutableMeshSelection.value
-		val model = mutableModel.value
-		val converted =
-			MeshSelectionOps.changeSelectMode(current, selectMode) { drawableId ->
-				model.drawables.firstOrNull { it.id == drawableId }?.mesh?.indices
-			}
-		if (converted == current) {
-			return
-		}
-		pushStep(
-			snapshot(meshSelection = converted),
-			EditorStateChange.MeshSelectModeChanged(selectMode),
-		)
-		mutableMeshSelection.value = converted
-		refreshFlags()
-		mutableChanges.tryEmit(EditorStateChange.MeshSelectModeChanged(selectMode))
-	}
-
-	/**
-	 * Selects every element of every session mesh in the current select mode (Blender's Select All) as
-	 * one undo step.  A no-op outside Edit mode, or when the Edit session holds no meshes - so the bound
-	 * command stays mode-agnostic (it dispatches to [selectAllObjects] in Object mode).  Not a document edit.
-	 */
-	fun selectAllMeshElements() {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
-		val current = mutableMeshSelection.value
-		val model = mutableModel.value
-		setMeshSelection(MeshSelectionOps.selectAll(current) { drawableId -> model.drawables.firstOrNull { it.id == drawableId }?.mesh })
-	}
-
-	/**
-	 * Inverts every session mesh's element selection within the current select mode (Blender's Ctrl+I) as
-	 * one undo step.  A no-op outside Edit mode, or when the Edit session holds no meshes.  Not a document
-	 * edit.
-	 */
-	fun invertMeshSelection() {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
-		val current = mutableMeshSelection.value
-		val model = mutableModel.value
-		setMeshSelection(MeshSelectionOps.invert(current) { drawableId -> model.drawables.firstOrNull { it.id == drawableId }?.mesh })
-	}
-
-	/**
-	 * Selects every selectable entity in the model (Object mode's Select All) as one undo step.  A no-op
-	 * outside Object mode - so the bound command stays mode-agnostic (it dispatches to [selectAllMeshElements]
-	 * in Edit mode).  Not a document edit.
-	 */
-	fun selectAllObjects() {
-		if (mutableMode.value != EditorMode.Object) {
-			return
-		}
-		setSelection(SelectionOps.selectAll(mutableSelection.value, mutableModel.value))
-	}
-
-	/**
-	 * Inverts the object selection over every selectable entity (Object mode's Ctrl+I) as one undo step.  A
-	 * no-op outside Object mode.  Not a document edit.
-	 */
-	fun invertObjectSelection() {
-		if (mutableMode.value != EditorMode.Object) {
-			return
-		}
-		setSelection(SelectionOps.invert(mutableSelection.value, mutableModel.value))
-	}
-
-	/**
-	 * True while the active mesh operator was latched with proportional editing suppressed - the
-	 * duplicate / rip auto-grabs, which place fresh copies and must never drag bystander vertices.
-	 * Transient latch state (never snapshotted), reset whenever the operator latches or clears.
-	 */
-	val activeMeshOperatorSuppressesProportional: Boolean
-		get() = latches.activeMeshOperatorSuppressesProportional
-
-	/**
-	 * Whether a mesh operator of [kind], latched as the active one, weights the unselected vertices near
-	 * the selection by proportional editing: every operator but Vertex Slide (positions-only, one vertex
-	 * along one edge), unless its latch suppressed proportional editing (the duplicate / rip auto-grab).
-	 * The one rule every proportional gate asks - the capture, the wheel, a mid-gesture change, the strip's
-	 * rows, the ring, and the status badge.  It takes the kind rather than reading the latch because each
-	 * gate already holds the kind it is deciding for.
-	 *
-	 * @param MeshOperatorKind kind The latched operator's kind.
-	 * @return Boolean True when the gesture takes proportional weights.
-	 */
-	fun meshOperatorTakesProportional(kind: MeshOperatorKind): Boolean =
-		kind != MeshOperatorKind.VertexSlide && !latches.activeMeshOperatorSuppressesProportional
-
-	/**
-	 * Latches a modal mesh operator so the gizmo overlay begins the gesture. A no-op unless Edit mode is
-	 * active with a drawable and a non-empty selection — so the bound G / S / R commands need no context
-	 * guard of their own and the keymap stays mode-agnostic. For an edge or face selection the gesture
-	 * moves the union of vertices the selected elements cover (resolved in the overlay).
-	 *
-	 * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
-	 * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
-	 * @param Boolean suppressProportional True to ignore proportional editing for this gesture (the
-	 *   duplicate / rip auto-grabs; treated like Vertex Slide at every proportional gate).
-	 */
-	fun beginMeshOperator(kind: MeshOperatorKind, areaId: String, suppressProportional: Boolean = false) {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
-		val selection = mutableMeshSelection.value
-		if (selection.drawableIds.isEmpty() || selection.isEmpty) {
-			return
-		}
-		latches.latchMeshOperator(kind, areaId, suppressProportional)
-	}
-
-	/** Clears the active modal mesh operator (the overlay calls this on confirm or cancel). */
-	fun clearMeshOperator() {
-		latches.clearMeshOperator()
-	}
-
-	/**
-	 * Begins an Object-mode modal transform (Grab / Scale / Rotate) over the selected drawables' whole
-	 * geometry - the Object-mode counterpart to [beginMeshOperator]. A no-op unless Object mode is active
-	 * with an eligible selection: at least one selected target must be a drawable that carries a mesh (see
-	 * [eligibleTransformDrawables]; parts, deformers, and mesh-less drawables in the selection are silently
-	 * ignored, so a Select All that swept them in never blocks the gesture). The gesture is BLOCKED with a
-	 * near-cursor notice when the pose is not at parameter defaults: the object overlay captures at the live
-	 * pose, and writing a deformed capture back through the warp inverse corrupts the rest meshes - the
-	 * Blender-style guard tells the user to reset the parameters first. Clears any other latched tool /
-	 * operator (mutual exclusion) before latching.
-	 *
-	 * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
-	 * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
-	 */
-	fun beginObjectOperator(kind: MeshOperatorKind, areaId: String) {
-		if (mutableMode.value != EditorMode.Object) {
-			return
-		}
-		if (eligibleTransformDrawables(mutableSelection.value, mutableModel.value) == null) {
-			// Nothing transformable at all (empty, or only parts / deformers / mesh-less drawables).
-			emitNotice("notice.transform.onlyDrawables", NoticePlacement.NearCursor)
-			return
-		}
-		if (!isPoseNeutral(mutableModel.value, mutablePose.value)) {
-			// Transforming rest geometry while the displayed pose is deformed would write garbage through
-			// the deformer inverse; refuse and tell the user how to proceed (see the docblock).
-			emitNotice("notice.transform.deformed", NoticePlacement.NearCursor)
-			return
-		}
-		latches.latchObjectOperator(kind, areaId)
-	}
-
-	/** Clears the active modal object operator (the overlay calls this on confirm or cancel). */
-	fun clearObjectOperator() {
-		latches.clearObjectOperator()
-	}
-
-	/**
-	 * Latches a modal UV operator so the UV editor's overlay begins the gesture - the UV-editor
-	 * counterpart to [beginMeshOperator].  What the gesture moves follows the mode: in Edit mode the
-	 * selected texture coordinates, in Object mode the selected drawables' atlas PLACEMENTS (the art
-	 * itself on its page, with the coordinates over it re-derived on commit).  Either way the bound
-	 * G / S / R commands stay mode-agnostic.  Vertex Slide is refused in both (it is rest-geometry math;
-	 * Blender's UV editor has no slide either).
-	 *
-	 * Edit mode is a silent no-op on an empty selection and BLOCKED with a near-cursor notice when no
-	 * covered mesh carries an editable UV array (imports may leave uvs empty), since latching would show
-	 * a modal HUD that can never commit anything.  Object mode is blocked with a notice when the stored
-	 * coordinates address the art rather than the pages (a placement is meaningless there), when
-	 * nothing selected is bound to packed art, and when every placed tile under the selection is
-	 * pinned (a pin holds against a hand move too).  Which page the overlay is showing - and whether it is
-	 * showing a page at all rather than a source layer - is per-area state the session cannot see, so
-	 * the overlay that owns the latch drops it with its own notice when its surface cannot serve the
-	 * gesture.  Clears any other latched tool / operator (mutual exclusion) before latching.
-	 *
-	 * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
-	 * @param String areaId The initiating UV editor's area id (only its overlay drives the gesture).
-	 */
-	fun beginUvOperator(kind: MeshOperatorKind, areaId: String) {
-		if (kind == MeshOperatorKind.VertexSlide) {
-			return
-		}
-		val model = mutableModel.value
-		when (mutableMode.value) {
-			EditorMode.Object -> {
-				if (!model.atlas.storedUvsAddressPages) {
-					emitNotice("notice.uv.placement.layerAddressed", NoticePlacement.NearCursor)
-					return
-				}
-				if (model.placementDragTileIds(mutableSelection.value).isEmpty()) {
-					// Placed art under the selection that still cannot move is pinned art.
-					val messageKey =
-						if (model.placementSelectedTileIds(mutableSelection.value).isEmpty()) {
-							"notice.uv.placement.noPlacedArt"
-						} else {
-							"notice.uv.placement.pinned"
-						}
-					emitNotice(messageKey, NoticePlacement.NearCursor)
-					return
-				}
-			}
-
-			EditorMode.Edit -> {
-				val selection = mutableMeshSelection.value
-				if (selection.drawableIds.isEmpty() || selection.isEmpty) {
-					return
-				}
-				val anyEditableUvs =
-					selection.drawableIds.any { drawableId ->
-						val mesh = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh
-						mesh != null &&
-							mesh.uvs.isNotEmpty() &&
-							mesh.uvs.size == mesh.positions.size &&
-							MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), mesh.indices).isNotEmpty()
-					}
-				if (!anyEditableUvs) {
-					emitNotice("notice.uv.noUvs", NoticePlacement.NearCursor)
-					return
-				}
-			}
-		}
-		latches.latchUvOperator(kind, areaId)
-	}
-
-	/** Clears the active modal UV operator (the overlay calls this on confirm or cancel). */
-	fun clearUvOperator() {
-		latches.clearUvOperator()
-	}
-
-	/**
-	 * Arms the Box-select tool (Blender's B): the gizmo overlay shows full-viewport crosshair guides and the
-	 * next drag boxes.  Mode-agnostic - in Edit mode it needs an active drawable (the box selects that mesh's
-	 * elements); in Object mode it arms unconditionally (the box selects whole drawables).  A no-op in Edit
-	 * mode without a drawable.  Clears any other latched tool / operator (mutual exclusion).
-	 *
-	 * @param String areaId The arming viewport's area id (only its overlay drives the drag).
-	 */
-	fun beginBoxSelect(areaId: String) {
-		if (mutableMode.value == EditorMode.Edit && mutableMeshSelection.value.drawableIds.isEmpty()) {
-			return
-		}
-		latches.armBoxSelect(areaId)
-	}
-
-	/**
-	 * Arms the Circle-select tool (Blender's C) at the remembered radius.  Mode-agnostic like [beginBoxSelect]:
-	 * needs an active drawable in Edit mode, arms unconditionally in Object mode.  Clears any other latched
-	 * tool / operator (mutual exclusion).
-	 *
-	 * @param String areaId The arming viewport's area id (only its overlay drives the brush).
-	 */
-	fun beginCircleSelect(areaId: String) {
-		if (mutableMode.value == EditorMode.Edit && mutableMeshSelection.value.drawableIds.isEmpty()) {
-			return
-		}
-		latches.armCircleSelect(areaId)
-	}
-
-	/**
-	 * Sets the Circle-select brush radius (clamped), remembering it for the next arm.  When a Circle tool is
-	 * live its radius updates in place so the overlay redraws; otherwise only the remembered value moves.
-	 *
-	 * @param Float radiusPx The requested radius in viewport pixels.
-	 */
-	fun setCircleRadius(radiusPx: Float) {
-		latches.setCircleRadius(radiusPx)
-	}
-
-	/** Grows the Circle-select radius by one step (numpad +); a no-op unless a Circle tool is live. */
-	fun growCircleRadius() {
-		latches.growCircleRadius()
-	}
-
-	/** Shrinks the Circle-select radius by one step (numpad -); a no-op unless a Circle tool is live. */
-	fun shrinkCircleRadius() {
-		latches.shrinkCircleRadius()
-	}
-
-	/** Clears any armed Box / Circle select tool (the overlay calls this on completion, Esc, or RMB). */
-	fun clearSelectTool() {
-		latches.clearSelectTool()
-	}
-
-	/**
-	 * Arms the Zoom Region gesture (Blender's Shift+B) for [areaId].  Mode-agnostic - valid in Object and
-	 * Edit mode.  Clears any latched Edit-mode tool so two overlays never capture at once.
-	 *
-	 * @param String areaId The viewport area the gesture will run in (the pointer's active area).
-	 */
-	fun armZoomRegion(areaId: String) {
-		latches.armZoomRegion(areaId)
-	}
-
-	/** Disarms the Zoom Region gesture (the overlay calls this on completion, Esc, or RMB). */
-	fun disarmZoomRegion() {
-		latches.disarmZoomRegion()
-	}
-
-	/**
-	 * The 2D cursor's world position, or null before any placement.  Transient session state like the
-	 * tool latches (deliberately NOT part of EditorSnapshot - see [Cursor2d]); placed by Shift+RightClick
-	 * in the viewport, moved by the snap commands, and drawn by the HUD overlay only once placed.  An
-	 * operation that uses the cursor as a point reads [cursor2dOrWorldOrigin] instead.
-	 */
-	val cursor2d: StateFlow<Cursor2d?> = latches.cursor2d
 
 	/**
 	 * Where the 2D cursor is: its placed point, or the world origin while it is unplaced.  An unplaced
@@ -1529,58 +770,12 @@ class EditorSession(
 		cursor2d.value ?: model.value.let { current -> Cursor2d(current.worldOriginX, current.worldOriginZ) }
 
 	/**
-	 * Places (or moves) the 2D cursor.
-	 *
-	 * @param Float worldX The cursor's new world-space x.
-	 * @param Float worldZ The cursor's new world-space z (up).
-	 */
-	fun setCursor2d(worldX: Float, worldZ: Float) {
-		latches.setCursor2d(worldX, worldZ)
-	}
-
-	/**
-	 * The UV editor's cursor in normalized atlas coordinates, or null before any placement.  The
-	 * texture-space sibling of [cursor2d] (see [UvCursor]): placed by Shift+RightClick in the UV editor,
-	 * drawn by its overlay, and read as the UV transform pivot in [TransformPivotMode.Cursor].
-	 */
-	val uvCursor: StateFlow<UvCursor?> = latches.uvCursor
-
-	/**
-	 * Places (or moves) the UV editor's cursor.
-	 *
-	 * @param Float u The cursor's new normalized atlas u coordinate.
-	 * @param Float v The cursor's new normalized atlas v coordinate.
-	 */
-	fun setUvCursor(u: Float, v: Float) {
-		latches.setUvCursor(u, v)
-	}
-
-	/**
-	 * The viewport grid geometry (major spacing + subdivisions) driving both the drawn backdrop grid and
-	 * the grid snap increment.  Session state, deliberately NOT snapshotted - like the 2D cursor.  Seeded from
-	 * the global-default settings, or from the document's own value when it saved one
-	 * ([gridFollowsApplication]).  Read by the snap commands ([GridConfig.snapStep]) and pushed to the renderer
-	 * by the viewport binding.
-	 */
-	val gridConfig: StateFlow<GridConfig> = latches.gridConfig
-
-	/**
 	 * Whether the grid follows the application's default rather than a value the document brought with it.
 	 *
 	 * The viewport binding pushes the default grid setting into the session at open and on every change to it; a
 	 * document that saved a grid of its own keeps it against that push, which is what makes it the document's.
 	 */
 	val gridFollowsApplication: Boolean = openingViewState?.gridConfig == null
-
-	/**
-	 * Sets the viewport grid geometry.  Called by the viewport binding when the global-default settings
-	 * change, while the grid follows them ([gridFollowsApplication]).
-	 *
-	 * @param GridConfig config The new grid scale and subdivisions.
-	 */
-	fun setGridConfig(config: GridConfig) {
-		latches.setGridConfig(config)
-	}
 
 	/**
 	 * The session state a saved document carries (docs/format/UMA.md § 7.4), as it stands now - the gather side of
@@ -1601,543 +796,6 @@ class EditorSession(
 			proportionalSettings = latches.proportionalSettings,
 			gridConfig = latches.gridConfig.value.takeUnless { gridFollowsApplication },
 		)
-
-	/**
-	 * What a modal Scale / Rotate turns the selection about (the Period pie / the header dropdown).
-	 * Transient editor state - it survives mode switches but is never snapshotted; the default is
-	 * Blender's Median Point.
-	 */
-	val pivotMode: StateFlow<TransformPivotMode> = latches.pivotMode
-
-	/**
-	 * Selects the transform pivot mode.
-	 *
-	 * @param TransformPivotMode mode The pivot mode the next transforms anchor on.
-	 */
-	fun setPivotMode(mode: TransformPivotMode) {
-		latches.setPivotMode(mode)
-	}
-
-	/**
-	 * The axis the in-flight modal Grab / Scale is locked to, or null when unconstrained.  Set by the
-	 * shell's key ladder (X / Z during a modal gesture - the keymap cannot see those keys, the operator
-	 * swallows them), read by the gizmo overlays' drive loops, cleared whenever an operator latches or
-	 * clears.  Transient coordination like [activeMeshOperator].
-	 */
-	val axisConstraint: StateFlow<TransformAxisConstraint?> = latches.axisConstraint
-
-	/**
-	 * Toggles the modal axis constraint (pressing a lock's own key again releases it; pressing the other
-	 * axis switches).  A no-op unless a Grab or Scale operator is in flight - Rotate has no axis to lock
-	 * and idle keys must not arm a stale constraint.
-	 *
-	 * @param TransformAxisConstraint axis The axis whose lock to toggle.
-	 */
-	fun toggleAxisConstraint(axis: TransformAxisConstraint) {
-		latches.toggleAxisConstraint(axis)
-	}
-
-	/**
-	 * The radial pie menu currently open over the viewport, or null.  Transient UI coordination: a
-	 * command opens it (Period / Shift+S / the merge menu), the pie host composable renders it at the
-	 * pointer, and picking an entry or Escape closes it.
-	 */
-	val activePieMenu: StateFlow<PieMenuKind?> = latches.activePieMenu
-
-	/**
-	 * Opens a pie menu over the viewport (closing any other transient latch is not needed - a pie is
-	 * display-only and the key ladder swallows input while one is open).
-	 *
-	 * @param PieMenuKind kind The pie to open.
-	 */
-	fun openPieMenu(kind: PieMenuKind) {
-		latches.openPieMenu(kind)
-	}
-
-	/** Closes the open pie menu (entry picked, Escape, or a click outside). */
-	fun closePieMenu() {
-		latches.closePieMenu()
-	}
-
-	/**
-	 * The keyform edit waiting on an axis, or null.  Transient UI coordination exactly like
-	 * [activePieMenu]: an ambiguous `I` / `Alt+I` parks here, the shell lists the candidate parameters at
-	 * the pointer, and picking one replays the edit through [resolveParameterChoice].
-	 */
-	val pendingParameterChoice: StateFlow<ParameterChoiceRequest?> = latches.pendingParameterChoice
-
-	/**
-	 * Parks a keyform edit until the user picks the axis it writes on.
-	 *
-	 * @param ParameterChoiceRequest request The parked edit and the axes to choose between.
-	 */
-	fun requestParameterChoice(request: ParameterChoiceRequest) {
-		latches.openParameterChoice(request)
-	}
-
-	/** Abandons the parked keyform edit (Escape, or a click outside the prompt). */
-	fun cancelParameterChoice() {
-		latches.closeParameterChoice()
-	}
-
-	/**
-	 * Proportional editing (Blender's O): non-null while enabled, carrying the falloff curve and the
-	 * influence radius.  Transient editor state like [pivotMode] - it survives mode switches but is
-	 * never snapshotted; the Edit overlay reads it when a modal operator latches (and on mid-gesture
-	 * radius scrolls) to weight the unselected vertices near the selection.
-	 */
-	val proportionalEdit: StateFlow<ProportionalEditState?> = latches.proportionalEdit
-
-	/**
-	 * Toggles proportional editing on or off (Blender's O), restoring the last falloff and radius on
-	 * re-enable and confirming either way with a near-cursor notice (an idle toggle has no other
-	 * visible effect - the influence circle only shows during a modal transform).
-	 */
-	fun toggleProportionalEdit() {
-		latches.toggleProportionalEdit()
-	}
-
-	/**
-	 * Toggles Connected Only for proportional editing (influence measured along mesh edges instead of
-	 * straight-line, so the halo never leaps to unconnected geometry), enabling proportional editing
-	 * if it was off - and then connected mode turns ON regardless of the remembered flag, since the
-	 * command expresses the intent to use it.  Confirms either way with a near-cursor notice.
-	 */
-	fun toggleProportionalConnected() {
-		latches.toggleProportionalConnected()
-	}
-
-	/**
-	 * Selects the proportional falloff curve, enabling proportional editing if it was off - picking a
-	 * falloff from the palette or header expresses the intent to use it, and silently updating a
-	 * disabled state would look like the command did nothing.
-	 *
-	 * @param ProportionalFalloff falloff The falloff curve the influence weights follow.
-	 */
-	fun setProportionalFalloff(falloff: ProportionalFalloff) {
-		latches.setProportionalFalloff(falloff)
-	}
-
-	/**
-	 * Sets the proportional influence radius, clamped to the allowed range.  A no-op while proportional
-	 * editing is off (the radius only changes from the mid-gesture scroll, which requires it on).
-	 *
-	 * @param Float radiusWorld The influence radius in world units (canvas px).
-	 */
-	fun setProportionalRadius(radiusWorld: Float) {
-		latches.setProportionalRadius(radiusWorld)
-	}
-
-	/**
-	 * Sets proportional editing outright - on with [state], or off with null - without a notice: the
-	 * operation settings strip writes an adjusted transform's proportional rows back through here, so
-	 * the next gesture starts from what the rigger last dialled in.
-	 *
-	 * @param ProportionalEditState? state The state to set, or null to turn proportional editing off.
-	 */
-	fun setProportionalEdit(state: ProportionalEditState?) {
-		latches.setProportionalEdit(state)
-	}
-
-	/**
-	 * Fires the geometry-dependent snap operations (Blender's Shift+S) for the active mode's overlay to
-	 * execute: the posed world projections and the deformer-chain inverse those snaps need live with the
-	 * overlays, not here (the same division as [meshConfirmRequests]).  The purely arithmetical snaps
-	 * (cursor to world origin / to grid) never pass through - their command handlers set the cursor
-	 * directly.
-	 *
-	 * The payload carries the dispatch-time resolved area (see [SnapRequest]) purely to elect ONE of the
-	 * open viewports; the handlers themselves ignore it.
-	 */
-	val snapRequests: SharedFlow<SnapRequest> = requestBus.snapRequests
-
-	/**
-	 * Requests a geometry-dependent snap (see [snapRequests]).
-	 *
-	 * @param SnapKind kind The snap to perform.
-	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
-	 */
-	fun requestSnap(kind: SnapKind, areaId: String?) {
-		requestBus.requestSnap(SnapRequest(kind, areaId))
-	}
-
-	/**
-	 * Fires Select Linked (Blender's L / Ctrl+L) for one overlay to execute: a keymap command carries
-	 * no pointer position, so the overlay (which tracks the pointer and owns the projected geometry)
-	 * picks the seed and floods.  The payload carries the flood variant AND the dispatch-time resolved
-	 * area (see [SelectLinkedRequest]), so collectors gate deterministically on their own area id
-	 * instead of re-reading a pointer-side volatile at collect time.
-	 */
-	val selectLinkedRequests: SharedFlow<SelectLinkedRequest> = requestBus.selectLinkedRequests
-
-	/**
-	 * Requests a Select Linked (see [selectLinkedRequests]).
-	 *
-	 * @param Boolean fromSelection True to flood from the whole selection (Ctrl+L), false from the cursor (L).
-	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
-	 */
-	fun requestSelectLinked(fromSelection: Boolean, areaId: String?) {
-		requestBus.requestSelectLinked(SelectLinkedRequest(fromSelection, areaId))
-	}
-
-	/**
-	 * Fires a UV snap (the UV editor's Shift+S pie) for one UV editor overlay to execute: the shown
-	 * surface's dimensions and display geometry live with the overlay, so it performs the snap over
-	 * the texture coordinates (the texture-space sibling of [snapRequests]).  The payload carries the
-	 * operation AND the dispatch-time resolved area (see [UvSnapRequest]), so the collector gates
-	 * deterministically on its own area id.
-	 */
-	val uvSnapRequests: SharedFlow<UvSnapRequest> = requestBus.uvSnapRequests
-
-	/**
-	 * Requests a UV snap (see [uvSnapRequests]).
-	 *
-	 * @param UvSnapRequest request The snap operation plus the executing overlay's area, resolved at
-	 *   command dispatch; a null area (the hovered surface was not a UV editor) no-ops.
-	 */
-	fun requestUvSnap(request: UvSnapRequest) {
-		requestBus.requestUvSnap(request)
-	}
-
-	/**
-	 * Fires a mirror (the uv.mirrorU / uv.mirrorV commands) for one UV editor overlay to execute: the
-	 * axis a mirror reflects about depends on the surface being authored over - an atlas page or a
-	 * source layer - and only the overlay knows which it is showing, so it supplies the frame and calls
-	 * [mirrorSelectedUvs].  The payload carries the axis AND the dispatch-time resolved area (see
-	 * [UvMirrorRequest]), so the collector gates deterministically on its own area id.
-	 */
-	val uvMirrorRequests: SharedFlow<UvMirrorRequest> = requestBus.uvMirrorRequests
-
-	/**
-	 * Requests a mirror (see [uvMirrorRequests]).
-	 *
-	 * @param UvMirrorRequest request The mirror axis plus the executing overlay's area, resolved at
-	 *   command dispatch; a null area (the hovered surface was not a UV editor) no-ops.
-	 */
-	fun requestUvMirror(request: UvMirrorRequest) {
-		requestBus.requestUvMirror(request)
-	}
-
-	/**
-	 * Fires a page switch (the uv.page.* palette commands) for one UV editor area to execute: the
-	 * per-area texture selection (the page pin) lives with the area's view state, not the session, so
-	 * the space applies the transition itself.  The payload carries the operation AND the
-	 * dispatch-time resolved area (see [UvPageRequest]), so the collector gates deterministically on
-	 * its own area id.
-	 */
-	val uvPageRequests: SharedFlow<UvPageRequest> = requestBus.uvPageRequests
-
-	/**
-	 * Requests a page switch (see [uvPageRequests]).
-	 *
-	 * @param UvPageRequest request The page operation plus the executing area, resolved at command
-	 *   dispatch; a null area (the hovered surface was not a UV editor) no-ops.
-	 */
-	fun requestUvPage(request: UvPageRequest) {
-		requestBus.requestUvPage(request)
-	}
-
-	/**
-	 * Fires "switch the edited mesh to the drawable under the cursor" (Alt+Q) for the Edit overlay to
-	 * execute - the pointer position and the pick live there (the same division as
-	 * [selectLinkedRequests]).  The payload IS the dispatch-time resolved area, so the collector gates on
-	 * its own id rather than re-reading a pointer-side volatile at collect time.
-	 */
-	val switchObjectRequests: SharedFlow<String?> = requestBus.switchObjectRequests
-
-	/**
-	 * Requests an Alt+Q edited-mesh switch (see [switchObjectRequests]).
-	 *
-	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
-	 */
-	fun requestSwitchObjectUnderCursor(areaId: String?) {
-		requestBus.requestSwitchObjectUnderCursor(areaId)
-	}
-
-	/**
-	 * Fires a rip (Blender's V) for the Edit overlay to execute: which side of the fan follows the
-	 * ripped copies depends on the pointer, which lives with the overlay (the same division as
-	 * [selectLinkedRequests]).  The payload IS the dispatch-time resolved area, so the collector gates on
-	 * its own id rather than re-reading a pointer-side volatile at collect time.
-	 */
-	val ripRequests: SharedFlow<String?> = requestBus.ripRequests
-
-	/**
-	 * Requests a rip at the pointer (see [ripRequests]).
-	 *
-	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
-	 */
-	fun requestRip(areaId: String?) {
-		requestBus.requestRip(areaId)
-	}
-
-	/**
-	 * Commits a topology operation on one session mesh as ONE undo step: the model takes the edit (mesh
-	 * swap, keyform-delta rebuild, glue remap - see [withMeshTopologyEdit]) and the mesh selection
-	 * becomes the operation's result elements on that mesh, in the SAME history push - splitting them
-	 * would let undo tear the selection from the topology it indexes into.  The ops produce vertex
-	 * results; they are re-derived into the CURRENT select mode (Blender keeps the mode across a
-	 * topology op - a face-mode duplicate leaves the new faces selected in face mode), falling back to
-	 * vertex mode only when nothing in the current domain covers them (e.g. a duplicated lone edge
-	 * copies as loose vertices, which no edge or face contains - stranding them unselected would hide
-	 * the copies and starve the follow-up auto-grab).  A no-op edit records nothing.
-	 *
-	 * @param String labelKey The operation's history label key (change.mesh.duplicate / merge / rip / connect).
-	 * @param DrawableId drawableId The edited mesh.
-	 * @param TopologyOpResult result The op builder's outcome.
-	 * @return Boolean True when a step was recorded; false for a no-op edit, after which a caller must
-	 *   not register the operation as adjustable (there is no step of its own to amend).
-	 */
-	fun commitMeshTopology(labelKey: String, drawableId: DrawableId, result: TopologyOpResult): Boolean {
-		val newModel = mutableModel.value.withMeshTopologyEdit(drawableId, result.edit)
-		if (newModel === mutableModel.value) {
-			return false
-		}
-		val current = mutableMeshSelection.value
-		val vertexResult =
-			MeshSelection(
-				drawableIds = current.drawableIds,
-				activeDrawableId = drawableId,
-				selectMode = MeshSelectMode.Vertex,
-				elementsByDrawable = if (result.newElements.isEmpty()) emptyMap() else mapOf(drawableId to result.newElements),
-				activeElement = result.newElements.firstOrNull()?.let { element -> ActiveMeshElement(drawableId, element) },
-			)
-		val newSelection = rederiveTopologyResult(vertexResult, current.selectMode, drawableId, newModel)
-		val change = MeshChange.TopologyEdit(drawableId, labelKey)
-		pushStep(snapshot(model = newModel, meshSelection = newSelection), change)
-		mutableModel.value = newModel
-		mutableMeshSelection.value = newSelection
-		refreshFlags()
-		mutableChanges.tryEmit(change)
-		return true
-	}
-
-	/**
-	 * Converts a topology op's vertex-mode result selection into [selectMode] against [newModel] (the
-	 * post-edit topology, where the new elements exist), via the strict derive-up rules of
-	 * [MeshSelectionOps.changeSelectMode]; the first derived element becomes active.  Returns the
-	 * vertex result unchanged when the session is already in vertex mode, when the op selected
-	 * nothing, or when nothing in the target domain covers the new vertices (see
-	 * [commitMeshTopology]'s docblock for that fallback's rationale).
-	 *
-	 * @param MeshSelection vertexResult The op's result selection, in vertex mode.
-	 * @param MeshSelectMode selectMode The session's current select mode to re-derive into.
-	 * @param DrawableId drawableId The edited mesh.
-	 * @param PuppetModel newModel The model with the topology edit applied.
-	 * @return MeshSelection The result selection in the kept mode, or the vertex fallback.
-	 */
-	private fun rederiveTopologyResult(
-		vertexResult: MeshSelection,
-		selectMode: MeshSelectMode,
-		drawableId: DrawableId,
-		newModel: PuppetModel,
-	): MeshSelection {
-		if (selectMode == MeshSelectMode.Vertex || vertexResult.elementsOf(drawableId).isEmpty()) {
-			return vertexResult
-		}
-		val rederived =
-			MeshSelectionOps.changeSelectMode(vertexResult, selectMode) { candidateId ->
-				newModel.drawables.firstOrNull { drawable -> drawable.id == candidateId }?.mesh?.indices
-			}
-		val rederivedElements = rederived.elementsOf(drawableId)
-		if (rederivedElements.isEmpty()) {
-			return vertexResult
-		}
-		return rederived.copy(activeElement = ActiveMeshElement(drawableId, rederivedElements.first()))
-	}
-
-	/**
-	 * Duplicates the ACTIVE session mesh's covered elements in place (Edit-mode Shift+D) as one undo
-	 * step, leaving the copies selected - the caller follows with a Grab so the copies pull away under
-	 * the pointer, Blender-style.  A no-op outside Edit mode or with nothing covered on the active mesh.
-	 */
-	fun duplicateSelectedElements() {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
-		val selection = mutableMeshSelection.value
-		val drawableId = selection.activeDrawableId ?: return
-		val mesh = mutableModel.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
-		val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), mesh.indices)
-		val result = MeshTopologyOps.duplicateElements(mesh, covered) ?: return
-		commitMeshTopology("change.mesh.duplicate", drawableId, result)
-	}
-
-	/**
-	 * Merges the ACTIVE session mesh's selected vertices (Blender's M) as one undo step, leaving the
-	 * survivor selected, and registers the step on the operation settings strip with its one row, Merge
-	 * At - so a merge landed at the center can be re-landed at the first or last vertex without undoing.
-	 * The rerun re-merges the SAME vertices from the record's base; every target keeps the survivor at
-	 * the same index, so the survivor selection the step carries stays valid across an adjustment.
-	 * Vertex mode only - the first / last targets read the selection order, which only vertex elements
-	 * carry directly.  Refusals explain themselves with a near-cursor notice.
-	 *
-	 * @param MergeTarget target Where the survivor lands (center / first / last).
-	 * @param String? areaId The area the strip shows in (opaque here, like the operator latches), or null.
-	 */
-	fun mergeSelectedVertices(target: MergeTarget, areaId: String? = null) {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
-		val selection = mutableMeshSelection.value
-		val drawableId = selection.activeDrawableId ?: return
-		if (selection.selectMode != MeshSelectMode.Vertex) {
-			emitNotice("notice.merge.needsVertices", NoticePlacement.NearCursor)
-			return
-		}
-		// The element set is insertion-ordered (a LinkedHashSet built by the gestures), so "first" is
-		// the earliest-selected vertex; "last" prefers the active element (the most recent touch).
-		val orderedVertices = selection.elementsOf(drawableId).filterIsInstance<MeshElement.Vertex>().map { vertex -> vertex.index }.toMutableList()
-		(selection.activeElement?.element as? MeshElement.Vertex)?.let { activeVertex ->
-			if (orderedVertices.remove(activeVertex.index)) {
-				orderedVertices.add(activeVertex.index)
-			}
-		}
-		if (orderedVertices.size < 2) {
-			emitNotice("notice.merge.needsVertices", NoticePlacement.NearCursor)
-			return
-		}
-		val mesh = mutableModel.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
-		val result = MeshTopologyOps.mergeVertices(mesh, orderedVertices, target) ?: return
-		if (!commitMeshTopology("change.mesh.merge", drawableId, result)) {
-			return
-		}
-		val mergedVertices = orderedVertices.toList()
-		registerAdjustableOperation(mutableModel.value, areaId, mergeParameters(target)) { record ->
-			val adjustedTarget = mergeTargetOf(record.parameters, target)
-			val baseModel = record.baseSnapshot.model
-			val baseMesh = baseModel.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return@registerAdjustableOperation
-			val rerun = MeshTopologyOps.mergeVertices(baseMesh, mergedVertices, adjustedTarget) ?: return@registerAdjustableOperation
-			amendLastCommit(record, baseModel.withMeshTopologyEdit(drawableId, rerun.edit))
-		}
-	}
-
-	/**
-	 * Connects the ACTIVE session mesh's two selected vertices with a cut (Blender's J) as one undo
-	 * step, leaving the cut path selected.  Exactly two selected vertices in vertex mode; a refusal
-	 * (already connected, nothing crossed, degenerate geometry) explains itself with a notice.
-	 */
-	fun connectSelectedVertices() {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
-		val selection = mutableMeshSelection.value
-		val drawableId = selection.activeDrawableId ?: return
-		val vertices = selection.elementsOf(drawableId).filterIsInstance<MeshElement.Vertex>().map { vertex -> vertex.index }
-		if (selection.selectMode != MeshSelectMode.Vertex || vertices.size != 2) {
-			emitNotice("notice.connect.needsTwoVertices", NoticePlacement.NearCursor)
-			return
-		}
-		val mesh = mutableModel.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
-		val result = MeshTopologyOps.connectVertices(mesh, vertices[0], vertices[1])
-		if (result == null) {
-			emitNotice("notice.connect.refused", NoticePlacement.NearCursor)
-			return
-		}
-		commitMeshTopology("change.mesh.connect", drawableId, result)
-	}
-
-	/**
-	 * Duplicates every eligible selected drawable (Object-mode Shift+D) as ONE undo step: each copy
-	 * lands after its source in the org tree, and the selection becomes the copies - the caller follows
-	 * with a Grab so they pull away under the pointer, Blender-style.
-	 *
-	 * @return List<DrawableId> The created copies (empty when nothing was eligible).
-	 */
-	fun duplicateSelectedDrawables(): List<DrawableId> {
-		if (mutableMode.value != EditorMode.Object) {
-			return emptyList()
-		}
-		val eligibleIds = eligibleTransformDrawables(mutableSelection.value, mutableModel.value) ?: return emptyList()
-		var newModel = mutableModel.value
-		val copies = ArrayList<DrawableId>(eligibleIds.size)
-		for (drawableId in eligibleIds) {
-			val (edited, copyId) = newModel.withDrawableDuplicated(drawableId) ?: continue
-			newModel = edited
-			copies.add(copyId)
-		}
-		if (copies.isEmpty() || newModel === mutableModel.value) {
-			return emptyList()
-		}
-		val newSelection =
-			Selection(
-				copies.map { copyId -> SelectionTarget.Drawable(copyId) }.toSet<SelectionTarget>(),
-				SelectionTarget.Drawable(copies.last()),
-			)
-		val change = DrawableChange.Duplicate(copies)
-		pushStep(snapshot(model = newModel, selection = newSelection), change)
-		mutableModel.value = newModel
-		mutableSelection.value = newSelection
-		refreshFlags()
-		mutableChanges.tryEmit(change)
-		return copies
-	}
-
-	/**
-	 * Re-seeds the Edit session onto one drawable (Alt+Q's switch), as ONE undo step covering both
-	 * selections: the session's meshes become just [drawableId] (with its remembered elements restored
-	 * where they still fit), and the OBJECT selection moves onto the same drawable - so tabbing back to
-	 * Object mode keeps the switched mesh instead of reviving the selection Edit mode was entered with.
-	 * The outgoing meshes' element selections stash into the per-mesh memory first, and the
-	 * remembered-drawable memory follows.  A no-op outside Edit mode or when the drawable carries no
-	 * mesh.
-	 *
-	 * Built as one combined snapshot push (never chained setSelection + setMeshSelection - each of
-	 * those snapshots the OTHER selection's pre-change value, which would tear the pair across two
-	 * undo steps).
-	 *
-	 * @param DrawableId drawableId The mesh to edit next.
-	 */
-	fun switchEditDrawable(drawableId: DrawableId) {
-		if (mutableMode.value != EditorMode.Edit) {
-			return
-		}
-		val model = mutableModel.value
-		if (model.drawables.none { drawable -> drawable.id == drawableId && drawable.mesh != null }) {
-			return
-		}
-		elementMemory.stash(mutableMeshSelection.value)
-		elementMemory.lastActiveDrawableId = drawableId
-		val newObjectSelection = SelectionOps.replace(SelectionTarget.Drawable(drawableId))
-		val newMeshSelection = elementMemory.restore(MeshSelection.editing(listOf(drawableId)), model)
-		if (newObjectSelection == mutableSelection.value && newMeshSelection == mutableMeshSelection.value) {
-			return
-		}
-		pushStep(
-			snapshot(model = model, selection = newObjectSelection, meshSelection = newMeshSelection),
-			EditorStateChange.MeshSelectionChanged,
-		)
-		mutableSelection.value = newObjectSelection
-		mutableMeshSelection.value = newMeshSelection
-		refreshFlags()
-		mutableChanges.tryEmit(EditorStateChange.MeshSelectionChanged)
-	}
-
-	/**
-	 * Fires when an in-flight modal mesh gesture should confirm. The working positions live in the desktop
-	 * overlay, so the session cannot commit directly - it signals here and the overlay commits. This is the
-	 * keyboard path (Enter); a primary click confirms in the overlay's own pointer loop.
-	 */
-	val meshConfirmRequests: SharedFlow<Unit> = requestBus.meshConfirmRequests
-
-	/** Requests that the gizmo overlay confirm the in-flight modal gesture (bound to Enter, like a click). */
-	fun requestMeshConfirm() {
-		requestBus.requestMeshConfirm()
-	}
-
-	/**
-	 * Fires when an in-flight selection gesture should be abandoned (Escape).  The box rubber-band and the
-	 * circle stroke live in the overlay's local state, so the session cannot discard them directly - it
-	 * signals here and the overlay clears them.  Clearing a latched tool ([clearSelectTool]) already tells
-	 * the overlay to abandon its gesture through the tool flow; this is the extra path for a non-armed box
-	 * drag, which owns no tool state to change.
-	 */
-	val meshGestureCancelRequests: SharedFlow<Unit> = requestBus.meshGestureCancelRequests
-
-	/** Requests that the gizmo overlay abandon any in-flight box / circle selection gesture (bound to Escape). */
-	fun requestMeshGestureCancel() {
-		requestBus.requestMeshGestureCancel()
-	}
 
 	/**
 	 * Steps back one undo level, republishing the model and selection. No-op when nothing to undo, and while
@@ -2199,7 +857,7 @@ class EditorSession(
 	/**
 	 * Restores every session flow from [snapshot] - the history mechanism behind undo, redo, and jumpTo.
 	 * Also updates the remembered active drawable and tears down all transient tool state (see the inline
-	 * comment), then republishes the derived flags.
+	 * comment), publishes the snapshot through [publish], and republishes the derived flags.
 	 *
 	 * @param EditorSnapshot snapshot The history snapshot to restore.
 	 */
@@ -2212,24 +870,18 @@ class EditorSession(
 		(snapshot.selection.active as? SelectionTarget.Drawable)?.let { activeDrawable ->
 			elementMemory.lastActiveDrawableId = activeDrawable.id
 		}
-		mutableModel.value = snapshot.model
-		mutableSelection.value = snapshot.selection
-		mutablePose.value = snapshot.pose
-		mutableMeshSelection.value = snapshot.meshSelection
-		mutableParameterSelection.value = snapshot.parameterSelection
-		// Restored, not cleared: the snapshot carries the pose these values were chosen for, so restoring the
-		// pair together keeps them coherent - an undo must land on the step's pose WITH the step's pending
-		// edits, not on the pose alone.
-		mutablePendingChannelEdits.value = snapshot.pendingChannelEdits
-		mutableKeySelection.value = snapshot.keySelection
 		// An undo / redo ends any in-flight gesture or armed tool, regardless of the restored mode: the select
 		// tool and its overlays are shared across modes, so a tool armed in one mode must not survive a restore
-		// into a snapshot of the other and drive the wrong overlay.
+		// into a snapshot of the other and drive the wrong overlay.  Cleared BEFORE the flows publish, so the
+		// mode never flips while a tool is still armed.
 		latches.clearTransient(clearAxisConstraint = true, clearViewportGesture = true)
 		latches.setPreviewSelection(null)
 		latches.setMeshPreviewSelection(null)
 		latches.closePieMenu()
-		mutableMode.value = snapshot.mode
+		// The pending edits are published, not cleared: the snapshot carries the pose these values were chosen
+		// for, so publishing the pair together keeps them coherent - an undo must land on the step's pose WITH
+		// the step's pending edits, not on the pose alone.
+		publish(snapshot)
 		refreshFlags()
 	}
 

@@ -3,6 +3,9 @@ package org.umamo.ui.workspace.commands
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.beginMeshOperator
+import org.umamo.edit.beginObjectOperator
+import org.umamo.edit.beginUvOperator
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandSpaces

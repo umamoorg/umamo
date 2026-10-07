@@ -16,7 +16,7 @@ const val CIRCLE_RADIUS_STEP_PX: Float = 8f
  * A latched Edit-mode selection tool the gizmo overlay drives - the selection-gesture analog of
  * [MeshOperatorKind].  Null when no tool is armed (a plain click selects and an empty drag rubber-bands a
  * box); a command latches one and the overlay reads it to reinterpret pointer input.  Transient editor
- * state, never snapshotted and never on the change bus, exactly like [EditorSession.activeMeshOperator].
+ * state, never snapshotted and never on the change bus, exactly like [SessionToolLatches.activeMeshOperator].
  */
 sealed interface ActiveSelectTool {
 	/**

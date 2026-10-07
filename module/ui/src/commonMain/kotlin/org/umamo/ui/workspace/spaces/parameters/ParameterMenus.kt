@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import org.umamo.edit.EditorSession
 import org.umamo.edit.createParameter
 import org.umamo.edit.createParameterGroup
+import org.umamo.edit.deleteParameter
 import org.umamo.edit.deleteParameterGroup
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId

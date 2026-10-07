@@ -19,6 +19,10 @@ import org.umamo.edit.RotationAngleTracker
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformGestureParameters
+import org.umamo.edit.beginMeshOperator
+import org.umamo.edit.beginObjectOperator
+import org.umamo.edit.selectAllMeshElements
+import org.umamo.edit.selectAllObjects
 import org.umamo.edit.withMeshPositions
 import org.umamo.edit.withMeshUvs
 import org.umamo.format.moc3.Moc3

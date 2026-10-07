@@ -393,3 +393,31 @@ fun EditorSession.createParameter(name: String, kind: ParameterKind = ParameterK
 fun EditorSession.renameParameter(id: ParameterId, newName: String) {
 	mutate(ParameterChange.Rename(id, newName.trim())) { model -> model.withParameterRenamed(id, newName) }
 }
+
+/**
+ * Deletes parameter [id] everywhere - the axis list, the panel tree, any link, every object's keyform
+ * grid (its axis collapses to the default slice), and the live pose - as one undo step. A model edit,
+ * so it marks the document dirty; dropping the pose entry rides the same step so undo restores both.
+ * Goes through [EditorSession.commitStep] rather than [EditorSession.mutate] because it commits a new
+ * model, a new pose, and the pruned target together, like [setParameterRange]. A no-op (no such parameter) records nothing. When the delete moves the rest pose
+ * of any object - a default between two keys, a sparse sole-axis track or deformer grid, or a blend shape
+ * its scrub cannot keep exact ([ParameterDeletion.restChangedOwners]) - a notice says how many.
+ *
+ * @param ParameterId id The parameter to delete.
+ */
+fun EditorSession.deleteParameter(id: ParameterId) {
+	val before = model.value
+	// One walk gives both the model and the owners it moved; asking the question of the model again
+	// would walk every grid and binding a second time.
+	val deletion = before.parameterDeletionOf(id) ?: return
+	val newModel = deletion.model
+	val restChanged = deletion.restChangedOwners
+	// The target must never dangle on a parameter the model no longer has - pruned in the SAME step, so
+	// the pushed snapshot holds the pruned selection and a later redo (or a History jump to this entry)
+	// cannot restore the dangling id.
+	val prunedTarget = parameterSelection.value.prunedTo(newModel.parameters.mapTo(HashSet()) { parameter -> parameter.id })
+	commitStep(ParameterChange.Delete(id), model = newModel, pose = pose.value - id, parameterSelection = prunedTarget)
+	if (restChanged.isNotEmpty()) {
+		emitNotice("notice.parameter.deleteChangedRest", arguments = listOf(restChanged.size.toString()))
+	}
+}

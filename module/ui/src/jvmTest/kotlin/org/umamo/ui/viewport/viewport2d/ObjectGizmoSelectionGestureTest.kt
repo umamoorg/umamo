@@ -12,6 +12,8 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
+import org.umamo.edit.beginBoxSelect
+import org.umamo.edit.beginCircleSelect
 import org.umamo.edit.toggleSelectable
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId

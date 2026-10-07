@@ -36,6 +36,9 @@ kotlin {
 		commonTest {
 			dependencies {
 				implementation(kotlin("test"))
+				// runTest + a background collector for the request-bus tests: a SharedFlow with no replay drops
+				// a tryEmit that nobody is collecting, so each test has to subscribe before it requests.
+				implementation(libs.kotlinxCoroutinesTest)
 			}
 		}
 		jvmTest {

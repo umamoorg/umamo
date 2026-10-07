@@ -9,6 +9,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.UvSnapKind
+import org.umamo.edit.mirrorSelectedUvs
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
