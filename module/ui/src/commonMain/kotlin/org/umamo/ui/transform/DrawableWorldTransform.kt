@@ -21,8 +21,8 @@ import org.umamo.runtime.model.PuppetModel
  * world space; for a drawable parented to a deformer the base is in the deformer's space - a corpus model has
  * an art mesh whose base is 1.9 units wide while the drawable itself is 183.8 wide - and the canvas mesh
  * (Drawable.mesh.positions) is only the editable mesh as it was last laid out, which a deformer edit leaves
- * behind.  Reading or writing either directly shows meaningless numbers and turns a small typed nudge into a
- * huge transform.
+ * behind.  Reading either directly shows numbers that are not the shape on screen; writing the canvas mesh
+ * moves nothing the viewport draws, and writing the base turns a small typed nudge into a huge transform.
  *
  * So the panel works in WORLD space, the same space the viewport and the object gizmo use, and reuses the
  * gizmo's round trip: capture world, transform world, invert to local, difference back onto the base, and
@@ -98,8 +98,9 @@ internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: Drawable
  * The round trip mirrors the object gizmo: project the posed local geometry to world, let the caller
  * reshape it there, invert the result back to local through the deformer chain, then difference that
  * against the posed local shape to recover the new base (a keyformed drawable's base is not its displayed
- * shape, so the delta is what carries over); the canvas mesh moves by the world movement.  Refuses off the neutral pose, on a missing mesh or
- * mapping, and on a transform that returned its input unchanged - each records nothing.
+ * shape, so the delta is what carries over); the canvas mesh moves by the world movement.  Refuses off the
+ * neutral pose, on a missing mesh or mapping, and on a transform that returned its input unchanged - each
+ * records nothing.
  *
  * @param DrawableId id The drawable to transform.
  * @param MeshChange change The history descriptor for the edit.

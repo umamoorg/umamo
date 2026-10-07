@@ -28,9 +28,9 @@ import org.umamo.ui.viewport.gizmo.gestureParameters
 /**
  * The captured state of an in-flight Object-mode transform: the shared [ModalTransformCapture] (which owns
  * the pivot groups, the anchor, the frozen operator kind, and the rotation tracker) plus the per-drawable
- * [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the base mesh.
- * The geometry is held in a map keyed on the drawable id, looked up by [org.umamo.edit.ModalCaptureEntry],
- * so nothing stays index-aligned with the capture's entry list.
+ * [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the rest
+ * arrays.  The geometry is held in a map keyed on the drawable id, looked up by
+ * [org.umamo.edit.ModalCaptureEntry], so nothing stays index-aligned with the capture's entry list.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, kind).
  * @property Map<DrawableId, DrawableWorldGeometry> geometryById Each captured drawable's world geometry.

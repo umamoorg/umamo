@@ -20,8 +20,9 @@ import kotlin.test.assertTrue
  *
  * An unkeyed drawable has only its base, and the base lives in its parent deformer's space - the space a moc
  * stores every keyform in - so the export writes it as it is.  The drawable is pinned under a warp, where a base
- * in any other space would miss by the whole lattice transform: written with nothing reported, its base read back
- * bit for bit, and its canvas mesh - derived again at load by the rest pass - where it started.
+ * in any other space would miss by the whole lattice transform: written with nothing about it reported as
+ * unsupported, its base read back bit for bit, and its canvas mesh - derived again at load by the rest pass -
+ * where it started.
  *
  * Gated on `-Dmoc3.sample`; self-skips without it.
  */

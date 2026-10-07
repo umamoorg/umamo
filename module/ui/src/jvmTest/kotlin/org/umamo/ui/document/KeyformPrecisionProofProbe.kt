@@ -17,8 +17,8 @@ import kotlin.test.assertIs
  * loader's import and canvas-space rest pass, then the export.  Every keyform component of every warp- or
  * rotation-parented mesh is compared with the file it came from, its error measured, and each triangle checked
  * for a winding the rebuilt keyform flipped.  One vertex is traced through each value it passes through, so a
- * report can show the arithmetic on real numbers.  Written to compile against the float32 build before the double
- * deltas and the build after them.
+ * report can show the arithmetic on real numbers.  Written to compile whether a build stores its deltas as float32
+ * or float64, so the same probe measures either.
  *
  * A probe, not a gate: it asserts nothing about the numbers and self-skips without `-Dproof.sample`.
  * `-Dproof.mesh`, `-Dproof.keyform`, and `-Dproof.component` pin the traced vertex, so both builds trace the same one.

@@ -19,12 +19,12 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
  * along with its mesh and derived unique edges.  The Edit session spans several meshes, so the overlay
  * carries one of these per drawable.
  *
- * The three-space geometry is the SAME primitive the object gizmo and the Properties transform panel use, so
+ * The geometry is the SAME primitive the object gizmo and the Properties transform panel use, so
  * an Edit-mode drag inverts a transformed world shape back onto the rest arrays through the shared
  * [DrawableWorldGeometry.worldToRest] rather than an open-coded round trip.
  *
  * @property DrawableWorldGeometry worldGeometry The drawable's rest / displayed / world geometry and inverse.
- * @property DrawableMesh mesh The drawable's live mesh (positions, uvs, indices).
+ * @property DrawableMesh mesh The drawable's live mesh (positions, localPositions, uvs, indices).
  * @property List<MeshElement.Edge> edges The mesh's unique edges, in first-encounter order.
  */
 internal class EditMeshGeometry(
@@ -62,7 +62,7 @@ internal class EditMeshGeometry(
  * (displayed = base + the neutral keyform blend), its deformer-chain mapping, and its world projection.
  *
  * A drawable whose mapping cannot be built (a hidden ancestor) is skipped: it cannot be drawn, so it
- * cannot be edited - the same three-space primitive the object gizmo and Properties use.  An empty
+ * cannot be edited - the same primitive the object gizmo and Properties use.  An empty
  * result is therefore a real state, not a failure, and it is exactly the state the pointer-addressed
  * commands have to keep working in.  The capture is one batch, so the deformer chain bakes once per
  * commit rather than once per mesh.
@@ -73,7 +73,7 @@ internal class EditMeshGeometry(
  */
 internal fun editMeshGeometries(model: PuppetModel, drawableIds: List<DrawableId>): List<EditMeshGeometry> {
 	val drawableById = model.drawables.associateBy { drawable -> drawable.id }
-	// Edit mode is pinned to the neutral pose, so the three-space geometry is captured at emptyMap().
+	// Edit mode is pinned to the neutral pose, so the geometry is captured at emptyMap().
 	return captureDrawableWorlds(model, emptyMap(), drawableIds).mapNotNull { worldGeometry ->
 		val mesh = drawableById[worldGeometry.drawableId]?.mesh ?: return@mapNotNull null
 		EditMeshGeometry(

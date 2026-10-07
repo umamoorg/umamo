@@ -22,7 +22,7 @@ import kotlin.test.assertSame
 
 /**
  * Pins the batched capture against the per-drawable capture it replaces in every loop: the same
- * three-space answer per drawable, the same drops for what cannot be captured, and the same aliasing
+ * answer in every space per drawable, the same drops for what cannot be captured, and the same aliasing
  * of base when the pose leaves a keyed drawable's grid.
  */
 class CaptureDrawableWorldsTest {

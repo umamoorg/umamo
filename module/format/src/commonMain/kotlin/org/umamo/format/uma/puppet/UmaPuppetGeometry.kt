@@ -62,7 +62,7 @@ public data class UmaMeshGrid(
  * UMA §4.11: one cell of a drawable's geometry grid.
  *
  * @property List<Int>  coordinate     The key index per axis.
- * @property FloatArray positionDeltas x, y per vertex, relative to the rest mesh (an accessor).
+ * @property FloatArray positionDeltas x, y per vertex, relative to the mesh's `localPositions` (an accessor).
  */
 @Serializable
 public class UmaMeshCell(
@@ -179,7 +179,7 @@ public data class UmaBlendLimit(
 /**
  * UMA §4.13: a drawable's blend-shape form.
  *
- * @property FloatArray   positionDeltas x, y per vertex, relative to the rest mesh (an accessor).
+ * @property FloatArray   positionDeltas x, y per vertex, relative to the mesh's `localPositions` (an accessor).
  * @property Float?       drawOrder      Absent at 500.
  * @property Float?       opacity        Absent at 1.
  * @property List<Float>? multiplyColor  Absent at white.

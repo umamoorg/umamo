@@ -371,7 +371,7 @@ internal class Cmo3StructureLowering(
 					// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
 					// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
 					// The transform places the atlas page's pixel frame on the canvas so this drawable's
-					// texture patch coincides with its base mesh - the editor inverts it to draw the mesh
+					// texture patch coincides with its canvas mesh - the editor inverts it to draw the mesh
 					// over the texture in the atlas and mesh-edit views.
 					optionalTransformOnCanvas = CAffine()
 					_owner = extension

@@ -40,10 +40,11 @@ import kotlin.test.assertTrue
 
 /**
  * The keyform-lowering gate: keyform value edits, key inserts/deletes, channel-track edits, and
- * statics reconcile onto the CMO3 grid web and survive an export/re-import.  Channel values and
- * key deletions round-trip bit-exact (values pass through unchanged; surviving forms keep their
- * stored absolutes).  Drawable GEOMETRY tolerates bounded ULP on edited/inserted cells only: CMO3
- * stores absolutes, Umamo deltas, and (base + delta) - base is not an IEEE identity - the same
+ * statics reconcile onto the CMO3 grid web and survive an export/re-import.  Channel values
+ * round-trip bit-exact (values pass through unchanged), and a key deletion keeps every surviving
+ * form's stored floats in the file.  Drawable GEOMETRY is held to bounded ULP on the edited
+ * drawable, compared as rebuilt shapes (localPositions + Δ): CMO3 stores absolutes, Umamo a base
+ * and deltas, and a re-import measures its deltas from its own reference cell - the same
  * bounded-ULP tier the fidelity contract already assigns to geometry.
  */
 class Cmo3ExportKeyformRoundTripTest {

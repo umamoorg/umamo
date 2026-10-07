@@ -19,7 +19,7 @@ import org.umamo.storage.UmamoLog
  * the new parent's space for the art to stay put.  For a drawable with no keyed geometry the base is its whole
  * shape, and the evaluator's inverse carries it over; that inverse is :render's, which is why this sits in :ui
  * beside DrawableWorldTransform.kt.  A keyed drawable's shapes all live in the old parent's space and cannot
- * follow one base, so it keeps its numbers and its art follows the new parent, as every rebinding did before.
+ * follow one base, so it keeps its numbers and its art follows the new parent.
  */
 
 /**

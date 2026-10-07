@@ -19,9 +19,10 @@ import kotlin.test.assertTrue
  * The MOC3 -> CMO3 self round trip: every corpus .moc3 with a model3 sidecar converts to a
  * fresh CMO3, and re-importing the written file reproduces the source PuppetModel with only the
  * documented residues - WORLD_ORIGIN (the moc stores a real origin; CMO3 import derives the
- * canvas center), MESH_POSITIONS (the exported base is the rest-pose canvas frame while a
- * MOC3-origin puppet's base is parent-deformer-local), and bounded-ULP drift on keyform deltas
- * (fresh absolutes are base + delta and the re-import subtracts, which is not an IEEE identity).
+ * canvas center) and bounded-ULP drift on keyform deltas (fresh absolutes are base + delta and
+ * the re-import subtracts, which is not an IEEE identity).  MESH_POSITIONS is tolerated beside
+ * them, though the canvas editable mesh is written to CArtMeshSource.positions and read back
+ * from it as it is.
  */
 class Cmo3ConversionRoundTripTest {
 	private val geometryUlpTolerance = 1e-3f
@@ -72,10 +73,11 @@ class Cmo3ConversionRoundTripTest {
 				AtlasPage(pngBytes, decoded.width, decoded.height)
 			}
 		// displayInfo deliberately null: the same puppet is both the conversion source and the
-		// comparison target, so cosmetic names/groups cancel out either way.  The rest meshes are
-		// normalized to canvas space exactly like the app's MOC3 document loader - the export's
-		// source-level positions and the whole texture-placement web are canvas geometry, so
-		// converting a raw parent-local puppet would write deformer-local coordinates there.
+		// comparison target, so cosmetic names/groups cancel out either way.  The canvas meshes are
+		// derived exactly like the app's MOC3 document loader - the export's source-level positions
+		// and the whole texture-placement web are canvas geometry, so converting a raw Moc3Import
+		// puppet, whose canvas mesh may still be its parent-space base, would write deformer-local
+		// coordinates there.
 		val puppet = org.umamo.render.restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, displayInfo = null))
 		val pageIndexByDrawableId = mocDocument.artMeshes.associate { artMesh -> artMesh.id to artMesh.textureIndex }
 
@@ -163,9 +165,10 @@ class Cmo3ConversionRoundTripTest {
 			}
 		}
 		for (entityDiff in residual.drawables) {
-			// MESH_POSITIONS: the exported base is the rest-pose CANVAS frame while a MOC3-origin
-			// puppet's base is parent-deformer-local; the absolute-geometry drift check below is
-			// what guards the semantics (base + delta is the render-visible invariant).
+			// GEOMETRY / BLEND_SHAPES: each import takes its base from its own reference cell, so the
+			// re-imported deltas shift by the base difference; the absolute-geometry drift check below
+			// is what guards the semantics (base + delta is the render-visible invariant).
+			// MESH_POSITIONS is tolerated too, though the canvas mesh is written and read back as it is.
 			if (entityDiff !is EntityDiff.Changed || entityDiff.fields.any { field -> field.name !in setOf("GEOMETRY", "BLEND_SHAPES", "MESH_POSITIONS") }) {
 				failures.add("$label: drawable residue $entityDiff")
 				continue

@@ -36,7 +36,7 @@ import org.umamo.runtime.model.partByDrawable
  *    deforms when exactly one is in reach: "Warp40 (ArtMesh5)".
  *  - Blend shapes.  MOC3 records store per-key DELTAS relative to the object's grid form at the
  *    DEFAULT pose (MOC3.md §5.6), while the runtime `BlendShapeBinding` keeps grid-convention
- *    forms (MeshForm rest-relative; Warp/RotationForm absolute) and the evaluator re-subtracts
+ *    forms (MeshForm relative to DrawableMesh.localPositions; Warp/RotationForm absolute) and the evaluator re-subtracts
  *    that same grid-at-default reference.  The mapping therefore ADDS the reference back when
  *    synthesizing each form - computed with the shared org.umamo.runtime.eval sampling helpers,
  *    the exact functions the evaluator later calls, so the round trip cancels to ULP.  Delta

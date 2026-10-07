@@ -196,7 +196,7 @@ internal class DrawableResidency(
 					existing.invertMask = action.drawable.invertMask
 					action.positions?.let {
 						device.updateMeshPositions(existing.mesh, it)
-						// Re-point the bounds walk at the new rest positions too, or the composite scissor
+						// Re-point the bounds walk at the new keyform-space base too, or the composite scissor
 						// would keep sizing to the pre-edit geometry and clip the moved vertices.
 						existing.boundsBase = it
 					}

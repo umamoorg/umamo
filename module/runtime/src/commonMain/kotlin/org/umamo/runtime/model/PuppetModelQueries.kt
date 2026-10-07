@@ -359,13 +359,13 @@ fun Drawable.displayScreenColor(): ColorRgb = screenColor
 /**
  * Whether this model differs from [previous] in nothing but some drawables' mesh positions - the canvas mesh
  * and the keyform-space base - the shape every preview push of a Grab has: withMeshPositions wraps the new
- * arrays in a new DrawableMesh that shares the uvs and the indices, and copies the drawable and the model around it with every other
- * field by reference.  Decided by identity and equality: a data-class equals short-circuits on a shared
- * reference, so when the push really is positions-only the check costs one walk over the drawables,
- * and DrawableMesh is identity-equal, so a changed mesh is compared field by field here.  The same
- * instance differs in nothing.  Everything else is structural, conservatively: a UV or topology edit, a
- * parameter, deformer, part, glue, or order change, a visibility or composite edit, a drawable added,
- * removed, reordered, or losing its mesh, and a vertex count that changed.
+ * arrays in a new DrawableMesh that shares the uvs and the indices, and copies the drawable and the model
+ * around it with every other field by reference.  Decided by identity and equality: a data-class equals
+ * short-circuits on a shared reference, so when the push really is positions-only the check costs one walk
+ * over the drawables, and DrawableMesh is identity-equal, so a changed mesh is compared field by field here.
+ * The same instance differs in nothing.  Everything else is structural, conservatively: a UV or topology
+ * edit, a parameter, deformer, part, glue, or order change, a visibility or composite edit, a drawable
+ * added, removed, reordered, or losing its mesh, and a vertex count that changed.
  *
  * The renderer reads it to keep its pose across a push (the pose's inputs hold no positions), and the
  * desktop viewport service to keep the picker lookups that read no positions.

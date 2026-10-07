@@ -295,7 +295,7 @@ class EditGrabPerfProbeTest {
 
 	/**
 	 * The three halves of one drive, each timed on its own: the operator over the frozen world shapes,
-	 * the inverse back onto the base meshes, and the fold of the new positions into a preview model.
+	 * the inverse back onto the rest arrays, and the fold of the new rest arrays into a preview model.
 	 *
 	 * @param ModalTransformCapture transform The gesture's shared capture.
 	 * @param Map<DrawableId, DrawableWorldGeometry> geometryById Each moving mesh's frozen geometry.

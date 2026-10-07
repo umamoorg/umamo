@@ -996,9 +996,10 @@ class EditorSession(
 	 * Commits an Object-mode transform of several drawables (a finished modal G / S / R gesture) as ONE undo
 	 * step: each drawable's rest shape (canvas mesh and keyform-space base) becomes its entry in
 	 * [restByDrawable]. The copy-on-write [withMeshPositions] batch folds them into a single model, so N moved
-	 * drawables are one history step (not N). Mid-gesture preview frames reach the renderer directly (transient), so a whole drag
-	 * is a single step. A model edit (rest geometry is document content), so it marks the document dirty; a
-	 * no-op (every array unchanged / mismatched, so the fold returns the same instance) records nothing.
+	 * drawables are one history step (not N). Mid-gesture preview frames reach the renderer directly
+	 * (transient), so a whole drag is a single step. A model edit (rest geometry is document content), so it
+	 * marks the document dirty; a no-op (every array unchanged / mismatched, so the fold returns the same
+	 * instance) records nothing.
 	 *
 	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformDrawables]).
 	 * @param Map<DrawableId, MeshRestPositions> restByDrawable Each moved drawable's committed rest shape.

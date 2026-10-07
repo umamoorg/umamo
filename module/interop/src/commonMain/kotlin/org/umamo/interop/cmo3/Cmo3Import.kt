@@ -511,8 +511,9 @@ object Cmo3Import {
 			rootChildrenFromTree + drawables.mapNotNull { drawable -> if (drawable.id in placedDrawableIds) null else OrgChild.Drawable(drawable.id) }
 
 		// CMO3: CModelSource.canvas -> CImageCanvas fields pixelWidth / pixelHeight - the document canvas
-		// size.  Drawable rest positions live in this canvas px space (Y down, the canvas rect spanning
-		// [0, width] x [0, height]; art may overhang it); the deform eval NEGATES Y into world space.
+		// size.  A drawable's canvas mesh (DrawableMesh.positions) lives in this canvas px space (Y down, the
+		// canvas rect spanning [0, width] x [0, height]; art may overhang it); the deform eval NEGATES Y into
+		// world space.
 		// A model without a canvas keeps the (0, 0) defaults.
 		val canvas = modelSource.canvas as? CImageCanvas
 		val canvasWidth = (canvas?.pixelWidth ?: 0).toFloat()

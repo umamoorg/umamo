@@ -108,7 +108,7 @@ private fun defaultPoseFallbackFor(model: PuppetModel, defaultPose: DeformedGeom
 }
 
 /**
- * The export's space seam for [puppet]: inverts a drawable's canvas-space rest mesh back through its
+ * The space seam for [puppet]: inverts a drawable's canvas-space rest mesh back through its
  * parent-deformer chain, at the same pose [restMeshesToCanvasSpace] mapped it forward with.
  *
  * That pose is the neutral one for most drawables - it is the pose the rest mesh is defined at, so
@@ -116,10 +116,11 @@ private fun defaultPoseFallbackFor(model: PuppetModel, defaultPose: DeformedGeom
  * through the clamped second-chance pose instead, so it is inverted through that same clamped pose;
  * using the raw default for it would undo a transform that was never applied.
  *
- * A drawable the chain cannot map (a deformer with no lattice anywhere) returns null, which the export
- * turns into a notice rather than a silently mis-scaled mesh.
+ * A drawable the chain cannot map (a deformer with no lattice anywhere) returns null, which
+ * [localPositionsKeepingRest] leaves out of its result for the caller to report, rather than a silently
+ * mis-scaled mesh.
  *
- * @param PuppetModel puppet The rig being exported.
+ * @param PuppetModel puppet The rig.
  * @return Function2 The seam: drawable id plus interleaved canvas-space positions to parent-space
  *                   positions, or null when the chain cannot invert.
  */
@@ -143,8 +144,8 @@ fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> Flo
  * @return Function2 The seam, as [canvasToParentSpaceFor] gives it.
  */
 fun canvasToParentSpaceFor(puppet: PuppetModel, neutralSpaces: DrawableSpaceResolver, anyHiddenAtDefault: Boolean): (DrawableId, FloatArray) -> FloatArray? {
-	// Resolved once per export rather than per drawable: the evaluation is the expensive part and the
-	// answer is a property of the model, not of whichever drawable is being written.
+	// Resolved once per seam rather than per drawable: the evaluation is the expensive part and the
+	// answer is a property of the model, not of whichever drawable is being mapped.
 	val fallback =
 		if (anyHiddenAtDefault) {
 			val preGlueModel = puppet.copy(glues = emptyList())
@@ -152,8 +153,8 @@ fun canvasToParentSpaceFor(puppet: PuppetModel, neutralSpaces: DrawableSpaceReso
 		} else {
 			null
 		}
-	// Likewise the mappings: one resolver per pose bakes the deformer chain once for the whole export,
-	// where a per-drawable mapping would bake it once per drawable written.
+	// Likewise the clamped mapping: one resolver bakes the deformer chain once for every drawable the seam
+	// maps, where a per-drawable mapping would bake it once per drawable.
 	val clampedSpaces = fallback?.let { DrawableSpaceResolver(puppet, it.clampedDefaults) }
 
 	return { drawableId, positions ->

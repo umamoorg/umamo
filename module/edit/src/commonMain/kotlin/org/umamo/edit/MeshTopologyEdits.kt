@@ -10,10 +10,10 @@ import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.PuppetModel
 
 /**
- * How one vertex of a topology-edited mesh derives its keyform deltas (and its glue identity) from the
- * old mesh's vertices.  A topology operation changes the vertex count, and every keyform cell's
- * positionDeltas array is parallel to the positions (stride 2 * vertexCount) - so each NEW vertex must
- * say where its per-cell deltas come from:
+ * How one vertex of a topology-edited mesh derives its keyform deltas, its keyform-space base, and its
+ * glue identity from the old mesh's vertices.  A topology operation changes the vertex count, and every
+ * keyform cell's positionDeltas array is parallel to the positions (stride 2 * vertexCount) - so each
+ * NEW vertex must say where its per-cell deltas come from:
  *
  *   - [FromOld] copies one old vertex's deltas verbatim (a kept or duplicated vertex).
  *   - [AverageOf] averages several old vertices' deltas (a merge's surviving vertex).
@@ -47,9 +47,10 @@ sealed interface VertexSource {
 }
 
 /**
- * One topology edit of one drawable's mesh, ready to commit: the complete replacement mesh (positions,
- * uvs, and indices all sized to the new vertex count) plus one [VertexSource] per NEW vertex, from
- * which [withMeshTopologyEdit] rebuilds every keyform cell's deltas and remaps the glue pairs.  The op
+ * One topology edit of one drawable's mesh, ready to commit: the complete replacement mesh (canvas
+ * positions, keyform-space base, uvs, and indices all sized to the new vertex count; the base already
+ * carried through the sources by [editedMesh]) plus one [VertexSource] per NEW vertex, from which
+ * [withMeshTopologyEdit] rebuilds every keyform cell's deltas and remaps the glue pairs.  The op
  * builders in MeshTopologyOps produce these; they never touch the model themselves.
  *
  * 1つの描画メッシュのトポロジ編集。置き換えメッシュと、新頂点ごとのデルタ導出指定を持つ。

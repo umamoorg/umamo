@@ -37,8 +37,9 @@ import org.umamo.runtime.model.lineageRoot
  *
  * Completeness is the load-bearing property: any semantic difference between the two models MUST
  * surface in some field below, because an edit the diff misses is an edit the export silently drops.
- * Comparisons are bit-exact (FloatArray.contentEquals semantics; raw bits for loose scalars) - the
- * diff's job is to detect that anything changed, not to judge whether the change is significant.
+ * Comparisons are bit-exact (FloatArray.contentEquals semantics; raw bits for loose scalars; a mesh keyform
+ * by the absolutes it rebuilds, see meshGeometryEqual) - the diff's job is to detect that anything
+ * changed, not to judge whether the change is significant.
  */
 
 /** The changed aspects of a [Parameter]. */
@@ -710,8 +711,9 @@ private fun flattenGroups(tree: List<ParameterNode>): List<ParameterNode.Group> 
 /*
  * Bit-exact equality helpers.  Two independent imports of the same graph produce bit-identical
  * floats, so raw-bits comparison never yields a false diff there - while an edit that flips only a
- * sign bit (0.0 vs -0.0) still surfaces.  Every helper takes the `===` fast path first: the common
- * call compares a model against itself or against structurally shared sub-objects.
+ * sign bit (0.0 vs -0.0) still surfaces.  Every helper takes the `===` fast path first (a keyform helper
+ * only when the two drawables share one base, since one grid over a moved base is moved keyforms): the
+ * common call compares a model against itself or against structurally shared sub-objects.
  */
 
 private fun floatEq(baseline: Float, edited: Float): Boolean = baseline.toRawBits() == edited.toRawBits()
@@ -760,8 +762,8 @@ private fun rawBitsEqual(baseline: FloatArray, edited: FloatArray): Boolean =
 /**
  * Whether two keyforms rebuild the same absolute floats, `local + Δ` per component over the base's whole length,
  * each against its own base.  A component past the end of a short delta array takes the base unchanged, as
- * positionsFromDeltas rebuilds it, so a base that moves there is a moved keyform too.  Without a base on both
- * sides (a malformed drawable with deltas and no mesh), or with deltas longer than a base, the deltas compare as
+ * positionsFromDeltas rebuilds it, so a base that moves there is a moved keyform too.  When either side has no
+ * base (a malformed drawable with deltas and no mesh) or deltas longer than its base, the deltas compare as
  * they are.
  *
  * @param FloatArray? baselineLocal  The baseline's base.

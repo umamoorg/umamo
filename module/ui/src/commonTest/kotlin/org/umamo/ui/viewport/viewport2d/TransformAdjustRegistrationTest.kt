@@ -68,7 +68,7 @@ class TransformAdjustRegistrationTest {
 
 	/**
 	 * A registered Grab of the whole triangle, committed the way the Edit overlay commits it: the
-	 * frozen capture, the moved world shape inverted onto the base, one step, then the registration.
+	 * frozen capture, the moved world shape inverted onto the rest arrays, one step, then the registration.
 	 */
 	@Test
 	fun aRegisteredGrabReLandsFromTheBaseWhenItsMoveRowIsEdited() {

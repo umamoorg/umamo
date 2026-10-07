@@ -52,7 +52,7 @@ class DrawableReparentTest {
 		)
 
 	/**
-	 * A drawable over [canvas] with base [local] (the same array when they are equal).
+	 * A drawable over [canvas] with base [local] (the same array when [local] is omitted).
 	 *
 	 * @param String      id     The id.
 	 * @param DeformerId? parent The parent deformer.

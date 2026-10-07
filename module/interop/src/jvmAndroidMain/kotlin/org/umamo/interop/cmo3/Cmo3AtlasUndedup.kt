@@ -77,7 +77,7 @@ internal object Cmo3AtlasUndedup {
 	 * Detects shared slots sampled from multiple canvas placements and gives every additional
 	 * placement its own patch copy on a synthesized page.
 	 *
-	 * @param PuppetModel puppet The model to convert; canvas-frame rest meshes.
+	 * @param PuppetModel puppet The model to convert; mesh.positions is the canvas editable mesh.
 	 * @param List        pages  The atlas pages, in model3 texture order.
 	 * @param Map         pageIndexByDrawableId Each drawable id's atlas page index.
 	 * @return Result The (possibly) remapped puppet, extended page list, and updated page map.

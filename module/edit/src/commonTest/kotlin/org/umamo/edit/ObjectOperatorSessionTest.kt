@@ -129,7 +129,7 @@ class ObjectOperatorSessionTest {
 		assertNull(session.activeObjectOperator.value, "no object operator in Edit mode")
 	}
 
-	/** commitObjectPositions writes the new base positions as exactly one undo step. */
+	/** commitObjectPositions writes the new rest shape as exactly one undo step. */
 	@Test
 	fun commitObjectPositionsIsOneUndoStep() {
 		val session = session()

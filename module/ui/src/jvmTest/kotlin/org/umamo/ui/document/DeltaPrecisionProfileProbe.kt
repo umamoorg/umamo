@@ -24,8 +24,8 @@ import kotlin.test.assertIs
 /**
  * Measures what the mesh deltas cost on real documents: the heap an open document holds, the delta arrays' share of
  * it, the `.uma` a save writes (its stored `buffers.bin`, and what deflating it would give), and what a select-all
- * Object-mode move costs the undo history.  Written to run unchanged against the float32 build before the double
- * deltas and the build after them, so the two can be compared side by side.
+ * Object-mode move costs the undo history.  Written to run unchanged whether a build stores its deltas as float32
+ * or float64, so the two builds can be compared side by side.
  *
  * A probe, not a gate: it asserts nothing about the numbers and self-skips without `-Dprofile.samples` (a
  * comma-separated list of `.cmo3` and `.moc3` files).  `-Dprofile.output` names where the `.uma` files go.
@@ -116,8 +116,8 @@ class DeltaPrecisionProfileProbe {
 
 	/**
 	 * The heap of every array [after] holds that [before] does not share by identity - what one history step keeps
-	 * alive beyond the model before it: canvas meshes, bases, uvs, indices, and mesh deltas, an array two fields share counted once.  Deterministic, unlike a heap
-	 * reading.
+	 * alive beyond the model before it: canvas meshes, bases, uvs, indices, and mesh deltas, an array two fields
+	 * share counted once.  Deterministic, unlike a heap reading.
 	 *
 	 * @param PuppetModel before The model before the commit.
 	 * @param PuppetModel after  The model after it.

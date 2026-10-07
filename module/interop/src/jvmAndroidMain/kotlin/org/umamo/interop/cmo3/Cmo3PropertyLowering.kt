@@ -103,7 +103,7 @@ internal class Cmo3PropertyLowering(
 	private val baselineDeformerById = baseline.deformers.associateBy(Deformer::id)
 	private val baselineDrawableById = baseline.drawables.associateBy(Drawable::id)
 
-	/** Drawables whose base geometry/UVs diverged from the imported weld - one aggregated notice. */
+	/** Drawables whose canvas mesh or UVs diverged from the imported weld - one aggregated notice. */
 	private val weldDivergedDrawableNames = ArrayList<String>()
 
 	/** The keyform re-bundling engine, shared by the drawable/deformer/part/glue dispatches. */
@@ -412,7 +412,7 @@ internal class Cmo3PropertyLowering(
 							DrawableField.ATLAS_TILE ->
 								unsupported(ExportEntityCategory.Drawable, diff.id.raw, ExportNoticeReason.AtlasTileRebindingNotLowered)
 							DrawableField.MESH_TOPOLOGY -> {
-								// The weld notice means "the base left the IMPORTED weld" - a drawable
+								// The weld notice means "the canvas mesh left the IMPORTED weld" - a drawable
 								// with no baseline was never welded, so synthesis stays notice-free.
 								val hadBaseline = baselineDrawableById[diff.id] != null
 								if (structure.lowerMeshTopology(source, editedDrawable) && hadBaseline) {

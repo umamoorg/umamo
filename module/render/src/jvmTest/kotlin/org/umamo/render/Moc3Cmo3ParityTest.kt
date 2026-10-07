@@ -57,10 +57,10 @@ class Moc3Cmo3ParityTest {
 			return
 		}
 		val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("root is not a CModelSource")
-		// The rest-mesh comparison normalizes BOTH sides through the same default-pose rewrite: CMO3's
-		// stored base is authored editing geometry that may drift a few pixels from the evaluated default
-		// pose (a moc has no way to recover the authored value), so comparing raw cmo3 bases against the
-		// moc's evaluated ones would measure that drift, not the conversion under test.
+		// The canvas-mesh comparison normalizes BOTH sides through the same default-pose pass: CMO3's
+		// stored editable mesh is authored editing geometry that may drift a few pixels from the evaluated
+		// default pose (a moc has no way to recover the authored value), so comparing raw cmo3 editable
+		// meshes against the moc's evaluated ones would measure that drift, not the conversion under test.
 		val fromCmo3 = restMeshesToCanvasSpace(Cmo3Import.fromModelSource(cmo3Root))
 		val fromMoc3 =
 			restMeshesToCanvasSpace(
@@ -115,7 +115,7 @@ class Moc3Cmo3ParityTest {
 				floatsClose(cmo3Mesh.uvs, moc3Mesh.uvs, 0.0005f),
 				"uvs of ${drawableId.raw}" + flipDiagnostic(cmo3Mesh.uvs, moc3Mesh.uvs),
 			)
-			// Rest positions: canvas space on both sides (the moc side through the default-pose rewrite),
+			// Canvas meshes: canvas space on both sides (the moc side through the default-pose pass),
 			// so this pins the whole conversion + cascade path.  Collected first (worst offender per
 			// drawable) so a failure reports the model-wide picture, not the first vertex hit.
 			assertEquals(cmo3Mesh.positions.size, moc3Mesh.positions.size, "position array of ${drawableId.raw}")
@@ -171,7 +171,6 @@ class Moc3Cmo3ParityTest {
 	 * @param FloatArray   moc3Base   The MOC3 keyform-space base.
 	 * @param Float        tolerance  The per-coordinate tolerance in the drawable's parent space.
 	 */
-
 	private fun compareMeshKeyforms(
 		drawableId: DrawableId,
 		cmo3Grid: KeyformGrid<MeshDeltaForm>?,

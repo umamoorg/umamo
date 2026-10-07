@@ -195,10 +195,11 @@ public fun <TForm> keyformBaseOf(
 }
 
 /**
- * The drawable's grid form at the DEFAULT pose as position deltas vs the rest mesh - the shared
- * blend-shape delta reference (E5). Null when the drawable is ungridded or the default pose is out
- * of the grid's range (the reference is then zero). Static per drawable: the CPU pose prep, the
- * GPU delta-texture bake, and the MOC3 import all call this and must agree.
+ * The drawable's grid form at the DEFAULT pose as position deltas vs the keyform-space base
+ * (DrawableMesh.localPositions) - the shared blend-shape delta reference. Null when the drawable is
+ * ungridded or the default pose is out of the grid's range (the reference is then zero). Static per
+ * drawable: the CPU pose prep, the GPU delta-texture bake, and the MOC3 import all call this and must
+ * agree.
  *
  * @param Drawable drawable     The drawable.
  * @param Function defaultValue Default value per parameter id.

@@ -35,11 +35,12 @@ import org.umamo.runtime.model.storedToArtAffineForTile
  * What it never does: touch a tile whose layer the file lost without a confident match (the reconcile
  * flags it for review), change a drawable's positions, or delete rig work - the one thing it removes
  * is a fresh, untouched drawable whose layer a lost layer's rig work claims, and only when the caller
- * names it.  A drawable's mesh changes in only two ways: an untouched birth quad is re-born over the
- * new art, and an edited mesh keeps its vertices with its texture coordinates carried so each vertex
- * samples the canvas pixel it did before - Cubism's own re-import behavior, where the art moves under
- * a mesh that stays.  Its visibility follows the file's eye toggle only while it still shows the state
- * the file last had: a toggle the rigger made in the outliner is rig work and stays.
+ * names it.  A drawable's mesh changes in only two ways: an untouched birth quad of a drawable with no
+ * deformer is re-born over the new art, and every other mesh keeps its vertices with its texture
+ * coordinates carried so each vertex samples the canvas pixel it did before - Cubism's own re-import
+ * behavior, where the art moves under a mesh that stays.  Its visibility follows the file's eye toggle
+ * only while it still shows the state the file last had: a toggle the rigger made in the outliner is rig
+ * work and stays.
  */
 
 /**

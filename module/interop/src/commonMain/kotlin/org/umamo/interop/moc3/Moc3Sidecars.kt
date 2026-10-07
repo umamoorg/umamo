@@ -270,7 +270,7 @@ object Moc3Sidecars {
 	 * bounds them.
 	 *
 	 * Parts and art meshes are also filtered to the ones the lowering actually WROTE - the export drops
-	 * sketch subtrees, mesh-less drawables, and unkeyed drawables it cannot invert into parent space.
+	 * sketch subtrees, mesh-less drawables, and the hidden parts and drawables the options leave out.
 	 * Naming a dropped object is dead weight on its own, and worse than that alongside the shortening
 	 * above: a dropped object claims no id, so an over-long id can shorten onto exactly its string and
 	 * leave the file with two entries under one id for a reader's join to choose between.

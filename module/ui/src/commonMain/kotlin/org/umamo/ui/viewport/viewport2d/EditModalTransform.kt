@@ -36,7 +36,7 @@ import kotlin.math.pow
  * drive loop inverts each transformed world shape back through.  The geometry is held in a map keyed on the
  * drawable id, looked up by [org.umamo.edit.ModalCaptureEntry], so nothing stays index-aligned.
  *
- * The geometry frozen here is a COPY of the live geometry's arrays (base, displayed, world), so the whole
+ * The geometry frozen here is a COPY of the live geometry's arrays (rest, displayed, world), so the whole
  * drag transforms a fixed snapshot even though the underlying model is immutable.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).

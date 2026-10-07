@@ -274,8 +274,8 @@ fun EditorSession.deletePart(id: PartId, cascade: Boolean) {
  * @param SelectionTarget target                   The entity to delete.
  * @param Boolean         cascade                  For a part, true to delete the subtree, false to ungroup; ignored otherwise.
  * @param Function1       localPositionsByDrawable For a deformer, the bases of the re-homed drawables that keep
- *   their place over the unwrapped model, a drawable left out keeping its numbers (see [deleteDeformer]);
- *   ignored otherwise.
+ *                                                 their place over the unwrapped model, a drawable left out
+ *                                                 keeping its numbers (see [deleteDeformer]); ignored otherwise.
  */
 fun EditorSession.deleteTarget(target: SelectionTarget, cascade: Boolean, localPositionsByDrawable: (unwrapped: PuppetModel) -> Map<DrawableId, FloatArray>) {
 	when (target) {
