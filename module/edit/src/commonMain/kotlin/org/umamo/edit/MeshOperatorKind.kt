@@ -4,8 +4,6 @@ package org.umamo.edit
  * The active modal mesh operator: Blender-style Grab (translate), Scale, or Rotate. The session latches
  * one of these while a gesture is in flight (the desktop overlay drives the pointer tracking and the
  * corresponding [MeshTransforms] function); null means no operator is running.
- *
- * モーダルなメッシュ操作の種類（移動・拡縮・回転）。
  */
 enum class MeshOperatorKind {
 	Grab,

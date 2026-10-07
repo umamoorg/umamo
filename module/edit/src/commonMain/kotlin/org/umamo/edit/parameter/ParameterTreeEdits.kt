@@ -17,9 +17,6 @@ import org.umamo.runtime.model.PuppetModel
  * has an empty tree; the first real structure edit materializes a flat all-leaves-at-root tree so there
  * is one code path afterward. Every edit snapshots the whole PuppetModel through EditorSession.mutate,
  * so it undoes for free.
- *
- * パラメータパネルのグループツリー構造編集。parameterTree が表示順の正で、平坦な parameters は id 基準
- * の軸リスト。並べ替え・グループ出入りは parameterTree だけを書き換える。
  */
 
 /**

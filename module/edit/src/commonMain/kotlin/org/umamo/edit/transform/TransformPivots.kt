@@ -8,8 +8,6 @@ import org.umamo.edit.MeshTopology
  * anchor); IndividualOrigins produces one group per connectivity island (edit mode) or per drawable
  * (object mode), each about its own centroid.
  *
- * 変形のピボットグループ。1つのピボットを共有する頂点集合。各自の原点モードでは島ごとに分かれる。
- *
  * @property Set<Int> vertexIndices The group's vertex indices (into the mesh's interleaved array).
  * @property Float pivotX The group pivot's x, in the positions' coordinate space.
  * @property Float pivotY The group pivot's y, in the positions' coordinate space.
@@ -22,8 +20,6 @@ data class TransformPivotGroup(
 
 /**
  * Pure pivot-group builders for the modal transforms (the [TransformPivotMode] machinery).
- *
- * ピボットグループの純粋な構築関数。
  */
 object TransformPivots {
 	/**

@@ -223,7 +223,6 @@ data class SnapRequest(val kind: SnapKind, val areaId: String?)
  * (cursor to world origin / to grid) are handled directly by their command handlers and never appear
  * here.
  *
- * ジオメトリ依存のスナップ操作の種類。オーバーレイが実行する。
  */
 enum class SnapKind {
 	CursorToSelected,
@@ -242,8 +241,6 @@ enum class SnapKind {
  * texel boundary is a natural target for artwork-edge accuracy) and no Active-element snaps, while the
  * world grid has no meaning here (the UV grid subdivides the atlas page instead - see the UV editor's
  * display mapping).
- *
- * UV エディタのスナップ操作の種類。テクセル表示空間で動作し、UV オーバーレイが実行する。
  */
 enum class UvSnapKind {
 	SelectionToPixels,
