@@ -1,10 +1,6 @@
 package org.umamo.format.uma.puppet
 
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okio.Buffer
@@ -128,6 +124,24 @@ class UmaBufferTest {
 	}
 
 	/**
+	 * A mesh needs both position arrays (UMA §4.10): one missing either fails the read as a malformed entry, whatever
+	 * other position key it carries.
+	 */
+	@Test
+	fun aMeshWithoutBothPositionArraysIsMalformed() {
+		val positions = accessor(bufferPath, 0, 6, "float32")
+		val rest = """"uvs": ${accessor(bufferPath, 24, 6, "float32")}, "indices": ${accessor(bufferPath, 48, 3, "int32")}"""
+		for ((label, meshJson) in listOf(
+			"no localPositions" to """{ "canvasPositions": $positions, $rest }""",
+			"no canvasPositions" to """{ "localPositions": $positions, $rest }""",
+			"one unknown positions key" to """{ "positions": $positions, $rest }""",
+		)) {
+			val failure = assertFailsWith<UmaFormatException>(label) { Uma.read(fileWith("""{ "drawables": [ { "id": "D", "name": "D", "mesh": $meshJson } ] }""", triangleBytes)) }.failure
+			assertIs<UmaReadFailure.MalformedEntry>(failure, label)
+		}
+	}
+
+	/**
 	 * Each unsound accessor fails the read as a malformed entry, including one under a key this reader does not
 	 * know, since a save would have to copy its bytes.
 	 */
@@ -146,13 +160,13 @@ class UmaBufferTest {
 		}
 
 		/**
-		 * A one-drawable puppet whose mesh positions use [positions].
+		 * A one-drawable puppet whose mesh's canvas positions use [positions], its other arrays sound.
 		 *
-		 * @param String positions The positions accessor's JSON.
+		 * @param String positions The canvas positions accessor's JSON.
 		 * @return String The puppet's JSON.
 		 */
 		fun withPositions(positions: String): String =
-			"""{ "drawables": [ { "id": "D", "name": "D", "mesh": { "positions": $positions, "uvs": ${accessor(bufferPath, 24, 6, "float32")}, "indices": ${accessor(bufferPath, 48, 3, "int32")} } } ] }"""
+			"""{ "drawables": [ { "id": "D", "name": "D", "mesh": { "canvasPositions": $positions, "localPositions": ${accessor(bufferPath, 0, 6, "float32")}, "uvs": ${accessor(bufferPath, 24, 6, "float32")}, "indices": ${accessor(bufferPath, 48, 3, "int32")} } } ] }"""
 
 		assertMalformed(withPositions(accessor(bufferPath, 0, 6, "float32")), null, "no buffer at all")
 		assertMalformed(withPositions(accessor("model/other.bin", 0, 6, "float32")), triangleBytes, "a buffer the archive does not hold")
@@ -245,30 +259,6 @@ class UmaBufferTest {
 	}
 
 	/**
-	 * A file Umamo 0.4.0 wrote (UMA §4.10, the mesh's one `positions` array) still reads.  Saving a mesh of the
-	 * current shape over it leaves no `positions` key behind, since the key is one this reader knows, and the saved
-	 * mesh is one a reader that requires `positions` refuses - which is how 0.4.0 is kept from reading deltas
-	 * against the wrong base.
-	 */
-	@Test
-	fun theLegacyMeshShapeReadsAndIsNotWrittenBack() {
-		val legacyMeshJson =
-			"""{ "positions": ${accessor(bufferPath, 0, 6, "float32")}, "uvs": ${accessor(bufferPath, 24, 6, "float32")}, "indices": ${accessor(bufferPath, 48, 3, "int32")} }"""
-		val document = Uma.read(fileWith("""{ "drawables": [ { "id": "D", "name": "D", "mesh": $legacyMeshJson } ] }""", triangleBytes))
-		val legacy = assertNotNull(document.puppet!!.drawables!!.single().mesh)
-		assertTrue(legacy.isLegacy, "the 0.4.0 shape reads as such")
-		assertContentEquals(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f), legacy.canvas)
-
-		val current = UmaMesh(canvasPositions = legacy.canvas, localPositions = legacy.canvas, uvs = legacy.uvs, indices = legacy.indices)
-		val saved = Uma.read(Uma.write(document.withPuppet(document.puppet!!.copy(drawables = listOf(document.puppet!!.drawables!!.single().copy(mesh = current))))))
-		val savedMesh = (((saved.liveContent(UmaEntryKind.Puppet)!!["drawables"] as JsonArray).single() as JsonObject)["mesh"] as JsonObject)
-		assertEquals(listOf("canvasPositions", "localPositions", "uvs", "indices"), savedMesh.keys.toList(), "the legacy key is gone")
-
-		val readerBefore = Json { ignoreUnknownKeys = true }
-		assertFailsWith<SerializationException>("a reader that requires positions refuses the saved mesh") { readerBefore.decodeFromJsonElement(ReaderBeforeLocalPositionsMesh.serializer(), savedMesh) }
-	}
-
-	/**
 	 * An owned buffer nothing references any more is not written.
 	 */
 	@Test
@@ -279,18 +269,3 @@ class UmaBufferTest {
 		assertEquals(JsonPrimitive("D"), ((Uma.read(saved).liveContent(UmaEntryKind.Puppet)!!["drawables"] as JsonArray).single() as JsonObject)["id"])
 	}
 }
-
-/**
- * The mesh as Umamo 0.4.0 declared it (UMA §4.10 before `canvasPositions` and `localPositions`): `positions`
- * required.  The arrays are left as JSON, since only the keys matter to the test.
- *
- * @property JsonElement positions The positions accessor.
- * @property JsonElement uvs       The uvs accessor.
- * @property JsonElement indices   The indices accessor.
- */
-@Serializable
-private class ReaderBeforeLocalPositionsMesh(
-	val positions: JsonElement,
-	val uvs: JsonElement,
-	val indices: JsonElement,
-)

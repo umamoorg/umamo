@@ -25,7 +25,6 @@ import org.umamo.format.uma.puppet.UmaPart
 import org.umamo.format.uma.puppet.UmaPartBlendShape
 import org.umamo.format.uma.puppet.UmaPartComposite
 import org.umamo.format.uma.puppet.UmaPuppet
-import org.umamo.runtime.eval.referenceCellOf
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
@@ -68,9 +67,6 @@ import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
-import org.umamo.runtime.model.deltasReaching
-import org.umamo.runtime.model.hasUnkeyedGeometry
-import org.umamo.runtime.model.positionsFromDeltas
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /**
@@ -90,23 +86,12 @@ object UmaPuppetImport {
 	 * @return PuppetModel The model.
 	 */
 	fun modelOf(puppet: UmaPuppet): PuppetModel {
-		val parameters = puppet.parameters.orEmpty().map(::parameterOf)
-		val defaultByParameter = parameters.associate { parameter -> parameter.id to parameter.default }
-		val defaultOf = { parameterId: ParameterId -> defaultByParameter[parameterId] ?: 0f }
 		val model =
 			PuppetModel(
-				parameters = parameters,
+				parameters = puppet.parameters.orEmpty().map(::parameterOf),
 				parts = puppet.parts.orEmpty().map(::partOf),
 				deformers = puppet.deformers.orEmpty().map(::deformerOf),
-				drawables =
-					puppet.drawables.orEmpty().map { record ->
-						val drawable = drawableOf(record)
-						if (record.mesh?.isLegacy == true) {
-							legacyDrawableOf(drawable, defaultOf)
-						} else {
-							drawable
-						}
-					},
+				drawables = puppet.drawables.orEmpty().map(::drawableOf),
 				glues = puppet.glues.orEmpty().map(::glueOf),
 				rootChildren = puppet.rootChildren.orEmpty().map(::orgChildOf),
 				rootPartId = puppet.rootPart?.let(::PartId),
@@ -122,67 +107,6 @@ object UmaPuppetImport {
 			)
 		// UMA §4.2: the render root is never written; it is always the organizational tree's derivation.
 		return model.withDerivedRenderRoot()
-	}
-
-	/**
-	 * The drawables of [model], read from [puppet], whose keyform-space base the reader could not set: a mesh
-	 * in the 0.4.0 shape (UMA §4.10) under a deformer, with no keyed geometry to take a base from.  Each keeps
-	 * its canvas mesh as its base until the caller maps that mesh into the deformer's space, which takes the
-	 * evaluator this module cannot see.
-	 *
-	 * @param UmaPuppet   puppet The puppet entry the model was read from.
-	 * @param PuppetModel model  The model [modelOf] read from it.
-	 * @return List<DrawableId> The drawables, in model order.
-	 */
-	fun basesToDerive(puppet: UmaPuppet, model: PuppetModel): List<DrawableId> {
-		val legacyIds = puppet.drawables.orEmpty().filter { record -> record.mesh?.isLegacy == true }.map { record -> DrawableId(record.id) }.toSet()
-		return model.drawables
-			.filter { drawable -> drawable.id in legacyIds && drawable.parentDeformerId != null && drawable.mesh != null && drawable.hasUnkeyedGeometry }
-			.map { drawable -> drawable.id }
-	}
-
-	/**
-	 * A drawable read from the 0.4.0 mesh shape, re-measured over a keyform-space base (UMA §4.10).  That shape
-	 * kept one array, the canvas mesh, and measured every delta from it whatever space the keyforms were in.
-	 * The base becomes the reference cell's shape as 0.4.0 rebuilt it, and every keyform and blend form is
-	 * measured again from that base, so each rebuilds to the float 0.4.0 showed wherever float32 can; the
-	 * precision 0.4.0 already lost stays lost.  A drawable with no keyed geometry, or whose reference shape is
-	 * its canvas mesh, keeps its one array (see [basesToDerive] for one under a deformer).  A delta array whose
-	 * length does not match the mesh holds absolute positions by the importers' convention and is kept as it is.
-	 *
-	 * @param Drawable drawable  The drawable as read, its mesh the one 0.4.0 array.
-	 * @param Function defaultOf The default value per parameter id.
-	 * @return Drawable The drawable over its base.
-	 */
-	private fun legacyDrawableOf(drawable: Drawable, defaultOf: (ParameterId) -> Float): Drawable {
-		val mesh = drawable.mesh ?: return drawable
-		val grid = drawable.geometryGrid
-		if (grid == null || drawable.hasUnkeyedGeometry) {
-			return drawable
-		}
-		val canvas = mesh.positions
-		val referenceDeltas = referenceCellOf(grid, defaultOf)?.form?.positionDeltas ?: return drawable
-		if (referenceDeltas.size != canvas.size) {
-			return drawable
-		}
-		val local = positionsFromDeltas(canvas, referenceDeltas)
-		if (local.contentEquals(canvas)) {
-			return drawable
-		}
-		val remeasured = { deltas: FloatArray -> if (deltas.size == canvas.size) deltasReaching(local, positionsFromDeltas(canvas, deltas)) else deltas }
-		return drawable.copy(
-			mesh = DrawableMesh(positions = canvas, localPositions = local, uvs = mesh.uvs, indices = mesh.indices),
-			geometryGrid = KeyformGrid(grid.axes, grid.cells.map { cell -> KeyformCell(cell.coordinate, MeshDeltaForm(remeasured(cell.form.positionDeltas))) }),
-			blendShapes =
-				drawable.blendShapes.map { binding ->
-					binding.copy(
-						forms =
-							binding.forms.map { form ->
-								form?.let { meshForm -> MeshForm(remeasured(meshForm.positionDeltas), meshForm.drawOrder, meshForm.opacity, meshForm.multiplyColor, meshForm.screenColor) }
-							},
-					)
-				},
-		)
 	}
 
 	/**
@@ -600,19 +524,15 @@ object UmaPuppetImport {
 }
 
 /**
- * A UMA mesh as the model's [DrawableMesh] (UMA §4.10).  The two position arrays of a mesh written today come
- * back as they were; equal ones become one shared array, the shape a deformer-less drawable's mesh has in the
- * model.  The 0.4.0 shape's one array stands in for both until the legacy conversion sets the base.
+ * A UMA mesh as the model's [DrawableMesh] (UMA §4.10): both position arrays as they were, equal ones as one
+ * shared array, the shape a deformer-less drawable's mesh has in the model.
  *
  * @param UmaMesh mesh The mesh as read; the shape rules have already passed.
  * @return DrawableMesh The model's mesh.
  */
-private fun drawableMeshOf(mesh: UmaMesh): DrawableMesh {
-	val legacy = mesh.positions
-	if (legacy != null) {
-		return DrawableMesh.withLocalEqualToCanvas(legacy, mesh.uvs, mesh.indices)
+private fun drawableMeshOf(mesh: UmaMesh): DrawableMesh =
+	if (mesh.localPositions.contentEquals(mesh.canvasPositions)) {
+		DrawableMesh.withLocalEqualToCanvas(mesh.canvasPositions, mesh.uvs, mesh.indices)
+	} else {
+		DrawableMesh(positions = mesh.canvasPositions, localPositions = mesh.localPositions, uvs = mesh.uvs, indices = mesh.indices)
 	}
-	val canvas = checkNotNull(mesh.canvasPositions) { "the shape rules require canvasPositions" }
-	val local = checkNotNull(mesh.localPositions) { "the shape rules require localPositions" }
-	return if (local.contentEquals(canvas)) DrawableMesh.withLocalEqualToCanvas(canvas, mesh.uvs, mesh.indices) else DrawableMesh(canvas, local, mesh.uvs, mesh.indices)
-}

@@ -17,32 +17,22 @@ import kotlinx.serialization.json.JsonElement
 /**
  * UMA §4.10: a drawable's mesh.
  *
- * A mesh written today carries two position arrays: [canvasPositions], the editable mesh on the canvas, and
- * [localPositions], the same mesh in the space its keyforms live in, which every `positionDeltas` is relative to.
- * A mesh Umamo 0.4.0 wrote carries [positions] alone, its deltas relative to it; a reader accepts that shape and
- * converts it, and a writer never writes it.  The shape rules (UmaPuppetShape) require exactly one of the two.
+ * Two position arrays of one length: [canvasPositions], the editable mesh on the canvas, and [localPositions],
+ * the same mesh in the space its keyforms live in, which every `positionDeltas` is relative to.
  *
- * @property FloatArray? canvasPositions x, y per vertex on the canvas, before any deformer applies (an accessor).
- * @property FloatArray? localPositions  x, y per vertex in the keyforms' own space: the parent deformer's, or the
- *                                       canvas for a drawable with none (an accessor).
- * @property FloatArray  uvs             u, v per vertex (an accessor).
- * @property IntArray    indices         Three per triangle (an accessor).
- * @property FloatArray? positions       The 0.4.0 shape's only position array (an accessor), or null.
+ * @property FloatArray canvasPositions x, y per vertex on the canvas, before any deformer applies (an accessor).
+ * @property FloatArray localPositions  x, y per vertex in the keyforms' own space: the parent deformer's, or the
+ *                                      canvas for a drawable with none (an accessor).
+ * @property FloatArray uvs             u, v per vertex (an accessor).
+ * @property IntArray   indices         Three per triangle (an accessor).
  */
 @Serializable
 public class UmaMesh(
-	@Contextual val canvasPositions: FloatArray? = null,
-	@Contextual val localPositions: FloatArray? = null,
+	@Contextual val canvasPositions: FloatArray,
+	@Contextual val localPositions: FloatArray,
 	@Contextual val uvs: FloatArray,
 	@Contextual val indices: IntArray,
-	@Contextual val positions: FloatArray? = null,
-) {
-	/** Whether this is the 0.4.0 shape, its deltas relative to [positions]. */
-	val isLegacy: Boolean get() = positions != null
-
-	/** The canvas positions of either shape, or null for a mesh with neither (a shape-rule violation). */
-	val canvas: FloatArray? get() = canvasPositions ?: positions
-}
+)
 
 /**
  * UMA §4.11: one axis of a keyform grid.

@@ -10,7 +10,6 @@ import org.umamo.format.uma.textures.UmaRenderPagePixels
 import org.umamo.format.uma.textures.UmaTextures
 import org.umamo.interop.AtlasPageSet
 import org.umamo.runtime.model.AtlasTileId
-import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 
 /**
@@ -62,20 +61,18 @@ object UmaDocumentBridge {
 	}
 
 	/**
-	 * The model [document] describes - the puppet with its atlas and linked source art - and the drawables whose
-	 * keyform-space base the caller still has to derive.
+	 * The model [document] describes: the puppet with its atlas and linked source art.
 	 *
 	 * The editor entry is not read here, and that is the whole of the rule: a file with `editor/` stripped loads the
 	 * same model because nothing in the model ever came from it (docs/format/UMA.md § 7).
 	 *
 	 * @param UmaModel document The document.
-	 * @return UmaModelRead The model and the bases to derive.
+	 * @return PuppetModel The model.
 	 * @throws UmaFormatException When the document has no puppet entry this reader can read.
 	 */
-	fun readModel(document: UmaModel): UmaModelRead {
+	fun modelOf(document: UmaModel): PuppetModel {
 		val puppet = document.puppet ?: throw UmaFormatException(UmaReadFailure.MissingEntry(UmaEntryKind.Puppet.defaultPath))
-		val model = UmaPuppetImport.modelOf(puppet).copy(atlas = UmaTexturesBridge.atlasOf(document.textures), sources = UmaSourcesBridge.sourcesOf(document.sources))
-		return UmaModelRead(model, UmaPuppetImport.basesToDerive(puppet, model))
+		return UmaPuppetImport.modelOf(puppet).copy(atlas = UmaTexturesBridge.atlasOf(document.textures), sources = UmaSourcesBridge.sourcesOf(document.sources))
 	}
 
 	/**
@@ -98,17 +95,3 @@ object UmaDocumentBridge {
 		return UmaDocumentPages(pageSet, tilePng)
 	}
 }
-
-/**
- * What [UmaDocumentBridge.readModel] reads: the model, and the drawables whose keyform-space base the reader
- * could not set - a mesh in the 0.4.0 shape (UMA §4.10) under a deformer, with no keyed geometry.  Each such
- * drawable's base is its canvas mesh until the caller maps that mesh into the deformer's space, which takes
- * the evaluator.
- *
- * @property PuppetModel      model         The model.
- * @property List<DrawableId> basesToDerive The drawables whose base is still their canvas mesh.
- */
-class UmaModelRead(
-	val model: PuppetModel,
-	val basesToDerive: List<DrawableId>,
-)

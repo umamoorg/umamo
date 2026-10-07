@@ -101,32 +101,12 @@ class UmaPuppetShapeTest {
 	}
 
 	/**
-	 * A mesh holds one shape (UMA §4.10): the two position arrays a writer writes, or the 0.4.0 shape's one.  Both, a
-	 * half, neither, and two arrays of different lengths are refused; the 0.4.0 shape alone passes the shape rules,
-	 * since a reader takes it, while a save refuses to write it.
-	 */
-	@Test
-	fun aMeshHoldsOneShape() {
-		val uvs = positions.copyOf()
-		val indices = intArrayOf(0, 1, 2)
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = positions, uvs = uvs, indices = indices, positions = positions))), "drawables[D].mesh.positions")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, uvs = uvs, indices = indices))), "drawables[D].mesh.localPositions")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(localPositions = positions, uvs = uvs, indices = indices))), "drawables[D].mesh.canvasPositions")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(uvs = uvs, indices = indices))), "drawables[D].mesh.canvasPositions")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = floatArrayOf(0f, 0f), uvs = uvs, indices = indices))), "drawables[D].mesh.localPositions")
-
-		val legacy = withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(uvs = uvs, indices = indices, positions = positions)))
-		assertNull(UmaPuppetShape.firstProblem(legacy), "the 0.4.0 shape is one a reader takes")
-		val refusal = assertFailsWith<UmaWriteException> { UmaModel.create(TEST_WRITER).withPuppet(legacy) }
-		assertTrue(refusal.detail.contains("drawables[D].mesh"), "a save refuses to write it: ${refusal.detail}")
-	}
-
-	/**
 	 * Each geometry invariant the renderer relies on is refused.
 	 */
 	@Test
 	fun brokenGeometryIsRefused() {
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = floatArrayOf(0f, 0f, 1f), localPositions = floatArrayOf(0f, 0f, 1f), uvs = floatArrayOf(0f, 0f, 1f), indices = intArrayOf()))), "drawables[D].mesh.canvasPositions")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = floatArrayOf(0f, 0f), uvs = positions.copyOf(), indices = intArrayOf(0, 1, 2)))), "drawables[D].mesh.localPositions")
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = positions, uvs = floatArrayOf(0f, 0f), indices = intArrayOf(0, 1, 2)))), "drawables[D].mesh.uvs")
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = positions, uvs = positions.copyOf(), indices = intArrayOf(0, 1)))), "drawables[D].mesh.indices")
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = positions, uvs = positions.copyOf(), indices = intArrayOf(0, 1, 3)))), "drawables[D].mesh.indices[2]")
@@ -230,7 +210,7 @@ class UmaPuppetShapeTest {
 		 */
 		fun accessor(offset: Int, count: Int, componentType: String): String =
 			"""{ "buffer": "model/buffers.bin", "byteOffset": $offset, "byteLength": ${count * 4}, "count": $count, "componentType": "$componentType" }"""
-		val meshJson = """{ "positions": ${accessor(0, 6, "float32")}, "uvs": ${accessor(24, 6, "float32")}, "indices": ${accessor(48, 3, "int32")} }"""
+		val meshJson = """{ "canvasPositions": ${accessor(0, 6, "float32")}, "localPositions": ${accessor(0, 6, "float32")}, "uvs": ${accessor(24, 6, "float32")}, "indices": ${accessor(48, 3, "int32")} }"""
 		val detail = readFailure("""{ "drawables": [ { "id": "D", "name": "D", "mesh": $meshJson } ] }""", buffer)
 		assertTrue(detail.contains("drawables[D].mesh.indices[2] is 3"), detail)
 	}

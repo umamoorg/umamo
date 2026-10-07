@@ -160,7 +160,7 @@ class UmaDocumentBridgeTest {
 		val model = modelOf(listOf(drawable("D0", "art-0/lyid:1"), drawable("D1", "guid-3")), fullAtlas(), fullSources())
 		val reducedCopy = png(2, 2, 60)
 		val document = saved(model, UmaRenderPagePixels.Stored(listOf(reducedCopy, tilePngs.getValue("guid-3")), mapOf("D0" to 0, "D1" to 1)))
-		val reopened = UmaDocumentBridge.readModel(document).model
+		val reopened = UmaDocumentBridge.modelOf(document)
 		val differences = documentDifferences(model, reopened)
 		assertTrue(differences.isEmpty(), "differences: $differences")
 		assertEquals(model.atlas, reopened.atlas)
@@ -182,7 +182,7 @@ class UmaDocumentBridgeTest {
 		val model = modelOf(listOf(drawable("D0", "art-0/lyid:1")), fullAtlas().copy(storedUvsAddressPages = true))
 		val document = saved(model, UmaRenderPagePixels.Derived)
 		assertNull(UmaDocumentBridge.pagesOf(document).pageSet)
-		assertEquals(model.atlas, UmaDocumentBridge.readModel(document).model.atlas)
+		assertEquals(model.atlas, UmaDocumentBridge.modelOf(document).atlas)
 	}
 
 	/**
@@ -192,12 +192,12 @@ class UmaDocumentBridgeTest {
 	@Test
 	fun everyAtlasShapeRoundTrips() {
 		val pagesOnly = modelOf(emptyList(), PuppetAtlas(pages = listOf(AtlasPage(1024, 1024))))
-		assertEquals(pagesOnly.atlas, UmaDocumentBridge.readModel(saved(pagesOnly, UmaRenderPagePixels.Derived)).model.atlas, "pages without tiles")
+		assertEquals(pagesOnly.atlas, UmaDocumentBridge.modelOf(saved(pagesOnly, UmaRenderPagePixels.Derived)).atlas, "pages without tiles")
 
 		val tileless = modelOf(listOf(drawable("ArtMesh0", null, texturePage = 1), drawable("ArtMesh1", null, texturePage = 0)), PuppetAtlas.Empty)
 		val pagePngs = listOf(png(16, 16, 1), png(8, 8, 2))
 		val document = saved(tileless, UmaRenderPagePixels.Stored(pagePngs, mapOf("ArtMesh0" to 1, "ArtMesh1" to 0)))
-		val reopened = UmaDocumentBridge.readModel(document).model
+		val reopened = UmaDocumentBridge.modelOf(document)
 		assertEquals(PuppetAtlas.Empty, reopened.atlas, "the render pages do not enter an empty atlas")
 		assertEquals(listOf(1, 0), reopened.drawables.map { item -> item.texturePage })
 		val pageSet = assertNotNull(UmaDocumentBridge.pagesOf(document).pageSet)

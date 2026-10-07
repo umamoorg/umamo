@@ -16,14 +16,13 @@ import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * Pins [withLocalPositionsFromCanvas]: a drawable under a warp takes the base that puts its rest shape over its
- * canvas mesh, the canvas mesh itself untouched, and a drawable the chain cannot map is reported and left alone.
+ * Pins [localPositionsKeepingRest]: a root drawable bound to a warp takes the base that keeps its rest shape where
+ * it was, and a drawable whose new chain cannot map it is left out for the caller to keep its old base.
  */
-class LocalPositionsFromCanvasTest {
+class LocalPositionsKeepingRestTest {
 	private val parameterId = ParameterId("P")
 	private val warpId = DeformerId("warp")
 
@@ -31,17 +30,16 @@ class LocalPositionsFromCanvasTest {
 	private val canvas = floatArrayOf(120f, 120f, 160f, 120f, 160f, 160f)
 
 	/**
-	 * A drawable over the shared [canvas] array.
+	 * A deformer-less drawable over a copy of [canvas].
 	 *
-	 * @param String     id             The id.
-	 * @param DeformerId parentDeformer The parent.
+	 * @param String id The id.
 	 * @return Drawable The drawable.
 	 */
-	private fun drawable(id: String, parentDeformer: DeformerId): Drawable =
+	private fun drawable(id: String): Drawable =
 		Drawable(
 			id = DrawableId(id),
 			name = id,
-			parentDeformerId = parentDeformer,
+			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh.withLocalEqualToCanvas(canvas.copyOf(), FloatArray(canvas.size), intArrayOf(0, 1, 2)),
@@ -49,7 +47,7 @@ class LocalPositionsFromCanvasTest {
 		)
 
 	/**
-	 * One warp and two drawables: one under it, one under a deformer the model does not hold.
+	 * One warp and two drawables at the root, "child" and "orphan".
 	 *
 	 * @return PuppetModel The model.
 	 */
@@ -74,35 +72,42 @@ class LocalPositionsFromCanvasTest {
 							),
 					),
 				),
-			drawables = listOf(drawable("child", warpId), drawable("orphan", DeformerId("missing"))),
+			drawables = listOf(drawable("child"), drawable("orphan")),
 			rootChildren = emptyList(),
 			rootPartId = null,
 		)
 
+	/**
+	 * [model] with drawable [id] bound to [parent], its base unchanged.
+	 *
+	 * @param PuppetModel model  The model.
+	 * @param String      id     The drawable.
+	 * @param DeformerId  parent The new parent deformer.
+	 * @return PuppetModel The rebound model.
+	 */
+	private fun rebound(model: PuppetModel, id: String, parent: DeformerId): PuppetModel =
+		model.copy(drawables = model.drawables.map { drawable -> if (drawable.id == DrawableId(id)) drawable.copy(parentDeformerId = parent) else drawable })
+
 	@Test
-	fun aWarpChildTakesTheBaseThatPutsItOverItsCanvasMesh() {
+	fun aRootDrawableBoundToAWarpTakesTheBaseThatKeepsItInPlace() {
 		val before = model()
-		val derived = withLocalPositionsFromCanvas(before, listOf(DrawableId("child")))
-		val mesh = derived.model.drawables.first { drawable -> drawable.id == DrawableId("child") }.mesh!!
+		val local = localPositionsKeepingRest(before, rebound(before, "child", warpId), listOf(DrawableId("child")))[DrawableId("child")]!!
 		val expected = floatArrayOf(0.1f, 0.1f, 0.3f, 0.1f, 0.3f, 0.3f)
 		for (componentIndex in expected.indices) {
-			assertTrue(abs(expected[componentIndex] - mesh.localPositions[componentIndex]) <= 1e-5f, "component $componentIndex is ${mesh.localPositions[componentIndex]}, not ${expected[componentIndex]}")
+			assertTrue(abs(expected[componentIndex] - local[componentIndex]) <= 1e-5f, "component $componentIndex is ${local[componentIndex]}, not ${expected[componentIndex]}")
 		}
-		assertSame(before.drawables.first().mesh!!.positions, mesh.positions, "the canvas mesh is untouched")
-		assertTrue(derived.unconverted.isEmpty())
 	}
 
 	@Test
-	fun aDrawableTheChainCannotMapIsReportedAndLeftAlone() {
+	fun aDrawableTheNewChainCannotMapIsLeftOut() {
 		val before = model()
-		val derived = withLocalPositionsFromCanvas(before, listOf(DrawableId("orphan")))
-		assertEquals(listOf(DrawableId("orphan")), derived.unconverted)
-		assertSame(before.drawables.last(), derived.model.drawables.last())
+		val after = rebound(before, "orphan", DeformerId("missing"))
+		assertTrue(localPositionsKeepingRest(before, after, listOf(DrawableId("orphan"))).isEmpty())
 	}
 
 	@Test
-	fun nothingAskedIsTheSameModel() {
+	fun nothingAskedConvertsNothing() {
 		val before = model()
-		assertSame(before, withLocalPositionsFromCanvas(before, emptyList()).model)
+		assertEquals(emptyMap(), localPositionsKeepingRest(before, rebound(before, "child", warpId), emptyList()))
 	}
 }
