@@ -175,14 +175,13 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
 }
 
 /**
- * Rebuilds one keyform cell's [MeshForm] at the new vertex count: each new vertex's delta pair copies,
- * averages, or lerps from the old form's deltas per its [VertexSource].  An old index beyond the old
- * form's array (a malformed grid) contributes zero, keeping the rebuild total.
+ * Rebuilds one keyform cell's [MeshDeltaForm] at the new vertex count: its deltas through [remapPerVertex],
+ * one (x, y) pair per new vertex.
  *
- * @param MeshForm form The old cell form (deltas at the old stride).
+ * @param MeshDeltaForm form The old cell form (deltas at the old stride).
  * @param List<VertexSource> vertexSources One source per new vertex.
  * @param Int oldVertexCount The old mesh's vertex count (bounds the old delta reads).
- * @return MeshForm The rebuilt form (deltas at the new stride; drawOrder / opacity carried).
+ * @return MeshDeltaForm The rebuilt form (deltas at the new stride).
  */
 private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSource>, oldVertexCount: Int): MeshDeltaForm =
 	MeshDeltaForm(remapPerVertex(form.positionDeltas, vertexSources, oldVertexCount))

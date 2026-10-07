@@ -69,8 +69,9 @@ class KeyformGrid<TForm>(
 	/**
 	 * The cells indexed by their stride-folded linear index, built on first use and cached.
 	 *
-	 * Cached because the grid is immutable and the per-frame evaluator once rebuilt this map on every
-	 * channel sample of every entity - hundreds of transient HashMaps per scrub frame on a corpus rig.
+	 * Cached because the grid is immutable and the per-frame evaluator reads this map on every channel
+	 * sample of every entity - rebuilt per read, it would be hundreds of transient HashMaps per scrub
+	 * frame on a corpus rig.
 	 * PUBLICATION mode: a racing first read may compute twice but never blocks, and the render thread
 	 * must never take a lock.
 	 */

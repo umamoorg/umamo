@@ -20,7 +20,7 @@ import org.umamo.runtime.model.MeshDeltaForm
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every art mesh claims a binding index here.
  * @param Moc3ExportIds     ids        Claimed from: each drawable's written id.
- * @param Moc3ExportNotices noticeSink Appended to: demotions and unresolvable masks.
+ * @param Moc3ExportNotices noticeSink Appended to: demotions, unbound atlas pages, and unresolvable masks.
  * @return List<ArtMesh> The records, in plan order.
  */
 internal fun lowerArtMeshes(

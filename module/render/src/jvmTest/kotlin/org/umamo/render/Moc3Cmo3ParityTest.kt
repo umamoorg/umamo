@@ -206,8 +206,8 @@ class Moc3Cmo3ParityTest {
 	/**
 	 * Asserts the two import paths agree on a drawable's scalar channel tracks, cell for cell.
 	 *
-	 * Draw order and opacity used to ride the geometry cell, so they were compared there; they are their
-	 * own tracks now, but the parity claim is unchanged - both paths must land on the same values.
+	 * Draw order and opacity are channel tracks of their own, apart from the geometry cells, and the parity
+	 * claim is the same: both paths must land on the same values.
 	 *
 	 * @param DrawableId drawableId The drawable under comparison (for failure messages).
 	 * @param ChannelGrids cmo3Channels The CMO3 import's tracks.
@@ -382,7 +382,7 @@ class Moc3Cmo3ParityTest {
 			)
 			assertTrue(abs(cmo3Cell.form.scale - moc3Cell.form.scale) <= 0.001f, "rotation scale above ${drawableId.raw}")
 		}
-		// Reflections are FLAG channel tracks now, not pivot-form fields, but the parity claim is the same:
+		// Reflections are FLAG channel tracks, not pivot-form fields, and the parity claim is the same:
 		// both import paths must land on the same flip at every cell.
 		for (flipChannel in listOf(FormChannel.FLIP_X, FormChannel.FLIP_Y)) {
 			val cmo3Flips = cmo3Rotation.channelGrids[flipChannel]

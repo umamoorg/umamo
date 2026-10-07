@@ -468,11 +468,19 @@ object MeshTopologyOps {
 	}
 
 	/**
-	 * The proper-crossing parameter of segment (a, b) against segment (p, q), or null: strictly interior
-	 * on BOTH segments (an epsilon inside the endpoints) and non-parallel - the strictness is what lets
-	 * [connectVertices] refuse grazes and on-vertex hits instead of guessing.
+	 * The proper-crossing parameter of the segment from start to end against the edge from edgeStart to
+	 * edgeEnd, or null: strictly interior on BOTH (an epsilon inside the endpoints) and non-parallel - the
+	 * strictness is what lets [connectVertices] refuse grazes and on-vertex hits instead of guessing.
 	 *
-	 * @return Float? The parameter along (p, q) at the crossing, or null when there is no proper crossing.
+	 * @param Float startX     The segment's start x.
+	 * @param Float startY     The segment's start y.
+	 * @param Float endX       The segment's end x.
+	 * @param Float endY       The segment's end y.
+	 * @param Float edgeStartX The edge's start x.
+	 * @param Float edgeStartY The edge's start y.
+	 * @param Float edgeEndX   The edge's end x.
+	 * @param Float edgeEndY   The edge's end y.
+	 * @return Float? The parameter along the edge at the crossing, or null when there is no proper crossing.
 	 */
 	private fun properSegmentCrossing(
 		startX: Float,

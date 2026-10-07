@@ -17,7 +17,7 @@ import org.umamo.runtime.model.PuppetModel
  * This is a FULL SYNTHESIS, deliberately unlike the CMO3 export's state-based reconcile.  That
  * reconcile exists to preserve unmodeled XML the writer does not understand; a MOC3 has no such
  * payload once every section index is modeled, so there is nothing to carry and a reference
- * container would only constrain the output.  A CMO3-origin or future UMA-origin document
+ * container would only constrain the output.  A CMO3-origin or UMA-origin document
  * therefore exports exactly like a MOC3-origin one.
  *
  * THE LOAD-BEARING INVARIANT, which every geometry path here depends on:

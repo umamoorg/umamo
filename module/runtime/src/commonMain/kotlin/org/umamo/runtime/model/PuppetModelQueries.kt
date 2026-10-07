@@ -228,8 +228,8 @@ fun PuppetModel.parentPartByPart(): Map<PartId, PartId> {
 /**
  * Every part in [id]'s org-tree subtree, including [id] itself.  The set a part may NOT be re-homed under -
  * doing so would orphan a cycle - so the org-move guard and the Properties picker's candidate filter derive
- * from this one definition instead of each walking the tree its own way (they walked it in OPPOSITE
- * directions before this existed, which is exactly how two implementations of one invariant drift).
+ * from this one definition instead of each walking the tree its own way (two implementations of one
+ * invariant would drift apart).
  *
  * The org tree is the only hierarchy source for parts: a part's children live in [Part.children], and there
  * is no parent back-pointer, so this walks DOWN like [deformerSelfAndDescendants] does.
@@ -341,8 +341,7 @@ fun PuppetModel.withPartMasksFlattened(): PuppetModel {
 /**
  * The drawable's 5.3 per-art-mesh multiply color for display in the Properties panel.
  *
- * A plain static read now that the tint is its own channel: it used to have to reach into the first
- * keyform cell, which was only representative because the editor wrote the color across every cell.
+ * A plain static read: the tint is its own channel track, so no keyform cell is consulted for it.
  *
  * @return ColorRgb The drawable's static multiply color.
  */

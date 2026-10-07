@@ -919,7 +919,7 @@ class EditorSessionTest {
 	}
 
 	/**
-	 * A model whose drawable d carries a base art-mesh (a single triangle), for the mesh-edit tests.
+	 * A model whose drawable d carries an art mesh (a single triangle), for the mesh-edit tests.
 	 *
 	 * @return PuppetModel The fixture model with an editable mesh on drawable d.
 	 */

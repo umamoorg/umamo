@@ -10,9 +10,9 @@ import org.umamo.runtime.model.DrawableId
 /**
  * The per-area modal-gesture bookkeeping every gizmo overlay carries: the last pointer position, the frozen
  * capture and its live preview, the gesture-start anchor, the area's screen origin (for cursor wrap), and
- * the wrap / pointer-controller pair.  The three overlays declared these as seven separate
- * `remember(areaId) { mutableStateOf(...) }` locals plus the same reset boilerplate; bundling them keeps the
- * begin / end lifecycle in one place and out of each overlay.
+ * the wrap / pointer-controller pair.  Bundled rather than held as seven separate
+ * `remember(areaId) { mutableStateOf(...) }` locals per overlay, so the begin / end lifecycle and its reset
+ * live in one place and out of each overlay.
  *
  * State-backed fields stay observable (the draw pass and the HUD read [capture] / [preview] / [lastPointer]
  * live), so the whole object is created once per area with `remember(areaId) { ModalGestureState() }` - the

@@ -234,9 +234,9 @@ class CommandDispatchTest {
 	/**
 	 * G with the pointer on a PANEL latches nothing at all.
 	 *
-	 * This is the whole point of retiring the second resolver: there used to be a "last viewport touched"
-	 * to fall back on, so a transform started in a viewport the user had walked away from.  The fixture
-	 * has a live mesh selection, so the refusal is the routing talking and not an ineligible session.
+	 * The routing has one resolver, the hovered surface, and no "last viewport touched" fallback: with
+	 * one, a transform would start in a viewport the user had walked away from.  The fixture has a live
+	 * mesh selection, so the refusal is the routing talking and not an ineligible session.
 	 */
 	@Test
 	fun grabOverAPanelLatchesNothing() {

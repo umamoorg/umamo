@@ -112,7 +112,7 @@ sealed interface ExportNoticeReason {
 	/** Which texture a drawable samples is editor-only state that CMO3 does not carry. */
 	data object TextureSourceRebindingIsEditorOnly : ExportNoticeReason
 
-	/** The edited base geometry has a different vertex count than its CMO3 source. */
+	/** The edited canvas editable mesh has a different vertex count than its CMO3 source. */
 	data object BaseGeometryVertexCountMismatch : ExportNoticeReason
 
 	/** The drawable has no UVs to reconcile. */

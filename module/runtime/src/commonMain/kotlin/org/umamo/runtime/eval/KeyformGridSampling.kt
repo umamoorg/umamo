@@ -9,10 +9,10 @@ import org.umamo.runtime.model.WarpLatticeForm
 
 /*
  * Pure keyform-grid sampling: the multilinear corner selection and the pose-sampling helpers that
- * both the renderer's evaluator (:render) and the MOC3 import (Moc3Import) must agree on. Hoisted
- * from :render's eval so the import can compute the blend-shape delta reference (the grid form at
- * the DEFAULT pose) with the EXACT same arithmetic the evaluator later subtracts - any divergence
- * between the two would leak into every MOC3-imported blend shape as a residual offset.
+ * both the renderer's evaluator (:render) and the MOC3 import (Moc3Import) must agree on.  It lives
+ * here rather than in :render's eval so the import can compute the blend-shape delta reference (the
+ * grid form at the DEFAULT pose) with the EXACT same arithmetic the evaluator later subtracts - any
+ * divergence between the two would leak into every MOC3-imported blend shape as a residual offset.
  */
 
 // Bracket tolerances match the Umamo C++ Runtime, needed for ULP-parity with the differential-oracle test.
@@ -130,8 +130,8 @@ public fun gridCorners(grid: KeyformGrid<*>, paramValue: (ParameterId) -> Float)
  * Indexes a grid's cells by their stride-folded linear index (axis `a`'s stride = Π key counts of the
  * earlier axes), so a [WeightedCell.linearIndex] from [gridCorners] resolves to the matching cell.
  *
- * A delegate to the grid's own CACHED index: the grid is immutable, and building the map per call put
- * hundreds of transient HashMaps on every scrub frame.
+ * A delegate to the grid's own CACHED index: the grid is immutable, and building the map per call would
+ * put hundreds of transient HashMaps on every scrub frame.
  *
  * @param KeyformGrid grid The grid to index.
  * @return Map<Int, KeyformCell> linear index → cell.

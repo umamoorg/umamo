@@ -197,7 +197,7 @@ class KeyformPrecisionProofProbe {
 				put("canvasBase", JsonPrimitive(canvasBase.toString()))
 				put("canvasBaseBits", JsonPrimitive(bitsOf(canvasBase)))
 				put("storedDelta", JsonPrimitive(storedDeltaValue?.toString() ?: "none"))
-				put("storedDeltaBits", JsonPrimitive(if (storedDelta is DoubleArray) bitsOf(storedDeltaValue!!) else bitsOf(storedDeltaValue!!.toFloat())))
+				put("storedDeltaBits", JsonPrimitive(storedDeltaValue?.let { delta -> if (storedDelta is DoubleArray) bitsOf(delta) else bitsOf(delta.toFloat()) } ?: "none"))
 				put("exportedValue", JsonPrimitive(exportedValue.toString()))
 				put("exportedBits", JsonPrimitive(bitsOf(exportedValue)))
 				put("floatDelta", JsonPrimitive(floatDelta.toString()))
