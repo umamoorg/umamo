@@ -10,6 +10,7 @@ import org.umamo.edit.mesh.commitMeshUvs
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.edit.transform.snapToGrid
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.meshOf
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import kotlin.math.roundToInt
 
@@ -142,7 +143,7 @@ internal fun handleUvSnapRequest(
 					}
 				// Only the covered vertices are written; untouched ones keep their exact stored values
 				// (see storedUvsWithMoved).
-				val currentUvs = model.drawables.firstOrNull { drawable -> drawable.id == geometry.drawableId }?.mesh?.uvs ?: continue
+				val currentUvs = model.meshOf(geometry.drawableId)?.uvs ?: continue
 				newUvsByDrawable[geometry.drawableId] = storedUvsWithMoved(currentUvs, covered, transformedDisplay, frame)
 				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
 			}

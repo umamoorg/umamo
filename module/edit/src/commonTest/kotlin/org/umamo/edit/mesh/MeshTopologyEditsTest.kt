@@ -6,6 +6,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelectionOps
+import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.setMeshSelectMode
@@ -387,6 +388,19 @@ class MeshTopologyEditsTest {
 			session.selection.value.targets,
 			"undo restores the prior selection",
 		)
+	}
+
+	/** The copy a duplicate leaves active is the drawable Edit mode remembers, as after any selection. */
+	@Test
+	fun duplicatedCopyBecomesTheRememberedDrawable() {
+		val session = EditorSession(model())
+		session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("d"))))
+		session.duplicateSelectedDrawables()
+
+		// Deselect, then enter Edit mode: the seed falls back to the remembered drawable.
+		session.setSelection(Selection())
+		session.setMode(EditorMode.Edit)
+		assertEquals(DrawableId("d.001"), session.meshSelection.value.activeDrawableId, "Edit mode opens on the copy, not its source")
 	}
 
 	private fun absDiff(left: Float, right: Float): Float = if (left > right) left - right else right - left

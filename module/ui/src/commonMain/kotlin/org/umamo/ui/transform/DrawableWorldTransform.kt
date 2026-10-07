@@ -13,6 +13,7 @@ import org.umamo.edit.transform.resizedAboutBoundsCenter
 import org.umamo.render.eval.drawableLocalPosed
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.meshOf
 
 /*
  * The Properties Transform panel's coordinate space.
@@ -70,7 +71,7 @@ internal class DrawableWorldTransform(val bounds: MeshBounds, val editable: Bool
  * @return DrawableWorldTransform? The bounds and their editability, or null when the drawable has no mesh.
  */
 internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: DrawableId): DrawableWorldTransform? {
-	val base = model.drawables.firstOrNull { drawable -> drawable.id == id }?.mesh?.localPositions ?: return null
+	val base = model.meshOf(id)?.localPositions ?: return null
 	if (base.size < 2) {
 		return null
 	}
