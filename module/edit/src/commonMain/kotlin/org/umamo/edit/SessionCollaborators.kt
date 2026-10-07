@@ -10,11 +10,14 @@ package org.umamo.edit
  * public constructor hand the private one a single ready-made bundle.
  */
 internal class SessionCollaborators {
-	/** The notice channel, declared first: the latches below post through it. */
+	/** The notice channel, declared first: the tool settings below post through it. */
 	val notices = SessionNotices()
 
-	/** The transient tool state and the saved tool settings. */
-	val latches = ToolLatches(notify = notices::emit)
+	/** The transient tool latches. */
+	val latches = ToolLatches()
+
+	/** The saved tool settings: the cursors, the pivot mode, the grid, and proportional editing. */
+	val settings = ToolSettings(notify = notices::emit)
 
 	/** The area-request buses. */
 	val requestBus = SessionRequestBus()

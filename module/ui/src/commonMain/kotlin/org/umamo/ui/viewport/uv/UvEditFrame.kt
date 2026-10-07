@@ -7,6 +7,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.identityUvAffine
 import org.umamo.runtime.model.invertUvAffine
 import org.umamo.runtime.model.layerUvAffineOf
+import org.umamo.runtime.model.meshOf
 
 /*
  * The UV editor's surface, in display (texel) space: the frame an edit happens in (this file, over
@@ -159,7 +160,7 @@ internal fun storedUvsForCommit(
 	displayPositions: FloatArray,
 	frame: UvEditFrame,
 ): FloatArray {
-	val storedUvs = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh?.uvs
+	val storedUvs = model.meshOf(drawableId)?.uvs
 	return if (storedUvs == null) frame.storedUvs(displayPositions) else storedUvsWithMoved(storedUvs, movedIndices, displayPositions, frame)
 }
 

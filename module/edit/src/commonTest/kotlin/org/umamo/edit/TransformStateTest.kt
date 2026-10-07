@@ -17,6 +17,8 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -347,6 +349,35 @@ class TransformStateTest {
 
 		session.disarmZoomRegion()
 		assertNull(session.zoomRegionArmedArea.value, "disarming clears it")
+	}
+
+	/**
+	 * releaseArea drops only what the dying area holds - its operator, its armed tool, its zoom region - and
+	 * reports an operator release so the 2D viewport's guard knows to resync the renderer.
+	 */
+	@Test
+	fun releaseAreaDropsOnlyThatAreasLatches() {
+		val session = meshedSession()
+		val target = SelectionTarget.Drawable(DrawableId("d"))
+		session.setSelection(Selection(setOf(target), target))
+
+		session.beginObjectOperator(MeshOperatorKind.Grab, "area-a")
+		assertFalse(session.releaseArea("area-b"), "another area's release reports nothing")
+		assertEquals("area-a", session.activeObjectOperator.value?.areaId, "and leaves the operator latched")
+		assertTrue(session.releaseArea("area-a"), "the owning area's release reports the dropped operator")
+		assertNull(session.activeObjectOperator.value)
+
+		session.beginCircleSelect("area-a")
+		session.releaseArea("area-b")
+		assertNotNull(session.activeSelectTool.value, "another area's release leaves the armed tool")
+		assertFalse(session.releaseArea("area-a"), "a released tool is not a released operator")
+		assertNull(session.activeSelectTool.value)
+
+		session.armZoomRegion("area-a")
+		session.releaseArea("area-b")
+		assertEquals("area-a", session.zoomRegionArmedArea.value, "another area's release leaves the region armed")
+		session.releaseArea("area-a")
+		assertNull(session.zoomRegionArmedArea.value)
 	}
 
 	/** snapToGrid rounds relative to the world origin, so a snap lands on the origin-anchored grid lines. */

@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.meshOf
 
 /*
  * Selection operations over the session: the Edit-mode select-mode switch, Select All and Invert in both
@@ -26,7 +27,7 @@ fun EditorSession.setMeshSelectMode(selectMode: MeshSelectMode) {
 	val model = model.value
 	val converted =
 		MeshSelectionOps.changeSelectMode(current, selectMode) { drawableId ->
-			model.drawables.firstOrNull { it.id == drawableId }?.mesh?.indices
+			model.meshOf(drawableId)?.indices
 		}
 	if (converted == current) {
 		return
@@ -45,7 +46,7 @@ fun EditorSession.selectAllMeshElements() {
 	}
 	val current = meshSelection.value
 	val model = model.value
-	setMeshSelection(MeshSelectionOps.selectAll(current) { drawableId -> model.drawables.firstOrNull { it.id == drawableId }?.mesh })
+	setMeshSelection(MeshSelectionOps.selectAll(current) { drawableId -> model.meshOf(drawableId) })
 }
 
 /**
@@ -59,7 +60,7 @@ fun EditorSession.invertMeshSelection() {
 	}
 	val current = meshSelection.value
 	val model = model.value
-	setMeshSelection(MeshSelectionOps.invert(current) { drawableId -> model.drawables.firstOrNull { it.id == drawableId }?.mesh })
+	setMeshSelection(MeshSelectionOps.invert(current) { drawableId -> model.meshOf(drawableId) })
 }
 
 /**

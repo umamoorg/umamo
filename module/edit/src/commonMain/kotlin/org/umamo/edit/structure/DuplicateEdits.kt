@@ -125,7 +125,9 @@ private fun duplicatedMesh(mesh: DrawableMesh): DrawableMesh {
 /**
  * Duplicates every eligible selected drawable (Object-mode Shift+D) as ONE undo step: each copy
  * lands after its source in the org tree, and the selection becomes the copies - the caller follows
- * with a Grab so they pull away under the pointer, Blender-style.
+ * with a Grab so they pull away under the pointer, Blender-style.  The last copy becomes the active
+ * target, and the remembered drawable follows it exactly as it follows a selection gesture, so an
+ * Edit-mode entry after a deselect opens on the copy rather than on its source.
  *
  * @return List<DrawableId> The created copies (empty when nothing was eligible).
  */
@@ -149,6 +151,8 @@ fun EditorSession.duplicateSelectedDrawables(): List<DrawableId> {
 			copies.map { copyId -> SelectionTarget.Drawable(copyId) }.toSet<SelectionTarget>(),
 			SelectionTarget.Drawable(copies.last()),
 		)
+	// The remembered drawable tracks whatever is shown active (the rule setSelection and restore keep).
+	elementMemory.lastActiveDrawableId = copies.last()
 	commitStep(DrawableChange.Duplicate(copies), model = newModel, selection = newSelection)
 	return copies
 }

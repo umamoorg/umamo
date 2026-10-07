@@ -29,8 +29,9 @@ import org.umamo.runtime.model.PuppetModel
  * Compose-free by design (its module mandate), so it exposes coroutines flows, not Compose state.
  *
  * The primary constructor is private so the public one can hand it the [SessionCollaborators] built
- * beforehand: the tool latches and the request buses the header delegates [SessionToolLatches],
- * [SessionToolSettings], and [SessionRequests] to, and the notice channel the latches post through.
+ * beforehand: the tool latches, the tool settings, and the request buses the header delegates
+ * [SessionToolLatches], [SessionToolSettings], and [SessionRequests] to, and the notice channel the settings
+ * post through.
  *
  * @param PuppetModel initialModel The document model at open.
  * @param Pose initialPose The pose at open.
@@ -45,7 +46,7 @@ class EditorSession private constructor(
 	initialViewState: SessionViewState?,
 	private val collaborators: SessionCollaborators,
 ) : SessionToolLatches by collaborators.latches,
-	SessionToolSettings by collaborators.latches,
+	SessionToolSettings by collaborators.settings,
 	SessionRequests by collaborators.requestBus {
 	/**
 	 * Opens a session on [initialModel].
@@ -73,21 +74,22 @@ class EditorSession private constructor(
 	private val openingSnapshot: EditorSnapshot = openingSnapshotOf(initialModel, initialPose, openingViewState)
 
 	// The session's collaborators - the undo machinery (stack, saved baseline, derived flags) and the
-	// remembered-selection memory built here, the tool latches, the area-request buses, and the notice
-	// channel handed in.  The latches and the bus are reached through the three delegated interfaces
+	// remembered-selection memory built here, the tool latches, the tool settings, the area-request buses,
+	// and the notice channel handed in.  The latches, settings, and bus are reached through the three delegated interfaces
 	// in the header; what stays below is everything that writes a snapshotted flow, so every flow-write
 	// ordering stays in this facade.  The latches and the element memory are internal, not private, for
 	// the session's own extension files (ToolArming, SelectionEdits) - no other file may touch them.
 	private val history = HistoryCore(openingSnapshot, initialHistoryLimit)
 	internal val elementMemory = MeshElementMemory()
 	internal val latches: ToolLatches = collaborators.latches
+	private val settings: ToolSettings = collaborators.settings
 	private val requestBus: SessionRequestBus = collaborators.requestBus
 	private val notices: SessionNotices = collaborators.notices
 
 	init {
-		// The saved tool state is laid into the latches as the session is built, so what a rigger reopens
+		// The saved tool state is laid into the settings as the session is built, so what a rigger reopens
 		// to is where every flow starts - never a gesture, and never a notice.
-		openingViewState?.let(latches::seed)
+		openingViewState?.let(settings::seed)
 	}
 
 	// The live step's predecessor as of the last push - the base an operation registering itself as
@@ -789,12 +791,12 @@ class EditorSession private constructor(
 			parameterSelection = mutableParameterSelection.value,
 			mode = mutableMode.value,
 			selectMode = mutableMeshSelection.value.selectMode,
-			cursor2d = latches.cursor2d.value,
-			uvCursor = latches.uvCursor.value,
-			pivotMode = latches.pivotMode.value,
-			proportionalEnabled = latches.proportionalEdit.value != null,
-			proportionalSettings = latches.proportionalSettings,
-			gridConfig = latches.gridConfig.value.takeUnless { gridFollowsApplication },
+			cursor2d = settings.cursor2d.value,
+			uvCursor = settings.uvCursor.value,
+			pivotMode = settings.pivotMode.value,
+			proportionalEnabled = settings.proportionalEdit.value != null,
+			proportionalSettings = settings.proportionalSettings,
+			gridConfig = settings.gridConfig.value.takeUnless { gridFollowsApplication },
 		)
 
 	/**

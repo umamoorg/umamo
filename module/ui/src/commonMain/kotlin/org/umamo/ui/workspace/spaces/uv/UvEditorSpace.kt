@@ -342,20 +342,10 @@ internal fun UvEditorSpace(scope: AreaScope) {
 
 	// Area-death guard: a gesture latched from this area must not outlive it (corner-join, space
 	// switch, workspace tab switch), or the latch strands with no overlay to drive or confirm it.
-	// The overlay's own dispose effect resyncs the renderer when a capture was live.  Zoom Region
-	// disarms too - an armed flag naming a dead area would never resolve (the 2D viewport's guard).
+	// The overlay's own dispose effect resyncs the renderer when a capture was live, so the released
+	// operator needs nothing more here (the 2D viewport's guard resyncs itself).
 	DisposableEffect(scope.areaId, session) {
-		onDispose {
-			if (session.activeUvOperator.value?.areaId == scope.areaId) {
-				session.clearUvOperator()
-			}
-			if (session.activeSelectTool.value?.areaId == scope.areaId) {
-				session.clearSelectTool()
-			}
-			if (session.zoomRegionArmedArea.value == scope.areaId) {
-				session.disarmZoomRegion()
-			}
-		}
+		onDispose { session.releaseArea(scope.areaId) }
 	}
 
 	// The view commands' seam: register this area's camera ops for its lifetime, so view.fit / 1:1 /

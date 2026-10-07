@@ -11,6 +11,7 @@ import org.umamo.edit.mesh.commitMeshUvs
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.meshOf
 
 /*
  * Texture-coordinate mirroring over the Edit-mode selection: the UV editor's Mirror U / V commands, and the
@@ -46,7 +47,7 @@ internal fun editableUvCoverage(selection: MeshSelection, model: PuppetModel, sh
 		if (shownDrawableIds != null && drawableId !in shownDrawableIds) {
 			continue
 		}
-		val mesh = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh ?: continue
+		val mesh = model.meshOf(drawableId) ?: continue
 		if (mesh.uvs.isEmpty() || mesh.uvs.size != mesh.positions.size) {
 			continue
 		}

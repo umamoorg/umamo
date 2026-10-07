@@ -2,6 +2,7 @@ package org.umamo.edit
 
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.meshOf
 
 /**
  * The session's remembered-selection memory: which drawable was last active (so entering Edit mode
@@ -61,7 +62,7 @@ internal class MeshElementMemory {
 			seeded.drawableIds.mapNotNull { drawableId ->
 				val stored = rememberedElementsByDrawable[drawableId]?.takeIf { elements -> elements.isNotEmpty() } ?: return@mapNotNull null
 				val probe = seeded.copy(selectMode = rememberedSelectMode ?: seeded.selectMode, elementsByDrawable = mapOf(drawableId to stored))
-				val fits = MeshSelectionOps.fitsWithinMeshes(probe) { candidateId -> model.drawables.firstOrNull { drawable -> drawable.id == candidateId }?.mesh }
+				val fits = MeshSelectionOps.fitsWithinMeshes(probe) { candidateId -> model.meshOf(candidateId) }
 				if (fits) drawableId to stored else null
 			}.toMap()
 		if (restored.isEmpty()) {
