@@ -758,8 +758,11 @@ private fun rawBitsEqual(baseline: FloatArray, edited: FloatArray): Boolean =
 	baseline.size == edited.size && baseline.indices.all { componentIndex -> floatEq(baseline[componentIndex], edited[componentIndex]) }
 
 /**
- * Whether two keyforms rebuild the same absolute floats, `local + Δ` per component, each against its own base.
- * Without a base on both sides (a malformed drawable with deltas and no mesh) the deltas compare as they are.
+ * Whether two keyforms rebuild the same absolute floats, `local + Δ` per component over the base's whole length,
+ * each against its own base.  A component past the end of a short delta array takes the base unchanged, as
+ * positionsFromDeltas rebuilds it, so a base that moves there is a moved keyform too.  Without a base on both
+ * sides (a malformed drawable with deltas and no mesh), or with deltas longer than a base, the deltas compare as
+ * they are.
  *
  * @param FloatArray? baselineLocal  The baseline's base.
  * @param FloatArray  baselineDeltas The baseline's deltas.
@@ -771,13 +774,28 @@ private fun rebuildsEqual(baselineLocal: FloatArray?, baselineDeltas: FloatArray
 	if (baselineLocal === editedLocal && baselineDeltas === editedDeltas) {
 		return true
 	}
-	if (baselineLocal == null || editedLocal == null || baselineDeltas.size != editedDeltas.size || baselineLocal.size < baselineDeltas.size || editedLocal.size < editedDeltas.size) {
+	if (baselineLocal == null || editedLocal == null || baselineLocal.size < baselineDeltas.size || editedLocal.size < editedDeltas.size) {
 		return baselineDeltas.contentEquals(editedDeltas)
 	}
-	return baselineDeltas.indices.all { componentIndex ->
-		floatEq(baselineLocal[componentIndex] + baselineDeltas[componentIndex], editedLocal[componentIndex] + editedDeltas[componentIndex])
+	if (baselineLocal.size != editedLocal.size) {
+		return false
+	}
+	return baselineLocal.indices.all { componentIndex ->
+		floatEq(rebuiltComponent(baselineLocal, baselineDeltas, componentIndex), rebuiltComponent(editedLocal, editedDeltas, componentIndex))
 	}
 }
+
+/**
+ * One component of the keyform [deltas] rebuild over [local]: `local + Δ`, or the base alone past the end of the
+ * deltas, as positionsFromDeltas rebuilds it, without the array that function allocates.
+ *
+ * @param FloatArray local          The base.
+ * @param FloatArray deltas         The deltas.
+ * @param Int        componentIndex The component.
+ * @return Float The rebuilt component.
+ */
+private fun rebuiltComponent(local: FloatArray, deltas: FloatArray, componentIndex: Int): Float =
+	if (componentIndex < deltas.size) local[componentIndex] + deltas[componentIndex] else local[componentIndex]
 
 private fun <TForm> gridEquals(
 	baseline: KeyformGrid<TForm>?,

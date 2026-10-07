@@ -267,6 +267,8 @@ internal class Cmo3PropertyLowering(
 									editedDeformer.parent?.let { index.deformerByIdStr[it.raw]?.guid }
 										?: Cmo3SkeletonBuilder.rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDeformerSource", "targetDeformerGuid")
+								// The forms are read in the new parent's space from now on, reused ones included.
+								keyforms.retagFormSpaces(source, editedDeformer.parent != null)
 							}
 							DeformerField.PART -> lowerDeformerPart(source, diff.id, editedDeformer.partId)
 							DeformerField.QUAD_TRANSFORM -> {
@@ -370,6 +372,8 @@ internal class Cmo3PropertyLowering(
 									editedDrawable.parentDeformerId?.let { index.deformerByIdStr[it.raw]?.guid }
 										?: Cmo3SkeletonBuilder.rootDeformerSentinel()
 								editor.ensureChildSlot(source, "ACDrawableSource", "targetDeformerGuid", "clipGuidList")
+								// The forms are read in the new parent's space from now on, reused ones included.
+								keyforms.retagFormSpaces(source, editedDrawable.parentDeformerId != null)
 							}
 							DrawableField.BLEND_MODE -> {
 								// CMO3: CArtMeshSource field colorComposition.

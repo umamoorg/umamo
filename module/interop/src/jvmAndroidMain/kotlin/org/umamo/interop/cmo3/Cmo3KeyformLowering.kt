@@ -3,6 +3,9 @@ package org.umamo.interop.cmo3
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CRotationDeformerForm
+import org.umamo.format.cmo3.model.gen.ACDeformerForm
+import org.umamo.format.cmo3.model.gen.ACDeformerSource
+import org.umamo.format.cmo3.model.gen.ACDrawableForm
 import org.umamo.format.cmo3.model.gen.ACForm
 import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
@@ -91,17 +94,29 @@ internal class Cmo3KeyformLowering(
 	private val baselineDrawableById = baseline.drawables.associateBy(Drawable::id)
 
 	/**
-	 * Per-name CoordType instances shared across every fresh form this lowering creates, so the
-	 * writer hoists one shared def per name (the editor's own shape; it never writes a null
+	 * Per-name CoordType instances shared across every form this lowering tags, seeded from the forms
+	 * the graph already carries so a fresh or re-tagged form references the file's own shared def for
+	 * that name (the writer hoists one def per name, the editor's own shape; it never writes a null
 	 * coordType).
 	 */
-	private val coordTypes = HashMap<String, org.umamo.format.cmo3.model.drawable.CoordType>()
+	private val coordTypes: HashMap<String, org.umamo.format.cmo3.model.drawable.CoordType> by lazy {
+		val byName = HashMap<String, org.umamo.format.cmo3.model.drawable.CoordType>()
+		val pools = index.drawableSources.map { source -> source.keyforms } + index.deformerSources.map { source -> keyformsOf(source) }
+		for (pool in pools) {
+			for (form in Cmo3Import.elementsOf(pool)) {
+				val coordType = coordTypeOf(form) ?: continue
+				byName.putIfAbsent(coordType.coordName, coordType)
+			}
+		}
+		byName
+	}
 
 	/**
-	 * The CoordType a fresh form gets when no sibling template supplies one.
+	 * The CoordType a form gets for its owner's binding.
 	 *
-	 * CMO3: ACForm field coordType - corpus forms carry "DeformerLocal" under a parent deformer
-	 * and "Canvas" at the deformer-tree root (the space the stored positions are expressed in).
+	 * CMO3: ACDrawableForm / ACDeformerForm field coordType - corpus forms carry "DeformerLocal"
+	 * under a parent deformer and "Canvas" at the deformer-tree root (the space the stored positions
+	 * are expressed in).
 	 *
 	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
 	 * @return CoordType The shared per-export instance for that name.
@@ -112,6 +127,85 @@ internal class Cmo3KeyformLowering(
 				coordName = if (hasParentDeformer) "DeformerLocal" else "Canvas"
 			}
 		}
+
+	/**
+	 * The CoordType a fresh form takes: the [template]'s own instance when the sibling is tagged for
+	 * the same binding (the shared def the editor writes), else the shared instance for the owner's
+	 * binding, since a sibling from another owner may sit on the other side of the deformer tree.
+	 *
+	 * @param Any?    template          The sibling form conventions are cloned from, or null.
+	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
+	 * @return CoordType The instance to tag the fresh form with.
+	 */
+	private fun freshFormCoordType(template: Any?, hasParentDeformer: Boolean): org.umamo.format.cmo3.model.drawable.CoordType {
+		val wanted = formCoordType(hasParentDeformer)
+		return coordTypeOf(template)?.takeIf { templateCoordType -> templateCoordType.coordName == wanted.coordName } ?: wanted
+	}
+
+	/**
+	 * Tags every form of [source] with the space an owner under [hasParentDeformer] stores its
+	 * positions in.  A rebinding reads the owner's forms in its new parent's space from then on - the
+	 * rest-keeping rebind writes the base there, and a keyed owner's numbers are kept and follow the
+	 * new parent - so the tag follows the binding for the editor to read the positions in the right
+	 * space.  A form already tagged with that name is left as it is, so an unchanged file re-emits
+	 * its bytes.
+	 *
+	 * CMO3: ACDrawableForm / ACDeformerForm field coordType.
+	 *
+	 * @param Any     source            The drawable or deformer source whose forms are re-tagged.
+	 * @param Boolean hasParentDeformer Whether the owner now deforms under a parent deformer.
+	 */
+	fun retagFormSpaces(source: Any, hasParentDeformer: Boolean) {
+		val pool =
+			when (source) {
+				is CArtMeshSource -> source.keyforms
+				is ACDeformerSource -> keyformsOf(source)
+				else -> return
+			}
+		val coordType = formCoordType(hasParentDeformer)
+		for (form in Cmo3Import.elementsOf(pool)) {
+			if (coordTypeOf(form)?.coordName == coordType.coordName) {
+				continue
+			}
+			when (form) {
+				is ACDrawableForm -> {
+					form.coordType = coordType
+					editor.ensureChildSlot(form, "ACDrawableForm", "coordType")
+				}
+				is ACDeformerForm -> {
+					form.coordType = coordType
+					editor.ensureChildSlot(form, "ACDeformerForm", "coordType")
+				}
+			}
+		}
+	}
+
+	/**
+	 * The keyforms pool of a deformer source, declared per concrete class rather than on
+	 * ACDeformerSource.
+	 *
+	 * @param ACDeformerSource source The deformer source.
+	 * @return Any? Its keyforms, or null for a kind without one.
+	 */
+	private fun keyformsOf(source: ACDeformerSource): Any? =
+		when (source) {
+			is CWarpDeformerSource -> source.keyforms
+			is CRotationDeformerSource -> source.keyforms
+			else -> null
+		}
+
+	/**
+	 * The CoordType a form carries, or null for a form of another kind or one tagged with nothing.
+	 *
+	 * @param Any? form The form.
+	 * @return CoordType? Its coordType.
+	 */
+	private fun coordTypeOf(form: Any?): org.umamo.format.cmo3.model.drawable.CoordType? =
+		when (form) {
+			is ACDrawableForm -> form.coordType
+			is ACDeformerForm -> form.coordType
+			else -> null
+		} as? org.umamo.format.cmo3.model.drawable.CoordType
 
 	private fun unsupported(
 		category: ExportEntityCategory,
@@ -503,7 +597,7 @@ internal class Cmo3KeyformLowering(
 						// values; the channel lowering overwrites them when a color channel exists.
 						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
 						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
-						coordType = template?.coordType ?: formCoordType(editedDrawable.parentDeformerId != null)
+						coordType = freshFormCoordType(template, editedDrawable.parentDeformerId != null)
 					}
 			val origAbsolute = (existing?.positions as? FloatArray)?.takeIf { it.size == editedBase.size }
 			// The keyform is rebuilt from the keyform-space base as `local + Δ`.  A component whose base and delta
@@ -616,7 +710,7 @@ internal class Cmo3KeyformLowering(
 						// values; the channel lowering overwrites them when a color channel exists.
 						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
 						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
-						coordType = template?.coordType ?: formCoordType(editedWarp.parent != null)
+						coordType = freshFormCoordType(template, editedWarp.parent != null)
 					}
 			val newPoints = payload?.controlPoints
 			if (newPoints != null) {
@@ -705,7 +799,7 @@ internal class Cmo3KeyformLowering(
 						// values; the channel lowering overwrites them when a color channel exists.
 						multiplyColor = Cmo3SkeletonBuilder.identityMultiplyColor()
 						screenColor = Cmo3SkeletonBuilder.identityScreenColor()
-						coordType = template?.coordType ?: formCoordType(editedRotation.parent != null)
+						coordType = freshFormCoordType(template, editedRotation.parent != null)
 					}
 			if (payload != null) {
 				// CMO3: CRotationDeformerForm attributes originX / originY / angle / scale.

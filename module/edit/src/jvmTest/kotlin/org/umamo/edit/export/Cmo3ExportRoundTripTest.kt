@@ -33,6 +33,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.drawable.CoordType
 import org.umamo.format.cmo3.model.gen.CArtMeshForm
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CCachedImage
@@ -182,7 +183,7 @@ class Cmo3ExportRoundTripTest {
 				val partedDeformer = puppet.deformers.firstOrNull { it.partId != null }
 				var model = puppet
 				if (deformedDrawable != null) {
-					model = model.withDrawableParentDeformer(deformedDrawable.id, null)
+					model = model.withDrawableParentDeformer(deformedDrawable.id, null, localPositions = null)
 				}
 				if (partedDeformer != null) {
 					model = model.withDeformerPart(partedDeformer.id, null)
@@ -190,6 +191,36 @@ class Cmo3ExportRoundTripTest {
 				model
 			}
 		assertLossless(result, "reparent")
+	}
+
+	/**
+	 * A rebinding moves the owner's forms into its new parent's space, and the file says so: every form of a
+	 * drawable detached from its deformer is tagged for the root, the reused forms included, where the detach
+	 * alone rewrites nothing else about them.
+	 */
+	@Test
+	fun aDetachedDrawablesFormsAreTaggedForTheRoot() {
+		val file = skipMessageOrNull() ?: return
+		val cmo3 = Cmo3.read(file.readBytes())
+		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+		val puppet = Cmo3Import.fromModelSource(modelSource)
+		val deformed = puppet.drawables.firstOrNull { drawable -> drawable.parentDeformerId != null && drawable.geometryGrid?.axes?.isNotEmpty() == true }
+		if (deformed == null) {
+			println("${file.name} has no keyed drawable under a deformer; skipping the form-space tag check")
+			return
+		}
+		val report = Cmo3Export.apply(puppet.withDrawableParentDeformer(deformed.id, null, localPositions = null), cmo3)
+		assertTrue(report.notices.none { notice -> notice is ExportNotice.UnsupportedChange }, "a detach lowers fully: ${report.notices}")
+		val reread = Cmo3.read(Cmo3.write(cmo3)).root as CModelSource
+		val source =
+			elementsOf((reread.drawableSourceSet as CDrawableSourceSet)._sources).filterIsInstance<CArtMeshSource>().first { candidate ->
+				(candidate.id as? Id)?.idstr == deformed.id.raw
+			}
+		val forms = elementsOf(source.keyforms).filterIsInstance<CArtMeshForm>()
+		assertTrue(forms.isNotEmpty(), "the detached drawable keeps its forms")
+		for (form in forms) {
+			assertEquals("Canvas", (form.coordType as? CoordType)?.coordName, "form ${(form.guid as? Guid)?.uuid} is read in the root's space now")
+		}
 	}
 
 	@Test

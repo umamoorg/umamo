@@ -76,6 +76,22 @@ fun deltasReaching(reference: FloatArray, absolutes: FloatArray): FloatArray =
 	FloatArray(absolutes.size) { componentIndex -> deltaReaching(reference[componentIndex], absolutes[componentIndex]) }
 
 /**
+ * A stored form's deltas against its base: [deltasReaching] when [reference] is one of [absolutes]' length, else a
+ * copy of [absolutes], so a form whose base does not fit is kept absolute rather than dropped.  Every importer
+ * derives a form's deltas through this, so the size tolerance is one rule.
+ *
+ * @param FloatArray? reference The base, or null when the mesh has none.
+ * @param FloatArray  absolutes The form's absolute positions.
+ * @return FloatArray The deltas, or a copy of [absolutes].
+ */
+fun deltasVsBase(reference: FloatArray?, absolutes: FloatArray): FloatArray {
+	if (reference == null || reference.size != absolutes.size) {
+		return absolutes.copyOf()
+	}
+	return deltasReaching(reference, absolutes)
+}
+
+/**
  * The absolute positions [deltas] give over [reference]: `reference + Δ` per component, the expression every
  * consumer rebuilds a keyform with.  Components past the end of [deltas] take the reference unchanged, the
  * tolerance the evaluator gives a short delta array.

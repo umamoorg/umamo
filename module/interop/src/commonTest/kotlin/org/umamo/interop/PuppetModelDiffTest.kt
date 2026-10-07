@@ -305,6 +305,34 @@ class PuppetModelDiffTest {
 	}
 
 	/**
+	 * A delta array shorter than its base rebuilds the base alone past its end (the evaluator's tolerance), so a
+	 * base that moves there is a moved keyform, and the diff says so.
+	 */
+	@Test
+	fun aBaseMovePastAShortDeltaArrayIsAGeometryEdit() {
+		val angleY = ParameterId("ParamAngleY")
+		val base = floatArrayOf(0f, 0f, 10f, 0f, 5f, 10f)
+		val mesh = DrawableMesh.withLocalEqualToCanvas(base, floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2))
+		val shortGrid =
+			KeyformGrid(
+				listOf(KeyformAxis(angleY, floatArrayOf(0f, 1f))),
+				listOf(
+					KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(2))),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(1f, 0f))),
+				),
+			)
+		val baseline = drawable("d1").copy(mesh = mesh, geometryGrid = shortGrid)
+		val movedTail = baseline.copy(mesh = DrawableMesh(mesh.positions, floatArrayOf(0f, 0f, 10f, 0f, 5f, 12f), mesh.uvs, mesh.indices))
+		assertEquals(
+			setOf(DrawableField.GEOMETRY),
+			onlyChangedFields(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(movedTail))).drawables),
+			"the last vertex moved under every keyform",
+		)
+		val sameTail = baseline.copy(mesh = DrawableMesh(mesh.positions, base.copyOf(), mesh.uvs, mesh.indices))
+		assertTrue(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(sameTail))).drawables.isEmpty(), "the same base in another array is no edit")
+	}
+
+	/**
 	 * Keyform geometry compares by the absolute floats each keyform rebuilds, `localPositions + Δ`: two deltas that
 	 * rebuild the same float are the same keyform even when their bits differ, which is what a CMO3 round trip
 	 * produces when a delta is re-derived from a rebuilt float.

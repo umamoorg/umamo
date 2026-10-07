@@ -164,12 +164,17 @@ fun EditorSession.setDrawableScreenColor(id: DrawableId, color: ColorRgb) {
 /**
  * Binds drawable [id] to the deformer that deforms it (null unbinds) as one undo step.
  *
+ * The drawable's keyform-space base lives in its parent's space, so every caller states what happens to it:
+ * [localPositions] is the base re-expressed in the new parent's space, which keeps the art where it rests (the
+ * caller derives it, since that takes :render's inverse), or null to keep the base's numbers, under which the
+ * art follows the new parent (see [withDrawableParentDeformer]).  There is no default, so the lossy spelling
+ * is a visible choice at the call site.
+ *
  * @param DrawableId  id               The drawable to rebind.
  * @param DeformerId? parentDeformerId The deformer that deforms it, or null to unbind.
- * @param FloatArray? localPositions   The base in the new parent's space that keeps the art where it rests, or
- *   null to keep the base (see [withDrawableParentDeformer]).
+ * @param FloatArray? localPositions   The base in the new parent's space, or null to keep the base.
  */
-fun EditorSession.setDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?, localPositions: FloatArray? = null) {
+fun EditorSession.setDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?, localPositions: FloatArray?) {
 	mutate(DrawableChange.SetParentDeformer(id, parentDeformerId)) { model ->
 		model.withDrawableParentDeformer(id, parentDeformerId, localPositions)
 	}

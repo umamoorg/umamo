@@ -11,7 +11,7 @@ import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.MeshForm
-import org.umamo.runtime.model.deltasReaching
+import org.umamo.runtime.model.deltasVsBase
 
 /**
  * Imports every art mesh, in file order.
@@ -56,7 +56,7 @@ internal fun importDrawables(context: Moc3ImportContext): List<Drawable> =
 				source.keyforms.getOrNull(gridIndex)?.let { keyform ->
 					MeshForm(
 						positionDeltas =
-							deltaVsBase(
+							deltasVsBase(
 								basePositions,
 								context.convertPoints(space, keyform.vertexPositions),
 							),
@@ -127,22 +127,3 @@ private fun blendModeOf(constantFlags: Int): BlendMode =
 		constantFlags and ConstantFlag.BLEND_MULTIPLICATIVE != 0 -> BlendMode.MultiplyPremultiplied
 		else -> BlendMode.Normal
 	}
-
-/**
- * Per-vertex deltas of [positions] vs [base] ([deltasReaching]), or a copy of positions when there is no
- * size-matching base, so the form is kept absolute rather than dropped (matching `Cmo3Import`'s
- * convention).
- *
- * @param FloatArray? base      The keyform-space base.
- * @param FloatArray  positions The keyform's absolute positions.
- * @return FloatArray The deltas, or a copy of positions.
- */
-private fun deltaVsBase(
-	base: FloatArray?,
-	positions: FloatArray,
-): FloatArray {
-	if (base == null || base.size != positions.size) {
-		return positions.copyOf()
-	}
-	return deltasReaching(base, positions)
-}

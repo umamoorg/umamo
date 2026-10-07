@@ -3,6 +3,8 @@ package org.umamo.render
 import org.umamo.render.eval.CpuDeformationEvaluator
 import org.umamo.render.eval.DeformedGeometry
 import org.umamo.render.eval.DrawableSpaceResolver
+import org.umamo.render.eval.canvasToWorld
+import org.umamo.render.eval.worldToCanvas
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -58,11 +60,7 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 			if (worldPositions.size != mesh.positions.size) {
 				return@map drawable
 			}
-			// The eval negates Y into world space; canvas space is the pre-negation Y-down convention.
-			val canvas =
-				FloatArray(worldPositions.size) { coordIndex ->
-					if (coordIndex % 2 == 1) -worldPositions[coordIndex] else worldPositions[coordIndex]
-				}
+			val canvas = worldToCanvas(worldPositions)
 			// A drawable with no deformer whose rest shape is its base keeps the one shared array.
 			if (canvas.contentEquals(mesh.positions)) {
 				return@map drawable
@@ -125,15 +123,37 @@ private fun defaultPoseFallbackFor(model: PuppetModel, defaultPose: DeformedGeom
  * @return Function2 The seam: drawable id plus interleaved canvas-space positions to parent-space
  *                   positions, or null when the chain cannot invert.
  */
-fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> FloatArray? {
+fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> FloatArray? =
+	canvasToParentSpaceFor(puppet, DrawableSpaceResolver(puppet, emptyMap()), anyHiddenAtDefault = true)
+
+/**
+ * [canvasToParentSpaceFor] over [neutralSpaces], a resolver the caller already holds for [puppet] at the
+ * neutral pose, so a caller with one in hand does not bake the deformer chain a second time.
+ *
+ * The clamped second-chance pose is found by a whole-model evaluation at the raw default, the expensive
+ * part.  [anyHiddenAtDefault] false states that no drawable the seam will be asked about is hidden at
+ * that pose (its chain maps through [neutralSpaces]), and skips the evaluation: every drawable then
+ * inverts through [neutralSpaces].  Asking the seam about a hidden drawable under that promise returns
+ * null for it, the chain being undefined at the neutral pose.
+ *
+ * @param PuppetModel           puppet             The rig.
+ * @param DrawableSpaceResolver neutralSpaces      Its deformer chain at the neutral pose.
+ * @param Boolean               anyHiddenAtDefault Whether a drawable the seam is asked about may be hidden
+ *                                                 at the neutral pose.
+ * @return Function2 The seam, as [canvasToParentSpaceFor] gives it.
+ */
+fun canvasToParentSpaceFor(puppet: PuppetModel, neutralSpaces: DrawableSpaceResolver, anyHiddenAtDefault: Boolean): (DrawableId, FloatArray) -> FloatArray? {
 	// Resolved once per export rather than per drawable: the evaluation is the expensive part and the
 	// answer is a property of the model, not of whichever drawable is being written.
-	val preGlueModel = puppet.copy(glues = emptyList())
-	val defaultPose = CpuDeformationEvaluator().evaluate(preGlueModel, emptyMap())
-	val fallback = defaultPoseFallbackFor(puppet, defaultPose)
+	val fallback =
+		if (anyHiddenAtDefault) {
+			val preGlueModel = puppet.copy(glues = emptyList())
+			defaultPoseFallbackFor(puppet, CpuDeformationEvaluator().evaluate(preGlueModel, emptyMap()))
+		} else {
+			null
+		}
 	// Likewise the mappings: one resolver per pose bakes the deformer chain once for the whole export,
 	// where a per-drawable mapping would bake it once per drawable written.
-	val neutralSpaces = DrawableSpaceResolver(puppet, emptyMap())
 	val clampedSpaces = fallback?.let { DrawableSpaceResolver(puppet, it.clampedDefaults) }
 
 	return { drawableId, positions ->
@@ -145,7 +165,7 @@ fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> Flo
 			}
 		spaces.mapping(drawableId)?.let { mapping ->
 			// worldToLocal expects the renderer's Y-negated world space, and every vertex is solved.
-			val world = FloatArray(positions.size) { index -> if (index % 2 == 0) positions[index] else -positions[index] }
+			val world = canvasToWorld(positions)
 			// The seed matters only for the warp inverse, and it must be a LATTICE UV, not a canvas
 			// coordinate: seeding Newton with the canvas-space value starts it hundreds of units outside
 			// the [0,1] lattice, where the damped step cannot walk back.  The lattice center is the

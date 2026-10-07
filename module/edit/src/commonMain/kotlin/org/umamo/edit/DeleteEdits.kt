@@ -122,13 +122,14 @@ fun PuppetModel.withDrawableDeleted(id: DrawableId): PuppetModel {
  *
  * A re-homed drawable's base was in the deleted deformer's space; one listed in [localPositionsByDrawable]
  * takes that base, already in its new parent's space, so it stays where it rests (see
- * [withDrawableParentDeformer]).  Every other re-homed drawable, and every child deformer, keeps its numbers.
+ * [withDrawableParentDeformer]).  Every other re-homed drawable, and every child deformer, keeps its numbers,
+ * so a caller passing an empty map chooses the art following the new parent, in so many words.
  *
  * @param DeformerId id                      The deformer to delete.
  * @param Map        localPositionsByDrawable The bases of the re-homed drawables that keep their place.
  * @return PuppetModel The model without that deformer, or [this] if it was absent.
  */
-fun PuppetModel.withDeformerDeleted(id: DeformerId, localPositionsByDrawable: Map<DrawableId, FloatArray> = emptyMap()): PuppetModel {
+fun PuppetModel.withDeformerDeleted(id: DeformerId, localPositionsByDrawable: Map<DrawableId, FloatArray>): PuppetModel {
 	val deformer = deformers.firstOrNull { it.id == id } ?: return this
 	val grandParent = deformer.parent
 	val updatedDeformers =
@@ -223,12 +224,46 @@ fun EditorSession.deleteDrawable(id: DrawableId) {
 /**
  * Deletes the deformer [id] (unwrapping it - children re-home to its parent) as one undo step.
  *
+ * A re-homed drawable's base was in the deleted deformer's space, so every caller states what happens to it.
+ * [localPositionsByDrawable] is handed the unwrapped model (the deformer gone, every re-homed drawable still on
+ * its numbers) and answers with each base re-expressed in its new parent's space, which keeps that art where it
+ * rests; it reads the unwrapped model because the derivation takes the new deformer chain and :render's
+ * inverse, so the session builds that model once and the caller reads it rather than building its own.  A
+ * drawable left out of the answer keeps its numbers, under which its art follows the new parent, so a caller
+ * answering an empty map chooses that in so many words (see [withDeformerDeleted]).  There is no default, so
+ * the lossy spelling is a visible choice at the call site.
+ *
  * @param DeformerId id                       The deformer to delete.
- * @param Map        localPositionsByDrawable The bases of the re-homed drawables that keep their place (see
- *   [withDeformerDeleted]).
+ * @param Function1  localPositionsByDrawable The bases of the re-homed drawables that keep their place, over
+ *                                            the unwrapped model.
  */
-fun EditorSession.deleteDeformer(id: DeformerId, localPositionsByDrawable: Map<DrawableId, FloatArray> = emptyMap()) {
-	mutate(DeformerChange.Delete(id)) { model -> model.withDeformerDeleted(id, localPositionsByDrawable) }
+fun EditorSession.deleteDeformer(id: DeformerId, localPositionsByDrawable: (unwrapped: PuppetModel) -> Map<DrawableId, FloatArray>) {
+	mutate(DeformerChange.Delete(id)) { model ->
+		val unwrapped = model.withDeformerDeleted(id, emptyMap())
+		if (unwrapped === model) {
+			return@mutate model
+		}
+		unwrapped.withDrawableBases(localPositionsByDrawable(unwrapped))
+	}
+}
+
+/**
+ * This model with each listed drawable's keyform-space base replaced, its binding and canvas mesh kept.  A
+ * drawable the model does not carry, or a base not of its mesh's length, is skipped (see [Drawable.rebound]).
+ *
+ * @param Map localPositionsByDrawable The new base per drawable.
+ * @return PuppetModel The model with those bases, or [this] when the map is empty.
+ */
+private fun PuppetModel.withDrawableBases(localPositionsByDrawable: Map<DrawableId, FloatArray>): PuppetModel {
+	if (localPositionsByDrawable.isEmpty()) {
+		return this
+	}
+	return copy(
+		drawables =
+			drawables.map { drawable ->
+				localPositionsByDrawable[drawable.id]?.let { local -> drawable.rebound(drawable.parentDeformerId, local) } ?: drawable
+			},
+	)
 }
 
 /**
@@ -247,10 +282,11 @@ fun EditorSession.deletePart(id: PartId, cascade: Boolean) {
  *
  * @param SelectionTarget target                   The entity to delete.
  * @param Boolean         cascade                  For a part, true to delete the subtree, false to ungroup; ignored otherwise.
- * @param Map             localPositionsByDrawable For a deformer, the bases of the re-homed drawables that keep
- *   their place (see [withDeformerDeleted]); ignored otherwise.
+ * @param Function1       localPositionsByDrawable For a deformer, the bases of the re-homed drawables that keep
+ *   their place over the unwrapped model, a drawable left out keeping its numbers (see [deleteDeformer]);
+ *   ignored otherwise.
  */
-fun EditorSession.deleteTarget(target: SelectionTarget, cascade: Boolean, localPositionsByDrawable: Map<DrawableId, FloatArray> = emptyMap()) {
+fun EditorSession.deleteTarget(target: SelectionTarget, cascade: Boolean, localPositionsByDrawable: (unwrapped: PuppetModel) -> Map<DrawableId, FloatArray>) {
 	when (target) {
 		is SelectionTarget.Part -> deletePart(target.id, cascade)
 		is SelectionTarget.Drawable -> deleteDrawable(target.id)

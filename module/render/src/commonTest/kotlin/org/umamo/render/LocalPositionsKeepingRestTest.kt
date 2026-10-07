@@ -47,11 +47,13 @@ class LocalPositionsKeepingRestTest {
 		)
 
 	/**
-	 * One warp and two drawables at the root, "child" and "orphan".
+	 * One warp, keyed on P at [warpKeys] with the same lattice at every key, and two drawables at the root, "child"
+	 * and "orphan".
 	 *
+	 * @param FloatArray warpKeys The warp's keys on P.
 	 * @return PuppetModel The model.
 	 */
-	private fun model(): PuppetModel =
+	private fun model(warpKeys: FloatArray = floatArrayOf(0f)): PuppetModel =
 		PuppetModel(
 			parameters = listOf(Parameter(parameterId, "P", -1f, 1f, 0f)),
 			parts = emptyList(),
@@ -67,8 +69,8 @@ class LocalPositionsKeepingRestTest {
 						isQuadTransform = true,
 						geometryGrid =
 							KeyformGrid(
-								listOf(KeyformAxis(parameterId, floatArrayOf(0f))),
-								listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(floatArrayOf(100f, 100f, 300f, 100f, 100f, 300f, 300f, 300f)))),
+								listOf(KeyformAxis(parameterId, warpKeys)),
+								warpKeys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), WarpLatticeForm(floatArrayOf(100f, 100f, 300f, 100f, 100f, 300f, 300f, 300f))) },
 							),
 					),
 				),
@@ -76,6 +78,18 @@ class LocalPositionsKeepingRestTest {
 			rootChildren = emptyList(),
 			rootPartId = null,
 		)
+
+	/**
+	 * Asserts [local] is the base that puts [canvas] in the lattice.
+	 *
+	 * @param FloatArray local The derived base.
+	 */
+	private fun assertInTheLattice(local: FloatArray) {
+		val expected = floatArrayOf(0.1f, 0.1f, 0.3f, 0.1f, 0.3f, 0.3f)
+		for (componentIndex in expected.indices) {
+			assertTrue(abs(expected[componentIndex] - local[componentIndex]) <= 1e-5f, "component $componentIndex is ${local[componentIndex]}, not ${expected[componentIndex]}")
+		}
+	}
 
 	/**
 	 * [model] with drawable [id] bound to [parent], its base unchanged.
@@ -91,11 +105,18 @@ class LocalPositionsKeepingRestTest {
 	@Test
 	fun aRootDrawableBoundToAWarpTakesTheBaseThatKeepsItInPlace() {
 		val before = model()
-		val local = localPositionsKeepingRest(before, rebound(before, "child", warpId), listOf(DrawableId("child")))[DrawableId("child")]!!
-		val expected = floatArrayOf(0.1f, 0.1f, 0.3f, 0.1f, 0.3f, 0.3f)
-		for (componentIndex in expected.indices) {
-			assertTrue(abs(expected[componentIndex] - local[componentIndex]) <= 1e-5f, "component $componentIndex is ${local[componentIndex]}, not ${expected[componentIndex]}")
-		}
+		assertInTheLattice(localPositionsKeepingRest(before, rebound(before, "child", warpId), listOf(DrawableId("child")))[DrawableId("child")]!!)
+	}
+
+	/**
+	 * A warp keyed at 0.5 and 1 over a parameter defaulting to 0 hides its children at the neutral pose, so the
+	 * new chain is undefined there and the inverse goes through the clamped pose, where the lattice is the same.
+	 */
+	@Test
+	fun aDrawableHiddenAtTheNeutralPoseUnderItsNewChainInvertsThroughTheClampedPose() {
+		val before = model()
+		val after = rebound(model(floatArrayOf(0.5f, 1f)), "child", warpId)
+		assertInTheLattice(localPositionsKeepingRest(before, after, listOf(DrawableId("child")))[DrawableId("child")]!!)
 	}
 
 	@Test
