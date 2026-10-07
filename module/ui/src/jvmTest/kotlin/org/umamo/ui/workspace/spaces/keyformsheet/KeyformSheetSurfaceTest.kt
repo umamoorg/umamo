@@ -11,7 +11,10 @@ import org.umamo.ui.workspace.spaces.parameters.PANEL_SHEET_AREA_ID
 import org.umamo.ui.workspace.spaces.parameters.PanelIds
 import org.umamo.ui.workspace.spaces.parameters.clickAt
 import org.umamo.ui.workspace.spaces.parameters.drag
+import org.umamo.ui.workspace.spaces.parameters.pressAndMove
 import org.umamo.ui.workspace.spaces.parameters.pressKey
+import org.umamo.ui.workspace.spaces.parameters.releasePress
+import org.umamo.ui.workspace.spaces.parameters.secondaryClickAt
 import org.umamo.ui.workspace.spaces.parameters.showsText
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,6 +31,7 @@ import kotlin.test.assertTrue
 class KeyformSheetSurfaceTest {
 	private val geometryKey0 = TrackKeyRef(PanelIds.bodyX, SheetRows.GEOMETRY, 0)
 	private val geometryKey1 = TrackKeyRef(PanelIds.bodyX, SheetRows.GEOMETRY, 1)
+	private val geometryKey2 = TrackKeyRef(PanelIds.bodyX, SheetRows.GEOMETRY, 2)
 
 	/** The nudge moves the selection by a hundredth of its range, as one step, through the same path a drag commits on. */
 	@Test
@@ -110,6 +114,67 @@ class KeyformSheetSurfaceTest {
 
 			pressKey(Key.Escape)
 
+			assertFalse(harness.sheetViewState.boxSelectArmed)
+		}
+
+	/** An armed click is a click, not a box: it only disarms, leaving the selection as it was. */
+	@Test
+	fun aMarqueeClickKeepsTheSelection() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.bodyX))
+			clickAt(lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, 5f))
+			assertEquals(setOf(geometryKey2), harness.session.keySelection.value)
+			runOnIdle { harness.registry.invoke("mesh.boxSelect") }
+			waitForIdle()
+			assertTrue(harness.sheetViewState.boxSelectArmed)
+
+			// Empty track, between the keys at -5 and 0.
+			clickAt(lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, -2f))
+
+			assertEquals(setOf(geometryKey2), harness.session.keySelection.value, "a bare click encloses nothing and replaces nothing")
+			assertFalse(harness.sheetViewState.boxSelectArmed, "and the marquee is spent")
+		}
+
+	/** A right-click mid-drag abandons the band: nothing lands, and the marquee disarms. */
+	@Test
+	fun aRightClickMidMarqueeSelectsNothing() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.bodyX))
+			runOnIdle { harness.registry.invoke("mesh.boxSelect") }
+			waitForIdle()
+			val lane = laneBox(harness, SheetRows.GEOMETRY)
+			val start = lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, -6f)
+			val end = lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, 1f)
+
+			pressAndMove(Offset(start.x, lane.top + 2f), listOf(Offset(end.x, lane.bottom - 2f)))
+			secondaryClickAt(Offset(end.x, lane.bottom - 2f))
+			releasePress()
+
+			assertEquals(emptySet(), harness.session.keySelection.value, "an abandoned band selects nothing")
+			assertFalse(harness.sheetViewState.boxSelectArmed, "and the right-click disarms")
+		}
+
+	/**
+	 * Escape mid-drag lands nothing.  The shell ladder disarms the marquee, which leaves composition under
+	 * the pressed pointer; the synthetic release Compose sends the loop on its way out arrives already
+	 * consumed and is not the user's release, so the band is abandoned rather than landed on the keys it
+	 * happened to cover.
+	 */
+	@Test
+	fun escapeMidMarqueeSelectsNothing() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.bodyX))
+			runOnIdle { harness.registry.invoke("mesh.boxSelect") }
+			waitForIdle()
+			val lane = laneBox(harness, SheetRows.GEOMETRY)
+			val start = lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, -6f)
+			val end = lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, 1f)
+
+			pressAndMove(Offset(start.x, lane.top + 2f), listOf(Offset(end.x, lane.bottom - 2f)))
+			pressKey(Key.Escape)
+			releasePress()
+
+			assertEquals(emptySet(), harness.session.keySelection.value, "a cancelled band selects nothing")
 			assertFalse(harness.sheetViewState.boxSelectArmed)
 		}
 
