@@ -25,7 +25,7 @@ import kotlin.test.assertTrue
  */
 class UmaPuppetShapeTest {
 	private val positions = floatArrayOf(0f, 0f, 10f, 0f, 10f, 10f)
-	private val mesh = UmaMesh(positions, positions.copyOf(), intArrayOf(0, 1, 2))
+	private val mesh = UmaMesh(canvasPositions = positions, localPositions = positions, uvs = positions.copyOf(), indices = intArrayOf(0, 1, 2))
 	private val axis = UmaAxis("P0", listOf(0f, 1f))
 	private val warp = UmaDeformer("W", UmaDeformerKind.Warp, "W", rows = 1, columns = 1, isQuadTransform = true)
 	private val rotation = UmaDeformer("R", UmaDeformerKind.Rotation, "R", baseAngle = 0f)
@@ -105,10 +105,11 @@ class UmaPuppetShapeTest {
 	 */
 	@Test
 	fun brokenGeometryIsRefused() {
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(floatArrayOf(0f, 0f, 1f), floatArrayOf(0f, 0f, 1f), intArrayOf()))), "drawables[D].mesh.positions")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(positions, floatArrayOf(0f, 0f), intArrayOf(0, 1, 2)))), "drawables[D].mesh.uvs")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(positions, positions.copyOf(), intArrayOf(0, 1)))), "drawables[D].mesh.indices")
-		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(positions, positions.copyOf(), intArrayOf(0, 1, 3)))), "drawables[D].mesh.indices[2]")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = floatArrayOf(0f, 0f, 1f), localPositions = floatArrayOf(0f, 0f, 1f), uvs = floatArrayOf(0f, 0f, 1f), indices = intArrayOf()))), "drawables[D].mesh.canvasPositions")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = floatArrayOf(0f, 0f), uvs = positions.copyOf(), indices = intArrayOf(0, 1, 2)))), "drawables[D].mesh.localPositions")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = positions, uvs = floatArrayOf(0f, 0f), indices = intArrayOf(0, 1, 2)))), "drawables[D].mesh.uvs")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = positions, uvs = positions.copyOf(), indices = intArrayOf(0, 1)))), "drawables[D].mesh.indices")
+		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = UmaMesh(canvasPositions = positions, localPositions = positions, uvs = positions.copyOf(), indices = intArrayOf(0, 1, 3)))), "drawables[D].mesh.indices[2]")
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(0), FloatArray(4)))))), "drawables[D].geometry.cells[0].positionDeltas")
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(2), FloatArray(6)))))), "drawables[D].geometry.cells[0].coordinate[0]")
 		assertRefused(withDrawable(UmaDrawable("D", "D", mesh = mesh, geometry = UmaMeshGrid(listOf(axis), listOf(UmaMeshCell(listOf(0, 0), FloatArray(6)))))), "drawables[D].geometry.cells[0].coordinate")
@@ -209,7 +210,7 @@ class UmaPuppetShapeTest {
 		 */
 		fun accessor(offset: Int, count: Int, componentType: String): String =
 			"""{ "buffer": "model/buffers.bin", "byteOffset": $offset, "byteLength": ${count * 4}, "count": $count, "componentType": "$componentType" }"""
-		val meshJson = """{ "positions": ${accessor(0, 6, "float32")}, "uvs": ${accessor(24, 6, "float32")}, "indices": ${accessor(48, 3, "int32")} }"""
+		val meshJson = """{ "canvasPositions": ${accessor(0, 6, "float32")}, "localPositions": ${accessor(0, 6, "float32")}, "uvs": ${accessor(24, 6, "float32")}, "indices": ${accessor(48, 3, "int32")} }"""
 		val detail = readFailure("""{ "drawables": [ { "id": "D", "name": "D", "mesh": $meshJson } ] }""", buffer)
 		assertTrue(detail.contains("drawables[D].mesh.indices[2] is 3"), detail)
 	}

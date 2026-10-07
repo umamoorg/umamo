@@ -228,8 +228,8 @@ fun PuppetModel.parentPartByPart(): Map<PartId, PartId> {
 /**
  * Every part in [id]'s org-tree subtree, including [id] itself.  The set a part may NOT be re-homed under -
  * doing so would orphan a cycle - so the org-move guard and the Properties picker's candidate filter derive
- * from this one definition instead of each walking the tree its own way (they walked it in OPPOSITE
- * directions before this existed, which is exactly how two implementations of one invariant drift).
+ * from this one definition instead of each walking the tree its own way (two implementations of one
+ * invariant would drift apart).
  *
  * The org tree is the only hierarchy source for parts: a part's children live in [Part.children], and there
  * is no parent back-pointer, so this walks DOWN like [deformerSelfAndDescendants] does.
@@ -341,8 +341,7 @@ fun PuppetModel.withPartMasksFlattened(): PuppetModel {
 /**
  * The drawable's 5.3 per-art-mesh multiply color for display in the Properties panel.
  *
- * A plain static read now that the tint is its own channel: it used to have to reach into the first
- * keyform cell, which was only representative because the editor wrote the color across every cell.
+ * A plain static read: the tint is its own channel track, so no keyform cell is consulted for it.
  *
  * @return ColorRgb The drawable's static multiply color.
  */
@@ -357,15 +356,15 @@ fun Drawable.displayMultiplyColor(): ColorRgb = multiplyColor
 fun Drawable.displayScreenColor(): ColorRgb = screenColor
 
 /**
- * Whether this model differs from [previous] in nothing but some drawables' mesh positions - the shape
- * every preview push of a Grab has: withMeshPositions wraps the new positions in a new DrawableMesh
- * that shares the uvs and the indices, and copies the drawable and the model around it with every other
- * field by reference.  Decided by identity and equality: a data-class equals short-circuits on a shared
- * reference, so when the push really is positions-only the check costs one walk over the drawables,
- * and DrawableMesh is identity-equal, so a changed mesh is compared field by field here.  The same
- * instance differs in nothing.  Everything else is structural, conservatively: a UV or topology edit, a
- * parameter, deformer, part, glue, or order change, a visibility or composite edit, a drawable added,
- * removed, reordered, or losing its mesh, and a vertex count that changed.
+ * Whether this model differs from [previous] in nothing but some drawables' mesh positions - the canvas mesh
+ * and the keyform-space base - the shape every preview push of a Grab has: withMeshPositions wraps the new
+ * arrays in a new DrawableMesh that shares the uvs and the indices, and copies the drawable and the model
+ * around it with every other field by reference.  Decided by identity and equality: a data-class equals
+ * short-circuits on a shared reference, so when the push really is positions-only the check costs one walk
+ * over the drawables, and DrawableMesh is identity-equal, so a changed mesh is compared field by field here.
+ * The same instance differs in nothing.  Everything else is structural, conservatively: a UV or topology
+ * edit, a parameter, deformer, part, glue, or order change, a visibility or composite edit, a drawable
+ * added, removed, reordered, or losing its mesh, and a vertex count that changed.
  *
  * The renderer reads it to keep its pose across a push (the pose's inputs hold no positions), and the
  * desktop viewport service to keep the picker lookups that read no positions.
@@ -388,7 +387,11 @@ fun PuppetModel.differsOnlyInMeshPositions(previous: PuppetModel): Boolean {
 		}
 		val nextMesh = nextDrawable.mesh ?: return false
 		val previousMesh = previousDrawable.mesh ?: return false
-		if (nextMesh.uvs !== previousMesh.uvs || nextMesh.indices !== previousMesh.indices || nextMesh.positions.size != previousMesh.positions.size) {
+		if (nextMesh.uvs !== previousMesh.uvs ||
+			nextMesh.indices !== previousMesh.indices ||
+			nextMesh.positions.size != previousMesh.positions.size ||
+			nextMesh.localPositions.size != previousMesh.localPositions.size
+		) {
 			return false
 		}
 		if (nextDrawable.copy(mesh = previousMesh) != previousDrawable) {

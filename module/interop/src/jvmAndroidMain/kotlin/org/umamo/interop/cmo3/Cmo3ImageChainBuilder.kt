@@ -128,7 +128,7 @@ import org.umamo.runtime.model.AtlasPlacement
  */
 internal object Cmo3ImageChainBuilder {
 	/**
-	 * One drawable's geometry on its page: id, interleaved atlas-frame uvs and base positions, plus
+	 * One drawable's geometry on its page: id, interleaved atlas-frame uvs and canvas positions, plus
 	 * the triangle indices that say which page pixels inside the uv bounding box are actually this
 	 * drawable's (see [coverageMaskOf]).
 	 */

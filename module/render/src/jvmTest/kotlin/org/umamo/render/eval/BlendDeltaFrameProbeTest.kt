@@ -17,13 +17,14 @@ import kotlin.test.assertTrue
  * Determines what the baked MOC3 blend-shape deltas are relative to, by joining Model A's ingested
  * mesh bindings against Model A's stored delta rows and testing two hypotheses per non-neutral key:
  *
- *   H_SETUP: stored delta = authoredForm - restMesh  (the ingested MeshForm.positionDeltas verbatim)
+ *   H_SETUP: stored delta = authoredForm - canvasEditableMesh  (CMO3's setup mesh, DrawableMesh.positions)
  *   H_GRID:  stored delta = authoredForm - gridFormInterpolatedAtDefaultPose  (the same multilinear
  *            interpolation the runtime performs, sampled with every parameter at its default)
  *
- * The hypotheses coincide on drawables whose default-pose grid form equals the rest mesh; only
- * records where they differ discriminate. Units: MOC3 deltas are model space; the origin cancels
- * in a delta, so the conversion is x/ppu with Y components sign-flipped.
+ * The authored form is rebuilt as the keyform-space base plus the ingested delta.  The hypotheses
+ * coincide on drawables whose default-pose grid form equals the canvas editable mesh; only records
+ * where they differ discriminate. Units: MOC3 deltas are model space; the origin cancels in a delta,
+ * so the conversion is x/ppu with Y components sign-flipped.
  *
  * MEASURED VERDICT (Model A, 16 discriminating records): H_SETUP is refuted outright (errors 20-50x
  * larger than H_GRID). H_GRID holds to first order, but a residual remains on warp-parented
@@ -74,7 +75,11 @@ class BlendDeltaFrameProbeTest {
 			val parameterId = document.parameters[record.parameterIndex].id
 			val drawable = puppet.drawables.firstOrNull { it.id.raw == meshId } ?: continue
 			val binding = drawable.blendShapes.firstOrNull { it.parameterId.raw == parameterId } ?: continue
-			val base = drawable.mesh?.positions ?: continue
+			val mesh = drawable.mesh ?: continue
+			// The authored absolute is base + delta; H_SETUP measures it from the canvas editable mesh (CMO3's
+			// setup mesh), H_GRID from the grid form at the default pose.
+			val base = mesh.localPositions
+			val canvasMesh = mesh.positions
 
 			// The grid form at the DEFAULT pose, multilinearly interpolated (null when ungridded).
 			val gridAtDefault =
@@ -96,10 +101,10 @@ class BlendDeltaFrameProbeTest {
 				for (componentIndex in authoredDeltas.indices) {
 					// Canvas -> model: divide by ppu; Y components (odd indices) flip sign.
 					val sign = if (componentIndex % 2 == 1) -1f else 1f
-					val setupDelta = sign * authoredDeltas[componentIndex] / pixelsPerUnit
-					val gridReference =
-						gridAtDefault?.let { it[componentIndex] - base[componentIndex] } ?: 0f
-					val gridDelta = sign * (authoredDeltas[componentIndex] - gridReference) / pixelsPerUnit
+					val authoredAbsolute = base[componentIndex] + authoredDeltas[componentIndex]
+					val setupDelta = sign * (authoredAbsolute - canvasMesh[componentIndex]) / pixelsPerUnit
+					val gridReference = gridAtDefault?.get(componentIndex) ?: base[componentIndex]
+					val gridDelta = sign * (authoredAbsolute - gridReference) / pixelsPerUnit
 					val storedValue = positionValues[stored + componentIndex]
 					setupError = maxOf(setupError, abs(storedValue - setupDelta))
 					gridError = maxOf(gridError, abs(storedValue - gridDelta))
@@ -122,15 +127,15 @@ class BlendDeltaFrameProbeTest {
 						"[probe] $meshId/$parameterId key=${binding.keys[keyIndex]} " +
 							"setupErr=$setupError gridErr=$gridError gap=$hypothesisGap",
 					)
-					// Diagnostic: the reference frame the FILE implies (authored - stored, canvas
-					// units) vs the grid-at-default hypothesis, at the worst-residual component.
+					// Diagnostic: the reference the FILE implies (authored absolute - stored delta, canvas
+					// units) vs the grid-at-default form, at the worst-residual component.
 					var worstComponent = 0
 					var worstResidual = 0f
 					for (componentIndex in authoredDeltas.indices) {
 						val sign = if (componentIndex % 2 == 1) -1f else 1f
 						val impliedReference =
-							authoredDeltas[componentIndex] - sign * positionValues[stored + componentIndex] * pixelsPerUnit
-						val gridReference = gridAtDefault?.let { it[componentIndex] - base[componentIndex] } ?: 0f
+							base[componentIndex] + authoredDeltas[componentIndex] - sign * positionValues[stored + componentIndex] * pixelsPerUnit
+						val gridReference = gridAtDefault?.get(componentIndex) ?: base[componentIndex]
 						val residual = abs(impliedReference - gridReference)
 						if (residual > worstResidual) {
 							worstResidual = residual
@@ -139,8 +144,8 @@ class BlendDeltaFrameProbeTest {
 					}
 					val sign = if (worstComponent % 2 == 1) -1f else 1f
 					val impliedReference =
-						authoredDeltas[worstComponent] - sign * positionValues[stored + worstComponent] * pixelsPerUnit
-					val gridReference = gridAtDefault?.let { it[worstComponent] - base[worstComponent] } ?: 0f
+						base[worstComponent] + authoredDeltas[worstComponent] - sign * positionValues[stored + worstComponent] * pixelsPerUnit
+					val gridReference = gridAtDefault?.get(worstComponent) ?: base[worstComponent]
 					println(
 						"[probe]   worst comp=$worstComponent (${if (worstComponent % 2 == 0) "x" else "y"}) " +
 							"authoredDelta=${authoredDeltas[worstComponent]} impliedRef=$impliedReference " +
@@ -150,7 +155,7 @@ class BlendDeltaFrameProbeTest {
 			}
 		}
 		println(
-			"[probe] E5: discriminating=$discriminating (setup=$setupWins grid=$gridWins) " +
+			"[probe] verdict: discriminating=$discriminating (setup=$setupWins grid=$gridWins) " +
 				"coinciding=$coinciding worstGridErr=$worstGridError",
 		)
 		assertTrue(discriminating + coinciding > 0, "Model A should yield joinable mesh records")

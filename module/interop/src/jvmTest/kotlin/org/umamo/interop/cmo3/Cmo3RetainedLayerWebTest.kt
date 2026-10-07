@@ -74,7 +74,7 @@ class Cmo3RetainedLayerWebTest {
 	private fun gradient(size: Int, seed: Int): RasterImage = RasterImage(size, size, ByteArray(size * size * 4) { index -> (index * 7 + seed).toByte() })
 
 	private fun quad(left: Float, top: Float, size: Float = 4f): DrawableMesh =
-		DrawableMesh(
+		DrawableMesh.withLocalEqualToCanvas(
 			positions = floatArrayOf(left, top, left + size, top, left + size, top + size, left, top + size),
 			uvs = floatArrayOf(0.1f, 0.1f, 0.35f, 0.1f, 0.35f, 0.35f, 0.1f, 0.35f),
 			indices = intArrayOf(0, 1, 2, 0, 2, 3),

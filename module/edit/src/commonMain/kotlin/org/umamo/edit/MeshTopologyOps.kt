@@ -106,7 +106,8 @@ object MeshTopologyOps {
 			sources.add(VertexSource.FromOld(oldIndex))
 		}
 		val newElements = copyIndexByOld.values.map { copyIndex -> MeshElement.Vertex(copyIndex) }.toSet<MeshElement>()
-		return TopologyOpResult(MeshTopologyEdit(DrawableMesh(newPositions, newUvs, newIndices), sources), newElements)
+		val newMesh = editedMesh(mesh, newPositions, newUvs, newIndices, sources) ?: return null
+		return TopologyOpResult(MeshTopologyEdit(newMesh, sources), newElements)
 	}
 
 	/**
@@ -199,10 +200,8 @@ object MeshTopologyOps {
 			sources.add(VertexSource.FromOld(oldIndex))
 		}
 		sources.add(survivorSource)
-		return TopologyOpResult(
-			MeshTopologyEdit(DrawableMesh(newPositions, newUvs, newIndices.toIntArray()), sources),
-			setOf(MeshElement.Vertex(survivorIndex)),
-		)
+		val newMesh = editedMesh(mesh, newPositions, newUvs, newIndices.toIntArray(), sources) ?: return null
+		return TopologyOpResult(MeshTopologyEdit(newMesh, sources), setOf(MeshElement.Vertex(survivorIndex)))
 	}
 
 	/**
@@ -285,7 +284,8 @@ object MeshTopologyOps {
 			sources.add(VertexSource.FromOld(oldIndex))
 		}
 		val newElements = copyIndexByOld.values.map { copyIndex -> MeshElement.Vertex(copyIndex) }.toSet<MeshElement>()
-		return TopologyOpResult(MeshTopologyEdit(DrawableMesh(newPositions, newUvs, newIndices), sources), newElements)
+		val newMesh = editedMesh(mesh, newPositions, newUvs, newIndices, sources) ?: return null
+		return TopologyOpResult(MeshTopologyEdit(newMesh, sources), newElements)
 	}
 
 	/**
@@ -463,15 +463,24 @@ object MeshTopologyOps {
 					add(MeshElement.Vertex(crossingIndex))
 				}
 			}
-		return TopologyOpResult(MeshTopologyEdit(DrawableMesh(newPositions, newUvs, newIndices.toIntArray()), sources), newElements)
+		val newMesh = editedMesh(mesh, newPositions, newUvs, newIndices.toIntArray(), sources) ?: return null
+		return TopologyOpResult(MeshTopologyEdit(newMesh, sources), newElements)
 	}
 
 	/**
-	 * The proper-crossing parameter of segment (a, b) against segment (p, q), or null: strictly interior
-	 * on BOTH segments (an epsilon inside the endpoints) and non-parallel - the strictness is what lets
-	 * [connectVertices] refuse grazes and on-vertex hits instead of guessing.
+	 * The proper-crossing parameter of the segment from start to end against the edge from edgeStart to
+	 * edgeEnd, or null: strictly interior on BOTH (an epsilon inside the endpoints) and non-parallel - the
+	 * strictness is what lets [connectVertices] refuse grazes and on-vertex hits instead of guessing.
 	 *
-	 * @return Float? The parameter along (p, q) at the crossing, or null when there is no proper crossing.
+	 * @param Float startX     The segment's start x.
+	 * @param Float startY     The segment's start y.
+	 * @param Float endX       The segment's end x.
+	 * @param Float endY       The segment's end y.
+	 * @param Float edgeStartX The edge's start x.
+	 * @param Float edgeStartY The edge's start y.
+	 * @param Float edgeEndX   The edge's end x.
+	 * @param Float edgeEndY   The edge's end y.
+	 * @return Float? The parameter along the edge at the crossing, or null when there is no proper crossing.
 	 */
 	private fun properSegmentCrossing(
 		startX: Float,
@@ -501,4 +510,32 @@ object MeshTopologyOps {
 		}
 		return edgeT
 	}
+}
+
+/**
+ * The replacement mesh a topology op ends with: [newPositions] as the canvas mesh, and the old keyform-space
+ * base carried to the new vertex count through the same [sources] the keyform deltas follow, so every
+ * rebuilt keyform (base plus delta) keeps the shape it had at each kept vertex.  A mesh whose base is its
+ * canvas mesh keeps the one shared array.  Null when [sources] does not name one source per new vertex: the
+ * carried base would not fit the mesh (a DrawableMesh holds its two arrays to one length), and the op refuses,
+ * the model's own refusal of a malformed edit, rather than fail mid-gesture.
+ *
+ * @param DrawableMesh mesh The mesh before the op.
+ * @param FloatArray newPositions The op's canvas positions, two per new vertex.
+ * @param FloatArray newUvs The op's texture coordinates.
+ * @param IntArray newIndices The op's triangle indices.
+ * @param List<VertexSource> sources One source per new vertex.
+ * @return DrawableMesh? The replacement mesh, or null when the sources do not match the vertices.
+ */
+internal fun editedMesh(mesh: DrawableMesh, newPositions: FloatArray, newUvs: FloatArray, newIndices: IntArray, sources: List<VertexSource>): DrawableMesh? {
+	if (sources.size * 2 != newPositions.size) {
+		return null
+	}
+	val newLocal =
+		if (mesh.localPositions === mesh.positions) {
+			newPositions
+		} else {
+			remapPerVertex(mesh.localPositions, sources, mesh.vertexCount)
+		}
+	return DrawableMesh(positions = newPositions, localPositions = newLocal, uvs = newUvs, indices = newIndices)
 }

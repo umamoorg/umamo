@@ -34,7 +34,7 @@ class PositionsOnlyEditTest {
 	fun aNewUvsArrayIsStructural() {
 		val previous = model()
 		val mesh = previous.drawables.first().mesh!!
-		val sameUvsNewArray = withMesh(previous, firstId, DrawableMesh(mesh.positions, mesh.uvs.copyOf(), mesh.indices))
+		val sameUvsNewArray = withMesh(previous, firstId, DrawableMesh.withLocalEqualToCanvas(mesh.positions, mesh.uvs.copyOf(), mesh.indices))
 		assertFalse(sameUvsNewArray.differsOnlyInMeshPositions(previous), "a UV edit is decided by array identity, not content")
 	}
 
@@ -42,7 +42,7 @@ class PositionsOnlyEditTest {
 	fun newIndicesAreStructural() {
 		val previous = model()
 		val mesh = previous.drawables.first().mesh!!
-		val newIndices = withMesh(previous, firstId, DrawableMesh(mesh.positions, mesh.uvs, mesh.indices.copyOf()))
+		val newIndices = withMesh(previous, firstId, DrawableMesh.withLocalEqualToCanvas(mesh.positions, mesh.uvs, mesh.indices.copyOf()))
 		assertFalse(newIndices.differsOnlyInMeshPositions(previous))
 	}
 
@@ -50,7 +50,7 @@ class PositionsOnlyEditTest {
 	fun aDifferentVertexCountIsStructural() {
 		val previous = model()
 		val mesh = previous.drawables.first().mesh!!
-		val longer = withMesh(previous, firstId, DrawableMesh(FloatArray(mesh.positions.size + 2), mesh.uvs, mesh.indices))
+		val longer = withMesh(previous, firstId, DrawableMesh.withLocalEqualToCanvas(FloatArray(mesh.positions.size + 2), mesh.uvs, mesh.indices))
 		assertFalse(longer.differsOnlyInMeshPositions(previous))
 	}
 
@@ -95,7 +95,7 @@ class PositionsOnlyEditTest {
 	 * @param FloatArray positions The rest positions.
 	 * @return DrawableMesh The mesh.
 	 */
-	private fun mesh(positions: FloatArray): DrawableMesh = DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2))
+	private fun mesh(positions: FloatArray): DrawableMesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), intArrayOf(0, 1, 2))
 
 	/**
 	 * A direct, unkeyed drawable.
@@ -158,7 +158,7 @@ class PositionsOnlyEditTest {
 		replaceDrawable(source, id) { drawable ->
 			val mesh = drawable.mesh!!
 			val shifted = FloatArray(mesh.positions.size) { coordinateIndex -> mesh.positions[coordinateIndex] + 5f }
-			drawable.copy(mesh = DrawableMesh(shifted, mesh.uvs, mesh.indices))
+			drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(shifted, mesh.uvs, mesh.indices))
 		}
 
 	/**

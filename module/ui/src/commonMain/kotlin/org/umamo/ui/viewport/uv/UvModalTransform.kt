@@ -32,7 +32,7 @@ internal abstract class UvModalTransform<TCapture>(
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, area origin,
 	 * cursor wrap, pointer controller).
 	 */
-	val gesture = ModalGestureState<TCapture>()
+	val gesture = ModalGestureState<TCapture, FloatArray>()
 
 	/**
 	 * The UV operator latch, while it is this area's.

@@ -3,6 +3,8 @@ package org.umamo.ui.transform
 import org.umamo.edit.EditorSession
 import org.umamo.edit.meshBounds
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -13,6 +15,7 @@ import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.originRelativeX
 import org.umamo.runtime.model.originRelativeZ
 import org.umamo.runtime.model.worldXFromOriginRelative
@@ -20,17 +23,18 @@ import org.umamo.runtime.model.worldZFromOriginRelative
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
  * Pins the Properties Transform panel to the space the user actually sees.
  *
- * The bug this guards against: Drawable.mesh.positions is the BASE array, and a keyformed drawable's base
- * is not its displayed shape (`displayed = base + Σ wᵢ·Δᵢ`).  Reading or writing base directly showed
- * numbers unrelated to the drawable - on a corpus model, a base array 1.9 units wide for a drawable 183.8
- * wide - so a small typed nudge became an enormous transform.  These tests assert the rows measure and
- * write the DISPLAYED geometry instead, and that the write is refused off the neutral pose (where the
- * deformer-chain inverse is not exact).
+ * The bug this guards against: a keyformed drawable's base is not its displayed shape
+ * (`displayed = localPositions + Σ wᵢ·Δᵢ`).  Reading or writing the base directly showed numbers unrelated to
+ * the drawable - on a corpus model, a base 1.9 units wide for a drawable 183.8 wide - so a small typed nudge
+ * became an enormous transform.  These tests assert the rows measure and write the DISPLAYED geometry
+ * instead, that the write moves the canvas mesh and the base each in its own space, and that the write is
+ * refused off the neutral pose (where the deformer-chain inverse is not exact).
  */
 class DrawableWorldTransformTest {
 	private val drawableId = DrawableId("d")
@@ -72,7 +76,7 @@ class DrawableWorldTransformTest {
 						parentDeformerId = null,
 						blendMode = BlendMode.Normal,
 						maskedBy = emptyList(),
-						mesh = DrawableMesh(basePositions.copyOf(), FloatArray(basePositions.size), intArrayOf(0, 1, 2)),
+						mesh = DrawableMesh.withLocalEqualToCanvas(basePositions.copyOf(), FloatArray(basePositions.size), intArrayOf(0, 1, 2)),
 						geometryGrid =
 							KeyformGrid(
 								axes = listOf(KeyformAxis(parameterId, floatArrayOf(-1f, 0f, 1f))),
@@ -92,6 +96,83 @@ class DrawableWorldTransformTest {
 			worldOriginX = canvasSize / 2f,
 			worldOriginZ = -(canvasSize / 2f),
 		)
+
+	/**
+	 * One unkeyed drawable under a one-cell warp whose lattice spreads its unit square over canvas pixels
+	 * 100..300 on both axes, so a canvas pixel is 1/200 of a lattice unit.
+	 *
+	 * @param FloatArray canvas The drawable's canvas mesh.
+	 * @param FloatArray local  The drawable's base in the lattice.
+	 * @return PuppetModel The model.
+	 */
+	private fun warpChildModel(canvas: FloatArray, local: FloatArray): PuppetModel {
+		val warpId = DeformerId("warp")
+		val lattice = floatArrayOf(100f, 100f, 300f, 100f, 100f, 300f, 300f, 300f)
+		return PuppetModel(
+			parameters = listOf(Parameter(parameterId, "Param", min = -1f, max = 1f, default = 0f)),
+			parts = emptyList(),
+			deformers =
+				listOf(
+					Deformer.Warp(
+						id = warpId,
+						name = "warp",
+						parent = null,
+						partId = null,
+						rows = 1,
+						columns = 1,
+						isQuadTransform = true,
+						geometryGrid = KeyformGrid(listOf(KeyformAxis(parameterId, floatArrayOf(0f))), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(lattice)))),
+					),
+				),
+			drawables =
+				listOf(
+					Drawable(
+						id = drawableId,
+						name = "d",
+						parentDeformerId = warpId,
+						blendMode = BlendMode.Normal,
+						maskedBy = emptyList(),
+						mesh = DrawableMesh(positions = canvas, localPositions = local, uvs = FloatArray(canvas.size), indices = intArrayOf(0, 1, 2)),
+						geometryGrid = null,
+					),
+				),
+			rootChildren = emptyList(),
+			rootPartId = null,
+		)
+	}
+
+	/**
+	 * Under a deformer the two rest arrays move apart: a world move shifts the canvas mesh by the same canvas
+	 * pixels, and the base by the lattice's own measure of them - 20 pixels across is a tenth of a unit.
+	 */
+	@Test
+	fun aWarpChildMovesItsCanvasMeshInPixelsAndItsBaseInTheLattice() {
+		val canvas = floatArrayOf(120f, 120f, 160f, 120f, 160f, 160f, 120f, 160f)
+		val local = floatArrayOf(0.1f, 0.1f, 0.3f, 0.1f, 0.3f, 0.3f, 0.1f, 0.3f)
+		val session = EditorSession(warpChildModel(canvas, local))
+		val before = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!.bounds
+		assertEquals(140f, before.centerX, 1e-3f, "precondition: the lattice puts the base where the canvas mesh is")
+
+		// 20 right and 10 up in world, which is 10 DOWN the canvas's y.
+		session.setDrawableWorldCenter(drawableId, before.centerX + 20f, before.centerY + 10f)
+
+		val mesh = session.model.value.drawables.single().mesh!!
+		for (vertexIndex in 0 until 4) {
+			assertEquals(canvas[vertexIndex * 2] + 20f, mesh.positions[vertexIndex * 2], 1e-3f, "vertex $vertexIndex canvas x")
+			assertEquals(canvas[vertexIndex * 2 + 1] - 10f, mesh.positions[vertexIndex * 2 + 1], 1e-3f, "vertex $vertexIndex canvas y")
+			assertEquals(local[vertexIndex * 2] + 0.1f, mesh.localPositions[vertexIndex * 2], 1e-5f, "vertex $vertexIndex base u")
+			assertEquals(local[vertexIndex * 2 + 1] - 0.05f, mesh.localPositions[vertexIndex * 2 + 1], 1e-5f, "vertex $vertexIndex base v")
+		}
+	}
+
+	/** A drawable whose base is its canvas mesh keeps the one shared array through a move. */
+	@Test
+	fun aRootDrawableKeepsItsSharedArray() {
+		val session = EditorSession(model())
+		session.setDrawableWorldCenter(drawableId, 0f, 0f)
+		val mesh = session.model.value.drawables.single().mesh!!
+		assertSame(mesh.positions, mesh.localPositions)
+	}
 
 	@Test
 	fun boundsReportTheDisplayedGeometryNotTheBaseArray() {

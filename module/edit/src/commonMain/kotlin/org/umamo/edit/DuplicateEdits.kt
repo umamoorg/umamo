@@ -32,7 +32,7 @@ fun PuppetModel.withDrawableDuplicated(id: DrawableId): Pair<PuppetModel, Drawab
 		source.copy(
 			id = copyId,
 			name = uniqueDuplicateName(source.name),
-			mesh = DrawableMesh(mesh.positions.copyOf(), mesh.uvs, mesh.indices),
+			mesh = duplicatedMesh(mesh),
 			geometryGrid =
 				source.geometryGrid?.let { grid ->
 					KeyformGrid(grid.axes, grid.cells.map { cell -> KeyformCell(cell.coordinate, cell.form) })
@@ -101,4 +101,17 @@ private fun PuppetModel.uniqueDuplicateName(name: String): String {
 		}
 		counter++
 	}
+}
+
+/**
+ * A copy of [mesh] with its own position arrays, so moving the duplicate never moves the original; a mesh whose
+ * canvas and keyform-space positions are one shared array stays shared in the copy.
+ *
+ * @param DrawableMesh mesh The mesh to copy.
+ * @return DrawableMesh The copy.
+ */
+private fun duplicatedMesh(mesh: DrawableMesh): DrawableMesh {
+	val positions = mesh.positions.copyOf()
+	val localPositions = if (mesh.localPositions === mesh.positions) positions else mesh.localPositions.copyOf()
+	return DrawableMesh(positions, localPositions, mesh.uvs, mesh.indices)
 }

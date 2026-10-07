@@ -3,7 +3,6 @@ package org.umamo.ui.document
 import org.umamo.interop.moc3.Moc3ExportOptions
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.render.PuppetTextures
-import org.umamo.render.canvasToParentSpaceFor
 import org.umamo.render.encodeAtlasPng
 import org.umamo.render.withTexturePagesFrom
 import org.umamo.runtime.model.PuppetModel
@@ -50,7 +49,6 @@ fun prepareMoc3Export(
 		pages = atlasPagesFor(effectiveTextures, moc3Document, basename),
 		sidecars = exportedSidecarsFor(passThroughSidecars(moc3Document), options),
 		source = moc3Document?.manifest,
-		canvasToParentSpace = canvasToParentSpaceFor(bound),
 		options = options,
 	)
 }

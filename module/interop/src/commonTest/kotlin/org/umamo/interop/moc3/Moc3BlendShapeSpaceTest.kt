@@ -76,7 +76,7 @@ class Moc3BlendShapeSpaceTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh =
-				DrawableMesh(
+				DrawableMesh.withLocalEqualToCanvas(
 					positions = FloatArray(authoredDeltas.size),
 					uvs = FloatArray(authoredDeltas.size),
 					indices = intArrayOf(0, 1, 0),

@@ -25,13 +25,14 @@ import kotlin.test.assertTrue
  *
  * A drawable whose keyform axis does not bracket its parameter's default - the toggle-part authoring
  * pattern - is absent from the raw default pose, so [restMeshesToCanvasSpace] maps it forward through a
- * second pose with that parameter clamped into its axis's key range.  The export's inverse has to use
- * the same clamped pose, or it undoes a transform that was never applied.
+ * second pose with that parameter clamped into its axis's key range.  The inverse ([canvasToParentSpaceFor])
+ * has to use the same clamped pose, or it undoes a transform that was never applied.
  *
  * With the two halves disagreeing, this drawable's chain does not resolve at the raw default at all and
- * the seam returns null - which the export turns into a notice and writes the mesh as authored, in the
- * wrong space.  The rotation parent is what makes the poses distinguishable: it is keyed so its scale
- * differs across the toggle's range, so agreeing on the pose is load-bearing rather than incidental.
+ * the seam returns null - so a rebinding would keep the drawable's old base, in the wrong space, and its
+ * art would visibly move.  The rotation parent is what makes the poses distinguishable: it is keyed so
+ * its scale differs across the toggle's range, so agreeing on the pose is load-bearing rather than
+ * incidental.
  */
 class Moc3HiddenDrawableSpaceTest {
 	private val toggle = ParameterId("Toggle")
@@ -78,7 +79,7 @@ class Moc3HiddenDrawableSpaceTest {
 				parentDeformerId = deformerId,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(parentLocal, FloatArray(parentLocal.size), intArrayOf(0, 1, 2)),
+				mesh = DrawableMesh.withLocalEqualToCanvas(parentLocal, FloatArray(parentLocal.size), intArrayOf(0, 1, 2)),
 				geometryGrid =
 					KeyformGrid(
 						listOf(KeyformAxis(toggle, floatArrayOf(0.5f, 1f))),

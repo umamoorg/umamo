@@ -27,7 +27,7 @@ class ModalDriveWorkerTest {
 	 * can hold a compute in flight.
 	 */
 	private class Rig {
-		val gesture = ModalGestureState<String>()
+		val gesture = ModalGestureState<String, FloatArray>()
 		val published = ArrayList<String>()
 		val sequentialRequests = ArrayList<Int>()
 		val offThreadRequests = ArrayList<Int>()

@@ -11,6 +11,7 @@ import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.MeshForm
+import org.umamo.runtime.model.deltasVsBase
 
 /**
  * Imports every art mesh, in file order.
@@ -19,11 +20,12 @@ import org.umamo.runtime.model.MeshForm
  * because a MOC3 addresses drawables positionally - masks, glues, and render-order leaves are all file
  * indices into this list.
  *
- * The rest mesh comes from the DEFAULT-POSE cell of the drawable's keyform grid, and every cell then
- * re-expresses as a delta against it.  Which cell is chosen changes `mesh.positions` and every delta
- * while leaving evaluated geometry bit-identical - the multilinear blend is base-independent - so no
- * evaluation oracle can see this go wrong.  `Moc3Cmo3ParityTest` (rest vertices against the CMO3 twin)
- * and the export round trip's MESH_POSITIONS are what actually pin it.
+ * The keyform-space base comes from the DEFAULT-POSE cell of the drawable's keyform grid, and every cell
+ * then re-expresses as a delta against it, within the keyforms' own space.  The multilinear blend is
+ * base-independent in exact arithmetic, so the choice moves evaluated geometry by rounding at most; what
+ * keeps that rounding at the space's own precision is that the base and the forms share one space.  The
+ * canvas mesh is the same array until :render's restMeshesToCanvasSpace derives it at load.
+ * `Moc3Cmo3ParityTest` (rest vertices against the CMO3 twin) and the export round trip pin the choice.
  *
  * @param Moc3ImportContext context The import's derived state.
  * @return List<Drawable> The runtime drawables, in file order.
@@ -32,9 +34,8 @@ internal fun importDrawables(context: Moc3ImportContext): List<Drawable> =
 	context.mocDocument.artMeshes.mapIndexed { drawableIndex, source ->
 		val space = context.pointSpaceOf(source.parentDeformerIndex)
 		val binding = context.bindingOf(source.keyformBindingIndex)
-		// MOC3 keyforms are absolute; the default-pose cell serves as the rest mesh and every cell
-		// re-expresses as a delta against it (the multilinear blend is base-independent, so evaluated
-		// geometry is unaffected by the choice).
+		// MOC3 keyforms are absolute; the default-pose cell serves as the base and every cell re-expresses
+		// as a delta against it, so `base + Δ` rebuilds each stored float wherever float32 can.
 		val basePositions =
 			source.keyforms.getOrNull(defaultCellIndexOf(context, binding))?.let { keyform ->
 				context.convertPoints(space, keyform.vertexPositions)
@@ -43,6 +44,7 @@ internal fun importDrawables(context: Moc3ImportContext): List<Drawable> =
 			basePositions?.let { positions ->
 				DrawableMesh(
 					positions = positions,
+					localPositions = positions,
 					uvs = source.vertexUvs.copyOf(),
 					// MOC3 §5.6 INDEX_DATA is u16; widen unsigned so meshes past 32767 vertices survive.
 					indices = IntArray(source.triangleIndices.size) { indexIndex -> source.triangleIndices[indexIndex].toInt() and 0xFFFF },
@@ -54,7 +56,7 @@ internal fun importDrawables(context: Moc3ImportContext): List<Drawable> =
 				source.keyforms.getOrNull(gridIndex)?.let { keyform ->
 					MeshForm(
 						positionDeltas =
-							deltaVsBase(
+							deltasVsBase(
 								basePositions,
 								context.convertPoints(space, keyform.vertexPositions),
 							),
@@ -125,22 +127,3 @@ private fun blendModeOf(constantFlags: Int): BlendMode =
 		constantFlags and ConstantFlag.BLEND_MULTIPLICATIVE != 0 -> BlendMode.MultiplyPremultiplied
 		else -> BlendMode.Normal
 	}
-
-/**
- * Per-vertex deltas of [positions] vs [base] (`positions − base`), or a copy of positions when
- * there is no size-matching base, so the form is kept absolute rather than dropped (matching
- * `Cmo3Import`'s convention).
- *
- * @param FloatArray? base      The rest-mesh positions.
- * @param FloatArray  positions The keyform's absolute positions.
- * @return FloatArray The deltas, or a copy of positions.
- */
-private fun deltaVsBase(
-	base: FloatArray?,
-	positions: FloatArray,
-): FloatArray {
-	if (base == null || base.size != positions.size) {
-		return positions.copyOf()
-	}
-	return FloatArray(positions.size) { coordIndex -> positions[coordIndex] - base[coordIndex] }
-}

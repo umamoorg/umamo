@@ -36,7 +36,7 @@ class MeshTopologyEditsTest {
 	private val stripPositions = floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f, 2f, 2f)
 	private val stripUvs = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f)
 	private val stripIndices = intArrayOf(0, 1, 2, 1, 3, 2)
-	private val stripMesh = DrawableMesh(stripPositions, stripUvs, stripIndices)
+	private val stripMesh = DrawableMesh.withLocalEqualToCanvas(stripPositions, stripUvs, stripIndices)
 
 	// Per-vertex deltas 10*(index+1) on x, 0 on y - distinguishable per vertex.
 	private fun stripForm(): MeshDeltaForm = MeshDeltaForm(floatArrayOf(10f, 0f, 20f, 0f, 30f, 0f, 40f, 0f))
@@ -75,7 +75,7 @@ class MeshTopologyEditsTest {
 	fun topologyEditRemapsDeltasAndGlue() {
 		// New mesh: keep v0 and v1, average v2+v3 into a survivor, and add a lerp point on (0, 1).
 		val newMesh =
-			DrawableMesh(
+			DrawableMesh.withLocalEqualToCanvas(
 				floatArrayOf(0f, 0f, 2f, 0f, 1f, 2f, 1f, 0f),
 				FloatArray(8),
 				intArrayOf(0, 1, 2),
@@ -194,6 +194,33 @@ class MeshTopologyEditsTest {
 		// Already-connected vertices (an existing edge) refuse.
 		assertNull(MeshTopologyOps.connectVertices(stripMesh, 1, 2), "an existing edge refuses")
 		assertNull(MeshTopologyOps.connectVertices(stripMesh, 0, 0), "a self-connect refuses")
+	}
+
+	/**
+	 * A base apart from the canvas mesh (a deformer child's) follows each op through the same vertex sources
+	 * the deltas do - the merge survivor averages it, the connect's crossing lerps it at the canvas cut's t -
+	 * while a mesh that shares one array keeps sharing it.
+	 */
+	@Test
+	fun theOpsCarryASeparateBaseThroughTheVertexSources() {
+		val local = floatArrayOf(0.1f, 0.1f, 0.3f, 0.1f, 0.1f, 0.3f, 0.3f, 0.3f)
+		val splitMesh = DrawableMesh(positions = stripPositions, localPositions = local, uvs = stripUvs, indices = stripIndices)
+
+		val merged = MeshTopologyOps.mergeVertices(splitMesh, listOf(1, 3), MergeTarget.AtCenter)!!.edit.newMesh
+		assertEquals(listOf(0.1f, 0.1f, 0.1f, 0.3f), merged.localPositions.toList().subList(0, 4), "the kept vertices keep their base")
+		assertEquals(0.3f, merged.localPositions[4], 1e-6f, "the survivor's base averages its members' x")
+		assertEquals(0.2f, merged.localPositions[5], 1e-6f, "and y")
+		assertEquals(2f, merged.positions[4], "the canvas survivor is the op's own")
+
+		val connected = MeshTopologyOps.connectVertices(splitMesh, 0, 3)!!.edit.newMesh
+		assertEquals(0.2f, connected.localPositions[8], 1e-6f, "the crossing's base lerps the cut edge's x")
+		assertEquals(0.2f, connected.localPositions[9], 1e-6f, "and y")
+
+		val duplicated = MeshTopologyOps.duplicateElements(splitMesh, setOf(0))!!.edit.newMesh
+		assertEquals(listOf(0.1f, 0.1f), duplicated.localPositions.toList().subList(8, 10), "the copy takes its source's base")
+
+		val shared = MeshTopologyOps.duplicateElements(stripMesh, setOf(0))!!.edit.newMesh
+		assertSame(shared.positions, shared.localPositions, "a shared mesh stays one array")
 	}
 
 	/** Object-mode duplicate: a unique .001 id, org-tree insertion after the source, no glue membership. */
@@ -352,4 +379,17 @@ class MeshTopologyEditsTest {
 	}
 
 	private fun absDiff(left: Float, right: Float): Float = if (left > right) left - right else right - left
+
+	/**
+	 * An op whose sources do not name one per new vertex refuses before building a mesh whose two arrays could not
+	 * share a length, the model's own refusal of a malformed edit rather than a failure mid-gesture.
+	 */
+	@Test
+	fun editedMeshRefusesASourcePerVertexMismatch() {
+		val mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0.1f, 0.1f, 0.2f, 0.1f, 0.1f, 0.2f), FloatArray(6), intArrayOf(0, 1, 2))
+		val sources = listOf(VertexSource.FromOld(0), VertexSource.FromOld(1))
+		assertNull(editedMesh(mesh, FloatArray(6), FloatArray(6), intArrayOf(0, 1, 2), sources), "three vertices over two sources")
+		val fitted = editedMesh(mesh, FloatArray(4), FloatArray(4), intArrayOf(0, 1, 1), sources)
+		assertEquals(listOf(0.1f, 0.1f, 0.2f, 0.1f), fitted!!.localPositions.toList(), "a fitted source list carries the base")
+	}
 }

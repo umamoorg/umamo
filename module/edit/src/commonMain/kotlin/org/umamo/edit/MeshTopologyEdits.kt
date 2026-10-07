@@ -10,10 +10,10 @@ import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.PuppetModel
 
 /**
- * How one vertex of a topology-edited mesh derives its keyform deltas (and its glue identity) from the
- * old mesh's vertices.  A topology operation changes the vertex count, and every keyform cell's
- * positionDeltas array is parallel to the positions (stride 2 * vertexCount) - so each NEW vertex must
- * say where its per-cell deltas come from:
+ * How one vertex of a topology-edited mesh derives its keyform deltas, its keyform-space base, and its
+ * glue identity from the old mesh's vertices.  A topology operation changes the vertex count, and every
+ * keyform cell's positionDeltas array is parallel to the positions (stride 2 * vertexCount) - so each
+ * NEW vertex must say where its per-cell deltas come from:
  *
  *   - [FromOld] copies one old vertex's deltas verbatim (a kept or duplicated vertex).
  *   - [AverageOf] averages several old vertices' deltas (a merge's surviving vertex).
@@ -47,9 +47,10 @@ sealed interface VertexSource {
 }
 
 /**
- * One topology edit of one drawable's mesh, ready to commit: the complete replacement mesh (positions,
- * uvs, and indices all sized to the new vertex count) plus one [VertexSource] per NEW vertex, from
- * which [withMeshTopologyEdit] rebuilds every keyform cell's deltas and remaps the glue pairs.  The op
+ * One topology edit of one drawable's mesh, ready to commit: the complete replacement mesh (canvas
+ * positions, keyform-space base, uvs, and indices all sized to the new vertex count; the base already
+ * carried through the sources by [editedMesh]) plus one [VertexSource] per NEW vertex, from which
+ * [withMeshTopologyEdit] rebuilds every keyform cell's deltas and remaps the glue pairs.  The op
  * builders in MeshTopologyOps produce these; they never touch the model themselves.
  *
  * 1つの描画メッシュのトポロジ編集。置き換えメッシュと、新頂点ごとのデルタ導出指定を持つ。
@@ -174,27 +175,38 @@ fun PuppetModel.withMeshTopologyEdit(id: DrawableId, edit: MeshTopologyEdit): Pu
 }
 
 /**
- * Rebuilds one keyform cell's [MeshForm] at the new vertex count: each new vertex's delta pair copies,
- * averages, or lerps from the old form's deltas per its [VertexSource].  An old index beyond the old
- * form's array (a malformed grid) contributes zero, keeping the rebuild total.
+ * Rebuilds one keyform cell's [MeshDeltaForm] at the new vertex count: its deltas through [remapPerVertex],
+ * one (x, y) pair per new vertex.
  *
- * @param MeshForm form The old cell form (deltas at the old stride).
+ * @param MeshDeltaForm form The old cell form (deltas at the old stride).
  * @param List<VertexSource> vertexSources One source per new vertex.
  * @param Int oldVertexCount The old mesh's vertex count (bounds the old delta reads).
- * @return MeshForm The rebuilt form (deltas at the new stride; drawOrder / opacity carried).
+ * @return MeshDeltaForm The rebuilt form (deltas at the new stride).
  */
-private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSource>, oldVertexCount: Int): MeshDeltaForm {
-	val oldDeltas = form.positionDeltas
+private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSource>, oldVertexCount: Int): MeshDeltaForm =
+	MeshDeltaForm(remapPerVertex(form.positionDeltas, vertexSources, oldVertexCount))
 
-	fun oldDeltaX(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 < oldDeltas.size) oldDeltas[oldIndex * 2] else 0f
+/**
+ * Rebuilds a per-vertex (x, y) array at the new vertex count: each new vertex's pair copies, averages, or
+ * lerps from the old array per its [VertexSource] - the one recipe a topology edit applies to every
+ * per-vertex array it carries over (keyform deltas, blend-shape deltas, the keyform-space base).  An old
+ * index beyond the old array (a malformed grid) contributes zero, keeping the rebuild total.
+ *
+ * @param FloatArray values The old interleaved (x, y) values.
+ * @param List<VertexSource> vertexSources One source per new vertex.
+ * @param Int oldVertexCount The old mesh's vertex count (bounds the old reads).
+ * @return FloatArray The rebuilt values, two per new vertex.
+ */
+internal fun remapPerVertex(values: FloatArray, vertexSources: List<VertexSource>, oldVertexCount: Int): FloatArray {
+	fun oldX(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 < values.size) values[oldIndex * 2] else 0f
 
-	fun oldDeltaY(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 + 1 < oldDeltas.size) oldDeltas[oldIndex * 2 + 1] else 0f
-	val newDeltas = FloatArray(vertexSources.size * 2)
+	fun oldY(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 + 1 < values.size) values[oldIndex * 2 + 1] else 0f
+	val newValues = FloatArray(vertexSources.size * 2)
 	vertexSources.forEachIndexed { newIndex, source ->
 		when (source) {
 			is VertexSource.FromOld -> {
-				newDeltas[newIndex * 2] = oldDeltaX(source.oldIndex)
-				newDeltas[newIndex * 2 + 1] = oldDeltaY(source.oldIndex)
+				newValues[newIndex * 2] = oldX(source.oldIndex)
+				newValues[newIndex * 2 + 1] = oldY(source.oldIndex)
 			}
 
 			is VertexSource.AverageOf -> {
@@ -202,19 +214,19 @@ private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSourc
 					var sumX = 0f
 					var sumY = 0f
 					for (oldIndex in source.oldIndices) {
-						sumX += oldDeltaX(oldIndex)
-						sumY += oldDeltaY(oldIndex)
+						sumX += oldX(oldIndex)
+						sumY += oldY(oldIndex)
 					}
-					newDeltas[newIndex * 2] = sumX / source.oldIndices.size
-					newDeltas[newIndex * 2 + 1] = sumY / source.oldIndices.size
+					newValues[newIndex * 2] = sumX / source.oldIndices.size
+					newValues[newIndex * 2 + 1] = sumY / source.oldIndices.size
 				}
 			}
 
 			is VertexSource.LerpOf -> {
-				newDeltas[newIndex * 2] = oldDeltaX(source.oldA) + (oldDeltaX(source.oldB) - oldDeltaX(source.oldA)) * source.t
-				newDeltas[newIndex * 2 + 1] = oldDeltaY(source.oldA) + (oldDeltaY(source.oldB) - oldDeltaY(source.oldA)) * source.t
+				newValues[newIndex * 2] = oldX(source.oldA) + (oldX(source.oldB) - oldX(source.oldA)) * source.t
+				newValues[newIndex * 2 + 1] = oldY(source.oldA) + (oldY(source.oldB) - oldY(source.oldA)) * source.t
 			}
 		}
 	}
-	return MeshDeltaForm(newDeltas)
+	return newValues
 }

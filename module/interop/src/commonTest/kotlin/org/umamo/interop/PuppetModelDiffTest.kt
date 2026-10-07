@@ -8,6 +8,7 @@ import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
@@ -22,6 +23,7 @@ import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
+import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
@@ -62,7 +64,7 @@ class PuppetModelDiffTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh =
-				DrawableMesh(
+				DrawableMesh.withLocalEqualToCanvas(
 					positions = floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f),
 					uvs = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
 					indices = intArrayOf(0, 1, 2),
@@ -282,19 +284,102 @@ class PuppetModelDiffTest {
 		assertEquals(setOf(DrawableField.CHANNELS), fieldsAfter(gridded.copy(channelGrids = opacityTrack(0.25f))))
 		val mesh = gridded.mesh!!
 		val movedVertex =
-			DrawableMesh(
+			DrawableMesh.withLocalEqualToCanvas(
 				positions = floatArrayOf(0f, 0f, 10f, 0f, 5f, 10f),
 				uvs = mesh.uvs,
 				indices = mesh.indices,
 			)
-		assertEquals(setOf(DrawableField.MESH_POSITIONS), fieldsAfter(gridded.copy(mesh = movedVertex)))
+		// The shared array moves the canvas mesh and the keyform-space base together, and the base moves every keyform.
+		assertEquals(setOf(DrawableField.MESH_POSITIONS, DrawableField.GEOMETRY), fieldsAfter(gridded.copy(mesh = movedVertex)))
+		val canvasOnly = DrawableMesh(floatArrayOf(0f, 0f, 10f, 0f, 5f, 10f), mesh.localPositions, mesh.uvs, mesh.indices)
+		assertEquals(setOf(DrawableField.MESH_POSITIONS), fieldsAfter(gridded.copy(mesh = canvasOnly)), "the canvas mesh alone is no keyform change")
+		val localOnly = DrawableMesh(mesh.positions, floatArrayOf(0f, 0f, 10f, 0f, 5f, 10f), mesh.uvs, mesh.indices)
+		assertEquals(setOf(DrawableField.GEOMETRY), fieldsAfter(gridded.copy(mesh = localOnly)), "the keyform-space base alone moves the keyforms")
 		val rewound =
-			DrawableMesh(
+			DrawableMesh.withLocalEqualToCanvas(
 				positions = mesh.positions,
 				uvs = mesh.uvs,
 				indices = intArrayOf(2, 1, 0),
 			)
 		assertEquals(setOf(DrawableField.MESH_TOPOLOGY), fieldsAfter(gridded.copy(mesh = rewound)))
+	}
+
+	/**
+	 * A delta array shorter than its base rebuilds the base alone past its end (the evaluator's tolerance), so a
+	 * base that moves there is a moved keyform, and the diff says so.
+	 */
+	@Test
+	fun aBaseMovePastAShortDeltaArrayIsAGeometryEdit() {
+		val angleY = ParameterId("ParamAngleY")
+		val base = floatArrayOf(0f, 0f, 10f, 0f, 5f, 10f)
+		val mesh = DrawableMesh.withLocalEqualToCanvas(base, floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2))
+		val shortGrid =
+			KeyformGrid(
+				listOf(KeyformAxis(angleY, floatArrayOf(0f, 1f))),
+				listOf(
+					KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(2))),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(1f, 0f))),
+				),
+			)
+		val baseline = drawable("d1").copy(mesh = mesh, geometryGrid = shortGrid)
+		val movedTail = baseline.copy(mesh = DrawableMesh(mesh.positions, floatArrayOf(0f, 0f, 10f, 0f, 5f, 12f), mesh.uvs, mesh.indices))
+		assertEquals(
+			setOf(DrawableField.GEOMETRY),
+			onlyChangedFields(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(movedTail))).drawables),
+			"the last vertex moved under every keyform",
+		)
+		val sameTail = baseline.copy(mesh = DrawableMesh(mesh.positions, base.copyOf(), mesh.uvs, mesh.indices))
+		assertTrue(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(sameTail))).drawables.isEmpty(), "the same base in another array is no edit")
+	}
+
+	/**
+	 * Keyform geometry compares by the absolute floats each keyform rebuilds, `localPositions + Δ`: two deltas that
+	 * rebuild the same float are the same keyform even when their bits differ, which is what a CMO3 round trip
+	 * produces when a delta is re-derived from a rebuilt float.
+	 */
+	@Test
+	fun deltasThatRebuildTheSameFloatAreTheSameKeyform() {
+		// At 4096 a float steps by 1/2048, so both deltas below rebuild 4096 exactly.
+		val base = floatArrayOf(4096f, 0f, 4106f, 0f, 4096f, 10f)
+		val mesh = DrawableMesh.withLocalEqualToCanvas(base, floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2))
+
+		/**
+		 * A one-axis grid whose second cell moves the first vertex's x by [firstDelta].
+		 *
+		 * @param Float firstDelta The delta.
+		 * @return KeyformGrid The grid.
+		 */
+		fun gridWith(firstDelta: Float): KeyformGrid<MeshDeltaForm> =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f))),
+				listOf(
+					KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(6))),
+					KeyformCell(intArrayOf(1), MeshDeltaForm(floatArrayOf(firstDelta, 0f, 0f, 0f, 0f, 0f))),
+				),
+			)
+		val baseline = drawable("d1").copy(mesh = mesh, geometryGrid = gridWith(1e-5f))
+		val reDerived = baseline.copy(geometryGrid = gridWith(2e-5f))
+		assertTrue(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(reDerived))).drawables.isEmpty(), "the same rebuilt floats are no edit")
+		val moved = baseline.copy(geometryGrid = gridWith(0.25f))
+		assertEquals(setOf(DrawableField.GEOMETRY), onlyChangedFields(diffPuppetModels(puppet(drawables = listOf(baseline)), puppet(drawables = listOf(moved))).drawables))
+	}
+
+	/**
+	 * A blend form's deltas are measured from the keyform-space base too, so moving that base alone changes the blend
+	 * shape, and a drawable with no grid reports the base move as its geometry.
+	 */
+	@Test
+	fun aBaseMoveChangesTheBlendShapes() {
+		val withBlend =
+			drawable("d1").copy(
+				blendShapes = listOf(BlendShapeBinding(angleX, floatArrayOf(0f, 1f), 0, listOf(null, MeshForm(floatArrayOf(1f, 0f, 0f, 0f, 0f, 0f))))),
+			)
+		val mesh = withBlend.mesh!!
+		val shifted = withBlend.copy(mesh = DrawableMesh(mesh.positions, floatArrayOf(0.5f, 0f, 10f, 0f, 0f, 10f), mesh.uvs, mesh.indices))
+		assertEquals(
+			setOf(DrawableField.GEOMETRY, DrawableField.BLEND_SHAPES),
+			onlyChangedFields(diffPuppetModels(puppet(drawables = listOf(withBlend)), puppet(drawables = listOf(shifted))).drawables),
+		)
 	}
 
 	/** A glue is keyed by its ORDERED mesh pair - reversing the pair is a delete plus a create. */

@@ -317,13 +317,13 @@ class EditGizmoOverlayGestureTest {
 			waitForIdle()
 			moveIn(LEFT_AREA, listOf(tenUnitsRight))
 
-			session.setDrawableParentDeformer(RIG_QUAD, DeformerId("missing"))
+			session.setDrawableParentDeformer(RIG_QUAD, DeformerId("missing"), localPositions = null)
 			waitForIdle()
 
 			assertNull(session.activeMeshOperator.value, "the gesture was cancelled")
 			assertSame(session.model.value, fixture.service.pushedModels.last(), "the renderer is back on the committed model")
 
-			session.setDrawableParentDeformer(RIG_QUAD, null)
+			session.setDrawableParentDeformer(RIG_QUAD, null, localPositions = null)
 			waitForIdle()
 			val pushesBefore = fixture.service.pushedModels.size
 			moveIn(LEFT_AREA, listOf(tenUnitsRight, Offset(250f, 150f)))
@@ -346,9 +346,9 @@ class EditGizmoOverlayGestureTest {
 			moveIn(LEFT_AREA, listOf(gestureStart))
 			session.beginMeshOperator(MeshOperatorKind.Grab, LEFT_AREA)
 			waitForIdle()
-			session.setDrawableParentDeformer(RIG_QUAD, DeformerId("missing"))
+			session.setDrawableParentDeformer(RIG_QUAD, DeformerId("missing"), localPositions = null)
 			waitForIdle()
-			session.setDrawableParentDeformer(RIG_QUAD, null)
+			session.setDrawableParentDeformer(RIG_QUAD, null, localPositions = null)
 			waitForIdle()
 
 			moveIn(LEFT_AREA, listOf(tenUnitsRight))

@@ -9,7 +9,6 @@ import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
-import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 
 /**
@@ -78,7 +77,7 @@ internal object Cmo3AtlasUndedup {
 	 * Detects shared slots sampled from multiple canvas placements and gives every additional
 	 * placement its own patch copy on a synthesized page.
 	 *
-	 * @param PuppetModel puppet The model to convert; canvas-frame rest meshes.
+	 * @param PuppetModel puppet The model to convert; mesh.positions is the canvas editable mesh.
 	 * @param List        pages  The atlas pages, in model3 texture order.
 	 * @param Map         pageIndexByDrawableId Each drawable id's atlas page index.
 	 * @return Result The (possibly) remapped puppet, extended page list, and updated page map.
@@ -179,7 +178,7 @@ internal object Cmo3AtlasUndedup {
 					newUvs[componentIndex + 1] = (mesh.uvs[componentIndex + 1] * remap[3] + remap[1]) / remap[5]
 					componentIndex += 2
 				}
-				drawable.copy(mesh = DrawableMesh(mesh.positions, newUvs, mesh.indices))
+				drawable.copy(mesh = mesh.withUvs(newUvs))
 			}
 		return Result(
 			puppet.copy(drawables = remappedDrawables),

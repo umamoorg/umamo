@@ -53,9 +53,10 @@ internal fun <TForm : Any> gridOf(
  * The grid index of the default-pose cell of [binding]: per axis, the key nearest the driving
  * parameter's default value, stride-folded.
  *
- * This cell's baked values serve as the editor's rest state (rest mesh, static draw order); the
- * multilinear blend is base-independent, so the choice never changes evaluated output - which is also
- * why no evaluation oracle can see it go wrong.
+ * This cell's baked values serve as the editor's rest state (keyform-space base, static draw order); the
+ * multilinear blend is base-independent in exact arithmetic, so the choice moves evaluated output by
+ * rounding at most.  :runtime's `referenceCellOf` is the same rule over the model's own grid, the one the
+ * CMO3 import takes its base from.
  *
  * Resolves the default by parameter INDEX, not by id.  [Moc3ImportContext.defaultValueOf] answers the
  * same question keyed by id for the blend-shape pass, and on a document carrying one parameter id twice

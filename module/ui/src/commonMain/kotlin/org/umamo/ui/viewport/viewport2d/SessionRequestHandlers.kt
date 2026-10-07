@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.MeshTopologyOps
 import org.umamo.edit.MeshTransforms
@@ -177,7 +178,7 @@ internal fun handleEditSnapRequest(
 			if (kind == SnapKind.SelectionToActive && activeMedian == null) {
 				return
 			}
-			val newPositionsByDrawable = LinkedHashMap<DrawableId, FloatArray>(coveredByMesh.size)
+			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(coveredByMesh.size)
 			val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(coveredByMesh.size)
 			for ((geometry, covered) in coveredByMesh) {
 				val world = geometry.worldPosed
@@ -214,13 +215,13 @@ internal fun handleEditSnapRequest(
 						// The cursor moves were handled above; nothing else reaches here.
 						SnapKind.CursorToSelected, SnapKind.CursorToActive -> world
 					}
-				newPositionsByDrawable[geometry.drawableId] = geometry.worldToBase(transformedWorld, covered)
+				restByDrawable[geometry.drawableId] = geometry.worldToRest(transformedWorld, covered)
 				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
 			}
 			// A snap relocates geometry without scaling or turning it, so it files under the move label.
 			session.commitMeshPositions(
 				MeshChange.TransformVertices(movedIndicesByDrawable, MeshOperatorKind.Grab),
-				newPositionsByDrawable,
+				restByDrawable,
 			)
 		}
 	}
@@ -265,7 +266,7 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 				session.emitNotice("notice.transform.deformed", NoticePlacement.NearCursor)
 				return
 			}
-			val newPositionsByDrawable = LinkedHashMap<DrawableId, FloatArray>(ids.size)
+			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(ids.size)
 			for (geometry in geometries) {
 				val world = geometry.world
 				val allIndices = geometry.allIndices
@@ -290,12 +291,12 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 					continue
 				}
 				val transformedWorld = MeshTransforms.translateVertices(world, allIndices, deltaX, deltaY)
-				newPositionsByDrawable[geometry.drawableId] = geometry.worldToBase(transformedWorld, allIndices)
+				restByDrawable[geometry.drawableId] = geometry.worldToRest(transformedWorld, allIndices)
 			}
-			if (newPositionsByDrawable.isNotEmpty()) {
+			if (restByDrawable.isNotEmpty()) {
 				session.commitObjectPositions(
-					MeshChange.TransformDrawables(newPositionsByDrawable.keys.toList(), MeshOperatorKind.Grab),
-					newPositionsByDrawable,
+					MeshChange.TransformDrawables(restByDrawable.keys.toList(), MeshOperatorKind.Grab),
+					restByDrawable,
 				)
 			}
 		}

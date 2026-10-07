@@ -15,6 +15,7 @@ import org.umamo.format.uma.puppet.UmaDeformerKind
 import org.umamo.format.uma.puppet.UmaDrawable
 import org.umamo.format.uma.puppet.UmaFormChannel
 import org.umamo.format.uma.puppet.UmaGlue
+import org.umamo.format.uma.puppet.UmaMesh
 import org.umamo.format.uma.puppet.UmaMeshBlendShape
 import org.umamo.format.uma.puppet.UmaMeshGrid
 import org.umamo.format.uma.puppet.UmaOrgRef
@@ -262,7 +263,7 @@ object UmaPuppetImport {
 			parentDeformerId = record.parentDeformer?.let(::DeformerId),
 			blendMode = record.blendMode?.toRuntime() ?: BlendMode.Normal,
 			maskedBy = record.maskedBy.orEmpty().map(::DrawableId),
-			mesh = record.mesh?.let { mesh -> DrawableMesh(mesh.positions, mesh.uvs, mesh.indices) },
+			mesh = record.mesh?.let(::drawableMeshOf),
 			geometryGrid = record.geometry?.let(::meshGridOf),
 			channelGrids = channelsOf(record.channels),
 			drawOrder = record.drawOrder ?: DEFAULT_DRAW_ORDER.toFloat(),
@@ -521,3 +522,17 @@ object UmaPuppetImport {
 	/** The failure a rotation form without its whole pivot reports, which the codec has already refused. */
 	private const val PIVOT_CHECKED = "the codec checked a rotation form carries its whole pivot"
 }
+
+/**
+ * A UMA mesh as the model's [DrawableMesh] (UMA §4.10): both position arrays as they were, equal ones as one
+ * shared array, the shape a deformer-less drawable's mesh has in the model.
+ *
+ * @param UmaMesh mesh The mesh as read; the shape rules have already passed.
+ * @return DrawableMesh The model's mesh.
+ */
+private fun drawableMeshOf(mesh: UmaMesh): DrawableMesh =
+	if (mesh.localPositions.contentEquals(mesh.canvasPositions)) {
+		DrawableMesh.withLocalEqualToCanvas(mesh.canvasPositions, mesh.uvs, mesh.indices)
+	} else {
+		DrawableMesh(positions = mesh.canvasPositions, localPositions = mesh.localPositions, uvs = mesh.uvs, indices = mesh.indices)
+	}

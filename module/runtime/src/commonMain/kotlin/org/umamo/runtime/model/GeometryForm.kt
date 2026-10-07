@@ -11,10 +11,12 @@ package org.umamo.runtime.model
  */
 
 /**
- * A drawable keyform's geometry: per-vertex position deltas (interleaved x,y) relative to the mesh base.
+ * A drawable keyform's geometry: per-vertex position deltas (interleaved x,y) relative to the mesh's
+ * keyform-space base (DrawableMesh.localPositions).
  *
  * Stored as deltas rather than absolute positions to match the GPU vertex-shader morph `p = base + Σ wᵢ·Δᵢ`
- * - the delta table is exactly what the shader texel-fetches per active corner.
+ * - the delta table is exactly what the shader texel-fetches per active corner.  The base is in the
+ * keyforms' own space, so each delta is a difference within one space, which float32 holds.
  */
 class MeshDeltaForm(val positionDeltas: FloatArray)
 
@@ -22,16 +24,17 @@ class MeshDeltaForm(val positionDeltas: FloatArray)
  * A warp deformer keyform's geometry: the ABSOLUTE FFD lattice control-point positions (interleaved x,y).
  *
  * Absolute, not deltas: a warp source carries no separate rest lattice to be relative to, so these forms
- * are the only place the lattice geometry exists.  That is why an unkeyed warp cannot yet render.
+ * are the only place the lattice geometry exists, and a warp with no keyforms has no lattice at all - the
+ * evaluator gives it no world, so nothing under it is placed.
  */
 class WarpLatticeForm(val controlPoints: FloatArray)
 
 /**
  * A rotation deformer keyform's geometry: the ABSOLUTE pivot transform captured at one grid cell.
  *
- * The reflection flags that rode the bundled RotationForm are now [FormChannel.FLIP_X] / [FormChannel.FLIP_Y]
- * channels, because they snap to the floor cell rather than blending and so do not belong beside values
- * that interpolate.
+ * The reflection flags are [FormChannel.FLIP_X] / [FormChannel.FLIP_Y] channels rather than fields here,
+ * because they snap to the floor cell rather than blending and so do not belong beside values that
+ * interpolate.
  */
 class RotationPivotForm(
 	val originX: Float,

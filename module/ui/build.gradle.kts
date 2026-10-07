@@ -162,6 +162,11 @@ umamoTestCorpus {
 	// (test/corpus/moc3/modelG) saved as a .cmo3.  It lives OUTSIDE the golden glob because a
 	// converted file fails the corpus invariants by nature, and it self-skips until the file exists.
 	sampleWithCorpusDefault("cmo3.repackSample", "cmo3/invalid/modelG.cmo3")
+	// The keyform-precision probes' inputs, explicit-only (a probe is a diagnostic, not a gate): the proof's one
+	// corpus file, the profile's comma-separated corpus files, and its warm-up file.  The rest are switches and
+	// an output directory that need not exist yet, so they go through as flags.
+	sample("proof.sample", "profile.samples", "profile.warmup")
+	flag("proof.mesh", "proof.keyform", "proof.component", "profile.output", "profile.openOnly")
 	// The artwork-import gate's fixture: a real layered PSD, imported, packed at open, and exported.
 	sampleWithCorpusDefault("psd.sample", "psd/EricaTamamo.psd")
 	// The Edit-mode perf probe's rig (EditGrabPerfProbeTest): print-only, and it self-skips without it.

@@ -22,7 +22,7 @@ import kotlin.test.assertSame
 
 /**
  * Pins the batched capture against the per-drawable capture it replaces in every loop: the same
- * three-space answer per drawable, the same drops for what cannot be captured, and the same aliasing
+ * answer in every space per drawable, the same drops for what cannot be captured, and the same aliasing
  * of base when the pose leaves a keyed drawable's grid.
  */
 class CaptureDrawableWorldsTest {
@@ -43,10 +43,12 @@ class CaptureDrawableWorldsTest {
 		val drawableById = rig.drawables.associateBy { drawable -> drawable.id }
 		for (geometry in batched) {
 			val single = assertNotNull(captureDrawableWorld(rig, emptyMap(), geometry.drawableId), "the single capture answers for ${geometry.drawableId}")
-			assertContentEquals(single.base, geometry.base, "base of ${geometry.drawableId}")
+			assertContentEquals(single.local, geometry.local, "base of ${geometry.drawableId}")
+			assertContentEquals(single.canvas, geometry.canvas, "canvas mesh of ${geometry.drawableId}")
 			assertContentEquals(single.displayed, geometry.displayed, "displayed shape of ${geometry.drawableId}")
 			assertContentEquals(single.world, geometry.world, "world shape of ${geometry.drawableId}")
-			assertSame(drawableById.getValue(geometry.drawableId).mesh!!.positions, geometry.base, "base is the stored rest array, not a copy")
+			assertSame(drawableById.getValue(geometry.drawableId).mesh!!.localPositions, geometry.local, "the base is the stored array, not a copy")
+			assertSame(drawableById.getValue(geometry.drawableId).mesh!!.positions, geometry.canvas, "and so is the canvas mesh")
 		}
 	}
 
@@ -60,14 +62,14 @@ class CaptureDrawableWorldsTest {
 	fun anOffKeyDrawableDisplaysItsBase() {
 		val batched = captureDrawableWorlds(model(), emptyMap(), listOf(offKey))
 		val geometry = batched.single()
-		assertSame(geometry.base, geometry.displayed, "a keyed drawable the pose leaves off every key shows its base, as the single capture does")
+		assertSame(geometry.local, geometry.displayed, "a keyed drawable the pose leaves off every key shows its base, as the single capture does")
 	}
 
 	@Test
 	fun aKeyedDrawableDisplaysItsNeutralBlendNotItsBase() {
 		val geometry = captureDrawableWorlds(model(), emptyMap(), listOf(keyed)).single()
 		assertContentEquals(floatArrayOf(500f, 500f, 600f, 500f, 500f, 600f), geometry.displayed)
-		assertContentEquals(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f), geometry.base)
+		assertContentEquals(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f), geometry.local)
 	}
 
 	/**
@@ -137,5 +139,5 @@ class CaptureDrawableWorldsTest {
 	 * @return Drawable The drawable.
 	 */
 	private fun drawable(id: DrawableId, parent: DeformerId?, positions: FloatArray, grid: KeyformGrid<MeshDeltaForm>?): Drawable =
-		Drawable(id, id.raw, parent, BlendMode.Normal, emptyList(), DrawableMesh(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)), grid)
+		Drawable(id, id.raw, parent, BlendMode.Normal, emptyList(), DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), intArrayOf(0, 1, 2)), grid)
 }

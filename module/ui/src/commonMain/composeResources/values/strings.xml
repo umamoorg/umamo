@@ -163,8 +163,6 @@
 	<string name="export_reason_sketch_part_not_runtime_content">A guide-image (sketch) part is not runtime content, so it was left out.</string>
 	<string name="export_reason_hidden_part_omitted_by_option">The part is hidden and the export options omit hidden parts, so its contents were left out.</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">The drawable is hidden and the export options omit hidden art meshes, so it was left out.</string>
-	<string name="export_reason_unkeyed_drawable_under_deformer">An unkeyed drawable under a deformer has no parent-space geometry to write, so it was left out.</string>
-	<string name="export_reason_rest_mesh_conversion_size_mismatch">The canvas-to-parent conversion returned %1$d coordinates for %2$d, so the rest mesh was written unconverted.</string>
 	<string name="export_reason_no_atlas_page_bound">No atlas page is bound to this drawable, so it was written pointing at page 0.</string>
 	<string name="export_reason_clipping_mask_not_in_export">The clipping mask %1$s is not in this export, so the mesh was written unclipped by it.</string>
 	<string name="export_reason_offscreen_mask_not_in_export">A clipping mask names a drawable that could not be written, so it was dropped from the offscreen.</string>
@@ -711,8 +709,11 @@
 	<string name="hud_delta_px">Δ %1$d, %2$d px</string>
 	<string name="hud_angle_degrees">%1$s°</string>
 	<string name="hud_scale_factor">×%1$s</string>
-	<string name="notice_proportional_connected_on">Proportional editing: connected only.</string>
-	<string name="notice_proportional_connected_off">Proportional editing: all within radius.</string>
+	<string name="notice_proportional_connected_on">Proportional editing: Connected only.</string>
+	<string name="notice_proportional_connected_off">Proportional editing: All within radius.</string>
+	<!-- %1$s is the drawable's name. -->
+	<string name="notice_reparent_place_not_kept">%1$s was bound without keeping its place: Its new deformer chain could not map it.</string>
+	<string name="notice_reparent_places_not_kept">%1$d object(s) re-homed without keeping their place: The deformer chain could not map them.</string>
 
 	<!-- Pie menu center titles (the pie's name, Blender-style). -->
 	<string name="pie_title_pivot">Pivot Point</string>

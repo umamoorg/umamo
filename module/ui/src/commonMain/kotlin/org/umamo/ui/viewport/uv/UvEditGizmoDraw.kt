@@ -28,7 +28,7 @@ import org.umamo.ui.viewport.gizmo.drawSelectToolAffordances
  * and the ring's radius is the gesture's own (the radius of the surface it began on, see UvEditGesture).
  *
  * @param MarqueeSelectController<MeshSelection> marquee The area's box / circle machinery.
- * @param ModalGestureState<UvEditGesture> gesture The area's modal gesture state.
+ * @param ModalGestureState<UvEditGesture, FloatArray> gesture The area's modal gesture state.
  * @param ActiveSelectTool? ownedSelectTool The select tool armed in this area, or null.
  * @param ActiveOperator? hudOperator The latched UV operator, whichever area owns it.
  * @param State axisConstraint The session's axis constraint.
@@ -40,7 +40,7 @@ import org.umamo.ui.viewport.gizmo.drawSelectToolAffordances
  */
 internal fun DrawScope.drawUvEditGizmoChrome(
 	marquee: MarqueeSelectController<MeshSelection>,
-	gesture: ModalGestureState<UvEditGesture>,
+	gesture: ModalGestureState<UvEditGesture, FloatArray>,
 	ownedSelectTool: ActiveSelectTool?,
 	hudOperator: ActiveOperator?,
 	axisConstraint: State<TransformAxisConstraint?>,

@@ -79,6 +79,8 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.proportional.off" -> stringResource(Res.string.notice_proportional_off)
 		"notice.proportional.connected.on" -> stringResource(Res.string.notice_proportional_connected_on)
 		"notice.proportional.connected.off" -> stringResource(Res.string.notice_proportional_connected_off)
+		"notice.reparent.placeNotKept" -> stringResource(Res.string.notice_reparent_place_not_kept, arguments.firstOrNull().orEmpty())
+		"notice.reparent.placesNotKept" -> stringResource(Res.string.notice_reparent_places_not_kept, *countArguments(arguments, 1))
 		else -> stringResource(Res.string.notice_unknown)
 	}
 

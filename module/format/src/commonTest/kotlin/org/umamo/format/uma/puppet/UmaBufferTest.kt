@@ -79,13 +79,14 @@ class UmaBufferTest {
 		)
 
 	/**
-	 * A one-triangle mesh whose arrays sit in the buffer after [prefixBytes] bytes of something else.
+	 * A one-triangle mesh whose arrays sit in the buffer after [prefixBytes] bytes of something else; its canvas and
+	 * keyform-space positions name the same bytes, as a deformer-less drawable's may.
 	 *
 	 * @param Int prefixBytes Bytes before the mesh arrays.
 	 * @return String The mesh's JSON text.
 	 */
 	private fun triangleMeshJson(prefixBytes: Int): String =
-		"""{ "positions": ${accessor(bufferPath, prefixBytes, 6, "float32")}, "uvs": ${accessor(bufferPath, prefixBytes + 24, 6, "float32")}, "indices": ${accessor(bufferPath, prefixBytes + 48, 3, "int32")} }"""
+		"""{ "canvasPositions": ${accessor(bufferPath, prefixBytes, 6, "float32")}, "localPositions": ${accessor(bufferPath, prefixBytes, 6, "float32")}, "uvs": ${accessor(bufferPath, prefixBytes + 24, 6, "float32")}, "indices": ${accessor(bufferPath, prefixBytes + 48, 3, "int32")} }"""
 
 	/** The triangle mesh's bytes, in the order [triangleMeshJson] names them. */
 	private val triangleBytes: ByteArray = float32(0f, 0f, 10f, 0f, 0f, 10f) + float32(0f, 0f, 1f, 0f, 0f, 1f) + int32(0, 1, 2)
@@ -117,8 +118,27 @@ class UmaBufferTest {
 	fun meshReadsFromTheBuffer() {
 		val model = Uma.read(fileWith("""{ "drawables": [ { "id": "D", "name": "D", "mesh": ${triangleMeshJson(0)} } ] }""", triangleBytes))
 		val mesh = assertNotNull(model.puppet!!.drawables!!.single().mesh)
-		assertContentEquals(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f), mesh.positions)
+		assertContentEquals(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f), mesh.canvasPositions)
+		assertContentEquals(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f), mesh.localPositions)
 		assertContentEquals(intArrayOf(0, 1, 2), mesh.indices)
+	}
+
+	/**
+	 * A mesh needs both position arrays (UMA §4.10): one missing either fails the read as a malformed entry, whatever
+	 * other position key it carries.
+	 */
+	@Test
+	fun aMeshWithoutBothPositionArraysIsMalformed() {
+		val positions = accessor(bufferPath, 0, 6, "float32")
+		val rest = """"uvs": ${accessor(bufferPath, 24, 6, "float32")}, "indices": ${accessor(bufferPath, 48, 3, "int32")}"""
+		for ((label, meshJson) in listOf(
+			"no localPositions" to """{ "canvasPositions": $positions, $rest }""",
+			"no canvasPositions" to """{ "localPositions": $positions, $rest }""",
+			"one unknown positions key" to """{ "positions": $positions, $rest }""",
+		)) {
+			val failure = assertFailsWith<UmaFormatException>(label) { Uma.read(fileWith("""{ "drawables": [ { "id": "D", "name": "D", "mesh": $meshJson } ] }""", triangleBytes)) }.failure
+			assertIs<UmaReadFailure.MalformedEntry>(failure, label)
+		}
 	}
 
 	/**
@@ -140,13 +160,13 @@ class UmaBufferTest {
 		}
 
 		/**
-		 * A one-drawable puppet whose mesh positions use [positions].
+		 * A one-drawable puppet whose mesh's canvas positions use [positions], its other arrays sound.
 		 *
-		 * @param String positions The positions accessor's JSON.
+		 * @param String positions The canvas positions accessor's JSON.
 		 * @return String The puppet's JSON.
 		 */
 		fun withPositions(positions: String): String =
-			"""{ "drawables": [ { "id": "D", "name": "D", "mesh": { "positions": $positions, "uvs": ${accessor(bufferPath, 24, 6, "float32")}, "indices": ${accessor(bufferPath, 48, 3, "int32")} } } ] }"""
+			"""{ "drawables": [ { "id": "D", "name": "D", "mesh": { "canvasPositions": $positions, "localPositions": ${accessor(bufferPath, 0, 6, "float32")}, "uvs": ${accessor(bufferPath, 24, 6, "float32")}, "indices": ${accessor(bufferPath, 48, 3, "int32")} } } ] }"""
 
 		assertMalformed(withPositions(accessor(bufferPath, 0, 6, "float32")), null, "no buffer at all")
 		assertMalformed(withPositions(accessor("model/other.bin", 0, 6, "float32")), triangleBytes, "a buffer the archive does not hold")
@@ -167,8 +187,8 @@ class UmaBufferTest {
 	 */
 	@Test
 	fun saveLaysTheBufferOut() {
-		val first = UmaDrawable("A", "A", mesh = UmaMesh(floatArrayOf(1f, 2f, 3f, 4f), floatArrayOf(0f, 0f, 1f, 1f), intArrayOf(0, 1, 1)))
-		val second = UmaDrawable("B", "B", mesh = UmaMesh(floatArrayOf(5f, 6f), floatArrayOf(0.5f, 0.5f), intArrayOf(0, 0, 0)))
+		val first = UmaDrawable("A", "A", mesh = UmaMesh(canvasPositions = floatArrayOf(1f, 2f, 3f, 4f), localPositions = floatArrayOf(1f, 2f, 3f, 4f), uvs = floatArrayOf(0f, 0f, 1f, 1f), indices = intArrayOf(0, 1, 1)))
+		val second = UmaDrawable("B", "B", mesh = UmaMesh(canvasPositions = floatArrayOf(5f, 6f), localPositions = floatArrayOf(5f, 6f), uvs = floatArrayOf(0.5f, 0.5f), indices = intArrayOf(0, 0, 0)))
 		val puppet = UmaPuppet(drawables = listOf(first, second))
 		val bytes = Uma.write(UmaModel.create(TEST_WRITER).withPuppet(puppet))
 
@@ -180,9 +200,9 @@ class UmaBufferTest {
 		val offsets =
 			(tree["drawables"] as JsonArray).flatMap { drawable ->
 				val mesh = (drawable as JsonObject)["mesh"] as JsonObject
-				listOf("positions", "uvs", "indices").map { key -> UmaAccessor.of(mesh[key]!!)!!.byteOffset }
+				listOf("canvasPositions", "localPositions", "uvs", "indices").map { key -> UmaAccessor.of(mesh[key]!!)!!.byteOffset }
 			}
-		assertEquals(listOf(0, 16, 32, 44, 52, 60), offsets, "document order, four bytes per component, no gaps")
+		assertEquals(listOf(0, 16, 32, 48, 60, 68, 76, 84), offsets, "document order, four bytes per component, no gaps")
 
 		val otherHistory = Uma.read(Uma.write(UmaModel.create(TEST_WRITER).withPuppet(UmaPuppet(drawables = listOf(second, first)))))
 		assertContentEquals(bytes, Uma.write(otherHistory.withPuppet(puppet)), "the same puppet writes the same bytes whatever came before")
@@ -202,7 +222,7 @@ class UmaBufferTest {
 			"""{ "drawables": [ { "id": "D", "name": "D", "mesh": ${triangleMeshJson(12)}, "futureWeights": ${accessor(bufferPath, 0, 3, "int32")}, "futureCurve": ${accessor("model/extra.bin", 0, 2, "float32")} } ] }"""
 		val document = Uma.read(fileWith(puppetJson, weights + triangleBytes, listOf(TestEntry("model/extra.bin", extraBytes, deflated = false))))
 
-		val edited = document.puppet!!.let { puppet -> puppet.copy(drawables = listOf(puppet.drawables!!.single().copy(mesh = UmaMesh(FloatArray(8) { value -> value.toFloat() }, FloatArray(8), intArrayOf(0, 1, 2, 0, 2, 3))))) }
+		val edited = document.puppet!!.let { puppet -> puppet.copy(drawables = listOf(puppet.drawables!!.single().copy(mesh = UmaMesh(canvasPositions = FloatArray(8) { value -> value.toFloat() }, localPositions = FloatArray(8) { value -> value.toFloat() }, uvs = FloatArray(8), indices = intArrayOf(0, 1, 2, 0, 2, 3))))) }
 		val saved = Uma.read(Uma.write(document.withPuppet(edited)))
 		val drawable = ((saved.liveContent(UmaEntryKind.Puppet)!!["drawables"] as JsonArray).single() as JsonObject)
 
@@ -216,7 +236,7 @@ class UmaBufferTest {
 		assertContentEquals(extraBytes, buffer.copyOfRange(curveAccessor.byteOffset, curveAccessor.byteOffset + curveAccessor.byteLength), "with the bytes it named")
 		assertTrue(saved.payloads.any { payload -> payload.path == "model/extra.bin" }, "and the other buffer stays in the file")
 
-		assertContentEquals(FloatArray(8) { value -> value.toFloat() }, saved.puppet!!.drawables!!.single().mesh!!.positions, "the edit lands")
+		assertContentEquals(FloatArray(8) { value -> value.toFloat() }, saved.puppet!!.drawables!!.single().mesh!!.canvasPositions, "the edit lands")
 	}
 
 	/**

@@ -42,7 +42,7 @@ class GlueLayoutTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), IntArray(0)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), IntArray(0)),
 			geometryGrid =
 				KeyformGrid(
 					listOf(KeyformAxis(paramA, floatArrayOf(0f))),
@@ -234,7 +234,7 @@ class GlueLayoutTest {
 		val layout = planGlueLayout(source)
 		assertTrue(glueLayoutFits(layout, source), "the same model")
 		assertTrue(glueLayoutFits(layout, source.copy(glues = source.glues.map { glue -> glue.copy(intensity = 0.5f) })), "an intensity edit")
-		val moved = source.drawables.map { drawable -> drawable.copy(mesh = drawable.mesh!!.let { mesh -> DrawableMesh(FloatArray(mesh.positions.size) { 1f }, mesh.uvs, mesh.indices) }) }
+		val moved = source.drawables.map { drawable -> drawable.copy(mesh = drawable.mesh!!.let { mesh -> DrawableMesh.withLocalEqualToCanvas(FloatArray(mesh.positions.size) { 1f }, mesh.uvs, mesh.indices) }) }
 		assertTrue(glueLayoutFits(layout, source.copy(drawables = moved)), "meshes moved at the same size")
 		assertTrue(glueLayoutFits(layout, source.copy(drawables = source.drawables + drawable("loose", 3))), "an unglued drawable added")
 	}

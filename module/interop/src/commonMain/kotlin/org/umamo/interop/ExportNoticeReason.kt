@@ -50,20 +50,6 @@ sealed interface ExportNoticeReason {
 	/** A hidden art mesh was left out because the export options omit hidden drawables. */
 	data object HiddenDrawableOmittedByExportOption : ExportNoticeReason
 
-	/** An unkeyed drawable under a deformer has no parent-space geometry the moc could store. */
-	data object UnkeyedDrawableUnderDeformerHasNoParentGeometry : ExportNoticeReason
-
-	/**
-	 * The canvas-to-parent conversion returned a different coordinate count than the mesh has.
-	 *
-	 * @property Int convertedCoordinateCount The count the conversion returned.
-	 * @property Int expectedCoordinateCount  The count the mesh carries.
-	 */
-	data class RestMeshConversionSizeMismatch(
-		val convertedCoordinateCount: Int,
-		val expectedCoordinateCount: Int,
-	) : ExportNoticeReason
-
 	/** No atlas page is bound to the drawable, so its texture index fell back to page 0. */
 	data object NoAtlasPageBound : ExportNoticeReason
 
@@ -126,7 +112,7 @@ sealed interface ExportNoticeReason {
 	/** Which texture a drawable samples is editor-only state that CMO3 does not carry. */
 	data object TextureSourceRebindingIsEditorOnly : ExportNoticeReason
 
-	/** The edited base geometry has a different vertex count than its CMO3 source. */
+	/** The edited canvas editable mesh has a different vertex count than its CMO3 source. */
 	data object BaseGeometryVertexCountMismatch : ExportNoticeReason
 
 	/** The drawable has no UVs to reconcile. */

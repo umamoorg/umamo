@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
 import org.umamo.edit.RowDropBand
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.deleteTarget
 import org.umamo.edit.outlinerDropBandFor
 import org.umamo.edit.rename
 import org.umamo.edit.toggleSelectable
@@ -54,6 +53,7 @@ import org.umamo.ui.kit.textentry.InlineRenameField
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.transform.deleteTargetKeepingRest
 import org.umamo.ui.workspace.LocalRelationPick
 import org.umamo.ui.workspace.rowdrag.RowCoordinatesHolder
 import org.umamo.ui.workspace.rowdrag.RowDragController
@@ -143,10 +143,10 @@ internal fun OutlinerRowView(
 		}
 	}
 	// No confirmation: history / undo makes an accidental delete cheap to recover, and the rows are hard to
-	// hit by accident - so this applies immediately (the chosen behaviour).
+	// hit by accident - so this applies immediately (the chosen behavior).
 	val onRequestDelete: (cascade: Boolean) -> Unit = { cascade ->
 		if (target != null) {
-			session?.deleteTarget(target, cascade)
+			session?.deleteTargetKeepingRest(target, cascade)
 		}
 	}
 	// Only real rows rename; the editor needs a session to commit through.

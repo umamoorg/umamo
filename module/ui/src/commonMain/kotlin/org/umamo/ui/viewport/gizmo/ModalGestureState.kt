@@ -10,18 +10,19 @@ import org.umamo.runtime.model.DrawableId
 /**
  * The per-area modal-gesture bookkeeping every gizmo overlay carries: the last pointer position, the frozen
  * capture and its live preview, the gesture-start anchor, the area's screen origin (for cursor wrap), and
- * the wrap / pointer-controller pair.  The three overlays declared these as seven separate
- * `remember(areaId) { mutableStateOf(...) }` locals plus the same reset boilerplate; bundling them keeps the
- * begin / end lifecycle in one place and out of each overlay.
+ * the wrap / pointer-controller pair.  Bundled rather than held as seven separate
+ * `remember(areaId) { mutableStateOf(...) }` locals per overlay, so the begin / end lifecycle and its reset
+ * live in one place and out of each overlay.
  *
  * State-backed fields stay observable (the draw pass and the HUD read [capture] / [preview] / [lastPointer]
  * live), so the whole object is created once per area with `remember(areaId) { ModalGestureState() }` - the
  * same pattern [MarqueeSelectController] uses.
  *
  * [TCapture] is the overlay's own capture type (each overlay holds extra per-mesh data the shared
- * [org.umamo.edit.ModalTransformCapture] does not).
+ * [org.umamo.edit.ModalTransformCapture] does not), and [TPreview] what its preview holds per drawable: a
+ * viewport gesture's rest shape, a UV gesture's coordinates.
  */
-internal class ModalGestureState<TCapture> {
+internal class ModalGestureState<TCapture, TPreview> {
 	/** The most recent pointer position in area-local pixels, tracked for the geometry-dependent effects. */
 	var lastPointer by mutableStateOf(Offset.Zero)
 
@@ -29,11 +30,11 @@ internal class ModalGestureState<TCapture> {
 	var capture by mutableStateOf<TCapture?>(null)
 
 	/**
-	 * The live preview the drive last published: new positions (or UVs) per drawable, or null before the
+	 * The live preview the drive last published: the new rest shape (or UVs) per drawable, or null before the
 	 * first publish.  A drive computes off the UI thread (ModalDriveWorker), so this trails [lastPointer] by
 	 * up to one compute; a confirm settles it first.
 	 */
-	var preview by mutableStateOf<Map<DrawableId, FloatArray>?>(null)
+	var preview by mutableStateOf<Map<DrawableId, TPreview>?>(null)
 
 	/** The pointer position the gesture started at (the transform's origin), or null when idle. */
 	var gestureStart by mutableStateOf<Offset?>(null)

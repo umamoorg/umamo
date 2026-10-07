@@ -56,7 +56,7 @@ class MeshDriveParallelTest {
 					parentDeformerId = null,
 					blendMode = BlendMode.Normal,
 					maskedBy = emptyList(),
-					mesh = DrawableMesh(positions, FloatArray(positions.size), indices.toIntArray()),
+					mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), indices.toIntArray()),
 					geometryGrid = null,
 				)
 			}
@@ -88,13 +88,15 @@ class MeshDriveParallelTest {
 			val sequential = computeMeshDrive(request)
 			val parallel = runBlocking { withContext(Dispatchers.Default) { computeMeshDriveParallel(request, minChunkWeight = 1) } }
 			assertEquals(sequential.preview.keys.toList(), parallel.preview.keys.toList(), "$operator: capture order")
-			for ((drawableId, positions) in sequential.preview) {
-				assertContentEquals(positions, parallel.preview.getValue(drawableId), "$operator: $drawableId")
+			for ((drawableId, rest) in sequential.preview) {
+				assertContentEquals(rest.positions, parallel.preview.getValue(drawableId).positions, "$operator: $drawableId")
+				assertContentEquals(rest.localPositions, parallel.preview.getValue(drawableId).localPositions, "$operator: $drawableId base")
 			}
 			for ((drawableIndex, drawable) in sequential.folded.drawables.withIndex()) {
 				val parallelDrawable = parallel.folded.drawables[drawableIndex]
 				assertEquals(drawable.id, parallelDrawable.id)
 				assertContentEquals(drawable.mesh?.positions, parallelDrawable.mesh?.positions, "$operator: folded $drawableIndex")
+				assertContentEquals(drawable.mesh?.localPositions, parallelDrawable.mesh?.localPositions, "$operator: folded $drawableIndex base")
 			}
 		}
 	}

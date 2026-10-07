@@ -14,6 +14,7 @@ import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -55,7 +56,7 @@ class ArtworkReloadPlannerTest {
 	private val birthQuad1: DrawableMesh = SourceArtImport.birthMeshFor(layer1, options.alphaThreshold, options.birthMeshMargin)!!
 
 	/** An edited mesh over layer 2: a triangle covering only the layer's top-left pixel. */
-	private val editedMesh2 = DrawableMesh(floatArrayOf(30f, 40f, 31f, 40f, 30f, 41f), floatArrayOf(0f, 0f, 0.25f, 0f, 0f, 0.25f), intArrayOf(0, 1, 2))
+	private val editedMesh2 = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(30f, 40f, 31f, 40f, 30f, 41f), floatArrayOf(0f, 0f, 0.25f, 0f, 0f, 0.25f), intArrayOf(0, 1, 2))
 
 	private fun drawable(id: String, tileId: AtlasTileId, mesh: DrawableMesh): Drawable =
 		Drawable(DrawableId(id), id, null, BlendMode.Normal, emptyList(), mesh, null, atlasTileId = tileId)
@@ -107,6 +108,30 @@ class ArtworkReloadPlannerTest {
 		assertTrue(plan.reload.outgrown.isEmpty())
 		assertNull(plan.reload.additions)
 		assertEquals(listOf(6, 6), plan.reload.source.layers.first { layer -> layer.key == "lyid:1" }.let { layer -> listOf(layer.width, layer.height) }, "the inventory is refreshed")
+	}
+
+	@Test
+	fun anUntouchedQuadUnderADeformerIsKeptRatherThanReborn() {
+		// The fresh quad would be born in canvas pixels, and a deformer child's base lives in the deformer's
+		// space, so the quad is kept and its coordinates carried like an authored mesh.
+		val base = model()
+		val underDeformer =
+			base.copy(
+				drawables =
+					base.drawables.map { drawable ->
+						if (drawable.id == DrawableId("d1")) {
+							drawable.copy(parentDeformerId = DeformerId("warp"))
+						} else {
+							drawable
+						}
+					},
+			)
+		val repainted = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 6, 6), solidRaster(6, 6, 9))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(underDeformer, source, TestArt(listOf(repainted, layer2)), options, oldRasterOf))
+		val kept = plan.reload.drawableMeshes.getValue(DrawableId("d1"))
+		assertSame(birthQuad1.positions, kept.positions, "the canvas mesh passes through by reference")
+		assertSame(birthQuad1.localPositions, kept.localPositions, "the base passes through by reference")
+		assertTrue(kept.uvs !== birthQuad1.uvs, "the coordinates are carried to the new art frame")
 	}
 
 	@Test
@@ -462,7 +487,7 @@ class ArtworkReloadPlannerTest {
 		val unnamed = assertNotNull(ArtworkReloadPlanner.planMatches(afterMint, source, art, listOf(tile1 to "lyid:3"), options, { tileId -> rasters[tileId] }))
 		assertTrue(unnamed.reload.retiredTiles.isEmpty(), "a relink that names nothing retires nothing")
 
-		val editedFresh = DrawableMesh(floatArrayOf(10f, 20f, 11f, 20f, 10f, 21f), floatArrayOf(0f, 0f, 0.25f, 0f, 0f, 0.25f), intArrayOf(0, 1, 2))
+		val editedFresh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(10f, 20f, 11f, 20f, 10f, 21f), floatArrayOf(0f, 0f, 0.25f, 0f, 0f, 0.25f), intArrayOf(0, 1, 2))
 		val edited = afterMint.copy(drawables = afterMint.drawables.map { drawable -> if (drawable.id.raw == "d3") drawable.copy(mesh = editedFresh) else drawable })
 		val kept = assertNotNull(ArtworkReloadPlanner.planMatches(edited, source, art, listOf(tile1 to "lyid:3"), options, { tileId -> rasters[tileId] }, retire = setOf(tile3)))
 		assertTrue(kept.reload.retiredTiles.isEmpty(), "rig work over the layer is never removed, whatever the proposal named")

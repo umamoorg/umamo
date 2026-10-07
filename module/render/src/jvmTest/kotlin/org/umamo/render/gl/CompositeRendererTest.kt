@@ -80,7 +80,7 @@ class CompositeRendererTest {
 			alphaBlendMode = alphaBlendMode,
 			culling = culling,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), indices),
 			geometryGrid = restGrid(positions),
 			opacity = opacity,
 			isVisible = isVisible,
@@ -321,7 +321,7 @@ class CompositeRendererTest {
 				parentDeformerId = null,
 				blendMode = BlendMode.Normal,
 				maskedBy = emptyList(),
-				mesh = DrawableMesh(positions, FloatArray(positions.size), frontIndices),
+				mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), frontIndices),
 				geometryGrid = restGrid(positions),
 				// The tint is a channel with a static; no track needed to prove the renderer applies it.
 				multiplyColor = ColorRgb(1f, 0f, 0f),

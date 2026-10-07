@@ -978,33 +978,34 @@ class EditorSession(
 
 	/**
 	 * Commits a mesh-vertex edit (a finished modal G / S / R gesture) as ONE undo step: each session
-	 * drawable's base art-mesh positions become its entry in [newPositionsByDrawable].  An Edit session
-	 * spans several meshes, so the copy-on-write [withMeshPositions] batch folds them into a
+	 * drawable's rest shape (canvas mesh and keyform-space base) becomes its entry in [restByDrawable].  An
+	 * Edit session spans several meshes, so the copy-on-write [withMeshPositions] batch folds them into a
 	 * single model (one history step, like [commitObjectPositions]).  Mid-gesture preview frames reach
 	 * the renderer directly (transient), so a whole drag is a single step.  A model edit (rest geometry
 	 * is document content), so it marks the document dirty; a no-op (every array unchanged / mismatched)
 	 * records nothing.
 	 *
 	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformVertices]).
-	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each edited drawable's committed rest positions.
+	 * @param Map<DrawableId, MeshRestPositions> restByDrawable Each edited drawable's committed rest shape.
 	 */
-	fun commitMeshPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
-		commit(change, mutableModel.value.withMeshPositions(newPositionsByDrawable), mutablePose.value)
+	fun commitMeshPositions(change: MeshChange, restByDrawable: Map<DrawableId, MeshRestPositions>) {
+		commit(change, mutableModel.value.withMeshPositions(restByDrawable), mutablePose.value)
 	}
 
 	/**
 	 * Commits an Object-mode transform of several drawables (a finished modal G / S / R gesture) as ONE undo
-	 * step: each drawable's base art-mesh positions become its entry in [newPositionsByDrawable]. The
-	 * copy-on-write [withMeshPositions] batch folds them into a single model, so N moved drawables are one
-	 * history step (not N). Mid-gesture preview frames reach the renderer directly (transient), so a whole drag
-	 * is a single step. A model edit (rest geometry is document content), so it marks the document dirty; a
-	 * no-op (every array unchanged / mismatched, so the fold returns the same instance) records nothing.
+	 * step: each drawable's rest shape (canvas mesh and keyform-space base) becomes its entry in
+	 * [restByDrawable]. The copy-on-write [withMeshPositions] batch folds them into a single model, so N moved
+	 * drawables are one history step (not N). Mid-gesture preview frames reach the renderer directly
+	 * (transient), so a whole drag is a single step. A model edit (rest geometry is document content), so it
+	 * marks the document dirty; a no-op (every array unchanged / mismatched, so the fold returns the same
+	 * instance) records nothing.
 	 *
 	 * @param MeshChange change The edit descriptor (a [MeshChange.TransformDrawables]).
-	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each moved drawable's committed rest positions.
+	 * @param Map<DrawableId, MeshRestPositions> restByDrawable Each moved drawable's committed rest shape.
 	 */
-	fun commitObjectPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
-		commit(change, mutableModel.value.withMeshPositions(newPositionsByDrawable), mutablePose.value)
+	fun commitObjectPositions(change: MeshChange, restByDrawable: Map<DrawableId, MeshRestPositions>) {
+		commit(change, mutableModel.value.withMeshPositions(restByDrawable), mutablePose.value)
 	}
 
 	/**

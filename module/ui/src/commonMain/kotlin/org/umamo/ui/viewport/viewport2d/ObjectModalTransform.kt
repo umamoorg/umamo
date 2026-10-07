@@ -6,6 +6,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshTransforms
 import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.ModalTransformCapture
@@ -27,9 +28,9 @@ import org.umamo.ui.viewport.gizmo.gestureParameters
 /**
  * The captured state of an in-flight Object-mode transform: the shared [ModalTransformCapture] (which owns
  * the pivot groups, the anchor, the frozen operator kind, and the rotation tracker) plus the per-drawable
- * [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the base mesh.
- * The geometry is held in a map keyed on the drawable id, looked up by [org.umamo.edit.ModalCaptureEntry],
- * so nothing stays index-aligned with the capture's entry list.
+ * [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the rest
+ * arrays.  The geometry is held in a map keyed on the drawable id, looked up by
+ * [org.umamo.edit.ModalCaptureEntry], so nothing stays index-aligned with the capture's entry list.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, kind).
  * @property Map<DrawableId, DrawableWorldGeometry> geometryById Each captured drawable's world geometry.
@@ -65,7 +66,7 @@ internal class ObjectModalTransform(
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, cursor wrap,
 	 * pointer controller); the capture is the Object-mode gesture.
 	 */
-	val gesture = ModalGestureState<ObjectGesture>()
+	val gesture = ModalGestureState<ObjectGesture, MeshRestPositions>()
 
 	/**
 	 * The drive: requests resolved per pointer event, the drawables computed off the UI thread in parallel,
@@ -142,11 +143,11 @@ internal class ObjectModalTransform(
 
 	/**
 	 * Ends the gesture because the overlay is leaving composition mid-gesture: the mode changed, the area
-	 * closed, or the area lost its camera.  The latch effect is cancelled with the overlay and never runs its teardown,
-	 * so this does it instead.  The latch is cleared while it is still this area's - a mode switch has
-	 * cleared it already, and a latch another area holds is not this one's to clear - so no gesture is
-	 * left latched to an overlay that cannot drive it, and none restarts from a fresh gesture state when
-	 * the overlay comes back.
+	 * closed, or the area lost its camera.  The latch effect is cancelled with the overlay and never runs
+	 * its teardown, so this does it instead.  The latch is cleared while it is still this area's - a mode
+	 * switch has cleared it already, and a latch another area holds is not this one's to clear - so no
+	 * gesture is left latched to an overlay that cannot drive it, and none restarts from a fresh gesture
+	 * state when the overlay comes back.
 	 *
 	 * @return Boolean True when a gesture was in flight, so the caller resyncs the renderer to the
 	 *   committed model rather than leave it on the uncommitted preview.
@@ -176,7 +177,7 @@ internal class ObjectModalTransform(
 
 	/**
 	 * Confirms the in-flight object transform at the latest pointer: settles a drive the worker has not
-	 * published yet, commits every drawable's new base positions as one undo step (a null / empty preview
+	 * published yet, commits every drawable's new rest shape as one undo step (a null / empty preview
 	 * means no movement, so nothing commits), registers that step on the operation settings strip over the
 	 * retained capture, then clears the operator - its teardown resyncs the renderer.
 	 */

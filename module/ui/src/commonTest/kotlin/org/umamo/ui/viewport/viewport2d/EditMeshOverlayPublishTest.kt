@@ -12,6 +12,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlaySizes
@@ -60,7 +61,7 @@ class EditMeshOverlayPublishTest {
 
 			session.commitMeshPositions(
 				MeshChange.TransformVertices(mapOf(RIG_QUAD to listOf(0)), MeshOperatorKind.Grab),
-				mapOf(RIG_QUAD to floatArrayOf(5f, 5f, 20f, 0f, 20f, 20f, 0f, 20f)),
+				mapOf(RIG_QUAD to MeshRestPositions.shared(floatArrayOf(5f, 5f, 20f, 0f, 20f, 20f, 0f, 20f))),
 			)
 			runCurrent()
 

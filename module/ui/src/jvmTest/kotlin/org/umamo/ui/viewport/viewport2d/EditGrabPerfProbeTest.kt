@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.RotationAngleTracker
@@ -293,8 +294,9 @@ class EditGrabPerfProbeTest {
 	}
 
 	/**
-	 * The three halves of one drive, each timed on its own: the operator over the frozen world shapes,
-	 * the inverse back onto the base meshes, and the fold of the new positions into a preview model.
+	 * The stages of one drive, each timed on its own: the operator over the frozen world shapes, the
+	 * inverse back onto the rest arrays, and the fold of the new rest arrays into a preview model (one
+	 * drawable at a time, and as the drive's one batch).
 	 *
 	 * @param ModalTransformCapture transform The gesture's shared capture.
 	 * @param Map<DrawableId, DrawableWorldGeometry> geometryById Each moving mesh's frozen geometry.
@@ -317,11 +319,11 @@ class EditGrabPerfProbeTest {
 				transformedById[entry.drawableId] = applyOperator(MeshOperatorKind.Grab, entry.positions, entry.groups, parameters, entry.influence)
 			}
 		}
-		val newBaseById = HashMap<DrawableId, FloatArray>()
-		timed("C1b   worldToBase (deformer inverse + movementToBase) over every entry") {
+		val newBaseById = HashMap<DrawableId, MeshRestPositions>()
+		timed("C1b   worldToRest (deformer inverse + movementOnto + canvas move) over every entry") {
 			for (entry in transform.entries) {
 				val geometry = geometryById.getValue(entry.drawableId)
-				newBaseById[entry.drawableId] = geometry.worldToBase(transformedById.getValue(entry.drawableId), entry.movedIndices)
+				newBaseById[entry.drawableId] = geometry.worldToRest(transformedById.getValue(entry.drawableId), entry.movedIndices)
 			}
 		}
 		timed("C1c   withMeshPositions fold over every entry, one drawable at a time") {

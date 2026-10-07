@@ -15,15 +15,21 @@ import kotlinx.serialization.json.JsonElement
  */
 
 /**
- * UMA §4.10: a drawable's rest-pose mesh.
+ * UMA §4.10: a drawable's mesh.
  *
- * @property FloatArray positions x, y per vertex of the rest pose, before any deformer applies (an accessor).
- * @property FloatArray uvs       u, v per vertex (an accessor).
- * @property IntArray   indices   Three per triangle (an accessor).
+ * Two position arrays of one length: [canvasPositions], the editable mesh on the canvas, and [localPositions],
+ * the same mesh in the space its keyforms live in, which every `positionDeltas` is relative to.
+ *
+ * @property FloatArray canvasPositions x, y per vertex on the canvas, before any deformer applies (an accessor).
+ * @property FloatArray localPositions  x, y per vertex in the keyforms' own space: the parent deformer's, or the
+ *                                      canvas for a drawable with none (an accessor).
+ * @property FloatArray uvs             u, v per vertex (an accessor).
+ * @property IntArray   indices         Three per triangle (an accessor).
  */
 @Serializable
 public class UmaMesh(
-	@Contextual val positions: FloatArray,
+	@Contextual val canvasPositions: FloatArray,
+	@Contextual val localPositions: FloatArray,
 	@Contextual val uvs: FloatArray,
 	@Contextual val indices: IntArray,
 )
@@ -56,7 +62,7 @@ public data class UmaMeshGrid(
  * UMA §4.11: one cell of a drawable's geometry grid.
  *
  * @property List<Int>  coordinate     The key index per axis.
- * @property FloatArray positionDeltas x, y per vertex, relative to the rest mesh (an accessor).
+ * @property FloatArray positionDeltas x, y per vertex, relative to the mesh's `localPositions` (an accessor).
  */
 @Serializable
 public class UmaMeshCell(
@@ -173,7 +179,7 @@ public data class UmaBlendLimit(
 /**
  * UMA §4.13: a drawable's blend-shape form.
  *
- * @property FloatArray   positionDeltas x, y per vertex, relative to the rest mesh (an accessor).
+ * @property FloatArray   positionDeltas x, y per vertex, relative to the mesh's `localPositions` (an accessor).
  * @property Float?       drawOrder      Absent at 500.
  * @property Float?       opacity        Absent at 1.
  * @property List<Float>? multiplyColor  Absent at white.

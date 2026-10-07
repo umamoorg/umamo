@@ -3,6 +3,11 @@ package org.umamo.edit.export
 import org.umamo.edit.withDrawableOpacity
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CArtMeshForm
+import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.identity.Guid
+import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
@@ -26,37 +31,83 @@ import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.positionsFromDeltas
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
  * The keyform-lowering gate: keyform value edits, key inserts/deletes, channel-track edits, and
- * statics reconcile onto the CMO3 grid web and survive an export/re-import.  Channel values and
- * key deletions round-trip bit-exact (values pass through unchanged; surviving forms keep their
- * stored absolutes).  Drawable GEOMETRY tolerates bounded ULP on edited/inserted cells only: CMO3
- * stores absolutes, Umamo deltas, and (base + delta) - base is not an IEEE identity - the same
+ * statics reconcile onto the CMO3 grid web and survive an export/re-import.  Channel values
+ * round-trip bit-exact (values pass through unchanged), and a key deletion keeps every surviving
+ * form's stored floats in the file.  Drawable GEOMETRY is held to bounded ULP on the edited
+ * drawable, compared as rebuilt shapes (localPositions + Δ): CMO3 stores absolutes, Umamo a base
+ * and deltas, and a re-import measures its deltas from its own reference cell - the same
  * bounded-ULP tier the fidelity contract already assigns to geometry.
  */
 class Cmo3ExportKeyformRoundTripTest {
 	private val sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }
 
+	/**
+	 * One export and re-import, with the art-mesh forms' stored floats on both sides of it.
+	 *
+	 * @property PuppetModel  edited      The edited model that was exported.
+	 * @property PuppetModel  reimported  The model the exported file re-imports as.
+	 * @property ExportReport report      The export's notices.
+	 * @property Map          formsBefore Every CArtMeshForm's stored positions in the file as read, by drawable id then form guid.
+	 * @property Map          formsAfter  The same over the exported file.
+	 */
 	private class RoundTrip(
 		val edited: PuppetModel,
 		val reimported: PuppetModel,
 		val report: ExportReport,
+		val formsBefore: Map<String, Map<String, FloatArray>>,
+		val formsAfter: Map<String, Map<String, FloatArray>>,
 	)
 
 	private fun roundTrip(file: File, edit: (PuppetModel) -> PuppetModel): RoundTrip {
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+		val formsBefore = artMeshFormPositions(modelSource)
 		val edited = edit(Cmo3Import.fromModelSource(modelSource))
 		val report = Cmo3Export.apply(edited, cmo3)
 		val reimportedSource =
 			Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
-		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report)
+		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report, formsBefore, artMeshFormPositions(reimportedSource))
 	}
+
+	/**
+	 * Every CArtMeshForm's stored positions in [root], by the owning source's id and the form's guid, copied so a
+	 * later export's writes cannot reach them.
+	 *
+	 * @param CModelSource root The CMO3's model source.
+	 * @return Map The positions per form per drawable.
+	 */
+	private fun artMeshFormPositions(root: CModelSource): Map<String, Map<String, FloatArray>> {
+		val byDrawable = LinkedHashMap<String, MutableMap<String, FloatArray>>()
+		val sources = elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+		for (source in sources) {
+			val sourceId = (source.id as? Id)?.idstr ?: continue
+			val byGuid = byDrawable.getOrPut(sourceId) { LinkedHashMap() }
+			for (form in elementsOf(source.keyforms).filterIsInstance<CArtMeshForm>()) {
+				val guid = (form.guid as? Guid)?.uuid ?: continue
+				val positions = form.positions as? FloatArray ?: continue
+				byGuid[guid] = positions.copyOf()
+			}
+		}
+		return byDrawable
+	}
+
+	/** Flattens a CMO3 collection field, held as `Any?` by the serializer. */
+	private fun elementsOf(collection: Any?): List<Any?> =
+		when (collection) {
+			is Map<*, *> -> collection.values.toList()
+			is Iterable<*> -> collection.toList()
+			is Array<*> -> collection.toList()
+			else -> emptyList()
+		}
 
 	private fun assertLossless(result: RoundTrip, label: String) {
 		assertTrue(result.report.isEmpty, "$label: expected no notices, got ${result.report.notices}")
@@ -66,7 +117,9 @@ class Cmo3ExportKeyformRoundTripTest {
 
 	/**
 	 * Asserts the round trip is clean except, at most, a bounded-ULP GEOMETRY residue on the one
-	 * edited drawable (the delta-vs-absolute conversion tier).
+	 * edited drawable: every cell rebuilds (`localPositions + Δ`) within one ulp of the larger of its value
+	 * and either base.  The rebuilt shapes are compared, not the deltas, because a re-import measures the
+	 * deltas from its own reference cell, which an edit to the grid can move.
 	 *
 	 * @param RoundTrip  result The edited/reimported model pair and export report under test.
 	 * @param DrawableId drawableId The one drawable allowed to carry the tolerated residue.
@@ -91,24 +144,27 @@ class Cmo3ExportKeyformRoundTripTest {
 						entityDiff.fields == setOf(DrawableField.GEOMETRY)
 				}
 		assertTrue(onlyExpectedResidue, "$label: unexpected residual $residual")
-		val editedGrid = result.edited.drawables.first { it.id == drawableId }.geometryGrid
-		val reimportedGrid = result.reimported.drawables.first { it.id == drawableId }.geometryGrid
+		val edited = result.edited.drawables.first { it.id == drawableId }
+		val reimported = result.reimported.drawables.first { it.id == drawableId }
+		val editedGrid = edited.geometryGrid
+		val reimportedGrid = reimported.geometryGrid
 		assertTrue(editedGrid != null && reimportedGrid != null, "$label: geometry grid vanished")
+		val editedLocal = edited.mesh!!.localPositions
+		val reimportedLocal = reimported.mesh!!.localPositions
 		val reimportedByCoordinate =
-			reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to cell.form.positionDeltas }
-		var maxComponentDifference = 0f
+			reimportedGrid.cells.associate { cell -> cell.coordinate.toList() to positionsFromDeltas(reimportedLocal, cell.form.positionDeltas) }
 		for (cell in editedGrid.cells) {
-			val reimportedDeltas = reimportedByCoordinate[cell.coordinate.toList()]
-			assertTrue(reimportedDeltas != null, "$label: cell ${cell.coordinate.toList()} vanished")
-			for (component in cell.form.positionDeltas.indices) {
-				maxComponentDifference =
-					maxOf(
-						maxComponentDifference,
-						abs(cell.form.positionDeltas[component] - reimportedDeltas[component]),
-					)
+			val editedShape = positionsFromDeltas(editedLocal, cell.form.positionDeltas)
+			val reimportedShape = reimportedByCoordinate[cell.coordinate.toList()]
+			assertTrue(reimportedShape != null, "$label: cell ${cell.coordinate.toList()} vanished")
+			for (component in editedShape.indices) {
+				val bound = Math.ulp(maxOf(abs(editedShape[component]), abs(editedLocal[component]), abs(reimportedLocal[component])))
+				assertTrue(
+					abs(editedShape[component] - reimportedShape[component]) <= bound,
+					"$label: cell ${cell.coordinate.toList()} component $component rebuilds as ${reimportedShape[component]}, edited ${editedShape[component]}",
+				)
 			}
 		}
-		assertTrue(maxComponentDifference < 1e-3f, "$label: geometry drifted by $maxComponentDifference")
 	}
 
 	private fun skipMessageOrNull(): File? {
@@ -215,16 +271,26 @@ class Cmo3ExportKeyformRoundTripTest {
 		assertLosslessWithinGeometryUlp(result, editedId!!, "key insert")
 	}
 
+	/**
+	 * A key delete leaves every surviving cell untouched, so the lowering reuses each stored float rather than
+	 * rebuilding it from the base: the file keeps those forms bit for bit, and only the removed key's forms are
+	 * gone.  The re-imported model is held to the geometry tier instead: the middle key is usually the reference
+	 * cell the base was taken from, so the re-import takes its base from another cell, and a component far smaller
+	 * than that base rebuilds within its ulp rather than bit for bit.
+	 */
 	@Test
-	fun geometryKeyDeleteSurvivesExactly() {
+	fun geometryKeyDeleteKeepsEverySurvivingFormBitForBit() {
 		val file = skipMessageOrNull() ?: return
+		var editedId: DrawableId? = null
+		var removedCells = 0
 		val result =
 			roundTrip(file) { puppet ->
 				val drawable = keyedDrawable(puppet)
+				editedId = drawable.id
 				val grid = drawable.geometryGrid!!
 				val axis = grid.axes.first()
-				// A middle key: removal keeps the span, and every surviving cell keeps its stored
-				// form - the deletion round trip is bit-exact.
+				// A middle key: removal keeps the span.
+				removedCells = grid.cells.count { cell -> cell.coordinate[0] == 1 }
 				val removed = grid.withKeyRemoved(axis.parameterId, keyIndex = 1)
 				puppet.copy(
 					drawables =
@@ -233,7 +299,16 @@ class Cmo3ExportKeyformRoundTripTest {
 						},
 				)
 			}
-		assertLossless(result, "key delete")
+		assertLosslessWithinGeometryUlp(result, editedId!!, "key delete")
+		val formsBefore = result.formsBefore.getValue(editedId!!.raw)
+		val formsAfter = result.formsAfter.getValue(editedId!!.raw)
+		assertTrue(removedCells > 0, "key delete: the removed key held cells")
+		assertEquals(formsBefore.size - removedCells, formsAfter.size, "key delete: only the removed key's forms are gone")
+		for ((guid, positions) in formsAfter) {
+			val original = formsBefore[guid]
+			assertTrue(original != null, "key delete: form $guid is new")
+			assertEquals(original.map(Float::toRawBits), positions.map(Float::toRawBits), "key delete: surviving form $guid keeps its stored floats")
+		}
 	}
 
 	@Test
@@ -435,10 +510,9 @@ class Cmo3ExportKeyformRoundTripTest {
 
 	@Test
 	fun baseMoveWithKeyformEditKeepsBlendShapeDeltas() {
-		// The combined base-move + keyform-edit path writes the base through the grid rebuild
-		// (alsoWriteBase) instead of lowerMeshPositions' pool-wide rebase, so the surviving
-		// morph-target forms must follow the base move on their own - a stale absolute shifts every
-		// re-imported blend-shape delta by the move distance.
+		// A base move with a keyform edit rebuilds the grid web and the morph targets from the moved base, so
+		// every surviving blend shape must come back as the same shape (base plus delta) - a morph target left
+		// on the old base would shift its re-imported shape by the move distance.
 		val file =
 			firstProbeFileWith { probe ->
 				probe.drawables.any { drawable ->
@@ -460,15 +534,20 @@ class Cmo3ExportKeyformRoundTripTest {
 					}
 				editedId = drawable.id
 				val mesh = drawable.mesh!!
-				val movedPositions = mesh.positions.copyOf()
-				movedPositions[0] += 5f
+				// Each array moves in its own space: five canvas pixels, and a hundredth of the base's own
+				// x extent (a deformer child's base lives in the deformer's space).
+				val movedCanvas = mesh.positions.copyOf()
+				movedCanvas[0] += 5f
+				val localXs = mesh.localPositions.filterIndexed { componentIndex, _ -> componentIndex % 2 == 0 }
+				val localSpan = localXs.max() - localXs.min()
+				val movedLocal = if (mesh.localPositions === mesh.positions) movedCanvas else mesh.localPositions.copyOf().also { local -> local[0] += localSpan * 0.01f }
 				val grid = drawable.geometryGrid!!
 				val nudgedCells =
 					grid.cells.mapIndexed { cellIndex, cell ->
 						if (cellIndex == 0) {
 							val nudged = cell.form.positionDeltas.copyOf()
 							if (nudged.isNotEmpty()) {
-								nudged[0] += 2f
+								nudged[0] += localSpan * 0.02f
 							}
 							KeyformCell(cell.coordinate, MeshDeltaForm(nudged))
 						} else {
@@ -480,7 +559,7 @@ class Cmo3ExportKeyformRoundTripTest {
 						puppet.drawables.map { candidate ->
 							if (candidate.id == drawable.id) {
 								candidate.copy(
-									mesh = DrawableMesh(movedPositions, mesh.uvs, mesh.indices),
+									mesh = DrawableMesh(positions = movedCanvas, localPositions = movedLocal, uvs = mesh.uvs, indices = mesh.indices),
 									geometryGrid = KeyformGrid(grid.axes, nudgedCells),
 								)
 							} else {
@@ -500,7 +579,10 @@ class Cmo3ExportKeyformRoundTripTest {
 			reimportedDrawable.blendShapes.size == editedDrawable.blendShapes.size,
 			"base move + keyform edit: blend-shape binding count changed",
 		)
-		var maxDeltaDrift = 0f
+		// The shapes, not the deltas: a re-import measures the deltas from its own reference cell, which the
+		// keyform edit can have moved.
+		val editedLocal = editedDrawable.mesh!!.localPositions
+		val reimportedLocal = reimportedDrawable.mesh!!.localPositions
 		for (bindingIndex in editedDrawable.blendShapes.indices) {
 			val editedBinding = editedDrawable.blendShapes[bindingIndex]
 			val reimportedBinding = reimportedDrawable.blendShapes[bindingIndex]
@@ -508,15 +590,16 @@ class Cmo3ExportKeyformRoundTripTest {
 				val editedForm = editedBinding.forms[formIndex] ?: continue
 				val reimportedForm = reimportedBinding.forms.getOrNull(formIndex)
 				assertTrue(reimportedForm != null, "base move + keyform edit: blend-shape form $formIndex vanished")
-				for (component in editedForm.positionDeltas.indices) {
-					maxDeltaDrift =
-						maxOf(
-							maxDeltaDrift,
-							abs(editedForm.positionDeltas[component] - reimportedForm.positionDeltas[component]),
-						)
+				val editedShape = positionsFromDeltas(editedLocal, editedForm.positionDeltas)
+				val reimportedShape = positionsFromDeltas(reimportedLocal, reimportedForm.positionDeltas)
+				for (component in editedShape.indices) {
+					val bound = Math.ulp(maxOf(abs(editedShape[component]), abs(editedLocal[component]), abs(reimportedLocal[component])))
+					assertTrue(
+						abs(editedShape[component] - reimportedShape[component]) <= bound,
+						"base move + keyform edit: blend form $formIndex component $component rebuilds as ${reimportedShape[component]}, edited ${editedShape[component]}",
+					)
 				}
 			}
 		}
-		assertTrue(maxDeltaDrift < 1e-3f, "base move + keyform edit: blend-shape deltas drifted by $maxDeltaDrift")
 	}
 }

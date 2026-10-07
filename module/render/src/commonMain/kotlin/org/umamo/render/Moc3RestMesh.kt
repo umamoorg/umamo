@@ -3,13 +3,12 @@ package org.umamo.render
 import org.umamo.render.eval.CpuDeformationEvaluator
 import org.umamo.render.eval.DeformedGeometry
 import org.umamo.render.eval.DrawableSpaceResolver
+import org.umamo.render.eval.canvasToWorld
+import org.umamo.render.eval.worldToCanvas
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
-import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
-import org.umamo.runtime.model.MeshDeltaForm
-import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import kotlin.math.max
@@ -19,29 +18,26 @@ import kotlin.math.min
 private const val LATTICE_CENTRE: Float = 0.5f
 
 /**
- * Rewrites each drawable's rest mesh to its default-pose canvas-space geometry, matching the CMO3
- * convention the editor is built on.
+ * Derives each drawable's canvas editable mesh (DrawableMesh.positions) from its default-pose geometry,
+ * matching the CMO3 convention the editor is built on.
  *
- * The runtime convention (set by CMO3, verified against the corpus): Drawable.mesh.positions is the
- * EDITABLE canvas-space geometry - what the gizmo overlay edits and the viewport maps gestures into -
- * while each MeshForm's absolute positions (base + delta) live in the drawable's PARENT-DEFORMER
- * space.  The deformation eval only ever sees `base + Σ wᵢ·Δᵢ` with weights summing to 1, so the base
- * cancels and this mixed-space encoding is exact, not an approximation.
+ * The runtime convention (set by CMO3, verified against the corpus): DrawableMesh.positions is the
+ * EDITABLE canvas-space geometry - what the atlas, the thumbnails, and a CMO3 export's editable mesh read -
+ * while the keyforms and their base (DrawableMesh.localPositions) live in the drawable's PARENT-DEFORMER
+ * space.  A `.moc3` stores only the parent-space keyforms, so :interop's `Moc3Import` can give a
+ * warp/rotation-parented drawable nothing but its base for both arrays.  This pass finishes the import: it
+ * evaluates the default pose through the validated deformer cascade (glue excluded - the weld is a
+ * render-time effect, not rest geometry) and takes the pre-Y-negation canvas positions as the canvas mesh.
+ * The base and every delta stay exactly as the importer measured them, so evaluation is untouched.
+ * Drawables the raw default pose hides (a keyform axis whose keys do not bracket the driving parameter's
+ * default - the toggle-part authoring pattern) get a second evaluation at a pose with those parameters
+ * clamped into their axes' key ranges, so their canvas meshes still land in canvas space.  It lives in
+ * `:render` (not `:runtime`) because it is the evaluator that turns parent-space keyforms into canvas
+ * geometry.
  *
- * A `.moc3` stores only the parent-space keyforms, so :interop's `Moc3Import` can give
- * a warp/rotation-parented drawable nothing better than a parent-local base.  This pass finishes the
- * import: it evaluates the default pose through the validated deformer cascade (glue excluded - the
- * weld is a render-time effect, not rest geometry), takes the pre-Y-negation canvas positions as the
- * new base, and re-expresses every keyform delta against it so `base + delta` still reconstructs the
- * same parent-space absolutes.  Drawables the raw default pose hides (a keyform axis whose keys do
- * not bracket the driving parameter's default - the toggle-part authoring pattern) get a second
- * evaluation at a pose with those parameters clamped into their axes' key ranges, so their rest
- * meshes still land in canvas space.  It lives in `:render` (not `:runtime`) because it is the
- * evaluator that turns parent-space keyforms into canvas geometry.
- *
- * @param PuppetModel model An imported model whose rest meshes may be parent-local (a MOC3 import).
- * @return PuppetModel The model with canvas-space rest meshes (a drawable that stays hidden even at
- *                     the clamped pose keeps its parent-local base, which still evaluates correctly).
+ * @param PuppetModel model An imported model whose canvas meshes may still be its bases (a MOC3 import).
+ * @return PuppetModel The model with canvas-space canvas meshes (a drawable that stays hidden even at the
+ *                     clamped pose keeps its base as its canvas mesh).
  */
 fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 	val preGlueModel = model.copy(glues = emptyList())
@@ -64,69 +60,12 @@ fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
 			if (worldPositions.size != mesh.positions.size) {
 				return@map drawable
 			}
-			// All-or-nothing: a size-mismatched delta array holds ABSOLUTE positions by the importer's
-			// fallback convention, so rebasing any prefix of it would double-count the base and mix two
-			// spaces in one array.  A drawable carrying such a cell keeps its whole grid AND base
-			// untouched - partially rewriting either would corrupt what malformed data still encodes.
-			// Blend-shape forms are rest-relative like the grid cells, so they gate (and rebase) the
-			// same way - leaving them on the old base while the grid moves would shift every blend
-			// contribution by exactly (new base - old base).
-			val anyCellMismatches =
-				(drawable.geometryGrid?.cells?.any { cell -> cell.form.positionDeltas.size != mesh.positions.size } ?: false) ||
-					drawable.blendShapes.any { binding ->
-						binding.forms.any { form -> form != null && form.positionDeltas.size != mesh.positions.size }
-					}
-			if (anyCellMismatches) {
+			val canvas = worldToCanvas(worldPositions)
+			// A drawable with no deformer whose rest shape is its base keeps the one shared array.
+			if (canvas.contentEquals(mesh.positions)) {
 				return@map drawable
 			}
-			// The eval negates Y into world space; canvas space is the pre-negation Y-down convention.
-			val canvasBase =
-				FloatArray(worldPositions.size) { coordIndex ->
-					if (coordIndex % 2 == 1) -worldPositions[coordIndex] else worldPositions[coordIndex]
-				}
-			// Only the geometry rebases - and since the split that is structural rather than something the
-			// copy has to remember: the channel tracks are a separate field and are simply not touched.
-			val rebasedGeometry =
-				drawable.geometryGrid?.let { grid ->
-					KeyformGrid(
-						grid.axes,
-						grid.cells.map { cell ->
-							val oldDeltas = cell.form.positionDeltas
-							KeyformCell(
-								cell.coordinate,
-								MeshDeltaForm(
-									FloatArray(oldDeltas.size) { coordIndex ->
-										(mesh.positions[coordIndex] + oldDeltas[coordIndex]) - canvasBase[coordIndex]
-									},
-								),
-							)
-						},
-					)
-				}
-			val rebasedBlendShapes =
-				drawable.blendShapes.map { binding ->
-					binding.copy(
-						forms =
-							binding.forms.map { form ->
-								form?.let { meshForm ->
-									MeshForm(
-										FloatArray(meshForm.positionDeltas.size) { coordIndex ->
-											(mesh.positions[coordIndex] + meshForm.positionDeltas[coordIndex]) - canvasBase[coordIndex]
-										},
-										meshForm.drawOrder,
-										meshForm.opacity,
-										meshForm.multiplyColor,
-										meshForm.screenColor,
-									)
-								}
-							},
-					)
-				}
-			drawable.copy(
-				mesh = DrawableMesh(canvasBase, mesh.uvs, mesh.indices),
-				geometryGrid = rebasedGeometry,
-				blendShapes = rebasedBlendShapes,
-			)
+			drawable.copy(mesh = DrawableMesh(positions = canvas, localPositions = mesh.localPositions, uvs = mesh.uvs, indices = mesh.indices))
 		}
 	return model.copy(drawables = drawables)
 }
@@ -149,7 +88,7 @@ private class DefaultPoseFallback(
  * such a drawable through the clamped pose, so an export that inverted it through the raw default
  * would be undoing a transform that was never applied.
  *
- * No `keyforms != null` gate: an unkeyed drawable evaluates at its rest mesh rather than being skipped,
+ * No `geometryGrid != null` gate: an unkeyed drawable evaluates at its rest mesh rather than being skipped,
  * so one still absent from the default pose is genuinely hidden (a hidden ancestor deformer) and
  * deserves the same second chance as any other.
  *
@@ -169,7 +108,7 @@ private fun defaultPoseFallbackFor(model: PuppetModel, defaultPose: DeformedGeom
 }
 
 /**
- * The export's space seam for [puppet]: inverts a drawable's canvas-space rest mesh back through its
+ * The space seam for [puppet]: inverts a drawable's canvas-space rest mesh back through its
  * parent-deformer chain, at the same pose [restMeshesToCanvasSpace] mapped it forward with.
  *
  * That pose is the neutral one for most drawables - it is the pose the rest mesh is defined at, so
@@ -177,22 +116,45 @@ private fun defaultPoseFallbackFor(model: PuppetModel, defaultPose: DeformedGeom
  * through the clamped second-chance pose instead, so it is inverted through that same clamped pose;
  * using the raw default for it would undo a transform that was never applied.
  *
- * A drawable the chain cannot map (a deformer with no lattice anywhere) returns null, which the export
- * turns into a notice rather than a silently mis-scaled mesh.
+ * A drawable the chain cannot map (a deformer with no lattice anywhere) returns null, which
+ * [localPositionsKeepingRest] leaves out of its result for the caller to report, rather than a silently
+ * mis-scaled mesh.
  *
- * @param PuppetModel puppet The rig being exported.
+ * @param PuppetModel puppet The rig.
  * @return Function2 The seam: drawable id plus interleaved canvas-space positions to parent-space
  *                   positions, or null when the chain cannot invert.
  */
-fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> FloatArray? {
-	// Resolved once per export rather than per drawable: the evaluation is the expensive part and the
-	// answer is a property of the model, not of whichever drawable is being written.
-	val preGlueModel = puppet.copy(glues = emptyList())
-	val defaultPose = CpuDeformationEvaluator().evaluate(preGlueModel, emptyMap())
-	val fallback = defaultPoseFallbackFor(puppet, defaultPose)
-	// Likewise the mappings: one resolver per pose bakes the deformer chain once for the whole export,
-	// where a per-drawable mapping would bake it once per drawable written.
-	val neutralSpaces = DrawableSpaceResolver(puppet, emptyMap())
+fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> FloatArray? =
+	canvasToParentSpaceFor(puppet, DrawableSpaceResolver(puppet, emptyMap()), anyHiddenAtDefault = true)
+
+/**
+ * [canvasToParentSpaceFor] over [neutralSpaces], a resolver the caller already holds for [puppet] at the
+ * neutral pose, so a caller with one in hand does not bake the deformer chain a second time.
+ *
+ * The clamped second-chance pose is found by a whole-model evaluation at the raw default, the expensive
+ * part.  [anyHiddenAtDefault] false states that no drawable the seam will be asked about is hidden at
+ * that pose (its chain maps through [neutralSpaces]), and skips the evaluation: every drawable then
+ * inverts through [neutralSpaces].  Asking the seam about a hidden drawable under that promise returns
+ * null for it, the chain being undefined at the neutral pose.
+ *
+ * @param PuppetModel           puppet             The rig.
+ * @param DrawableSpaceResolver neutralSpaces      Its deformer chain at the neutral pose.
+ * @param Boolean               anyHiddenAtDefault Whether a drawable the seam is asked about may be hidden
+ *                                                 at the neutral pose.
+ * @return Function2 The seam, as [canvasToParentSpaceFor] gives it.
+ */
+fun canvasToParentSpaceFor(puppet: PuppetModel, neutralSpaces: DrawableSpaceResolver, anyHiddenAtDefault: Boolean): (DrawableId, FloatArray) -> FloatArray? {
+	// Resolved once per seam rather than per drawable: the evaluation is the expensive part and the
+	// answer is a property of the model, not of whichever drawable is being mapped.
+	val fallback =
+		if (anyHiddenAtDefault) {
+			val preGlueModel = puppet.copy(glues = emptyList())
+			defaultPoseFallbackFor(puppet, CpuDeformationEvaluator().evaluate(preGlueModel, emptyMap()))
+		} else {
+			null
+		}
+	// Likewise the clamped mapping: one resolver bakes the deformer chain once for every drawable the seam
+	// maps, where a per-drawable mapping would bake it once per drawable.
 	val clampedSpaces = fallback?.let { DrawableSpaceResolver(puppet, it.clampedDefaults) }
 
 	return { drawableId, positions ->
@@ -204,7 +166,7 @@ fun canvasToParentSpaceFor(puppet: PuppetModel): (DrawableId, FloatArray) -> Flo
 			}
 		spaces.mapping(drawableId)?.let { mapping ->
 			// worldToLocal expects the renderer's Y-negated world space, and every vertex is solved.
-			val world = FloatArray(positions.size) { index -> if (index % 2 == 0) positions[index] else -positions[index] }
+			val world = canvasToWorld(positions)
 			// The seed matters only for the warp inverse, and it must be a LATTICE UV, not a canvas
 			// coordinate: seeding Newton with the canvas-space value starts it hundreds of units outside
 			// the [0,1] lattice, where the damped step cannot walk back.  The lattice center is the

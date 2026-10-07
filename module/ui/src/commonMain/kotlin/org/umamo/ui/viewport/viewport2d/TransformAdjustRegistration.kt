@@ -34,7 +34,7 @@ import org.umamo.ui.viewport.gizmo.slideVertexByFactor
  * Call it right after the commit and before the operator clears (its teardown drops the capture the
  * caller still holds).  An adjustment re-derives the halos on the RETAINED [transform] from its frozen
  * positions under the edited proportional rows, applies the edited numbers per mesh, inverts each
- * world shape back onto the base mesh through the frozen [geometryById], lands the result over the
+ * world shape back onto the rest arrays through the frozen [geometryById], lands the result over the
  * gesture's own step from the record's base, and hands the proportional state back to
  * [onProportional] so the next gesture starts from it.  Synchronous: an evaluation is the
  * per-pointer-frame cost.
@@ -108,7 +108,7 @@ internal fun registerSlideAdjustment(
 		val geometry = geometryById[drawableId] ?: return@registerAdjustableOperation
 		val adjustedFactor = record.parameters.floatValue(TransformParameterKeys.SLIDE_FACTOR, factor)
 		val world = slideVertexByFactor(entry.positions, vertexIndex, neighborIndex, adjustedFactor)
-		session.amendLastCommit(record, record.baseSnapshot.model.withMeshPositions(drawableId, geometry.worldToBase(world, entry.movedIndices)))
+		session.amendLastCommit(record, record.baseSnapshot.model.withMeshPositions(drawableId, geometry.worldToRest(world, entry.movedIndices)))
 	}
 
 /**

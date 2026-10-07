@@ -70,9 +70,11 @@ import org.umamo.ui.viewport.gizmo.selectToolKind
  * shape shown is the rest shape as rendered - base + the neutral keyform blend, since real rigs park
  * parts elsewhere on the texture sheet and place them via those deltas - and the picks read it projected
  * to world through the composed parent-deformer chain ([drawableSpaceMapping]), so a click lands on the art
- * for warp and rotation children too. A drag commits by movement transfer: `newBase = base + (displayed' - displayed)`,
- * writing only DrawableMesh.positions; the neutral blend cancels out of the subtraction, so no keyform
- * cell resolution is involved, and blend-shape deltas (stored relative to base) follow the edit.
+ * for warp and rotation children too. A drag commits by movement transfer, writing only the drawable's rest
+ * arrays: the base (DrawableMesh.localPositions) as `newBase = base + (displayed' - displayed)`, and the
+ * canvas mesh (DrawableMesh.positions) by the same movement on the canvas; the neutral blend cancels out of
+ * the subtraction, so no keyform cell resolution is involved, and blend-shape deltas (stored relative to the
+ * base) follow the edit.
  *
  * Interaction mirrors Blender. Idle: a primary click selects the element under the cursor per the select
  * mode (Ctrl toggles, Shift adds), an empty primary drag rubber-bands a box, an empty click clears;

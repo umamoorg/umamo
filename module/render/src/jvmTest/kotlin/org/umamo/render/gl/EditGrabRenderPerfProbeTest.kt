@@ -416,7 +416,7 @@ class EditGrabRenderPerfProbeTest {
 						moved[slot + 1] += delta
 						slot += 2
 					}
-					drawable.copy(mesh = DrawableMesh(moved, mesh.uvs, mesh.indices))
+					drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(moved, mesh.uvs, mesh.indices))
 				},
 		)
 

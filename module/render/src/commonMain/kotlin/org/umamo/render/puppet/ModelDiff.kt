@@ -115,7 +115,7 @@ internal fun diffModel(
 				(
 					newMesh != null &&
 						(
-							newMesh.positions.size != residentVertexCount * 2 ||
+							newMesh.localPositions.size != residentVertexCount * 2 ||
 								(oldMesh != null && newMesh.indices !== oldMesh.indices) ||
 								drawable.geometryGrid !== oldDrawable?.geometryGrid ||
 								// Blend-shape deltas are baked into the delta texture's appended
@@ -131,7 +131,8 @@ internal fun diffModel(
 			actions.add(DrawableAction.Keep(drawable, positions = null, uvs = null))
 			continue
 		}
-		val positions = newMesh.positions.takeIf { it !== oldMesh.positions }
+		// The GPU holds the keyform-space base only, so a change to the canvas editable mesh alone is no buffer work.
+		val positions = newMesh.localPositions.takeIf { it !== oldMesh.localPositions }
 		// The length guard is defensive: the copy-on-write UV edit never changes the array length, so a
 		// mismatch can only mean a mesh the backend padded at upload - leave that resident's UVs alone.
 		val uvs = newMesh.uvs.takeIf { it !== oldMesh.uvs && it.size == residentVertexCount * 2 }

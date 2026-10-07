@@ -14,7 +14,6 @@ import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
-import org.umamo.interop.moc3.export.CanvasToParentSpace
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.export.Moc3WrittenIds
 import org.umamo.interop.mocVersion
@@ -119,7 +118,6 @@ object Moc3Sidecars {
 	 * @param List        pages    The atlas pages, in the drawables' texture-page index order.
 	 * @param List        sidecars The retained sidecars to carry through.
 	 * @param Model3Json? source   The imported manifest, whose non-file sections carry through.
-	 * @param CanvasToParentSpace? canvasToParentSpace The unkeyed-drawable space inverse, or null.
 	 * @param Moc3ExportOptions options What the rigger chose to include; the default is the
 	 *   options-less behavior.
 	 * @return Bundle The files to write, which of them is the moc, and the report.
@@ -131,12 +129,11 @@ object Moc3Sidecars {
 		pages: List<AtlasPage>,
 		sidecars: List<PassThroughSidecar> = emptyList(),
 		source: Model3Json? = null,
-		canvasToParentSpace: CanvasToParentSpace? = null,
 		options: Moc3ExportOptions = Moc3ExportOptions.Default,
 	): Bundle {
 		// Lowered rather than written outright, because the cdi3 below has to name the objects by the ids
 		// the MOC actually got: an id the record width forced short is not the id the model carries.
-		val lowered = Moc3Export.toMocDocument(puppet, version, canvasToParentSpace, options)
+		val lowered = Moc3Export.toMocDocument(puppet, version, options)
 		val mocBytes = Moc3.write(lowered.document)
 		val report = lowered.report
 		val mocFileName = "$basename$MOC3_EXTENSION"
@@ -273,7 +270,7 @@ object Moc3Sidecars {
 	 * bounds them.
 	 *
 	 * Parts and art meshes are also filtered to the ones the lowering actually WROTE - the export drops
-	 * sketch subtrees, mesh-less drawables, and unkeyed drawables it cannot invert into parent space.
+	 * sketch subtrees, mesh-less drawables, and the hidden parts and drawables the options leave out.
 	 * Naming a dropped object is dead weight on its own, and worse than that alongside the shortening
 	 * above: a dropped object claims no id, so an over-long id can shorten onto exactly its string and
 	 * leave the file with two entries under one id for a reader's join to choose between.

@@ -50,7 +50,7 @@ class AtlasPlacementEditsTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 1f), uvs, intArrayOf(0, 0, 0)),
+			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 1f), uvs, intArrayOf(0, 0, 0)),
 			geometryGrid = null,
 			atlasTileId = tileId,
 		)

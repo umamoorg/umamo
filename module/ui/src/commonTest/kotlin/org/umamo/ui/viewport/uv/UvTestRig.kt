@@ -122,7 +122,7 @@ private fun uvRigDrawable(id: DrawableId, pageDisplay: FloatArray, indices: IntA
 		parentDeformerId = null,
 		blendMode = BlendMode.Normal,
 		maskedBy = emptyList(),
-		mesh = DrawableMesh(pageDisplay.copyOf(), displayToUv(pageDisplay, UV_RIG_PAGE_SIDE, UV_RIG_PAGE_SIDE), indices),
+		mesh = DrawableMesh.withLocalEqualToCanvas(pageDisplay.copyOf(), displayToUv(pageDisplay, UV_RIG_PAGE_SIDE, UV_RIG_PAGE_SIDE), indices),
 		geometryGrid = null,
 	)
 

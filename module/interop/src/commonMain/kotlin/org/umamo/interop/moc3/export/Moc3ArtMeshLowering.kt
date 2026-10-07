@@ -20,7 +20,7 @@ import org.umamo.runtime.model.MeshDeltaForm
  * @param Moc3ExportContext context    The export's derived state.
  * @param Moc3KeyformPool   pool       Interned into: every art mesh claims a binding index here.
  * @param Moc3ExportIds     ids        Claimed from: each drawable's written id.
- * @param Moc3ExportNotices noticeSink Appended to: demotions and unresolvable masks.
+ * @param Moc3ExportNotices noticeSink Appended to: demotions, unbound atlas pages, and unresolvable masks.
  * @return List<ArtMesh> The records, in plan order.
  */
 internal fun lowerArtMeshes(
@@ -30,31 +30,12 @@ internal fun lowerArtMeshes(
 	noticeSink: Moc3ExportNotices,
 ): List<ArtMesh> {
 	val plan = context.plan
-	val canvasToParentSpace = context.canvasToParentSpace
 	return plan.drawables.map { drawable ->
 		val mesh = drawable.mesh!!
 		val space = context.spaceOfParent(drawable.parentDeformerId)
-		// An unkeyed drawable under a deformer stores its rest mesh in CANVAS space, so the base
-		// every keyform is written relative to has to be inverted through the chain first.  A keyed
-		// one is already parent-local (the import's rest-mesh pass guarantees base + delta is the
-		// absolute parent-space position), so the seam is asked only where it is needed.
-		val basePositions =
-			if (drawable.geometryGrid == null && drawable.parentDeformerId != null) {
-				canvasToParentSpace?.invoke(drawable.id, mesh.positions)?.also { converted ->
-					if (converted.size != mesh.positions.size) {
-						noticeSink.unsupported(
-							ExportEntityCategory.Drawable,
-							drawable.id.raw,
-							ExportNoticeReason.RestMeshConversionSizeMismatch(
-								converted.size,
-								mesh.positions.size,
-							),
-						)
-					}
-				}?.takeIf { converted -> converted.size == mesh.positions.size } ?: mesh.positions
-			} else {
-				mesh.positions
-			}
+		// The keyform-space base the deltas are measured from (DrawableMesh.localPositions): the parent's space,
+		// the one a moc stores every keyform in, keyed or not.
+		val basePositions = mesh.localPositions
 		val keyforms =
 			lowerObjectKeyforms(
 				pool,

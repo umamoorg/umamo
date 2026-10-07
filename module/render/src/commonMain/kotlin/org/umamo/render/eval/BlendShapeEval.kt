@@ -150,7 +150,7 @@ internal fun meshBlendState(
 			contributions.add(MeshBlendContribution(bindingIndex, key.keyIndex, form, key.weight))
 		}
 	}
-	// The reference is the entity's state at the DEFAULT pose (E5): geometry deltas vs the rest mesh,
+	// The reference is the entity's state at the DEFAULT pose: geometry deltas vs the keyform-space base,
 	// plus each scalar channel's own value there. An untracked or out-of-range channel resolves to the
 	// drawable's static, which for an imported drawable is Cubism's 500 / full opacity - the same
 	// statics scalarAt falls back to everywhere else, so the evaluator's subtraction still cancels exactly.
@@ -168,8 +168,8 @@ internal fun meshBlendState(
 
 /**
  * The summed weighted control-point delta of [warp]'s blend bindings at the current pose, or null
- * when nothing contributes. Deltas are relative to the lattice's grid form at the DEFAULT pose
- * (E5); WarpForm control points are absolute, so the reference is subtracted here.
+ * when nothing contributes. Deltas are relative to the lattice's grid form at the DEFAULT pose;
+ * WarpForm control points are absolute, so the reference is subtracted here.
  *
  * @param Deformer.Warp warp        The warp deformer.
  * @param Function      paramValue   Current value per parameter id.

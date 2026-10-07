@@ -152,7 +152,7 @@ class PositionsOnlyUpdateRenderTest {
 			parentDeformerId = parentDeformerId,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions, FloatArray(positions.size), indices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions, FloatArray(positions.size), indices),
 			geometryGrid = restGrid(positions.size),
 		)
 
@@ -225,7 +225,7 @@ class PositionsOnlyUpdateRenderTest {
 					val mesh = drawable.mesh ?: error("the rig carries meshes")
 					val shift = if (drawable.id == warpChildId) latticeShift else worldShift
 					val moved = FloatArray(mesh.positions.size) { coordinateIndex -> mesh.positions[coordinateIndex] + if (coordinateIndex % 2 == 0) shift else 0f }
-					drawable.copy(mesh = DrawableMesh(moved, mesh.uvs, mesh.indices))
+					drawable.copy(mesh = DrawableMesh.withLocalEqualToCanvas(moved, mesh.uvs, mesh.indices))
 				},
 		)
 }

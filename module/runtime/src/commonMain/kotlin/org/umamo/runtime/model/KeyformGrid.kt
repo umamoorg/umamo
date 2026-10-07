@@ -69,8 +69,9 @@ class KeyformGrid<TForm>(
 	/**
 	 * The cells indexed by their stride-folded linear index, built on first use and cached.
 	 *
-	 * Cached because the grid is immutable and the per-frame evaluator once rebuilt this map on every
-	 * channel sample of every entity - hundreds of transient HashMaps per scrub frame on a corpus rig.
+	 * Cached because the grid is immutable and the per-frame evaluator reads this map on every channel
+	 * sample of every entity - rebuilt per read, it would be hundreds of transient HashMaps per scrub
+	 * frame on a corpus rig.
 	 * PUBLICATION mode: a racing first read may compute twice but never blocks, and the render thread
 	 * must never take a lock.
 	 */
@@ -84,13 +85,13 @@ class KeyformGrid<TForm>(
 }
 
 /**
- * A drawable keyform: per-vertex position deltas (interleaved x,y) relative to the mesh base
- * (`p = base + Σ wᵢ·Δᵢ`, stored as deltas to match the GPU vertex-shader morph), plus the animatable
- * scalars that ride on the same keyform. [drawOrder] (Cubism default 500) is the primary render-order
- * sort key; [opacity] (0..1) scales the drawable's alpha; [multiplyColor] / [screenColor] tint the
- * drawable per the Cubism per-art-mesh color (CMO3 `CArtMeshForm.multiplyColor`/`screenColor`, MOC3
- * color-table rows 108-113), left at their identities on pre-5.3 sources. All blend with the same
- * multilinear weights as the positions.
+ * A drawable keyform: per-vertex position deltas (interleaved x,y) relative to the mesh's keyform-space
+ * base (DrawableMesh.localPositions; `p = base + Σ wᵢ·Δᵢ`, stored as deltas to match the GPU
+ * vertex-shader morph), plus the animatable scalars that ride on the same keyform. [drawOrder] (Cubism
+ * default 500) is the primary render-order sort key; [opacity] (0..1) scales the drawable's alpha;
+ * [multiplyColor] / [screenColor] tint the drawable per the Cubism per-art-mesh color (CMO3
+ * `CArtMeshForm.multiplyColor`/`screenColor`, MOC3 color-table rows 108-113), left at their identities
+ * on pre-5.3 sources. All blend with the same multilinear weights as the positions.
  */
 class MeshForm(
 	val positionDeltas: FloatArray,

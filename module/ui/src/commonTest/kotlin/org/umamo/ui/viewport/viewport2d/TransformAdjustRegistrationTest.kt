@@ -58,7 +58,7 @@ class TransformAdjustRegistrationTest {
 						parentDeformerId = null,
 						blendMode = BlendMode.Normal,
 						maskedBy = emptyList(),
-						mesh = DrawableMesh(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f), FloatArray(6), intArrayOf(0, 1, 2)),
+						mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f), FloatArray(6), intArrayOf(0, 1, 2)),
 						geometryGrid = null,
 					),
 				),
@@ -68,7 +68,7 @@ class TransformAdjustRegistrationTest {
 
 	/**
 	 * A registered Grab of the whole triangle, committed the way the Edit overlay commits it: the
-	 * frozen capture, the moved world shape inverted onto the base, one step, then the registration.
+	 * frozen capture, the moved world shape inverted onto the rest arrays, one step, then the registration.
 	 */
 	@Test
 	fun aRegisteredGrabReLandsFromTheBaseWhenItsMoveRowIsEdited() {
@@ -88,7 +88,7 @@ class TransformAdjustRegistrationTest {
 		val landed = TransformGestureParameters(10f, 0f, 1f, 1f, 0f)
 		val entry = transform.entries.single()
 		val world = applyOperator(MeshOperatorKind.Grab, entry.positions, entry.groups, landed, emptyMap())
-		session.commitMeshPositions(MeshChange.TransformVertices(mapOf(drawableId to listOf(0, 1, 2)), MeshOperatorKind.Grab), mapOf(drawableId to geometry.worldToBase(world, entry.movedIndices)))
+		session.commitMeshPositions(MeshChange.TransformVertices(mapOf(drawableId to listOf(0, 1, 2)), MeshOperatorKind.Grab), mapOf(drawableId to geometry.worldToRest(world, entry.movedIndices)))
 		assertEquals(10f, session.model.value.drawables.single().mesh!!.positions[0], "the grab landed")
 		var writtenBack: ProportionalEditState? = null
 		var writeBacks = 0

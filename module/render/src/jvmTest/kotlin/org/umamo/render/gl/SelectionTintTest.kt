@@ -62,7 +62,7 @@ class SelectionTintTest {
 			parentDeformerId = null,
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
-			mesh = DrawableMesh(positions.copyOf(), quadUvs, quadIndices),
+			mesh = DrawableMesh.withLocalEqualToCanvas(positions.copyOf(), quadUvs, quadIndices),
 			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped by the
 			// renderer); the base mesh alone drives its shape.
 			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(positions.size))))),

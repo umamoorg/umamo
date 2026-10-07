@@ -93,7 +93,7 @@ class GpuDeformValidationTest {
 				}
 				val drawable = drawableById[drawableInputs.drawableId] ?: continue
 				val grid = drawable.geometryGrid ?: continue
-				val base = drawable.mesh?.positions ?: continue
+				val base = drawable.mesh?.localPositions ?: continue
 				if (drawable.mesh?.indices?.isEmpty() != false) {
 					continue // renderer skips index-less meshes (glue anchors)
 				}
@@ -160,7 +160,7 @@ class GpuDeformValidationTest {
 				}
 				val drawable = drawableById[drawableInputs.drawableId] ?: continue
 				val grid = drawable.geometryGrid ?: continue
-				val base = drawable.mesh?.positions ?: continue
+				val base = drawable.mesh?.localPositions ?: continue
 				if (drawable.mesh?.indices?.isEmpty() != false) {
 					continue
 				}

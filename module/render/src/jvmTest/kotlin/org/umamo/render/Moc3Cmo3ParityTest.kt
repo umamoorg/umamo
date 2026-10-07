@@ -57,10 +57,10 @@ class Moc3Cmo3ParityTest {
 			return
 		}
 		val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("root is not a CModelSource")
-		// The rest-mesh comparison normalizes BOTH sides through the same default-pose rewrite: CMO3's
-		// stored base is authored editing geometry that may drift a few pixels from the evaluated default
-		// pose (a moc has no way to recover the authored value), so comparing raw cmo3 bases against the
-		// moc's evaluated ones would measure that drift, not the conversion under test.
+		// The canvas-mesh comparison normalizes BOTH sides through the same default-pose pass: CMO3's
+		// stored editable mesh is authored editing geometry that may drift a few pixels from the evaluated
+		// default pose (a moc has no way to recover the authored value), so comparing raw cmo3 editable
+		// meshes against the moc's evaluated ones would measure that drift, not the conversion under test.
 		val fromCmo3 = restMeshesToCanvasSpace(Cmo3Import.fromModelSource(cmo3Root))
 		val fromMoc3 =
 			restMeshesToCanvasSpace(
@@ -115,7 +115,7 @@ class Moc3Cmo3ParityTest {
 				floatsClose(cmo3Mesh.uvs, moc3Mesh.uvs, 0.0005f),
 				"uvs of ${drawableId.raw}" + flipDiagnostic(cmo3Mesh.uvs, moc3Mesh.uvs),
 			)
-			// Rest positions: canvas space on both sides (the moc side through the default-pose rewrite),
+			// Canvas meshes: canvas space on both sides (the moc side through the default-pose pass),
 			// so this pins the whole conversion + cascade path.  Collected first (worst offender per
 			// drawable) so a failure reports the model-wide picture, not the first vertex hit.
 			assertEquals(cmo3Mesh.positions.size, moc3Mesh.positions.size, "position array of ${drawableId.raw}")
@@ -142,9 +142,9 @@ class Moc3Cmo3ParityTest {
 			compareMeshKeyforms(
 				drawableId,
 				cmo3Drawable.geometryGrid,
-				cmo3Mesh.positions,
+				cmo3Mesh.localPositions,
 				moc3Drawable.geometryGrid,
-				moc3Mesh.positions,
+				moc3Mesh.localPositions,
 				keyformTolerance(moc3Drawable.parentDeformerId),
 			)
 			compareMeshChannels(drawableId, cmo3Drawable.channelGrids, moc3Drawable.channelGrids)
@@ -166,12 +166,11 @@ class Moc3Cmo3ParityTest {
 	 *
 	 * @param DrawableId   drawableId The drawable under comparison (for failure messages).
 	 * @param KeyformGrid? cmo3Grid   The CMO3 grid (deltas vs [cmo3Base]).
-	 * @param FloatArray   cmo3Base   The CMO3 rest positions.
+	 * @param FloatArray   cmo3Base   The CMO3 keyform-space base (DrawableMesh.localPositions).
 	 * @param KeyformGrid? moc3Grid   The MOC3 grid (deltas vs [moc3Base]).
-	 * @param FloatArray   moc3Base   The MOC3 rest positions.
+	 * @param FloatArray   moc3Base   The MOC3 keyform-space base.
 	 * @param Float        tolerance  The per-coordinate tolerance in the drawable's parent space.
 	 */
-
 	private fun compareMeshKeyforms(
 		drawableId: DrawableId,
 		cmo3Grid: KeyformGrid<MeshDeltaForm>?,
@@ -207,8 +206,8 @@ class Moc3Cmo3ParityTest {
 	/**
 	 * Asserts the two import paths agree on a drawable's scalar channel tracks, cell for cell.
 	 *
-	 * Draw order and opacity used to ride the geometry cell, so they were compared there; they are their
-	 * own tracks now, but the parity claim is unchanged - both paths must land on the same values.
+	 * Draw order and opacity are channel tracks of their own, apart from the geometry cells, and the parity
+	 * claim is the same: both paths must land on the same values.
 	 *
 	 * @param DrawableId drawableId The drawable under comparison (for failure messages).
 	 * @param ChannelGrids cmo3Channels The CMO3 import's tracks.
@@ -383,7 +382,7 @@ class Moc3Cmo3ParityTest {
 			)
 			assertTrue(abs(cmo3Cell.form.scale - moc3Cell.form.scale) <= 0.001f, "rotation scale above ${drawableId.raw}")
 		}
-		// Reflections are FLAG channel tracks now, not pivot-form fields, but the parity claim is the same:
+		// Reflections are FLAG channel tracks, not pivot-form fields, and the parity claim is the same:
 		// both import paths must land on the same flip at every cell.
 		for (flipChannel in listOf(FormChannel.FLIP_X, FormChannel.FLIP_Y)) {
 			val cmo3Flips = cmo3Rotation.channelGrids[flipChannel]
