@@ -379,10 +379,10 @@ class TrackLaneInteractionTest {
 			assertTrue(!trackClicked, "a secondary press must not also clear the selection")
 		}
 
-	/** A drag stops at the mark's neighbour instead of running past it and snapping back on release. */
+	/** A drag may cross the mark's neighbour: a mark's walls are the axis ends, never the keys beside it. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun aDragIsClampedAtItsNeighbour() =
+	fun aDragMayCrossItsNeighbour() =
 		runComposeUiTest {
 			var releasedAt: Float? = null
 			setContent {
@@ -398,16 +398,15 @@ class TrackLaneInteractionTest {
 				}
 			}
 			onNodeWithTag("sheet").performMouseInput {
-				// Grab the middle mark (at 0) and haul it far past the one at 30.
-				val laneCenterX = (width + labelColumnEdge()) / 2f
+				// Grab the first mark (at -30) and haul it past the one at 0, to where the lane draws 15.
 				val rowY = childRowCenterY()
-				moveTo(Offset(laneCenterX, rowY))
+				moveTo(Offset(laneXOf(axis, -30f), rowY))
 				press()
-				moveTo(Offset(width + 500f, rowY))
+				moveTo(Offset(laneXOf(axis, 15f), rowY))
 				release()
 			}
 			waitForIdle()
-			assertEquals(30f, assertNotNull(releasedAt), "the drag must stop at the neighbour, not run past it")
+			assertEquals(15f, assertNotNull(releasedAt), 0.05f, "the drag lands past its neighbour, where the pointer stopped")
 		}
 
 	/** An endpoint drag stops at the axis end rather than leaving the track. */
