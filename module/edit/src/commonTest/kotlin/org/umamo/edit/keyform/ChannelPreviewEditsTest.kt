@@ -243,4 +243,38 @@ class ChannelPreviewEditsTest {
 			"the re-typed value is live again even though the step records nothing new",
 		)
 	}
+
+	/** A cancelled scrub on a bare target leaves no preview behind, and records nothing. */
+	@Test
+	fun aCancelledScrubRetiresItsPreview() {
+		val session = EditorSession(model(keyed = false))
+		for (frame in 1..5) {
+			session.previewChannelEdit(target, ChannelValue.Scalar(frame / 5f))
+		}
+
+		session.cancelChannelPreview(target)
+
+		assertEquals(null, session.pendingChannelEdits.value[target], "the last frame does not stay pending")
+		assertTrue(!session.canUndo.value, "a cancelled scrub is no step at all")
+	}
+
+	/**
+	 * A cancelled scrub over a COMMITTED pending value puts that value back rather than dropping it - the
+	 * one case clearPendingChannelEdit would get wrong.
+	 */
+	@Test
+	fun aCancelledScrubRestoresTheCommittedPendingValue() {
+		val session = EditorSession(model(keyed = true))
+		session.editKeyedChannel(target, ChannelValue.Scalar(0.25f), opacityChange(0.25f)) {
+			session.setDrawableOpacity(drawableId, 0.25f)
+		}
+		session.previewChannelEdit(target, ChannelValue.Scalar(0.75f))
+		assertEquals(ChannelValue.Scalar(0.75f), session.pendingChannelEdits.value[target], "precondition: previewing over it")
+
+		session.cancelChannelPreview(target)
+
+		assertEquals(ChannelValue.Scalar(0.25f), session.pendingChannelEdits.value[target], "the committed value is live again")
+		session.undo()
+		assertEquals(null, session.pendingChannelEdits.value[target], "and one undo still clears the commit")
+	}
 }

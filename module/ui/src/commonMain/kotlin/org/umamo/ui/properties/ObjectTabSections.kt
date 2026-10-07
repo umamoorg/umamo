@@ -46,8 +46,7 @@ import org.umamo.ui.transform.drawableWorldTransform
 import org.umamo.ui.transform.previewDrawableWorldCenter
 import org.umamo.ui.transform.previewDrawableWorldSize
 import org.umamo.ui.transform.setDrawableParentDeformerKeepingRest
-import org.umamo.ui.transform.setDrawableWorldCenter
-import org.umamo.ui.transform.setDrawableWorldSize
+import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 
 /*
  * The Object tab's sections: the universal properties of whatever single item is active - where it sits and
@@ -117,7 +116,8 @@ internal val TransformSection =
  *
  * A scrub previews: each drag frame's model goes to the renderer through the row's [FieldScrubPreview],
  * built by the setter's preview twin from the same arguments the release commits, so the viewport follows
- * the drag and the whole drag is still one undo step.
+ * the drag and the whole drag is still one undo step.  The commit registers the operation strip the way
+ * the viewport's G / S do (see TransformRowAdjust.kt), in the area the shell's routing names for a panel.
  *
  * Position reads from the world axes, so it converts at this boundary: shown values subtract the world
  * origin, and an edited value adds it back.  Only the edited axis converts - the other passes its world
@@ -147,6 +147,8 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 	val bounds = transform.bounds
 	val editable = session != null && transform.editable
 	val scrub = rememberFieldScrubPreview(editable)
+	// Read here, called in the commit: the answer is the pointer's state as the release lands.
+	val stripArea = LocalOperationStripArea.current
 	if (showSize) {
 		SizeFieldsWithAspectLock(
 			bounds = bounds,
@@ -155,8 +157,9 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 				scrub.preview(session?.previewDrawableWorldSize(drawableId, newWidth, newHeight))
 			},
 			onResize = { newWidth, newHeight ->
-				scrub.commit { session?.setDrawableWorldSize(drawableId, newWidth, newHeight) }
+				scrub.commit { session?.setDrawableWorldSizeAdjustable(drawableId, newWidth, newHeight, stripArea()) }
 			},
+			onCancelResize = { scrub.end() },
 		)
 	} else {
 		val puppet = context.puppet
@@ -171,7 +174,12 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 							value = puppet.originRelativeX(bounds.centerX),
 							onValueChange = { newX ->
 								scrub.commit {
-									session?.setDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(newX), bounds.centerY)
+									session?.setDrawableWorldCenterAdjustable(
+										drawableId,
+										puppet.worldXFromOriginRelative(newX),
+										bounds.centerY,
+										stripArea(),
+									)
 								}
 							},
 							onPreview = { newX ->
@@ -179,6 +187,7 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 									session?.previewDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(newX), bounds.centerY),
 								)
 							},
+							onScrubCancel = { scrub.end() },
 							modifier = Modifier.fillMaxWidth(),
 							range = UNBOUNDED_RANGE,
 							decimals = 1,
@@ -196,7 +205,12 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 							value = puppet.originRelativeZ(bounds.centerY),
 							onValueChange = { newZ ->
 								scrub.commit {
-									session?.setDrawableWorldCenter(drawableId, bounds.centerX, puppet.worldZFromOriginRelative(newZ))
+									session?.setDrawableWorldCenterAdjustable(
+										drawableId,
+										bounds.centerX,
+										puppet.worldZFromOriginRelative(newZ),
+										stripArea(),
+									)
 								}
 							},
 							onPreview = { newZ ->
@@ -204,6 +218,7 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 									session?.previewDrawableWorldCenter(drawableId, bounds.centerX, puppet.worldZFromOriginRelative(newZ)),
 								)
 							},
+							onScrubCancel = { scrub.end() },
 							modifier = Modifier.fillMaxWidth(),
 							range = UNBOUNDED_RANGE,
 							decimals = 1,
@@ -239,6 +254,7 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
  * @param Boolean enabled Whether the fields and the lock accept input (false on a posed rig).
  * @param Function onPreviewResize Previews new (width, height) extents for one scrub frame, recording nothing.
  * @param Function onResize Commits new (width, height) extents as one undo step.
+ * @param Function onCancelResize Drops a scrub's preview after the fields fell back to [bounds].
  */
 @Composable
 private fun SizeFieldsWithAspectLock(
@@ -246,6 +262,7 @@ private fun SizeFieldsWithAspectLock(
 	enabled: Boolean,
 	onPreviewResize: (Float, Float) -> Unit,
 	onResize: (Float, Float) -> Unit,
+	onCancelResize: () -> Unit,
 ) {
 	var lockAspect by remember { mutableStateOf(false) }
 	// The extents of the scrub in flight, or null with none.  Keyed on enabled: a field disabled mid-scrub
@@ -280,6 +297,11 @@ private fun SizeFieldsWithAspectLock(
 		scrubbedExtents = null
 		onResize(extents.width, extents.height)
 	}
+	// A cancel snaps the partner back with the dragged field: the extents the scrub implied are gone.
+	val cancelExtents: () -> Unit = {
+		scrubbedExtents = null
+		onCancelResize()
+	}
 	val shownExtents = scrubbedExtents ?: WorldExtents(bounds.width, bounds.height)
 	// The lock overlays the gutter the rows reserve, so the fields shrink by exactly the lock's width while
 	// the label column keeps its half of the FULL row width - that is what keeps these rows lined up with
@@ -297,6 +319,7 @@ private fun SizeFieldsWithAspectLock(
 							value = shownExtents.width,
 							onValueChange = { newWidth -> commitExtents(extentsForWidth(newWidth)) },
 							onPreview = { newWidth -> previewExtents(extentsForWidth(newWidth)) },
+							onScrubCancel = cancelExtents,
 							modifier = Modifier.fillMaxWidth(),
 							range = DRAWABLE_EXTENT_RANGE,
 							decimals = 1,
@@ -315,6 +338,7 @@ private fun SizeFieldsWithAspectLock(
 							value = shownExtents.height,
 							onValueChange = { newHeight -> commitExtents(extentsForHeight(newHeight)) },
 							onPreview = { newHeight -> previewExtents(extentsForHeight(newHeight)) },
+							onScrubCancel = cancelExtents,
 							modifier = Modifier.fillMaxWidth(),
 							range = DRAWABLE_EXTENT_RANGE,
 							decimals = 1,
@@ -369,6 +393,7 @@ internal fun DeformerBaseAngleField(deformer: Deformer.Rotation, session: Editor
 			value = deformer.baseAngle,
 			onValueChange = { newAngle -> scrub.commit { session?.setDeformerBaseAngle(deformer.id, newAngle) } },
 			onPreview = { newAngle -> scrub.preview(session?.previewDeformerBaseAngle(deformer.id, newAngle)) },
+			onScrubCancel = { scrub.end() },
 			modifier = Modifier.fillMaxWidth(),
 			range = UNBOUNDED_RANGE,
 			decimals = 1,

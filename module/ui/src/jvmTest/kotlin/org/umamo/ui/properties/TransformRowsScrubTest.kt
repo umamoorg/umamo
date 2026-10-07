@@ -46,6 +46,8 @@ import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.kit.field.LocalScrubCancel
+import org.umamo.ui.kit.field.ScrubCancelController
 import org.umamo.ui.kit.field.formatDecimals
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
@@ -53,8 +55,10 @@ import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.transform.drawableWorldTransform
 import org.umamo.ui.viewport.uv.RecordingPuppetRenderSync
+import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -153,6 +157,7 @@ class TransformRowsScrubTest {
 
 			assertEquals(lastFrame.centerX, worldBoundsOf(session.model.value).centerX, 1e-3f, "the release lands what the last frame showed")
 			assertEquals(1, renderSync.resyncs, "the release hands the renderer back to the session")
+			assertEquals(STRIP_AREA, session.adjustableOperation.value?.areaId, "and registers the strip where the shell's routing says")
 			runOnIdle { session.undo() }
 			assertSame(before, session.model.value, "the whole drag is one undo step")
 		}
@@ -245,18 +250,15 @@ class TransformRowsScrubTest {
 			assertSame(before, session.model.value, "the whole drag is one undo step")
 		}
 
-	/**
-	 * A row that leaves the composition mid-drag hands the renderer back.  Whether the cancelled drag lands
-	 * is NumberField's rule (a cancel commits its draft), not this row's; what the row owns is that the
-	 * renderer is never left showing a preview nobody will end.
-	 */
+	/** A row that leaves the composition mid-drag cancels its scrub: the renderer goes back, nothing lands. */
 	@Test
-	fun unmountingMidScrubHandsTheRendererBack() =
+	fun unmountingMidScrubCancelsTheScrub() =
 		runComposeUiTest {
 			val session = sessionSelecting(drawableTarget)
 			val renderSync = RecordingPuppetRenderSync()
 			val mounted = mutableStateOf(true)
 			mountTransformRows(session, drawableTarget, renderSync, mounted)
+			val before = session.model.value
 
 			pressAndScrub(pointOfText(REST_POSITION_X))
 			assertTrue(renderSync.previewed.isNotEmpty(), "precondition: the scrub previewed")
@@ -266,6 +268,34 @@ class TransformRowsScrubTest {
 			assertEquals(1, renderSync.resyncs, "the renderer goes back to the session exactly once")
 			assertNull(renderSync.preview.value, "and is not left on the preview")
 			releaseScrub()
+			assertSame(before, session.model.value, "a drag taken from under its field lands nothing")
+		}
+
+	/** Cancelling through the shell's seam mid-drag resyncs, commits nothing, and the locked partner snaps back. */
+	@Test
+	fun cancellingThroughTheSeamRestoresBothSizeFields() =
+		runComposeUiTest {
+			val session = sessionSelecting(drawableTarget)
+			val renderSync = RecordingPuppetRenderSync()
+			val scrubCancel = ScrubCancelController()
+			mountTransformRows(session, drawableTarget, renderSync, scrubCancel = scrubCancel)
+			onNodeWithContentDescription(LOCK_ASPECT).performClick()
+			val before = session.model.value
+
+			pressAndScrub(pointOfText(REST_SIZE, index = 0))
+			assertEquals(0, onAllNodesWithText(REST_SIZE).fetchSemanticsNodes().size, "precondition: both fields moved")
+			val parked = scrubCancel.cancel
+			assertNotNull(parked, "the scrub parks its cancel for Escape")
+			runOnIdle { parked() }
+			waitForIdle()
+
+			onAllNodesWithText(REST_SIZE).assertCountEquals(2)
+			assertEquals(1, renderSync.resyncs)
+			assertNull(scrubCancel.cancel, "the slot is released with the scrub")
+			releaseScrub()
+
+			assertSame(before, session.model.value, "a cancelled scrub commits nothing")
+			assertEquals(1, renderSync.resyncs, "and its release resyncs nothing more")
 		}
 
 	/** Leaving Edit mode on a posed rig mid-drag disables the field; its preview goes and nothing lands. */
@@ -313,12 +343,14 @@ class TransformRowsScrubTest {
 	 * @param SelectionTarget target The active item.
 	 * @param RecordingPuppetRenderSync renderSync The render-sync stand-in the previews reach.
 	 * @param MutableState mounted Whether the rows are in the composition; flipping it unmounts them.
+	 * @param ScrubCancelController scrubCancel The shell's scrub seam, so a test can cancel the way Escape does.
 	 */
 	private fun ComposeUiTest.mountTransformRows(
 		session: EditorSession,
 		target: SelectionTarget,
 		renderSync: RecordingPuppetRenderSync,
 		mounted: MutableState<Boolean> = mutableStateOf(true),
+		scrubCancel: ScrubCancelController = ScrubCancelController(),
 	) {
 		setContent {
 			UmamoTheme {
@@ -327,6 +359,8 @@ class TransformRowsScrubTest {
 					LocalPuppet provides puppet,
 					LocalEditorSession provides session,
 					LocalPuppetRenderSync provides renderSync,
+					LocalScrubCancel provides scrubCancel,
+					LocalOperationStripArea provides { STRIP_AREA },
 				) {
 					Column(modifier = Modifier.size(width = 400.dp, height = 200.dp).testTag(ROWS_TAG)) {
 						if (mounted.value) {
@@ -417,6 +451,7 @@ class TransformRowsScrubTest {
 
 	private companion object {
 		const val ROWS_TAG = "transformRows"
+		const val STRIP_AREA = "viewport-1"
 		const val LOCK_ASPECT = "Lock Aspect Ratio"
 
 		/** Position X at rest, and with the rig posed 100 to the right. */

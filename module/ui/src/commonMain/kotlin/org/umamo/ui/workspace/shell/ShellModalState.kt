@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.shell
 import org.umamo.edit.EditorSession
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
+import org.umamo.ui.kit.field.ScrubCancelController
 import org.umamo.ui.kit.menu.MenuBarController
 import org.umamo.ui.kit.textentry.InlineEditController
 import org.umamo.ui.kit.textentry.KeyCaptureController
@@ -33,6 +34,7 @@ import org.umamo.ui.workspace.rowdrag.RowDragCancelController
  * @property AreaDragController dragController The area corner-drag state; an in-flight drag defers Escape to area.dragCancel.
  * @property SplitterDragCancelController splitterDragCancel The divider-drag seam; an in-flight divider drag claims Escape.
  * @property RowDragCancelController rowDragCancel The panel row-drag seam; an in-flight row drag claims Escape.
+ * @property ScrubCancelController scrubCancel The number-field scrub seam; an in-flight scrub claims Escape.
  * @property RelationPickController relationPick The relation-pick seam; an armed eyedropper claims Escape.
  * @property KeyformSheetViews keyformSheets The open keyform sheets; an armed marquee claims Escape.
  * @property CommandRegistry commandRegistry The registry pie picks and the fallthrough dispatch into.
@@ -48,6 +50,7 @@ internal class ShellModalState(
 	val dragController: AreaDragController = AreaDragController(),
 	val splitterDragCancel: SplitterDragCancelController = SplitterDragCancelController(),
 	val rowDragCancel: RowDragCancelController = RowDragCancelController(),
+	val scrubCancel: ScrubCancelController = ScrubCancelController(),
 	val relationPick: RelationPickController = RelationPickController(),
 	val keyformSheets: KeyformSheetViews = KeyformSheetViews(),
 	val commandRegistry: CommandRegistry = CommandRegistry(),

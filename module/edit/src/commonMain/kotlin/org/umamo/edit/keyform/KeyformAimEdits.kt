@@ -265,6 +265,16 @@ fun EditorSession.previewChannelEdit(target: KeyableTarget, value: ChannelValue)
 }
 
 /**
+ * Drops the preview [previewChannelEdit] has been reporting for [target] - what a field reports when its
+ * scrub is cancelled rather than released - putting back whatever the rig held before the gesture.
+ *
+ * @param KeyableTarget target The entity and channel whose scrub was cancelled.
+ */
+fun EditorSession.cancelChannelPreview(target: KeyableTarget) {
+	restorePendingChannelEdit(target)
+}
+
+/**
  * The parameter a keyform edit writes on: [parameterId] when the caller named one (a sheet lane belongs to
  * one section's axis, which need not be the selection's active member), else the targeted parameter.
  *

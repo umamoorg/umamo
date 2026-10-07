@@ -73,6 +73,15 @@ class OperationStripState {
 /** The window's strip state; the shell provides one instance. */
 val LocalOperationStrip = staticCompositionLocalOf { OperationStripState() }
 
+/**
+ * Where a panel-driven operation shows its strip: the same answer the command routing gives a command
+ * fired from a panel (the hovered work surface, else the last one the pointer touched, else the
+ * workspace's first), or null when the workspace has none.  Called as the operation commits, never read
+ * during composition - it answers from the pointer's dispatch-time state.  Defaults to no area, so a
+ * panel hosted without the shell registers a record that shows nowhere.
+ */
+val LocalOperationStripArea = staticCompositionLocalOf<() -> String?> { { null } }
+
 /** The strip's inset from the area's bottom and left edges. */
 private val STRIP_MARGIN = 8.dp
 

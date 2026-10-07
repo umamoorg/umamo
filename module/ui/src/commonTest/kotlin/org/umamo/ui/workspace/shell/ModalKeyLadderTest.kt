@@ -31,6 +31,7 @@ import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.document.DocumentOpenError
 import org.umamo.ui.document.DocumentOpenFailure
+import org.umamo.ui.kit.field.ScrubCancelController
 import org.umamo.ui.kit.menu.MenuBarController
 import org.umamo.ui.kit.textentry.InlineEditController
 import org.umamo.ui.kit.textentry.KeyCaptureController
@@ -611,6 +612,33 @@ class ModalKeyLadderTest {
 		assertFalse(overlays.settingsVisible)
 	}
 
+	/**
+	 * A scrub inside Preferences (its own number fields) or the export-options dialog cancels on Escape; the
+	 * overlay closes on the NEXT Escape.  A live key capture still outranks it - any key may be the one
+	 * being bound, Escape included.
+	 */
+	@Test
+	fun anInFlightScrubOutranksAnOpenOverlayAndYieldsToAKeyCapture() {
+		val overlays = ShellOverlayState().apply { settingsVisible = true }
+		val scrub = RecordingScrub()
+		val keyCapture = KeyCaptureController()
+		val state = ShellModalState(overlays = overlays, keyCapture = keyCapture, scrubCancel = scrub.controller)
+
+		assertTrue(escape(state))
+		assertTrue(scrub.cancelled, "the scrub took it")
+		assertTrue(overlays.settingsVisible, "and Preferences stays open")
+
+		scrub.cancelled = false
+		keyCapture.begin()
+		assertFalse(escape(state), "a capture leaves Escape to the capturing control")
+		assertFalse(scrub.cancelled)
+		keyCapture.end()
+
+		scrub.controller.cancel = null
+		assertTrue(escape(state), "with the scrub over, Escape is the overlay's again")
+		assertFalse(overlays.settingsVisible)
+	}
+
 	/** Two captures overlapping - one chip ending as another begins - never read as no capture at all. */
 	@Test
 	fun overlappingKeyCapturesStayLiveUntilTheLastEnds() {
@@ -984,6 +1012,38 @@ class ModalKeyLadderTest {
 		assertFalse(selection.selection.isEmpty, "and the dragged rows keep their selection")
 	}
 
+	/** A scrub seam whose cancel was recorded, so "the scrub claimed it" is an assertion and not an absence. */
+	private class RecordingScrub {
+		var cancelled = false
+		val controller = ScrubCancelController().apply { cancel = { cancelled = true } }
+	}
+
+	@Test
+	fun anInFlightScrubTakesEscapeWithoutClearingTheSelection() {
+		// The Properties row being scrubbed is on screen BECAUSE of the selection, so the clear-selection arm
+		// below would unmount the field mid-drag.
+		val scrub = RecordingScrub()
+		val selection = nonEmptySelection()
+
+		assertTrue(escape(ShellModalState(selection = selection, scrubCancel = scrub.controller)))
+
+		assertTrue(scrub.cancelled)
+		assertFalse(selection.selection.isEmpty, "and the row's selection survives")
+	}
+
+	@Test
+	fun anInFlightScrubClaimsEscapeAlone() {
+		val scrub = RecordingScrub()
+		val registry = RecordingRegistry("some.command")
+		val keymap = Keymap(mapOf(KeyChord("KeyS") to "some.command"))
+		val state = ShellModalState(scrubCancel = scrub.controller, commandRegistry = registry.registry, keymap = keymap)
+
+		assertTrue(press(Key.S, state), "every other key is still the keymap's")
+
+		assertTrue(registry.invoked)
+		assertFalse(scrub.cancelled)
+	}
+
 	@Test
 	fun anInFlightDividerDragTakesEscapeWithoutClearingTheSelection() {
 		// A divider drag keeps its session inside the dragged SplitContainer and never touches
@@ -1123,6 +1183,7 @@ class ModalKeyLadderTest {
 		session.beginMeshOperator(MeshOperatorKind.Grab, areaId)
 		val overlays = ShellOverlayState().apply { pendingConfirm = ConfirmRequest(Res.string.cmd_mesh_grab) {} }
 		val menu = RecordingMenuBar()
+		val scrub = RecordingScrub()
 		val selection = nonEmptySelection()
 
 		assertTrue(
@@ -1130,6 +1191,7 @@ class ModalKeyLadderTest {
 				ShellModalState(
 					overlays = overlays,
 					menuBarController = menu.controller,
+					scrubCancel = scrub.controller,
 					editorSession = session,
 					selection = selection,
 				),
@@ -1138,6 +1200,7 @@ class ModalKeyLadderTest {
 
 		assertNull(overlays.pendingConfirm, "the dialog took it")
 		assertFalse(menu.closed, "and nothing below it ran")
+		assertFalse(scrub.cancelled)
 		assertNotNull(session.activeMeshOperator.value)
 		assertFalse(selection.selection.isEmpty)
 
