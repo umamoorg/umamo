@@ -5,7 +5,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.PieMenuKind
 import org.umamo.edit.SnapKind
 import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.snapToWorldGrid
+import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*

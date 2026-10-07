@@ -2,10 +2,10 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
-import org.umamo.edit.captureKeyOnTrack
-import org.umamo.edit.removeKeyOnTrack
-import org.umamo.edit.removeTrackKeys
-import org.umamo.edit.removingKeys
+import org.umamo.edit.keyform.captureKeyOnTrack
+import org.umamo.edit.keyform.removeKeyOnTrack
+import org.umamo.edit.keyform.removeTrackKeys
+import org.umamo.edit.keyform.removingKeys
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandSpaces

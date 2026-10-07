@@ -1,17 +1,18 @@
 package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.EditorSession
-import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ProportionalEditState
-import org.umamo.edit.ProportionalRows
-import org.umamo.edit.TransformGestureParameters
-import org.umamo.edit.TransformParameterKeys
 import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.buildModalTransformCapture
+import org.umamo.edit.mesh.commitMeshPositions
+import org.umamo.edit.transform.IndividualOriginScope
+import org.umamo.edit.transform.ModalCaptureSource
+import org.umamo.edit.transform.ProportionalRows
+import org.umamo.edit.transform.TransformGestureParameters
+import org.umamo.edit.transform.TransformParameterKeys
+import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.edit.withParameter
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable

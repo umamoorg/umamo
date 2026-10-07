@@ -7,8 +7,8 @@ import kotlinx.coroutines.withContext
 import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
-import org.umamo.edit.commitAtlasRepack
-import org.umamo.edit.withAtlasRepack
+import org.umamo.edit.atlas.commitAtlasRepack
+import org.umamo.edit.atlas.withAtlasRepack
 import org.umamo.format.atlas.AtlasPackFixed
 import org.umamo.format.atlas.AtlasPackItem
 import org.umamo.format.atlas.AtlasPackOptions

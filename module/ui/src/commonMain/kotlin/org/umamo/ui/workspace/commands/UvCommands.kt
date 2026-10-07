@@ -7,8 +7,8 @@ import org.umamo.edit.UvPageKind
 import org.umamo.edit.UvPageRequest
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
-import org.umamo.edit.placementSelectedTileIds
-import org.umamo.edit.setAtlasPins
+import org.umamo.edit.atlas.placementSelectedTileIds
+import org.umamo.edit.atlas.setAtlasPins
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.action.CommandSpaces

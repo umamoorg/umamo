@@ -4,8 +4,8 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TrackKeyRef
-import org.umamo.edit.removeTrackKeys
-import org.umamo.edit.removingKeys
+import org.umamo.edit.keyform.removeTrackKeys
+import org.umamo.edit.keyform.removingKeys
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.action.CommandRegistry

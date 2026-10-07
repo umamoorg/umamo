@@ -7,10 +7,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
-import org.umamo.edit.RowDropBand
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.applyOutlinerDrop
-import org.umamo.edit.resolveOutlinerDrop
+import org.umamo.edit.structure.RowDropBand
+import org.umamo.edit.structure.applyOutlinerDrop
+import org.umamo.edit.structure.resolveOutlinerDrop
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.workspace.rowdrag.RowDragController
 

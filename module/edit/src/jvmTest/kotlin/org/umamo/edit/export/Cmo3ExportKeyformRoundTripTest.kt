@@ -1,6 +1,6 @@
 package org.umamo.edit.export
 
-import org.umamo.edit.withDrawableOpacity
+import org.umamo.edit.property.withDrawableOpacity
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshForm

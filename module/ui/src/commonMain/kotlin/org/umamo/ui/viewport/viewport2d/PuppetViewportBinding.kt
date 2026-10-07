@@ -40,6 +40,7 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.pinsPose
+import org.umamo.edit.switchEditDrawable
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
@@ -469,22 +470,12 @@ fun rememberPuppetViewportHost(
 					// The area-death cleanup: a leaf can leave composition MID-GESTURE (a corner-join, a
 					// space switch via the header dropdown, a workspace tab switch), which cancels the
 					// overlay's latch effect WITHOUT running its teardown branch - stranding the renderer
-					// on the un-committed preview and orphaning the latch.  Cancel anything this area
-					// initiated and resync the raster to the committed model.
+					// on the un-committed preview and orphaning the latch.  Release everything this area
+					// holds, and when that was a modal operator resync the raster to the committed model.
 					DisposableEffect(areaId, session) {
 						onDispose {
-							if (session.activeMeshOperator.value?.areaId == areaId ||
-								session.activeObjectOperator.value?.areaId == areaId
-							) {
-								session.clearMeshOperator()
-								session.clearObjectOperator()
+							if (session.releaseArea(areaId)) {
 								service.setModel(session.model.value)
-							}
-							if (session.activeSelectTool.value?.areaId == areaId) {
-								session.clearSelectTool()
-							}
-							if (session.zoomRegionArmedArea.value == areaId) {
-								session.disarmZoomRegion()
 							}
 						}
 					}

@@ -10,6 +10,8 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginUvOperator
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA

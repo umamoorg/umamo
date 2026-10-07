@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import org.umamo.edit.ActiveOperator
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.transform.beginUvOperator
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters

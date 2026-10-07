@@ -10,8 +10,8 @@ import androidx.compose.ui.test.runComposeUiTest
 import kotlinx.coroutines.CompletableDeferred
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.rename
-import org.umamo.edit.renameParameter
+import org.umamo.edit.parameter.renameParameter
+import org.umamo.edit.structure.rename
 import org.umamo.reimport.LayerMatch
 import org.umamo.reimport.MatchSignals
 import org.umamo.ui.workspace.spaces.outliner.hoverAt

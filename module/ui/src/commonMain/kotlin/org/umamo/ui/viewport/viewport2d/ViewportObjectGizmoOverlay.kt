@@ -21,7 +21,7 @@ import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshTransforms
+import org.umamo.edit.transform.MeshTransforms
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.theme.LocalUmamoColors
@@ -68,7 +68,7 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  *     right-click abandons an in-flight drag.
  *   - Circle select (Blender's C): a brush paints drawables by centroid - a primary drag adds, a middle or
  *     Shift+primary drag erases; the stroke accumulates into a working selection committed once on release
- *     (one undo step), previewed live through the GPU tint via [EditorSession.setPreviewSelection]; the wheel
+ *     (one undo step), previewed live through the GPU tint via [SessionToolLatches.setPreviewSelection]; the wheel
  *     resizes the brush; a right-click leaves the tool keeping what was painted.
  *   - Grab / Scale / Rotate: a modal transform of every selected drawable's whole geometry about their combined
  *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.TransformDrawables]).

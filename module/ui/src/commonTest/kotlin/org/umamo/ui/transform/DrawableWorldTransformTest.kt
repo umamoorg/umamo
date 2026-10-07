@@ -1,7 +1,7 @@
 package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
-import org.umamo.edit.meshBounds
+import org.umamo.edit.transform.meshBounds
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId

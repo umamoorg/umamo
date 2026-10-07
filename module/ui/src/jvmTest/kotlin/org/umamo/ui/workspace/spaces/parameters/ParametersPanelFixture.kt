@@ -57,9 +57,9 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.deleteTile
-import org.umamo.edit.setLayerIgnored
-import org.umamo.edit.setTileSources
+import org.umamo.edit.atlas.deleteTile
+import org.umamo.edit.atlas.setLayerIgnored
+import org.umamo.edit.atlas.setTileSources
 import org.umamo.reimport.LayerMatch
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.ArtSourceId

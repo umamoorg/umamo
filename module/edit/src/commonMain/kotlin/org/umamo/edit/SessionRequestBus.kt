@@ -11,71 +11,73 @@ import kotlinx.coroutines.flow.asSharedFlow
  * position, the projected geometry, the in-flight working positions, the area's own view state), so
  * the session cannot execute it directly; it signals here and the observing collector executes.
  * Pure plumbing with no other session state involved, hence a separate collaborator; [EditorSession]
- * exposes each flow and request method unchanged.
+ * delegates its [SessionRequests] face to this one instance, so every flow and request method is reached
+ * on the session unchanged.
  */
-
-internal class SessionRequestBus {
+internal class SessionRequestBus : SessionRequests {
 	private val mutableSnapRequests = MutableSharedFlow<SnapRequest>(extraBufferCapacity = 4)
 
-	/** The geometry-dependent snap requests (see [EditorSession.snapRequests]). */
-	val snapRequests: SharedFlow<SnapRequest> = mutableSnapRequests.asSharedFlow()
+	/** The geometry-dependent snap requests (see [SessionRequests.snapRequests]). */
+	override val snapRequests: SharedFlow<SnapRequest> = mutableSnapRequests.asSharedFlow()
 
 	private val mutableSelectLinkedRequests = MutableSharedFlow<SelectLinkedRequest>(extraBufferCapacity = 4)
 
-	/** The Select Linked requests (see [EditorSession.selectLinkedRequests]). */
-	val selectLinkedRequests: SharedFlow<SelectLinkedRequest> = mutableSelectLinkedRequests.asSharedFlow()
+	/** The Select Linked requests (see [SessionRequests.selectLinkedRequests]). */
+	override val selectLinkedRequests: SharedFlow<SelectLinkedRequest> = mutableSelectLinkedRequests.asSharedFlow()
 
 	private val mutableUvSnapRequests = MutableSharedFlow<UvSnapRequest>(extraBufferCapacity = 4)
 
-	/** The UV editor snap requests (see [EditorSession.uvSnapRequests]). */
-	val uvSnapRequests: SharedFlow<UvSnapRequest> = mutableUvSnapRequests.asSharedFlow()
+	/** The UV editor snap requests (see [SessionRequests.uvSnapRequests]). */
+	override val uvSnapRequests: SharedFlow<UvSnapRequest> = mutableUvSnapRequests.asSharedFlow()
 
 	private val mutableUvMirrorRequests = MutableSharedFlow<UvMirrorRequest>(extraBufferCapacity = 4)
 
-	/** The UV editor mirror requests (see [EditorSession.uvMirrorRequests]). */
-	val uvMirrorRequests: SharedFlow<UvMirrorRequest> = mutableUvMirrorRequests.asSharedFlow()
+	/** The UV editor mirror requests (see [SessionRequests.uvMirrorRequests]). */
+	override val uvMirrorRequests: SharedFlow<UvMirrorRequest> = mutableUvMirrorRequests.asSharedFlow()
 
 	private val mutableUvPageRequests = MutableSharedFlow<UvPageRequest>(extraBufferCapacity = 4)
 
-	/** The UV editor page-switch requests (see [EditorSession.uvPageRequests]). */
-	val uvPageRequests: SharedFlow<UvPageRequest> = mutableUvPageRequests.asSharedFlow()
+	/** The UV editor page-switch requests (see [SessionRequests.uvPageRequests]). */
+	override val uvPageRequests: SharedFlow<UvPageRequest> = mutableUvPageRequests.asSharedFlow()
 
 	private val mutableSwitchObjectRequests = MutableSharedFlow<String?>(extraBufferCapacity = 1)
 
-	/** The Alt+Q edited-mesh switch requests, each carrying its executing area (see [EditorSession.switchObjectRequests]). */
-	val switchObjectRequests: SharedFlow<String?> = mutableSwitchObjectRequests.asSharedFlow()
+	/** The Alt+Q edited-mesh switch requests, each carrying its executing area (see [SessionRequests.switchObjectRequests]). */
+	override val switchObjectRequests: SharedFlow<String?> = mutableSwitchObjectRequests.asSharedFlow()
 
 	private val mutableRipRequests = MutableSharedFlow<String?>(extraBufferCapacity = 1)
 
-	/** The rip-at-pointer requests, each carrying its executing area (see [EditorSession.ripRequests]). */
-	val ripRequests: SharedFlow<String?> = mutableRipRequests.asSharedFlow()
+	/** The rip-at-pointer requests, each carrying its executing area (see [SessionRequests.ripRequests]). */
+	override val ripRequests: SharedFlow<String?> = mutableRipRequests.asSharedFlow()
 
 	private val mutableMeshConfirm = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-	/** The modal-gesture confirm requests (see [EditorSession.meshConfirmRequests]). */
-	val meshConfirmRequests: SharedFlow<Unit> = mutableMeshConfirm.asSharedFlow()
+	/** The modal-gesture confirm requests (see [SessionRequests.meshConfirmRequests]). */
+	override val meshConfirmRequests: SharedFlow<Unit> = mutableMeshConfirm.asSharedFlow()
 
 	private val mutableMeshGestureCancel = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-	/** The selection-gesture cancel requests (see [EditorSession.meshGestureCancelRequests]). */
-	val meshGestureCancelRequests: SharedFlow<Unit> = mutableMeshGestureCancel.asSharedFlow()
+	/** The selection-gesture cancel requests (see [SessionRequests.meshGestureCancelRequests]). */
+	override val meshGestureCancelRequests: SharedFlow<Unit> = mutableMeshGestureCancel.asSharedFlow()
 
 	/**
-	 * Requests a geometry-dependent snap.
+	 * Requests a geometry-dependent snap (see [SessionRequests.requestSnap]).
 	 *
-	 * @param SnapRequest request The snap to perform plus the dispatch-time resolved area.
+	 * @param SnapKind kind The snap to perform.
+	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
 	 */
-	fun requestSnap(request: SnapRequest) {
-		mutableSnapRequests.tryEmit(request)
+	override fun requestSnap(kind: SnapKind, areaId: String?) {
+		mutableSnapRequests.tryEmit(SnapRequest(kind, areaId))
 	}
 
 	/**
-	 * Requests a Select Linked for one area's overlay to execute.
+	 * Requests a Select Linked for one area's overlay to execute (see [SessionRequests.requestSelectLinked]).
 	 *
-	 * @param SelectLinkedRequest request The flood variant plus the dispatch-time resolved area.
+	 * @param Boolean fromSelection True to flood from the whole selection (Ctrl+L), false from the cursor (L).
+	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
 	 */
-	fun requestSelectLinked(request: SelectLinkedRequest) {
-		mutableSelectLinkedRequests.tryEmit(request)
+	override fun requestSelectLinked(fromSelection: Boolean, areaId: String?) {
+		mutableSelectLinkedRequests.tryEmit(SelectLinkedRequest(fromSelection, areaId))
 	}
 
 	/**
@@ -83,7 +85,7 @@ internal class SessionRequestBus {
 	 *
 	 * @param UvSnapRequest request The snap operation plus the dispatch-time resolved area.
 	 */
-	fun requestUvSnap(request: UvSnapRequest) {
+	override fun requestUvSnap(request: UvSnapRequest) {
 		mutableUvSnapRequests.tryEmit(request)
 	}
 
@@ -92,7 +94,7 @@ internal class SessionRequestBus {
 	 *
 	 * @param UvMirrorRequest request The mirror axis plus the dispatch-time resolved area.
 	 */
-	fun requestUvMirror(request: UvMirrorRequest) {
+	override fun requestUvMirror(request: UvMirrorRequest) {
 		mutableUvMirrorRequests.tryEmit(request)
 	}
 
@@ -101,7 +103,7 @@ internal class SessionRequestBus {
 	 *
 	 * @param UvPageRequest request The page operation plus the dispatch-time resolved area.
 	 */
-	fun requestUvPage(request: UvPageRequest) {
+	override fun requestUvPage(request: UvPageRequest) {
 		mutableUvPageRequests.tryEmit(request)
 	}
 
@@ -110,7 +112,7 @@ internal class SessionRequestBus {
 	 *
 	 * @param String? areaId The dispatch-time resolved viewport area, or null when the pointer is elsewhere.
 	 */
-	fun requestSwitchObjectUnderCursor(areaId: String?) {
+	override fun requestSwitchObjectUnderCursor(areaId: String?) {
 		mutableSwitchObjectRequests.tryEmit(areaId)
 	}
 
@@ -119,17 +121,17 @@ internal class SessionRequestBus {
 	 *
 	 * @param String? areaId The dispatch-time resolved viewport area, or null when the pointer is elsewhere.
 	 */
-	fun requestRip(areaId: String?) {
+	override fun requestRip(areaId: String?) {
 		mutableRipRequests.tryEmit(areaId)
 	}
 
 	/** Requests that the gizmo overlay confirm the in-flight modal gesture. */
-	fun requestMeshConfirm() {
+	override fun requestMeshConfirm() {
 		mutableMeshConfirm.tryEmit(Unit)
 	}
 
 	/** Requests that the gizmo overlay abandon any in-flight box / circle selection gesture. */
-	fun requestMeshGestureCancel() {
+	override fun requestMeshGestureCancel() {
 		mutableMeshGestureCancel.tryEmit(Unit)
 	}
 }
@@ -212,3 +214,40 @@ data class UvPageRequest(val kind: UvPageKind, val areaId: String?)
  *   viewport (then no collector matches and the request is a clean no-op).
  */
 data class SnapRequest(val kind: SnapKind, val areaId: String?)
+
+/**
+ * The geometry-dependent snap operations (Blender's Shift+S) the viewport overlay executes: the
+ * cursor-to-geometry moves need the posed world projection and the selection-to-target moves edit the
+ * model through the deformer-chain inverse, both of which live with the overlay - so the session
+ * carries the request and the active mode's overlay performs it.  The purely arithmetical snaps
+ * (cursor to world origin / to grid) are handled directly by their command handlers and never appear
+ * here.
+ *
+ */
+enum class SnapKind {
+	CursorToSelected,
+	CursorToActive,
+	SelectionToCursor,
+	SelectionToCursorOffset,
+	SelectionToGrid,
+	SelectionToActive,
+}
+
+/**
+ * The UV editor's snap operations (its own Shift+S pie), the texture-space sibling of [SnapKind].
+ * Every one edits or reads in the UV editor's texel display space, so the UV overlay - which owns the
+ * shown page's dimensions and display geometry - executes them, the same request-through-overlay split
+ * as [SnapKind].  The op set differs from the world snaps by design: UV has pixel-corner snaps (a
+ * texel boundary is a natural target for artwork-edge accuracy) and no Active-element snaps, while the
+ * world grid has no meaning here (the UV grid subdivides the atlas page instead - see the UV editor's
+ * display mapping).
+ */
+enum class UvSnapKind {
+	SelectionToPixels,
+	SelectionToCursor,
+	SelectionToCursorOffset,
+	SelectionToGrid,
+	CursorToPixels,
+	CursorToSelected,
+	CursorToGrid,
+}

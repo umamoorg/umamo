@@ -1,16 +1,16 @@
 package org.umamo.ui.viewport.uv
 
 import org.umamo.edit.EditorSession
-import org.umamo.edit.IndividualOriginScope
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.ModalCaptureSource
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.buildModalTransformCapture
+import org.umamo.edit.atlas.setAtlasPlacements
 import org.umamo.edit.intValue
-import org.umamo.edit.setAtlasPlacements
+import org.umamo.edit.transform.IndividualOriginScope
+import org.umamo.edit.transform.ModalCaptureSource
+import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.edit.withParameter
 import org.umamo.format.art.LayerBounds
 import org.umamo.runtime.model.AtlasPage

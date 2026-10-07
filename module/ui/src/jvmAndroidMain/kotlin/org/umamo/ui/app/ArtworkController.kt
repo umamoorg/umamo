@@ -6,9 +6,9 @@ import io.github.vinceglb.filekit.readBytes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import org.umamo.edit.NoticePlacement
-import org.umamo.edit.deleteTile
-import org.umamo.edit.setLayerIgnored
-import org.umamo.edit.setTileSources
+import org.umamo.edit.atlas.deleteTile
+import org.umamo.edit.atlas.setLayerIgnored
+import org.umamo.edit.atlas.setTileSources
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.placedFor
 import org.umamo.reimport.InventoryLayerMatcher

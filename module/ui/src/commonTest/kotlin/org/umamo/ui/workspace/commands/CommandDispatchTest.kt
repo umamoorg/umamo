@@ -12,6 +12,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
 import org.umamo.edit.SnapRequest
 import org.umamo.edit.UvMirrorRequest
+import org.umamo.edit.selectAllMeshElements
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId

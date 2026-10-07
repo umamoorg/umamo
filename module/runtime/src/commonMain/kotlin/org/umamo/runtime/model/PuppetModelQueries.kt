@@ -11,6 +11,15 @@ package org.umamo.runtime.model
  */
 
 /**
+ * The mesh of drawable [id], or null when the model has no such drawable or it carries no mesh - the one
+ * lookup every per-drawable mesh edit starts from.
+ *
+ * @param DrawableId id The drawable.
+ * @return DrawableMesh? Its mesh, or null.
+ */
+fun PuppetModel.meshOf(id: DrawableId): DrawableMesh? = drawables.firstOrNull { drawable -> drawable.id == id }?.mesh
+
+/**
  * The per-drawable triangle indices picking iterates: the shown, meshed drawables only, so
  * unshown / mesh-less drawables are never hit.
  *

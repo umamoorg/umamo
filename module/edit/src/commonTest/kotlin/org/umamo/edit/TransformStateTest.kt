@@ -1,5 +1,15 @@
 package org.umamo.edit
 
+import org.umamo.edit.transform.MeshTransforms
+import org.umamo.edit.transform.RotationAngleTracker
+import org.umamo.edit.transform.TransformPivots
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginCircleSelect
+import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.edit.transform.beginObjectOperator
+import org.umamo.edit.transform.snapToGrid
+import org.umamo.edit.transform.snapToWorldGrid
+import org.umamo.edit.transform.wrapAngle
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -7,6 +17,8 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -309,6 +321,63 @@ class TransformStateTest {
 		// A restore (undo) clears the area-carrying latch entirely, whoever owned it.
 		session.undo()
 		assertNull(session.activeObjectOperator.value, "restore clears the latched operator")
+	}
+
+	/**
+	 * Zoom Region is mode-agnostic and area-keyed: arming it drops a latched tool, a latched operator drops
+	 * it, a restore leaves it armed (the gesture belongs to the area, not to the step), and disarming clears it.
+	 */
+	@Test
+	fun zoomRegionArmsPerAreaAndSurvivesARestore() {
+		val session = meshedSession()
+		val target = SelectionTarget.Drawable(DrawableId("d"))
+		session.setSelection(Selection(setOf(target), target))
+
+		session.beginCircleSelect("area-a")
+		session.armZoomRegion("area-a")
+		assertEquals("area-a", session.zoomRegionArmedArea.value, "arming the region takes the area")
+		assertNull(session.activeSelectTool.value, "arming the region drops the armed tool")
+
+		session.beginObjectOperator(MeshOperatorKind.Grab, "area-b")
+		assertNull(session.zoomRegionArmedArea.value, "latching an operator disarms the region")
+		session.clearObjectOperator()
+
+		// The undo reverts the selection step; the armed region is not part of the snapshot and stays.
+		session.armZoomRegion("area-a")
+		session.undo()
+		assertEquals("area-a", session.zoomRegionArmedArea.value, "a restore leaves the region armed")
+
+		session.disarmZoomRegion()
+		assertNull(session.zoomRegionArmedArea.value, "disarming clears it")
+	}
+
+	/**
+	 * releaseArea drops only what the dying area holds - its operator, its armed tool, its zoom region - and
+	 * reports an operator release so the 2D viewport's guard knows to resync the renderer.
+	 */
+	@Test
+	fun releaseAreaDropsOnlyThatAreasLatches() {
+		val session = meshedSession()
+		val target = SelectionTarget.Drawable(DrawableId("d"))
+		session.setSelection(Selection(setOf(target), target))
+
+		session.beginObjectOperator(MeshOperatorKind.Grab, "area-a")
+		assertFalse(session.releaseArea("area-b"), "another area's release reports nothing")
+		assertEquals("area-a", session.activeObjectOperator.value?.areaId, "and leaves the operator latched")
+		assertTrue(session.releaseArea("area-a"), "the owning area's release reports the dropped operator")
+		assertNull(session.activeObjectOperator.value)
+
+		session.beginCircleSelect("area-a")
+		session.releaseArea("area-b")
+		assertNotNull(session.activeSelectTool.value, "another area's release leaves the armed tool")
+		assertFalse(session.releaseArea("area-a"), "a released tool is not a released operator")
+		assertNull(session.activeSelectTool.value)
+
+		session.armZoomRegion("area-a")
+		session.releaseArea("area-b")
+		assertEquals("area-a", session.zoomRegionArmedArea.value, "another area's release leaves the region armed")
+		session.releaseArea("area-a")
+		assertNull(session.zoomRegionArmedArea.value)
 	}
 
 	/** snapToGrid rounds relative to the world origin, so a snap lands on the origin-anchored grid lines. */

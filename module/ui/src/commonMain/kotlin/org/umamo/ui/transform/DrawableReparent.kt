@@ -2,10 +2,10 @@ package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.deleteDeformer
-import org.umamo.edit.deleteTarget
-import org.umamo.edit.setDrawableParentDeformer
-import org.umamo.edit.withDrawableParentDeformer
+import org.umamo.edit.property.setDrawableParentDeformer
+import org.umamo.edit.property.withDrawableParentDeformer
+import org.umamo.edit.structure.deleteDeformer
+import org.umamo.edit.structure.deleteTarget
 import org.umamo.render.localPositionsKeepingRest
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId

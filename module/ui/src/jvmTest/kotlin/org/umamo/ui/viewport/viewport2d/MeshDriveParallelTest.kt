@@ -7,7 +7,8 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.TransformGestureParameters
+import org.umamo.edit.transform.TransformGestureParameters
+import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId

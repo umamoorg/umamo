@@ -7,9 +7,9 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveOperator
 import org.umamo.edit.ActiveSelectTool
-import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.Selection
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.SelectionOverlayStyle

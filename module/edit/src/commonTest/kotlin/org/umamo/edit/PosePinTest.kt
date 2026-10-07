@@ -1,5 +1,9 @@
 package org.umamo.edit
 
+import org.umamo.edit.keyform.captureKeyOnTrack
+import org.umamo.edit.keyform.channelValueAt
+import org.umamo.edit.keyform.removeKeyOnTrack
+import org.umamo.edit.parameter.setParameterRange
 import org.umamo.runtime.keyform.axisIndexOf
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelGrids

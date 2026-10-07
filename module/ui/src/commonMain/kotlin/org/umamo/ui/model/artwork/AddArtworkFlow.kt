@@ -8,11 +8,11 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ParameterChoice
 import org.umamo.edit.ParameterUnit
+import org.umamo.edit.atlas.commitArtworkAdded
+import org.umamo.edit.atlas.withArtworkAdded
+import org.umamo.edit.atlas.withAtlasRepack
 import org.umamo.edit.choiceValue
-import org.umamo.edit.commitArtworkAdded
 import org.umamo.edit.intValue
-import org.umamo.edit.withArtworkAdded
-import org.umamo.edit.withAtlasRepack
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
 import org.umamo.format.atlas.AtlasPackOptions

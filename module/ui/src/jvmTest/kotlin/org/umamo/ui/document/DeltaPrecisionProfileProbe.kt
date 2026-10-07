@@ -8,6 +8,7 @@ import kotlinx.serialization.json.buildJsonObject
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.mesh.commitObjectPositions
 import org.umamo.format.uma.UmaModel
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel

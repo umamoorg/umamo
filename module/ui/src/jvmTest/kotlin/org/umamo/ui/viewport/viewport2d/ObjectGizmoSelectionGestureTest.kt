@@ -12,7 +12,9 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
-import org.umamo.edit.toggleSelectable
+import org.umamo.edit.structure.toggleSelectable
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginCircleSelect
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.viewport.gizmo.LEFT_AREA

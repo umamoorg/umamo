@@ -1,7 +1,7 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorSession
-import org.umamo.edit.setSourceLayerDisplay
+import org.umamo.edit.property.setSourceLayerDisplay
 import org.umamo.ui.action.Command
 import org.umamo.ui.resources.*
 

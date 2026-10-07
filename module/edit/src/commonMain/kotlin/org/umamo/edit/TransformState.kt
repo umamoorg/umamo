@@ -1,11 +1,5 @@
 package org.umamo.edit
 
-import org.umamo.runtime.model.PuppetModel
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.round
-import kotlin.math.sin
-
 /**
  * The default major grid spacing in world units (canvas px): the built-in fallback value for
  * [GridConfig.scale] when neither a settings default (settings key viewport.grid.scale) nor a per-file
@@ -41,30 +35,6 @@ data class GridConfig(
 	val snapStep: Float
 		get() = scale / subdivisions.coerceAtLeast(1)
 }
-
-/**
- * Rounds a world coordinate to the nearest grid line, measured from [origin] (the world origin the grid
- * is drawn around) rather than from world 0, so a snap lands on the same lines the backdrop grid draws.
- *
- * @param Float value  The world coordinate to snap.
- * @param Float origin The world origin the grid lattice is anchored on (a line passes through it).
- * @param Float step   The grid snap increment (see [GridConfig.snapStep]).
- * @return Float The snapped world coordinate.
- */
-fun snapToGrid(value: Float, origin: Float, step: Float): Float = round((value - origin) / step) * step + origin
-
-/**
- * Rounds a world point to the nearest intersection of the model's world grid - the lattice the backdrop
- * draws, anchored on the world origin.  Both axes in one call, so a caller cannot anchor x on the origin's
- * z or the reverse.
- *
- * @param Float worldX The world x to snap.
- * @param Float worldZ The world z (up) to snap.
- * @param Float step   The grid snap increment (see [GridConfig.snapStep]).
- * @return Pair<Float, Float> The snapped world (x, z).
- */
-fun PuppetModel.snapToWorldGrid(worldX: Float, worldZ: Float, step: Float): Pair<Float, Float> =
-	snapToGrid(worldX, worldOriginX, step) to snapToGrid(worldZ, worldOriginZ, step)
 
 /**
  * The 2D cursor: a placeable world-space anchor, the 2D analog of Blender's 3D cursor.  Placed with
@@ -141,7 +111,7 @@ enum class PieMenuKind {
 
 /**
  * A latched modal transform operator together with the viewport area that initiated it.  The area id
- * is an opaque workspace-leaf id (the same currency as [EditorSession.zoomRegionArmedArea]): the
+ * is an opaque workspace-leaf id (the same currency as [SessionToolLatches.zoomRegionArmedArea]): the
  * session never interprets it, but the UI gates gesture capture, HUD drawing, and confirm delivery to
  * the initiating area, so a gesture latched in one split viewport can never be driven or committed
  * from another.  Both fields publish atomically in one flow emission - a paired flow could tear.
@@ -156,170 +126,3 @@ data class ActiveOperator(
 	val kind: MeshOperatorKind,
 	val areaId: String,
 )
-
-/**
- * The geometry-dependent snap operations (Blender's Shift+S) the viewport overlay executes: the
- * cursor-to-geometry moves need the posed world projection and the selection-to-target moves edit the
- * model through the deformer-chain inverse, both of which live with the overlay - so the session
- * carries the request and the active mode's overlay performs it.  The purely arithmetical snaps
- * (cursor to world origin / to grid) are handled directly by their command handlers and never appear
- * here.
- *
- * ジオメトリ依存のスナップ操作の種類。オーバーレイが実行する。
- */
-enum class SnapKind {
-	CursorToSelected,
-	CursorToActive,
-	SelectionToCursor,
-	SelectionToCursorOffset,
-	SelectionToGrid,
-	SelectionToActive,
-}
-
-/**
- * The UV editor's snap operations (its own Shift+S pie), the texture-space sibling of [SnapKind].
- * Every one edits or reads in the UV editor's texel display space, so the UV overlay - which owns the
- * shown page's dimensions and display geometry - executes them, the same request-through-overlay split
- * as [SnapKind].  The op set differs from the world snaps by design: UV has pixel-corner snaps (a
- * texel boundary is a natural target for artwork-edge accuracy) and no Active-element snaps, while the
- * world grid has no meaning here (the UV grid subdivides the atlas page instead - see the UV editor's
- * display mapping).
- *
- * UV エディタのスナップ操作の種類。テクセル表示空間で動作し、UV オーバーレイが実行する。
- */
-enum class UvSnapKind {
-	SelectionToPixels,
-	SelectionToCursor,
-	SelectionToCursorOffset,
-	SelectionToGrid,
-	CursorToPixels,
-	CursorToSelected,
-	CursorToGrid,
-}
-
-/**
- * One pivot group of a modal transform: a set of vertices turning about one pivot.  Median / Active /
- * Cursor pivot modes produce a single group per mesh (every covered vertex about the one shared
- * anchor); IndividualOrigins produces one group per connectivity island (edit mode) or per drawable
- * (object mode), each about its own centroid.
- *
- * 変形のピボットグループ。1つのピボットを共有する頂点集合。各自の原点モードでは島ごとに分かれる。
- *
- * @property Set<Int> vertexIndices The group's vertex indices (into the mesh's interleaved array).
- * @property Float pivotX The group pivot's x, in the positions' coordinate space.
- * @property Float pivotY The group pivot's y, in the positions' coordinate space.
- */
-data class TransformPivotGroup(
-	val vertexIndices: Set<Int>,
-	val pivotX: Float,
-	val pivotY: Float,
-)
-
-/**
- * Pure pivot-group builders for the modal transforms (the [TransformPivotMode] machinery).
- *
- * ピボットグループの純粋な構築関数。
- */
-object TransformPivots {
-	/**
-	 * One group turning every covered vertex about a shared anchor - the shape Median Point, Active
-	 * Element, and Cursor pivots all reduce to (they differ only in where the anchor is).
-	 *
-	 * @param Set<Int> coveredIndices The vertices the gesture moves.
-	 * @param Float pivotX The shared anchor's x.
-	 * @param Float pivotY The shared anchor's y.
-	 * @return List<TransformPivotGroup> The single shared-pivot group.
-	 */
-	fun sharedGroup(coveredIndices: Set<Int>, pivotX: Float, pivotY: Float): List<TransformPivotGroup> =
-		listOf(TransformPivotGroup(coveredIndices, pivotX, pivotY))
-
-	/**
-	 * Per-island groups for Individual Origins in edit mode: the covered vertices split into
-	 * connectivity islands (components of the sub-graph the selection induces), each turning about its
-	 * own centroid.
-	 *
-	 * @param FloatArray positions The mesh's interleaved positions (the pivots' coordinate space).
-	 * @param Set<Int> coveredIndices The vertices the gesture moves.
-	 * @param IntArray triangleIndices The mesh triangle vertex indices (for connectivity).
-	 * @return List<TransformPivotGroup> One group per island.
-	 */
-	fun islandGroups(
-		positions: FloatArray,
-		coveredIndices: Set<Int>,
-		triangleIndices: IntArray,
-	): List<TransformPivotGroup> {
-		val vertexCount = positions.size / 2
-		val adjacency = MeshTopology.buildVertexAdjacency(vertexCount, triangleIndices)
-		return MeshTopology.selectionIslands(adjacency, coveredIndices).map { island ->
-			val pivot = MeshTransforms.medianPivot(positions, island)
-			TransformPivotGroup(island, pivot.first, pivot.second)
-		}
-	}
-
-	/**
-	 * Splits a proportional influence map into per-group weight maps, index-parallel to [groups]: each
-	 * influenced vertex follows the pivot group that OWNS its nearest covered vertex, so with Individual
-	 * Origins the halo around an island turns about that island's pivot, not the shared gesture anchor.
-	 * With a single shared group everything lands in it (whose pivot IS the gesture anchor), so the
-	 * shared-pivot modes keep their behavior.  An influence whose nearest covered vertex is in no group
-	 * (impossible today - the groups partition the covered set) falls into the first group rather than
-	 * dropping motion.
-	 *
-	 * @param Map<Int, ProportionalInfluence> influences The influenced vertices (weight + nearest covered).
-	 * @param List<TransformPivotGroup> groups The gesture's pivot groups.
-	 * @return List<Map<Int, Float>> One weight map per group, parallel to [groups].
-	 */
-	fun partitionInfluencesByGroup(
-		influences: Map<Int, ProportionalInfluence>,
-		groups: List<TransformPivotGroup>,
-	): List<Map<Int, Float>> {
-		if (groups.isEmpty()) {
-			return emptyList()
-		}
-		val partitions = List(groups.size) { LinkedHashMap<Int, Float>() }
-		for ((vertexIndex, influence) in influences) {
-			val ownerIndex = groups.indexOfFirst { group -> influence.nearestCoveredIndex in group.vertexIndices }
-			partitions[if (ownerIndex >= 0) ownerIndex else 0][vertexIndex] = influence.weight
-		}
-		return partitions
-	}
-}
-
-/**
- * Accumulates a modal rotate gesture's angle from per-move increments, each wrapped into (-pi, pi], so
- * the total walks smoothly through the atan2 branch cut at +-pi and supports multi-turn rotation.  A
- * raw start-to-current atan2 subtraction cannot: a far pivot (the 2D cursor off to the side) places the
- * start angle right AT the cut, where the difference jumps by ~2*pi and the gesture's arc direction
- * latches (it can never reverse past its start).  One tracker lives per gesture capture; feeding the
- * same pointer angle twice adds zero, so re-derives without pointer motion are safe.
- */
-class RotationAngleTracker {
-	private var previousPointerAngle: Float? = null
-
-	/** The accumulated gesture angle in radians (screen-space sign; the caller negates into world space). */
-	var totalAngle: Float = 0f
-		private set
-
-	/**
-	 * Advances the accumulator to the pointer's current angle about the pivot and returns the total.
-	 *
-	 * @param Float pointerAngle The pointer's atan2 angle about the rotation pivot, radians.
-	 * @return Float The accumulated gesture angle, radians.
-	 */
-	fun advance(pointerAngle: Float): Float {
-		val previous = previousPointerAngle
-		if (previous != null) {
-			totalAngle += wrapAngle(pointerAngle - previous)
-		}
-		previousPointerAngle = pointerAngle
-		return totalAngle
-	}
-}
-
-/**
- * Wraps an angle difference into (-pi, pi] - the shortest signed arc between two angles.
- *
- * @param Float delta The raw angle difference, radians.
- * @return Float The wrapped difference.
- */
-fun wrapAngle(delta: Float): Float = atan2(sin(delta), cos(delta))

@@ -2,9 +2,10 @@ package org.umamo.ui.workspace.spaces.parameters
 
 import androidx.compose.runtime.Composable
 import org.umamo.edit.EditorSession
-import org.umamo.edit.createParameter
-import org.umamo.edit.createParameterGroup
-import org.umamo.edit.deleteParameterGroup
+import org.umamo.edit.parameter.createParameter
+import org.umamo.edit.parameter.createParameterGroup
+import org.umamo.edit.parameter.deleteParameter
+import org.umamo.edit.parameter.deleteParameterGroup
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId

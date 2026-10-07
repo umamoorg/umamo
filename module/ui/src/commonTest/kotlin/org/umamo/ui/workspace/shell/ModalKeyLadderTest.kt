@@ -12,6 +12,11 @@ import org.umamo.edit.PieMenuKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.selectAllMeshElements
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.edit.transform.beginObjectOperator
+import org.umamo.edit.transform.beginUvOperator
 import org.umamo.interop.ExportFormat
 import org.umamo.interop.ExportReport
 import org.umamo.interop.moc3.Moc3ExportOptions

@@ -4,7 +4,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import org.umamo.edit.setCanvasSize
+import org.umamo.edit.property.setCanvasSize
 import org.umamo.ui.document.DocumentLoad
 import org.umamo.ui.document.UmaDocument
 import org.umamo.ui.document.loadDocument

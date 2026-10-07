@@ -21,7 +21,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.KeyformAction
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.resolveParameterChoice
+import org.umamo.edit.keyform.resolveParameterChoice
 import org.umamo.ui.kit.AtPointPositionProvider
 import org.umamo.ui.kit.TooltipCard
 import org.umamo.ui.kit.menu.Menu

@@ -6,7 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Pose
-import org.umamo.edit.channelValueAt
+import org.umamo.edit.keyform.channelValueAt
 import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb

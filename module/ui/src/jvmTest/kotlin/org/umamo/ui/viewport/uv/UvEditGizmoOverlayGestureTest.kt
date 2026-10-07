@@ -14,11 +14,14 @@ import org.umamo.edit.OperatorParameter
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
-import org.umamo.edit.TransformParameterKeys
 import org.umamo.edit.UvMirrorRequest
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
 import org.umamo.edit.floatValue
+import org.umamo.edit.transform.TransformParameterKeys
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginCircleSelect
+import org.umamo.edit.transform.beginUvOperator
 import org.umamo.edit.withParameter
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA

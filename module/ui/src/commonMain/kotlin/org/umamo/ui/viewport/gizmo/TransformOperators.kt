@@ -3,13 +3,13 @@ package org.umamo.ui.viewport.gizmo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.MeshTransforms
-import org.umamo.edit.ProportionalInfluence
-import org.umamo.edit.RotationAngleTracker
 import org.umamo.edit.TransformAxisConstraint
-import org.umamo.edit.TransformGestureParameters
-import org.umamo.edit.TransformPivotGroup
-import org.umamo.edit.TransformPivots
+import org.umamo.edit.transform.MeshTransforms
+import org.umamo.edit.transform.ProportionalInfluence
+import org.umamo.edit.transform.RotationAngleTracker
+import org.umamo.edit.transform.TransformGestureParameters
+import org.umamo.edit.transform.TransformPivotGroup
+import org.umamo.edit.transform.TransformPivots
 import org.umamo.render.ViewportCamera
 import kotlin.math.atan2
 

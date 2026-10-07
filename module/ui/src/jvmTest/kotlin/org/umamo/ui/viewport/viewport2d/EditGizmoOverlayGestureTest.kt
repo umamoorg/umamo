@@ -12,9 +12,13 @@ import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
-import org.umamo.edit.TransformParameterKeys
 import org.umamo.edit.floatValue
-import org.umamo.edit.setDrawableParentDeformer
+import org.umamo.edit.property.setDrawableParentDeformer
+import org.umamo.edit.setMeshSelectMode
+import org.umamo.edit.transform.TransformParameterKeys
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginCircleSelect
+import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DeformerId
 import org.umamo.ui.viewport.gizmo.LEFT_AREA

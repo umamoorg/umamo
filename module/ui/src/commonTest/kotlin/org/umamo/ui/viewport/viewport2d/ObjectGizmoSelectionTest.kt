@@ -3,7 +3,7 @@ package org.umamo.ui.viewport.viewport2d
 import androidx.compose.ui.geometry.Offset
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.toggleSelectable
+import org.umamo.edit.structure.toggleSelectable
 import org.umamo.runtime.model.DrawableId
 import kotlin.test.Test
 import kotlin.test.assertEquals

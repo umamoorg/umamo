@@ -10,6 +10,7 @@ import kotlinx.coroutines.test.runTest
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals

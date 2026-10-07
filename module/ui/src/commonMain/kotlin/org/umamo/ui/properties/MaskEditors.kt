@@ -7,8 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.setDrawableMaskedBy
-import org.umamo.edit.setPartComposite
+import org.umamo.edit.property.setDrawableMaskedBy
+import org.umamo.edit.property.setPartComposite
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
