@@ -1,7 +1,10 @@
 package org.umamo.edit
 
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
@@ -238,4 +241,98 @@ object SelectionOps {
 		}
 		return Selection(expanded, selection.active ?: expanded.lastOrNull())
 	}
+}
+
+/**
+ * Enumerates the outliner subtree rooted at [target], the target itself first, in tree order.  Matches
+ * exactly what the outliner shows as children: a part yields itself plus every descendant part and every
+ * drawable in those parts' org-tree children; a deformer yields itself plus its descendant deformers only
+ * (never the drawables bound to them via parentDeformerId — those rows live under their parts); a
+ * drawable is a leaf, so it yields just itself.  An id that no longer resolves is still yielded (the
+ * transforms no-op on it) but never descended into, and a malformed cycle is visited once.  Pure over the
+ * model, so it unit-tests without Compose.
+ *
+ * @param SelectionTarget target The subtree root.
+ * @return List The subtree's targets, [target] first.
+ */
+fun PuppetModel.subtreeTargets(target: SelectionTarget): List<SelectionTarget> =
+	when (target) {
+		is SelectionTarget.Part -> {
+			val partsById = parts.associateBy { part -> part.id }
+			val visitedPartIds = HashSet<PartId>()
+			val collected = mutableListOf<SelectionTarget>()
+
+			fun visitPart(partId: PartId) {
+				if (!visitedPartIds.add(partId)) {
+					return
+				}
+				collected += SelectionTarget.Part(partId)
+				val part = partsById[partId] ?: return
+				for (childEntry in part.children) {
+					when (childEntry) {
+						is OrgChild.Part -> visitPart(childEntry.id)
+						is OrgChild.Drawable -> collected += SelectionTarget.Drawable(childEntry.id)
+					}
+				}
+			}
+			visitPart(target.id)
+			collected
+		}
+		is SelectionTarget.Drawable -> listOf(target)
+		is SelectionTarget.Deformer -> {
+			val deformersByParent = deformers.groupBy { deformer -> deformer.parent }
+			val visitedDeformerIds = HashSet<DeformerId>()
+			val collected = mutableListOf<SelectionTarget>()
+
+			fun visitDeformer(deformerId: DeformerId) {
+				if (!visitedDeformerIds.add(deformerId)) {
+					return
+				}
+				collected += SelectionTarget.Deformer(deformerId)
+				for (childDeformer in deformersByParent[deformerId].orEmpty()) {
+					visitDeformer(childDeformer.id)
+				}
+			}
+			visitDeformer(target.id)
+			collected
+		}
+	}
+
+/**
+ * The drawables an object-mode Grab / Scale / Rotate may transform, or null when the gesture must be
+ * blocked.  Object G / S / R writes only a drawable's rest arrays (DrawableMesh.positions and
+ * localPositions), so it can move a drawable but not a deformer (whose shape lives in absolute per-keyform
+ * forms with no writer) nor a part (a container with no geometry of its own).  Those ineligible targets
+ * are silently IGNORED rather than blocking: a Select All / Invert sweeps parts and deformers into the
+ * selection, and the user expectation is that G still moves the meshes it can.  Only a selection with
+ * nothing transformable at all (empty, or holding only parts / deformers / mesh-less drawables) returns
+ * null, and the caller blocks with a note.
+ *
+ * The future Deformer to Part to Mesh cascade (transforming a part transforms its meshes; transforming a
+ * deformer cascades through its parts into their meshes) is a separate project; until it and a
+ * deformer-shape writer exist, parts and deformers are skipped.
+ *
+ * オブジェクトモードの G / S / R が変形できる描画メッシュ。パーツ・デフォーマ・メッシュ無しは黙って
+ * 除外し、変形可能な描画オブジェクトの ID 一覧を返す。1つも無ければ null（ジェスチャをブロック）。
+ *
+ * @param Selection selection The object-mode selection to evaluate.
+ * @param PuppetModel model The rig the targets index into.
+ * @return List<DrawableId>? The transformable drawable ids, or null when nothing is transformable.
+ */
+fun eligibleTransformDrawables(selection: Selection, model: PuppetModel): List<DrawableId>? {
+	if (selection.isEmpty) {
+		return null
+	}
+	val drawableIds = ArrayList<DrawableId>(selection.size)
+	for (target in selection.targets) {
+		// Parts and deformers cannot be transformed yet (see the docblock); skip them, not the gesture.
+		val drawableTarget = target as? SelectionTarget.Drawable ?: continue
+		// A drawable that carries no source geometry has no positions to move; skip it too.
+		val drawable = model.drawables.firstOrNull { it.id == drawableTarget.id }
+		if (drawable?.mesh == null) {
+			continue
+		}
+		drawableIds.add(drawableTarget.id)
+	}
+	return drawableIds.ifEmpty { null }
 }

@@ -7,8 +7,8 @@ import kotlinx.coroutines.yield
 import org.umamo.edit.DocumentChange
 import org.umamo.edit.EditorSession
 import org.umamo.edit.OperatorParameter
-import org.umamo.edit.commitArtworkReloaded
-import org.umamo.edit.withAtlasRepack
+import org.umamo.edit.atlas.commitArtworkReloaded
+import org.umamo.edit.atlas.withAtlasRepack
 import org.umamo.format.FileKind
 import org.umamo.format.art.LayerBounds
 import org.umamo.interop.art.SourceArtImportOptions

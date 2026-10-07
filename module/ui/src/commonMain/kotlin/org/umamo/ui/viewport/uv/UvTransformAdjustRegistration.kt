@@ -2,15 +2,15 @@ package org.umamo.ui.viewport.uv
 
 import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
-import org.umamo.edit.ModalTransformCapture
 import org.umamo.edit.ProportionalEditState
-import org.umamo.edit.ProportionalRows
-import org.umamo.edit.TransformGestureParameters
-import org.umamo.edit.TransformRowSpace
-import org.umamo.edit.rederiveProportionalHalos
-import org.umamo.edit.transformGestureParametersOf
-import org.umamo.edit.transformParameters
-import org.umamo.edit.withMeshUvs
+import org.umamo.edit.mesh.withMeshUvs
+import org.umamo.edit.transform.ModalTransformCapture
+import org.umamo.edit.transform.ProportionalRows
+import org.umamo.edit.transform.TransformGestureParameters
+import org.umamo.edit.transform.TransformRowSpace
+import org.umamo.edit.transform.rederiveProportionalHalos
+import org.umamo.edit.transform.transformGestureParametersOf
+import org.umamo.edit.transform.transformParameters
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.viewport.gizmo.applyOperator
 

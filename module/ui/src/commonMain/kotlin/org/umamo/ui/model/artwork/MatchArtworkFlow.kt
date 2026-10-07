@@ -8,10 +8,10 @@ import org.umamo.edit.DocumentChange
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ParameterUnit
-import org.umamo.edit.commitArtworkMatched
-import org.umamo.edit.commitArtworkReplaced
+import org.umamo.edit.atlas.commitArtworkMatched
+import org.umamo.edit.atlas.commitArtworkReplaced
+import org.umamo.edit.atlas.withArtworkReloaded
 import org.umamo.edit.floatValue
-import org.umamo.edit.withArtworkReloaded
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceLayerKind

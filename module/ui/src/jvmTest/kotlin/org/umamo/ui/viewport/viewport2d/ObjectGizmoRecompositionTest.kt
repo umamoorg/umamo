@@ -5,8 +5,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.TransformAxisConstraint
-import org.umamo.edit.beginCircleSelect
-import org.umamo.edit.beginObjectOperator
+import org.umamo.edit.transform.beginCircleSelect
+import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.assertNothingRan
 import org.umamo.ui.viewport.gizmo.countingGizmoRuns

@@ -5,7 +5,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.umamo.edit.EditorSession
-import org.umamo.edit.setAtlasPlacements
+import org.umamo.edit.atlas.setAtlasPlacements
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource

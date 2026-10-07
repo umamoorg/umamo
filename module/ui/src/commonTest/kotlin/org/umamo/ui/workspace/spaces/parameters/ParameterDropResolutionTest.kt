@@ -1,7 +1,7 @@
 package org.umamo.ui.workspace.spaces.parameters
 
 import org.umamo.edit.ParameterMoveSubject
-import org.umamo.edit.ParameterNodeRef
+import org.umamo.edit.parameter.ParameterNodeRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId

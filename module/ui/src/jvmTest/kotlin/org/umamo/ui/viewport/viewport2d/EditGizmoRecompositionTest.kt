@@ -8,8 +8,8 @@ import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformAxisConstraint
-import org.umamo.edit.beginCircleSelect
-import org.umamo.edit.beginMeshOperator
+import org.umamo.edit.transform.beginCircleSelect
+import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.assertNothingRan
 import org.umamo.ui.viewport.gizmo.countingGizmoRuns

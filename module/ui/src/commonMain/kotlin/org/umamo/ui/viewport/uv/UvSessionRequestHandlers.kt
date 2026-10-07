@@ -4,11 +4,11 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshTopology
-import org.umamo.edit.MeshTransforms
 import org.umamo.edit.UvCursor
 import org.umamo.edit.UvSnapKind
-import org.umamo.edit.commitMeshUvs
-import org.umamo.edit.snapToGrid
+import org.umamo.edit.mesh.commitMeshUvs
+import org.umamo.edit.transform.MeshTransforms
+import org.umamo.edit.transform.snapToGrid
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import kotlin.math.roundToInt

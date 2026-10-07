@@ -8,6 +8,10 @@ import org.umamo.edit.SessionTestModels.paramModel
 import org.umamo.edit.SessionTestModels.partA
 import org.umamo.edit.SessionTestModels.partB
 import org.umamo.edit.SessionTestModels.twoMeshModel
+import org.umamo.edit.mesh.MeshRestPositions
+import org.umamo.edit.mesh.commitMeshPositions
+import org.umamo.edit.structure.withPartName
+import org.umamo.edit.structure.withPartVisibility
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh

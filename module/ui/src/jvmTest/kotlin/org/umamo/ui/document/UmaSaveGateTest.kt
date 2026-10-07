@@ -20,7 +20,7 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.withPartVisibility
+import org.umamo.edit.structure.withPartVisibility
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage

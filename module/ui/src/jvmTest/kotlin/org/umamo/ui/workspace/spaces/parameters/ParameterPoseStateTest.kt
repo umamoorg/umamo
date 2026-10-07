@@ -6,8 +6,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
-import org.umamo.edit.createParameter
-import org.umamo.edit.renameParameter
+import org.umamo.edit.parameter.createParameter
+import org.umamo.edit.parameter.renameParameter
 import org.umamo.runtime.model.ParameterKind
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -2,17 +2,17 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MergeTarget
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.PieMenuKind
-import org.umamo.edit.beginMeshOperator
-import org.umamo.edit.beginObjectOperator
-import org.umamo.edit.connectSelectedVertices
-import org.umamo.edit.duplicateSelectedDrawables
-import org.umamo.edit.duplicateSelectedElements
-import org.umamo.edit.mergeSelectedVertices
+import org.umamo.edit.mesh.MergeTarget
+import org.umamo.edit.mesh.connectSelectedVertices
+import org.umamo.edit.mesh.duplicateSelectedElements
+import org.umamo.edit.mesh.mergeSelectedVertices
+import org.umamo.edit.structure.duplicateSelectedDrawables
+import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandSpaces

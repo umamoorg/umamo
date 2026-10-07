@@ -1,8 +1,8 @@
 package org.umamo.edit.export
 
-import org.umamo.edit.withAtlasPlacement
-import org.umamo.edit.withAtlasPlacements
-import org.umamo.edit.withAtlasRepack
+import org.umamo.edit.atlas.withAtlasPlacement
+import org.umamo.edit.atlas.withAtlasPlacements
+import org.umamo.edit.atlas.withAtlasRepack
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CImageResource

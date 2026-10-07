@@ -1,7 +1,7 @@
 package org.umamo.ui.model
 
-import org.umamo.edit.ownersWhoseRestChangesOnDeleting
-import org.umamo.edit.withParameterDeleted
+import org.umamo.edit.parameter.ownersWhoseRestChangesOnDeleting
+import org.umamo.edit.parameter.withParameterDeleted
 import org.umamo.render.eval.CpuDeformationEvaluator
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.BlendShapeBinding

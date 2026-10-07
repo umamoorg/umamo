@@ -8,7 +8,7 @@ import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.MeshTopology
-import org.umamo.edit.MeshTransforms
+import org.umamo.edit.transform.MeshTransforms
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.distanceToSegment
 import org.umamo.runtime.model.DrawableId

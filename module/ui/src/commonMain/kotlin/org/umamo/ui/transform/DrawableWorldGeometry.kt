@@ -1,7 +1,7 @@
 package org.umamo.ui.transform
 
-import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.Pose
+import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.render.eval.DrawableSpaceMapping
 import org.umamo.render.eval.DrawableSpaceResolver
 import org.umamo.runtime.model.DrawableId

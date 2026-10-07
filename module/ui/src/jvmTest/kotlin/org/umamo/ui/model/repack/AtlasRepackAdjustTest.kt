@@ -5,8 +5,8 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import org.umamo.edit.EditorSession
 import org.umamo.edit.OperatorParameter
-import org.umamo.edit.withAtlasPins
-import org.umamo.edit.withAtlasPlacements
+import org.umamo.edit.atlas.withAtlasPins
+import org.umamo.edit.atlas.withAtlasPlacements
 import org.umamo.edit.withParameter
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.packAtlas
