@@ -312,9 +312,6 @@ fun PuppetModel.subtreeTargets(target: SelectionTarget): List<SelectionTarget> =
  * deformer cascades through its parts into their meshes) is a separate project; until it and a
  * deformer-shape writer exist, parts and deformers are skipped.
  *
- * オブジェクトモードの G / S / R が変形できる描画メッシュ。パーツ・デフォーマ・メッシュ無しは黙って
- * 除外し、変形可能な描画オブジェクトの ID 一覧を返す。1つも無ければ null（ジェスチャをブロック）。
- *
  * @param Selection selection The object-mode selection to evaluate.
  * @param PuppetModel model The rig the targets index into.
  * @return List<DrawableId>? The transformable drawable ids, or null when nothing is transformable.
