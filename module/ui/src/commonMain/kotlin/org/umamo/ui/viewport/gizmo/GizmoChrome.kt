@@ -30,9 +30,6 @@ import org.umamo.ui.theme.drawSelectionCircle
 // drawOwnedModalTransformHud alone reads a gesture's pointer state and projects its pivot through the
 // area camera, so the four overlays' HUDs cannot drift apart.
 
-/** A primary drag shorter than this (px) is treated as a click, not a box select. */
-internal const val SELECT_DRAG_THRESHOLD_PX = 3f
-
 // The modal HUD's pivot-to-pointer dash pattern (on, off).
 private val MODAL_DASH_ON = 6.dp
 private val MODAL_DASH_OFF = 4.dp

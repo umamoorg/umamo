@@ -15,24 +15,13 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.CIRCLE_RADIUS_STEP_PX
 import org.umamo.render.ViewportCamera
 
-/** The outcome of releasing a box drag: nothing was in flight, a box applied, or a sub-threshold click. */
-internal enum class BoxRelease {
-	/** No box drag was in flight (the release belongs to something else). */
-	None,
-
-	/** The drag passed the click threshold and the box was applied. */
-	Boxed,
-
-	/** The drag stayed under the click threshold: the caller decides the click semantics. */
-	Click,
-}
-
 /**
  * The marquee (box + circle) selection machinery shared by the gizmo overlays, generic over the
  * stroke selection type: MeshSelection for the Edit overlay (and the future UV editor), the object
  * Selection for the Object overlay.  Owns the gesture state shared across the overlays - the
  * in-flight circle stroke (with its erase flag) and the box rubber-band corners - plus
- * the full circle event branch, the box begin / drag / release rules, and the cancel semantics
+ * the full circle event branch, the box band's begin / drag / land steps (the box RULES are kit's
+ * BoxGestureFlow, which BoxSelectFlow runs over this controller), and the cancel semantics
  * (Blender-style: a circle stroke KEEPS what it painted and commits; a box rubber-band is abandoned
  * with no selection change).  The domain differences pass in as constructor callbacks.
  *
@@ -163,25 +152,20 @@ internal class MarqueeSelectController<StrokeSelection>(
 	}
 
 	/**
-	 * Ends an in-flight box drag: past the click threshold the box applies through the callback; under
-	 * it nothing applies and the caller decides the click semantics (clear, pick, or just disarm).
+	 * Lands a box drag that passed the click threshold: the band clears and the box applies through the
+	 * callback.  The threshold and the press corner are the flow's (kit's BoxGestureFlow); this
+	 * controller's corners are only the drawn band.
 	 *
-	 * @param Offset end The release position in area-local pixels.
+	 * @param Offset start The press corner in area-local pixels.
+	 * @param Offset end The release corner in area-local pixels.
 	 * @param Boolean additive True to add to the current selection (Shift held).
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
-	 * @return BoxRelease What happened: [BoxRelease.None] with no drag in flight, else Boxed or Click.
 	 */
-	fun releaseBox(end: Offset, additive: Boolean, camera: ViewportCamera, size: IntSize): BoxRelease {
-		val start = boxStart ?: return BoxRelease.None
+	fun landBox(start: Offset, end: Offset, additive: Boolean, camera: ViewportCamera, size: IntSize) {
 		boxStart = null
 		boxCurrent = null
-		return if ((end - start).getDistance() > SELECT_DRAG_THRESHOLD_PX) {
-			applyBox(start, end, additive, camera, size)
-			BoxRelease.Boxed
-		} else {
-			BoxRelease.Click
-		}
+		applyBox(start, end, additive, camera, size)
 	}
 
 	/**
