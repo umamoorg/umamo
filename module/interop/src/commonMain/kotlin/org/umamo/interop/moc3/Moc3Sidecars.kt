@@ -105,8 +105,8 @@ object Moc3Sidecars {
 	 * The complete export: every file to write, plus the lowering's advisory report.
 	 *
 	 * @property List         files  The family, moc first.
-	 * @property ExportReport report The notices from the moc lowering, plus one per carried physics sidecar
-	 *   that names a parameter the moc does not contain.
+	 * @property ExportReport report The notices from the moc lowering, plus one per carried sidecar that names
+	 *   parameters the moc does not contain and one per sidecar that names parts it does not.
 	 */
 	class Bundle(val files: List<BundleFile>, val mocFileName: String, val report: ExportReport)
 
@@ -180,35 +180,81 @@ object Moc3Sidecars {
 				hitAreas = source?.hitAreas,
 			)
 		files.add(BundleFile("$basename.model3.json", Moc3.writeModel3(manifest).encodeToByteArray()))
-		val sidecarNotices = sidecars.filter { sidecar -> sidecar.kind == SidecarKind.Physics }.mapNotNull { sidecar -> unwrittenPhysicsParameters(sidecar, lowered.writtenIds) }
+		val sidecarNotices = sidecars.flatMap { sidecar -> unwrittenIdNotices(sidecar, lowered.writtenIds) }
 		return Bundle(files, mocFileName, if (sidecarNotices.isEmpty()) report else report.copy(notices = report.notices + sidecarNotices))
 	}
 
 	/**
-	 * The notice for a physics sidecar carried through verbatim that names parameters the moc does not contain
-	 * - deleted since the import, or written under a shortened id - or null when it names none, or cannot be
-	 * read (it is carried as it is either way; its runtime reader has the last word on it).
+	 * The parameter and part ids one sidecar names.
 	 *
-	 * @param PassThroughSidecar sidecar    The physics sidecar.
-	 * @param Moc3WrittenIds     writtenIds The ids the moc was written with.
-	 * @return ExportNotice? The notice, or null.
+	 * @property List parameterIds The parameter ids, in file order, repeats included.
+	 * @property List partIds      The part ids, in file order, repeats included.
 	 */
-	private fun unwrittenPhysicsParameters(sidecar: PassThroughSidecar, writtenIds: Moc3WrittenIds): ExportNotice? {
-		val physics = runCatching { Moc3.readPhysics3(sidecar.text) }.getOrNull() ?: return null
-		val written = writtenIds.writtenParameterIds()
-		// physics3: PhysicsSettings[].Input[].Source and Output[].Destination, a (Target, Id) pair whose Target is
-		// "Parameter" for a parameter (MOC3.md, physics3.json).
-		val missing =
-			physics.physicsSettings
-				.flatMap { setting -> setting.input.map { input -> input.source } + setting.output.map { output -> output.destination } }
-				.filter { target -> target.target == "Parameter" && target.id !in written }
-				.map { target -> target.id }
-				.distinct()
-		if (missing.isEmpty()) {
-			return null
+	private class NamedIds(val parameterIds: List<String>, val partIds: List<String>)
+
+	/**
+	 * The notices for a sidecar carried through verbatim that names ids the moc does not contain - deleted since
+	 * the import, or written under a shortened id: one for the parameters it names and one for the parts, each
+	 * absent when it names none such.  A sidecar that cannot be read raises nothing; it is carried as it is either
+	 * way, and its runtime reader has the last word on it.
+	 *
+	 * @param PassThroughSidecar sidecar    The sidecar.
+	 * @param Moc3WrittenIds     writtenIds The ids the moc was written with.
+	 * @return List<ExportNotice> The notices, at most one per id kind.
+	 */
+	private fun unwrittenIdNotices(sidecar: PassThroughSidecar, writtenIds: Moc3WrittenIds): List<ExportNotice> {
+		val named = runCatching { namedIdsOf(sidecar) }.getOrNull() ?: return emptyList()
+		val writtenParameters = writtenIds.writtenParameterIds()
+		val writtenParts = writtenIds.writtenPartIds()
+		val missingParameters = named.parameterIds.filter { id -> id !in writtenParameters }.distinct()
+		val missingParts = named.partIds.filter { id -> id !in writtenParts }.distinct()
+		val notices = ArrayList<ExportNotice>(2)
+		if (missingParameters.isNotEmpty()) {
+			notices.add(ExportNotice.UnsupportedChange(ExportEntityCategory.Document, sidecar.fileName, ExportNoticeReason.SidecarNamesUnwrittenParameters(sidecar.fileName, missingParameters)))
 		}
-		return ExportNotice.UnsupportedChange(ExportEntityCategory.Document, sidecar.fileName, ExportNoticeReason.SidecarNamesUnwrittenParameters(sidecar.fileName, missing))
+		if (missingParts.isNotEmpty()) {
+			notices.add(ExportNotice.UnsupportedChange(ExportEntityCategory.Document, sidecar.fileName, ExportNoticeReason.SidecarNamesUnwrittenParts(sidecar.fileName, missingParts)))
+		}
+		return notices
 	}
+
+	/**
+	 * The ids [sidecar] names, read by its kind's format.  Physics reads and drives parameters, an expression
+	 * sets them, a motion curves parameters and part opacities, and a pose switches parts; user data names art
+	 * meshes, and an entry for a mesh the moc lacks matches nothing and drives nothing, so it is not read here.
+	 *
+	 * @param PassThroughSidecar sidecar The sidecar.
+	 * @return NamedIds The ids it names.
+	 * @throws kotlinx.serialization.SerializationException When the text is not the kind's shape.
+	 */
+	private fun namedIdsOf(sidecar: PassThroughSidecar): NamedIds =
+		when (sidecar.kind) {
+			SidecarKind.Physics -> {
+				// physics3: PhysicsSettings[].Input[].Source and Output[].Destination, a (Target, Id) pair whose
+				// Target is "Parameter" for a parameter (MOC3.md § 6.2).
+				val physics = Moc3.readPhysics3(sidecar.text)
+				val targets = physics.physicsSettings.flatMap { setting -> setting.input.map { input -> input.source } + setting.output.map { output -> output.destination } }
+				NamedIds(targets.filter { target -> target.target == "Parameter" }.map { target -> target.id }, emptyList())
+			}
+			SidecarKind.Expression -> {
+				// exp3: Parameters[].Id, the parameter each entry sets (MOC3.md § 6.5).
+				NamedIds(Moc3.readExp3(sidecar.text).parameters.map { parameter -> parameter.id }, emptyList())
+			}
+			SidecarKind.Motion -> {
+				// motion3: Curves[].Target and Id - a "Parameter" curve drives a parameter, a "PartOpacity" curve a
+				// part, and a "Model" curve a model-level channel that names no object (MOC3.md § 6.6).
+				val curves = Moc3.readMotion3(sidecar.text).curves
+				NamedIds(
+					curves.filter { curve -> curve.target == "Parameter" }.map { curve -> curve.id },
+					curves.filter { curve -> curve.target == "PartOpacity" }.map { curve -> curve.id },
+				)
+			}
+			SidecarKind.Pose -> {
+				// pose3: Groups[][].Id and Link[], every one a part (MOC3.md § 6.7).
+				NamedIds(emptyList(), Moc3.readPose3(sidecar.text).groups.flatten().flatMap { entry -> listOf(entry.id) + entry.link.orEmpty() })
+			}
+			SidecarKind.UserData -> NamedIds(emptyList(), emptyList())
+		}
 
 	/**
 	 * The `cdi3.json` for [puppet]: parameter, group, part, and art-mesh display names.

@@ -225,6 +225,15 @@ sealed interface ExportNoticeReason {
 	 */
 	data class SidecarNamesUnwrittenParameters(val fileName: String, val parameterIds: List<String>) : ExportNoticeReason
 
+	/**
+	 * A sidecar carried through verbatim names parts the MOC3 does not contain - deleted, in a sketch subtree the
+	 * bake leaves out, or written under a shortened id - so a runtime reading it switches or fades nothing for them.
+	 *
+	 * @property String fileName The sidecar's file name.
+	 * @property List   partIds  The ids it names that the MOC3 does not contain.
+	 */
+	data class SidecarNamesUnwrittenParts(val fileName: String, val partIds: List<String>) : ExportNoticeReason
+
 	/** Keyforms with no base mesh to bundle against. */
 	data object KeyformsWithoutBaseMesh : ExportNoticeReason
 

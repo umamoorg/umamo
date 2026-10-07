@@ -178,6 +178,7 @@
 	<string name="export_reason_blend_shape_parameter_no_source">ブレンドシェイプのパラメータ %1$s に CMO3 側の実体がないため、ブレンドシェイプは書き出されませんでした。</string>
 	<string name="export_reason_physics_names_deleted_parameter">物理演算設定 %1$s は、削除されたこのパラメータを参照したままです。変更せずに書き出したため、Cubism Editor で参照先を変更するか削除してください。</string>
 	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s はこの書き出しに含まれないパラメータ（%2$s）を参照しています。変更せずに書き出したため、ランタイムはそれらの入出力の対象を見つけられません。</string>
+	<string name="export_reason_sidecar_names_unwritten_parts">%1$s はこの書き出しに含まれないパーツ（%2$s）を参照しています。変更せずに書き出したため、ランタイムは切り替えや表示の対象を見つけられません。</string>
 	<string name="export_reason_keyforms_without_base_mesh">ベースメッシュのないキーフォームは CMO3 にまとめられません。</string>
 	<string name="export_reason_fractional_draw_order">CMO3 の描画順は整数のため、小数の値は書き出されませんでした。</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">キーフォームのない固定のグルー強度は、CMO3 に保持する場所がありません。</string>

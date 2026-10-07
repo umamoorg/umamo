@@ -67,6 +67,7 @@ class ExportNoticeLabelsTest {
 			ExportNoticeReason.BlendShapeParameterHasNoSource("ParamSmile"),
 			ExportNoticeReason.PhysicsNamesDeletedParameter(listOf("Hair Front", "Hair Back")),
 			ExportNoticeReason.SidecarNamesUnwrittenParameters("rig.physics3.json", listOf("ParamGone")),
+			ExportNoticeReason.SidecarNamesUnwrittenParts("rig.pose3.json", listOf("PartGone")),
 			ExportNoticeReason.KeyformsWithoutBaseMesh,
 			ExportNoticeReason.FractionalDrawOrderNotStorable,
 			ExportNoticeReason.StaticGlueIntensityWithoutKeyforms,

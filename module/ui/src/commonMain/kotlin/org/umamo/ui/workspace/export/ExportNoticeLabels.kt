@@ -221,6 +221,11 @@ fun exportNoticeReasonPhrase(reason: ExportNoticeReason): ExportNoticePhrase =
 				Res.string.export_reason_sidecar_names_unwritten_parameters,
 				listOf(ExportNoticeArgument.Literal(reason.fileName), ExportNoticeArgument.Literal(reason.parameterIds.joinToString(", "))),
 			)
+		is ExportNoticeReason.SidecarNamesUnwrittenParts ->
+			ExportNoticePhrase(
+				Res.string.export_reason_sidecar_names_unwritten_parts,
+				listOf(ExportNoticeArgument.Literal(reason.fileName), ExportNoticeArgument.Literal(reason.partIds.joinToString(", "))),
+			)
 		ExportNoticeReason.KeyformsWithoutBaseMesh ->
 			ExportNoticePhrase(Res.string.export_reason_keyforms_without_base_mesh)
 		ExportNoticeReason.FractionalDrawOrderNotStorable ->

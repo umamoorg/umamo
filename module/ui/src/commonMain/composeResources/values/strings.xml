@@ -204,6 +204,7 @@
 	<string name="export_reason_blend_shape_parameter_no_source">The blend-shape parameter %1$s has no CMO3 source, so the blend shape was not written.</string>
 	<string name="export_reason_physics_names_deleted_parameter">The physics settings %1$s still read or drive this deleted parameter.  They were written unchanged; retarget or remove them in the Cubism Editor.</string>
 	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s names parameters this export does not contain (%2$s).  It was written unchanged, so a runtime finds nothing for those inputs and outputs.</string>
+	<string name="export_reason_sidecar_names_unwritten_parts">%1$s names parts this export does not contain (%2$s).  It was written unchanged, so a runtime finds nothing to switch or fade for them.</string>
 	<string name="export_reason_keyforms_without_base_mesh">Keyforms without a base mesh cannot be bundled into CMO3.</string>
 	<string name="export_reason_fractional_draw_order">CMO3 stores a whole-number draw order, so the fractional value was not written.</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">A static glue intensity with no keyforms has nowhere to live in CMO3.</string>
