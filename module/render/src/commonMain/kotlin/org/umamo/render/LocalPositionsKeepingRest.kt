@@ -2,7 +2,6 @@ package org.umamo.render
 
 import org.umamo.render.eval.DrawableSpaceResolver
 import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import kotlin.math.abs
 
@@ -18,53 +17,6 @@ import kotlin.math.abs
  * and far below the whole pixels a vertex the inverse could not reach misses by.
  */
 private const val LANDING_TOLERANCE_PX = 0.1f
-
-/**
- * A model whose drawables took their bases from their canvas meshes, and the ones that could not.
- *
- * @property PuppetModel      model       The model.
- * @property List<DrawableId> unconverted The requested drawables whose base was left as it was: no mesh, or
- *   a deformer chain that cannot map them there.
- */
-class LocalPositionsFromCanvas(
-	val model: PuppetModel,
-	val unconverted: List<DrawableId>,
-)
-
-/**
- * Gives each of [drawableIds] the base that puts its rest shape where its canvas mesh is: the canvas mesh
- * mapped through the parent deformer chain at the rest pose, the same inverse a MOC3 export's canvas seam
- * takes.  For an unkeyed drawable that base IS the rest shape, so it renders exactly over its canvas mesh.
- * The canvas mesh and every delta are left as they are.
- *
- * @param PuppetModel          model       The model.
- * @param Collection<DrawableId> drawableIds The drawables to derive.
- * @return LocalPositionsFromCanvas The model, and the drawables the chain could not map.
- */
-fun withLocalPositionsFromCanvas(model: PuppetModel, drawableIds: Collection<DrawableId>): LocalPositionsFromCanvas {
-	if (drawableIds.isEmpty()) {
-		return LocalPositionsFromCanvas(model, emptyList())
-	}
-	val wanted = drawableIds.toSet()
-	val toParentSpace = canvasToParentSpaceFor(model)
-	// One resolver for the whole set, so the deformer chain bakes once rather than per drawable.
-	val spaces = DrawableSpaceResolver(model, emptyMap())
-	val unconverted = ArrayList<DrawableId>()
-	val drawables =
-		model.drawables.map { drawable ->
-			if (drawable.id !in wanted) {
-				return@map drawable
-			}
-			val mesh = drawable.mesh
-			val local = mesh?.let { canvasMesh -> parentSpaceOf(spaces, drawable.id, canvasMesh.positions, toParentSpace) }
-			if (mesh == null || local == null) {
-				unconverted.add(drawable.id)
-				return@map drawable
-			}
-			drawable.copy(mesh = DrawableMesh(positions = mesh.positions, localPositions = local, uvs = mesh.uvs, indices = mesh.indices))
-		}
-	return LocalPositionsFromCanvas(model.copy(drawables = drawables), unconverted)
-}
 
 /**
  * The bases that keep each of [drawableIds] where it rests in [before] once [after] binds it to another
@@ -99,10 +51,9 @@ fun localPositionsKeepingRest(before: PuppetModel, after: PuppetModel, drawableI
 
 /**
  * [canvas] in drawable [drawableId]'s parent space in the model [spaces] resolves, or null when the chain cannot
- * map it there.  The
- * warp inverse keeps its best estimate when it cannot reach a target, so the base is mapped forward again and
- * refused unless it lands back on [canvas]; a drawable the default pose hides is taken on the inverse's word,
- * since its chain is only defined at the clamped pose the inverse used.
+ * map it there.  The warp inverse keeps its best estimate when it cannot reach a target, so the base is mapped
+ * forward again and refused unless it lands back on [canvas]; a drawable the default pose hides is taken on the
+ * inverse's word, since its chain is only defined at the clamped pose the inverse used.
  *
  * @param DrawableSpaceResolver spaces        The model whose deformer chain the base belongs to, at the rest pose.
  * @param DrawableId            drawableId    The drawable.

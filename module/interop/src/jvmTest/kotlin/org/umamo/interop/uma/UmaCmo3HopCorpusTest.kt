@@ -270,7 +270,7 @@ class UmaCmo3HopCorpusTest {
 		val loaderPages = cmo3AtlasPages(root, cmo3::extractLayerPng)
 		val pixels = UmaPixelSource({ tileId -> resourceByTile[AtlasTileId(tileId)]?.let(cmo3::extractLayerPng) }, UmaRenderPagePixels.Stored(loaderPages.pageBytes, loaderPages.atlasIndexByDrawableId), null)
 		val document = Uma.read(Uma.write(UmaDocumentBridge.documentOf(UmaModel.create(writer), imported.puppet, pixels)))
-		val reopened = UmaDocumentBridge.readModel(document).model
+		val reopened = UmaDocumentBridge.modelOf(document)
 		// The .uma keeps every mesh array and delta bit for bit (UMA §4.10, §4.11).
 		val reopenedById = reopened.drawables.associateBy { drawable -> drawable.id }
 		for (drawable in imported.puppet.drawables) {

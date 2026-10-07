@@ -148,7 +148,7 @@ class UmaDocumentTooNewEntryTest {
 		val document = Uma.read(aged)
 		assertFalse(document.isReadOnly, "an optional entry leaves the document editable")
 		assertTrue(document.holdsTooNewEntry(UmaEntryKind.Sources))
-		val reopened = UmaDocumentBridge.readModel(document).model
+		val reopened = UmaDocumentBridge.modelOf(document)
 		assertTrue(reopened.sources.isEmpty(), "the carried entry links nothing")
 
 		val resaved = Uma.write(UmaDocumentBridge.documentOf(document, reopened, pixels()))
