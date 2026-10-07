@@ -17,6 +17,16 @@ const val MAX_PROPORTIONAL_RADIUS_WORLD: Float = 100_000f
 const val PROPORTIONAL_RADIUS_STEP_FACTOR: Float = 1.1f
 
 /**
+ * [radiusWorld] clamped into the allowed proportional radius range - the one clamp every write of the
+ * radius goes through (a mid-gesture scroll, the operation strip's write-back, and a saved document's
+ * seed), so no path can store a radius another would refuse.
+ *
+ * @param Float radiusWorld The requested radius in world units (canvas px).
+ * @return Float The radius within [MIN_PROPORTIONAL_RADIUS_WORLD]..[MAX_PROPORTIONAL_RADIUS_WORLD].
+ */
+fun clampProportionalRadius(radiusWorld: Float): Float = radiusWorld.coerceIn(MIN_PROPORTIONAL_RADIUS_WORLD, MAX_PROPORTIONAL_RADIUS_WORLD)
+
+/**
  * The falloff curve shaping how a vertex's influence fades from 1 (at the selection) to 0 (at the
  * radius edge) - Blender's proportional-editing falloff set, minus the randomized ones.
  */

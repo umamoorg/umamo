@@ -18,6 +18,7 @@ import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.meshOf
 
 /**
  * How one vertex of a topology-edited mesh derives its keyform deltas, its keyform-space base, and its
@@ -302,7 +303,7 @@ private fun rederiveTopologyResult(
 	}
 	val rederived =
 		MeshSelectionOps.changeSelectMode(vertexResult, selectMode) { candidateId ->
-			newModel.drawables.firstOrNull { drawable -> drawable.id == candidateId }?.mesh?.indices
+			newModel.meshOf(candidateId)?.indices
 		}
 	val rederivedElements = rederived.elementsOf(drawableId)
 	if (rederivedElements.isEmpty()) {
@@ -322,7 +323,7 @@ fun EditorSession.duplicateSelectedElements() {
 	}
 	val selection = meshSelection.value
 	val drawableId = selection.activeDrawableId ?: return
-	val mesh = model.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
+	val mesh = model.value.meshOf(drawableId) ?: return
 	val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), mesh.indices)
 	val result = MeshTopologyOps.duplicateElements(mesh, covered) ?: return
 	commitMeshTopology("change.mesh.duplicate", drawableId, result)
@@ -362,7 +363,7 @@ fun EditorSession.mergeSelectedVertices(target: MergeTarget, areaId: String? = n
 		emitNotice("notice.merge.needsVertices", NoticePlacement.NearCursor)
 		return
 	}
-	val mesh = model.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
+	val mesh = model.value.meshOf(drawableId) ?: return
 	val result = MeshTopologyOps.mergeVertices(mesh, orderedVertices, target) ?: return
 	if (!commitMeshTopology("change.mesh.merge", drawableId, result)) {
 		return
@@ -371,7 +372,7 @@ fun EditorSession.mergeSelectedVertices(target: MergeTarget, areaId: String? = n
 	registerAdjustableOperation(model.value, areaId, mergeParameters(target)) { record ->
 		val adjustedTarget = mergeTargetOf(record.parameters, target)
 		val baseModel = record.baseSnapshot.model
-		val baseMesh = baseModel.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return@registerAdjustableOperation
+		val baseMesh = baseModel.meshOf(drawableId) ?: return@registerAdjustableOperation
 		val rerun = MeshTopologyOps.mergeVertices(baseMesh, mergedVertices, adjustedTarget) ?: return@registerAdjustableOperation
 		amendLastCommit(record, baseModel.withMeshTopologyEdit(drawableId, rerun.edit))
 	}
@@ -393,7 +394,7 @@ fun EditorSession.connectSelectedVertices() {
 		emitNotice("notice.connect.needsTwoVertices", NoticePlacement.NearCursor)
 		return
 	}
-	val mesh = model.value.drawables.firstOrNull { it.id == drawableId }?.mesh ?: return
+	val mesh = model.value.meshOf(drawableId) ?: return
 	val result = MeshTopologyOps.connectVertices(mesh, vertices[0], vertices[1])
 	if (result == null) {
 		emitNotice("notice.connect.refused", NoticePlacement.NearCursor)

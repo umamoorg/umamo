@@ -189,6 +189,19 @@ interface SessionToolLatches {
 	fun disarmZoomRegion()
 
 	/**
+	 * Releases every latch [areaId] holds: the modal operator it initiated (whichever family), the select
+	 * tool it armed, and the Zoom Region armed for it; latches other areas hold are untouched.  The
+	 * area-death guard: a leaf can leave composition mid-gesture (a corner-join, a space switch via the
+	 * header dropdown, a workspace tab switch), which cancels the overlay's latch effect WITHOUT running its
+	 * teardown - and a latch naming a dead area would never be driven, confirmed, or resolved.
+	 *
+	 * @param String areaId The area leaving composition.
+	 * @return Boolean True when a modal operator the area initiated was released - the renderer may then be
+	 *   showing that gesture's uncommitted preview, and the caller resyncs it to the committed model.
+	 */
+	fun releaseArea(areaId: String): Boolean
+
+	/**
 	 * The axis the in-flight modal Grab / Scale is locked to, or null when unconstrained.  Set by the
 	 * shell's key ladder (X / Z during a modal gesture - the keymap cannot see those keys, the operator
 	 * swallows them), read by the gizmo overlays' drive loops, cleared whenever an operator latches or
