@@ -224,15 +224,6 @@ fun EditorSession.deleteDrawable(id: DrawableId) {
 /**
  * Deletes the deformer [id] (unwrapping it - children re-home to its parent) as one undo step.
  *
- * A re-homed drawable's base was in the deleted deformer's space, so every caller states what happens to it.
- * [localPositionsByDrawable] is handed the unwrapped model (the deformer gone, every re-homed drawable still on
- * its numbers) and answers with each base re-expressed in its new parent's space, which keeps that art where it
- * rests; it reads the unwrapped model because the derivation takes the new deformer chain and :render's
- * inverse, so the session builds that model once and the caller reads it rather than building its own.  A
- * drawable left out of the answer keeps its numbers, under which its art follows the new parent, so a caller
- * answering an empty map chooses that in so many words (see [withDeformerDeleted]).  There is no default, so
- * the lossy spelling is a visible choice at the call site.
- *
  * @param DeformerId id                       The deformer to delete.
  * @param Function1  localPositionsByDrawable The bases of the re-homed drawables that keep their place, over
  *                                            the unwrapped model.
