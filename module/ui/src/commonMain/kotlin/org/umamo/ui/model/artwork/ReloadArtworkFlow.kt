@@ -104,7 +104,7 @@ class ReloadArtworkRequest(
 	val options: SourceArtImportOptions,
 	val matchThreshold: Float = InventoryLayerMatcher.DEFAULT_THRESHOLD,
 ) {
-	private val decoded = DecodedLayerRasters(entries.flatMap { entry -> entry.art.layers })
+	private val decoded = DecodedLayerRasters()
 
 	/**
 	 * The decoded wrapper of one of the files' layer rasters.
@@ -158,7 +158,7 @@ class RelinkArtworkRequest(
 	 */
 	val inventory: List<ArtSourceLayer> by lazy { inventoryOverride ?: art?.let(SourceArtImport::inventoryOf).orEmpty() }
 
-	private val decoded = DecodedLayerRasters(art?.layers.orEmpty())
+	private val decoded = DecodedLayerRasters()
 
 	/**
 	 * The decoded wrapper of one of the file's layer rasters.

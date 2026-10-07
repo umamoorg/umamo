@@ -79,7 +79,7 @@ class MatchArtworkRequest(
 	val options: SourceArtImportOptions,
 	val standing: SourceSuggestions = emptyMap(),
 ) {
-	private val decoded = DecodedLayerRasters(entries.flatMap { entry -> entry.art.layers })
+	private val decoded = DecodedLayerRasters()
 
 	/**
 	 * The decoded wrapper of one of the files' layer rasters.
@@ -109,7 +109,7 @@ class ReplaceArtworkRequest(
 	val options: SourceArtImportOptions,
 	val threshold: Float = InventoryLayerMatcher.DEFAULT_THRESHOLD,
 ) {
-	private val decoded = DecodedLayerRasters(art.layers)
+	private val decoded = DecodedLayerRasters()
 
 	/**
 	 * The inventory of [art], computed once for the request's life: the planner, the scorer, and every
@@ -312,13 +312,7 @@ private fun matchOutcome(
 			continue
 		}
 		// The rebound tiles are the ones the plan replaced; the log names them from the model before.
-		rebindings.addAll(
-			accepted.mapNotNull { (tileId, key) ->
-				val tile = model.atlas.tileById[tileId] ?: return@mapNotNull null
-				val score = tile.source?.layerKey?.let { lostKey -> suggestions[lostKey]?.score } ?: return@mapNotNull null
-				Rebinding.Rebound(tile.name, entry.art.layers.firstOrNull { layer -> layer.id.raw == key }?.name ?: key, score)
-			},
-		)
+		rebindings.addAll(reboundOf(accepted, rebound, model, suggestions, entry.art))
 		rebindings.addAll(rebindingsOf(plan, model, entry.art).filterIsInstance<Rebinding.Retired>())
 		model = next
 		rasters.putAll(plan.rasterByTile)
@@ -334,6 +328,30 @@ private fun matchOutcome(
 		MatchOutcome.Applied(packedModel, textures, decodedByTile, packedNotices, outgrown, change, remaining, rebindings)
 	}
 }
+
+/**
+ * The log entries for the tiles a match plan rebound: of [accepted], those in [replaced], each named from the
+ * model before the step with the layer it moved to and the score that moved it.  An accepted tile the plan could
+ * not pull is left out - its match stayed a suggestion for its row, and a line saying it was rebound would
+ * contradict the review chip still showing it.  A match plan records its tiles as Matched rather than Rebound,
+ * so the scores come from the suggestions here rather than from the plan's report.
+ *
+ * @param List        accepted    Each accepted tile and the key of the layer it was to take.
+ * @param Set         replaced    The tiles the plan replaced.
+ * @param PuppetModel model       The model the plan was made against.
+ * @param Map         suggestions The scored proposals, keyed by lost key.
+ * @param SourceArt   art         The file as read, for the layer names.
+ * @return List<Rebinding.Rebound> The entries, in [accepted]'s order.
+ */
+internal fun reboundOf(accepted: List<Pair<AtlasTileId, String>>, replaced: Set<AtlasTileId>, model: PuppetModel, suggestions: Map<String, LayerMatch>, art: SourceArt): List<Rebinding.Rebound> =
+	accepted.mapNotNull { (tileId, key) ->
+		if (tileId !in replaced) {
+			return@mapNotNull null
+		}
+		val tile = model.atlas.tileById[tileId] ?: return@mapNotNull null
+		val score = tile.source?.layerKey?.let { lostKey -> suggestions[lostKey]?.score } ?: return@mapNotNull null
+		Rebinding.Rebound(tile.name, art.layers.firstOrNull { layer -> layer.id.raw == key }?.name ?: key, score)
+	}
 
 /**
  * The standing proposals that still hold for [entry]'s file, folded into [suggestions] where the read

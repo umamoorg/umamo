@@ -10,7 +10,9 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.AtlasTileId
@@ -206,7 +208,21 @@ public object Cmo3Conversion {
 			val nameById = effectivePuppet.drawables.associate { drawable -> drawable.id.raw to drawable.name }
 			leading.add(ExportNotice.SharedAtlasSlotKept(undedup.sharedDrawableIds.map { drawableId -> nameById[drawableId] ?: drawableId }))
 		}
-		return Result(model, report.copy(notices = leading + report.notices), effectivePuppet)
+		// A tile whose binding the routing could not honor - a file the document does not list, or a layer
+		// its file never inventoried - crossed as a flat image of its own, and the binding it stood in for
+		// is owed a notice: the Sources space shows that tile as waiting on a person, and a report that
+		// said nothing would read as the binding having crossed.
+		val sourceNameById = puppet.sources.associate { source -> source.id to source.name }
+		val unresolvedBindings =
+			sourceImages.mapNotNull { image ->
+				val ref = image.unresolvedBinding ?: return@mapNotNull null
+				ExportNotice.UnsupportedChange(
+					ExportEntityCategory.Document,
+					image.name,
+					ExportNoticeReason.SourceLayerBindingNotInExport(sourceNameById[ref.sourceId] ?: ref.sourceId.raw, ref.layerKey),
+				)
+			}
+		return Result(model, report.copy(notices = leading + unresolvedBindings + report.notices), effectivePuppet)
 	}
 
 	/**

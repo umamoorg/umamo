@@ -12,6 +12,7 @@ import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
@@ -232,6 +233,67 @@ class ParameterCrudEditsTest {
 		assertTrue(lattice.axes.isEmpty(), "the kept lattice grid has no axes")
 		assertContentEquals(FloatArray(8) { component -> component.toFloat() }, lattice.cells.single().form.controlPoints, "the kept lattice is the default slice")
 		assertTrue(start.ownersWhoseRestChangesOnDeleting(angleX).isEmpty(), "a default on a key keeps the rest pose")
+	}
+
+	/**
+	 * A sparse sole-axis track with no cell at the kept key evaluated to nothing at the default pose; dropping
+	 * it leaves the static showing, so the delete reports the owner although the default sits on a key.
+	 */
+	@Test
+	fun deleteOfASparseSoleAxisTrackIsReported() {
+		val sparse =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(-1f, 0f, 1f))),
+				listOf(KeyformCell<ChannelValue>(intArrayOf(0), ChannelValue.Scalar(0.5f)), KeyformCell<ChannelValue>(intArrayOf(2), ChannelValue.Scalar(0.9f))),
+			)
+		val drawable = keyedDrawable().copy(geometryGrid = null, opacity = 1f, channelGrids = ChannelGrids(mapOf(FormChannel.OPACITY to sparse)))
+		val start = model(listOf(parameter(angleX, default = 0f)), drawables = listOf(drawable))
+		val deletion = assertNotNull(start.parameterDeletionOf(angleX))
+		assertNull(deletion.model.drawables.single().channelGrids[FormChannel.OPACITY], "the sole-axis track is dropped")
+		assertEquals(1f, deletion.model.drawables.single().opacity, "nothing lifts, so the static shows")
+		assertEquals(listOf<KeyformOwner>(KeyformOwner.Drawable(DrawableId("d"))), deletion.restChangedOwners, "where the track had evaluated to nothing")
+		assertEquals(deletion.restChangedOwners, start.ownersWhoseRestChangesOnDeleting(angleX), "the query is the delete's own answer")
+	}
+
+	/**
+	 * A sparse sole-axis geometry grid with no cell at the kept key is dropped and NOT reported: zero deltas
+	 * and no grid both draw the base mesh.
+	 */
+	@Test
+	fun deleteOfASparseSoleAxisGeometryGridIsNotReported() {
+		val sparse =
+			KeyformGrid(
+				listOf(KeyformAxis(angleX, floatArrayOf(-1f, 0f, 1f))),
+				listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(floatArrayOf(0f))), KeyformCell(intArrayOf(2), MeshDeltaForm(floatArrayOf(2f)))),
+			)
+		val start = model(listOf(parameter(angleX)), drawables = listOf(keyedDrawable().copy(geometryGrid = sparse)))
+		val deletion = assertNotNull(start.parameterDeletionOf(angleX))
+		assertNull(deletion.model.drawables.single().geometryGrid, "no cell to keep, so no grid")
+		assertTrue(deletion.restChangedOwners.isEmpty(), "the base mesh showed before and shows after")
+	}
+
+	/** A warp's sparse sole-axis grid with no cell at the kept key loses the lattice it had, so the delete reports it. */
+	@Test
+	fun deleteOfASparseSoleAxisWarpGridIsReported() {
+		val warp =
+			Deformer.Warp(
+				id = DeformerId("warp"),
+				name = "warp",
+				parent = null,
+				partId = null,
+				rows = 1,
+				columns = 1,
+				isQuadTransform = false,
+				geometryGrid =
+					KeyformGrid(
+						listOf(KeyformAxis(angleX, floatArrayOf(0f, 1f))),
+						listOf(KeyformCell(intArrayOf(1), WarpLatticeForm(FloatArray(8) { component -> 10f + component }))),
+					),
+			)
+		val start = model(listOf(parameter(angleX))).copy(deformers = listOf(warp))
+		val deletion = assertNotNull(start.parameterDeletionOf(angleX))
+		assertNull((deletion.model.deformers.single() as Deformer.Warp).geometryGrid, "no cell to keep, so no lattice")
+		assertEquals(listOf<KeyformOwner>(KeyformOwner.Deformer(DeformerId("warp"))), deletion.restChangedOwners)
 	}
 
 	/** Deleting a parameter not present in a grid leaves that grid's entity untouched by identity. */

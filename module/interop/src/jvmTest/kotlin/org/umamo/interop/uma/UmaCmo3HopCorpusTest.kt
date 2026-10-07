@@ -15,9 +15,9 @@ import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.interop.cmo3.ModelOrderPages
 import org.umamo.interop.cmo3.cmo3AtlasPages
-import org.umamo.interop.cmo3.modelPageIndexByDrawableId
-import org.umamo.interop.cmo3.modelPageRenderIndices
+import org.umamo.interop.cmo3.modelOrderPages
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
@@ -50,28 +50,34 @@ class UmaCmo3HopCorpusTest {
 	private val failures = ArrayList<String>()
 
 	/**
-	 * The pages the synthesis takes, in the model's order, and each drawable's page among them - the same
-	 * resolution the app's CMO3 export policy makes for a UMA document still on its stored render pages.
+	 * The pages the synthesis takes, in the model's order, and each drawable's page among them: the resolution
+	 * the app's CMO3 export policy runs for a UMA document still on its stored render pages, over the stored
+	 * bytes.  The app falls back to the page the tiles compose before a transparent one; there is no derived
+	 * page set here, so a model page nothing shows is written transparent.
 	 *
 	 * @param PuppetModel puppet  The reopened model.
 	 * @param List        pageBytes The stored render pages.
 	 * @param Map         renderPageByDrawableId Each drawable's render page.
-	 * @return Pair The pages and the page map.
+	 * @return ModelOrderPages The pages and the page map.
 	 */
-	private fun conversionPagesOf(puppet: PuppetModel, pageBytes: List<ByteArray>, renderPageByDrawableId: Map<String, Int>): Pair<List<Cmo3Conversion.AtlasPage>, Map<String, Int>> {
-		if (puppet.atlas.pages.isEmpty()) {
-			return pageBytes.map { bytes ->
-				val decoded = PngCodec.read(bytes)
-				Cmo3Conversion.AtlasPage(bytes, decoded.width, decoded.height, decoded)
-			} to renderPageByDrawableId
-		}
-		val renderIndices = modelPageRenderIndices(puppet, renderPageByDrawableId)
-		val pages =
-			puppet.atlas.pages.mapIndexed { modelPageIndex, modelPage ->
-				val bytes = renderIndices[modelPageIndex]?.let(pageBytes::getOrNull) ?: PngCodec.write(RasterImage(modelPage.width, modelPage.height, ByteArray(modelPage.width * modelPage.height * 4)))
-				Cmo3Conversion.AtlasPage(bytes, modelPage.width, modelPage.height)
+	private fun conversionPagesOf(puppet: PuppetModel, pageBytes: List<ByteArray>, renderPageByDrawableId: Map<String, Int>): ModelOrderPages<Cmo3Conversion.AtlasPage> {
+		val resolved =
+			modelOrderPages(puppet, pageBytes, renderPageByDrawableId) { modelPageIndex ->
+				val modelPage = puppet.atlas.pages[modelPageIndex]
+				PngCodec.write(RasterImage(modelPage.width, modelPage.height, ByteArray(modelPage.width * modelPage.height * 4)))
 			}
-		return pages to modelPageIndexByDrawableId(puppet, renderIndices, renderPageByDrawableId)
+		// A model page's size is recorded; a render page kept as it is (a MOC3's texture order) is decoded for its.
+		val pages =
+			resolved.pages.mapIndexed { pageIndex, bytes ->
+				val modelPage = puppet.atlas.pages.getOrNull(pageIndex)
+				if (modelPage != null) {
+					Cmo3Conversion.AtlasPage(bytes, modelPage.width, modelPage.height)
+				} else {
+					val decoded = PngCodec.read(bytes)
+					Cmo3Conversion.AtlasPage(bytes, decoded.width, decoded.height, decoded)
+				}
+			}
+		return ModelOrderPages(pages, resolved.pageIndexByDrawableId)
 	}
 
 	/**
@@ -129,12 +135,13 @@ class UmaCmo3HopCorpusTest {
 		val reopened = UmaDocumentBridge.modelOf(document)
 		val documentPages = UmaDocumentBridge.pagesOf(document)
 		val pageSet = documentPages.pageSet ?: error("the render pages did not come back")
-		val (pages, pageIndexByDrawableId) = conversionPagesOf(reopened, pageSet.pageBytes, pageSet.atlasIndexByDrawableId)
+		val conversion = conversionPagesOf(reopened, pageSet.pageBytes, pageSet.atlasIndexByDrawableId)
+		val pages = conversion.pages
 		val result =
 			Cmo3Conversion.freshCmo3(
 				puppet = reopened,
 				pages = pages,
-				pageIndexByDrawableId = pageIndexByDrawableId,
+				pageIndexByDrawableId = conversion.pageIndexByDrawableId,
 				modelName = sample.nameWithoutExtension,
 				nowMillis = 1_700_000_000_000L,
 				obfuscateKey = 0x1234ABCD,
