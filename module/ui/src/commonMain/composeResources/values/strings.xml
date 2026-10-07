@@ -711,6 +711,9 @@
 	<string name="hud_scale_factor">×%1$s</string>
 	<string name="notice_proportional_connected_on">Proportional editing: connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: all within radius.</string>
+	<!-- %1$s is the drawable's name. -->
+	<string name="notice_reparent_place_not_kept">%1$s was bound without keeping its place: Its new deformer chain could not map it.</string>
+	<string name="notice_reparent_places_not_kept">%1$d object(s) re-homed without keeping their place: The deformer chain could not map them.</string>
 
 	<!-- Pie menu center titles (the pie's name, Blender-style). -->
 	<string name="pie_title_pivot">Pivot Point</string>

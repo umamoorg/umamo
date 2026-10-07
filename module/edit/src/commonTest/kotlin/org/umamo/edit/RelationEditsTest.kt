@@ -67,15 +67,15 @@ class RelationEditsTest {
 	fun drawableParentDeformerRoundTripsAndNoOps() {
 		val base = model()
 
-		val bound = base.withDrawableParentDeformer(drawableId, warpId)
+		val bound = base.withDrawableParentDeformer(drawableId, warpId, localPositions = null)
 		assertEquals(warpId, bound.drawables.first { it.id == drawableId }.parentDeformerId)
 		// Unbinding is a real edit back to null.
-		assertNull(bound.withDrawableParentDeformer(drawableId, null).drawables.first { it.id == drawableId }.parentDeformerId)
+		assertNull(bound.withDrawableParentDeformer(drawableId, null, localPositions = null).drawables.first { it.id == drawableId }.parentDeformerId)
 
 		// Unchanged value and missing id are both no-ops (same instance).
-		assertSame(base, base.withDrawableParentDeformer(drawableId, null))
-		assertSame(bound, bound.withDrawableParentDeformer(drawableId, warpId))
-		assertSame(base, base.withDrawableParentDeformer(DrawableId("missing"), warpId))
+		assertSame(base, base.withDrawableParentDeformer(drawableId, null, localPositions = null))
+		assertSame(bound, bound.withDrawableParentDeformer(drawableId, warpId, localPositions = null))
+		assertSame(base, base.withDrawableParentDeformer(DrawableId("missing"), warpId, localPositions = null))
 	}
 
 	/**
@@ -139,7 +139,7 @@ class RelationEditsTest {
 	fun sessionRelationEditsAreOneUndoStepEach() {
 		val session = EditorSession(model())
 
-		session.setDrawableParentDeformer(drawableId, warpId)
+		session.setDrawableParentDeformer(drawableId, warpId, localPositions = null)
 		assertEquals(warpId, session.model.value.drawables.first { it.id == drawableId }.parentDeformerId)
 
 		session.setDrawableMaskedBy(drawableId, listOf(otherDrawableId))

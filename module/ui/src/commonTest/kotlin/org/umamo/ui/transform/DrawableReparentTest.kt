@@ -169,5 +169,31 @@ class DrawableReparentTest {
 		session.setDrawableParentDeformerKeepingRest(DrawableId("other"), flatId)
 		assertEquals(flatId, session.model.value.drawables.first { drawable -> drawable.id == DrawableId("other") }.parentDeformerId, "the binding is still made")
 		assertSame(local, meshOf(session, "other").localPositions, "the base is kept")
+		assertEquals("notice.reparent.placeNotKept", session.notice.value?.messageKey, "and the rigger is told the art moved")
+		assertEquals(listOf("other"), session.notice.value?.arguments, "by the drawable's name")
+	}
+
+	@Test
+	fun aBindingTheChainCanMapRaisesNoNotice() {
+		val session = EditorSession(model())
+		session.setDrawableParentDeformerKeepingRest(DrawableId("root"), warpId)
+		assertEquals(null, session.notice.value, "a kept place needs no notice")
+	}
+
+	/**
+	 * A warp under a deformer the model does not carry has no chain to map its children through, so deleting it
+	 * re-homes them on their numbers, and the rigger is told how many moved.
+	 */
+	@Test
+	fun deletingAWarpWhoseChainCannotMapItsDrawablesSaysHowManyMoved() {
+		val base = model()
+		val orphanedWarp = (base.deformers.first { deformer -> deformer.id == warpId } as Deformer.Warp).copy(parent = DeformerId("ghost"))
+		val session = EditorSession(base.copy(deformers = listOf(orphanedWarp, base.deformers.first { deformer -> deformer.id == flatId })))
+		val local = meshOf(session, "child").localPositions
+		session.deleteTargetKeepingRest(SelectionTarget.Deformer(warpId), cascade = false)
+		assertEquals(DeformerId("ghost"), session.model.value.drawables.first { drawable -> drawable.id == DrawableId("child") }.parentDeformerId, "the warp is deleted, its drawables re-homed to its parent")
+		assertSame(local, meshOf(session, "child").localPositions, "the base is kept")
+		assertEquals("notice.reparent.placesNotKept", session.notice.value?.messageKey, "and the rigger is told the art moved")
+		assertEquals(listOf("1"), session.notice.value?.arguments, "with the count")
 	}
 }

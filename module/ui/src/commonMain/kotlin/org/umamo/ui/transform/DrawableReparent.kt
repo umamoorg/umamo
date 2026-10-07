@@ -2,9 +2,9 @@ package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.deleteDeformer
 import org.umamo.edit.deleteTarget
 import org.umamo.edit.setDrawableParentDeformer
-import org.umamo.edit.withDeformerDeleted
 import org.umamo.edit.withDrawableParentDeformer
 import org.umamo.render.localPositionsKeepingRest
 import org.umamo.runtime.model.DeformerId
@@ -24,8 +24,8 @@ import org.umamo.storage.UmamoLog
 
 /**
  * Binds drawable [id] to [parentDeformerId] (null unbinds) as one undo step, keeping it where it rests when it
- * has no keyed geometry.  When the new chain cannot map it there, the binding is still made, its base kept, and
- * the log says so.
+ * has no keyed geometry.  When the new chain cannot map it there, the binding is still made with its base kept,
+ * and a notice and the log say so, since its art visibly moves.
  *
  * @param DrawableId  id               The drawable to rebind.
  * @param DeformerId? parentDeformerId The deformer that deforms it, or null to unbind.
@@ -34,26 +34,28 @@ internal fun EditorSession.setDrawableParentDeformerKeepingRest(id: DrawableId, 
 	val before = model.value
 	val drawable = before.drawables.firstOrNull { candidate -> candidate.id == id }
 	if (drawable == null || drawable.parentDeformerId == parentDeformerId || drawable.mesh == null || !drawable.hasUnkeyedGeometry) {
-		setDrawableParentDeformer(id, parentDeformerId)
+		setDrawableParentDeformer(id, parentDeformerId, localPositions = null)
 		return
 	}
-	val local = localPositionsKeepingRest(before, before.withDrawableParentDeformer(id, parentDeformerId), listOf(id))[id]
+	val local = localPositionsKeepingRest(before, before.withDrawableParentDeformer(id, parentDeformerId, localPositions = null), listOf(id))[id]
 	if (local == null) {
 		UmamoLog.warn("rebound ${id.raw} without keeping its place: the deformer chain cannot map it")
+		emitNotice("notice.reparent.placeNotKept", arguments = listOf(drawable.name))
 	}
 	setDrawableParentDeformer(id, parentDeformerId, local)
 }
 
 /**
  * Deletes the entity [target] names as one undo step (see deleteTarget); a deleted deformer's drawables with
- * no keyed geometry keep their place as they re-home to its parent.
+ * no keyed geometry keep their place as they re-home to its parent.  One the new chain cannot map keeps its
+ * numbers instead, and a notice and the log say how many, since their art visibly moves.
  *
  * @param SelectionTarget target  The entity to delete.
  * @param Boolean         cascade For a part, true to delete the subtree, false to ungroup; ignored otherwise.
  */
 internal fun EditorSession.deleteTargetKeepingRest(target: SelectionTarget, cascade: Boolean) {
 	if (target !is SelectionTarget.Deformer) {
-		deleteTarget(target, cascade)
+		deleteTarget(target, cascade) { emptyMap() }
 		return
 	}
 	val before = model.value
@@ -61,10 +63,14 @@ internal fun EditorSession.deleteTargetKeepingRest(target: SelectionTarget, casc
 		before.drawables
 			.filter { drawable -> drawable.parentDeformerId == target.id && drawable.mesh != null && drawable.hasUnkeyedGeometry }
 			.map { drawable -> drawable.id }
-	val locals = localPositionsKeepingRest(before, before.withDeformerDeleted(target.id), rehomed)
-	val unconverted = rehomed.filter { drawableId -> drawableId !in locals }
+	var unconverted: List<DrawableId> = emptyList()
+	deleteDeformer(target.id) { unwrapped ->
+		val locals = localPositionsKeepingRest(before, unwrapped, rehomed)
+		unconverted = rehomed.filter { drawableId -> drawableId !in locals }
+		locals
+	}
 	if (unconverted.isNotEmpty()) {
 		UmamoLog.warn("deleted ${target.id.raw}; ${unconverted.size} drawable(s) re-homed without keeping their place: " + unconverted.joinToString { drawableId -> drawableId.raw })
+		emitNotice("notice.reparent.placesNotKept", arguments = listOf(unconverted.size.toString()))
 	}
-	deleteTarget(target, cascade, locals)
 }

@@ -473,14 +473,14 @@ fun PuppetModel.withDrawableInvertMask(id: DrawableId, invert: Boolean): PuppetM
  * The drawable's keyform-space base lives in its parent's space, so a rebinding that should leave the art
  * where it is passes the base in the new parent's space as [localPositions] (the caller derives it, since
  * that takes the evaluator).  Without one - or with one of the wrong length - the base is kept as it is, a
- * flat write under which the art follows the new parent.
+ * flat write under which the art follows the new parent; a caller passing null chooses that in so many words.
  *
  * @param DrawableId  id               The drawable to rebind.
  * @param DeformerId? parentDeformerId The deformer that deforms it, or null to unbind.
  * @param FloatArray? localPositions   The base in the new parent's space, or null to keep the base.
  * @return PuppetModel The model with that binding updated, or [this] if nothing changed.
  */
-fun PuppetModel.withDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?, localPositions: FloatArray? = null): PuppetModel {
+fun PuppetModel.withDrawableParentDeformer(id: DrawableId, parentDeformerId: DeformerId?, localPositions: FloatArray?): PuppetModel {
 	val index = drawables.indexOfFirst { drawable -> drawable.id == id }
 	if (index < 0 || drawables[index].parentDeformerId == parentDeformerId) {
 		return this

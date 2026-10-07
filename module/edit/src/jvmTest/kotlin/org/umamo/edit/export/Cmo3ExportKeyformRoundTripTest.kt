@@ -3,6 +3,11 @@ package org.umamo.edit.export
 import org.umamo.edit.withDrawableOpacity
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CArtMeshForm
+import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.identity.Guid
+import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.interop.DrawableField
 import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
@@ -30,6 +35,7 @@ import org.umamo.runtime.model.positionsFromDeltas
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -43,21 +49,64 @@ import kotlin.test.assertTrue
 class Cmo3ExportKeyformRoundTripTest {
 	private val sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }
 
+	/**
+	 * One export and re-import, with the art-mesh forms' stored floats on both sides of it.
+	 *
+	 * @property PuppetModel  edited      The edited model that was exported.
+	 * @property PuppetModel  reimported  The model the exported file re-imports as.
+	 * @property ExportReport report      The export's notices.
+	 * @property Map          formsBefore Every CArtMeshForm's stored positions in the file as read, by drawable id then form guid.
+	 * @property Map          formsAfter  The same over the exported file.
+	 */
 	private class RoundTrip(
 		val edited: PuppetModel,
 		val reimported: PuppetModel,
 		val report: ExportReport,
+		val formsBefore: Map<String, Map<String, FloatArray>>,
+		val formsAfter: Map<String, Map<String, FloatArray>>,
 	)
 
 	private fun roundTrip(file: File, edit: (PuppetModel) -> PuppetModel): RoundTrip {
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
+		val formsBefore = artMeshFormPositions(modelSource)
 		val edited = edit(Cmo3Import.fromModelSource(modelSource))
 		val report = Cmo3Export.apply(edited, cmo3)
 		val reimportedSource =
 			Cmo3.read(Cmo3.write(cmo3)).root as? CModelSource ?: error("re-read root is not a CModelSource")
-		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report)
+		return RoundTrip(edited, Cmo3Import.fromModelSource(reimportedSource), report, formsBefore, artMeshFormPositions(reimportedSource))
 	}
+
+	/**
+	 * Every CArtMeshForm's stored positions in [root], by the owning source's id and the form's guid, copied so a
+	 * later export's writes cannot reach them.
+	 *
+	 * @param CModelSource root The CMO3's model source.
+	 * @return Map The positions per form per drawable.
+	 */
+	private fun artMeshFormPositions(root: CModelSource): Map<String, Map<String, FloatArray>> {
+		val byDrawable = LinkedHashMap<String, MutableMap<String, FloatArray>>()
+		val sources = elementsOf((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
+		for (source in sources) {
+			val sourceId = (source.id as? Id)?.idstr ?: continue
+			val byGuid = byDrawable.getOrPut(sourceId) { LinkedHashMap() }
+			for (form in elementsOf(source.keyforms).filterIsInstance<CArtMeshForm>()) {
+				val guid = (form.guid as? Guid)?.uuid ?: continue
+				val positions = form.positions as? FloatArray ?: continue
+				byGuid[guid] = positions.copyOf()
+			}
+		}
+		return byDrawable
+	}
+
+	/** Flattens a CMO3 collection field, held as `Any?` by the serializer. */
+	private fun elementsOf(collection: Any?): List<Any?> =
+		when (collection) {
+			is Map<*, *> -> collection.values.toList()
+			is Iterable<*> -> collection.toList()
+			is Array<*> -> collection.toList()
+			else -> emptyList()
+		}
 
 	private fun assertLossless(result: RoundTrip, label: String) {
 		assertTrue(result.report.isEmpty, "$label: expected no notices, got ${result.report.notices}")
@@ -221,20 +270,26 @@ class Cmo3ExportKeyformRoundTripTest {
 		assertLosslessWithinGeometryUlp(result, editedId!!, "key insert")
 	}
 
+	/**
+	 * A key delete leaves every surviving cell untouched, so the lowering reuses each stored float rather than
+	 * rebuilding it from the base: the file keeps those forms bit for bit, and only the removed key's forms are
+	 * gone.  The re-imported model is held to the geometry tier instead: the middle key is usually the reference
+	 * cell the base was taken from, so the re-import takes its base from another cell, and a component far smaller
+	 * than that base rebuilds within its ulp rather than bit for bit.
+	 */
 	@Test
-	fun geometryKeyDeleteSurvivesWithinUlp() {
+	fun geometryKeyDeleteKeepsEverySurvivingFormBitForBit() {
 		val file = skipMessageOrNull() ?: return
 		var editedId: DrawableId? = null
+		var removedCells = 0
 		val result =
 			roundTrip(file) { puppet ->
 				val drawable = keyedDrawable(puppet)
 				editedId = drawable.id
 				val grid = drawable.geometryGrid!!
 				val axis = grid.axes.first()
-				// A middle key: removal keeps the span, and every surviving cell keeps its stored form.  The
-				// middle key is usually the reference cell the base was taken from, so the re-import takes
-				// its base from another cell, and a component far smaller than that base rebuilds within its
-				// ulp rather than bit for bit.
+				// A middle key: removal keeps the span.
+				removedCells = grid.cells.count { cell -> cell.coordinate[0] == 1 }
 				val removed = grid.withKeyRemoved(axis.parameterId, keyIndex = 1)
 				puppet.copy(
 					drawables =
@@ -244,6 +299,15 @@ class Cmo3ExportKeyformRoundTripTest {
 				)
 			}
 		assertLosslessWithinGeometryUlp(result, editedId!!, "key delete")
+		val formsBefore = result.formsBefore.getValue(editedId!!.raw)
+		val formsAfter = result.formsAfter.getValue(editedId!!.raw)
+		assertTrue(removedCells > 0, "key delete: the removed key held cells")
+		assertEquals(formsBefore.size - removedCells, formsAfter.size, "key delete: only the removed key's forms are gone")
+		for ((guid, positions) in formsAfter) {
+			val original = formsBefore[guid]
+			assertTrue(original != null, "key delete: form $guid is new")
+			assertEquals(original.map(Float::toRawBits), positions.map(Float::toRawBits), "key delete: surviving form $guid keeps its stored floats")
+		}
 	}
 
 	@Test

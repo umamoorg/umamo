@@ -1,6 +1,7 @@
 package org.umamo.render
 
 import org.umamo.render.eval.DrawableSpaceResolver
+import org.umamo.render.eval.worldToCanvas
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import kotlin.math.abs
@@ -33,17 +34,25 @@ fun localPositionsKeepingRest(before: PuppetModel, after: PuppetModel, drawableI
 	if (drawableIds.isEmpty()) {
 		return emptyMap()
 	}
-	val toParentSpace = canvasToParentSpaceFor(after)
-	// One resolver per model, so each deformer chain bakes once for the whole set.
+	// One resolver per model, so each deformer chain bakes once for the whole set, and the inverse shares the
+	// new chain's rather than baking it again.
 	val beforeSpaces = DrawableSpaceResolver(before, emptyMap())
 	val afterSpaces = DrawableSpaceResolver(after, emptyMap())
+	// A drawable the neutral pose hides under its new chain (an ancestor whose keys do not bracket its
+	// parameter's default) inverts through the clamped pose, which costs a whole-model evaluation to find; a
+	// batch every new chain maps at the neutral pose skips it.  A parent the model does not carry is unmappable
+	// at every pose, so it does not ask for the evaluation either.
+	val deformerIds = after.deformers.mapTo(HashSet()) { deformer -> deformer.id }
+	val anyHiddenAfter =
+		drawableIds.any { drawableId ->
+			afterSpaces.mapping(drawableId) == null && afterSpaces.drawable(drawableId)?.parentDeformerId in deformerIds
+		}
+	val toParentSpace = canvasToParentSpaceFor(after, afterSpaces, anyHiddenAfter)
 	val converted = LinkedHashMap<DrawableId, FloatArray>()
 	for (drawableId in drawableIds) {
 		val mapping = beforeSpaces.mapping(drawableId) ?: continue
 		val rest = beforeSpaces.localPosed(drawableId) ?: continue
-		// The eval negates Y into world space; canvas space is the pre-negation Y-down convention.
-		val world = mapping.localToWorld(rest)
-		val canvas = FloatArray(world.size) { coordIndex -> if (coordIndex % 2 == 1) -world[coordIndex] else world[coordIndex] }
+		val canvas = worldToCanvas(mapping.localToWorld(rest))
 		parentSpaceOf(afterSpaces, drawableId, canvas, toParentSpace)?.let { local -> converted[drawableId] = local }
 	}
 	return converted
@@ -67,10 +76,9 @@ private fun parentSpaceOf(spaces: DrawableSpaceResolver, drawableId: DrawableId,
 		return null
 	}
 	val mapping = spaces.mapping(drawableId) ?: return local
-	val landed = mapping.localToWorld(local)
+	val landed = worldToCanvas(mapping.localToWorld(local))
 	for (coordIndex in canvas.indices) {
-		val landedCanvas = if (coordIndex % 2 == 1) -landed[coordIndex] else landed[coordIndex]
-		if (abs(landedCanvas - canvas[coordIndex]) > LANDING_TOLERANCE_PX) {
+		if (abs(landed[coordIndex] - canvas[coordIndex]) > LANDING_TOLERANCE_PX) {
 			return null
 		}
 	}

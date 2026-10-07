@@ -113,6 +113,18 @@ class MeshDeltasTest {
 		}
 	}
 
+	/** A form's deltas come from its base when the base fits it, and are the absolutes themselves otherwise. */
+	@Test
+	fun deltasVsBaseKeepsAFormAbsoluteWhenItsBaseDoesNotFit() {
+		val base = floatArrayOf(1f, 2f, 3f, 4f)
+		val absolutes = floatArrayOf(1.5f, 2f, 2f, 4.25f)
+		assertEquals(listOf(0.5f, 0f, -1f, 0.25f), deltasVsBase(base, absolutes).toList())
+		val unfitted = deltasVsBase(floatArrayOf(1f, 2f), absolutes)
+		assertEquals(absolutes.toList(), unfitted.toList(), "a base of another length keeps the form absolute")
+		assertNotSame(absolutes, unfitted, "as a copy the form owns")
+		assertEquals(absolutes.toList(), deltasVsBase(null, absolutes).toList(), "no base at all keeps it absolute too")
+	}
+
 	/** A mesh's base is the canvas mesh's length, and the shared form keeps one array. */
 	@Test
 	fun aMeshKeepsItsTwoArraysOneLength() {

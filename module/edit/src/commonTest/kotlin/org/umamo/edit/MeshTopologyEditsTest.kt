@@ -379,4 +379,17 @@ class MeshTopologyEditsTest {
 	}
 
 	private fun absDiff(left: Float, right: Float): Float = if (left > right) left - right else right - left
+
+	/**
+	 * An op whose sources do not name one per new vertex refuses before building a mesh whose two arrays could not
+	 * share a length, the model's own refusal of a malformed edit rather than a failure mid-gesture.
+	 */
+	@Test
+	fun editedMeshRefusesASourcePerVertexMismatch() {
+		val mesh = DrawableMesh(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0.1f, 0.1f, 0.2f, 0.1f, 0.1f, 0.2f), FloatArray(6), intArrayOf(0, 1, 2))
+		val sources = listOf(VertexSource.FromOld(0), VertexSource.FromOld(1))
+		assertNull(editedMesh(mesh, FloatArray(6), FloatArray(6), intArrayOf(0, 1, 2), sources), "three vertices over two sources")
+		val fitted = editedMesh(mesh, FloatArray(4), FloatArray(4), intArrayOf(0, 1, 1), sources)
+		assertEquals(listOf(0.1f, 0.1f, 0.2f, 0.1f), fitted!!.localPositions.toList(), "a fitted source list carries the base")
+	}
 }

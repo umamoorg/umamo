@@ -219,7 +219,7 @@ class Cmo3ExportStructureRoundTripTest {
 					model = model.withPartDeleted(leafPart.id, cascade = true)
 				}
 				model.deformers.firstOrNull()?.let { deformer ->
-					model = model.withDeformerDeleted(deformer.id)
+					model = model.withDeformerDeleted(deformer.id, localPositionsByDrawable = emptyMap())
 				}
 				model
 			}

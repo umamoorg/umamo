@@ -89,7 +89,7 @@ import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.canvasCenterWorldOriginX
 import org.umamo.runtime.model.canvasCenterWorldOriginZ
-import org.umamo.runtime.model.deltasReaching
+import org.umamo.runtime.model.deltasVsBase
 import org.umamo.runtime.model.deriveRenderRoot
 import org.umamo.runtime.model.storedToArtAffineForTile
 
@@ -978,7 +978,7 @@ object Cmo3Import {
 		// CMO3: ACDrawableForm.drawOrder (Cubism default 500) + opacity (0..1) + the 5.3 per-art-mesh
 		// multiply/screen color ride on the art-mesh keyform (pre-5.3 forms carry no color -> identity).
 		return MeshForm(
-			deltaVsBase(base, positions),
+			deltasVsBase(base, positions),
 			artForm.drawOrder.toFloat(),
 			artForm.opacity,
 			multiplyColor = colorRgbOf(artForm.multiplyColor) ?: ColorRgb.MultiplyIdentity,
@@ -1027,22 +1027,6 @@ object Cmo3Import {
 			multiplyColor = colorRgbOf(rotation.multiplyColor) ?: ColorRgb.MultiplyIdentity,
 			screenColor = colorRgbOf(rotation.screenColor) ?: ColorRgb.ScreenIdentity,
 		)
-	}
-
-	/**
-	 * Per-vertex deltas of [positions] vs [base] ([deltasReaching], so `base + Δ` rebuilds each stored float
-	 * wherever float32 can), or a copy of positions when there is no size-matching base, so the form is kept
-	 * absolute rather than dropped.
-	 *
-	 * @param FloatArray? base      The mesh's keyform-space base.
-	 * @param FloatArray  positions The form's absolute positions.
-	 * @return FloatArray The deltas, or a copy of positions.
-	 */
-	private fun deltaVsBase(base: FloatArray?, positions: FloatArray): FloatArray {
-		if (base == null || base.size != positions.size) {
-			return positions.copyOf()
-		}
-		return deltasReaching(base, positions)
 	}
 }
 

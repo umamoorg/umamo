@@ -707,7 +707,7 @@ class EditorSessionTest {
 		val session = EditorSession(deleteModel())
 
 		// w is a root; w2's parent is w, and d2 is deformed by w. Deleting w re-homes both to w's parent (null).
-		session.deleteDeformer(DeformerId("w"))
+		session.deleteDeformer(DeformerId("w")) { emptyMap() }
 		val after = session.model.value
 		assertFalse(after.deformers.any { it.id == DeformerId("w") })
 		assertNull(after.deformers.first { it.id == DeformerId("w2") }.parent)

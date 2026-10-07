@@ -652,6 +652,8 @@
 	<string name="hud_scale_factor">×%1$s</string>
 	<string name="notice_proportional_connected_on">プロポーショナル編集: 接続のみ</string>
 	<string name="notice_proportional_connected_off">プロポーショナル編集: 半径内すべて</string>
+	<string name="notice_reparent_place_not_kept">%1$s は位置を保てないまま紐付けられました。新しいデフォーマの階層では変換できません。</string>
+	<string name="notice_reparent_places_not_kept">%1$d 個のオブジェクトが位置を保てないまま付け替えられました。デフォーマの階層では変換できません。</string>
 
 	<string name="pie_title_pivot">ピボットポイント</string>
 	<string name="pie_title_snap">スナップ</string>
