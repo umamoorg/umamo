@@ -12,8 +12,9 @@ import kotlin.math.pow
  * is a list of labelled rows carrying marks along a horizontal axis, and that is all it knows - which is
  * what lets the keyform sheet (marks along a parameter's min..max) and the eventual animation dope sheet
  * (keys along a frame range) share it instead of growing two of everything.  The constraint is easy to
- * erode one convenient import at a time, so it is worth checking: `grep -r Parameter\\|Keyform\\|Puppet`
- * over this package must come back empty.
+ * erode one convenient import at a time, so it is worth checking: the only org.umamo packages this one may
+ * import are org.umamo.ui.kit and org.umamo.ui.theme, so `grep -r '^import org.umamo' over it must show
+ * nothing else.
  */
 
 /**
@@ -159,9 +160,9 @@ data class TrackWindow(
 		/**
 		 * The tightest the window may zoom, as a fraction of the domain.
 		 *
-		 * A thousandth of a -30..30 axis is 0.06 units across the whole panel, which separates keys the
-		 * evaluator itself treats as distinct (EPS_KEY is 0.001) by hundreds of pixels.  Tighter than that
-		 * buys nothing and starts losing float precision in the pixel mapping.
+		 * A thousandth of a -30..30 axis is 0.06 units across the whole panel, which separates keys an owner
+		 * itself treats as distinct (its key epsilon is of that order) by hundreds of pixels.  Tighter than
+		 * that buys nothing and starts losing float precision in the pixel mapping.
 		 */
 		const val MIN_SPAN: Float = 0.001f
 	}
@@ -170,9 +171,9 @@ data class TrackWindow(
 /**
  * The shape a mark is drawn with, which is how a row distinguishes kinds of key at a glance.
  *
- * The keyform sheet uses [Circle] for a keyform-grid key and [Square] for a blend-shape key, matching the
- * marks the parameter slider already draws.  [Diamond] is reserved for the animation dope sheet's keys so
- * the two sheets stay visually distinct when both are open.
+ * An owner assigns the shapes to its kinds of key: the keyform sheet draws its two kinds as [Circle] and
+ * [Square], matching the marks its slider already draws.  [Diamond] is reserved for the animation dope
+ * sheet's keys so the two sheets stay visually distinct when both are open.
  */
 enum class TrackKeyShape {
 	Circle,
@@ -196,8 +197,8 @@ enum class TrackKeyShape {
  * @property Float position The mark's domain value (a parameter value, a frame, …).
  * @property TrackKeyShape shape How to draw it.
  * @property Boolean selected Whether it is part of the current key selection.
- * @property Boolean editable Whether it may be selected, dragged, or removed; a blend-shape binding key may
- *   not, which is why [summarizedMarks] leaves it out of a group's summary rather than folding it in.
+ * @property Boolean editable Whether it may be selected, dragged, or removed; an owner's read-only kind of
+ *   key may not, which is why [summarizedMarks] leaves it out of a group's summary rather than folding it in.
  */
 data class TrackKeyMark(
 	val keyIndex: Int,
