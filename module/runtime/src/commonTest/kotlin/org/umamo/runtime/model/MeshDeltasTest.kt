@@ -80,6 +80,39 @@ class MeshDeltasTest {
 		assertSame(canvas, keyformBaseOf(canvas, same, { 0f }) { form -> form }, "the canvas mesh's own values")
 	}
 
+	/**
+	 * The float32 neighbors step exactly as the platform nextUp / nextDown do: one raw-bits pattern away from or
+	 * toward zero for either sign, both zeros out to the smallest subnormal, the largest finite float up to
+	 * infinity, and NaN and the infinity in the step's direction left as they are.
+	 */
+	@Test
+	fun theFloatNeighborsStepOneUlp() {
+		assertEquals(Float.fromBits(0x3f800001), floatAbove(1f))
+		assertEquals(Float.fromBits(0x3f7fffff), floatBelow(1f))
+		assertEquals(Float.fromBits(0xbf7fffff.toInt()), floatAbove(-1f), "a negative steps toward zero")
+		assertEquals(Float.fromBits(0xbf800001.toInt()), floatBelow(-1f), "and away from it")
+		assertEquals(Float.MIN_VALUE, floatAbove(0f))
+		assertEquals(Float.MIN_VALUE, floatAbove(-0f), "negative zero steps up like zero")
+		assertEquals(-Float.MIN_VALUE, floatBelow(0f))
+		assertEquals((-0f).toRawBits(), floatAbove(-Float.MIN_VALUE).toRawBits(), "the smallest negative subnormal steps up to negative zero")
+		assertEquals(0f.toRawBits(), floatBelow(Float.MIN_VALUE).toRawBits(), "the smallest subnormal steps down to zero")
+		assertEquals(Float.POSITIVE_INFINITY, floatAbove(Float.MAX_VALUE))
+		assertEquals(Float.NEGATIVE_INFINITY, floatBelow(-Float.MAX_VALUE))
+		assertEquals(Float.POSITIVE_INFINITY, floatAbove(Float.POSITIVE_INFINITY))
+		assertEquals(Float.NEGATIVE_INFINITY, floatBelow(Float.NEGATIVE_INFINITY))
+		assertTrue(floatAbove(Float.NaN).isNaN())
+		assertEquals(-Float.MAX_VALUE, floatAbove(Float.NEGATIVE_INFINITY), "negative infinity steps up to the largest finite negative")
+		// Zeros are pinned above: up from either one and back down lands on positive zero.
+		val random = Random(3)
+		repeat(10_000) {
+			val value = Float.fromBits(random.nextInt())
+			if (value.isFinite() && value != 0f) {
+				assertEquals(value.toRawBits(), floatBelow(floatAbove(value)).toRawBits(), "$value up and back down")
+				assertTrue(floatAbove(value) > value && floatBelow(value) < value, "$value lies between its neighbors")
+			}
+		}
+	}
+
 	/** A mesh's base is the canvas mesh's length, and the shared form keeps one array. */
 	@Test
 	fun aMeshKeepsItsTwoArraysOneLength() {

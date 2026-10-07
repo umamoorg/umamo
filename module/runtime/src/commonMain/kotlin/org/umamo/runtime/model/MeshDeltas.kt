@@ -1,8 +1,5 @@
 package org.umamo.runtime.model
 
-import kotlin.math.nextDown
-import kotlin.math.nextUp
-
 /*
  * The conversions between a drawable's absolute keyform positions and the deltas the model stores, both in the
  * keyforms' own space (DrawableMesh.localPositions).  A keyform is rebuilt as `fl32(local + Δ)`; every
@@ -28,16 +25,45 @@ fun deltaReaching(reference: Float, absolute: Float): Float {
 	if (!delta.isFinite() || reference + delta == absolute) {
 		return delta
 	}
-	val above = delta.nextUp()
+	val above = floatAbove(delta)
 	if (reference + above == absolute) {
 		return above
 	}
-	val below = delta.nextDown()
+	val below = floatBelow(delta)
 	if (reference + below == absolute) {
 		return below
 	}
 	return delta
 }
+
+/**
+ * The float32 neighbor of [value] toward positive infinity, the platform `nextUp` in common code: kotlin.math
+ * declares `Float.nextUp` for JVM and Native but not for the common metadata, so the step goes through the bits.
+ * A finite float's neighbor away from zero is the next raw-bits pattern and toward zero the previous one, for
+ * either sign; both zeros step to the smallest positive subnormal.  NaN and positive infinity come back as they
+ * are.
+ *
+ * @param Float value The value.
+ * @return Float The next float32 above it.
+ */
+internal fun floatAbove(value: Float): Float {
+	if (value.isNaN() || value == Float.POSITIVE_INFINITY) {
+		return value
+	}
+	if (value == 0f) {
+		return Float.MIN_VALUE
+	}
+	return Float.fromBits(if (value > 0f) value.toRawBits() + 1 else value.toRawBits() - 1)
+}
+
+/**
+ * The float32 neighbor of [value] toward negative infinity, the platform `nextDown` in common code: the mirror
+ * of [floatAbove].
+ *
+ * @param Float value The value.
+ * @return Float The next float32 below it.
+ */
+internal fun floatBelow(value: Float): Float = -floatAbove(-value)
 
 /**
  * The per-component deltas that take [reference] to [absolutes] ([deltaReaching] each).
