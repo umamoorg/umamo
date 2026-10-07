@@ -19,8 +19,6 @@ const val PROPORTIONAL_RADIUS_STEP_FACTOR: Float = 1.1f
 /**
  * The falloff curve shaping how a vertex's influence fades from 1 (at the selection) to 0 (at the
  * radius edge) - Blender's proportional-editing falloff set, minus the randomized ones.
- *
- * プロポーショナル編集の減衰カーブの種類（Blender と同じ）。
  */
 enum class ProportionalFalloff {
 	Smooth,
@@ -38,8 +36,6 @@ enum class ProportionalFalloff {
  * nearby-but-unconnected geometry).  Transient session state like the tool latches (deliberately NOT
  * part of EditorSnapshot); the last configuration is remembered across off/on toggles, the
  * circle-select radius pattern.
- *
- * プロポーショナル編集の設定（減衰カーブ、影響半径、接続のみ）。オン・オフをまたいで記憶される一時状態。
  *
  * @property ProportionalFalloff falloff The falloff curve.
  * @property Float radiusWorld The influence radius, in world units (canvas px).
