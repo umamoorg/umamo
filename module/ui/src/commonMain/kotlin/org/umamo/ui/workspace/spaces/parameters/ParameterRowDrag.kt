@@ -25,8 +25,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterMoveSubject
-import org.umamo.edit.RowDropBand
-import org.umamo.edit.moveParameterRow
+import org.umamo.edit.parameter.moveParameterRow
+import org.umamo.edit.structure.RowDropBand
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.kit.Tooltip

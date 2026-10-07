@@ -1,5 +1,8 @@
 package org.umamo.edit
 
+import org.umamo.edit.keyform.captureChannelKey
+import org.umamo.edit.keyform.channelValueAt
+import org.umamo.edit.keyform.isChannelKeyedOn
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Drawable

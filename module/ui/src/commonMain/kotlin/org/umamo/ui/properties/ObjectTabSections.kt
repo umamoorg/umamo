@@ -12,12 +12,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.edit.MeshBounds
 import org.umamo.edit.Pose
-import org.umamo.edit.moveDeformer
-import org.umamo.edit.moveOrgChild
-import org.umamo.edit.setDeformerBaseAngle
-import org.umamo.edit.setDeformerPart
+import org.umamo.edit.property.setDeformerBaseAngle
+import org.umamo.edit.property.setDeformerPart
+import org.umamo.edit.structure.moveDeformer
+import org.umamo.edit.structure.moveOrgChild
+import org.umamo.edit.transform.MeshBounds
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId

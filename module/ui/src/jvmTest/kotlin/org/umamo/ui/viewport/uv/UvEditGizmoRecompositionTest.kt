@@ -9,8 +9,8 @@ import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformAxisConstraint
-import org.umamo.edit.beginCircleSelect
-import org.umamo.edit.beginUvOperator
+import org.umamo.edit.transform.beginCircleSelect
+import org.umamo.edit.transform.beginUvOperator
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.assertNothingRan
 import org.umamo.ui.viewport.gizmo.moveIn

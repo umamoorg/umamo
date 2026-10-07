@@ -6,10 +6,10 @@ import kotlinx.coroutines.withContext
 import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.DocumentChange
 import org.umamo.edit.NoticePlacement
-import org.umamo.edit.commitArtworkRelinked
-import org.umamo.edit.commitArtworkReloaded
-import org.umamo.edit.setTileSources
-import org.umamo.edit.withArtworkReloaded
+import org.umamo.edit.atlas.commitArtworkRelinked
+import org.umamo.edit.atlas.commitArtworkReloaded
+import org.umamo.edit.atlas.setTileSources
+import org.umamo.edit.atlas.withArtworkReloaded
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
 import org.umamo.interop.art.SourceArtImport

@@ -20,11 +20,11 @@ import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterMoveSubject
 import org.umamo.edit.ParameterSelection
-import org.umamo.edit.RowDropBand
-import org.umamo.edit.renameParameter
-import org.umamo.edit.renameParameterGroup
-import org.umamo.edit.setParameterLink
-import org.umamo.edit.setParameterRange
+import org.umamo.edit.parameter.renameParameter
+import org.umamo.edit.parameter.renameParameterGroup
+import org.umamo.edit.parameter.setParameterLink
+import org.umamo.edit.parameter.setParameterRange
+import org.umamo.edit.structure.RowDropBand
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.kit.menu.MenuItem

@@ -12,9 +12,9 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.MeshRestPositions
 import org.umamo.edit.MeshSelectionOps
-import org.umamo.edit.commitMeshPositions
+import org.umamo.edit.mesh.MeshRestPositions
+import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.ui.viewport.StubPuppetViewportService

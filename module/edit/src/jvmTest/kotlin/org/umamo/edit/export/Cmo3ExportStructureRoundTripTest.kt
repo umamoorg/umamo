@@ -1,15 +1,15 @@
 package org.umamo.edit.export
 
-import org.umamo.edit.MergeTarget
-import org.umamo.edit.MeshTopologyOps
-import org.umamo.edit.withDeformerDeleted
-import org.umamo.edit.withDrawableDeleted
-import org.umamo.edit.withDrawableDuplicated
-import org.umamo.edit.withMeshTopologyEdit
-import org.umamo.edit.withParameterCreated
-import org.umamo.edit.withParameterDeleted
-import org.umamo.edit.withParameterGroupCreated
-import org.umamo.edit.withPartDeleted
+import org.umamo.edit.mesh.MergeTarget
+import org.umamo.edit.mesh.MeshTopologyOps
+import org.umamo.edit.mesh.withMeshTopologyEdit
+import org.umamo.edit.parameter.withParameterCreated
+import org.umamo.edit.parameter.withParameterDeleted
+import org.umamo.edit.parameter.withParameterGroupCreated
+import org.umamo.edit.structure.withDeformerDeleted
+import org.umamo.edit.structure.withDrawableDeleted
+import org.umamo.edit.structure.withDrawableDuplicated
+import org.umamo.edit.structure.withPartDeleted
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.DrawableField

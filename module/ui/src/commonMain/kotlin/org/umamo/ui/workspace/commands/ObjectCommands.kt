@@ -6,8 +6,8 @@ import org.umamo.edit.PartChange
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.visibilityOf
-import org.umamo.edit.withSelectionVisibility
+import org.umamo.edit.structure.visibilityOf
+import org.umamo.edit.structure.withSelectionVisibility
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.model.SelectionHandle

@@ -11,8 +11,8 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpSize
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.rename
-import org.umamo.edit.renameParameter
+import org.umamo.edit.parameter.renameParameter
+import org.umamo.edit.structure.rename
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

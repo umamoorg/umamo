@@ -1,5 +1,15 @@
 package org.umamo.edit
 
+import org.umamo.edit.transform.MeshTransforms
+import org.umamo.edit.transform.RotationAngleTracker
+import org.umamo.edit.transform.TransformPivots
+import org.umamo.edit.transform.beginBoxSelect
+import org.umamo.edit.transform.beginCircleSelect
+import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.edit.transform.beginObjectOperator
+import org.umamo.edit.transform.snapToGrid
+import org.umamo.edit.transform.snapToWorldGrid
+import org.umamo.edit.transform.wrapAngle
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId

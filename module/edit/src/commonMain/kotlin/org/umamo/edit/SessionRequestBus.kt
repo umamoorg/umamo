@@ -214,3 +214,40 @@ data class UvPageRequest(val kind: UvPageKind, val areaId: String?)
  *   viewport (then no collector matches and the request is a clean no-op).
  */
 data class SnapRequest(val kind: SnapKind, val areaId: String?)
+
+/**
+ * The geometry-dependent snap operations (Blender's Shift+S) the viewport overlay executes: the
+ * cursor-to-geometry moves need the posed world projection and the selection-to-target moves edit the
+ * model through the deformer-chain inverse, both of which live with the overlay - so the session
+ * carries the request and the active mode's overlay performs it.  The purely arithmetical snaps
+ * (cursor to world origin / to grid) are handled directly by their command handlers and never appear
+ * here.
+ *
+ */
+enum class SnapKind {
+	CursorToSelected,
+	CursorToActive,
+	SelectionToCursor,
+	SelectionToCursorOffset,
+	SelectionToGrid,
+	SelectionToActive,
+}
+
+/**
+ * The UV editor's snap operations (its own Shift+S pie), the texture-space sibling of [SnapKind].
+ * Every one edits or reads in the UV editor's texel display space, so the UV overlay - which owns the
+ * shown page's dimensions and display geometry - executes them, the same request-through-overlay split
+ * as [SnapKind].  The op set differs from the world snaps by design: UV has pixel-corner snaps (a
+ * texel boundary is a natural target for artwork-edge accuracy) and no Active-element snaps, while the
+ * world grid has no meaning here (the UV grid subdivides the atlas page instead - see the UV editor's
+ * display mapping).
+ */
+enum class UvSnapKind {
+	SelectionToPixels,
+	SelectionToCursor,
+	SelectionToCursorOffset,
+	SelectionToGrid,
+	CursorToPixels,
+	CursorToSelected,
+	CursorToGrid,
+}

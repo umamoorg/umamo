@@ -1,6 +1,6 @@
 package org.umamo.ui.model.repack
 
-import org.umamo.edit.withAtlasRepack
+import org.umamo.edit.atlas.withAtlasRepack
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.packAtlas
 import org.umamo.format.cmo3.Cmo3

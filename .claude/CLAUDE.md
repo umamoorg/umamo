@@ -187,12 +187,15 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             table, the import notices; it seeds the parameter list it is handed and
                             knows no template).
                             → :format (api), :runtime (api)
-:edit         commonMain  — the editing session over the immutable PuppetModel: EditorSession
-                            (snapshot-based undo History, selection + mode state, tool latches,
-                            request buses), the sealed Change hierarchy, the pure edit ops
-                            (mesh topology/transforms, parameter edits, proportional editing), and
-                            the seed catalogs a new model starts from (`seed/`: ParameterTemplate +
-                            the humanoid standard set).
+:edit         commonMain  — the editing session over the immutable PuppetModel.  The root package
+                            is the session core: EditorSession (snapshot-based undo History, the one
+                            commitStep seam, the selection / mode / pose state) with the tool latches,
+                            tool settings, and request buses it delegates to, the sealed Change
+                            hierarchy, and the value types they snapshot.  One subpackage per editing
+                            domain (`transform/`, `mesh/`, `parameter/`, `keyform/`, `structure/`,
+                            `property/`, `atlas/`), each holding its pure PuppetModel transforms and
+                            the EditorSession extensions that record them; `seed/` holds the catalogs
+                            a new model starts from.  A domain imports the root, never the reverse.
                             → :runtime (api), kotlinx-coroutines (api)
 :render       commonMain  — deformation eval (CPU) + the puppet renderer + morph-blend shaders,
                   + GL impl   over a `RenderDevice` backend seam.  → :runtime (api), :format (api).

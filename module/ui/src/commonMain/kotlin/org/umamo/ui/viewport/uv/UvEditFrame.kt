@@ -1,6 +1,6 @@
 package org.umamo.ui.viewport.uv
 
-import org.umamo.edit.UvFrame
+import org.umamo.edit.transform.UvFrame
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.PuppetModel

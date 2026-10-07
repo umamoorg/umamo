@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.TrackKeyRef
-import org.umamo.edit.moveTrackKeySelectingIt
+import org.umamo.edit.keyform.moveTrackKeySelectingIt
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap

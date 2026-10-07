@@ -1,6 +1,6 @@
 package org.umamo.ui.document
 
-import org.umamo.edit.withAtlasRepack
+import org.umamo.edit.atlas.withAtlasRepack
 import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.packAtlas

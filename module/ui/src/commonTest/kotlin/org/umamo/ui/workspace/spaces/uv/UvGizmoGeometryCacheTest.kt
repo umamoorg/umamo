@@ -1,6 +1,6 @@
 package org.umamo.ui.workspace.spaces.uv
 
-import org.umamo.edit.withMeshUvs
+import org.umamo.edit.mesh.withMeshUvs
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry

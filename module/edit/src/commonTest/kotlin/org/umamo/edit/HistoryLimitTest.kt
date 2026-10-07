@@ -1,5 +1,6 @@
 package org.umamo.edit
 
+import org.umamo.edit.structure.withPartName
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId

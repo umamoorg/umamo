@@ -1,15 +1,15 @@
 package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshBounds
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Pose
-import org.umamo.edit.commitObjectPositions
-import org.umamo.edit.isPoseNeutral
-import org.umamo.edit.meshBounds
-import org.umamo.edit.movedToBoundsCenter
-import org.umamo.edit.resizedAboutBoundsCenter
+import org.umamo.edit.mesh.commitObjectPositions
+import org.umamo.edit.transform.MeshBounds
+import org.umamo.edit.transform.isPoseNeutral
+import org.umamo.edit.transform.meshBounds
+import org.umamo.edit.transform.movedToBoundsCenter
+import org.umamo.edit.transform.resizedAboutBoundsCenter
 import org.umamo.render.eval.drawableLocalPosed
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel

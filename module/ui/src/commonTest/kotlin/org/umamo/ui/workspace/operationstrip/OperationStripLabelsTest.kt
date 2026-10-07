@@ -1,15 +1,15 @@
 package org.umamo.ui.workspace.operationstrip
 
-import org.umamo.edit.MergeTarget
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ProportionalFalloff
-import org.umamo.edit.ProportionalRows
-import org.umamo.edit.TransformGestureParameters
-import org.umamo.edit.TransformRowSpace
-import org.umamo.edit.mergeParameters
-import org.umamo.edit.slideParameters
-import org.umamo.edit.transformParameters
+import org.umamo.edit.mesh.MergeTarget
+import org.umamo.edit.mesh.mergeParameters
+import org.umamo.edit.transform.ProportionalRows
+import org.umamo.edit.transform.TransformGestureParameters
+import org.umamo.edit.transform.TransformRowSpace
+import org.umamo.edit.transform.slideParameters
+import org.umamo.edit.transform.transformParameters
 import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.ui.model.artwork.addArtworkParameters

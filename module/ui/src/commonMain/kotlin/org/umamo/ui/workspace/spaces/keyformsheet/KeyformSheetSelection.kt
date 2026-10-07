@@ -2,8 +2,8 @@ package org.umamo.ui.workspace.spaces.keyformsheet
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.TrackKeyRef
-import org.umamo.edit.dragTrackKeysKeepingSelection
-import org.umamo.edit.limitedDragFraction
+import org.umamo.edit.keyform.dragTrackKeysKeepingSelection
+import org.umamo.edit.keyform.limitedDragFraction
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId

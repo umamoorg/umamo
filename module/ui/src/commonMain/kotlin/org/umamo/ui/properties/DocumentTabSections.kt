@@ -10,10 +10,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.edit.setCanvasSize
-import org.umamo.edit.setRuntimeTarget
-import org.umamo.edit.setSourceLayerDisplay
-import org.umamo.edit.setWorldOrigin
+import org.umamo.edit.property.setCanvasSize
+import org.umamo.edit.property.setRuntimeTarget
+import org.umamo.edit.property.setSourceLayerDisplay
+import org.umamo.edit.property.setWorldOrigin
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.originFromCanvasBottom
 import org.umamo.runtime.model.originFromCanvasLeft

@@ -1,11 +1,11 @@
 package org.umamo.ui.viewport.uv
 
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.ModalTransformCapture
-import org.umamo.edit.ProportionalInfluence
-import org.umamo.edit.TransformGestureParameters
-import org.umamo.edit.TransformPivotGroup
-import org.umamo.edit.withMeshUvs
+import org.umamo.edit.mesh.withMeshUvs
+import org.umamo.edit.transform.ModalTransformCapture
+import org.umamo.edit.transform.ProportionalInfluence
+import org.umamo.edit.transform.TransformGestureParameters
+import org.umamo.edit.transform.TransformPivotGroup
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.gizmo.applyOperator
