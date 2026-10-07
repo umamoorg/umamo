@@ -169,12 +169,28 @@ class Moc3WrittenIds internal constructor(
 	fun parameterId(id: ParameterId): String = parameters[id.raw] ?: id.raw
 
 	/**
+	 * Every parameter id the moc contains, as written - what a sidecar carried through verbatim must name to
+	 * find a parameter.
+	 *
+	 * @return Set<String> The written ids.
+	 */
+	fun writtenParameterIds(): Set<String> = parameters.values.toSet()
+
+	/**
 	 * The id [id] was written under.
 	 *
 	 * @param PartId id The part's model id.
 	 * @return String The written id.
 	 */
 	fun partId(id: PartId): String = parts[id.raw] ?: id.raw
+
+	/**
+	 * Every part id the moc contains, as written - what a pose, or a motion's part-opacity curve, carried
+	 * through verbatim must name to find a part.
+	 *
+	 * @return Set<String> The written ids.
+	 */
+	fun writtenPartIds(): Set<String> = parts.values.toSet()
 
 	/**
 	 * The id [id] was written under.

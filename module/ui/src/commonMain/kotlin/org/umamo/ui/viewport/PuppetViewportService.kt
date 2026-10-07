@@ -13,6 +13,10 @@ import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayPalette
+import org.umamo.render.puppet.PlacementPreview
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
@@ -26,36 +30,48 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 typealias PuppetViewportServiceFactory = (PuppetModel, PuppetTextures, LiveParams) -> PuppetViewportService
 
 /**
- * A rendered puppet frame together with the camera AND the model it was rendered from. The engine
- * renders asynchronously, so a frame lands a few ticks behind the live state; the overlay draws itself
- * as a pure function of this frame - projecting through [camera] and posing its geometry from [model] -
- * so the vector overlay stays glued to the raster along both the navigation axis (pan/zoom, the camera)
- * and the edit axis (mesh geometry, the model) instead of racing ahead of it. Bundling all three in one
- * immutable value keeps the publish atomic, so the bitmap, its camera, and its geometry can never tear
- * apart across the frame flow.
+ * A rendered puppet frame together with the camera it was rendered with. The engine renders
+ * asynchronously, so a frame lands a few ticks behind the live state; the gizmo overlays project their
+ * chrome through [camera] so it stays glued to the raster during pan and zoom instead of racing ahead of
+ * it, and the mesh overlay is drawn into the pixels themselves. Bundling both in one immutable value keeps
+ * the publish atomic, so the bitmap and its camera can never tear apart across the frame flow.
  *
  * @property ImageBitmap bitmap The area's rendered pixels (already downscaled to the area size).
  * @property ViewportCamera camera The camera the pixels were rendered with.
- * @property PuppetModel model The model whose geometry the pixels reflect (the overlay poses from it so
- *           the wireframe lags with the raster during an edit instead of leading it).
  */
-data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera, val model: PuppetModel)
+data class RenderedFrame(val bitmap: ImageBitmap, val camera: ViewportCamera)
 
 /**
- * What a UV-editor area draws under its wireframe overlays.
+ * What a UV-editor area draws: its surface, and the mesh overlay over it when the area shows one.
  *
  * Two shapes rather than one nullable image because the atlas page is addressed by INDEX into the
  * document's pages (the engine resolves the pixels itself, and re-uses the textures it already
  * uploaded for the puppet) while a source layer arrives as pixels the engine has never seen.  Keeping
  * them distinct is also what lets an area switch between them without re-registering.
+ *
+ * The overlay (and over a page, the placement drag's preview) rides the content rather than a channel of
+ * its own, so a surface and what is drawn over it reach the render thread as one value and can never
+ * mismatch, and the area's freshness (the rendered content against the current one, by equality) sees a
+ * new overlay without a version of its own.  A [DirectMeshOverlay] and a [PlacementPreview] compare by
+ * identity, so only a newly published one re-renders the area.  The camera keys only the surface.
  */
 sealed interface UvSceneContent {
+	/** The area's mesh overlay, in the surface's display positions, or null for none. */
+	val overlay: DirectMeshOverlay?
+
 	/**
 	 * One of the document's packed atlas pages.
 	 *
 	 * @property Int? pageIndex The page to draw, or null for none (grid only).
+	 * @property DirectMeshOverlay? overlay The mesh overlay drawn over it, or null for none.
+	 * @property PlacementPreview? placement The placement drag's preview drawn between the page and the
+	 *   overlay, or null for none.
 	 */
-	data class AtlasPage(val pageIndex: Int?) : UvSceneContent
+	data class AtlasPage(
+		val pageIndex: Int?,
+		override val overlay: DirectMeshOverlay? = null,
+		val placement: PlacementPreview? = null,
+	) : UvSceneContent
 
 	/**
 	 * A source layer's own artwork, decoded by the caller.
@@ -63,10 +79,11 @@ sealed interface UvSceneContent {
 	 * The key is the layer's identity and the image is only its pixels: the engine remembers a view per
 	 * layer by the key, so a re-decoded image of the same layer keeps the view it had.
 	 *
-	 * @property String        layerKey The shown layer's key in the document's source-art store.
-	 * @property DecodedImage? image    The layer raster to draw, or null for none (grid only).
+	 * @property String             layerKey The shown layer's key in the document's source-art store.
+	 * @property DecodedImage?      image    The layer raster to draw, or null for none (grid only).
+	 * @property DirectMeshOverlay? overlay  The mesh overlay drawn over it, or null for none.
 	 */
-	data class SourceLayer(val layerKey: String, val image: DecodedImage?) : UvSceneContent
+	data class SourceLayer(val layerKey: String, val image: DecodedImage?, override val overlay: DirectMeshOverlay? = null) : UvSceneContent
 }
 
 /**
@@ -378,6 +395,24 @@ interface PuppetViewportService {
 	 * @param Float blue The blue component.
 	 */
 	fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float)
+
+	/**
+	 * Sets the mesh overlay every 2D area draws over the art: the Edit-mode wireframe, dots, and face fills
+	 * of the session meshes, or null for none.  The value holds no positions (the renderer reads the art's
+	 * own deformed positions), so a gesture's preview pushes leave it as it is; a new value replaces the
+	 * old by identity.
+	 *
+	 * @param MeshOverlay? overlay The overlay, or null.
+	 */
+	fun setMeshOverlay(overlay: MeshOverlay?)
+
+	/**
+	 * Sets the colors the mesh overlay draws in, the nine Edit-mode element colors and the two placement
+	 * colors (straight alpha, from settings).
+	 *
+	 * @param MeshOverlayPalette palette The palette.
+	 */
+	fun setMeshOverlayPalette(palette: MeshOverlayPalette)
 
 	/**
 	 * Hit-tests the front-most opaque drawable under the cursor, or null on empty canvas.

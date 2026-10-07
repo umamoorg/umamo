@@ -202,6 +202,9 @@
 	<string name="export_reason_keyform_cannot_bundle">%1$s  CMO3 stores one grid per object.</string>
 	<string name="export_reason_axis_parameter_no_source">The grid axis parameter %1$s has no CMO3 source, so the keyform grid was not written.</string>
 	<string name="export_reason_blend_shape_parameter_no_source">The blend-shape parameter %1$s has no CMO3 source, so the blend shape was not written.</string>
+	<string name="export_reason_physics_names_deleted_parameter">The physics settings %1$s still read or drive this deleted parameter.  They were written unchanged; retarget or remove them in the Cubism Editor.</string>
+	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s names parameters this export does not contain (%2$s).  It was written unchanged, so a runtime finds nothing for those inputs and outputs.</string>
+	<string name="export_reason_sidecar_names_unwritten_parts">%1$s names parts this export does not contain (%2$s).  It was written unchanged, so a runtime finds nothing to switch or fade for them.</string>
 	<string name="export_reason_keyforms_without_base_mesh">Keyforms without a base mesh cannot be bundled into CMO3.</string>
 	<string name="export_reason_fractional_draw_order">CMO3 stores a whole-number draw order, so the fractional value was not written.</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">A static glue intensity with no keyforms has nowhere to live in CMO3.</string>
@@ -224,6 +227,7 @@
 	<string name="export_reason_atlas_page_not_recomposed">This artwork was moved on its atlas page, but the page image still shows it at its old spot; repack to redraw it.</string>
 	<string name="export_reason_atlas_tile_metadata">This artwork's pixels, name, or size changed, which an atlas placement cannot carry; re-import the artwork instead.</string>
 	<string name="export_reason_atlas_tile_rebinding">This drawable was bound to different artwork, which needs the artwork re-imported rather than repacked.</string>
+	<string name="export_reason_source_layer_binding_not_in_export">This artwork is bound to layer %2$s of %1$s, which the document does not list, so the binding could not be written; the CMO3 carries the artwork as a flat image of its own.  Relink it in the Sources space to export the binding.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
 	     export would replace, %2$s the abbreviated file list). -->
@@ -515,12 +519,14 @@
 	<string name="sources_status_emptied">Needs review: The layer is empty in the file</string>
 	<string name="sources_status_replaced">Needs review: The replacement file has no layer under this key</string>
 	<string name="sources_status_ignored">Ignored: A reload never adds this layer</string>
+	<string name="sources_status_source_not_listed">Needs review: This document does not list the file this art is bound to</string>
 	<string name="sources_unbound_art">Unbound Art</string>
 	<string name="sources_source_detail">%1$s · %2$d layers</string>
 	<string name="sources_source_no_path">no path recorded</string>
 	<string name="sources_layer_detail">%1$d × %2$d at %3$d, %4$d</string>
 	<string name="sources_layer_detail_axes">%1$d × %2$d at %3$s x, %4$s z</string>
 	<string name="sources_tile_page">page %1$d</string>
+	<string name="sources_tile_unlisted_binding">bound to %2$s in %1$s</string>
 	<string name="sources_relink_title">Relink to a Layer</string>
 	<string name="sources_relink_clear">Unbind</string>
 	<string name="sources_relink_delete">Delete Art</string>
@@ -641,7 +647,7 @@
 	<string name="notice_document_exported_model">Exported %1$s.</string>
 	<string name="notice_document_export_busy">An export is already in progress.</string>
 	<string name="notice_document_waiting_for_export">Waiting on export to finish…</string>
-	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3 structure Umamo does not model is not carried in this file; exports from this session still reconcile onto the original.</string>
+	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3's physics, guides, keyform notes, random pose, model state sets, user data, and other editor settings are not carried in this file.  CMO3 exports from this session still keep them, but a CMO3 exported after reopening the file will not.</string>
 	<string name="notice_document_moc3_loss">Saved as UMA.  Physics, motions, expressions, user data, and pose from the MOC3 family are not carried in this file.</string>
 	<string name="notice_import_artwork_superseded">The document changed while the artwork was being added; nothing was applied.</string>
 	<string name="notice_import_no_art_layers">The file has no layers with pixels to add.</string>
@@ -655,7 +661,9 @@
 	<string name="notice_reload_no_files">No artwork file could be read; nothing was reloaded.</string>
 	<string name="notice_relink_pulled">Art relinked and reloaded.</string>
 	<string name="notice_relink_binding_only">Art relinked; its file could not be read, so the art did not change.</string>
+	<string name="notice_relink_pulled_from_document">Art relinked from the art this document holds, since its file could not be read.</string>
 	<string name="notice_match_done">%1$d layer(s) matched, %2$d left for review.</string>
+	<string name="notice_match_no_files">No artwork could be read, from its file or from this document; nothing was matched.</string>
 	<string name="notice_match_nothing">No binding matched confidently enough; the suggestions are on the rows that need review.</string>
 	<string name="notice_match_no_candidates">Nothing left to match against: every candidate layer is already bound.  Adjust Match Threshold on the reload's strip, or relink manually.</string>
 	<string name="notice_replace_done">Artwork replaced: %1$d layer(s) reloaded by key, %2$d matched, %3$d left for review.</string>
@@ -663,6 +671,7 @@
 	<string name="notice_atlas_repack_unchanged">Atlas already packed; nothing changed.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 	<string name="notice_uv_no_selection">Nothing is selected to mirror.</string>
+	<string name="notice_uv_no_editable_geometry">Nothing to edit here.  None of the edited meshes are on the shown page or layer.</string>
 	<string name="notice_uv_placement_layer_addressed">The puppet's UVs address the source artwork and not the atlas so there is no placement to move.</string>
 	<string name="notice_uv_placement_no_placed_art">Nothing selected is packed on an atlas page or there is no source artwork.</string>
 	<string name="notice_uv_placement_page_view_only">Show an atlas page in the UV editor to move placements.</string>
@@ -1085,4 +1094,5 @@
 	<string name="cmd_keyform_delete">Delete Keyframe</string>
 	<string name="notice_keyform_no_target">Point at a keyable property to insert a keyframe.</string>
 	<string name="notice_keyform_no_parameter">Select a parameter to key on.</string>
+	<string name="notice_parameter_delete_changed_rest">Parameter deleted.  %1$d object(s) now look different at the default pose.</string>
 </resources>

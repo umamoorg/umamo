@@ -243,3 +243,16 @@ data class ArtworkReload(
 	val retiredTiles: List<AtlasTileId> = emptyList(),
 	val drawableVisibility: Map<DrawableId, Boolean> = emptyMap(),
 )
+
+/**
+ * Whether a layer key reads as format-minted: the PSD and CMO3 name fallbacks (a `name:` prefix or a `#`
+ * order suffix) read as weak, everything else (a lyid, a CLIP or Krita uuid) as surviving a rename.  A
+ * guess from the key's shape alone, and one with a known miss: a flat raster's one layer is keyed by its
+ * file name, which its reader marks unstable but this reads as stable.  Used only to type a binding to a
+ * layer no tile is bound to - a bound layer's tiles say what its key is - and it decides only a binding no
+ * read backs, since a relink that reads the file types the binding by the reader's own flag.
+ *
+ * @param String key The reader's layer key.
+ * @return Boolean True when the key looks stable.
+ */
+fun layerKeyLooksStable(key: String): Boolean = !key.startsWith("name:") && !key.contains('#')

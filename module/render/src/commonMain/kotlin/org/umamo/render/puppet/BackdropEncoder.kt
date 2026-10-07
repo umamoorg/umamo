@@ -6,11 +6,8 @@ import org.umamo.render.device.AxisLineUniforms
 import org.umamo.render.device.FragmentUniforms
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.GridUniforms
-import org.umamo.render.device.LoadAction
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.RenderPassEncoder
-import org.umamo.render.device.RenderPassSpec
-import org.umamo.render.device.RenderTarget
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureFormat
 import org.umamo.render.device.WorldToNdc
@@ -23,8 +20,8 @@ import org.umamo.render.device.WorldToNdc
 private const val UNDERLAY_TEXTURE_CACHE_SIZE = 4
 
 /**
- * What is drawn behind and instead of the puppet: the grid backdrop, the world-origin axis lines, and
- * the flat image underlay a UV-editor area shows.
+ * What is drawn behind and instead of the puppet: the grid backdrop, the world-origin axis lines, the
+ * flat image underlay a UV-editor area shows, and the placement drag's preview over that underlay.
  *
  * It holds no view settings.  The grid's colors, spacing, and anchor arrive ready-built with each draw,
  * so the caller that owns them stays the one place they are set.  What it does hold is the underlay
@@ -79,30 +76,60 @@ internal class BackdropEncoder(
 	}
 
 	/**
-	 * The flat underlay frame both UV scenes share: the themed grid backdrop, then the image as a single
-	 * textured quad at the world origin.  A null image or handle paints the grid alone.
+	 * Draws a placement preview into an open pass over the page: every scrim as a flat quad, then every crop
+	 * sampled through its resolved texture, in the order given (the movers', then the ghost's).  All through
+	 * the underlay's quad pipeline and the page's camera.
+	 *
+	 * @param RenderPassEncoder pass      The open pass.
+	 * @param ResolvedPlacement placement The preview, its crop textures resolved.
+	 * @param GridUniforms      grid      The grid's inputs, carrying the camera affine and the viewport size.
+	 */
+	fun encodePlacement(pass: RenderPassEncoder, placement: ResolvedPlacement, grid: GridUniforms) {
+		if (placement.scrimQuads.isEmpty() && placement.crops.isEmpty()) {
+			return
+		}
+		pass.setPipeline(pipelines.atlasPage)
+		pass.setCamera(grid.worldToNdc, grid.viewportWidth, grid.viewportHeight)
+		val scrim = placement.scrimColor
+		for (quad in placement.scrimQuads) {
+			fragmentScratch.reset()
+			fragmentScratch.colorRed = scrim.red
+			fragmentScratch.colorGreen = scrim.green
+			fragmentScratch.colorBlue = scrim.blue
+			fragmentScratch.colorAlpha = scrim.alpha
+			pass.drawImageQuad(null, quad, fragmentScratch)
+		}
+		for (crop in placement.crops) {
+			fragmentScratch.reset()
+			fragmentScratch.useTexture = true
+			crop.sampleAffine.copyInto(fragmentScratch.uvAffine)
+			pass.drawImageQuad(crop.texture, crop.quadToWorld, fragmentScratch)
+		}
+	}
+
+	/**
+	 * Fills an open pass with the flat underlay both UV scenes share: the themed grid backdrop (bounded by
+	 * the shown surface when the grid carries one), then the image as a single textured quad at the world
+	 * origin.  A null image or handle paints the grid alone.  The caller owns the frame and the pass, so
+	 * what a scene draws over its surface lands in the same pass.
 	 *
 	 * The quad samples through the same premultiplied fragment shader the puppet uses, so an underlay
 	 * matches the puppet's texel rendering exactly.
 	 *
-	 * @param RenderTarget  target The surface to draw into.
-	 * @param DecodedImage? image  The image whose extent the quad takes, or null.
-	 * @param GpuTexture?   handle The uploaded texture for [image], or null.
-	 * @param GridUniforms  grid   The grid's inputs, carrying the camera affine and the viewport size.
+	 * @param RenderPassEncoder pass   The open pass on the area's target.
+	 * @param DecodedImage?     image  The image whose extent the quad takes, or null.
+	 * @param GpuTexture?       handle The uploaded texture for [image], or null.
+	 * @param GridUniforms      grid   The grid's inputs, carrying the camera affine and the viewport size.
 	 */
-	fun encodeUnderlay(target: RenderTarget, image: DecodedImage?, handle: GpuTexture?, grid: GridUniforms) {
-		val frame = device.beginFrame()
-		val pass = frame.beginRenderPass(RenderPassSpec(target, LoadAction.DontCare, grid.viewportWidth, grid.viewportHeight))
+	fun encodeUnderlay(pass: RenderPassEncoder, image: DecodedImage?, handle: GpuTexture?, grid: GridUniforms) {
 		encodeGrid(pass, grid)
 		if (image != null && handle != null) {
 			pass.setPipeline(pipelines.atlasPage)
 			pass.setCamera(grid.worldToNdc, grid.viewportWidth, grid.viewportHeight)
 			fragmentScratch.reset()
 			fragmentScratch.useTexture = true
-			pass.drawAtlasPage(handle, image.width.toFloat(), image.height.toFloat(), fragmentScratch)
+			pass.drawImageQuad(handle, floatArrayOf(image.width.toFloat(), 0f, 0f, 0f, image.height.toFloat(), 0f), fragmentScratch)
 		}
-		pass.end()
-		frame.endFrame()
 	}
 
 	/**

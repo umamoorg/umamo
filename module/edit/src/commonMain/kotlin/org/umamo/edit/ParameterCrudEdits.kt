@@ -6,13 +6,14 @@ import org.umamo.runtime.keyform.flagOr
 import org.umamo.runtime.keyform.hasFractionalDrawOrder
 import org.umamo.runtime.keyform.integralDrawOrderOrNull
 import org.umamo.runtime.keyform.scalarOr
-import org.umamo.runtime.keyform.withAxisCollapsed
+import org.umamo.runtime.keyform.withAxisCollapsedKeepingCell
 import org.umamo.runtime.keyform.withAxisCollapsedLifting
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
@@ -117,27 +118,64 @@ fun PuppetModel.withParameterRenamed(id: ParameterId, newName: String): PuppetMo
 
 /**
  * A copy of this model with parameter [id] removed everywhere: the axis list, every panel-tree leaf, any
- * link it belongs to (its partner reverts to a plain slider), and every keyform grid in the rig -
- * drawables, both deformer kinds, parts, and glue intensities. Dropping the deleted axis collapses each
- * grid to the slice at the parameter's default value (the neutral look), discarding that axis's motion.
- * A channel track left with no axes is dropped, and the value of its kept slice is lifted into the
- * owner's static so the neutral look survives the drop; a fractional part draw order stays behind as a
- * constant track because the Int static slot cannot hold it without rounding. A geometry grid left with
- * no axes becomes null (the drawable returns to its rest mesh - the base mesh is authored, never baked
- * from a slice). The render root is re-derived at the end so its per-group copies of the part tracks
- * lose the deleted axis too. The live pose entry is dropped by the session wrapper. A no-op (no such
- * parameter) returns this same instance.
+ * link it belongs to (its partner reverts to a plain slider), every keyform grid in the rig - drawables,
+ * both deformer kinds, parts, and glue intensities - and every blend shape that names it. Dropping the
+ * deleted axis collapses each grid to the slice at the parameter's default value (the neutral look),
+ * discarding that axis's motion. A channel track left with no axes is dropped, and the value of its kept
+ * slice is lifted into the owner's static so the neutral look survives the drop; a fractional part draw
+ * order stays behind as a constant track because the Int static slot cannot hold it without rounding. A
+ * geometry grid left with no axes keeps its kept slice as a one-cell grid with no axes: a deformer's
+ * lattice or pivot lives only in its cells, and a drawable keeps the look it had rather than snapping back
+ * to its base mesh (the base mesh is authored, never baked from a slice). A blend binding the parameter
+ * drives is dropped, and a weight limit over it is dropped or baked into its binding's forms
+ * ([blendBindingScrubOf]), so no id the model lacks survives; [ParameterDeletion.restChangedOwners] names the
+ * owners where that, or a default between two keys, moves the rest pose. The render root is re-derived at
+ * the end so its per-group copies of the part tracks lose the deleted axis too. The live pose entry is
+ * dropped by the session wrapper. A no-op (no such parameter) returns this same instance.
  *
  * @param ParameterId id The parameter to delete.
  * @return PuppetModel The model with the parameter removed, or this if it was absent.
  */
-fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
-	val deleted = parameters.firstOrNull { parameter -> parameter.id == id } ?: return this
+fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel = parameterDeletionOf(id)?.model ?: this
+
+/**
+ * What deleting a parameter produces: the model without it ([withParameterDeleted]), and the owners whose look
+ * at the default pose the delete moved - a grid or track keyed on it with its default on none of its keys (the
+ * collapse keeps the nearest key's slice rather than the look at the default), a sole-axis track or deformer
+ * grid whose kept key has no cell (the static, or no grid at all, takes over from the nothing a missing cell
+ * evaluated to), or a blend shape the scrub cannot keep exact ([blendBindingScrubOf]).  Everything else a
+ * delete does leaves the rest pose as it was.
+ *
+ * @property PuppetModel model             The model with the parameter removed.
+ * @property List        restChangedOwners The owners whose rest pose changes, in model order: drawables,
+ *   deformers, parts, then glues.
+ */
+class ParameterDeletion(val model: PuppetModel, val restChangedOwners: List<KeyformOwner>)
+
+/**
+ * The delete of parameter [id] with the owners it moves, decided in the one walk that collapses them: each
+ * grid, track, and binding answers the rest-pose question as it is scrubbed, rather than the whole model being
+ * walked a second time to ask it.
+ *
+ * @param ParameterId id The parameter to delete.
+ * @return ParameterDeletion? The deletion, or null when the model has no such parameter.
+ */
+fun PuppetModel.parameterDeletionOf(id: ParameterId): ParameterDeletion? {
+	val deleted = parameters.firstOrNull { parameter -> parameter.id == id } ?: return null
 	val keepValue = deleted.default
-	// Both halves of a drawable key on parameters: the geometry grid and every channel track.
+	val defaultOf = defaultValueLookup()
+	val drawableMoves = BooleanArray(drawables.size)
+	val deformerMoves = BooleanArray(deformers.size)
+	val partMoves = BooleanArray(parts.size)
+	val glueMoves = BooleanArray(glues.size)
+	// Both halves of a drawable key on parameters: the geometry grid and every channel track.  A sparse
+	// geometry grid losing its absent kept cell moves nothing: zero deltas and no grid both draw the base mesh.
 	val newDrawables =
-		drawables.map { drawable ->
-			val collapsed = drawable.geometryGrid?.withAxisCollapsed(id, keepValue)
+		drawables.mapIndexed { drawableIndex, drawable ->
+			drawableMoves[drawableIndex] =
+				collapseMovesRest(drawable.geometryGrid, id, keepValue, missingKeptCellMoves = false) ||
+				collapseMovesRest(drawable.channelGrids, id, keepValue)
+			val collapsed = drawable.geometryGrid?.withAxisCollapsedKeepingCell(id, keepValue)
 			val scrubbed = drawable.channelGrids.withAxisCollapsedLifting(id, keepValue)
 			if (collapsed === drawable.geometryGrid && scrubbed.channelGrids === drawable.channelGrids) {
 				drawable
@@ -152,13 +190,17 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 				)
 			}
 		}
-	// Both halves of a deformer key on parameters: the geometry grid and every channel track.
+	// Both halves of a deformer key on parameters: the geometry grid and every channel track.  A deformer's
+	// shape lives only in its cells, so a sparse grid losing its absent kept cell leaves it no grid where the
+	// evaluator had read a zero form.
 	val newDeformers =
-		deformers.map { deformer ->
+		deformers.mapIndexed { deformerIndex, deformer ->
 			val scrubbed = deformer.channelGrids.withAxisCollapsedLifting(id, keepValue)
+			deformerMoves[deformerIndex] = collapseMovesRest(deformer.channelGrids, id, keepValue)
 			when (deformer) {
 				is Deformer.Warp -> {
-					val collapsed = deformer.geometryGrid?.withAxisCollapsed(id, keepValue)
+					deformerMoves[deformerIndex] = deformerMoves[deformerIndex] || collapseMovesRest(deformer.geometryGrid, id, keepValue)
+					val collapsed = deformer.geometryGrid?.withAxisCollapsedKeepingCell(id, keepValue)
 					if (collapsed === deformer.geometryGrid && scrubbed.channelGrids === deformer.channelGrids) {
 						deformer
 					} else {
@@ -173,7 +215,8 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 				}
 
 				is Deformer.Rotation -> {
-					val collapsed = deformer.geometryGrid?.withAxisCollapsed(id, keepValue)
+					deformerMoves[deformerIndex] = deformerMoves[deformerIndex] || collapseMovesRest(deformer.geometryGrid, id, keepValue)
+					val collapsed = deformer.geometryGrid?.withAxisCollapsedKeepingCell(id, keepValue)
 					if (collapsed === deformer.geometryGrid && scrubbed.channelGrids === deformer.channelGrids) {
 						deformer
 					} else {
@@ -191,7 +234,8 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 			}
 		}
 	val newParts =
-		parts.map { part ->
+		parts.mapIndexed { partIndex, part ->
+			partMoves[partIndex] = collapseMovesRest(part.channelGrids, id, keepValue)
 			val scrubbed = part.channelGrids.withAxisCollapsedLifting(id, keepValue)
 			if (scrubbed.channelGrids === part.channelGrids) {
 				part
@@ -211,7 +255,8 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 	// Glue tracks key on parameters exactly like the rest, so they need the same scrub - without it a
 	// deleted parameter survives as a dangling KeyformAxis.parameterId that nothing can ever resolve.
 	val newGlues =
-		glues.map { glue ->
+		glues.mapIndexed { glueIndex, glue ->
+			glueMoves[glueIndex] = collapseMovesRest(glue.channelGrids, id, keepValue)
 			val scrubbed = glue.channelGrids.withAxisCollapsedLifting(id, keepValue)
 			if (scrubbed.channelGrids === glue.channelGrids) {
 				glue
@@ -222,15 +267,76 @@ fun PuppetModel.withParameterDeleted(id: ParameterId): PuppetModel {
 				)
 			}
 		}
-	return copy(
-		parameters = parameters.filterNot { parameter -> parameter.id == id },
-		parameterLinks = parameterLinks.filterNot { link -> link.horizontal == id || link.vertical == id },
-		parameterTree = removeParameterLeaf(parameterTree, id),
-		drawables = newDrawables,
-		deformers = newDeformers,
-		parts = newParts,
-		glues = newGlues,
-	).withDerivedRenderRoot()
+	// The blend shapes last, over each owner as collapsed: a form a limit's cap is baked into moves around the
+	// owner's look at the default pose, which is the collapsed grid's.
+	val scrubbedDrawables =
+		newDrawables.mapIndexed { drawableIndex, drawable ->
+			val scrub = drawable.blendShapes.scrubbedOf(deleted, defaultOf) { drawable.meshFormScaler(defaultOf) }
+			if (scrub.movesRest) {
+				drawableMoves[drawableIndex] = true
+			}
+			if (scrub.bindings === drawable.blendShapes) drawable else drawable.copy(blendShapes = scrub.bindings)
+		}
+	val scrubbedDeformers =
+		newDeformers.mapIndexed { deformerIndex, deformer ->
+			when (deformer) {
+				is Deformer.Warp -> {
+					val scrub = deformer.blendShapes.scrubbedOf(deleted, defaultOf) { deformer.warpFormScaler(defaultOf) }
+					if (scrub.movesRest) {
+						deformerMoves[deformerIndex] = true
+					}
+					if (scrub.bindings === deformer.blendShapes) deformer else deformer.copy(blendShapes = scrub.bindings)
+				}
+
+				is Deformer.Rotation -> {
+					val scrub = deformer.blendShapes.scrubbedOf(deleted, defaultOf) { deformer.rotationFormScaler(defaultOf) }
+					if (scrub.movesRest) {
+						deformerMoves[deformerIndex] = true
+					}
+					if (scrub.bindings === deformer.blendShapes) deformer else deformer.copy(blendShapes = scrub.bindings)
+				}
+			}
+		}
+	val scrubbedParts =
+		newParts.mapIndexed { partIndex, part ->
+			val scrub = part.blendShapes.scrubbedOf(deleted, defaultOf) { part.partFormScaler(defaultOf) }
+			if (scrub.movesRest) {
+				partMoves[partIndex] = true
+			}
+			if (scrub.bindings === part.blendShapes) part else part.copy(blendShapes = scrub.bindings)
+		}
+	val restChangedOwners = ArrayList<KeyformOwner>()
+	for ((drawableIndex, drawable) in drawables.withIndex()) {
+		if (drawableMoves[drawableIndex]) {
+			restChangedOwners.add(KeyformOwner.Drawable(drawable.id))
+		}
+	}
+	for ((deformerIndex, deformer) in deformers.withIndex()) {
+		if (deformerMoves[deformerIndex]) {
+			restChangedOwners.add(KeyformOwner.Deformer(deformer.id))
+		}
+	}
+	for ((partIndex, part) in parts.withIndex()) {
+		if (partMoves[partIndex]) {
+			restChangedOwners.add(KeyformOwner.Part(part.id))
+		}
+	}
+	for ((glueIndex, glue) in glues.withIndex()) {
+		if (glueMoves[glueIndex]) {
+			restChangedOwners.add(KeyformOwner.Glue(glue.meshA, glue.meshB))
+		}
+	}
+	val model =
+		copy(
+			parameters = parameters.filterNot { parameter -> parameter.id == id },
+			parameterLinks = parameterLinks.filterNot { link -> link.horizontal == id || link.vertical == id },
+			parameterTree = removeParameterLeaf(parameterTree, id),
+			drawables = scrubbedDrawables,
+			deformers = scrubbedDeformers,
+			parts = scrubbedParts,
+			glues = newGlues,
+		).withDerivedRenderRoot()
+	return ParameterDeletion(model, restChangedOwners)
 }
 
 /**

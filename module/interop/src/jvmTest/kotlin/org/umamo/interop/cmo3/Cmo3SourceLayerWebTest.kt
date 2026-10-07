@@ -12,10 +12,14 @@ import org.umamo.format.cmo3.model.gen.CLayerIdentifier
 import org.umamo.format.cmo3.model.gen.CLayeredImage
 import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CTextureAtlas
+import org.umamo.format.cmo3.model.gen.CTextureInputExtension
+import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
 import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.gen.GTransform2
 import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
 import org.umamo.format.cmo3.model.gen.ModelImageEntry
+import org.umamo.format.cmo3.model.gen.TextureState
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.model.type.CRect
 import org.umamo.format.cmo3.model.type.FileRef
@@ -24,6 +28,7 @@ import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.fittedInto
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
@@ -47,6 +52,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -136,6 +142,50 @@ class Cmo3SourceLayerWebTest {
 		assertEquals(listOf("a.psd"), withoutWing.map { image -> image.name }, "a tile with no raster leaves its file out when it was the only one")
 	}
 
+	/**
+	 * A tile bound to a file the document does not list, or to a layer its file never inventoried, routes as a
+	 * flat image of its own that carries the binding it stands in for, and the fresh conversion reports that
+	 * binding; a tile bound to nothing routes the same way and carries none.
+	 */
+	@Test
+	fun aBindingNoListedRowResolvesRoutesAsAFlatImageAndIsReported() {
+		val unlistedSource = ArtSourceId("art-9")
+		val tileUnlisted = AtlasTile(AtlasTileId("art-9/lyid:7"), "Stray", 4, 4, source = SourceLayerRef(unlistedSource, "lyid:7", true))
+		val tileLostKey = AtlasTile(AtlasTileId("art-0/lyid:99"), "Lost", 4, 4, source = SourceLayerRef(sourceA, "lyid:99", true))
+		val tileUnbound = AtlasTile(AtlasTileId("hit"), "HitArea", 4, 4)
+		val widened = puppet.copy(atlas = puppet.atlas.copy(tiles = puppet.atlas.tiles + listOf(tileUnlisted, tileLostKey, tileUnbound)))
+		val widenedRasters = rasters + mapOf(tileUnlisted.id to gradient(5), tileLostKey.id to gradient(6), tileUnbound.id to gradient(7))
+
+		val inputs = Cmo3SourceLayerWeb.inputsOf(widened) { tileId -> widenedRasters[tileId] }
+		assertEquals(listOf("a.psd", "b.clip", "Stray", "Lost", "HitArea"), inputs.map { image -> image.name }, "the files, then one flat image per tile no row resolves")
+		val byName = inputs.associateBy { image -> image.name }
+		assertEquals(SourceLayerRef(unlistedSource, "lyid:7", true), byName.getValue("Stray").unresolvedBinding, "the unlisted file's binding rides its flat image")
+		assertEquals(SourceLayerRef(sourceA, "lyid:99", true), byName.getValue("Lost").unresolvedBinding, "so does a key the listed file never inventoried")
+		assertNull(byName.getValue("HitArea").unresolvedBinding, "a tile bound to nothing stood in for no binding")
+		assertNull(byName.getValue("a.psd").unresolvedBinding)
+		assertEquals(listOf("name:Stray", "name:Lost", "name:HitArea"), listOf("Stray", "Lost", "HitArea").map { name -> byName.getValue(name).layers.single().layerKey })
+
+		val result =
+			Cmo3Conversion.freshCmo3(
+				puppet = widened,
+				pages = listOf(page),
+				pageIndexByDrawableId = widened.drawables.associate { drawable -> drawable.id.raw to 0 },
+				modelName = "Unresolved",
+				nowMillis = now,
+				obfuscateKey = 0x1234ABCD,
+				tileRasters = { tileId -> widenedRasters[tileId] },
+			)
+		val reported = result.report.notices.filterIsInstance<ExportNotice.UnsupportedChange>().filter { notice -> notice.reason is ExportNoticeReason.SourceLayerBindingNotInExport }.map { notice -> notice.subject to notice.reason }
+		assertEquals(
+			listOf(
+				"Stray" to ExportNoticeReason.SourceLayerBindingNotInExport("art-9", "lyid:7"),
+				"Lost" to ExportNoticeReason.SourceLayerBindingNotInExport("a.psd", "lyid:99"),
+			),
+			reported,
+			"each binding that did not cross is reported once, by the file's name when the document lists it: ${result.report.notices}",
+		)
+	}
+
 	@Test
 	fun theWebWritesRealLayersFoldersEntriesAndBindingsAndReadsBack() {
 		val skeleton = Cmo3SkeletonBuilder.buildBlank("Layer Test", 100, 100, RuntimeTarget.Cubism53.cmo3TargetVersionNo())
@@ -156,7 +206,7 @@ class Cmo3SourceLayerWebTest {
 		assertEquals("/art/a.psd", (imageA.psdFile as FileRef).textPath)
 		assertEquals(123L, imageA.psdFileLastModified)
 		assertEquals(100 to 100, imageA.width to imageA.height)
-		assertEquals("b.clip", (images[1].psdFile as FileRef).textPath, "a record with no path writes its name")
+		assertEquals("", (images[1].psdFile as FileRef).textPath, "a record with no path writes none, not its name")
 		assertEquals(now, images[1].psdFileLastModified, "a record with no time writes now")
 
 		// The folder tree: Head/Eyes holds the eye, the rest sits at the root, in file order.
@@ -209,10 +259,18 @@ class Cmo3SourceLayerWebTest {
 		val eyeCopy = chain.bindingByDrawableId.getValue("EyeCopy")
 		assertEquals(imagesA[0].guid, eyeL.modelImageGuid, "the eye binding names the eye's model image")
 		assertEquals(eyeL.modelImageGuid, eyeCopy.modelImageGuid, "the duplicate shares it")
-		assertEquals(8f, eyeL.inputImageLocalToCanvasTransform.m02, 1e-5f)
-		assertEquals(8f, eyeCopy.inputImageLocalToCanvasTransform.m02, 1e-5f)
+		assertEquals(8f, eyeL.inputImageLocalToCanvasTransform!!.m02, 1e-5f)
+		assertEquals(8f, eyeCopy.inputImageLocalToCanvasTransform!!.m02, 1e-5f)
 		assertTrue("Hair" in chain.bindingByDrawableId && "Wing" in chain.bindingByDrawableId)
-		assertNull(chain.bindingByDrawableId["Guide"], "an unpacked tile's drawable gets no binding")
+		// The unpacked guide binds its model image alone, through a texture over the image's raster that
+		// carries the raster's padding scale - the corpus shape of a drawable never packed.
+		val guide = chain.bindingByDrawableId.getValue("Guide")
+		assertTrue(guide.isUnpacked, "an unpacked tile's drawable has no atlas region")
+		assertEquals(imagesA[2].guid, guide.modelImageGuid, "it binds the guide's model image")
+		assertSame(imagesA[2]._filteredImage, guide.texture.srcImageResource, "its texture samples that image's raster")
+		val guideScale = guide.texture.transformImageResource01toLogical01 as CAffine
+		assertEquals(listOf(4f / 64f, 0f, 0f, 0f, 4f / 64f, 0f), listOf(guideScale.m00, guideScale.m01, guideScale.m02, guideScale.m10, guideScale.m11, guideScale.m12), "the 4px raster over its 64px padding")
+		assertEquals(listOf(guide.texture), chain.rasterTextures, "one raster texture, for the one unpacked tile")
 
 		// The layer PNG is the tile's raster.
 		val eyeResource = eye.imageResource as org.umamo.format.cmo3.model.custom.CImageResource
@@ -242,8 +300,10 @@ class Cmo3SourceLayerWebTest {
 					obfuscateKey = 0x1234ABCD,
 				),
 			)
+		// The conversion's own step: the textures the chain built re-point at the read-back graph's resources.
+		Cmo3Conversion.rebindImageResources(chain, model)
 		val report = Cmo3Export.apply(puppet, model, chain.bindingByDrawableId)
-		assertTrue(report.notices.all { notice -> notice is ExportNotice.UnsupportedChange && notice.subject == "Guide" }, "only the unpacked guide is reported: ${report.notices}")
+		assertTrue(report.notices.isEmpty(), "every drawable is written, the unpacked guide included: ${report.notices}")
 		val reread = Cmo3.read(Cmo3.write(model))
 		val rereadRoot = reread.root as CModelSource
 		val ingest = cmo3AtlasIngest(rereadRoot)
@@ -279,14 +339,35 @@ class Cmo3SourceLayerWebTest {
 		assertEquals(rereadIconPaths.size, rereadIconPaths.toSet().size, "one icon entry per drawable and size")
 		val reimported = Cmo3Import.fromModelSource(rereadRoot)
 		for (drawable in puppet.drawables) {
+			val back = assertNotNull(reimported.drawables.firstOrNull { candidate -> candidate.id == drawable.id }, "${drawable.name} re-imports")
 			if (drawable.id.raw == "Guide") {
-				// An unpacked tile's drawable has no texture to bind and is reported rather than written,
-				// as in the crop path; the unpacked-drawable input shape is the follow-up.
-				assertNull(reimported.drawables.firstOrNull { candidate -> candidate.id == drawable.id }, "the unpacked guide is reported, not written")
+				// Through the cache frame and back: within a few ulps, not bit for bit.
+				val expected = assertNotNull(drawable.mesh).uvs
+				val actual = assertNotNull(back.mesh).uvs
+				assertEquals(expected.size, actual.size)
+				for (componentIndex in expected.indices) {
+					assertEquals(expected[componentIndex], actual[componentIndex], 1e-6f, "Guide uv $componentIndex")
+				}
 				continue
 			}
-			val back = assertNotNull(reimported.drawables.firstOrNull { candidate -> candidate.id == drawable.id }, "${drawable.name} re-imports")
 			assertContentEquals(drawable.mesh?.uvs, back.mesh?.uvs, "${drawable.name} uvs are verbatim")
 		}
+		// The written guide has the corpus shape, samples the very raster its model image holds, and shows from it.
+		val guideMesh = rereadMeshes.single { mesh -> Cmo3Import.idStrOf(mesh.id) == "Guide" }
+		assertEquals(TextureState.MODEL_IMAGE, guideMesh.textureState)
+		val guideExtension = Cmo3Import.elementsOf(guideMesh._extensions).filterIsInstance<CTextureInputExtension>().single()
+		val guideInput = Cmo3Import.elementsOf(guideExtension._textureInputs).single() as CTextureInput_ModelImage
+		assertSame(guideInput, guideExtension.currentTextureInputData, "the model image is current")
+		val rereadGuideImage =
+			Cmo3Import.elementsOf((rereadRoot.textureManager as CTextureManager)._modelImageGroups)
+				.filterIsInstance<CModelImageGroup>()
+				.flatMap { group -> Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>() }
+				.single { modelImage -> Cmo3Import.uuidOf(modelImage.guid) == Cmo3Import.uuidOf(guideInput._modelImageGuid) }
+		assertSame(rereadGuideImage._filteredImage, (guideMesh.texture as GTexture2D).srcImageResource, "one resource, shared by reference as the editor writes it")
+		assertEquals(Cmo3StoredFrame.Cache, Cmo3TextureFrames(rereadRoot).storedFrameOf(guideMesh), "its coordinates are in the cache frame")
+		assertNull(tileByKey.getValue("lyid:9").placement, "and its tile is still unplaced")
+		val shownPages = cmo3AtlasPages(rereadRoot, ingest) { resource -> reread.extractLayerPng(resource) }
+		val guidePage = shownPages.pageBytes[shownPages.atlasIndexByDrawableId.getValue("Guide")]
+		assertContentEquals(gradient(3).rgba, PngCodec.read(guidePage).rgba, "the guide is shown from its own raster")
 	}
 }

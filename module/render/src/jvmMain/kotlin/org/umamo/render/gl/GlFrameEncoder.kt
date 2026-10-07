@@ -20,6 +20,8 @@ import org.umamo.render.device.GpuMesh
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.GridUniforms
 import org.umamo.render.device.LoadAction
+import org.umamo.render.device.OverlayDrawUniforms
+import org.umamo.render.device.OverlayMeshBuffers
 import org.umamo.render.device.RenderPassEncoder
 import org.umamo.render.device.RenderPassSpec
 import org.umamo.render.device.RenderPipeline
@@ -44,7 +46,7 @@ import java.nio.IntBuffer
  * writes and fixes each pipeline's blend up front, both of which read better than the ambient-state
  * idiom - and it is what a Metal backend, which does have command buffers, would map onto directly.
  *
- * @param Int emptyVao A bound VAO for the attribute-less draws (grid, axis, atlas page); a core profile
+ * @param Int emptyVao A bound VAO for the attribute-less draws (grid, axis, image quad); a core profile
  *   requires one even when the shader synthesises positions from gl_VertexID.
  */
 internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {
@@ -106,6 +108,13 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 	private var cameraApplied = false
 	private var glueStateApplied = false
 
+	// The deformed-position store the overlay draws currently sample: re-bound only when a draw hands in
+	// a different one, since the overlay's own store differs from the glue store on the same unit.
+	private var overlayStoreBound: GlDeformedPositionStore? = null
+
+	// Scratch for the three overlay colors, reused across draws.
+	private val overlayColorScratch = BufferUtils.createFloatBuffer(4)
+
 	// Scratch for the corner uniform arrays, reused across draws so the per-draw marshalling never allocates.
 	private val cornerCellScratch = BufferUtils.createIntBuffer(org.umamo.render.glsl.MAX_CORNERS)
 	private val cornerWeightScratch = BufferUtils.createFloatBuffer(org.umamo.render.glsl.MAX_CORNERS)
@@ -118,6 +127,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		this.pipeline = glPipeline
 		cameraApplied = false
 		glueStateApplied = false
+		overlayStoreBound = null
 		GL20.glUseProgram(glPipeline.program)
 		applyBlend(glPipeline.blend)
 		applyCull(glPipeline.cullBackFaces)
@@ -174,10 +184,11 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL11.glDrawElements(GL11.GL_TRIANGLES, glMesh.indexCount, GL11.GL_UNSIGNED_INT, 0L)
 	}
 
-	override fun drawAtlasPage(atlas: GpuTexture, pageWidth: Float, pageHeight: Float, fragment: FragmentUniforms) {
+	override fun drawImageQuad(texture: GpuTexture?, quadToWorld: FloatArray, fragment: FragmentUniforms) {
 		val locations = current.locations
-		GL20.glUniform2f(locations.pageSize, pageWidth, pageHeight)
-		setFragmentUniforms(current, fragment, DrawTextures().also { it.atlas = atlas })
+		GL20.glUniform3f(locations.quadRow0, quadToWorld[0], quadToWorld[1], quadToWorld[2])
+		GL20.glUniform3f(locations.quadRow1, quadToWorld[3], quadToWorld[4], quadToWorld[5])
+		setFragmentUniforms(current, fragment, DrawTextures().also { it.atlas = texture })
 		GL30.glBindVertexArray(emptyVao)
 		GL11.glDrawArrays(GL11.GL_TRIANGLE_STRIP, 0, 4)
 	}
@@ -213,6 +224,14 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL20.glUniform3f(locations.backgroundColor, colors.backgroundRed, colors.backgroundGreen, colors.backgroundBlue)
 		GL20.glUniform3f(locations.majorColor, colors.majorRed, colors.majorGreen, colors.majorBlue)
 		GL20.glUniform3f(locations.minorColor, colors.minorRed, colors.minorGreen, colors.minorBlue)
+		val surface = uniforms.surface
+		GL20.glUniform1i(locations.useSurface, if (surface != null) 1 else 0)
+		if (surface != null) {
+			GL20.glUniform4f(locations.surfaceBounds, surface.minX, surface.minY, surface.minX + surface.width, surface.minY + surface.height)
+			GL20.glUniform3f(locations.surroundColor, colors.surroundRed, colors.surroundGreen, colors.surroundBlue)
+			GL20.glUniform3f(locations.frameColor, colors.frameRed, colors.frameGreen, colors.frameBlue)
+			GL20.glUniform1f(locations.frameWidthPx, uniforms.frameWidthPx)
+		}
 		GL30.glBindVertexArray(emptyVao)
 		GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, 3)
 	}
@@ -224,6 +243,78 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL20.glUniform3f(locations.lineColor, uniforms.red, uniforms.green, uniforms.blue)
 		GL30.glBindVertexArray(emptyVao)
 		GL11.glDrawArrays(GL11.GL_LINES, 0, 2)
+	}
+
+	override fun drawOverlayFaceFill(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+		val glBuffers = buffers as GlOverlayMeshBuffers
+		drawOverlay(glBuffers.faceVao, glBuffers.faceCount, FACE_VERTICES, store, uniforms)
+	}
+
+	override fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+		val glBuffers = buffers as GlOverlayMeshBuffers
+		drawOverlay(glBuffers.edgeVao, glBuffers.edgeCount, QUAD_VERTICES, store, uniforms)
+	}
+
+	override fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+		val glBuffers = buffers as GlOverlayMeshBuffers
+		drawOverlay(glBuffers.vertexVao, glBuffers.vertexCount, QUAD_VERTICES, store, uniforms)
+	}
+
+	override fun drawOverlayFaceDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+		val glBuffers = buffers as GlOverlayMeshBuffers
+		drawOverlay(glBuffers.faceVao, glBuffers.faceCount, QUAD_VERTICES, store, uniforms)
+	}
+
+	/**
+	 * One overlay draw: the store on the position unit, the uniforms, then the instanced draw over the
+	 * domain's VAO - or, for an active draw, one un-instanced primitive whose instance-0 attributes the
+	 * shader reads and ignores.  A domain the mesh lacks (VAO 0) draws nothing.
+	 *
+	 * @param Int vao The domain's VAO, or 0.
+	 * @param Int instanceCount The domain's primitive count.
+	 * @param Int verticesPerInstance Three for a fill, six for a band or a dot quad.
+	 * @param DeformedPositionStore store The overlay's deformed positions.
+	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 */
+	private fun drawOverlay(vao: Int, instanceCount: Int, verticesPerInstance: Int, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+		if (vao == 0) {
+			return
+		}
+		val glStore = store as GlDeformedPositionStore
+		if (overlayStoreBound !== glStore) {
+			overlayStoreBound = glStore
+			GL13.glActiveTexture(GL13.GL_TEXTURE0 + UNIT_POSITION)
+			GL11.glBindTexture(GL31.GL_TEXTURE_BUFFER, glStore.textureBuffer)
+		}
+		val locations = current.locations
+		GL20.glUniform2f(locations.viewportSize, uniforms.viewportWidth, uniforms.viewportHeight)
+		GL20.glUniform1i(locations.baseOffset, uniforms.baseOffset)
+		GL20.glUniform1f(locations.sizePx, uniforms.sizePx)
+		GL20.glUniform1i(locations.fillIdle, if (uniforms.fillIdle) 1 else 0)
+		GL20.glUniform1i(locations.activeDraw, if (uniforms.activeDraw) 1 else 0)
+		GL20.glUniform3i(locations.activeIndices, uniforms.activeIndexA, uniforms.activeIndexB, uniforms.activeIndexC)
+		setOverlayColor(locations.idleColor, uniforms.idleColor)
+		setOverlayColor(locations.selectedColor, uniforms.selectedColor)
+		setOverlayColor(locations.activeColor, uniforms.activeColor)
+		GL30.glBindVertexArray(vao)
+		if (uniforms.activeDraw) {
+			GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, verticesPerInstance)
+		} else if (instanceCount > 0) {
+			GL31.glDrawArraysInstanced(GL11.GL_TRIANGLES, 0, verticesPerInstance, instanceCount)
+		}
+	}
+
+	/**
+	 * Sets one straight-RGBA overlay color uniform.
+	 *
+	 * @param Int location The uniform location.
+	 * @param FloatArray color The four components.
+	 */
+	private fun setOverlayColor(location: Int, color: FloatArray) {
+		overlayColorScratch.clear()
+		overlayColorScratch.put(color, 0, 4)
+		overlayColorScratch.flip()
+		GL20.glUniform4fv(location, overlayColorScratch)
 	}
 
 	override fun end() {
@@ -395,3 +486,9 @@ private fun applyBlend(blend: org.umamo.render.device.PipelineBlend) {
 		}
 	}
 }
+
+/** The vertices one instanced face-fill instance draws: its triangle. */
+private const val FACE_VERTICES = 3
+
+/** The vertices one instanced band or dot instance draws: a quad as two triangles. */
+private const val QUAD_VERTICES = 6

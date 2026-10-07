@@ -2,6 +2,7 @@ package org.umamo.format.cmo3
 
 import org.umamo.format.cmo3.model.gen.ACLayerEntry
 import org.umamo.format.cmo3.model.gen.ACParameterControllableSource
+import org.umamo.format.cmo3.model.gen.CPartForm
 import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.serialize.annotations.DontSerializeIfDefault
 import kotlin.reflect.KClass
@@ -11,12 +12,13 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Guards the four generated fields that must ALWAYS serialize.
+ * Guards the generated fields that must ALWAYS serialize.
  *
  * `@DontSerializeIfDefault` means "the corpus does not always carry this field", which is a fact
- * about the SAMPLES.  For these four the official editor's custom deserializers dereference the
- * field unconditionally and NPE at load when it is absent - the corpus merely includes older-era
- * samples that predate them.  Marking any of these would emit a file Cubism cannot open, and the
+ * about the SAMPLES.  For these the official editor's custom deserializers dereference the
+ * field unconditionally (CPartForm.opacity once the form carries its colors) and NPE at load when
+ * it is absent - the corpus merely includes older-era samples that predate them.  Marking any of
+ * these would emit a file Cubism cannot open, and the
  * failure is a load-time NPE in the editor rather than anything a round-trip gate here would see.
  *
  * The rule that produces them lives in ModelGenerator.alwaysSerializedFields so a regeneration
@@ -31,6 +33,7 @@ class AlwaysSerializedFieldsTest {
 			ACParameterControllableSource::class to "internalColor_direct_argb",
 			CPartSource::class to "useOffscreen",
 			CPartSource::class to "invertClippingMask",
+			CPartForm::class to "opacity",
 		)
 
 	@Test

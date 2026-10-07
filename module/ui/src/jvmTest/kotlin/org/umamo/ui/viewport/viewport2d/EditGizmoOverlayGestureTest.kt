@@ -17,6 +17,15 @@ import org.umamo.edit.floatValue
 import org.umamo.edit.setDrawableParentDeformer
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DeformerId
+import org.umamo.ui.viewport.gizmo.LEFT_AREA
+import org.umamo.ui.viewport.gizmo.RIGHT_AREA
+import org.umamo.ui.viewport.gizmo.clickIn
+import org.umamo.ui.viewport.gizmo.dragIn
+import org.umamo.ui.viewport.gizmo.moveIn
+import org.umamo.ui.viewport.gizmo.pressIn
+import org.umamo.ui.viewport.gizmo.releaseIn
+import org.umamo.ui.viewport.gizmo.scrollIn
+import org.umamo.ui.viewport.gizmo.withKeyHeld
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -483,5 +492,71 @@ class EditGizmoOverlayGestureTest {
 
 			assertEquals(setOf<MeshElement>(MeshElement.Vertex(0), MeshElement.Vertex(2)), session.meshSelection.value.elementsOf(RIG_QUAD))
 			assertEquals(historyBefore.steps.size + 1, session.historyView.value.steps.size, "the stroke is its own step")
+		}
+
+	/**
+	 * A circle stroke publishes what it has painted as the session's mesh preview, which the renderer's
+	 * overlay shows, while the committed selection waits for the release; the release commits the stroke
+	 * and takes the preview down.
+	 */
+	@Test
+	fun theMeshBrushPreviewFollowsTheStroke() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(gizmoEditSession())
+			val session = fixture.session
+			session.beginCircleSelect(LEFT_AREA)
+			waitForIdle()
+
+			pressIn(LEFT_AREA, rigScreenOf(20f, -20f))
+			waitForIdle()
+			val preview = assertNotNull(session.meshPreviewSelection.value, "the stroke publishes its preview")
+			assertEquals(setOf<MeshElement>(MeshElement.Vertex(2)), preview.elementsOf(RIG_QUAD), "holding what the brush painted")
+			assertTrue(session.meshSelection.value.isEmpty, "while nothing is committed yet")
+
+			releaseIn(LEFT_AREA)
+			waitForIdle()
+			assertNull(session.meshPreviewSelection.value, "the release takes the preview down")
+			assertEquals(setOf<MeshElement>(MeshElement.Vertex(2)), session.meshSelection.value.elementsOf(RIG_QUAD), "and commits the stroke")
+		}
+
+	/** An area closing mid-stroke takes its own mesh preview down; another area closing leaves it alone. */
+	@Test
+	fun unmountingMidStrokeTakesOnlyItsOwnMeshPreviewDown() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(gizmoEditSession())
+			val session = fixture.session
+			session.beginCircleSelect(LEFT_AREA)
+			waitForIdle()
+			pressIn(LEFT_AREA, rigScreenOf(20f, -20f))
+			waitForIdle()
+
+			fixture.mountedAreas.value = setOf(LEFT_AREA)
+			waitForIdle()
+			assertNotNull(session.meshPreviewSelection.value, "the right area closing leaves the left's stroke")
+
+			fixture.mountedAreas.value = emptySet()
+			waitForIdle()
+			assertNull(session.meshPreviewSelection.value, "the left area closing takes it down")
+			releaseIn(LEFT_AREA)
+			assertTrue(session.meshSelection.value.isEmpty, "and the stroke was not committed")
+		}
+
+	/** Leaving Edit mode mid-stroke takes the mesh preview down with the overlay. */
+	@Test
+	fun leavingEditModeMidStrokeTakesTheMeshPreviewDown() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(gizmoEditSession())
+			val session = fixture.session
+			session.beginCircleSelect(LEFT_AREA)
+			waitForIdle()
+			pressIn(LEFT_AREA, rigScreenOf(20f, -20f))
+			waitForIdle()
+
+			session.setMode(EditorMode.Object)
+			waitForIdle()
+
+			assertEquals(EditorMode.Object, session.mode.value)
+			assertNull(session.meshPreviewSelection.value, "the preview is down")
+			releaseIn(LEFT_AREA)
 		}
 }

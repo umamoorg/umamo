@@ -16,7 +16,6 @@ import org.umamo.edit.transformParameters
 import org.umamo.edit.withMeshPositions
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.transform.DrawableWorldGeometry
-import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.slideVertexByFactor
 
 /*
@@ -62,18 +61,17 @@ internal fun registerMeshTransformAdjustment(
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
 	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional)
+
 	if (rows.isEmpty()) {
 		return null
 	}
+
 	return session.registerAdjustableOperation(session.model.value, areaId, rows) { record ->
 		val adjusted = transformGestureParametersOf(kind, TransformRowSpace.World, record.parameters)
 		val proportionalRows = rederiveProportionalHalos(transform, record.parameters)
-		val landed =
-			transform.entries.fold(record.baseSnapshot.model) { model, entry ->
-				val geometry = geometryById[entry.drawableId] ?: return@fold model
-				val world = applyOperator(kind, entry.positions, entry.groups, adjusted, entry.influence)
-				model.withMeshPositions(entry.drawableId, geometry.worldToBase(world, entry.movedIndices))
-			}
+		// The drive's own compute, so a replay and the gesture it replays cannot drift apart.
+		val jobs = meshDriveJobs(transform, geometryById, wholeMeshes = false)
+		val landed = computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model)).folded
 		if (session.amendLastCommit(record, landed) && proportionalRows != null) {
 			onProportional(proportionalRows.asState())
 		}
@@ -135,17 +133,14 @@ internal fun registerObjectTransformAdjustment(
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
 	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional = null)
+
 	if (rows.isEmpty()) {
 		return null
 	}
+
 	return session.registerAdjustableOperation(session.model.value, areaId, rows) { record ->
 		val adjusted = transformGestureParametersOf(kind, TransformRowSpace.World, record.parameters)
-		val landed =
-			transform.entries.fold(record.baseSnapshot.model) { model, entry ->
-				val geometry = geometryById[entry.drawableId] ?: return@fold model
-				val world = applyOperator(kind, entry.positions, entry.groups, adjusted, emptyMap())
-				model.withMeshPositions(entry.drawableId, geometry.worldToBase(world, entry.coveredIndices))
-			}
-		session.amendLastCommit(record, landed)
+		val jobs = meshDriveJobs(transform, geometryById, wholeMeshes = true)
+		session.amendLastCommit(record, computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model)).folded)
 	}
 }

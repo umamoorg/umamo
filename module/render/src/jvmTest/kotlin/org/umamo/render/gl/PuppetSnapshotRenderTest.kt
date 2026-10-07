@@ -9,6 +9,13 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
 import org.umamo.render.device.TextureFormat
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayKind
+import org.umamo.render.puppet.MeshOverlayMesh
+import org.umamo.render.puppet.MeshOverlayPalette
+import org.umamo.render.puppet.MeshOverlaySelectMode
+import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.render.puppet.fallbackColorFor
 import org.umamo.render.restMeshesToCanvasSpace
@@ -351,5 +358,35 @@ class PuppetSnapshotRenderTest {
 		assertTrue(coveredPixels > width * height / 20, "the rig covers a real part of the capture ($coveredPixels pixels)")
 		// A composite boundary re-quantizes to 8 bits, the same tolerance the composite parity gate allows.
 		assertTilesMatchWhole(whole, tiled, tolerance = 3, label = "tiles meet on the rig")
+	}
+
+	/** A capture leaves the mesh overlay out, and the viewport draws it again afterwards over the buffers it kept. */
+	@Test
+	fun aCaptureLeavesTheOverlayOutAndTheViewportKeepsIt() {
+		requireHeadlessGl("[snapshot-overlay]")
+		val device = GlRenderDevice()
+		val renderer = viewportRenderer(device)
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+		// An opaque red vertex dot on every corner of the quad; its top-left corner, world (20, 80), is pixel (120, 20).
+		val red = OverlayColor(1f, 0f, 0f, 1f)
+		renderer.setMeshOverlayPalette(MeshOverlayPalette(red, red, red, red, red, red, red, red, red))
+		renderer.setMeshOverlay(
+			MeshOverlay(
+				MeshOverlayKind.Edit,
+				MeshOverlaySelectMode.Vertex,
+				listOf(MeshOverlayMesh(quadId, 4, intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3), ByteArray(4), ByteArray(5), ByteArray(2), null, null, null)),
+				MeshOverlaySizes(4f, 2f, 3f),
+			),
+		)
+		val target = device.createRenderTarget(RenderTargetSpec(imageSize, imageSize, TextureFormat.Rgba8, sampled = true))
+		renderer.render(target, imageSize, imageSize)
+		assertEquals(listOf(255, 0, 0, 255), pixelAt(device.readPixels(target), 120, 20), "the viewport paints the corner's vertex dot")
+
+		// (165, 35) is quad interior clear of every corner dot and of the diagonal edge from (120, 20) to (180, 80).
+		val capture = assertNotNull(renderer.renderSnapshot(ViewportCamera(0f, 0f, 1f), imageSize, imageSize, FrameBackdrop.Grid))
+		assertClose(pixelAt(capture, 165, 35), pixelAt(capture, 120, 20), 8, "the capture's corner is the quad's own color, with no dot")
+
+		renderer.render(target, imageSize, imageSize)
+		assertEquals(listOf(255, 0, 0, 255), pixelAt(device.readPixels(target), 120, 20), "the viewport paints the dot again after the capture")
 	}
 }

@@ -9,7 +9,7 @@ package org.umamo.ui.help
  * master carries the next one with a `-dev` suffix (RELEASING.md).
  */
 object ProjectInfo {
-	const val VERSION = "0.4.0"
+	const val VERSION = "0.5.0-dev"
 	const val WEB_SITE_URL = "https://umamo.org"
 	const val SOURCE_CODE_URL = "https://github.com/umamoorg/umamo"
 	const val DOCUMENTATION_URL = "https://docs.umamo.org/"

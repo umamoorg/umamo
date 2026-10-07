@@ -4,8 +4,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.eligibleTransformDrawables
-import org.umamo.render.eval.drawableLocalPosed
-import org.umamo.render.eval.drawableSpaceMapping
+import org.umamo.render.eval.DrawableSpaceResolver
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.ServiceCameraController
 
@@ -41,28 +40,31 @@ internal class ViewportSpaceCamera(
 		if (session.mode.value == EditorMode.Edit) {
 			// The covered vertices of the session selection, at the neutral pose Edit mode is pinned to.
 			val meshSelection = session.meshSelection.value
+			// One resolver for the sweep, so the deformer chain bakes once rather than once per mesh.
+			val spaces = DrawableSpaceResolver(model, emptyMap())
 			for (drawableId in meshSelection.drawableIds) {
 				val elements = meshSelection.elementsOf(drawableId)
 				if (elements.isEmpty()) {
 					continue
 				}
-				val mesh = model.drawables.firstOrNull { it.id == drawableId }?.mesh ?: continue
+				val mesh = spaces.drawable(drawableId)?.mesh ?: continue
 				val covered = MeshTopology.coveredVertexIndices(elements, mesh.indices)
 				if (covered.isEmpty()) {
 					continue
 				}
-				val mapping = drawableSpaceMapping(model, emptyMap(), drawableId) ?: continue
-				val world = mapping.localToWorld(drawableLocalPosed(model, emptyMap(), drawableId) ?: mesh.positions)
+				val mapping = spaces.mapping(drawableId) ?: continue
+				val world = mapping.localToWorld(spaces.localPosed(drawableId) ?: mesh.positions)
 				include(world, covered)
 			}
 		} else {
 			// The selected drawables' whole posed geometry, at the LIVE pose - what the viewport shows.
 			val pose = session.pose.value
 			val eligibleIds = eligibleTransformDrawables(session.selection.value, model) ?: return
+			val spaces = DrawableSpaceResolver(model, pose)
 			for (drawableId in eligibleIds) {
-				val mesh = model.drawables.firstOrNull { it.id == drawableId }?.mesh ?: continue
-				val mapping = drawableSpaceMapping(model, pose, drawableId) ?: continue
-				val world = mapping.localToWorld(drawableLocalPosed(model, pose, drawableId) ?: mesh.positions)
+				val mesh = spaces.drawable(drawableId)?.mesh ?: continue
+				val mapping = spaces.mapping(drawableId) ?: continue
+				val world = mapping.localToWorld(spaces.localPosed(drawableId) ?: mesh.positions)
 				include(world, 0 until world.size / 2)
 			}
 		}

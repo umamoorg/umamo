@@ -231,6 +231,7 @@ class EditorSession(
 			latches.activeOperator == null &&
 				!latches.viewportGestureActive.value &&
 				latches.previewSelection.value == null &&
+				latches.meshPreviewSelection.value == null &&
 				latches.activeSelectTool.value == null &&
 				latches.activePieMenu.value == null
 
@@ -258,6 +259,26 @@ class EditorSession(
 	 */
 	fun setPreviewSelection(drawableIds: Set<DrawableId>?) {
 		latches.setPreviewSelection(drawableIds)
+	}
+
+	/**
+	 * The transient preview of what an in-flight Edit-mode circle stroke has painted so far, or null when no
+	 * stroke is live: the whole selection the stroke would commit, in [meshSelection]'s shape.  The renderer's
+	 * mesh overlay shows it in place of the committed [meshSelection], so painted elements light up under
+	 * the brush without committing each stamp (which would spam undo).  Not snapshotted, not on the bus
+	 * (transient UI coordination like [previewSelection]); the stroke commits once on release via
+	 * [setMeshSelection] and clears this back to null.
+	 */
+	val meshPreviewSelection: StateFlow<MeshSelection?> = latches.meshPreviewSelection
+
+	/**
+	 * Publishes the transient Edit-mode circle-stroke preview (see [meshPreviewSelection]); pass null to
+	 * clear it.
+	 *
+	 * @param MeshSelection? selection The selection the stroke has painted so far, or null to clear.
+	 */
+	fun setMeshPreviewSelection(selection: MeshSelection?) {
+		latches.setMeshPreviewSelection(selection)
 	}
 
 	/**
@@ -712,21 +733,28 @@ class EditorSession(
 	 * grid (its axis collapses to the default slice), and the live pose - as one undo step. A model edit,
 	 * so it marks the document dirty; dropping the pose entry rides the same step so undo restores both.
 	 * A member (not a mutate extension) because it commits a new model and a new pose together, like
-	 * [setParameterRange]. A no-op (no such parameter) records nothing.
+	 * [setParameterRange]. A no-op (no such parameter) records nothing. When the delete moves the rest pose
+	 * of any object - a default between two keys, a sparse sole-axis track or deformer grid, or a blend shape
+	 * its scrub cannot keep exact ([ParameterDeletion.restChangedOwners]) - a notice says how many.
 	 *
 	 * @param ParameterId id The parameter to delete.
 	 */
 	fun deleteParameter(id: ParameterId) {
-		val newModel = mutableModel.value.withParameterDeleted(id)
-		if (newModel === mutableModel.value) {
-			return
-		}
+		val before = mutableModel.value
+		// One walk gives both the model and the owners it moved; asking the question of the model again
+		// would walk every grid and binding a second time.
+		val deletion = before.parameterDeletionOf(id) ?: return
+		val newModel = deletion.model
+		val restChanged = deletion.restChangedOwners
 		// The target must never dangle on a parameter the model no longer has - pruned BEFORE the commit,
 		// so the pushed snapshot carries the pruned selection and a later redo (or a History jump to this
 		// entry) cannot restore the dangling id.
 		mutableParameterSelection.value =
 			mutableParameterSelection.value.prunedTo(newModel.parameters.mapTo(HashSet()) { parameter -> parameter.id })
 		commit(ParameterChange.Delete(id), newModel, mutablePose.value - id)
+		if (restChanged.isNotEmpty()) {
+			emitNotice("notice.parameter.deleteChangedRest", arguments = listOf(restChanged.size.toString()))
+		}
 	}
 
 	/**
@@ -951,7 +979,7 @@ class EditorSession(
 	/**
 	 * Commits a mesh-vertex edit (a finished modal G / S / R gesture) as ONE undo step: each session
 	 * drawable's base art-mesh positions become its entry in [newPositionsByDrawable].  An Edit session
-	 * spans several meshes, so the per-drawable copy-on-write [withMeshPositions] edits fold into a
+	 * spans several meshes, so the copy-on-write [withMeshPositions] batch folds them into a
 	 * single model (one history step, like [commitObjectPositions]).  Mid-gesture preview frames reach
 	 * the renderer directly (transient), so a whole drag is a single step.  A model edit (rest geometry
 	 * is document content), so it marks the document dirty; a no-op (every array unchanged / mismatched)
@@ -961,17 +989,13 @@ class EditorSession(
 	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each edited drawable's committed rest positions.
 	 */
 	fun commitMeshPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
-		val newModel =
-			newPositionsByDrawable.entries.fold(mutableModel.value) { model, (drawableId, newPositions) ->
-				model.withMeshPositions(drawableId, newPositions)
-			}
-		commit(change, newModel, mutablePose.value)
+		commit(change, mutableModel.value.withMeshPositions(newPositionsByDrawable), mutablePose.value)
 	}
 
 	/**
 	 * Commits an Object-mode transform of several drawables (a finished modal G / S / R gesture) as ONE undo
-	 * step: each drawable's base art-mesh positions become its entry in [newPositionsByDrawable]. Folds the
-	 * per-drawable copy-on-write [withMeshPositions] edits into a single model, so N moved drawables are one
+	 * step: each drawable's base art-mesh positions become its entry in [newPositionsByDrawable]. The
+	 * copy-on-write [withMeshPositions] batch folds them into a single model, so N moved drawables are one
 	 * history step (not N). Mid-gesture preview frames reach the renderer directly (transient), so a whole drag
 	 * is a single step. A model edit (rest geometry is document content), so it marks the document dirty; a
 	 * no-op (every array unchanged / mismatched, so the fold returns the same instance) records nothing.
@@ -980,18 +1004,14 @@ class EditorSession(
 	 * @param Map<DrawableId, FloatArray> newPositionsByDrawable Each moved drawable's committed rest positions.
 	 */
 	fun commitObjectPositions(change: MeshChange, newPositionsByDrawable: Map<DrawableId, FloatArray>) {
-		val newModel =
-			newPositionsByDrawable.entries.fold(mutableModel.value) { model, (drawableId, newPositions) ->
-				model.withMeshPositions(drawableId, newPositions)
-			}
-		commit(change, newModel, mutablePose.value)
+		commit(change, mutableModel.value.withMeshPositions(newPositionsByDrawable), mutablePose.value)
 	}
 
 	/**
 	 * Commits a UV edit (a finished modal G / S / R gesture in the UV editor, or a Mirror command) as
 	 * ONE undo step: each edited drawable's texture coordinates become its entry in [newUvsByDrawable].
-	 * The texture-mapping twin of [commitMeshPositions] - the per-drawable copy-on-write [withMeshUvs]
-	 * edits fold into a single model, so N edited meshes are one history step.  Mid-gesture preview
+	 * The texture-mapping twin of [commitMeshPositions] - the copy-on-write [withMeshUvs] batch folds the
+	 * edits into a single model, so N edited meshes are one history step.  Mid-gesture preview
 	 * frames reach the renderer directly (transient), so a whole drag is a single step.  A model edit
 	 * (the sampled texels are document content), so it marks the document dirty; a no-op (every
 	 * array unchanged / mismatched) records nothing.
@@ -1000,11 +1020,7 @@ class EditorSession(
 	 * @param Map<DrawableId, FloatArray> newUvsByDrawable Each edited drawable's committed atlas UVs.
 	 */
 	fun commitMeshUvs(change: MeshChange, newUvsByDrawable: Map<DrawableId, FloatArray>) {
-		val newModel =
-			newUvsByDrawable.entries.fold(mutableModel.value) { model, (drawableId, newUvs) ->
-				model.withMeshUvs(drawableId, newUvs)
-			}
-		commit(change, newModel, mutablePose.value)
+		commit(change, mutableModel.value.withMeshUvs(newUvsByDrawable), mutablePose.value)
 	}
 
 	/**
@@ -1025,10 +1041,16 @@ class EditorSession(
 	 * conversion drops out.  Untouched vertices keep their exact stored values either way, so a mirror
 	 * never marks a vertex changed that it did not move.
 	 *
+	 * [shownDrawableIds] narrows the mirror to the meshes the authoring surface shows.  An edit can span
+	 * pages and layers, and a mesh on another one is measured in another space: its coordinates would
+	 * move the shared pivot and be reflected through a frame they are not in.
+	 *
 	 * @param Boolean mirrorU True to mirror horizontally (u about the pivot), false vertically (v).
 	 * @param UvFrame? frame The authoring frame, or null when the stored coordinates are the frame.
+	 * @param Set<DrawableId>? shownDrawableIds The meshes the authoring surface shows, or null for every
+	 *   selected mesh.
 	 */
-	fun mirrorSelectedUvs(mirrorU: Boolean, frame: UvFrame? = null) {
+	fun mirrorSelectedUvs(mirrorU: Boolean, frame: UvFrame? = null, shownDrawableIds: Set<DrawableId>? = null) {
 		if (mutableMode.value != EditorMode.Edit) {
 			return
 		}
@@ -1046,6 +1068,9 @@ class EditorSession(
 		val coveredByDrawable = LinkedHashMap<DrawableId, Set<Int>>()
 		val meshByDrawable = LinkedHashMap<DrawableId, DrawableMesh>()
 		for (drawableId in selection.drawableIds) {
+			if (shownDrawableIds != null && drawableId !in shownDrawableIds) {
+				continue
+			}
 			val mesh = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh ?: continue
 			if (mesh.uvs.isEmpty() || mesh.uvs.size != mesh.positions.size) {
 				continue
@@ -2201,6 +2226,7 @@ class EditorSession(
 		// into a snapshot of the other and drive the wrong overlay.
 		latches.clearTransient(clearAxisConstraint = true, clearViewportGesture = true)
 		latches.setPreviewSelection(null)
+		latches.setMeshPreviewSelection(null)
 		latches.closePieMenu()
 		mutableMode.value = snapshot.mode
 		refreshFlags()

@@ -2,8 +2,7 @@ package org.umamo.ui.transform
 
 import org.umamo.edit.Pose
 import org.umamo.render.eval.DrawableSpaceMapping
-import org.umamo.render.eval.drawableLocalPosed
-import org.umamo.render.eval.drawableSpaceMapping
+import org.umamo.render.eval.DrawableSpaceResolver
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 
@@ -68,17 +67,48 @@ internal class DrawableWorldGeometry(
  *
  * Null when the drawable carries no mesh, or when it has no world mapping at all - which happens when an
  * ancestor is hidden.  A caller sweeping a selection should SKIP a null rather than abort, so one hidden
- * drawable does not block a gesture over the others.
+ * drawable does not block a gesture over the others - and should sweep through [captureDrawableWorlds],
+ * since this builds a resolver, and so bakes the deformer chain, per call.
  *
  * @param PuppetModel model The document model.
  * @param Pose pose The parameter values to capture at.
  * @param DrawableId drawableId The drawable to capture.
  * @return DrawableWorldGeometry? The capture, or null when the drawable has no mesh or no mapping.
  */
-internal fun captureDrawableWorld(model: PuppetModel, pose: Pose, drawableId: DrawableId): DrawableWorldGeometry? {
-	val base = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.mesh?.positions ?: return null
-	val mapping = drawableSpaceMapping(model, pose, drawableId) ?: return null
-	val displayed = drawableLocalPosed(model, pose, drawableId) ?: base
+internal fun captureDrawableWorld(model: PuppetModel, pose: Pose, drawableId: DrawableId): DrawableWorldGeometry? =
+	captureThrough(DrawableSpaceResolver(model, pose), drawableId)
+
+/**
+ * Captures every drawable of [drawableIds] in all three spaces at [pose] through ONE resolver, so the
+ * deformer worlds bake once for the batch rather than once per drawable (a loop over
+ * [captureDrawableWorld] rebakes every world per call: 1330 x 623 on modelF, seconds per Edit-mode
+ * commit or Object-mode latch).  Per drawable the answer is exactly [captureDrawableWorld]'s, including
+ * the null for a mesh-less drawable or a hidden ancestor, which is dropped so a sweep over a selection
+ * skips the hidden rather than aborting.  The result follows the request order.
+ *
+ * @param PuppetModel model The document model.
+ * @param Pose pose The parameter values to capture at.
+ * @param Iterable<DrawableId> drawableIds The drawables to capture.
+ * @return List<DrawableWorldGeometry> The captures in request order, without the drawables that have
+ *   no mesh or no mapping.
+ */
+internal fun captureDrawableWorlds(model: PuppetModel, pose: Pose, drawableIds: Iterable<DrawableId>): List<DrawableWorldGeometry> {
+	val resolver = DrawableSpaceResolver(model, pose)
+	return drawableIds.mapNotNull { drawableId -> captureThrough(resolver, drawableId) }
+}
+
+/**
+ * The capture itself, over a resolver the caller built: the stored rest positions, the mapping, the
+ * posed local shape (base itself when the pose leaves the grid), and that shape through the chain.
+ *
+ * @param DrawableSpaceResolver resolver The (model, pose) the capture reads.
+ * @param DrawableId drawableId The drawable to capture.
+ * @return DrawableWorldGeometry? The capture, or null when the drawable has no mesh or no mapping.
+ */
+private fun captureThrough(resolver: DrawableSpaceResolver, drawableId: DrawableId): DrawableWorldGeometry? {
+	val base = resolver.drawable(drawableId)?.mesh?.positions ?: return null
+	val mapping = resolver.mapping(drawableId) ?: return null
+	val displayed = resolver.localPosed(drawableId) ?: base
 	return DrawableWorldGeometry(drawableId, mapping, base, displayed, mapping.localToWorld(displayed))
 }
 

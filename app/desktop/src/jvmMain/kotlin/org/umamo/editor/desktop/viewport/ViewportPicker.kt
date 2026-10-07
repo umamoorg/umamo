@@ -80,17 +80,23 @@ internal class ViewportPicker(
 	}
 
 	/**
-	 * Rebuilds the model-derived lookup maps and the thumbnail provider after a committed edit or undo, so
-	 * session-created drawables and visibility edits stay pickable, sampleable, and labeled.
+	 * Rebuilds the model-derived state after a committed edit, an undo, or a preview push, so
+	 * session-created drawables and visibility edits stay pickable, sampleable, and labeled.  The lookup
+	 * maps read visibility, topology, names, and texture sources, never positions, so a positions-only
+	 * push keeps them; the thumbnailer always takes the model, because its bounds and part caches key on
+	 * positions, and the commit after a gesture is itself positions-only relative to the last preview.
 	 *
 	 * @param PuppetModel model The current model.
+	 * @param Boolean positionsOnly True when only mesh positions changed since the last update.
 	 */
-	fun updateModel(model: PuppetModel) {
-		pickableIndices = model.pickableIndicesByDrawable()
-		pickableUvs = model.pickableUvsByDrawable()
-		partNameByDrawableId = model.partNameByDrawable()
-		drawableNameByDrawableId = model.drawableNameByDrawable()
-		atlasKeyByDrawableId = model.atlasKeyByDrawable()
+	fun updateModel(model: PuppetModel, positionsOnly: Boolean = false) {
+		if (!positionsOnly) {
+			pickableIndices = model.pickableIndicesByDrawable()
+			pickableUvs = model.pickableUvsByDrawable()
+			partNameByDrawableId = model.partNameByDrawable()
+			drawableNameByDrawableId = model.drawableNameByDrawable()
+			atlasKeyByDrawableId = model.atlasKeyByDrawable()
+		}
 		thumbnailer.updateModel(model)
 	}
 

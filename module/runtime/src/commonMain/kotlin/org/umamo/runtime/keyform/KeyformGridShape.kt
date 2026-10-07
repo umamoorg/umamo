@@ -97,6 +97,34 @@ fun <TForm> KeyformGrid<TForm>.withAxisCollapsed(parameterId: ParameterId, keepK
 }
 
 /**
+ * This grid with the axis for [parameterId] collapsed as [withAxisCollapsed] collapses it, except that
+ * removing the LAST axis keeps the kept slice as a one-cell grid with no axes instead of dropping the grid.
+ *
+ * For a geometry grid, where the grid is the owner's shape: a warp's lattice and a rotation's pivot live
+ * only in their cells, and a drawable's kept slice is the look it had at the kept value, so dropping the
+ * grid would lose the one and snap the other back to its base mesh.  A one-cell grid with no axes is the
+ * shape every static object already has - a MOC3 import writes one per static object, and a CMO3 export
+ * writes one per unkeyed owner - so every consumer reads it.
+ *
+ * @param ParameterId parameterId  The axis parameter to remove.
+ * @param Float       keepKeyValue The parameter value whose nearest key slice survives.
+ * @return KeyformGrid? The collapsed grid, this if the axis was absent, or null only when the last axis's kept
+ *   slice has no cell (a sparse grid), so there is no form to keep.
+ */
+fun <TForm> KeyformGrid<TForm>.withAxisCollapsedKeepingCell(parameterId: ParameterId, keepKeyValue: Float): KeyformGrid<TForm>? {
+	val axisIndex = axisIndexOf(parameterId)
+	if (axisIndex < 0) {
+		return this
+	}
+	if (axes.size > 1) {
+		return withAxisCollapsed(parameterId, keepKeyValue)
+	}
+	val keepIndex = nearestKeyIndex(axes[axisIndex].keys, keepKeyValue)
+	val kept = cells.firstOrNull { cell -> cell.coordinate[axisIndex] == keepIndex } ?: return null
+	return KeyformGrid(emptyList(), listOf(KeyformCell(IntArray(0), kept.form)))
+}
+
+/**
  * The index of the key on [parameterId]'s axis that [value] sits exactly on, or -1.
  *
  * "Exactly" means within the evaluator's own EPS_KEY snap tolerance, so this agrees with what is actually

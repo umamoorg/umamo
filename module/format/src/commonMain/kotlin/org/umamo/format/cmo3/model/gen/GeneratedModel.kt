@@ -660,7 +660,8 @@ public class CParameterSourceSet {
 public class CPartForm : ACForm() {
 	public var `drawOrder`: Int = 0
 
-	@DontSerializeIfDefault
+	// No @DontSerializeIfDefault: CPartForm.deserialize dereferences this once the form carries its colors, and the official
+	// reader NPEs on its absence (docs/format/CMO3.md, Created-Entity Conventions).
 	public var `opacity`: Float = 0f
 
 	@DontSerializeIfDefault

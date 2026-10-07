@@ -1,85 +1,43 @@
 package org.umamo.ui.workspace.spaces.uv
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.viewport.RenderedFrame
-import org.umamo.ui.viewport.gizmo.worldToScreen
 
 /**
- * The UV editor's underlay: the shown surface - an atlas page or a source layer's artwork - rendered
- * by the GL engine (upright, correctly sampled, sharing the puppet's texture), clipped to its
- * on-screen rectangle with a 1.dp frame drawn around it - or the plain viewport backdrop color for the
- * moment before the first GL frame lands.
+ * The UV editor's underlay: the area's frame as the GL engine rendered it, drawn over the whole area - or
+ * the plain viewport backdrop color for the moment before the first GL frame lands.
  *
- * The rectangle is the full UV tile (display space [0, 0]-[pageWidth, pageHeight]) projected
- * through the FRAME's camera, so it tracks pan / zoom glued to the rendered texture.  The grid +
- * texture raster is clipped to it so the grid does not spill past the texture onto the panel
- * elevation; the wireframe overlays above are deliberately unclipped, so UVs outside the tile stay
- * visible.
+ * The frame is the whole scene: the shown surface (an atlas page or a source layer's artwork, upright,
+ * correctly sampled, sharing the puppet's texture), the panel color the engine paints around it with the
+ * 1 dp border just outside its edge, and the mesh overlay over both (the Edit-mode wireframe, or in
+ * Object mode the islands with the placement drag's preview under them).  Nothing is clipped, so a
+ * mesh off the surface stays visible over the surround and the border.
  *
  * @param RenderedFrame? rendered The displayed GL frame, or null before the first frame.
- * @param Int pageWidth The shown surface's width in texels.
- * @param Int pageHeight The shown surface's height in texels.
- * @param Int widthPx The area width in pixels.
- * @param Int heightPx The area height in pixels.
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
  */
 @Composable
 internal fun UvPageUnderlay(
 	rendered: RenderedFrame?,
-	pageWidth: Int,
-	pageHeight: Int,
-	widthPx: Int,
-	heightPx: Int,
 	modifier: Modifier = Modifier,
 ) {
-	val uiColors = LocalUmamoColors.current
 	if (rendered == null) {
 		// Before the first frame there is no camera to draw anything through, so the area is just the
 		// backdrop color the frame will arrive over - no grid of its own to swap out a moment later.
-		Box(modifier = modifier.fillMaxSize().background(uiColors.viewportGridBackground))
+		Box(modifier = modifier.fillMaxSize().background(LocalUmamoColors.current.viewportGridBackground))
 		return
 	}
-	val cornerLowerLeft = worldToScreen(0f, 0f, rendered.camera, IntSize(widthPx, heightPx))
-	val cornerUpperRight = worldToScreen(pageWidth.toFloat(), pageHeight.toFloat(), rendered.camera, IntSize(widthPx, heightPx))
-	val textureRect =
-		Rect(
-			left = minOf(cornerLowerLeft.x, cornerUpperRight.x),
-			top = minOf(cornerLowerLeft.y, cornerUpperRight.y),
-			right = maxOf(cornerLowerLeft.x, cornerUpperRight.x),
-			bottom = maxOf(cornerLowerLeft.y, cornerUpperRight.y),
-		)
 	Image(
 		bitmap = rendered.bitmap,
 		contentDescription = null,
-		modifier =
-			modifier.fillMaxSize().drawWithContent {
-				clipRect(textureRect.left, textureRect.top, textureRect.right, textureRect.bottom) { this@drawWithContent.drawContent() }
-			},
+		modifier = modifier.fillMaxSize(),
 		contentScale = ContentScale.FillBounds,
 	)
-	// The 1.dp frame around the texture (the page-elevation border of the diagram).
-	Canvas(modifier = modifier.fillMaxSize()) {
-		drawRect(
-			color = uiColors.panelBorder,
-			topLeft = Offset(textureRect.left, textureRect.top),
-			size = Size(textureRect.width, textureRect.height),
-			style = Stroke(width = 1.dp.toPx()),
-		)
-	}
 }

@@ -3,12 +3,16 @@ package org.umamo.interop.cmo3
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.format.cmo3.model.custom.CImageResource
+import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CModelImageGroup
 import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
+import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.AtlasTileId
@@ -95,7 +99,9 @@ public object Cmo3Conversion {
 	 * Builds a fresh CMO3 for [puppet].
 	 *
 	 * @param PuppetModel puppet    The model to convert (the session's current state).
-	 * @param List        pages     The atlas pages, in model3 texture order.
+	 * @param List        pages     The atlas pages, in model3 texture order - which for a model with placed
+	 *                              tiles must be the model's own page order, since a placed tile's entry
+	 *                              lands on the page its placement counts (see Cmo3ConversionPages.kt).
 	 * @param Map         pageIndexByDrawableId Each drawable id's atlas page index; a drawable
 	 *                              missing here cannot bind a texture and surfaces as a notice.
 	 * @param String      modelName The document display name the skeleton records.
@@ -176,7 +182,7 @@ public object Cmo3Conversion {
 					obfuscateKey,
 				),
 			)
-		rebindPageResources(chain, model)
+		rebindImageResources(chain, model)
 		val bindings = HashMap<String, Cmo3DrawableTextureBinding>()
 		for (drawable in effectivePuppet.drawables) {
 			// A real-layer drawable has its own binding; a crop-path drawable its own or its page's.
@@ -202,29 +208,46 @@ public object Cmo3Conversion {
 			val nameById = effectivePuppet.drawables.associate { drawable -> drawable.id.raw to drawable.name }
 			leading.add(ExportNotice.SharedAtlasSlotKept(undedup.sharedDrawableIds.map { drawableId -> nameById[drawableId] ?: drawableId }))
 		}
-		return Result(model, report.copy(notices = leading + report.notices), effectivePuppet)
+		// A tile whose binding the routing could not honor - a file the document does not list, or a layer
+		// its file never inventoried - crossed as a flat image of its own, and the binding it stood in for
+		// is owed a notice: the Sources space shows that tile as waiting on a person, and a report that
+		// said nothing would read as the binding having crossed.
+		val sourceNameById = puppet.sources.associate { source -> source.id to source.name }
+		val unresolvedBindings =
+			sourceImages.mapNotNull { image ->
+				val ref = image.unresolvedBinding ?: return@mapNotNull null
+				ExportNotice.UnsupportedChange(
+					ExportEntityCategory.Document,
+					image.name,
+					ExportNoticeReason.SourceLayerBindingNotInExport(sourceNameById[ref.sourceId] ?: ref.sourceId.raw, ref.layerKey),
+				)
+			}
+		return Result(model, report.copy(notices = leading + unresolvedBindings + report.notices), effectivePuppet)
 	}
 
 	/**
-	 * Re-points each page texture at the RE-READ atlas's own page resource.
+	 * Re-points each texture the image chain built at the RE-READ graph's own resource: a page texture at its
+	 * atlas's page resource, and an unpacked drawable's raster texture at its model image's filtered image.
 	 *
 	 * The image chain is built over the pre-serialization skeleton, so a binding's GTexture2D still
 	 * carries that graph's CImageResource - while the reconcile hangs that texture off drawables in
 	 * the graph read back out of the assembled bytes.  Left alone the document ends up with two
-	 * equal-but-distinct resources per page (one under the atlas's cachedAtlasImage, one under the
-	 * drawables' texture) where the editor's own files share a single one by reference.
+	 * equal-but-distinct resources per image (one under the atlas's cachedAtlasImage or the model image's
+	 * _filteredImage, one under the drawables' texture) where the editor's own files share a single one by
+	 * reference.
 	 *
 	 * That split is not cosmetic: whether a drawable's uvs are page-frame is decided by whether the
 	 * resource it samples IS one of the atlases' page resources (docs/format/CMO3.md section 6 - a
-	 * document can carry an atlas while its drawables sample per-layer rasters instead), and the test
-	 * is identity because a CImageResource has no value equality.  With the twin resource in place
-	 * every re-imported drawable reads as never-packed, so its source-layer view drops the packing
-	 * inverse and draws atlas-frame uvs straight onto the layer crop.
+	 * document can carry an atlas while its drawables sample per-layer rasters instead), and whether a
+	 * drawable is shown from a model image is decided by whether it samples that image's filtered image;
+	 * both tests are identity, because a CImageResource has no value equality.  With a twin resource in place
+	 * every re-imported drawable reads as never-packed, or as shown from nothing, and its view draws the
+	 * wrong frame.
 	 *
 	 * @param Cmo3ImageChainBuilder.BuiltImageChain chain The image chain built over the skeleton.
 	 * @param Cmo3Model                             model The model read back out of the assembled bytes.
 	 */
-	private fun rebindPageResources(chain: Cmo3ImageChainBuilder.BuiltImageChain, model: Cmo3Model) {
+	internal fun rebindImageResources(chain: Cmo3ImageChainBuilder.BuiltImageChain, model: Cmo3Model) {
 		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases ->
 		// CTextureAtlas field cachedAtlasImage - the page's own pixels.
 		val textureManager = (model.root as? CModelSource)?.textureManager as? CTextureManager ?: return
@@ -237,6 +260,22 @@ public object Cmo3Conversion {
 		for (binding in chain.pageFallbackBindings) {
 			val path = (binding.texture.srcImageResource as? CImageResource)?.imageFileBuf?.archivePath ?: continue
 			pageResourceByPath[path]?.let { pageResource -> binding.texture.srcImageResource = pageResource }
+		}
+		if (chain.rasterTextures.isEmpty()) {
+			return
+		}
+		// CMO3: CTextureManager field _modelImageGroups -> CModelImageGroup field _modelImages -> CModelImage
+		// field _filteredImage - the raster an unpacked drawable samples.
+		val rasterByPath = HashMap<String, CImageResource>()
+		for (group in Cmo3Import.elementsOf(textureManager._modelImageGroups).filterIsInstance<CModelImageGroup>()) {
+			for (modelImage in Cmo3Import.elementsOf(group._modelImages).filterIsInstance<CModelImage>()) {
+				val raster = modelImage._filteredImage as? CImageResource ?: continue
+				raster.imageFileBuf?.archivePath?.let { path -> rasterByPath[path] = raster }
+			}
+		}
+		for (texture in chain.rasterTextures) {
+			val path = (texture.srcImageResource as? CImageResource)?.imageFileBuf?.archivePath ?: continue
+			rasterByPath[path]?.let { raster -> texture.srcImageResource = raster }
 		}
 	}
 }

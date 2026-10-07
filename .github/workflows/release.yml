@@ -1075,23 +1075,11 @@ jobs:
 
           **MacOS:** Apple silicon Macs (`macos-arm64`) get the DMG, or `Umamo.app` in a zip.  Intel Macs (`macos-x64`) use the jar: install a JDK 21 or newer and run `java -XX:MaxRAMPercentage=50 -jar umamo-<target>-<version>.jar`.
 
-          ## Signing and verification
+          ## Signing and Verification
 
-          * MacOS: the DMG and `Umamo.app` are signed with the project's Developer ID and notarized by Apple, so they open like any other downloaded app.  The jar is unaffected.
-          * Linux: the RPM is signed with the Umamo release key, fingerprint `67754C0DC58743270D574066F5499AE5C80A0F1C`.  Import it once with the `rpm --import` command above; `--setopt=localpkg_gpgcheck=1` makes dnf check it, which it skips for a downloaded file by default.  The DEB and RPM install to `/opt/umamo` and add Umamo to the application menu.  For the tarball, extract `tar xzf umamo-*.tar.gz` and run `umamo/bin/umamo`.
-          * Windows: not signed yet.  SmartScreen shows "Windows protected your PC" for the installer and for the zip's `Umamo.exe`.  Choose *More info* → *Run anyway*.
-
-          Every file is listed in `SHA256SUMS.txt`, which is signed with the same release key as `SHA256SUMS.txt.asc`:
-
-          ```
-          gpg --fetch-keys https://umamo.org/umamo-signing-key.asc
-          gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt
-          sha256sum --check --ignore-missing SHA256SUMS.txt
-          ```
-
-          Each file also carries a build provenance attestation: `gh attestation verify <file> --repo umamoorg/umamo` confirms it was built by this repository's release workflow.
-
-          There is no auto-update.  To upgrade, install the new MSI, DEB, or RPM over the old one; from the DMG, drag the new Umamo over the old one; for the zip or tar.gz, delete the old folder and unpack the new one.  Your settings stay either way, and uninstalling leaves them too.
+          * MacOS: The `.dmg` and `.app` are notarized by Apple.
+          * Linux: The RPM is signed with the Umamo release key.  Make sure to follow the instructions above to import the key.
+          * Windows: Not signed yet.  SmartScreen shows "Windows protected your PC" for the installer and for the zip's `Umamo.exe`.  Choose *More info* -> *Run anyway*.
 
           ## Status
 

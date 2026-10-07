@@ -191,6 +191,16 @@ internal class ArtResidency(
 	}
 
 	/**
+	 * The resident layer texture of one tile, or null when its art is not uploaded (outside source-art
+	 * display mode, or before its batch arrives).  It holds the tile's whole decoded raster, so a UV scene can
+	 * sample a placement crop through it rather than upload one.
+	 *
+	 * @param String layerKey The tile's layer key (its atlas tile id).
+	 * @return GpuTexture? The texture, or null.
+	 */
+	fun layerTexture(layerKey: String): GpuTexture? = layerTextures[layerKey]
+
+	/**
 	 * Whether the puppet is displaying from source artwork, for tests and diagnostics.
 	 *
 	 * @return Triple Whether the mode is engaged, the resident layer count, and how many the plan maps.

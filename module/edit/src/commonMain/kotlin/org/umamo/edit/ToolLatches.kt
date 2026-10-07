@@ -7,7 +7,7 @@ import org.umamo.runtime.model.DrawableId
 
 /**
  * The session's transient tool state: the modal operator latches, the armed select tool, the zoom
- * region, the axis constraint, the viewport-gesture flag, the stroke-preview selection, the pie
+ * region, the axis constraint, the viewport-gesture flag, the Object- and Edit-mode stroke previews, the pie
  * menu, the 2D cursor, the pivot mode, and proportional editing - everything that coordinates the
  * viewport overlays without ever being snapshotted or entering the change bus.  The
  * mutual-exclusion story (a transform operator owns the pointer, so arming anything drops the
@@ -60,6 +60,11 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 
 	/** The transient circle-stroke preview selection, or null (see [EditorSession.previewSelection]). */
 	val previewSelection: StateFlow<Set<DrawableId>?> = mutablePreviewSelection.asStateFlow()
+
+	private val mutableMeshPreviewSelection = MutableStateFlow<MeshSelection?>(null)
+
+	/** The transient Edit-mode circle-stroke preview, or null (see [EditorSession.meshPreviewSelection]). */
+	val meshPreviewSelection: StateFlow<MeshSelection?> = mutableMeshPreviewSelection.asStateFlow()
 
 	private val mutableActivePieMenu = MutableStateFlow<PieMenuKind?>(null)
 
@@ -351,6 +356,15 @@ internal class ToolLatches(private val notify: (String, NoticePlacement) -> Unit
 	 */
 	fun setPreviewSelection(drawableIds: Set<DrawableId>?) {
 		mutablePreviewSelection.value = drawableIds
+	}
+
+	/**
+	 * Publishes the transient Edit-mode circle-stroke preview; pass null to clear it.
+	 *
+	 * @param MeshSelection? selection The selection the stroke has painted so far, or null.
+	 */
+	fun setMeshPreviewSelection(selection: MeshSelection?) {
+		mutableMeshPreviewSelection.value = selection
 	}
 
 	/**

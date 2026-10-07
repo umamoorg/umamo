@@ -17,11 +17,11 @@ import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.DrawableWorldGeometry
-import org.umamo.ui.transform.captureDrawableWorld
+import org.umamo.ui.transform.captureDrawableWorlds
+import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.ModalGestureState
 import org.umamo.ui.viewport.gizmo.ModalTransformTarget
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
-import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.gestureParameters
 
 /**
@@ -44,7 +44,8 @@ internal class ObjectGesture(
  * drawables when an operator latches in its area, drives whole-drawable previews about the shared pivot,
  * confirms as one TransformDrawables undo step, and cancels through the session's operator clear.  The
  * pointer-side mechanics live in [org.umamo.ui.viewport.gizmo.ModalTransformController], which is handed
- * this as its target; Object mode has no scroll behavior.
+ * this as its target; Object mode has no scroll behavior.  The drive runs through [drive], resolved per
+ * pointer event here and computed off the UI thread in parallel, as the Edit transform's.
  *
  * One instance per area, created with `remember(areaId)`: the pointer loop and the session collectors are
  * long-running and keep the instance they started with, so it holds nothing that may change under them.
@@ -67,6 +68,19 @@ internal class ObjectModalTransform(
 	val gesture = ModalGestureState<ObjectGesture>()
 
 	/**
+	 * The drive: requests resolved per pointer event, the drawables computed off the UI thread in parallel,
+	 * the result published back on it.  The overlay runs it (ModalDriveEffect); with no worker running, a
+	 * request computes inline.
+	 */
+	val drive =
+		ModalDriveWorker<MeshDriveRequest, MeshDriveResult>(
+			gesture = gesture,
+			computeSequential = ::computeMeshDrive,
+			computeOffThread = { request -> computeMeshDriveParallel(request) },
+			publish = { request, result -> publishDrive(request, result) },
+		)
+
+	/**
 	 * Starts the gesture as an operator latches in this area: freezes each selected drawable's world
 	 * geometry at the current object-mode pose and hands the shared builder its sources plus this area's
 	 * active-element / cursor anchors.  Drops the operator when nothing transformable survives.
@@ -77,16 +91,19 @@ internal class ObjectModalTransform(
 		val model = session.model.value
 		val pose = session.pose.value
 		val eligibleIds = eligibleTransformDrawables(session.selection.value, model)
-		// A drawable with a hidden ancestor has no world mapping and captures as null - skip it rather than
-		// abort the whole gesture (the others still transform).
-		val geometries = eligibleIds.orEmpty().mapNotNull { drawableId -> captureDrawableWorld(model, pose, drawableId) }
+
+		// A drawable with a hidden ancestor has no world mapping and the batch drops it rather than abort
+		// the whole gesture (the others still transform).  One batch: the deformer chain bakes once per latch.
+		val geometries = captureDrawableWorlds(model, pose, eligibleIds.orEmpty())
 		val geometryById = geometries.associateBy { geometry -> geometry.drawableId }
+
 		// Object mode moves every vertex of each drawable, so the covered set is the whole mesh.  Triangle
 		// connectivity is unused here (WholeMesh pivots, no proportional editing), so an empty array serves.
 		val sources =
 			geometries.map { geometry ->
 				ModalCaptureSource(geometry.drawableId, geometry.world, IntArray(0), geometry.allIndices)
 			}
+
 		// The two per-area anchors the shared builder cannot resolve itself: the active drawable's own
 		// centroid and the 2D cursor.  The builder falls back to the combined median when nothing is active; an
 		// unplaced cursor resolves to the world origin, like the snap commands.
@@ -105,6 +122,7 @@ internal class ObjectModalTransform(
 				activeAnchor = activeAnchor,
 				cursorAnchor = cursorAnchor,
 			)
+
 		if (transform == null) {
 			// Nothing transformable survived (all hidden, or the selection changed): drop the operator.
 			session.clearObjectOperator()
@@ -137,32 +155,37 @@ internal class ObjectModalTransform(
 		if (session.activeObjectOperator.value?.areaId == areaId) {
 			session.clearObjectOperator()
 		}
+
 		return gesture.end()
 	}
 
 	/**
-	 * Drives the preview for one virtual-pointer position, when the latched operator is this area's.
+	 * Submits a drive for one virtual-pointer position, when the latched operator is this area's.
 	 *
 	 * @param Offset virtualPointer The wrap-continuous pointer.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
-	 * @return Boolean True when a preview was driven.
+	 * @return Boolean True when a drive was submitted.
 	 */
 	override fun drivePreview(virtualPointer: Offset, camera: ViewportCamera, size: IntSize): Boolean {
 		// Defensive ownership check (the pointer loop already gates): only the initiating area drives.
 		val operator = session.activeObjectOperator.value?.takeIf { it.areaId == areaId } ?: return false
-		return drive(operator.kind, virtualPointer, camera, size)
+
+		return submitDrive(operator.kind, virtualPointer, camera, size)
 	}
 
 	/**
-	 * Confirms the in-flight object transform: commits every drawable's new base positions as one undo step
-	 * (a null / empty preview means no movement, so nothing commits), registers that step on the operation
-	 * settings strip over the retained capture, then clears the operator - its teardown resyncs the renderer.
+	 * Confirms the in-flight object transform at the latest pointer: settles a drive the worker has not
+	 * published yet, commits every drawable's new base positions as one undo step (a null / empty preview
+	 * means no movement, so nothing commits), registers that step on the operation settings strip over the
+	 * retained capture, then clears the operator - its teardown resyncs the renderer.
 	 */
 	override fun confirm() {
+		drive.settle()
 		val committed = gesture.preview
 		val gestureData = gesture.capture
 		val parameters = gesture.lastParameters
+
 		if (committed != null && gestureData != null && committed.isNotEmpty()) {
 			val transform = gestureData.transform
 			val modelBefore = session.model.value
@@ -182,9 +205,9 @@ internal class ObjectModalTransform(
 	}
 
 	/**
-	 * Drives the preview for one virtual-pointer position: applies the operator to every captured
-	 * drawable's whole geometry about the shared pivot, maps each result back to local through the
-	 * deformer-chain inverse, and pushes the folded model to the renderer.
+	 * Resolves and submits a drive for one virtual-pointer position, on the UI thread: the pointer frame into
+	 * the parameters every drawable applies about the shared pivot (once per event: the Rotate branch
+	 * advances the accumulator, which must see every step) and the model to fold onto.
 	 *
 	 * @param MeshOperatorKind operator The latched operator.
 	 * @param Offset virtualPointer The wrap-continuous pointer.
@@ -192,28 +215,33 @@ internal class ObjectModalTransform(
 	 * @param IntSize size The area size in pixels.
 	 * @return Boolean False when the capture has not landed yet.
 	 */
-	private fun drive(operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean {
+	private fun submitDrive(operator: MeshOperatorKind, virtualPointer: Offset, activeCamera: ViewportCamera, size: IntSize): Boolean {
 		val start = gesture.gestureStart ?: return false
 		val gestureData = gesture.capture ?: return false
 		val transform = gestureData.transform
-		// One pointer frame for the whole capture; only geometry and pivots vary per drawable.  The frame
-		// resolves ONCE into the numbers every drawable applies; the confirm hands them to the settings strip.
 		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
-		gesture.lastParameters = parameters
-		val newBaseByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
-		var folded = session.model.value
-		for (entry in transform.entries) {
-			val geometry = gestureData.geometryById.getValue(entry.drawableId)
-			// Proportional editing is an Edit-mode feature: object mode moves whole drawables, so there
-			// are no unselected vertices to weight.
-			val transformedWorld = applyOperator(operator, entry.positions, entry.groups, parameters, emptyMap())
-			val newBase = geometry.worldToBase(transformedWorld, entry.coveredIndices)
-			newBaseByDrawable[entry.drawableId] = newBase
-			folded = folded.withMeshPositions(entry.drawableId, newBase)
-		}
-		gesture.preview = newBaseByDrawable
-		pushPreview(folded)
+		// Proportional editing is an Edit-mode feature: object mode moves whole drawables, so there are no
+		// unselected vertices to weight.
+		val jobs = meshDriveJobs(transform, gestureData.geometryById, wholeMeshes = true)
+
+		drive.submit(MeshDriveRequest(operator, parameters, jobs, null, session.model.value))
+
 		return true
+	}
+
+	/**
+	 * Lands one drive on the UI thread: the parameters the confirm hands the strip, the preview, and the
+	 * folded model pushed to the renderer - folded again onto the session's model when a commit replaced the
+	 * one the request folded onto, so the preview always shows the current model.
+	 *
+	 * @param MeshDriveRequest request The request.
+	 * @param MeshDriveResult result Its result.
+	 */
+	private fun publishDrive(request: MeshDriveRequest, result: MeshDriveResult) {
+		gesture.lastParameters = request.parameters
+		gesture.preview = result.preview
+		val current = session.model.value
+		pushPreview(if (request.baseModel === current) result.folded else current.withMeshPositions(result.preview))
 	}
 }

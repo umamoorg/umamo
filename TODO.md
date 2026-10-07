@@ -46,6 +46,9 @@
 	* (Check the bullshit the AI did without my permission.)  CDI3 - Export mesh display names as a separate array.
 	* Reconcile isVisible/isEnabled from MOC3 for deformers.  Maybe for CMO3 too.
 
+## Deleted References (Unused Data)
+* Add a Blender like unused data to inspect and clean up dead references.
+
 ## Tools, Shortcuts, and Gizmos
 * Improvements
 	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.
@@ -79,6 +82,7 @@
 	* Support renaming images.
 * Improvements
 	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
+	* Ability to have unplaced tiles.  For example, guide images don't need to be in the atlas, but any imported at the moment are forced into an atlas.
 * Bugs
 	* When relinking EricaTamamo.psd in EricaTamamo.cmo3 it results in some layers getting fringe artifacts like what was experienced in the past.
 
@@ -240,15 +244,17 @@ Right now the goal is to support sRGB from ingest to output with full correctnes
 ## GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 
 **What.** The GPU glue weld (`PuppetRenderer` two-pass; `module/render/src/commonMain/.../puppet/`) stores **one
-partner per vertex** in its per-vertex glue attribute (partner global index, glue index, weld weight; built
-in `buildGlueAttributes`, consumed by `GLUE_VERTEX_SHADER`). If a single mesh vertex participates in **more
+partner per vertex** in its per-vertex glue attribute (partner global index, glue index, weld weight; planned
+by `planGlueLayout`, consumed by `glueVertexShader`). If a single mesh vertex participates in **more
 than one** glue pair — e.g. a corner vertex shared by two seams — only the last-written pair survives, so the
 GPU applies **one** weld where the CPU `applyGluesResolved` applies **both, sequentially**. That would diverge
 from the CPU/oracle at such shared verts.
 
 **Why it's fine right now.** Erica's four glues have **disjoint** seam vertices (no vertex is in two pairs),
-so the GPU render is pixel-perfect vs the CPU (maxDiff 3/255, 0 px >8). This is a **latent** gap that only a
-model with shared seam verts would expose.
+so the GPU render is pixel-perfect vs the CPU (maxDiff 3/255, 0 px >8). The corpus has one model with shared
+seam verts: modelF, whose SIDE_HAIR_BLUE_R3 (280 vertices) is glued to four color variants with up to four
+pairs per vertex; `GlueSeamGapProbeTest` (2026-10-04) puts the CPU/GPU difference there at most 0.26 px at
+a 1600x900 fit, so the gap is real but sub-pixel on the corpus.
 
 **Detection.** Add a glue-aware per-vertex check: run the two-pass GPU glue, transform-feedback-capture the
 **post-weld** positions, and diff against the CPU `applyCpuDeform` (which includes glue) on a model whose
@@ -260,24 +266,18 @@ glue pairs share vertices. (The existing `GpuDeformValidationTest` only validate
 2. Detect shared seam verts at import and fall those specific glue meshes back to CPU glue (the hybrid path),
 	keeping the rest on the GPU.
 
-## Deformer keeps no rest geometry once its last axis is collapsed (found 2026-09-04)
+## Glue strength past its keyed range (found 2026-10-06)
 
-**What.** `withAxisCollapsed` returns null when the last axis goes, and `withParameterDeleted` stores that
-null as a warp's or rotation's `geometryGrid` - so the deformer's lattice / pivot, which lived only in that
-grid, is gone from the model.  The CMO3 export then has nothing to write for it and removes the source's
-`keyformGridSource`; the official editor refuses a source without a default keyform (`setKeyformGridSource`
-rejects null, `getDefaultKeyForm` throws "no KeyForms" - the same refusal that crashed it on the first
-artwork-origin export, fixed for drawables/parts/glue by writing one default cell in
-`Cmo3KeyformLowering.buildBundle`).
+**What.** A glue intensity track sampled at a parameter outside its keys falls back to the glue's static
+intensity (1 for every MOC3 import): `ChannelGrids.scalarAt` returns the static when the pose is out of the
+track's range (`module/runtime/.../eval/ChannelSampling.kt`, read by `preparePose` in `DeformPrepare.kt`).
+That is the sampler's deliberate rule for every channel ("out of range never hides", so keying opacity on a
+narrow parameter cannot make art vanish).  `docs/format/MOC3-ThirdParty.md` (around L109) says an
+out-of-range parameter sets a glue's strength to 0 instead, and marks that claim untested itself.
 
-**Why it's fine right now.** Nothing in the editor deletes a parameter that keys a deformer's geometry
-except the parameter-delete flow, and the structure round-trip gate only reaches the case by choosing a
-victim parameter that keys deformer geometry.
-
-**Fix sketch.** Keep the rest cell: a last-axis collapse should yield an axis-less one-cell grid holding the
-form at the kept key (the deformer's rest lattice / pivot), not null - for drawables too, since the export
-then writes the same shape the corpus does.  Once that holds, `writeGridWeb`'s empty-bundle branch becomes
-unreachable and can go.
+**Why it is not fixed.** No corpus glue is out of range at rest (`GlueSeamGapProbeTest`), the behavior
+changes the art in both the CPU and GPU paths, and which value the official runtime uses is a question for
+the oracle against the official Core, not for a guess.
 
 ## Glue intensity has no editable home (deferred 2026-07-29)
 

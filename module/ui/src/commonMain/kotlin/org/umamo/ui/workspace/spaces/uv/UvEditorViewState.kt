@@ -9,7 +9,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MeshSelection
-import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.UvPageKind
@@ -18,12 +17,9 @@ import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.atlasBindingFor
-import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.uv.atlasPageIndexFor
-import org.umamo.ui.viewport.uv.uvToDisplay
 import org.umamo.ui.workspace.PersistentSpaceState
 import org.umamo.ui.workspace.editorstate.intOf
 import org.umamo.ui.workspace.editorstate.stringOf
@@ -123,8 +119,8 @@ internal data class UvEditorPage(
  *
  * Untextured fallback: a 1x1 "page" turns the display mapping into the flipped unit square, so the
  * wireframe still shows (over the grid) for a drawable with no atlas entry.  Must equal the
- * service's pageContentBounds dimensions so the Compose wireframe and the GL page frame at the same
- * camera align.
+ * service's pageContentBounds dimensions (and the unit surface the renderer bounds the grid by), so
+ * the wireframes, the gizmo chrome, and the GL page frame at the same camera align.
  *
  * @param PuppetModel model The session's committed model.
  * @param MeshSelection meshSelection The mesh-element selection (its active drawable wins).
@@ -266,7 +262,8 @@ internal fun shownLayerDrawables(
  * display projection the overlays draw, and the alpha gate the island pick samples the shown image
  * with.  Deriving them once is what keeps those two from disagreeing about where a mesh is.
  *
- * A drawable whose recovery is degenerate is absent rather than mapped to a wrong place.
+ * A drawable whose recovery is degenerate is absent rather than mapped to a wrong place.  This is the
+ * one-shot form; an area keeps a [UvGizmoGeometryCache], which computes the same per mesh and keeps it.
  *
  * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
  * @param PuppetModel    model The puppet, for the atlas the layer mapping derives from.
@@ -277,18 +274,7 @@ internal fun shownSurfaceUvs(
 	shownDrawables: List<Drawable>,
 	model: PuppetModel,
 	layerView: UvEditorLayer?,
-): Map<DrawableId, FloatArray> =
-	shownDrawables
-		.mapNotNull { drawable ->
-			val mesh = drawable.mesh ?: return@mapNotNull null
-			if (layerView == null) {
-				return@mapNotNull drawable.id to mesh.uvs
-			}
-			val binding = model.atlasBindingFor(drawable) ?: return@mapNotNull null
-			val layerUvs = layerUvsFromAtlasUvs(mesh.uvs, binding, layerView.width, layerView.height) ?: return@mapNotNull null
-			drawable.id to layerUvs
-		}
-		.toMap()
+): Map<DrawableId, FloatArray> = UvGizmoGeometryCache().surfaceUvs(shownDrawables, model, layerView)
 
 /**
  * The texture-selection transition for one page-switch request: cycling pins the page adjacent to
@@ -396,7 +382,8 @@ internal fun shownSurfaceDrawables(
  *
  * Takes the mappings rather than reading them off the drawables, because which frame they are in is
  * the caller's business (see [shownSurfaceUvs]) - which is what lets one projection serve the page
- * view and the layer view alike, and every overlay downstream stay unaware of the difference.
+ * view and the layer view alike, and every overlay downstream stay unaware of the difference.  This is
+ * the one-shot form; an area keeps a [UvGizmoGeometryCache], which computes the same per mesh and keeps it.
  *
  * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
  * @param Map<DrawableId, FloatArray> uvsById Each drawable's mapping in the shown surface's frame.
@@ -409,12 +396,7 @@ internal fun uvGizmoGeometries(
 	uvsById: Map<DrawableId, FloatArray>,
 	displayWidth: Int,
 	displayHeight: Int,
-): List<GizmoMeshGeometry> =
-	shownDrawables.mapNotNull { drawable ->
-		val mesh = drawable.mesh ?: return@mapNotNull null
-		val uvs = uvsById[drawable.id] ?: return@mapNotNull null
-		GizmoMeshGeometry(drawable.id, mesh.indices, MeshTopology.uniqueEdges(mesh.indices), uvToDisplay(uvs, displayWidth, displayHeight))
-	}
+): List<GizmoMeshGeometry> = UvGizmoGeometryCache().geometries(shownDrawables, uvsById, displayWidth, displayHeight)
 
 /**
  * The display-space rectangle every shown mesh covers - what a fit of the UV editor widens the shown

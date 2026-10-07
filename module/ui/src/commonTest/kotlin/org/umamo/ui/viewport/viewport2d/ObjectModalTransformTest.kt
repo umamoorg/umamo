@@ -1,6 +1,12 @@
 package org.umamo.ui.viewport.viewport2d
 
 import androidx.compose.ui.geometry.Offset
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
@@ -18,6 +24,7 @@ import kotlin.test.assertTrue
  * Compose: a Grab previews the whole drawable and commits it as one registered TransformDrawables step,
  * a selection with nothing projectable drops the latch, and a cancel commits nothing.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ObjectModalTransformTest {
 	/** Where the pointer rests as the gesture latches: the gesture measures from here. */
 	private val gestureStart = Offset(200f, 150f)
@@ -114,6 +121,51 @@ class ObjectModalTransformTest {
 		assertFalse(rig.transform.abandon())
 		assertEquals("right", rig.session.activeObjectOperator.value?.areaId)
 	}
+
+	/**
+	 * Runs the rig's drive worker on the test's scheduler, the way the overlay's effect runs it, so a drive
+	 * publishes only as the scheduler runs.
+	 *
+	 * @param Rig rig The rig.
+	 */
+	private fun TestScope.attachWorker(rig: Rig) {
+		backgroundScope.launch { rig.transform.drive.run(StandardTestDispatcher(testScheduler)) }
+		runCurrent()
+	}
+
+	/** With the worker attached, a drive leaves the caller at once and lands as the worker publishes. */
+	@Test
+	fun aDriveLandsWhenTheWorkerPublishes() =
+		runTest {
+			val rig = latched(gizmoObjectSession())
+			attachWorker(rig)
+
+			assertTrue(rig.transform.drivePreview(Offset(240f, 150f), RIG_CAMERA, RIG_AREA_SIZE), "the drive was submitted")
+			assertTrue(rig.pushed.isEmpty(), "nothing lands before the worker publishes")
+
+			runCurrent()
+
+			assertEquals(10f, rig.pushed.single().drawables.first { drawable -> drawable.id == RIG_QUAD }.mesh!!.positions[0])
+		}
+
+	/** A confirm while a drive is pending commits where the pointer is now, and the pending one lands nothing after. */
+	@Test
+	fun aConfirmWhilePendingCommitsTheLatestPointer() =
+		runTest {
+			val session = gizmoObjectSession()
+			val rig = latched(session)
+			attachWorker(rig)
+			rig.transform.drivePreview(Offset(220f, 150f), RIG_CAMERA, RIG_AREA_SIZE)
+			runCurrent()
+
+			rig.transform.drivePreview(Offset(240f, 150f), RIG_CAMERA, RIG_AREA_SIZE)
+			rig.transform.confirm()
+
+			assertEquals(listOf(10f, 0f, 30f, 0f, 30f, 20f, 10f, 20f), rigPositionsOf(session, RIG_QUAD))
+			val pushes = rig.pushed.size
+			runCurrent()
+			assertEquals(pushes, rig.pushed.size, "the pending drive lands nothing after the confirm")
+		}
 
 	private companion object {
 		const val LEFT_AREA_ID = "left"

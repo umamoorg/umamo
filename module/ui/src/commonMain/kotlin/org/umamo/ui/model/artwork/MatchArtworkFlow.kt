@@ -79,7 +79,7 @@ class MatchArtworkRequest(
 	val options: SourceArtImportOptions,
 	val standing: SourceSuggestions = emptyMap(),
 ) {
-	private val decoded = DecodedLayerRasters(entries.flatMap { entry -> entry.art.layers })
+	private val decoded = DecodedLayerRasters()
 
 	/**
 	 * The decoded wrapper of one of the files' layer rasters.
@@ -109,7 +109,7 @@ class ReplaceArtworkRequest(
 	val options: SourceArtImportOptions,
 	val threshold: Float = InventoryLayerMatcher.DEFAULT_THRESHOLD,
 ) {
-	private val decoded = DecodedLayerRasters(art.layers)
+	private val decoded = DecodedLayerRasters()
 
 	/**
 	 * The inventory of [art], computed once for the request's life: the planner, the scorer, and every
@@ -216,8 +216,10 @@ private fun scoreSource(
 	inventory: List<ArtSourceLayer>,
 	tileRaster: (AtlasTileId) -> LayerRaster?,
 ): Map<String, LayerMatch> {
-	val rasterByKey = art.layers.filter { layer -> layer.kind == SourceLayerKind.Raster }.associate { layer -> layer.id.raw to layer.raster }
-	return suggestionsAgainstRead(model, sourceId, inventory, tileRaster, { key -> rasterByKey[key] }, InventoryLayerMatcher)
+	// A candidate's pixels are read only when the matcher asks for them: a layer's raster can decode on first use
+	// (a CMO3's layers, the document's own tiles), and the matcher scores pixels for a few candidates, not all.
+	val layerByKey = art.layers.filter { layer -> layer.kind == SourceLayerKind.Raster }.associateBy { layer -> layer.id.raw }
+	return suggestionsAgainstRead(model, sourceId, inventory, tileRaster, { key -> layerByKey[key]?.raster }, InventoryLayerMatcher)
 }
 
 /**
@@ -290,20 +292,27 @@ private fun matchOutcome(
 		val retire = acceptedByLostKey.values.flatMapTo(HashSet()) { candidateKey -> retirable[candidateKey].orEmpty() }
 		val plan =
 			ArtworkReloadPlanner.planMatches(model, entry.sourceId, entry.art, accepted, options, tileRaster, entry.contentHash, inventory = entry.inventory, lastModified = entry.lastModified, retire = retire)
-				?: continue
+		// A confident match the plan could not pull - its layer has no art this read can give, as a layer no tile
+		// binds has none when the file is read from the document's own tiles - stays a suggestion for its row
+		// rather than vanishing from both the step and the review.
+		val rebound = plan?.reload?.replacedTiles?.mapTo(HashSet()) { replaced -> replaced.oldId }.orEmpty()
+		for ((tileId, _) in accepted) {
+			if (tileId in rebound) {
+				continue
+			}
+			val lostKey = model.atlas.tileById[tileId]?.source?.layerKey ?: continue
+			suggestions[lostKey]?.let { match -> remaining[entry.sourceId to lostKey] = match }
+		}
+		if (plan == null) {
+			continue
+		}
 		val next = model.withArtworkReloaded(plan.reload)
 		if (next === model) {
 			UmamoLog.error("match artwork: the plan for '${plan.reload.source.name}' collides with the document's ids; that file was skipped")
 			continue
 		}
 		// The rebound tiles are the ones the plan replaced; the log names them from the model before.
-		rebindings.addAll(
-			accepted.mapNotNull { (tileId, key) ->
-				val tile = model.atlas.tileById[tileId] ?: return@mapNotNull null
-				val score = tile.source?.layerKey?.let { lostKey -> suggestions[lostKey]?.score } ?: return@mapNotNull null
-				Rebinding.Rebound(tile.name, entry.art.layers.firstOrNull { layer -> layer.id.raw == key }?.name ?: key, score)
-			},
-		)
+		rebindings.addAll(reboundOf(accepted, rebound, model, suggestions, entry.art))
 		rebindings.addAll(rebindingsOf(plan, model, entry.art).filterIsInstance<Rebinding.Retired>())
 		model = next
 		rasters.putAll(plan.rasterByTile)
@@ -319,6 +328,30 @@ private fun matchOutcome(
 		MatchOutcome.Applied(packedModel, textures, decodedByTile, packedNotices, outgrown, change, remaining, rebindings)
 	}
 }
+
+/**
+ * The log entries for the tiles a match plan rebound: of [accepted], those in [replaced], each named from the
+ * model before the step with the layer it moved to and the score that moved it.  An accepted tile the plan could
+ * not pull is left out - its match stayed a suggestion for its row, and a line saying it was rebound would
+ * contradict the review chip still showing it.  A match plan records its tiles as Matched rather than Rebound,
+ * so the scores come from the suggestions here rather than from the plan's report.
+ *
+ * @param List        accepted    Each accepted tile and the key of the layer it was to take.
+ * @param Set         replaced    The tiles the plan replaced.
+ * @param PuppetModel model       The model the plan was made against.
+ * @param Map         suggestions The scored proposals, keyed by lost key.
+ * @param SourceArt   art         The file as read, for the layer names.
+ * @return List<Rebinding.Rebound> The entries, in [accepted]'s order.
+ */
+internal fun reboundOf(accepted: List<Pair<AtlasTileId, String>>, replaced: Set<AtlasTileId>, model: PuppetModel, suggestions: Map<String, LayerMatch>, art: SourceArt): List<Rebinding.Rebound> =
+	accepted.mapNotNull { (tileId, key) ->
+		if (tileId !in replaced) {
+			return@mapNotNull null
+		}
+		val tile = model.atlas.tileById[tileId] ?: return@mapNotNull null
+		val score = tile.source?.layerKey?.let { lostKey -> suggestions[lostKey]?.score } ?: return@mapNotNull null
+		Rebinding.Rebound(tile.name, art.layers.firstOrNull { layer -> layer.id.raw == key }?.name ?: key, score)
+	}
 
 /**
  * The standing proposals that still hold for [entry]'s file, folded into [suggestions] where the read
@@ -448,7 +481,7 @@ suspend fun runMatchArtwork(host: AtlasRepackHost, request: MatchArtworkRequest,
 		}
 	if (!landMatch(host, "match artwork", modelAtStart, outcome, publish) { model -> session.commitArtworkMatched(outcome.appliedChange<DocumentChange.MatchArtwork>(), model) }) {
 		if (outcome is MatchOutcome.NothingApplied) {
-			UmamoLog.info("match artwork: no binding scored at or above ${percentOf(request.threshold)}% across ${request.entries.size} file(s); ${outcome.suggestions.size} suggestion(s) published")
+			UmamoLog.info("match artwork: nothing was rebound at ${percentOf(request.threshold)}% across ${request.entries.size} file(s); ${outcome.suggestions.size} suggestion(s) published")
 			// No suggestion at all means no candidate was left to score - every layer is bound to rig
 			// work - which is a different thing to tell a person than a bar nothing reached.
 			session.emitNotice(if (outcome.suggestions.isEmpty()) "notice.match.noCandidates" else "notice.match.nothing", NoticePlacement.StatusBar)

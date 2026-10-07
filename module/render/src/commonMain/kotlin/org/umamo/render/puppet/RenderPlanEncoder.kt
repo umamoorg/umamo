@@ -481,8 +481,8 @@ internal class RenderPlanEncoder(
 }
 
 /**
- * What one frame draws with: the view it projects through, the selection it tints, and the pose's
- * composite state.
+ * What one frame draws with: the view it projects through, the selection it tints, the pose's
+ * composite state, and the mesh overlay drawn over the art.
  *
  * Read ONCE, when the frame begins, and carried through every pass of it - so a frame is drawn from one
  * consistent set of values whatever a setter does while it is being recorded.
@@ -500,6 +500,9 @@ internal class RenderPlanEncoder(
  * @property Map<PartId, PartRenderState> compositeStates      The pose-blended composite channels per
  *   isolated part.
  * @property CompositeAcceleration        acceleration         The pose's composite acceleration state.
+ * @property MeshOverlay?                 overlay              The mesh overlay drawn over the art, or null
+ *   for none (a capture).
+ * @property MeshOverlayPalette           overlayPalette       The colors the overlay draws with.
  */
 internal class FrameInputs(
 	val affine: WorldToNdc,
@@ -513,6 +516,8 @@ internal class FrameInputs(
 	val boundsScissorEnabled: Boolean,
 	val compositeStates: Map<PartId, PartRenderState>,
 	val acceleration: CompositeAcceleration,
+	val overlay: MeshOverlay?,
+	val overlayPalette: MeshOverlayPalette,
 )
 
 /**

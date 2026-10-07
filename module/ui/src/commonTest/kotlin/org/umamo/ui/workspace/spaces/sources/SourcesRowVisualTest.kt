@@ -77,6 +77,16 @@ class SourcesRowVisualTest {
 		assertSame(Res.string.sources_status_ignored, ignored.statusLabel)
 	}
 
+	/** A tile bound to a file the document does not list reads caution, with its own reason on the tooltip. */
+	@Test
+	fun aTileBoundToAnUnlistedFileReadsCaution() {
+		val visual = sourcesRowVisual(node(SourcesNodeKind.Tile(AtlasTileId("tile")), SourcesStatus.SourceNotListed), icons, colors)
+		assertSame(icons.spaceTexture, visual.icon)
+		assertEquals(colors.signalCaution, visual.tint)
+		assertSame(Res.string.sources_status_source_not_listed, visual.statusLabel)
+		assertTrue(SourcesStatus.SourceNotListed.isReview, "it joins the review filter")
+	}
+
 	/** A tile on no page reads caution; a placed tile and a drawable carry no status at all. */
 	@Test
 	fun tilesAndDrawablesCarryAStatusOnlyWhenUnplaced() {

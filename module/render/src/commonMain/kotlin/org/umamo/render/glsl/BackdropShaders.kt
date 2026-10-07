@@ -56,6 +56,11 @@ internal fun gridFragmentShader(dialect: GlslDialect): String =
 		uniform vec3 majorColor;
 		uniform vec3 minorColor;
 		uniform vec2 gridOrigin;   // world point a major line passes through (the world axes)
+		uniform int useSurface;       // 1: a UV scene's surface bounds the grid
+		uniform vec4 surfaceBounds;   // the surface's minX, minY, maxX, maxY in world units
+		uniform vec3 surroundColor;   // painted outside the surface
+		uniform vec3 frameColor;      // the border just outside the surface's edge
+		uniform float frameWidthPx;   // the border's width in framebuffer pixels
 
 		// Anti-aliased line coverage for a coordinate on a lattice of the given spacing.  cellDist is the
 		// fractional distance to the nearest line in cell units (0 on a line, 0.5 mid-cell); scaling it by
@@ -87,6 +92,18 @@ internal fun gridFragmentShader(dialect: GlslDialect): String =
 			float major = lineCoverage(gridWorld, majorSpacing, worldPerPixel);
 			vec3 color = mix(backgroundColor, minorColor, minor);
 			color = mix(color, majorColor, major);
+			if (useSurface == 1) {
+				// How far outside the surface this fragment sits, in framebuffer pixels (negative inside):
+				// beyond the border the surround, across the border's band its color, inside the grid.  The
+				// band lies wholly outside the edge, so the surface drawn over the grid never covers it.
+				vec2 belowPx = (surfaceBounds.xy - world) / worldPerPixel;
+				vec2 abovePx = (world - surfaceBounds.zw) / worldPerPixel;
+				float outsidePx = max(max(belowPx.x, belowPx.y), max(abovePx.x, abovePx.y));
+				if (outsidePx > 0.0) {
+					float frame = clamp(frameWidthPx - outsidePx + 0.5, 0.0, 1.0);
+					color = mix(surroundColor, frameColor, frame);
+				}
+			}
 			fragColor = vec4(color, 1.0);
 		}
 		""".trimIndent()
