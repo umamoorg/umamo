@@ -28,12 +28,13 @@ private const val RIGID_INVERSE_MAX_ITERATIONS = 24
 
 /**
  * Maps between a drawable's local mesh space and the evaluator's world space at one fixed pose - the
- * `DeformedGeometry.worldPositions` space the viewport camera and picker use. Local space is the space
- * the drawable's keyforms and `DrawableMesh.localPositions` live in: model space for a direct (deformer-less)
- * drawable, the parent's normalized lattice UV for a warp child, the parent's affine frame for a
- * rotation child.  `DrawableMesh.positions` is the canvas editable mesh and is never local, not even for a
- * drawable with no keyforms. The parent transform here is the FULLY COMPOSED chain (`buildDeformerWorlds` bakes
- * every ancestor in), so both directions are a single transform, never a chain walk.
+ * `DeformedGeometry.worldPositions` space the viewport camera and picker use.  Local space is the space
+ * the drawable's keyforms and `DrawableMesh.localPositions` live in: model space for a direct
+ * (deformer-less) drawable, the parent's normalized lattice UV for a warp child, the parent's affine frame
+ * for a rotation child.  `DrawableMesh.positions` is the canvas editable mesh and is never local, not even
+ * for a drawable with no keyforms.  The parent transform here is the FULLY COMPOSED chain
+ * (`buildDeformerWorlds` bakes every ancestor in), so both directions are a single transform, never a
+ * chain walk.
  *
  * The Edit-mode gizmo is the intended caller: it projects the active drawable's local shape to world
  * for drawing and hit-testing (forward), and converts a world-space drag back into local vertex

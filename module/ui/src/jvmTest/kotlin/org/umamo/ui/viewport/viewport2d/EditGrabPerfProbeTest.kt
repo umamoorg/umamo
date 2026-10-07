@@ -294,8 +294,9 @@ class EditGrabPerfProbeTest {
 	}
 
 	/**
-	 * The three halves of one drive, each timed on its own: the operator over the frozen world shapes,
-	 * the inverse back onto the rest arrays, and the fold of the new rest arrays into a preview model.
+	 * The stages of one drive, each timed on its own: the operator over the frozen world shapes, the
+	 * inverse back onto the rest arrays, and the fold of the new rest arrays into a preview model (one
+	 * drawable at a time, and as the drive's one batch).
 	 *
 	 * @param ModalTransformCapture transform The gesture's shared capture.
 	 * @param Map<DrawableId, DrawableWorldGeometry> geometryById Each moving mesh's frozen geometry.

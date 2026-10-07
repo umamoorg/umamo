@@ -143,7 +143,7 @@ internal fun OutlinerRowView(
 		}
 	}
 	// No confirmation: history / undo makes an accidental delete cheap to recover, and the rows are hard to
-	// hit by accident - so this applies immediately (the chosen behaviour).
+	// hit by accident - so this applies immediately (the chosen behavior).
 	val onRequestDelete: (cascade: Boolean) -> Unit = { cascade ->
 		if (target != null) {
 			session?.deleteTargetKeepingRest(target, cascade)

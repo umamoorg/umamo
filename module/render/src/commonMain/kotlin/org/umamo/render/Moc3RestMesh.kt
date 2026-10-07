@@ -88,7 +88,7 @@ private class DefaultPoseFallback(
  * such a drawable through the clamped pose, so an export that inverted it through the raw default
  * would be undoing a transform that was never applied.
  *
- * No `keyforms != null` gate: an unkeyed drawable evaluates at its rest mesh rather than being skipped,
+ * No `geometryGrid != null` gate: an unkeyed drawable evaluates at its rest mesh rather than being skipped,
  * so one still absent from the default pose is genuinely hidden (a hidden ancestor deformer) and
  * deserves the same second chance as any other.
  *

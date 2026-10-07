@@ -20,12 +20,11 @@ import kotlin.test.assertTrue
  * fresh CMO3, and re-importing the written file reproduces the source PuppetModel with only the
  * documented residues - WORLD_ORIGIN (the moc stores a real origin; CMO3 import derives the
  * canvas center) and bounded-ULP drift on keyform deltas (fresh absolutes are base + delta and
- * the re-import subtracts, which is not an IEEE identity).  MESH_POSITIONS is tolerated beside
- * them, though the canvas editable mesh is written to CArtMeshSource.positions and read back
- * from it as it is.
+ * the re-import subtracts, which is not an IEEE identity).  The canvas editable mesh is written to
+ * CArtMeshSource.positions and read back from it as it is, so a MESH_POSITIONS residue fails.
  */
 class Cmo3ConversionRoundTripTest {
-	private val geometryUlpTolerance = 1e-3f
+	private val geometryDriftTolerance = 1e-3f
 
 	@Test
 	fun corpusMocModelsConvertAndRoundTrip() {
@@ -168,13 +167,12 @@ class Cmo3ConversionRoundTripTest {
 			// GEOMETRY / BLEND_SHAPES: each import takes its base from its own reference cell, so the
 			// re-imported deltas shift by the base difference; the absolute-geometry drift check below
 			// is what guards the semantics (base + delta is the render-visible invariant).
-			// MESH_POSITIONS is tolerated too, though the canvas mesh is written and read back as it is.
-			if (entityDiff !is EntityDiff.Changed || entityDiff.fields.any { field -> field.name !in setOf("GEOMETRY", "BLEND_SHAPES", "MESH_POSITIONS") }) {
+			if (entityDiff !is EntityDiff.Changed || entityDiff.fields.any { field -> field.name !in setOf("GEOMETRY", "BLEND_SHAPES") }) {
 				failures.add("$label: drawable residue $entityDiff")
 				continue
 			}
 			val drift = maxGeometryDrift(result.puppet, reimported, entityDiff.id.raw)
-			if (drift > geometryUlpTolerance) {
+			if (drift > geometryDriftTolerance) {
 				failures.add("$label: drawable ${entityDiff.id.raw} geometry drifted by $drift")
 			}
 		}

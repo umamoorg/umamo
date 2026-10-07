@@ -290,7 +290,7 @@ internal object UmaPuppetShape {
 			problem("$path.localPositions holds ${mesh.localPositions.size} floats against ${positions.size} canvasPositions")
 		}
 		if (mesh.uvs.size != positions.size) {
-			problem("$path.uvs holds ${mesh.uvs.size} floats against ${positions.size} positions")
+			problem("$path.uvs holds ${mesh.uvs.size} floats against ${positions.size} canvasPositions")
 		}
 		if (mesh.indices.size % 3 != 0) {
 			problem("$path.indices holds ${mesh.indices.size} indices, not whole triangles")
@@ -318,15 +318,16 @@ internal object UmaPuppetShape {
 	}
 
 	/**
-	 * Checks position deltas hold one x, y pair per vertex of [mesh]; nothing to check without a mesh.
+	 * UMA §4.11: position deltas hold as many components as the mesh's localPositions; nothing to check without
+	 * a mesh.
 	 *
 	 * @param FloatArray deltas The deltas.
 	 * @param UmaMesh?   mesh   The drawable's mesh, if any.
 	 * @param String     path   Where the deltas sit.
 	 */
 	private fun checkDeltas(deltas: FloatArray, mesh: UmaMesh?, path: String) {
-		if (mesh != null && deltas.size != mesh.canvasPositions.size) {
-			problem("$path holds ${deltas.size} floats against the mesh's ${mesh.canvasPositions.size} positions")
+		if (mesh != null && deltas.size != mesh.localPositions.size) {
+			problem("$path holds ${deltas.size} floats against the mesh's ${mesh.localPositions.size} localPositions")
 		}
 	}
 

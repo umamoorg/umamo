@@ -40,16 +40,18 @@ import org.umamo.runtime.model.PuppetModel
  * deform eval (drawableLocalPosed below), and :edit and :render are SIBLINGS over :runtime - :edit cannot
  * see :render, so an edit expressed in world space cannot live there.  :ui depends on both, so it is the
  * lowest module that can hold this.  Do not read it as licence to put other session edits here: anything
- * that does not need :render belongs in :edit (see KeyformAimEdits.kt, which was moved out of :ui for exactly
- * this reason).
+ * that does not need :render belongs in :edit (KeyformAimEdits.kt is the reference split: it needs no
+ * :render, so it lives there).
  */
 
 /**
  * The world-space geometry backing one drawable's Transform rows: the bounds to display, and whether they
  * can be written back.
  *
- * @property MeshBounds bounds The drawable's axis-aligned world bounds (x horizontal, y up = the panel's Z), which the panel shows relative to the world origin.
- * @property Boolean editable Whether an edit can be inverted back onto the base mesh (see [drawableWorldTransform]).
+ * @property MeshBounds bounds   The drawable's axis-aligned world bounds (x horizontal, y up = the panel's Z),
+ *   which the panel shows relative to the world origin.
+ * @property Boolean    editable Whether an edit can be inverted back onto the rest arrays (see
+ *   [drawableWorldTransform]).
  */
 internal class DrawableWorldTransform(val bounds: MeshBounds, val editable: Boolean)
 
@@ -76,13 +78,13 @@ internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: Drawable
 		// No world mapping (a hidden ancestor).  The posed local shape is still worth showing, so resolve it
 		// directly rather than going through the capture, which requires a mapping.
 		val displayed = drawableLocalPosed(model, pose, id) ?: base
-		// No world mapping (a hidden ancestor), so fall back to the posed LOCAL geometry - but negate the
-		// center's y first.  localToWorld flips y (world y grows upward), so reporting local y raw would make
-		// the Position Z row jump sign purely because an ancestor was toggled invisible.  Extents are
-		// unsigned and carry over as-is.  Not editable: without a mapping there is nothing to invert through.
-		// For a root drawable local space IS canvas space, so this is its true world center and the row's
-		// origin conversion reads it correctly.  Under a deformer it is the deformer's local space, which no
-		// origin conversion can make meaningful; the row is read-only there, so it is shown as it is.
+		// The center's y is negated first: localToWorld flips y (world y grows upward), so reporting local y
+		// raw would make the Position Z row jump sign purely because an ancestor was toggled invisible.
+		// Extents are unsigned and carry over as-is.  Not editable: without a mapping there is nothing to
+		// invert through.  For a root drawable local space IS canvas space, so this is its true world center
+		// and the row's origin conversion reads it correctly.  Under a deformer it is the deformer's local
+		// space, which no origin conversion can make meaningful; the row is read-only there, so it is shown
+		// as it is.
 		val local = meshBounds(displayed)
 		return DrawableWorldTransform(
 			MeshBounds(local.centerX, -local.centerY, local.width, local.height),

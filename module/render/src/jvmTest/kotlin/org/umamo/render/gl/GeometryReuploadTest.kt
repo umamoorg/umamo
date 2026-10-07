@@ -63,8 +63,8 @@ class GeometryReuploadTest {
 			blendMode = BlendMode.Normal,
 			maskedBy = emptyList(),
 			mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions.copyOf(), quadUvs, quadIndices),
-			// A single zero-delta keyform so the drawable is "keyed" (an unkeyed drawable is skipped by the
-			// renderer); the base mesh alone drives its shape.
+			// A single zero-delta keyform, so the probe is keyed like a rigged drawable while the base mesh
+			// alone drives its shape.
 			geometryGrid = KeyformGrid(meshAxis(), listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size))))),
 		)
 
@@ -213,18 +213,5 @@ class GeometryReuploadTest {
 		val buffer = BufferUtils.createByteBuffer(width * height * 4)
 		GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer)
 		return buffer
-	}
-
-	/** Creates and binds an RGBA8 offscreen framebuffer to render the puppet into for read-back. */
-	private fun createColorFbo(width: Int, height: Int): Int {
-		val framebuffer = GL30.glGenFramebuffers()
-		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-		val colorTexture = GL11.glGenTextures()
-		GL11.glBindTexture(GL11.GL_TEXTURE_2D, colorTexture)
-		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, null as ByteBuffer?)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR)
-		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR)
-		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0, GL11.GL_TEXTURE_2D, colorTexture, 0)
-		return framebuffer
 	}
 }
