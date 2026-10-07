@@ -9,6 +9,8 @@ import androidx.compose.ui.focus.FocusRequester
 import org.umamo.edit.EditorSession
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.Keymap
+import org.umamo.ui.kit.field.LocalScrubCancel
+import org.umamo.ui.kit.field.ScrubCancelController
 import org.umamo.ui.kit.menu.LocalMenuBarController
 import org.umamo.ui.kit.menu.MenuBarController
 import org.umamo.ui.kit.textentry.InlineEditController
@@ -36,9 +38,13 @@ import org.umamo.ui.workspace.area.AreaDragController
 import org.umamo.ui.workspace.area.LocalAreaDragController
 import org.umamo.ui.workspace.area.LocalSplitterDragCancel
 import org.umamo.ui.workspace.area.SplitterDragCancelController
+import org.umamo.ui.workspace.commands.CommandRouting
+import org.umamo.ui.workspace.hostsOperationStrip
 import org.umamo.ui.workspace.layout.InterfaceLayout
 import org.umamo.ui.workspace.layout.WorkspaceLayoutController
+import org.umamo.ui.workspace.layout.firstLeafOrNull
 import org.umamo.ui.workspace.operationstrip.LocalOperationStrip
+import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 import org.umamo.ui.workspace.operationstrip.OperationStripState
 import org.umamo.ui.workspace.rowdrag.LocalRowDragCancel
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
@@ -106,6 +112,14 @@ internal class ShellControllers(
 	val rowDragCancel = RowDragCancelController()
 
 	/**
+	 * Shared with every number field: while one is being drag-scrubbed its cancel is parked here, so the root
+	 * key handler can route Escape to abort the scrub ahead of the overlay-close and clear-selection branches,
+	 * either of which would unmount the field mid-drag.  One pointer means at most one scrub anywhere, so one
+	 * slot serves every field.
+	 */
+	val scrubCancel = ScrubCancelController()
+
+	/**
 	 * Shared with the area tree: a divider drag keeps its session inside the dragged SplitContainer, so while
 	 * one is in flight that container parks its cancel here for the root Escape precedence to reach - the
 	 * corner-drag equivalent of what [dragController] already exposes directly.
@@ -124,6 +138,24 @@ internal class ShellControllers(
 	 * HoveredSurface.kt for the dispatch-time-only contract).
 	 */
 	val hoveredSurfaces = HoveredSurfaceTracker()
+
+	/**
+	 * The ONE routing seam every command group dispatches through, closing over nothing but the tracker and
+	 * the layout controller above (both read live at dispatch), so it cannot go stale across a document swap.
+	 */
+	val routing =
+		CommandRouting(
+			{ hoveredSurfaces.lastTouched },
+			{ hoveredSurfaces.lastTouchedStripHost },
+			{ workspaces.layout.activeWorkspace()?.root?.firstLeafOrNull { leaf -> leaf.space.hostsOperationStrip }?.id },
+			{ hoveredSurfaces.lastTouchedViewport },
+		)
+
+	/**
+	 * The routing's strip-area answer as a panel reaches it (LocalOperationStripArea).  One instance for the
+	 * shell's lifetime: the local is static, so a fresh lambda per composition would recompose everything.
+	 */
+	val operationStripArea: () -> String? = { routing.operationStripArea() }
 
 	/** The keyable property under the pointer, so a keyform insert needs no prior selection. */
 	val keyableHover = KeyableHover()
@@ -165,6 +197,7 @@ internal class ShellControllers(
 			LocalInlineEditController provides inlineEditController,
 			LocalKeyCapture provides keyCapture,
 			LocalRowDragCancel provides rowDragCancel,
+			LocalScrubCancel provides scrubCancel,
 			LocalSplitterDragCancel provides splitterDragCancel,
 			LocalKeyableHover provides keyableHover,
 			LocalKeyformSheetViews provides keyformSheetViews,
@@ -172,6 +205,7 @@ internal class ShellControllers(
 			LocalHoveredSurfaceTracker provides hoveredSurfaces,
 			LocalAreaCameraHub provides areaCameras,
 			LocalOperationStrip provides operationStrip,
+			LocalOperationStripArea provides operationStripArea,
 		)
 
 	/**
@@ -199,6 +233,7 @@ internal class ShellControllers(
 			dragController = dragController,
 			splitterDragCancel = splitterDragCancel,
 			rowDragCancel = rowDragCancel,
+			scrubCancel = scrubCancel,
 			relationPick = relationPick,
 			keyformSheets = keyformSheetViews,
 			commandRegistry = commandRegistry,

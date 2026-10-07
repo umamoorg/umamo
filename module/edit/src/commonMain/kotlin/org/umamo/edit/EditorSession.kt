@@ -570,6 +570,30 @@ class EditorSession private constructor(
 	}
 
 	/**
+	 * Puts the pending unkeyed edit of [target] back to what history holds - the cancelled-scrub path.
+	 *
+	 * A scrub previews through [setPendingChannelEdit] frame by frame, so a cancelled one leaves its last
+	 * frame in the live map with nothing to retire it.  [clearPendingChannelEdit] would be lossy here: a value
+	 * COMMITTED earlier through [commitPendingChannelEdit] is pending too, and the scrub was previewing over
+	 * it, so it is restored rather than dropped; a target history never recorded is removed.
+	 *
+	 * @param KeyableTarget target The property whose preview was cancelled.
+	 */
+	fun restorePendingChannelEdit(target: KeyableTarget) {
+		val live = mutablePendingChannelEdits.value
+		val recorded = history.current.pendingChannelEdits[target]
+		val restored =
+			if (recorded == null) {
+				live - target
+			} else {
+				live + (target to recorded)
+			}
+		if (restored != live) {
+			mutablePendingChannelEdits.value = restored
+		}
+	}
+
+	/**
 	 * Records a selection gesture as its own undo step (the chosen Blender-faithful granularity), so a
 	 * misclick that clears the selection is recoverable. A no-op (selecting the already-current
 	 * selection) records nothing.

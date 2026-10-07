@@ -19,7 +19,6 @@ import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.repack.atlasRepackLauncher
 import org.umamo.ui.workspace.KeyformHover
 import org.umamo.ui.workspace.commands.ArtworkOperations
-import org.umamo.ui.workspace.commands.CommandRouting
 import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.atlasCommands
 import org.umamo.ui.workspace.commands.chromeCommands
@@ -41,8 +40,6 @@ import org.umamo.ui.workspace.commands.transformCommands
 import org.umamo.ui.workspace.commands.uvCommands
 import org.umamo.ui.workspace.commands.viewCommands
 import org.umamo.ui.workspace.commands.workspaceCommands
-import org.umamo.ui.workspace.hostsOperationStrip
-import org.umamo.ui.workspace.layout.firstLeafOrNull
 
 /**
  * Registers the shell's own command tables (the commands package) into [commandRegistry], one effect per
@@ -83,20 +80,11 @@ internal fun RegisterShellCommands(
 	val currentArtwork by rememberUpdatedState(artwork)
 	val currentExportImage by rememberUpdatedState(exportImage)
 
-	// ONE routing seam serves every group, remembered for the shell's lifetime.  It closes over nothing but
-	// the tracker and the layout controller (both remembered for the same lifetime, and both read live at
-	// dispatch), so it cannot go stale across a document swap and the groups that must NOT re-register on
-	// one can hold it safely.
+	// ONE routing seam serves every group, held by the controllers for the shell's lifetime (the Properties
+	// panel's transform rows reach its strip-area answer through LocalOperationStripArea), so it cannot go
+	// stale across a document swap and the groups that must NOT re-register on one can hold it safely.
 	val service = LocalPuppetViewportService.current
-	val routing =
-		remember {
-			CommandRouting(
-				{ hoveredSurfaces.lastTouched },
-				{ hoveredSurfaces.lastTouchedStripHost },
-				{ workspaces.layout.activeWorkspace()?.root?.firstLeafOrNull { leaf -> leaf.space.hostsOperationStrip }?.id },
-				{ hoveredSurfaces.lastTouchedViewport },
-			)
-		}
+	val routing = controllers.routing
 	// Read at dispatch: the chrome table registers once, and the handler the platform provides is the
 	// composition's to change.
 	val currentUriHandler by rememberUpdatedState(LocalUriHandler.current)

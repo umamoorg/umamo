@@ -13,6 +13,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.PartChange
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.atlas.setAtlasPins
+import org.umamo.edit.keyform.cancelChannelPreview
 import org.umamo.edit.keyform.editKeyedChannel
 import org.umamo.edit.keyform.previewChannelEdit
 import org.umamo.edit.property.setDeformerFlipX
@@ -391,6 +392,7 @@ internal val PartSection =
 										onPreview = { order: Int ->
 											session?.previewChannelEdit(target, ChannelValue.Scalar(order.toFloat()))
 										},
+										onScrubCancel = { session?.cancelChannelPreview(target) },
 										range = 0..1000,
 										modifier = Modifier.fillMaxWidth(),
 									)
@@ -782,6 +784,9 @@ private fun KeyableScalarChannelRow(
 				onPreview = { previewed: Float ->
 					session?.previewChannelEdit(target, ChannelValue.Scalar(previewed))
 				},
+				// A cancelled scrub retires its preview the way a commit would, or the last frame would stay
+				// pending - the viewport stuck on it and the field tinted as an edit nobody made.
+				onScrubCancel = { session?.cancelChannelPreview(target) },
 			)
 		}
 	}

@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
@@ -108,6 +109,8 @@ private val NUMBER_FIELD_HEIGHT = FIELD_CONTROL_HEIGHT
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
  * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
  * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
+ * @param Function? onScrubCancel Called when a drag-scrub is cancelled (Escape, or the gesture dropped), so
+ *   whatever [onPreview] drove can be put back; the field itself returns to [value].
  */
 @Composable
 fun NumberField(
@@ -124,6 +127,7 @@ fun NumberField(
 	stackPosition: StackPosition = StackPosition.Single,
 	keyState: KeyedFieldState = KeyedFieldState.None,
 	onPreview: ((Float) -> Unit)? = null,
+	onScrubCancel: (() -> Unit)? = null,
 ) {
 	val bounded = showFill && range.start.isFinite() && range.endInclusive.isFinite() && range.endInclusive > range.start
 	NumberFieldCore(
@@ -139,6 +143,7 @@ fun NumberField(
 			onPreview?.let { preview ->
 				{ raw: Float -> preview(roundToDecimals(raw, decimals).coerceIn(range.start, range.endInclusive)) }
 			},
+		onScrubCancel = onScrubCancel,
 		modifier = modifier,
 		unitSuffix = unitSuffix,
 		plain = plain,
@@ -167,6 +172,8 @@ fun NumberField(
  * @param StackPosition stackPosition This field's position in a vertical stack (corner rounding + seam).
  * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
  * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
+ * @param Function? onScrubCancel Called when a drag-scrub is cancelled (Escape, or the gesture dropped), so
+ *   whatever [onPreview] drove can be put back; the field itself returns to [value].
  */
 @Composable
 fun NumberField(
@@ -182,6 +189,7 @@ fun NumberField(
 	stackPosition: StackPosition = StackPosition.Single,
 	keyState: KeyedFieldState = KeyedFieldState.None,
 	onPreview: ((Int) -> Unit)? = null,
+	onScrubCancel: (() -> Unit)? = null,
 ) {
 	val floatRange = range.first.toFloat()..range.last.toFloat()
 	// A whole-domain endpoint means "unbounded", so a plain int clamp such as 0..Int.MAX_VALUE draws no fill.
@@ -192,6 +200,7 @@ fun NumberField(
 			onPreview?.let { preview ->
 				{ raw: Float -> preview(raw.roundToInt().coerceIn(range.first, range.last)) }
 			},
+		onScrubCancel = onScrubCancel,
 		value = value.toFloat(),
 		range = floatRange,
 		step = step.toFloat(),
@@ -212,7 +221,8 @@ fun NumberField(
  * formatting / parsing / rounding to the overload via [format], [parse], and [onCommit].  Holds the two
  * interaction states: a display face (tap to edit, drag to scrub, hover chevrons, magnitude fill) and the
  * type-in editor swapped in while editing.  A scrub previews locally (nothing commits per frame) and
- * commits once on release; [plain] skips straight to a bare type-in box.
+ * commits once on release; a cancelled scrub - Escape through the shell's seam, or a gesture dropped by an
+ * unmount - commits nothing and returns the field to [value]; [plain] skips straight to a bare type-in box.
  *
  * @param Float value The current value (the source of truth while idle).
  * @param ClosedFloatingPointRange range The clamp range.
@@ -228,6 +238,7 @@ fun NumberField(
  * @param StackPosition stackPosition The field's position in a vertical stack.
  * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
  * @param Function? onPreview Called with each in-flight value while the field is being drag-scrubbed.
+ * @param Function? onScrubCancel Called once when an in-flight scrub is cancelled, after the field dropped its draft.
  */
 @Composable
 private fun NumberFieldCore(
@@ -245,6 +256,7 @@ private fun NumberFieldCore(
 	stackPosition: StackPosition,
 	keyState: KeyedFieldState = KeyedFieldState.None,
 	onPreview: ((Float) -> Unit)? = null,
+	onScrubCancel: (() -> Unit)? = null,
 ) {
 	val shapes = LocalUmamoShapes.current
 	val shape = stackedShape(shapes.small, stackPosition, StackAxis.Vertical)
@@ -286,6 +298,34 @@ private fun NumberFieldCore(
 	// each frame's value straight back in through the pending buffer, accelerating the scrub and forcing a
 	// reversed drag to spend its first stretch merely unwinding the drift.
 	var scrubStartValue by remember { mutableStateOf(0f) }
+	// The scrub's cancel, parked on the shell's seam for the length of the drag so Escape reaches it - the
+	// field never takes focus, so nothing else would.  ONE instance per field: the core recomposes every drag
+	// frame, and the seam releases by identity, so a per-frame lambda would never match its own parking.  Its
+	// collaborators are read through state so the instance built on the first frame drives the current field.
+	val currentOnScrubCancel by rememberUpdatedState(onScrubCancel)
+	val currentSeam by rememberUpdatedState(LocalScrubCancel.current)
+	val scrubGesture =
+		remember {
+			ScrubGesture().also { gesture ->
+				gesture.cancel = {
+					// Latched whether or not a draft is live: a drag that outlives its cancel keeps delivering
+					// moves, and each must be ignored until the release resets it.
+					gesture.cancelled = true
+					if (dragValue != null) {
+						dragValue = null
+						currentSeam.release(gesture.cancel)
+						currentOnScrubCancel?.invoke()
+					}
+				}
+			}
+		}
+	// The backstop for a field disposed with its cancel still parked and no gesture event delivered (a
+	// density flip delivers none): the seam must never hold a cancel for a field that no longer exists.
+	DisposableEffect(scrubGesture) {
+		onDispose {
+			currentSeam.release(scrubGesture.cancel)
+		}
+	}
 
 	// Being disabled ENDS an in-flight edit rather than parking it: leaving `editing` set would re-open the
 	// type-in box - autoFocus and all - the moment the field became editable again, stealing focus for an
@@ -316,21 +356,33 @@ private fun NumberFieldCore(
 			enabled = enabled,
 			onTapToEdit = { editing = true },
 			onScrubStart = {
+				// Reset here, not on release: the detector delivers the first move right after the start.
+				scrubGesture.cancelled = false
 				scrubStartValue = value
 				dragValue = value
+				currentSeam.cancel = scrubGesture.cancel
 			},
 			onScrub = { totalDeltaPx ->
-				val scrubbed = scrubValue(scrubStartValue, totalDeltaPx, step, range)
-				dragValue = scrubbed
-				// Reported live so the caller can drive whatever the value affects while the drag is still
-				// happening.  Without it a scrub moves the number and nothing else until release, which
-				// reads as the edit not working - the field is the only thing that responds.
-				onPreview?.invoke(scrubbed)
+				// A cancelled drag's remaining moves are dead: the field stays on its value and previews nothing.
+				if (!scrubGesture.cancelled) {
+					val scrubbed = scrubValue(scrubStartValue, totalDeltaPx, step, range)
+					dragValue = scrubbed
+					// Reported live so the caller can drive whatever the value affects while the drag is still
+					// happening.  Without it a scrub moves the number and nothing else until release, which
+					// reads as the edit not working - the field is the only thing that responds.
+					onPreview?.invoke(scrubbed)
+				}
 			},
 			onScrubEnd = {
-				dragValue?.let { finalValue -> onCommit(finalValue) }
+				if (scrubGesture.cancelled) {
+					scrubGesture.cancelled = false
+				} else {
+					dragValue?.let { finalValue -> onCommit(finalValue) }
+				}
 				dragValue = null
+				currentSeam.release(scrubGesture.cancel)
 			},
+			onScrubCancel = scrubGesture.cancel,
 			onStep = { direction -> onCommit((value + direction * step).coerceIn(range.start, range.endInclusive)) },
 			// Forwarded on the RESTING face, the one every real field shows: this is the background tint that
 			// warns a typed value is unkeyed and dies on the next scrub, so every enabled field must carry it,
@@ -341,12 +393,26 @@ private fun NumberFieldCore(
 }
 
 /**
+ * One field's scrub bookkeeping that must keep its identity across the recomposition every drag frame
+ * causes: [cancel] is what the field parks on the shell's seam, released by reference.  Neither field is
+ * snapshot state - both are read only from pointer and key callbacks, never during composition.
+ *
+ * @property Boolean cancelled Whether the drag in flight was cancelled, so its remaining moves are ignored.
+ * @property Function cancel Drops the field's draft and reports the cancel; built once by the core.
+ */
+private class ScrubGesture {
+	var cancelled = false
+	var cancel: () -> Unit = {}
+}
+
+/**
  * The idle display face of a [NumberField]: a box showing [text] (plus an optional [unitSuffix]) over a
  * left-to-right accent magnitude fill, with decrement / increment chevrons that fade in on hover.
  * A quick tap enters type-in mode ([onTapToEdit]); a horizontal drag past the touch slop scrubs
- * ([onScrubStart] / [onScrub] with the total delta from the gesture start / [onScrubEnd]).  The two
- * pointer handlers are separate inputs like [Slider], and callbacks are read through
- * [rememberUpdatedState] so a reused row slot always drives the current field.
+ * ([onScrubStart] / [onScrub] with the total delta from the gesture start / [onScrubEnd], or
+ * [onScrubCancel] when the gesture is dropped rather than released).  The two pointer handlers are
+ * separate inputs like [Slider], and callbacks are read through [rememberUpdatedState] so a reused row
+ * slot always drives the current field.
  *
  * @param String text The formatted value to show.
  * @param String? unitSuffix An optional trailing unit, or null.
@@ -359,6 +425,8 @@ private fun NumberFieldCore(
  * @param Function onScrubStart Begins a scrub gesture.
  * @param Function onScrub Reports the total horizontal drag delta from the gesture start, in pixels.
  * @param Function onScrubEnd Ends the scrub (commit the previewed value).
+ * @param Function onScrubCancel Drops the scrub without committing: the gesture was cancelled under the
+ *   field (an unmount delivers a consumed release), not released.
  * @param Function onStep Steps the value by a chevron press (-1 or +1).
  * @param KeyedFieldState keyState The keyform state to tint the field's background fill with.
  */
@@ -374,6 +442,7 @@ private fun NumberFieldDisplay(
 	onScrubStart: () -> Unit = {},
 	onScrub: (Float) -> Unit = {},
 	onScrubEnd: () -> Unit = {},
+	onScrubCancel: () -> Unit = {},
 	onStep: (Int) -> Unit = {},
 	keyState: KeyedFieldState = KeyedFieldState.None,
 ) {
@@ -385,6 +454,7 @@ private fun NumberFieldDisplay(
 	val currentScrubStart by rememberUpdatedState(onScrubStart)
 	val currentScrub by rememberUpdatedState(onScrub)
 	val currentScrubEnd by rememberUpdatedState(onScrubEnd)
+	val currentScrubCancel by rememberUpdatedState(onScrubCancel)
 	val fillColor = colors.accent.copy(alpha = NUMBER_FIELD_FILL_ALPHA)
 	Box(
 		modifier =
@@ -421,8 +491,12 @@ private fun NumberFieldDisplay(
 										currentScrubStart()
 									},
 									onDragEnd = { currentScrubEnd() },
-									onDragCancel = { currentScrubEnd() },
+									// A cancel is a cancel: the gesture was taken from under the field (a
+									// consumed release, which is how an unmount mid-drag arrives), so nothing lands.
+									onDragCancel = { currentScrubCancel() },
 								) { change, dragAmount ->
+									// Consumed even after a cancel, so the dead gesture stays claimed until the
+									// release and the enclosing scroll cannot pick it up from a wiggle.
 									change.consume()
 									total += dragAmount
 									currentScrub(total)
@@ -498,6 +572,9 @@ private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier
 				// Opaque fills over the field's own, and the chevrons show exactly WHEN the field is hovered -
 				// so without the tint here a keyed field loses 32dp of its signal at both ends on hover.
 				.background(keyState.backgroundTint(colors) ?: Color.Transparent)
+				// Never focusable: the chevrons exist only while the field is hovered, and a clickable takes
+				// focus on press, so a focused chevron leaving with the hover would strand the keyboard.
+				.focusProperties { canFocus = false }
 				.clickable(interactionSource = interaction, indication = null, onClick = onClick),
 		contentAlignment = Alignment.Center,
 	) {
