@@ -16,8 +16,9 @@ import kotlin.test.assertTrue
  *
  * `@DontSerializeIfDefault` means "the corpus does not always carry this field", which is a fact
  * about the SAMPLES.  For these the official editor's custom deserializers dereference the
- * field unconditionally and NPE at load when it is absent - the corpus merely includes older-era
- * samples that predate them.  Marking any of these would emit a file Cubism cannot open, and the
+ * field unconditionally (CPartForm.opacity once the form carries its colors) and NPE at load when
+ * it is absent - the corpus merely includes older-era samples that predate them.  Marking any of
+ * these would emit a file Cubism cannot open, and the
  * failure is a load-time NPE in the editor rather than anything a round-trip gate here would see.
  *
  * The rule that produces them lives in ModelGenerator.alwaysSerializedFields so a regeneration

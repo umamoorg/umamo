@@ -280,7 +280,7 @@ internal class ArtworkController(
 	 * Rebinds one or more tiles as one step.  An unbind is the plain binding edit; a binding to a layer
 	 * pulls the layer's art in when its file is on disk - or, when it is not, from the layer PNGs the official
 	 * editor decomposed into a CMO3 the document is open from, else from the tile the document holds for that
-	 * layer (docs/plan/uma-format.md D40) - and changes the bindings alone when none has art for the layer.
+	 * layer - and changes the bindings alone when none has art for the layer.
 	 *
 	 * @param RelinkRequest request The tiles and the binding they take.
 	 * @param String?       areaId  The area the operation strip shows in.

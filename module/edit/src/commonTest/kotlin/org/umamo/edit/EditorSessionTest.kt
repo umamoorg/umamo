@@ -1421,11 +1421,29 @@ class EditorSessionTest {
 		assertFalse(session.isQuiescent, "a circle stroke")
 		session.setPreviewSelection(null)
 		assertTrue(session.isQuiescent)
+		session.setMeshPreviewSelection(MeshSelection.editing(listOf(DrawableId("d"))))
+		assertFalse(session.isQuiescent, "an Edit-mode circle stroke")
+		session.setMeshPreviewSelection(null)
+		assertTrue(session.isQuiescent)
 		session.openPieMenu(PieMenuKind.Snap)
 		assertFalse(session.isQuiescent, "an open pie menu")
 		session.closePieMenu()
 		assertTrue(session.isQuiescent)
 		session.emitNotice("notice.test", NoticePlacement.StatusBar, listOf("7"))
 		assertEquals(listOf("7"), session.notice.value?.arguments, "a notice carries its arguments")
+	}
+
+	/** An undo ends any in-flight stroke, so it takes both stroke previews down, the Object one and the Edit one. */
+	@Test
+	fun anUndoTakesBothStrokePreviewsDown() {
+		val session = EditorSession(model())
+		session.mutate(PartChange.SetVisibility(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
+		session.setPreviewSelection(setOf(DrawableId("d")))
+		session.setMeshPreviewSelection(MeshSelection.editing(listOf(DrawableId("d"))))
+
+		session.undo()
+
+		assertNull(session.previewSelection.value, "the Object-mode stroke preview")
+		assertNull(session.meshPreviewSelection.value, "the Edit-mode stroke preview")
 	}
 }

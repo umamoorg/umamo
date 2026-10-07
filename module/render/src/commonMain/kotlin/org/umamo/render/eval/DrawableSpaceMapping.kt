@@ -1,5 +1,7 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
@@ -36,10 +38,12 @@ private const val RIGID_INVERSE_MAX_ITERATIONS = 24
  * for drawing and hit-testing (forward), and converts a world-space drag back into local vertex
  * positions to write into the model (inverse).
  *
- * ドロウアブルのローカル座標と評価器のワールド座標を、固定ポーズで相互変換する。
+ * @property DeformerWorld? parentWorld The baked parent world this mapping composes, or null for a
+ *   direct drawable.  Internal so a test can pin that drawables resolved together by one
+ *   [DrawableSpaceResolver] share one instance; nothing outside the evaluator reads it.
  */
 class DrawableSpaceMapping internal constructor(
-	private val parentWorld: DeformerWorld?,
+	internal val parentWorld: DeformerWorld?,
 ) {
 	/**
 	 * Maps interleaved (x, y) local positions to world positions: the composed parent transform (or a
@@ -229,6 +233,9 @@ class DrawableSpaceMapping internal constructor(
  * does not exist or its parent deformer's world transform cannot be built (a hidden ancestor) - the
  * drawable is not on screen, so there is nothing to map onto.
  *
+ * One drawable, one bake of the whole deformer chain: for more than one drawable at one pose use a
+ * [DrawableSpaceResolver], which bakes the chain once for all of them.
+ *
  * @param PuppetModel model The rig.
  * @param Map parameters Parameter id -> value (partial; the rest default).
  * @param DrawableId drawableId The drawable to map.
@@ -236,10 +243,28 @@ class DrawableSpaceMapping internal constructor(
  */
 fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): DrawableSpaceMapping? {
 	val drawable = model.drawables.firstOrNull { it.id == drawableId } ?: return null
+	// The defaults and the bake are built only when a parent asks for a world, so a direct drawable
+	// pays for neither.
+	return mappingOver(drawable) { parentDeformerId ->
+		val defaults = model.parameters.associate { it.id to it.default }
+		val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
+		buildDeformerWorlds(model.deformers, paramValue)[parentDeformerId]
+	}
+}
+
+/**
+ * The per-drawable half of [drawableSpaceMapping], shared with [DrawableSpaceResolver] so the batch
+ * and the single call cannot drift: a direct drawable maps through the Y negation alone, and a parented
+ * one through the world [parentWorldOf] resolves for its parent - or not at all when that world is
+ * absent (a hidden ancestor, or a parent the model does not carry).
+ *
+ * @param Drawable drawable The drawable to map.
+ * @param Function parentWorldOf Resolves a deformer's baked world at the pose, or null when it has none.
+ * @return DrawableSpaceMapping? The mapping, or null when unmappable.
+ */
+internal fun mappingOver(drawable: Drawable, parentWorldOf: (DeformerId) -> DeformerWorld?): DrawableSpaceMapping? {
 	val parentDeformerId = drawable.parentDeformerId ?: return DrawableSpaceMapping(null)
-	val defaults = model.parameters.associate { it.id to it.default }
-	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
-	val parentWorld = buildDeformerWorlds(model.deformers, paramValue)[parentDeformerId] ?: return null
+	val parentWorld = parentWorldOf(parentDeformerId) ?: return null
 	return DrawableSpaceMapping(parentWorld)
 }
 
@@ -252,17 +277,30 @@ fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>
  * @param PuppetModel model The rig.
  * @param Map parameters Parameter id -> value (partial; the rest default).
  * @param DrawableId drawableId The drawable to sample.
- * @return FloatArray? The interleaved local posed positions, or null when the drawable / mesh / grid is
+ * @return FloatArray? The interleaved local posed positions, or null when the drawable or its mesh is
  *   missing or the pose hides it (out of range).
  */
 fun drawableLocalPosed(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): FloatArray? {
 	val drawable = model.drawables.firstOrNull { it.id == drawableId } ?: return null
+	// Lazy, so an unkeyed drawable answers without building the defaults.
+	val defaults by lazy { model.parameters.associate { it.id to it.default } }
+	return localPosedOver(drawable) { parameterId -> parameters[parameterId] ?: defaults[parameterId] ?: 0f }
+}
+
+/**
+ * The per-drawable half of [drawableLocalPosed], shared with [DrawableSpaceResolver] for the same
+ * reason as [mappingOver].
+ *
+ * @param Drawable drawable The drawable to sample.
+ * @param Function paramValue Parameter id -> value at the pose, with the defaults already folded in.
+ * @return FloatArray? The interleaved local posed positions, or null when the drawable has no mesh or
+ *   the pose hides it (out of range).
+ */
+internal fun localPosedOver(drawable: Drawable, paramValue: (ParameterId) -> Float): FloatArray? {
 	val mesh = drawable.mesh ?: return null
 	// An unkeyed drawable sits at its rest mesh, which is exactly the state a rigger needs the gizmo to
 	// show - returning null here would hide the vertices of the drawable they are about to key.
 	val grid = drawable.geometryGrid ?: return mesh.positions.copyOf()
-	val defaults = model.parameters.associate { it.id to it.default }
-	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
 	return sampleMeshLocal(grid, mesh.positions, paramValue)
 }
 

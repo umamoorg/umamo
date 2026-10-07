@@ -79,4 +79,25 @@ class Cmo3ConversionPagesTest {
 	fun aPageNoDrawableResolvesIsNull() {
 		assertEquals(listOf<Int?>(2, null), modelPageRenderIndices(model(), mapOf("overA" to 2)))
 	}
+
+	/** The resolution handed to the synthesis: each model page takes its render page, an unresolved one the fallback, and the map is renumbered. */
+	@Test
+	fun renderPagesAreResolvedIntoTheModelsOrder() {
+		val renderPages = listOf("looseRaster", "pageB", "pageA")
+		val resolved = modelOrderPages(model(), renderPages, renderPageByDrawableId) { modelPageIndex -> "blank$modelPageIndex" }
+		assertEquals(listOf("pageA", "pageB"), resolved.pages)
+		assertEquals(mapOf("overA" to 0, "overB" to 1, "copyOfA" to 0), resolved.pageIndexByDrawableId)
+		val partial = modelOrderPages(model(), renderPages, mapOf("overA" to 2)) { modelPageIndex -> "blank$modelPageIndex" }
+		assertEquals(listOf("pageA", "blank1"), partial.pages, "the page nothing shows takes the fallback")
+		assertEquals(mapOf("overA" to 0, "copyOfA" to 0), partial.pageIndexByDrawableId)
+	}
+
+	/** A model with no atlas pages keeps its render pages and their map as they are. */
+	@Test
+	fun aModelWithNoPagesKeepsItsRenderPages() {
+		val noPages = model().copy(atlas = PuppetAtlas(pages = emptyList(), tiles = emptyList()))
+		val resolved = modelOrderPages(noPages, listOf("first", "second"), mapOf("overA" to 1)) { error("a model with no pages asks for no fallback") }
+		assertEquals(listOf("first", "second"), resolved.pages)
+		assertEquals(mapOf("overA" to 1), resolved.pageIndexByDrawableId)
+	}
 }

@@ -26,12 +26,11 @@ import kotlin.test.assertTrue
 /**
  * Pins where an artwork operation reads a listed file's art from when the file itself is out of reach.
  *
- * A CMO3 carries the layers the official editor decomposed out of the artist's file, so a relink or a
- * Match Automatically on a CMO3-origin document still has the art to work with on a machine that never
- * had the PSD.  Any other document falls back to the art it holds (docs/plan/uma-format.md D40): a layer a
- * tile binds reads as that tile, a layer no tile binds has no pixels, and the record's rows are what the
- * operation keeps.  A file that is there is placed by its record's offset.  The CMO3 case skips without the
- * corpus sample.
+ * A CMO3 carries the layers the official editor decomposed out of the artist's file, so a relink or a Match
+ * Automatically on a CMO3-origin document still has the art to work with on a machine that never had the
+ * PSD.  Any other document falls back to the art it holds: a layer a tile binds reads as that tile, a layer
+ * no tile binds has no pixels, and the record's rows are what the operation keeps.  A file that is there is
+ * placed by its record's offset.  The CMO3 case skips without the corpus sample.
  */
 class SourceReadTest {
 	private val sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }

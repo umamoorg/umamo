@@ -15,8 +15,9 @@ import org.umamo.runtime.model.DrawableId
 
 /*
  * The gizmo kit both work surfaces share, the 2D viewport and the UV editor: screen-space hit tests and
- * box / circle queries (ViewportGeometryAdapters.kt and this file), the wireframe draw
- * (MeshWireframeDraw.kt), the draw helpers every overlay renders alike (GizmoChrome.kt), selection input
+ * box / circle queries (ViewportGeometryAdapters.kt and this file), the Edit overlay's derive for the
+ * renderer (EditMeshOverlayProducer.kt; the renderer draws every wireframe), the draw helpers every
+ * overlay renders alike (GizmoChrome.kt), selection input
  * (GizmoSelectionInput.kt, MarqueeSelectController.kt, ObjectPickController.kt), and the modal transform
  * (TransformOperators.kt, ModalTransformController.kt, ModalGestureState.kt, CursorWrap.kt,
  * ViewportCursor.kt).  Nothing here knows which surface it serves: a surface hands its geometry in as
@@ -26,8 +27,8 @@ import org.umamo.runtime.model.DrawableId
 /**
  * One mesh's geometry as the gizmo machinery sees it: positions plus topology, agnostic of WHERE the
  * positions came from.  The Edit overlay feeds deformer-projected world shapes; a UV editor feeds raw
- * texture coordinates mapped into its own space.  The shared element queries below and the wireframe
- * draw take this record, so a new editor space reuses them by constructing one - never by
+ * texture coordinates mapped into its own space.  The shared element queries below and the UV scene's
+ * overlays take this record, so a new editor space reuses them by constructing one - never by
  * re-implementing the hit / box / circle rules.
  *
  * @property DrawableId drawableId The drawable the mesh belongs to (the selection key).

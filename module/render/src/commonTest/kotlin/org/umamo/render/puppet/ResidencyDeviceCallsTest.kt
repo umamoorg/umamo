@@ -157,31 +157,50 @@ class ResidencyDeviceCallsTest {
 	 */
 	private fun namesOf(events: List<ResourceEvent>): List<String?> = events.map { event -> event::class.simpleName }
 
-	/** An edit to a drawable's composite state touches no resource at all. */
+	/** An edit to a drawable's composite state touches no resource at all, yet it is structural: the pose stamps it. */
 	@Test
 	fun aCompositeOnlyEditIssuesNoDeviceCall() {
 		val source = probeModel()
 		val device = RecordingRenderDevice()
 		val (renderer, _) = uploadedRenderer(source, device)
+		renderer.setPose(emptyMap())
+		device.clearLog()
 
-		renderer.updateModel(edited(source) { drawable -> drawable.copy(culling = true, blendMode = BlendMode.AdditivePremultiplied) })
+		val kind = renderer.updateModel(edited(source) { drawable -> drawable.copy(culling = true, blendMode = BlendMode.AdditivePremultiplied) })
 
 		assertTrue(device.resourceEvents.isEmpty(), "a composite-only edit is no buffer work, got ${namesOf(device.resourceEvents)}")
+		assertEquals(ModelUpdateKind.Structural, kind, "a composite edit changes what the pose stamps, so the pose must rebuild")
 	}
 
-	/** Moving the base mesh re-uploads its positions in place and nothing else. */
+	/** Moving the base mesh re-uploads its positions in place and nothing else, and keeps the pose. */
 	@Test
 	fun aPositionEditUpdatesPositionsInPlace() {
 		val source = probeModel()
 		val device = RecordingRenderDevice()
 		val (renderer, resident) = uploadedRenderer(source, device)
+		renderer.setPose(emptyMap())
+		device.clearLog()
 		val movedPositions = floatArrayOf(-8f, -8f, 24f, -8f, -8f, 24f, 24f, 24f)
 
-		renderer.updateModel(edited(source) { drawable -> withMesh(drawable, positions = movedPositions) })
+		val kind = renderer.updateModel(edited(source) { drawable -> withMesh(drawable, positions = movedPositions) })
 
 		val update = device.resourceEvents.single() as MeshPositionsUpdated
 		assertSame(resident, update.mesh, "the resident mesh is updated, not replaced")
 		assertSame(movedPositions, update.positions, "the edited positions are what is uploaded")
+		assertEquals(ModelUpdateKind.PositionsOnly, kind, "a moved base mesh keeps the pose")
+	}
+
+	/** Before any pose there is nothing to keep, so even a pure move is reported structural. */
+	@Test
+	fun aPositionsOnlyPushBeforeAnyPoseIsStructural() {
+		val source = probeModel()
+		val device = RecordingRenderDevice()
+		val (renderer, _) = uploadedRenderer(source, device)
+		val movedPositions = floatArrayOf(-8f, -8f, 24f, -8f, -8f, 24f, 24f, 24f)
+
+		val kind = renderer.updateModel(edited(source) { drawable -> withMesh(drawable, positions = movedPositions) })
+
+		assertEquals(ModelUpdateKind.Structural, kind, "no pose exists yet, so the caller must pose as for any edit")
 	}
 
 	/** Editing the texture coordinates re-uploads them in place and nothing else. */

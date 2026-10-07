@@ -91,7 +91,7 @@ class AddArtworkRequest(
 	val descriptor: ArtSourceDescriptor,
 	val options: SourceArtImportOptions,
 ) {
-	private val decoded = DecodedLayerRasters(art.layers)
+	private val decoded = DecodedLayerRasters()
 
 	/**
 	 * The decoded wrapper of one of this file's layer rasters.

@@ -1,8 +1,9 @@
 package org.umamo.render
 
 /**
- * The three colors of the viewport grid backdrop, as 0..1 linear RGB triples: the flat canvas fill, the
- * major grid line color, and the minor (subdivision) grid line color.  Kept as plain floats (not a Compose
+ * The colors of the viewport grid backdrop, as 0..1 linear RGB triples: the flat canvas fill, the major
+ * grid line color, and the minor (subdivision) grid line color, plus a UV scene's surround and border
+ * colors and the border's width.  Kept as plain floats (not a Compose
  * Color) so :render stays free of any UI dependency; the editor maps its themed palette into this at the
  * call site.  [Classic] is a neutral grey grid, used as the default so a caller that does not theme the
  * backdrop still gets a sensible surface.
@@ -18,6 +19,16 @@ package org.umamo.render
  * @property Float minorRed        Red of the minor (subdivision) grid line.
  * @property Float minorGreen      Green of the minor grid line.
  * @property Float minorBlue       Blue of the minor grid line.
+ * @property Float surroundRed     Red of what a UV scene paints outside its shown surface (the panel
+ *   behind the page); the canvas fill by default.
+ * @property Float surroundGreen   Green of the surround.
+ * @property Float surroundBlue    Blue of the surround.
+ * @property Float frameRed        Red of the border a UV scene draws around its shown surface; the major
+ *   line color by default.
+ * @property Float frameGreen      Green of the border.
+ * @property Float frameBlue       Blue of the border.
+ * @property Float frameWidthPx    The border's width in display pixels; the renderer scales it by the
+ *   render scale, as it does the grid lines.
  */
 data class GridColors(
 	val backgroundRed: Float,
@@ -29,6 +40,13 @@ data class GridColors(
 	val minorRed: Float,
 	val minorGreen: Float,
 	val minorBlue: Float,
+	val surroundRed: Float = backgroundRed,
+	val surroundGreen: Float = backgroundGreen,
+	val surroundBlue: Float = backgroundBlue,
+	val frameRed: Float = majorRed,
+	val frameGreen: Float = majorGreen,
+	val frameBlue: Float = majorBlue,
+	val frameWidthPx: Float = 1f,
 ) {
 	companion object {
 		/** A neutral dark-grey grid: #2E2E2E fill, #484848 major lines, #3A3A3A minor lines. */

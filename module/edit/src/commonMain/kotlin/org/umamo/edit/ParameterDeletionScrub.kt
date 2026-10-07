@@ -1,6 +1,5 @@
 package org.umamo.edit
 
-import org.umamo.runtime.eval.EPS_KEY
 import org.umamo.runtime.eval.colorAt
 import org.umamo.runtime.eval.contributesAt
 import org.umamo.runtime.eval.meshGridDefaultDeltas
@@ -9,6 +8,7 @@ import org.umamo.runtime.eval.rotationFormAt
 import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.eval.warpControlPointsAt
 import org.umamo.runtime.keyform.axisIndexOf
+import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ColorRgb
@@ -26,15 +26,16 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationForm
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
-import kotlin.math.abs
 
 /*
- * What deleting a parameter does to the blend shapes that name it.  A binding names its driving parameter and
- * each weight limit names its constraint parameter; a delete that left either behind would write an id the
- * model no longer has into every file saved after it (docs/plan/uma-format.md § Feature entries, the G8
- * findings).  The scrub keeps the rest pose exact wherever the model can say so: the evaluator reads a
- * missing parameter as 0, the neutral key, and the grids collapse to the slice at the parameter's default, so
- * the scrub reads each binding at that same default.
+ * What deleting a parameter does to the blend shapes that name it, and the rest-pose questions the delete
+ * asks of each grid, track, and binding as it scrubs them.  A binding names its driving parameter and each
+ * weight limit names its constraint parameter; a delete that left either behind would write an id the model
+ * no longer has into every file saved after it.  The scrub keeps the rest pose exact wherever the model can
+ * say so: the evaluator reads a missing parameter as 0, the neutral key, and the grids collapse to the slice
+ * at the parameter's default, so the scrub reads each binding at that same default.  The delete itself is
+ * parameterDeletionOf (ParameterCrudEdits.kt); it answers the rest-pose question in the same walk, so the
+ * owners it reports can never disagree with the model it produces.
  */
 
 /**
@@ -110,36 +111,58 @@ internal fun blendBindingScrubOf(
 }
 
 /**
+ * An owner's bindings with a parameter scrubbed out, and whether the scrub moved the rest pose.
+ *
+ * @property List    bindings  The scrubbed bindings - the same list instance when none named the parameter.
+ * @property Boolean movesRest Whether some binding's scrub is not exact at the default pose.
+ */
+internal class ScrubbedBindings<TForm : Any>(val bindings: List<BlendShapeBinding<TForm>>, val movesRest: Boolean)
+
+/**
  * These bindings with [deleted] scrubbed out of them ([blendBindingScrubOf]), or this same list when none
- * names it.
+ * names it, with whether any scrub was inexact at the default pose - decided from the one classification of
+ * each binding, so the delete and its report read the same answer.
  *
  * @param Parameter deleted   The parameter being deleted.
  * @param Function  defaultOf The default value per parameter id, the deleted one included.
  * @param Function  scalerOf  Builds the owner's form scaler, asked for at most once and only when some binding
  *   bakes a cap into its forms, since it samples the owner's grids at the default pose.
- * @return List The scrubbed bindings.
+ * @return ScrubbedBindings The scrubbed bindings and whether the rest pose moved.
  */
 internal fun <TForm : Any> List<BlendShapeBinding<TForm>>.scrubbedOf(
 	deleted: Parameter,
 	defaultOf: (ParameterId) -> Float,
 	scalerOf: () -> (TForm, Float) -> TForm,
-): List<BlendShapeBinding<TForm>> {
+): ScrubbedBindings<TForm> {
 	if (none { binding -> binding.parameterId == deleted.id || binding.limits.any { limit -> limit.parameterId == deleted.id } }) {
-		return this
+		return ScrubbedBindings(this, movesRest = false)
 	}
 	val scaler by lazy(scalerOf)
-	return mapNotNull { binding ->
-		when (val scrub = blendBindingScrubOf(binding, deleted, defaultOf)) {
-			BlendBindingScrub.Unchanged -> binding
-			is BlendBindingScrub.Drop -> null
-			is BlendBindingScrub.DropLimits -> binding.copy(limits = binding.limits.filterNot { limit -> limit.parameterId == deleted.id })
-			is BlendBindingScrub.ScaleForms ->
-				binding.copy(
-					limits = emptyList(),
-					forms = binding.forms.map { form -> form?.let { present -> scaler(present, scrub.factor) } },
-				)
+	var movesRest = false
+	val bindings =
+		mapNotNull { binding ->
+			when (val scrub = blendBindingScrubOf(binding, deleted, defaultOf)) {
+				BlendBindingScrub.Unchanged -> binding
+				is BlendBindingScrub.Drop -> {
+					if (!scrub.restPreserved) {
+						movesRest = true
+					}
+					null
+				}
+				is BlendBindingScrub.DropLimits -> {
+					if (!scrub.restPreserved) {
+						movesRest = true
+					}
+					binding.copy(limits = binding.limits.filterNot { limit -> limit.parameterId == deleted.id })
+				}
+				is BlendBindingScrub.ScaleForms ->
+					binding.copy(
+						limits = emptyList(),
+						forms = binding.forms.map { form -> form?.let { present -> scaler(present, scrub.factor) } },
+					)
+			}
 		}
-	}
+	return ScrubbedBindings(bindings, movesRest)
 }
 
 /**
@@ -273,89 +296,54 @@ internal fun PuppetModel.defaultValueLookup(): (ParameterId) -> Float {
 }
 
 /**
- * Whether collapsing [parameterId]'s axis out of [grid] at [keepValue] loses an interpolated slice: the
- * grid keys on the parameter and [keepValue] sits on none of its keys, so the collapse keeps the nearest
- * key's slice rather than the look at the default.
+ * Whether collapsing [parameterId]'s axis out of [grid] at [keepValue] changes the grid's value at the default
+ * pose.  It does when the default sits on none of the axis's keys - the collapse keeps the nearest key's slice
+ * rather than the look at the default - and, for a sole-axis grid whose kept key has no cell (a sparse grid, as
+ * a CMO3 import leaves one whose form guid did not resolve), when [missingKeptCellMoves]: the collapse then drops
+ * the track or the grid, and what a missing cell evaluated to (nothing - a zero contribution) gives way to the
+ * owner's static, or to no grid at all.  A grid with more axes keeps that cell missing, so its value at the
+ * default is the same nothing before and after.
  *
- * @param KeyformGrid? grid        The grid, or null.
- * @param ParameterId  parameterId The parameter being deleted.
- * @param Float        keepValue   Its default.
+ * @param KeyformGrid? grid                 The grid, or null.
+ * @param ParameterId  parameterId          The parameter being deleted.
+ * @param Float        keepValue            Its default.
+ * @param Boolean      missingKeptCellMoves Whether a sole-axis grid losing its (absent) kept cell counts as a
+ *   change.  False for a drawable's geometry, where zero deltas and no grid both draw the base mesh.
  * @return Boolean True when the collapse changes the grid's value at the default pose.
  */
-private fun collapseMovesRest(grid: KeyformGrid<*>?, parameterId: ParameterId, keepValue: Float): Boolean {
+internal fun collapseMovesRest(grid: KeyformGrid<*>?, parameterId: ParameterId, keepValue: Float, missingKeptCellMoves: Boolean = true): Boolean {
 	val axisIndex = grid?.axisIndexOf(parameterId) ?: return false
 	if (axisIndex < 0) {
 		return false
 	}
-	return grid.axes[axisIndex].keys.none { key -> abs(key - keepValue) < EPS_KEY }
+	val keepIndex = grid.keyIndexAt(parameterId, keepValue)
+	if (keepIndex < 0) {
+		return true
+	}
+	if (!missingKeptCellMoves || grid.axes.size > 1) {
+		return false
+	}
+	return grid.cells.none { cell -> cell.coordinate.getOrNull(axisIndex) == keepIndex }
 }
 
 /**
- * Whether collapsing [parameterId] out of any of these tracks loses an interpolated slice ([collapseMovesRest]).
+ * Whether collapsing [parameterId] out of any of these tracks changes its value at the default pose
+ * ([collapseMovesRest]).
  *
  * @param ChannelGrids channels    The owner's tracks.
  * @param ParameterId  parameterId The parameter being deleted.
  * @param Float        keepValue   Its default.
  * @return Boolean True when some track's value at the default pose changes.
  */
-private fun collapseMovesRest(channels: ChannelGrids, parameterId: ParameterId, keepValue: Float): Boolean =
+internal fun collapseMovesRest(channels: ChannelGrids, parameterId: ParameterId, keepValue: Float): Boolean =
 	channels.gridsByChannel.values.any { grid -> collapseMovesRest(grid, parameterId, keepValue) }
 
 /**
- * Whether scrubbing [deleted] out of these bindings changes the rest pose.
- *
- * @param List      bindings  The owner's bindings.
- * @param Parameter deleted   The parameter being deleted.
- * @param Function  defaultOf The default value per parameter id, the deleted one included.
- * @return Boolean True when some binding's scrub is not exact at rest.
- */
-private fun blendScrubMovesRest(bindings: List<BlendShapeBinding<*>>, deleted: Parameter, defaultOf: (ParameterId) -> Float): Boolean =
-	bindings.any { binding ->
-		when (val scrub = blendBindingScrubOf(binding, deleted, defaultOf)) {
-			BlendBindingScrub.Unchanged, is BlendBindingScrub.ScaleForms -> false
-			is BlendBindingScrub.Drop -> !scrub.restPreserved
-			is BlendBindingScrub.DropLimits -> !scrub.restPreserved
-		}
-	}
-
-/**
- * The owners whose look at the default pose deleting parameter [id] changes: a grid or track that keys on
- * it with its default between two keys (the collapse keeps the nearer key's slice rather than the
- * interpolated look), or a blend shape the scrub cannot keep exact ([blendBindingScrubOf]).  Everything
- * else a delete does leaves the rest pose as it was.  Empty for an unknown parameter.
+ * The owners whose look at the default pose deleting parameter [id] changes: the delete's own answer
+ * ([parameterDeletionOf]), so this can never disagree with the model the delete produces.  A caller that
+ * also wants that model takes the deletion itself rather than asking twice.  Empty for an unknown parameter.
  *
  * @param ParameterId id The parameter to delete.
  * @return List The owners whose rest pose changes, in model order: drawables, deformers, parts, then glues.
  */
-fun PuppetModel.ownersWhoseRestChangesOnDeleting(id: ParameterId): List<KeyformOwner> {
-	val deleted = parameters.firstOrNull { parameter -> parameter.id == id } ?: return emptyList()
-	val keepValue = deleted.default
-	val defaultOf = defaultValueLookup()
-	val owners = ArrayList<KeyformOwner>()
-	for (drawable in drawables) {
-		if (collapseMovesRest(drawable.geometryGrid, id, keepValue) || collapseMovesRest(drawable.channelGrids, id, keepValue) || blendScrubMovesRest(drawable.blendShapes, deleted, defaultOf)) {
-			owners.add(KeyformOwner.Drawable(drawable.id))
-		}
-	}
-	for (deformer in deformers) {
-		val geometryMoves =
-			when (deformer) {
-				is Deformer.Warp -> collapseMovesRest(deformer.geometryGrid, id, keepValue) || blendScrubMovesRest(deformer.blendShapes, deleted, defaultOf)
-				is Deformer.Rotation -> collapseMovesRest(deformer.geometryGrid, id, keepValue) || blendScrubMovesRest(deformer.blendShapes, deleted, defaultOf)
-			}
-		if (geometryMoves || collapseMovesRest(deformer.channelGrids, id, keepValue)) {
-			owners.add(KeyformOwner.Deformer(deformer.id))
-		}
-	}
-	for (part in parts) {
-		if (collapseMovesRest(part.channelGrids, id, keepValue) || blendScrubMovesRest(part.blendShapes, deleted, defaultOf)) {
-			owners.add(KeyformOwner.Part(part.id))
-		}
-	}
-	for (glue in glues) {
-		if (collapseMovesRest(glue.channelGrids, id, keepValue)) {
-			owners.add(KeyformOwner.Glue(glue.meshA, glue.meshB))
-		}
-	}
-	return owners
-}
+fun PuppetModel.ownersWhoseRestChangesOnDeleting(id: ParameterId): List<KeyformOwner> = parameterDeletionOf(id)?.restChangedOwners.orEmpty()

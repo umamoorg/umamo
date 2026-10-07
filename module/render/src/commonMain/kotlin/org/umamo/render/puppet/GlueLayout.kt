@@ -2,6 +2,7 @@ package org.umamo.render.puppet
 
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.PuppetModel
 
 /**
@@ -32,18 +33,26 @@ public class GlueVertexAttributes(
  * The addressing plan for a model's glue: who participates, where each mesh sits in the shared deformed
  * position store, and what every vertex welds to.
  *
+ * @property List  glues             The glue list the plan was made from, which [glueLayoutFits] compares
+ *   a later model against.
  * @property Set   glueMeshIds       Every mesh in any glue pair, INCLUDING zero-triangle anchors, which
  *   draw nothing but whose deformed positions are weld partners.
  * @property Map   baseOffsetById    Each glue mesh's first vertex index in the shared store.
- * @property Int   globalVertexCount The store's total vertex capacity.
+ * @property Int   globalVertexCount The total glue vertex count, which the store must hold.
  * @property Map   attributesById    Each glue mesh's per-vertex weld attributes.
  */
 internal class GlueLayout(
+	val glues: List<Glue>,
 	val glueMeshIds: Set<DrawableId>,
 	val baseOffsetById: Map<DrawableId, Int>,
 	val globalVertexCount: Int,
 	val attributesById: Map<DrawableId, GlueVertexAttributes>,
-)
+) {
+	companion object {
+		/** The plan for a model without glue: nothing participates and the store is empty. */
+		val EMPTY: GlueLayout = GlueLayout(emptyList(), emptySet(), emptyMap(), 0, emptyMap())
+	}
+}
 
 /**
  * Plans [model]'s glue addressing: the participating meshes, their base offsets in the shared deformed
@@ -115,7 +124,73 @@ internal fun planGlueLayout(model: PuppetModel): GlueLayout {
 			writeGlueVertex(attributesB, pair.indexB, baseA + pair.indexA, glueIndex, pair.weightB)
 		}
 	}
-	return GlueLayout(glueMeshIds, baseOffsetById, globalVertexCount, attributesById)
+	return GlueLayout(model.glues, glueMeshIds, baseOffsetById, globalVertexCount, attributesById)
+}
+
+/**
+ * Whether [layout] is still the plan for [next], so an edit moved no weld and nothing need be re-planned.
+ *
+ * The plan depends on three things alone, and this compares exactly those: each glue's two meshes and
+ * pair list in list order (a pair list compares by instance, since a [org.umamo.runtime.model.GluePair]
+ * is immutable and every edit that moves a pair builds a new list); the glue meshes' order in
+ * [PuppetModel.drawables] and their vertex counts, which fix every region; and which named meshes the
+ * model carries.  An intensity or channel edit, a moved mesh of the same size, or an added unglued
+ * drawable therefore fits; a re-paired, removed, or reordered glue, or a glue mesh that changed size or
+ * place, does not.
+ *
+ * @param GlueLayout layout The plan in use.
+ * @param PuppetModel next The edited model.
+ * @return Boolean True when [layout] is what [planGlueLayout] would make of [next].
+ */
+internal fun glueLayoutFits(layout: GlueLayout, next: PuppetModel): Boolean {
+	if (next.glues !== layout.glues) {
+		if (next.glues.size != layout.glues.size) {
+			return false
+		}
+		for ((glueIndex, glue) in next.glues.withIndex()) {
+			val planned = layout.glues[glueIndex]
+			if (glue !== planned && (glue.meshA != planned.meshA || glue.meshB != planned.meshB || glue.pairs !== planned.pairs)) {
+				return false
+			}
+		}
+	}
+	var regionStart = 0
+	var placedCount = 0
+	for (drawable in next.drawables) {
+		if (drawable.id !in layout.glueMeshIds) {
+			continue
+		}
+		val plannedStart = layout.baseOffsetById[drawable.id] ?: return false
+		val vertexCount = (drawable.mesh?.positions?.size ?: 0) / 2
+		if (plannedStart != regionStart || layout.attributesById[drawable.id]?.partnerIndex?.size != vertexCount) {
+			return false
+		}
+		regionStart += vertexCount
+		placedCount++
+	}
+	return placedCount == layout.baseOffsetById.size
+}
+
+/**
+ * Whether one drawable's entry differs between two plans: it joined or left the glue, or its store region
+ * or any of its weld attributes moved.  An entry that differs needs its mesh re-uploaded, since a mesh's
+ * weld attributes and region are fixed when it is uploaded.
+ *
+ * @param GlueLayout previous The plan the drawable was uploaded with.
+ * @param GlueLayout next The new plan.
+ * @param DrawableId id The drawable.
+ * @return Boolean True when the entries differ.
+ */
+internal fun glueEntryChanged(previous: GlueLayout, next: GlueLayout, id: DrawableId): Boolean {
+	val before = previous.attributesById[id]
+	val after = next.attributesById[id]
+	if (before == null || after == null) {
+		return (before == null) != (after == null)
+	}
+	return previous.baseOffsetById[id] != next.baseOffsetById[id] ||
+		!before.partnerIndex.contentEquals(after.partnerIndex) ||
+		!before.glueIndex.contentEquals(after.glueIndex) ||
+		!before.weldWeight.contentEquals(after.weldWeight)
 }
 
 /**

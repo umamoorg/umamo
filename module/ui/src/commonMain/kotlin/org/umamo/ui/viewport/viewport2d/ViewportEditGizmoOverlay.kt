@@ -14,7 +14,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
@@ -25,51 +24,53 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
-import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
 import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.selectToolKind
-import org.umamo.ui.viewport.rememberViewportOverlayColors
 
 /*
  * The Edit-mode gizmo overlay.  This file is the wiring: what the overlay collects, its guards, what it
- * holds per area and for how long, the effects in the order they launch, and the two layers it draws.
+ * holds per area and for how long, the effects in the order they launch, and the layer it draws.
  * Its parts:
  *   - EditModalTransform.kt: the commit side of the modal G / S / R and Vertex Slide (capture, drive,
  *     confirm, cancel, the wheel) - the ModalTransformTarget the pointer loop hands a gesture's events to.
  *   - VertexSlide.kt: the slide's frozen candidates and the per-frame edge pick.
- *   - FrameMeshGeometry.kt: the displayed frame's geometry the wireframes pose from, reused per drawable.
  *   - EditGizmoRequests.kt: the area-gated collectors for Select Linked, Alt+Q, Rip, and the snaps.
  *   - EditGizmoPointerInput.kt: the pointer loop (modal transform, circle brush, idle selection).
- *   - EditGizmoSelection.kt: the marquee over mesh elements and the derived highlights.
- *   - EditGizmoDraw.kt: the wireframe pass and the gesture chrome, both read in the draw phase.
- *   - EditMeshGeometry.kt: the session meshes' live geometry at the neutral pose.
+ *   - EditGizmoSelection.kt: the marquee and the element pick over mesh elements.
+ *   - EditGizmoDraw.kt: the gesture chrome, read in the draw phase.
+ *   - EditMeshGeometry.kt: the session meshes' live geometry at the neutral pose, which the picks read.
+ *   - EditMeshOverlay.kt: the wireframe, dots, and face fills as data for the renderer, which draws them
+ *     into the frame with the art; the viewport binding publishes them, not this overlay.
  * The collectors' handlers are in SessionRequestHandlers.kt, and the strip registrations in
  * TransformAdjustRegistration.kt.
  */
 
 /**
- * The Edit-mode gizmo overlay: a Compose layer over the offscreen puppet image that draws the active
- * drawable's mesh (vertices, edges, and faces of its rest shape) and runs the modal G / S / R operators.
- * It is gated on Edit mode with an active drawable; in Object mode nothing is composed, so pointer input
- * flows untouched to the viewport navigation beneath.
+ * The Edit-mode gizmo overlay: a Compose layer over the offscreen puppet image that runs the element
+ * selection and the modal G / S / R operators and draws their gesture chrome.  The mesh itself (the
+ * vertices, edges, and faces of the session meshes' rest shape) is drawn by the renderer into the image,
+ * from the overlay the viewport binding publishes (EditMeshOverlay.kt), so it and the art are the same
+ * pixels.  It is gated on Edit mode with an active drawable; in Object mode nothing is composed, so pointer
+ * input flows untouched to the viewport navigation beneath.
  *
  * Selection follows Blender's select modes (vertex / edge / face, switched by the mesh.selectMode
  * commands): only the current mode's domain is clickable and stored, while the other domains highlight by
  * derivation - an edge lights up when both endpoints are selected, a face only when all three of its own
- * vertices (vertex mode) or edges (edge mode) are. The gizmo palette comes from the viewport.meshEdit
+ * vertices (vertex mode) or edges (edge mode) are. The mesh palette comes from the viewport.meshEdit
  * settings, so the colors follow the user's preferences live.
  *
  * Edit mode edits the neutral state of the base mesh, and only that - it is pinned to the neutral pose
  * (the render bridge feeds the renderer neutral parameters while the mode is active, and the parameter
  * panel is locked), so the session pose is never touched and blend-shape states are out of scope. The
  * shape shown is the rest shape as rendered - base + the neutral keyform blend, since real rigs park
- * parts elsewhere on the texture sheet and place them via those deltas - projected to world through the
- * composed parent-deformer chain ([drawableSpaceMapping]), so the wireframe sits on the art for warp and
- * rotation children too. A drag commits by movement transfer: `newBase = base + (displayed' - displayed)`,
+ * parts elsewhere on the texture sheet and place them via those deltas - and the picks read it projected
+ * to world through the composed parent-deformer chain ([drawableSpaceMapping]), so a click lands on the art
+ * for warp and rotation children too. A drag commits by movement transfer: `newBase = base + (displayed' - displayed)`,
  * writing only DrawableMesh.positions; the neutral blend cancels out of the subtraction, so no keyform
  * cell resolution is involved, and blend-shape deltas (stored relative to base) follow the edit.
  *
@@ -77,19 +78,15 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  * mode (Ctrl toggles, Shift adds), an empty primary drag rubber-bands a box, an empty click clears;
  * middle-drag pan and wheel zoom fall through (left unconsumed) to the navigation layer. Modal (an
  * operator latched on the session by a G / S / R command): pointer movement drives the transform live over
- * a copy-on-write working array covering the vertices the selected elements span, pushed to the renderer;
- * the wireframe itself is drawn from the model the displayed frame was rendered from ([frameModel]), so it
- * lags together with the textured raster instead of leading it. A primary click or Enter confirms (one undo
- * step), Esc or right-click cancels. While modal, all pointer input is swallowed.
+ * a copy-on-write working array covering the vertices the selected elements span, pushed to the renderer,
+ * which draws the mesh from the same preview as the art. A primary click or Enter confirms (one undo step),
+ * Esc or right-click cancels. While modal, all pointer input is swallowed.
  *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (for live preview pushes).
  * @param EditorSession session The session owning the model, element selection, and active operator.
  * @param ViewportCamera? camera The camera the displayed frame was rendered at (world<->screen affine);
  *        null hides the overlay.
- * @param PuppetModel? frameModel The model the displayed frame's pixels reflect; the wireframe poses from
- *        it (not the live session model) so it stays glued to the raster during an edit. Null hides the
- *        overlay (no frame has landed yet - nothing to glue to).
  * @param Int widthPx The area width in pixels.
  * @param Int heightPx The area height in pixels.
  * @param State areaPointer Where the pointer last was in this area, tracked by the HOST so the
@@ -104,7 +101,6 @@ fun ViewportEditGizmoOverlay(
 	service: PuppetViewportService,
 	session: EditorSession,
 	camera: ViewportCamera?,
-	frameModel: PuppetModel?,
 	widthPx: Int,
 	heightPx: Int,
 	areaPointer: State<Offset>,
@@ -119,16 +115,16 @@ fun ViewportEditGizmoOverlay(
 	// Held as State, not read here: the chrome reads them only while drawing a gesture this area owns.
 	val axisConstraintState = session.axisConstraint.collectAsState()
 	val proportionalEditState = session.proportionalEdit.collectAsState()
-	val viewportOverlayColors = rememberViewportOverlayColors()
-	// Theme-level overlay chrome (the marquee) comes from the palette; the mesh gizmo colors above stay a
-	// separate settings-backed system.
+	// Theme-level overlay chrome (the marquee) comes from the palette; the mesh colors are settings-backed
+	// and reach the renderer through the viewport binding.
 	val overlayColors = LocalUmamoColors.current
 
 	val sessionDrawableIds = meshSelection.drawableIds
 
-	if (mode != EditorMode.Edit || sessionDrawableIds.isEmpty() || camera == null || frameModel == null) {
+	if (mode != EditorMode.Edit || sessionDrawableIds.isEmpty() || camera == null) {
 		return
 	}
+
 	// The shared two-tone marching-ants style for the box / circle / crosshair affordances.
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
@@ -145,7 +141,7 @@ fun ViewportEditGizmoOverlay(
 
 	// The keymap-command collectors, mounted above the EMPTY-GEOMETRY guard below but still inside every
 	// guard above it: this overlay is Edit-mode-only and so are these commands, so there is nothing to
-	// gain by outliving the mode / camera / frame checks, and a second collector live in Object mode
+	// gain by outliving the mode / selection / camera checks, and a second collector live in Object mode
 	// would only duplicate what the object overlay already runs.
 	//
 	// What they must outlive is the empty-geometry return.  liveGeometry goes empty when every drawable
@@ -170,22 +166,15 @@ fun ViewportEditGizmoOverlay(
 	// The element pick and box select, armed or not, one per area (see MeshPickController).
 	val meshPick = remember(areaId) { editMeshPick(session, marquee, liveGeometryState) }
 
-	// What the draw pass reflects: the live stroke while one is in flight, else the committed selection - so
-	// painted elements light up immediately during a Circle stroke.
-	val effectiveSelection = marquee.circleStroke ?: meshSelection
-
-	// What the draw pass highlights per mesh and domain (see editHighlights).
-	val highlightByDrawable = remember(effectiveSelection, liveGeometry) { editHighlights(effectiveSelection, liveGeometry) }
-
-	// The DISPLAYED frame's geometry per session mesh, which the wireframes pose from so they lag together
-	// with the raster (see rememberFrameMeshGeometries).
-	val frameGeometryByDrawable = rememberFrameMeshGeometries(frameModel, liveGeometry)
-
 	// The modal transform's commit side, one per area: the pointer loop and the collectors below keep the
 	// instance they started with (see EditModalTransform).  Its gesture state is what the Box, the pointer
 	// loop, and the chrome read.
 	val modalTransform = remember(areaId) { EditModalTransform(areaId, session, service::setModel) }
 	val gesture = modalTransform.gesture
+
+	// The drive's worker, alive exactly as long as the transform: each pointer event submits a drive and the
+	// result publishes back on the UI thread (see ModalDriveWorker).
+	ModalDriveEffect(modalTransform.drive)
 
 	// The unmount-mid-gesture guard: leaving Edit mode, closing the area, or every mesh in the edit ceasing
 	// to project disposes this part of the overlay mid-gesture, which cancels the latch effect below WITHOUT
@@ -267,8 +256,9 @@ fun ViewportEditGizmoOverlay(
 		}
 	}
 
-	// clipToBounds: Canvas drawing is not clipped to the layout bounds by default, so an off-screen vertex
-	// would otherwise paint over the AreaHeader and neighbouring areas.
+	// clipToBounds: Canvas drawing is not clipped to the layout bounds by default, so chrome reaching past
+	// the area (a HUD line to an off-screen pivot) would otherwise paint over the AreaHeader and neighbouring
+	// areas.
 	Box(
 		modifier =
 			modifier
@@ -287,35 +277,18 @@ fun ViewportEditGizmoOverlay(
 					},
 				),
 	) {
-		// Two sibling canvases, each in its OWN layer: a draw-state invalidation re-records every draw
-		// lambda sharing a layer, so the gesture chrome below (band, affordances, modal HUD) lives in
-		// a small layer of its own and the wireframes - the expensive pass - stay cached in this one.
-		// The chrome reads gesture.lastPointer, which updates on every pointer event (hover included),
-		// so its layer redraws per move; this layer re-records only when the frame geometry, the
-		// selection, or a live modal preview changes - and it composites OFFSCREEN, because a default
-		// layer retains a display list that every window repaint replays (re-stroking every edge),
-		// where the offscreen buffer rasterizes once per content change and blits per frame.
+		// The gesture chrome (band, affordances, modal HUD) in a small layer of its own: it reads
+		// gesture.lastPointer, which updates on every pointer event (hover included), so it redraws per move
+		// and nothing else does.  The pointer loop sits on the same canvas; the mesh is in the image beneath.
 		Canvas(
 			modifier =
 				Modifier
 					.fillMaxSize()
-					.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+					.graphicsLayer()
 					.pointerInput(areaId) {
 						editGizmoPointerLoop(areaId, session, modalTransform, marquee, meshPick, liveCamera, liveSize)
 					},
 		) {
-			// The live Circle stroke drives the highlighted domain so painted elements light up mid-stroke.
-			drawEditWireframes(
-				geometries = liveGeometry,
-				highlightByDrawable = highlightByDrawable,
-				frameGeometryByDrawable = frameGeometryByDrawable,
-				selectMode = effectiveSelection.selectMode,
-				colors = viewportOverlayColors,
-				camera = camera,
-				size = IntSize(widthPx, heightPx),
-			)
-		}
-		Canvas(modifier = Modifier.fillMaxSize().graphicsLayer()) {
 			drawEditGizmoChrome(
 				marquee = marquee,
 				gesture = gesture,

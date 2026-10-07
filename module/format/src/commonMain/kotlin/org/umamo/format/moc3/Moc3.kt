@@ -8,8 +8,11 @@ import org.umamo.format.FormatVersion
 import org.umamo.format.moc3.decode.MocDecoder
 import org.umamo.format.moc3.encode.MocEncoder
 import org.umamo.format.moc3.json.Cdi3Json
+import org.umamo.format.moc3.json.Exp3Json
 import org.umamo.format.moc3.json.Model3Json
+import org.umamo.format.moc3.json.Motion3Json
 import org.umamo.format.moc3.json.Physics3Json
+import org.umamo.format.moc3.json.Pose3Json
 import org.umamo.format.moc3.json.SidecarJson
 import org.umamo.format.moc3.json.UserData3Json
 import org.umamo.format.moc3.moc.MocCodec
@@ -167,4 +170,52 @@ public object Moc3 : FormatCodec<MocDocument> {
 	 * @return String The serialized JSON.
 	 */
 	public fun writeUserData3(userData: UserData3Json): String = SidecarJson.encodeToString(userData)
+
+	/**
+	 * Parses an `exp3.json` expression.
+	 *
+	 * @param String text The file contents.
+	 * @return Exp3Json The parsed expression.
+	 */
+	public fun readExp3(text: String): Exp3Json = SidecarJson.decodeFromString(text)
+
+	/**
+	 * Serializes an `exp3.json` expression.
+	 *
+	 * @param Exp3Json expression The expression to write.
+	 * @return String The serialized JSON.
+	 */
+	public fun writeExp3(expression: Exp3Json): String = SidecarJson.encodeToString(expression)
+
+	/**
+	 * Parses a `motion3.json` motion.
+	 *
+	 * @param String text The file contents.
+	 * @return Motion3Json The parsed motion.
+	 */
+	public fun readMotion3(text: String): Motion3Json = SidecarJson.decodeFromString(text)
+
+	/**
+	 * Serializes a `motion3.json` motion.
+	 *
+	 * @param Motion3Json motion The motion to write.
+	 * @return String The serialized JSON.
+	 */
+	public fun writeMotion3(motion: Motion3Json): String = SidecarJson.encodeToString(motion)
+
+	/**
+	 * Parses a `pose3.json` pose definition.
+	 *
+	 * @param String text The file contents.
+	 * @return Pose3Json The parsed pose definition.
+	 */
+	public fun readPose3(text: String): Pose3Json = SidecarJson.decodeFromString(text)
+
+	/**
+	 * Serializes a `pose3.json` pose definition.
+	 *
+	 * @param Pose3Json pose The pose definition to write.
+	 * @return String The serialized JSON.
+	 */
+	public fun writePose3(pose: Pose3Json): String = SidecarJson.encodeToString(pose)
 }

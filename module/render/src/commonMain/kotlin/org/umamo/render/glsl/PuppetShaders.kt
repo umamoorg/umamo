@@ -166,14 +166,16 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 		""".trimIndent()
 
 /**
- * The UV editor's underlay vertex shader, for an atlas page or a source-layer image.
+ * The UV scene's image-quad vertex shader: an atlas page or a source-layer image, and the placement drag's
+ * scrims and crops over it.
  *
- * Emits the underlay rectangle's four corners from `gl_VertexID` (no vertex buffer, only an empty VAO),
- * directly in Y-up display / texel space - world X in [0, W], Y in [0, H] - with NO Cubism Y negation
- * (unlike `deformWorld`: the image is placed straight into the already-Y-up display space).  The UVs carry
- * the V-flip so the image's V=0 (its top texel row) lands at the top of the Y-up quad - corner (0, H) ->
- * uv (0, 0) - matching UvDisplayMapping's `displayY = (1-v)*H`.  Projects through the same worldToNdc
- * affine as the puppet.
+ * Emits a quad's four unit corners from `gl_VertexID` (no vertex buffer, only an empty VAO) and carries
+ * each through the quad's unit-corner-to-world affine, given as two rows (m00 m01 m02 / m10 m11 m12, the
+ * rows convention of the fragment's uvAffine), into the Y-up display / texel space - with NO Cubism Y
+ * negation (unlike `deformWorld`: the image is placed straight into the already-Y-up display space).  A
+ * page's quad is diag(W, H): world X in [0, W], Y in [0, H].  The UVs carry the V-flip so the image's V=0
+ * (its top texel row) lands at the top of the quad - corner (0, 1) -> uv (0, 0) - matching
+ * UvDisplayMapping's `displayY = (1-v)*H`.  Projects through the same worldToNdc affine as the puppet.
  *
  * That V-flip is a CONTENT convention (Y-up display vs top-first image rows), not a backend one, so it is
  * identical in MSL - a Metal port must keep it, not "correct" it for Metal's top-left texture origin.
@@ -184,12 +186,14 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 internal fun atlasPageVertexShader(dialect: GlslDialect): String =
 	glslHeader(dialect) +
 		"uniform vec4 worldToNdc;\n" + // (scaleX, scaleY, offsetX, offsetY) - the camera's world→NDC affine
-		"uniform vec2 pageSize;\n" + // the underlay image's size in texels (W, H)
+		"uniform vec3 quadRow0;\n" + // the unit-corner-to-world affine's first row (diag(W, H) for a page)
+		"uniform vec3 quadRow1;\n" + // and its second
 		"out vec2 vUv;\n" +
 		"void main() {\n" +
 		"	float cornerX = float(gl_VertexID & 1);\n" + // 0,1,0,1 across the triangle strip
 		"	float cornerY = float((gl_VertexID >> 1) & 1);\n" + // 0,0,1,1
-		"	vec2 world = vec2(cornerX * pageSize.x, cornerY * pageSize.y);\n" +
-		"	vUv = vec2(cornerX, 1.0 - cornerY);\n" + // V-flip: display top (Y=H) samples the image's top row (v=0)
+		"	vec3 corner = vec3(cornerX, cornerY, 1.0);\n" +
+		"	vec2 world = vec2(dot(quadRow0, corner), dot(quadRow1, corner));\n" +
+		"	vUv = vec2(cornerX, 1.0 - cornerY);\n" + // V-flip: the quad's top (cornerY = 1) samples the image's top row (v=0)
 		"	gl_Position = vec4(world.x * worldToNdc.x + worldToNdc.z, world.y * worldToNdc.y + worldToNdc.w, 0.0, 1.0);\n" +
 		"}\n"

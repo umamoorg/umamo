@@ -21,6 +21,7 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.SourceLayerRef
 import kotlin.math.roundToInt
 
 /*
@@ -49,7 +50,8 @@ internal object Cmo3SourceLayerWeb {
 	 * @property String          layerKey    The binding key; a "lyid:<n>" key writes Photoshop's layer id.
 	 * @property String          groupPath   The folder path in the file, "" at the root.
 	 * @property Boolean         visible     The layer's visibility as last read.
-	 * @property Int             canvasLeft  The art frame's canvas x - the inventory row's origin.
+	 * @property Int             canvasLeft  The art frame's canvas x - the inventory row's origin, or the one
+	 *   fitted from its drawables for a tile with no row.
 	 * @property Int             canvasTop   The art frame's canvas y.
 	 * @property RasterImage     raster      The tile's pixels, straight alpha.
 	 * @property AtlasPlacement? placement   Where the tile sits on its page, or null when unpacked.
@@ -81,6 +83,9 @@ internal object Cmo3SourceLayerWeb {
 	 * @property Int     width        The frame the layers' canvas coordinates live in.
 	 * @property Int     height       Its height.
 	 * @property List    layers       The tiles to write as layers.
+	 * @property SourceLayerRef? unresolvedBinding The binding a single-layer image stands in for: the tile's own,
+	 *   when it named a file the document does not list or a layer its file never inventoried, so the caller can
+	 *   report that the binding did not cross; null for a file's image and for a tile bound to nothing.
 	 */
 	internal class SourceImageInput(
 		val name: String,
@@ -89,6 +94,7 @@ internal object Cmo3SourceLayerWeb {
 		val width: Int,
 		val height: Int,
 		val layers: List<SourceLayerInput>,
+		val unresolvedBinding: SourceLayerRef? = null,
 	)
 
 	/**
@@ -114,7 +120,9 @@ internal object Cmo3SourceLayerWeb {
 	 * multi-layer model image or a hit area is - becomes a single-layer image of its own, the shape the
 	 * official editor gives a flat image import, at the canvas origin its drawables put it, so its whole
 	 * raster and its placement cross the export as they are; only a tile with no pixels is left to the
-	 * crop path.
+	 * crop path.  A tile that HAD a binding and still lands there - its file unlisted, or its key absent
+	 * from the file's inventory - carries that binding on its input, because the Sources space shows the
+	 * tile as waiting on a person and an export that quietly rekeyed it would hide that.
 	 *
 	 * The layered image's frame is the document canvas: an import sets the canvas from the art, and
 	 * the inventory's canvas coordinates live in that frame - a later file's rows already carry the
@@ -123,7 +131,8 @@ internal object Cmo3SourceLayerWeb {
 	 *
 	 * @param PuppetModel puppet      The model being converted.
 	 * @param Function    tileRasters The document's pixels for a tile, or null.
-	 * @return List<SourceImageInput> One input per file with at least one real tile, in the model's source order.
+	 * @return List<SourceImageInput> One input per file with at least one real tile, in the model's source order,
+	 *   then one single-layer input per tile with pixels and no inventory row, in atlas order.
 	 */
 	internal fun inputsOf(puppet: PuppetModel, tileRasters: (AtlasTileId) -> RasterImage?): List<SourceImageInput> {
 		val drawableIdsByTile = HashMap<AtlasTileId, MutableList<String>>()
@@ -200,7 +209,7 @@ internal object Cmo3SourceLayerWeb {
 					drawableIds = drawableIdsByTile[tile.id].orEmpty(),
 					artUvsByDrawableId = artUvsByTile[tile.id].orEmpty(),
 				)
-			images.add(SourceImageInput(tile.name, null, null, canvasWidth, canvasHeight, listOf(layer)))
+			images.add(SourceImageInput(tile.name, null, null, canvasWidth, canvasHeight, listOf(layer), unresolvedBinding = ref))
 		}
 		return images
 	}
@@ -244,7 +253,7 @@ internal object Cmo3SourceLayerWeb {
 	 * @param MutableList         pngEntries The PNG entry collector.
 	 * @param Long                nowMillis  The import timestamp the wrapper and env values record, standing in
 	 *   for a time the record lacks.
-	 * @return Written The wrapper, the group, and the bindings.
+	 * @return Written The wrapper, the group, the bindings, and the unplaced tiles' raster textures.
 	 */
 	internal fun write(
 		image: SourceImageInput,
@@ -418,8 +427,10 @@ internal object Cmo3SourceLayerWeb {
 			this.width = width
 			this.height = height
 			// CMO3: CLayeredImage field psdFile - the external-reference <file> shape whose text is the
-			// source's path on the importing machine; the name stands in when the record has none.
-			psdFile = FileRef().apply { textPath = path ?: name }
+			// source's path on the importing machine.  A record with no path writes an empty one, as the
+			// retained lowering does: the ingest reads an empty path as none, where a name would read back
+			// as a relative path that the Sources space reports missing and the watcher polls.
+			psdFile = FileRef().apply { textPath = path ?: "" }
 			description = ""
 			guid = Cmo3SkeletonBuilder.freshGuid("CLayeredImageGuid")
 			// CMO3: CLayeredImage field psdFileLastModified - the source's modification time as last read.

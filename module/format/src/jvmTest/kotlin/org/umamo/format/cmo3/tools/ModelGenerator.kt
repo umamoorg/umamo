@@ -34,9 +34,9 @@ class ModelGenerator {
 	 *
 	 * The `@DontSerializeIfDefault` rule is "the corpus does not always carry this field", which is
 	 * a statement about the SAMPLES.  For these the official editor's custom deserializers
-	 * dereference the field unconditionally and NPE at load when it is absent, so omitting it
-	 * writes a file Cubism cannot open - the corpus merely happens to include older-era samples
-	 * that predate the field.  Only a FRESH object honors the annotation (a read one replays the
+	 * dereference the field unconditionally (CPartForm.opacity once the form carries its colors)
+	 * and NPE at load when it is absent, so omitting it writes a file Cubism cannot open - the corpus
+	 * merely happens to include older-era samples that predate the field.  Only a FRESH object honors the annotation (a read one replays the
 	 * fields it was read with), so an entry here changes what Umamo creates and nothing it
 	 * round-trips.  Corpus evidence cannot express that, so the exception lives here,
 	 * in the generator, and NOT as a hand-edit of the output: a from-scratch regeneration (the

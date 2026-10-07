@@ -6,8 +6,7 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3.Cmo3Conversion
 import org.umamo.interop.cmo3.Cmo3Export
-import org.umamo.interop.cmo3.modelPageIndexByDrawableId
-import org.umamo.interop.cmo3.modelPageRenderIndices
+import org.umamo.interop.cmo3.modelOrderPages
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.deriveAtlasTextures
@@ -113,7 +112,7 @@ fun prepareCmo3Export(
 				)
 			PreparedCmo3Export(result.model, result.report)
 		}
-		// A UMA document has no retained graph either (docs/plan/uma-format.md D34): a fresh graph is
+		// A UMA document has no retained graph either, since a `.uma` never carries one: a fresh graph is
 		// synthesized as for an artwork document, with the file's stored render pages as the image chain while
 		// the atlas is at the document's baseline (the same identity gate as the CMO3 branch), put into the
 		// model's page order, and a re-encode of the effective pages otherwise.  The document's own rasters
@@ -225,10 +224,10 @@ internal class ConversionPages(
  * in the render numbering, where a CMO3 import lists every image a drawable samples in the order its loader
  * met them, an unpacked drawable's raster among them (docs/format/UMA.md §5.5).  Handed over as they are,
  * each raster would become an atlas of its own and a placed tile's entry would land on whatever page shares
- * its index.  So a document whose model has atlas pages takes them in the MODEL's order: each model page is
- * the render page its placed drawables sample ([modelPageRenderIndices]), else the page the tiles compose,
- * else a transparent page of the recorded size.  A document with no model pages (a MOC3's) keeps its render
- * pages, which are its texture order; a derived page set is in the model's order by construction.
+ * its index.  So a document whose model has atlas pages takes them in the MODEL's order ([modelOrderPages]):
+ * each model page is the render page its placed drawables sample, else the page the tiles compose, else a
+ * transparent page of the recorded size.  A document with no model pages (a MOC3's) keeps its render pages,
+ * which are its texture order; a derived page set is in the model's order by construction.
  *
  * @param UmaDocument    document          The document being exported.
  * @param PuppetModel    edited            The model being written.
@@ -241,22 +240,21 @@ internal fun conversionPagesFor(document: UmaDocument, edited: PuppetModel, effe
 		effectiveTextures.atlases.mapIndexed { pageIndex, page ->
 			Cmo3Conversion.AtlasPage(stored?.pageBytes?.get(pageIndex) ?: encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage())
 		}
-	if (stored == null || edited.atlas.pages.isEmpty()) {
+	if (stored == null) {
 		return ConversionPages(renderPages, effectiveTextures.atlasIndexByDrawableId)
 	}
-	val renderIndices = modelPageRenderIndices(edited, effectiveTextures.atlasIndexByDrawableId)
 	val derived by lazy { deriveAtlasTextures(edited, document.artRasters, effectiveTextures.premultipliedAlpha) }
-	val pages =
-		edited.atlas.pages.mapIndexed { modelPageIndex, modelPage ->
-			renderIndices[modelPageIndex]?.let(renderPages::getOrNull)
-				?: derived?.atlases?.getOrNull(modelPageIndex)?.let { page -> Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage()) }
+	val resolved =
+		modelOrderPages(edited, renderPages, effectiveTextures.atlasIndexByDrawableId) { modelPageIndex ->
+			derived?.atlases?.getOrNull(modelPageIndex)?.let { page -> Cmo3Conversion.AtlasPage(encodeAtlasPng(page), page.width, page.height, decoded = page.asRasterImage()) }
 				?: run {
 					UmamoLog.warn("CMO3 export: no image shows atlas page ${modelPageIndex + 1}, so it is written transparent")
+					val modelPage = edited.atlas.pages[modelPageIndex]
 					val blank = RasterImage(modelPage.width, modelPage.height, ByteArray(modelPage.width * modelPage.height * 4))
 					Cmo3Conversion.AtlasPage(PngCodec.write(blank), blank.width, blank.height, decoded = blank)
 				}
 		}
-	return ConversionPages(pages, modelPageIndexByDrawableId(edited, renderIndices, effectiveTextures.atlasIndexByDrawableId))
+	return ConversionPages(resolved.pages, resolved.pageIndexByDrawableId)
 }
 
 /**

@@ -185,6 +185,14 @@ class Moc3WrittenIds internal constructor(
 	fun partId(id: PartId): String = parts[id.raw] ?: id.raw
 
 	/**
+	 * Every part id the moc contains, as written - what a pose, or a motion's part-opacity curve, carried
+	 * through verbatim must name to find a part.
+	 *
+	 * @return Set<String> The written ids.
+	 */
+	fun writtenPartIds(): Set<String> = parts.values.toSet()
+
+	/**
 	 * The id [id] was written under.
 	 *
 	 * Carried for completeness rather than for a reader that exists today: a moc names its deformers

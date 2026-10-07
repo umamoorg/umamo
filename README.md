@@ -262,9 +262,11 @@ test/corpus/clip/    test/corpus/psd/  test/corpus/krita/   test/corpus/tiff/  t
 ```
 
 ```bash
-./gradlew :format:jvmTest                                   #Corpus automatic discovery.
-./gradlew :format:jvmTest -Dcmo3.sample=/path/to/Model.cmo3 #Point at one explicitly.
+./gradlew :format:jvmTest                                                                                                                        #Corpus automatic discovery.
+./gradlew :format:jvmTest -Dcmo3.sample=/path/to/Model.cmo3                                                                                      #Point at one explicitly.
 ./gradlew :format:jvmTest --tests "org.umamo.format.cmo3.tools.ModelGenerator" -Dcmo3.generate=true -Dcmo3.gensample=/path/to/Model.cmo3 --rerun #Generate new CMO3 model and registration.  Make sure to run ktlintFormat afterwards to clean up.
+./gradlew :ui:jvmTest --tests "*.EditGrabPerfProbeTest" -i                                                                                       #Edit-mode perf probe over moc3.perfSample (test/corpus/moc3/modelF by default).  Print-only: -i (--info) shows the rows, or read build/test-results.
+./gradlew :render:jvmTest --tests "*.EditGrabRenderPerfProbeTest" -i                                                                             #Its render-thread twin (needs a GL context).
 ```
 
 ## Legal & Trademark Notice

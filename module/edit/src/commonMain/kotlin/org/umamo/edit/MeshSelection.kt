@@ -242,7 +242,9 @@ object MeshSelectionOps {
 	 * Applies a box (rubber-band) selection across the session meshes: replaces every mesh's element set
 	 * with its entry in [elementsByDrawable], or unions them in when [additive].  The active element is
 	 * kept when it remains selected, otherwise it drops to null (a box has no single "last touched"
-	 * element).
+	 * element).  An additive union that adds nothing to a mesh keeps that mesh's set instance, so a
+	 * consumer keyed on the set's identity (the GPU mesh overlay) sees the mesh as untouched; a brush
+	 * stroke passes every session mesh on every stamp.
 	 *
 	 * @param MeshSelection selection The selection to modify.
 	 * @param Map<DrawableId, Set<MeshElement>> elementsByDrawable The enclosed elements per session mesh.
@@ -254,7 +256,10 @@ object MeshSelectionOps {
 		if (additive) {
 			selection.elementsByDrawable.forEach { (drawableId, elements) -> resulting[drawableId] = elements }
 			elementsByDrawable.forEach { (drawableId, elements) ->
-				resulting[drawableId] = (resulting[drawableId] ?: emptySet()) + elements
+				val current = resulting[drawableId] ?: emptySet()
+				if (!current.containsAll(elements)) {
+					resulting[drawableId] = current + elements
+				}
 			}
 		} else {
 			elementsByDrawable.forEach { (drawableId, elements) ->
@@ -270,7 +275,8 @@ object MeshSelectionOps {
 
 	/**
 	 * Removes elements per mesh (the erase half of a Circle-select stroke), keeping the active element
-	 * only when it survives.  The mirror of [box]'s additive union.
+	 * only when it survives.  The mirror of [box]'s additive union, and like it, a mesh that loses nothing
+	 * keeps its set instance.
 	 *
 	 * @param MeshSelection selection The selection to shrink.
 	 * @param Map<DrawableId, Set<MeshElement>> elementsByDrawable The elements to deselect per mesh.
@@ -279,7 +285,11 @@ object MeshSelectionOps {
 	fun remove(selection: MeshSelection, elementsByDrawable: Map<DrawableId, Set<MeshElement>>): MeshSelection {
 		val resulting = HashMap<DrawableId, Set<MeshElement>>(selection.elementsByDrawable)
 		elementsByDrawable.forEach { (drawableId, elements) ->
-			val remaining = (resulting[drawableId] ?: emptySet()) - elements
+			val current = resulting[drawableId] ?: emptySet()
+			if (elements.none { element -> element in current }) {
+				return@forEach
+			}
+			val remaining = current - elements
 			if (remaining.isEmpty()) {
 				resulting.remove(drawableId)
 			} else {

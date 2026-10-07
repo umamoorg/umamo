@@ -210,7 +210,7 @@ sealed interface ExportNoticeReason {
 
 	/**
 	 * A parameter the edit deleted is still read or driven by physics settings the CMO3 retained, which Umamo
-	 * does not model and wrote back as they were (docs/plan/uma-format.md D38).
+	 * does not model and wrote back as they were.
 	 *
 	 * @property List settingNames The physics settings that still name the parameter.
 	 */
@@ -224,6 +224,15 @@ sealed interface ExportNoticeReason {
 	 * @property List   parameterIds The ids it names that the MOC3 does not contain.
 	 */
 	data class SidecarNamesUnwrittenParameters(val fileName: String, val parameterIds: List<String>) : ExportNoticeReason
+
+	/**
+	 * A sidecar carried through verbatim names parts the MOC3 does not contain - deleted, in a sketch subtree the
+	 * bake leaves out, or written under a shortened id - so a runtime reading it switches or fades nothing for them.
+	 *
+	 * @property String fileName The sidecar's file name.
+	 * @property List   partIds  The ids it names that the MOC3 does not contain.
+	 */
+	data class SidecarNamesUnwrittenParts(val fileName: String, val partIds: List<String>) : ExportNoticeReason
 
 	/** Keyforms with no base mesh to bundle against. */
 	data object KeyformsWithoutBaseMesh : ExportNoticeReason
@@ -289,4 +298,14 @@ sealed interface ExportNoticeReason {
 
 	/** The drawable was rebound to different source art, which needs the art re-imported, not repacked. */
 	data object AtlasTileRebindingNotLowered : ExportNoticeReason
+
+	/**
+	 * The tile's binding names a file the document does not list, or a layer that file never inventoried, so the
+	 * export wrote its art as a flat image of its own and the binding did not cross.  The Sources space shows such
+	 * a tile as waiting on a person; relinking it before the export carries a real binding instead.
+	 *
+	 * @property String sourceName The bound file's name, or its id when the document does not list it.
+	 * @property String layerKey   The bound layer's key.
+	 */
+	data class SourceLayerBindingNotInExport(val sourceName: String, val layerKey: String) : ExportNoticeReason
 }

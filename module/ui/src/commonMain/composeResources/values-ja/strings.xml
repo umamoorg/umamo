@@ -178,6 +178,7 @@
 	<string name="export_reason_blend_shape_parameter_no_source">ブレンドシェイプのパラメータ %1$s に CMO3 側の実体がないため、ブレンドシェイプは書き出されませんでした。</string>
 	<string name="export_reason_physics_names_deleted_parameter">物理演算設定 %1$s は、削除されたこのパラメータを参照したままです。変更せずに書き出したため、Cubism Editor で参照先を変更するか削除してください。</string>
 	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s はこの書き出しに含まれないパラメータ（%2$s）を参照しています。変更せずに書き出したため、ランタイムはそれらの入出力の対象を見つけられません。</string>
+	<string name="export_reason_sidecar_names_unwritten_parts">%1$s はこの書き出しに含まれないパーツ（%2$s）を参照しています。変更せずに書き出したため、ランタイムは切り替えや表示の対象を見つけられません。</string>
 	<string name="export_reason_keyforms_without_base_mesh">ベースメッシュのないキーフォームは CMO3 にまとめられません。</string>
 	<string name="export_reason_fractional_draw_order">CMO3 の描画順は整数のため、小数の値は書き出されませんでした。</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">キーフォームのない固定のグルー強度は、CMO3 に保持する場所がありません。</string>
@@ -200,6 +201,7 @@
 	<string name="export_reason_atlas_page_not_recomposed">この原画はアトラスページ上で移動しましたが、ページ画像には移動前の位置のまま残っています。再パックすると描き直されます。</string>
 	<string name="export_reason_atlas_tile_metadata">この原画のピクセル、名前、またはサイズが変更されました。アトラス配置では表現できないため、原画を再取り込みしてください。</string>
 	<string name="export_reason_atlas_tile_rebinding">この描画オブジェクトは別の原画に結び付けられました。再パックではなく原画の再取り込みが必要です。</string>
+	<string name="export_reason_source_layer_binding_not_in_export">この原画は %1$s のレイヤー %2$s に結び付けられていますが、ドキュメントにその項目がないため結び付けを書き出せませんでした。CMO3 には単独の平面画像として書き出されています。結び付けを書き出すには、ソースパネルで再リンクしてください。</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 のキャンバスサイズは整数ピクセルのため、小数の値は書き出されませんでした。</string>
 	<!-- 書き出しの上書き警告（document.confirm コマンド。%1$d は上書きされる既存ファイル数、
 	     %2$s は省略表示のファイル一覧）。 -->
@@ -613,6 +615,7 @@
 	<string name="notice_atlas_repack_unchanged">アトラスは既にパック済みのため、変更はありません。</string>
 	<string name="notice_uv_no_uvs">選択範囲に編集可能な UV がありません。</string>
 	<string name="notice_uv_no_selection">ミラーする対象が選択されていません。</string>
+	<string name="notice_uv_no_editable_geometry">ここでは編集できません。編集中のメッシュは表示中のページやレイヤーにありません。</string>
 	<string name="notice_uv_placement_layer_addressed">人形の UV はアトラスではなく原画を参照しているため、移動できる配置がありません。</string>
 	<string name="notice_uv_placement_no_placed_art">選択範囲にアトラスページへパック済みのアートがないか、原画がありません。</string>
 	<string name="notice_uv_placement_page_view_only">配置を移動するには UV エディタでアトラスページを表示してください。</string>

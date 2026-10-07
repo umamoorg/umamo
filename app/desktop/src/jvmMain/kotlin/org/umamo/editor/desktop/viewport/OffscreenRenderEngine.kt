@@ -1,39 +1,45 @@
 package org.umamo.editor.desktop.viewport
 
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import org.lwjgl.opengl.GL11
-import org.umamo.edit.GridConfig
-import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
-import org.umamo.render.DecodedImage
 import org.umamo.render.FrameBackdrop
-import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
-import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SupersampledSurface
 import org.umamo.render.ViewportCamera
-import org.umamo.render.device.ReadbackTicket
 import org.umamo.render.gl.GlRenderDevice
+import org.umamo.render.puppet.ModelUpdateKind
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.storage.UmamoLog
-import org.umamo.ui.graphics.RgbaAlphaType
-import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
-import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.UvSceneContent
-import java.io.File
-import java.util.ArrayDeque
-import java.util.concurrent.ConcurrentLinkedQueue
+
+/*
+ * The desktop render engine.  This file is the GL-owning wiring: the thread, the context, the renderer
+ * and its surface, the hand-off state the thread keeps, and the loop that runs one tick's four steps in
+ * order.  Its parts:
+ *   - EngineRenderInputs.kt: the render inputs the UI thread publishes, with their change detection
+ *     and the two render versions the loop folds into per-area freshness.
+ *   - AtlasPairingDecision.kt: the pure rule pairing a published model with the pages composed for it.
+ *   - PoseHandoff.kt: the pure rule for whether a tick's hand-off must also rebuild the pose.
+ *   - AreaFreshness.kt: the resize throttle, the size observation, and the pure fresh / deferred /
+ *     render decision per area.
+ *   - SceneContentBounds.kt: the rectangle an area's fit frames, per scene kind.
+ *   - PlacementGhostRule.kt: the pure rule for when a UV area's placement preview drops its ghost.
+ *   - FrameReadbackQueue.kt: the asynchronous read-backs in flight and their publication to the slots.
+ *   - SnapshotQueue.kt: the image captures the UI thread asks for, served between frames.
+ *   - FirstFrameDump.kt: the UMAMO_DUMP_PNG developer dump.
+ * The areas, their cameras, and the registry the loop walks are ViewportAreaRegistry.kt; the facade
+ * that composes all of this with the picker is OffscreenPuppetService.kt.
+ */
 
 /**
  * Framebuffer pixels per display pixel while supersampling is on: the whole pipeline renders 2x and
@@ -48,42 +54,41 @@ private const val IDLE_MILLIS = 16L
 private const val BUSY_MILLIS = 1L
 
 /**
- * Minimum interval between resize-driven re-renders while an area's size is actively changing (a
- * gutter drag or a window-edge resize): about 10 Hz of live feedback, with the Compose side
- * stretching the previous frame between them.  Pose / camera / state changes are never throttled.
- */
-private const val RESIZE_THROTTLE_NANOS = 50_000_000L
-
-/** How long a size must hold still before it counts as settled (the full-quality render then runs). */
-private const val RESIZE_SETTLE_NANOS = 25_000_000L
-
-/**
  * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
- * framebuffers, and the async read-back pool, and runs the render loop. It holds the render-input state the
- * UI thread pushes (selection, shown set, model, atlas pages, source artwork, grid, highlight colors), renders
- * each registered area whose pose / size / camera / backdrop changed, and publishes finished frames to the
- * area's slot.
+ * framebuffers, and the async read-back pool, and runs the render loop.  Each tick it collects the
+ * read-backs that finished, hands the renderer what the UI thread published through [inputs] since the
+ * last tick (pages and model as one pair, the artwork mapping and its pixels, the pose), serves the image
+ * captures, and renders each registered area whose pose / size / camera / scene content / backdrop
+ * changed, publishing finished frames to the area's slot.
  *
  * The read-back is asynchronous (PBO + fence) so the thread never blocks on the GPU while a slider drags.
  * Every 2D area of one document shows the same puppet at the same pose (the shared [liveParams]), so those
  * areas differ only by size and camera; re-renders happen only when the pose or an area's
  * size / camera / scene content / backdrop changes.
  *
- * @property PuppetModel puppet The rig to render.
- * @property PuppetTextures textures The atlas page(s).
+ * Everything from [renderLoop] down runs on the render thread: the hand-off state is plain fields of
+ * this class, and the collaborators holding GL objects or render-thread bookkeeping are never touched
+ * from the UI thread.  What the UI thread calls is [start], [dispose], [requestSnapshot], and the
+ * pure-CPU reads of [puppetRenderer].
+ *
+ * @param PuppetModel puppet The rig to render.
+ * @param PuppetTextures textures The atlas page(s) the renderer uploads at initGl: the same instance [inputs]
+ *   was built over, so the applied binding it seeds tags the pages actually resident.
  * @property LiveParams liveParams The shared parameter hand-off (drives re-render on change).
  * @property ViewportAreaRegistry registry The area slots this engine renders and fits.
+ * @property EngineRenderInputs inputs The render inputs the UI thread pushes, read each frame.
  */
 internal class OffscreenRenderEngine(
-	private val puppet: PuppetModel,
-	private val textures: PuppetTextures,
+	puppet: PuppetModel,
+	textures: PuppetTextures,
 	private val liveParams: LiveParams,
 	private val registry: ViewportAreaRegistry,
+	private val inputs: EngineRenderInputs,
 ) {
 	// The GL backend the renderer draws through; render-thread-owned, like every GL object here.
 	private val device = GlRenderDevice()
 
-	// GL handles + async read-back state, all owned by the render thread.
+	// The renderer and its GL handles, owned by the render thread.
 	private val renderer =
 		PuppetRenderer(puppet, textures, device).apply {
 			// The editor viewport shows the world-origin axes (red X / blue Z behind the puppet); the
@@ -100,143 +105,50 @@ internal class OffscreenRenderEngine(
 	// The supersampled draw + display-size resolve target pair, device-owned and backend-neutral.
 	private val surface = SupersampledSurface(device, RENDER_SUPERSAMPLE)
 
-	/** An asynchronous read-back in flight: the device ticket plus what the pixels will mean on arrival. */
-	private class PendingFrame(
-		val ticket: ReadbackTicket,
-		val areaId: String,
-		val camera: ViewportCamera,
-		val model: PuppetModel,
-	)
+	// The read-backs in flight, issued per area render and collected front-first each tick. Render-thread only.
+	private val readbacks = FrameReadbackQueue(device)
 
-	// In-flight read-backs in submission order; polled front-first each loop tick. Render-thread only.
-	private val pendingFrames = ArrayDeque<PendingFrame>()
+	// The image captures the UI thread has asked for, served between frames and answered null at shutdown.
+	private val snapshots = SnapshotQueue()
 
-	/**
-	 * An image capture waiting for the render thread: what to draw, and where its pixels go.
-	 *
-	 * @property ViewportCamera                      camera   The capture's camera.
-	 * @property Int                                 width    The image width in pixels.
-	 * @property Int                                 height   The image height in pixels.
-	 * @property FrameBackdrop                       backdrop What the puppet is drawn over.
-	 * @property CompletableDeferred<RasterImage?>   result   Completed with the premultiplied pixels, or null.
-	 */
-	private class PendingSnapshot(
-		val camera: ViewportCamera,
-		val width: Int,
-		val height: Int,
-		val backdrop: FrameBackdrop,
-		val result: CompletableDeferred<RasterImage?>,
-	)
-
-	// Captures queued by the UI thread and taken up by the render thread between frames.  A queue for the same
-	// reason as the raster batches: two requests landing in one tick must both be served.
-	private val pendingSnapshots = ConcurrentLinkedQueue<PendingSnapshot>()
-
-	// False once the render thread can no longer serve a capture (its context never came up, or it has shut
-	// down), so a request made after that is answered at once instead of waiting forever.
-	@Volatile
-	private var acceptingSnapshots = true
+	// The UMAMO_DUMP_PNG developer dump, render-thread-owned like the frames it reads.
+	private val firstFrameDump = FirstFrameDump()
 
 	@Volatile
 	private var running = true
 
+	// The one gate the capture loop polls between captures and a capture polls between its tiles, so a
+	// shutdown stops either at its next step.
+	private val stillRunning: () -> Boolean = { running }
+
+	// Which UV scenes the renderer keeps per tick: an area still registered and still showing a UV surface.
+	private val isLiveUvArea: (String) -> Boolean = { areaId -> registry.areas[areaId]?.scene == RenderScene.UvScene }
+
 	// Daemon so it can never block JVM exit; clean teardown still happens via dispose() -> join.
 	private val renderThread = Thread({ renderLoop() }, "umamo-offscreen-gl").apply { isDaemon = true }
 
-	// --- Render inputs: written by the UI thread (volatile publishes of immutable values / scalars), read by
-	// the render thread each frame. A change bumps a render-version counter the loop folds into per-area
-	// freshness, so a state-only change (no resize / pose / camera change) still forces exactly one redraw.
+	// --- The hand-off state: what the renderer currently holds, compared against the published inputs
+	// each tick by applyHandoffs.  Render-thread-only after start(), so plain fields.
 
-	// The grid backdrop colors, fed from the editor theme; default to the neutral grey grid until the host
-	// pushes the themed colors.
-	@Volatile
-	private var gridColorsBacking: GridColors = GridColors.Classic
+	// The pair the render thread has actually applied; read by the UV fit path (contentBoundsFor) and the
+	// placement ghost rule (placementToDraw), which also run on the render thread.  Seeded from the inputs'
+	// construction-time pair, whose pages are the ones initGl uploads, so the loop's first tick applies
+	// nothing unless a binding was pushed before the thread started.
+	private var appliedAtlasBinding: AtlasPageBinding = inputs.initialAtlasBinding
 
-	// The per-document grid geometry (major spacing + subdivisions), fed from the session.
-	@Volatile
-	private var gridConfigBacking: GridConfig = GridConfig()
+	// The pose inputs the renderer last posed with, each compared by identity: all three are swapped
+	// wholesale on the UI thread, so a reference change is exactly "something moved".
+	private var lastParams: Map<ParameterId, Float>? = null
+	private var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
+	private var lastShown: Set<DrawableId>? = null
 
-	// The currently selected drawables, read by the render thread to tint them.
-	@Volatile
-	private var selectionBacking: Set<DrawableId> = emptySet()
+	// The model the renderer was last pointed at, and the artwork mapping it was last handed.
+	private var lastModel: PuppetModel? = null
+	private var lastLayerPlan: LayerDrawPlan? = null
 
-	// The active (last-selected) drawable, tinted apart from the rest of a multi-selection; null when none.
-	@Volatile
-	private var activeSelectionBacking: DrawableId? = null
-
-	// The drawables actually drawn (the resolved Parts-panel visibility cascade). Seeded from the open
-	// model's static cascade.
-	@Volatile
-	private var shownBacking: Set<DrawableId> = puppet.visibleDrawableIds()
-
-	// Which artwork the puppet's drawables map onto, published whole.  EMPTY is the atlas, which is where
-	// every document starts until a plan is prepared for it.  The pixels are NOT here: they arrive
-	// through the queue below, in answer to what the renderer asks for.
-	@Volatile
-	private var layerPlanBacking: LayerDrawPlan = LayerDrawPlan.EMPTY
-
-	// Decoded artwork waiting to be uploaded, drained on the render thread.  A queue rather than a
-	// volatile slot because deliveries are chunked - two batches landing between frames must both be
-	// taken up, where a slot would silently drop the first.
-	private val pendingRasterBatches = ConcurrentLinkedQueue<LayerRasterBatch>()
-
-	// The latest model, re-pushed on a structural edit (layer reorder / reparent, base-mesh move); seeded
-	// with the open model.
-	@Volatile
-	private var modelBacking: PuppetModel = puppet
-
-	// The construction-time page pair: the pages initGl uploads, tagged with the atlas they render.
-	// Seeds both the published slot and the applied state, so the loop's first tick applies nothing
-	// unless a binding was pushed before the thread started.
-	private val initialAtlasBinding = AtlasPageBinding(puppet.atlas, textures)
-
-	// The latest page set, published whole with the atlas value it was composed for.  The loop applies
-	// it and an atlas-changing model as one pair - see the pairing note in renderLoop.
-	@Volatile
-	private var atlasBindingBacking: AtlasPageBinding = initialAtlasBinding
-
-	// The pair the render thread has actually applied.  Render-thread-owned after start(); read by the
-	// UV fit path (pageContentBounds), which also runs on the render thread.
-	private var appliedAtlasBinding: AtlasPageBinding = initialAtlasBinding
-
-	@Volatile
-	private var puppetRenderBump: Long = 0
-
-	// The UV editor's flat scenes (atlas page, source layer) bump separately from the puppet, so a puppet
-	// update does not needlessly re-render them.
-	@Volatile
-	private var atlasRenderBump: Long = 0
-
-	// The color selected drawables are tinted toward; RGB, each 0..1, defaults to the classic blue accent.
-	@Volatile
-	private var highlightRed: Float = 0.20f
-
-	@Volatile
-	private var highlightGreen: Float = 0.55f
-
-	@Volatile
-	private var highlightBlue: Float = 1.0f
-
-	// The color the active drawable is tinted toward; RGB, each 0..1, defaults to the edit-mode active green.
-	@Volatile
-	private var activeHighlightRed: Float = 0.49f
-
-	@Volatile
-	private var activeHighlightGreen: Float = 0.89f
-
-	@Volatile
-	private var activeHighlightBlue: Float = 0.0f
-
-	// The performance settings (viewport.rendering.*): whether settled frames supersample at all, and
-	// whether frames rendered while a size is actively changing keep the supersample (false = drop to
-	// 1x for a quarter of the fill cost during gutter drags and window resizes).
-	@Volatile
-	private var supersampleBacking: Boolean = true
-
-	@Volatile
-	private var supersampleWhileResizingBacking: Boolean = true
-
-	private var dumped = false
+	// The pose version: bumped whenever the renderer re-poses, takes up a new model, or takes up new pages,
+	// so every puppet area re-renders once.
+	private var paramsVersion = 0L
 
 	/** Starts the render thread (call once). */
 	fun start() {
@@ -247,23 +159,15 @@ internal class OffscreenRenderEngine(
 	fun dispose() {
 		running = false
 		renderThread.join(2000)
-		acceptingSnapshots = false
-		failPendingSnapshots()
+		snapshots.close()
 	}
-
-	/**
-	 * The drawables actually drawn (the resolved visibility cascade), as last pushed - what a capture's
-	 * framing measures.
-	 */
-	val shownDrawables: Set<DrawableId>
-		get() = shownBacking
 
 	/**
 	 * Queues an image capture of the current pose for the render thread, which takes it up between frames
 	 * with the latest model, pages, artwork, shown set, and pose applied.
 	 *
-	 * Always completes: with the premultiplied pixels, or with null when the render thread cannot serve it.
-	 * The check comes after the enqueue, so a shutdown racing the request still sweeps it up.
+	 * Always completes: with the premultiplied pixels, or with null when the render thread cannot serve it
+	 * (a shutdown racing the request still sweeps it up - see [SnapshotQueue.request]).
 	 *
 	 * @param ViewportCamera camera   The capture's camera.
 	 * @param Int            width    The image width in pixels.
@@ -271,257 +175,13 @@ internal class OffscreenRenderEngine(
 	 * @param FrameBackdrop  backdrop What the puppet is drawn over.
 	 * @return Deferred<RasterImage?> The premultiplied pixels, top row first, or null.
 	 */
-	fun requestSnapshot(camera: ViewportCamera, width: Int, height: Int, backdrop: FrameBackdrop): Deferred<RasterImage?> {
-		val snapshot = PendingSnapshot(camera, width, height, backdrop, CompletableDeferred())
-		pendingSnapshots.add(snapshot)
-		if (!acceptingSnapshots) {
-			failPendingSnapshots()
-		}
-		return snapshot.result
-	}
-
-	/** Answers every queued capture with null: the render thread will not serve them. */
-	private fun failPendingSnapshots() {
-		while (true) {
-			val snapshot = pendingSnapshots.poll() ?: break
-			snapshot.result.complete(null)
-		}
-	}
+	fun requestSnapshot(camera: ViewportCamera, width: Int, height: Int, backdrop: FrameBackdrop): Deferred<RasterImage?> =
+		snapshots.request(camera, width, height, backdrop)
 
 	/**
-	 * Renders every queued capture, on the render thread.  A capture that fails logs and completes null; it
-	 * never takes the render loop down with it.
-	 *
-	 * A shutdown stops the work at the next tile, so dispose() waits for one tile rather than a whole large
-	 * image; what is left in the queue is answered by the loop's teardown.
-	 */
-	private fun serveSnapshots() {
-		while (running) {
-			val snapshot = pendingSnapshots.poll() ?: break
-			try {
-				if (snapshot.backdrop == FrameBackdrop.Grid) {
-					// The area renders apply the grid per render; a capture over it applies its own the same way.
-					val gridConfigApplied = gridConfigBacking
-					renderer.setGrid(gridColorsBacking, gridConfigApplied.scale, gridConfigApplied.subdivisions)
-				}
-				val image = renderer.renderSnapshot(snapshot.camera, snapshot.width, snapshot.height, snapshot.backdrop) { running }
-				if (image == null) {
-					UmamoLog.info("[GL] image capture (${snapshot.width}x${snapshot.height}) abandoned at shutdown")
-				}
-				snapshot.result.complete(image)
-			} catch (failure: Exception) {
-				UmamoLog.error("[GL] image capture (${snapshot.width}x${snapshot.height}) failed", failure)
-				snapshot.result.complete(null)
-			} catch (failure: OutOfMemoryError) {
-				// The stitched image is the one large allocation here, and running short of it costs this
-				// capture, not the viewport.
-				UmamoLog.error("[GL] image capture (${snapshot.width}x${snapshot.height}) ran out of memory", failure)
-				snapshot.result.complete(null)
-			}
-		}
-	}
-
-	/**
-	 * The grid backdrop colors (background / major / minor). A change bumps both render passes so a
-	 * color-only change repaints without waiting for an unrelated render.
-	 */
-	var gridColors: GridColors
-		get() = gridColorsBacking
-		set(value) {
-			if (value != gridColorsBacking) {
-				gridColorsBacking = value
-				doPuppetRenderBump()
-				doAtlasRenderBump()
-			}
-		}
-
-	/**
-	 * The per-document grid geometry (major spacing + subdivisions). Like the grid colors, a change bumps
-	 * both render passes so a grid-only change repaints without waiting for an unrelated render.
-	 */
-	var gridConfig: GridConfig
-		get() = gridConfigBacking
-		set(value) {
-			if (value != gridConfigBacking) {
-				gridConfigBacking = value
-				doPuppetRenderBump()
-				doAtlasRenderBump()
-			}
-		}
-
-	/**
-	 * Sets the highlighted drawables (object-mode selection). A change bumps the puppet render version so the
-	 * loop re-renders every area once with the new tint; an identical set is a no-op.
-	 *
-	 * @param Set<DrawableId> ids The selected drawable ids.
-	 */
-	fun setSelection(ids: Set<DrawableId>) {
-		if (ids != selectionBacking) {
-			selectionBacking = ids
-			doPuppetRenderBump()
-		}
-	}
-
-	/**
-	 * Sets the active (last-selected) drawable, tinted apart from the rest of a multi-selection. A change
-	 * bumps the puppet render version; an identical value is a no-op.
-	 *
-	 * @param DrawableId id The active drawable id, or null when none is active.
-	 */
-	fun setActiveSelection(id: DrawableId?) {
-		if (id != activeSelectionBacking) {
-			activeSelectionBacking = id
-			doPuppetRenderBump()
-		}
-	}
-
-	/**
-	 * Sets which drawables are drawn (the resolved Parts-panel visibility cascade). A change bumps the puppet
-	 * render version so every area re-renders once; the geometry is unchanged, so only the draw filter moves.
-	 *
-	 * @param Set<DrawableId> ids The drawable ids to draw.
-	 */
-	fun setShownDrawables(ids: Set<DrawableId>) {
-		if (ids != shownBacking) {
-			shownBacking = ids
-			doPuppetRenderBump()
-		}
-	}
-
-	/**
-	 * Sets which artwork the puppet's drawables map onto; an empty plan displays from the atlas.
-	 *
-	 * A volatile publish of one immutable value, like every other render input.  The render loop hands
-	 * it to the renderer, which is where the GPU work happens - this must not touch the device.
-	 *
-	 * @param LayerDrawPlan plan Each drawable's mapping into the document's artwork.
-	 */
-	fun setSourceLayerPlan(plan: LayerDrawPlan) {
-		if (plan !== layerPlanBacking) {
-			layerPlanBacking = plan
-			doPuppetRenderBump()
-		}
-	}
-
-	/**
-	 * Queues decoded artwork for upload on the render thread.
-	 *
-	 * @param LayerRasterBatch batch The decoded artwork.
-	 */
-	fun deliverSourceLayerRasters(batch: LayerRasterBatch) {
-		pendingRasterBatches.add(batch)
-		doPuppetRenderBump()
-	}
-
-	/**
-	 * Publishes the atlas page set the current model's placements render from.  A pure volatile
-	 * publish: the render loop bumps its own freshness when it APPLIES the binding, because applying
-	 * can lag the publish by a tick while the matching model arrives - a bump here would let an area
-	 * render back to freshness against the outgoing pair and never take the new one up.
-	 *
-	 * @param AtlasPageBinding binding The pages plus the atlas value they belong to.
-	 */
-	fun setAtlasPages(binding: AtlasPageBinding) {
-		if (binding !== atlasBindingBacking) {
-			atlasBindingBacking = binding
-		}
-	}
-
-	/**
-	 * Pushes the latest model so the render thread can reconcile it after an edit (a layer reorder
-	 * re-derives the render order; a base-mesh move re-uploads the changed drawables' VBOs). A new (different)
-	 * instance bumps the puppet render version so every area re-renders once.
-	 *
-	 * @param PuppetModel model The current model.
-	 * @return Boolean True when the model actually changed (so the caller rebuilds model-derived state).
-	 */
-	fun setModel(model: PuppetModel): Boolean {
-		if (model !== modelBacking) {
-			modelBacking = model
-			doPuppetRenderBump()
-			return true
-		}
-		return false
-	}
-
-	/**
-	 * Sets the color selected drawables are tinted toward (the selection highlight). A change bumps the
-	 * puppet render version; an identical color is a no-op.
-	 *
-	 * @param Float red The tint red, 0..1.
-	 * @param Float green The tint green, 0..1.
-	 * @param Float blue The tint blue, 0..1.
-	 */
-	fun setSelectionHighlightColor(red: Float, green: Float, blue: Float) {
-		if (red != highlightRed || green != highlightGreen || blue != highlightBlue) {
-			highlightRed = red
-			highlightGreen = green
-			highlightBlue = blue
-			doPuppetRenderBump()
-		}
-	}
-
-	/**
-	 * Sets the color the active drawable is tinted toward (the active-selection highlight). A change bumps the
-	 * puppet render version; an identical color is a no-op.
-	 *
-	 * @param Float red The tint red, 0..1.
-	 * @param Float green The tint green, 0..1.
-	 * @param Float blue The tint blue, 0..1.
-	 */
-	fun setActiveSelectionHighlightColor(red: Float, green: Float, blue: Float) {
-		if (red != activeHighlightRed || green != activeHighlightGreen || blue != activeHighlightBlue) {
-			activeHighlightRed = red
-			activeHighlightGreen = green
-			activeHighlightBlue = blue
-			doPuppetRenderBump()
-		}
-	}
-
-	/**
-	 * Whether settled frames render supersampled at all (viewport.rendering.supersample).  Off renders
-	 * everything at 1x - the whole-session performance escape hatch for weak GPUs.  A change bumps
-	 * both render passes so every area repaints at the new quality.
-	 */
-	var supersampleEnabled: Boolean
-		get() = supersampleBacking
-		set(value) {
-			if (value != supersampleBacking) {
-				supersampleBacking = value
-				doPuppetRenderBump()
-				doAtlasRenderBump()
-			}
-		}
-
-	/**
-	 * Whether frames rendered while an area's size is actively changing keep the supersample
-	 * (viewport.rendering.supersampleWhileResizing).  False (the default) drops those frames to 1x;
-	 * the settle render restores full quality within the settle window.  No bump on change - the next
-	 * resize simply picks up the new policy.
-	 */
-	var supersampleWhileResizing: Boolean
-		get() = supersampleWhileResizingBacking
-		set(value) {
-			supersampleWhileResizingBacking = value
-		}
-
-	/**
-	 * Bump the render version for puppets to increase the frame by one.
-	 */
-	fun doPuppetRenderBump() {
-		puppetRenderBump++
-	}
-
-	/**
-	 * Bump the render version for atlases to increase the frame by one.
-	 */
-	fun doAtlasRenderBump() {
-		atlasRenderBump++
-	}
-
-	/**
-	 * The render thread body: create the context, then loop - collect finished read-backs, issue new renders
-	 * for changed areas, and idle when there is nothing to do.
+	 * The render thread body: create the context, then loop - collect finished read-backs, hand the
+	 * renderer what was published, serve the captures, render the changed areas, and idle when there is
+	 * nothing to do.
 	 */
 	private fun renderLoop() {
 		if (!context.createAndMakeCurrent()) {
@@ -529,211 +189,195 @@ internal class OffscreenRenderEngine(
 			// The context releases what a failed attempt made; this is the engine's own guarantee that the thread
 			// ends holding nothing, whatever backend it ran.
 			context.destroy()
-			acceptingSnapshots = false
-			failPendingSnapshots()
+			snapshots.close()
 			return
 		}
 		UmamoLog.info("[GL] offscreen via ${context.backendName}: ${context.describeContext()}")
 		try {
 			renderer.initGl()
-			var lastParams: Map<ParameterId, Float>? = null
-			var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
-			var lastShown: Set<DrawableId>? = null
-			var lastModel: PuppetModel? = null
-			var lastLayerPlan: LayerDrawPlan? = null
-			var paramsVersion = 0L
 			while (running) {
-				collectCompleted()
-				val params = liveParams.values
-				val shown = shownBacking
-				// Pages and model apply as a consistent PAIR - the decision itself is pure and tested
-				// (resolveAtlasPairing); this block only carries it out.
-				val pairing = resolveAtlasPairing(modelBacking, atlasBindingBacking, appliedAtlasBinding, lastModel)
-				val orderModel = pairing.orderModel
-				pairing.applyBinding?.let { binding ->
-					// Pages first, then the model that samples them.  The freshness bumps happen HERE, at
-					// apply, not at publish: paramsVersion re-renders the puppet areas, the atlas bump the
-					// UV page areas (whose AtlasPage content compares by index and cannot see same-index-
-					// new-pixels).  A concurrent UI-thread bump can collapse into this one; both causes are
-					// covered by the single re-render that follows either way.
-					renderer.setAtlasPages(binding.textures)
-					appliedAtlasBinding = binding
-					paramsVersion++
-					doAtlasRenderBump()
-				}
-				// The artwork hand-off, on the render thread where the uploads belong.  The mapping is
-				// compared by identity: it is published whole, so a new reference IS the change.
-				val layerPlan = layerPlanBacking
-				if (layerPlan !== lastLayerPlan) {
-					renderer.setSourceLayerPlan(layerPlan)
-					lastLayerPlan = layerPlan
-				}
-				// Then any decoded pixels that arrived since the last frame.  Drained rather than sampled:
-				// the producer chunks its deliveries so visible art lands first, and skipping a batch would
-				// strand whatever it carried on the atlas until the working set happened to move again.
-				while (true) {
-					val batch = pendingRasterBatches.poll() ?: break
-					renderer.deliverSourceLayerRasters(batch)
-				}
-				// Rebuild the pose - and thus the draw list, which setPose filters by the shown set and sorts by
-				// the render order - when the pose, the visibility cascade, OR the render order changes. A
-				// visibility toggle or a layer reorder leaves the params untouched, so without these checks the
-				// draw list would never refresh. setShownDrawables / updateModel run first so setPose uses them.
-				// The override map is compared by identity like the params map: both are swapped wholesale on
-				// the UI thread, so a reference change is exactly "something moved".
-				val overrides = liveParams.channelOverrides
-				if (params !== lastParams || overrides !== lastOverrides || shown !== lastShown || orderModel !== lastModel) {
-					renderer.setShownDrawables(shown)
-					if (orderModel !== lastModel) {
-						// Re-point the renderer at the edited model so the next setPose re-derives the draw order
-						// and (for a deformer reparent) the deform chain.
-						renderer.updateModel(orderModel)
-						lastModel = orderModel
-					}
-					renderer.setPose(params, overrides)
-					lastParams = params
-					lastOverrides = overrides
-					lastShown = shown
-					paramsVersion++
-				}
-				// Captures run after the hand-offs above, so each one shows exactly the state the areas are about
-				// to render.  A capture leaves the renderer's camera, scale, and selection as it found them, and
-				// every area render sets its own anyway.
+				readbacks.collect(registry.areas)
+				applyHandoffs()
+				// Captures run after the hand-offs, so each one shows exactly the state the areas are about
+				// to render.
 				serveSnapshots()
-				var pendingWork = pendingFrames.isNotEmpty()
-				val nowNanos = System.nanoTime()
-				val settleScale = if (supersampleBacking) RENDER_SUPERSAMPLE else 1
-				// With supersampling off both scales collapse to 1, so supersampleWhileResizing is
-				// inert by construction (the preferences UI disables its checkbox to say so).
-				val interactiveScale = if (supersampleWhileResizingBacking) settleScale else 1
-				for ((areaId, slot) in registry.areas) {
-					val width = slot.width
-					val height = slot.height
-					if (width <= 0 || height <= 0) {
-						continue
-					}
-					// Track size-change recency for the resize throttle.  The FIRST observation (a fresh
-					// slot, observed 0x0) does not stamp, so a newly opened area counts as settled and its
-					// first frame renders at full quality immediately.
-					if (width != slot.observedWidth || height != slot.observedHeight) {
-						val firstObservation = slot.observedWidth == 0 && slot.observedHeight == 0
-						slot.observedWidth = width
-						slot.observedHeight = height
-						if (!firstObservation) {
-							slot.sizeChangedNanos = nowNanos
-						}
-					}
-					if (slot.inFlight) {
-						pendingWork = true
-						continue // one read-back per area in flight; coalesces a flurry of slider moves
-					}
-					// Establish or refit the camera now that the size is known - the render thread owns the
-					// content bounds; the registry restores a remembered camera or fits fresh, and swaps a UV
-					// area's view when the page or layer it shows has changed.
-					val camera = registry.establishCamera(slot, areaId, width, height) { scene, content -> contentBoundsFor(scene, content) }
-					// Freshness splits into the size axis (throttled during an active resize) and the rest.
-					// A frame rendered below the settle scale stays size-stale on purpose, so the settle
-					// pass re-renders it at full quality once the size holds still.
-					// A UV scene is model-independent, so its freshness ignores the pose version and
-					// puppetRenderBump: it re-renders only on size / camera / the surface it shows (the page index
-					// or the layer raster), plus the grid colors and geometry it draws its backdrop with - tracked
-					// by atlasRenderBump. The puppet keeps the full freshness via puppetRenderBump.
-					val sizeFresh = slot.renderedWidth == width && slot.renderedHeight == height && slot.renderedScale == settleScale
-					val restFresh =
-						when (slot.scene) {
-							RenderScene.Puppet2D ->
-								slot.renderedParamsVersion == paramsVersion &&
-									slot.renderedCamera === camera &&
-									slot.puppetRenderBumpDone == puppetRenderBump
-
-							// Kind and payload are read as ONE value, so a switch can never be observed half
-							// applied.  Equality rather than identity: AtlasPage compares its index, and
-							// SourceLayer's image compares by reference, which is the freshness test either
-							// surface wants.
-							RenderScene.UvScene ->
-								slot.renderedUvContent == slot.uvContent &&
-									slot.renderedCamera === camera &&
-									slot.atlasRenderBumpDone == atlasRenderBump
-						}
-					if (sizeFresh && restFresh) {
-						continue
-					}
-					if (restFresh && shouldDeferResizeRender(slot, nowNanos)) {
-						// Deliberately NOT pendingWork: with no read-back in flight the loop then sleeps
-						// IDLE_MILLIS (16 ms) and revisits, which cannot oversleep the RESIZE_SETTLE_NANOS or the
-						// RESIZE_THROTTLE_NANOS window - flagging pendingWork with an empty pendingFrames queue
-						// would skip both sleeps and busy-spin instead.
-						continue
-					}
-					// A size still in motion renders at the interactive scale; pose / camera / state changes
-					// during that motion share the burst's quality rather than forcing a full-scale render.
-					val sizeInMotion = nowNanos - slot.sizeChangedNanos < RESIZE_SETTLE_NANOS
-					val renderScale = if (sizeInMotion) interactiveScale else settleScale
-					if (width != slot.renderedWidth || height != slot.renderedHeight) {
-						slot.resizeRenderNanos = nowNanos
-					}
-					issueRender(areaId, slot, width, height, paramsVersion, camera, orderModel, renderScale)
-					pendingWork = true
-				}
+				val pendingWork = scheduleAreas()
 				if (!pendingWork) {
 					Thread.sleep(IDLE_MILLIS)
-				} else if (pendingFrames.isNotEmpty()) {
+				} else if (readbacks.hasPending) {
 					Thread.sleep(BUSY_MILLIS)
 				}
 			}
 		} finally {
-			// Captures are answered before any GL teardown, which can itself throw: a caller awaiting one must
-			// hear back however this thread ends.
-			acceptingSnapshots = false
-			failPendingSnapshots()
-			// glFinish before any other GL call here, so the driver completes all pending GPU work BEFORE the
-			// disposers delete GL objects and the context is destroyed - otherwise a driver worker thread can be
-			// mid-copy on memory we free, which crashed (SIGSEGV in libc memcpy) on a clean window close. A
-			// single barrier here; the collaborators' dispose() must NOT call glFinish, and the context is
-			// destroyed last.
-			GL11.glFinish()
-			// Abandon in-flight read-backs (the fences/staging are freed through the device); the surface
-			// targets go the same way. The context is destroyed last.
-			while (pendingFrames.isNotEmpty()) {
-				device.cancelReadback(pendingFrames.removeFirst().ticket)
-			}
-			// The renderer's own device objects.  Source artwork and underlay images are created and
-			// destroyed across its life rather than uploaded once, so they need releasing explicitly
-			// rather than being left to die with the context.
-			renderer.disposeGl()
-			pendingRasterBatches.clear()
-			surface.dispose()
-			context.destroy()
+			teardown()
 		}
 	}
 
 	/**
-	 * The resize-throttle gate: whether a render whose ONLY staleness is its size should wait.  A size
-	 * that has held still for the settle window renders immediately (the full-quality settle pass);
-	 * one still in motion renders at most once per throttle interval.
-	 *
-	 * @param AreaSlot slot The area being considered.
-	 * @param Long nowNanos The loop pass's monotonic timestamp.
-	 * @return Boolean True to skip this tick and let the idle sleep revisit.
+	 * Hands the renderer what the UI thread published since the last tick: the atlas pages and the model
+	 * as one consistent pair, the artwork mapping and the decoded pixels that arrived for it, and the pose
+	 * when any of its inputs moved.  Each hand-off that changes what the puppet areas show bumps
+	 * [paramsVersion].  The model this tick renders is the published one, or the previous one while the
+	 * pages for the published one's atlas are still in flight.
 	 */
-	private fun shouldDeferResizeRender(slot: AreaSlot, nowNanos: Long): Boolean {
-		val settled = nowNanos - slot.sizeChangedNanos >= RESIZE_SETTLE_NANOS
-		val throttleElapsed = nowNanos - slot.resizeRenderNanos >= RESIZE_THROTTLE_NANOS
-		return !settled && !throttleElapsed
+	private fun applyHandoffs() {
+		val params = liveParams.values
+		val shown = inputs.shownDrawables
+		// Pages and model apply as a consistent PAIR - the decision itself is pure and tested
+		// (resolveAtlasPairing); this block only carries it out.
+		val pairing = resolveAtlasPairing(inputs.model, inputs.atlasBinding, appliedAtlasBinding, lastModel)
+		val orderModel = pairing.orderModel
+		pairing.applyBinding?.let { binding ->
+			// Pages first, then the model that samples them.  The freshness bumps happen HERE, at
+			// apply, not at publish: paramsVersion re-renders the puppet areas, the atlas bump the
+			// UV page areas (whose AtlasPage content compares by index and cannot see same-index-
+			// new-pixels).  A concurrent UI-thread bump can collapse into this one; both causes are
+			// covered by the single re-render that follows either way.
+			renderer.setAtlasPages(binding.textures)
+			appliedAtlasBinding = binding
+			paramsVersion++
+			inputs.doAtlasRenderBump()
+		}
+		// The artwork hand-off, on the render thread where the uploads belong.  The mapping is
+		// compared by identity: it is published whole, so a new reference IS the change.
+		var artworkApplied = false
+		val layerPlan = inputs.sourceLayerPlan
+		if (layerPlan !== lastLayerPlan) {
+			renderer.setSourceLayerPlan(layerPlan)
+			lastLayerPlan = layerPlan
+			artworkApplied = true
+		}
+		// Then any decoded pixels that arrived since the last frame.  Drained rather than sampled:
+		// the producer chunks its deliveries so visible art lands first, and skipping a batch would
+		// strand whatever it carried on the atlas until the working set happened to move again.
+		while (true) {
+			val batch = inputs.pollRasterBatch() ?: break
+			renderer.deliverSourceLayerRasters(batch)
+			artworkApplied = true
+		}
+		// Bumped HERE, at apply, as the pages are: a bump at publish could land after this hand-off read
+		// the plan and the queue, so an area would stamp itself fresh over a frame of the outgoing art and
+		// never re-render once the new art is applied.
+		if (artworkApplied) {
+			paramsVersion++
+		}
+		// Rebuild the pose - and thus the draw list, which setPose filters by the shown set and sorts by
+		// the render order - when the pose, the visibility cascade, OR the render order changes. A
+		// visibility toggle or a layer reorder leaves the params untouched, so without these checks the
+		// draw list would never refresh. setShownDrawables / updateModel run first so setPose uses them.
+		// The override map is compared by identity like the params map: both are swapped wholesale on
+		// the UI thread, so a reference change is exactly "something moved".  A push that moved mesh
+		// positions alone - every preview push of a Grab - keeps the pose: the renderer kept its pose
+		// inputs and refreshed what reads positions, so a rebake would only redo them.
+		val overrides = liveParams.channelOverrides
+		val modelChanged = orderModel !== lastModel
+		val poseInputsChanged = params !== lastParams || overrides !== lastOverrides || shown !== lastShown
+		if (poseInputsChanged || modelChanged) {
+			renderer.setShownDrawables(shown)
+			var modelUpdate: ModelUpdateKind? = null
+			if (modelChanged) {
+				// Re-point the renderer at the edited model so the next setPose re-derives the draw order
+				// and (for a deformer reparent) the deform chain.
+				modelUpdate = renderer.updateModel(orderModel)
+				lastModel = orderModel
+			}
+			if (poseFollowsHandoff(poseInputsChanged, modelUpdate)) {
+				renderer.setPose(params, overrides)
+			}
+			lastParams = params
+			lastOverrides = overrides
+			lastShown = shown
+			paramsVersion++
+		}
+	}
+
+	/**
+	 * Serves every queued image capture with the state just handed to the renderer.  A capture over the
+	 * grid applies the grid the same way an area render does; the renderer's camera, scale, and selection
+	 * are left as the capture found them, and every area render sets its own anyway.
+	 */
+	private fun serveSnapshots() {
+		snapshots.serve(stillRunning) { camera, width, height, backdrop ->
+			if (backdrop == FrameBackdrop.Grid) {
+				val gridConfigApplied = inputs.gridConfig
+				renderer.setGrid(inputs.gridColors, gridConfigApplied.scale, gridConfigApplied.subdivisions)
+			}
+			renderer.renderSnapshot(camera, width, height, backdrop, shouldContinue = stillRunning)
+		}
+	}
+
+	/**
+	 * Walks the registered areas and renders each one whose last frame no longer covers what it shows,
+	 * at the scale its size's motion allows.  An area with a read-back in flight is skipped (one per
+	 * area, which coalesces a flurry of slider moves), as is one whose only staleness is a size still
+	 * being dragged inside the throttle window.
+	 *
+	 * @return Boolean True when a read-back is in flight or was just issued, so the loop keeps its short
+	 *   poll; false lets it idle.
+	 */
+	private fun scheduleAreas(): Boolean {
+		var pendingWork = readbacks.hasPending
+		val nowNanos = System.nanoTime()
+		val settleScale = if (inputs.supersampleEnabled) RENDER_SUPERSAMPLE else 1
+		// With supersampling off both scales collapse to 1, so supersampleWhileResizing is
+		// inert by construction (the preferences UI disables its checkbox to say so).
+		val interactiveScale = if (inputs.supersampleWhileResizing) settleScale else 1
+		val tick = RenderTick(paramsVersion, settleScale, interactiveScale, nowNanos)
+		// A UV area that closed, or now shows the puppet, gives its overlay store and buffers back.
+		renderer.retainUvScenes(isLiveUvArea)
+		for ((areaId, slot) in registry.areas) {
+			val width = slot.width
+			val height = slot.height
+			if (width <= 0 || height <= 0) {
+				continue
+			}
+			// Before the in-flight gate: a size that changes during a read-back still restarts the
+			// settle window.
+			observeAreaSize(slot, width, height, nowNanos)
+			if (slot.inFlight) {
+				pendingWork = true
+				continue // one read-back per area in flight; coalesces a flurry of slider moves
+			}
+			// Establish or refit the camera now that the size is known - the render thread owns the
+			// content bounds; the registry restores a remembered camera or fits fresh, and swaps a UV
+			// area's view when the page or layer it shows has changed.
+			val camera = registry.establishCamera(slot, areaId, width, height) { scene, content -> contentBoundsFor(scene, content) }
+			// The decision is pure and tested (decideAreaRender); this block only carries it out.
+			// The render versions are read here, per area, so a bump landing mid-pass reaches the areas
+			// judged after it.
+			when (val decision = decideAreaRender(slot, width, height, camera, tick, inputs.puppetRenderBump, inputs.atlasRenderBump)) {
+				AreaRenderDecision.Fresh -> continue
+
+				AreaRenderDecision.Deferred -> {
+					// Deliberately NOT pendingWork: with no read-back in flight the loop then sleeps
+					// IDLE_MILLIS (16 ms) and revisits, which cannot oversleep the RESIZE_SETTLE_NANOS or the
+					// RESIZE_THROTTLE_NANOS window - flagging pendingWork with no read-back in flight
+					// would skip both sleeps and busy-spin instead.
+					continue
+				}
+
+				is AreaRenderDecision.Render -> {
+					if (width != slot.renderedWidth || height != slot.renderedHeight) {
+						slot.resizeRenderNanos = nowNanos
+					}
+					issueRender(areaId, slot, width, height, camera, decision.scale)
+					pendingWork = true
+				}
+			}
+		}
+		return pendingWork
 	}
 
 	/**
 	 * Renders [slot] at [width] x [height] into the supersampled draw target, box-downscales it into the
 	 * resolve framebuffer, then kicks off an asynchronous read-back gated by a fence. Marks the slot
-	 * in-flight; the result is posted later by [collectCompleted].
+	 * in-flight; the result is posted later by [FrameReadbackQueue.collect].
 	 *
 	 * @param String areaId The area's id.
 	 * @param AreaSlot slot The area being rendered.
 	 * @param Int width The render width in pixels.
 	 * @param Int height The render height in pixels.
-	 * @param Long paramsVersion The pose version this render reflects.
 	 * @param ViewportCamera camera The view to project through.
-	 * @param PuppetModel orderModel The model whose geometry this render reflects (stamped onto the frame).
 	 * @param Int renderScale Framebuffer pixels per display pixel for THIS render: the settle scale for
 	 *   a still frame, the interactive scale while the size is in motion.
 	 */
@@ -742,9 +386,7 @@ internal class OffscreenRenderEngine(
 		slot: AreaSlot,
 		width: Int,
 		height: Int,
-		paramsVersion: Long,
 		camera: ViewportCamera,
-		orderModel: PuppetModel,
 		renderScale: Int,
 	) {
 		val renderWidth = width * renderScale
@@ -760,17 +402,24 @@ internal class OffscreenRenderEngine(
 
 		// Capture the backdrop versions applied to this render so the freshness stamp below matches what was
 		// actually drawn; a change after this point bumps them again and re-renders next iteration.
-		val puppetRenderBumpDone = puppetRenderBump
-		val atlasRenderBumpDone = atlasRenderBump
+		val puppetRenderBumpDone = inputs.puppetRenderBump
+		val atlasRenderBumpDone = inputs.atlasRenderBump
 
-		val gridConfigApplied = gridConfigBacking
-		renderer.setGrid(gridColorsBacking, gridConfigApplied.scale, gridConfigApplied.subdivisions)
-		renderer.setSelection(selectionBacking)
-		renderer.setActiveSelection(activeSelectionBacking)
+		val gridConfigApplied = inputs.gridConfig
+		renderer.setGrid(inputs.gridColors, gridConfigApplied.scale, gridConfigApplied.subdivisions)
+		renderer.setSelection(inputs.selection)
+		renderer.setActiveSelection(inputs.activeSelection)
+		// Read AFTER the versions above, like the selection: a publish stores its value before it bumps, so one
+		// landing after that read leaves this render stamped with the older version and the area renders again.
+		// Applying these in the hand-off instead would let an area stamp itself fresh over a frame that drew the
+		// outgoing overlay.  The puppet's overlay is renderer-wide state a UV render never reads (a UV area's
+		// overlay rides its content, below); the palette colors both.
+		renderer.setMeshOverlay(inputs.meshOverlay)
+		renderer.setMeshOverlayPalette(inputs.meshOverlayPalette)
 
-		// The shown set is applied in the render-loop pose block (before setPose filters the draw list by it).
-		renderer.setSelectionHighlightColor(highlightRed, highlightGreen, highlightBlue)
-		renderer.setActiveSelectionHighlightColor(activeHighlightRed, activeHighlightGreen, activeHighlightBlue)
+		// The shown set is applied in the hand-off's pose block (before setPose filters the draw list by it).
+		renderer.setSelectionHighlightColor(inputs.highlightRed, inputs.highlightGreen, inputs.highlightBlue)
+		renderer.setActiveSelectionHighlightColor(inputs.activeHighlightRed, inputs.activeHighlightGreen, inputs.activeHighlightBlue)
 		renderer.setCamera(camera.copy(zoom = camera.zoom * renderScale))
 
 		// Read once, drawn and stamped from the same value: re-reading slot.uvContent between the draw and
@@ -779,38 +428,40 @@ internal class OffscreenRenderEngine(
 		val uvContent = slot.uvContent
 		when (slot.scene) {
 			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
-			// A UV area draws its flat surface instead; the pose / selection / shown state pushed above are
-			// harmless no-ops for it (neither UV draw reads any of them - just the grid and the surface quad).
+			// A UV area draws its flat surface and the overlay its content carries instead; the pose / selection /
+			// shown state pushed above are harmless no-ops for it (no UV draw reads any of them).  The overlay's
+			// positions upload into the area's own store, keyed by the area id.
 			RenderScene.UvScene ->
 				when (uvContent) {
 					// An atlas page the engine already uploaded, addressed by index.
-					is UvSceneContent.AtlasPage -> renderer.renderAtlasPage(drawTarget, uvContent.pageIndex, renderWidth, renderHeight)
+					// Its placement preview goes through the ghost rule against the pages applied right now.
+					is UvSceneContent.AtlasPage ->
+						renderer.renderAtlasPage(
+							drawTarget,
+							uvContent.pageIndex,
+							renderWidth,
+							renderHeight,
+							areaId,
+							uvContent.overlay,
+							placementToDraw(uvContent.placement, appliedAtlasBinding.atlas),
+						)
 					// Artwork the engine has never uploaded, so the renderer takes the pixels rather than an
 					// index and caches the texture it makes from them.
-					is UvSceneContent.SourceLayer -> renderer.renderUnderlayImage(drawTarget, uvContent.image, renderWidth, renderHeight)
-					null -> renderer.renderAtlasPage(drawTarget, null, renderWidth, renderHeight)
+					is UvSceneContent.SourceLayer ->
+						renderer.renderUnderlayImage(drawTarget, uvContent.image, renderWidth, renderHeight, areaId, uvContent.overlay)
+					null -> renderer.renderAtlasPage(drawTarget, null, renderWidth, renderHeight, areaId, null)
 				}
 		}
 
 		surface.resolve()
 
-		if (!dumped) {
-			System.getenv("UMAMO_DUMP_PNG")?.let { dumpPath ->
-				// A synchronous client read-back; safe here because no PBO is bound yet. Encoding and the
-				// file write live here rather than in :render - reading pixels is the renderer's business,
-				// turning them into a PNG on disk is not, and keeping the split means :render needs no
-				// image library at all.
-				File(dumpPath).writeBytes(PngCodec.write(device.readPixels(surface.resolveTarget, width, height)))
-				dumped = true
-				UmamoLog.info("[GL] puppet dumped to $dumpPath (${width}x$height)")
-			}
-		}
+		// A synchronous client read-back; safe here because no PBO is bound yet.
+		firstFrameDump.dumpOnce(device, surface.resolveTarget, width, height)
 
-		// Bind the frame to the camera it was rendered at (the plain, non-supersampled camera) and to
-		// orderModel, the geometry this render reflects, so the overlay projects/poses against them - keeping
-		// the mesh glued to the raster along both the navigation and edit axes.  The resolve target is
-		// capacity-sized (grow-only), so the read-back covers only the used region.
-		pendingFrames.addLast(PendingFrame(device.beginReadback(surface.resolveTarget, width, height), areaId, camera, orderModel))
+		// Bind the frame to the camera it was rendered at (the plain, non-supersampled camera), so the gizmo
+		// chrome projects against it and stays glued to the raster during pan and zoom.  The resolve target
+		// is capacity-sized (grow-only), so the read-back covers only the used region.
+		readbacks.issue(device.beginReadback(surface.resolveTarget, width, height), areaId, camera)
 		slot.inFlight = true
 		slot.renderedWidth = width
 		slot.renderedHeight = height
@@ -823,136 +474,40 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
-	 * Collects every read-back whose fence signaled and publishes it to its area's slot, clearing the slot's
-	 * in-flight flag. A read-back whose slot was unregistered while in flight is discarded (the slot is gone).
+	 * Releases everything the render thread owns, in the one order that is safe.  Captures are answered
+	 * before any GL teardown, which can itself throw: a caller awaiting one must hear back however this
+	 * thread ends.  Then one glFinish, the disposers, and the context last.
 	 */
-	private fun collectCompleted() {
-		// Front-first, stopping at the first still-in-flight ticket: reads complete in submission order on
-		// the GPU timeline, so a later one cannot be done before an earlier one.
-		while (pendingFrames.isNotEmpty()) {
-			val pending = pendingFrames.first()
-			val pixels = device.pollReadback(pending.ticket) ?: break
-			pendingFrames.removeFirst()
-			val slot = registry.areas[pending.areaId] ?: continue
-			slot.inFlight = false
-			// The device's read-back is TOP-first RGBA already; the preview background is composited into
-			// RGB, so it is opaque - the shared seam's Opaque path ignores the alpha bytes (no per-frame
-			// alpha pass) and gives the eventual Android viewport the same conversion for free.
-			val bitmap = rgbaToImageBitmap(pixels.rgba, pixels.width, pixels.height, RgbaAlphaType.Opaque)
-			slot.imageState.value = RenderedFrame(bitmap, pending.camera, pending.model)
-		}
+	private fun teardown() {
+		snapshots.close()
+		// glFinish before any other GL call here, so the driver completes all pending GPU work BEFORE the
+		// disposers delete GL objects and the context is destroyed - otherwise a driver worker thread can be
+		// mid-copy on memory we free, which would crash (SIGSEGV in libc memcpy) on a clean window close. A
+		// single barrier here; the collaborators' dispose() must NOT call glFinish, and the context is
+		// destroyed last.
+		GL11.glFinish()
+		// Abandon in-flight read-backs (the fences/staging are freed through the device); the surface
+		// targets go the same way. The context is destroyed last.
+		readbacks.cancelAll()
+		// The renderer's own device objects.  Source artwork and underlay images are created and
+		// destroyed across its life rather than uploaded once, so they need releasing explicitly
+		// rather than being left to die with the context.
+		renderer.disposeGl()
+		inputs.clearRasterBatches()
+		surface.dispose()
+		context.destroy()
 	}
 
 	/**
-	 * The content rectangle an area's camera fits: the puppet's rest-pose bounds for a 2D area, or the
-	 * shown surface's rectangle for a UV-editor area (the atlas page, or the source layer's raster), which
-	 * the registry widens to the shown meshes.  Takes the kind and content the registry read rather than
-	 * re-reading the slot, so the rectangle is of the surface the camera is filed under.  Render thread only
-	 * (reads the renderer's bounds).
+	 * The content rectangle an area's camera fits, resolved over the renderer's rest-pose bounds and the
+	 * pages actually applied - see [sceneContentBounds].  Takes the kind and content the registry read
+	 * rather than re-reading the slot, so the rectangle is of the surface the camera is filed under.
+	 * Render thread only (reads the renderer's bounds and the applied binding).
 	 *
 	 * @param RenderScene     scene     The area's kind.
 	 * @param UvSceneContent? uvContent What a UV-editor area shows; null for a puppet area.
 	 * @return ContentBounds The rectangle to fit.
 	 */
 	private fun contentBoundsFor(scene: RenderScene, uvContent: UvSceneContent?): ContentBounds =
-		when (scene) {
-			RenderScene.Puppet2D -> renderer.contentBounds()
-			RenderScene.UvScene ->
-				when (uvContent) {
-					is UvSceneContent.AtlasPage -> pageContentBounds(uvContent.pageIndex)
-					is UvSceneContent.SourceLayer -> imageContentBounds(uvContent.image)
-					null -> pageContentBounds(null)
-				}
-		}
-
-	/**
-	 * The source-layer rectangle (0, 0, width, height) for the UV-editor fit, or a unit square when there
-	 * is no layer, matching [pageContentBounds]' fallback so both UV scenes frame the same way.
-	 *
-	 * @param DecodedImage image The layer raster, or null for none.
-	 * @return ContentBounds The layer rectangle, in texel/display units.
-	 */
-	private fun imageContentBounds(image: DecodedImage?): ContentBounds =
-		if (image != null) {
-			ContentBounds(0f, 0f, image.width.toFloat(), image.height.toFloat())
-		} else {
-			ContentBounds(0f, 0f, 1f, 1f)
-		}
-
-	/**
-	 * The atlas page rectangle (0, 0, pageWidth, pageHeight) for the UV-editor fit, or a unit square when
-	 * the page is missing (an untextured active drawable) so the fit stays sane and the grid still frames.
-	 *
-	 * @param Int pageIndex The atlas page, or null for none.
-	 * @return ContentBounds The page rectangle, in texel/display units.
-	 */
-	private fun pageContentBounds(pageIndex: Int?): ContentBounds {
-		val page = pageIndex?.let { appliedAtlasBinding.textures.atlases.getOrNull(it) }
-		return if (page != null) {
-			ContentBounds(0f, 0f, page.width.toFloat(), page.height.toFloat())
-		} else {
-			ContentBounds(0f, 0f, 1f, 1f)
-		}
-	}
-}
-
-/**
- * One render-loop tick's model/pages pairing decision.
- *
- * @property PuppetModel       orderModel   The model to render this tick (the published one, or the
- *                                          previous one while its pages are still in flight).
- * @property AtlasPageBinding? applyBinding The binding to apply before the model, or null.
- */
-internal class AtlasPairingDecision(
-	val orderModel: PuppetModel,
-	val applyBinding: AtlasPageBinding?,
-)
-
-/**
- * Decides how the render loop takes up a published model and a published page binding as one
- * consistent pair.
- *
- * The two arrive on independent channels, and on an undo the baseline model would land frames before
- * the baseline pages - repacked pixels under baseline coordinates - so an atlas-CHANGING model waits
- * until the binding composed for its atlas has arrived, and the loop keeps rendering the previous
- * pair.  Non-atlas edits pass untouched: their atlas is the applied binding's own instance.  Atlas
- * comparison is identity first, then equality - the session's baseline short-circuit can publish the
- * baseline pages under an equal-but-distinct atlas instance.
- *
- * Pure and render-thread-agnostic so the hold/apply matrix is testable without a GL context.
- *
- * @param PuppetModel      publishedModel   The latest model the UI published.
- * @param AtlasPageBinding publishedBinding The latest page binding the UI published.
- * @param AtlasPageBinding appliedBinding   The binding the renderer currently holds.
- * @param PuppetModel?     lastModel        The model the loop last applied, or null on the first tick.
- * @return AtlasPairingDecision What to render and whether to swap pages first.
- */
-internal fun resolveAtlasPairing(
-	publishedModel: PuppetModel,
-	publishedBinding: AtlasPageBinding,
-	appliedBinding: AtlasPageBinding,
-	lastModel: PuppetModel?,
-): AtlasPairingDecision {
-	val bindingMatchesPublished =
-		publishedBinding.atlas === publishedModel.atlas || publishedBinding.atlas == publishedModel.atlas
-	val appliedMatchesPublished =
-		appliedBinding.atlas === publishedModel.atlas || appliedBinding.atlas == publishedModel.atlas
-	val orderModel =
-		if (!appliedMatchesPublished && !bindingMatchesPublished) {
-			// The pages for this model's atlas have not arrived; keep the previous pair.  The first
-			// tick has no previous model to keep, and renders the published one against whatever pages
-			// exist rather than nothing at all.
-			lastModel ?: publishedModel
-		} else {
-			publishedModel
-		}
-	val applyBinding =
-		if (publishedBinding !== appliedBinding &&
-			(publishedBinding.atlas === orderModel.atlas || publishedBinding.atlas == orderModel.atlas)
-		) {
-			publishedBinding
-		} else {
-			null
-		}
-	return AtlasPairingDecision(orderModel, applyBinding)
+		sceneContentBounds(scene, uvContent, { renderer.contentBounds() }, appliedAtlasBinding.textures)
 }

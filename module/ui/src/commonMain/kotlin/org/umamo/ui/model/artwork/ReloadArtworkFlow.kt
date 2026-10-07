@@ -67,8 +67,9 @@ class ReloadEntry(
 	val inventoryOverride: List<ArtSourceLayer>? = null,
 ) {
 	/**
-	 * The inventory of [art], computed once for the entry's life: it hashes every layer's pixels, and
-	 * the planner, the scorer, and every strip adjustment over this read want the same rows.
+	 * The inventory of [art], or [inventoryOverride] when set, computed once for the entry's life: it
+	 * hashes every layer's pixels, and the planner, the scorer, and every strip adjustment over this read
+	 * want the same rows.
 	 */
 	val inventory: List<ArtSourceLayer> by lazy { inventoryOverride ?: SourceArtImport.inventoryOf(art) }
 }
@@ -103,7 +104,7 @@ class ReloadArtworkRequest(
 	val options: SourceArtImportOptions,
 	val matchThreshold: Float = InventoryLayerMatcher.DEFAULT_THRESHOLD,
 ) {
-	private val decoded = DecodedLayerRasters(entries.flatMap { entry -> entry.art.layers })
+	private val decoded = DecodedLayerRasters()
 
 	/**
 	 * The decoded wrapper of one of the files' layer rasters.
@@ -152,11 +153,12 @@ class RelinkArtworkRequest(
 	constructor(tileId: AtlasTileId, ref: SourceLayerRef, art: SourceArt?, options: SourceArtImportOptions) : this(listOf(tileId), ref, art, options)
 
 	/**
-	 * The inventory of [art], computed once for the request's life; empty without the file.
+	 * The inventory of [art], or [inventoryOverride] when set, computed once for the request's life; empty
+	 * without either.
 	 */
 	val inventory: List<ArtSourceLayer> by lazy { inventoryOverride ?: art?.let(SourceArtImport::inventoryOf).orEmpty() }
 
-	private val decoded = DecodedLayerRasters(art?.layers.orEmpty())
+	private val decoded = DecodedLayerRasters()
 
 	/**
 	 * The decoded wrapper of one of the file's layer rasters.
@@ -633,7 +635,7 @@ private fun relinkOutcome(
  * the log, and the notice.
  *
  * @param AtlasRepackHost      host         The session, art, resolver, and shell callbacks.
- * @param RelinkArtworkRequest request      The request, for the log.
+ * @param RelinkArtworkRequest request      The request, for the log and the notice.
  * @param PuppetModel          modelAtStart The model the outcome was planned against.
  * @param ReloadOutcome        outcome      What the pass produced.
  * @param Function             commit       Commits the packed model and returns the committed one.

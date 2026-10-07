@@ -12,10 +12,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.PointerInputScope
@@ -24,6 +25,8 @@ import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -65,8 +68,12 @@ import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.ViewportSettings
+import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.parseSelectionHighlightColor
+import org.umamo.ui.viewport.rememberViewportOverlayColors
+import org.umamo.ui.viewport.toMeshOverlayPalette
+import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.workspace.ViewportHost
 
 /*
@@ -262,6 +269,15 @@ fun rememberPuppetViewportHost(
 			service.setShownDrawables(model.visibleDrawableIds())
 		}
 	}
+	// The Edit-mode mesh overlay the renderer draws over the art in every 2D area: derived off the UI thread
+	// from the mode, the mesh selection (or a live brush stroke), and the model, and published only when what
+	// it shows changes - a Grab's preview pushes and its confirm move positions, which the overlay does not
+	// carry.  The sizes reach the running derive as a flow rather than as an effect key, so a density change
+	// never restarts it mid-derive.
+	val meshOverlaySizes = rememberUpdatedState(editMeshOverlaySizes(LocalDensity.current))
+	LaunchedEffect(service, session) {
+		publishEditMeshOverlay(service, session, snapshotFlow { meshOverlaySizes.value })
+	}
 	// How many drawables have no usable artwork: the mapping failures the plan knows up front, plus the
 	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
 	// the renderer keeps every mapped layer or engages nothing, so there is no third case to confuse it
@@ -405,9 +421,11 @@ fun rememberPuppetViewportHost(
 	// Feed the themed grid-backdrop colors into the service and keep them live: LocalUmamoColors already
 	// resolves the active scheme (including "system"), so a theme switch recomposes with new colors and this
 	// effect re-pushes them, re-tinting the viewport backdrop. Compose Color components are 0..1 sRGB, exactly
-	// what the grid shader mixes.
+	// what the grid shader mixes.  A UV area's scene also paints the panel color around its surface and the
+	// panel border, 1 dp wide, just outside the surface's edge; the 2D grid ignores both.
 	val gridPalette = LocalUmamoColors.current
-	LaunchedEffect(service, gridPalette) {
+	val surfaceFrameWidthPx = with(LocalDensity.current) { 1.dp.toPx() }
+	LaunchedEffect(service, gridPalette, surfaceFrameWidthPx) {
 		service.gridColors =
 			GridColors(
 				backgroundRed = gridPalette.viewportGridBackground.red,
@@ -419,7 +437,21 @@ fun rememberPuppetViewportHost(
 				minorRed = gridPalette.viewportGridLineMinor.red,
 				minorGreen = gridPalette.viewportGridLineMinor.green,
 				minorBlue = gridPalette.viewportGridLineMinor.blue,
+				surroundRed = gridPalette.panelBackground.red,
+				surroundGreen = gridPalette.panelBackground.green,
+				surroundBlue = gridPalette.panelBackground.blue,
+				frameRed = gridPalette.panelBorder.red,
+				frameGreen = gridPalette.panelBorder.green,
+				frameBlue = gridPalette.panelBorder.blue,
+				frameWidthPx = surfaceFrameWidthPx,
 			)
+	}
+	// The mesh overlay's colors, from the user's viewport.meshEdit settings, live: an edit in the preferences
+	// recomposes this with a new palette and the effect re-pushes it.  Its own effect rather than the
+	// settings listener above, which parses colors without their alpha.
+	val meshOverlayPalette = rememberViewportOverlayColors().toMeshOverlayPalette()
+	LaunchedEffect(service, meshOverlayPalette) {
+		service.setMeshOverlayPalette(meshOverlayPalette)
 	}
 	return remember(service, session) {
 		val host =
@@ -482,17 +514,7 @@ fun rememberPuppetViewportHost(
 								Modifier
 									.fillMaxSize()
 									.pointerHoverIcon(if (panning) grabCursor else PointerIcon.Default)
-									// Watch-only: it consumes nothing, so the navigation loop below and the
-									// gizmo overlays above all still see every event.  Initial pass so the
-									// position is current even while a child owns the gesture.
-									.pointerInput(areaId) {
-										awaitPointerEventScope {
-											while (true) {
-												val event = awaitPointerEvent(PointerEventPass.Initial)
-												event.changes.lastOrNull()?.let { change -> areaPointer.value = change.position }
-											}
-										}
-									}
+									.tracksAreaPointer(areaId, areaPointer)
 									.pointerInput(areaId) {
 										viewportNavigation(service, areaId, session) { panning = it }
 									},
@@ -517,21 +539,17 @@ fun rememberPuppetViewportHost(
 									onDismiss = { overlap = null },
 								)
 							}
-							// Edit-mode vertex gizmos draw over the puppet image; the overlay self-gates on Edit
-							// mode with an active drawable, so it is inert (and passes input through) otherwise.
-							// Project AND pose with the DISPLAYED frame, not the live state: the raster is produced
-							// asynchronously and lands a few frames behind. Locking the overlay to the frame's
-							// camera keeps the mesh glued to the art during pan/zoom; locking its geometry to the
-							// frame's model keeps the wireframe glued to the art during a vertex edit (both lag the
-							// gesture together as one unit instead of racing ahead). camera and model come from the
-							// same image in one composition, so they are always the same frame. In a static view
-							// at rest the frame equals the live state, so there is no lag.
+							// The Edit-mode gizmo over the puppet image: the element selection, the modal
+							// transforms, and their chrome; the mesh itself is in the image (the overlay
+							// published above).  It self-gates on Edit mode with an active drawable, so it is inert
+							// (and passes input through) otherwise.  It projects with the DISPLAYED frame's camera,
+							// not the live one: the raster lands a few frames behind, and the frame's camera keeps
+							// the chrome glued to it during pan and zoom.
 							ViewportEditGizmoOverlay(
 								areaId = areaId,
 								service = service,
 								session = session,
 								camera = image?.camera,
-								frameModel = image?.model,
 								widthPx = widthPx,
 								heightPx = heightPx,
 								areaPointer = areaPointer,
@@ -548,8 +566,7 @@ fun rememberPuppetViewportHost(
 							// its mode). It owns the whole primary-button surface in Object mode - the click pick
 							// (including the Alt overlap popup), the un-armed box drag, and the armed box / circle
 							// tools and object G / S / R. Same frame-camera projection as the Edit gizmo so the
-							// affordance stays glued to the art. It draws no posed mesh (only the rubber-band,
-							// affordances, and pivot HUD), so it needs the frame camera but no frame model.
+							// affordance stays glued to the art.
 							ViewportObjectGizmoOverlay(
 								areaId = areaId,
 								service = service,

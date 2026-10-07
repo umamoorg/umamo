@@ -118,6 +118,6 @@ kotlin {
 // through `flag` and skips the file-existence check.
 umamoTestCorpus {
 	maxHeap("4g")
-	sample("cmo3.sample", "cmo3.probe", "moc3.sample", "moc3.samples", "relive.dumpModel", "relive.coreLib")
+	sample("cmo3.sample", "cmo3.probe", "moc3.sample", "moc3.samples", "moc3.perfSample", "relive.dumpModel", "relive.coreLib")
 	flag("umamo.requireGl")
 }

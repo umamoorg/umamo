@@ -6,7 +6,8 @@ package org.umamo.runtime.model
  * when it lands): the pickable geometry sets picking iterates, and the display lookups the overlap
  * picker labels rows with.  The atlas queries resolve a drawable's or tile's source-art binding, the
  * same resolution the renderer and UV editor build on.  All derive from the model alone, so callers
- * recompute them on each model swap.
+ * recompute them on each model swap - except when the swap moved mesh positions alone, which
+ * differsOnlyInMeshPositions tells them, so the position-free lookups can be kept.
  */
 
 /**
@@ -354,3 +355,45 @@ fun Drawable.displayMultiplyColor(): ColorRgb = multiplyColor
  * @return ColorRgb The drawable's screen color, or [ColorRgb.ScreenIdentity] when unkeyed.
  */
 fun Drawable.displayScreenColor(): ColorRgb = screenColor
+
+/**
+ * Whether this model differs from [previous] in nothing but some drawables' mesh positions - the shape
+ * every preview push of a Grab has: withMeshPositions wraps the new positions in a new DrawableMesh
+ * that shares the uvs and the indices, and copies the drawable and the model around it with every other
+ * field by reference.  Decided by identity and equality: a data-class equals short-circuits on a shared
+ * reference, so when the push really is positions-only the check costs one walk over the drawables,
+ * and DrawableMesh is identity-equal, so a changed mesh is compared field by field here.  The same
+ * instance differs in nothing.  Everything else is structural, conservatively: a UV or topology edit, a
+ * parameter, deformer, part, glue, or order change, a visibility or composite edit, a drawable added,
+ * removed, reordered, or losing its mesh, and a vertex count that changed.
+ *
+ * The renderer reads it to keep its pose across a push (the pose's inputs hold no positions), and the
+ * desktop viewport service to keep the picker lookups that read no positions.
+ *
+ * @param PuppetModel previous The model the consumer currently holds.
+ * @return Boolean True when only mesh positions differ, or nothing does.
+ */
+fun PuppetModel.differsOnlyInMeshPositions(previous: PuppetModel): Boolean {
+	if (this === previous) {
+		return true
+	}
+	if (drawables.size != previous.drawables.size || copy(drawables = previous.drawables) != previous) {
+		return false
+	}
+	for (drawableIndex in drawables.indices) {
+		val nextDrawable = drawables[drawableIndex]
+		val previousDrawable = previous.drawables[drawableIndex]
+		if (nextDrawable === previousDrawable) {
+			continue
+		}
+		val nextMesh = nextDrawable.mesh ?: return false
+		val previousMesh = previousDrawable.mesh ?: return false
+		if (nextMesh.uvs !== previousMesh.uvs || nextMesh.indices !== previousMesh.indices || nextMesh.positions.size != previousMesh.positions.size) {
+			return false
+		}
+		if (nextDrawable.copy(mesh = previousMesh) != previousDrawable) {
+			return false
+		}
+	}
+	return true
+}
