@@ -13,9 +13,9 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.PartChange
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.atlas.setAtlasPins
+import org.umamo.edit.keyform.cancelChannelPreview
 import org.umamo.edit.keyform.editKeyedChannel
 import org.umamo.edit.keyform.previewChannelEdit
-import org.umamo.edit.property.setDeformerBaseAngle
 import org.umamo.edit.property.setDeformerFlipX
 import org.umamo.edit.property.setDeformerFlipY
 import org.umamo.edit.property.setDeformerMultiplyColor
@@ -307,19 +307,7 @@ internal val DeformerSection =
 					deformerRenderChannelRows(deformer, session, target) +
 						listOf(
 							PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
-								PropertyFieldRow(
-									stringResource(Res.string.properties_field_base_angle),
-									description = stringResource(Res.string.properties_field_base_angle_description),
-								) {
-									NumberField(
-										value = deformer.baseAngle,
-										onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
-										modifier = Modifier.fillMaxWidth(),
-										range = UNBOUNDED_RANGE,
-										decimals = 1,
-										unitSuffix = stringResource(Res.string.unit_degrees),
-									)
-								}
+								DeformerBaseAngleField(deformer, session)
 							},
 							PropertyRow(terms = listOf(Res.string.properties_field_flip_x)) { _ ->
 								KeyableFlagChannelRow(
@@ -404,6 +392,7 @@ internal val PartSection =
 										onPreview = { order: Int ->
 											session?.previewChannelEdit(target, ChannelValue.Scalar(order.toFloat()))
 										},
+										onScrubCancel = { session?.cancelChannelPreview(target) },
 										range = 0..1000,
 										modifier = Modifier.fillMaxWidth(),
 									)
@@ -795,6 +784,9 @@ private fun KeyableScalarChannelRow(
 				onPreview = { previewed: Float ->
 					session?.previewChannelEdit(target, ChannelValue.Scalar(previewed))
 				},
+				// A cancelled scrub retires its preview the way a commit would, or the last frame would stay
+				// pending - the viewport stuck on it and the field tinted as an edit nobody made.
+				onScrubCancel = { session?.cancelChannelPreview(target) },
 			)
 		}
 	}

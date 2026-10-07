@@ -1,6 +1,9 @@
 package org.umamo.ui.transform
 
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
 import org.umamo.edit.transform.meshBounds
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
@@ -21,8 +24,10 @@ import org.umamo.runtime.model.originRelativeZ
 import org.umamo.runtime.model.worldXFromOriginRelative
 import org.umamo.runtime.model.worldZFromOriginRelative
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -34,7 +39,8 @@ import kotlin.test.assertTrue
  * the drawable - on a corpus model, a base 1.9 units wide for a drawable 183.8 wide - so a small typed nudge
  * became an enormous transform.  These tests assert the rows measure and write the DISPLAYED geometry
  * instead, that the write moves the canvas mesh and the base each in its own space, and that the write is
- * refused off the neutral pose (where the deformer-chain inverse is not exact).
+ * refused off the neutral pose (where the deformer-chain inverse is not exact).  Edit mode shows the rig at
+ * rest, so there the rows measure and write the rest shape, whatever pose Object mode left.
  */
 class DrawableWorldTransformTest {
 	private val drawableId = DrawableId("d")
@@ -61,9 +67,11 @@ class DrawableWorldTransformTest {
 	 *
 	 * @param Float canvasSize The square canvas's side, with the world origin at its center; 0 leaves both at
 	 * their (0, 0) defaults, where world and origin-relative readings coincide.
+	 * @param Float posedShiftX How far right of rest the square sits at the parameter's maximum, so a posed rig
+	 * can show a shape the rest pose does not.
 	 * @return PuppetModel The model.
 	 */
-	private fun model(canvasSize: Float = 0f): PuppetModel =
+	private fun model(canvasSize: Float = 0f, posedShiftX: Float = 0f): PuppetModel =
 		PuppetModel(
 			parameters = listOf(Parameter(parameterId, "Param", min = -1f, max = 1f, default = 0f)),
 			parts = emptyList(),
@@ -84,7 +92,7 @@ class DrawableWorldTransformTest {
 									listOf(
 										KeyformCell(intArrayOf(0), MeshDeltaForm(neutralDeltas.copyOf())),
 										KeyformCell(intArrayOf(1), MeshDeltaForm(neutralDeltas.copyOf())),
-										KeyformCell(intArrayOf(2), MeshDeltaForm(neutralDeltas.copyOf())),
+										KeyformCell(intArrayOf(2), MeshDeltaForm(shiftedX(neutralDeltas, posedShiftX))),
 									),
 							),
 					),
@@ -96,6 +104,41 @@ class DrawableWorldTransformTest {
 			worldOriginX = canvasSize / 2f,
 			worldOriginZ = -(canvasSize / 2f),
 		)
+
+	/**
+	 * A copy of [deltas] with every x component moved right by [shiftX].
+	 *
+	 * @param FloatArray deltas The interleaved (x, y) deltas.
+	 * @param Float shiftX How far right to move them.
+	 * @return FloatArray The shifted copy.
+	 */
+	private fun shiftedX(deltas: FloatArray, shiftX: Float): FloatArray =
+		FloatArray(deltas.size) { componentIndex -> if (componentIndex % 2 == 0) deltas[componentIndex] + shiftX else deltas[componentIndex] }
+
+	/**
+	 * Puts [session] in Edit mode with the drawable selected, which entering it requires.
+	 *
+	 * @param EditorSession session The session.
+	 */
+	private fun enterEditMode(session: EditorSession) {
+		val target = SelectionTarget.Drawable(drawableId)
+		session.setSelection(Selection(setOf(target), target))
+		session.setMode(EditorMode.Edit)
+		assertEquals(EditorMode.Edit, session.mode.value, "the fixture must really be in Edit mode")
+	}
+
+	/**
+	 * Asserts [actual]'s drawable carries exactly [expected]'s rest arrays.
+	 *
+	 * @param PuppetModel expected The model whose mesh is expected.
+	 * @param PuppetModel actual The model to check.
+	 */
+	private fun assertSameRest(expected: PuppetModel, actual: PuppetModel) {
+		val expectedMesh = expected.drawables.single().mesh!!
+		val actualMesh = actual.drawables.single().mesh!!
+		assertContentEquals(expectedMesh.positions, actualMesh.positions, "canvas mesh")
+		assertContentEquals(expectedMesh.localPositions, actualMesh.localPositions, "base")
+	}
 
 	/**
 	 * One unkeyed drawable under a one-cell warp whose lattice spreads its unit square over canvas pixels
@@ -268,5 +311,60 @@ class DrawableWorldTransformTest {
 
 		assertFalse(session.canUndo.value)
 		assertFalse(session.dirty.value)
+	}
+
+	/** In Edit mode the rows measure the rig at rest - what the viewport draws there - and stay editable. */
+	@Test
+	fun inEditModeTheRowsMeasureAndEditTheRestShape() {
+		val posed = mapOf(parameterId to 1f)
+		val session = EditorSession(model(posedShiftX = 100f), initialPose = posed)
+		val objectShown = drawableWorldTransform(session.model.value, session.shownPose, drawableId)!!
+		assertEquals(600f, objectShown.bounds.centerX, "precondition: posed, the square sits 100 right of rest")
+		assertFalse(objectShown.editable, "precondition: posed, the inverse is not exact")
+
+		enterEditMode(session)
+		val editShown = drawableWorldTransform(session.model.value, session.shownPose, drawableId)!!
+		assertEquals(500f, editShown.bounds.centerX, "Edit mode shows the rest shape")
+		assertTrue(editShown.editable, "and the rest shape is where the inverse is exact")
+
+		val modelBefore = session.model.value
+		session.setDrawableWorldCenter(drawableId, 0f, 0f)
+
+		assertTrue(session.model.value !== modelBefore, "the edit lands rather than being refused for the held pose")
+		val moved = drawableWorldTransform(session.model.value, session.shownPose, drawableId)!!
+		assertEquals(0f, moved.bounds.centerX, 1e-3f, "the edit lands where the rigger is looking")
+		assertEquals(0f, moved.bounds.centerY, 1e-3f)
+		assertEquals(posed, session.pose.value, "the pinned pose is held as it is")
+	}
+
+	/** A scrub frame's preview is the model its release commits, and building one records nothing. */
+	@Test
+	fun aPreviewIsTheModelItsCommitRecords() {
+		val session = EditorSession(model())
+		val before = session.model.value
+
+		val movePreview = session.previewDrawableWorldCenter(drawableId, 0f, 0f)!!
+		val sizePreview = session.previewDrawableWorldSize(drawableId, 50f, 25f)!!
+
+		assertSame(before, session.model.value, "a preview never reaches the session")
+		assertFalse(session.canUndo.value, "a preview records nothing")
+		session.setDrawableWorldCenter(drawableId, 0f, 0f)
+		assertSameRest(movePreview, session.model.value)
+		session.undo()
+		session.setDrawableWorldSize(drawableId, 50f, 25f)
+		assertSameRest(sizePreview, session.model.value)
+	}
+
+	/** Where the commit would record nothing - a posed rig, or the value the drawable already has - nothing is previewed. */
+	@Test
+	fun aPreviewIsNullWhereTheCommitRecordsNothing() {
+		val posedSession = EditorSession(model(), initialPose = mapOf(parameterId to 1f))
+		assertNull(posedSession.previewDrawableWorldCenter(drawableId, 0f, 0f))
+		assertNull(posedSession.previewDrawableWorldSize(drawableId, 1f, 1f))
+
+		val session = EditorSession(model())
+		val current = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!.bounds
+		assertNull(session.previewDrawableWorldCenter(drawableId, current.centerX, current.centerY))
+		assertNull(session.previewDrawableWorldSize(drawableId, current.width, current.height))
 	}
 }

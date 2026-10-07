@@ -4,7 +4,9 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Pose
+import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.edit.mesh.commitObjectPositions
+import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.MeshBounds
 import org.umamo.edit.transform.isPoseNeutral
 import org.umamo.edit.transform.meshBounds
@@ -31,7 +33,8 @@ import org.umamo.runtime.model.meshOf
  * move the canvas mesh by the same world movement.  The inverse (worldToLocalLinearized) is exact only at
  * the neutral pose, which is why every write here is gated on isPoseNeutral exactly as
  * EditorSession.beginObjectOperator is - the panel disables its fields rather than writing geometry it
- * cannot invert.
+ * cannot invert.  The pose is the SHOWN pose (EditorMode.shownPose), so in Edit mode, which shows the rig
+ * at rest, the rows measure and edit the rest shape the viewport draws, whatever pose Object mode left.
  *
  * Everything here stays in world space, whose zero is the canvas's top-left corner.  The rigger reads
  * positions from the world axes instead, so the Position rows convert at the display boundary through the
@@ -66,7 +69,7 @@ internal class DrawableWorldTransform(val bounds: MeshBounds, val editable: Bool
  * than the misleading base array; it is marked non-editable, so nothing can be written from it.
  *
  * @param PuppetModel model The document model.
- * @param Pose pose The live parameter values.
+ * @param Pose pose The shown pose (EditorMode.shownPose): the rig's pose, or the rest pose in Edit mode.
  * @param DrawableId id The drawable to measure.
  * @return DrawableWorldTransform? The bounds and their editability, or null when the drawable has no mesh.
  */
@@ -97,37 +100,85 @@ internal fun drawableWorldTransform(model: PuppetModel, pose: Pose, id: Drawable
 }
 
 /**
- * Applies [transformWorld] to drawable [id]'s world geometry and commits the result as one undo step.
+ * One planned world transform: the frozen geometry it was planned against and the rest arrays it lands.
+ *
+ * @property DrawableWorldGeometry geometry The drawable's world geometry at the shown pose, as captured.
+ * @property MeshRestPositions rest The rest arrays that put the drawable where the transform says.
+ */
+internal class WorldTransformPlan(val geometry: DrawableWorldGeometry, val rest: MeshRestPositions)
+
+/**
+ * Plans [transformWorld] on drawable [id]'s world geometry at [pose]: the rest arrays that would put the
+ * drawable where the transform says, without writing anything.
  *
  * The round trip mirrors the object gizmo: project the posed local geometry to world, let the caller
  * reshape it there, invert the result back to local through the deformer chain, then difference that
  * against the posed local shape to recover the new base (a keyformed drawable's base is not its displayed
  * shape, so the delta is what carries over); the canvas mesh moves by the world movement.  Refuses off the
- * neutral pose, on a missing mesh or mapping, and on a transform that returned its input unchanged - each
- * records nothing.
+ * neutral pose, on a missing mesh or mapping, and on a transform that returned its input unchanged.
+ *
+ * @param PuppetModel model The document model to plan against.
+ * @param Pose pose The shown pose the drawable is measured at.
+ * @param DrawableId id The drawable to transform.
+ * @param Function transformWorld Reshapes the world positions; returning the same instance means no-op.
+ * @return WorldTransformPlan? The plan, or null when the edit is refused or a no-op.
+ */
+private fun planWorldTransform(
+	model: PuppetModel,
+	pose: Pose,
+	id: DrawableId,
+	transformWorld: (FloatArray) -> FloatArray,
+): WorldTransformPlan? {
+	// The same guard beginObjectOperator applies: writing a deformed capture back through the warp inverse
+	// corrupts the rest mesh, so the panel refuses rather than corrupting it.  At the shown pose in Edit mode
+	// this always passes - the rig is shown, and edited, at rest.
+	if (!isPoseNeutral(model, pose)) {
+		return null
+	}
+	val captured = captureDrawableWorld(model, pose, id) ?: return null
+	val targetWorld = transformWorld(captured.world)
+	if (targetWorld === captured.world) {
+		return null
+	}
+	return WorldTransformPlan(captured, captured.worldToRest(targetWorld))
+}
+
+/**
+ * Applies [transformWorld] to drawable [id]'s world geometry at the shown pose and commits the result as
+ * one undo step.  A refused or no-op plan (see [planWorldTransform]) records nothing.
  *
  * @param DrawableId id The drawable to transform.
  * @param MeshChange change The history descriptor for the edit.
  * @param Function transformWorld Reshapes the world positions; returning the same instance means no-op.
+ * @return DrawableWorldGeometry? The frozen geometry the commit was planned against - what an operation
+ *   strip registration reruns through - or null when the plan was refused.  A caller registering on it
+ *   still checks that the session's model changed: the fold can land every array where it was.
  */
 private fun EditorSession.commitWorldTransform(
 	id: DrawableId,
 	change: MeshChange,
 	transformWorld: (FloatArray) -> FloatArray,
-) {
+): DrawableWorldGeometry? {
+	val plan = planWorldTransform(model.value, shownPose, id, transformWorld) ?: return null
+	commitObjectPositions(change, mapOf(id to plan.rest))
+	return plan.geometry
+}
+
+/**
+ * The model [commitWorldTransform] would record for the same [transformWorld], built without recording
+ * it - a field scrub's preview frame, so what the viewport shows mid-drag is exactly what the release
+ * commits.
+ *
+ * @param DrawableId id The drawable to transform.
+ * @param Function transformWorld Reshapes the world positions; returning the same instance means no-op.
+ * @return PuppetModel? The previewed model, or null when the commit would record nothing.
+ */
+private fun EditorSession.previewWorldTransform(id: DrawableId, transformWorld: (FloatArray) -> FloatArray): PuppetModel? {
 	val currentModel = model.value
-	val currentPose = pose.value
-	// The same guard beginObjectOperator applies: writing a deformed capture back through the warp inverse
-	// corrupts the rest mesh, so the panel refuses rather than corrupting it.
-	if (!isPoseNeutral(currentModel, currentPose)) {
-		return
-	}
-	val captured = captureDrawableWorld(currentModel, currentPose, id) ?: return
-	val targetWorld = transformWorld(captured.world)
-	if (targetWorld === captured.world) {
-		return
-	}
-	commitObjectPositions(change, mapOf(id to captured.worldToRest(targetWorld)))
+	val plan = planWorldTransform(currentModel, shownPose, id, transformWorld) ?: return null
+	// The fold hands back the same instance when every array came out unchanged, which the commit records
+	// as nothing - so neither is there anything to preview.
+	return currentModel.withMeshPositions(id, plan.rest).takeIf { previewed -> previewed !== currentModel }
 }
 
 /**
@@ -138,12 +189,24 @@ private fun EditorSession.commitWorldTransform(
  * @param DrawableId id The drawable to move.
  * @param Float centerX The world x its bounds center should land on.
  * @param Float centerZ The world z (up) its bounds center should land on.
+ * @return DrawableWorldGeometry? The geometry the move was planned against, or null when it was refused.
  */
-internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float, centerZ: Float) {
+internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float, centerZ: Float): DrawableWorldGeometry? =
 	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Grab)) { world ->
 		movedToBoundsCenter(world, centerX, centerZ)
 	}
-}
+
+/**
+ * The model [setDrawableWorldCenter] would record for the same arguments, unrecorded - the Position row's
+ * scrub preview.
+ *
+ * @param DrawableId id The drawable to move.
+ * @param Float centerX The world x its bounds center should land on.
+ * @param Float centerZ The world z (up) its bounds center should land on.
+ * @return PuppetModel? The previewed model, or null when the move would record nothing.
+ */
+internal fun EditorSession.previewDrawableWorldCenter(id: DrawableId, centerX: Float, centerZ: Float): PuppetModel? =
+	previewWorldTransform(id) { world -> movedToBoundsCenter(world, centerX, centerZ) }
 
 /**
  * Scales drawable [id] about its world bounds center so its world extents become ([width], [height]) - the
@@ -153,10 +216,22 @@ internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float
  * @param DrawableId id The drawable to resize.
  * @param Float width The target world x extent.
  * @param Float height The target world y extent.
+ * @return DrawableWorldGeometry? The geometry the resize was planned against, or null when it was refused.
  */
-internal fun EditorSession.setDrawableWorldSize(id: DrawableId, width: Float, height: Float) {
+internal fun EditorSession.setDrawableWorldSize(id: DrawableId, width: Float, height: Float): DrawableWorldGeometry? =
 	// Scale, though no modal operator ran: the kind names what the transform WAS, not how it was driven.
 	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Scale)) { world ->
 		resizedAboutBoundsCenter(world, width, height)
 	}
-}
+
+/**
+ * The model [setDrawableWorldSize] would record for the same arguments, unrecorded - the Size row's scrub
+ * preview.
+ *
+ * @param DrawableId id The drawable to resize.
+ * @param Float width The target world x extent.
+ * @param Float height The target world y extent.
+ * @return PuppetModel? The previewed model, or null when the resize would record nothing.
+ */
+internal fun EditorSession.previewDrawableWorldSize(id: DrawableId, width: Float, height: Float): PuppetModel? =
+	previewWorldTransform(id) { world -> resizedAboutBoundsCenter(world, width, height) }

@@ -462,14 +462,9 @@ class EditorSession private constructor(
 	 * The pose the editor shows, and so where an edit aimed at "the pose" acts: the rig's pose, and while it
 	 * is pinned, every parameter at its default.  Edit mode shows the rig at rest, so a key inserted "at the
 	 * pose" there lands where the rigger is looking, not at a pose that returns only when Edit mode is left.
+	 * The rule itself is [EditorMode.shownPose], which a view collecting the pose and mode reads directly.
 	 */
-	val shownPose: Pose
-		get() =
-			if (posePinned) {
-				mutableModel.value.parameters.associate { parameter -> parameter.id to parameter.default }
-			} else {
-				mutablePose.value
-			}
+	val shownPose: Pose get() = mutableMode.value.shownPose(mutableModel.value, mutablePose.value)
 
 	/**
 	 * Commits a parameter scrub as one undo step: the live [pose] reached a new resting position (a slider
@@ -571,6 +566,30 @@ class EditorSession private constructor(
 	fun clearPendingChannelEdit(target: KeyableTarget) {
 		if (mutablePendingChannelEdits.value.containsKey(target)) {
 			mutablePendingChannelEdits.value = mutablePendingChannelEdits.value - target
+		}
+	}
+
+	/**
+	 * Puts the pending unkeyed edit of [target] back to what history holds - the cancelled-scrub path.
+	 *
+	 * A scrub previews through [setPendingChannelEdit] frame by frame, so a cancelled one leaves its last
+	 * frame in the live map with nothing to retire it.  [clearPendingChannelEdit] would be lossy here: a value
+	 * COMMITTED earlier through [commitPendingChannelEdit] is pending too, and the scrub was previewing over
+	 * it, so it is restored rather than dropped; a target history never recorded is removed.
+	 *
+	 * @param KeyableTarget target The property whose preview was cancelled.
+	 */
+	fun restorePendingChannelEdit(target: KeyableTarget) {
+		val live = mutablePendingChannelEdits.value
+		val recorded = history.current.pendingChannelEdits[target]
+		val restored =
+			if (recorded == null) {
+				live - target
+			} else {
+				live + (target to recorded)
+			}
+		if (restored != live) {
+			mutablePendingChannelEdits.value = restored
 		}
 	}
 

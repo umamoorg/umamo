@@ -33,6 +33,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 	with(state) {
 		val closeOpenMenu = menuBarController.closeOpenMenu
 		val cancelInlineEdit = inlineEditController.cancel
+		val cancelScrub = scrubCancel.cancel
 		val isEscapeDown = stroke.isDown && stroke.key == Key.Escape
 		val isEnter = stroke.key == Key.Enter || stroke.key == Key.NumPadEnter
 		val isEnterDown = stroke.isDown && isEnter
@@ -114,6 +115,14 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 			// sees it, so it stands aside here and the control's own handler decides.  Below the confirm and the
 			// alerts, which paint over everything and can arrive unasked while a capture is live.
 			keyCapture.active -> false
+			// A number field being drag-scrubbed claims Escape: the field never takes focus, so the key would
+			// otherwise fall to the arms below, which close the overlay the field sits in (Preferences, the
+			// export options) or clear the selection that put its row on screen - and either unmounts the
+			// field mid-drag.  Escape alone: every other key is still the overlay's or the keymap's.
+			isEscapeDown && cancelScrub != null -> {
+				cancelScrub()
+				true
+			}
 			// The overlays that hold their own focus - preferences, the two Help dialogs, the palette -
 			// are one family: Escape closes the topmost (instead of falling through to area.dragCancel)
 			// and every other key yields to that overlay's own content, exactly as an open inline editor
