@@ -25,6 +25,7 @@ import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -253,6 +254,16 @@ class PosePinTest {
 	fun theShownPoseIsTheRestPoseWhilePinned() {
 		assertEquals(objectModePose, session().shownPose)
 		assertEquals(mapOf(angleX to 0f, angleY to 0f), pinnedSession().shownPose)
+	}
+
+	/** The mode's rule is the session's: a view that collects the pose and the mode shows exactly the shown pose. */
+	@Test
+	fun theModeRuleIsTheSessionsShownPose() {
+		for (editorSession in listOf(session(), pinnedSession())) {
+			val ruled = editorSession.mode.value.shownPose(editorSession.model.value, editorSession.pose.value)
+			assertEquals(editorSession.shownPose, ruled, "in ${editorSession.mode.value}")
+		}
+		assertSame(objectModePose, EditorMode.Object.shownPose(session().model.value, objectModePose), "Object mode shows the rig's own pose")
 	}
 
 	/** A channel key captured at the pose while pinned lands at the rest pose, holding the value shown there. */

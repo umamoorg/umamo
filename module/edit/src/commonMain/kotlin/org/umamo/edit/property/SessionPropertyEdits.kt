@@ -13,6 +13,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PartId
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 
 /*
@@ -25,7 +26,8 @@ import org.umamo.runtime.model.RuntimeTarget
  * parallel, so both routes produce the one identical undo step.  Continuous numeric scrubbing previews
  * in the widget and commits one of these on release, so there is no per-frame mutation and no
  * history-side coalescing (the same single-commit-per-gesture granularity the parameter scrub documents
- * in ParameterChange.SetValue).
+ * in ParameterChange.SetValue).  A field whose scrub the viewport follows takes its frames from the
+ * setter's preview twin, which builds the same model without recording it.
  */
 
 /**
@@ -201,6 +203,19 @@ fun EditorSession.setDeformerPart(id: DeformerId, partId: PartId?) {
  */
 fun EditorSession.setDeformerBaseAngle(id: DeformerId, angle: Float) {
 	mutate(DeformerChange.SetBaseAngle(id, angle)) { model -> model.withDeformerBaseAngle(id, angle) }
+}
+
+/**
+ * The model [setDeformerBaseAngle] would record for the same arguments, built without recording it - the
+ * Base Angle field's scrub preview, so what the viewport shows mid-drag is exactly what the release commits.
+ *
+ * @param DeformerId id The deformer to retarget.
+ * @param Float angle The new base angle in degrees.
+ * @return PuppetModel? The previewed model, or null when the commit would record nothing.
+ */
+fun EditorSession.previewDeformerBaseAngle(id: DeformerId, angle: Float): PuppetModel? {
+	val currentModel = model.value
+	return currentModel.withDeformerBaseAngle(id, angle).takeIf { previewed -> previewed !== currentModel }
 }
 
 /**

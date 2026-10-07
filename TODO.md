@@ -59,10 +59,15 @@
 
 ## Overlays Toggle
 * Overlay visibility toggles from viewport header.
-	* General Information - The spot in the AreaHeader showing the selected item will be moved here.  It's too much in the AreaHeader.
-	* Wireframe (Object Mode)
+	* Icon based PopupChip
 	* Grid - Ability to change scale and divisions.
 	* 2D Cursor
+	* Sections: Guides, Text, Geometry
+	* Toggles for:
+		* Guides: Grid, X/Z Axis
+		* Text: General Information
+		* Geometry: Wireframe (Object Mode)
+
 
 ## Object and Mesh Editing
 * Improvements
@@ -107,10 +112,8 @@
 https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this demonstrating the shortcuts for Umamo.
 
 ## Properties Panel
-* The document-level **runtime-compatibility target data model** behind Document › Runtime — the enabled export targets (Cubism, Ayagami, …) + each target's options, how it persists on the document, and how it drives CMO3/MOC3 export. Scaffolded as a placeholder section now; its data design is a separate pass (depends on cataloguing each target runtime's capabilities).
-* UMA serialization of the latent composite (the format work this unblocks).
 * Improvements
-	* Parts and deformers still have no editable transform — needs the deformer → part → mesh cascade.
+	* Parts and deformers still have no editable transform: Needs the deformer → part → mesh cascade.
 	* Do another pass on the keyed parameter/property highlight colors.  Why does off key filled color appear as grey over green?
 	* Transform Position and Size should update the render while scrubbing.  They should also show the rest pose data after changing to edit mode.
 	* Aspect locked properties(Size) should update the other control while one is being scrubbed.

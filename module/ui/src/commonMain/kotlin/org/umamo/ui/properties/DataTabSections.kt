@@ -15,7 +15,6 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.atlas.setAtlasPins
 import org.umamo.edit.keyform.editKeyedChannel
 import org.umamo.edit.keyform.previewChannelEdit
-import org.umamo.edit.property.setDeformerBaseAngle
 import org.umamo.edit.property.setDeformerFlipX
 import org.umamo.edit.property.setDeformerFlipY
 import org.umamo.edit.property.setDeformerMultiplyColor
@@ -307,19 +306,7 @@ internal val DeformerSection =
 					deformerRenderChannelRows(deformer, session, target) +
 						listOf(
 							PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
-								PropertyFieldRow(
-									stringResource(Res.string.properties_field_base_angle),
-									description = stringResource(Res.string.properties_field_base_angle_description),
-								) {
-									NumberField(
-										value = deformer.baseAngle,
-										onValueChange = { newAngle -> session?.setDeformerBaseAngle(deformer.id, newAngle) },
-										modifier = Modifier.fillMaxWidth(),
-										range = UNBOUNDED_RANGE,
-										decimals = 1,
-										unitSuffix = stringResource(Res.string.unit_degrees),
-									)
-								}
+								DeformerBaseAngleField(deformer, session)
 							},
 							PropertyRow(terms = listOf(Res.string.properties_field_flip_x)) { _ ->
 								KeyableFlagChannelRow(

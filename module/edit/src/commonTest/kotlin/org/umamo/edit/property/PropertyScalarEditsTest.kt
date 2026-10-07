@@ -33,6 +33,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -116,6 +117,25 @@ class PropertyScalarEditsTest {
 		// A warp has no base angle, and an unchanged angle is a no-op.
 		assertSame(base, base.withDeformerBaseAngle(warpId, 45f))
 		assertSame(base, base.withDeformerBaseAngle(rotationId, 0f))
+	}
+
+	/** The Base Angle scrub's preview is the model its release commits, and building it records nothing. */
+	@Test
+	fun deformerBaseAnglePreviewIsTheModelTheCommitRecords() {
+		val session = EditorSession(model())
+		val before = session.model.value
+
+		val previewed = session.previewDeformerBaseAngle(rotationId, 30f)
+
+		assertSame(before, session.model.value, "a preview never reaches the session")
+		assertFalse(session.canUndo.value)
+		assertEquals(30f, (previewed!!.deformers.first { deformer -> deformer.id == rotationId } as Deformer.Rotation).baseAngle)
+		session.setDeformerBaseAngle(rotationId, 30f)
+		assertEquals(previewed.deformers, session.model.value.deformers, "the release lands what the last frame showed")
+
+		// Where the commit would record nothing there is nothing to preview: an unchanged angle, or a warp.
+		assertNull(session.previewDeformerBaseAngle(rotationId, 30f))
+		assertNull(session.previewDeformerBaseAngle(warpId, 10f))
 	}
 
 	@Test

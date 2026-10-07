@@ -1,5 +1,7 @@
 package org.umamo.edit
 
+import org.umamo.runtime.model.PuppetModel
+
 /**
  * The editor's interaction mode, Blender-style. Object mode selects whole entities (parts, drawables,
  * deformers) and shows the rendered puppet; Edit mode dives into the active entity's interior (mesh,
@@ -24,3 +26,22 @@ enum class EditorMode {
  * Edit mode is left.  The one rule every part of the editor that shows or writes the pose reads.
  */
 val EditorMode.pinsPose: Boolean get() = this == EditorMode.Edit
+
+/**
+ * The pose this mode shows, and so the pose every view and every edit aimed at "the pose" evaluates at:
+ * the rig's pose, and while the mode pins it, every parameter at its default.
+ *
+ * A pure rule rather than a session read, so a view that collects the session's pose and mode resolves
+ * exactly what EditorSession.shownPose does.  The pinned form is an explicit map of the defaults, never an
+ * empty one, so a caller that writes it somewhere writes the whole rest pose.
+ *
+ * @param PuppetModel model The document model, whose parameters supply the defaults.
+ * @param Pose pose The rig's pose (the session's pose, held as it is while pinned).
+ * @return Pose The pose to show.
+ */
+fun EditorMode.shownPose(model: PuppetModel, pose: Pose): Pose =
+	if (pinsPose) {
+		model.parameters.associate { parameter -> parameter.id to parameter.default }
+	} else {
+		pose
+	}

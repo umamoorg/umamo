@@ -462,14 +462,9 @@ class EditorSession private constructor(
 	 * The pose the editor shows, and so where an edit aimed at "the pose" acts: the rig's pose, and while it
 	 * is pinned, every parameter at its default.  Edit mode shows the rig at rest, so a key inserted "at the
 	 * pose" there lands where the rigger is looking, not at a pose that returns only when Edit mode is left.
+	 * The rule itself is [EditorMode.shownPose], which a view collecting the pose and mode reads directly.
 	 */
-	val shownPose: Pose
-		get() =
-			if (posePinned) {
-				mutableModel.value.parameters.associate { parameter -> parameter.id to parameter.default }
-			} else {
-				mutablePose.value
-			}
+	val shownPose: Pose get() = mutableMode.value.shownPose(mutableModel.value, mutablePose.value)
 
 	/**
 	 * Commits a parameter scrub as one undo step: the live [pose] reached a new resting position (a slider
