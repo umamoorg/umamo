@@ -1,4 +1,4 @@
-package org.umamo.ui.workspace.spaces
+package org.umamo.ui.workspace.editorstate
 
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -8,14 +8,13 @@ import kotlinx.serialization.json.buildJsonObject
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
-import org.umamo.ui.workspace.editorstate.booleanOf
-import org.umamo.ui.workspace.editorstate.finiteFloatOf
-import org.umamo.ui.workspace.editorstate.intOf
 
 /*
  * The `overlays` member of a work surface's area block (docs/format/UMA.md § 7.3): how an area's
- * ViewportOverlayState is written into the editor state and read back.  Both hosts - the 2D viewport's
- * block and the UV editor's - write the one shape, so the two surfaces stay one format.
+ * ViewportOverlayState is written into the editor state and read back, beside the other editor-state
+ * serializers.  Both hosts - the 2D viewport's block and the UV editor's - write the one shape, so the two
+ * surfaces stay one format.  Extension functions rather than members of the state, since the viewport root
+ * does not import this package.
  */
 
 /** The member name an area block holds its overlay flags under (UMA § 7.3). */

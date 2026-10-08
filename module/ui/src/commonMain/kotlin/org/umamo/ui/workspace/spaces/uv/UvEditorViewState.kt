@@ -23,11 +23,11 @@ import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.uv.atlasPageIndexFor
 import org.umamo.ui.workspace.PersistentSpaceState
+import org.umamo.ui.workspace.editorstate.OVERLAYS_MEMBER
 import org.umamo.ui.workspace.editorstate.intOf
+import org.umamo.ui.workspace.editorstate.overlaysJsonOrNull
+import org.umamo.ui.workspace.editorstate.restoreOverlays
 import org.umamo.ui.workspace.editorstate.stringOf
-import org.umamo.ui.workspace.spaces.OVERLAYS_MEMBER
-import org.umamo.ui.workspace.spaces.overlaysJsonOrNull
-import org.umamo.ui.workspace.spaces.restoreOverlays
 
 /** The AreaScope.spaceState key the UV editor parks its view state under, and its member in an area block (UMA §7.3). */
 internal const val UV_EDITOR_VIEW_STATE_KEY = "uv"
