@@ -3,7 +3,6 @@ package org.umamo.ui.app
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.test.runTest
 import org.umamo.edit.EditorSession
-import org.umamo.edit.GridConfig
 import org.umamo.render.FrameBackdrop
 import org.umamo.render.FrameOverlays
 import org.umamo.storage.FilePicker
@@ -11,6 +10,7 @@ import org.umamo.ui.action.Command
 import org.umamo.ui.document.ImageExportSessionOptions
 import org.umamo.ui.document.newBlankDocument
 import org.umamo.ui.viewport.AreaOverlays
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.ImageBackground
 import org.umamo.ui.viewport.ImageExportOptions
 import org.umamo.ui.viewport.ImageRegion

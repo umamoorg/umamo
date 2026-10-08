@@ -3,7 +3,6 @@ package org.umamo.ui.viewport
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
-import org.umamo.edit.GridConfig
 import org.umamo.render.FrameOverlays
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.workspace.commands.inMemorySettings
@@ -13,7 +12,8 @@ import kotlin.test.assertTrue
 
 /**
  * The publisher hands the render service an area's render options as the area mounts and whenever its
- * overlay state or the application's grid setting changes, as one value the engine compares whole.
+ * overlay state or the application's grid setting changes, as one value the engine compares whole, and
+ * keeps the state's mirror of the application's grid current for the area's other readers.
  */
 @OptIn(ExperimentalTestApi::class)
 class AreaOverlaysPublisherTest {
@@ -63,24 +63,56 @@ class AreaOverlaysPublisherTest {
 			assertEquals(FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false), service.areaOverlays("area")?.frame, "the master off hides every frame flag")
 		}
 
-	/** A change to the application's grid setting pushes the new geometry. */
+	/** A change to the application's grid setting pushes the new geometry to an area that follows it, and lands on the state's mirror. */
 	@Test
 	fun aGridSettingChangePushesTheGeometry() =
 		runComposeUiTest {
 			val service = StubPuppetViewportService()
 			val settings = inMemorySettings()
+			val state = ViewportOverlayState(OverlaySurface.Viewport2D)
 			setContent {
 				CompositionLocalProvider(LocalSettings provides settings) {
-					AreaOverlaysPublisher(service, "area", ViewportOverlayState(OverlaySurface.Viewport2D))
+					AreaOverlaysPublisher(service, "area", state)
 				}
 			}
 			waitForIdle()
 			assertEquals(GridConfig(100f, 10), service.areaOverlays("area")?.grid, "the setting's defaults seed the geometry")
+			assertEquals(GridConfig(100f, 10), state.applicationGrid, "and the mirror")
 
 			settings.setDouble(ViewportSettings.GRID_SCALE_KEY, 50.0)
 			waitForIdle()
 
 			assertEquals(GridConfig(50f, 10), service.areaOverlays("area")?.grid, "the changed setting reached the service")
+			assertEquals(GridConfig(50f, 10), state.applicationGrid, "and the mirror")
+			assertEquals(GridConfig(50f, 10), state.grid, "which is what the area's readers resolve")
+		}
+
+	/** An area given a grid of its own pushes that grid, and a setting change no longer reaches what it draws. */
+	@Test
+	fun anOwnGridIsPushedAndHoldsAgainstTheSetting() =
+		runComposeUiTest {
+			val service = StubPuppetViewportService()
+			val settings = inMemorySettings()
+			val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+			setContent {
+				CompositionLocalProvider(LocalSettings provides settings) {
+					AreaOverlaysPublisher(service, "area", state)
+				}
+			}
+			waitForIdle()
+
+			state.gridGeometry = GridConfig(25f, 5)
+			waitForIdle()
+			assertEquals(GridConfig(25f, 5), service.areaOverlays("area")?.grid, "the own grid reached the service")
+
+			settings.setDouble(ViewportSettings.GRID_SCALE_KEY, 50.0)
+			waitForIdle()
+			assertEquals(GridConfig(25f, 5), service.areaOverlays("area")?.grid, "the setting no longer reaches what the area draws")
+			assertEquals(GridConfig(50f, 10), state.applicationGrid, "though the mirror follows it, for the reset to return to")
+
+			state.gridGeometry = null
+			waitForIdle()
+			assertEquals(GridConfig(50f, 10), service.areaOverlays("area")?.grid, "following again, the area draws the current setting")
 		}
 
 	/** A UV editor's area never asks for the world axes or the wireframe. */

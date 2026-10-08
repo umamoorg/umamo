@@ -1,10 +1,12 @@
 package org.umamo.ui.workspace.spaces
 
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -89,5 +91,26 @@ class OverlayCatalogTest {
 		assertFalse(state.isAtDefaults)
 		state.reset()
 		assertTrue(state.isAtDefaults)
+	}
+
+	/** The area's grid is its own over the application's: whole on a 2D viewport, subdivisions alone on a UV editor. */
+	@Test
+	fun theGridIsTheAreasOwnOverTheApplications() {
+		val application = GridConfig(100f, 10)
+		val viewport = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertEquals(application, viewport.gridOver(application), "following, the application's grid")
+
+		viewport.gridGeometry = GridConfig(50f, 4)
+		assertEquals(GridConfig(50f, 4), viewport.gridOver(application), "its own replaces it whole")
+		viewport.applicationGrid = application
+		assertEquals(GridConfig(50f, 4), viewport.grid, "and is what the area's readers resolve")
+		assertFalse(viewport.isAtDefaults, "an own grid is a deviation")
+		viewport.reset()
+		assertNull(viewport.gridGeometry, "a reset returns the area to following")
+		assertTrue(viewport.isAtDefaults)
+
+		val uvEditor = ViewportOverlayState(OverlaySurface.UvEditor)
+		uvEditor.gridGeometry = GridConfig(50f, 4)
+		assertEquals(GridConfig(100f, 4), uvEditor.gridOver(application), "a UV editor's own grid is its subdivisions over the application's scale")
 	}
 }

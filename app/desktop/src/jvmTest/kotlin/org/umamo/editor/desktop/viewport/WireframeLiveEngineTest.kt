@@ -4,7 +4,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PixelMap
 import androidx.compose.ui.graphics.toPixelMap
 import kotlinx.coroutines.flow.StateFlow
-import org.umamo.edit.GridConfig
 import org.umamo.render.DecodedImage
 import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
@@ -30,6 +29,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.AreaOverlays
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.RenderedFrame
 import kotlin.test.Test

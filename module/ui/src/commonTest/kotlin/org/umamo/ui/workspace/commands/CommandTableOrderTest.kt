@@ -148,7 +148,7 @@ class CommandTableOrderTest {
 				objectCommands(null, null, availability) +
 				transformCommands(null, routing, availability) +
 				selectCommands(null, routing, sheets, availability) +
-				snapCommands(null, routing, availability) +
+				snapCommands(null, routing, availability, AreaOverlayHub()) +
 				uvCommands(null, routing, availability) +
 				topologyCommands(null, routing, availability) +
 				proportionalCommands(null, availability) +

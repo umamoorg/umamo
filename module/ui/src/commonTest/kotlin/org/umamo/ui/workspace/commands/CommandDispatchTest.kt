@@ -4,6 +4,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.umamo.edit.ActiveSelectTool
+import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
@@ -20,6 +21,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.action.Command
 import org.umamo.ui.viewport.CameraController
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.workspace.AreaCameraHub
@@ -298,7 +300,7 @@ class CommandDispatchTest {
 		runTest {
 			val session = session(EditorMode.Edit)
 			val commands =
-				snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session))
+				snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session), AreaOverlayHub())
 			val received = mutableListOf<SnapRequest>()
 			val collector = launch { session.snapRequests.collect { request -> received += request } }
 			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -320,7 +322,7 @@ class CommandDispatchTest {
 		runTest {
 			val session = session(EditorMode.Edit)
 			val commands =
-				snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session))
+				snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), AreaOverlayHub())
 			val received = mutableListOf<SnapRequest>()
 			val collector = launch { session.snapRequests.collect { request -> received += request } }
 			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -333,6 +335,28 @@ class CommandDispatchTest {
 
 			assertEquals(viewportArea, received.single().areaId)
 		}
+
+	/**
+	 * Cursor to Grid rounds to the grid of the 2D viewport under the pointer - the lines that area draws - and
+	 * does nothing over anything else: a panel, or a UV editor, whose grid is not a world grid.
+	 */
+	@Test
+	fun cursorToGridRoundsToTheHoveredViewportsGridAndNothingElsewhere() {
+		val session = session(EditorMode.Object)
+		val hub = AreaOverlayHub()
+		hub.register(viewportArea, ViewportOverlayState(OverlaySurface.Viewport2D).apply { gridGeometry = GridConfig(50f, 4) })
+		hub.register(uvArea, ViewportOverlayState(OverlaySurface.UvEditor))
+		session.setCursor2d(32f, 32f)
+
+		snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session), hub).run("snap.cursorToGrid")
+		assertEquals(Cursor2d(32f, 32f), session.cursor2d.value, "over a panel the cursor stays")
+		snapCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session), hub).run("snap.cursorToGrid")
+		assertEquals(Cursor2d(32f, 32f), session.cursor2d.value, "and over a UV editor")
+
+		snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), hub).run("snap.cursorToGrid")
+
+		assertEquals(Cursor2d(37.5f, 37.5f), session.cursor2d.value, "over the viewport the cursor rounds to its own 12.5 step")
+	}
 
 	/**
 	 * Mirror UVs fired over a 2D viewport still runs its handler - a command's spaces hide it from the

@@ -29,20 +29,6 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	/** What a modal Scale / Rotate turns the selection about (see [SessionToolSettings.pivotMode]). */
 	override val pivotMode: StateFlow<TransformPivotMode> = mutablePivotMode.asStateFlow()
 
-	private val mutableGridConfig = MutableStateFlow(GridConfig())
-
-	/** The viewport grid geometry driving the backdrop and grid snap (see [SessionToolSettings.gridConfig]). */
-	override val gridConfig: StateFlow<GridConfig> = mutableGridConfig.asStateFlow()
-
-	/**
-	 * Sets the viewport grid geometry.
-	 *
-	 * @param GridConfig config The new grid scale and subdivisions.
-	 */
-	override fun setGridConfig(config: GridConfig) {
-		mutableGridConfig.value = config
-	}
-
 	private val mutableProportionalEdit = MutableStateFlow<ProportionalEditState?>(null)
 
 	/** Proportional editing, non-null while enabled (see [SessionToolSettings.proportionalEdit]). */
@@ -187,6 +173,5 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 			lastProportionalEdit = settings.copy(radiusWorld = clampProportionalRadius(settings.radiusWorld))
 		}
 		mutableProportionalEdit.value = lastProportionalEdit.takeIf { viewState.proportionalEnabled }
-		viewState.gridConfig?.let { config -> mutableGridConfig.value = config }
 	}
 }

@@ -9,7 +9,6 @@ import kotlinx.serialization.json.put
 import org.umamo.edit.Cursor2d
 import org.umamo.edit.DEFAULT_PROPORTIONAL_EDIT_STATE
 import org.umamo.edit.EditorMode
-import org.umamo.edit.GridConfig
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.ProportionalEditState
@@ -76,7 +75,6 @@ class SessionStateJsonTest {
 				pivotMode = TransformPivotMode.IndividualOrigins,
 				proportionalEnabled = true,
 				proportionalSettings = ProportionalEditState(ProportionalFalloff.Linear, 64f, connectedOnly = true),
-				gridConfig = GridConfig(50f, 4),
 			)
 
 		val reopened = sessionViewStateOf(sessionStateJson(saved, defaultPose, model))
@@ -143,13 +141,6 @@ class SessionStateJsonTest {
 						put("enabled", "yes")
 						put("falloff", "gaussian")
 						put("radius", -4)
-					},
-				)
-				put(
-					"grid",
-					buildJsonObject {
-						put("scale", 0)
-						put("subdivisions", 0)
 					},
 				)
 			}

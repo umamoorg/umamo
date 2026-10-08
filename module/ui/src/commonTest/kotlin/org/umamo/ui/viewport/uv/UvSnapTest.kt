@@ -2,7 +2,6 @@ package org.umamo.ui.viewport.uv
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.GridConfig
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.UvCursor
@@ -56,11 +55,10 @@ class UvSnapTest {
 			rootPartId = null,
 		)
 
-	/** An Edit-mode session with the whole triangle selected and a 100-unit / 10-subdivision grid. */
+	/** An Edit-mode session with the whole triangle selected. */
 	private fun snapSession(select: Boolean = true): EditorSession {
 		val session = EditorSession(snapModel())
 		session.setMode(EditorMode.Edit)
-		session.setGridConfig(GridConfig(scale = 100f, subdivisions = 10))
 		if (select) {
 			var selection = session.meshSelection.value
 			for (vertexIndex in 0..2) {
@@ -78,8 +76,8 @@ class UvSnapTest {
 			GizmoMeshGeometry(drawable.id, mesh.indices, emptyList(), uvToDisplay(mesh.uvs, pageWidth, pageHeight))
 		}
 
-	private fun snap(session: EditorSession, kind: UvSnapKind) {
-		handleUvSnapRequest(session, geometriesOf(session), atlasPageEditFrame(pageWidth, pageHeight), kind)
+	private fun snap(session: EditorSession, kind: UvSnapKind, subdivisions: Int = 10) {
+		handleUvSnapRequest(session, geometriesOf(session), atlasPageEditFrame(pageWidth, pageHeight), kind, subdivisions)
 	}
 
 	private fun currentUvs(session: EditorSession): FloatArray = session.model.value.drawables[0].mesh!!.uvs
@@ -108,6 +106,15 @@ class UvSnapTest {
 		snap(session, UvSnapKind.SelectionToGrid)
 		// (12.3,45.7)->(10,50) (34.6,45.7)->(30,50) (12.3,78.2)->(10,80).
 		assertUvsEqual(listOf(0.10f, 0.50f, 0.30f, 0.50f, 0.10f, 0.20f), currentUvs(session), "each vertex snaps to a grid line")
+	}
+
+	/** The grid is the executing area's: four subdivisions make a 25-texel step, and the vertices round to it. */
+	@Test
+	fun selectionToGridRoundsToTheAreasSubdivisions() {
+		val session = snapSession()
+		snap(session, UvSnapKind.SelectionToGrid, subdivisions = 4)
+		// (12.3,45.7)->(0,50) (34.6,45.7)->(25,50) (12.3,78.2)->(0,75).
+		assertUvsEqual(listOf(0.00f, 0.50f, 0.25f, 0.50f, 0.00f, 0.25f), currentUvs(session), "each vertex snaps to the coarser line")
 	}
 
 	/** Selection to Cursor piles every covered vertex onto the UV cursor (Blender parity). */

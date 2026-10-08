@@ -35,7 +35,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.GridConfig
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
@@ -400,16 +399,6 @@ fun rememberPuppetViewportHost(
 			val (activeRed, activeGreen, activeBlue) =
 				parseSelectionHighlightColor(settings.getString(ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY))
 			service.setActiveSelectionHighlightColor(activeRed, activeGreen, activeBlue)
-			// Resolve the global-default grid geometry into the session, the single source of truth the
-			// snap commands and the renderer both read.  A grid the document saved for itself takes precedence
-			// (docs/format/UMA.md § 7.4); a document without one - every CMO3 and MOC3 - keeps this default.
-			if (session.gridFollowsApplication) {
-				val gridScale =
-					(settings.getDouble(ViewportSettings.GRID_SCALE_KEY) ?: ViewportSettings.GRID_SCALE_DEFAULT).toFloat()
-				val gridSubdivisions =
-					settings.getInt(ViewportSettings.GRID_SUBDIVISIONS_KEY) ?: ViewportSettings.GRID_SUBDIVISIONS_DEFAULT
-				session.setGridConfig(GridConfig(gridScale, gridSubdivisions))
-			}
 		}
 		applyViewportSettings()
 		settings.changes.collect { key ->

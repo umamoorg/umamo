@@ -7,10 +7,11 @@ import androidx.compose.runtime.staticCompositionLocalOf
 
 /*
  * What the 2D viewport and the UV editor draw OVER the rigger's art, per area: ViewportOverlayColors.kt
- * holds the colors those overlays draw in, and this file holds whether each of them is shown.  The state
- * is an area's (two viewports may show different overlays, as in Blender), parked on the hosting AreaScope
- * by the space body, written into the document's editor state as the area block's `overlays` member
- * (docs/format/UMA.md § 7.3), and read by the overlays themselves through LocalAreaOverlays.
+ * holds the colors those overlays draw in, and this file holds whether each of them is shown and the grid
+ * geometry the area draws and snaps to.  The state is an area's (two viewports may show different overlays
+ * and different grids, as in Blender), parked on the hosting AreaScope by the space body, written into the
+ * document's editor state as the area block's `overlays` member (docs/format/UMA.md § 7.3), and read by the
+ * overlays themselves through LocalAreaOverlays.
  */
 
 /** Which work surface an overlay state belongs to; decides which overlays exist for it (a UV editor has no world axes). */
@@ -20,10 +21,11 @@ enum class OverlaySurface {
 }
 
 /**
- * One area's overlay visibility: the Show Overlays master plus one flag per overlay.  The master gates
- * every overlay's EFFECT while leaving each flag as the rigger set it, so switching it back on restores the
- * set they had (Blender's overlays toggle).  Consumers read the effective values, never the raw flags, so
- * nothing downstream has to know a master exists.
+ * One area's overlay visibility and grid: the Show Overlays master plus one flag per overlay, and the grid
+ * geometry the area draws and snaps to.  The master gates every overlay's EFFECT while leaving each flag as
+ * the rigger set it, so switching it back on restores the set they had (Blender's overlays toggle).
+ * Consumers read the effective values, never the raw flags, so nothing downstream has to know a master
+ * exists.  The grid is the area's own once edited, else the application's, resolved through [grid].
  *
  * @param OverlaySurface surface The work surface this state belongs to.
  */
@@ -49,6 +51,26 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	 */
 	var showWireframe by mutableStateOf(false)
 
+	/**
+	 * The area's own grid geometry, or null while the area follows the application's viewport.grid.* setting.
+	 * The first edit of a grid field in the overlays popover gives the area its own; the reset beside the fields
+	 * takes it back.  Saved as the `gridGeometry` key; a UV editor's own grid counts its subdivisions alone (its
+	 * major spacing is the shown image), and only those are saved.
+	 */
+	var gridGeometry by mutableStateOf<GridConfig?>(null)
+
+	/**
+	 * The application's grid as the area's render-options publisher last mirrored it from the settings; never
+	 * saved.  Mirrored here so every reader of the area - the snap handlers, the hovered-area commands, the
+	 * popover's fields - resolves the one grid the renderer draws through [grid] without reaching for the
+	 * settings themselves.
+	 */
+	var applicationGrid by mutableStateOf(GridConfig())
+
+	/** The grid this area draws and snaps to: its own over the application's (see [gridOver]). */
+	val grid: GridConfig
+		get() = gridOver(applicationGrid)
+
 	/** Whether the grid lines draw: the flag under the master. */
 	val effectiveGrid: Boolean
 		get() = showOverlays && showGrid
@@ -69,12 +91,28 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	val effectiveWireframe: Boolean
 		get() = showOverlays && showWireframe
 
-	/** Whether every flag sits at its default: what a fresh area shows, and what a save writes as nothing. */
+	/** Whether every flag sits at its default and the grid follows the application: what a fresh area shows, and what a save writes as nothing. */
 	val isAtDefaults: Boolean
-		get() = showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe
+		get() = showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && gridGeometry == null
 
 	/**
-	 * Returns every flag to its default.
+	 * The grid this area draws and snaps to over a given application grid: its own, else the application's.
+	 * A UV editor's own grid contributes its subdivisions alone, over the application's scale, which its
+	 * surface does not draw.
+	 *
+	 * @param GridConfig applicationGrid The application's viewport.grid.* grid.
+	 * @return GridConfig The area's grid.
+	 */
+	fun gridOver(applicationGrid: GridConfig): GridConfig {
+		val own = gridGeometry ?: return applicationGrid
+		return when (surface) {
+			OverlaySurface.Viewport2D -> own
+			OverlaySurface.UvEditor -> applicationGrid.copy(subdivisions = own.subdivisions)
+		}
+	}
+
+	/**
+	 * Returns every flag to its default and the grid to following the application.
 	 */
 	fun reset() {
 		showOverlays = true
@@ -83,6 +121,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 		showCursor = true
 		showInfo = true
 		showWireframe = false
+		gridGeometry = null
 	}
 }
 

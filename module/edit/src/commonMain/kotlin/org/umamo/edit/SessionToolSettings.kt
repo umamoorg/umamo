@@ -42,23 +42,6 @@ interface SessionToolSettings {
 	fun setUvCursor(u: Float, v: Float)
 
 	/**
-	 * The viewport grid geometry (major spacing + subdivisions) driving both the drawn backdrop grid and
-	 * the grid snap increment.  Session state, deliberately NOT snapshotted - like the 2D cursor.  Seeded from
-	 * the global-default settings, or from the document's own value when it saved one
-	 * ([EditorSession.gridFollowsApplication]).  Read by the snap commands ([GridConfig.snapStep]) and pushed to the renderer
-	 * by the viewport binding.
-	 */
-	val gridConfig: StateFlow<GridConfig>
-
-	/**
-	 * Sets the viewport grid geometry.  Called by the viewport binding when the global-default settings
-	 * change, while the grid follows them ([EditorSession.gridFollowsApplication]).
-	 *
-	 * @param GridConfig config The new grid scale and subdivisions.
-	 */
-	fun setGridConfig(config: GridConfig)
-
-	/**
 	 * What a modal Scale / Rotate turns the selection about (the Period pie / the header dropdown).
 	 * Transient editor state - it survives mode switches but is never snapshotted; the default is
 	 * Blender's Median Point.

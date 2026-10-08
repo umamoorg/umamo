@@ -56,6 +56,7 @@ class EditGizmoRequestsTest {
 					size = mutableStateOf(RIG_AREA_SIZE),
 					areaPointer = mutableStateOf(pointer),
 					onOverlapRequest = { anchor, candidates -> overlapRequests.add(anchor to candidates) },
+					overlays = null,
 				)
 			}
 		}

@@ -24,8 +24,8 @@ import kotlin.math.roundToInt
  * modal capture scopes).
  *
  * The grid snaps target the drawn UV grid: its major lines fall on the shown image's tile and the minor
- * lines subdivide it by the document grid subdivisions, so a grid snap rounds display coordinates to the
- * surface extent / subdivisions, anchored at the image origin.  The pixel snaps round to the nearest
+ * lines subdivide it by the executing area's grid subdivisions, so a grid snap rounds display coordinates to
+ * the surface extent / subdivisions, anchored at the image origin.  The pixel snaps round to the nearest
  * integer texel, which is a pixel corner in this texel-unit space - the artwork-edge-accuracy target.
  *
  * @param EditorSession session The session owning the selection, the UV cursor, and the commit.
@@ -35,12 +35,14 @@ import kotlin.math.roundToInt
  *   an atlas texel over a page, an artwork texel over a source layer - which is the right target in
  *   each, though a placement that scales makes them different lattices.
  * @param UvSnapKind kind The requested snap.
+ * @param Int subdivisions The executing area's grid subdivisions, the minor lines its backdrop draws per image.
  */
 internal fun handleUvSnapRequest(
 	session: EditorSession,
 	geometries: List<GizmoMeshGeometry>,
 	frame: UvEditFrame,
 	kind: UvSnapKind,
+	subdivisions: Int,
 ) {
 	val selection = session.meshSelection.value
 	val coveredByMesh =
@@ -49,12 +51,12 @@ internal fun handleUvSnapRequest(
 			if (covered.isEmpty()) null else geometry to covered
 		}
 
-	// The UV grid subdivides the shown image (its major lines are the image tile, minor lines the document
+	// The UV grid subdivides the shown image (its major lines are the image tile, minor lines the area's
 	// subdivisions), anchored at the image origin - so a grid snap rounds to the surface extent /
-	// subdivisions in display space, targeting the same lines the backdrop draws.
-	val subdivisions = session.gridConfig.value.subdivisions.coerceAtLeast(1)
-	val gridStepX = frame.displayWidth.toFloat() / subdivisions
-	val gridStepY = frame.displayHeight.toFloat() / subdivisions
+	// subdivisions in display space, targeting the same lines the area's backdrop draws.
+	val minorLines = subdivisions.coerceAtLeast(1)
+	val gridStepX = frame.displayWidth.toFloat() / minorLines
+	val gridStepY = frame.displayHeight.toFloat() / minorLines
 
 	// The UV cursor in display space; an unplaced cursor rests at the stored origin (UV 0,0), the mesh
 	// snap's "an unplaced cursor snaps from its resting place" rule in this space.

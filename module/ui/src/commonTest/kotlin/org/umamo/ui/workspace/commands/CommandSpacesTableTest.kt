@@ -48,6 +48,7 @@ class CommandSpacesTableTest {
 				"mesh.selectLinkedAtCursor" to workSurfaces,
 				"mesh.selectLinked" to workSurfaces,
 				"edit.switchObjectUnderCursor" to viewport,
+				"snap.cursorToGrid" to viewport,
 				"snap.cursorToSelected" to viewport,
 				"snap.cursorToActive" to viewport,
 				"snap.selectionToGrid" to viewport,
