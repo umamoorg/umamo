@@ -101,11 +101,18 @@ private fun GridGeometryFields(state: ViewportOverlayState) {
 	val grid = state.grid
 	val own = state.gridGeometry != null
 	val uvEditor = state.surface == OverlaySurface.UvEditor
+	// A field commits on focus loss as well as on Enter, so leaving it - the popover closing on Escape, a
+	// click elsewhere - hands back the value it already showed.  Only a value that differs is an edit;
+	// the same one must not give the area a grid of its own that merely equals the application's.
 	if (!uvEditor) {
 		GridGeometryRow(label = stringResource(Res.string.overlay_grid_scale), resettable = own, onReset = { state.gridGeometry = null }) {
 			NumberField(
 				value = grid.scale,
-				onValueChange = { scale -> state.gridGeometry = grid.copy(scale = scale) },
+				onValueChange = { scale ->
+					if (scale != grid.scale) {
+						state.gridGeometry = grid.copy(scale = scale)
+					}
+				},
 				range = ViewportSettings.GRID_SCALE_RANGE,
 				modifier = Modifier.width(GRID_FIELD_WIDTH),
 			)
@@ -114,7 +121,11 @@ private fun GridGeometryFields(state: ViewportOverlayState) {
 	GridGeometryRow(label = stringResource(Res.string.overlay_grid_subdivisions), resettable = own && uvEditor, onReset = { state.gridGeometry = null }) {
 		NumberField(
 			value = grid.subdivisions,
-			onValueChange = { subdivisions -> state.gridGeometry = grid.copy(subdivisions = subdivisions) },
+			onValueChange = { subdivisions ->
+				if (subdivisions != grid.subdivisions) {
+					state.gridGeometry = grid.copy(subdivisions = subdivisions)
+				}
+			},
 			range = ViewportSettings.GRID_SUBDIVISIONS_RANGE,
 			modifier = Modifier.width(GRID_FIELD_WIDTH),
 		)

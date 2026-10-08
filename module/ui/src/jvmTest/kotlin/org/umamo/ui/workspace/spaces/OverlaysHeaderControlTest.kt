@@ -206,6 +206,45 @@ class OverlaysHeaderControlTest {
 			assertFalse(overlays.showOverlays)
 		}
 
+	/**
+	 * Escape in a field inside the popover discards the typed value and keeps the popover open, and a field
+	 * left with the value it already showed commits no edit: neither gives the area a grid of its own.
+	 */
+	@Test
+	fun escapeDiscardsAFieldEditAndAnUntouchedFieldCommitsNothing() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }.overlays
+			clickDescribed(VIEWPORT_OVERLAYS)
+
+			// Click in and leave with Escape, typing nothing.
+			onNode(hasText(SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Escape) }
+			waitForIdle()
+			assertNull(overlays.gridGeometry, "an untouched field left with Escape is no edit")
+			assertTrue(popupShows(SCALE_FIELD), "and the popover stays open")
+
+			onNode(hasText(SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performTextReplacement("50")
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Escape) }
+			waitForIdle()
+
+			assertNull(overlays.gridGeometry, "Escape discards the typed value")
+			assertTrue(popupShows(SCALE_FIELD), "and the popover stays open for a second Escape")
+			assertEquals(0, countOfDescription(FOLLOW_APPLICATION))
+
+			onNode(hasText(SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+
+			assertNull(overlays.gridGeometry, "leaving the field with the value it showed is no edit")
+			assertEquals(0, countOfDescription(FOLLOW_APPLICATION))
+		}
+
 	private companion object {
 		/** The toggle button's English name; it doubles as its accessible label. */
 		const val SHOW_OVERLAYS = "Show Overlays"
