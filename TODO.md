@@ -59,7 +59,12 @@
 
 ## Overlay Toggles
 * Improvements
-	* Wireframe: Toggle culling of mesh parts hidden by other drawables.(On by default.)
+	* Wireframe:
+		* Toggle culling of mesh parts hidden by other drawables.(On by default.)
+		* Opacity
+	* Objects:
+		* Selection Tint
+		* Deformers
 
 
 ## Object and Mesh Editing
