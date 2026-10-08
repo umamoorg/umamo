@@ -65,6 +65,9 @@
 	* Objects:
 		* Selection Tint
 		* Deformers
+	* Hover tooltips for all controls.
+	* UV grid should have both scale and subdivisions.
+	* Clean up styles: Use properties area styling.
 
 
 ## Object and Mesh Editing
