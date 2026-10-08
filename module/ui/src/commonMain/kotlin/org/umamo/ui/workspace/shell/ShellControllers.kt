@@ -23,11 +23,13 @@ import org.umamo.ui.settings.LocalQuickSetup
 import org.umamo.ui.settings.QuickSetupState
 import org.umamo.ui.workspace.AppAlertQueues
 import org.umamo.ui.workspace.AreaCameraHub
+import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.HoveredSurfaceTracker
 import org.umamo.ui.workspace.KeyableHover
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.LocalAppAlerts
 import org.umamo.ui.workspace.LocalAreaCameraHub
+import org.umamo.ui.workspace.LocalAreaOverlayHub
 import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
 import org.umamo.ui.workspace.LocalKeyableHover
 import org.umamo.ui.workspace.LocalKeyformSheetViews
@@ -170,6 +172,12 @@ internal class ShellControllers(
 	val areaCameras = AreaCameraHub()
 
 	/**
+	 * The work surfaces' per-area overlay state, registered by each 2D viewport and UV space for its lifetime;
+	 * the overlay commands resolve the hovered area here at dispatch time (one hub for both surfaces).
+	 */
+	val areaOverlays = AreaOverlayHub()
+
+	/**
 	 * The repack's session memory, which lives as long as the window, across documents - which is why it does
 	 * not key on the session.
 	 */
@@ -204,6 +212,7 @@ internal class ShellControllers(
 			LocalRelationPick provides relationPick,
 			LocalHoveredSurfaceTracker provides hoveredSurfaces,
 			LocalAreaCameraHub provides areaCameras,
+			LocalAreaOverlayHub provides areaOverlays,
 			LocalOperationStrip provides operationStrip,
 			LocalOperationStripArea provides operationStripArea,
 		)

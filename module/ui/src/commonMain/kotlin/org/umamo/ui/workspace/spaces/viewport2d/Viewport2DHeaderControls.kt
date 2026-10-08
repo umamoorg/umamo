@@ -19,7 +19,9 @@ import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.spaces.MeshSelectModeButtons
+import org.umamo.ui.workspace.spaces.OverlaysHeaderControl
 import org.umamo.ui.workspace.spaces.PivotModeDropdown
 import org.umamo.ui.workspace.spaces.ProportionalEditControls
 
@@ -38,14 +40,24 @@ import org.umamo.ui.workspace.spaces.ProportionalEditControls
  *
  * The widest strip in the app, so it is the one that most needs the overflow behavior.  Only the mode
  * dropdown is pinned - it is the control the whole viewport header is about, and a header that hides its
- * own subject is worse than one that clips.
+ * own subject is worse than one that clips.  The overlays control (the Show Overlays toggle and its popover,
+ * OverlaysHeaderControl.kt) sits at the trailing end after a flexible gap, where Blender keeps it; it is the
+ * one control here that reads per-area state, so this builder takes the hosting scope.
+ *
+ * @param AreaScope scope The hosting area's scope carrying the viewport's view state.
  */
-fun OverflowRowScope.viewport2DHeaderControls() {
-	item("editorMode") { EditorModeDropdown() }
+fun OverflowRowScope.viewport2DHeaderControls(scope: AreaScope) {
+	val viewState = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }
+	pinnedItem("editorMode") { EditorModeDropdown() }
 	item("selectMode") { MeshSelectModeButtons() }
 	item("pivot") { PivotModeDropdown() }
 	item("snap") { SnapDropdown() }
 	item("proportional") { ProportionalEditControls() }
+	flexibleSpace()
+	item("overlays") {
+		// Disabled, not hidden, with no document: the strip reads the same before the first file opens.
+		OverlaysHeaderControl(state = viewState.overlays, enabled = LocalEditorSession.current != null)
+	}
 }
 
 /**

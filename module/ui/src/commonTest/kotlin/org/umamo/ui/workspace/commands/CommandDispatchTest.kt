@@ -20,7 +20,10 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.action.Command
 import org.umamo.ui.viewport.CameraController
+import org.umamo.ui.viewport.OverlaySurface
+import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.workspace.AreaCameraHub
+import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetSurface
 import org.umamo.ui.workspace.KeyformSheetViews
@@ -407,5 +410,33 @@ class CommandDispatchTest {
 		commands.run("view.fit")
 
 		assertEquals(1, fitCount, "the hovered area's controller resolved on its area id alone")
+	}
+
+	/**
+	 * The overlay lookup is kind-agnostic too: a command flips whatever state the hovered area registered,
+	 * and only that one - a UV editor's toggles never reach a 2D viewport's, and no hovered area flips nothing.
+	 */
+	@Test
+	fun overlayCommandsFlipTheHoveredAreasStateAndNoOther() {
+		val hub = AreaOverlayHub()
+		val viewportOverlays = ViewportOverlayState(OverlaySurface.Viewport2D)
+		val uvOverlays = ViewportOverlayState(OverlaySurface.UvEditor)
+		hub.register(viewportArea, viewportOverlays)
+		hub.register(uvArea, uvOverlays)
+		val overUv = overlayCommands(hub, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), viewportPresent = true)
+
+		overUv.run("view.overlay.all")
+		overUv.run("view.overlay.cursor")
+		overUv.run("view.overlay.info")
+
+		assertFalse(uvOverlays.showOverlays, "the master flipped on the hovered UV editor")
+		assertFalse(uvOverlays.showCursor)
+		assertFalse(uvOverlays.showInfo)
+		assertTrue(viewportOverlays.showOverlays && viewportOverlays.showCursor && viewportOverlays.showInfo, "the other area is untouched")
+
+		overlayCommands(hub, routing(null), viewportPresent = true).run("view.overlay.all")
+
+		assertFalse(uvOverlays.showOverlays, "with no hovered area nothing flips")
+		assertTrue(viewportOverlays.showOverlays)
 	}
 }

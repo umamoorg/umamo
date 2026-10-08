@@ -7,8 +7,10 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+* UI: Viewport Overlays has a new Show Overlays toggle and dropdown at the end of the 2D Viewport and UV Editor headers to be able to viewport overlays.  The choices are saved per document.
 
 ### Changed
+* UI: The 2D Viewport's mode DropdownChip is now pinned instead of collapsing into the more chip.
 
 ### Fixed
 

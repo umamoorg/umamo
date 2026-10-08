@@ -189,8 +189,9 @@ class AreaViewStatesTest {
 		val scope = AreaScope("area-1")
 		scope.spaceState("uv") { ListState() }
 		scope.spaceState("outliner") { ListState() }
+		scope.spaceState("viewport") { ListState() }
 		scope.spaceState("keyformSheet") { ListState() }
 
-		assertEquals(listOf("outliner", "keyformSheet", "uv"), scope.gather().keys.toList())
+		assertEquals(listOf("viewport", "outliner", "keyformSheet", "uv"), scope.gather().keys.toList())
 	}
 }

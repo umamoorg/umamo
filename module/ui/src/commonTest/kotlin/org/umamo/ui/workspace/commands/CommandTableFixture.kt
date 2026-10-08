@@ -18,6 +18,7 @@ import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.model.EditorModeHandle
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.workspace.AreaCameraHub
+import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.area.AreaDragController
@@ -152,6 +153,7 @@ internal fun shellCommandTables(session: EditorSession? = null): List<Command> {
 		workspaceCommands(workspaces, overlays) { "Workspace" } +
 		documentCommands(overlays) +
 		viewCommands(AreaCameraHub(), routing, viewportPresent = false) +
+		overlayCommands(AreaOverlayHub(), routing, viewportPresent = false) +
 		frameCommands(CommandRegistry(), routing) +
 		modeCommands(handles, handles) +
 		historyCommands(session, availability, OperationStripState()) +

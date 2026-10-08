@@ -148,4 +148,21 @@ class KeymapTest {
 		assertNull(cubism.commandFor(KeyChord(keyName = "Digit2")))
 		assertNull(cubism.commandFor(KeyChord(keyName = "Digit3")))
 	}
+
+	/**
+	 * Shift+Alt+Z toggles the hovered area's overlays (Blender's chord) in the default and blender presets, and
+	 * stays unbound in the cubism preset.
+	 */
+	@Test
+	fun overlayMasterBindsInDefaultAndBlenderButNotCubism() {
+		val chord = KeyChord(keyName = "KeyZ", shift = true, alt = true)
+		for (presetId in listOf("default", "blender")) {
+			val keymap = Keymap.fromSpecs(keymapPresetSpecs(presetId))
+			assertEquals("view.overlay.all", keymap.commandFor(chord), "Shift+Alt+Z in $presetId")
+			assertEquals(chord, keymap.chordFor("view.overlay.all"), "the chord reads back in $presetId")
+		}
+		val cubism = Keymap.fromSpecs(keymapPresetSpecs("cubism"))
+		assertNull(cubism.commandFor(chord))
+		assertNull(cubism.chordFor("view.overlay.all"))
+	}
 }

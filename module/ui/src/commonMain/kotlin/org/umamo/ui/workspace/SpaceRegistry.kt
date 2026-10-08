@@ -34,7 +34,7 @@ interface PersistentSpaceState {
 }
 
 /** An area block's members in the order a writer lays them down (UMA §7.3, §7.5). */
-internal val AREA_BLOCK_MEMBER_ORDER: List<String> = listOf("cameras", "outliner", "sources", "parameters", "keyformSheet", "properties", "uv")
+internal val AREA_BLOCK_MEMBER_ORDER: List<String> = listOf("cameras", "viewport", "outliner", "sources", "parameters", "keyformSheet", "properties", "uv")
 
 /**
  * The per-area context handed to a space's content factory and its header slot. Carries the hosting

@@ -122,6 +122,7 @@ data class UmamoIcons(
 	val refreshAlert: UmamoIcon,
 	val wand: UmamoIcon,
 	val language: UmamoIcon,
+	val overlays: UmamoIcon,
 	val editorModeObject: UmamoIcon,
 	val editorModeEdit: UmamoIcon,
 	val meshSelectVertex: UmamoIcon,
@@ -300,6 +301,12 @@ val LocalUmamoIcons =
 		wand = simpleIcon("M6 21l15 -15l-3 -3l-15 15l3 3 M15 6l3 3 M9 3a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2 M19 13a2 2 0 0 0 2 2a2 2 0 0 0 -2 2a2 2 0 0 0 -2 -2a2 2 0 0 0 2 -2"),
 		// Tabler "language" (viewBox 0 0 24 24, stroked).
 		language = simpleIcon("M9 6.371c0 4.418 -2.239 6.629 -5 6.629 M4 6.371h7 M5 9c0 2.144 2.252 3.908 6 4 M12 20l4 -9l4 9 M19.1 18h-6.2 M6.694 3l.793 .582"),
+		// Overlays (docs/design/icons/overlay-circles.svg, modified from Tabler "chart-circles"; viewBox 0 0 24 24, filled).
+		overlays =
+			compositeIcon(
+				compositeIconLayer("M 9.2207031,8.0058594 C 5.7710971,8.1530745 3,11.0155 3,14.5 3,18.077998 5.9219992,21 9.5,21 c 3.482541,0 6.343956,-2.767944 6.494141,-6.214844 A 5.5,5.5 0 0 1 14.5,15 5.5,5.5 0 0 1 13.976562,14.960938 C 13.748254,17.239475 11.841711,19 9.5,19 7.0028766,19 5,16.997122 5,14.5 5,12.160286 6.7574869,10.254409 9.0332031,10.023438 a 5.5,5.5 0 0 1 0.1875,-2.0175786 z"),
+				compositeIconLayer("M 14.5 3 A 6.4999976 6.5 0 0 0 8.1484375 8.1425781 C 8.5847152 8.049561 9.03682 8 9.5 8 C 13.078 8 16 10.922002 16 14.5 C 16 14.958411 15.950536 15.405781 15.859375 15.837891 A 6.4999976 6.5 0 0 0 14.5 3 z M 9.5 10 C 8.9934221 10 8.5079895 10.08407 8.0546875 10.236328 A 6.4999976 6.5 0 0 0 13.763672 15.945312 C 13.915929 15.492011 14 15.006578 14 14.5 C 14 12.002878 11.997124 10 9.5 10 z"),
+			),
 		// The icons below are adapted from the Blender project's icon set (GPL-2.0-or-later, compatible
 		// with this project's GPL-3.0; source SVGs archived under docs/design/icons/).  Each keeps
 		// Blender's two-tone contrast: a full-strength highlight layer over a muted context layer.

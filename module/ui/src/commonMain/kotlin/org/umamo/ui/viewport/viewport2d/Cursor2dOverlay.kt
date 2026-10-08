@@ -6,10 +6,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
+import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
+import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.gizmo.drawCursorMarker
 import org.umamo.ui.viewport.gizmo.worldToScreen
 
@@ -23,6 +28,9 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  * above the gizmo chrome and below the informational HUD.  The layer itself is draw-only (no pointer
  * input), and it projects through the DISPLAYED frame's camera (like every world-anchored overlay
  * drawing) so it never swims against the raster.
+ *
+ * The area's overlays control (its 2D Cursor row, or the Show Overlays master) hides the marker through
+ * LocalAreaOverlays; the cursor stays placed, and the pivot and snap commands keep reading it.
  *
  * @param EditorSession session The session whose 2D cursor this overlay draws.
  * @param ViewportCamera? camera The displayed frame's camera (world<->screen); null skips drawing.
@@ -40,11 +48,14 @@ internal fun Cursor2dOverlay(
 ) {
 	val cursor by session.cursor2d.collectAsState()
 	val cursorColors = LocalUmamoColors.current
+	val shown = LocalAreaOverlays.current?.effectiveCursor ?: true
+	val cursorLabel = stringResource(Res.string.overlay_row_cursor)
 	val cursorToDraw = cursor
-	if (cursorToDraw == null || camera == null) {
+	if (cursorToDraw == null || camera == null || !shown) {
 		return
 	}
-	Canvas(modifier = modifier.fillMaxSize()) {
+	// Named for accessibility and for tests: a draw-only canvas is otherwise invisible to the semantics tree.
+	Canvas(modifier = modifier.fillMaxSize().semantics { contentDescription = cursorLabel }) {
 		drawCursorMarker(
 			center = worldToScreen(cursorToDraw.worldX, cursorToDraw.worldZ, camera, IntSize(widthPx, heightPx)),
 			tint = cursorColors.viewportBadgeText,

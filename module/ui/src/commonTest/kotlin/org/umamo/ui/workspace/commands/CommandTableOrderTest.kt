@@ -6,6 +6,7 @@ import org.umamo.runtime.model.SourceLayerRef
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.workspace.AreaCameraHub
+import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.ShellOverlayState
@@ -97,8 +98,8 @@ class CommandTableOrderTest {
 	}
 
 	/**
-	 * The viewport navigation table and the context-aware frame command.  Built with no render service,
-	 * which only flips the availability gate - the tables themselves are the same either way.
+	 * The viewport navigation table, the context-aware frame command, and the overlay toggles.  Built with no
+	 * render service, which only flips the availability gate - the tables themselves are the same either way.
 	 */
 	@Test
 	fun viewTablesAreComplete() {
@@ -117,6 +118,10 @@ class CommandTableOrderTest {
 			commands.map { command -> command.id },
 		)
 		assertEquals(listOf("frame.all"), frameCommands(CommandRegistry(), routing()).map { command -> command.id })
+		assertEquals(
+			listOf("view.overlay.all", "view.overlay.cursor", "view.overlay.info"),
+			overlayCommands(AreaOverlayHub(), routing(), viewportPresent = false).map { command -> command.id },
+		)
 	}
 
 	/** The selection-clear and editor-mode table. */

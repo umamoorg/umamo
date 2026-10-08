@@ -6,14 +6,19 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -27,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
+import org.umamo.ui.kit.button.accentControlFill
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -39,6 +45,23 @@ import org.umamo.ui.theme.drawIcon
  * panel (PopupChip.kt), and the funnel preset for filters (FilterPopupChip.kt).  A chip leaves what drops
  * down to its caller, so nothing here imports the menus.
  */
+
+/**
+ * A toggle riding on a [DropdownChip]'s glyph: with one, the chip's face splits into the glyph as a lit /
+ * unlit button of its own and the chevron that opens the dropdown - Blender's two-part header controls
+ * (Show Overlays, Show Gizmo) as ONE chip, not a button beside a chip.  The toggle's action never opens the
+ * dropdown, and the chevron never flips the toggle.
+ *
+ * @property Boolean  active             Whether the toggle is lit.
+ * @property Function onToggle           Invoked when the glyph half is clicked.
+ * @property String   contentDescription The glyph half's accessible label and tooltip.
+ */
+@Immutable
+class ChipToggle(
+	val active: Boolean,
+	val onToggle: () -> Unit,
+	val contentDescription: String,
+)
 
 /**
  * The roles a [DropdownChip] plays: a [Header] chrome chip (content-width, tab-fill, an accent open
@@ -79,6 +102,8 @@ enum class DropdownChipStyle {
  *   (no-document chrome renders its chips this way rather than hiding them).
  * @param DropdownChipStyle style     Which role the chip plays; see [DropdownChipStyle].
  * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
+ * @param ChipToggle? iconToggle        A toggle riding on the glyph: the face splits into the glyph's own lit / unlit
+ *   button and the chevron that opens the dropdown (see [ChipToggle]; needs [icon], Header and Compact only).
  * @param Function  dropdown           The popup content, rendered while expanded.
  */
 @Composable
@@ -92,6 +117,7 @@ fun DropdownChip(
 	enabled: Boolean = true,
 	style: DropdownChipStyle = DropdownChipStyle.Header,
 	iconTint: Color? = null,
+	iconToggle: ChipToggle? = null,
 	dropdown: @Composable () -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -131,60 +157,215 @@ fun DropdownChip(
 	Box(modifier = modifier) {
 		// The tooltip wraps the chip face only; the popup is a sibling below, so it is never wrapped and
 		// its anchor bounds (the box) stay the chip's bounds.
-		Tooltip(text = contentDescription) {
-			// A Field fills its column so it lines up with the other form controls.  A Header chip is pinned to
-			// its own intrinsic width and IGNORES the incoming maximum: a Row clamps itself to whatever width is
-			// left, which would shrink the painted face out from under the glyphs.  Overflowing the parent (and
-			// being clipped) is the legible failure; a chip squeezed down to an empty padding box is not.
-			val faceWidth =
-				if (isField) {
-					Modifier.fillMaxWidth()
-				} else {
-					Modifier.requiredWidth(IntrinsicSize.Max)
+		// A toggle on the glyph splits the face into two halves; the plain face is one clickable.
+		val toggle = iconToggle?.takeIf { icon != null && !isField }
+		if (toggle != null && icon != null) {
+			SplitChipFace(
+				expanded = expanded,
+				onExpandRequest = onExpandRequest,
+				contentDescription = contentDescription,
+				icon = icon,
+				toggle = toggle,
+				label = label,
+				enabled = enabled,
+				style = style,
+			)
+		} else {
+			Tooltip(text = contentDescription) {
+				// A Field fills its column so it lines up with the other form controls.  A Header chip is pinned to
+				// its own intrinsic width and IGNORES the incoming maximum: a Row clamps itself to whatever width is
+				// left, which would shrink the painted face out from under the glyphs.  Overflowing the parent (and
+				// being clipped) is the legible failure; a chip squeezed down to an empty padding box is not.
+				val faceWidth =
+					if (isField) {
+						Modifier.fillMaxWidth()
+					} else {
+						Modifier.requiredWidth(IntrinsicSize.Max)
+					}
+				Row(
+					modifier =
+						faceWidth
+							.clip(shapes.small)
+							// NOT focusable, like SectionHeader and Checkbox: the popup owns its own focus while open,
+							// and on close the keyboard must return to the shell root, not to a chip that transient
+							// chrome (the operation settings strip) may dispose on the next edit.
+							.focusProperties { canFocus = false }
+							.clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onExpandRequest)
+							.border(width = 1.dp, color = borderColor, shape = shapes.small)
+							.background(backgroundColor, shape = shapes.small)
+							.padding(facePadding)
+							.semantics { this.contentDescription = contentDescription },
+					verticalAlignment = Alignment.CenterVertically,
+				) {
+					if (icon != null) {
+						// requiredSize, not size: size coerces to the incoming constraints, so a starved parent
+						// measures the glyph at zero and the chip renders as an empty padding box.  The chip holds
+						// its glyphs at full size and overflows instead - being pushed off the edge is legible,
+						// silently shrinking to nothing is not.
+						// A status tint colors the glyph at rest only; the open and disabled faces keep their own contrast.
+						val glyphColor = if (iconTint != null && enabled && !expanded) iconTint else chipContentColor
+						Canvas(modifier = Modifier.requiredSize(glyphSize)) {
+							drawIcon(icon, glyphColor)
+						}
+					}
+					if (label != null) {
+						// A Field weights its label so it fills the chip (ellipsizing when long) and pushes the
+						// chevron to the trailing edge; a Header keeps the label content-width, which the Row's own
+						// intrinsic sizing already guarantees room for.
+						val labelModifier =
+							if (isField) {
+								Modifier.weight(1f).padding(horizontal = 4.dp)
+							} else {
+								Modifier.padding(horizontal = 4.dp)
+							}
+						Text(
+							text = label,
+							style = LocalUmamoTypography.current.labelMedium,
+							color = chipContentColor,
+							maxLines = 1,
+							overflow = TextOverflow.Ellipsis,
+							modifier = labelModifier,
+						)
+					}
+					val chevron =
+						when {
+							expanded -> LocalUmamoIcons.chevronDown
+							else -> LocalUmamoIcons.chevronRight
+						}
+					Canvas(modifier = Modifier.requiredSize(chevronSize)) {
+						drawIcon(chevron, chipContentColor)
+					}
 				}
+			}
+		}
+		if (expanded) {
+			dropdown()
+		}
+	}
+}
+
+/**
+ * The split face of a chip carrying an [iconToggle]: the glyph is a lit / unlit button of its own and the
+ * chevron (with the label, if any) opens the dropdown, the two halves sharing one border with a seam between
+ * them.  Each half paints its own fill and carries its own tooltip and accessible name; the border follows
+ * the whole - accent while open, hover-lit while the pointer is over either half.  The toggle half's lit fill
+ * is the IconButton family's accent ramp, so it reads like the header's other filled toggles.
+ *
+ * @param Boolean           expanded           Whether the dropdown is open.
+ * @param Function          onExpandRequest    Invoked by the chevron half to open the dropdown.
+ * @param String            contentDescription The chevron half's accessible label and tooltip.
+ * @param UmamoIcon         icon               The glyph the toggle half draws.
+ * @param ChipToggle        toggle             The toggle half's state, action, and label.
+ * @param String?           label              Optional labelMedium text ahead of the chevron.
+ * @param Boolean           enabled            When false both halves dim and clicks are inert.
+ * @param DropdownChipStyle style              Header or Compact sizing.
+ */
+@Composable
+private fun SplitChipFace(
+	expanded: Boolean,
+	onExpandRequest: () -> Unit,
+	contentDescription: String,
+	icon: UmamoIcon,
+	toggle: ChipToggle,
+	label: String?,
+	enabled: Boolean,
+	style: DropdownChipStyle,
+) {
+	val colors = LocalUmamoColors.current
+	val shapes = LocalUmamoShapes.current
+	val toggleInteraction = remember { MutableInteractionSource() }
+	val expandInteraction = remember { MutableInteractionSource() }
+	val toggleHoveredLive by toggleInteraction.collectIsHoveredAsState()
+	val togglePressedLive by toggleInteraction.collectIsPressedAsState()
+	val expandHoveredLive by expandInteraction.collectIsHoveredAsState()
+	// A disabled chip shows no hover or press feedback, as the plain face does not.
+	val toggleHovered = toggleHoveredLive && enabled
+	val togglePressed = togglePressedLive && enabled
+	val expandHovered = expandHoveredLive && enabled
+	val isCompact = style == DropdownChipStyle.Compact
+	val facePadding = if (isCompact) 2.dp else 4.dp
+	val glyphSize = if (isCompact) 14.dp else 16.dp
+	val chevronSize = if (isCompact) 10.dp else 12.dp
+	val borderColor =
+		when {
+			expanded -> colors.accent
+			toggleHovered || expandHovered -> colors.panelBorderHover
+			else -> colors.panelBorder
+		}
+	val lit = toggle.active && enabled
+	val toggleFill =
+		when {
+			lit -> accentControlFill(colors, selected = true, hovered = toggleHovered, pressed = togglePressed)
+			toggleHovered -> colors.panelBackground
+			else -> colors.tabBackground
+		}
+	val toggleGlyphColor =
+		when {
+			!enabled -> colors.textDisabled
+			lit -> colors.accentText
+			else -> colors.text
+		}
+	val expandFill =
+		when {
+			expanded -> colors.accent
+			expandHovered -> colors.panelBackground
+			else -> colors.tabBackground
+		}
+	val expandContentColor =
+		when {
+			!enabled -> colors.textDisabled
+			expanded -> colors.accentText
+			else -> colors.text
+		}
+	// Intrinsic width like the plain Header face, and the halves fill the taller half's height so the seam
+	// and both fills run the full face.
+	Row(
+		modifier =
+			Modifier
+				.requiredWidth(IntrinsicSize.Max)
+				.height(IntrinsicSize.Min)
+				.clip(shapes.small)
+				.focusProperties { canFocus = false }
+				.border(width = 1.dp, color = borderColor, shape = shapes.small),
+		verticalAlignment = Alignment.CenterVertically,
+	) {
+		Tooltip(text = toggle.contentDescription, modifier = Modifier.fillMaxHeight()) {
+			Box(
+				modifier =
+					Modifier
+						.fillMaxHeight()
+						.background(toggleFill)
+						.clickable(interactionSource = toggleInteraction, indication = null, enabled = enabled, onClick = toggle.onToggle)
+						.padding(facePadding)
+						.semantics { this.contentDescription = toggle.contentDescription },
+				contentAlignment = Alignment.Center,
+			) {
+				Canvas(modifier = Modifier.requiredSize(glyphSize)) {
+					drawIcon(icon, toggleGlyphColor)
+				}
+			}
+		}
+		// The seam between the halves, in the border's color so it reads as part of the one outline.
+		Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(borderColor))
+		Tooltip(text = contentDescription, modifier = Modifier.fillMaxHeight()) {
 			Row(
 				modifier =
-					faceWidth
-						.clip(shapes.small)
-						// NOT focusable, like SectionHeader and Checkbox: the popup owns its own focus while open,
-						// and on close the keyboard must return to the shell root, not to a chip that transient
-						// chrome (the operation settings strip) may dispose on the next edit.
-						.focusProperties { canFocus = false }
-						.clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onExpandRequest)
-						.border(width = 1.dp, color = borderColor, shape = shapes.small)
-						.background(backgroundColor, shape = shapes.small)
+					Modifier
+						.fillMaxHeight()
+						.background(expandFill)
+						.clickable(interactionSource = expandInteraction, indication = null, enabled = enabled, onClick = onExpandRequest)
 						.padding(facePadding)
 						.semantics { this.contentDescription = contentDescription },
 				verticalAlignment = Alignment.CenterVertically,
 			) {
-				if (icon != null) {
-					// requiredSize, not size: size coerces to the incoming constraints, so a starved parent
-					// measures the glyph at zero and the chip renders as an empty padding box.  The chip holds
-					// its glyphs at full size and overflows instead - being pushed off the edge is legible,
-					// silently shrinking to nothing is not.
-					// A status tint colors the glyph at rest only; the open and disabled faces keep their own contrast.
-					val glyphColor = if (iconTint != null && enabled && !expanded) iconTint else chipContentColor
-					Canvas(modifier = Modifier.requiredSize(glyphSize)) {
-						drawIcon(icon, glyphColor)
-					}
-				}
 				if (label != null) {
-					// A Field weights its label so it fills the chip (ellipsizing when long) and pushes the
-					// chevron to the trailing edge; a Header keeps the label content-width, which the Row's own
-					// intrinsic sizing already guarantees room for.
-					val labelModifier =
-						if (isField) {
-							Modifier.weight(1f).padding(horizontal = 4.dp)
-						} else {
-							Modifier.padding(horizontal = 4.dp)
-						}
 					Text(
 						text = label,
 						style = LocalUmamoTypography.current.labelMedium,
-						color = chipContentColor,
+						color = expandContentColor,
 						maxLines = 1,
 						overflow = TextOverflow.Ellipsis,
-						modifier = labelModifier,
+						modifier = Modifier.padding(horizontal = 4.dp),
 					)
 				}
 				val chevron =
@@ -193,12 +374,9 @@ fun DropdownChip(
 						else -> LocalUmamoIcons.chevronRight
 					}
 				Canvas(modifier = Modifier.requiredSize(chevronSize)) {
-					drawIcon(chevron, chipContentColor)
+					drawIcon(chevron, expandContentColor)
 				}
 			}
-		}
-		if (expanded) {
-			dropdown()
 		}
 	}
 }
