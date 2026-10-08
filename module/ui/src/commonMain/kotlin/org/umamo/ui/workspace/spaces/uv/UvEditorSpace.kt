@@ -100,8 +100,8 @@ import org.umamo.ui.workspace.spaces.PlaceholderSpace
  * scene this space publishes - UvSceneOverlay.kt),
  * blitted here by [UvPageUnderlay]; the UV camera is owned by that service, and the Compose gizmo
  * overlays lock to the frame camera so they stay glued to the (asynchronously produced) raster during
- * pan / zoom.  With no service present (Android until the GLES engine lands) the space shows the
- * grid placeholder, exactly like the 2D viewport - there is no CPU underlay fallback.
+ * pan / zoom.  With no service present (Android until the GLES engine lands) the space shows a bare
+ * panel, as the 2D viewport shows a plain backdrop without one - there is no CPU underlay fallback.
  *
  * The working space is the display mapping of UvDisplayMapping.kt: texel units with Y up (v = 0 is the
  * image's TOP row, so the axis flips - see that file's header).

@@ -89,7 +89,7 @@ import org.umamo.ui.workspace.ViewportHost
 /**
  * The viewport host plus its render service and preview seams, returned together so the app can inject
  * the host into the editor shell and provide the service / thumbnails / render-sync into their locals.
- * The per-area camera controllers are no longer carried here - each viewport / UV leaf registers its own
+ * The per-area camera controllers are not carried here: each viewport / UV leaf registers its own
  * into the shared AreaCameraHub, and the view commands resolve the hovered area through that hub.
  *
  * @property ViewportHost host The Viewport2D host injected into the editor shell.
@@ -484,7 +484,7 @@ fun rememberPuppetViewportHost(
 					var overlap by remember(areaId) { mutableStateOf<OverlapState?>(null) }
 					// Where the pointer last was in this area, tracked at the HOST rather than inside a gizmo
 					// overlay.  A pointer-addressed command (Alt+Q switch-object, rip, select-linked) has to
-					// know where the cursor is, and the overlays that used to own that knowledge do not mount
+					// know where the cursor is, and a gizmo overlay holding that knowledge would not mount
 					// in the very states those commands exist to escape - Edit mode with every selected
 					// drawable behind a hidden ancestor, say.  Tracked here, it survives them.
 					val areaPointer = remember(areaId) { mutableStateOf(Offset.Zero) }
