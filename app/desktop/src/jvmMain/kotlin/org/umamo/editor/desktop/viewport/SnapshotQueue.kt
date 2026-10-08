@@ -6,6 +6,7 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.render.FrameBackdrop
 import org.umamo.render.ViewportCamera
 import org.umamo.storage.UmamoLog
+import org.umamo.ui.viewport.AreaOverlays
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
@@ -22,6 +23,7 @@ internal class SnapshotQueue {
 	 * @property Int                                 width    The image width in pixels.
 	 * @property Int                                 height   The image height in pixels.
 	 * @property FrameBackdrop                       backdrop What the puppet is drawn over.
+	 * @property AreaOverlays                        overlays The grid geometry, and the grid lines and axes a grid backdrop draws.
 	 * @property CompletableDeferred<RasterImage?>   result   Completed with the premultiplied pixels, or null.
 	 */
 	private class PendingSnapshot(
@@ -29,6 +31,7 @@ internal class SnapshotQueue {
 		val width: Int,
 		val height: Int,
 		val backdrop: FrameBackdrop,
+		val overlays: AreaOverlays,
 		val result: CompletableDeferred<RasterImage?>,
 	)
 
@@ -50,10 +53,11 @@ internal class SnapshotQueue {
 	 * @param Int            width    The image width in pixels.
 	 * @param Int            height   The image height in pixels.
 	 * @param FrameBackdrop  backdrop What the puppet is drawn over.
+	 * @param AreaOverlays   overlays The grid geometry, and the grid lines and axes a grid backdrop draws.
 	 * @return Deferred<RasterImage?> The premultiplied pixels, top row first, or null.
 	 */
-	fun request(camera: ViewportCamera, width: Int, height: Int, backdrop: FrameBackdrop): Deferred<RasterImage?> {
-		val snapshot = PendingSnapshot(camera, width, height, backdrop, CompletableDeferred())
+	fun request(camera: ViewportCamera, width: Int, height: Int, backdrop: FrameBackdrop, overlays: AreaOverlays): Deferred<RasterImage?> {
+		val snapshot = PendingSnapshot(camera, width, height, backdrop, overlays, CompletableDeferred())
 		pendingSnapshots.add(snapshot)
 		if (!acceptingSnapshots) {
 			failAll()
@@ -88,14 +92,14 @@ internal class SnapshotQueue {
 	 * in the queue is answered by [close].
 	 *
 	 * @param Function keepGoing Polled before each capture; false leaves the rest queued.
-	 * @param Function capture   Draws one capture at its camera, width, height, and backdrop, returning the
-	 *   premultiplied pixels, or null when it was abandoned at shutdown.
+	 * @param Function capture   Draws one capture at its camera, width, height, backdrop, and overlays,
+	 *   returning the premultiplied pixels, or null when it was abandoned at shutdown.
 	 */
-	fun serve(keepGoing: () -> Boolean, capture: (ViewportCamera, Int, Int, FrameBackdrop) -> RasterImage?) {
+	fun serve(keepGoing: () -> Boolean, capture: (ViewportCamera, Int, Int, FrameBackdrop, AreaOverlays) -> RasterImage?) {
 		while (keepGoing()) {
 			val snapshot = pendingSnapshots.poll() ?: break
 			try {
-				val image = capture(snapshot.camera, snapshot.width, snapshot.height, snapshot.backdrop)
+				val image = capture(snapshot.camera, snapshot.width, snapshot.height, snapshot.backdrop, snapshot.overlays)
 				if (image == null) {
 					UmamoLog.info("[GL] image capture (${snapshot.width}x${snapshot.height}) abandoned at shutdown")
 				}

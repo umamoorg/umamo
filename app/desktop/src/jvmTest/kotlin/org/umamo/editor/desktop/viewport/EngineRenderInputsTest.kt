@@ -1,6 +1,5 @@
 package org.umamo.editor.desktop.viewport
 
-import org.umamo.edit.GridConfig
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
@@ -102,7 +101,6 @@ class EngineRenderInputsTest {
 		inputs.setActiveSelection(null)
 		inputs.setShownDrawables(model.visibleDrawableIds().toSet())
 		inputs.gridColors = GridColors.Classic
-		inputs.gridConfig = GridConfig()
 		inputs.supersampleEnabled = true
 		inputs.setSelectionHighlightColor(0.20f, 0.55f, 1.0f)
 		inputs.setActiveSelectionHighlightColor(0.49f, 0.89f, 0.0f)
@@ -137,10 +135,8 @@ class EngineRenderInputsTest {
 		val inputs = inputs()
 		inputs.gridColors = GridColors.Classic.copy(backgroundRed = 0.5f)
 		assertBumps(inputs, 1, 1, "grid colors")
-		inputs.gridConfig = GridConfig(scale = 50f)
-		assertBumps(inputs, 2, 2, "grid config")
 		inputs.supersampleEnabled = false
-		assertBumps(inputs, 3, 3, "supersample")
+		assertBumps(inputs, 2, 2, "supersample")
 		assertFalse(inputs.supersampleEnabled)
 	}
 

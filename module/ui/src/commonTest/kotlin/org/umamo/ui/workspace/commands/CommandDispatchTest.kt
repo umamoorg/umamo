@@ -426,13 +426,21 @@ class CommandDispatchTest {
 		val overUv = overlayCommands(hub, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), viewportPresent = true)
 
 		overUv.run("view.overlay.all")
+		overUv.run("view.overlay.grid")
 		overUv.run("view.overlay.cursor")
 		overUv.run("view.overlay.info")
 
 		assertFalse(uvOverlays.showOverlays, "the master flipped on the hovered UV editor")
+		assertFalse(uvOverlays.showGrid)
 		assertFalse(uvOverlays.showCursor)
 		assertFalse(uvOverlays.showInfo)
-		assertTrue(viewportOverlays.showOverlays && viewportOverlays.showCursor && viewportOverlays.showInfo, "the other area is untouched")
+		assertTrue(viewportOverlays.showOverlays && viewportOverlays.showGrid && viewportOverlays.showCursor && viewportOverlays.showInfo, "the other area is untouched")
+
+		// The axes command is scoped to the 2D viewport for the palette's sake only; dispatch never reads a
+		// scope, so over a UV editor it flips that area's (unused) flag and still leaves the 2D area alone.
+		overUv.run("view.overlay.axes")
+		assertFalse(uvOverlays.showAxes)
+		assertTrue(viewportOverlays.showAxes, "the 2D area's axes stay")
 
 		overlayCommands(hub, routing(null), viewportPresent = true).run("view.overlay.all")
 

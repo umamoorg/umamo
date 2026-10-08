@@ -19,19 +19,21 @@ import org.umamo.ui.workspace.editorstate.AreaViewStates
 
 /**
  * The app controllers' collaborators for a test, with no composition and no dialogs: in-memory settings,
- * a picker that is always cancelled, and a registry whose shell commands record what they were asked
- * instead of raising an overlay.
+ * a picker that is cancelled unless the test hands one that answers, and a registry whose shell commands
+ * record what they were asked instead of raising an overlay.
  *
  * The open document is a plain variable the controllers read through [EditorAppServices.current], the way
  * the app's holder hands them the live composition's context - so a test swaps the document by assigning
  * [context], exactly as opening one does.
  *
- * @param CoroutineScope scope    The scope the controllers' work runs in (a test's own scope).
- * @param HostHeap?      hostHeap The launch's memory limit the controllers see, or null for a host with none.
+ * @param CoroutineScope scope      The scope the controllers' work runs in (a test's own scope).
+ * @param HostHeap?      hostHeap   The launch's memory limit the controllers see, or null for a host with none.
+ * @param FilePicker     filePicker The dialogs the controllers open; cancelled unless a test answers them.
  */
 internal class AppControllerFixture(
 	private val scope: CoroutineScope,
 	hostHeap: HostHeap? = null,
+	filePicker: FilePicker = CancelledFilePicker,
 ) {
 	/** Every command the controllers dispatched, in order, with its argument. */
 	val invocations = ArrayList<Pair<String, Any?>>()
@@ -63,7 +65,7 @@ internal class AppControllerFixture(
 			EditorAppServices(
 				settings = settings,
 				scope = scope,
-				filePicker = CancelledFilePicker,
+				filePicker = filePicker,
 				commandRegistry = registry,
 				current = { context },
 				onOpen = { document -> opened.add(document) },

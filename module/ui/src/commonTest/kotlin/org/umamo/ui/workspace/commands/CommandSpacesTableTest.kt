@@ -34,6 +34,8 @@ class CommandSpacesTableTest {
 				"view.zoomRegion" to workSurfaces,
 				"view.frameSelected" to workSurfaces,
 				"view.overlay.all" to workSurfaces,
+				"view.overlay.grid" to workSurfaces,
+				"view.overlay.axes" to viewport,
 				"view.overlay.cursor" to workSurfaces,
 				"view.overlay.info" to workSurfaces,
 				"frame.all" to workSurfacesAndSheet,

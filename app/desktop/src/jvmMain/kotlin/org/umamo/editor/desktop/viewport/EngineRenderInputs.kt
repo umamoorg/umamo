@@ -1,6 +1,5 @@
 package org.umamo.editor.desktop.viewport
 
-import org.umamo.edit.GridConfig
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
@@ -48,10 +47,6 @@ internal class EngineRenderInputs(
 	// pushes the themed colors.
 	@Volatile
 	private var gridColorsBacking: GridColors = GridColors.Classic
-
-	// The per-document grid geometry (major spacing + subdivisions), fed from the session.
-	@Volatile
-	private var gridConfigBacking: GridConfig = GridConfig()
 
 	// The currently selected drawables, read by the render thread to tint them.
 	@Volatile
@@ -213,20 +208,6 @@ internal class EngineRenderInputs(
 		set(value) {
 			if (value != gridColorsBacking) {
 				gridColorsBacking = value
-				doPuppetRenderBump()
-				doAtlasRenderBump()
-			}
-		}
-
-	/**
-	 * The per-document grid geometry (major spacing + subdivisions). Like the grid colors, a change bumps
-	 * both render passes so a grid-only change repaints without waiting for an unrelated render.
-	 */
-	var gridConfig: GridConfig
-		get() = gridConfigBacking
-		set(value) {
-			if (value != gridConfigBacking) {
-				gridConfigBacking = value
 				doPuppetRenderBump()
 				doAtlasRenderBump()
 			}

@@ -60,8 +60,10 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.viewport.AreaCameraKey
+import org.umamo.ui.viewport.AreaOverlaysPublisher
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
+import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.OverlapPickerPopup
 import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PuppetViewportService
@@ -414,11 +416,6 @@ fun rememberPuppetViewportHost(
 			}
 		}
 	}
-	// Feed the per-document grid geometry (the session's single source of truth, resolved from settings /
-	// per-file) into the render service so the drawn backdrop grid matches the snap increment.
-	LaunchedEffect(service, session) {
-		session.gridConfig.collect { config -> service.gridConfig = config }
-	}
 	// Feed the themed grid-backdrop colors into the service and keep them live: LocalUmamoColors already
 	// resolves the active scheme (including "system"), so a theme switch recomposes with new colors and this
 	// effect re-pushes them, re-tinting the viewport backdrop. Compose Color components are 0..1 sRGB, exactly
@@ -463,6 +460,9 @@ fun rememberPuppetViewportHost(
 					// a slot remembered across a service swap would keep collecting the disposed engine's
 					// flows and never register with the live one.
 					val imageFlow = remember(areaId, service) { service.register(areaId) }
+					// The area's render options - its grid geometry and which overlays its frames draw - follow
+					// the overlay state the body provides through the local; a standalone shell provides none.
+					AreaOverlaysPublisher(service, areaId, LocalAreaOverlays.current)
 					val cameraFlow = remember(areaId, service) { service.cameraFlow(areaId) }
 					DisposableEffect(areaId, service) {
 						onDispose { service.unregister(areaId) }

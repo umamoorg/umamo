@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import org.umamo.render.ContentBounds
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.AreaCameraKey
+import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.CameraSurface
 import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.UvSceneContent
@@ -105,7 +106,8 @@ internal data class AreaView(val camera: ViewportCamera, val width: Int, val hei
  * ([OffscreenRenderEngine]). Field-ownership contract:
  *
  *   - The @Volatile fields are written by the UI thread and read by the render thread (a volatile publish of
- *     immutable values or plain scalars): scene, uvContent, uvIslandExtent, width, height, refitRequested.
+ *     immutable values or plain scalars): scene, uvContent, uvIslandExtent, overlays, width, height,
+ *     refitRequested.
  *     framing is written by both: the UI thread's pan / zoom and the render thread's establish, each
  *     replacing the whole value.
  *   - imageState / cameraState are thread-safe StateFlows; either thread may set them.
@@ -137,6 +139,13 @@ internal class AreaSlot {
 	// uvContent, and read after it: a render thread that sees new content also sees the extent measured over it.
 	@Volatile
 	var uvIslandExtent: ContentBounds? = null
+
+	// What the area draws beyond its scene: its grid geometry and its frame's overlays (grid lines, axes, mesh
+	// overlay).  One volatile publish of one immutable value, compared by VALUE for freshness, so a toggle
+	// re-renders this area alone and never counts against the others.  The editor's defaults until the area's
+	// host pushes its own, which it does as it registers.
+	@Volatile
+	var overlays: AreaOverlays = AreaOverlays.Default
 
 	@Volatile
 	var width: Int = 0
@@ -177,6 +186,7 @@ internal class AreaSlot {
 	var puppetRenderBumpDone: Long = -1
 	var atlasRenderBumpDone: Long = -1
 	var renderedUvContent: UvSceneContent? = null
+	var renderedOverlays: AreaOverlays? = null
 
 	// Render-thread-only resize-throttle bookkeeping: the last size the loop observed, when it last
 	// changed, when the last resize-driven render was issued (all System.nanoTime), and the
@@ -362,6 +372,26 @@ internal class ViewportAreaRegistry {
 		slot.uvIslandExtent = islandExtent
 		slot.uvContent = content
 	}
+
+	/**
+	 * Publishes what an area draws beyond its scene; a no-op for an unregistered area.  One volatile store of
+	 * one immutable value: the render thread reads it once per render and stamps the frame from that read.
+	 *
+	 * @param String       areaId   The area.
+	 * @param AreaOverlays overlays The area's render options.
+	 */
+	fun setAreaOverlays(areaId: String, overlays: AreaOverlays) {
+		val slot = areas[areaId] ?: return
+		slot.overlays = overlays
+	}
+
+	/**
+	 * The render options an area last published, or null when it is not registered.
+	 *
+	 * @param String areaId The area.
+	 * @return AreaOverlays? The area's options, or null.
+	 */
+	fun areaOverlays(areaId: String): AreaOverlays? = areas[areaId]?.overlays
 
 	/**
 	 * Releases one hold on an area; the slot is dropped only when the last holder leaves (ref-count to zero).

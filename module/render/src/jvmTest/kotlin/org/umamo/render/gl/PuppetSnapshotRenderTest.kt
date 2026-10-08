@@ -117,8 +117,8 @@ class PuppetSnapshotRenderTest {
 	private fun quadModel(): PuppetModel = modelOf(listOf(quad(quadId, 20f, 80f)))
 
 	/**
-	 * A renderer over [quadModel], posed at rest, with the quad selected and active and the world axes on:
-	 * the viewport's state, which a capture must leave out.
+	 * A renderer over [quadModel], posed at rest, with the quad selected and active: the viewport's state,
+	 * which a capture must leave out.
 	 *
 	 * @param GlRenderDevice device The device to render through.
 	 * @return PuppetRenderer The renderer.
@@ -126,7 +126,6 @@ class PuppetSnapshotRenderTest {
 	private fun viewportRenderer(device: GlRenderDevice): PuppetRenderer {
 		val renderer = PuppetRenderer(quadModel(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 		renderer.initGl()
-		renderer.setWorldAxesVisible(true)
 		renderer.setShownDrawables(setOf(quadId))
 		renderer.setSelection(setOf(quadId))
 		renderer.setActiveSelection(quadId)

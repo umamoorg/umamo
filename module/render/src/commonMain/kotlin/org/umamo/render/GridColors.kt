@@ -48,6 +48,23 @@ data class GridColors(
 	val frameBlue: Float = majorBlue,
 	val frameWidthPx: Float = 1f,
 ) {
+	/**
+	 * These colors with the grid lines gone: the major and minor lines take the background color, so the
+	 * grid pass paints a flat fill while the surround and the frame keep their own colors.  How a frame hides
+	 * the grid lines without a second code path for the clear.
+	 *
+	 * @return GridColors The flat variant.
+	 */
+	fun withoutLines(): GridColors =
+		copy(
+			majorRed = backgroundRed,
+			majorGreen = backgroundGreen,
+			majorBlue = backgroundBlue,
+			minorRed = backgroundRed,
+			minorGreen = backgroundGreen,
+			minorBlue = backgroundBlue,
+		)
+
 	companion object {
 		/** A neutral dark-grey grid: #2E2E2E fill, #484848 major lines, #3A3A3A minor lines. */
 		val Classic: GridColors =
