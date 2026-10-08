@@ -5,9 +5,9 @@ import kotlinx.serialization.json.buildJsonObject
 import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.workspace.PersistentSpaceState
-import org.umamo.ui.workspace.spaces.OVERLAYS_MEMBER
-import org.umamo.ui.workspace.spaces.overlaysJsonOrNull
-import org.umamo.ui.workspace.spaces.restoreOverlays
+import org.umamo.ui.workspace.editorstate.OVERLAYS_MEMBER
+import org.umamo.ui.workspace.editorstate.overlaysJsonOrNull
+import org.umamo.ui.workspace.editorstate.restoreOverlays
 
 /** The AreaScope.spaceState key the 2D viewport parks its view state under, and its member in an area block (UMA § 7.3). */
 internal const val VIEWPORT_VIEW_STATE_KEY = "viewport"

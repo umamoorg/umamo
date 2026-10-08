@@ -59,7 +59,15 @@
 
 ## Overlay Toggles
 * Improvements
-	* Wireframe: Toggle culling of mesh parts hidden by other drawables.(On by default.)
+	* Wireframe:
+		* Toggle culling of mesh parts hidden by other drawables.(On by default.)
+		* Opacity
+	* Objects:
+		* Selection Tint
+		* Deformers
+	* Hover tooltips for all controls.
+	* UV grid should have both scale and subdivisions.
+	* Clean up styles: Use properties area styling.
 
 
 ## Object and Mesh Editing

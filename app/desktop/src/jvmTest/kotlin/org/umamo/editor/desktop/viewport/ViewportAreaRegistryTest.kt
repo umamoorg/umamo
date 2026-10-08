@@ -1,6 +1,5 @@
 package org.umamo.editor.desktop.viewport
 
-import org.umamo.edit.GridConfig
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.FrameOverlays
@@ -8,6 +7,7 @@ import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.CameraSurface
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.UvSceneContent
 import kotlin.test.Test
 import kotlin.test.assertEquals

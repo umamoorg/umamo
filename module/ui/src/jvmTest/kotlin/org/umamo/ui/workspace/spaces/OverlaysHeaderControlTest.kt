@@ -1,9 +1,20 @@
 package org.umamo.ui.workspace.spaces
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.isPopup
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.area.HEADER_TEST_AREA_ID
@@ -20,6 +31,7 @@ import org.umamo.ui.workspace.spaces.viewport2d.Viewport2DViewState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -93,8 +105,52 @@ class OverlaysHeaderControlTest {
 			assertTrue(popupShows(GRID_ROW), "the grid row is offered")
 			assertFalse(popupShows(AXES_ROW), "the axis row is not")
 			assertFalse(popupShows(GEOMETRY) || popupShows(WIREFRAME_ROW), "nor the Geometry section with its wireframe row")
+			assertTrue(popupShows(SUBDIVISIONS_FIELD) && !popupShows(SCALE_FIELD), "the grid fields are the subdivisions alone: the major spacing is the shown image")
 			clickMenuEntry(GRID_ROW)
 			assertFalse(overlays.showGrid)
+		}
+
+	/** Typing a scale into the popover's field gives the area a grid of its own, and the reset beside it takes it back. */
+	@Test
+	fun theScaleFieldGivesTheAreaItsOwnGridAndTheResetTakesItBack() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }.overlays
+
+			clickDescribed(VIEWPORT_OVERLAYS)
+			assertTrue(popupShows(SCALE_FIELD) && popupShows(SUBDIVISIONS_FIELD), "a 2D viewport offers both grid fields")
+			assertEquals(0, countOfDescription(FOLLOW_APPLICATION), "following the application, there is nothing to reset")
+
+			onNode(hasText(SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performTextReplacement("50")
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+
+			assertEquals(GridConfig(50f, 10), overlays.gridGeometry, "the edit gives the area its own grid")
+			assertEquals(1, countOfDescription(FOLLOW_APPLICATION), "which shows the reset")
+			clickDescribed(FOLLOW_APPLICATION)
+			assertNull(overlays.gridGeometry, "the reset returns the area to the application's grid")
+			assertEquals(0, countOfDescription(FOLLOW_APPLICATION), "and goes away")
+		}
+
+	/** An area that opens with a grid of its own shows the reset at once; the reset alone takes the grid back. */
+	@Test
+	fun anOwnGridShowsTheResetWhichTakesItBack() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }.overlays
+			overlays.gridGeometry = GridConfig(50f, 4)
+
+			clickDescribed(VIEWPORT_OVERLAYS)
+			assertEquals(1, countOfDescription(FOLLOW_APPLICATION))
+
+			clickDescribed(FOLLOW_APPLICATION)
+
+			assertNull(overlays.gridGeometry)
+			assertEquals(0, countOfDescription(FOLLOW_APPLICATION))
 		}
 
 	/** The UV editor's header drives its own view state's overlays. */
@@ -150,6 +206,45 @@ class OverlaysHeaderControlTest {
 			assertFalse(overlays.showOverlays)
 		}
 
+	/**
+	 * Escape in a field inside the popover discards the typed value and keeps the popover open, and a field
+	 * left with the value it already showed commits no edit: neither gives the area a grid of its own.
+	 */
+	@Test
+	fun escapeDiscardsAFieldEditAndAnUntouchedFieldCommitsNothing() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }.overlays
+			clickDescribed(VIEWPORT_OVERLAYS)
+
+			// Click in and leave with Escape, typing nothing.
+			onNode(hasText(SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Escape) }
+			waitForIdle()
+			assertNull(overlays.gridGeometry, "an untouched field left with Escape is no edit")
+			assertTrue(popupShows(SCALE_FIELD), "and the popover stays open")
+
+			onNode(hasText(SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performTextReplacement("50")
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Escape) }
+			waitForIdle()
+
+			assertNull(overlays.gridGeometry, "Escape discards the typed value")
+			assertTrue(popupShows(SCALE_FIELD), "and the popover stays open for a second Escape")
+			assertEquals(0, countOfDescription(FOLLOW_APPLICATION))
+
+			onNode(hasText(SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+
+			assertNull(overlays.gridGeometry, "leaving the field with the value it showed is no edit")
+			assertEquals(0, countOfDescription(FOLLOW_APPLICATION))
+		}
+
 	private companion object {
 		/** The toggle button's English name; it doubles as its accessible label. */
 		const val SHOW_OVERLAYS = "Show Overlays"
@@ -166,6 +261,12 @@ class OverlaysHeaderControlTest {
 		const val CURSOR_ROW = "2D Cursor"
 		const val INFO_ROW = "General Information"
 		const val WIREFRAME_ROW = "Wireframe"
+
+		/** The grid fields' labels, the scale the default grid shows, and the reset icon's English name. */
+		const val SCALE_FIELD = "Scale"
+		const val SUBDIVISIONS_FIELD = "Subdivisions"
+		const val SCALE_SHOWN = "100.00"
+		const val FOLLOW_APPLICATION = "Follow Application Grid"
 
 		/** The overflow chip's English name. */
 		const val MORE = "More"

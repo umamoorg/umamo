@@ -714,6 +714,9 @@
 	<string name="overlay_row_cursor">2D Cursor</string>
 	<string name="overlay_row_info">General Information</string>
 	<string name="overlay_row_wireframe">Wireframe</string>
+	<string name="overlay_grid_scale">Scale</string>
+	<string name="overlay_grid_subdivisions">Subdivisions</string>
+	<string name="overlay_grid_follow_application">Follow Application Grid</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
 	<string name="hud_placement">Placement</string>

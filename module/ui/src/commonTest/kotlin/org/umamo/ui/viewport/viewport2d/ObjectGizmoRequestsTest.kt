@@ -22,7 +22,7 @@ class ObjectGizmoRequestsTest {
 	fun aSnapRunsInItsOwnArea() =
 		runTest {
 			val session = gizmoObjectSession()
-			backgroundScope.launch { collectObjectGizmoRequests(LEFT_AREA_ID, session) }
+			backgroundScope.launch { collectObjectGizmoRequests(LEFT_AREA_ID, session, overlays = null) }
 			runCurrent()
 
 			session.requestSnap(SnapKind.CursorToSelected, "right")
@@ -42,7 +42,7 @@ class ObjectGizmoRequestsTest {
 		runTest {
 			val session = gizmoEditSession()
 			assertEquals(EditorMode.Edit, session.mode.value)
-			backgroundScope.launch { collectObjectGizmoRequests(LEFT_AREA_ID, session) }
+			backgroundScope.launch { collectObjectGizmoRequests(LEFT_AREA_ID, session, overlays = null) }
 			runCurrent()
 
 			session.requestSnap(SnapKind.CursorToSelected, LEFT_AREA_ID)

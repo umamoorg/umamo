@@ -160,7 +160,7 @@ internal fun shellCommandTables(session: EditorSession? = null): List<Command> {
 		objectCommands(session, handles, availability) +
 		transformCommands(session, routing, availability) +
 		selectCommands(session, routing, sheets, availability) +
-		snapCommands(session, routing, availability) +
+		snapCommands(session, routing, availability, AreaOverlayHub()) +
 		uvCommands(session, routing, availability) +
 		topologyCommands(session, routing, availability) +
 		proportionalCommands(session, availability) +

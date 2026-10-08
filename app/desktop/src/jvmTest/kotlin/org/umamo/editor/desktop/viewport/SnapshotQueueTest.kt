@@ -1,13 +1,13 @@
 package org.umamo.editor.desktop.viewport
 
 import kotlinx.coroutines.runBlocking
-import org.umamo.edit.GridConfig
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
 import org.umamo.render.FrameBackdrop
 import org.umamo.render.FrameOverlays
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.AreaOverlays
+import org.umamo.ui.viewport.GridConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

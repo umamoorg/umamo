@@ -14,6 +14,7 @@ import org.umamo.ui.properties.PropertyTabId
 import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_DEFAULT_WIDTH
 import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_MAX_WIDTH
 import org.umamo.ui.tracks.TrackWindow
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.PersistentSpaceState
 import org.umamo.ui.workspace.spaces.keyformsheet.KeyformSheetViewState
 import org.umamo.ui.workspace.spaces.outliner.OUTLINER_ROOT_ID
@@ -27,6 +28,7 @@ import org.umamo.ui.workspace.spaces.viewport2d.Viewport2DViewState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -177,10 +179,10 @@ class PersistentViewStatesTest {
 
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
-		assertEquals(listOf("all", "grid", "axes", "cursor", "info", "wireframe"), overlays.keys.toList(), "every key is named, so a merge can take a deviation back out")
+		assertEquals(listOf("all", "grid", "axes", "cursor", "info", "wireframe", "gridGeometry"), overlays.keys.toList(), "every key is named, so a merge can take a deviation back out")
 		assertEquals(JsonPrimitive(false), overlays["all"])
 		assertEquals(JsonPrimitive(false), overlays["cursor"])
-		assertTrue(listOf("grid", "axes", "info", "wireframe").all { key -> overlays[key] is JsonNull }, "a flag at its default is a null")
+		assertTrue(listOf("grid", "axes", "info", "wireframe", "gridGeometry").all { key -> overlays[key] is JsonNull }, "a flag at its default, and a grid that follows, is a null")
 
 		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
 		assertFalse(reopened.overlays.showOverlays)
@@ -213,7 +215,7 @@ class PersistentViewStatesTest {
 		val tree = saved.toJson()
 		assertEquals(listOf("texture", "overlays"), tree.keys.toList())
 		val overlays = tree["overlays"] as JsonObject
-		assertEquals(listOf("all", "grid", "cursor", "info"), overlays.keys.toList(), "a UV editor has no axes and no object wireframe")
+		assertEquals(listOf("all", "grid", "cursor", "info", "gridGeometry"), overlays.keys.toList(), "a UV editor has no axes and no object wireframe")
 		assertEquals(JsonPrimitive(false), overlays["info"])
 
 		val reopened = UvEditorViewState().also { state -> state.restore(tree) }
@@ -221,6 +223,82 @@ class PersistentViewStatesTest {
 		assertFalse(reopened.overlays.showInfo)
 		assertTrue(reopened.overlays.showOverlays && reopened.overlays.showCursor && reopened.overlays.showGrid)
 		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+	}
+
+	/** The 2D viewport's own grid round-trips under gridGeometry, and back to following the member is a null. */
+	@Test
+	fun theViewportRoundTripsItsOwnGrid() {
+		val saved = Viewport2DViewState()
+		saved.overlays.gridGeometry = GridConfig(50f, 4)
+
+		val tree = saved.toJson()
+		assertEquals(
+			buildJsonObject {
+				put("scale", 50f)
+				put("subdivisions", 4)
+			},
+			(tree["overlays"] as JsonObject)["gridGeometry"],
+		)
+		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+		assertEquals(GridConfig(50f, 4), reopened.overlays.gridGeometry)
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+
+		saved.overlays.gridGeometry = null
+		assertEquals(JsonNull, saved.toJson()["overlays"], "following again with nothing else set, the member is a null")
+	}
+
+	/** A UV editor's own grid is its subdivisions alone, restored over the application's scale. */
+	@Test
+	fun theUvEditorRoundTripsItsOwnSubdivisions() {
+		val saved = UvEditorViewState()
+		saved.overlays.gridGeometry = GridConfig(123f, 4)
+
+		val tree = saved.toJson()
+		assertEquals(buildJsonObject { put("subdivisions", 4) }, (tree["overlays"] as JsonObject)["gridGeometry"], "the scale is the shown image's, never written")
+		val reopened = UvEditorViewState().also { state -> state.restore(tree) }
+		assertEquals(4, reopened.overlays.gridGeometry?.subdivisions)
+		assertEquals(GridConfig(100f, 4), reopened.overlays.grid, "the area's grid is its subdivisions over the application's scale")
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+	}
+
+	/** A gridGeometry that fails its checks leaves the area following the application's grid. */
+	@Test
+	fun aBrokenGridGeometryFollowsTheApplication() {
+		val zeroScale =
+			buildJsonObject {
+				put(
+					"overlays",
+					buildJsonObject {
+						put(
+							"gridGeometry",
+							buildJsonObject {
+								put("scale", 0)
+								put("subdivisions", 4)
+							},
+						)
+					},
+				)
+			}
+		assertNull(Viewport2DViewState().also { state -> state.restore(zeroScale) }.overlays.gridGeometry, "a zero scale")
+		val zeroSubdivisions =
+			buildJsonObject {
+				put(
+					"overlays",
+					buildJsonObject {
+						put(
+							"gridGeometry",
+							buildJsonObject {
+								put("scale", 50)
+								put("subdivisions", 0)
+							},
+						)
+					},
+				)
+			}
+		assertNull(Viewport2DViewState().also { state -> state.restore(zeroSubdivisions) }.overlays.gridGeometry, "zero subdivisions")
+		val subdivisionsAlone = buildJsonObject { put("overlays", buildJsonObject { put("gridGeometry", buildJsonObject { put("subdivisions", 4) }) }) }
+		assertEquals(4, UvEditorViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry?.subdivisions, "a UV editor needs no scale")
+		assertNull(Viewport2DViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry, "a 2D viewport does")
 	}
 
 	/** Keys a UV editor has no overlay for are ignored on read and never written back. */

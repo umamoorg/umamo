@@ -164,7 +164,7 @@ internal fun RegisterShellCommands(
 					objectCommands(editorSession, selection, availability) +
 					transformCommands(editorSession, routing, availability) +
 					selectCommands(editorSession, routing, keyformSheetViews, availability) +
-					snapCommands(editorSession, routing, availability) +
+					snapCommands(editorSession, routing, availability, areaOverlays) +
 					uvCommands(editorSession, routing, availability) +
 					topologyCommands(editorSession, routing, availability) +
 					proportionalCommands(editorSession, availability) +
