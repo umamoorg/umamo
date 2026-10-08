@@ -90,7 +90,7 @@ internal class OffscreenRenderEngine(
 	private val device = GlRenderDevice()
 
 	// The renderer and its GL handles, owned by the render thread.  What each frame draws beyond the scene
-	// (the grid lines, the world axes, the mesh overlay) is each area's own, handed over per render.
+	// (the grid lines, the world axes, the mesh overlay, the wireframe) is each area's own, handed over per render.
 	private val renderer = PuppetRenderer(puppet, textures, device)
 
 	/** The shared renderer, exposed so the facade can build the CPU picker over its pickGeometry()/drawnOrder(). */
@@ -396,7 +396,7 @@ internal class OffscreenRenderEngine(
 		// is display-size whatever the scale, so read-back consumers never see the quality switch.
 		renderer.setRenderScale(renderScale.toFloat())
 
-		// Capture the backdrop versions applied to this render so the freshness stamp below matches what was
+		// Capture the render versions applied to this render so the freshness stamp below matches what was
 		// actually drawn; a change after this point bumps them again and re-renders next iteration.
 		val puppetRenderBumpDone = inputs.puppetRenderBump
 		val atlasRenderBumpDone = inputs.atlasRenderBump

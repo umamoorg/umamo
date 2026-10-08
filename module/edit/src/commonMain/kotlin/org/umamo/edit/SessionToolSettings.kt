@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions:
- * the 2D and UV cursors, the transform pivot mode, the viewport grid, and proportional editing.  Unlike
+ * the 2D and UV cursors, the transform pivot mode, and proportional editing.  Unlike
  * [SessionToolLatches] these survive mode switches and are laid in from [SessionViewState] at open; like
  * them they are never snapshotted and never enter the change bus.  [EditorSession] exposes this surface by
  * delegation.

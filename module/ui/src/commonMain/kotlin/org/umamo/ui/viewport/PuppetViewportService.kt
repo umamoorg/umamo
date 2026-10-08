@@ -198,7 +198,7 @@ interface PuppetViewportService {
 
 	/**
 	 * Sets what [areaId] draws beyond its scene: its grid geometry, and whether its frames draw the grid lines,
-	 * the world axes, and the mesh overlay.  Compared by value when the area's freshness is judged, so a
+	 * the world axes, the mesh overlay, and the wireframe.  Compared by value when the area's freshness is judged, so a
 	 * changed value re-renders that area alone and an equal one renders nothing.  A no-op for an unregistered
 	 * area.
 	 *

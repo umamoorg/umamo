@@ -10,8 +10,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * holds the colors those overlays draw in, and this file holds whether each of them is shown and the grid
  * geometry the area draws and snaps to.  The state is an area's (two viewports may show different overlays
  * and different grids, as in Blender), parked on the hosting AreaScope by the space body, written into the
- * document's editor state as the area block's `overlays` member (docs/format/UMA.md § 7.3), and read by the
- * overlays themselves through LocalAreaOverlays.
+ * document's editor state as the `overlays` member of the area block's `viewport` or `uv` member
+ * (docs/format/UMA.md § 7.3), and read by the overlays themselves through LocalAreaOverlays.
  */
 
 /** Which work surface an overlay state belongs to; decides which overlays exist for it (a UV editor has no world axes). */

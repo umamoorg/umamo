@@ -45,7 +45,7 @@ import org.umamo.ui.viewport.gizmo.selectToolKind
  *   - EditGizmoSelection.kt: the marquee and the element pick over mesh elements.
  *   - EditGizmoDraw.kt: the gesture chrome, read in the draw phase.
  *   - EditMeshGeometry.kt: the session meshes' live geometry at the neutral pose, which the picks read.
- *   - EditMeshOverlay.kt: the wireframe, dots, and face fills as data for the renderer, which draws them
+ *   - MeshOverlayPublish.kt: the wireframe, dots, and face fills as data for the renderer, which draws them
  *     into the frame with the art; the viewport binding publishes them, not this overlay.
  * The collectors' handlers are in SessionRequestHandlers.kt, and the strip registrations in
  * TransformAdjustRegistration.kt.
@@ -55,7 +55,7 @@ import org.umamo.ui.viewport.gizmo.selectToolKind
  * The Edit-mode gizmo overlay: a Compose layer over the offscreen puppet image that runs the element
  * selection and the modal G / S / R operators and draws their gesture chrome.  The mesh itself (the
  * vertices, edges, and faces of the session meshes' rest shape) is drawn by the renderer into the image,
- * from the overlay the viewport binding publishes (EditMeshOverlay.kt), so it and the art are the same
+ * from the overlay the viewport binding publishes (MeshOverlayPublish.kt), so it and the art are the same
  * pixels.  It is gated on Edit mode with an active drawable; in Object mode nothing is composed, so pointer
  * input flows untouched to the viewport navigation beneath.
  *

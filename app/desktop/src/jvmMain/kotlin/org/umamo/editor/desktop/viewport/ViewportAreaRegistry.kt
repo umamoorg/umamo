@@ -141,7 +141,7 @@ internal class AreaSlot {
 	var uvIslandExtent: ContentBounds? = null
 
 	// What the area draws beyond its scene: its grid geometry and its frame's overlays (grid lines, axes, mesh
-	// overlay).  One volatile publish of one immutable value, compared by VALUE for freshness, so a toggle
+	// overlay, wireframe).  One volatile publish of one immutable value, compared by VALUE for freshness, so a toggle
 	// re-renders this area alone and never counts against the others.  The editor's defaults until the area's
 	// host pushes its own, which it does as it registers.
 	@Volatile

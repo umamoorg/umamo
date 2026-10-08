@@ -44,7 +44,7 @@ import org.umamo.ui.theme.UmamoIcon
  * @param Boolean   enabled            When false the chip dims and clicks are inert.
  * @param DropdownChipStyle style      The face's role: Header chrome by default, Compact for a list row.
  * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
- * @param ChipToggle? iconToggle        A toggle riding on the glyph, splitting the face into the glyph's own button and the
+ * @param ChipToggle? iconToggle       A toggle riding on the glyph, splitting the face into the glyph's own button and the
  *   chevron that opens the panel (see [ChipToggle]).
  * @param Function  content            The panel's rows.
  */

@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * The render inputs the UI thread pushes and the render thread reads each frame: the selection, the
- * shown set, the model, the atlas pages, the source artwork, the grid, the highlight colors, the mesh
+ * shown set, the model, the atlas pages, the source artwork, the grid colors, the highlight colors, the mesh
  * overlay and its palette, and the supersample policy.  Each is a volatile publish of an immutable value or a plain scalar.  A change
  * to a value the render reads as it draws bumps a render-version counter the loop folds into per-area
  * freshness, so a state-only change (no resize / pose / camera change) still forces exactly one redraw:
@@ -72,8 +72,9 @@ internal class EngineRenderInputs(
 	// taken up, where a slot would silently drop the first.
 	private val pendingRasterBatches = ConcurrentLinkedQueue<LayerRasterBatch>()
 
-	// The Edit-mode mesh overlay every puppet area draws over the art, or null for none.  Published whole and
-	// compared by identity: the producer hands back the same instance while nothing it shows has changed.
+	// The Edit-mode mesh overlay the puppet areas draw over the art, each unless its frame options turn it off,
+	// or null for none.  Published whole and compared by identity: the producer hands back the same instance
+	// while nothing it shows has changed.
 	@Volatile
 	private var meshOverlayBacking: MeshOverlay? = null
 
@@ -350,11 +351,11 @@ internal class EngineRenderInputs(
 	}
 
 	/**
-	 * Sets the mesh overlay every puppet area draws.  A new instance bumps the puppet render version AFTER
-	 * the value is stored, and the loop hands the value to the renderer only after it reads the version
-	 * for a render, so a publish that lands mid-render always earns that area another one.  The same
-	 * instance again is a no-op: the overlay holds no positions, so nothing a gesture's preview moves
-	 * re-publishes it.
+	 * Sets the mesh overlay the puppet areas draw, each unless its frame options turn it off.  A new
+	 * instance bumps the puppet render version AFTER the value is stored, and the loop hands the value to
+	 * the renderer only after it reads the version for a render, so a publish that lands mid-render always
+	 * earns that area another one.  The same instance again is a no-op: the overlay holds no positions, so
+	 * nothing a gesture's preview moves re-publishes it.
 	 *
 	 * @param MeshOverlay? overlay The overlay, or null for none.
 	 */

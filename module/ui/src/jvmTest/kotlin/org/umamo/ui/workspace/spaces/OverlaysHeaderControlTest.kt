@@ -252,7 +252,7 @@ class OverlaysHeaderControlTest {
 		/** The popover chevron's English name; it doubles as its accessible label. */
 		const val VIEWPORT_OVERLAYS = "Viewport Overlays"
 
-		/** The two section headings and the rows, in English. */
+		/** The three section headings and the rows, in English. */
 		const val GUIDES = "Guides"
 		const val TEXT = "Text"
 		const val GEOMETRY = "Geometry"

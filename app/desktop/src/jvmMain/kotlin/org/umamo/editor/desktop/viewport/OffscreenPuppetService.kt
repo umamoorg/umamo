@@ -39,7 +39,7 @@ import org.umamo.ui.viewport.UvSceneContent
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
  *   - [EngineRenderInputs] - the render inputs the UI thread publishes (selection / shown / model / atlas
- *     pages / source artwork / grid / highlight colors / mesh overlay and palette / supersample policy),
+ *     pages / source artwork / grid colors / highlight colors / mesh overlay and palette / supersample policy),
  *     each a volatile swap that bumps the engine's freshness.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
  *     async read-back, and reads those inputs each frame.

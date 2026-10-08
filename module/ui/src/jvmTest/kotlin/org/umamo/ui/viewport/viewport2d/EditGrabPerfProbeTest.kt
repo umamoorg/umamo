@@ -76,7 +76,7 @@ private const val LABEL_WIDTH = 86
  * Print-only Edit-mode and Object-mode Grab perf probe on the moc3.perfSample model (modelF by default: 1330
  * drawables, 220k vertices): the wall time of each stage of the UI-thread work a whole-selection Grab does -
  * the per-commit geometry capture, the mesh overlay's derive (cold on Edit entry, warm when a commit moved
- * positions only, and with one mesh's selection changed), the latch, the per-pointer-event drive and its
+ * positions only, with one mesh's selection changed, and as the wireframe of every shown mesh), the latch, the per-pointer-event drive and its
  * halves, the per-push picker rebuild, and the frame image conversion - plus the Object-mode latch and drive
  * over the same rig.  The overlay's draw is the renderer's, measured by the render-side probe.  Pins
  * nothing.  Skips without the corpus.  Standard streams are off in the build, so the rows show with --info
@@ -415,7 +415,9 @@ class EditGrabPerfProbeTest {
 	/**
 	 * The mesh overlay's derive over the whole selection: a fresh producer (every mesh's edges and flags,
 	 * as on Edit entry), the same inputs again (a commit that moved positions only, which must hand back
-	 * the same instance), and one mesh's selection changing back and forth (a click or a brush stamp).
+	 * the same instance), and one mesh's selection changing back and forth (a click or a brush stamp).  Then
+	 * the wireframe's derive over every shown mesh: a fresh producer in Object mode, the same inputs again,
+	 * and a fresh producer in Edit mode over one mesh's cage with the wireframe of every other shown mesh.
 	 *
 	 * @param PuppetModel model The committed model.
 	 * @param MeshSelection meshSelection The whole-selection mesh selection.

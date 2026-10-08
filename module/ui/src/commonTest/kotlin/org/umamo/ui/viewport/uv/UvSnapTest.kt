@@ -21,7 +21,7 @@ import kotlin.test.assertSame
  * Verifies the UV snap executor ([handleUvSnapRequest]) end to end at the model level: each of the
  * seven operations transforms the selected texture coordinates (or moves the UV cursor) as the UV snap
  * pie promises, over the texel display space the UV editor works in.  A 100x100 page with a
- * 10-subdivision grid is used throughout, so the display coordinate of a uv is u * 100 across and
+ * 10-subdivision grid is used unless a test names another, so the display coordinate of a uv is u * 100 across and
  * (1 - v) * 100 down (the v-flip), the pixel step is one texel, and the grid step is ten.
  *
  * The single triangle's three vertices sit at display (12.3, 45.7), (34.6, 45.7), (12.3, 78.2) - chosen

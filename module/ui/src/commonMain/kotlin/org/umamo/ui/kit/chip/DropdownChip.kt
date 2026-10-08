@@ -82,7 +82,7 @@ enum class DropdownChipStyle {
  * text, and a 12.dp chevron that points right while the dropdown is closed and down while it is open.
  * Flat like the rest of the kit - the default indication is suppressed and the chip paints its own
  * three-state border and fill: accent while open, panelBackground / panelBorderHover under the
- * pointer, tabBackground / panelBorder at rest; content is accentText while open, controlGlyph
+ * pointer, tabBackground / panelBorder at rest; content is accentText while open, text
  * otherwise.  The face is explicit params rather than a content slot on purpose: the anatomy (sizes,
  * paddings, chevron) stays un-forkable across every header chip, which is the drift this component
  * exists to prevent.  The dropdown stays a slot because consumers differ (a kit Menu that dismisses
@@ -102,7 +102,7 @@ enum class DropdownChipStyle {
  *   (no-document chrome renders its chips this way rather than hiding them).
  * @param DropdownChipStyle style     Which role the chip plays; see [DropdownChipStyle].
  * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
- * @param ChipToggle? iconToggle        A toggle riding on the glyph: the face splits into the glyph's own lit / unlit
+ * @param ChipToggle? iconToggle       A toggle riding on the glyph: the face splits into the glyph's own lit / unlit
  *   button and the chevron that opens the dropdown (see [ChipToggle]; needs [icon], Header and Compact only).
  * @param Function  dropdown           The popup content, rendered while expanded.
  */

@@ -27,10 +27,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Proves the world-origin axis lines actually rasterize: with [PuppetRenderer.setWorldAxesVisible]
- * on, the frame gains a horizontal red X axis row and a vertical blue Z axis column crossing at the
- * model's world origin, and with the flag off (the default, which keeps render-diff tests line-free)
- * the frame contains neither.  Renders into an offscreen FBO at a fixed 1:1 camera so the origin's
+ * Proves the world-origin axis lines actually rasterize: with [FrameOverlays.axes] on for the frame,
+ * it gains a horizontal red X axis row and a vertical blue Z axis column crossing at the model's world
+ * origin, and with the flag off (the default, which keeps render-diff tests line-free) the frame
+ * contains neither.  Renders into an offscreen FBO at a fixed 1:1 camera so the origin's
  * pixel position is predictable.  Skips in a display-less environment, like [GeometryReuploadTest] - via a
  * JUnit assumption, so the run reports SKIPPED rather than a green pass that asserted nothing.
  */

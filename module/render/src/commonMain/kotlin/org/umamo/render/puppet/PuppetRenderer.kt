@@ -584,7 +584,7 @@ class PuppetRenderer(
 		val overlay = meshOverlay
 		// The residency follows the held overlay even for a frame that hides it, so the buffers stay warm and
 		// an area showing the overlay never re-uploads after one that hides it; a hidden frame draws none.
-		// An Object-mode wireframe is hidden whole, its capture included, when the frame draws no wireframe;
+		// An Object-mode wireframe is hidden whole, its deform capture pass included, when the frame draws no wireframe;
 		// an Edit overlay still draws its cage then, and the encoder leaves out its wireframe meshes.
 		overlayResidency.apply(overlay, residency.residents, currentModel)
 		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || overlays.wireframe) }
