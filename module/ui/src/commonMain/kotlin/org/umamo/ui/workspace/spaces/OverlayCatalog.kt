@@ -9,7 +9,7 @@ import org.umamo.ui.viewport.ViewportOverlayState
  * The overlays popover's catalog: the sections and the rows under them, each row naming the surfaces it
  * applies to.  Both work surfaces share the one catalog and hide what they cannot honor - a UV editor has
  * no world axes - so there is one popover to maintain, as there is one header.  A row joins here when the
- * thing it toggles can be drawn or hidden; a flag nothing reads gets no row.
+ * thing it toggles can be drawn or hidden.
  */
 
 /**
@@ -20,6 +20,7 @@ import org.umamo.ui.viewport.ViewportOverlayState
 internal enum class OverlaySection(val label: StringResource) {
 	Guides(Res.string.overlay_section_guides),
 	Text(Res.string.overlay_section_text),
+	Geometry(Res.string.overlay_section_geometry),
 }
 
 /**
@@ -39,6 +40,7 @@ internal enum class OverlayToggle(
 	Axes(OverlaySection.Guides, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_axes),
 	Cursor(OverlaySection.Guides, OverlaySurface.entries.toSet(), Res.string.overlay_row_cursor),
 	Info(OverlaySection.Text, OverlaySurface.entries.toSet(), Res.string.overlay_row_info),
+	Wireframe(OverlaySection.Geometry, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_wireframe),
 	;
 
 	/**
@@ -54,6 +56,7 @@ internal enum class OverlayToggle(
 			Axes -> state.showAxes
 			Cursor -> state.showCursor
 			Info -> state.showInfo
+			Wireframe -> state.showWireframe
 		}
 
 	/**
@@ -68,6 +71,7 @@ internal enum class OverlayToggle(
 			Axes -> state.showAxes = on
 			Cursor -> state.showCursor = on
 			Info -> state.showInfo = on
+			Wireframe -> state.showWireframe = on
 		}
 	}
 }

@@ -646,10 +646,12 @@
 	<string name="header_viewport_overlays">ビューポートオーバーレイ</string>
 	<string name="overlay_section_guides">ガイド</string>
 	<string name="overlay_section_text">テキスト</string>
+	<string name="overlay_section_geometry">ジオメトリ</string>
 	<string name="overlay_row_grid">グリッド</string>
 	<string name="overlay_row_axes">X/Z 軸</string>
 	<string name="overlay_row_cursor">2Dカーソル</string>
 	<string name="overlay_row_info">一般情報</string>
+	<string name="overlay_row_wireframe">ワイヤーフレーム</string>
 	<string name="cmd_mesh_proportional_connected">プロポーショナル編集の「接続のみ」を切り替え</string>
 	<string name="hud_connected">接続のみ</string>
 	<string name="hud_placement">配置</string>
@@ -675,6 +677,7 @@
 	<string name="cmd_view_overlay_axes">X/Z 軸の表示切り替え</string>
 	<string name="cmd_view_overlay_cursor">2Dカーソルの表示切り替え</string>
 	<string name="cmd_view_overlay_info">一般情報の表示切り替え</string>
+	<string name="cmd_view_overlay_wireframe">ワイヤーフレームの表示切り替え</string>
 	<string name="sidebar_title">サイドバー</string>
 	<string name="sidebar_empty_hint">ツールやアイテムのパネルがここに入ります。</string>
 

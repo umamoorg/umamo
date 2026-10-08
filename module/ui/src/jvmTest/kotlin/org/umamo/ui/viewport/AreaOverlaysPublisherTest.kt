@@ -17,6 +17,9 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalTestApi::class)
 class AreaOverlaysPublisherTest {
+	/** What a default 2D area asks for: everything but the wireframe, whose row is off by default. */
+	private val viewportDefaults = FrameOverlays(gridLines = true, axes = true, meshOverlay = true, wireframe = false)
+
 	/** The first push lands as the area mounts, carrying the state's flags over the setting's geometry. */
 	@Test
 	fun thePublisherSeedsTheAreaOnMount() =
@@ -31,7 +34,7 @@ class AreaOverlaysPublisherTest {
 			waitForIdle()
 
 			assertTrue(service.pushedAreaOverlays.isNotEmpty(), "the area is seeded")
-			assertEquals("area" to AreaOverlays.Default, service.pushedAreaOverlays.first())
+			assertEquals("area" to AreaOverlays(GridConfig(), viewportDefaults), service.pushedAreaOverlays.first())
 		}
 
 	/** A flipped row and the master each push a new value; the master off hides every frame flag. */
@@ -49,11 +52,15 @@ class AreaOverlaysPublisherTest {
 
 			state.showGrid = false
 			waitForIdle()
-			assertEquals(FrameOverlays(gridLines = false, axes = true, meshOverlay = true), service.areaOverlays("area")?.frame, "the grid row reached the service")
+			assertEquals(viewportDefaults.copy(gridLines = false), service.areaOverlays("area")?.frame, "the grid row reached the service")
+
+			state.showWireframe = true
+			waitForIdle()
+			assertEquals(viewportDefaults.copy(gridLines = false, wireframe = true), service.areaOverlays("area")?.frame, "the wireframe row reached the service")
 
 			state.showOverlays = false
 			waitForIdle()
-			assertEquals(FrameOverlays(gridLines = false, axes = false, meshOverlay = false), service.areaOverlays("area")?.frame, "the master off hides every frame flag")
+			assertEquals(FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false), service.areaOverlays("area")?.frame, "the master off hides every frame flag")
 		}
 
 	/** A change to the application's grid setting pushes the new geometry. */
@@ -76,18 +83,18 @@ class AreaOverlaysPublisherTest {
 			assertEquals(GridConfig(50f, 10), service.areaOverlays("area")?.grid, "the changed setting reached the service")
 		}
 
-	/** A UV editor's area never asks for the world axes. */
+	/** A UV editor's area never asks for the world axes or the wireframe. */
 	@Test
-	fun aUvAreaNeverAsksForAxes() =
+	fun aUvAreaNeverAsksForAxesOrTheWireframe() =
 		runComposeUiTest {
 			val service = StubPuppetViewportService()
 			setContent {
 				CompositionLocalProvider(LocalSettings provides inMemorySettings()) {
-					AreaOverlaysPublisher(service, "uv", ViewportOverlayState(OverlaySurface.UvEditor))
+					AreaOverlaysPublisher(service, "uv", ViewportOverlayState(OverlaySurface.UvEditor).apply { showWireframe = true })
 				}
 			}
 			waitForIdle()
 
-			assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true), service.areaOverlays("uv")?.frame)
+			assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false), service.areaOverlays("uv")?.frame)
 		}
 }

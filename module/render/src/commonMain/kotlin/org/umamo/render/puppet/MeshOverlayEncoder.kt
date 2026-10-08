@@ -19,6 +19,7 @@ import org.umamo.render.device.WorldToNdc
  * @property MeshOverlayPalette palette The overlay colors.
  * @property Int screenTexWidth The screen-texture divisor's width the camera call takes.
  * @property Int screenTexHeight The screen-texture divisor's height.
+ * @property Boolean drawWireframe Whether an Edit overlay's plain wireframe meshes draw in this frame.
  */
 internal class OverlayFrame(
 	val affine: WorldToNdc,
@@ -28,6 +29,7 @@ internal class OverlayFrame(
 	val palette: MeshOverlayPalette,
 	val screenTexWidth: Int,
 	val screenTexHeight: Int,
+	val drawWireframe: Boolean,
 )
 
 /**
@@ -39,8 +41,10 @@ internal class OverlayFrame(
  * is stale, followed by a barrier.  The draws go domain-major - every mesh's face fills, then every mesh's
  * edges, then the active edges, then the dots - so each domain binds its pipeline once rather than once
  * per mesh, and so the actives land on top of every batch; an entry the current pose leaves unposed (a
- * hidden ancestor, a grid out of range) is skipped in both.  An islands overlay goes island-major instead
- * (see [drawIslands]): its stacking is the point, so each island's fill covers the islands behind it.
+ * hidden ancestor, a grid out of range) is skipped in both.  An Edit overlay's plain wireframe meshes (those
+ * outside the edit) join the edge domain alone, ahead of the cage so its edges land on top, and only in a
+ * frame that draws the wireframe.  An islands overlay goes island-major instead (see [drawIslands]): its
+ * stacking is the point, so each island's fill covers the islands behind it.
  *
  * @param DrawPipelines pipelines The capture and overlay pipelines.
  * @param SideTargetPool sideTargets The side targets, whose capacity names the screen-space divisor.
@@ -107,6 +111,7 @@ internal class MeshOverlayEncoder(
 				inputs.overlayPalette,
 				sideTargets.capacityWidth,
 				sideTargets.capacityHeight,
+				inputs.drawWireframe,
 			)
 		drawEntries(pass, overlay, entries, store, frame)
 	}
@@ -127,13 +132,15 @@ internal class MeshOverlayEncoder(
 
 	/**
 	 * Records an overlay's draws, domain-major: every entry's face fills, then its edges, then the active
-	 * edges, then the dots and the active dots, each domain binding its pipeline once.
+	 * edges, then the dots and the active dots, each domain binding its pipeline once.  In an Edit overlay
+	 * the fills, the actives, and the dots are the cage's alone; the plain wireframe meshes contribute their
+	 * edges ahead of the cage's, and none when the frame draws no wireframe.
 	 *
 	 * @param RenderPassEncoder pass The open pass.
 	 * @param MeshOverlay overlay The overlay value (kind, select mode, sizes).
 	 * @param List<OverlayDrawEntry> entries The entries to draw, in store order.
 	 * @param DeformedPositionStore store The store the entries' positions are in.
-	 * @param OverlayFrame frame The pass's camera, viewport, scale, and palette.
+	 * @param OverlayFrame frame The pass's camera, viewport, scale, palette, and wireframe flag.
 	 */
 	private fun drawEntries(pass: RenderPassEncoder, overlay: MeshOverlay, entries: List<OverlayDrawEntry>, store: DeformedPositionStore, frame: OverlayFrame) {
 		if (entries.isEmpty()) {
@@ -146,6 +153,13 @@ internal class MeshOverlayEncoder(
 		val palette = frame.palette
 		val sizes = overlay.sizes
 		val editing = overlay.kind == MeshOverlayKind.Edit
+		val cage = if (editing) entries.filter { entry -> !entry.wireframeOnly } else entries
+		val edged =
+			when {
+				!editing -> entries
+				frame.drawWireframe -> entries.filter { entry -> entry.wireframeOnly } + cage
+				else -> cage
+			}
 		uniformsScratch.viewportWidth = frame.viewportWidth.toFloat()
 		uniformsScratch.viewportHeight = frame.viewportHeight.toFloat()
 
@@ -156,7 +170,7 @@ internal class MeshOverlayEncoder(
 			setColors(palette.faceIdle, palette.faceSelected, palette.faceSelected, opaque = false)
 			uniformsScratch.sizePx = 0f
 			uniformsScratch.fillIdle = overlay.selectMode == MeshOverlaySelectMode.Face
-			for (entry in entries) {
+			for (entry in cage) {
 				batch(entry)
 				pass.drawOverlayFaceFill(entry.buffers, store, uniformsScratch)
 			}
@@ -166,12 +180,12 @@ internal class MeshOverlayEncoder(
 		setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false)
 		uniformsScratch.sizePx = sizes.edgeWidthPx * frame.pixelScale / 2f
 		uniformsScratch.fillIdle = true
-		for (entry in entries) {
+		for (entry in edged) {
 			batch(entry)
 			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
 		}
 		if (editing) {
-			for (entry in entries) {
+			for (entry in cage) {
 				if (entry.activeEdgeA >= 0) {
 					active(entry, entry.activeEdgeA, entry.activeEdgeB, -1)
 					pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
@@ -183,11 +197,11 @@ internal class MeshOverlayEncoder(
 			bind(pass, pipelines.overlayVertexDot, frame)
 			setColors(palette.vertexIdle, palette.vertexSelected, palette.vertexActive, opaque = false)
 			uniformsScratch.sizePx = sizes.vertexDotRadiusPx * frame.pixelScale
-			for (entry in entries) {
+			for (entry in cage) {
 				batch(entry)
 				pass.drawOverlayVertexDots(entry.buffers, store, uniformsScratch)
 			}
-			for (entry in entries) {
+			for (entry in cage) {
 				if (entry.activeVertex >= 0) {
 					active(entry, entry.activeVertex, -1, -1)
 					pass.drawOverlayVertexDots(entry.buffers, store, uniformsScratch)
@@ -200,11 +214,11 @@ internal class MeshOverlayEncoder(
 			bind(pass, pipelines.overlayFaceDot, frame)
 			setColors(palette.faceIdle, palette.faceSelected, palette.faceActive, opaque = true)
 			uniformsScratch.sizePx = sizes.faceDotRadiusPx * frame.pixelScale
-			for (entry in entries) {
+			for (entry in cage) {
 				batch(entry)
 				pass.drawOverlayFaceDots(entry.buffers, store, uniformsScratch)
 			}
-			for (entry in entries) {
+			for (entry in cage) {
 				if (entry.activeFaceA >= 0) {
 					active(entry, entry.activeFaceA, entry.activeFaceB, entry.activeFaceC)
 					pass.drawOverlayFaceDots(entry.buffers, store, uniformsScratch)

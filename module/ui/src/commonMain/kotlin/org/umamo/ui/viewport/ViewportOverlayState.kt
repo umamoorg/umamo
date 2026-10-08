@@ -25,8 +25,6 @@ enum class OverlaySurface {
  * set they had (Blender's overlays toggle).  Consumers read the effective values, never the raw flags, so
  * nothing downstream has to know a master exists.
  *
- * The wireframe flag is saved with the rest; the renderer reads it once the Object-mode wireframe exists.
- *
  * @param OverlaySurface surface The work surface this state belongs to.
  */
 class ViewportOverlayState(val surface: OverlaySurface) {
@@ -45,7 +43,10 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	/** The informational text: the active-mesh label and the zoom readout. */
 	var showInfo by mutableStateOf(true)
 
-	/** The Object-mode wireframe of every shown mesh (the 2D viewport only); off by default, as in Blender. */
+	/**
+	 * The wireframe of every shown mesh - all of them in Object mode, those outside the edit in Edit mode, under
+	 * the cage (the 2D viewport only); off by default, as in Blender.
+	 */
 	var showWireframe by mutableStateOf(false)
 
 	/** Whether the grid lines draw: the flag under the master. */
@@ -64,7 +65,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	val effectiveInfo: Boolean
 		get() = showOverlays && showInfo
 
-	/** Whether the Object-mode wireframe draws: the flag under the master. */
+	/** Whether the wireframe draws: the flag under the master. */
 	val effectiveWireframe: Boolean
 		get() = showOverlays && showWireframe
 

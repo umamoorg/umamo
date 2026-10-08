@@ -21,6 +21,8 @@ import org.umamo.runtime.model.PuppetModel
  * @property Int activeFaceB The active triangle's second corner, or -1.
  * @property Int activeFaceC The active triangle's third corner, or -1.
  * @property IslandStyle? islandStyle Its island colors, read only by an islands overlay.
+ * @property Boolean wireframeOnly Whether it is a plain wireframe inside an Edit overlay: edges only, and
+ *   only in a frame that draws the wireframe.
  */
 internal class OverlayDrawEntry(
 	val buffers: OverlayMeshBuffers,
@@ -32,6 +34,7 @@ internal class OverlayDrawEntry(
 	val activeFaceB: Int,
 	val activeFaceC: Int,
 	val islandStyle: IslandStyle?,
+	val wireframeOnly: Boolean,
 )
 
 /**
@@ -78,6 +81,7 @@ internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers
 		activeFaceB = if (faceResolved) faceCorners[faceStart + 1] else -1,
 		activeFaceC = if (faceResolved) faceCorners[faceStart + 2] else -1,
 		islandStyle = mesh.islandStyle,
+		wireframeOnly = mesh.wireframeOnly,
 	)
 }
 

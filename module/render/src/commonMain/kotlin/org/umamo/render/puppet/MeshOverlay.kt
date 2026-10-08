@@ -107,6 +107,9 @@ data class MeshOverlaySizes(
  * @property Int? activeFace The active triangle's ordinal, or null.
  * @property IslandStyle? islandStyle The island's colors in an [MeshOverlayKind.Islands] overlay; null
  *   there reads as idle, and every other kind ignores it.
+ * @property Boolean wireframeOnly In an [MeshOverlayKind.Edit] overlay, a mesh outside the edit drawn as a
+ *   plain wireframe: its edges in the idle color, no fills and no dots, ahead of the cage's edges so the
+ *   cage stays on top, and only in a frame whose wireframe flag is on.  The other kinds ignore it.
  */
 class MeshOverlayMesh(
 	val drawableId: DrawableId,
@@ -119,6 +122,7 @@ class MeshOverlayMesh(
 	val activeEdge: Int?,
 	val activeFace: Int?,
 	val islandStyle: IslandStyle? = null,
+	val wireframeOnly: Boolean = false,
 ) {
 	/** How many unique edges the mesh carries. */
 	val edgeCount: Int get() = edgeEndpoints.size / 2
@@ -137,10 +141,10 @@ class MeshOverlayMesh(
 }
 
 /**
- * The mesh overlay the renderer draws over the art: the Edit-mode wireframe, dots, and face fills, the
- * object wireframe, or a UV area's Object-mode islands.  Immutable; the Edit-mode producer builds a new
- * value when the selection, the mode, or the session's meshes change, never when a preview push moves
- * positions.
+ * The mesh overlay the renderer draws over the art: the Edit-mode wireframe, dots, and face fills (with
+ * the plain wireframe of the meshes outside the edit, when the producer lists them), the object wireframe,
+ * or a UV area's Object-mode islands.  Immutable; the producer builds a new value when the selection, the
+ * mode, the shown meshes, or the session's meshes change, never when a preview push moves positions.
  *
  * The mesh ORDER defines the overlay's position-store layout, the way the glue layout's walk order does.
  *
