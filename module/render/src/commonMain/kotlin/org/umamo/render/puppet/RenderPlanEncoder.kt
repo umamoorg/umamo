@@ -503,6 +503,8 @@ internal class RenderPlanEncoder(
  * @property MeshOverlay?                 overlay              The mesh overlay drawn over the art, or null
  *   for none (a capture).
  * @property MeshOverlayPalette           overlayPalette       The colors the overlay draws with.
+ * @property Boolean                      drawWireframe        Whether the overlay's plain wireframe meshes
+ *   (those outside the edit) draw this frame; the cage draws regardless.
  */
 internal class FrameInputs(
 	val affine: WorldToNdc,
@@ -518,6 +520,7 @@ internal class FrameInputs(
 	val acceleration: CompositeAcceleration,
 	val overlay: MeshOverlay?,
 	val overlayPalette: MeshOverlayPalette,
+	val drawWireframe: Boolean,
 )
 
 /**

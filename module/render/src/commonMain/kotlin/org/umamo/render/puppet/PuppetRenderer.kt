@@ -571,7 +571,7 @@ class PuppetRenderer(
 	 * @param FrameBackdrop backdrop       What the puppet is drawn over: the grid (the viewport), or a flat
 	 *   fill (an image capture).
 	 * @param FrameOverlays overlays       What the frame draws beyond the backdrop: the grid lines, the world
-	 *   axes, and the mesh overlay.
+	 *   axes, the mesh overlay, and the wireframe.
 	 */
 	fun render(
 		target: RenderTarget,
@@ -584,7 +584,10 @@ class PuppetRenderer(
 		val overlay = meshOverlay
 		// The residency follows the held overlay even for a frame that hides it, so the buffers stay warm and
 		// an area showing the overlay never re-uploads after one that hides it; a hidden frame draws none.
+		// An Object-mode wireframe is hidden whole, its capture included, when the frame draws no wireframe;
+		// an Edit overlay still draws its cage then, and the encoder leaves out its wireframe meshes.
 		overlayResidency.apply(overlay, residency.residents, currentModel)
+		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || overlays.wireframe) }
 		renderFrame(
 			target,
 			viewportWidth,
@@ -594,7 +597,7 @@ class PuppetRenderer(
 			gridPixelScale,
 			selectedIds,
 			activeId,
-			if (overlays.meshOverlay) overlay else null,
+			drawn,
 			overlays,
 		)
 	}
@@ -677,6 +680,7 @@ class PuppetRenderer(
 				acceleration = compositeAcceleration,
 				overlay = overlay,
 				overlayPalette = meshOverlayPalette,
+				drawWireframe = overlays.wireframe,
 			)
 		pass = planEncoder.encodePlan(frame, inputs, currentPlan, target, pass)
 		if (overlay != null) {
@@ -927,7 +931,7 @@ class PuppetRenderer(
 			overlayEncoder.encodeDirectDraws(
 				pass,
 				scene,
-				OverlayFrame(affine, viewportWidth, viewportHeight, gridPixelScale, palette, viewportWidth, viewportHeight),
+				OverlayFrame(affine, viewportWidth, viewportHeight, gridPixelScale, palette, viewportWidth, viewportHeight, overlays.wireframe),
 			)
 		}
 		pass.end()

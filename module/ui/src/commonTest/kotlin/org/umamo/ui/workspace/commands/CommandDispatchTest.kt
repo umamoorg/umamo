@@ -436,11 +436,15 @@ class CommandDispatchTest {
 		assertFalse(uvOverlays.showInfo)
 		assertTrue(viewportOverlays.showOverlays && viewportOverlays.showGrid && viewportOverlays.showCursor && viewportOverlays.showInfo, "the other area is untouched")
 
-		// The axes command is scoped to the 2D viewport for the palette's sake only; dispatch never reads a
-		// scope, so over a UV editor it flips that area's (unused) flag and still leaves the 2D area alone.
+		// The axes and wireframe commands are scoped to the 2D viewport for the palette's sake only; dispatch
+		// never reads a scope, so over a UV editor each flips that area's (unused) flag and still leaves the 2D
+		// area alone.
 		overUv.run("view.overlay.axes")
 		assertFalse(uvOverlays.showAxes)
 		assertTrue(viewportOverlays.showAxes, "the 2D area's axes stay")
+		overUv.run("view.overlay.wireframe")
+		assertTrue(uvOverlays.showWireframe)
+		assertFalse(viewportOverlays.showWireframe, "the 2D area's wireframe stays off")
 
 		overlayCommands(hub, routing(null), viewportPresent = true).run("view.overlay.all")
 

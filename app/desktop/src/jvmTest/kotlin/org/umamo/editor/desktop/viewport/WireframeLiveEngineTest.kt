@@ -1,0 +1,207 @@
+package org.umamo.editor.desktop.viewport
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PixelMap
+import androidx.compose.ui.graphics.toPixelMap
+import kotlinx.coroutines.flow.StateFlow
+import org.umamo.edit.GridConfig
+import org.umamo.render.DecodedImage
+import org.umamo.render.FrameOverlays
+import org.umamo.render.PuppetTextures
+import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayKind
+import org.umamo.render.puppet.MeshOverlayMesh
+import org.umamo.render.puppet.MeshOverlayPalette
+import org.umamo.render.puppet.MeshOverlaySelectMode
+import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.OverlayColor
+import org.umamo.runtime.model.AtlasPage
+import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Drawable
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.KeyformAxis
+import org.umamo.runtime.model.KeyformCell
+import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.MeshDeltaForm
+import org.umamo.runtime.model.OrgChild
+import org.umamo.runtime.model.Parameter
+import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PuppetAtlas
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.AreaOverlays
+import org.umamo.ui.viewport.LiveParams
+import org.umamo.ui.viewport.RenderedFrame
+import kotlin.test.Test
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
+
+/**
+ * The wireframe's per-area gate, one level above the renderer: a real OffscreenPuppetService with its render
+ * thread holds one Object-mode wireframe for two 2D areas of one document, and each area draws it or not as
+ * ITS render options ask, a change to one area's options repainting that area alone.
+ *
+ * One solid blue quad over each 100x100 area, its diagonal edge through the frame's center, drawn six display
+ * pixels wide in an opaque magenta idle edge color so the line survives the supersample's downscale; the
+ * center pixel is magenta where the wireframe draws and the art's blue where it does not.  Self-skips when
+ * no GL context can be created (no frame ever arrives).
+ */
+class WireframeLiveEngineTest {
+	private val paramA = ParameterId("A")
+	private val probeId = DrawableId("WireframeProbe")
+
+	// A 120x120 quad centered at the origin, keyed with one zero-delta form; its triangles share the diagonal
+	// from (60, -60) to (-60, 60), which passes through the origin.
+	private val quadPositions = floatArrayOf(-60f, -60f, 60f, -60f, -60f, 60f, 60f, 60f)
+	private val quadUvs = floatArrayOf(0.3f, 0.7f, 0.7f, 0.7f, 0.3f, 0.3f, 0.7f, 0.3f)
+	private val quadIndices = intArrayOf(0, 1, 2, 1, 3, 2)
+
+	@Test
+	fun eachAreaDrawsTheWireframeAsItsOwnOptionsAsk() {
+		val model = probeModel()
+		val textures = PuppetTextures(listOf(solidBlueImage()), mapOf(probeId.raw to 0), false)
+		val service = OffscreenPuppetService(model, textures, LiveParams(emptyMap()))
+		service.start()
+		try {
+			val leftFrames = service.register("left")
+			val rightFrames = service.register("right")
+			service.setAreaOverlays("right", AreaOverlays(GridConfig(), FrameOverlays(axes = true, wireframe = false)))
+			service.resize("left", 100, 100)
+			service.resize("right", 100, 100)
+			service.setMeshOverlayPalette(MeshOverlayPalette.Classic.copy(edgeIdle = OverlayColor(1f, 0f, 1f, 1f)))
+			if (!awaitFrame(leftFrames) { sample -> isArtBlue(sample) }) {
+				println("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
+				return
+			}
+			assertTrue(awaitFrame(rightFrames) { sample -> isArtBlue(sample) }, "both areas show the plain art before any wireframe")
+
+			service.setMeshOverlay(quadWireframe())
+			assertTrue(awaitFrame(leftFrames) { sample -> isMagentaEdge(sample) }, "the left area, asking for the wireframe, draws the quad's diagonal through its center")
+			assertTrue(awaitFrame(rightFrames) { sample -> isArtBlue(sample) }, "the right area, not asking, keeps the plain art")
+			val rightFrame = rightFrames.value
+
+			service.setAreaOverlays("left", AreaOverlays(GridConfig(), FrameOverlays(axes = true, wireframe = false)))
+
+			assertTrue(awaitFrame(leftFrames) { sample -> isArtBlue(sample) }, "the left area no longer asking repaints without the wireframe")
+			assertSame(rightFrame, rightFrames.value, "and the right area, untouched, kept its frame")
+		} finally {
+			service.dispose()
+		}
+	}
+
+	/**
+	 * The Object-mode wireframe over the probe, nothing flagged, six display pixels wide.
+	 *
+	 * @return MeshOverlay The overlay.
+	 */
+	private fun quadWireframe(): MeshOverlay =
+		MeshOverlay(
+			MeshOverlayKind.ObjectWireframe,
+			MeshOverlaySelectMode.Vertex,
+			listOf(
+				MeshOverlayMesh(
+					drawableId = probeId,
+					vertexCount = 4,
+					edgeEndpoints = intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3),
+					vertexFlags = ByteArray(0),
+					edgeFlags = ByteArray(0),
+					faceFlags = ByteArray(0),
+					activeVertex = null,
+					activeEdge = null,
+					activeFace = null,
+					wireframeOnly = true,
+				),
+			),
+			MeshOverlaySizes(3.5f, 6f, 2.5f),
+		)
+
+	/**
+	 * Whether the sample shows the plain blue art.
+	 *
+	 * @param Color sample The sampled pixel.
+	 * @return Boolean True when blue dominates and no line is over it.
+	 */
+	private fun isArtBlue(sample: Color): Boolean = sample.blue > 0.9f && sample.red < 0.1f && sample.green < 0.1f
+
+	/**
+	 * Whether the sample shows the magenta edge: red joins the blue while green stays out, whatever the
+	 * downscale's blend with the art.
+	 *
+	 * @param Color sample The sampled pixel.
+	 * @return Boolean True when the edge is there.
+	 */
+	private fun isMagentaEdge(sample: Color): Boolean = sample.red > 0.4f && sample.blue > 0.4f && sample.green < 0.2f
+
+	/**
+	 * Waits until the area publishes a frame whose center pixel satisfies [accept].
+	 *
+	 * @param StateFlow<RenderedFrame?> frames The area's frame flow.
+	 * @param Function accept The test on the center pixel.
+	 * @return Boolean True when such a frame arrived before the deadline.
+	 */
+	private fun awaitFrame(frames: StateFlow<RenderedFrame?>, accept: (Color) -> Boolean): Boolean {
+		val start = System.currentTimeMillis()
+		while (System.currentTimeMillis() - start < 5_000) {
+			val frame = frames.value
+			if (frame != null && accept(centerOf(frame.bitmap.toPixelMap()))) {
+				return true
+			}
+			Thread.sleep(20)
+		}
+		return false
+	}
+
+	/**
+	 * The frame's center pixel, where the quad's diagonal passes.
+	 *
+	 * @param PixelMap pixels The frame.
+	 * @return Color The sample.
+	 */
+	private fun centerOf(pixels: PixelMap): Color = pixels[pixels.width / 2, pixels.height / 2]
+
+	/**
+	 * A 16x16 opaque blue page.
+	 *
+	 * @return DecodedImage The page.
+	 */
+	private fun solidBlueImage(): DecodedImage {
+		val size = 16
+		val rgba = ByteArray(size * size * 4)
+		for (pixel in rgba.indices step 4) {
+			rgba[pixel + 2] = 0xFF.toByte()
+			rgba[pixel + 3] = 0xFF.toByte()
+		}
+		return DecodedImage(rgba, size, size)
+	}
+
+	/**
+	 * The one-quad model on a single 16x16 page.
+	 *
+	 * @return PuppetModel The model.
+	 */
+	private fun probeModel(): PuppetModel {
+		val drawable =
+			Drawable(
+				id = probeId,
+				name = probeId.raw,
+				parentDeformerId = null,
+				blendMode = BlendMode.Normal,
+				maskedBy = emptyList(),
+				mesh = DrawableMesh.withLocalEqualToCanvas(quadPositions, quadUvs, quadIndices),
+				geometryGrid =
+					KeyformGrid(
+						listOf(KeyformAxis(paramA, floatArrayOf(0f))),
+						listOf(KeyformCell(intArrayOf(0), MeshDeltaForm(FloatArray(quadPositions.size)))),
+					),
+			)
+		return PuppetModel(
+			parameters = listOf(Parameter(paramA, "A", -1f, 1f, 0f)),
+			parts = emptyList(),
+			deformers = emptyList(),
+			drawables = listOf(drawable),
+			rootChildren = listOf(OrgChild.Drawable(drawable.id)),
+			rootPartId = null,
+			atlas = PuppetAtlas(pages = listOf(AtlasPage(16, 16))),
+		)
+	}
+}

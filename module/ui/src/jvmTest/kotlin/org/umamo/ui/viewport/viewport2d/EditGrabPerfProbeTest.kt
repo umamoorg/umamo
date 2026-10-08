@@ -41,6 +41,7 @@ import org.umamo.runtime.model.drawableNameByDrawable
 import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.runtime.model.pickableIndicesByDrawable
 import org.umamo.runtime.model.pickableUvsByDrawable
+import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
@@ -432,6 +433,19 @@ class EditGrabPerfProbeTest {
 		val trimmed = meshSelection.copy(elementsByDrawable = meshSelection.elementsByDrawable + (firstId to meshSelection.elementsOf(firstId).drop(1).toSet()))
 		timed("A2s mesh overlay derive, one mesh's selection changed [per click or brush stamp]") { round ->
 			producer.produce(EditorMode.Edit, if (round % 2 == 0) trimmed else meshSelection, model, sizes)
+		}
+
+		val shown = model.visibleDrawableIds()
+		timed("A3 wireframe derive, cold (every shown mesh's edges, Object mode) [on the first area asking]", 3) {
+			EditMeshOverlayProducer().produce(EditorMode.Object, meshSelection, model, sizes, wireframeOver = shown)
+		}
+		val wireframeProducer = EditMeshOverlayProducer()
+		val firstWireframe = wireframeProducer.produce(EditorMode.Object, meshSelection, model, sizes, wireframeOver = shown)
+		val warmWireframe = timed("A3w wireframe derive, warm (nothing it shows changed) [per commit in Object mode]") { wireframeProducer.produce(EditorMode.Object, meshSelection, model, sizes, wireframeOver = shown) }
+		report("A3w handed back the same instance: ${warmWireframe === firstWireframe}")
+		val oneMesh = MeshSelection(listOf(firstId), firstId, meshSelection.selectMode, mapOf(firstId to meshSelection.elementsOf(firstId)), null)
+		timed("A3e one mesh's cage plus the wireframe of every other shown mesh, cold [on Edit entry with an area asking]", 3) {
+			EditMeshOverlayProducer().produce(EditorMode.Edit, oneMesh, model, sizes, wireframeOver = shown)
 		}
 	}
 

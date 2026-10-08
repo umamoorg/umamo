@@ -272,14 +272,16 @@ fun rememberPuppetViewportHost(
 			service.setShownDrawables(model.visibleDrawableIds())
 		}
 	}
-	// The Edit-mode mesh overlay the renderer draws over the art in every 2D area: derived off the UI thread
-	// from the mode, the mesh selection (or a live brush stroke), and the model, and published only when what
-	// it shows changes - a Grab's preview pushes and its confirm move positions, which the overlay does not
-	// carry.  The sizes reach the running derive as a flow rather than as an effect key, so a density change
-	// never restarts it mid-derive.
+	// The mesh overlay the renderer draws over the art in every 2D area - the Edit cage, and the wireframe of
+	// the shown meshes while some area asks for it: derived off the UI thread from the mode, the mesh selection
+	// (or a live brush stroke), the model, and the areas' demand, and published only when what it shows
+	// changes - a Grab's preview pushes and its confirm move positions, which the overlay does not carry.  The
+	// sizes reach the running derive as a flow rather than as an effect key, so a density change never
+	// restarts it mid-derive; the demand is keyed on the service, as the areas that fill it are.
 	val meshOverlaySizes = rememberUpdatedState(editMeshOverlaySizes(LocalDensity.current))
+	val wireframeDemand = remember(service) { WireframeDemand() }
 	LaunchedEffect(service, session) {
-		publishEditMeshOverlay(service, session, snapshotFlow { meshOverlaySizes.value })
+		publishMeshOverlay(service, session, snapshotFlow { meshOverlaySizes.value }, wireframeDemand.wanted)
 	}
 	// How many drawables have no usable artwork: the mapping failures the plan knows up front, plus the
 	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
@@ -462,7 +464,10 @@ fun rememberPuppetViewportHost(
 					val imageFlow = remember(areaId, service) { service.register(areaId) }
 					// The area's render options - its grid geometry and which overlays its frames draw - follow
 					// the overlay state the body provides through the local; a standalone shell provides none.
-					AreaOverlaysPublisher(service, areaId, LocalAreaOverlays.current)
+					// The same state says whether this area asks for the wireframe the document's overlay carries.
+					val overlayState = LocalAreaOverlays.current
+					AreaOverlaysPublisher(service, areaId, overlayState)
+					WireframeDemandPublisher(wireframeDemand, areaId, overlayState)
 					val cameraFlow = remember(areaId, service) { service.cameraFlow(areaId) }
 					DisposableEffect(areaId, service) {
 						onDispose { service.unregister(areaId) }

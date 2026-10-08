@@ -5,6 +5,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
+import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTarget
@@ -86,6 +87,7 @@ class EditGrabRenderPerfProbeTest {
 		val current = probeEnginePath(renderer, device, target, puppet)
 		probeForcedRebake(renderer, current)
 		probeOverlayFrames(renderer, target, current)
+		probeWireframeFrames(renderer, target, current)
 		probeUvSceneFrames(renderer, target, current)
 
 		device.destroyRenderTarget(target)
@@ -219,6 +221,57 @@ class EditGrabRenderPerfProbeTest {
 		report("G5 first frame with the overlay (buffer uploads + capture + draws): %.1f ms".format(firstNanos / 1e6))
 		stats("G6 renderer.render with the overlay, nothing moved (draws only) [per frame; host GL]", stillTimes)
 		stats("G7 renderer.render with the overlay after a preview push (re-capture + draws) [per frame; host GL]", pushedTimes)
+	}
+
+	/**
+	 * The frame with the Object-mode wireframe of every mesh: the first frame (every edge buffer uploaded, the
+	 * capture, the draws), a still frame, a frame that holds the wireframe but hides it (an area with the row
+	 * off while another has it on: no capture, no draws), and a frame after a preview push (re-capture + draws).
+	 *
+	 * @param PuppetRenderer renderer The renderer.
+	 * @param RenderTarget target The frame target.
+	 * @param PuppetModel start The model the renderer holds.
+	 */
+	private fun probeWireframeFrames(renderer: PuppetRenderer, target: RenderTarget, start: PuppetModel) {
+		val edit = selectAllOverlay(start)
+		val overlay =
+			MeshOverlay(
+				MeshOverlayKind.ObjectWireframe,
+				MeshOverlaySelectMode.Vertex,
+				edit.meshes.map { mesh -> MeshOverlayMesh(mesh.drawableId, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, wireframeOnly = true) },
+				edit.sizes,
+			)
+		renderer.setMeshOverlay(overlay)
+		val firstStart = System.nanoTime()
+		renderer.render(target, viewportWidth, viewportHeight)
+		GL11.glFinish()
+		val firstNanos = System.nanoTime() - firstStart
+		val stillTimes = ArrayList<Long>(rounds)
+		val hiddenTimes = ArrayList<Long>(rounds)
+		val pushedTimes = ArrayList<Long>(rounds)
+		var current = start
+		for (round in 0 until rounds) {
+			val stillStart = System.nanoTime()
+			renderer.render(target, viewportWidth, viewportHeight)
+			GL11.glFinish()
+			stillTimes.add(System.nanoTime() - stillStart)
+			val hiddenStart = System.nanoTime()
+			renderer.render(target, viewportWidth, viewportHeight, overlays = FrameOverlays(wireframe = false))
+			GL11.glFinish()
+			hiddenTimes.add(System.nanoTime() - hiddenStart)
+			current = translateEveryMesh(current, 2f * (round + 1))
+			renderer.updateModel(current)
+			GL11.glFinish()
+			val pushedStart = System.nanoTime()
+			renderer.render(target, viewportWidth, viewportHeight)
+			GL11.glFinish()
+			pushedTimes.add(System.nanoTime() - pushedStart)
+		}
+		renderer.setMeshOverlay(null)
+		report("G5w first frame with the wireframe of every mesh (buffer uploads + capture + draws): %.1f ms".format(firstNanos / 1e6))
+		stats("G6w renderer.render with the wireframe, nothing moved (draws only) [per frame; host GL]", stillTimes)
+		stats("G6h renderer.render holding the wireframe but hiding it (no capture, no draws) [per frame; host GL]", hiddenTimes)
+		stats("G7w renderer.render with the wireframe after a preview push (re-capture + draws) [per frame; host GL]", pushedTimes)
 	}
 
 	/**

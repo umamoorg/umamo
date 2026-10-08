@@ -52,5 +52,10 @@ internal fun overlayCommands(areaOverlays: AreaOverlayHub, routing: CommandRouti
 		Command("view.overlay.info", title = Res.string.cmd_view_overlay_info, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredOverlays()?.let { state -> state.showInfo = !state.showInfo }
 		},
+		// The wireframe is the 2D viewport's alone, like the axes: a UV editor's islands are its click targets
+		// and it offers no row for it.
+		Command("view.overlay.wireframe", title = Res.string.cmd_view_overlay_wireframe, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {
+			hoveredOverlays()?.let { state -> state.showWireframe = !state.showWireframe }
+		},
 	)
 }

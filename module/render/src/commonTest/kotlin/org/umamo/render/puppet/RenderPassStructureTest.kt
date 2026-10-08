@@ -991,6 +991,86 @@ class RenderPassStructureTest {
 		assertEquals(1, device.capturePasses().size, "the wireframe still needs the positions captured")
 	}
 
+	/**
+	 * An Object-mode wireframe draws only in a frame that asks for the wireframe: a frame that does not
+	 * neither captures nor draws it, while the residency still holds its buffers for the frame that will.
+	 */
+	@Test
+	fun anObjectWireframeDrawsOnlyWhenTheFrameAsks() {
+		val source =
+			model(
+				drawables = listOf(drawable("back", fullQuad()), drawable("front", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("back")), OrgChild.Drawable(DrawableId("front"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, listOf("back", "front")))
+		device.clearLog()
+
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(wireframe = false))
+
+		assertEquals(
+			listOf("pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), mesh(4 vertices, Normal, opacity 1.0)]"),
+			describe(device, target),
+			"a frame without the wireframe neither captures nor draws it",
+		)
+		assertEquals(2, device.resourceEvents.filterIsInstance<OverlayBuffersCreated>().size, "its buffers are uploaded all the same")
+		assertTrue(device.resourceEvents.filterIsInstance<OverlayBuffersDestroyed>().isEmpty(), "and kept")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		assertEquals(
+			listOf(
+				"capture 2",
+				"barrier",
+				"pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), mesh(4 vertices, Normal, opacity 1.0), overlay OverlayEdge, overlay OverlayEdge]",
+			),
+			describe(device, target),
+			"the frame that asks captures the positions and draws every mesh's edges",
+		)
+		assertTrue(device.resourceEvents.filterIsInstance<OverlayBuffersCreated>().isEmpty(), "over the buffers it kept")
+	}
+
+	/**
+	 * An Edit overlay's plain wireframe meshes (those outside the edit) contribute their edges alone, ahead of
+	 * the cage's so the cage lands on top, and only in a frame that draws the wireframe; the cage's fills,
+	 * edges, and dots draw either way.
+	 */
+	@Test
+	fun anEditOverlaysWireframeMeshesDrawEdgesOnlyAndOnlyWhenAsked() {
+		val source =
+			model(
+				drawables = listOf(drawable("other", fullQuad()), drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("other")), OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+
+		val vertexDraws = overlayDrawsFor(renderer, device, target, overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("other", "art"), wireframeOnly = setOf("other")))
+		assertEquals(
+			listOf(PipelinePurpose.OverlayFaceFill to 4, PipelinePurpose.OverlayEdge to 0, PipelinePurpose.OverlayEdge to 4, PipelinePurpose.OverlayVertexDot to 4),
+			vertexDraws.map { draw -> draw.purpose to draw.baseOffset },
+			"the wireframe mesh's edges go ahead of the cage's, with no fill and no dots of its own",
+		)
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(wireframe = false))
+		assertEquals(
+			listOf(PipelinePurpose.OverlayFaceFill to 4, PipelinePurpose.OverlayEdge to 4, PipelinePurpose.OverlayVertexDot to 4),
+			device.overlayDraws().map { draw -> draw.purpose to draw.baseOffset },
+			"a frame without the wireframe draws the cage alone",
+		)
+
+		val faceDraws = overlayDrawsFor(renderer, device, target, overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Face, listOf("other", "art"), wireframeOnly = setOf("other")))
+		assertEquals(
+			listOf(PipelinePurpose.OverlayFaceFill to 4, PipelinePurpose.OverlayEdge to 0, PipelinePurpose.OverlayEdge to 4, PipelinePurpose.OverlayFaceDot to 4),
+			faceDraws.map { draw -> draw.purpose to draw.baseOffset },
+			"Face mode fills and dots the cage alone",
+		)
+	}
+
 	/** An overlay mesh whose resident disagrees with it is left out of the frame, and the frame is as without it. */
 	@Test
 	fun anOverlayMeshWhoseResidentDisagreesIsSkipped() {
@@ -1063,6 +1143,7 @@ class RenderPassStructureTest {
 		vertexCount: Int = 4,
 		activeVertex: Int? = null,
 		activeEdge: Int? = null,
+		wireframeOnly: Set<String> = emptySet(),
 	): MeshOverlay =
 		MeshOverlay(
 			kind,
@@ -1076,7 +1157,7 @@ class RenderPassStructureTest {
 				if (activeEdge != null) {
 					edgeFlags[activeEdge] = OVERLAY_FLAG_ACTIVE
 				}
-				MeshOverlayMesh(DrawableId(id), vertexCount, quadEdges, vertexFlags, edgeFlags, ByteArray(2), activeVertex, activeEdge, null)
+				MeshOverlayMesh(DrawableId(id), vertexCount, quadEdges, vertexFlags, edgeFlags, ByteArray(2), activeVertex, activeEdge, null, wireframeOnly = id in wireframeOnly)
 			},
 			MeshOverlaySizes(3.5f, 1f, 2.5f),
 		)

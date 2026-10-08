@@ -16,9 +16,14 @@ package org.umamo.render
  * @property Boolean axes        Whether the world-origin axis lines draw after the grid.  Off by default,
  *   so a headless render stays line-free; the editor's areas ask for them.
  * @property Boolean meshOverlay Whether the mesh overlay the renderer holds is drawn this frame.
+ * @property Boolean wireframe   Whether the wireframe draws this frame: an Object-mode wireframe overlay
+ *   whole, its capture included, and the meshes outside the edit that an Edit overlay carries as plain
+ *   wireframes.  The Edit cage itself draws under [meshOverlay] alone.  True by default, as [meshOverlay]
+ *   is: a headless render draws what the renderer holds, and the editor's areas say otherwise.
  */
 data class FrameOverlays(
 	val gridLines: Boolean = true,
 	val axes: Boolean = false,
 	val meshOverlay: Boolean = true,
+	val wireframe: Boolean = true,
 )

@@ -58,16 +58,8 @@
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
 
 ## Overlay Toggles
-* Overlay visibility toggles from 2D and UV viewport headers.
-* Shared functionality between 2D and UV viewports.  We just hide what isn't available, for example, no X/Z axis in the UV viewport.
-* Icon based PopupChip
-* Grid - Ability to change scale and divisions.
-* 2D Cursor
-* Sections: Guides, Text, Geometry
-* Toggles for:
-	* Guides: Grid, X/Z Axis
-	* Text: General Information
-	* Geometry: Wireframe (Object Mode)
+* Improvements
+	* Wireframe: Toggle culling of mesh parts hidden by other drawables.(On by default.)
 
 
 ## Object and Mesh Editing

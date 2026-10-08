@@ -11,7 +11,7 @@ import org.umamo.ui.rememberIntSetting
 
 /*
  * The per-area render options the editor hands the render service: each work-surface area's grid geometry
- * and its frame's overlays (grid lines, axes, mesh overlay), derived from the area's ViewportOverlayState
+ * and its frame's overlays (grid lines, axes, mesh overlay, wireframe), derived from the area's ViewportOverlayState
  * over the application's grid setting, pushed as the area registers and again whenever the value changes.
  * The engine keeps the value on the area's slot and compares it by value for freshness, so a flip
  * re-renders that area alone and the other areas of the document never notice.
@@ -21,7 +21,8 @@ import org.umamo.ui.rememberIntSetting
  * What one area asks the renderer to draw beyond its scene: its grid geometry and its frame overlays.
  *
  * @property GridConfig    grid  The grid's major spacing and subdivisions.
- * @property FrameOverlays frame Whether the frame draws the grid lines, the world axes, and the mesh overlay.
+ * @property FrameOverlays frame Whether the frame draws the grid lines, the world axes, the mesh overlay, and
+ *   the wireframe.
  */
 data class AreaOverlays(
 	val grid: GridConfig,
@@ -29,8 +30,9 @@ data class AreaOverlays(
 ) {
 	companion object {
 		/**
-		 * The editor's defaults: the built-in grid geometry with every overlay shown, axes included.  What an
-		 * area renders before its first push, and what a capture takes when no area stands behind it.
+		 * The editor's defaults: the built-in grid geometry with every overlay shown, axes and wireframe
+		 * included.  What an area renders before its first push, and what a capture takes when no area stands
+		 * behind it (a capture draws no mesh overlay, so the wireframe is moot there).
 		 */
 		val Default: AreaOverlays = AreaOverlays(GridConfig(), FrameOverlays(gridLines = true, axes = true, meshOverlay = true))
 	}
@@ -38,8 +40,9 @@ data class AreaOverlays(
 
 /**
  * The render options an area's overlay state asks for over a grid geometry.  A null state (no area, as in a
- * standalone shell) shows everything; a UV editor never asks for the world axes, which its surface has none
- * of; the mesh overlay follows the Show Overlays master alone, since the Edit wireframe has no row of its own.
+ * standalone shell) shows everything; a UV editor never asks for the world axes or the wireframe, which its
+ * surface has none of; the mesh overlay follows the Show Overlays master alone, since the Edit cage has no
+ * row of its own, while the wireframe follows its row under the master.
  *
  * @param ViewportOverlayState? state            The area's overlay state, or null for none.
  * @param Float                 gridScale        The grid's major spacing in world units.
@@ -53,6 +56,7 @@ fun areaOverlaysFor(state: ViewportOverlayState?, gridScale: Float, gridSubdivis
 			gridLines = state?.effectiveGrid ?: true,
 			axes = state == null || (state.surface == OverlaySurface.Viewport2D && state.effectiveAxes),
 			meshOverlay = state?.showOverlays ?: true,
+			wireframe = state == null || (state.surface == OverlaySurface.Viewport2D && state.effectiveWireframe),
 		),
 	)
 

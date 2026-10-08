@@ -12,20 +12,25 @@ import kotlin.test.assertTrue
  * and writes its one flag, and that the Show Overlays master gates every effect while leaving each flag as set.
  */
 class OverlayCatalogTest {
-	/** The 2D viewport offers every row; the UV editor every row but the axes, which its surface has none of. */
+	/** The 2D viewport offers every row; the UV editor every row but the axes and the wireframe, which its surface has none of. */
 	@Test
 	fun eachSurfaceOffersItsRowsInSectionOrder() {
-		assertEquals(listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(OverlaySurface.Viewport2D))
+		assertEquals(
+			listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info, OverlayToggle.Wireframe),
+			overlayRowsFor(OverlaySurface.Viewport2D),
+		)
 		assertEquals(listOf(OverlayToggle.Grid, OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(OverlaySurface.UvEditor))
 		assertEquals(OverlaySection.Guides, OverlayToggle.Grid.section)
 		assertEquals(OverlaySection.Guides, OverlayToggle.Axes.section)
 		assertEquals(OverlaySection.Guides, OverlayToggle.Cursor.section)
 		assertEquals(OverlaySection.Text, OverlayToggle.Info.section)
+		assertEquals(OverlaySection.Geometry, OverlayToggle.Wireframe.section)
+		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Geometry), OverlaySection.entries)
 	}
 
-	/** The grid and axis rows read and write their own flags. */
+	/** The grid, axis, and wireframe rows read and write their own flags. */
 	@Test
-	fun theGridAndAxisRowsReadAndWriteTheirFlags() {
+	fun theGridAxisAndWireframeRowsReadAndWriteTheirFlags() {
 		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
 		OverlayToggle.Grid.set(state, false)
 		assertFalse(state.showGrid)
@@ -34,6 +39,10 @@ class OverlayCatalogTest {
 		OverlayToggle.Axes.set(state, false)
 		assertFalse(state.showAxes)
 		assertTrue(state.showCursor && state.showInfo, "and so are the other rows")
+		assertFalse(OverlayToggle.Wireframe.isOn(state), "the wireframe row starts off")
+		OverlayToggle.Wireframe.set(state, true)
+		assertTrue(state.showWireframe && OverlayToggle.Wireframe.isOn(state))
+		assertFalse(state.showGrid || state.showAxes, "and flips nothing else")
 	}
 
 	/** A row reads and writes its own flag and no other. */
