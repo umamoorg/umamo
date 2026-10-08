@@ -98,9 +98,9 @@ class AreaScope(
  * override specific kinds (notably the GL viewport) without `:ui` depending on any platform code.
  *
  * [headerContent] is the optional space-specific header strip, rendered by the (otherwise
- * space-agnostic) area header after the editor-type dropdown - the 2D viewport mounts its mode dropdown
- * and select-mode buttons here, and the UV editor is the intended second consumer.  Declared before
- * [content] so the existing trailing-lambda construction sites stay valid.
+ * space-agnostic) area header after the editor-type dropdown.  The viewports mount the mode dropdown
+ * and select-mode buttons here.  Declared before [content] so the existing trailing-lambda construction
+ * sites stay valid.
  *
  * The slot declares ITEMS into an overflow-aware strip rather than emitting composables into a Row: a
  * control that does not fit collapses into the strip's trailing dropdown instead of being squeezed to
