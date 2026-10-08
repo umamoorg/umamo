@@ -2,7 +2,6 @@ package org.umamo.ui.viewport
 
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.StateFlow
-import org.umamo.edit.GridConfig
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
@@ -152,9 +151,6 @@ interface PuppetViewportService {
 	/** The grid backdrop colors (background / major / minor), fed from the editor theme; a change forces a redraw. */
 	var gridColors: GridColors
 
-	/** The per-document grid geometry (major spacing + subdivisions), fed from the session; a change forces a redraw. */
-	var gridConfig: GridConfig
-
 	/**
 	 * Registers a viewport area and returns the flow its rendered frames arrive on. Reference-counted
 	 * per [areaId]: register/unregister pair across the area's composable life.
@@ -199,6 +195,26 @@ interface PuppetViewportService {
 	 * @param ContentBounds? islandExtent The shown meshes' display-space bounds, or null for none.
 	 */
 	fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?)
+
+	/**
+	 * Sets what [areaId] draws beyond its scene: its grid geometry, and whether its frames draw the grid lines,
+	 * the world axes, and the mesh overlay.  Compared by value when the area's freshness is judged, so a
+	 * changed value re-renders that area alone and an equal one renders nothing.  A no-op for an unregistered
+	 * area.
+	 *
+	 * @param String       areaId   The area.
+	 * @param AreaOverlays overlays The area's render options.
+	 */
+	fun setAreaOverlays(areaId: String, overlays: AreaOverlays)
+
+	/**
+	 * The render options [areaId] last pushed, or null when it is not registered: what an image capture framed
+	 * by that area takes, so the capture draws the grid and the axes the area shows.
+	 *
+	 * @param String areaId The area.
+	 * @return AreaOverlays? The area's options, or null.
+	 */
+	fun areaOverlays(areaId: String): AreaOverlays?
 
 	/**
 	 * Releases one registration of [areaId]; the engine drops the area's resources at zero.
@@ -452,10 +468,11 @@ interface PuppetViewportService {
 	 *
 	 * @param ImageFrame    frame    The camera and pixel size to render.
 	 * @param FrameBackdrop backdrop What the puppet is drawn over.
+	 * @param AreaOverlays  overlays The grid geometry, and the grid lines and axes a grid backdrop draws.
 	 * @return RasterImage? The image, straight alpha, top row first; null when the renderer cannot render
 	 *   (its context never came up, it was disposed, or the render failed).
 	 */
-	suspend fun renderImage(frame: ImageFrame, backdrop: FrameBackdrop): RasterImage?
+	suspend fun renderImage(frame: ImageFrame, backdrop: FrameBackdrop, overlays: AreaOverlays): RasterImage?
 
 	/**
 	 * What a 2D viewport area shows right now, as a frame: its camera and its size in pixels.

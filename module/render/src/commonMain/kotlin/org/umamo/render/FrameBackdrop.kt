@@ -12,8 +12,8 @@ import org.umamo.format.raster.unpremultiplyInPlace
  */
 sealed interface FrameBackdrop {
 	/**
-	 * The themed grid backdrop the viewport shows, with the world-origin axes when the renderer has them
-	 * turned on.
+	 * The themed grid backdrop the viewport shows, with the world-origin axes when the frame's
+	 * [FrameOverlays] ask for them, and with its lines in the background color when they ask for none.
 	 */
 	data object Grid : FrameBackdrop
 

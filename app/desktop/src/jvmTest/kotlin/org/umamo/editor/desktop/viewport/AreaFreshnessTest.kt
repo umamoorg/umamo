@@ -1,7 +1,9 @@
 package org.umamo.editor.desktop.viewport
 
+import org.umamo.edit.GridConfig
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
+import org.umamo.render.FrameOverlays
 import org.umamo.render.ViewportCamera
 import org.umamo.render.puppet.DirectMeshOverlay
 import org.umamo.render.puppet.MeshOverlay
@@ -10,6 +12,7 @@ import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.puppet.PlacementPreview
+import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.UvSceneContent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -42,6 +45,7 @@ class AreaFreshnessTest {
 			renderedCamera = passCamera
 			puppetRenderBumpDone = puppetBump
 			atlasRenderBumpDone = -1
+			renderedOverlays = AreaOverlays.Default
 		}
 
 	/** A UV area showing page 0 whose last render matches every input it watches, settled long ago. */
@@ -57,6 +61,7 @@ class AreaFreshnessTest {
 			renderedCamera = passCamera
 			puppetRenderBumpDone = -1
 			atlasRenderBumpDone = atlasBump
+			renderedOverlays = AreaOverlays.Default
 		}
 
 	private fun decide(slot: AreaSlot, width: Int = 200, height: Int = 100): AreaRenderDecision =
@@ -66,6 +71,22 @@ class AreaFreshnessTest {
 	fun everyStampMatchingIsFresh() {
 		assertEquals(AreaRenderDecision.Fresh, decide(freshPuppetSlot()))
 		assertEquals(AreaRenderDecision.Fresh, decide(freshUvSlot()))
+	}
+
+	/** An area's own render options count for both kinds: a changed value re-renders, by value, not by counter. */
+	@Test
+	fun aChangedOverlaysValueMakesEitherAreaStale() {
+		val changed = AreaOverlays.Default.copy(frame = AreaOverlays.Default.frame.copy(gridLines = false))
+		assertEquals(AreaRenderDecision.Render(2), decide(freshPuppetSlot().apply { overlays = changed }), "a puppet area re-renders for its own options")
+		assertEquals(AreaRenderDecision.Render(2), decide(freshUvSlot().apply { overlays = changed }), "and so does a UV area")
+	}
+
+	/** A new instance equal by value is as fresh as the stamp itself, so an equal re-push renders nothing. */
+	@Test
+	fun anEqualOverlaysValueIsFresh() {
+		val equal = AreaOverlays(GridConfig(), FrameOverlays(gridLines = true, axes = true, meshOverlay = true))
+		assertEquals(AreaRenderDecision.Fresh, decide(freshPuppetSlot().apply { overlays = equal }))
+		assertEquals(AreaRenderDecision.Fresh, decide(freshUvSlot().apply { overlays = equal }))
 	}
 
 	@Test

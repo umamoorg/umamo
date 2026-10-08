@@ -38,6 +38,14 @@ internal fun overlayCommands(areaOverlays: AreaOverlayHub, routing: CommandRouti
 		Command("view.overlay.all", title = Res.string.cmd_view_overlay_all, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredOverlays()?.let { state -> state.showOverlays = !state.showOverlays }
 		},
+		Command("view.overlay.grid", title = Res.string.cmd_view_overlay_grid, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
+			hoveredOverlays()?.let { state -> state.showGrid = !state.showGrid }
+		},
+		// The world axes are the 2D viewport's alone - a UV editor's surface has none - so the command is scoped
+		// to it, as the catalog offers no row for it there.
+		Command("view.overlay.axes", title = Res.string.cmd_view_overlay_axes, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {
+			hoveredOverlays()?.let { state -> state.showAxes = !state.showAxes }
+		},
 		Command("view.overlay.cursor", title = Res.string.cmd_view_overlay_cursor, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredOverlays()?.let { state -> state.showCursor = !state.showCursor }
 		},

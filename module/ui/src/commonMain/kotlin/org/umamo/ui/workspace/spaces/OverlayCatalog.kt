@@ -35,6 +35,8 @@ internal enum class OverlayToggle(
 	val surfaces: Set<OverlaySurface>,
 	val label: StringResource,
 ) {
+	Grid(OverlaySection.Guides, OverlaySurface.entries.toSet(), Res.string.overlay_row_grid),
+	Axes(OverlaySection.Guides, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_axes),
 	Cursor(OverlaySection.Guides, OverlaySurface.entries.toSet(), Res.string.overlay_row_cursor),
 	Info(OverlaySection.Text, OverlaySurface.entries.toSet(), Res.string.overlay_row_info),
 	;
@@ -48,6 +50,8 @@ internal enum class OverlayToggle(
 	 */
 	fun isOn(state: ViewportOverlayState): Boolean =
 		when (this) {
+			Grid -> state.showGrid
+			Axes -> state.showAxes
 			Cursor -> state.showCursor
 			Info -> state.showInfo
 		}
@@ -60,6 +64,8 @@ internal enum class OverlayToggle(
 	 */
 	fun set(state: ViewportOverlayState, on: Boolean) {
 		when (this) {
+			Grid -> state.showGrid = on
+			Axes -> state.showAxes = on
 			Cursor -> state.showCursor = on
 			Info -> state.showInfo = on
 		}

@@ -65,12 +65,33 @@ class OverlaysHeaderControlTest {
 
 			clickDescribed(VIEWPORT_OVERLAYS)
 			assertTrue(popupShows(GUIDES) && popupShows(TEXT), "the sections head their rows")
+			assertTrue(popupShows(GRID_ROW) && popupShows(AXES_ROW), "a 2D viewport offers the grid and the axes")
 			clickMenuEntry(CURSOR_ROW)
 
 			assertFalse(overlays.showCursor)
 			assertTrue(overlays.showInfo && overlays.showOverlays, "the other row and the master are untouched")
 			clickMenuEntry(INFO_ROW)
 			assertFalse(overlays.showInfo)
+			clickMenuEntry(GRID_ROW)
+			assertFalse(overlays.showGrid)
+			clickMenuEntry(AXES_ROW)
+			assertFalse(overlays.showAxes)
+		}
+
+	/** The UV editor's popover offers the grid row but no axis row, since its surface has no world axes. */
+	@Test
+	fun theUvHeaderOffersGridButNoAxis() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.UvEditor, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(UV_EDITOR_VIEW_STATE_KEY) { UvEditorViewState() }.overlays
+
+			clickDescribed(VIEWPORT_OVERLAYS)
+
+			assertTrue(popupShows(GRID_ROW), "the grid row is offered")
+			assertFalse(popupShows(AXES_ROW), "the axis row is not")
+			clickMenuEntry(GRID_ROW)
+			assertFalse(overlays.showGrid)
 		}
 
 	/** The UV editor's header drives its own view state's overlays. */
@@ -133,9 +154,11 @@ class OverlaysHeaderControlTest {
 		/** The popover chevron's English name; it doubles as its accessible label. */
 		const val VIEWPORT_OVERLAYS = "Viewport Overlays"
 
-		/** The two section headings and the two rows, in English. */
+		/** The two section headings and the rows, in English. */
 		const val GUIDES = "Guides"
 		const val TEXT = "Text"
+		const val GRID_ROW = "Grid"
+		const val AXES_ROW = "X/Z Axis"
 		const val CURSOR_ROW = "2D Cursor"
 		const val INFO_ROW = "General Information"
 

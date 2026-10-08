@@ -23,6 +23,7 @@ import org.umamo.ui.document.umamoWriterInfo
 import org.umamo.ui.document.writeUmaDocument
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.alert_save_failed
+import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.fitSquare
 import org.umamo.ui.workspace.AlertRequest
 import org.umamo.ui.workspace.commands.DirtyDocumentPrompt
@@ -170,7 +171,7 @@ internal class DocumentSaveController(
 		val bounds = service.visibleContentBounds() ?: return null
 		val thumbnail =
 			withTimeoutOrNull(THUMBNAIL_RENDER_TIMEOUT_MILLIS) {
-				service.renderImage(fitSquare(bounds, UMA_THUMBNAIL_SIZE), FrameBackdrop.Transparent)
+				service.renderImage(fitSquare(bounds, UMA_THUMBNAIL_SIZE), FrameBackdrop.Transparent, AreaOverlays.Default)
 			}
 		if (thumbnail == null) {
 			UmamoLog.warn("save: the renderer did not draw the thumbnail; compositing it instead")

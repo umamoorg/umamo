@@ -12,14 +12,28 @@ import kotlin.test.assertTrue
  * and writes its one flag, and that the Show Overlays master gates every effect while leaving each flag as set.
  */
 class OverlayCatalogTest {
-	/** Both surfaces offer the cursor and info rows, in section order. */
+	/** The 2D viewport offers every row; the UV editor every row but the axes, which its surface has none of. */
 	@Test
-	fun bothSurfacesOfferTheCursorAndInfoRowsInSectionOrder() {
-		for (surface in OverlaySurface.entries) {
-			assertEquals(listOf(OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(surface), "$surface")
-		}
+	fun eachSurfaceOffersItsRowsInSectionOrder() {
+		assertEquals(listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(OverlaySurface.Viewport2D))
+		assertEquals(listOf(OverlayToggle.Grid, OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(OverlaySurface.UvEditor))
+		assertEquals(OverlaySection.Guides, OverlayToggle.Grid.section)
+		assertEquals(OverlaySection.Guides, OverlayToggle.Axes.section)
 		assertEquals(OverlaySection.Guides, OverlayToggle.Cursor.section)
 		assertEquals(OverlaySection.Text, OverlayToggle.Info.section)
+	}
+
+	/** The grid and axis rows read and write their own flags. */
+	@Test
+	fun theGridAndAxisRowsReadAndWriteTheirFlags() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		OverlayToggle.Grid.set(state, false)
+		assertFalse(state.showGrid)
+		assertFalse(OverlayToggle.Grid.isOn(state))
+		assertTrue(state.showAxes && OverlayToggle.Axes.isOn(state), "the axes are untouched")
+		OverlayToggle.Axes.set(state, false)
+		assertFalse(state.showAxes)
+		assertTrue(state.showCursor && state.showInfo, "and so are the other rows")
 	}
 
 	/** A row reads and writes its own flag and no other. */

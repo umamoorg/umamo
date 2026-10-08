@@ -25,8 +25,7 @@ enum class OverlaySurface {
  * set they had (Blender's overlays toggle).  Consumers read the effective values, never the raw flags, so
  * nothing downstream has to know a master exists.
  *
- * The grid, axis, and wireframe flags are saved with the rest; the renderer reads them once it takes its
- * grid, axes, and mesh overlay per area rather than per engine.
+ * The wireframe flag is saved with the rest; the renderer reads it once the Object-mode wireframe exists.
  *
  * @param OverlaySurface surface The work surface this state belongs to.
  */

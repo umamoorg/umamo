@@ -3,6 +3,7 @@ package org.umamo.render.gl
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
+import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -85,10 +86,9 @@ class WorldAxisLinesTest {
 		assertEquals(0, maxRedRunInCenterRows(framePlain), "no X axis pixels while the flag is off")
 		assertEquals(0, maxBlueRunInCenterColumns(framePlain), "no Z axis pixels while the flag is off")
 
-		// Enabled: a red row and a blue column cross at the center.
-		renderer.setWorldAxesVisible(true)
+		// Asked for by the frame: a red row and a blue column cross at the center.
 		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-		renderer.render(target, viewportSize, viewportSize)
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(axes = true))
 		val frameAxes = readPixels(viewportSize, viewportSize)
 		val redRun = maxRedRunInCenterRows(frameAxes)
 		val blueRun = maxBlueRunInCenterColumns(frameAxes)

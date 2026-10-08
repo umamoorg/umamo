@@ -2,6 +2,7 @@ package org.umamo.render.puppet
 
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
+import org.umamo.render.FrameOverlays
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
@@ -112,6 +113,43 @@ class UvSceneRenderStructureTest {
 		val puppetGrid = gridDraw(device)
 		assertNull(puppetGrid.uniforms.surface, "the 2D grid is unbounded")
 		assertEquals(0f, puppetGrid.uniforms.frameWidthPx, "and draws no border")
+	}
+
+	/** Grid lines off leaves the UV backdrop's surround and page frame in place: only the line colors fall to the background. */
+	@Test
+	fun aUvGridWithoutLinesKeepsItsSurfaceAndFrame() {
+		val (device, renderer, target) = uvRenderer()
+		renderer.setGrid(GridColors.Classic.copy(frameRed = 1f, frameGreen = 0f, frameBlue = 0f, frameWidthPx = 1.5f), 64f, 4)
+		device.clearLog()
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, overlays = FrameOverlays(gridLines = false))
+
+		assertEquals(listOf(baselinePass), describe(device, target), "the one pass is as with lines")
+		val grid = gridDraw(device).uniforms
+		val background = listOf(grid.colors.backgroundRed, grid.colors.backgroundGreen, grid.colors.backgroundBlue)
+		assertEquals(background, listOf(grid.colors.majorRed, grid.colors.majorGreen, grid.colors.majorBlue), "the major lines take the background color")
+		assertEquals(background, listOf(grid.colors.minorRed, grid.colors.minorGreen, grid.colors.minorBlue), "and so do the minor lines")
+		assertEquals(ContentBounds(0f, 0f, 16f, 16f), grid.surface, "the surface still bounds the grid")
+		assertEquals(listOf(1f, 0f, 0f), listOf(grid.colors.frameRed, grid.colors.frameGreen, grid.colors.frameBlue), "the frame keeps its own color")
+		assertEquals(1.5f, grid.frameWidthPx, "and its width")
+	}
+
+	/** A frame that hides the area's overlay draws the page alone while the area's uploads stay, so showing it again uploads nothing. */
+	@Test
+	fun aHiddenMeshOverlayLeavesTheUvPassAtGridAndPage() {
+		val (device, renderer, target) = uvRenderer()
+		val overlay = direct(listOf(overlayMesh("art")), mapOf("art" to quadPositions(2f, 2f)))
+		device.clearLog()
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", overlay, overlays = FrameOverlays(meshOverlay = false))
+
+		assertEquals(listOf(baselinePass), describe(device, target), "the hidden overlay draws nothing")
+		assertEquals(1, uploads(device).size, "its positions are uploaded all the same")
+
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", overlay)
+		assertEquals(listOf(editPass), describe(device, target), "shown, it draws over the page")
+		assertTrue(device.resourceEvents.isEmpty(), "with nothing re-uploaded")
 	}
 
 	/**

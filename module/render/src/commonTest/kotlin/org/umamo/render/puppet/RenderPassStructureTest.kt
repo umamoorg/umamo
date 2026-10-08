@@ -1,6 +1,7 @@
 package org.umamo.render.puppet
 
 import org.umamo.render.FrameBackdrop
+import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.FloatTextureUpdated
@@ -10,6 +11,7 @@ import org.umamo.render.device.OverlayBuffersDestroyed
 import org.umamo.render.device.OverlayFlagsUpdated
 import org.umamo.render.device.PipelineBlend
 import org.umamo.render.device.PipelinePurpose
+import org.umamo.render.device.RecordedAxisDraw
 import org.umamo.render.device.RecordedBarrier
 import org.umamo.render.device.RecordedCapturePass
 import org.umamo.render.device.RecordedCompositeDraw
@@ -237,6 +239,7 @@ class RenderPassStructureTest {
 								is RecordedMeshDraw -> "mesh(${draw.mesh.restPositions.size / 2} vertices, ${draw.pipeline.blend}, opacity ${draw.opacity})"
 								is RecordedCompositeDraw -> "composite"
 								is RecordedGridDraw -> "grid"
+								is RecordedAxisDraw -> "axis"
 								is RecordedOverlayDraw -> "overlay ${draw.purpose}${if (draw.activeDraw) " active" else ""}"
 								else -> "other"
 							}
@@ -873,6 +876,100 @@ class RenderPassStructureTest {
 		val edgeDraws = overlayDrawsFor(renderer, device, target, overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Edge, listOf("art")))
 		assertEquals(listOf(PipelinePurpose.OverlayFaceFill, PipelinePurpose.OverlayEdge), edgeDraws.map { draw -> draw.purpose })
 		assertFalse(edgeDraws[0].fillIdle, "Edge mode draws no dots and fills only the selected faces")
+	}
+
+	/** Grid lines off is the grid pass with its lines in the background color: the same opaque fill, still what clears the frame. */
+	@Test
+	fun gridLinesOffPaintsAFlatBackdropInTheSamePass() {
+		val source =
+			model(
+				drawables = listOf(drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		val linedColors = device.passes().single().draws.filterIsInstance<RecordedGridDraw>().single().uniforms.colors
+		assertNotEquals(linedColors.backgroundRed, linedColors.majorRed, "the default frame draws its lines")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(gridLines = false))
+
+		assertEquals(listOf("pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0)]"), describe(device, target), "the pass is as with lines: the grid fill still clears")
+		val flatColors = device.passes().single().draws.filterIsInstance<RecordedGridDraw>().single().uniforms.colors
+		val background = listOf(flatColors.backgroundRed, flatColors.backgroundGreen, flatColors.backgroundBlue)
+		assertEquals(background, listOf(flatColors.majorRed, flatColors.majorGreen, flatColors.majorBlue), "the major lines take the background color")
+		assertEquals(background, listOf(flatColors.minorRed, flatColors.minorGreen, flatColors.minorBlue), "and so do the minor lines")
+	}
+
+	/** The world axes draw right after the grid only when the frame asks, with or without the grid's lines. */
+	@Test
+	fun axesDrawAfterTheGridWhenAsked() {
+		val source =
+			model(
+				drawables = listOf(drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		val withAxes = "pass main DontCare scissor=null [grid, axis, axis, mesh(4 vertices, Normal, opacity 1.0)]"
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		assertEquals(listOf("pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0)]"), describe(device, target), "a frame draws no axes unless asked")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(axes = true))
+		assertEquals(listOf(withAxes), describe(device, target), "asked, the two axis lines follow the grid")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(gridLines = false, axes = true))
+		assertEquals(listOf(withAxes), describe(device, target), "over a flat fill too")
+	}
+
+	/**
+	 * A frame that hides the mesh overlay neither captures nor draws it, while the residency still follows the
+	 * held overlay: the buffers are uploaded all the same, so the first frame to show it draws over them with
+	 * no upload, capturing the positions the hidden frames skipped.
+	 */
+	@Test
+	fun aHiddenMeshOverlayNeitherCapturesNorDrawsAndKeepsItsBuffers() {
+		val source =
+			model(
+				drawables = listOf(drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("art")))
+		device.clearLog()
+
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(meshOverlay = false))
+
+		assertEquals(listOf("pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0)]"), describe(device, target), "a hidden overlay neither captures nor draws")
+		assertEquals(1, device.resourceEvents.filterIsInstance<OverlayBuffersCreated>().size, "its buffers are uploaded all the same")
+		assertTrue(device.resourceEvents.filterIsInstance<OverlayBuffersDestroyed>().isEmpty(), "and kept")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		assertEquals(
+			listOf(
+				"capture 1",
+				"barrier",
+				"pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), overlay OverlayFaceFill, overlay OverlayEdge, overlay OverlayVertexDot]",
+			),
+			describe(device, target),
+			"the first shown frame captures the positions the hidden one skipped and draws",
+		)
+		assertTrue(device.resourceEvents.filterIsInstance<OverlayBuffersCreated>().isEmpty(), "over the buffers it kept")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(meshOverlay = false))
+		assertTrue(device.resourceEvents.isEmpty(), "hiding it again frees nothing")
 	}
 
 	/** The object wireframe draws every listed mesh's edges and nothing else. */
