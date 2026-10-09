@@ -22,6 +22,7 @@ import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.atlasCommands
 import org.umamo.ui.workspace.commands.chromeCommands
+import org.umamo.ui.workspace.commands.debugCommands
 import org.umamo.ui.workspace.commands.displayCommands
 import org.umamo.ui.workspace.commands.documentCommands
 import org.umamo.ui.workspace.commands.fileArtworkCommands
@@ -111,7 +112,7 @@ internal fun RegisterShellCommands(
 	DisposableEffect(commandRegistry, service) {
 		val cleanup =
 			commandRegistry.registerAll(
-				viewCommands(areaCameras, routing, service != null) + overlayCommands(areaOverlays, routing, service != null),
+				viewCommands(areaCameras, routing, service != null) + overlayCommands(areaOverlays, routing, service != null) + debugCommands { service },
 			)
 		onDispose { cleanup() }
 	}

@@ -122,6 +122,7 @@ class CommandTableOrderTest {
 			listOf("view.overlay.all", "view.overlay.grid", "view.overlay.axes", "view.overlay.cursor", "view.overlay.info", "view.overlay.selectionTint", "view.overlay.wireframe", "view.overlay.wireframeCulling"),
 			overlayCommands(AreaOverlayHub(), routing(), viewportPresent = false).map { command -> command.id },
 		)
+		assertEquals(listOf("debug.profileScrub"), debugCommands { null }.map { command -> command.id })
 	}
 
 	/** The selection-clear and editor-mode table. */

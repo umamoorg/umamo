@@ -39,6 +39,7 @@
 
 	<string name="logs_copy">クリップボードにコピー</string>
 	<string name="logs_export">ファイルに書き出し…</string>
+	<string name="cmd_debug_profile_scrub">デバッグ: パラメータースクラブの計測</string>
 	<string name="logs_empty">ログ出力はまだありません</string>
 
 	<string name="area_split_left_right">左右に分割</string>
