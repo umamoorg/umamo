@@ -26,8 +26,8 @@ internal const val OVERLAYS_MEMBER = "overlays"
  * it deviates, a JSON null where it does not, and the area's own grid under `gridGeometry` or a null while it
  * follows.  Naming every key is what lets a flag go back to its default in the file: the entry is saved as a
  * merge patch (UMA § 7.5), which keeps a member the writer does not name.  Keys the surface has no overlay for
- * (the axes, the wireframe, and the selection tint under a UV editor) are never written, and a UV editor's
- * own grid is written as its subdivisions alone.
+ * (the axes, the wireframe, and the selection tint under a UV editor) are never written; the area's own grid
+ * is written whole on both surfaces, a UV editor's scale in texels.
  *
  * @return JsonElement The member value.
  */
@@ -51,14 +51,12 @@ internal fun ViewportOverlayState.overlaysJsonOrNull(): JsonElement {
 		}
 		// UMA § 7.3 `wireframeOpacity`: the wireframe's (a UV editor's islands') alpha scale, 0 to 1, on both surfaces.
 		put("wireframeOpacity", if (wireframeOpacity == 1f) JsonNull else JsonPrimitive(wireframeOpacity))
-		// UMA § 7.3 `gridGeometry`: the area's own grid; a UV editor's major spacing is its image, so its scale is not written.
+		// UMA § 7.3 `gridGeometry`: the area's own grid, the one shape under both surfaces.
 		put(
 			"gridGeometry",
 			gridGeometry?.let { own ->
 				buildJsonObject {
-					if (carriesViewportOnlyKeys) {
-						put("scale", JsonPrimitive(own.scale))
-					}
+					put("scale", JsonPrimitive(own.scale))
 					put("subdivisions", JsonPrimitive(own.subdivisions))
 				}
 			} ?: JsonNull,
@@ -94,20 +92,17 @@ internal fun ViewportOverlayState.restoreOverlays(tree: JsonObject?) {
 
 /**
  * The own grid a saved `gridGeometry` member names, or null when it is absent or fails its checks - subdivisions
- * of at least 1 on both surfaces, and a scale above 0 on a 2D viewport (UMA § 7.3) - in which case the area
- * follows the application's grid.
+ * of at least 1 and a scale above 0, on both surfaces (UMA § 7.3) - in which case the area follows the
+ * application's grid.  A member with no scale fails too, so a UV grid saved as subdivisions alone follows.
  *
  * @param JsonObject? block The member as the file held it, or null when absent.
  * @return GridConfig? The area's own grid, or null to follow.
  */
-private fun ViewportOverlayState.gridGeometryOf(block: JsonObject?): GridConfig? {
+private fun gridGeometryOf(block: JsonObject?): GridConfig? {
 	if (block == null) {
 		return null
 	}
 	val subdivisions = intOf(block["subdivisions"])?.takeIf { value -> value >= 1 } ?: return null
-	if (surface == OverlaySurface.UvEditor) {
-		return GridConfig(subdivisions = subdivisions)
-	}
 	val scale = finiteFloatOf(block["scale"])?.takeIf { value -> value > 0f } ?: return null
 	return GridConfig(scale, subdivisions)
 }

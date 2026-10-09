@@ -51,7 +51,7 @@ class AreaOverlaysTest {
 
 		val uvState = ViewportOverlayState(OverlaySurface.UvEditor)
 		uvState.gridGeometry = GridConfig(25f, 5)
-		assertEquals(GridConfig(100f, 5), areaOverlaysFor(uvState, applicationGrid).grid, "a UV editor's own grid is its subdivisions over the application's scale")
+		assertEquals(GridConfig(25f, 5), areaOverlaysFor(uvState, applicationGrid).grid, "a UV editor's own grid is its own whole, its scale in texels")
 	}
 
 	/** The master off hides every frame flag at once, the tint included, while the geometry and the opacity stay. */

@@ -368,7 +368,7 @@ class PuppetRenderer(
 	 * area's grid.  The next [render] picks them up.
 	 *
 	 * @param GridColors colors       The background / major / minor grid colors.
-	 * @param Float      scale        The major grid line spacing in world units.
+	 * @param Float      scale        The major grid line spacing: world units in a 2D frame, texels in a UV scene.
 	 * @param Int        subdivisions The minor lines per major cell.
 	 */
 	fun setGrid(colors: GridColors, scale: Float, subdivisions: Int) {
@@ -876,7 +876,7 @@ class PuppetRenderer(
 	 * uploads nothing; the placement preview's scrims and crops keep drawing, since they are gesture feedback.
 	 *
 	 * @param RenderTarget       target         The surface to draw into.
-	 * @param DecodedImage?      image          The image whose extent the quad and grid tile take, or null.
+	 * @param DecodedImage?      image          The image whose extent the quad and the grid's surface take, or null; the grid's lines are the area's scale in texels.
 	 * @param GpuTexture?        handle         The uploaded texture for [image], or null.
 	 * @param Int                viewportWidth  The target width in pixels.
 	 * @param Int                viewportHeight The target height in pixels.
@@ -903,13 +903,15 @@ class PuppetRenderer(
 		val camera = effectiveCamera(viewportWidth, viewportHeight)
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
 		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
-		// The UV grid's major lines fall on the unit image tile (UV integers), so the major spacing is the
-		// image's pixel extent; minor lines subdivide the tile. With no image, fall back to the square grid.
-		val majorSpacingX = image?.width?.toFloat() ?: gridScale
-		val majorSpacingY = image?.height?.toFloat() ?: gridScale
+		// The UV grid's major lines are the area's grid scale, read in texels, on both axes - the one grid
+		// model the 2D viewport draws, so the popover's Scale means the same thing over a page.  The surface
+		// and its frame stay the image: an image whose size is no multiple of the scale ends mid-cell, and the
+		// frame marks its edge.
+		val majorSpacingX = gridScale
+		val majorSpacingY = gridScale
 
-		// The UV grid's unit tile starts at the image origin (UV 0,0 = image-pixel 0,0), so anchor at (0, 0).
-		// The surface is the image's tile, or the unit square an untextured mesh's UVs map into.
+		// The lattice is anchored at the image origin (UV 0,0 = image-pixel 0,0), so a major line crosses the
+		// image's corner.  The surface is the image's tile, or the unit square an untextured mesh's UVs map into.
 		val surface = ContentBounds(0f, 0f, image?.width?.toFloat() ?: 1f, image?.height?.toFloat() ?: 1f)
 		// Lines off is the same fill with its lines in the background color: the surround and the frame are
 		// the shader's own colors, so the page keeps its border either way.

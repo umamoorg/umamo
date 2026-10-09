@@ -667,7 +667,7 @@
 	<string name="overlay_row_cursor_description">スナップやピボット操作に使う2Dカーソル。</string>
 	<string name="overlay_row_info_description">現在の選択やズーム倍率などの一般情報。</string>
 	<string name="overlay_row_wireframe_description">編集対象として選択されていないドローアブルのメッシュワイヤーフレームを表示します。</string>
-	<string name="overlay_grid_scale_description">主グリッド線の間隔（ワールド単位）。</string>
+	<string name="overlay_grid_scale_description">主グリッド線の間隔（ワールド単位、UV エディターではテクセル）。</string>
 	<string name="overlay_grid_subdivisions_description">主グリッドの各マスを分ける補助線の数。</string>
 	<string name="overlay_section_objects_description">選択中・アクティブなドローアブルの視覚的な補助。</string>
 	<string name="overlay_row_selection_tint_description">選択中・アクティブなドローアブルに色を重ねて、アート上で目立たせます。</string>

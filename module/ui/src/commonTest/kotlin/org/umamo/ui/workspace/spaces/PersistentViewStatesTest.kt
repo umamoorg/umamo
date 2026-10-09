@@ -248,17 +248,24 @@ class PersistentViewStatesTest {
 		assertEquals(JsonNull, saved.toJson()["overlays"], "following again with nothing else set, the member is a null")
 	}
 
-	/** A UV editor's own grid is its subdivisions alone, restored over the application's scale. */
+	/** A UV editor's own grid round-trips whole, its scale in texels, the one shape the 2D viewport writes. */
 	@Test
-	fun theUvEditorRoundTripsItsOwnSubdivisions() {
+	fun theUvEditorRoundTripsItsOwnGrid() {
 		val saved = UvEditorViewState()
 		saved.overlays.gridGeometry = GridConfig(123f, 4)
 
 		val tree = saved.toJson()
-		assertEquals(buildJsonObject { put("subdivisions", 4) }, (tree["overlays"] as JsonObject)["gridGeometry"], "the scale is the shown image's, never written")
+		assertEquals(
+			buildJsonObject {
+				put("scale", 123f)
+				put("subdivisions", 4)
+			},
+			(tree["overlays"] as JsonObject)["gridGeometry"],
+			"the scale is written, in texels",
+		)
 		val reopened = UvEditorViewState().also { state -> state.restore(tree) }
-		assertEquals(4, reopened.overlays.gridGeometry?.subdivisions)
-		assertEquals(GridConfig(100f, 4), reopened.overlays.grid, "the area's grid is its subdivisions over the application's scale")
+		assertEquals(GridConfig(123f, 4), reopened.overlays.gridGeometry)
+		assertEquals(GridConfig(123f, 4), reopened.overlays.grid, "the area's grid is its own, whole")
 		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
 	}
 
@@ -338,8 +345,8 @@ class PersistentViewStatesTest {
 			}
 		assertNull(Viewport2DViewState().also { state -> state.restore(zeroSubdivisions) }.overlays.gridGeometry, "zero subdivisions")
 		val subdivisionsAlone = buildJsonObject { put("overlays", buildJsonObject { put("gridGeometry", buildJsonObject { put("subdivisions", 4) }) }) }
-		assertEquals(4, UvEditorViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry?.subdivisions, "a UV editor needs no scale")
-		assertNull(Viewport2DViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry, "a 2D viewport does")
+		assertNull(Viewport2DViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry, "a grid without a scale")
+		assertNull(UvEditorViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry, "on a UV editor too: the shape a UV grid was saved in before it carried a scale follows")
 	}
 
 	/** Keys a UV editor has no overlay for are ignored on read and never written back. */

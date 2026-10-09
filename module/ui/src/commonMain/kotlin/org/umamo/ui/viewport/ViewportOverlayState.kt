@@ -69,8 +69,8 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	/**
 	 * The area's own grid geometry, or null while the area follows the application's viewport.grid.* setting.
 	 * The first edit of a grid field in the overlays popover gives the area its own; the reset beside the fields
-	 * takes it back.  Saved as the `gridGeometry` key; a UV editor's own grid counts its subdivisions alone (its
-	 * major spacing is the shown image), and only those are saved.
+	 * takes it back.  Saved as the `gridGeometry` key on both surfaces: the scale is world units on a 2D viewport
+	 * and texels on a UV editor, one grid model read in each surface's unit.
 	 */
 	var gridGeometry by mutableStateOf<GridConfig?>(null)
 
@@ -118,20 +118,13 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 		get() = showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && wireframeOpacity == 1f && gridGeometry == null
 
 	/**
-	 * The grid this area draws and snaps to over a given application grid: its own, else the application's.
-	 * A UV editor's own grid contributes its subdivisions alone, over the application's scale, which its
-	 * surface does not draw.
+	 * The grid this area draws and snaps to over a given application grid: its own, else the application's,
+	 * whole on both surfaces - a UV editor reads the scale as texels.
 	 *
 	 * @param GridConfig applicationGrid The application's viewport.grid.* grid.
 	 * @return GridConfig The area's grid.
 	 */
-	fun gridOver(applicationGrid: GridConfig): GridConfig {
-		val own = gridGeometry ?: return applicationGrid
-		return when (surface) {
-			OverlaySurface.Viewport2D -> own
-			OverlaySurface.UvEditor -> applicationGrid.copy(subdivisions = own.subdivisions)
-		}
-	}
+	fun gridOver(applicationGrid: GridConfig): GridConfig = gridGeometry ?: applicationGrid
 
 	/**
 	 * Returns every flag and value to its default and the grid to following the application.

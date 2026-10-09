@@ -35,7 +35,7 @@ internal object ViewportSettings {
 	 */
 	val ZOOM_STEP_RANGE = 0.1f..100f
 
-	/** The commit clamp for the grid major spacing (world units): 1 up to 100000, so the grid stays finite. */
+	/** The commit clamp for the grid major spacing (world units on a 2D viewport, texels on a UV editor): 1 up to 100000, so the grid stays finite. */
 	val GRID_SCALE_RANGE = 1f..100_000f
 
 	/** The commit clamp for the grid subdivision count: 1 (no minor lines) up to 100 per major cell. */

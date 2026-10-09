@@ -730,7 +730,7 @@
 	<string name="overlay_row_cursor_description">The 2D cursor used for snap and pivot operations.</string>
 	<string name="overlay_row_info_description">The general information such as the current selection and zoom level.</string>
 	<string name="overlay_row_wireframe_description">Show the mesh wireframe of drawables not currently selected for editing.</string>
-	<string name="overlay_grid_scale_description">The spacing of the major grid lines, in world units.</string>
+	<string name="overlay_grid_scale_description">The spacing of the major grid lines, in world units; in the UV editor, in texels.</string>
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
 	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so that they stand out in the art.</string>

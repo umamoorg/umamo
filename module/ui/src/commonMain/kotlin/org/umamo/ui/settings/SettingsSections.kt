@@ -361,7 +361,8 @@ private fun ColorSettingRow(label: String, key: String, defaultHex: String) {
  * The Viewport section: pointer-interaction tuning plus the rendering performance toggles.  The zoom
  * steps are the percent change per wheel notch (fine) and per Shift-wheel notch (coarse); the grid
  * scale and subdivisions are what a viewport or UV editor area draws and snaps to while it follows the
- * application's grid (an area given its own in its overlays popover keeps it); the supersampling pair
+ * application's grid (world units in a viewport, texels in a UV editor; an area given its own in its overlays
+ * popover keeps it); the supersampling pair
  * trades render quality for speed on weak GPUs (off = 1x everywhere; the resize toggle keeps 2x during
  * panel drags).  The viewport binding and each area's render-options publisher read every key live, so a
  * committed edit re-tunes wheel zoom / re-draws the grid / re-renders at the new quality immediately.

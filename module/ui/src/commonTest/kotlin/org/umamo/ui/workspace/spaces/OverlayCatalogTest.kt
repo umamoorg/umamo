@@ -124,7 +124,7 @@ class OverlayCatalogTest {
 		assertTrue(state.showSelectionTint)
 	}
 
-	/** The area's grid is its own over the application's: whole on a 2D viewport, subdivisions alone on a UV editor. */
+	/** The area's grid is its own over the application's, whole on both surfaces. */
 	@Test
 	fun theGridIsTheAreasOwnOverTheApplications() {
 		val application = GridConfig(100f, 10)
@@ -142,6 +142,6 @@ class OverlayCatalogTest {
 
 		val uvEditor = ViewportOverlayState(OverlaySurface.UvEditor)
 		uvEditor.gridGeometry = GridConfig(50f, 4)
-		assertEquals(GridConfig(100f, 4), uvEditor.gridOver(application), "a UV editor's own grid is its subdivisions over the application's scale")
+		assertEquals(GridConfig(50f, 4), uvEditor.gridOver(application), "a UV editor's own grid is its own whole, the scale in texels")
 	}
 }
