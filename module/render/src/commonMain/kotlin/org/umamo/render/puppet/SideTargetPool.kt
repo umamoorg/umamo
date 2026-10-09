@@ -7,9 +7,9 @@ import org.umamo.render.device.TextureFormat
 
 /**
  * The screen-space side targets a frame renders into and samples back: the mask coverage target, the
- * destination snapshot, and one composite layer target per nesting depth.
+ * draw-order target, the destination snapshot, and one composite layer target per nesting depth.
  *
- * All three kinds share ONE capacity, because the composite shader samples layer, snapshot, and mask
+ * All of them share ONE capacity, because the composite shader samples layer, snapshot, and mask
  * through a single screenTexSize divisor - so they must share allocation dims, and they grow together.
  * This class is the one owner of that capacity.
  *
@@ -35,11 +35,11 @@ internal class SideTargetPool(
 
 	/**
 	 * The draw-order target the order pass writes and the culling wireframe edges read, each pixel the
-	 * packed back-to-front index of the frontmost covering drawable; null until [ensure].  Rgba8 like the
-	 * rest, since every backend renders to and reads back that format.
+	 * packed back-to-front index of the frontmost covering drawable; null until a frame asks for it through
+	 * [ensureDrawOrder], so a renderer that never culls never holds one.  Rgba8 like the rest, since every
+	 * backend renders to and reads back that format.
 	 */
-	var drawOrderTarget: RenderTarget? = null
-		private set
+	private var drawOrderTarget: RenderTarget? = null
 
 	/**
 	 * The destination snapshot a composite blends against; null until [ensure].  Composites are strictly
@@ -60,8 +60,8 @@ internal class SideTargetPool(
 	 * Grows the shared side-target capacity (mask + draw order + snapshot + composite pool) to hold a
 	 * [viewportWidth] x [viewportHeight] render, per-axis high-water: a request inside the current
 	 * capacity allocates nothing (the per-frame path during a gutter drag), growth destroys the mask,
-	 * draw order, snapshot, and pool together and recreates mask + draw order + snapshot at the new
-	 * capacity (the pool refills lazily in [acquireLayer]).
+	 * draw order, snapshot, and pool together and recreates mask + snapshot at the new capacity (the
+	 * draw order refills lazily in [ensureDrawOrder], the pool in [acquireLayer]).
 	 *
 	 * @param Int viewportWidth  The render width in pixels.
 	 * @param Int viewportHeight The render height in pixels.
@@ -70,6 +70,7 @@ internal class SideTargetPool(
 		if (viewportWidth > capacityWidth || viewportHeight > capacityHeight) {
 			maskTarget?.let { device.destroyRenderTarget(it) }
 			drawOrderTarget?.let { device.destroyRenderTarget(it) }
+			drawOrderTarget = null
 			layerTargets.forEach { device.destroyRenderTarget(it) }
 			layerTargets.clear()
 			snapshotTarget?.let { device.destroyRenderTarget(it) }
@@ -77,10 +78,6 @@ internal class SideTargetPool(
 			capacityWidth = maxOf(viewportWidth, capacityWidth)
 			capacityHeight = maxOf(viewportHeight, capacityHeight)
 			maskTarget =
-				device.createRenderTarget(
-					RenderTargetSpec(capacityWidth, capacityHeight, TextureFormat.Rgba8, sampled = true),
-				)
-			drawOrderTarget =
 				device.createRenderTarget(
 					RenderTargetSpec(capacityWidth, capacityHeight, TextureFormat.Rgba8, sampled = true),
 				)
@@ -92,6 +89,18 @@ internal class SideTargetPool(
 				)
 		}
 	}
+
+	/**
+	 * The draw-order target at the shared side-target capacity, allocated on the first frame that culls a
+	 * wireframe and kept until the capacity grows or is released.  Call after [ensure].
+	 *
+	 * @return RenderTarget The draw-order target.
+	 */
+	fun ensureDrawOrder(): RenderTarget =
+		drawOrderTarget
+			?: device.createRenderTarget(RenderTargetSpec(capacityWidth, capacityHeight, TextureFormat.Rgba8, sampled = true)).also { created ->
+				drawOrderTarget = created
+			}
 
 	/**
 	 * The pooled layer target for one composite nesting depth, allocated on first use at the shared

@@ -468,13 +468,13 @@ public data class ScissorRect(
  * @property Int          viewportWidth  The viewport width in pixels.
  * @property Int          viewportHeight The viewport height in pixels.
  * @property ScissorRect? scissor        Restricts every write of the pass - the clear included - to the
+ *   rectangle, for the whole pass (per-pass fixed state, like the target).  Null writes everywhere.
+ *   The composite path uses this to confine a layer's clear + composite to the subtree's bounds.
  * @property RenderTarget? drawOrderTarget The draw-order target the pass's art draws write as a second
  *   draw buffer, each covering fragment its drawable's back-to-front index, or null for a pass that writes
  *   none; only the art pipelines write it, every other draw in the pass writes the color target alone.
  * @property Boolean        clearDrawOrder  Whether the pass clears the draw-order target to nothing first
  *   (the frame's first art pass); a resumed pass keeps what was written.
- *   rectangle, for the whole pass (per-pass fixed state, like the target).  Null writes everywhere.
- *   The composite path uses this to confine a layer's clear + composite to the subtree's bounds.
  */
 public data class RenderPassSpec(
 	val colorTarget: RenderTarget,

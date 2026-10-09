@@ -16,6 +16,11 @@
 6.) (Everything required for glue, deformers, and so on.)
 7.) UMA Format (Phase G - Art Sourcing Pipeline) - Mostly done, a few final pieces to go through.
 
+## WORK STEPS - 2026-10-09
+1.) Icon Conversion Script
+2.) Proportional Header Menu Clean Up
+3.) Pie Menu Icons
+
 ## VERY IMPORTANT
 * Hire translators for localization.
 * Final pass on keyboard shortcuts.

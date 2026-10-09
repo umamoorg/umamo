@@ -1316,6 +1316,56 @@ class RenderPassStructureTest {
 		assertEquals(listOf(1, 2, 3, 4, 5), device.overlayDraws().map { draw -> draw.cullOrder }, "every mesh's edges cull by its index, the additive's too")
 	}
 
+	/**
+	 * Nothing under a composite that tints writes the order, at any depth: the pass a masked child resumes
+	 * in, a nested Normal composite's layer, and the pass the nested composite hands back all go without the
+	 * order target, while the top-level pass after the tinting composite carries it again.
+	 */
+	@Test
+	fun nothingUnderATintingCompositeWritesTheOrder() {
+		val source =
+			model(
+				drawables =
+					listOf(
+						drawable("mask", bandQuad()),
+						drawable("shaded", fullQuad(), maskedBy = listOf(DrawableId("mask"))),
+						drawable("nested", bandQuad()),
+						drawable("trailing", bandQuad()),
+						drawable("following", fullQuad()),
+					),
+				parts =
+					listOf(
+						Part(
+							id = PartId("shadow"),
+							name = "shadow",
+							// Front first, as the parts panel lists them: the masked child draws first, then the
+							// nested composite, then a plain child after it.
+							children = listOf(OrgChild.Drawable(DrawableId("trailing")), OrgChild.Part(PartId("inner")), OrgChild.Drawable(DrawableId("shaded"))),
+							groupMode = PartGroupMode.Isolated,
+							composite = PartComposite(blendMode = BlendMode.Multiply),
+						),
+						isolatedPart("inner", "nested", PartComposite(opacity = 0.5f)),
+					),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("mask")), OrgChild.Part(PartId("shadow")), OrgChild.Drawable(DrawableId("following"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, listOf("mask", "shaded", "nested", "trailing", "following")))
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+
+		assertEquals(2, device.compositeDraws().size, "the tinting composite and the nested one both composite")
+		val offMain = device.passes().filter { pass -> pass.target !== target }
+		assertTrue(offMain.none { pass -> pass.drawOrderTarget != null }, "no pass under the tinting composite carries the order target")
+		val underDraws = offMain.flatMap { pass -> pass.draws.filterIsInstance<RecordedMeshDraw>() }
+		assertTrue(underDraws.any { draw -> draw.useMask }, "the masked child draws under the composite, in the pass it resumes in")
+		assertTrue(underDraws.all { draw -> draw.drawOrder == 0 }, "and nothing under it writes an order")
+		val mainWrites = device.passes().filter { pass -> pass.target === target && pass.drawOrderTarget != null }.flatMap { pass -> pass.draws.filterIsInstance<RecordedMeshDraw>() }
+		assertEquals(listOf(1, 5), mainWrites.map { draw -> draw.drawOrder }, "the mask behind and the drawable in front write theirs, the pass after the composite carrying the target again")
+	}
+
 	/** A wireframe mesh whose drawable the frame did not draw culls by nothing: its edges draw whole. */
 	@Test
 	fun aWireframeMeshOutsideTheDrawOrderDrawsWhole() {

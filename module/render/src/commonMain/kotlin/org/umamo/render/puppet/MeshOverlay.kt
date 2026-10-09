@@ -23,6 +23,18 @@ enum class MeshOverlayKind {
 	Islands,
 }
 
+/**
+ * Whether a mesh in an overlay of this kind draws as the wireframe, the part of the overlay a frame's
+ * wireframe opacity fades and its culling leaves out under the art in front: every mesh of an object
+ * wireframe, and an Edit overlay's plain meshes outside the edit.  The Edit cage never does; the UV
+ * islands fade on a path of their own and never cull.
+ *
+ * @param Boolean wireframeOnly The mesh's [MeshOverlayMesh.wireframeOnly] flag, read for an Edit overlay alone.
+ * @return Boolean True when the mesh draws as the wireframe.
+ */
+internal fun MeshOverlayKind.drawsAsWireframe(wireframeOnly: Boolean): Boolean =
+	this == MeshOverlayKind.ObjectWireframe || (this == MeshOverlayKind.Edit && wireframeOnly)
+
 /** Which face color an island fills with: the idle fill, or the selected fill (a selected or active island). */
 enum class IslandFillRole {
 	Idle,
@@ -158,4 +170,7 @@ class MeshOverlay(
 	val selectMode: MeshOverlaySelectMode,
 	val meshes: List<MeshOverlayMesh>,
 	val sizes: MeshOverlaySizes,
-)
+) {
+	/** Whether any of the meshes draws as the wireframe ([drawsAsWireframe]), decided once per overlay. */
+	internal val carriesWireframe: Boolean = meshes.any { mesh -> kind.drawsAsWireframe(mesh.wireframeOnly) }
+}

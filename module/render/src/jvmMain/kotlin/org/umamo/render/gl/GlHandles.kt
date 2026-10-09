@@ -46,6 +46,10 @@ internal class GlMesh(
  * Exactly one of [colorTexture] / [colorRenderbuffer] is non-zero, chosen by `RenderTargetSpec.sampled`.
  * A renderbuffer is the cheaper write-only surface but cannot be sampled OR read back directly, which is
  * precisely why the flag exists rather than always allocating a texture.
+ *
+ * The framebuffer's second attachment and its draw-buffer list are framebuffer state that outlives a
+ * pass, so the target remembers both and a pass changes them only when it needs other values: a frame
+ * that culls nothing, and a pass resumed on the target it left, issue no attachment or draw-buffer call.
  */
 internal class GlRenderTarget(
 	val framebuffer: Int,
@@ -55,6 +59,16 @@ internal class GlRenderTarget(
 	val height: Int,
 ) : RenderTarget {
 	override val sampledTexture: GpuTexture? = if (colorTexture != 0) GlTexture(colorTexture, TextureFilter.Linear, TextureWrap.ClampToEdge) else null
+
+	// The draw-order target attached as the framebuffer's second color attachment, or null.  Held by object
+	// rather than by texture name, since a destroyed order target's name can be handed out again while this
+	// framebuffer still holds the old texture.
+	var attachedDrawOrder: GlRenderTarget? = null
+
+	// Whether the framebuffer's draw-buffer list names both attachments rather than the first alone; true
+	// only while [attachedDrawOrder] is set, since a list naming an empty attachment leaves the framebuffer
+	// incomplete on GL 3.3.
+	var listsBothDrawBuffers: Boolean = false
 }
 
 /**
