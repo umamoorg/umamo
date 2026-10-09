@@ -10,7 +10,7 @@ import org.umamo.ui.viewport.ViewportOverlayState
  * is a single forArea(hoveredArea) lookup with no per-space branch, and a future work surface joins by
  * registering its own state.
  */
-internal typealias AreaOverlayHub = AreaRegistry<ViewportOverlayState>
+internal typealias AreaOverlayHub = AreaHub<ViewportOverlayState>
 
 /**
  * The shell's area overlay hub, or null outside an editor shell (previews, tests).  Work surfaces register

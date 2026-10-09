@@ -10,7 +10,7 @@ import org.umamo.ui.viewport.CameraController
  * serves them uniformly - the resolver is a single forArea(hoveredArea) lookup with no per-space branch,
  * and a future camera-bearing space joins simply by registering its own controller.
  */
-internal typealias AreaCameraHub = AreaRegistry<CameraController>
+internal typealias AreaCameraHub = AreaHub<CameraController>
 
 /**
  * The shell's area camera hub, or null outside an editor shell (previews, tests).  Camera-bearing

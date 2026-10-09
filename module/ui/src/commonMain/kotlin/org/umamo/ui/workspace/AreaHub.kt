@@ -10,7 +10,7 @@ package org.umamo.ui.workspace
  *
  * @param T The value a space registers for its area.
  */
-internal class AreaRegistry<T : Any> {
+internal class AreaHub<T : Any> {
 	private val valuesByArea = mutableMapOf<String, T>()
 
 	/**
