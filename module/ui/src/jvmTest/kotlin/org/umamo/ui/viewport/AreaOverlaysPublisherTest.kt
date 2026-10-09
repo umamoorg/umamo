@@ -57,9 +57,18 @@ class AreaOverlaysPublisherTest {
 			waitForIdle()
 			assertEquals(viewportDefaults.copy(gridLines = false, wireframe = true), service.areaOverlays("area")?.frame, "the wireframe row reached the service")
 
+			state.showOverlays = true
+			state.showSelectionTint = false
+			waitForIdle()
+			assertEquals(viewportDefaults.copy(gridLines = false, wireframe = true, selectionTint = false), service.areaOverlays("area")?.frame, "the tint row reached the service")
+
+			state.wireframeOpacity = 0.25f
+			waitForIdle()
+			assertEquals(viewportDefaults.copy(gridLines = false, wireframe = true, selectionTint = false, wireframeOpacity = 0.25f), service.areaOverlays("area")?.frame, "the opacity reached the service")
+
 			state.showOverlays = false
 			waitForIdle()
-			assertEquals(FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false), service.areaOverlays("area")?.frame, "the master off hides every frame flag")
+			assertEquals(FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.25f), service.areaOverlays("area")?.frame, "the master off hides every frame flag")
 		}
 
 	/** A change to the application's grid setting pushes the new geometry to an area that follows it. */

@@ -717,6 +717,9 @@
 	<string name="overlay_grid_scale">Scale</string>
 	<string name="overlay_grid_subdivisions">Subdivisions</string>
 	<string name="overlay_grid_follow_application">Follow Application Grid</string>
+	<string name="overlay_section_objects">Objects</string>
+	<string name="overlay_row_selection_tint">Selection Tint</string>
+	<string name="overlay_wireframe_opacity">Opacity</string>
 	<!-- The popover's descriptions, each heading's, row's, and field's hover tooltip; named after its label key like
 	     the Properties row descriptions below. -->
 	<string name="overlay_section_guides_description">The visual helpers for placement and alignment.</string>
@@ -729,6 +732,9 @@
 	<string name="overlay_row_wireframe_description">Show the mesh wireframe of drawables not currently selected for editing.</string>
 	<string name="overlay_grid_scale_description">The spacing of the major grid lines, in world units.</string>
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
+	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
+	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so they stand out in the art.</string>
+	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe, or of the UV editor's islands, as a percentage.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
 	<string name="hud_placement">Placement</string>
@@ -758,6 +764,7 @@
 	<string name="cmd_view_overlay_axes">Toggle X/Z Axis Overlay</string>
 	<string name="cmd_view_overlay_cursor">Toggle 2D Cursor Overlay</string>
 	<string name="cmd_view_overlay_info">Toggle General Information Overlay</string>
+	<string name="cmd_view_overlay_selection_tint">Toggle Selection Tint Overlay</string>
 	<string name="cmd_view_overlay_wireframe">Toggle Wireframe Overlay</string>
 	<string name="sidebar_title">Sidebar</string>
 	<string name="sidebar_empty_hint">Tool and item panels will live here.</string>

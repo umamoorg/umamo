@@ -34,6 +34,12 @@ class AreaOverlaysTest {
 		state.showAxes = true
 		state.showWireframe = true
 		assertEquals(viewportDefaults.copy(wireframe = true), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
+		state.showWireframe = false
+		state.showSelectionTint = false
+		assertEquals(viewportDefaults.copy(selectionTint = false), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
+		state.showSelectionTint = true
+		state.wireframeOpacity = 0.3f
+		assertEquals(viewportDefaults.copy(wireframeOpacity = 0.3f), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
 	}
 
 	/** An area with a grid of its own asks for that grid, whatever the application's is. */
@@ -48,21 +54,27 @@ class AreaOverlaysTest {
 		assertEquals(GridConfig(100f, 5), areaOverlaysFor(uvState, applicationGrid).grid, "a UV editor's own grid is its subdivisions over the application's scale")
 	}
 
-	/** The master off hides every frame flag at once while the geometry stays. */
+	/** The master off hides every frame flag at once, the tint included, while the geometry and the opacity stay. */
 	@Test
 	fun theMasterOffHidesEveryFrameFlag() {
 		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
 		state.showWireframe = true
+		state.wireframeOpacity = 0.5f
 		state.showOverlays = false
-		assertEquals(AreaOverlays(GridConfig(25f, 5), FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false)), areaOverlaysFor(state, GridConfig(25f, 5)))
+		assertEquals(
+			AreaOverlays(GridConfig(25f, 5), FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.5f)),
+			areaOverlaysFor(state, GridConfig(25f, 5)),
+		)
 	}
 
-	/** A UV editor never asks for the world axes or the wireframe, whatever its flags say. */
+	/** A UV editor never asks for the world axes, the wireframe, or the tint off, whatever its flags say; its opacity rides along. */
 	@Test
 	fun aUvEditorNeverAsksForAxesOrTheWireframe() {
 		val state = ViewportOverlayState(OverlaySurface.UvEditor)
 		state.showWireframe = true
-		assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false), areaOverlaysFor(state, applicationGrid).frame)
+		state.showSelectionTint = false
+		state.wireframeOpacity = 0.3f
+		assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, selectionTint = true, wireframeOpacity = 0.3f), areaOverlaysFor(state, applicationGrid).frame)
 	}
 
 	/** No area state (a standalone shell) shows everything, the wireframe included, on the application's grid. */

@@ -14,11 +14,15 @@ import kotlin.test.assertTrue
  * and writes its one flag, and that the Show Overlays master gates every effect while leaving each flag as set.
  */
 class OverlayCatalogTest {
-	/** The 2D viewport offers every row; the UV editor every row but the axes and the wireframe, which its surface has none of. */
+	/**
+	 * The 2D viewport offers every row; the UV editor every row but the axes, the selection tint, and the
+	 * wireframe, which its surface has none of.  Both offer the Opacity field, the UV editor's under a Geometry
+	 * heading with no row of its own.
+	 */
 	@Test
-	fun eachSurfaceOffersItsRowsInSectionOrder() {
+	fun eachSurfaceOffersItsRowsAndFieldsInSectionOrder() {
 		assertEquals(
-			listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info, OverlayToggle.Wireframe),
+			listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info, OverlayToggle.SelectionTint, OverlayToggle.Wireframe),
 			overlayRowsFor(OverlaySurface.Viewport2D),
 		)
 		assertEquals(listOf(OverlayToggle.Grid, OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(OverlaySurface.UvEditor))
@@ -26,8 +30,26 @@ class OverlayCatalogTest {
 		assertEquals(OverlaySection.Guides, OverlayToggle.Axes.section)
 		assertEquals(OverlaySection.Guides, OverlayToggle.Cursor.section)
 		assertEquals(OverlaySection.Text, OverlayToggle.Info.section)
+		assertEquals(OverlaySection.Objects, OverlayToggle.SelectionTint.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.Wireframe.section)
-		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Geometry), OverlaySection.entries)
+		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Objects, OverlaySection.Geometry), OverlaySection.entries)
+		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.Viewport2D))
+		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.UvEditor), "the UV editor's islands fade by the same field")
+		assertEquals(OverlaySection.Geometry, OverlayField.WireframeOpacity.section)
+	}
+
+	/** The selection tint row reads and writes its flag and no other. */
+	@Test
+	fun theSelectionTintRowReadsAndWritesItsFlag() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertTrue(OverlayToggle.SelectionTint.isOn(state), "the tint starts on")
+
+		OverlayToggle.SelectionTint.set(state, false)
+
+		assertFalse(state.showSelectionTint)
+		assertFalse(OverlayToggle.SelectionTint.isOn(state))
+		assertTrue(state.showGrid && state.showAxes && state.showCursor && state.showInfo, "every other row is untouched")
+		assertFalse(state.showWireframe)
 	}
 
 	/** The grid, axis, and wireframe rows read and write their own flags. */
@@ -72,25 +94,34 @@ class OverlayCatalogTest {
 
 		state.showOverlays = false
 
-		assertFalse(state.effectiveCursor || state.effectiveInfo || state.effectiveGrid || state.effectiveAxes || state.effectiveWireframe)
-		assertTrue(state.showCursor && state.showInfo && state.showGrid && state.showAxes && state.showWireframe, "the flags keep what the rigger set")
+		assertFalse(state.effectiveCursor || state.effectiveInfo || state.effectiveGrid || state.effectiveAxes || state.effectiveWireframe || state.effectiveSelectionTint)
+		assertTrue(state.showCursor && state.showInfo && state.showGrid && state.showAxes && state.showWireframe && state.showSelectionTint, "the flags keep what the rigger set")
 		assertTrue(OverlayToggle.Cursor.isOn(state), "a row shows its flag, not its effect")
 		state.showOverlays = true
-		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe)
+		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe && state.effectiveSelectionTint)
 	}
 
-	/** Everything is on by default but the wireframe, and a reset returns there. */
+	/** Everything is on by default but the wireframe, the opacity is whole, and a reset returns there. */
 	@Test
 	fun defaultsAreEverythingOnButTheWireframe() {
 		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
 		assertTrue(state.isAtDefaults)
-		assertTrue(state.showOverlays && state.showGrid && state.showAxes && state.showCursor && state.showInfo)
+		assertTrue(state.showOverlays && state.showGrid && state.showAxes && state.showCursor && state.showInfo && state.showSelectionTint)
 		assertFalse(state.showWireframe)
+		assertEquals(1f, state.wireframeOpacity)
 
 		state.showGrid = false
 		assertFalse(state.isAtDefaults)
 		state.reset()
 		assertTrue(state.isAtDefaults)
+
+		state.wireframeOpacity = 0.5f
+		assertFalse(state.isAtDefaults, "an opacity off whole is a deviation")
+		state.showSelectionTint = false
+		state.reset()
+		assertTrue(state.isAtDefaults, "a reset returns the opacity and the tint too")
+		assertEquals(1f, state.wireframeOpacity)
+		assertTrue(state.showSelectionTint)
 	}
 
 	/** The area's grid is its own over the application's: whole on a 2D viewport, subdivisions alone on a UV editor. */

@@ -571,7 +571,7 @@ class PuppetRenderer(
 	 * @param FrameBackdrop backdrop       What the puppet is drawn over: the grid (the viewport), or a flat
 	 *   fill (an image capture).
 	 * @param FrameOverlays overlays       What the frame draws beyond the backdrop: the grid lines, the world
-	 *   axes, the mesh overlay, and the wireframe.
+	 *   axes, the mesh overlay, the wireframe and its opacity, and the selection tint.
 	 */
 	fun render(
 		target: RenderTarget,
@@ -584,10 +584,14 @@ class PuppetRenderer(
 		val overlay = meshOverlay
 		// The residency follows the held overlay even for a frame that hides it, so the buffers stay warm and
 		// an area showing the overlay never re-uploads after one that hides it; a hidden frame draws none.
-		// An Object-mode wireframe is hidden whole, its deform capture pass included, when the frame draws no wireframe;
-		// an Edit overlay still draws its cage then, and the encoder leaves out its wireframe meshes.
+		// An Object-mode wireframe is hidden whole, its deform capture pass included, when the frame draws no wireframe
+		// or draws it at an opacity of zero; an Edit overlay still draws its cage then, and the encoder leaves out
+		// its wireframe meshes.
 		overlayResidency.apply(overlay, residency.residents, currentModel)
-		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || overlays.wireframe) }
+		val drawsWireframe = overlays.wireframe && overlays.wireframeOpacity > 0f
+		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || drawsWireframe) }
+		// A frame without the selection tint is drawn as a capture is, from no selection at all: the renderer's
+		// selection stays as set, for the next area that tints.
 		renderFrame(
 			target,
 			viewportWidth,
@@ -595,8 +599,8 @@ class PuppetRenderer(
 			backdrop,
 			effectiveCamera(viewportWidth, viewportHeight),
 			gridPixelScale,
-			selectedIds,
-			activeId,
+			if (overlays.selectionTint) selectedIds else emptySet(),
+			if (overlays.selectionTint) activeId else null,
 			drawn,
 			overlays,
 		)
@@ -616,7 +620,8 @@ class PuppetRenderer(
 	 * @param DrawableId?     active         The drawable tinted as active, or null.
 	 * @param MeshOverlay?    overlay        The mesh overlay drawn over the art, or null for none; its
 	 *   device objects must already reflect it (the viewport applies before each frame, a capture passes null).
-	 * @param FrameOverlays   overlays       The grid lines and axes to draw with a grid backdrop.
+	 * @param FrameOverlays   overlays       What the frame draws beyond the backdrop: the grid lines and axes
+	 *   with a grid backdrop, and whether and how opaque the overlay's wireframe meshes draw.
 	 */
 	private fun renderFrame(
 		target: RenderTarget,
@@ -681,6 +686,7 @@ class PuppetRenderer(
 				overlay = overlay,
 				overlayPalette = meshOverlayPalette,
 				drawWireframe = overlays.wireframe,
+				wireframeOpacity = overlays.wireframeOpacity,
 			)
 		pass = planEncoder.encodePlan(frame, inputs, currentPlan, target, pass)
 		if (overlay != null) {
@@ -931,7 +937,7 @@ class PuppetRenderer(
 			overlayEncoder.encodeDirectDraws(
 				pass,
 				scene,
-				OverlayFrame(affine, viewportWidth, viewportHeight, gridPixelScale, palette, viewportWidth, viewportHeight, overlays.wireframe),
+				OverlayFrame(affine, viewportWidth, viewportHeight, gridPixelScale, palette, viewportWidth, viewportHeight, overlays.wireframe, overlays.wireframeOpacity),
 			)
 		}
 		pass.end()

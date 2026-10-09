@@ -460,20 +460,26 @@ class CommandDispatchTest {
 		assertFalse(uvOverlays.showInfo)
 		assertTrue(viewportOverlays.showOverlays && viewportOverlays.showGrid && viewportOverlays.showCursor && viewportOverlays.showInfo, "the other area is untouched")
 
-		// The axes and wireframe commands are scoped to the 2D viewport, and their handlers route the same way:
-		// over a UV editor, whose surface has neither, each leaves that area's flag as it was (a flipped flag
-		// would make a save write the UV block as edited) and the 2D area alone; over the 2D viewport each flips it.
+		// The axes, selection tint, and wireframe commands are scoped to the 2D viewport, and their handlers route
+		// the same way: over a UV editor, whose surface has none of the three, each leaves that area's flag as it
+		// was (a flipped flag would make a save write the UV block as edited) and the 2D area alone; over the 2D
+		// viewport each flips it.
 		overUv.run("view.overlay.axes")
 		assertTrue(uvOverlays.showAxes, "a UV editor has no axes, so nothing flips")
 		assertTrue(viewportOverlays.showAxes, "the 2D area's axes stay")
 		overUv.run("view.overlay.wireframe")
 		assertFalse(uvOverlays.showWireframe, "nor a wireframe")
 		assertFalse(viewportOverlays.showWireframe, "the 2D area's wireframe stays off")
+		overUv.run("view.overlay.selectionTint")
+		assertTrue(uvOverlays.showSelectionTint, "nor a selection tint")
+		assertTrue(viewportOverlays.showSelectionTint, "the 2D area's tint stays on")
 		val overViewport = overlayCommands(hub, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), viewportPresent = true)
 		overViewport.run("view.overlay.axes")
 		overViewport.run("view.overlay.wireframe")
+		overViewport.run("view.overlay.selectionTint")
 		assertFalse(viewportOverlays.showAxes, "over the 2D viewport the axes flip")
 		assertTrue(viewportOverlays.showWireframe, "and so does the wireframe")
+		assertFalse(viewportOverlays.showSelectionTint, "and the selection tint")
 
 		overlayCommands(hub, routing(null), viewportPresent = true).run("view.overlay.all")
 

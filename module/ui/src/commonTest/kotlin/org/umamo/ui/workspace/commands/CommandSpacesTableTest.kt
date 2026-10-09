@@ -38,6 +38,7 @@ class CommandSpacesTableTest {
 				"view.overlay.axes" to viewport,
 				"view.overlay.cursor" to workSurfaces,
 				"view.overlay.info" to workSurfaces,
+				"view.overlay.selectionTint" to viewport,
 				"view.overlay.wireframe" to viewport,
 				"frame.all" to workSurfacesAndSheet,
 				"mesh.grab" to workSurfaces,

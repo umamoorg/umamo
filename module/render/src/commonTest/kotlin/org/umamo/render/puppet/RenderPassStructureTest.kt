@@ -1071,6 +1071,110 @@ class RenderPassStructureTest {
 		)
 	}
 
+	/**
+	 * A frame without the selection tint draws every mesh untinted, as a capture does, while the renderer's
+	 * selection stays as set: the next frame that asks for the tint draws it again, over the same overlay.
+	 */
+	@Test
+	fun aFrameWithoutTheSelectionTintDrawsEveryMeshUntinted() {
+		val source =
+			model(
+				drawables = listOf(drawable("other", fullQuad()), drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("other")), OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		renderer.setSelection(setOf(DrawableId("art")))
+		renderer.setActiveSelection(DrawableId("art"))
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("art")))
+		val target = mainTarget(device)
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(selectionTint = false))
+		assertEquals(listOf(0f, 0f), device.meshDraws().map { draw -> draw.highlight }, "no mesh is tinted in a frame without the tint")
+		assertEquals(3, device.overlayDraws().size, "the overlay still draws: the tint is the art's, not the overlay's")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		val tinted = device.meshDraws()
+		assertEquals(0f, tinted[0].highlight, "the unselected mesh stays untinted")
+		assertTrue(tinted[1].highlight > 0f, "the selected mesh is tinted again in a frame that asks: the selection was kept")
+	}
+
+	/**
+	 * An Object-mode wireframe draws every edge at the palette's alpha scaled by the frame's wireframe
+	 * opacity, and an opacity of zero draws it as a frame without the wireframe does: no capture, no edges.
+	 */
+	@Test
+	fun anObjectWireframeFadesWithTheFramesOpacityAndVanishesAtZero() {
+		val source =
+			model(
+				drawables = listOf(drawable("back", fullQuad()), drawable("front", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("back")), OrgChild.Drawable(DrawableId("front"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		val palette = MeshOverlayPalette.Classic
+		val wireframe = overlayOver(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, listOf("back", "front"))
+
+		val faded = overlayDrawsFor(renderer, device, target, wireframe, FrameOverlays(wireframeOpacity = 0.5f))
+		assertEquals(listOf(PipelinePurpose.OverlayEdge, PipelinePurpose.OverlayEdge), faded.map { draw -> draw.purpose })
+		assertEquals(List(2) { palette.edgeIdle.alpha * 0.5f }, faded.map { draw -> draw.idleColor[3] }, "each mesh's edges at the palette's alpha halved")
+		assertEquals(List(2) { palette.edgeSelected.alpha * 0.5f }, faded.map { draw -> draw.selectedColor[3] }, "the selected and active colors scale alike")
+		assertEquals(List(2) { palette.edgeIdle.red }, faded.map { draw -> draw.idleColor[0] }, "the color itself is the palette's")
+
+		val plain = overlayDrawsFor(renderer, device, target, wireframe, FrameOverlays())
+		assertEquals(List(2) { palette.edgeIdle.alpha }, plain.map { draw -> draw.idleColor[3] }, "at full opacity the palette's alpha is drawn as it is")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(wireframeOpacity = 0f))
+		assertEquals(
+			listOf("pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), mesh(4 vertices, Normal, opacity 1.0)]"),
+			describe(device, target),
+			"at zero the wireframe is neither captured nor drawn",
+		)
+	}
+
+	/**
+	 * An Edit overlay's plain wireframe meshes fade with the frame's opacity while the cage keeps the palette:
+	 * its edges, its active edge, its fills, and its dots.  At zero the wireframe meshes are left out and the
+	 * cage draws alone.
+	 */
+	@Test
+	fun anEditOverlayFadesItsWireframeMeshesAndKeepsTheCage() {
+		val source =
+			model(
+				drawables = listOf(drawable("other", fullQuad()), drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("other")), OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		val palette = MeshOverlayPalette.Classic
+		val overlay = overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("other", "art"), activeEdge = 0, wireframeOnly = setOf("other"))
+
+		val draws = overlayDrawsFor(renderer, device, target, overlay, FrameOverlays(wireframeOpacity = 0.25f))
+		assertEquals(
+			listOf(PipelinePurpose.OverlayFaceFill to 4, PipelinePurpose.OverlayEdge to 0, PipelinePurpose.OverlayEdge to 4, PipelinePurpose.OverlayEdge to 4, PipelinePurpose.OverlayVertexDot to 4),
+			draws.map { draw -> draw.purpose to draw.baseOffset },
+			"the wireframe mesh's edges, the cage's edges, the cage's active edge, and the cage's dots",
+		)
+		val edges = draws.filter { draw -> draw.purpose == PipelinePurpose.OverlayEdge }
+		assertEquals(palette.edgeIdle.alpha * 0.25f, edges[0].idleColor[3], "the wireframe mesh's edges fade")
+		assertEquals(palette.edgeIdle.alpha, edges[1].idleColor[3], "the cage's edges keep the palette")
+		assertEquals(palette.edgeActive.alpha, edges[2].activeColor[3], "and so does its active edge")
+		assertEquals(palette.faceIdle.alpha, draws[0].idleColor[3], "the cage's fills keep the palette")
+		assertEquals(palette.vertexIdle.alpha, draws[4].idleColor[3], "and its dots")
+
+		val atZero = overlayDrawsFor(renderer, device, target, overlay, FrameOverlays(wireframeOpacity = 0f))
+		assertEquals(
+			listOf(PipelinePurpose.OverlayFaceFill to 4, PipelinePurpose.OverlayEdge to 4, PipelinePurpose.OverlayEdge to 4, PipelinePurpose.OverlayVertexDot to 4),
+			atZero.map { draw -> draw.purpose to draw.baseOffset },
+			"at zero the cage draws alone",
+		)
+	}
+
 	/** An overlay mesh whose resident disagrees with it is left out of the frame, and the frame is as without it. */
 	@Test
 	fun anOverlayMeshWhoseResidentDisagreesIsSkipped() {
@@ -1218,12 +1322,19 @@ class RenderPassStructureTest {
 	 * @param RecordingRenderDevice device Its device.
 	 * @param RecordedTarget target The frame target.
 	 * @param MeshOverlay overlay The overlay to draw.
+	 * @param FrameOverlays overlays What the frame draws beyond the backdrop; everything by default.
 	 * @return List<RecordedOverlayDraw> The overlay draws, in issue order.
 	 */
-	private fun overlayDrawsFor(renderer: PuppetRenderer, device: RecordingRenderDevice, target: RecordedTarget, overlay: MeshOverlay): List<RecordedOverlayDraw> {
+	private fun overlayDrawsFor(
+		renderer: PuppetRenderer,
+		device: RecordingRenderDevice,
+		target: RecordedTarget,
+		overlay: MeshOverlay,
+		overlays: FrameOverlays = FrameOverlays(),
+	): List<RecordedOverlayDraw> {
 		renderer.setMeshOverlay(overlay)
 		device.clearLog()
-		renderer.render(target, viewportSize, viewportSize)
+		renderer.render(target, viewportSize, viewportSize, overlays = overlays)
 		return device.overlayDraws()
 	}
 }

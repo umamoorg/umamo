@@ -430,6 +430,37 @@ class UvSceneRenderStructureTest {
 		assertEquals(channels(pinned.pinnedPlacement), device.overlayDraws()[1].idleColor, "the pinned role takes the palette's pinned color")
 	}
 
+	/**
+	 * The islands fade with the frame's wireframe opacity, every fill and outline at its role's alpha scaled,
+	 * and at zero none of them draws: they are the UV scene's overlay outside an edit, as the wireframe is the
+	 * 2D viewport's.
+	 */
+	@Test
+	fun theIslandsFadeWithTheFramesOpacityAndVanishAtZero() {
+		val (device, renderer, target) = uvRenderer()
+		val palette = MeshOverlayPalette.Classic
+		renderer.setMeshOverlayPalette(palette)
+		val islands =
+			islandsOf(
+				"back" to IslandStyle(IslandFillRole.Idle, IslandEdgeRole.Idle),
+				"front" to IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Active),
+			)
+		device.clearLog()
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islands, overlays = FrameOverlays(wireframeOpacity = 0.5f))
+
+		val draws = device.overlayDraws()
+		assertEquals(
+			listOf(palette.faceIdle, palette.edgeIdle, palette.faceSelected, palette.edgeActive).map { color -> channels(color).dropLast(1) + color.alpha * 0.5f },
+			draws.map { draw -> draw.idleColor },
+			"each island's fill and outline at its role's color, the alpha halved",
+		)
+
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islands, overlays = FrameOverlays(wireframeOpacity = 0f))
+		assertEquals(listOf("pass main DontCare scissor=null [grid, page]"), describe(device, target), "at zero no island draws")
+	}
+
 	/** A placement preview draws over the page and under the islands: the scrims, the crops, then the ghost's crops. */
 	@Test
 	fun thePlacementPreviewDrawsUnderTheIslands() {

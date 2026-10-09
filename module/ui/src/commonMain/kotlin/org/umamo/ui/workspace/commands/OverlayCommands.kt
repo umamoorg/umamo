@@ -62,6 +62,11 @@ internal fun overlayCommands(areaOverlays: AreaOverlayHub, routing: CommandRouti
 		Command("view.overlay.info", title = Res.string.cmd_view_overlay_info, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredOverlays()?.let { state -> state.showInfo = !state.showInfo }
 		},
+		// The selection tint is the 2D viewport's alone, like the axes: a UV editor's surface draws no art to
+		// tint and offers no row for it, so this flips only a hovered 2D viewport's flag.
+		Command("view.overlay.selectionTint", title = Res.string.cmd_view_overlay_selection_tint, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {
+			hovered2DOverlays()?.let { state -> state.showSelectionTint = !state.showSelectionTint }
+		},
 		// The wireframe is the 2D viewport's alone, like the axes: a UV editor's islands are its click targets
 		// and it offers no row for it, so this too flips only a hovered 2D viewport's flag.
 		Command("view.overlay.wireframe", title = Res.string.cmd_view_overlay_wireframe, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {

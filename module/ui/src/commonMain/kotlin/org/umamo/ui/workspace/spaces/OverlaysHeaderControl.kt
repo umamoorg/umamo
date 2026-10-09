@@ -30,6 +30,7 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.ViewportSettings
+import kotlin.math.roundToInt
 
 /**
  * The popover's content width: a narrow Properties section, so its half-and-half rows read exactly like the
@@ -51,6 +52,12 @@ private val GRID_RESET_GAP = 4.dp
 /** The fractional places the Scale field shows and commits: the kit field's default, named so the edit guard compares at the same places. */
 private const val GRID_SCALE_DECIMALS = 2
 
+/** The commit clamp of the Opacity field, in percent: 0 draws nothing while the row stays on, 100 is the palette as it is. */
+private val WIREFRAME_OPACITY_PERCENT_RANGE = 0..100
+
+/** The Opacity field's chevron and scrub step, in percent. */
+private const val WIREFRAME_OPACITY_PERCENT_STEP = 5
+
 /**
  * The overlays control both work-surface headers mount at their trailing end, Blender's two-part Viewport
  * Overlays control as ONE chip: the glyph half is the Show Overlays toggle (lit while the area's overlays
@@ -63,10 +70,11 @@ private const val GRID_SCALE_DECIMALS = 2
  * right half beside its box, a field's label is right-aligned in the left half, and every heading, toggle,
  * and field carries its description as a hover tooltip.  Under the Grid row sit the area's grid fields: an
  * edit gives the area a grid of its own, and the reset beside them, shown only then, returns it to
- * following the application's grid - no checkbox to flip, the edit is the choice.  The rows and the fields
- * stay enabled while the master is off: each row's flag is what comes back when the master returns, so the
- * rigger can set up the set they want before switching it on.  A section with no row for this surface is
- * left out.
+ * following the application's grid - no checkbox to flip, the edit is the choice.  A section's value fields
+ * follow its rows: the Opacity field under the Wireframe row on a 2D viewport, alone under the Geometry
+ * heading on a UV editor, where it fades the islands.  The rows and the fields stay enabled while the master
+ * is off: each row's flag is what comes back when the master returns, so the rigger can set up the set they
+ * want before switching it on.  A section with no row and no field for this surface is left out.
  *
  * @param ViewportOverlayState state The area's overlay state.
  * @param Boolean enabled Whether the control takes input (false renders it disabled, the 2D header's no-document look).
@@ -86,9 +94,11 @@ internal fun OverlaysHeaderControl(state: ViewportOverlayState, enabled: Boolean
 		panelWidth = OVERLAYS_POPOVER_WIDTH,
 	) {
 		val rows = overlayRowsFor(state.surface)
+		val fields = overlayFieldsFor(state.surface)
 		for (section in OverlaySection.entries) {
 			val sectionRows = rows.filter { row -> row.section == section }
-			if (sectionRows.isEmpty()) {
+			val sectionFields = fields.filter { field -> field.section == section }
+			if (sectionRows.isEmpty() && sectionFields.isEmpty()) {
 				continue
 			}
 			Tooltip(text = stringResource(section.description)) {
@@ -109,8 +119,41 @@ internal fun OverlaysHeaderControl(state: ViewportOverlayState, enabled: Boolean
 						GridGeometryFields(state)
 					}
 				}
+				for (field in sectionFields) {
+					when (field) {
+						OverlayField.WireframeOpacity -> WireframeOpacityField(state, field)
+					}
+				}
 			}
 		}
+	}
+}
+
+/**
+ * The Opacity field: the area's wireframe opacity as a whole percent, 0 to 100.  A commit of the percent the
+ * field already shows is no edit, so leaving the field hands nothing back; a differing one writes the area's
+ * opacity, 0 included, which draws no wireframe while the row stays as set.  The field ends where the grid
+ * fields do, leaving the reset icon's slot empty, so the popover's fields share one right edge.
+ *
+ * @param ViewportOverlayState state The area's overlay state.
+ * @param OverlayField field The field's catalog entry, for its label and description.
+ */
+@Composable
+private fun WireframeOpacityField(state: ViewportOverlayState, field: OverlayField) {
+	val shownPercent = (state.wireframeOpacity * 100f).roundToInt()
+	PropertyFieldRow(label = stringResource(field.label), description = stringResource(field.description), trailingGutter = GRID_RESET_GAP + GRID_RESET_SIZE) {
+		NumberField(
+			value = shownPercent,
+			onValueChange = { percent ->
+				if (percent != shownPercent) {
+					state.wireframeOpacity = percent / 100f
+				}
+			},
+			range = WIREFRAME_OPACITY_PERCENT_RANGE,
+			step = WIREFRAME_OPACITY_PERCENT_STEP,
+			unitSuffix = stringResource(Res.string.unit_percent),
+			modifier = Modifier.fillMaxWidth(),
+		)
 	}
 }
 

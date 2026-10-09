@@ -20,6 +20,9 @@ import org.umamo.render.device.WorldToNdc
  * @property Int screenTexWidth The screen-texture divisor's width the camera call takes.
  * @property Int screenTexHeight The screen-texture divisor's height.
  * @property Boolean drawWireframe Whether an Edit overlay's plain wireframe meshes draw in this frame.
+ * @property Float wireframeOpacity The alpha scale, 0 to 1, of the overlay drawn outside an edit: an
+ *   Object-mode wireframe, an Edit overlay's plain wireframe meshes, a UV scene's islands.  The cage keeps
+ *   the palette.
  */
 internal class OverlayFrame(
 	val affine: WorldToNdc,
@@ -30,6 +33,7 @@ internal class OverlayFrame(
 	val screenTexWidth: Int,
 	val screenTexHeight: Int,
 	val drawWireframe: Boolean,
+	val wireframeOpacity: Float,
 )
 
 /**
@@ -112,6 +116,7 @@ internal class MeshOverlayEncoder(
 				sideTargets.capacityWidth,
 				sideTargets.capacityHeight,
 				inputs.drawWireframe,
+				inputs.wireframeOpacity,
 			)
 		drawEntries(pass, overlay, entries, store, frame)
 	}
@@ -134,13 +139,15 @@ internal class MeshOverlayEncoder(
 	 * Records an overlay's draws, domain-major: every entry's face fills, then its edges, then the active
 	 * edges, then the dots and the active dots, each domain binding its pipeline once.  In an Edit overlay
 	 * the fills, the actives, and the dots are the cage's alone; the plain wireframe meshes contribute their
-	 * edges, and none when the frame draws no wireframe.
+	 * edges, and none when the frame draws no wireframe.  The wireframe's edges - an Object-mode overlay's
+	 * whole, an Edit overlay's plain meshes - draw at the palette's alpha times the frame's wireframe
+	 * opacity, and none at zero; the cage's draw at the palette's.
 	 *
 	 * @param RenderPassEncoder pass The open pass.
 	 * @param MeshOverlay overlay The overlay value (kind, select mode, sizes).
 	 * @param List<OverlayDrawEntry> entries The entries to draw, in store order.
 	 * @param DeformedPositionStore store The store the entries' positions are in.
-	 * @param OverlayFrame frame The pass's camera, viewport, scale, palette, and wireframe flag.
+	 * @param OverlayFrame frame The pass's camera, viewport, scale, palette, and wireframe flag and opacity.
 	 */
 	private fun drawEntries(pass: RenderPassEncoder, overlay: MeshOverlay, entries: List<OverlayDrawEntry>, store: DeformedPositionStore, frame: OverlayFrame) {
 		if (entries.isEmpty()) {
@@ -153,9 +160,11 @@ internal class MeshOverlayEncoder(
 		val palette = frame.palette
 		val sizes = overlay.sizes
 		val editing = overlay.kind == MeshOverlayKind.Edit
-		// An object wireframe's entries are its whole content; only an Edit overlay's plain wireframe meshes
-		// wait for a frame that draws the wireframe.
-		val skipWireframeEdges = editing && !frame.drawWireframe
+		// An object wireframe's entries are its whole content, faded as one; only an Edit overlay's plain
+		// wireframe meshes wait for a frame that draws the wireframe, and only they fade in it.  The flag is read
+		// under the kind, since a kind other than Edit does not promise it.
+		val wholeIsWireframe = overlay.kind == MeshOverlayKind.ObjectWireframe
+		val skipWireframeEdges = editing && (!frame.drawWireframe || frame.wireframeOpacity <= 0f)
 		uniformsScratch.viewportWidth = frame.viewportWidth.toFloat()
 		uniformsScratch.viewportHeight = frame.viewportHeight.toFloat()
 
@@ -173,17 +182,21 @@ internal class MeshOverlayEncoder(
 		}
 
 		bind(pass, pipelines.overlayEdge, frame)
-		setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false)
 		uniformsScratch.sizePx = sizes.edgeWidthPx * frame.pixelScale / 2f
 		uniformsScratch.fillIdle = true
+		// The colors are written per entry, since a wireframe entry's are the palette's scaled by the opacity
+		// and a cage entry's the palette's as they are, and the scratch holds one set at a time.
 		for (entry in entries) {
 			if (skipWireframeEdges && entry.wireframeOnly) {
 				continue
 			}
+			val faded = wholeIsWireframe || (editing && entry.wireframeOnly)
+			setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false, alphaScale = if (faded) frame.wireframeOpacity else 1f)
 			batch(entry)
 			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
 		}
 		if (editing) {
+			setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false)
 			forEachCageEntry(entries) { entry ->
 				if (entry.activeEdgeA >= 0) {
 					active(entry, entry.activeEdgeA, entry.activeEdgeB, -1)
@@ -247,7 +260,9 @@ internal class MeshOverlayEncoder(
 	 * role's color, so a nearer island's fill covers the outlines of the islands behind it, the way the
 	 * islands stack for the pick.  No dots and no active primitive: an island is selected whole.  The roles
 	 * resolve against the palette here, so a palette change re-colors without a new overlay, and a role
-	 * change re-colors without an upload, since every island's flags are all idle.
+	 * change re-colors without an upload, since every island's flags are all idle.  Every fill and outline
+	 * draws at its role's alpha times the frame's wireframe opacity, and none at zero: the islands are the UV
+	 * scene's overlay outside an edit, as the wireframe is the 2D viewport's.
 	 *
 	 * @param RenderPassEncoder pass The open pass.
 	 * @param MeshOverlay overlay The islands overlay (its sizes).
@@ -256,7 +271,11 @@ internal class MeshOverlayEncoder(
 	 * @param OverlayFrame frame The pass's camera, viewport, scale, and palette.
 	 */
 	private fun drawIslands(pass: RenderPassEncoder, overlay: MeshOverlay, entries: List<OverlayDrawEntry>, store: DeformedPositionStore, frame: OverlayFrame) {
+		if (frame.wireframeOpacity <= 0f) {
+			return
+		}
 		val palette = frame.palette
+		val alphaScale = frame.wireframeOpacity
 		val edgeHalfWidth = overlay.sizes.edgeWidthPx * frame.pixelScale / 2f
 		uniformsScratch.viewportWidth = frame.viewportWidth.toFloat()
 		uniformsScratch.viewportHeight = frame.viewportHeight.toFloat()
@@ -277,12 +296,12 @@ internal class MeshOverlayEncoder(
 					IslandEdgeRole.Pinned -> palette.pinnedPlacement
 				}
 			bind(pass, pipelines.overlayFaceFill, frame)
-			setColors(fill, fill, fill, opaque = false)
+			setColors(fill, fill, fill, opaque = false, alphaScale = alphaScale)
 			uniformsScratch.sizePx = 0f
 			batch(entry)
 			pass.drawOverlayFaceFill(entry.buffers, store, uniformsScratch)
 			bind(pass, pipelines.overlayEdge, frame)
-			setColors(edge, edge, edge, opaque = false)
+			setColors(edge, edge, edge, opaque = false, alphaScale = alphaScale)
 			uniformsScratch.sizePx = edgeHalfWidth
 			batch(entry)
 			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
@@ -337,11 +356,12 @@ internal class MeshOverlayEncoder(
 	 * @param OverlayColor selected The selected color.
 	 * @param OverlayColor active The active color.
 	 * @param Boolean opaque True to force every alpha to 1 (the face dots).
+	 * @param Float alphaScale What each color's alpha is multiplied by (the wireframe's opacity); 1 writes it as is.
 	 */
-	private fun setColors(idle: OverlayColor, selected: OverlayColor, active: OverlayColor, opaque: Boolean) {
-		writeColor(uniformsScratch.idleColor, idle, opaque)
-		writeColor(uniformsScratch.selectedColor, selected, opaque)
-		writeColor(uniformsScratch.activeColor, active, opaque)
+	private fun setColors(idle: OverlayColor, selected: OverlayColor, active: OverlayColor, opaque: Boolean, alphaScale: Float = 1f) {
+		writeColor(uniformsScratch.idleColor, idle, opaque, alphaScale)
+		writeColor(uniformsScratch.selectedColor, selected, opaque, alphaScale)
+		writeColor(uniformsScratch.activeColor, active, opaque, alphaScale)
 	}
 
 	/**
@@ -350,11 +370,12 @@ internal class MeshOverlayEncoder(
 	 * @param FloatArray slot The slot.
 	 * @param OverlayColor color The color.
 	 * @param Boolean opaque True to write alpha 1 instead of the color's.
+	 * @param Float alphaScale What the color's alpha is multiplied by when it is written.
 	 */
-	private fun writeColor(slot: FloatArray, color: OverlayColor, opaque: Boolean) {
+	private fun writeColor(slot: FloatArray, color: OverlayColor, opaque: Boolean, alphaScale: Float) {
 		slot[0] = color.red
 		slot[1] = color.green
 		slot[2] = color.blue
-		slot[3] = if (opaque) 1f else color.alpha
+		slot[3] = if (opaque) 1f else color.alpha * alphaScale
 	}
 }

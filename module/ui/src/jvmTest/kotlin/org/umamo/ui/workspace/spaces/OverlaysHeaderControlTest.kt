@@ -79,8 +79,8 @@ class OverlaysHeaderControlTest {
 			val overlays = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }.overlays
 
 			clickDescribed(VIEWPORT_OVERLAYS)
-			assertTrue(popupShows(GUIDES) && popupShows(TEXT) && popupShows(GEOMETRY), "the sections head their rows")
-			assertTrue(popupShows(GRID_ROW) && popupShows(AXES_ROW) && popupShows(WIREFRAME_ROW), "a 2D viewport offers the grid, the axes, and the wireframe")
+			assertTrue(popupShows(GUIDES) && popupShows(TEXT) && popupShows(OBJECTS) && popupShows(GEOMETRY), "the sections head their rows")
+			assertTrue(popupShows(GRID_ROW) && popupShows(AXES_ROW) && popupShows(SELECTION_TINT_ROW) && popupShows(WIREFRAME_ROW), "a 2D viewport offers the grid, the axes, the tint, and the wireframe")
 			clickMenuEntry(CURSOR_ROW)
 
 			assertFalse(overlays.showCursor)
@@ -93,6 +93,8 @@ class OverlaysHeaderControlTest {
 			assertFalse(overlays.showAxes)
 			clickMenuEntry(WIREFRAME_ROW)
 			assertTrue(overlays.showWireframe, "the wireframe row starts off and switches on")
+			clickMenuEntry(SELECTION_TINT_ROW)
+			assertFalse(overlays.showSelectionTint, "the selection tint row starts on and switches off")
 		}
 
 	/** The UV editor's popover offers the grid row but no axis row and no Geometry section, since its surface has neither. */
@@ -107,7 +109,9 @@ class OverlaysHeaderControlTest {
 
 			assertTrue(popupShows(GRID_ROW), "the grid row is offered")
 			assertFalse(popupShows(AXES_ROW), "the axis row is not")
-			assertFalse(popupShows(GEOMETRY) || popupShows(WIREFRAME_ROW), "nor the Geometry section with its wireframe row")
+			assertFalse(popupShows(OBJECTS) || popupShows(SELECTION_TINT_ROW), "nor the Objects section with its tint row")
+			assertFalse(popupShows(WIREFRAME_ROW), "nor the wireframe row")
+			assertTrue(popupShows(GEOMETRY) && popupShows(OPACITY_FIELD), "the Geometry section stays for the Opacity field, which fades the islands")
 			assertTrue(popupShows(SUBDIVISIONS_FIELD) && !popupShows(SCALE_FIELD), "the grid fields are the subdivisions alone: the major spacing is the shown image")
 			clickMenuEntry(GRID_ROW)
 			assertFalse(overlays.showGrid)
@@ -279,6 +283,42 @@ class OverlaysHeaderControlTest {
 		}
 
 	/**
+	 * Typing a percent into the Opacity field writes the area's wireframe opacity, zero included; a field left
+	 * with the percent it already showed commits nothing.
+	 */
+	@Test
+	fun theOpacityFieldWritesTheAreasOpacityAndAnUntouchedFieldCommitsNothing() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }.overlays
+			clickDescribed(VIEWPORT_OVERLAYS)
+			assertTrue(popupShows(OPACITY_FIELD) && popupShows(OPACITY_SHOWN), "the field shows the whole opacity as a percent")
+
+			onNode(hasText(OPACITY_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+			assertEquals(1f, overlays.wireframeOpacity, "leaving the field with the percent it showed is no edit")
+			assertTrue(overlays.isAtDefaults, "and the area is still at its defaults")
+
+			onNode(hasText(OPACITY_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performTextReplacement("30")
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+			assertEquals(0.3f, overlays.wireframeOpacity, "the typed percent is the area's opacity")
+			assertTrue(popupShows("30"), "and the field shows it")
+
+			onNode(hasText("30") and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performTextReplacement("0")
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+			assertEquals(0f, overlays.wireframeOpacity, "zero is allowed: the wireframe vanishes while its row stays as set")
+		}
+
+	/**
 	 * A toggle row, a grid field, and a section heading each show their description once the pointer has
 	 * rested on them.  The tooltip is a popup of its own, so the open popover's matcher finds it.
 	 */
@@ -326,6 +366,8 @@ class OverlaysHeaderControlTest {
 		const val AXES_ROW = "X/Z Axis"
 		const val CURSOR_ROW = "2D Cursor"
 		const val INFO_ROW = "General Information"
+		const val OBJECTS = "Objects"
+		const val SELECTION_TINT_ROW = "Selection Tint"
 		const val WIREFRAME_ROW = "Wireframe"
 
 		/** The grid fields' labels, the scale the default grid shows, and the reset icon's English name. */
@@ -333,6 +375,10 @@ class OverlaysHeaderControlTest {
 		const val SUBDIVISIONS_FIELD = "Subdivisions"
 		const val SCALE_SHOWN = "100.00"
 		const val FOLLOW_APPLICATION = "Follow Application Grid"
+
+		/** The Opacity field's label and what the whole opacity shows in it; exact matches, apart from the Scale field's "100.00". */
+		const val OPACITY_FIELD = "Opacity"
+		const val OPACITY_SHOWN = "100"
 
 		/** The overflow chip's English name. */
 		const val MORE = "More"

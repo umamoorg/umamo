@@ -505,6 +505,8 @@ internal class RenderPlanEncoder(
  * @property MeshOverlayPalette           overlayPalette       The colors the overlay draws with.
  * @property Boolean                      drawWireframe        Whether the overlay's plain wireframe meshes
  *   (those outside the edit) draw this frame; the cage draws regardless.
+ * @property Float                        wireframeOpacity     The alpha scale the wireframe meshes draw at,
+ *   0 to 1; the cage keeps the palette.
  */
 internal class FrameInputs(
 	val affine: WorldToNdc,
@@ -521,6 +523,7 @@ internal class FrameInputs(
 	val overlay: MeshOverlay?,
 	val overlayPalette: MeshOverlayPalette,
 	val drawWireframe: Boolean,
+	val wireframeOpacity: Float,
 )
 
 /**

@@ -25,11 +25,12 @@ enum class OverlaySurface {
 }
 
 /**
- * One area's overlay visibility and grid: the Show Overlays master plus one flag per overlay, and the grid
- * geometry the area draws and snaps to.  The master gates every overlay's EFFECT while leaving each flag as
- * the rigger set it, so switching it back on restores the set they had (Blender's overlays toggle).
- * Consumers read the effective values, never the raw flags, so nothing downstream has to know a master
- * exists.  The grid is the area's own once edited, else the application's, resolved through [grid].
+ * One area's overlay visibility and grid: the Show Overlays master plus one flag per overlay, the wireframe's
+ * opacity, and the grid geometry the area draws and snaps to.  The master gates every overlay's EFFECT while
+ * leaving each flag as the rigger set it, so switching it back on restores the set they had (Blender's
+ * overlays toggle).  Consumers read the effective values, never the raw flags, so nothing downstream has to
+ * know a master exists.  The grid is the area's own once edited, else the application's, resolved through
+ * [grid].
  *
  * @param OverlaySurface surface The work surface this state belongs to.
  */
@@ -54,6 +55,16 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	 * the cage (the 2D viewport only); off by default, as in Blender.
 	 */
 	var showWireframe by mutableStateOf(false)
+
+	/** The tint over the selected and active drawables (the 2D viewport only); off, the area draws the art as a capture does. */
+	var showSelectionTint by mutableStateOf(true)
+
+	/**
+	 * The opacity, 0 to 1, of the mesh overlay drawn outside an edit: the wireframe on a 2D viewport, the islands
+	 * on a UV editor, each drawn at its palette alpha times this.  The Edit cage keeps the palette.  At 0 none
+	 * of it draws while the row that shows it stays as set.  Saved as the `wireframeOpacity` key on both surfaces.
+	 */
+	var wireframeOpacity by mutableStateOf(1f)
 
 	/**
 	 * The area's own grid geometry, or null while the area follows the application's viewport.grid.* setting.
@@ -95,9 +106,16 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	val effectiveWireframe: Boolean
 		get() = showOverlays && showWireframe
 
-	/** Whether every flag sits at its default and the grid follows the application: what a fresh area shows, and what a save writes as nothing. */
+	/** Whether the selection tint draws: the flag under the master. */
+	val effectiveSelectionTint: Boolean
+		get() = showOverlays && showSelectionTint
+
+	/**
+	 * Whether every flag and value sits at its default and the grid follows the application: what a fresh area
+	 * shows, and what a save writes as nothing.
+	 */
 	val isAtDefaults: Boolean
-		get() = showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && gridGeometry == null
+		get() = showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && wireframeOpacity == 1f && gridGeometry == null
 
 	/**
 	 * The grid this area draws and snaps to over a given application grid: its own, else the application's.
@@ -116,7 +134,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	}
 
 	/**
-	 * Returns every flag to its default and the grid to following the application.
+	 * Returns every flag and value to its default and the grid to following the application.
 	 */
 	fun reset() {
 		showOverlays = true
@@ -125,6 +143,8 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 		showCursor = true
 		showInfo = true
 		showWireframe = false
+		showSelectionTint = true
+		wireframeOpacity = 1f
 		gridGeometry = null
 	}
 }

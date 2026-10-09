@@ -43,8 +43,9 @@ import kotlin.test.assertTrue
  *
  * One solid blue quad over each 100x100 area, its diagonal edge through the frame's center, drawn six display
  * pixels wide in an opaque magenta idle edge color so the line survives the supersample's downscale; the
- * center pixel is magenta where the wireframe draws and the art's blue where it does not.  Self-skips when
- * no GL context can be created (no frame ever arrives).
+ * center pixel is magenta where the wireframe draws, half magenta where it draws at half opacity, and the
+ * art's blue where it does not.  The same two areas carry the selection tint's per-area gate.  Self-skips
+ * when no GL context can be created (no frame ever arrives).
  */
 class WireframeLiveEngineTest {
 	private val paramA = ParameterId("A")
@@ -83,6 +84,74 @@ class WireframeLiveEngineTest {
 			service.setAreaOverlays("left", AreaOverlays(GridConfig(), FrameOverlays(axes = true, wireframe = false)))
 
 			assertTrue(awaitFrame(leftFrames) { sample -> isArtBlue(sample) }, "the left area no longer asking repaints without the wireframe")
+			assertSame(rightFrame, rightFrames.value, "and the right area, untouched, kept its frame")
+		} finally {
+			service.dispose()
+		}
+	}
+
+	/**
+	 * Each area fades the wireframe as its own opacity asks: over one held wireframe, an area at half opacity
+	 * shows the edge at half over the art while an area at full shows it whole.
+	 */
+	@Test
+	fun eachAreaFadesTheWireframeAsItsOwnOpacityAsks() {
+		val model = probeModel()
+		val textures = PuppetTextures(listOf(solidBlueImage()), mapOf(probeId.raw to 0), false)
+		val service = OffscreenPuppetService(model, textures, LiveParams(emptyMap()))
+		service.start()
+		try {
+			val leftFrames = service.register("left")
+			val rightFrames = service.register("right")
+			service.setAreaOverlays("left", AreaOverlays(GridConfig(), FrameOverlays(axes = true, wireframeOpacity = 0.5f)))
+			service.resize("left", 100, 100)
+			service.resize("right", 100, 100)
+			service.setMeshOverlayPalette(MeshOverlayPalette.Classic.copy(edgeIdle = OverlayColor(1f, 0f, 1f, 1f)))
+			if (!awaitFrame(leftFrames) { sample -> isArtBlue(sample) }) {
+				println("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
+				return
+			}
+
+			service.setMeshOverlay(quadWireframe())
+			assertTrue(awaitFrame(rightFrames) { sample -> isMagentaEdge(sample) }, "the right area, at full opacity, draws the edge whole")
+			assertTrue(awaitFrame(leftFrames) { sample -> isHalfMagentaEdge(sample) }, "the left area, at half, draws the edge at half over the art: ${leftFrames.value?.let { frame -> centerOf(frame.bitmap.toPixelMap()) }}")
+
+			service.setAreaOverlays("left", AreaOverlays(GridConfig(), FrameOverlays(axes = true, wireframeOpacity = 0f)))
+			assertTrue(awaitFrame(leftFrames) { sample -> isArtBlue(sample) }, "at zero the left area shows the plain art with the wireframe still held")
+		} finally {
+			service.dispose()
+		}
+	}
+
+	/**
+	 * Each area tints the selection as its own options ask: the one quad selected and tinted toward red, an area
+	 * that declines the tint shows the plain art while the other shows it tinted.
+	 */
+	@Test
+	fun eachAreaTintsTheSelectionAsItsOwnOptionsAsk() {
+		val model = probeModel()
+		val textures = PuppetTextures(listOf(solidBlueImage()), mapOf(probeId.raw to 0), false)
+		val service = OffscreenPuppetService(model, textures, LiveParams(emptyMap()))
+		service.start()
+		try {
+			val leftFrames = service.register("left")
+			val rightFrames = service.register("right")
+			service.setAreaOverlays("right", AreaOverlays(GridConfig(), FrameOverlays(axes = true, selectionTint = false)))
+			service.resize("left", 100, 100)
+			service.resize("right", 100, 100)
+			service.setSelectionHighlightColor(1f, 0f, 0f)
+			if (!awaitFrame(leftFrames) { sample -> isArtBlue(sample) }) {
+				println("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
+				return
+			}
+
+			service.setSelection(setOf(probeId))
+			assertTrue(awaitFrame(leftFrames) { sample -> isTintedArt(sample) }, "the left area tints the selected quad toward red: ${leftFrames.value?.let { frame -> centerOf(frame.bitmap.toPixelMap()) }}")
+			assertTrue(awaitFrame(rightFrames) { sample -> isArtBlue(sample) }, "the right area, declining the tint, shows the plain art")
+			val rightFrame = rightFrames.value
+
+			service.setAreaOverlays("left", AreaOverlays(GridConfig(), FrameOverlays(axes = true, selectionTint = false)))
+			assertTrue(awaitFrame(leftFrames) { sample -> isArtBlue(sample) }, "the left area declining the tint repaints the plain art")
 			assertSame(rightFrame, rightFrames.value, "and the right area, untouched, kept its frame")
 		} finally {
 			service.dispose()
@@ -131,6 +200,24 @@ class WireframeLiveEngineTest {
 	 * @return Boolean True when the edge is there.
 	 */
 	private fun isMagentaEdge(sample: Color): Boolean = sample.red > 0.4f && sample.blue > 0.4f && sample.green < 0.2f
+
+	/**
+	 * Whether the sample shows the magenta edge at half opacity over the blue art: half the red, the blue whole,
+	 * no green.
+	 *
+	 * @param Color sample The sampled pixel.
+	 * @return Boolean True when the faded edge is there.
+	 */
+	private fun isHalfMagentaEdge(sample: Color): Boolean = sample.red in 0.25f..0.75f && sample.blue > 0.75f && sample.green < 0.2f
+
+	/**
+	 * Whether the sample shows the blue art tinted toward the red selection color: red joins the blue at the
+	 * tint's strength while green stays out.
+	 *
+	 * @param Color sample The sampled pixel.
+	 * @return Boolean True when the tint is there.
+	 */
+	private fun isTintedArt(sample: Color): Boolean = sample.red > 0.2f && sample.blue > 0.4f && sample.green < 0.1f
 
 	/**
 	 * Waits until the area publishes a frame whose center pixel satisfies [accept].
