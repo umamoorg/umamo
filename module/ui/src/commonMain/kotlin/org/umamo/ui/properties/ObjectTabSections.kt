@@ -39,6 +39,7 @@ import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes

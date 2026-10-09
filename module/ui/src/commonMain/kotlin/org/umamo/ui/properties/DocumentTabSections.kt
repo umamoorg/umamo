@@ -22,6 +22,9 @@ import org.umamo.runtime.model.worldOriginXFromCanvasLeft
 import org.umamo.runtime.model.worldOriginZFromCanvasBottom
 import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.PropertyCheckboxRow
+import org.umamo.ui.kit.field.PropertyFieldRow
+import org.umamo.ui.kit.field.PropertyLine
 import org.umamo.ui.kit.field.SelectField
 import org.umamo.ui.resources.*
 

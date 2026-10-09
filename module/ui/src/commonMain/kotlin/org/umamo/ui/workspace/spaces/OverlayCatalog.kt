@@ -9,38 +9,42 @@ import org.umamo.ui.viewport.ViewportOverlayState
  * The overlays popover's catalog: the sections and the rows under them, each row naming the surfaces it
  * applies to.  Both work surfaces share the one catalog and hide what they cannot honor - a UV editor has
  * no world axes - so there is one popover to maintain, as there is one header.  A row joins here when the
- * thing it toggles can be drawn or hidden.
+ * thing it toggles can be drawn or hidden, and it brings a description: every section and row of the
+ * popover explains itself on hover.
  */
 
 /**
  * A section of the overlays popover, in display order.
  *
  * @property StringResource label The section heading.
+ * @property StringResource description What the section's rows have in common, the heading's tooltip.
  */
-internal enum class OverlaySection(val label: StringResource) {
-	Guides(Res.string.overlay_section_guides),
-	Text(Res.string.overlay_section_text),
-	Geometry(Res.string.overlay_section_geometry),
+internal enum class OverlaySection(val label: StringResource, val description: StringResource) {
+	Guides(Res.string.overlay_section_guides, Res.string.overlay_section_guides_description),
+	Text(Res.string.overlay_section_text, Res.string.overlay_section_text_description),
+	Geometry(Res.string.overlay_section_geometry, Res.string.overlay_section_geometry_description),
 }
 
 /**
- * One toggle row of the overlays popover: its section, the surfaces it is offered on, and its label.  Each
- * row reads and writes one flag of the area's [ViewportOverlayState].
+ * One toggle row of the overlays popover: its section, the surfaces it is offered on, its label, and its
+ * description.  Each row reads and writes one flag of the area's [ViewportOverlayState].
  *
  * @property OverlaySection section The section the row sits under.
  * @property Set<OverlaySurface> surfaces The work surfaces that offer the row.
  * @property StringResource label The row's label.
+ * @property StringResource description What the row draws or hides, the row's tooltip.
  */
 internal enum class OverlayToggle(
 	val section: OverlaySection,
 	val surfaces: Set<OverlaySurface>,
 	val label: StringResource,
+	val description: StringResource,
 ) {
-	Grid(OverlaySection.Guides, OverlaySurface.entries.toSet(), Res.string.overlay_row_grid),
-	Axes(OverlaySection.Guides, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_axes),
-	Cursor(OverlaySection.Guides, OverlaySurface.entries.toSet(), Res.string.overlay_row_cursor),
-	Info(OverlaySection.Text, OverlaySurface.entries.toSet(), Res.string.overlay_row_info),
-	Wireframe(OverlaySection.Geometry, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_wireframe),
+	Grid(OverlaySection.Guides, OverlaySurface.entries.toSet(), Res.string.overlay_row_grid, Res.string.overlay_row_grid_description),
+	Axes(OverlaySection.Guides, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_axes, Res.string.overlay_row_axes_description),
+	Cursor(OverlaySection.Guides, OverlaySurface.entries.toSet(), Res.string.overlay_row_cursor, Res.string.overlay_row_cursor_description),
+	Info(OverlaySection.Text, OverlaySurface.entries.toSet(), Res.string.overlay_row_info, Res.string.overlay_row_info_description),
+	Wireframe(OverlaySection.Geometry, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_wireframe, Res.string.overlay_row_wireframe_description),
 	;
 
 	/**
