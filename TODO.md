@@ -59,12 +59,8 @@
 
 ## Overlay Toggles
 * Improvements
-	* Wireframe:
-		* Toggle culling of mesh parts hidden by other drawables.(On by default.)  This way a cleaner look can be presented and will be possible to see mesh parts become hidden as the model is posed.
 	* Objects:
 		* Deformers (Deferred until deformer overlays are built after this work.)
-	* Settings(Defaults) for UV grid size and divisions: 256/8
-
 
 ## Object and Mesh Editing
 * Improvements
