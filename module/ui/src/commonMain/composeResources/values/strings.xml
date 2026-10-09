@@ -733,7 +733,7 @@
 	<string name="overlay_grid_scale_description">The spacing of the major grid lines, in world units.</string>
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
-	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so they stand out in the art.</string>
+	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so that they stand out in the art.</string>
 	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe, or of the UV editor's islands, as a percentage.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
