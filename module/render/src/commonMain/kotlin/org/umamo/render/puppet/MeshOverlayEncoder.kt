@@ -134,9 +134,7 @@ internal class MeshOverlayEncoder(
 	 * Records an overlay's draws, domain-major: every entry's face fills, then its edges, then the active
 	 * edges, then the dots and the active dots, each domain binding its pipeline once.  In an Edit overlay
 	 * the fills, the actives, and the dots are the cage's alone; the plain wireframe meshes contribute their
-	 * edges, and none when the frame draws no wireframe.  Each domain walks the one list and reads the split
-	 * off the entry, so a frame builds no list of its own; the wireframe meshes draw ahead of the cage because
-	 * the overlay lists them ahead of it.
+	 * edges, and none when the frame draws no wireframe.
 	 *
 	 * @param RenderPassEncoder pass The open pass.
 	 * @param MeshOverlay overlay The overlay value (kind, select mode, sizes).
