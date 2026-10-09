@@ -17,9 +17,10 @@
 7.) UMA Format (Phase G - Art Sourcing Pipeline) - Mostly done, a few final pieces to go through.
 
 ## WORK STEPS - 2026-10-09
-1.) Icon Conversion Script
+~~1.) Icon Conversion Script~~
 2.) Proportional Header Menu Clean Up
-3.) Pie Menu Icons
+~~3.) Pie Menu Icons~~
+4.) Snap Header Menu - Utilize the new combined PopupChip and improvements from the Proportional Header Menu changes.
 
 ## VERY IMPORTANT
 * Hire translators for localization.
@@ -169,6 +170,7 @@ See format planning document: docs/plan/uma-format.md
 * Viewport loading overlay and mouse busy pointer.
 * AreaHeader/Viewport2DHeaderControls
 	* Font size and icon sizes don't line up resulting in the font being 1px offset.(Lots of manual tweaking is required.)
+* Merge pie menu icons.
 
 * Menu - New Items
 	* Edit

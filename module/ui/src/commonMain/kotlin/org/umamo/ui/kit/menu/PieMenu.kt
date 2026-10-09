@@ -2,8 +2,6 @@ package org.umamo.ui.kit.menu
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,12 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -80,27 +77,82 @@ private val PIE_SLOT_ANGLES =
 		(PI / 4).toFloat(), // SE
 	)
 
-/** The ring radius the entry chips sit on. */
+/** The ring radius the entry chips anchor to: each chip's inner edge touches it (see [pieChipOffset]). */
 private val PIE_RADIUS = 96.dp
 
 /** How far past the chip ring the wedge background disc extends. */
 private val PIE_DISC_OVERSHOOT = 40.dp
 
 /** The entry chips' leading icon size (the pink placeholder square shares it). */
-private val PIE_ICON_SIZE = 12.dp
-
-/**
- * The horizontal half-extent reserved for a West / East chip when clamping the pie center: the chips
- * sit centered ON the ring, so the ring radius plus this covers the widest labels.  Conservative - a
- * pathological label still has the per-chip coercion as its safety net.
- */
-private val PIE_CHIP_MAX_HALF_WIDTH = 120.dp
+private val PIE_ICON_SIZE = 16.dp
 
 /** Pointer travel (px) from the pie center below which a release dismisses instead of picking. */
 private const val PIE_DEAD_ZONE_PX = 24f
 
 /** The placeholder tint for an entry with no authored icon yet - deliberately loud (see PieMenuEntry.icon). */
 private val PIE_ICON_PLACEHOLDER = Color(0xFFFF2BD6)
+
+/**
+ * The pie's center as last placed, written by the layout and read by the pointer loop.  A plain holder,
+ * not snapshot state: the center depends on the measured chips, so only the layout can compute it, and
+ * the pointer loop reads it at event time, after the frame's layout has run.
+ *
+ * @property Offset position The placed center in the overlay's coordinates.
+ */
+private class PlacedPieCenter(var position: Offset)
+
+/**
+ * Where one entry chip sits relative to the pie center, following Blender's pie layout rule: a chip on
+ * the left half ends at its ring point and a chip on the right half starts there, so the diagonal chips
+ * grow away from each other and the West / East chips away from the title; the North and South chips
+ * center on their ring point horizontally and sit outside it, and every other chip centers on its ring
+ * point vertically.
+ *
+ * @param Int slotIndex The entry's slot (see PIE_SLOT_ANGLES).
+ * @param Int chipWidth The chip's measured width in pixels.
+ * @param Int chipHeight The chip's measured height in pixels.
+ * @param Float ringRadius The ring radius in pixels.
+ * @return Offset The chip's top-left corner relative to the pie center (screen space, y down).
+ */
+internal fun pieChipOffset(slotIndex: Int, chipWidth: Int, chipHeight: Int, ringRadius: Float): Offset {
+	val directionX = cos(PIE_SLOT_ANGLES[slotIndex])
+	val directionY = sin(PIE_SLOT_ANGLES[slotIndex])
+	val ringX = directionX * ringRadius
+	val ringY = directionY * ringRadius
+	// Blender's thresholds: any horizontal lean picks a side, and only the exact North / South slots
+	// stack outside the ring.  Screen y grows downward, so North is directionY = -1.
+	val left =
+		when {
+			directionX > 0.01f -> ringX
+			directionX < -0.01f -> ringX - chipWidth
+			else -> ringX - chipWidth / 2f
+		}
+	val top =
+		when {
+			directionY < -0.99f -> ringY - chipHeight
+			directionY > 0.99f -> ringY
+			else -> ringY - chipHeight / 2f
+		}
+	return Offset(left, top)
+}
+
+/**
+ * Shifts a requested pie center along one axis just far enough that the pie's whole extent fits inside
+ * the overlay, the way Blender moves a pie that would leave the window.  A pie larger than the overlay
+ * along the axis centers its extent instead (coerceIn would throw on min > max).
+ *
+ * @param Float requested The requested center coordinate.
+ * @param Float extentMin How far the pie reaches below the center (zero or negative).
+ * @param Float extentMax How far the pie reaches above the center (zero or positive).
+ * @param Float bounds The overlay's size along the axis.
+ * @return Float The clamped center coordinate.
+ */
+internal fun clampPieCenterAxis(requested: Float, extentMin: Float, extentMax: Float, bounds: Float): Float =
+	if (extentMax - extentMin <= bounds) {
+		requested.coerceIn(-extentMin, bounds - extentMax)
+	} else {
+		(bounds - extentMin - extentMax) / 2f
+	}
 
 /**
  * A Blender-style radial pie menu centered at [center]: up to eight entries on a ring, picked by
@@ -113,19 +165,19 @@ private val PIE_ICON_PLACEHOLDER = Color(0xFFFF2BD6)
  * The wedge background disc makes the direction mapping readable: each entry's sector is the exact
  * angular region the pick function resolves to it (the angular Voronoi of the used slot directions),
  * with the hovered sector highlighted; the dead zone renders as the center disc, holding [title].
+ * Each chip is anchored to the ring by its inner edge (see [pieChipOffset]), so labels grow outward
+ * and never cover each other or the title.
  *
- * The center is CLAMPED so the full ring fits inside the overlay's bounds (Blender constrains its
- * pies to the screen the same way): the whole pie shifts inward rather than squishing chips at an
- * edge.  The clamp lives here - not in the host - because the direction pick, the wedges, the title,
- * and the chips must all share the one effective center or the pick math desyncs from the drawing.
- *
- * Blender 風の放射状パイメニュー。方向で選択するため、クリックでもドラッグ＆リリースでも使える。
- * 扇形の背景が方向と項目の対応を示し、中央の円にタイトルが乗る。中心はリング全体が収まるよう
- * オーバーレイ境界内にクランプされる。
+ * The center is CLAMPED so the whole pie - the disc and every chip, as measured - fits inside the
+ * overlay's bounds (Blender constrains its pies to the screen the same way): the whole pie shifts
+ * inward rather than squishing chips at an edge, and only as far as its own labels need.  The clamp
+ * lives in this layout - not in the host - because it needs the chips' measured sizes, and the
+ * direction pick, the wedges, the title, and the chips must all share the one effective center or the
+ * pick math desyncs from the drawing.
  *
  * @param List<PieMenuEntry> entries The entries, in Blender slot order (W, E, S, N, NW, NE, SW, SE).
  * @param Offset center The requested pie center in the host's local pixels (frozen at open by the
- *   host); the rendered center is this clamped inside the overlay so the ring never clips.
+ *   host); the rendered center is this clamped inside the overlay so the pie never clips.
  * @param Function onDismiss Called after an invocation or a dismissing click.
  * @param StringResource? title The pie's name, rendered at the center (null for none).
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
@@ -141,214 +193,230 @@ fun PieMenuOverlay(
 	val commands = LocalCommands.current
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
-	val density = LocalDensity.current
 	val liveEntries = rememberUpdatedState(entries)
+	val placedCenter = remember { PlacedPieCenter(center) }
 	var hoveredSlot by remember { mutableStateOf(-1) }
 
-	BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-		// The center everything draws and picks from: [center] shifted so the full ring - disc
-		// vertically, ring plus the widest chip horizontally - fits inside these bounds.  An overlay
-		// too small to fit the pie at all centers it instead (coerceIn would throw on min > max).
-		val effectiveCenter =
-			with(density) {
-				val horizontalMargin = PIE_RADIUS.toPx() + PIE_CHIP_MAX_HALF_WIDTH.toPx()
-				val verticalMargin = PIE_RADIUS.toPx() + PIE_DISC_OVERSHOOT.toPx()
-				val boundsWidth = constraints.maxWidth.toFloat()
-				val boundsHeight = constraints.maxHeight.toFloat()
-				Offset(
-					if (boundsWidth >= 2f * horizontalMargin) center.x.coerceIn(horizontalMargin, boundsWidth - horizontalMargin) else boundsWidth / 2f,
-					if (boundsHeight >= 2f * verticalMargin) center.y.coerceIn(verticalMargin, boundsHeight - verticalMargin) else boundsHeight / 2f,
-				)
-			}
-		// The pointer loop below outlives recompositions (pointerInput(Unit)), so it must read the
-		// center through a live reference - a window resize while the pie is open moves the clamp.
-		val liveCenter = rememberUpdatedState(effectiveCenter)
-
-		/**
-		 * Picks the entry slot whose direction is nearest the pointer's direction from the center.
-		 *
-		 * @param Offset position The pointer position in the overlay's coordinates.
-		 * @return Int The nearest slot index, or -1 inside the dead zone.
-		 */
-		fun slotAt(position: Offset): Int {
-			val delta = position - liveCenter.value
-			if (delta.getDistance() < PIE_DEAD_ZONE_PX) {
-				return -1
-			}
-			val pointerAngle = atan2(delta.y, delta.x)
-			var best = -1
-			var bestDifference = Float.MAX_VALUE
-			for (slotIndex in liveEntries.value.indices) {
-				var difference = abs(pointerAngle - PIE_SLOT_ANGLES[slotIndex])
-				if (difference > PI.toFloat()) {
-					difference = 2 * PI.toFloat() - difference
-				}
-				if (difference < bestDifference) {
-					bestDifference = difference
-					best = slotIndex
-				}
-			}
-			return best
+	/**
+	 * Picks the entry slot whose direction is nearest the pointer's direction from the center.
+	 *
+	 * @param Offset position The pointer position in the overlay's coordinates.
+	 * @return Int The nearest slot index, or -1 inside the dead zone.
+	 */
+	fun slotAt(position: Offset): Int {
+		val delta = position - placedCenter.position
+		if (delta.getDistance() < PIE_DEAD_ZONE_PX) {
+			return -1
 		}
-
-		Box(
-			modifier =
-				Modifier
-					.fillMaxSize()
-					.pointerInput(Unit) {
-						awaitPointerEventScope {
-							while (true) {
-								val event = awaitPointerEvent()
-								val change = event.changes.firstOrNull() ?: continue
-								when (event.type) {
-									PointerEventType.Move -> hoveredSlot = slotAt(change.position)
-
-									PointerEventType.Release -> {
-										// Only the release picks: a click and a press-drag-release both end in exactly
-										// one Release, so one gesture invokes the command exactly once - picking on
-										// Press as well would double-invoke non-idempotent commands like merge.
-										// A dead-zone or disabled-direction release dismisses without invoking.
-										val slotIndex = slotAt(change.position)
-										val entry = liveEntries.value.getOrNull(slotIndex)
-										if (entry != null && entry.enabled) {
-											commands.invoke(entry.commandId, entry.argument)
-										}
-										onDismiss()
-									}
-
-									// A press only anchors the gesture (and is consumed below); its release decides.
-									PointerEventType.Press -> {}
-
-									else -> {}
-								}
-								change.consume()
-							}
-						}
-					},
-		) {
-			// The wedge background: each used slot's sector spans the midpoints to its angular neighbors -
-			// exactly the region slotAt() resolves to it - with the hovered sector highlighted and the dead
-			// zone drawn as the center disc.  Drawn beneath the chips so labels stay crisp.
-			Canvas(modifier = Modifier.fillMaxSize()) {
-				val outerRadius = PIE_RADIUS.toPx() + PIE_DISC_OVERSHOOT.toPx()
-				val discTopLeft = Offset(effectiveCenter.x - outerRadius, effectiveCenter.y - outerRadius)
-				val discSize = Size(outerRadius * 2, outerRadius * 2)
-				val sortedSlots = entries.indices.sortedBy { slotIndex -> PIE_SLOT_ANGLES[slotIndex] }
-				for ((sortedPosition, slotIndex) in sortedSlots.withIndex()) {
-					val slotAngle = PIE_SLOT_ANGLES[slotIndex]
-					val startDeg: Float
-					val sweepDeg: Float
-					if (sortedSlots.size == 1) {
-						startDeg = 0f
-						sweepDeg = 360f
-					} else {
-						val previousAngle = PIE_SLOT_ANGLES[sortedSlots[(sortedPosition - 1 + sortedSlots.size) % sortedSlots.size]]
-						val nextAngle = PIE_SLOT_ANGLES[sortedSlots[(sortedPosition + 1) % sortedSlots.size]]
-						var gapBefore = slotAngle - previousAngle
-						if (gapBefore <= 0f) {
-							gapBefore += 2f * PI.toFloat()
-						}
-						var gapAfter = nextAngle - slotAngle
-						if (gapAfter <= 0f) {
-							gapAfter += 2f * PI.toFloat()
-						}
-						startDeg = (slotAngle - gapBefore / 2f) * 180f / PI.toFloat()
-						sweepDeg = (gapBefore + gapAfter) / 2f * 180f / PI.toFloat()
-					}
-					val hovered = slotIndex == hoveredSlot && entries[slotIndex].enabled
-					drawArc(
-						color = if (hovered) colors.accent.copy(alpha = 0.25f) else colors.viewportBadgeBackground,
-						startAngle = startDeg,
-						sweepAngle = sweepDeg,
-						useCenter = true,
-						topLeft = discTopLeft,
-						size = discSize,
-					)
-				}
-				// Sector separators, then the dead-zone disc (the dismiss region reads as "no pick").
-				if (sortedSlots.size > 1) {
-					for ((sortedPosition, slotIndex) in sortedSlots.withIndex()) {
-						val nextAngle = PIE_SLOT_ANGLES[sortedSlots[(sortedPosition + 1) % sortedSlots.size]]
-						var gapAfter = nextAngle - PIE_SLOT_ANGLES[slotIndex]
-						if (gapAfter <= 0f) {
-							gapAfter += 2f * PI.toFloat()
-						}
-						val boundary = PIE_SLOT_ANGLES[slotIndex] + gapAfter / 2f
-						drawLine(
-							color = colors.panelBorder,
-							start = effectiveCenter,
-							end = Offset(effectiveCenter.x + cos(boundary) * outerRadius, effectiveCenter.y + sin(boundary) * outerRadius),
-							strokeWidth = 1f,
-						)
-					}
-				}
-				drawCircle(color = colors.panelBackground, radius = PIE_DEAD_ZONE_PX * 1.6f, center = effectiveCenter)
+		val pointerAngle = atan2(delta.y, delta.x)
+		var best = -1
+		var bestDifference = Float.MAX_VALUE
+		for (slotIndex in liveEntries.value.indices) {
+			var difference = abs(pointerAngle - PIE_SLOT_ANGLES[slotIndex])
+			if (difference > PI.toFloat()) {
+				difference = 2 * PI.toFloat() - difference
 			}
-			if (title != null) {
-				Text(
-					text = stringResource(title),
-					style = LocalUmamoTypography.current.labelSmall,
-					color = colors.textMuted,
-					modifier =
-						Modifier.layout { measurable, constraints ->
-							val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-							layout(constraints.maxWidth, constraints.maxHeight) {
-								placeable.place(
-									(effectiveCenter.x - placeable.width / 2f).roundToInt().coerceIn(0, (constraints.maxWidth - placeable.width).coerceAtLeast(0)),
-									(effectiveCenter.y - placeable.height / 2f).roundToInt().coerceIn(0, (constraints.maxHeight - placeable.height).coerceAtLeast(0)),
+			if (difference < bestDifference) {
+				bestDifference = difference
+				best = slotIndex
+			}
+		}
+		return best
+	}
+
+	Layout(
+		contents =
+			listOf(
+				{
+					// The wedge background: each used slot's sector spans the midpoints to its angular
+					// neighbors - exactly the region slotAt() resolves to it - with the hovered sector
+					// highlighted and the dead zone drawn as the center disc.  The layout sizes this canvas
+					// to the disc and centers it on the pie, so it draws about its own center.
+					Canvas(modifier = Modifier) {
+						val discCenter = Offset(size.width / 2f, size.height / 2f)
+						val outerRadius = size.minDimension / 2f
+						val sortedSlots = entries.indices.sortedBy { slotIndex -> PIE_SLOT_ANGLES[slotIndex] }
+						for ((sortedPosition, slotIndex) in sortedSlots.withIndex()) {
+							val slotAngle = PIE_SLOT_ANGLES[slotIndex]
+							val startDeg: Float
+							val sweepDeg: Float
+							if (sortedSlots.size == 1) {
+								startDeg = 0f
+								sweepDeg = 360f
+							} else {
+								val previousAngle = PIE_SLOT_ANGLES[sortedSlots[(sortedPosition - 1 + sortedSlots.size) % sortedSlots.size]]
+								val nextAngle = PIE_SLOT_ANGLES[sortedSlots[(sortedPosition + 1) % sortedSlots.size]]
+								var gapBefore = slotAngle - previousAngle
+								if (gapBefore <= 0f) {
+									gapBefore += 2f * PI.toFloat()
+								}
+								var gapAfter = nextAngle - slotAngle
+								if (gapAfter <= 0f) {
+									gapAfter += 2f * PI.toFloat()
+								}
+								startDeg = (slotAngle - gapBefore / 2f) * 180f / PI.toFloat()
+								sweepDeg = (gapBefore + gapAfter) / 2f * 180f / PI.toFloat()
+							}
+							val hovered = slotIndex == hoveredSlot && entries[slotIndex].enabled
+							drawArc(
+								color = if (hovered) colors.accent.copy(alpha = 0.25f) else colors.viewportBadgeBackground,
+								startAngle = startDeg,
+								sweepAngle = sweepDeg,
+								useCenter = true,
+								topLeft = Offset.Zero,
+								size = size,
+							)
+						}
+						// Sector separators, then the dead-zone disc (the dismiss region reads as "no pick").
+						if (sortedSlots.size > 1) {
+							for ((sortedPosition, slotIndex) in sortedSlots.withIndex()) {
+								val nextAngle = PIE_SLOT_ANGLES[sortedSlots[(sortedPosition + 1) % sortedSlots.size]]
+								var gapAfter = nextAngle - PIE_SLOT_ANGLES[slotIndex]
+								if (gapAfter <= 0f) {
+									gapAfter += 2f * PI.toFloat()
+								}
+								val boundary = PIE_SLOT_ANGLES[slotIndex] + gapAfter / 2f
+								drawLine(
+									color = colors.panelBorder,
+									start = discCenter,
+									end = Offset(discCenter.x + cos(boundary) * outerRadius, discCenter.y + sin(boundary) * outerRadius),
+									strokeWidth = 1f,
 								)
 							}
-						},
-				)
-			}
-			entries.forEachIndexed { slotIndex, entry ->
-				val angle = PIE_SLOT_ANGLES[slotIndex]
-				Row(
-					verticalAlignment = Alignment.CenterVertically,
-					modifier =
-						Modifier
-							.layout { measurable, constraints ->
-								val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-								layout(constraints.maxWidth, constraints.maxHeight) {
-									val radiusPx = PIE_RADIUS.toPx()
-									val slotX = (effectiveCenter.x + cos(angle) * radiusPx - placeable.width / 2f).roundToInt()
-									val slotY = (effectiveCenter.y + sin(angle) * radiusPx - placeable.height / 2f).roundToInt()
-									placeable.place(
-										slotX.coerceIn(0, (constraints.maxWidth - placeable.width).coerceAtLeast(0)),
-										slotY.coerceIn(0, (constraints.maxHeight - placeable.height).coerceAtLeast(0)),
+						}
+						drawCircle(color = colors.panelBackground, radius = PIE_DEAD_ZONE_PX * 1.6f, center = discCenter)
+					}
+				},
+				{
+					if (title != null) {
+						Text(
+							text = stringResource(title),
+							style = LocalUmamoTypography.current.labelSmall,
+							color = colors.textMuted,
+						)
+					}
+				},
+				{
+					entries.forEachIndexed { slotIndex, entry ->
+						Row(
+							verticalAlignment = Alignment.CenterVertically,
+							modifier =
+								Modifier
+									.background(
+										if (slotIndex == hoveredSlot && entry.enabled) colors.accent.copy(alpha = 0.25f) else colors.viewportBadgeBackground,
+										shapes.small,
 									)
+									.alpha(if (entry.enabled) 1f else 0.6f)
+									.padding(horizontal = 10.dp, vertical = 5.dp),
+						) {
+							// The leading icon; a missing one renders the loud placeholder square (an authoring reminder).
+							val entryIcon = entry.icon
+							Canvas(modifier = Modifier.size(PIE_ICON_SIZE)) {
+								if (entryIcon != null) {
+									drawIcon(entryIcon, colors.controlGlyph)
+								} else {
+									drawRect(color = PIE_ICON_PLACEHOLDER)
 								}
 							}
-							.background(
-								if (slotIndex == hoveredSlot && entry.enabled) colors.accent.copy(alpha = 0.25f) else colors.viewportBadgeBackground,
-								shapes.small,
+							Spacer(modifier = Modifier.width(6.dp))
+							Text(
+								text = stringResource(entry.label),
+								style = LocalUmamoTypography.current.labelMedium,
+								color = if (slotIndex == hoveredSlot && entry.enabled) colors.text else colors.textMuted,
 							)
-							.alpha(if (entry.enabled) 1f else 0.4f)
-							.padding(horizontal = 10.dp, vertical = 5.dp),
-				) {
-					// The leading icon; a missing one renders the loud placeholder square (an authoring reminder).
-					val entryIcon = entry.icon
-					Canvas(modifier = Modifier.size(PIE_ICON_SIZE)) {
-						if (entryIcon != null) {
-							drawIcon(entryIcon, colors.controlGlyph)
-						} else {
-							drawRect(color = PIE_ICON_PLACEHOLDER)
+							Spacer(modifier = Modifier.width(PIE_ICON_SIZE))
+							// The instant digit shortcut (the shell's pie key branch maps 1..N to the entry order).
+							Text(
+								text = "${slotIndex + 1}",
+								style = LocalUmamoTypography.current.labelSmall,
+								color = colors.textMuted,
+							)
 						}
 					}
-					Spacer(modifier = Modifier.width(6.dp))
-					// The instant digit shortcut (the shell's pie key branch maps 1..N to the entry order).
-					Text(
-						text = "${slotIndex + 1}",
-						style = LocalUmamoTypography.current.labelSmall,
-						color = colors.textMuted,
-					)
-					Spacer(modifier = Modifier.width(6.dp))
-					Text(
-						text = stringResource(entry.label),
-						style = LocalUmamoTypography.current.labelMedium,
-						color = if (slotIndex == hoveredSlot && entry.enabled) colors.text else colors.textMuted,
-					)
-				}
+				},
+			),
+		modifier =
+			modifier
+				.fillMaxSize()
+				.pointerInput(Unit) {
+					awaitPointerEventScope {
+						while (true) {
+							val event = awaitPointerEvent()
+							val change = event.changes.firstOrNull() ?: continue
+							when (event.type) {
+								PointerEventType.Move -> hoveredSlot = slotAt(change.position)
+
+								PointerEventType.Release -> {
+									// Only the release picks: a click and a press-drag-release both end in exactly
+									// one Release, so one gesture invokes the command exactly once - picking on
+									// Press as well would double-invoke non-idempotent commands like merge.
+									// A dead-zone or disabled-direction release dismisses without invoking.
+									val slotIndex = slotAt(change.position)
+									val entry = liveEntries.value.getOrNull(slotIndex)
+									if (entry != null && entry.enabled) {
+										commands.invoke(entry.commandId, entry.argument)
+									}
+									onDismiss()
+								}
+
+								// A press only anchors the gesture (and is consumed below); its release decides.
+								PointerEventType.Press -> {}
+
+								else -> {}
+							}
+							change.consume()
+						}
+					}
+				},
+	) { (discMeasurables, titleMeasurables, chipMeasurables), constraints ->
+		val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+		val discDiameter = ((PIE_RADIUS + PIE_DISC_OVERSHOOT) * 2).roundToPx()
+		val discPlaceable = discMeasurables.single().measure(Constraints.fixed(discDiameter, discDiameter))
+		val titlePlaceable = titleMeasurables.singleOrNull()?.measure(looseConstraints)
+		val chipPlaceables = chipMeasurables.map { measurable -> measurable.measure(looseConstraints) }
+		val ringRadius = PIE_RADIUS.toPx()
+		val chipOffsets =
+			chipPlaceables.mapIndexed { slotIndex, placeable ->
+				pieChipOffset(slotIndex, placeable.width, placeable.height, ringRadius)
+			}
+
+		// The pie's extent around its center - the disc and every chip - is what the clamp keeps inside.
+		val discRadius = discDiameter / 2f
+		var extentLeft = -discRadius
+		var extentRight = discRadius
+		var extentTop = -discRadius
+		var extentBottom = discRadius
+		for ((slotIndex, placeable) in chipPlaceables.withIndex()) {
+			val chipOffset = chipOffsets[slotIndex]
+			extentLeft = minOf(extentLeft, chipOffset.x)
+			extentRight = maxOf(extentRight, chipOffset.x + placeable.width)
+			extentTop = minOf(extentTop, chipOffset.y)
+			extentBottom = maxOf(extentBottom, chipOffset.y + placeable.height)
+		}
+		val overlayWidth = constraints.maxWidth
+		val overlayHeight = constraints.maxHeight
+		val effectiveCenter =
+			Offset(
+				clampPieCenterAxis(center.x, extentLeft, extentRight, overlayWidth.toFloat()),
+				clampPieCenterAxis(center.y, extentTop, extentBottom, overlayHeight.toFloat()),
+			)
+
+		layout(overlayWidth, overlayHeight) {
+			placedCenter.position = effectiveCenter
+			discPlaceable.place((effectiveCenter.x - discRadius).roundToInt(), (effectiveCenter.y - discRadius).roundToInt())
+			if (titlePlaceable != null) {
+				titlePlaceable.place(
+					(effectiveCenter.x - titlePlaceable.width / 2f).roundToInt().coerceIn(0, (overlayWidth - titlePlaceable.width).coerceAtLeast(0)),
+					(effectiveCenter.y - titlePlaceable.height / 2f).roundToInt().coerceIn(0, (overlayHeight - titlePlaceable.height).coerceAtLeast(0)),
+				)
+			}
+			// The per-chip coercion is the safety net for a pie larger than the overlay itself.
+			for ((slotIndex, placeable) in chipPlaceables.withIndex()) {
+				val chipOffset = chipOffsets[slotIndex]
+				placeable.place(
+					(effectiveCenter.x + chipOffset.x).roundToInt().coerceIn(0, (overlayWidth - placeable.width).coerceAtLeast(0)),
+					(effectiveCenter.y + chipOffset.y).roundToInt().coerceIn(0, (overlayHeight - placeable.height).coerceAtLeast(0)),
+				)
 			}
 		}
 	}
