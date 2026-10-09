@@ -31,11 +31,7 @@ import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.ViewportSettings
 import kotlin.math.roundToInt
 
-/**
- * The popover's narrowest content width: a narrow Properties section, so its half-and-half rows read exactly
- * like the panel's.  A floor rather than a fixed width, so a locale whose labels need more than half of it
- * widens the panel instead of cutting them.
- */
+/** The popover's narrowest content width. */
 private val OVERLAYS_POPOVER_MIN_WIDTH = 300.dp
 
 /** The inset of the rows from the panel's edges, the section headings' own. */
