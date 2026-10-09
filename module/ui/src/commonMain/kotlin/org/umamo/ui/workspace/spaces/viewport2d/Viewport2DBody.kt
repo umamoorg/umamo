@@ -14,6 +14,7 @@ import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.viewport.ApplicationGridMirror
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.viewport2d.ViewportSpaceCamera
 import org.umamo.ui.workspace.AreaScope
@@ -75,6 +76,9 @@ internal fun Viewport2DBody(scope: AreaScope) {
 		overlayHub?.register(scope.areaId, viewState.overlays)
 		onDispose { overlayHub?.unregister(scope.areaId) }
 	}
+	// The state's mirror of the application's grid, kept here rather than by the render host, so the popover's
+	// fields and the snap commands resolve the setting with or without a renderer behind the area.
+	ApplicationGridMirror(viewState.overlays)
 	CompositionLocalProvider(LocalAreaOverlays provides viewState.overlays) {
 		Box(modifier = Modifier.fillMaxSize()) {
 			if (host != null) {

@@ -12,6 +12,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.viewport.PuppetViewportService
@@ -30,7 +31,8 @@ import org.umamo.ui.viewport.gizmo.EditMeshOverlayProducer
  * wireframe, and published whenever the derived value changes by identity (the producer hands back the
  * same instance while nothing it shows changed, so a Grab's confirm, which commits positions only,
  * publishes nothing).  The wireframe covers the model's shown drawables, the same set the renderer is
- * handed to draw, so hidden parts stay hidden; while no area asks for it nothing is derived for it.
+ * handed to draw, so hidden parts stay hidden; the set is walked once per model, not per derive, and not at
+ * all while no area asks for the wireframe.
  *
  * The derive runs on [deriveDispatcher], one input at a time with the latest winning (a selection over a
  * whole large rig costs about a tenth of a second), and the publish lands back on the caller's dispatcher.
@@ -49,13 +51,14 @@ internal suspend fun publishMeshOverlay(
 	deriveDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
 	val producer = EditMeshOverlayProducer()
-	combine(session.mode, session.meshSelection, session.meshPreviewSelection, session.model, sizes) { mode, committed, preview, model, overlaySizes ->
-		MeshOverlayInputs(mode, preview ?: committed, model, overlaySizes)
+	val shownModels = session.model.map { model -> ShownModel(model) }
+	combine(session.mode, session.meshSelection, session.meshPreviewSelection, shownModels, sizes) { mode, committed, preview, shown, overlaySizes ->
+		MeshOverlayInputs(mode, preview ?: committed, shown, overlaySizes)
 	}
 		.combine(wireframeWanted) { inputs, wanted -> inputs to wanted }
 		.conflate()
 		.map { (inputs, wanted) ->
-			producer.produce(inputs.mode, inputs.selection, inputs.model, inputs.sizes, wireframeOver = if (wanted) inputs.model.visibleDrawableIds() else null)
+			producer.produce(inputs.mode, inputs.selection, inputs.shown.model, inputs.sizes, wireframeOver = if (wanted) inputs.shown.shownIds else null)
 		}
 		.flowOn(deriveDispatcher)
 		.conflate()
@@ -64,17 +67,29 @@ internal suspend fun publishMeshOverlay(
 }
 
 /**
+ * One model with its shown drawables, walked at most once and only once some area asks for the wireframe:
+ * the set depends on the model alone, where a derive runs for every selection, preview, and size change
+ * besides.  One derive at a time reads it, so the walk needs no lock.
+ *
+ * @property PuppetModel model The model.
+ */
+private class ShownModel(val model: PuppetModel) {
+	/** The drawables the renderer is handed to draw, which the wireframe covers. */
+	val shownIds: Set<DrawableId> by lazy(LazyThreadSafetyMode.NONE) { model.visibleDrawableIds() }
+}
+
+/**
  * One derive's inputs, taken together so the derive never pairs one emission's selection with another's
  * model by accident of timing.
  *
  * @property EditorMode mode The editor mode.
  * @property MeshSelection selection The selection to show: the brush preview when one is live.
- * @property PuppetModel model The model.
+ * @property ShownModel shown The model, with its shown drawables.
  * @property MeshOverlaySizes sizes The overlay sizes.
  */
 private class MeshOverlayInputs(
 	val mode: EditorMode,
 	val selection: MeshSelection,
-	val model: PuppetModel,
+	val shown: ShownModel,
 	val sizes: MeshOverlaySizes,
 )

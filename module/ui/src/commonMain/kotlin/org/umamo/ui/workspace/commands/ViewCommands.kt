@@ -35,7 +35,7 @@ internal fun viewCommands(cameras: AreaCameraHub, routing: CommandRouting, viewp
 	 *   camera (a keyform sheet, an outliner) simply resolves nothing.  The one thing such a space does
 	 *   add is itself to CommandSpaces.WorkSurfaces, or the palette keeps hiding these commands over it.
 	 */
-	fun hoveredCamera(): CameraController? = routing.hovered()?.areaId?.let { areaId -> cameras.opsFor(areaId) }
+	fun hoveredCamera(): CameraController? = routing.hovered()?.areaId?.let { areaId -> cameras.forArea(areaId) }
 	return listOf(
 		Command("view.fit", title = Res.string.cmd_view_fit, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredCamera()?.fit()

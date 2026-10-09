@@ -2,7 +2,6 @@ package org.umamo.ui.viewport
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import org.umamo.render.FrameOverlays
@@ -62,14 +61,13 @@ fun areaOverlaysFor(state: ViewportOverlayState?, applicationGrid: GridConfig): 
 
 /**
  * Keeps the render service's copy of an area's render options current: the area's overlay state over the
- * application's grid setting, seeded as the area registers and pushed again whenever either changes, and
- * keeps the state's mirror of the application's grid current for the area's other readers.
+ * application's grid setting, seeded as the area registers and pushed again whenever either changes.
  *
  * The seed is a composition-time push, like the registration it follows in the host, so the slot carries the
  * area's value before the resize that triggers its first render; the effect then re-pushes on a change only,
- * which the engine compares by value.  The pushed value takes the setting directly, never the mirror: the
- * mirror is written after composition and only on a change, and reading it back here would cost a second
- * composition and push per setting change.
+ * which the engine compares by value.  The pushed value takes the setting directly, never the state's mirror
+ * of it: the mirror is the space body's ([ApplicationGridMirror]), written after composition and only on a
+ * change, and reading it back here would cost a second composition and push per setting change.
  *
  * @param PuppetViewportService service The render service the area registered with.
  * @param String                areaId  The area.
@@ -80,11 +78,6 @@ fun AreaOverlaysPublisher(service: PuppetViewportService, areaId: String, state:
 	val gridScale by rememberDoubleSetting(ViewportSettings.GRID_SCALE_KEY, ViewportSettings.GRID_SCALE_DEFAULT)
 	val gridSubdivisions by rememberIntSetting(ViewportSettings.GRID_SUBDIVISIONS_KEY, ViewportSettings.GRID_SUBDIVISIONS_DEFAULT)
 	val applicationGrid = GridConfig(gridScale.toFloat(), gridSubdivisions)
-	SideEffect {
-		if (state != null && state.applicationGrid != applicationGrid) {
-			state.applicationGrid = applicationGrid
-		}
-	}
 	val overlays = areaOverlaysFor(state, applicationGrid)
 	remember(areaId, service) { service.setAreaOverlays(areaId, overlays) }
 	LaunchedEffect(areaId, service, overlays) {

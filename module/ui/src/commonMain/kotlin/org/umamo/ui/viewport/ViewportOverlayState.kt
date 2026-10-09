@@ -1,9 +1,13 @@
 package org.umamo.ui.viewport
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import org.umamo.ui.rememberDoubleSetting
+import org.umamo.ui.rememberIntSetting
 
 /*
  * What the 2D viewport and the UV editor draw OVER the rigger's art, per area: ViewportOverlayColors.kt
@@ -60,10 +64,10 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	var gridGeometry by mutableStateOf<GridConfig?>(null)
 
 	/**
-	 * The application's grid as the area's render-options publisher last mirrored it from the settings; never
-	 * saved.  Mirrored here so every reader of the area - the snap handlers, the hovered-area commands, the
-	 * popover's fields - resolves the one grid the renderer draws through [grid] without reaching for the
-	 * settings themselves.
+	 * The application's grid as [ApplicationGridMirror] last mirrored it from the settings; never saved.
+	 * Mirrored here so every reader of the area - the snap handlers, the hovered-area commands, the popover's
+	 * fields - resolves the one grid the renderer draws through [grid] without reaching for the settings
+	 * themselves.
 	 */
 	var applicationGrid by mutableStateOf(GridConfig())
 
@@ -122,6 +126,27 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 		showInfo = true
 		showWireframe = false
 		gridGeometry = null
+	}
+}
+
+/**
+ * Keeps [state]'s mirror of the application's grid current from the viewport.grid.* settings, for the area's
+ * readers that resolve its grid through [ViewportOverlayState.grid]: the popover's fields, the snap commands,
+ * and the gizmo overlays' snap handlers.  Mounted by the space body that owns the state, with or without a
+ * renderer behind the area, so a platform with no render host resolves the setting too and never the
+ * built-in default.  Written after composition and only on a change, so an unchanged setting writes nothing.
+ *
+ * @param ViewportOverlayState state The area's overlay state.
+ */
+@Composable
+fun ApplicationGridMirror(state: ViewportOverlayState) {
+	val gridScale by rememberDoubleSetting(ViewportSettings.GRID_SCALE_KEY, ViewportSettings.GRID_SCALE_DEFAULT)
+	val gridSubdivisions by rememberIntSetting(ViewportSettings.GRID_SUBDIVISIONS_KEY, ViewportSettings.GRID_SUBDIVISIONS_DEFAULT)
+	val applicationGrid = GridConfig(gridScale.toFloat(), gridSubdivisions)
+	SideEffect {
+		if (state.applicationGrid != applicationGrid) {
+			state.applicationGrid = applicationGrid
+		}
 	}
 }
 

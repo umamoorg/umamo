@@ -42,9 +42,9 @@ internal class OverlayFrame(
  * edges, then the active edges, then the dots - so each domain binds its pipeline once rather than once
  * per mesh, and so the actives land on top of every batch; an entry the current pose leaves unposed (a
  * hidden ancestor, a grid out of range) is skipped in both.  An Edit overlay's plain wireframe meshes (those
- * outside the edit) join the edge domain alone, ahead of the cage so its edges land on top, and only in a
- * frame that draws the wireframe.  An islands overlay goes island-major instead (see [drawIslands]): its
- * stacking is the point, so each island's fill covers the islands behind it.
+ * outside the edit) join the edge domain alone, and only in a frame that draws the wireframe; they sit ahead
+ * of the cage in the overlay's order, so the cage's edges land on top.  An islands overlay goes island-major
+ * instead (see [drawIslands]): its stacking is the point, so each island's fill covers the islands behind it.
  *
  * @param DrawPipelines pipelines The capture and overlay pipelines.
  * @param SideTargetPool sideTargets The side targets, whose capacity names the screen-space divisor.
@@ -134,7 +134,9 @@ internal class MeshOverlayEncoder(
 	 * Records an overlay's draws, domain-major: every entry's face fills, then its edges, then the active
 	 * edges, then the dots and the active dots, each domain binding its pipeline once.  In an Edit overlay
 	 * the fills, the actives, and the dots are the cage's alone; the plain wireframe meshes contribute their
-	 * edges ahead of the cage's, and none when the frame draws no wireframe.
+	 * edges, and none when the frame draws no wireframe.  Each domain walks the one list and reads the split
+	 * off the entry, so a frame builds no list of its own; the wireframe meshes draw ahead of the cage because
+	 * the overlay lists them ahead of it.
 	 *
 	 * @param RenderPassEncoder pass The open pass.
 	 * @param MeshOverlay overlay The overlay value (kind, select mode, sizes).
@@ -153,13 +155,9 @@ internal class MeshOverlayEncoder(
 		val palette = frame.palette
 		val sizes = overlay.sizes
 		val editing = overlay.kind == MeshOverlayKind.Edit
-		val cage = if (editing) entries.filter { entry -> !entry.wireframeOnly } else entries
-		val edged =
-			when {
-				!editing -> entries
-				frame.drawWireframe -> entries.filter { entry -> entry.wireframeOnly } + cage
-				else -> cage
-			}
+		// An object wireframe's entries are its whole content; only an Edit overlay's plain wireframe meshes
+		// wait for a frame that draws the wireframe.
+		val skipWireframeEdges = editing && !frame.drawWireframe
 		uniformsScratch.viewportWidth = frame.viewportWidth.toFloat()
 		uniformsScratch.viewportHeight = frame.viewportHeight.toFloat()
 
@@ -170,7 +168,7 @@ internal class MeshOverlayEncoder(
 			setColors(palette.faceIdle, palette.faceSelected, palette.faceSelected, opaque = false)
 			uniformsScratch.sizePx = 0f
 			uniformsScratch.fillIdle = overlay.selectMode == MeshOverlaySelectMode.Face
-			for (entry in cage) {
+			forEachCageEntry(entries) { entry ->
 				batch(entry)
 				pass.drawOverlayFaceFill(entry.buffers, store, uniformsScratch)
 			}
@@ -180,12 +178,15 @@ internal class MeshOverlayEncoder(
 		setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false)
 		uniformsScratch.sizePx = sizes.edgeWidthPx * frame.pixelScale / 2f
 		uniformsScratch.fillIdle = true
-		for (entry in edged) {
+		for (entry in entries) {
+			if (skipWireframeEdges && entry.wireframeOnly) {
+				continue
+			}
 			batch(entry)
 			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
 		}
 		if (editing) {
-			for (entry in cage) {
+			forEachCageEntry(entries) { entry ->
 				if (entry.activeEdgeA >= 0) {
 					active(entry, entry.activeEdgeA, entry.activeEdgeB, -1)
 					pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
@@ -197,11 +198,11 @@ internal class MeshOverlayEncoder(
 			bind(pass, pipelines.overlayVertexDot, frame)
 			setColors(palette.vertexIdle, palette.vertexSelected, palette.vertexActive, opaque = false)
 			uniformsScratch.sizePx = sizes.vertexDotRadiusPx * frame.pixelScale
-			for (entry in cage) {
+			forEachCageEntry(entries) { entry ->
 				batch(entry)
 				pass.drawOverlayVertexDots(entry.buffers, store, uniformsScratch)
 			}
-			for (entry in cage) {
+			forEachCageEntry(entries) { entry ->
 				if (entry.activeVertex >= 0) {
 					active(entry, entry.activeVertex, -1, -1)
 					pass.drawOverlayVertexDots(entry.buffers, store, uniformsScratch)
@@ -214,15 +215,30 @@ internal class MeshOverlayEncoder(
 			bind(pass, pipelines.overlayFaceDot, frame)
 			setColors(palette.faceIdle, palette.faceSelected, palette.faceActive, opaque = true)
 			uniformsScratch.sizePx = sizes.faceDotRadiusPx * frame.pixelScale
-			for (entry in cage) {
+			forEachCageEntry(entries) { entry ->
 				batch(entry)
 				pass.drawOverlayFaceDots(entry.buffers, store, uniformsScratch)
 			}
-			for (entry in cage) {
+			forEachCageEntry(entries) { entry ->
 				if (entry.activeFaceA >= 0) {
 					active(entry, entry.activeFaceA, entry.activeFaceB, entry.activeFaceC)
 					pass.drawOverlayFaceDots(entry.buffers, store, uniformsScratch)
 				}
+			}
+		}
+	}
+
+	/**
+	 * Runs [draw] over an Edit overlay's cage entries - every entry but its plain wireframe meshes - in store
+	 * order, reading the split off each entry rather than building a list for it.
+	 *
+	 * @param List<OverlayDrawEntry> entries The overlay's entries, in store order.
+	 * @param Function draw What to record for one cage entry.
+	 */
+	private inline fun forEachCageEntry(entries: List<OverlayDrawEntry>, draw: (OverlayDrawEntry) -> Unit) {
+		for (entry in entries) {
+			if (!entry.wireframeOnly) {
+				draw(entry)
 			}
 		}
 	}

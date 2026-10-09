@@ -108,6 +108,9 @@ internal class EditMeshOverlayProducer {
 	private val wireframeEntryById = HashMap<DrawableId, WireframeEntry>()
 	private var lastOverlay: MeshOverlay? = null
 
+	/** The model the topology cache was last trimmed to the drawables of, by identity. */
+	private var trimmedToModel: PuppetModel? = null
+
 	/**
 	 * The overlay for one state, the previous instance when nothing it shows changed.  In Edit mode: the
 	 * plain wireframe of every drawable in [wireframeOver] that is outside the session, in the model's order,
@@ -136,11 +139,17 @@ internal class EditMeshOverlayProducer {
 		val editing = mode == EditorMode.Edit
 		val sessionIds = if (editing) selection.drawableIds.toSet() else emptySet()
 		val wireframeIds = wireframeOver.orEmpty()
-		val modelIds = HashSet<DrawableId>(model.drawables.size)
+		// A drawable's edges are the same in the cage and in the wireframe, so its topology outlives a mode
+		// switch and is dropped only once the drawable leaves the model.  A model never changes under its
+		// identity, so the trim runs once per model rather than collecting every drawable's id per derive.
+		if (model !== trimmedToModel) {
+			val modelIds = model.drawables.mapTo(HashSet(model.drawables.size)) { drawable -> drawable.id }
+			topologyById.keys.retainAll(modelIds)
+			trimmedToModel = model
+		}
 		val meshById = HashMap<DrawableId, DrawableMesh>(sessionIds.size)
 		val wireframeEntries = ArrayList<MeshOverlayMesh>()
 		for (drawable in model.drawables) {
-			modelIds.add(drawable.id)
 			val mesh = drawable.mesh ?: continue
 			if (drawable.id in sessionIds) {
 				meshById[drawable.id] = mesh
@@ -151,9 +160,6 @@ internal class EditMeshOverlayProducer {
 				}
 			}
 		}
-		// A drawable's edges are the same in the cage and in the wireframe, so its topology outlives a mode
-		// switch and is dropped only once the drawable leaves the model.
-		topologyById.keys.retainAll(modelIds)
 		wireframeEntryById.keys.retainAll(wireframeIds)
 		if (!editing) {
 			return overlayOf(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, wireframeEntries, sizes)
