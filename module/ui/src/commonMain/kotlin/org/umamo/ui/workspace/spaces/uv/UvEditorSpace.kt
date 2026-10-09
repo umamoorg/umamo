@@ -47,6 +47,7 @@ import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.menu_uv_mirror_x
 import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.viewport.ApplicationGridMirror
 import org.umamo.ui.viewport.AreaOverlaysPublisher
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.OverlapPickerPopup
@@ -123,6 +124,13 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val textures = LocalPuppetTextures.current
 	val service = LocalPuppetViewportService.current
 
+	// The area's texture selection and overlays, shared with the header's selector and overlays control
+	// through the hosting AreaScope (header and body are sibling subtrees - spaceState is their one channel).
+	// Taken ahead of the service gate, as the 2D viewport takes its view state: the header's popover shows
+	// the area's grid with or without a renderer, and its mirror of the application's grid is kept here.
+	val viewState = scope.spaceState(UV_EDITOR_VIEW_STATE_KEY) { UvEditorViewState() }
+	ApplicationGridMirror(viewState.overlays)
+
 	// STRICT PARITY: the UV editor renders its surface through the GL engine, exactly like the 2D viewport.
 	// With no service (Android until the GLES engine lands) show a bare panel - no underlay, no
 	// editing camera - as Viewport2DBody shows a plain backdrop with no host.
@@ -133,10 +141,6 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	val mode by session.mode.collectAsState()
 	val meshSelection by session.meshSelection.collectAsState()
 	val objectSelection by session.selection.collectAsState()
-
-	// The area's texture selection, shared with the header's selector through the hosting AreaScope
-	// (header and body are sibling subtrees - spaceState is their one channel).
-	val viewState = scope.spaceState(UV_EDITOR_VIEW_STATE_KEY) { UvEditorViewState() }
 
 	// The source-layer view, when the selector asks for one AND this document retains the artwork to
 	// serve it: the active drawable's own art with its mapping recovered onto it.  Null falls the space

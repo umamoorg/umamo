@@ -78,7 +78,7 @@ internal fun snapCommands(
 			if (editorSession != null && areaId != null) {
 				// An unplaced cursor snaps from the world origin (its resting place).  The world grid is anchored
 				// on the origin, so the snap targets the same lines that viewport's backdrop draws.
-				val step = (areaOverlays.stateFor(areaId)?.grid ?: GridConfig()).snapStep
+				val step = (areaOverlays.forArea(areaId)?.grid ?: GridConfig()).snapStep
 				val cursor = editorSession.cursor2dOrWorldOrigin()
 				val (snappedX, snappedZ) = editorSession.model.value.snapToWorldGrid(cursor.worldX, cursor.worldZ, step)
 				editorSession.setCursor2d(snappedX, snappedZ)

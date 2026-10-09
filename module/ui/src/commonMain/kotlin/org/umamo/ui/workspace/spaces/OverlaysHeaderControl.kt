@@ -21,6 +21,7 @@ import org.umamo.ui.kit.chip.PopupChip
 import org.umamo.ui.kit.field.Checkbox
 import org.umamo.ui.kit.field.FieldRow
 import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.formatDecimals
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -36,6 +37,9 @@ private val GRID_FIELD_WIDTH = 80.dp
 
 /** The reset icon's size, and the space held for it while the area follows the application's grid. */
 private val GRID_RESET_SIZE = 20.dp
+
+/** The fractional places the Scale field shows and commits: the kit field's default, named so the edit guard compares at the same places. */
+private const val GRID_SCALE_DECIMALS = 2
 
 /**
  * The overlays control both work-surface headers mount at their trailing end, Blender's two-part Viewport
@@ -103,17 +107,21 @@ private fun GridGeometryFields(state: ViewportOverlayState) {
 	val uvEditor = state.surface == OverlaySurface.UvEditor
 	// A field commits on focus loss as well as on Enter, so leaving it - the popover closing on Escape, a
 	// click elsewhere - hands back the value it already showed.  Only a value that differs is an edit;
-	// the same one must not give the area a grid of its own that merely equals the application's.
+	// the same one must not give the area a grid of its own that merely equals the application's.  The
+	// Scale field commits what it shows, rounded to its places, so a scale carrying more places than that
+	// (a file's, a setting's) is the same value when its rounding comes back: the guard compares what the
+	// field shows, not the floats.
 	if (!uvEditor) {
 		GridGeometryRow(label = stringResource(Res.string.overlay_grid_scale), resettable = own, onReset = { state.gridGeometry = null }) {
 			NumberField(
 				value = grid.scale,
 				onValueChange = { scale ->
-					if (scale != grid.scale) {
+					if (formatDecimals(scale, GRID_SCALE_DECIMALS) != formatDecimals(grid.scale, GRID_SCALE_DECIMALS)) {
 						state.gridGeometry = grid.copy(scale = scale)
 					}
 				},
 				range = ViewportSettings.GRID_SCALE_RANGE,
+				decimals = GRID_SCALE_DECIMALS,
 				modifier = Modifier.width(GRID_FIELD_WIDTH),
 			)
 		}

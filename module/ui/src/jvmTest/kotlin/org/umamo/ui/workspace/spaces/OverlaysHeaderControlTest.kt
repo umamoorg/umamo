@@ -245,6 +245,36 @@ class OverlaysHeaderControlTest {
 			assertEquals(0, countOfDescription(FOLLOW_APPLICATION))
 		}
 
+	/**
+	 * A scale carrying more places than the field shows (a file's, a setting's) is not an edit when the field
+	 * hands back the rounding it showed: the area keeps the grid it had, to the last place.
+	 */
+	@Test
+	fun aScaleWithMorePlacesThanTheFieldShowsSurvivesAnUntouchedField() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }.overlays
+			val precise = GridConfig(33.333f, 10)
+			overlays.gridGeometry = precise
+			clickDescribed(VIEWPORT_OVERLAYS)
+
+			onNode(hasText("33.33") and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+
+			assertEquals(precise, overlays.gridGeometry, "the field showed the rounding and hands it back; the grid keeps its places")
+
+			onNode(hasText("33.33") and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performTextReplacement("33.34")
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+
+			assertEquals(GridConfig(33.34f, 10), overlays.gridGeometry, "a scale that shows differently is an edit")
+		}
+
 	private companion object {
 		/** The toggle button's English name; it doubles as its accessible label. */
 		const val SHOW_OVERLAYS = "Show Overlays"
