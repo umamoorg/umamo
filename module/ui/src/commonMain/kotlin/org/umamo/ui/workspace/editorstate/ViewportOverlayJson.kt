@@ -26,7 +26,7 @@ internal const val OVERLAYS_MEMBER = "overlays"
  * it deviates, a JSON null where it does not, and the area's own grid under `gridGeometry` or a null while it
  * follows.  Naming every key is what lets a flag go back to its default in the file: the entry is saved as a
  * merge patch (UMA § 7.5), which keeps a member the writer does not name.  Keys the surface has no overlay for
- * (the axes, the wireframe, and the selection tint under a UV editor) are never written; the area's own grid
+ * (the axes, the wireframe, its culling, and the selection tint under a UV editor) are never written; the area's own grid
  * is written whole on both surfaces, a UV editor's scale in texels.
  *
  * @return JsonElement The member value.
@@ -48,6 +48,7 @@ internal fun ViewportOverlayState.overlaysJsonOrNull(): JsonElement {
 		if (carriesViewportOnlyKeys) {
 			put("wireframe", flagOrNull(showWireframe, defaultValue = false))
 			put("selectionTint", flagOrNull(showSelectionTint, defaultValue = true))
+			put("wireframeCulling", flagOrNull(cullHiddenWireframe, defaultValue = true))
 		}
 		// UMA § 7.3 `wireframeOpacity`: the wireframe's (a UV editor's islands') alpha scale, 0 to 1, on both surfaces.
 		put("wireframeOpacity", if (wireframeOpacity == 1f) JsonNull else JsonPrimitive(wireframeOpacity))
@@ -85,6 +86,7 @@ internal fun ViewportOverlayState.restoreOverlays(tree: JsonObject?) {
 		showAxes = booleanOf(tree, "axes") ?: true
 		showWireframe = booleanOf(tree, "wireframe") ?: false
 		showSelectionTint = booleanOf(tree, "selectionTint") ?: true
+		cullHiddenWireframe = booleanOf(tree, "wireframeCulling") ?: true
 	}
 	wireframeOpacity = finiteFloatOf(tree["wireframeOpacity"])?.takeIf { value -> value in 0f..1f } ?: 1f
 	gridGeometry = gridGeometryOf(tree["gridGeometry"] as? JsonObject)

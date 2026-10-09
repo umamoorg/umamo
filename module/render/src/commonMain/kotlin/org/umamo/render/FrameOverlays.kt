@@ -26,6 +26,10 @@ package org.umamo.render
  * @property Float wireframeOpacity The alpha scale, 0 to 1, of the mesh overlay drawn outside an edit: an
  *   Object-mode wireframe whole, an Edit overlay's plain wireframe meshes, and a UV scene's islands, each
  *   drawn at its palette alpha times this.  The Edit cage keeps the palette.  At 0 none of it draws.
+ * @property Boolean wireframeCulling Whether the wireframe's edges are left out under art drawn in front of
+ *   their own drawable, so a posed model shows which mesh parts are covered: a frame that draws a
+ *   wireframe with this on first writes the draw order into a side target, which the edges read.  The
+ *   Edit cage is never culled.  True by default, as [wireframe] is.
  */
 data class FrameOverlays(
 	val gridLines: Boolean = true,
@@ -34,4 +38,5 @@ data class FrameOverlays(
 	val wireframe: Boolean = true,
 	val selectionTint: Boolean = true,
 	val wireframeOpacity: Float = 1f,
+	val wireframeCulling: Boolean = true,
 )

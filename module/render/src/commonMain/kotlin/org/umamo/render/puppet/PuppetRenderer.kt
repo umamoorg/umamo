@@ -143,6 +143,11 @@ class PuppetRenderer(
 	@Volatile
 	private var lastDrawnOrder: List<DrawableId> = emptyList()
 
+	// Each drawn drawable's back-to-front index (1 the backmost), built from the last drawn order on the first
+	// culling frame after a pose resolve and dropped with it: the order the draw-order pass writes and the
+	// wireframe edges cull by.
+	private var drawOrderIndex: Map<DrawableId, Int>? = null
+
 	// Framebuffer pixels per on-screen pixel. 1 = native; the offscreen service sets >1 when it supersamples,
 	// so the grid line width scales to match and reads back at a constant on-screen size.
 	private var gridPixelScale: Float = 1f
@@ -341,7 +346,17 @@ class PuppetRenderer(
 				boundsScissorEnabled = compositeBoundsScissorEnabled,
 			)
 		lastDrawnOrder = resolved.drawOrder // publish the resolved back-to-front order for picking
+		drawOrderIndex = null
 	}
+
+	/**
+	 * Each drawn drawable's back-to-front index, 1 the backmost, as the draw-order pass writes it: the
+	 * position in the last drawn order plus one.
+	 *
+	 * @return Map<DrawableId, Int> The index per drawn drawable.
+	 */
+	private fun drawOrderOf(): Map<DrawableId, Int> =
+		drawOrderIndex ?: lastDrawnOrder.withIndex().associate { (index, id) -> id to index + 1 }.also { built -> drawOrderIndex = built }
 
 	/**
 	 * Sets the view the next [render] projects through.  Before any is set, a render fits the rest-pose
@@ -590,6 +605,13 @@ class PuppetRenderer(
 		overlayResidency.apply(overlay, residency.residents, currentModel)
 		val drawsWireframe = overlays.wireframe && overlays.wireframeOpacity > 0f
 		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || drawsWireframe) }
+		// The draw-order pass is paid only by a frame that draws a wireframe and culls it: an Object-mode
+		// wireframe, or an Edit overlay carrying plain wireframe meshes outside the edit.
+		val cullsWireframe =
+			drawn != null &&
+				drawsWireframe &&
+				overlays.wireframeCulling &&
+				(drawn.kind == MeshOverlayKind.ObjectWireframe || (drawn.kind == MeshOverlayKind.Edit && drawn.meshes.any { mesh -> mesh.wireframeOnly }))
 		// A frame without the selection tint is drawn as a capture is, from no selection at all: the renderer's
 		// selection stays as set, for the next area that tints.
 		renderFrame(
@@ -603,6 +625,7 @@ class PuppetRenderer(
 			if (overlays.selectionTint) activeId else null,
 			drawn,
 			overlays,
+			cullsWireframe,
 		)
 	}
 
@@ -622,6 +645,8 @@ class PuppetRenderer(
 	 *   device objects must already reflect it (the viewport applies before each frame, a capture passes null).
 	 * @param FrameOverlays   overlays       What the frame draws beyond the backdrop: the grid lines and axes
 	 *   with a grid backdrop, and whether and how opaque the overlay's wireframe meshes draw.
+	 * @param Boolean         cullWireframe  Whether the frame writes the draw order first and culls the
+	 *   wireframe by it (a capture never does).
 	 */
 	private fun renderFrame(
 		target: RenderTarget,
@@ -634,6 +659,7 @@ class PuppetRenderer(
 		active: DrawableId?,
 		overlay: MeshOverlay?,
 		overlays: FrameOverlays,
+		cullWireframe: Boolean = false,
 	) {
 		sideTargets.ensure(viewportWidth, viewportHeight)
 		val frame = device.beginFrame()
@@ -645,31 +671,9 @@ class PuppetRenderer(
 
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
 		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
-
-		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
-		// A flat backdrop is the pass's own clear, and the puppet blends over it exactly as over the grid.
-		var pass =
-			when (backdrop) {
-				FrameBackdrop.Grid -> {
-					val gridPass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
-					drawBackdrop(gridPass, affine, viewportWidth, viewportHeight, pixelScale, overlays)
-					gridPass
-				}
-
-				is FrameBackdrop.Clear ->
-					frame.beginRenderPass(
-						passSpec(
-							target,
-							LoadAction.Clear,
-							viewportWidth,
-							viewportHeight,
-							clearRed = backdrop.red,
-							clearGreen = backdrop.green,
-							clearBlue = backdrop.blue,
-							clearAlpha = backdrop.alpha,
-						),
-					)
-			}
+		// A culling frame's art passes write the draw order as their second draw buffer; the main pass clears
+		// it first, and the overlay draws read it from a pass of their own that has it detached.
+		val orderTarget = if (cullWireframe) sideTargets.drawOrderTarget else null
 		val inputs =
 			FrameInputs(
 				affine = affine,
@@ -687,9 +691,43 @@ class PuppetRenderer(
 				overlayPalette = meshOverlayPalette,
 				drawWireframe = overlays.wireframe,
 				wireframeOpacity = overlays.wireframeOpacity,
+				drawOrderTarget = orderTarget,
+				drawOrderOf = if (orderTarget != null) drawOrderOf() else emptyMap(),
 			)
+
+		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
+		// A flat backdrop is the pass's own clear, and the puppet blends over it exactly as over the grid.
+		var pass =
+			when (backdrop) {
+				FrameBackdrop.Grid -> {
+					val gridPass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight, drawOrder = orderTarget, clearDrawOrder = true))
+					drawBackdrop(gridPass, affine, viewportWidth, viewportHeight, pixelScale, overlays)
+					gridPass
+				}
+
+				is FrameBackdrop.Clear ->
+					frame.beginRenderPass(
+						passSpec(
+							target,
+							LoadAction.Clear,
+							viewportWidth,
+							viewportHeight,
+							clearRed = backdrop.red,
+							clearGreen = backdrop.green,
+							clearBlue = backdrop.blue,
+							clearAlpha = backdrop.alpha,
+							drawOrder = orderTarget,
+							clearDrawOrder = true,
+						),
+					)
+			}
 		pass = planEncoder.encodePlan(frame, inputs, currentPlan, target, pass)
 		if (overlay != null) {
+			if (orderTarget != null) {
+				// The edges sample the order, so they draw in a pass that no longer has it attached.
+				pass.end()
+				pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
+			}
 			overlayEncoder.encodeDraws(pass, inputs)
 		}
 		pass.end()

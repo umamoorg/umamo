@@ -95,6 +95,8 @@ class OverlaysHeaderControlTest {
 			assertTrue(overlays.showWireframe, "the wireframe row starts off and switches on")
 			clickMenuEntry(SELECTION_TINT_ROW)
 			assertFalse(overlays.showSelectionTint, "the selection tint row starts on and switches off")
+			clickMenuEntry(CULL_HIDDEN_ROW)
+			assertFalse(overlays.cullHiddenWireframe, "the cull hidden row starts on and switches off")
 		}
 
 	/** The UV editor's popover offers the grid row but no axis row and no Geometry section, since its surface has neither. */
@@ -110,9 +112,11 @@ class OverlaysHeaderControlTest {
 			assertTrue(popupShows(GRID_ROW), "the grid row is offered")
 			assertFalse(popupShows(AXES_ROW), "the axis row is not")
 			assertFalse(popupShows(OBJECTS) || popupShows(SELECTION_TINT_ROW), "nor the Objects section with its tint row")
-			assertFalse(popupShows(WIREFRAME_ROW), "nor the wireframe row")
+			assertFalse(popupShows(WIREFRAME_ROW) || popupShows(CULL_HIDDEN_ROW), "nor the wireframe row and its culling")
 			assertTrue(popupShows(GEOMETRY) && popupShows(OPACITY_FIELD), "the Geometry section stays for the Opacity field, which fades the islands")
 			assertTrue(popupShows(SCALE_FIELD) && popupShows(SUBDIVISIONS_FIELD), "the grid fields are both: the scale is read in texels")
+			assertTrue(popupShows(UV_SCALE_SHOWN) && popupShows(UV_SUBDIVISIONS_SHOWN), "following the application, the fields show the UV grid's own defaults")
+			assertFalse(popupShows(SCALE_SHOWN), "not the 2D viewport's")
 			clickMenuEntry(GRID_ROW)
 			assertFalse(overlays.showGrid)
 		}
@@ -128,13 +132,13 @@ class OverlaysHeaderControlTest {
 			clickDescribed(VIEWPORT_OVERLAYS)
 			assertEquals(0, countOfDescription(FOLLOW_APPLICATION), "following the application, there is nothing to reset")
 
-			onNode(hasText(SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			onNode(hasText(UV_SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
 			waitForIdle()
 			onNode(hasSetTextAction() and isFocused()).performTextReplacement("512")
 			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
 			waitForIdle()
 
-			assertEquals(GridConfig(512f, 10), overlays.gridGeometry, "the edit gives the UV area its own grid, the scale in texels")
+			assertEquals(GridConfig(512f, 8), overlays.gridGeometry, "the edit gives the UV area its own grid, the scale in texels over the UV subdivisions")
 			assertEquals(1, countOfDescription(FOLLOW_APPLICATION), "which shows the one reset, beside Scale")
 			clickDescribed(FOLLOW_APPLICATION)
 			assertNull(overlays.gridGeometry, "the reset returns the area to following")
@@ -393,11 +397,14 @@ class OverlaysHeaderControlTest {
 		const val OBJECTS = "Objects"
 		const val SELECTION_TINT_ROW = "Selection Tint"
 		const val WIREFRAME_ROW = "Wireframe"
+		const val CULL_HIDDEN_ROW = "Cull Hidden"
 
-		/** The grid fields' labels, the scale the default grid shows, and the reset icon's English name. */
+		/** The grid fields' labels, the scale the default 2D grid shows, what the UV editor's default grid shows, and the reset icon's English name. */
 		const val SCALE_FIELD = "Scale"
 		const val SUBDIVISIONS_FIELD = "Subdivisions"
 		const val SCALE_SHOWN = "100.00"
+		const val UV_SCALE_SHOWN = "256.00"
+		const val UV_SUBDIVISIONS_SHOWN = "8"
 		const val FOLLOW_APPLICATION = "Follow Application Grid"
 
 		/** The Opacity field's label and what the whole opacity shows in it; exact matches, apart from the Scale field's "100.00". */

@@ -106,7 +106,7 @@ internal class RenderPlanEncoder(
 		plan: List<RenderPlanNode>,
 		target: RenderTarget,
 		startPass: RenderPassEncoder,
-	): RenderPassEncoder = renderPlanNodes(frame, plan, target, 0, inputs, startPass, scissor = null)
+	): RenderPassEncoder = renderPlanNodes(frame, plan, target, 0, inputs, startPass, scissor = null, orderOpacity = 1f)
 
 	/**
 	 * Walks a render-plan span into [target]: plain drawables draw directly (with the mask-coverage
@@ -133,6 +133,9 @@ internal class RenderPlanEncoder(
 	 * @param ScissorRect?         scissor   [target]'s own pass scissor (a composite layer's
 	 *   bounds rect when this span IS an isolated subtree), re-applied whenever the span resumes a
 	 *   pass on [target]; null at the top level.
+	 * @param Float                orderOpacity The product of the enclosing composites' opacities, by which a
+	 *   draw's alpha is scaled before the draw-order threshold: a layer draws its children at full opacity and
+	 *   fades them at the composite, but what covers a wire is what the viewer sees.
 	 * @return RenderPassEncoder The open pass on [target] after the span (may differ from [startPass]).
 	 */
 	private fun renderPlanNodes(
@@ -143,6 +146,7 @@ internal class RenderPlanEncoder(
 		inputs: FrameInputs,
 		startPass: RenderPassEncoder,
 		scissor: ScissorRect?,
+		orderOpacity: Float,
 	): RenderPassEncoder {
 		var pass = startPass
 		for (node in nodes) {
@@ -175,11 +179,14 @@ internal class RenderPlanEncoder(
 						// resume preserving what is drawn so far. Correct on every backend and non-nesting.
 						pass.end()
 						renderMaskCoverage(frame, gpuDrawable.maskIds, inputs)
-						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = scissor))
+						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = scissor, drawOrder = inputs.drawOrderTarget))
 						maskCoverage = sideTargets.maskTarget?.sampledTexture
 					}
 					val isActive = inputs.activeId != null && gpuDrawable.id == inputs.activeId
 					val highlight = if (isActive || gpuDrawable.id in inputs.selectedIds) SELECTION_TINT_STRENGTH else 0f
+					// Only a Normal-blend drawable covers what is behind it; an Additive or Multiply one tints it, so
+					// it writes no order (zero) while keeping its place in the order.
+					val drawOrder = if (gpuDrawable.blendMode == BlendMode.Normal) inputs.drawOrderOf[gpuDrawable.id] ?: 0 else 0
 					drawDrawable(
 						pass,
 						gpuDrawable,
@@ -190,6 +197,8 @@ internal class RenderPlanEncoder(
 						isActive,
 						maskCoverage != null,
 						maskCoverage,
+						drawOrder,
+						orderOpacity,
 					)
 				}
 
@@ -197,7 +206,7 @@ internal class RenderPlanEncoder(
 					if (node.partId in inputs.acceleration.flattenable) {
 						// Identity source-over of an all-Normal/Over subtree: Over is associative,
 						// so the subtree draws inline - no layer, no snapshot, no composite draw.
-						pass = renderPlanNodes(frame, node.children, target, depth, inputs, pass, scissor)
+						pass = renderPlanNodes(frame, node.children, target, depth, inputs, pass, scissor, orderOpacity)
 						continue
 					}
 					// A fully faded non-Out layer composites to the unchanged destination, so skip it
@@ -214,7 +223,7 @@ internal class RenderPlanEncoder(
 						}
 					}
 					pass.end()
-					pass = compositeGroup(frame, node, target, depth, inputs, layerRect, scissor)
+					pass = compositeGroup(frame, node, target, depth, inputs, layerRect, scissor, orderOpacity * poseOpacity)
 				}
 			}
 		}
@@ -235,6 +244,8 @@ internal class RenderPlanEncoder(
 	 *   draw, null for a full-viewport layer (Out alpha or uncomputable bounds).
 	 * @param ScissorRect?        parentScissor [target]'s own scissor (the enclosing layer's rect), null at
 	 *   the top level; the composite-back is confined to it intersected with [layerRect].
+	 * @param Float               orderOpacity  The opacity product the subtree's draws scale their alpha by
+	 *   before the draw-order threshold, this composite's own included.
 	 * @return RenderPassEncoder The fresh open pass on [target] after the composite.
 	 */
 	private fun compositeGroup(
@@ -245,11 +256,16 @@ internal class RenderPlanEncoder(
 		inputs: FrameInputs,
 		layerRect: ScissorRect?,
 		parentScissor: ScissorRect?,
+		orderOpacity: Float,
 	): RenderPassEncoder {
 		val layerTarget = sideTargets.acquireLayer(depth)
+		// The layer's draws write the frame's draw order too: a composite's children cover as they are seen,
+		// while a composite that blends other than Normal over tints, so its children write none.
+		val covers = node.composite.blendMode == BlendMode.Normal && node.composite.alphaBlendMode == AlphaBlendMode.Over
+		val layerOrder = if (covers) inputs.drawOrderTarget else null
 		var subtreePass =
-			frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, inputs.viewportWidth, inputs.viewportHeight, clearAlpha = 0f, scissor = layerRect))
-		subtreePass = renderPlanNodes(frame, node.children, layerTarget, depth + 1, inputs, subtreePass, layerRect)
+			frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, inputs.viewportWidth, inputs.viewportHeight, clearAlpha = 0f, scissor = layerRect, drawOrder = layerOrder))
+		subtreePass = renderPlanNodes(frame, node.children, layerTarget, depth + 1, inputs, subtreePass, layerRect, orderOpacity)
 		subtreePass.end()
 		val masked = node.composite.maskedBy.isNotEmpty()
 		if (masked) {
@@ -388,7 +404,7 @@ internal class RenderPlanEncoder(
 		compositePass.end()
 		// A fresh pass under the ENCLOSING span's scissor - the composite's own scissor must not leak
 		// onto whatever the caller draws next into this target.
-		return frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = continuationScissor))
+		return frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = continuationScissor, drawOrder = inputs.drawOrderTarget))
 	}
 
 	/**
@@ -448,6 +464,10 @@ internal class RenderPlanEncoder(
 	 *   selection's.
 	 * @param Boolean           masked       Whether the draw samples [maskCoverage].
 	 * @param GpuTexture?       maskCoverage The clip mask's coverage, or null when unmasked.
+	 * @param Int               drawOrder    The back-to-front index the draw's covering fragments write into the
+	 *   pass's draw-order target, or 0 for none.
+	 * @param Float             orderOpacity The enclosing composites' opacity product the alpha is scaled by
+	 *   before the order threshold.
 	 */
 	private fun drawDrawable(
 		pass: RenderPassEncoder,
@@ -459,10 +479,14 @@ internal class RenderPlanEncoder(
 		isActive: Boolean,
 		masked: Boolean,
 		maskCoverage: GpuTexture?,
+		drawOrder: Int = 0,
+		orderOpacity: Float = 1f,
 	) {
 		pass.setPipeline(pipelines.drawPipelineFor(gpuDrawable.isGlueMesh, blendMode, gpuDrawable.culling))
 		pass.setCamera(inputs.affine, sideTargets.capacityWidth, sideTargets.capacityHeight)
 		fillFragment(fragmentScratch, gpuDrawable, opacity, highlight, if (isActive) inputs.activeHighlightColor else inputs.highlightColor, masked)
+		fragmentScratch.drawOrder = drawOrder
+		fragmentScratch.orderOpacity = orderOpacity
 		// Reused per draw rather than allocating a bundle per drawable per frame, matching the deform /
 		// fragment scratch. A glue draw does not deform, so it needs no delta / control-point textures.
 		texturesScratch.atlas = gpuDrawable.activeTexture()
@@ -507,6 +531,10 @@ internal class RenderPlanEncoder(
  *   (those outside the edit) draw this frame; the cage draws regardless.
  * @property Float                        wireframeOpacity     The alpha scale the wireframe meshes draw at,
  *   0 to 1; the cage keeps the palette.
+ * @property RenderTarget?                drawOrderTarget      The draw-order target the frame's art passes write
+ *   as their second draw buffer and the wireframe edges cull by, or null when the frame culls nothing.
+ * @property Map<DrawableId, Int>         drawOrderOf          Each drawn drawable's back-to-front index, 1 the
+ *   backmost, which its covering fragments write; empty when the frame culls nothing.
  */
 internal class FrameInputs(
 	val affine: WorldToNdc,
@@ -524,6 +552,8 @@ internal class FrameInputs(
 	val overlayPalette: MeshOverlayPalette,
 	val drawWireframe: Boolean,
 	val wireframeOpacity: Float,
+	val drawOrderTarget: RenderTarget? = null,
+	val drawOrderOf: Map<DrawableId, Int> = emptyMap(),
 )
 
 /**
@@ -538,6 +568,8 @@ internal class FrameInputs(
  * @param Float        clearRed       Clear red; read only when [load] clears.
  * @param Float        clearGreen     Clear green; read only when [load] clears.
  * @param Float        clearBlue      Clear blue; read only when [load] clears.
+ * @param RenderTarget? drawOrder     The draw-order target the pass's art draws write, or null.
+ * @param Boolean      clearDrawOrder Whether the pass clears that target to nothing first.
  * @return RenderPassSpec The spec.
  */
 internal fun passSpec(
@@ -550,6 +582,8 @@ internal fun passSpec(
 	clearRed: Float = 0f,
 	clearGreen: Float = 0f,
 	clearBlue: Float = 0f,
+	drawOrder: RenderTarget? = null,
+	clearDrawOrder: Boolean = false,
 ) = RenderPassSpec(
 	colorTarget = target,
 	loadAction = load,
@@ -560,4 +594,6 @@ internal fun passSpec(
 	clearBlue = clearBlue,
 	clearAlpha = clearAlpha,
 	scissor = scissor,
+	drawOrderTarget = drawOrder,
+	clearDrawOrder = clearDrawOrder,
 )
