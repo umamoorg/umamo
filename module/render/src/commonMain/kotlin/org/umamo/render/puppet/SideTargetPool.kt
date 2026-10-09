@@ -7,9 +7,9 @@ import org.umamo.render.device.TextureFormat
 
 /**
  * The screen-space side targets a frame renders into and samples back: the mask coverage target, the
- * destination snapshot, and one composite layer target per nesting depth.
+ * draw-order target, the destination snapshot, and one composite layer target per nesting depth.
  *
- * All three kinds share ONE capacity, because the composite shader samples layer, snapshot, and mask
+ * All of them share ONE capacity, because the composite shader samples layer, snapshot, and mask
  * through a single screenTexSize divisor - so they must share allocation dims, and they grow together.
  * This class is the one owner of that capacity.
  *
@@ -34,6 +34,14 @@ internal class SideTargetPool(
 		private set
 
 	/**
+	 * The draw-order target the order pass writes and the culling wireframe edges read, each pixel the
+	 * packed back-to-front index of the frontmost covering drawable; null until a frame asks for it through
+	 * [ensureDrawOrder], so a renderer that never culls never holds one.  Rgba8 like the rest, since every
+	 * backend renders to and reads back that format.
+	 */
+	private var drawOrderTarget: RenderTarget? = null
+
+	/**
 	 * The destination snapshot a composite blends against; null until [ensure].  Composites are strictly
 	 * sequential, so a single snapshot suffices.
 	 */
@@ -49,11 +57,11 @@ internal class SideTargetPool(
 		private set
 
 	/**
-	 * Grows the shared side-target capacity (mask + snapshot + composite pool) to hold a
+	 * Grows the shared side-target capacity (mask + draw order + snapshot + composite pool) to hold a
 	 * [viewportWidth] x [viewportHeight] render, per-axis high-water: a request inside the current
 	 * capacity allocates nothing (the per-frame path during a gutter drag), growth destroys the mask,
-	 * snapshot, and pool together and recreates mask + snapshot at the new capacity (the pool refills
-	 * lazily in [acquireLayer]).
+	 * draw order, snapshot, and pool together and recreates mask + snapshot at the new capacity (the
+	 * draw order refills lazily in [ensureDrawOrder], the pool in [acquireLayer]).
 	 *
 	 * @param Int viewportWidth  The render width in pixels.
 	 * @param Int viewportHeight The render height in pixels.
@@ -61,6 +69,8 @@ internal class SideTargetPool(
 	fun ensure(viewportWidth: Int, viewportHeight: Int) {
 		if (viewportWidth > capacityWidth || viewportHeight > capacityHeight) {
 			maskTarget?.let { device.destroyRenderTarget(it) }
+			drawOrderTarget?.let { device.destroyRenderTarget(it) }
+			drawOrderTarget = null
 			layerTargets.forEach { device.destroyRenderTarget(it) }
 			layerTargets.clear()
 			snapshotTarget?.let { device.destroyRenderTarget(it) }
@@ -79,6 +89,18 @@ internal class SideTargetPool(
 				)
 		}
 	}
+
+	/**
+	 * The draw-order target at the shared side-target capacity, allocated on the first frame that culls a
+	 * wireframe and kept until the capacity grows or is released.  Call after [ensure].
+	 *
+	 * @return RenderTarget The draw-order target.
+	 */
+	fun ensureDrawOrder(): RenderTarget =
+		drawOrderTarget
+			?: device.createRenderTarget(RenderTargetSpec(capacityWidth, capacityHeight, TextureFormat.Rgba8, sampled = true)).also { created ->
+				drawOrderTarget = created
+			}
 
 	/**
 	 * The pooled layer target for one composite nesting depth, allocated on first use at the shared
@@ -100,13 +122,15 @@ internal class SideTargetPool(
 	}
 
 	/**
-	 * Frees the mask, destination-snapshot, and composite-layer targets and resets their shared capacity,
+	 * Frees the mask, draw-order, destination-snapshot, and composite-layer targets and resets their shared capacity,
 	 * so the next [ensure] allocates them afresh at its own size.  The capacity is otherwise grow-only;
 	 * this is how a one-off large render gives the memory back.
 	 */
 	fun release() {
 		maskTarget?.let { target -> device.destroyRenderTarget(target) }
 		maskTarget = null
+		drawOrderTarget?.let { target -> device.destroyRenderTarget(target) }
+		drawOrderTarget = null
 		for (target in layerTargets) {
 			device.destroyRenderTarget(target)
 		}

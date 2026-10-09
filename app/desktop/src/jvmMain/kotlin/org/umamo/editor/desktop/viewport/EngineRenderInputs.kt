@@ -1,6 +1,5 @@
 package org.umamo.editor.desktop.viewport
 
-import org.umamo.edit.GridConfig
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
@@ -17,7 +16,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * The render inputs the UI thread pushes and the render thread reads each frame: the selection, the
- * shown set, the model, the atlas pages, the source artwork, the grid, the highlight colors, the mesh
+ * shown set, the model, the atlas pages, the source artwork, the grid colors, the highlight colors, the mesh
  * overlay and its palette, and the supersample policy.  Each is a volatile publish of an immutable value or a plain scalar.  A change
  * to a value the render reads as it draws bumps a render-version counter the loop folds into per-area
  * freshness, so a state-only change (no resize / pose / camera change) still forces exactly one redraw:
@@ -49,10 +48,6 @@ internal class EngineRenderInputs(
 	@Volatile
 	private var gridColorsBacking: GridColors = GridColors.Classic
 
-	// The per-document grid geometry (major spacing + subdivisions), fed from the session.
-	@Volatile
-	private var gridConfigBacking: GridConfig = GridConfig()
-
 	// The currently selected drawables, read by the render thread to tint them.
 	@Volatile
 	private var selectionBacking: Set<DrawableId> = emptySet()
@@ -77,8 +72,9 @@ internal class EngineRenderInputs(
 	// taken up, where a slot would silently drop the first.
 	private val pendingRasterBatches = ConcurrentLinkedQueue<LayerRasterBatch>()
 
-	// The Edit-mode mesh overlay every puppet area draws over the art, or null for none.  Published whole and
-	// compared by identity: the producer hands back the same instance while nothing it shows has changed.
+	// The Edit-mode mesh overlay the puppet areas draw over the art, each unless its frame options turn it off,
+	// or null for none.  Published whole and compared by identity: the producer hands back the same instance
+	// while nothing it shows has changed.
 	@Volatile
 	private var meshOverlayBacking: MeshOverlay? = null
 
@@ -213,20 +209,6 @@ internal class EngineRenderInputs(
 		set(value) {
 			if (value != gridColorsBacking) {
 				gridColorsBacking = value
-				doPuppetRenderBump()
-				doAtlasRenderBump()
-			}
-		}
-
-	/**
-	 * The per-document grid geometry (major spacing + subdivisions). Like the grid colors, a change bumps
-	 * both render passes so a grid-only change repaints without waiting for an unrelated render.
-	 */
-	var gridConfig: GridConfig
-		get() = gridConfigBacking
-		set(value) {
-			if (value != gridConfigBacking) {
-				gridConfigBacking = value
 				doPuppetRenderBump()
 				doAtlasRenderBump()
 			}
@@ -369,11 +351,11 @@ internal class EngineRenderInputs(
 	}
 
 	/**
-	 * Sets the mesh overlay every puppet area draws.  A new instance bumps the puppet render version AFTER
-	 * the value is stored, and the loop hands the value to the renderer only after it reads the version
-	 * for a render, so a publish that lands mid-render always earns that area another one.  The same
-	 * instance again is a no-op: the overlay holds no positions, so nothing a gesture's preview moves
-	 * re-publishes it.
+	 * Sets the mesh overlay the puppet areas draw, each unless its frame options turn it off.  A new
+	 * instance bumps the puppet render version AFTER the value is stored, and the loop hands the value to
+	 * the renderer only after it reads the version for a render, so a publish that lands mid-render always
+	 * earns that area another one.  The same instance again is a no-op: the overlay holds no positions, so
+	 * nothing a gesture's preview moves re-publishes it.
 	 *
 	 * @param MeshOverlay? overlay The overlay, or null for none.
 	 */

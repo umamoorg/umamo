@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions: the
- * 2D and UV cursors, the transform pivot mode, the viewport grid, and proportional editing with the
- * configuration it re-enables with.  Apart from the transient latches ([ToolLatches]) because these are
+ * 2D and UV cursors, the transform pivot mode, and proportional editing with the configuration it
+ * re-enables with.  Apart from the transient latches ([ToolLatches]) because these are
  * what [seed] lays in from a saved [SessionViewState] and what the session's viewState() gathers back; the
  * public face is [SessionToolSettings], which [EditorSession] delegates to this one instance.
  *
@@ -28,20 +28,6 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 
 	/** What a modal Scale / Rotate turns the selection about (see [SessionToolSettings.pivotMode]). */
 	override val pivotMode: StateFlow<TransformPivotMode> = mutablePivotMode.asStateFlow()
-
-	private val mutableGridConfig = MutableStateFlow(GridConfig())
-
-	/** The viewport grid geometry driving the backdrop and grid snap (see [SessionToolSettings.gridConfig]). */
-	override val gridConfig: StateFlow<GridConfig> = mutableGridConfig.asStateFlow()
-
-	/**
-	 * Sets the viewport grid geometry.
-	 *
-	 * @param GridConfig config The new grid scale and subdivisions.
-	 */
-	override fun setGridConfig(config: GridConfig) {
-		mutableGridConfig.value = config
-	}
 
 	private val mutableProportionalEdit = MutableStateFlow<ProportionalEditState?>(null)
 
@@ -174,8 +160,8 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 
 	/**
 	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, proportional editing with the
-	 * configuration it would re-enable with, and the document's own grid when it saved one.  Called once, as the
-	 * session is built, so nothing here is a gesture and nothing here posts a notice.
+	 * configuration it would re-enable with.  Called once, as the session is built, so nothing here is a gesture
+	 * and nothing here posts a notice.
 	 *
 	 * @param SessionViewState viewState The saved state, already fitted to the model.
 	 */
@@ -187,6 +173,5 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 			lastProportionalEdit = settings.copy(radiusWorld = clampProportionalRadius(settings.radiusWorld))
 		}
 		mutableProportionalEdit.value = lastProportionalEdit.takeIf { viewState.proportionalEnabled }
-		viewState.gridConfig?.let { config -> mutableGridConfig.value = config }
 	}
 }

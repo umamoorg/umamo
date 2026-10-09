@@ -18,6 +18,7 @@ import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
+import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.UvSceneContent
@@ -58,13 +59,13 @@ private const val BUSY_MILLIS = 1L
  * framebuffers, and the async read-back pool, and runs the render loop.  Each tick it collects the
  * read-backs that finished, hands the renderer what the UI thread published through [inputs] since the
  * last tick (pages and model as one pair, the artwork mapping and its pixels, the pose), serves the image
- * captures, and renders each registered area whose pose / size / camera / scene content / backdrop
+ * captures, and renders each registered area whose pose / size / camera / scene content / render options
  * changed, publishing finished frames to the area's slot.
  *
  * The read-back is asynchronous (PBO + fence) so the thread never blocks on the GPU while a slider drags.
  * Every 2D area of one document shows the same puppet at the same pose (the shared [liveParams]), so those
- * areas differ only by size and camera; re-renders happen only when the pose or an area's
- * size / camera / scene content / backdrop changes.
+ * areas differ only by size, camera, and render options; re-renders happen only when the pose or an area's
+ * size / camera / scene content / render options change.
  *
  * Everything from [renderLoop] down runs on the render thread: the hand-off state is plain fields of
  * this class, and the collaborators holding GL objects or render-thread bookkeeping are never touched
@@ -88,13 +89,9 @@ internal class OffscreenRenderEngine(
 	// The GL backend the renderer draws through; render-thread-owned, like every GL object here.
 	private val device = GlRenderDevice()
 
-	// The renderer and its GL handles, owned by the render thread.
-	private val renderer =
-		PuppetRenderer(puppet, textures, device).apply {
-			// The editor viewport shows the world-origin axes (red X / blue Z behind the puppet); the
-			// renderer default is off so headless render-diff tests stay line-free.
-			setWorldAxesVisible(true)
-		}
+	// The renderer and its GL handles, owned by the render thread.  What each frame draws beyond the scene
+	// (the grid lines, the world axes, the mesh overlay, the wireframe) is each area's own, handed over per render.
+	private val renderer = PuppetRenderer(puppet, textures, device)
 
 	/** The shared renderer, exposed so the facade can build the CPU picker over its pickGeometry()/drawnOrder(). */
 	val puppetRenderer: PuppetRenderer
@@ -173,10 +170,11 @@ internal class OffscreenRenderEngine(
 	 * @param Int            width    The image width in pixels.
 	 * @param Int            height   The image height in pixels.
 	 * @param FrameBackdrop  backdrop What the puppet is drawn over.
+	 * @param AreaOverlays   overlays The grid geometry, and the grid lines and axes a grid backdrop draws.
 	 * @return Deferred<RasterImage?> The premultiplied pixels, top row first, or null.
 	 */
-	fun requestSnapshot(camera: ViewportCamera, width: Int, height: Int, backdrop: FrameBackdrop): Deferred<RasterImage?> =
-		snapshots.request(camera, width, height, backdrop)
+	fun requestSnapshot(camera: ViewportCamera, width: Int, height: Int, backdrop: FrameBackdrop, overlays: AreaOverlays): Deferred<RasterImage?> =
+		snapshots.request(camera, width, height, backdrop, overlays)
 
 	/**
 	 * The render thread body: create the context, then loop - collect finished read-backs, hand the
@@ -292,17 +290,15 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
-	 * Serves every queued image capture with the state just handed to the renderer.  A capture over the
-	 * grid applies the grid the same way an area render does; the renderer's camera, scale, and selection
-	 * are left as the capture found them, and every area render sets its own anyway.
+	 * Serves every queued image capture with the state just handed to the renderer.  A capture applies the
+	 * grid geometry and the frame overlays its request carries - the exporting area's - the same way an area
+	 * render does; the renderer's camera, scale, and selection are left as the capture found them, and every
+	 * area render sets its own anyway.
 	 */
 	private fun serveSnapshots() {
-		snapshots.serve(stillRunning) { camera, width, height, backdrop ->
-			if (backdrop == FrameBackdrop.Grid) {
-				val gridConfigApplied = inputs.gridConfig
-				renderer.setGrid(inputs.gridColors, gridConfigApplied.scale, gridConfigApplied.subdivisions)
-			}
-			renderer.renderSnapshot(camera, width, height, backdrop, shouldContinue = stillRunning)
+		snapshots.serve(stillRunning) { camera, width, height, backdrop, overlays ->
+			renderer.setGrid(inputs.gridColors, overlays.grid.scale, overlays.grid.subdivisions)
+			renderer.renderSnapshot(camera, width, height, backdrop, shouldContinue = stillRunning, overlays = overlays.frame)
 		}
 	}
 
@@ -400,13 +396,15 @@ internal class OffscreenRenderEngine(
 		// is display-size whatever the scale, so read-back consumers never see the quality switch.
 		renderer.setRenderScale(renderScale.toFloat())
 
-		// Capture the backdrop versions applied to this render so the freshness stamp below matches what was
+		// Capture the render versions applied to this render so the freshness stamp below matches what was
 		// actually drawn; a change after this point bumps them again and re-renders next iteration.
 		val puppetRenderBumpDone = inputs.puppetRenderBump
 		val atlasRenderBumpDone = inputs.atlasRenderBump
 
-		val gridConfigApplied = inputs.gridConfig
-		renderer.setGrid(inputs.gridColors, gridConfigApplied.scale, gridConfigApplied.subdivisions)
+		// Read once, drawn and stamped from the same value, like the UV content below: the area's grid geometry
+		// and the overlays its frame draws.
+		val overlays = slot.overlays
+		renderer.setGrid(inputs.gridColors, overlays.grid.scale, overlays.grid.subdivisions)
 		renderer.setSelection(inputs.selection)
 		renderer.setActiveSelection(inputs.activeSelection)
 		// Read AFTER the versions above, like the selection: a publish stores its value before it bumps, so one
@@ -427,7 +425,7 @@ internal class OffscreenRenderEngine(
 		// not show.
 		val uvContent = slot.uvContent
 		when (slot.scene) {
-			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight)
+			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight, overlays = overlays.frame)
 			// A UV area draws its flat surface and the overlay its content carries instead; the pose / selection /
 			// shown state pushed above are harmless no-ops for it (no UV draw reads any of them).  The overlay's
 			// positions upload into the area's own store, keyed by the area id.
@@ -444,12 +442,13 @@ internal class OffscreenRenderEngine(
 							areaId,
 							uvContent.overlay,
 							placementToDraw(uvContent.placement, appliedAtlasBinding.atlas),
+							overlays.frame,
 						)
 					// Artwork the engine has never uploaded, so the renderer takes the pixels rather than an
 					// index and caches the texture it makes from them.
 					is UvSceneContent.SourceLayer ->
-						renderer.renderUnderlayImage(drawTarget, uvContent.image, renderWidth, renderHeight, areaId, uvContent.overlay)
-					null -> renderer.renderAtlasPage(drawTarget, null, renderWidth, renderHeight, areaId, null)
+						renderer.renderUnderlayImage(drawTarget, uvContent.image, renderWidth, renderHeight, areaId, uvContent.overlay, overlays.frame)
+					null -> renderer.renderAtlasPage(drawTarget, null, renderWidth, renderHeight, areaId, null, null, overlays.frame)
 				}
 		}
 
@@ -471,6 +470,7 @@ internal class OffscreenRenderEngine(
 		slot.puppetRenderBumpDone = puppetRenderBumpDone
 		slot.atlasRenderBumpDone = atlasRenderBumpDone
 		slot.renderedUvContent = uvContent
+		slot.renderedOverlays = overlays
 	}
 
 	/**

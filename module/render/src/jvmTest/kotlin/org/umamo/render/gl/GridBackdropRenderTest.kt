@@ -26,6 +26,7 @@ import org.umamo.runtime.model.PuppetModel
 import java.nio.ByteBuffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -175,6 +176,53 @@ class GridBackdropRenderTest {
 		val farLeft = puppetFrame.at(20, 175)
 		assertTrue(farLeft[1] < 60 && farLeft[2] < 60, "the 2D grid has no surround, read $farLeft")
 	}
+
+	/**
+	 * A UV scene's grid draws its major lines at the area's scale, in texels, anchored at the image's corner:
+	 * two scales over one 100-texel layer put the lines at different columns, and an edge that falls mid-cell
+	 * gets no line of its own.  The layer sits at columns 150 to 250 (world x at column 150 + x) as in the
+	 * surround test; one subdivision, so only the major lines show, red on black.
+	 */
+	@Test
+	fun aUvGridDrawsItsMajorLinesAtTheAreasScale() {
+		requireHeadlessGl("[grid-backdrop]")
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		renderer.setPose(emptyMap())
+		renderer.setCamera(ViewportCamera(50f, 50f, 1f))
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val surface = DecodedImage(ByteArray(100 * 100 * 4), 100, 100)
+		val redOnBlack = GridColors(0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 0f)
+		val row = 175
+
+		renderer.setGrid(redOnBlack, 40f, subdivisions = 1)
+		renderer.renderUnderlayImage(target, surface, viewportSize, viewportSize)
+		val atForty = device.readPixels(target)
+		assertTrue(atForty.hasRedNear(190, row) && atForty.hasRedNear(230, row), "at a scale of 40 the lines fall 40 texels from the corner")
+		assertFalse(atForty.hasRedNear(210, row), "and 60 texels in is mid-cell")
+
+		renderer.setGrid(redOnBlack, 30f, subdivisions = 1)
+		renderer.renderUnderlayImage(target, surface, viewportSize, viewportSize)
+		val atThirty = device.readPixels(target)
+		assertTrue(atThirty.hasRedNear(180, row) && atThirty.hasRedNear(210, row) && atThirty.hasRedNear(240, row), "at a scale of 30 the lines fall 30 texels apart")
+		assertFalse(atThirty.hasRedNear(190, row), "where the 40-scale line was, nothing")
+	}
+
+	/**
+	 * True when any pixel within [radius] columns of [column] on [row] reads clearly red (a major grid line),
+	 * in a frame read top row first.
+	 *
+	 * @param Int column The column.
+	 * @param Int row The row from the top.
+	 * @param Int radius How many columns either side to probe.
+	 * @return Boolean True when a red line is there.
+	 */
+	private fun RasterImage.hasRedNear(column: Int, row: Int, radius: Int = 2): Boolean =
+		(column - radius..column + radius).any { probe ->
+			val pixel = at(probe, row)
+			pixel[0] > pixel[1] + 60 && pixel[0] > pixel[2] + 60
+		}
 
 	/**
 	 * One pixel's channels, top row first.

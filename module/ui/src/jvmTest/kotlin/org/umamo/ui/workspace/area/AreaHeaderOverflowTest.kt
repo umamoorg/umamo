@@ -1,36 +1,17 @@
 package org.umamo.ui.workspace.area
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.width
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import org.umamo.edit.EditorSession
 import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.action.CommandRegistry
-import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.action.LocalKeymap
-import org.umamo.ui.action.defaultKeymap
-import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalPuppet
-import org.umamo.ui.theme.UmamoTheme
-import org.umamo.ui.workspace.AreaScope
-import org.umamo.ui.workspace.LocalSpaceRegistry
 import org.umamo.ui.workspace.SpaceKind
-import org.umamo.ui.workspace.layout.LeafArea
-import org.umamo.ui.workspace.shell.defaultSpaceRegistry
 import kotlin.test.Test
 
 /**
@@ -70,7 +51,7 @@ class AreaHeaderOverflowTest {
 	@Test
 	fun theViewportHeaderCollapsesIntoAnOpenablePanel() {
 		runComposeUiTest {
-			setHeader(kind = SpaceKind.Viewport2D, headerWidth = MIN_AREA_WIDTH)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = MIN_AREA_WIDTH)
 			onNodeWithContentDescription(MORE_LABEL, useUnmergedTree = true).assertExists()
 			onNodeWithContentDescription(MORE_LABEL, useUnmergedTree = true).performClick()
 			waitForIdle()
@@ -91,7 +72,7 @@ class AreaHeaderOverflowTest {
 	@Test
 	fun theOutlinerKeepsItsSearchAndFilterOnATightStrip() {
 		runComposeUiTest {
-			setHeader(kind = SpaceKind.Outliner, headerWidth = 260.dp, puppet = mutableStateOf(emptyPuppet()))
+			setAreaHeader(kind = SpaceKind.Outliner, headerWidth = 260.dp, puppet = mutableStateOf(emptyHeaderPuppet()))
 			onNodeWithContentDescription(FILTERS_LABEL, useUnmergedTree = true).assertExists()
 			onNodeWithContentDescription(MORE_LABEL, useUnmergedTree = true).assertDoesNotExist()
 		}
@@ -105,32 +86,16 @@ class AreaHeaderOverflowTest {
 	@Test
 	fun theUvHeadersLayerPickerAppearsWithTheFirstArtwork() {
 		runComposeUiTest {
-			val puppet = mutableStateOf<PuppetModel?>(emptyPuppet())
-			setHeader(kind = SpaceKind.UvEditor, headerWidth = 900.dp, puppet = puppet)
+			val puppet = mutableStateOf<PuppetModel?>(emptyHeaderPuppet())
+			setAreaHeader(kind = SpaceKind.UvEditor, headerWidth = 900.dp, puppet = puppet)
 			onNodeWithContentDescription(LAYER_PICKER_LABEL, useUnmergedTree = true).assertDoesNotExist()
 
-			puppet.value = emptyPuppet().copy(atlas = PuppetAtlas(tiles = listOf(AtlasTile(AtlasTileId("tile-0"), "Art", 4, 4))))
+			puppet.value = emptyHeaderPuppet().copy(atlas = PuppetAtlas(tiles = listOf(AtlasTile(AtlasTileId("tile-0"), "Art", 4, 4))))
 			waitForIdle()
 
 			onNodeWithContentDescription(LAYER_PICKER_LABEL, useUnmergedTree = true).assertExists()
 		}
 	}
-
-	/**
-	 * A document with no content - enough to satisfy the headers' open-document gate, which is all these
-	 * layout assertions need.
-	 *
-	 * @return PuppetModel The empty document.
-	 */
-	private fun emptyPuppet(): PuppetModel =
-		PuppetModel(
-			parameters = emptyList(),
-			parts = emptyList(),
-			deformers = emptyList(),
-			drawables = emptyList(),
-			rootChildren = emptyList(),
-			rootPartId = null,
-		)
 
 	/**
 	 * Composes one space's real header inside a fixed-width box and settles it.
@@ -141,41 +106,8 @@ class AreaHeaderOverflowTest {
 	@OptIn(ExperimentalTestApi::class)
 	private fun composeHeader(kind: SpaceKind, headerWidth: Dp) {
 		runComposeUiTest {
-			setHeader(kind = kind, headerWidth = headerWidth)
+			setAreaHeader(kind = kind, headerWidth = headerWidth)
 		}
-	}
-
-	/**
-	 * Mounts one space's real header, with the command registry and keymap its controls read.
-	 *
-	 * By default no puppet and no session are provided, which is the no-document state every header already
-	 * handles - the viewport chips render disabled and the panel headers render nothing.  A puppet comes
-	 * with a session over it, as the app provides the two together.
-	 *
-	 * @param SpaceKind    kind        The space whose header strip to mount.
-	 * @param Dp           headerWidth The width the header is given.
-	 * @param State        puppet      The open document, or null for the no-document state; a case that
-	 *   writes it publishes a model, as an edit does.
-	 */
-	@OptIn(ExperimentalTestApi::class)
-	private fun ComposeUiTest.setHeader(kind: SpaceKind, headerWidth: Dp, puppet: State<PuppetModel?> = mutableStateOf(null)) {
-		setContent {
-			val session = remember { puppet.value?.let { model -> EditorSession(model) } }
-			UmamoTheme {
-				CompositionLocalProvider(
-					LocalSpaceRegistry provides defaultSpaceRegistry(),
-					LocalCommands provides CommandRegistry(),
-					LocalKeymap provides defaultKeymap(),
-					LocalPuppet provides puppet.value,
-					LocalEditorSession provides session,
-				) {
-					Box(modifier = Modifier.width(headerWidth)) {
-						AreaHeader(area = LeafArea("area-1", kind), scope = AreaScope("area-1"), onCommand = {})
-					}
-				}
-			}
-		}
-		waitForIdle()
 	}
 
 	private companion object {

@@ -8,6 +8,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.ActiveMeshInfoLabel
+import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.ModalOperatorBadge
 import org.umamo.ui.viewport.ViewportZoomBadge
 import kotlin.math.roundToInt
@@ -64,7 +65,10 @@ fun ViewportHudOverlay(
 	}
 
 	// The area-wide info chips: the top-left active-mesh label and the bottom-left zoom readout.  The
-	// UV editor gets the same chips through its own assembly, UvHudOverlay.
-	ActiveMeshInfoLabel(session = session, modifier = modifier)
-	ViewportZoomBadge(camera = liveCamera, modifier = modifier)
+	// UV editor gets the same chips through its own assembly, UvHudOverlay.  They are what the area's
+	// General Information overlay toggle covers; the operator badge above is feedback and always shows.
+	if (LocalAreaOverlays.current?.effectiveInfo != false) {
+		ActiveMeshInfoLabel(session = session, modifier = modifier)
+		ViewportZoomBadge(camera = liveCamera, modifier = modifier)
+	}
 }

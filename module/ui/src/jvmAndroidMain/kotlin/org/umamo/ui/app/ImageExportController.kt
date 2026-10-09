@@ -25,6 +25,7 @@ import org.umamo.ui.resources.export_options_image_no_canvas
 import org.umamo.ui.resources.export_options_image_no_viewport
 import org.umamo.ui.resources.export_options_image_nothing_visible
 import org.umamo.ui.resources.export_options_image_too_large
+import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.ImageExportOptions
 import org.umamo.ui.viewport.ImageFrameResult
 import org.umamo.ui.viewport.MAX_IMAGE_EDGE
@@ -112,7 +113,10 @@ internal class ImageExportController(
 		puppet.session.emitNotice("notice.document.exportingImage", NoticePlacement.StatusBar)
 		val bytes =
 			try {
-				val image = service.renderImage(frame, options.frameBackdrop())
+				// A grid capture draws the grid and the axes as the viewport it frames shows them; with no viewport
+				// behind the export, the editor's defaults.
+				val overlays = viewportAreaId?.let { areaId -> service.areaOverlays(areaId) } ?: AreaOverlays.Default
+				val image = service.renderImage(frame, options.frameBackdrop(), overlays)
 				if (image == null) {
 					alert(destination, getString(Res.string.export_image_failed_renderer))
 					return

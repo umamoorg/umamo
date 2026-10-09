@@ -12,6 +12,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
+import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.RelationField
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons

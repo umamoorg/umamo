@@ -16,8 +16,6 @@ package org.umamo.render.glsl
  * No vertex buffer - the three corners are derived from `gl_VertexID`, so no attributes are needed (and
  * on a core profile, only an empty VAO).
  *
- * 頂点バッファ無しの全画面パス。三角形の頂点は gl_VertexID から生成する。
- *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  */
@@ -36,9 +34,7 @@ internal fun gridVertexShader(dialect: GlslDialect): String =
  * Each fragment recovers its world position by inverting the same world-to-NDC affine the puppet is
  * projected through, then draws anti-aliased lines wherever that world coord is near a multiple of the
  * major or minor spacing.  Colors and spacings arrive as uniforms so the backdrop follows the editor
- * theme and the per-document grid config.  Opaque, so it both clears and paints in one pass.
- *
- * ワールド整列グリッド。worldToNdc を逆変換して各フラグメントのワールド座標を求め、主線・副線を描く。
+ * theme and the per-viewport grid config.  Opaque, so it both clears and paints in one pass.
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
@@ -113,8 +109,6 @@ internal fun gridFragmentShader(dialect: GlslDialect): String =
  *
  * The two endpoints come from `gl_VertexID` (-1 / +1 along the line); the fixed coordinate and the
  * orientation arrive as uniforms, so one program draws both axes.
- *
- * 軸線 1 本を描くパス。端点は gl_VertexID から生成し、固定座標と向きは uniform で受け取る。
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.

@@ -19,6 +19,9 @@ import org.umamo.edit.UvSnapRequest
 import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginUvOperator
 import org.umamo.edit.transform.snapToGrid
+import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.viewport.OverlaySurface
+import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
@@ -49,6 +52,9 @@ class UvEditGizmoRequestsTest {
 		val pointerByArea: Map<String, MutableState<Offset>>,
 	)
 
+	/** The left area's overlay state, given a grid of its own (a 50-texel step) so a snap there proves it took the area's, not the built-in. */
+	private val leftOverlays = ViewportOverlayState(OverlaySurface.UvEditor).apply { gridGeometry = GridConfig(200f, 4) }
+
 	/**
 	 * Starts a collector for the left and the right area over [session], both showing the rig's page, in the
 	 * test's background scope.
@@ -74,6 +80,7 @@ class UvEditGizmoRequestsTest {
 					camera = mutableStateOf(UV_RIG_PAGE_CAMERA),
 					size = mutableStateOf(UV_RIG_AREA_SIZE),
 					areaPointer = pointer,
+					overlays = if (areaId == LEFT_AREA) leftOverlays else null,
 				)
 			}
 		}
@@ -177,8 +184,9 @@ class UvEditGizmoRequestsTest {
 		runTest {
 			val areas = collectInTwoAreas(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
 			areas.geometriesByArea.getValue(LEFT_AREA).value = emptyList()
-			val subdivisions = areas.session.gridConfig.value.subdivisions.coerceAtLeast(1)
-			val gridStep = UV_RIG_PAGE_SIDE.toFloat() / subdivisions
+			// The left area's own grid, not the built-in: a 200-texel scale over four subdivisions, a 50-texel step.
+			val gridStep = leftOverlays.grid.snapStep
+			assertEquals(50f, gridStep)
 
 			areas.session.setUvCursor(100.4f / 256, 1f - 100.4f / 256)
 			areas.session.requestUvSnap(UvSnapRequest(UvSnapKind.CursorToPixels, LEFT_AREA))

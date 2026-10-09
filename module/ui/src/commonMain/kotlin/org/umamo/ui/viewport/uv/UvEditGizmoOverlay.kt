@@ -29,6 +29,7 @@ import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
+import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
@@ -137,8 +138,9 @@ internal fun UvEditGizmoOverlay(
 	// is the empty-surface return - a shown page or layer holding none of the edit's meshes - so a request
 	// there answers with a notice rather than with nothing at all.  The pointer comes from the HOST area,
 	// since the overlay's own pointer loop is not mounted past that guard.
-	LaunchedEffect(session, areaId) {
-		collectUvEditGizmoRequests(areaId, session, liveGeometries, liveFrame, liveCamera, liveSize, areaPointer)
+	val overlays = LocalAreaOverlays.current
+	LaunchedEffect(session, areaId, overlays) {
+		collectUvEditGizmoRequests(areaId, session, liveGeometries, liveFrame, liveCamera, liveSize, areaPointer, overlays)
 	}
 
 	if (geometries.isEmpty()) {

@@ -35,7 +35,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.GridConfig
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
@@ -60,8 +59,10 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.viewport.AreaCameraKey
+import org.umamo.ui.viewport.AreaOverlaysPublisher
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
+import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.OverlapPickerPopup
 import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PuppetViewportService
@@ -88,7 +89,7 @@ import org.umamo.ui.workspace.ViewportHost
 /**
  * The viewport host plus its render service and preview seams, returned together so the app can inject
  * the host into the editor shell and provide the service / thumbnails / render-sync into their locals.
- * The per-area camera controllers are no longer carried here - each viewport / UV leaf registers its own
+ * The per-area camera controllers are not carried here: each viewport / UV leaf registers its own
  * into the shared AreaCameraHub, and the view commands resolve the hovered area through that hub.
  *
  * @property ViewportHost host The Viewport2D host injected into the editor shell.
@@ -270,14 +271,16 @@ fun rememberPuppetViewportHost(
 			service.setShownDrawables(model.visibleDrawableIds())
 		}
 	}
-	// The Edit-mode mesh overlay the renderer draws over the art in every 2D area: derived off the UI thread
-	// from the mode, the mesh selection (or a live brush stroke), and the model, and published only when what
-	// it shows changes - a Grab's preview pushes and its confirm move positions, which the overlay does not
-	// carry.  The sizes reach the running derive as a flow rather than as an effect key, so a density change
-	// never restarts it mid-derive.
+	// The mesh overlay the renderer draws over the art in every 2D area - the Edit cage, and the wireframe of
+	// the shown meshes while some area asks for it: derived off the UI thread from the mode, the mesh selection
+	// (or a live brush stroke), the model, and the areas' demand, and published only when what it shows
+	// changes - a Grab's preview pushes and its confirm move positions, which the overlay does not carry.  The
+	// sizes reach the running derive as a flow rather than as an effect key, so a density change never
+	// restarts it mid-derive; the demand is keyed on the service, as the areas that fill it are.
 	val meshOverlaySizes = rememberUpdatedState(editMeshOverlaySizes(LocalDensity.current))
+	val wireframeDemand = remember(service) { WireframeDemand() }
 	LaunchedEffect(service, session) {
-		publishEditMeshOverlay(service, session, snapshotFlow { meshOverlaySizes.value })
+		publishMeshOverlay(service, session, snapshotFlow { meshOverlaySizes.value }, wireframeDemand.wanted)
 	}
 	// How many drawables have no usable artwork: the mapping failures the plan knows up front, plus the
 	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
@@ -396,16 +399,6 @@ fun rememberPuppetViewportHost(
 			val (activeRed, activeGreen, activeBlue) =
 				parseSelectionHighlightColor(settings.getString(ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY))
 			service.setActiveSelectionHighlightColor(activeRed, activeGreen, activeBlue)
-			// Resolve the global-default grid geometry into the session, the single source of truth the
-			// snap commands and the renderer both read.  A grid the document saved for itself takes precedence
-			// (docs/format/UMA.md § 7.4); a document without one - every CMO3 and MOC3 - keeps this default.
-			if (session.gridFollowsApplication) {
-				val gridScale =
-					(settings.getDouble(ViewportSettings.GRID_SCALE_KEY) ?: ViewportSettings.GRID_SCALE_DEFAULT).toFloat()
-				val gridSubdivisions =
-					settings.getInt(ViewportSettings.GRID_SUBDIVISIONS_KEY) ?: ViewportSettings.GRID_SUBDIVISIONS_DEFAULT
-				session.setGridConfig(GridConfig(gridScale, gridSubdivisions))
-			}
 		}
 		applyViewportSettings()
 		settings.changes.collect { key ->
@@ -413,11 +406,6 @@ fun rememberPuppetViewportHost(
 				applyViewportSettings()
 			}
 		}
-	}
-	// Feed the per-document grid geometry (the session's single source of truth, resolved from settings /
-	// per-file) into the render service so the drawn backdrop grid matches the snap increment.
-	LaunchedEffect(service, session) {
-		session.gridConfig.collect { config -> service.gridConfig = config }
 	}
 	// Feed the themed grid-backdrop colors into the service and keep them live: LocalUmamoColors already
 	// resolves the active scheme (including "system"), so a theme switch recomposes with new colors and this
@@ -463,6 +451,12 @@ fun rememberPuppetViewportHost(
 					// a slot remembered across a service swap would keep collecting the disposed engine's
 					// flows and never register with the live one.
 					val imageFlow = remember(areaId, service) { service.register(areaId) }
+					// The area's render options - its grid geometry and which overlays its frames draw - follow
+					// the overlay state the body provides through the local; a standalone shell provides none.
+					// The same state says whether this area asks for the wireframe the document's overlay carries.
+					val overlayState = LocalAreaOverlays.current
+					AreaOverlaysPublisher(service, areaId, overlayState)
+					WireframeDemandPublisher(wireframeDemand, areaId, overlayState)
 					val cameraFlow = remember(areaId, service) { service.cameraFlow(areaId) }
 					DisposableEffect(areaId, service) {
 						onDispose { service.unregister(areaId) }
@@ -490,7 +484,7 @@ fun rememberPuppetViewportHost(
 					var overlap by remember(areaId) { mutableStateOf<OverlapState?>(null) }
 					// Where the pointer last was in this area, tracked at the HOST rather than inside a gizmo
 					// overlay.  A pointer-addressed command (Alt+Q switch-object, rip, select-linked) has to
-					// know where the cursor is, and the overlays that used to own that knowledge do not mount
+					// know where the cursor is, and a gizmo overlay holding that knowledge would not mount
 					// in the very states those commands exist to escape - Edit mode with every selected
 					// drawable behind a hidden ancestor, say.  Tracked here, it survives them.
 					val areaPointer = remember(areaId) { mutableStateOf(Offset.Zero) }

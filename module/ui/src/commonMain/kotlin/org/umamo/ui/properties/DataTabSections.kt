@@ -56,6 +56,9 @@ import org.umamo.ui.graphics.toColorRgb
 import org.umamo.ui.graphics.toComposeColor
 import org.umamo.ui.kit.field.HexColorField
 import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.PropertyCheckboxRow
+import org.umamo.ui.kit.field.PropertyFieldRow
+import org.umamo.ui.kit.field.PropertyLine
 import org.umamo.ui.kit.field.SelectField
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons

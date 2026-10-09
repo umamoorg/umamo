@@ -8,7 +8,9 @@ import kotlinx.coroutines.launch
 import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
 import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
@@ -31,6 +33,8 @@ import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
  * @param State<IntSize> size The area size in pixels.
  * @param State<Offset> areaPointer Where the pointer last was in the area, tracked by the host.
  * @param Function onOverlapRequest Opens the overlap-picker popup for an Alt+Q over 2+ stacked candidates.
+ * @param ViewportOverlayState? overlays The area's overlay state, whose grid a grid snap rounds to; null (no
+ *   area state, a standalone shell) rounds to the built-in grid.
  */
 internal suspend fun collectEditGizmoRequests(
 	areaId: String,
@@ -41,6 +45,7 @@ internal suspend fun collectEditGizmoRequests(
 	size: State<IntSize>,
 	areaPointer: State<Offset>,
 	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
+	overlays: ViewportOverlayState?,
 ) {
 	coroutineScope {
 		// Select Linked (Blender's L / Ctrl+L).
@@ -90,7 +95,7 @@ internal suspend fun collectEditGizmoRequests(
 					return@collect
 				}
 				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
-				handleEditSnapRequest(session, editable, request.kind)
+				handleEditSnapRequest(session, editable, request.kind, (overlays?.grid ?: GridConfig()).snapStep)
 			}
 		}
 	}

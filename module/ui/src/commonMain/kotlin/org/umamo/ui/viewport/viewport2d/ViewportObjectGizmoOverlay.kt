@@ -27,6 +27,7 @@ import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
+import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.applyOperator
@@ -206,9 +207,11 @@ fun ViewportObjectGizmoOverlay(
 	// The geometry-dependent Shift+S snaps for Object mode over the selected drawables' centroids.
 	// Only the pointer's own area executes: every open 2D viewport composes this collector, and an
 	// ungated request would commit once per viewport.
-	// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election.
-	LaunchedEffect(session) {
-		collectObjectGizmoRequests(areaId, session)
+	// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election;
+	// the grid snap reads this area's grid.
+	val overlays = LocalAreaOverlays.current
+	LaunchedEffect(session, overlays) {
+		collectObjectGizmoRequests(areaId, session, overlays)
 	}
 
 	Box(

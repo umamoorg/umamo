@@ -16,6 +16,11 @@
 6.) (Everything required for glue, deformers, and so on.)
 7.) UMA Format (Phase G - Art Sourcing Pipeline) - Mostly done, a few final pieces to go through.
 
+## WORK STEPS - 2026-10-09
+1.) Icon Conversion Script
+2.) Proportional Header Menu Clean Up
+3.) Pie Menu Icons
+
 ## VERY IMPORTANT
 * Hire translators for localization.
 * Final pass on keyboard shortcuts.
@@ -57,17 +62,10 @@
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
 
-## Overlays Toggle
-* Overlay visibility toggles from viewport header.
-	* Icon based PopupChip
-	* Grid - Ability to change scale and divisions.
-	* 2D Cursor
-	* Sections: Guides, Text, Geometry
-	* Toggles for:
-		* Guides: Grid, X/Z Axis
-		* Text: General Information
-		* Geometry: Wireframe (Object Mode)
-
+## Overlay Toggles
+* Improvements
+	* Objects:
+		* Deformers (Deferred until deformer overlays are built after this work.)
 
 ## Object and Mesh Editing
 * Improvements

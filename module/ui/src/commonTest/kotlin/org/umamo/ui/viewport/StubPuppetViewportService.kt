@@ -3,7 +3,6 @@ package org.umamo.ui.viewport
 import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import org.umamo.edit.GridConfig
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
 import org.umamo.render.FrameBackdrop
@@ -38,6 +37,12 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every UV scene content published through [setUvSceneContent], in order. */
 	val pushedUvContents = ArrayList<UvContentPush>()
 
+	/** Every per-area render option push through [setAreaOverlays], in order, as the area and its options. */
+	val pushedAreaOverlays = ArrayList<Pair<String, AreaOverlays>>()
+
+	/** Every capture asked through [renderImage], in order, as its backdrop and the overlays it was to draw. */
+	val renderImageRequests = ArrayList<Pair<FrameBackdrop, AreaOverlays>>()
+
 	/** What [pickAllAt] answers per area, front-most first; an area with no entry answers nothing. */
 	val stackByArea = HashMap<String, List<PickCandidate>>()
 
@@ -63,8 +68,6 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	override var supersampleWhileResizing: Boolean = false
 
 	override var gridColors: GridColors = GridColors.Classic
-
-	override var gridConfig: GridConfig = GridConfig()
 
 	/**
 	 * Registers nothing; no frame ever lands.
@@ -94,6 +97,24 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	override fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?) {
 		pushedUvContents.add(UvContentPush(areaId, content, islandExtent))
 	}
+
+	/**
+	 * Records the render options an area publishes.
+	 *
+	 * @param String areaId The area.
+	 * @param AreaOverlays overlays The options.
+	 */
+	override fun setAreaOverlays(areaId: String, overlays: AreaOverlays) {
+		pushedAreaOverlays.add(areaId to overlays)
+	}
+
+	/**
+	 * The render options an area last published.
+	 *
+	 * @param String areaId The area.
+	 * @return AreaOverlays? The area's last push, or null.
+	 */
+	override fun areaOverlays(areaId: String): AreaOverlays? = pushedAreaOverlays.lastOrNull { (id, _) -> id == areaId }?.second
 
 	/**
 	 * Does nothing.
@@ -322,13 +343,17 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	}
 
 	/**
-	 * Renders nothing.
+	 * Records what was asked and renders nothing.
 	 *
 	 * @param ImageFrame frame The frame.
 	 * @param FrameBackdrop backdrop The backdrop.
+	 * @param AreaOverlays overlays The grid and axes a grid backdrop draws.
 	 * @return RasterImage? Always null.
 	 */
-	override suspend fun renderImage(frame: ImageFrame, backdrop: FrameBackdrop): RasterImage? = null
+	override suspend fun renderImage(frame: ImageFrame, backdrop: FrameBackdrop, overlays: AreaOverlays): RasterImage? {
+		renderImageRequests.add(backdrop to overlays)
+		return null
+	}
 
 	/**
 	 * No view.

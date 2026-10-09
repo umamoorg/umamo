@@ -14,7 +14,7 @@ import kotlin.math.round
  *
  * @param Float value  The world coordinate to snap.
  * @param Float origin The world origin the grid lattice is anchored on (a line passes through it).
- * @param Float step   The grid snap increment (see [GridConfig.snapStep]).
+ * @param Float step   The grid snap increment (the grid's scale over its subdivisions).
  * @return Float The snapped world coordinate.
  */
 fun snapToGrid(value: Float, origin: Float, step: Float): Float = round((value - origin) / step) * step + origin
@@ -26,7 +26,7 @@ fun snapToGrid(value: Float, origin: Float, step: Float): Float = round((value -
  *
  * @param Float worldX The world x to snap.
  * @param Float worldZ The world z (up) to snap.
- * @param Float step   The grid snap increment (see [GridConfig.snapStep]).
+ * @param Float step   The grid snap increment (the grid's scale over its subdivisions).
  * @return Pair<Float, Float> The snapped world (x, z).
  */
 fun PuppetModel.snapToWorldGrid(worldX: Float, worldZ: Float, step: Float): Pair<Float, Float> =

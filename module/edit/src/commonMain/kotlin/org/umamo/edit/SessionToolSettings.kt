@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions:
- * the 2D and UV cursors, the transform pivot mode, the viewport grid, and proportional editing.  Unlike
+ * the 2D and UV cursors, the transform pivot mode, and proportional editing.  Unlike
  * [SessionToolLatches] these survive mode switches and are laid in from [SessionViewState] at open; like
  * them they are never snapshotted and never enter the change bus.  [EditorSession] exposes this surface by
  * delegation.
@@ -40,23 +40,6 @@ interface SessionToolSettings {
 	 * @param Float v The cursor's new normalized atlas v coordinate.
 	 */
 	fun setUvCursor(u: Float, v: Float)
-
-	/**
-	 * The viewport grid geometry (major spacing + subdivisions) driving both the drawn backdrop grid and
-	 * the grid snap increment.  Session state, deliberately NOT snapshotted - like the 2D cursor.  Seeded from
-	 * the global-default settings, or from the document's own value when it saved one
-	 * ([EditorSession.gridFollowsApplication]).  Read by the snap commands ([GridConfig.snapStep]) and pushed to the renderer
-	 * by the viewport binding.
-	 */
-	val gridConfig: StateFlow<GridConfig>
-
-	/**
-	 * Sets the viewport grid geometry.  Called by the viewport binding when the global-default settings
-	 * change, while the grid follows them ([EditorSession.gridFollowsApplication]).
-	 *
-	 * @param GridConfig config The new grid scale and subdivisions.
-	 */
-	fun setGridConfig(config: GridConfig)
 
 	/**
 	 * What a modal Scale / Rotate turns the selection about (the Period pie / the header dropdown).

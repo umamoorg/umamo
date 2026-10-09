@@ -1,6 +1,7 @@
 package org.umamo.render.gl
 
 import org.umamo.format.raster.RasterImage
+import org.umamo.render.FrameOverlays
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -106,6 +107,26 @@ class MeshOverlayRenderTest {
 		assertEquals(listOf(0, 0, 255, 255), frame.at(37, 54), "triangle 1's centroid dot is the active color")
 	}
 
+	/**
+	 * An Object-mode wireframe's edge band draws in the opaque edge color at full opacity, at half alpha
+	 * over the art at half opacity, and not at all at zero.
+	 */
+	@Test
+	fun theWireframeFadesWithTheFramesOpacity() {
+		requireHeadlessGl("[overlay-render]")
+		val live = LiveOverlayRenderer()
+		val reference = live.render()
+		live.renderer.setMeshOverlay(overlay(MeshOverlaySelectMode.Vertex, kind = MeshOverlayKind.ObjectWireframe))
+
+		val full = live.render()
+		val faded = live.render(overlays = FrameOverlays(wireframeOpacity = 0.5f))
+		val gone = live.render(overlays = FrameOverlays(wireframeOpacity = 0f))
+
+		assertEquals(listOf(255, 0, 255, 255), full.at(32, 40), "at full opacity the edge band is the opaque idle edge color")
+		assertClose(blend(reference.at(32, 40), magenta.copy(alpha = 0.5f)), faded.at(32, 40), 2, "at half opacity the band is the edge color at half alpha over the art")
+		assertEquals(reference.at(32, 40), gone.at(32, 40), "at zero the art shows through untouched")
+	}
+
 	@Test
 	fun theDotsFollowTheRenderScaleAndAClearedOverlayLeavesNoTrace() {
 		requireHeadlessGl("[overlay-render]")
@@ -148,6 +169,7 @@ class MeshOverlayRenderTest {
 	 * @param ByteArray faceFlags The face flags.
 	 * @param Int? activeVertex The active vertex, or null.
 	 * @param Int? activeFace The active triangle, or null.
+	 * @param MeshOverlayKind kind The overlay kind; the Edit cage by default.
 	 * @return MeshOverlay The overlay.
 	 */
 	private fun overlay(
@@ -156,9 +178,10 @@ class MeshOverlayRenderTest {
 		faceFlags: ByteArray = ByteArray(2),
 		activeVertex: Int? = null,
 		activeFace: Int? = null,
+		kind: MeshOverlayKind = MeshOverlayKind.Edit,
 	): MeshOverlay =
 		MeshOverlay(
-			MeshOverlayKind.Edit,
+			kind,
 			selectMode,
 			listOf(MeshOverlayMesh(quadId, 4, quadEdges, vertexFlags, ByteArray(5), faceFlags, activeVertex, null, activeFace)),
 			sizes,
@@ -230,11 +253,12 @@ class MeshOverlayRenderTest {
 		 * Renders one frame at the given square size and reads it back.
 		 *
 		 * @param Int size The frame's edge in pixels.
+		 * @param FrameOverlays overlays What the frame draws beyond the backdrop; everything by default.
 		 * @return RasterImage The frame, top row first.
 		 */
-		fun render(size: Int = viewportSize): RasterImage {
+		fun render(size: Int = viewportSize, overlays: FrameOverlays = FrameOverlays()): RasterImage {
 			val frameTarget = targetOf(size)
-			renderer.render(frameTarget, size, size)
+			renderer.render(frameTarget, size, size, overlays = overlays)
 			return device.readPixels(frameTarget)
 		}
 

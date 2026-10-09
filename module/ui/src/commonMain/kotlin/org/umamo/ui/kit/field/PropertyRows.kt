@@ -1,15 +1,11 @@
-package org.umamo.ui.properties
+package org.umamo.ui.kit.field
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -17,16 +13,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
-import org.umamo.ui.kit.field.Checkbox
-import org.umamo.ui.kit.field.KeyedFieldState
-import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
 
 /*
- * The shared row primitives every Properties section is built from: the label + control grid, the read-only
- * line, the checkbox row, and the numeric ranges those controls clamp to.  Sections live in the per-tab
- * files beside this one; anything used by more than one of them belongs here.
+ * The labelled property rows the Properties area, the operation strip, and the viewport overlays popover
+ * share: a two-column grid whose left half is the right-aligned label and whose right half is the control,
+ * so a column of rows aligns and every control spans one width.  The description rides on the label (or on
+ * the checkbox, whose label sits beside its box) and never on the whole row: nested tooltip areas all fire
+ * at once, so a row-wide one would stack a second card over a control's own button tooltips.  A row knows
+ * no document; whoever owns it resolves the label, the description, and any keyed state.
  */
 
 /**
@@ -35,43 +31,21 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * @param String text The composed line text.
  */
 @Composable
-internal fun PropertyLine(text: String) {
+fun PropertyLine(text: String) {
 	Text(text = text, style = LocalUmamoTypography.current.bodySmall, modifier = Modifier.padding(top = 1.dp, bottom = 1.dp))
 }
 
-/** An unbounded float range: a numeric field that clamps nothing and draws no magnitude fill. */
-internal val UNBOUNDED_RANGE = Float.NEGATIVE_INFINITY..Float.POSITIVE_INFINITY
-
-/** A half-open float range (min set, no max): clamps below and draws no fill (needs both bounds). */
-internal val POSITIVE_RANGE = 1f..Float.POSITIVE_INFINITY
-
 /**
- * The clamp for a drawable's world extent.  Deliberately NOT [POSITIVE_RANGE]: a canvas is measured in
- * whole pixels so a floor of 1 is meaningful there, but a drawable extent is in world units and can
- * legitimately be a fraction - clamping it to 1 would silently double a typed 0.5.  The floor is the
- * smallest value the row's one-decimal display can actually show, which keeps the number in the field
- * honest while still refusing the zero (collapse) and negative (mirror) cases.
- */
-internal val DRAWABLE_EXTENT_RANGE = 0.1f..Float.POSITIVE_INFINITY
-
-/**
- * Space the Size rows reserve at their right edge for the aspect lock that overlays it: the 20dp icon
- * button plus a little breathing room.  Keeping it a named constant is what ties the reservation and the
- * overlaid control to the same width - if they drift, the lock either overlaps the field or floats away.
- */
-internal val ASPECT_LOCK_GUTTER = 24.dp
-
-/**
- * A labelled Properties field row, Blender-style: the right-aligned label takes the left half and the
- * control fills the right half, so a column of rows aligns and every field spans a consistent width.  The
- * control should [Modifier.fillMaxWidth] so it fills its half.
+ * A labelled property field row, Blender-style: the right-aligned label takes the left half and the control
+ * fills the right half, so a column of rows aligns and every field spans a consistent width.  The control
+ * should [Modifier.fillMaxWidth] so it fills its half.
  *
  * [description] is what the field does, shown as a tooltip over the LABEL HALF only.  The control keeps its
  * own hover: nested tooltip areas all fire at once, so one wrapping the whole row would stack a second card
  * over the icon buttons a relation or color field tooltips itself, and it would pop over a field mid-scrub.
  *
  * [trailingGutter] reserves space at the RIGHT EDGE OF THE CONTROL for an adornment that sits outside the
- * row (the Size stack's aspect lock).  It shrinks the control only - the label column keeps its half of the
+ * row (a size stack's aspect lock).  It shrinks the control only - the label column keeps its half of the
  * full row width, so a row with a gutter still lines up with the plain rows above and below it.  Reserving
  * the space here rather than wrapping the whole row in a narrower box is the difference between the field
  * shrinking and the entire two-column grid shifting.
@@ -83,7 +57,7 @@ internal val ASPECT_LOCK_GUTTER = 24.dp
  * @param Function control The editable control (a fillMaxWidth NumberField, SelectField, etc.).
  */
 @Composable
-internal fun PropertyFieldRow(
+fun PropertyFieldRow(
 	label: String,
 	description: String = "",
 	trailingGutter: Dp = 0.dp,
@@ -108,7 +82,7 @@ internal fun PropertyFieldRow(
 }
 
 /**
- * A Properties checkbox row: the checkbox (box plus its own label) sits in the right half like every other
+ * A property checkbox row: the checkbox (box plus its own label) sits in the right half like every other
  * field, with the left label column left empty - matching Blender, where a lone toggle occupies the field
  * column.  A group of related toggles can carry a left-column heading later.
  *
@@ -122,7 +96,7 @@ internal fun PropertyFieldRow(
  * @param KeyedFieldState keyState The keyform state to tint the box's border with.
  */
 @Composable
-internal fun PropertyCheckboxRow(
+fun PropertyCheckboxRow(
 	checked: Boolean,
 	onCheckedChange: (Boolean) -> Unit,
 	label: String,
@@ -136,24 +110,5 @@ internal fun PropertyCheckboxRow(
 				Checkbox(checked = checked, onCheckedChange = onCheckedChange, label = label, keyState = keyState)
 			}
 		}
-	}
-}
-
-/**
- * A labelled block wrapping a relation list, since a tall list does not fit the two-column field row.  The
- * [description] tooltips the label alone, for the reason [PropertyFieldRow] gives: the list's add, remove,
- * and pick buttons carry tooltips of their own.
- *
- * @param String label The block's localized label.
- * @param String description What the list does, as the label's tooltip; blank attaches none.
- * @param Function content The list to draw beneath it.
- */
-@Composable
-internal fun RelationListBlock(label: String, description: String = "", content: @Composable () -> Unit) {
-	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-		Tooltip(text = description) {
-			Text(text = label, style = LocalUmamoTypography.current.bodySmall, color = LocalUmamoColors.current.text)
-		}
-		content()
 	}
 }

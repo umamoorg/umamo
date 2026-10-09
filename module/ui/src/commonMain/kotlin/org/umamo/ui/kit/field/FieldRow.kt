@@ -20,7 +20,8 @@ import org.umamo.ui.theme.drawIcon
 
 /*
  * The kit's form controls: the label-and-control row and the butted stack rows sit in (this file,
- * FieldStack.kt), the text field, checkbox, search field, and copyable text (Inputs.kt, SearchField.kt,
+ * FieldStack.kt), the half-and-half property rows a Properties section is built from (PropertyRows.kt),
+ * the text field, checkbox, search field, and copyable text (Inputs.kt, SearchField.kt,
  * SelectableText.kt), the numeric field and its math (NumberField.kt, NumberFieldMath.kt), the slider and
  * the 2D pad, the hex color field, the dropdown select, and the relation pickers.  A control knows no
  * document: a keyed state is painted here (KeyedFieldState.kt) and resolved from the model by whoever

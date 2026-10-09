@@ -11,6 +11,7 @@ import org.umamo.edit.transform.MeshTransforms
 import org.umamo.edit.transform.snapToGrid
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.meshOf
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import kotlin.math.roundToInt
 
@@ -23,10 +24,10 @@ import kotlin.math.roundToInt
  * meshes on the shown surface participate (the overlay only shows one surface at a time, exactly as the
  * modal capture scopes).
  *
- * The grid snaps target the drawn UV grid: its major lines fall on the shown image's tile and the minor
- * lines subdivide it by the document grid subdivisions, so a grid snap rounds display coordinates to the
- * surface extent / subdivisions, anchored at the image origin.  The pixel snaps round to the nearest
- * integer texel, which is a pixel corner in this texel-unit space - the artwork-edge-accuracy target.
+ * The grid snaps target the drawn UV grid: its major lines are the executing area's grid scale in texels
+ * and the minor lines divide each cell by its subdivisions, anchored at the image origin, so a grid snap
+ * rounds display coordinates to the grid's snap step.  The pixel snaps round to the nearest integer texel,
+ * which is a pixel corner in this texel-unit space - the artwork-edge-accuracy target.
  *
  * @param EditorSession session The session owning the selection, the UV cursor, and the commit.
  * @param List<GizmoMeshGeometry> geometries The shown meshes' display-space gizmo geometry.
@@ -35,12 +36,14 @@ import kotlin.math.roundToInt
  *   an atlas texel over a page, an artwork texel over a source layer - which is the right target in
  *   each, though a placement that scales makes them different lattices.
  * @param UvSnapKind kind The requested snap.
+ * @param GridConfig grid The executing area's grid, the scale in texels and the subdivisions its backdrop draws.
  */
 internal fun handleUvSnapRequest(
 	session: EditorSession,
 	geometries: List<GizmoMeshGeometry>,
 	frame: UvEditFrame,
 	kind: UvSnapKind,
+	grid: GridConfig,
 ) {
 	val selection = session.meshSelection.value
 	val coveredByMesh =
@@ -49,12 +52,10 @@ internal fun handleUvSnapRequest(
 			if (covered.isEmpty()) null else geometry to covered
 		}
 
-	// The UV grid subdivides the shown image (its major lines are the image tile, minor lines the document
-	// subdivisions), anchored at the image origin - so a grid snap rounds to the surface extent /
-	// subdivisions in display space, targeting the same lines the backdrop draws.
-	val subdivisions = session.gridConfig.value.subdivisions.coerceAtLeast(1)
-	val gridStepX = frame.displayWidth.toFloat() / subdivisions
-	val gridStepY = frame.displayHeight.toFloat() / subdivisions
+	// The UV grid is the area's scale in texels over its subdivisions, anchored at the image origin - so a grid
+	// snap rounds to the grid's snap step in display space on both axes, the same minor lines the area's
+	// backdrop draws.
+	val gridStep = grid.snapStep
 
 	// The UV cursor in display space; an unplaced cursor rests at the stored origin (UV 0,0), the mesh
 	// snap's "an unplaced cursor snaps from its resting place" rule in this space.
@@ -82,7 +83,7 @@ internal fun handleUvSnapRequest(
 
 		UvSnapKind.CursorToGrid -> {
 			val (cursorU, cursorV) =
-				frame.storedUvAt(snapToGrid(cursorDisplayX, 0f, gridStepX), snapToGrid(cursorDisplayY, 0f, gridStepY))
+				frame.storedUvAt(snapToGrid(cursorDisplayX, 0f, gridStep), snapToGrid(cursorDisplayY, 0f, gridStep))
 			session.setUvCursor(cursorU, cursorV)
 		}
 
@@ -120,12 +121,12 @@ internal fun handleUvSnapRequest(
 						UvSnapKind.SelectionToCursorOffset ->
 							MeshTransforms.translateVertices(display, covered, cursorDisplayX - medianX, cursorDisplayY - medianY)
 
-						// Each covered vertex rounds to its own nearest grid line (page / subdivisions).
+						// Each covered vertex rounds to its own nearest minor grid line (scale / subdivisions).
 						UvSnapKind.SelectionToGrid ->
 							display.copyOf().also { positions ->
 								for (vertexIndex in covered) {
-									positions[vertexIndex * 2] = snapToGrid(positions[vertexIndex * 2], 0f, gridStepX)
-									positions[vertexIndex * 2 + 1] = snapToGrid(positions[vertexIndex * 2 + 1], 0f, gridStepY)
+									positions[vertexIndex * 2] = snapToGrid(positions[vertexIndex * 2], 0f, gridStep)
+									positions[vertexIndex * 2 + 1] = snapToGrid(positions[vertexIndex * 2 + 1], 0f, gridStep)
 								}
 							}
 

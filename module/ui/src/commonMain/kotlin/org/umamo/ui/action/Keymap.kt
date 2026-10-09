@@ -204,6 +204,7 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"alt+KeyO" to "mesh.proportional.connectedToggle",
 		"KeyT" to "view.toggleToolbar",
 		"KeyN" to "view.toggleSidebar",
+		"shift+alt+KeyZ" to "view.overlay.all",
 		"primary+Comma" to "edit.preferences",
 		"primary+Digit0" to "view.fit",
 		"primary+Digit1" to "view.zoomActualSize",
@@ -307,6 +308,7 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"alt+KeyO" to "mesh.proportional.connectedToggle",
 		"KeyT" to "view.toggleToolbar",
 		"KeyN" to "view.toggleSidebar",
+		"shift+alt+KeyZ" to "view.overlay.all",
 		"primary+Comma" to "edit.preferences",
 		// Blender's Home is Frame All in WHICHEVER editor the pointer is over, so a single context-aware
 		// binding covers both cases; two separate Home entries would collide silently under mapOf's

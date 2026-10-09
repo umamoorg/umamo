@@ -705,6 +705,15 @@ private fun NumberEntryField(
 							if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
 								focusManager.clearFocus()
 								true
+							} else if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+								// In the main window the shell's key ladder previews Escape and routes it to the cancel
+								// hook parked above, so this never runs there.  A field inside a popup is on the popup's
+								// own key path, where nothing previews it: without this the popup's dismiss would take
+								// the key, and the focus loss of the closing popup would COMMIT the typed text.  Discard
+								// here and consume, so the popup stays open; a second Escape closes it.
+								discarding = true
+								focusManager.clearFocus()
+								true
 							} else {
 								false
 							}

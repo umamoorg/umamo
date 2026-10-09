@@ -701,6 +701,42 @@
 	<string name="header_proportional_falloff">Proportional Falloff</string>
 	<!-- The overflow chip at the end of a header strip, holding the controls that did not fit. -->
 	<string name="header_more">More</string>
+	<!-- The two-part overlays control at the end of the 2D viewport and UV editor headers: the Show Overlays
+	     toggle button and the chevron that opens the Viewport Overlays popover, whose rows sit under section
+	     headings. -->
+	<string name="header_show_overlays">Show Overlays</string>
+	<string name="header_viewport_overlays">Viewport Overlays</string>
+	<string name="overlay_section_guides">Guides</string>
+	<string name="overlay_section_text">Text</string>
+	<string name="overlay_section_geometry">Geometry</string>
+	<string name="overlay_row_grid">Grid</string>
+	<string name="overlay_row_axes">X/Z Axis</string>
+	<string name="overlay_row_cursor">2D Cursor</string>
+	<string name="overlay_row_info">General Information</string>
+	<string name="overlay_row_wireframe">Wireframe</string>
+	<string name="overlay_grid_scale">Scale</string>
+	<string name="overlay_grid_subdivisions">Subdivisions</string>
+	<string name="overlay_grid_follow_application">Follow Application Grid</string>
+	<string name="overlay_section_objects">Objects</string>
+	<string name="overlay_row_selection_tint">Selection Tint</string>
+	<string name="overlay_row_cull_hidden">Cull Hidden</string>
+	<string name="overlay_wireframe_opacity">Opacity</string>
+	<!-- The popover's descriptions, each heading's, row's, and field's hover tooltip; named after its label key like
+	     the Properties row descriptions below. -->
+	<string name="overlay_section_guides_description">The visual helpers for placement and alignment.</string>
+	<string name="overlay_section_text_description">Informational text shown around the edges of the viewport.</string>
+	<string name="overlay_section_geometry_description">The visual helpers for displaying drawables.</string>
+	<string name="overlay_row_grid_description">The divided grid behind the scene that is used for snapping and visual alignment.</string>
+	<string name="overlay_row_axes_description">The world X and Z axis lines through the origin.</string>
+	<string name="overlay_row_cursor_description">The 2D cursor used for snap and pivot operations.</string>
+	<string name="overlay_row_info_description">The general information such as the current selection and zoom level.</string>
+	<string name="overlay_row_wireframe_description">Show the mesh wireframe of drawables not currently selected for editing.</string>
+	<string name="overlay_grid_scale_description">The spacing of the major grid lines, in world units; in the UV editor, in texels.</string>
+	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
+	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
+	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so that they stand out in the art.</string>
+	<string name="overlay_row_cull_hidden_description">Hide parts of the wireframe that are covered by other drawables.</string>
+	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe, or of the UV editor's islands, as a percentage.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
 	<string name="hud_placement">Placement</string>
@@ -724,6 +760,15 @@
 	<!-- Viewport chrome: the left tool toolbar and the right sidebar drawer. -->
 	<string name="cmd_view_toggle_toolbar">Toggle Toolbar</string>
 	<string name="cmd_view_toggle_sidebar">Toggle Sidebar</string>
+	<!-- The per-area overlay toggles, routed to the work surface under the pointer. -->
+	<string name="cmd_view_overlay_all">Toggle Overlays</string>
+	<string name="cmd_view_overlay_grid">Toggle Grid Overlay</string>
+	<string name="cmd_view_overlay_axes">Toggle X/Z Axis Overlay</string>
+	<string name="cmd_view_overlay_cursor">Toggle 2D Cursor Overlay</string>
+	<string name="cmd_view_overlay_info">Toggle General Information Overlay</string>
+	<string name="cmd_view_overlay_selection_tint">Toggle Selection Tint Overlay</string>
+	<string name="cmd_view_overlay_wireframe">Toggle Wireframe Overlay</string>
+	<string name="cmd_view_overlay_wireframe_culling">Toggle Wireframe Cull Hidden</string>
 	<string name="sidebar_title">Sidebar</string>
 	<string name="sidebar_empty_hint">Tool and item panels will live here.</string>
 
@@ -1043,6 +1088,8 @@
 	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step (%)</string>
 	<string name="settings_viewport_grid_scale">Grid Scale</string>
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
+	<string name="settings_viewport_uv_grid_scale">UV Grid Scale</string>
+	<string name="settings_viewport_uv_grid_subdivisions">UV Grid Subdivisions</string>
 	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
 	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
 	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>

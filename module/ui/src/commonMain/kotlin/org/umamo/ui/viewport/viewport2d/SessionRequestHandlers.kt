@@ -134,16 +134,19 @@ internal fun handleRipRequest(
 /**
  * Executes the geometry-dependent Shift+S snaps for Edit mode: the cursor moves read the covered
  * world median, and the selection moves ride the same movement-transfer pipeline as a finished Grab
- * (one undo step).  An unplaced cursor snaps from the world origin, its conceptual resting place.
+ * (one undo step).  An unplaced cursor snaps from the world origin, its conceptual resting place.  The
+ * grid snap rounds to the executing area's own grid, the lines that area draws.
  *
  * @param EditorSession session The session owning the selection, cursor, and commits.
  * @param List<EditMeshGeometry> geometries The session meshes' live geometry.
  * @param SnapKind kind The requested snap.
+ * @param Float gridStep The executing area's grid snap increment in world units.
  */
 internal fun handleEditSnapRequest(
 	session: EditorSession,
 	geometries: List<EditMeshGeometry>,
 	kind: SnapKind,
+	gridStep: Float,
 ) {
 	val selection = session.meshSelection.value
 	val coveredByMesh =
@@ -200,9 +203,8 @@ internal fun handleEditSnapRequest(
 						// Each covered vertex rounds to its own nearest grid point (the finest subdivision).
 						SnapKind.SelectionToGrid ->
 							world.copyOf().also { positions ->
-								val step = session.gridConfig.value.snapStep
 								for (vertexIndex in covered) {
-									val (snappedX, snappedZ) = model.snapToWorldGrid(positions[vertexIndex * 2], positions[vertexIndex * 2 + 1], step)
+									val (snappedX, snappedZ) = model.snapToWorldGrid(positions[vertexIndex * 2], positions[vertexIndex * 2 + 1], gridStep)
 									positions[vertexIndex * 2] = snappedX
 									positions[vertexIndex * 2 + 1] = snappedZ
 								}
@@ -237,11 +239,13 @@ internal fun handleEditSnapRequest(
  * centroids: the cursor moves read them, the selection moves translate whole drawables through the
  * movement-transfer pipeline (one undo step).  The same pose-neutral guard as a transform applies to
  * the selection moves - writing a deformed capture back through the warp inverse corrupts rest meshes.
+ * The grid snap rounds to the executing area's own grid, the lines that area draws.
  *
  * @param EditorSession session The session owning the selection, cursor, and commits.
  * @param SnapKind kind The requested snap.
+ * @param Float gridStep The executing area's grid snap increment in world units.
  */
-internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
+internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind, gridStep: Float) {
 	val model = session.model.value
 	val pose = session.pose.value
 	val eligibleIds = org.umamo.edit.eligibleTransformDrawables(session.selection.value, model) ?: return
@@ -282,7 +286,7 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind) {
 						SnapKind.SelectionToCursor -> (cursor.worldX - ownCentroid.first) to (cursor.worldZ - ownCentroid.second)
 						SnapKind.SelectionToActive -> (activeCentroid.first - ownCentroid.first) to (activeCentroid.second - ownCentroid.second)
 						SnapKind.SelectionToGrid ->
-							model.snapToWorldGrid(ownCentroid.first, ownCentroid.second, session.gridConfig.value.snapStep).let { (snappedX, snappedZ) ->
+							model.snapToWorldGrid(ownCentroid.first, ownCentroid.second, gridStep).let { (snappedX, snappedZ) ->
 								(snappedX - ownCentroid.first) to (snappedZ - ownCentroid.second)
 							}
 

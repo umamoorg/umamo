@@ -413,25 +413,4 @@ class TransformStateTest {
 		session.setCursor2d(12f, 34f)
 		assertEquals(Cursor2d(12f, 34f), session.cursor2dOrWorldOrigin(), "a placed cursor is its own point")
 	}
-
-	/** GridConfig.snapStep is the finest visible spacing: scale divided by the subdivision count. */
-	@Test
-	fun gridConfigSnapStepIsScaleOverSubdivisions() {
-		assertEquals(10f, GridConfig(scale = 100f, subdivisions = 10).snapStep, "100 / 10 = 10")
-		assertEquals(25f, GridConfig(scale = 100f, subdivisions = 4).snapStep, "100 / 4 = 25")
-		// A defaulted config keeps the built-in fallbacks (SNAP_GRID_WORLD_UNITS / DEFAULT_GRID_SUBDIVISIONS).
-		assertEquals(SNAP_GRID_WORLD_UNITS / DEFAULT_GRID_SUBDIVISIONS, GridConfig().snapStep, "default step")
-		// subdivisions is clamped to at least 1, so a degenerate 0 never divides by zero.
-		assertEquals(100f, GridConfig(scale = 100f, subdivisions = 0).snapStep, "0 subdivisions clamps to 1")
-	}
-
-	/** setGridConfig publishes the new geometry on the session's gridConfig flow (transient, not snapshotted). */
-	@Test
-	fun setGridConfigPublishesAndIsNotUndoable() {
-		val session = meshedSession()
-		assertEquals(GridConfig(), session.gridConfig.value, "starts at the default grid")
-		session.setGridConfig(GridConfig(scale = 50f, subdivisions = 5))
-		assertEquals(GridConfig(scale = 50f, subdivisions = 5), session.gridConfig.value, "the new config publishes")
-		assertTrue(!session.canUndo.value, "a grid-config change is transient, never an undo step")
-	}
 }

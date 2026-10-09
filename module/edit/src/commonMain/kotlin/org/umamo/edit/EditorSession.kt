@@ -791,14 +791,6 @@ class EditorSession private constructor(
 		cursor2d.value ?: model.value.let { current -> Cursor2d(current.worldOriginX, current.worldOriginZ) }
 
 	/**
-	 * Whether the grid follows the application's default rather than a value the document brought with it.
-	 *
-	 * The viewport binding pushes the default grid setting into the session at open and on every change to it; a
-	 * document that saved a grid of its own keeps it against that push, which is what makes it the document's.
-	 */
-	val gridFollowsApplication: Boolean = openingViewState?.gridConfig == null
-
-	/**
 	 * The session state a saved document carries (docs/format/UMA.md § 7.4), as it stands now - the gather side of
 	 * the constructor's initialViewState.  The pose is not part of it; a save reads [pose] beside it.
 	 *
@@ -815,7 +807,6 @@ class EditorSession private constructor(
 			pivotMode = settings.pivotMode.value,
 			proportionalEnabled = settings.proportionalEdit.value != null,
 			proportionalSettings = settings.proportionalSettings,
-			gridConfig = settings.gridConfig.value.takeUnless { gridFollowsApplication },
 		)
 
 	/**

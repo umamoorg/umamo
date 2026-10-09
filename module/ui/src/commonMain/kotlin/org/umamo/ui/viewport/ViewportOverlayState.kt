@@ -1,0 +1,197 @@
+package org.umamo.ui.viewport
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import org.umamo.ui.rememberDoubleSetting
+import org.umamo.ui.rememberIntSetting
+
+/*
+ * What the 2D viewport and the UV editor draw OVER the rigger's art, per area: ViewportOverlayColors.kt
+ * holds the colors those overlays draw in, and this file holds whether each of them is shown and the grid
+ * geometry the area draws and snaps to.  The state is an area's (two viewports may show different overlays
+ * and different grids, as in Blender), parked on the hosting AreaScope by the space body, written into the
+ * document's editor state as the `overlays` member of the area block's `viewport` or `uv` member
+ * (docs/format/UMA.md § 7.3), and read by the overlays themselves through LocalAreaOverlays.
+ */
+
+/** Which work surface an overlay state belongs to; decides which overlays exist for it (a UV editor has no world axes). */
+enum class OverlaySurface {
+	Viewport2D,
+	UvEditor,
+}
+
+/**
+ * One area's overlay visibility and grid: the Show Overlays master plus one flag per overlay, the wireframe's
+ * opacity, and the grid geometry the area draws and snaps to.  The master gates every overlay's EFFECT while
+ * leaving each flag as the rigger set it, so switching it back on restores the set they had (Blender's
+ * overlays toggle).  Consumers read the effective values, never the raw flags, so nothing downstream has to
+ * know a master exists.  The grid is the area's own once edited, else the application's, resolved through
+ * [grid].
+ *
+ * @param OverlaySurface surface The work surface this state belongs to.
+ */
+class ViewportOverlayState(val surface: OverlaySurface) {
+	/** The Show Overlays master: false hides every overlay of the area at once. */
+	var showOverlays by mutableStateOf(true)
+
+	/** The backdrop grid lines. */
+	var showGrid by mutableStateOf(true)
+
+	/** The world axis lines (the 2D viewport only). */
+	var showAxes by mutableStateOf(true)
+
+	/** The 2D cursor marker (the UV cursor in a UV editor). */
+	var showCursor by mutableStateOf(true)
+
+	/** The informational text: the active-mesh label and the zoom readout. */
+	var showInfo by mutableStateOf(true)
+
+	/**
+	 * The wireframe of every shown mesh - all of them in Object mode, those outside the edit in Edit mode, under
+	 * the cage (the 2D viewport only); off by default, as in Blender.
+	 */
+	var showWireframe by mutableStateOf(false)
+
+	/** The tint over the selected and active drawables (the 2D viewport only); off, the area draws the art as a capture does. */
+	var showSelectionTint by mutableStateOf(true)
+
+	/**
+	 * Whether the wireframe leaves out its wires under art drawn in front of their own drawable (the 2D viewport
+	 * only), so a posed model shows which mesh parts are covered; on by default.  The Edit cage is never culled.
+	 */
+	var cullHiddenWireframe by mutableStateOf(true)
+
+	/**
+	 * The opacity, 0 to 1, of the mesh overlay drawn outside an edit: the wireframe on a 2D viewport, the islands
+	 * on a UV editor, each drawn at its palette alpha times this.  The Edit cage keeps the palette.  At 0 none
+	 * of it draws while the row that shows it stays as set.  Saved as the `wireframeOpacity` key on both surfaces.
+	 */
+	var wireframeOpacity by mutableStateOf(1f)
+
+	/**
+	 * The area's own grid geometry, or null while the area follows the application's grid for its surface (the
+	 * viewport.grid.* setting on a 2D viewport, viewport.uvGrid.* on a UV editor).  The first edit of a grid field in the overlays popover gives the area its own; the reset beside the fields
+	 * takes it back.  Saved as the `gridGeometry` key on both surfaces: the scale is world units on a 2D viewport
+	 * and texels on a UV editor, one grid model read in each surface's unit.
+	 */
+	var gridGeometry by mutableStateOf<GridConfig?>(null)
+
+	/**
+	 * The application's grid for this surface as [ApplicationGridMirror] last mirrored it from the settings;
+	 * never saved.  Mirrored here so every reader of the area - the snap handlers, the hovered-area commands,
+	 * the popover's fields - resolves the one grid the renderer draws through [grid] without reaching for the
+	 * settings themselves.  Seeded with the surface's bundled default, so an area with no mirror behind it
+	 * shows the grid a fresh install does.
+	 */
+	var applicationGrid by mutableStateOf(GridConfig.applicationDefault(surface))
+
+	/** The grid this area draws and snaps to: its own over the application's (see [gridOver]). */
+	val grid: GridConfig
+		get() = gridOver(applicationGrid)
+
+	/** Whether the grid lines draw: the flag under the master. */
+	val effectiveGrid: Boolean
+		get() = showOverlays && showGrid
+
+	/** Whether the world axes draw: the flag under the master. */
+	val effectiveAxes: Boolean
+		get() = showOverlays && showAxes
+
+	/** Whether the cursor marker draws: the flag under the master. */
+	val effectiveCursor: Boolean
+		get() = showOverlays && showCursor
+
+	/** Whether the informational text shows: the flag under the master. */
+	val effectiveInfo: Boolean
+		get() = showOverlays && showInfo
+
+	/** Whether the wireframe draws: the flag under the master. */
+	val effectiveWireframe: Boolean
+		get() = showOverlays && showWireframe
+
+	/** Whether the selection tint draws: the flag under the master. */
+	val effectiveSelectionTint: Boolean
+		get() = showOverlays && showSelectionTint
+
+	/** Whether the wireframe culls: the flag under the master, like the wireframe it qualifies. */
+	val effectiveCullHiddenWireframe: Boolean
+		get() = showOverlays && cullHiddenWireframe
+
+	/**
+	 * Whether every flag and value sits at its default and the grid follows the application: what a fresh area
+	 * shows, and what a save writes as nothing.
+	 */
+	val isAtDefaults: Boolean
+		get() = showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && cullHiddenWireframe && wireframeOpacity == 1f && gridGeometry == null
+
+	/**
+	 * The grid this area draws and snaps to over a given application grid: its own, else the application's,
+	 * whole on both surfaces - a UV editor reads the scale as texels.
+	 *
+	 * @param GridConfig applicationGrid The application's grid for this surface.
+	 * @return GridConfig The area's grid.
+	 */
+	fun gridOver(applicationGrid: GridConfig): GridConfig = gridGeometry ?: applicationGrid
+
+	/**
+	 * Returns every flag and value to its default and the grid to following the application.
+	 */
+	fun reset() {
+		showOverlays = true
+		showGrid = true
+		showAxes = true
+		showCursor = true
+		showInfo = true
+		showWireframe = false
+		showSelectionTint = true
+		cullHiddenWireframe = true
+		wireframeOpacity = 1f
+		gridGeometry = null
+	}
+}
+
+/**
+ * The application's grid for a surface, read live from its pair of settings: viewport.grid.* for the 2D
+ * viewport, viewport.uvGrid.* for the UV editor.  The one place the grid settings are read, so the mirror
+ * and the publisher cannot disagree on which pair a surface follows.
+ *
+ * @param OverlaySurface surface The work surface.
+ * @return GridConfig The current application grid for the surface.
+ */
+@Composable
+fun rememberApplicationGrid(surface: OverlaySurface): GridConfig {
+	val default = GridConfig.applicationDefault(surface)
+	val gridScale by rememberDoubleSetting(ViewportSettings.gridScaleKey(surface), default.scale.toDouble())
+	val gridSubdivisions by rememberIntSetting(ViewportSettings.gridSubdivisionsKey(surface), default.subdivisions)
+	return GridConfig(gridScale.toFloat(), gridSubdivisions)
+}
+
+/**
+ * Keeps [state]'s mirror of the application's grid current from the settings of its surface, for the area's
+ * readers that resolve its grid through [ViewportOverlayState.grid]: the popover's fields, the snap commands,
+ * and the gizmo overlays' snap handlers.  Mounted by the space body that owns the state, with or without a
+ * renderer behind the area, so a platform with no render host resolves the setting too and never the
+ * built-in default.  Written after composition and only on a change, so an unchanged setting writes nothing.
+ *
+ * @param ViewportOverlayState state The area's overlay state.
+ */
+@Composable
+fun ApplicationGridMirror(state: ViewportOverlayState) {
+	val applicationGrid = rememberApplicationGrid(state.surface)
+	SideEffect {
+		if (state.applicationGrid != applicationGrid) {
+			state.applicationGrid = applicationGrid
+		}
+	}
+}
+
+/**
+ * The hosting area's overlay state, provided by the space body around its overlay stack; null outside an
+ * area (a standalone shell, previews, tests), where every overlay shows.  Static: the instance is the
+ * area's for its life and is never swapped, and its flags are Compose state, so a flip recomposes its readers.
+ */
+val LocalAreaOverlays = staticCompositionLocalOf<ViewportOverlayState?> { null }

@@ -2,9 +2,12 @@ package org.umamo.editor.desktop.viewport
 
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
+import org.umamo.render.FrameOverlays
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.AreaCameraKey
+import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.CameraSurface
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.UvSceneContent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -357,5 +360,20 @@ class ViewportAreaRegistryTest {
 		registry.setUvSceneContent("uv", UvSceneContent.AtlasPage(0), ContentBounds(10f, 10f, 20f, 20f))
 		registry.fit("uv")
 		assertEquals(ViewportCamera.fit(pageBounds, 800, 600), registry.establishCamera(slot, "uv", 800, 600) { _, _ -> pageBounds }, "and Fit View follows the meshes back inside")
+	}
+
+	/** An area's render options land on its slot and read back; an unregistered id takes none and answers none. */
+	@Test
+	fun areaOverlaysLandOnTheSlotAndAnUnknownAreaTakesNone() {
+		val registry = ViewportAreaRegistry()
+		val options = AreaOverlays(GridConfig(50f, 4), FrameOverlays(gridLines = false, axes = true, meshOverlay = true))
+		registry.setAreaOverlays("missing", options)
+		assertNull(registry.areaOverlays("missing"), "an unregistered area has no options")
+
+		registry.register("puppet")
+		assertEquals(AreaOverlays.Default, registry.areaOverlays("puppet"), "a fresh slot answers the editor's defaults")
+		registry.setAreaOverlays("puppet", options)
+		assertEquals(options, registry.areas.getValue("puppet").overlays, "the options land on the slot")
+		assertEquals(options, registry.areaOverlays("puppet"), "and read back")
 	}
 }

@@ -19,12 +19,13 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 
 /*
- * The Edit-mode mesh overlay's derive, shared by both work surfaces: the session meshes' edges and the flags
- * of their vertices, edges, and faces, as the renderer draws them.  The 2D viewport publishes the overlay
- * alone and the renderer draws it from the art's deformed positions (viewport2d/EditMeshOverlay.kt); a UV
- * area pairs it with its meshes' display positions (uv/UvSceneOverlay.kt).  Nothing here draws; the flags
- * come from buildHighlightSets, the same derive-up and flush-down rules the selection gestures use, so what
- * lights up cannot drift from what a click selects.
+ * The mesh overlay's derive, shared by both work surfaces: the Edit cage - the session meshes' edges and the
+ * flags of their vertices, edges, and faces, as the renderer draws them - and the wireframe of the shown
+ * meshes outside it (every shown mesh in Object mode), which only the 2D viewport asks for.  The 2D viewport
+ * publishes the overlay alone and the renderer draws it from the art's deformed positions
+ * (viewport2d/MeshOverlayPublish.kt); a UV area pairs the cage with its meshes' display positions
+ * (uv/UvSceneOverlay.kt).  Nothing here draws; the flags come from buildHighlightSets, the same derive-up
+ * and flush-down rules the selection gestures use, so what lights up cannot drift from what a click selects.
  */
 
 /** The flags of a mesh with nothing selected and no active element: the renderer reads empty as all idle. */
@@ -50,9 +51,10 @@ internal fun editMeshOverlaySizes(density: Density): MeshOverlaySizes =
 /**
  * Turns the session's state into the renderer's [MeshOverlay], keeping everything it can from one call to
  * the next so the renderer re-uploads nothing it already has: a mesh's edge list lives as long as its
- * index array, its flag arrays as long as its selected set (by identity), active element, select mode, and
- * topology, and the whole value as long as every mesh entry and the sizes - the renderer compares edge and
- * flag arrays by identity, and the render service compares the value by identity.
+ * index array (and outlives a mode switch, since the cage and the wireframe share it), its flag arrays as
+ * long as its selected set (by identity), active element, select mode, and topology, a wireframe entry as
+ * long as its topology, and the whole value as long as its kind, every mesh entry, and the sizes - the
+ * renderer compares edge and flag arrays by identity, and the render service compares the value by identity.
  *
  * Not thread-safe: one sequential derive owns it.
  */
@@ -90,22 +92,40 @@ internal class EditMeshOverlayProducer {
 		val entry: MeshOverlayMesh,
 	)
 
+	/**
+	 * One drawable's plain-wireframe entry and the topology it was built over.
+	 *
+	 * @property Topology topology The topology (compared by identity).
+	 * @property MeshOverlayMesh entry The entry.
+	 */
+	private class WireframeEntry(
+		val topology: Topology,
+		val entry: MeshOverlayMesh,
+	)
+
 	private val topologyById = HashMap<DrawableId, Topology>()
 	private val entryById = HashMap<DrawableId, Entry>()
+	private val wireframeEntryById = HashMap<DrawableId, WireframeEntry>()
 	private var lastOverlay: MeshOverlay? = null
 
+	/** The model the topology cache was last trimmed to the drawables of, by identity. */
+	private var trimmedToModel: PuppetModel? = null
+
 	/**
-	 * The overlay for one state: null outside Edit mode or when no session mesh can be shown, otherwise
-	 * every session mesh with a mesh, in the session's order, the previous instance when nothing it shows
-	 * changed.  A session mesh the renderer cannot pose (a hidden ancestor) is still listed; the renderer
-	 * skips it per frame.  A surface that shows only some of the session's meshes (a UV area shows those
-	 * mapped onto its page or layer) narrows the list with [shownIds].
+	 * The overlay for one state, the previous instance when nothing it shows changed.  In Edit mode: the
+	 * plain wireframe of every drawable in [wireframeOver] that is outside the session, in the model's order,
+	 * then the cage - every session mesh with a mesh, in the session's order - or null when neither lists
+	 * anything.  Outside Edit mode: the object wireframe of every drawable in [wireframeOver], or null when
+	 * none is given or none can be shown.  A session mesh the renderer cannot pose (a hidden ancestor) is
+	 * still listed; the renderer skips it per frame.  A surface that shows only some of the session's meshes
+	 * (a UV area shows those mapped onto its page or layer) narrows the cage with [shownIds].
 	 *
 	 * @param EditorMode mode The editor mode.
 	 * @param MeshSelection selection The selection to show.
 	 * @param PuppetModel model The model the selection is over.
 	 * @param MeshOverlaySizes sizes The overlay sizes.
 	 * @param Set<DrawableId>? shownIds The session meshes the surface shows, or null for all of them.
+	 * @param Set<DrawableId>? wireframeOver The shown drawables to wireframe, or null for no wireframe.
 	 * @return MeshOverlay? The overlay, or null for none.
 	 */
 	fun produce(
@@ -114,21 +134,39 @@ internal class EditMeshOverlayProducer {
 		model: PuppetModel,
 		sizes: MeshOverlaySizes,
 		shownIds: Set<DrawableId>? = null,
+		wireframeOver: Set<DrawableId>? = null,
 	): MeshOverlay? {
-		if (mode != EditorMode.Edit) {
-			return null
+		val editing = mode == EditorMode.Edit
+		val sessionIds = if (editing) selection.drawableIds.toSet() else emptySet()
+		val wireframeIds = wireframeOver.orEmpty()
+		// A drawable's edges are the same in the cage and in the wireframe, so its topology outlives a mode
+		// switch and is dropped only once the drawable leaves the model.  A model never changes under its
+		// identity, so the trim runs once per model rather than collecting every drawable's id per derive.
+		if (model !== trimmedToModel) {
+			val modelIds = model.drawables.mapTo(HashSet(model.drawables.size)) { drawable -> drawable.id }
+			topologyById.keys.retainAll(modelIds)
+			trimmedToModel = model
 		}
-		val sessionIds = selection.drawableIds.toSet()
-		topologyById.keys.retainAll(sessionIds)
-		entryById.keys.retainAll(sessionIds)
 		val meshById = HashMap<DrawableId, DrawableMesh>(sessionIds.size)
+		val wireframeEntries = ArrayList<MeshOverlayMesh>()
 		for (drawable in model.drawables) {
-			val mesh = drawable.mesh
-			if (mesh != null && drawable.id in sessionIds) {
+			val mesh = drawable.mesh ?: continue
+			if (drawable.id in sessionIds) {
 				meshById[drawable.id] = mesh
+			} else if (drawable.id in wireframeIds && mesh.indices.isNotEmpty()) {
+				val topology = topologyOf(drawable.id, mesh)
+				if (topology.wellFormed) {
+					wireframeEntries.add(wireframeEntryOf(drawable.id, topology))
+				}
 			}
 		}
-		val entries = ArrayList<MeshOverlayMesh>(selection.drawableIds.size)
+		wireframeEntryById.keys.retainAll(wireframeIds)
+		if (!editing) {
+			return overlayOf(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, wireframeEntries, sizes)
+		}
+		entryById.keys.retainAll(sessionIds)
+		val entries = ArrayList<MeshOverlayMesh>(wireframeEntries.size + selection.drawableIds.size)
+		entries.addAll(wireframeEntries)
 		for (drawableId in selection.drawableIds) {
 			if (shownIds != null && drawableId !in shownIds) {
 				continue
@@ -139,17 +177,49 @@ internal class EditMeshOverlayProducer {
 				entries.add(entryOf(drawableId, topology, selection))
 			}
 		}
+		return overlayOf(MeshOverlayKind.Edit, overlaySelectModeOf(selection.selectMode), entries, sizes)
+	}
+
+	/**
+	 * The overlay over [entries], or the previous instance when its kind, select mode, sizes, and entries are
+	 * the same; null for no entries.
+	 *
+	 * @param MeshOverlayKind kind The overlay kind.
+	 * @param MeshOverlaySelectMode selectMode The select mode (read by the Edit kind alone).
+	 * @param List<MeshOverlayMesh> entries The entries, in layout order.
+	 * @param MeshOverlaySizes sizes The overlay sizes.
+	 * @return MeshOverlay? The overlay, or null for none.
+	 */
+	private fun overlayOf(kind: MeshOverlayKind, selectMode: MeshOverlaySelectMode, entries: List<MeshOverlayMesh>, sizes: MeshOverlaySizes): MeshOverlay? {
 		if (entries.isEmpty()) {
 			return null
 		}
-		val overlaySelectMode = overlaySelectModeOf(selection.selectMode)
 		val previous = lastOverlay
-		if (previous != null && previous.selectMode == overlaySelectMode && previous.sizes == sizes && sameEntries(previous.meshes, entries)) {
+		if (previous != null && previous.kind == kind && previous.selectMode == selectMode && previous.sizes == sizes && sameEntries(previous.meshes, entries)) {
 			return previous
 		}
-		val overlay = MeshOverlay(MeshOverlayKind.Edit, overlaySelectMode, entries, sizes)
+		val overlay = MeshOverlay(kind, selectMode, entries, sizes)
 		lastOverlay = overlay
 		return overlay
+	}
+
+	/**
+	 * A drawable's plain-wireframe entry - its edges, nothing flagged - kept while its topology is the one it
+	 * was built over.  The same entry serves an Edit overlay (as a mesh outside the edit) and an object
+	 * wireframe, which reads no role.
+	 *
+	 * @param DrawableId drawableId The drawable.
+	 * @param Topology topology Its topology.
+	 * @return MeshOverlayMesh The entry.
+	 */
+	private fun wireframeEntryOf(drawableId: DrawableId, topology: Topology): MeshOverlayMesh {
+		val cached = wireframeEntryById[drawableId]
+		if (cached != null && cached.topology === topology) {
+			return cached.entry
+		}
+		val entry = MeshOverlayMesh(drawableId, topology.vertexCount, topology.edgeEndpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null, wireframeOnly = true)
+		wireframeEntryById[drawableId] = WireframeEntry(topology, entry)
+		return entry
 	}
 
 	/**

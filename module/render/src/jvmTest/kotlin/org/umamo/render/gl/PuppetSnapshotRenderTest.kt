@@ -4,6 +4,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.FrameBackdrop
+import org.umamo.render.FrameOverlays
 import org.umamo.render.GridColors
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
@@ -117,8 +118,8 @@ class PuppetSnapshotRenderTest {
 	private fun quadModel(): PuppetModel = modelOf(listOf(quad(quadId, 20f, 80f)))
 
 	/**
-	 * A renderer over [quadModel], posed at rest, with the quad selected and active and the world axes on:
-	 * the viewport's state, which a capture must leave out.
+	 * A renderer over [quadModel], posed at rest, with the quad selected and active: the viewport's state,
+	 * which a capture must leave out.
 	 *
 	 * @param GlRenderDevice device The device to render through.
 	 * @return PuppetRenderer The renderer.
@@ -126,7 +127,6 @@ class PuppetSnapshotRenderTest {
 	private fun viewportRenderer(device: GlRenderDevice): PuppetRenderer {
 		val renderer = PuppetRenderer(quadModel(), PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
 		renderer.initGl()
-		renderer.setWorldAxesVisible(true)
 		renderer.setShownDrawables(setOf(quadId))
 		renderer.setSelection(setOf(quadId))
 		renderer.setActiveSelection(quadId)
@@ -202,16 +202,24 @@ class PuppetSnapshotRenderTest {
 		)
 	}
 
-	/** A transparent capture leaves empty canvas clear, draws neither axis, and draws the selected quad untinted. */
+	/**
+	 * A transparent capture leaves empty canvas clear, draws neither axis though the frame asks for them, and
+	 * draws the selected quad untinted.
+	 */
 	@Test
 	fun transparentCaptureLeavesTheCanvasClearAndDrawsNoTintOrAxes() {
 		requireHeadlessGl("[snapshot-transparent]")
 		val renderer = viewportRenderer(GlRenderDevice())
-		val image = assertNotNull(renderer.renderSnapshot(ViewportCamera(0f, 0f, 1f), imageSize, imageSize, FrameBackdrop.Transparent))
+		// The axes are asked for, as an area's frame asks for them: a transparent capture has no backdrop pass
+		// to draw them in, which is what the two axis assertions below hold it to.
+		val image =
+			assertNotNull(
+				renderer.renderSnapshot(ViewportCamera(0f, 0f, 1f), imageSize, imageSize, FrameBackdrop.Transparent, overlays = FrameOverlays(axes = true)),
+			)
 		assertEquals(imageSize to imageSize, image.width to image.height)
 
 		assertEquals(listOf(0, 0, 0, 0), pixelAt(image, 10, 10), "empty canvas is fully transparent")
-		// Column 100 is the world z axis and row 100 the x axis; neither is drawn without the grid.
+		// Column 100 is the world z axis and row 100 the x axis; neither is drawn without the grid, asked for or not.
 		assertEquals(listOf(0, 0, 0, 0), pixelAt(image, 100, 150), "the z axis is not drawn")
 		assertEquals(listOf(0, 0, 0, 0), pixelAt(image, 50, 100), "the x axis is not drawn")
 

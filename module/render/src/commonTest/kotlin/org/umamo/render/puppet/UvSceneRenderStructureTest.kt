@@ -2,6 +2,7 @@ package org.umamo.render.puppet
 
 import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
+import org.umamo.render.FrameOverlays
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
@@ -85,7 +86,8 @@ class UvSceneRenderStructureTest {
 
 	/**
 	 * The UV grid carries the shown surface's rectangle (the page, the layer, or the unit square with
-	 * nothing shown) and the border width in framebuffer pixels; the 2D grid carries neither.
+	 * nothing shown) and the border width in framebuffer pixels, while its major spacing is the area's scale
+	 * on both axes whatever the surface's size; the 2D grid carries no surface.
 	 */
 	@Test
 	fun theUvGridCarriesItsSurface() {
@@ -98,20 +100,62 @@ class UvSceneRenderStructureTest {
 		val pageGrid = gridDraw(device)
 		assertEquals(ContentBounds(0f, 0f, 16f, 16f), pageGrid.uniforms.surface, "a page bounds the grid by its texels")
 		assertEquals(3f, pageGrid.uniforms.frameWidthPx, "the border is its display width times the render scale")
+		assertEquals(64f to 64f, pageGrid.uniforms.majorSpacingX to pageGrid.uniforms.majorSpacingY, "the major spacing is the area's scale, not the page's size")
 
 		device.clearLog()
 		renderer.renderUnderlayImage(target, DecodedImage(ByteArray(8 * 12 * 4), 8, 12), viewportSize, viewportSize)
-		assertEquals(ContentBounds(0f, 0f, 8f, 12f), gridDraw(device).uniforms.surface, "a layer bounds it by its own size")
+		val layerGrid = gridDraw(device)
+		assertEquals(ContentBounds(0f, 0f, 8f, 12f), layerGrid.uniforms.surface, "a layer bounds it by its own size")
+		assertEquals(64f to 64f, layerGrid.uniforms.majorSpacingX to layerGrid.uniforms.majorSpacingY, "and draws the same square spacing over it")
 
 		device.clearLog()
 		renderer.renderAtlasPage(target, null, viewportSize, viewportSize)
-		assertEquals(ContentBounds(0f, 0f, 1f, 1f), gridDraw(device).uniforms.surface, "nothing shown bounds it by the unit square")
+		val emptyGrid = gridDraw(device)
+		assertEquals(ContentBounds(0f, 0f, 1f, 1f), emptyGrid.uniforms.surface, "nothing shown bounds it by the unit square")
+		assertEquals(64f to 64f, emptyGrid.uniforms.majorSpacingX to emptyGrid.uniforms.majorSpacingY, "at the same spacing")
 
 		device.clearLog()
 		renderer.render(target, viewportSize, viewportSize)
 		val puppetGrid = gridDraw(device)
 		assertNull(puppetGrid.uniforms.surface, "the 2D grid is unbounded")
 		assertEquals(0f, puppetGrid.uniforms.frameWidthPx, "and draws no border")
+	}
+
+	/** Grid lines off leaves the UV backdrop's surround and page frame in place: only the line colors fall to the background. */
+	@Test
+	fun aUvGridWithoutLinesKeepsItsSurfaceAndFrame() {
+		val (device, renderer, target) = uvRenderer()
+		renderer.setGrid(GridColors.Classic.copy(frameRed = 1f, frameGreen = 0f, frameBlue = 0f, frameWidthPx = 1.5f), 64f, 4)
+		device.clearLog()
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, overlays = FrameOverlays(gridLines = false))
+
+		assertEquals(listOf(baselinePass), describe(device, target), "the one pass is as with lines")
+		val grid = gridDraw(device).uniforms
+		val background = listOf(grid.colors.backgroundRed, grid.colors.backgroundGreen, grid.colors.backgroundBlue)
+		assertEquals(background, listOf(grid.colors.majorRed, grid.colors.majorGreen, grid.colors.majorBlue), "the major lines take the background color")
+		assertEquals(background, listOf(grid.colors.minorRed, grid.colors.minorGreen, grid.colors.minorBlue), "and so do the minor lines")
+		assertEquals(ContentBounds(0f, 0f, 16f, 16f), grid.surface, "the surface still bounds the grid")
+		assertEquals(listOf(1f, 0f, 0f), listOf(grid.colors.frameRed, grid.colors.frameGreen, grid.colors.frameBlue), "the frame keeps its own color")
+		assertEquals(1.5f, grid.frameWidthPx, "and its width")
+	}
+
+	/** A frame that hides the area's overlay draws the page alone while the area's uploads stay, so showing it again uploads nothing. */
+	@Test
+	fun aHiddenMeshOverlayLeavesTheUvPassAtGridAndPage() {
+		val (device, renderer, target) = uvRenderer()
+		val overlay = direct(listOf(overlayMesh("art")), mapOf("art" to quadPositions(2f, 2f)))
+		device.clearLog()
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", overlay, overlays = FrameOverlays(meshOverlay = false))
+
+		assertEquals(listOf(baselinePass), describe(device, target), "the hidden overlay draws nothing")
+		assertEquals(1, uploads(device).size, "its positions are uploaded all the same")
+
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", overlay)
+		assertEquals(listOf(editPass), describe(device, target), "shown, it draws over the page")
+		assertTrue(device.resourceEvents.isEmpty(), "with nothing re-uploaded")
 	}
 
 	/**
@@ -390,6 +434,37 @@ class UvSceneRenderStructureTest {
 		device.clearLog()
 		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islandsOf("only" to IslandStyle(IslandFillRole.Idle, IslandEdgeRole.Pinned)))
 		assertEquals(channels(pinned.pinnedPlacement), device.overlayDraws()[1].idleColor, "the pinned role takes the palette's pinned color")
+	}
+
+	/**
+	 * The islands fade with the frame's wireframe opacity, every fill and outline at its role's alpha scaled,
+	 * and at zero none of them draws: they are the UV scene's overlay outside an edit, as the wireframe is the
+	 * 2D viewport's.
+	 */
+	@Test
+	fun theIslandsFadeWithTheFramesOpacityAndVanishAtZero() {
+		val (device, renderer, target) = uvRenderer()
+		val palette = MeshOverlayPalette.Classic
+		renderer.setMeshOverlayPalette(palette)
+		val islands =
+			islandsOf(
+				"back" to IslandStyle(IslandFillRole.Idle, IslandEdgeRole.Idle),
+				"front" to IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Active),
+			)
+		device.clearLog()
+
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islands, overlays = FrameOverlays(wireframeOpacity = 0.5f))
+
+		val draws = device.overlayDraws()
+		assertEquals(
+			listOf(palette.faceIdle, palette.edgeIdle, palette.faceSelected, palette.edgeActive).map { color -> channels(color).dropLast(1) + color.alpha * 0.5f },
+			draws.map { draw -> draw.idleColor },
+			"each island's fill and outline at its role's color, the alpha halved",
+		)
+
+		device.clearLog()
+		renderer.renderAtlasPage(target, 0, viewportSize, viewportSize, "uv-1", islands, overlays = FrameOverlays(wireframeOpacity = 0f))
+		assertEquals(listOf("pass main DontCare scissor=null [grid, page]"), describe(device, target), "at zero no island draws")
 	}
 
 	/** A placement preview draws over the page and under the islands: the scrims, the crops, then the ghost's crops. */

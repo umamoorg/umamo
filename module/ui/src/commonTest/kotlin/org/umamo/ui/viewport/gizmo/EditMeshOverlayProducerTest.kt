@@ -7,9 +7,11 @@ import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.render.puppet.MeshOverlay
+import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.viewport2d.RIG_HIDDEN
@@ -212,13 +214,77 @@ class EditMeshOverlayProducerTest {
 		assertSame(before.meshes[1], after.meshes[1], "the other mesh keeps its entry")
 	}
 
+	/** In Edit mode the shown drawables outside the session join ahead of the cage as plain wireframes; the session mesh is the cage alone. */
+	@Test
+	fun theWireframeOfWhatIsOutsideTheEditGoesAheadOfTheCage() {
+		val overlay = assertNotNull(produce(selectionOf(MeshSelectMode.Vertex, listOf(MeshElement.Vertex(0))), wireframeOver = setOf(RIG_QUAD, RIG_OTHER, RIG_HIDDEN)))
+
+		assertEquals(MeshOverlayKind.Edit, overlay.kind)
+		assertEquals(listOf(RIG_OTHER, RIG_HIDDEN, RIG_QUAD), overlay.meshes.map { mesh -> mesh.drawableId })
+		assertEquals(listOf(true, true, false), overlay.meshes.map { mesh -> mesh.wireframeOnly })
+		val other = overlay.meshes.first()
+		assertTrue(other.vertexFlags.isEmpty() && other.edgeFlags.isEmpty() && other.faceFlags.isEmpty(), "a wireframe entry carries no flags")
+		assertEquals(3, other.edgeCount, "and the triangle's three edges")
+		assertEquals(2, overlay.meshes.last().vertexFlags[0].toInt(), "the cage keeps its flags")
+	}
+
+	/** Outside Edit mode the wireframe set gives an object wireframe over its meshed drawables in model order, and nothing without one. */
+	@Test
+	fun outsideEditModeTheWireframeSetGivesAnObjectWireframe() {
+		val producer = EditMeshOverlayProducer()
+		val selection = selectionOf(MeshSelectMode.Vertex, listOf(MeshElement.Vertex(0)))
+		assertNull(producer.produce(EditorMode.Object, selection, gizmoRigModel(), sizes), "no wireframe set, no overlay")
+
+		val overlay = assertNotNull(producer.produce(EditorMode.Object, selection, gizmoRigModel(), sizes, wireframeOver = setOf(RIG_QUAD, RIG_OTHER, RIG_HIDDEN)))
+
+		assertEquals(MeshOverlayKind.ObjectWireframe, overlay.kind)
+		assertEquals(listOf(RIG_QUAD, RIG_OTHER, RIG_HIDDEN), overlay.meshes.map { mesh -> mesh.drawableId })
+		assertTrue(overlay.meshes.all { mesh -> mesh.wireframeOnly && mesh.vertexFlags.isEmpty() })
+		assertNull(producer.produce(EditorMode.Object, selection, gizmoRigModel(), sizes, wireframeOver = setOf(DrawableId("absent"))), "a set naming nothing meshed gives nothing")
+	}
+
+	/** The wireframe comes back as the same instance while its set and topologies stand, and as a new one over kept entries when the set grows. */
+	@Test
+	fun anUnchangedWireframeSetReturnsTheSameOverlay() {
+		val producer = EditMeshOverlayProducer()
+		val model = gizmoRigModel()
+		val selection = selectionOf(MeshSelectMode.Vertex, listOf(MeshElement.Vertex(0)))
+		val first = assertNotNull(producer.produce(EditorMode.Object, selection, model, sizes, wireframeOver = setOf(RIG_QUAD, RIG_OTHER)))
+
+		assertSame(first, producer.produce(EditorMode.Object, selection, model, sizes, wireframeOver = setOf(RIG_QUAD, RIG_OTHER)))
+		val widened = assertNotNull(producer.produce(EditorMode.Object, selection, model, sizes, wireframeOver = setOf(RIG_QUAD, RIG_OTHER, RIG_HIDDEN)))
+		assertNotSame(first, widened)
+		assertSame(first.meshes[0], widened.meshes[0], "the entries it kept are the same instances")
+		assertSame(first.meshes[1], widened.meshes[1])
+	}
+
+	/** A cage derive between two wireframe derives keeps every topology, so the wireframe entries come back as the same instances. */
+	@Test
+	fun anEditDeriveBetweenTwoWireframeDerivesKeepsTheEntries() {
+		val producer = EditMeshOverlayProducer()
+		val model = gizmoRigModel()
+		val selection = selectionOf(MeshSelectMode.Vertex, listOf(MeshElement.Vertex(0)))
+		val before = assertNotNull(producer.produce(EditorMode.Object, selection, model, sizes, wireframeOver = setOf(RIG_QUAD, RIG_OTHER)))
+
+		val cage = assertNotNull(producer.produce(EditorMode.Edit, selection, model, sizes, wireframeOver = setOf(RIG_QUAD, RIG_OTHER)))
+		assertEquals(listOf(RIG_OTHER, RIG_QUAD), cage.meshes.map { mesh -> mesh.drawableId })
+		assertSame(before.meshes[1], cage.meshes[0], "the other's wireframe entry is the one the object wireframe used")
+		val after = assertNotNull(producer.produce(EditorMode.Object, selection, model, sizes, wireframeOver = setOf(RIG_QUAD, RIG_OTHER)))
+
+		assertEquals(MeshOverlayKind.ObjectWireframe, after.kind)
+		assertSame(before.meshes[0], after.meshes[0], "the quad's entry survived the cage derive")
+		assertSame(before.meshes[1], after.meshes[1], "and so did the other's")
+	}
+
 	/**
 	 * One fresh derive in Edit mode.
 	 *
 	 * @param MeshSelection selection The selection.
+	 * @param Set<DrawableId>? wireframeOver The shown drawables to wireframe, or null for none.
 	 * @return MeshOverlay? The overlay.
 	 */
-	private fun produce(selection: MeshSelection): MeshOverlay? = EditMeshOverlayProducer().produce(EditorMode.Edit, selection, gizmoRigModel(), sizes)
+	private fun produce(selection: MeshSelection, wireframeOver: Set<DrawableId>? = null): MeshOverlay? =
+		EditMeshOverlayProducer().produce(EditorMode.Edit, selection, gizmoRigModel(), sizes, wireframeOver = wireframeOver)
 
 	/**
 	 * The quad's entry for a selection over the quad alone.

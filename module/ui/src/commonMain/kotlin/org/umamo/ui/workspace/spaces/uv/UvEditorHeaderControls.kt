@@ -18,6 +18,7 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.uv.atlasPageIndexFor
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.spaces.MeshSelectModeButtons
+import org.umamo.ui.workspace.spaces.OverlaysHeaderControl
 import org.umamo.ui.workspace.spaces.PivotModeDropdown
 import org.umamo.ui.workspace.spaces.ProportionalEditControls
 
@@ -30,8 +31,9 @@ import org.umamo.ui.workspace.spaces.ProportionalEditControls
  * the two surfaces stay one behavior.  The shared controls drive the SHARED session state (the
  * selection and its select mode are one, Blender's UV sync selection): switching to face mode here
  * switches the viewport too, by design.  The texture selector instead reads and writes the area's own
- * UvEditorViewState, so two UV editors pin independently.  Each control gates itself, and one that
- * renders nothing measures zero and costs the strip nothing.
+ * UvEditorViewState, so two UV editors pin independently, and so does the overlays control at the trailing
+ * end (the Show Overlays toggle and its popover, OverlaysHeaderControl.kt, the 2D viewport's too).  Each
+ * control gates itself, and one that renders nothing measures zero and costs the strip nothing.
  *
  * @param AreaScope scope The hosting area's scope carrying the shared view state.
  */
@@ -53,6 +55,12 @@ internal fun OverflowRowScope.uvEditorHeaderControls(scope: AreaScope) {
 	item("selectMode") { MeshSelectModeButtons() }
 	item("pivot") { PivotModeDropdown() }
 	item("proportional") { ProportionalEditControls() }
+	flexibleSpace()
+	item("overlays") {
+		if (documentIsOpen()) {
+			OverlaysHeaderControl(viewState.overlays)
+		}
+	}
 }
 
 /**

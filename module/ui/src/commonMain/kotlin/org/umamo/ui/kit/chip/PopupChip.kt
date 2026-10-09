@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -13,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -44,6 +46,10 @@ import org.umamo.ui.theme.UmamoIcon
  * @param Boolean   enabled            When false the chip dims and clicks are inert.
  * @param DropdownChipStyle style      The face's role: Header chrome by default, Compact for a list row.
  * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
+ * @param ChipToggle? iconToggle       A toggle riding on the glyph, splitting the face into the glyph's own button and the
+ *   chevron that opens the panel (see [ChipToggle]).
+ * @param Dp?       panelMinWidth      The narrowest the panel's content may be, or null for no floor; the panel
+ *   hugs its widest row above it (see [PopupPanel]).
  * @param Function  content            The panel's rows.
  */
 @Composable
@@ -56,6 +62,8 @@ fun PopupChip(
 	enabled: Boolean = true,
 	style: DropdownChipStyle = DropdownChipStyle.Header,
 	iconTint: Color? = null,
+	iconToggle: ChipToggle? = null,
+	panelMinWidth: Dp? = null,
 	content: @Composable ColumnScope.() -> Unit,
 ) {
 	var selfOpen by remember { mutableStateOf(false) }
@@ -76,8 +84,9 @@ fun PopupChip(
 		enabled = enabled,
 		style = style,
 		iconTint = iconTint,
+		iconToggle = iconToggle,
 	) {
-		PopupPanel(onDismissRequest = { setOpen(false) }, content = content)
+		PopupPanel(onDismissRequest = { setOpen(false) }, minContentWidth = panelMinWidth, content = content)
 	}
 }
 
@@ -90,12 +99,25 @@ fun PopupChip(
  * The panel provides [LocalPopupDismissOwned], so a [org.umamo.ui.kit.menu.Menu] or nested chip composed inside the content
  * yields the dismiss to this popup instead of fighting it for focus.
  *
+ * The panel hugs its widest row, never narrower than [minContentWidth].  A panel of two-column property
+ * rows passes the floor: a Row of two equal weights has an intrinsic width of twice its most demanding
+ * half, so the floor gives short labels the panel's usual width while a label that needs more - a longer
+ * locale's - still widens the panel to fit rather than being cut or wrapped.
+ *
  * @param Function onDismissRequest Called on an outside click or Esc.
+ * @param Dp?      minContentWidth  The narrowest the column may be, or null for no floor.
  * @param Function content          The panel's rows.
  */
 @Composable
-fun PopupPanel(onDismissRequest: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+fun PopupPanel(onDismissRequest: () -> Unit, minContentWidth: Dp? = null, content: @Composable ColumnScope.() -> Unit) {
 	val colors = LocalUmamoColors.current
+	// The floor raises the minimum the intrinsic width is then coerced into, so the column is the wider of the two.
+	val widthModifier =
+		if (minContentWidth != null) {
+			Modifier.widthIn(min = minContentWidth).width(IntrinsicSize.Max)
+		} else {
+			Modifier.width(IntrinsicSize.Max)
+		}
 	Popup(
 		popupPositionProvider = BelowAnchorPositionProvider,
 		onDismissRequest = onDismissRequest,
@@ -103,8 +125,7 @@ fun PopupPanel(onDismissRequest: () -> Unit, content: @Composable ColumnScope.()
 	) {
 		CompositionLocalProvider(LocalPopupDismissOwned provides true) {
 			Surface(color = colors.menuBackground, shape = LocalUmamoShapes.current.medium) {
-				// Intrinsic width so the panel hugs its widest row rather than needing a magic dp.
-				Column(modifier = Modifier.width(IntrinsicSize.Max).padding(vertical = 4.dp), content = content)
+				Column(modifier = widthModifier.padding(vertical = 4.dp), content = content)
 			}
 		}
 	}

@@ -4,6 +4,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.umamo.edit.ActiveSelectTool
+import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
@@ -20,7 +21,11 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.action.Command
 import org.umamo.ui.viewport.CameraController
+import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.viewport.OverlaySurface
+import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.workspace.AreaCameraHub
+import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetSurface
 import org.umamo.ui.workspace.KeyformSheetViews
@@ -295,7 +300,7 @@ class CommandDispatchTest {
 		runTest {
 			val session = session(EditorMode.Edit)
 			val commands =
-				snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session))
+				snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session), AreaOverlayHub())
 			val received = mutableListOf<SnapRequest>()
 			val collector = launch { session.snapRequests.collect { request -> received += request } }
 			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -317,7 +322,7 @@ class CommandDispatchTest {
 		runTest {
 			val session = session(EditorMode.Edit)
 			val commands =
-				snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session))
+				snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), AreaOverlayHub())
 			val received = mutableListOf<SnapRequest>()
 			val collector = launch { session.snapRequests.collect { request -> received += request } }
 			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -330,6 +335,28 @@ class CommandDispatchTest {
 
 			assertEquals(viewportArea, received.single().areaId)
 		}
+
+	/**
+	 * Cursor to Grid rounds to the grid of the 2D viewport under the pointer - the lines that area draws - and
+	 * does nothing over anything else: a panel, or a UV editor, whose grid is not a world grid.
+	 */
+	@Test
+	fun cursorToGridRoundsToTheHoveredViewportsGridAndNothingElsewhere() {
+		val session = session(EditorMode.Object)
+		val hub = AreaOverlayHub()
+		hub.register(viewportArea, ViewportOverlayState(OverlaySurface.Viewport2D).apply { gridGeometry = GridConfig(50f, 4) })
+		hub.register(uvArea, ViewportOverlayState(OverlaySurface.UvEditor))
+		session.setCursor2d(32f, 32f)
+
+		snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session), hub).run("snap.cursorToGrid")
+		assertEquals(Cursor2d(32f, 32f), session.cursor2d.value, "over a panel the cursor stays")
+		snapCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session), hub).run("snap.cursorToGrid")
+		assertEquals(Cursor2d(32f, 32f), session.cursor2d.value, "and over a UV editor")
+
+		snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), hub).run("snap.cursorToGrid")
+
+		assertEquals(Cursor2d(37.5f, 37.5f), session.cursor2d.value, "over the viewport the cursor rounds to its own 12.5 step")
+	}
 
 	/**
 	 * Mirror UVs fired over a 2D viewport still runs its handler - a command's spaces hide it from the
@@ -407,5 +434,61 @@ class CommandDispatchTest {
 		commands.run("view.fit")
 
 		assertEquals(1, fitCount, "the hovered area's controller resolved on its area id alone")
+	}
+
+	/**
+	 * The overlay lookup is kind-agnostic too: a command flips whatever state the hovered area registered,
+	 * and only that one - a UV editor's toggles never reach a 2D viewport's, and no hovered area flips nothing.
+	 */
+	@Test
+	fun overlayCommandsFlipTheHoveredAreasStateAndNoOther() {
+		val hub = AreaOverlayHub()
+		val viewportOverlays = ViewportOverlayState(OverlaySurface.Viewport2D)
+		val uvOverlays = ViewportOverlayState(OverlaySurface.UvEditor)
+		hub.register(viewportArea, viewportOverlays)
+		hub.register(uvArea, uvOverlays)
+		val overUv = overlayCommands(hub, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), viewportPresent = true)
+
+		overUv.run("view.overlay.all")
+		overUv.run("view.overlay.grid")
+		overUv.run("view.overlay.cursor")
+		overUv.run("view.overlay.info")
+
+		assertFalse(uvOverlays.showOverlays, "the master flipped on the hovered UV editor")
+		assertFalse(uvOverlays.showGrid)
+		assertFalse(uvOverlays.showCursor)
+		assertFalse(uvOverlays.showInfo)
+		assertTrue(viewportOverlays.showOverlays && viewportOverlays.showGrid && viewportOverlays.showCursor && viewportOverlays.showInfo, "the other area is untouched")
+
+		// The axes, selection tint, and wireframe commands are scoped to the 2D viewport, and their handlers route
+		// the same way: over a UV editor, whose surface has none of the three, each leaves that area's flag as it
+		// was (a flipped flag would make a save write the UV block as edited) and the 2D area alone; over the 2D
+		// viewport each flips it.
+		overUv.run("view.overlay.axes")
+		assertTrue(uvOverlays.showAxes, "a UV editor has no axes, so nothing flips")
+		assertTrue(viewportOverlays.showAxes, "the 2D area's axes stay")
+		overUv.run("view.overlay.wireframe")
+		assertFalse(uvOverlays.showWireframe, "nor a wireframe")
+		assertFalse(viewportOverlays.showWireframe, "the 2D area's wireframe stays off")
+		overUv.run("view.overlay.selectionTint")
+		assertTrue(uvOverlays.showSelectionTint, "nor a selection tint")
+		assertTrue(viewportOverlays.showSelectionTint, "the 2D area's tint stays on")
+		overUv.run("view.overlay.wireframeCulling")
+		assertTrue(uvOverlays.cullHiddenWireframe, "nor the wireframe's culling")
+		assertTrue(viewportOverlays.cullHiddenWireframe, "the 2D area's culling stays on")
+		val overViewport = overlayCommands(hub, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), viewportPresent = true)
+		overViewport.run("view.overlay.axes")
+		overViewport.run("view.overlay.wireframe")
+		overViewport.run("view.overlay.selectionTint")
+		overViewport.run("view.overlay.wireframeCulling")
+		assertFalse(viewportOverlays.showAxes, "over the 2D viewport the axes flip")
+		assertTrue(viewportOverlays.showWireframe, "and so does the wireframe")
+		assertFalse(viewportOverlays.showSelectionTint, "and the selection tint")
+		assertFalse(viewportOverlays.cullHiddenWireframe, "and the wireframe's culling")
+
+		overlayCommands(hub, routing(null), viewportPresent = true).run("view.overlay.all")
+
+		assertFalse(uvOverlays.showOverlays, "with no hovered area nothing flips")
+		assertTrue(viewportOverlays.showOverlays)
 	}
 }

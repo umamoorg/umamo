@@ -31,6 +31,7 @@ import org.umamo.ui.workspace.commands.historyCommands
 import org.umamo.ui.workspace.commands.keyformCommands
 import org.umamo.ui.workspace.commands.modeCommands
 import org.umamo.ui.workspace.commands.objectCommands
+import org.umamo.ui.workspace.commands.overlayCommands
 import org.umamo.ui.workspace.commands.proportionalCommands
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.commands.selectCommands
@@ -73,6 +74,7 @@ internal fun RegisterShellCommands(
 	val keyableHover = controllers.keyableHover
 	val keyformSheetViews = controllers.keyformSheetViews
 	val areaCameras = controllers.areaCameras
+	val areaOverlays = controllers.areaOverlays
 	val repackOptions = controllers.repackOptions
 	val operationStrip = controllers.operationStrip
 	// Read at dispatch: the command table registers once per session, and the app hands in a fresh
@@ -102,12 +104,15 @@ internal fun RegisterShellCommands(
 			)
 		onDispose { cleanup() }
 	}
-	// Viewport navigation commands dispatch to the hovered surface at invocation time: the hovered
-	// area's camera controller through the hub (2D viewport or UV editor), a no-op when none is
-	// registered. Re-registered when the render service changes (a new document / renderer), which
-	// flips the availability gate.
+	// Viewport navigation and overlay commands dispatch to the hovered surface at invocation time: the
+	// hovered area's camera controller or overlay state through its hub (2D viewport or UV editor), a
+	// no-op when none is registered. Re-registered when the render service changes (a new document /
+	// renderer), which flips the availability gate.
 	DisposableEffect(commandRegistry, service) {
-		val cleanup = commandRegistry.registerAll(viewCommands(areaCameras, routing, service != null))
+		val cleanup =
+			commandRegistry.registerAll(
+				viewCommands(areaCameras, routing, service != null) + overlayCommands(areaOverlays, routing, service != null),
+			)
 		onDispose { cleanup() }
 	}
 	// Frame All resolves the hovered editor to the command that editor means and re-dispatches THAT, so
@@ -159,7 +164,7 @@ internal fun RegisterShellCommands(
 					objectCommands(editorSession, selection, availability) +
 					transformCommands(editorSession, routing, availability) +
 					selectCommands(editorSession, routing, keyformSheetViews, availability) +
-					snapCommands(editorSession, routing, availability) +
+					snapCommands(editorSession, routing, availability, areaOverlays) +
 					uvCommands(editorSession, routing, availability) +
 					topologyCommands(editorSession, routing, availability) +
 					proportionalCommands(editorSession, availability) +

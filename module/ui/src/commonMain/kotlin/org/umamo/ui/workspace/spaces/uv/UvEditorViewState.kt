@@ -18,10 +18,15 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
+import org.umamo.ui.viewport.OverlaySurface
+import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.uv.atlasPageIndexFor
 import org.umamo.ui.workspace.PersistentSpaceState
+import org.umamo.ui.workspace.editorstate.OVERLAYS_MEMBER
 import org.umamo.ui.workspace.editorstate.intOf
+import org.umamo.ui.workspace.editorstate.overlaysJsonOrNull
+import org.umamo.ui.workspace.editorstate.restoreOverlays
 import org.umamo.ui.workspace.editorstate.stringOf
 
 /** The AreaScope.spaceState key the UV editor parks its view state under, and its member in an area block (UMA §7.3). */
@@ -51,8 +56,9 @@ internal sealed class UvTextureSelection {
 /**
  * The UV editor's per-area view state, shared between its area-header controls and its body (they
  * render as sibling subtrees, so this lives on the hosting AreaScope via spaceState rather than in a
- * body-local remember).  Two UV editors each get their own instance, and the instance lives as long as the open
- * document does; a saved document carries it (UMA §7.3).
+ * body-local remember): the texture selection and the area's overlay visibility.  Two UV editors each get
+ * their own instance, and the instance lives as long as the open document does; a saved document carries it
+ * (UMA §7.3).
  *
  * A pin can name a page the document does not have - a repack that shrank the atlas, a file saved by another
  * version.  Resolution treats such a pin as Follow Selection (resolveUvEditorPage) without clearing what is
@@ -61,6 +67,9 @@ internal sealed class UvTextureSelection {
 internal class UvEditorViewState : PersistentSpaceState {
 	/** The area's texture selection: follow the session, a pinned atlas page, or the source-layer view. */
 	var textureSelection by mutableStateOf<UvTextureSelection>(UvTextureSelection.FollowSelection)
+
+	/** Which overlays this area shows (UMA §7.3 `overlays`). */
+	val overlays = ViewportOverlayState(OverlaySurface.UvEditor)
 
 	/**
 	 * The UV editor's member of its area block.
@@ -78,6 +87,7 @@ internal class UvEditorViewState : PersistentSpaceState {
 					is UvTextureSelection.PinnedPage -> buildJsonObject { put("page", JsonPrimitive(selection.pageIndex)) }
 				},
 			)
+			put(OVERLAYS_MEMBER, overlays.overlaysJsonOrNull())
 		}
 
 	/**
@@ -93,6 +103,7 @@ internal class UvEditorViewState : PersistentSpaceState {
 				stringOf(tree, "texture") == "sourceLayer" -> UvTextureSelection.SourceLayer
 				else -> UvTextureSelection.FollowSelection
 			}
+		overlays.restoreOverlays(tree[OVERLAYS_MEMBER] as? JsonObject)
 	}
 }
 

@@ -41,6 +41,7 @@ import org.umamo.runtime.model.drawableNameByDrawable
 import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.runtime.model.pickableIndicesByDrawable
 import org.umamo.runtime.model.pickableUvsByDrawable
+import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
@@ -75,7 +76,7 @@ private const val LABEL_WIDTH = 86
  * Print-only Edit-mode and Object-mode Grab perf probe on the moc3.perfSample model (modelF by default: 1330
  * drawables, 220k vertices): the wall time of each stage of the UI-thread work a whole-selection Grab does -
  * the per-commit geometry capture, the mesh overlay's derive (cold on Edit entry, warm when a commit moved
- * positions only, and with one mesh's selection changed), the latch, the per-pointer-event drive and its
+ * positions only, with one mesh's selection changed, and as the wireframe of every shown mesh), the latch, the per-pointer-event drive and its
  * halves, the per-push picker rebuild, and the frame image conversion - plus the Object-mode latch and drive
  * over the same rig.  The overlay's draw is the renderer's, measured by the render-side probe.  Pins
  * nothing.  Skips without the corpus.  Standard streams are off in the build, so the rows show with --info
@@ -414,7 +415,9 @@ class EditGrabPerfProbeTest {
 	/**
 	 * The mesh overlay's derive over the whole selection: a fresh producer (every mesh's edges and flags,
 	 * as on Edit entry), the same inputs again (a commit that moved positions only, which must hand back
-	 * the same instance), and one mesh's selection changing back and forth (a click or a brush stamp).
+	 * the same instance), and one mesh's selection changing back and forth (a click or a brush stamp).  Then
+	 * the wireframe's derive over every shown mesh: a fresh producer in Object mode, the same inputs again,
+	 * and a fresh producer in Edit mode over one mesh's cage with the wireframe of every other shown mesh.
 	 *
 	 * @param PuppetModel model The committed model.
 	 * @param MeshSelection meshSelection The whole-selection mesh selection.
@@ -432,6 +435,19 @@ class EditGrabPerfProbeTest {
 		val trimmed = meshSelection.copy(elementsByDrawable = meshSelection.elementsByDrawable + (firstId to meshSelection.elementsOf(firstId).drop(1).toSet()))
 		timed("A2s mesh overlay derive, one mesh's selection changed [per click or brush stamp]") { round ->
 			producer.produce(EditorMode.Edit, if (round % 2 == 0) trimmed else meshSelection, model, sizes)
+		}
+
+		val shown = model.visibleDrawableIds()
+		timed("A3 wireframe derive, cold (every shown mesh's edges, Object mode) [on the first area asking]", 3) {
+			EditMeshOverlayProducer().produce(EditorMode.Object, meshSelection, model, sizes, wireframeOver = shown)
+		}
+		val wireframeProducer = EditMeshOverlayProducer()
+		val firstWireframe = wireframeProducer.produce(EditorMode.Object, meshSelection, model, sizes, wireframeOver = shown)
+		val warmWireframe = timed("A3w wireframe derive, warm (nothing it shows changed) [per commit in Object mode]") { wireframeProducer.produce(EditorMode.Object, meshSelection, model, sizes, wireframeOver = shown) }
+		report("A3w handed back the same instance: ${warmWireframe === firstWireframe}")
+		val oneMesh = MeshSelection(listOf(firstId), firstId, meshSelection.selectMode, mapOf(firstId to meshSelection.elementsOf(firstId)), null)
+		timed("A3e one mesh's cage plus the wireframe of every other shown mesh, cold [on Edit entry with an area asking]", 3) {
+			EditMeshOverlayProducer().produce(EditorMode.Edit, oneMesh, model, sizes, wireframeOver = shown)
 		}
 	}
 

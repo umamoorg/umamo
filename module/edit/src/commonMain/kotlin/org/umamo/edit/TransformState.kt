@@ -1,42 +1,6 @@
 package org.umamo.edit
 
 /**
- * The default major grid spacing in world units (canvas px): the built-in fallback value for
- * [GridConfig.scale] when neither a settings default (settings key viewport.grid.scale) nor a per-file
- * value has been resolved.  The grid snaps round to the finest subdivision, not to this spacing
- * directly - see [GridConfig.snapStep].
- */
-const val SNAP_GRID_WORLD_UNITS = 100f
-
-/**
- * The default number of minor subdivisions per major grid cell: the built-in fallback for
- * [GridConfig.subdivisions] (settings key viewport.grid.subdivisions).
- */
-const val DEFAULT_GRID_SUBDIVISIONS = 10
-
-/**
- * The viewport grid's geometry: the major line spacing in world units and how many minor
- * (subdivision) lines divide each major cell.  Drives both the drawn backdrop grid and the grid snap.
- * Held per document: seeded from the global-default settings, or from the document's own value when a `.uma`
- * saved one (docs/format/UMA.md § 7.4); CMO3 and MOC3 store no grid and keep the default.
- *
- * @property Float scale The major grid line spacing, in world units.
- * @property Int subdivisions The minor lines per major cell (must be at least 1).
- */
-data class GridConfig(
-	val scale: Float = SNAP_GRID_WORLD_UNITS,
-	val subdivisions: Int = DEFAULT_GRID_SUBDIVISIONS,
-) {
-	/**
-	 * The grid snap increment in world units: the finest visible spacing (major / subdivisions), so
-	 * Selection- and Cursor-to-Grid round to the minor grid lines the backdrop draws.  Subdivisions is
-	 * clamped to at least 1 so the step is always a positive, finite value.
-	 */
-	val snapStep: Float
-		get() = scale / subdivisions.coerceAtLeast(1)
-}
-
-/**
  * The 2D cursor: a placeable world-space anchor, the 2D analog of Blender's 3D cursor.  Placed with
  * Shift+RightClick in the viewport, drawn by the HUD overlay, usable as a transform pivot
  * ([TransformPivotMode.Cursor]) and as the source / target of the Shift+S snap operations.  Session

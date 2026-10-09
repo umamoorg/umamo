@@ -3,6 +3,7 @@ package org.umamo.render.gl
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
+import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -149,6 +150,71 @@ class SelectionTintTest {
 			"the merely-selected quad should stay blue-dominant and unchanged (control=$controlRight active=$selectedRight)",
 		)
 	}
+
+	/**
+	 * A frame without the selection tint draws the selected quads as the unselected control does, while the
+	 * next tinted frame tints them again: the renderer kept its selection and only the frame declined it.
+	 */
+	@Test
+	fun aFrameWithoutTheSelectionTintDrawsTheSelectionAsUnselected() {
+		requireHeadlessGl("[selection-tint]")
+		val model = twoQuadModel()
+		val device = GlRenderDevice()
+		val renderer = PuppetRenderer(model, PuppetTextures(emptyList(), emptyMap(), premultipliedAlpha = false), device)
+		renderer.initGl()
+		val target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
+		val framebuffer = (target as GlRenderTarget).framebuffer
+		renderer.setCamera(ViewportCamera(0f, 0f, 1f))
+		renderer.setShownDrawables(setOf(leftId, rightId))
+		renderer.setSelectionHighlightColor(0f, 0f, 1f)
+		renderer.setActiveSelectionHighlightColor(0f, 1f, 0f)
+		renderer.setPose(emptyMap())
+
+		// The control: nothing selected.
+		renderer.setSelection(emptySet())
+		renderer.setActiveSelection(null)
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val control = readPixels(viewportSize, viewportSize)
+		val controlLeft = averageColor(control, leftScreenCol, quadScreenRow)
+		val controlRight = averageColor(control, rightScreenCol, quadScreenRow)
+
+		// Both selected, the left active, drawn by a frame that declines the tint.
+		renderer.setSelection(setOf(leftId, rightId))
+		renderer.setActiveSelection(leftId)
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(selectionTint = false))
+		val untinted = readPixels(viewportSize, viewportSize)
+		val untintedLeft = averageColor(untinted, leftScreenCol, quadScreenRow)
+		val untintedRight = averageColor(untinted, rightScreenCol, quadScreenRow)
+
+		// The same selection drawn by a frame that tints.
+		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
+		renderer.render(target, viewportSize, viewportSize)
+		val tinted = readPixels(viewportSize, viewportSize)
+		val tintedLeft = averageColor(tinted, leftScreenCol, quadScreenRow)
+		val tintedRight = averageColor(tinted, rightScreenCol, quadScreenRow)
+
+		println("[selection-tint] control L=$controlLeft R=$controlRight | untinted L=$untintedLeft R=$untintedRight | tinted L=$tintedLeft R=$tintedRight")
+		assertTrue(within(untintedLeft, controlLeft, 4) && within(untintedRight, controlRight, 4), "a frame without the tint reads as the unselected control (control L=$controlLeft R=$controlRight, untinted L=$untintedLeft R=$untintedRight)")
+		// A tint toward green or blue takes red out of the quad at the tint's strength, whatever the quad's own
+		// color; which of green and blue leads says which tint it was.
+		assertTrue(tintedLeft.first < controlLeft.first - 30 && tintedLeft.second > tintedLeft.third, "the next tinted frame tints the active quad toward green again (control=$controlLeft tinted=$tintedLeft)")
+		assertTrue(tintedRight.first < controlRight.first - 30 && tintedRight.third > tintedRight.second, "and the selected quad toward blue (control=$controlRight tinted=$tintedRight)")
+	}
+
+	/**
+	 * Whether two averaged colors agree on every channel to within [tolerance].
+	 *
+	 * @param Triple<Int, Int, Int> first The first color.
+	 * @param Triple<Int, Int, Int> second The second color.
+	 * @param Int tolerance The largest channel difference allowed.
+	 * @return Boolean True when every channel is within it.
+	 */
+	private fun within(first: Triple<Int, Int, Int>, second: Triple<Int, Int, Int>, tolerance: Int): Boolean =
+		kotlin.math.abs(first.first - second.first) <= tolerance &&
+			kotlin.math.abs(first.second - second.second) <= tolerance &&
+			kotlin.math.abs(first.third - second.third) <= tolerance
 
 	private val leftScreenCol = 100
 	private val rightScreenCol = 300

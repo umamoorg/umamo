@@ -9,6 +9,8 @@ import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
+import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.SpaceKind
 
 /**
@@ -16,17 +18,20 @@ import org.umamo.ui.workspace.SpaceKind
  * space.
  *
  * The pivot setters and the arithmetical cursor snaps run right here; the geometry-dependent snaps go
- * through the session's request flow to the active mode's overlay, which owns the world projections.
+ * through the session's request flow to the active mode's overlay, which owns the world projections.  A
+ * grid snap rounds to the grid of the 2D viewport the pointer is over, read through the areas' overlay hub.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param CommandRouting routing Resolves which area the pointer means at dispatch time.
  * @param SessionAvailability availability The shared document-scoped availability tiers.
+ * @param AreaOverlayHub areaOverlays The work surfaces' per-area overlay states, whose grids the snaps read.
  * @return List<Command> The commands to register.
  */
 internal fun snapCommands(
 	editorSession: EditorSession?,
 	routing: CommandRouting,
 	availability: SessionAvailability,
+	areaOverlays: AreaOverlayHub,
 ): List<Command> =
 	listOf(
 		Command("transform.pivotPie", title = Res.string.cmd_transform_pivot_pie, availability = availability.hasDocument) {
@@ -66,14 +71,18 @@ internal fun snapCommands(
 				live.closePieMenu()
 			}
 		},
-		Command("snap.cursorToGrid", title = Res.string.cmd_snap_cursor_grid, availability = availability.hasDocument) {
-			editorSession?.let { live ->
+		Command("snap.cursorToGrid", title = Res.string.cmd_snap_cursor_grid, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
+			// The hovered 2D viewport's grid is the one the snap rounds to, since each area draws its own; over
+			// anything else the command does nothing (Blender's hovered-area rule, no fallback).
+			val areaId = routing.viewportArea()
+			if (editorSession != null && areaId != null) {
 				// An unplaced cursor snaps from the world origin (its resting place).  The world grid is anchored
-				// on the origin, so the snap targets the same lines the backdrop draws.
-				val cursor = live.cursor2dOrWorldOrigin()
-				val (snappedX, snappedZ) = live.model.value.snapToWorldGrid(cursor.worldX, cursor.worldZ, live.gridConfig.value.snapStep)
-				live.setCursor2d(snappedX, snappedZ)
-				live.closePieMenu()
+				// on the origin, so the snap targets the same lines that viewport's backdrop draws.
+				val step = (areaOverlays.forArea(areaId)?.grid ?: GridConfig()).snapStep
+				val cursor = editorSession.cursor2dOrWorldOrigin()
+				val (snappedX, snappedZ) = editorSession.model.value.snapToWorldGrid(cursor.worldX, cursor.worldZ, step)
+				editorSession.setCursor2d(snappedX, snappedZ)
+				editorSession.closePieMenu()
 			}
 		},
 		Command("snap.cursorToSelected", title = Res.string.cmd_snap_cursor_selected, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {

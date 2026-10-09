@@ -4,7 +4,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
-import org.umamo.edit.GridConfig
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.ContentBounds
 import org.umamo.render.FrameBackdrop
@@ -22,6 +21,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.viewport.AreaCameraKey
+import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.ImageFrame
 import org.umamo.ui.viewport.LiveParams
@@ -39,7 +39,7 @@ import org.umamo.ui.viewport.UvSceneContent
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
  *   - [EngineRenderInputs] - the render inputs the UI thread publishes (selection / shown / model / atlas
- *     pages / source artwork / grid / highlight colors / mesh overlay and palette / supersample policy),
+ *     pages / source artwork / grid colors / highlight colors / mesh overlay and palette / supersample policy),
  *     each a volatile swap that bumps the engine's freshness.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
  *     async read-back, and reads those inputs each frame.
@@ -103,12 +103,6 @@ class OffscreenPuppetService(
 			inputs.gridColors = value
 		}
 
-	override var gridConfig: GridConfig
-		get() = inputs.gridConfig
-		set(value) {
-			inputs.gridConfig = value
-		}
-
 	override fun register(areaId: String): StateFlow<RenderedFrame?> = registry.register(areaId)
 
 	override fun registerUvScene(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?): StateFlow<RenderedFrame?> =
@@ -116,6 +110,10 @@ class OffscreenPuppetService(
 
 	override fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?) =
 		registry.setUvSceneContent(areaId, content, islandExtent)
+
+	override fun setAreaOverlays(areaId: String, overlays: AreaOverlays) = registry.setAreaOverlays(areaId, overlays)
+
+	override fun areaOverlays(areaId: String): AreaOverlays? = registry.areaOverlays(areaId)
 
 	override fun unregister(areaId: String) = registry.unregister(areaId)
 
@@ -203,10 +201,11 @@ class OffscreenPuppetService(
 	 *
 	 * @param ImageFrame    frame    The camera and pixel size to render.
 	 * @param FrameBackdrop backdrop What the puppet is drawn over.
+	 * @param AreaOverlays  overlays The grid geometry, and the grid lines and axes a grid backdrop draws.
 	 * @return RasterImage? The image, straight alpha, or null when the render thread could not serve it.
 	 */
-	override suspend fun renderImage(frame: ImageFrame, backdrop: FrameBackdrop): RasterImage? {
-		val premultiplied = engine.requestSnapshot(frame.camera, frame.width, frame.height, backdrop).await() ?: return null
+	override suspend fun renderImage(frame: ImageFrame, backdrop: FrameBackdrop, overlays: AreaOverlays): RasterImage? {
+		val premultiplied = engine.requestSnapshot(frame.camera, frame.width, frame.height, backdrop, overlays).await() ?: return null
 		return withContext(Dispatchers.Default) { premultiplied.capturedOver(backdrop) }
 	}
 

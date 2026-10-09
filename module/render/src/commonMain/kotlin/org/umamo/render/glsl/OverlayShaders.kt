@@ -172,6 +172,12 @@ internal fun overlayDotVertexShader(dialect: GlslDialect, fromFaceCentroid: Bool
  * over the last framebuffer pixel beyond the half-width; a round dot that fades over the last pixel
  * beyond the radius), and the output is premultiplied for the Normal blend.
  *
+ * The band alone reads the draw-order texture: with a cull order at or above zero it fetches the order
+ * the pass wrote at its own framebuffer pixel (the two bytes the order program packed) and discards where
+ * a drawable in front of the edge's own was drawn there; over its own art, over its padding with
+ * something behind, or over nothing, the edge stays.  A texel fetch, not a filtered sample, since the
+ * target is created filtering and an order is not a color to blend.
+ *
  * @param GlslDialect dialect The target flavor.
  * @param OverlayShape shape The coverage rule.
  * @return String The ready-to-compile source.
@@ -184,8 +190,22 @@ internal fun overlayFragmentShader(dialect: GlslDialect, shape: OverlayShape): S
 		"uniform vec4 idleColor;\n" +
 		"uniform vec4 selectedColor;\n" +
 		"uniform vec4 activeColor;\n" +
+		(if (shape == OverlayShape.Band) "uniform sampler2D orderTexture;\nuniform int cullOrder;\n" else "") +
 		"out vec4 fragColor;\n" +
 		"void main() {\n" +
+		(
+			if (shape == OverlayShape.Band) {
+				"	if (cullOrder >= 0) {\n" +
+					"		vec4 order = texelFetch(orderTexture, ivec2(gl_FragCoord.xy), 0);\n" +
+					"		int front = int(order.r * 255.0 + 0.5) * 256 + int(order.g * 255.0 + 0.5);\n" +
+					"		if (front > cullOrder) {\n" +
+					"			discard;\n" +
+					"		}\n" +
+					"	}\n"
+			} else {
+				""
+			}
+		) +
 		"	vec4 color = vFlag == 0 ? idleColor : (vFlag == 1 ? selectedColor : activeColor);\n" +
 		(
 			when (shape) {

@@ -3,6 +3,7 @@ package org.umamo.render.gl
 import org.lwjgl.BufferUtils
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
+import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.device.RenderTargetSpec
@@ -26,10 +27,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Proves the world-origin axis lines actually rasterize: with [PuppetRenderer.setWorldAxesVisible]
- * on, the frame gains a horizontal red X axis row and a vertical blue Z axis column crossing at the
- * model's world origin, and with the flag off (the default, which keeps render-diff tests line-free)
- * the frame contains neither.  Renders into an offscreen FBO at a fixed 1:1 camera so the origin's
+ * Proves the world-origin axis lines actually rasterize: with [FrameOverlays.axes] on for the frame,
+ * it gains a horizontal red X axis row and a vertical blue Z axis column crossing at the model's world
+ * origin, and with the flag off (the default, which keeps render-diff tests line-free) the frame
+ * contains neither.  Renders into an offscreen FBO at a fixed 1:1 camera so the origin's
  * pixel position is predictable.  Skips in a display-less environment, like [GeometryReuploadTest] - via a
  * JUnit assumption, so the run reports SKIPPED rather than a green pass that asserted nothing.
  */
@@ -85,10 +86,9 @@ class WorldAxisLinesTest {
 		assertEquals(0, maxRedRunInCenterRows(framePlain), "no X axis pixels while the flag is off")
 		assertEquals(0, maxBlueRunInCenterColumns(framePlain), "no Z axis pixels while the flag is off")
 
-		// Enabled: a red row and a blue column cross at the center.
-		renderer.setWorldAxesVisible(true)
+		// Asked for by the frame: a red row and a blue column cross at the center.
 		GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebuffer)
-		renderer.render(target, viewportSize, viewportSize)
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(axes = true))
 		val frameAxes = readPixels(viewportSize, viewportSize)
 		val redRun = maxRedRunInCenterRows(frameAxes)
 		val blueRun = maxBlueRunInCenterColumns(frameAxes)
