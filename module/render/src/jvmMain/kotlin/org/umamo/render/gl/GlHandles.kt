@@ -126,6 +126,7 @@ internal class GlUniformLocations(program: Int) {
 	val atlasLinear = GL20.glGetUniformLocation(program, "atlasLinear")
 	val atlasTransparentBorder = GL20.glGetUniformLocation(program, "atlasTransparentBorder")
 	val drawOrder = GL20.glGetUniformLocation(program, "drawOrder")
+	val orderOpacity = GL20.glGetUniformLocation(program, "orderOpacity")
 
 	// Image quad
 	val quadRow0 = GL20.glGetUniformLocation(program, "quadRow0")
@@ -195,6 +196,7 @@ internal class GlRenderPipeline(
 	val blend: PipelineBlend,
 	val cullBackFaces: Boolean,
 	val locations: GlUniformLocations,
+	val writesDrawOrder: Boolean,
 ) : RenderPipeline
 
 /** The transform-feedback program that captures deformed positions without rasterizing. */

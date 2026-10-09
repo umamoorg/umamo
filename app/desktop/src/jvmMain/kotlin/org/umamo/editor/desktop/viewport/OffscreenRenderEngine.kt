@@ -111,9 +111,6 @@ internal class OffscreenRenderEngine(
 	// The UMAMO_DUMP_PNG developer dump, render-thread-owned like the frames it reads.
 	private val firstFrameDump = FirstFrameDump()
 
-	/** The wireframe culling's scrub-cost measurement aid, armed by the facade, recorded per 2D scrub frame below. */
-	val scrubProfiler = ScrubProfiler()
-
 	@Volatile
 	private var running = true
 
@@ -428,28 +425,7 @@ internal class OffscreenRenderEngine(
 		// not show.
 		val uvContent = slot.uvContent
 		when (slot.scene) {
-			RenderScene.Puppet2D -> {
-				// The scrub profiler, while armed, times a frame a parameter move caused four ways: as paid (this
-				// render, the overlay re-capture included), then again still culled, still unculled, and with no
-				// wireframe, each finished on the GPU before the clock reads; the last render is the one shown.
-				val frameOverlays = overlays.frame
-				if (scrubProfiler.armed && slot.renderedParamsVersion != paramsVersion) {
-					val paidNanos = finishedRender { renderer.render(drawTarget, renderWidth, renderHeight, overlays = frameOverlays) }
-					var unculledNanos: Long? = null
-					var artOnlyNanos: Long? = null
-					if (frameOverlays.wireframe) {
-						artOnlyNanos = finishedRender { renderer.render(drawTarget, renderWidth, renderHeight, overlays = frameOverlays.copy(wireframe = false)) }
-						unculledNanos = finishedRender { renderer.render(drawTarget, renderWidth, renderHeight, overlays = frameOverlays.copy(wireframeCulling = false)) }
-					}
-					val culledNanos = finishedRender { renderer.render(drawTarget, renderWidth, renderHeight, overlays = frameOverlays) }
-					scrubProfiler.record(areaId, width, height, renderScale, frameOverlays, paidNanos, culledNanos, unculledNanos, artOnlyNanos)
-				} else {
-					if (scrubProfiler.armed) {
-						scrubProfiler.stillFrame(areaId)
-					}
-					renderer.render(drawTarget, renderWidth, renderHeight, overlays = frameOverlays)
-				}
-			}
+			RenderScene.Puppet2D -> renderer.render(drawTarget, renderWidth, renderHeight, overlays = overlays.frame)
 			// A UV area draws its flat surface and the overlay its content carries instead; the pose / selection /
 			// shown state pushed above are harmless no-ops for it (no UV draw reads any of them).  The overlay's
 			// positions upload into the area's own store, keyed by the area id.
@@ -495,20 +471,6 @@ internal class OffscreenRenderEngine(
 		slot.atlasRenderBumpDone = atlasRenderBumpDone
 		slot.renderedUvContent = uvContent
 		slot.renderedOverlays = overlays
-	}
-
-	/**
-	 * Runs one render and waits for the GPU to finish it, returning the wall time of both in nanoseconds: the
-	 * scrub profiler's clock, a stall the shown frame pays only while it is armed.
-	 *
-	 * @param Function render The render to time.
-	 * @return Long The nanoseconds from the call to the GPU's completion.
-	 */
-	private inline fun finishedRender(render: () -> Unit): Long {
-		val start = System.nanoTime()
-		render()
-		GL11.glFinish()
-		return System.nanoTime() - start
 	}
 
 	/**

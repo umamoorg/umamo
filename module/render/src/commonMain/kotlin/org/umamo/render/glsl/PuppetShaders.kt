@@ -103,6 +103,14 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 		uniform vec3 screenColor;
 		uniform float highlight;
 		uniform vec3 highlightColor;
+		// The draw order, written as the pass's second draw buffer by a pass that has one: a covering fragment
+		// (the drawn alpha, scaled by the enclosing composites' opacities, at the threshold or over) writes its
+		// drawable's back-to-front index packed into the red and green bytes at alpha one, which the blend
+		// replaces the target with; any other fragment writes zeros, which every blend the art uses leaves
+		// alone.  An order of zero never covers.  A pass without the second buffer discards this output.
+		uniform int drawOrder;
+		uniform float orderOpacity;
+		layout(location = 1) out vec4 fragOrder;
 		void main() {
 			float alpha;
 			vec4 base = drawnArt(alpha);
@@ -110,31 +118,8 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 			tinted = tinted + screenColor - tinted * screenColor;
 			vec3 rgb = mix(tinted, highlightColor, highlight);
 			fragColor = vec4(rgb * alpha, alpha);
-		}
-		""".trimIndent()
-
-/**
- * The draw-order pass's fragment stage over the same art sampling as [puppetFragmentShader]: the drawn
- * alpha through the opacity and the mask decides, at [DRAW_ORDER_ALPHA_THRESHOLD], whether this
- * drawable covers the pixel; a covering fragment writes the drawable's back-to-front index packed into
- * the red and green bytes (high byte first; zero, the cleared target, is nothing), the rest discards.
- * The blend is off, so the frontmost writer is what the overlay edges read.
- *
- * @param GlslDialect dialect The target flavor.
- * @return String The ready-to-compile source.
- */
-internal fun drawOrderFragmentShader(dialect: GlslDialect): String =
-	glslHeader(dialect) +
-		artAlphaGlsl() +
-		"""
-		uniform int drawOrder;
-		void main() {
-			float alpha;
-			drawnArt(alpha);
-			if (alpha < $DRAW_ORDER_ALPHA_THRESHOLD) {
-				discard;
-			}
-			fragColor = vec4(float(drawOrder / 256) / 255.0, float(drawOrder % 256) / 255.0, 0.0, 1.0);
+			float covering = (drawOrder > 0 && alpha * orderOpacity >= $DRAW_ORDER_ALPHA_THRESHOLD) ? 1.0 : 0.0;
+			fragOrder = vec4(float(drawOrder / 256) / 255.0 * covering, float(drawOrder % 256) / 255.0 * covering, 0.0, covering);
 		}
 		""".trimIndent()
 

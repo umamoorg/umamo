@@ -154,7 +154,6 @@ internal fun shellCommandTables(session: EditorSession? = null): List<Command> {
 		documentCommands(overlays) +
 		viewCommands(AreaCameraHub(), routing, viewportPresent = false) +
 		overlayCommands(AreaOverlayHub(), routing, viewportPresent = false) +
-		debugCommands { null } +
 		frameCommands(CommandRegistry(), routing) +
 		modeCommands(handles, handles) +
 		historyCommands(session, availability, OperationStripState()) +

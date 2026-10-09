@@ -139,6 +139,9 @@ internal class RecordedPass(
 
 	/** The target this pass writes, as the recorder's own type. */
 	val target: RecordedTarget get() = spec.colorTarget as RecordedTarget
+
+	/** The draw-order target the pass's art draws write, as the recorder's own type, or null. */
+	val drawOrderTarget: RecordedTarget? get() = spec.drawOrderTarget as RecordedTarget?
 }
 
 /**
@@ -227,7 +230,10 @@ internal sealed interface RecordedDraw {
  * @property Int                cornerCount       The active keyform corners; 0 for a glue draw.
  * @property Int                parentType        0 direct, 1 rotation, 2 warp; 0 for a glue draw.
  * @property List<Float>        glueIntensities   The per-glue weld intensities; empty for a deforming draw.
- * @property Int                drawOrder         The back-to-front index a draw-order write carries; 0 elsewhere.
+ * @property Int                drawOrder         The back-to-front index the draw's covering fragments write into
+ *   the pass's draw-order target; 0 for a draw that writes none.
+ * @property Float              orderOpacity      The composite opacity product the alpha is scaled by before the
+ *   order threshold.
  */
 internal class RecordedMeshDraw(
 	override val pipeline: RenderPipelineSpec,
@@ -250,6 +256,7 @@ internal class RecordedMeshDraw(
 	val parentType: Int,
 	val glueIntensities: List<Float>,
 	val drawOrder: Int = 0,
+	val orderOpacity: Float = 1f,
 ) : RecordedDraw
 
 /**
@@ -855,6 +862,7 @@ internal class RecordingRenderDevice : RenderDevice {
 		}
 		val recorded = liveTexture(texture, operation)
 		check(recorded !== pass.target.sampledTexture) { "$operation samples target #${pass.target.serial}, which its own pass is writing" }
+		check(recorded !== pass.drawOrderTarget?.sampledTexture) { "$operation samples the draw-order target its own pass is writing" }
 		return recorded
 	}
 
@@ -890,6 +898,10 @@ internal class RecordingRenderDevice : RenderDevice {
 			check(frameOpen) { "beginRenderPass after the frame ended" }
 			check(openPass == null && openCapture == null) { "beginRenderPass while another pass is open" }
 			liveTarget(spec.colorTarget, "beginRenderPass")
+			spec.drawOrderTarget?.let { order ->
+				liveTarget(order, "beginRenderPass")
+				check(order !== spec.colorTarget) { "beginRenderPass with the draw-order target as its own color target" }
+			}
 			val pass = RecordedPass(spec)
 			recordedSteps.add(pass)
 			openPass = pass
@@ -942,8 +954,7 @@ internal class RecordingRenderDevice : RenderDevice {
 		}
 
 		override fun drawPuppetMesh(mesh: GpuMesh, deform: DeformUniforms, fragment: FragmentUniforms, textures: DrawTextures) {
-			// The deform stage draws the art or writes the draw order; the recorded pipeline says which.
-			val pipeline = pipelineFor(PipelinePurpose.PuppetDeformDraw, "drawPuppetMesh", PipelinePurpose.DrawOrder)
+			val pipeline = pipelineFor(PipelinePurpose.PuppetDeformDraw, "drawPuppetMesh")
 			pass.draws.add(
 				RecordedMeshDraw(
 					pipeline = pipeline,
@@ -966,6 +977,7 @@ internal class RecordingRenderDevice : RenderDevice {
 					parentType = deform.parentType,
 					glueIntensities = emptyList(),
 					drawOrder = fragment.drawOrder,
+					orderOpacity = fragment.orderOpacity,
 				),
 			)
 		}
@@ -1001,6 +1013,8 @@ internal class RecordingRenderDevice : RenderDevice {
 					cornerCount = 0,
 					parentType = 0,
 					glueIntensities = glueIntensities.toList(),
+					drawOrder = fragment.drawOrder,
+					orderOpacity = fragment.orderOpacity,
 				),
 			)
 		}
@@ -1130,13 +1144,12 @@ internal class RecordingRenderDevice : RenderDevice {
 		 *
 		 * @param PipelinePurpose purpose   The purpose the draw requires.
 		 * @param String          operation The draw being issued, for the failure message.
-		 * @param PipelinePurpose? alternative A second purpose the draw also serves, or null.
 		 * @return RenderPipelineSpec The bound pipeline's spec.
 		 */
-		private fun pipelineFor(purpose: PipelinePurpose, operation: String, alternative: PipelinePurpose? = null): RenderPipelineSpec {
+		private fun pipelineFor(purpose: PipelinePurpose, operation: String): RenderPipelineSpec {
 			requireOpen(operation)
 			val pipeline = boundPipeline ?: error("$operation with no pipeline bound")
-			check(pipeline.spec.purpose == purpose || pipeline.spec.purpose == alternative) { "$operation with a ${pipeline.spec.purpose} pipeline bound" }
+			check(pipeline.spec.purpose == purpose) { "$operation with a ${pipeline.spec.purpose} pipeline bound" }
 			return pipeline.spec
 		}
 	}

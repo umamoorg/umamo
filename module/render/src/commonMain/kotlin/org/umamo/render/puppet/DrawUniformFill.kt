@@ -139,6 +139,7 @@ internal fun FragmentUniforms.reset() {
 	highlightGreen = 0f
 	highlightBlue = 0f
 	drawOrder = 0
+	orderOpacity = 1f
 	// IDENTITY, not zero.  Every other field here resets to a harmless zero; this one cannot - a zeroed
 	// affine maps every texture coordinate onto texel (0, 0), so the whole draw samples one pixel.
 	setIdentityUvAffine(uvAffine)

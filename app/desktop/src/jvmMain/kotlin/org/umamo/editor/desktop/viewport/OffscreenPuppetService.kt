@@ -183,8 +183,6 @@ class OffscreenPuppetService(
 
 	override fun setMeshOverlayPalette(palette: MeshOverlayPalette) = inputs.setMeshOverlayPalette(palette)
 
-	override fun setScrubProfiling(enabled: Boolean) = engine.scrubProfiler.setArmed(enabled)
-
 	override fun pickAt(areaId: String, cursorXpx: Float, cursorYpx: Float): DrawableId? {
 		val view = registry.viewFor(areaId) ?: return null
 		return picker.pickAt(view.camera, view.width, view.height, cursorXpx, cursorYpx)

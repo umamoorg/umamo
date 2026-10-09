@@ -671,7 +671,10 @@ class PuppetRenderer(
 
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
 		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
-		val baseInputs =
+		// A culling frame's art passes write the draw order as their second draw buffer; the main pass clears
+		// it first, and the overlay draws read it from a pass of their own that has it detached.
+		val orderTarget = if (cullWireframe) sideTargets.drawOrderTarget else null
+		val inputs =
 			FrameInputs(
 				affine = affine,
 				viewportWidth = viewportWidth,
@@ -688,18 +691,16 @@ class PuppetRenderer(
 				overlayPalette = meshOverlayPalette,
 				drawWireframe = overlays.wireframe,
 				wireframeOpacity = overlays.wireframeOpacity,
+				drawOrderTarget = orderTarget,
+				drawOrderOf = if (orderTarget != null) drawOrderOf() else emptyMap(),
 			)
-		// The draw order is written before the main pass opens, on its own target, so the main pass stays the
-		// one open pass the overlay draws land in.
-		val orderTexture = if (cullWireframe) planEncoder.encodeDrawOrder(frame, baseInputs, currentPlan) else null
-		val inputs = if (orderTexture != null) baseInputs.withDrawOrder(orderTexture, drawOrderOf()) else baseInputs
 
 		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
 		// A flat backdrop is the pass's own clear, and the puppet blends over it exactly as over the grid.
 		var pass =
 			when (backdrop) {
 				FrameBackdrop.Grid -> {
-					val gridPass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
+					val gridPass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight, drawOrder = orderTarget, clearDrawOrder = true))
 					drawBackdrop(gridPass, affine, viewportWidth, viewportHeight, pixelScale, overlays)
 					gridPass
 				}
@@ -715,11 +716,18 @@ class PuppetRenderer(
 							clearGreen = backdrop.green,
 							clearBlue = backdrop.blue,
 							clearAlpha = backdrop.alpha,
+							drawOrder = orderTarget,
+							clearDrawOrder = true,
 						),
 					)
 			}
 		pass = planEncoder.encodePlan(frame, inputs, currentPlan, target, pass)
 		if (overlay != null) {
+			if (orderTarget != null) {
+				// The edges sample the order, so they draw in a pass that no longer has it attached.
+				pass.end()
+				pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
+			}
 			overlayEncoder.encodeDraws(pass, inputs)
 		}
 		pass.end()

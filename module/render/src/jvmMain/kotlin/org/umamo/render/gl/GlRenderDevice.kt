@@ -38,7 +38,6 @@ import org.umamo.render.glsl.axisFragmentShader
 import org.umamo.render.glsl.axisVertexShader
 import org.umamo.render.glsl.compositeFragmentShader
 import org.umamo.render.glsl.compositeVertexShader
-import org.umamo.render.glsl.drawOrderFragmentShader
 import org.umamo.render.glsl.glueVertexShader
 import org.umamo.render.glsl.gridFragmentShader
 import org.umamo.render.glsl.gridVertexShader
@@ -240,7 +239,9 @@ class GlRenderDevice : RenderDevice {
 		renderPipelines.getOrPut(spec) {
 			val (vertexSource, fragmentSource) = sourcesFor(spec.purpose)
 			val program = linkGlProgram(vertexSource, fragmentSource, spec.purpose.name)
-			GlRenderPipeline(program, spec.blend, spec.cullBackFaces, GlUniformLocations(program))
+			// The art programs alone write a pass's draw-order buffer; every other program's single output stays on the color target.
+			val writesDrawOrder = spec.purpose == PipelinePurpose.PuppetDeformDraw || spec.purpose == PipelinePurpose.PuppetGlueDraw
+			GlRenderPipeline(program, spec.blend, spec.cullBackFaces, GlUniformLocations(program), writesDrawOrder)
 		}
 
 	override fun createDeformCapturePipeline(): DeformCapturePipeline =
@@ -583,7 +584,6 @@ class GlRenderDevice : RenderDevice {
 			PipelinePurpose.OverlayEdge -> overlayEdgeVertexShader(DIALECT) to overlayFragmentShader(DIALECT, OverlayShape.Band)
 			PipelinePurpose.OverlayVertexDot -> overlayDotVertexShader(DIALECT, fromFaceCentroid = false) to overlayFragmentShader(DIALECT, OverlayShape.Round)
 			PipelinePurpose.OverlayFaceDot -> overlayDotVertexShader(DIALECT, fromFaceCentroid = true) to overlayFragmentShader(DIALECT, OverlayShape.Round)
-			PipelinePurpose.DrawOrder -> puppetVertexShader(DIALECT) to drawOrderFragmentShader(DIALECT)
 		}
 
 	/**

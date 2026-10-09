@@ -125,7 +125,7 @@ internal class MeshOverlayEncoder(
 				sideTargets.capacityHeight,
 				inputs.drawWireframe,
 				inputs.wireframeOpacity,
-				inputs.drawOrderTexture,
+				inputs.drawOrderTarget?.sampledTexture,
 				inputs.drawOrderOf,
 			)
 		drawEntries(pass, overlay, entries, store, frame)

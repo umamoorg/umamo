@@ -106,166 +106,7 @@ internal class RenderPlanEncoder(
 		plan: List<RenderPlanNode>,
 		target: RenderTarget,
 		startPass: RenderPassEncoder,
-	): RenderPassEncoder = renderPlanNodes(frame, plan, target, 0, inputs, startPass, scissor = null)
-
-	/**
-	 * Records the draw-order pass: every covering drawable of [plan], back to front, written into the
-	 * draw-order side target as its back-to-front index (1 the backmost; the cleared target reads 0 for
-	 * nothing), so the frontmost writer at a pixel is what the wireframe edges read to cull by.  A
-	 * drawable covers where its drawn alpha - the art's through its opacity, its enclosing composites'
-	 * opacities, and its mask - reaches the order threshold; the order program discards the rest.
-	 *
-	 * The walk mirrors the plan's, not its passes: a composite's children write their own orders at the
-	 * composite's opacity product rather than through a layer, a drawable's own mask or else its nearest
-	 * masked composite's fragments the pass around a coverage pass as the main walk does, and a drawable
-	 * or composite that blends other than Normal over writes nothing, since it tints what is behind it
-	 * rather than covering it (the index it holds in the order is still consumed, so every writer's index
-	 * is its position in the flattened plan).  Glue meshes write through the deform stage at their
-	 * pre-weld shape, where the overlay draws them.
-	 *
-	 * @param FrameEncoder         frame  The frame being recorded.
-	 * @param FrameInputs          inputs The frame's inputs.
-	 * @param List<RenderPlanNode> plan   The pose's resolved render plan, back-to-front.
-	 * @return GpuTexture? The draw-order texture the pass wrote, or null when the pool has no target yet.
-	 */
-	fun encodeDrawOrder(frame: FrameEncoder, inputs: FrameInputs, plan: List<RenderPlanNode>): GpuTexture? {
-		val target = sideTargets.drawOrderTarget ?: return null
-		val pass = frame.beginRenderPass(passSpec(target, LoadAction.Clear, inputs.viewportWidth, inputs.viewportHeight, clearAlpha = 0f))
-		val cursor = IntArray(1)
-		writeDrawOrder(frame, plan, target, inputs, pass, cursor, opacity = 1f, maskIds = emptyList(), invertMask = false).end()
-		return target.sampledTexture
-	}
-
-	/**
-	 * Walks a span of the plan for [encodeDrawOrder], advancing [cursor] past every drawable node whether
-	 * or not it writes, and returning the open pass on [target].
-	 *
-	 * @param FrameEncoder         frame      The frame being recorded.
-	 * @param List<RenderPlanNode> nodes      The span, back-to-front.
-	 * @param RenderTarget         target     The draw-order target.
-	 * @param FrameInputs          inputs     The frame's inputs.
-	 * @param RenderPassEncoder    startPass  The open pass on [target].
-	 * @param IntArray             cursor     The running back-to-front index, the last one handed out.
-	 * @param Float                opacity    The product of the enclosing composites' opacities.
-	 * @param List<DrawableId>     maskIds    The nearest enclosing masked composite's masks, or none.
-	 * @param Boolean              invertMask Whether that composite inverts its mask.
-	 * @return RenderPassEncoder The open pass on [target] after the span.
-	 */
-	private fun writeDrawOrder(
-		frame: FrameEncoder,
-		nodes: List<RenderPlanNode>,
-		target: RenderTarget,
-		inputs: FrameInputs,
-		startPass: RenderPassEncoder,
-		cursor: IntArray,
-		opacity: Float,
-		maskIds: List<DrawableId>,
-		invertMask: Boolean,
-	): RenderPassEncoder {
-		var pass = startPass
-		for (node in nodes) {
-			when (node) {
-				is RenderPlanDrawable -> {
-					cursor[0] += 1
-					val order = cursor[0]
-					val gpuDrawable = residency.residents[node.id] ?: continue
-					if (!gpuDrawable.visible || gpuDrawable.indexCount == 0 || gpuDrawable.corners == null) {
-						continue
-					}
-					if (gpuDrawable.blendMode != BlendMode.Normal || gpuDrawable.isExtendedBlend) {
-						continue
-					}
-					val ownMasked = gpuDrawable.maskIds.isNotEmpty()
-					val masks = if (ownMasked) gpuDrawable.maskIds else maskIds
-					val inverted = if (ownMasked) gpuDrawable.invertMask else invertMask
-					var maskCoverage: GpuTexture? = null
-					if (masks.isNotEmpty()) {
-						pass.end()
-						renderMaskCoverage(frame, masks, inputs)
-						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight))
-						maskCoverage = sideTargets.maskTarget?.sampledTexture
-					}
-					drawOrder(pass, gpuDrawable, inputs, order, opacity * gpuDrawable.opacity, maskCoverage, inverted)
-				}
-
-				is RenderPlanComposite -> {
-					val composite = node.composite
-					val flattened = node.partId in inputs.acceleration.flattenable
-					val covers = flattened || (composite.blendMode == BlendMode.Normal && composite.alphaBlendMode == AlphaBlendMode.Over)
-					if (!covers) {
-						cursor[0] += countPlanDrawables(node.children)
-						continue
-					}
-					val poseOpacity = inputs.compositeStates[node.partId]?.opacity ?: composite.opacity
-					val childOpacity = if (flattened) opacity else opacity * poseOpacity
-					val childMasked = !flattened && composite.maskedBy.isNotEmpty()
-					pass =
-						writeDrawOrder(
-							frame,
-							node.children,
-							target,
-							inputs,
-							pass,
-							cursor,
-							childOpacity,
-							if (childMasked) composite.maskedBy else maskIds,
-							if (childMasked) composite.invertMask else invertMask,
-						)
-				}
-			}
-		}
-		return pass
-	}
-
-	/**
-	 * How many drawable nodes a span holds, nested composites included: the indices a span skipped as a
-	 * whole still consumes.
-	 *
-	 * @param List<RenderPlanNode> nodes The span.
-	 * @return Int The drawable count.
-	 */
-	private fun countPlanDrawables(nodes: List<RenderPlanNode>): Int =
-		nodes.sumOf { node ->
-			when (node) {
-				is RenderPlanDrawable -> 1
-				is RenderPlanComposite -> countPlanDrawables(node.children)
-			}
-		}
-
-	/**
-	 * One drawable's draw-order write: the order program over the deform stage, the art's alpha through
-	 * [opacity] and the coverage, no tint, the drawable's own cull.
-	 *
-	 * @param RenderPassEncoder pass         The open pass on the draw-order target.
-	 * @param GpuDrawable       gpuDrawable  The resident drawable.
-	 * @param FrameInputs       inputs       The frame's inputs.
-	 * @param Int               order        The drawable's back-to-front index, 1 the backmost.
-	 * @param Float             opacity      The drawable's opacity times its composites'.
-	 * @param GpuTexture?       maskCoverage The coverage the write samples, or null when unmasked.
-	 * @param Boolean           invertMask   Whether the coverage is inverted.
-	 */
-	private fun drawOrder(
-		pass: RenderPassEncoder,
-		gpuDrawable: GpuDrawable,
-		inputs: FrameInputs,
-		order: Int,
-		opacity: Float,
-		maskCoverage: GpuTexture?,
-		invertMask: Boolean,
-	) {
-		pass.setPipeline(pipelines.drawOrderPipelineFor(gpuDrawable.culling))
-		pass.setCamera(inputs.affine, sideTargets.capacityWidth, sideTargets.capacityHeight)
-		fillFragment(fragmentScratch, gpuDrawable, opacity, 0f, inputs.highlightColor, masked = maskCoverage != null)
-		// The nearest mask's inversion, which for an enclosing composite's mask is the composite's, not the drawable's.
-		fragmentScratch.invertMask = maskCoverage != null && invertMask
-		fragmentScratch.drawOrder = order
-		texturesScratch.atlas = gpuDrawable.activeTexture()
-		texturesScratch.maskCoverage = maskCoverage
-		texturesScratch.deltaTexture = gpuDrawable.deltaTexture
-		texturesScratch.warpControlPoints = gpuDrawable.cpTexture
-		fillDeform(deformScratch, gpuDrawable)
-		pass.drawPuppetMesh(gpuDrawable.mesh, deformScratch, fragmentScratch, texturesScratch)
-	}
+	): RenderPassEncoder = renderPlanNodes(frame, plan, target, 0, inputs, startPass, scissor = null, orderOpacity = 1f)
 
 	/**
 	 * Walks a render-plan span into [target]: plain drawables draw directly (with the mask-coverage
@@ -292,6 +133,9 @@ internal class RenderPlanEncoder(
 	 * @param ScissorRect?         scissor   [target]'s own pass scissor (a composite layer's
 	 *   bounds rect when this span IS an isolated subtree), re-applied whenever the span resumes a
 	 *   pass on [target]; null at the top level.
+	 * @param Float                orderOpacity The product of the enclosing composites' opacities, by which a
+	 *   draw's alpha is scaled before the draw-order threshold: a layer draws its children at full opacity and
+	 *   fades them at the composite, but what covers a wire is what the viewer sees.
 	 * @return RenderPassEncoder The open pass on [target] after the span (may differ from [startPass]).
 	 */
 	private fun renderPlanNodes(
@@ -302,6 +146,7 @@ internal class RenderPlanEncoder(
 		inputs: FrameInputs,
 		startPass: RenderPassEncoder,
 		scissor: ScissorRect?,
+		orderOpacity: Float,
 	): RenderPassEncoder {
 		var pass = startPass
 		for (node in nodes) {
@@ -334,11 +179,14 @@ internal class RenderPlanEncoder(
 						// resume preserving what is drawn so far. Correct on every backend and non-nesting.
 						pass.end()
 						renderMaskCoverage(frame, gpuDrawable.maskIds, inputs)
-						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = scissor))
+						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = scissor, drawOrder = inputs.drawOrderTarget))
 						maskCoverage = sideTargets.maskTarget?.sampledTexture
 					}
 					val isActive = inputs.activeId != null && gpuDrawable.id == inputs.activeId
 					val highlight = if (isActive || gpuDrawable.id in inputs.selectedIds) SELECTION_TINT_STRENGTH else 0f
+					// Only a Normal-blend drawable covers what is behind it; an Additive or Multiply one tints it, so
+					// it writes no order (zero) while keeping its place in the order.
+					val drawOrder = if (gpuDrawable.blendMode == BlendMode.Normal) inputs.drawOrderOf[gpuDrawable.id] ?: 0 else 0
 					drawDrawable(
 						pass,
 						gpuDrawable,
@@ -349,6 +197,8 @@ internal class RenderPlanEncoder(
 						isActive,
 						maskCoverage != null,
 						maskCoverage,
+						drawOrder,
+						orderOpacity,
 					)
 				}
 
@@ -356,7 +206,7 @@ internal class RenderPlanEncoder(
 					if (node.partId in inputs.acceleration.flattenable) {
 						// Identity source-over of an all-Normal/Over subtree: Over is associative,
 						// so the subtree draws inline - no layer, no snapshot, no composite draw.
-						pass = renderPlanNodes(frame, node.children, target, depth, inputs, pass, scissor)
+						pass = renderPlanNodes(frame, node.children, target, depth, inputs, pass, scissor, orderOpacity)
 						continue
 					}
 					// A fully faded non-Out layer composites to the unchanged destination, so skip it
@@ -373,7 +223,7 @@ internal class RenderPlanEncoder(
 						}
 					}
 					pass.end()
-					pass = compositeGroup(frame, node, target, depth, inputs, layerRect, scissor)
+					pass = compositeGroup(frame, node, target, depth, inputs, layerRect, scissor, orderOpacity * poseOpacity)
 				}
 			}
 		}
@@ -394,6 +244,8 @@ internal class RenderPlanEncoder(
 	 *   draw, null for a full-viewport layer (Out alpha or uncomputable bounds).
 	 * @param ScissorRect?        parentScissor [target]'s own scissor (the enclosing layer's rect), null at
 	 *   the top level; the composite-back is confined to it intersected with [layerRect].
+	 * @param Float               orderOpacity  The opacity product the subtree's draws scale their alpha by
+	 *   before the draw-order threshold, this composite's own included.
 	 * @return RenderPassEncoder The fresh open pass on [target] after the composite.
 	 */
 	private fun compositeGroup(
@@ -404,11 +256,16 @@ internal class RenderPlanEncoder(
 		inputs: FrameInputs,
 		layerRect: ScissorRect?,
 		parentScissor: ScissorRect?,
+		orderOpacity: Float,
 	): RenderPassEncoder {
 		val layerTarget = sideTargets.acquireLayer(depth)
+		// The layer's draws write the frame's draw order too: a composite's children cover as they are seen,
+		// while a composite that blends other than Normal over tints, so its children write none.
+		val covers = node.composite.blendMode == BlendMode.Normal && node.composite.alphaBlendMode == AlphaBlendMode.Over
+		val layerOrder = if (covers) inputs.drawOrderTarget else null
 		var subtreePass =
-			frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, inputs.viewportWidth, inputs.viewportHeight, clearAlpha = 0f, scissor = layerRect))
-		subtreePass = renderPlanNodes(frame, node.children, layerTarget, depth + 1, inputs, subtreePass, layerRect)
+			frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, inputs.viewportWidth, inputs.viewportHeight, clearAlpha = 0f, scissor = layerRect, drawOrder = layerOrder))
+		subtreePass = renderPlanNodes(frame, node.children, layerTarget, depth + 1, inputs, subtreePass, layerRect, orderOpacity)
 		subtreePass.end()
 		val masked = node.composite.maskedBy.isNotEmpty()
 		if (masked) {
@@ -547,7 +404,7 @@ internal class RenderPlanEncoder(
 		compositePass.end()
 		// A fresh pass under the ENCLOSING span's scissor - the composite's own scissor must not leak
 		// onto whatever the caller draws next into this target.
-		return frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = continuationScissor))
+		return frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = continuationScissor, drawOrder = inputs.drawOrderTarget))
 	}
 
 	/**
@@ -607,6 +464,10 @@ internal class RenderPlanEncoder(
 	 *   selection's.
 	 * @param Boolean           masked       Whether the draw samples [maskCoverage].
 	 * @param GpuTexture?       maskCoverage The clip mask's coverage, or null when unmasked.
+	 * @param Int               drawOrder    The back-to-front index the draw's covering fragments write into the
+	 *   pass's draw-order target, or 0 for none.
+	 * @param Float             orderOpacity The enclosing composites' opacity product the alpha is scaled by
+	 *   before the order threshold.
 	 */
 	private fun drawDrawable(
 		pass: RenderPassEncoder,
@@ -618,10 +479,14 @@ internal class RenderPlanEncoder(
 		isActive: Boolean,
 		masked: Boolean,
 		maskCoverage: GpuTexture?,
+		drawOrder: Int = 0,
+		orderOpacity: Float = 1f,
 	) {
 		pass.setPipeline(pipelines.drawPipelineFor(gpuDrawable.isGlueMesh, blendMode, gpuDrawable.culling))
 		pass.setCamera(inputs.affine, sideTargets.capacityWidth, sideTargets.capacityHeight)
 		fillFragment(fragmentScratch, gpuDrawable, opacity, highlight, if (isActive) inputs.activeHighlightColor else inputs.highlightColor, masked)
+		fragmentScratch.drawOrder = drawOrder
+		fragmentScratch.orderOpacity = orderOpacity
 		// Reused per draw rather than allocating a bundle per drawable per frame, matching the deform /
 		// fragment scratch. A glue draw does not deform, so it needs no delta / control-point textures.
 		texturesScratch.atlas = gpuDrawable.activeTexture()
@@ -666,10 +531,10 @@ internal class RenderPlanEncoder(
  *   (those outside the edit) draw this frame; the cage draws regardless.
  * @property Float                        wireframeOpacity     The alpha scale the wireframe meshes draw at,
  *   0 to 1; the cage keeps the palette.
- * @property GpuTexture?                  drawOrderTexture     The draw-order target the frame's order pass
- *   wrote, for the wireframe edges to cull by, or null when the frame culls nothing.
+ * @property RenderTarget?                drawOrderTarget      The draw-order target the frame's art passes write
+ *   as their second draw buffer and the wireframe edges cull by, or null when the frame culls nothing.
  * @property Map<DrawableId, Int>         drawOrderOf          Each drawn drawable's back-to-front index, 1 the
- *   backmost, as the order pass wrote it; empty when the frame culls nothing.
+ *   backmost, which its covering fragments write; empty when the frame culls nothing.
  */
 internal class FrameInputs(
 	val affine: WorldToNdc,
@@ -687,37 +552,9 @@ internal class FrameInputs(
 	val overlayPalette: MeshOverlayPalette,
 	val drawWireframe: Boolean,
 	val wireframeOpacity: Float,
-	val drawOrderTexture: GpuTexture? = null,
+	val drawOrderTarget: RenderTarget? = null,
 	val drawOrderOf: Map<DrawableId, Int> = emptyMap(),
-) {
-	/**
-	 * These inputs with the draw order the frame's order pass wrote, for the overlay draws that follow it.
-	 *
-	 * @param GpuTexture           texture The draw-order texture.
-	 * @param Map<DrawableId, Int> orderOf Each drawn drawable's back-to-front index.
-	 * @return FrameInputs The inputs, culling.
-	 */
-	fun withDrawOrder(texture: GpuTexture, orderOf: Map<DrawableId, Int>): FrameInputs =
-		FrameInputs(
-			affine,
-			viewportWidth,
-			viewportHeight,
-			pixelScale,
-			selectedIds,
-			activeId,
-			highlightColor,
-			activeHighlightColor,
-			boundsScissorEnabled,
-			compositeStates,
-			acceleration,
-			overlay,
-			overlayPalette,
-			drawWireframe,
-			wireframeOpacity,
-			texture,
-			orderOf,
-		)
-}
+)
 
 /**
  * A render-pass spec for [target] at [load], with an optional clear color and pass scissor.
@@ -731,6 +568,8 @@ internal class FrameInputs(
  * @param Float        clearRed       Clear red; read only when [load] clears.
  * @param Float        clearGreen     Clear green; read only when [load] clears.
  * @param Float        clearBlue      Clear blue; read only when [load] clears.
+ * @param RenderTarget? drawOrder     The draw-order target the pass's art draws write, or null.
+ * @param Boolean      clearDrawOrder Whether the pass clears that target to nothing first.
  * @return RenderPassSpec The spec.
  */
 internal fun passSpec(
@@ -743,6 +582,8 @@ internal fun passSpec(
 	clearRed: Float = 0f,
 	clearGreen: Float = 0f,
 	clearBlue: Float = 0f,
+	drawOrder: RenderTarget? = null,
+	clearDrawOrder: Boolean = false,
 ) = RenderPassSpec(
 	colorTarget = target,
 	loadAction = load,
@@ -753,4 +594,6 @@ internal fun passSpec(
 	clearBlue = clearBlue,
 	clearAlpha = clearAlpha,
 	scissor = scissor,
+	drawOrderTarget = drawOrder,
+	clearDrawOrder = clearDrawOrder,
 )

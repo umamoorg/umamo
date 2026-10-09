@@ -52,8 +52,6 @@
 	<!-- Logs panel: the diagnostic console showing UmamoLog output, with its header actions. -->
 	<string name="logs_copy">Copy to Clipboard</string>
 	<string name="logs_export">Export to File…</string>
-	<!-- A measurement aid for the wireframe culling's cost, to be removed once measured. -->
-	<string name="cmd_debug_profile_scrub">Debug: Profile Parameter Scrub</string>
 	<string name="logs_empty">No log output yet</string>
 
 	<!-- Area header actions. Labelled by the visual result, not Blender's split nomenclature. -->

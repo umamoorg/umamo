@@ -431,15 +431,6 @@ interface PuppetViewportService {
 	fun setMeshOverlayPalette(palette: MeshOverlayPalette)
 
 	/**
-	 * Arms or disarms the wireframe culling's scrub-cost measurement: while armed, a desktop service times
-	 * every 2D frame a parameter move caused and logs a report when the scrub ends or when disarmed.  A
-	 * measurement aid for one question, a no-op on a service that has none.
-	 *
-	 * @param Boolean enabled Whether scrub frames are timed from now on.
-	 */
-	fun setScrubProfiling(enabled: Boolean) {}
-
-	/**
 	 * Hit-tests the front-most opaque drawable under the cursor, or null on empty canvas.
 	 *
 	 * @param String areaId The clicked area.

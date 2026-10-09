@@ -77,8 +77,10 @@ public class DeformUniforms {
  * @property Float   highlightRed   Highlight tint red.
  * @property Float   highlightGreen Highlight tint green.
  * @property Float   highlightBlue  Highlight tint blue.
- * @property Int     drawOrder    The drawable's back-to-front index the draw-order pass writes (1 = the
- *   backmost); read by the [PipelinePurpose.DrawOrder] program alone.
+ * @property Int     drawOrder    The drawable's back-to-front index (1 = the backmost) its covering fragments
+ *   write into a pass's draw-order target; 0 writes nothing (a drawable that tints rather than covers).
+ * @property Float   orderOpacity The product of the enclosing composites' opacities, which the drawn alpha is
+ *   scaled by before the order threshold, since a composite's layer draws its children at full opacity.
  * @property FloatArray uvAffine   The 2x3 row-major affine (m00, m01, m02, m10, m11, m12) applied to the
  *   interpolated texture coordinate before sampling.  Identity leaves the stored mapping alone; a
  *   drawable sampling its SOURCE ARTWORK instead of the packed atlas carries the transform between
@@ -106,6 +108,7 @@ public class FragmentUniforms {
 	var highlightGreen: Float = 0f
 	var highlightBlue: Float = 0f
 	var drawOrder: Int = 0
+	var orderOpacity: Float = 1f
 
 	// Six floats reused in place, like every other value here - see the class contract.  Identity, NOT
 	// zeroes: a zeroed affine collapses every coordinate onto one texel.
