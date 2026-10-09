@@ -123,6 +123,32 @@ class AreaOverlaysPublisherTest {
 			assertEquals(GridConfig(50f, 10), service.areaOverlays("area")?.grid, "following again, the area draws the current setting")
 		}
 
+	/** A UV editor's area is pushed the UV grid pair: 256 texels in 8 by default, moving with a UV key and never with a 2D key. */
+	@Test
+	fun aUvAreaFollowsTheUvGridSetting() =
+		runComposeUiTest {
+			val service = StubPuppetViewportService()
+			val settings = inMemorySettings()
+			val state = ViewportOverlayState(OverlaySurface.UvEditor)
+			setContent {
+				CompositionLocalProvider(LocalSettings provides settings) {
+					AreaOverlaysPublisher(service, "uv", state)
+				}
+			}
+			waitForIdle()
+			assertEquals(GridConfig(256f, 8), service.areaOverlays("uv")?.grid, "the UV setting's defaults seed the geometry")
+			val pushesBefore = service.pushedAreaOverlays.size
+
+			settings.setDouble(ViewportSettings.GRID_SCALE_KEY, 50.0)
+			waitForIdle()
+			assertEquals(GridConfig(256f, 8), service.areaOverlays("uv")?.grid, "the 2D viewport's setting never reaches a UV area")
+			assertEquals(pushesBefore, service.pushedAreaOverlays.size, "and pushes nothing new to it")
+
+			settings.setDouble(ViewportSettings.UV_GRID_SCALE_KEY, 512.0)
+			waitForIdle()
+			assertEquals(GridConfig(512f, 8), service.areaOverlays("uv")?.grid, "the changed UV setting reached the service")
+		}
+
 	/** A UV editor's area never asks for the world axes or the wireframe. */
 	@Test
 	fun aUvAreaNeverAsksForAxesOrTheWireframe() =
