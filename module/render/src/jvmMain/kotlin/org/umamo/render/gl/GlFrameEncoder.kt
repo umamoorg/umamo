@@ -64,27 +64,33 @@ internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {
 			GL11.glDisable(GL11.GL_SCISSOR_TEST)
 		}
 		// The draw-order target rides the pass as its second color attachment, detached from a pass that has
-		// none (an attachment is framebuffer state, and a pass that samples the order must not keep it attached);
-		// the draw-buffer list starts at the color target alone, so the clear below touches it alone, and the
-		// pass encoder widens it for the art pipelines.
+		// none (an attachment is framebuffer state, and a pass that samples the order must not keep it attached).
+		// Both the attachment and the draw-buffer list persist on the framebuffer, so each is changed only when
+		// the pass needs another value than the target was left with.
 		val order = spec.drawOrderTarget as GlRenderTarget?
-		GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT1, GL11.GL_TEXTURE_2D, order?.colorTexture ?: 0, 0)
-		GL20.glDrawBuffers(GL30.GL_COLOR_ATTACHMENT0)
+		if (order !== target.attachedDrawOrder) {
+			if (order == null) {
+				listDrawBuffers(target, both = false)
+			}
+			GL30.glFramebufferTexture2D(GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT1, GL11.GL_TEXTURE_2D, order?.colorTexture ?: 0, 0)
+			target.attachedDrawOrder = order
+		}
 		if (spec.loadAction == LoadAction.Clear) {
 			// With a scissor set, the clear is confined to the rect too - that is the point: a
-			// bounds-scissored composite layer never pays a full-viewport clear.
+			// bounds-scissored composite layer never pays a full-viewport clear.  The list names the color
+			// target alone first, so the order the art behind already wrote is kept.
+			listDrawBuffers(target, both = false)
 			GL11.glClearColor(spec.clearRed, spec.clearGreen, spec.clearBlue, spec.clearAlpha)
 			GL11.glClear(GL11.GL_COLOR_BUFFER_BIT)
 		}
 		if (order != null && spec.clearDrawOrder) {
 			// Cleared through its draw-buffer slot, so the color target's own load action is untouched.
-			GL20.glDrawBuffers(BOTH_DRAW_BUFFERS)
+			listDrawBuffers(target, both = true)
 			GL30.glClearBufferfv(GL11.GL_COLOR, 1, ZERO_ORDER)
-			GL20.glDrawBuffers(GL30.GL_COLOR_ATTACHMENT0)
 		}
 		// Load preserves the target's contents (a bound FBO already holds them); DontCare needs no work on
 		// GL - the pass overwrites every pixel, which a tile-based backend would exploit but GL cannot.
-		return GlRenderPassEncoder(emptyVao, hasDrawOrder = order != null)
+		return GlRenderPassEncoder(emptyVao, target, hasDrawOrder = order != null)
 	}
 
 	override fun beginDeformCapturePass(pipeline: DeformCapturePipeline, store: DeformedPositionStore): DeformCapturePassEncoder {
@@ -114,10 +120,12 @@ internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {
  * Records draws into one GL render pass.
  *
  * @param Int emptyVao A bound VAO for the attribute-less draws.
+ * @param GlRenderTarget target The target the pass draws into, whose framebuffer's draw-buffer list the
+ *   pipeline binds keep in step with what each program writes.
  * @param Boolean hasDrawOrder Whether the pass carries a draw-order target as its second draw buffer, which
  *   the art pipelines write and every other pipeline leaves out of its draw-buffer list.
  */
-internal class GlRenderPassEncoder(private val emptyVao: Int, private val hasDrawOrder: Boolean = false) : RenderPassEncoder {
+internal class GlRenderPassEncoder(private val emptyVao: Int, private val target: GlRenderTarget, private val hasDrawOrder: Boolean = false) : RenderPassEncoder {
 	private var pipeline: GlRenderPipeline? = null
 	private val current: GlRenderPipeline get() = pipeline ?: error("setPipeline before drawing")
 
@@ -131,10 +139,6 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val hasDra
 	// The deformed-position store the overlay draws currently sample: re-bound only when a draw hands in
 	// a different one, since the overlay's own store differs from the glue store on the same unit.
 	private var overlayStoreBound: GlDeformedPositionStore? = null
-
-	// Whether the pass's draw-buffer list currently names both buffers; re-issued only when a pipeline bind
-	// changes it, since a draw-buffer change can make the driver validate the framebuffer again.
-	private var bothDrawBuffersListed = false
 
 	// Scratch for the three overlay colors, reused across draws.
 	private val overlayColorScratch = BufferUtils.createFloatBuffer(4)
@@ -158,15 +162,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val hasDra
 		// A program with one output must not be given a second draw buffer: what it would write there is
 		// undefined.  So the list follows the pipeline: both buffers for the art programs in an order pass,
 		// the color target alone for everything else.
-		val listBoth = hasDrawOrder && glPipeline.writesDrawOrder
-		if (listBoth != bothDrawBuffersListed) {
-			bothDrawBuffersListed = listBoth
-			if (listBoth) {
-				GL20.glDrawBuffers(BOTH_DRAW_BUFFERS)
-			} else {
-				GL20.glDrawBuffers(GL30.GL_COLOR_ATTACHMENT0)
-			}
-		}
+		listDrawBuffers(target, both = hasDrawOrder && glPipeline.writesDrawOrder)
 		// Sampler → texture unit is constant per program; -1 for a sampler the program lacks is a no-op.
 		val locations = glPipeline.locations
 		GL20.glUniform1i(locations.atlas, UNIT_ATLAS)
@@ -511,6 +507,26 @@ private fun marshalDeformUniforms(
 		textures.warpControlPoints?.let { bindTexture2D(UNIT_CP, it) }
 	}
 	textures.deltaTexture?.let { bindTexture2D(UNIT_DELTA, it) }
+}
+
+/**
+ * Sets the bound framebuffer's draw-buffer list to both attachments or to the color target alone, issuing
+ * the call only when [target]'s list is the other one, since a draw-buffer change can make the driver
+ * validate the framebuffer again.  [target]'s framebuffer must be the one bound.
+ *
+ * @param GlRenderTarget target The bound target, which records the list it is left with.
+ * @param Boolean both True for both attachments, false for the color target alone.
+ */
+private fun listDrawBuffers(target: GlRenderTarget, both: Boolean) {
+	if (both == target.listsBothDrawBuffers) {
+		return
+	}
+	target.listsBothDrawBuffers = both
+	if (both) {
+		GL20.glDrawBuffers(BOTH_DRAW_BUFFERS)
+	} else {
+		GL20.glDrawBuffers(GL30.GL_COLOR_ATTACHMENT0)
+	}
 }
 
 // The two-buffer draw list of an order pass's art draws, and the order a clear writes: nothing.

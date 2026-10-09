@@ -61,6 +61,12 @@ class WireframeCullingRenderTest {
 	private val magenta = OverlayColor(1f, 0f, 1f, 1f)
 	private val blackGrid = GridColors(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
 
+	/**
+	 * The back quad's wire is left out under the front quad's art and draws where nothing is in front of
+	 * it, the front quad's own wire draws over its own art, and with culling off the back wire draws through.
+	 * A culling frame after the unculled one culls again: the order target the unculled frame left detached is
+	 * attached afresh.
+	 */
 	@Test
 	fun theWireUnderAFrontDrawableIsCulledAndDrawsWhereNothingIsInFront() {
 		requireHeadlessGl("[wireframe-culling]")
@@ -74,8 +80,15 @@ class WireframeCullingRenderTest {
 
 		val unculled = live.render(FrameOverlays(wireframeCulling = false))
 		assertTrue(isWire(unculled, 32, 32), "with culling off the back quad's wire draws through the front quad: ${unculled.at(32, 32)}")
+
+		val culledAgain = live.render()
+		assertTrue(isArt(culledAgain, 32, 32), "culling back on leaves the wire out again: ${culledAgain.at(32, 32)}")
 	}
 
+	/**
+	 * A front quad drawn under the order's alpha threshold covers nothing, so the back wire draws through it,
+	 * while one drawn over the threshold covers it.
+	 */
 	@Test
 	fun aFrontDrawableUnderTheThresholdHidesNothing() {
 		requireHeadlessGl("[wireframe-culling]")
@@ -88,6 +101,10 @@ class WireframeCullingRenderTest {
 		assertFalse(isWire(solid.render(), 32, 32), "a front quad at 0.6 alpha covers: ${solid.render().at(32, 32)}")
 	}
 
+	/**
+	 * A masked front quad covers the back wire inside its mask alone: outside the mask, under the rest of
+	 * its extent, the wire draws.
+	 */
 	@Test
 	fun aMaskedFrontDrawableHidesOnlyInsideItsMask() {
 		requireHeadlessGl("[wireframe-culling]")

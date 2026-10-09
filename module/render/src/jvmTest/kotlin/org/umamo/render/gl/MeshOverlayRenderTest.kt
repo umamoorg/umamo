@@ -107,6 +107,10 @@ class MeshOverlayRenderTest {
 		assertEquals(listOf(0, 0, 255, 255), frame.at(37, 54), "triangle 1's centroid dot is the active color")
 	}
 
+	/**
+	 * An Object-mode wireframe's edge band draws in the opaque edge color at full opacity, at half alpha
+	 * over the art at half opacity, and not at all at zero.
+	 */
 	@Test
 	fun theWireframeFadesWithTheFramesOpacity() {
 		requireHeadlessGl("[overlay-render]")

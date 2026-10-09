@@ -144,8 +144,8 @@ class PuppetRenderer(
 	private var lastDrawnOrder: List<DrawableId> = emptyList()
 
 	// Each drawn drawable's back-to-front index (1 the backmost), built from the last drawn order on the first
-	// culling frame after a pose resolve and dropped with it: the order the draw-order pass writes and the
-	// wireframe edges cull by.
+	// culling frame that needs it and dropped only when a pose resolve changes that order, so a scrub that
+	// keeps the order builds it once: the order the draw-order pass writes and the wireframe edges cull by.
 	private var drawOrderIndex: Map<DrawableId, Int>? = null
 
 	// Framebuffer pixels per on-screen pixel. 1 = native; the offscreen service sets >1 when it supersamples,
@@ -345,8 +345,10 @@ class PuppetRenderer(
 				flattenEnabled = compositeFlattenEnabled,
 				boundsScissorEnabled = compositeBoundsScissorEnabled,
 			)
+		if (resolved.drawOrder != lastDrawnOrder) {
+			drawOrderIndex = null
+		}
 		lastDrawnOrder = resolved.drawOrder // publish the resolved back-to-front order for picking
-		drawOrderIndex = null
 	}
 
 	/**
@@ -607,11 +609,7 @@ class PuppetRenderer(
 		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || drawsWireframe) }
 		// The draw-order pass is paid only by a frame that draws a wireframe and culls it: an Object-mode
 		// wireframe, or an Edit overlay carrying plain wireframe meshes outside the edit.
-		val cullsWireframe =
-			drawn != null &&
-				drawsWireframe &&
-				overlays.wireframeCulling &&
-				(drawn.kind == MeshOverlayKind.ObjectWireframe || (drawn.kind == MeshOverlayKind.Edit && drawn.meshes.any { mesh -> mesh.wireframeOnly }))
+		val cullsWireframe = drawn != null && drawsWireframe && overlays.wireframeCulling && drawn.carriesWireframe
 		// A frame without the selection tint is drawn as a capture is, from no selection at all: the renderer's
 		// selection stays as set, for the next area that tints.
 		renderFrame(
@@ -673,7 +671,7 @@ class PuppetRenderer(
 		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
 		// A culling frame's art passes write the draw order as their second draw buffer; the main pass clears
 		// it first, and the overlay draws read it from a pass of their own that has it detached.
-		val orderTarget = if (cullWireframe) sideTargets.drawOrderTarget else null
+		val orderTarget = if (cullWireframe) sideTargets.ensureDrawOrder() else null
 		val inputs =
 			FrameInputs(
 				affine = affine,

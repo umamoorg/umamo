@@ -22,6 +22,10 @@ import kotlin.test.assertEquals
 class DeformCaptureSessionTest {
 	private val triangleIndices = intArrayOf(0, 1, 2)
 
+	/**
+	 * Three meshes captured into one store, two contiguous and one past a gap, land exactly where each
+	 * captured alone into a store of its own lands, and the gap keeps what the store held.
+	 */
 	@Test
 	fun appendedCapturesLandAtTheirOffsetsAndAGapIsLeftAlone() {
 		requireHeadlessGl("[deform-capture]")

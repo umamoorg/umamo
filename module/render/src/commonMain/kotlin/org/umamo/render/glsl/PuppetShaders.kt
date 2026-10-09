@@ -133,7 +133,9 @@ internal fun puppetFragmentShader(dialect: GlslDialect): String =
 private fun artAlphaGlsl(): String =
 	"""
 	in vec2 vUv;
-	out vec4 fragColor;
+	// Located explicitly: the puppet stage declares a second output, and GLSL ES 3.00 requires every output
+	// of a stage with more than one to carry its location.
+	layout(location = 0) out vec4 fragColor;
 	uniform sampler2D atlas;
 	uniform int useTexture;
 	uniform vec4 drawColor;

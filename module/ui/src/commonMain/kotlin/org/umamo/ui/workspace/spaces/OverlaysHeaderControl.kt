@@ -32,12 +32,11 @@ import org.umamo.ui.viewport.ViewportSettings
 import kotlin.math.roundToInt
 
 /**
- * The popover's content width: a narrow Properties section, so its half-and-half rows read exactly like the
- * panel's.  The width is given rather than hugged because a Row of two equal weights has an intrinsic width
- * of twice its most demanding half - "General Information" beside its box would widen the panel to twice
- * its own length.
+ * The popover's narrowest content width: a narrow Properties section, so its half-and-half rows read exactly
+ * like the panel's.  A floor rather than a fixed width, so a locale whose labels need more than half of it
+ * widens the panel instead of cutting them.
  */
-private val OVERLAYS_POPOVER_WIDTH = 300.dp
+private val OVERLAYS_POPOVER_MIN_WIDTH = 300.dp
 
 /** The inset of the rows from the panel's edges, the section headings' own. */
 private val OVERLAYS_ROW_INSET = 8.dp
@@ -90,7 +89,7 @@ internal fun OverlaysHeaderControl(state: ViewportOverlayState, enabled: Boolean
 				contentDescription = stringResource(Res.string.header_show_overlays),
 			),
 		enabled = enabled,
-		panelWidth = OVERLAYS_POPOVER_WIDTH,
+		panelMinWidth = OVERLAYS_POPOVER_MIN_WIDTH,
 	) {
 		val rows = overlayRowsFor(state.surface)
 		val fields = overlayFieldsFor(state.surface)

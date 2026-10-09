@@ -170,11 +170,9 @@ internal class MeshOverlayEncoder(
 		val palette = frame.palette
 		val sizes = overlay.sizes
 		val editing = overlay.kind == MeshOverlayKind.Edit
-		// An object wireframe's entries are its whole content, faded as one; only an Edit overlay's plain
-		// wireframe meshes wait for a frame that draws the wireframe, and only they fade in it.  The flag is read
-		// under the kind, since a kind other than Edit does not promise it.
-		val wholeIsWireframe = overlay.kind == MeshOverlayKind.ObjectWireframe
-		val skipWireframeEdges = editing && (!frame.drawWireframe || frame.wireframeOpacity <= 0f)
+		// The wireframe entries - an object wireframe's whole content, an Edit overlay's plain meshes - wait for
+		// a frame that draws the wireframe and fade in it, by the one rule the renderer culls them by too.
+		val wireframeHidden = !frame.drawWireframe || frame.wireframeOpacity <= 0f
 		uniformsScratch.viewportWidth = frame.viewportWidth.toFloat()
 		uniformsScratch.viewportHeight = frame.viewportHeight.toFloat()
 
@@ -201,10 +199,10 @@ internal class MeshOverlayEncoder(
 		// wireframe entry the order does not know (its drawable not drawn this frame) draws whole.
 		val orderTexture = frame.orderTexture
 		for (entry in entries) {
-			if (skipWireframeEdges && entry.wireframeOnly) {
+			val faded = overlay.kind.drawsAsWireframe(entry.wireframeOnly)
+			if (faded && wireframeHidden) {
 				continue
 			}
-			val faded = wholeIsWireframe || (editing && entry.wireframeOnly)
 			setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false, alphaScale = if (faded) frame.wireframeOpacity else 1f)
 			batch(entry)
 			val cullOrder = if (faded && orderTexture != null) frame.drawOrderOf[entry.drawableId] ?: -1 else -1

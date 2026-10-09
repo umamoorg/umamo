@@ -106,7 +106,7 @@ internal class RenderPlanEncoder(
 		plan: List<RenderPlanNode>,
 		target: RenderTarget,
 		startPass: RenderPassEncoder,
-	): RenderPassEncoder = renderPlanNodes(frame, plan, target, 0, inputs, startPass, scissor = null, orderOpacity = 1f)
+	): RenderPassEncoder = renderPlanNodes(frame, plan, target, 0, inputs, startPass, scissor = null, orderTarget = inputs.drawOrderTarget, orderOpacity = 1f)
 
 	/**
 	 * Walks a render-plan span into [target]: plain drawables draw directly (with the mask-coverage
@@ -133,6 +133,10 @@ internal class RenderPlanEncoder(
 	 * @param ScissorRect?         scissor   [target]'s own pass scissor (a composite layer's
 	 *   bounds rect when this span IS an isolated subtree), re-applied whenever the span resumes a
 	 *   pass on [target]; null at the top level.
+	 * @param RenderTarget?        orderTarget The draw-order target every pass the span opens on [target]
+	 *   carries, re-attached whenever the span resumes: the frame's at the top level and inside a composite
+	 *   that covers, null inside one that tints (and in a frame that culls nothing), so nothing under a
+	 *   tinting composite writes the order at any depth.
 	 * @param Float                orderOpacity The product of the enclosing composites' opacities, by which a
 	 *   draw's alpha is scaled before the draw-order threshold: a layer draws its children at full opacity and
 	 *   fades them at the composite, but what covers a wire is what the viewer sees.
@@ -146,6 +150,7 @@ internal class RenderPlanEncoder(
 		inputs: FrameInputs,
 		startPass: RenderPassEncoder,
 		scissor: ScissorRect?,
+		orderTarget: RenderTarget?,
 		orderOpacity: Float,
 	): RenderPassEncoder {
 		var pass = startPass
@@ -170,7 +175,7 @@ internal class RenderPlanEncoder(
 							}
 						}
 						pass.end()
-						pass = compositeDrawable(frame, gpuDrawable, target, depth, inputs, layerRect, scissor)
+						pass = compositeDrawable(frame, gpuDrawable, target, depth, inputs, layerRect, scissor, orderTarget)
 						continue
 					}
 					var maskCoverage: GpuTexture? = null
@@ -179,14 +184,15 @@ internal class RenderPlanEncoder(
 						// resume preserving what is drawn so far. Correct on every backend and non-nesting.
 						pass.end()
 						renderMaskCoverage(frame, gpuDrawable.maskIds, inputs)
-						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = scissor, drawOrder = inputs.drawOrderTarget))
+						pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = scissor, drawOrder = orderTarget))
 						maskCoverage = sideTargets.maskTarget?.sampledTexture
 					}
 					val isActive = inputs.activeId != null && gpuDrawable.id == inputs.activeId
 					val highlight = if (isActive || gpuDrawable.id in inputs.selectedIds) SELECTION_TINT_STRENGTH else 0f
 					// Only a Normal-blend drawable covers what is behind it; an Additive or Multiply one tints it, so
-					// it writes no order (zero) while keeping its place in the order.
-					val drawOrder = if (gpuDrawable.blendMode == BlendMode.Normal) inputs.drawOrderOf[gpuDrawable.id] ?: 0 else 0
+					// it writes no order (zero) while keeping its place in the order.  A span without the order
+					// target writes none either.
+					val drawOrder = if (orderTarget != null && gpuDrawable.blendMode == BlendMode.Normal) inputs.drawOrderOf[gpuDrawable.id] ?: 0 else 0
 					drawDrawable(
 						pass,
 						gpuDrawable,
@@ -206,7 +212,7 @@ internal class RenderPlanEncoder(
 					if (node.partId in inputs.acceleration.flattenable) {
 						// Identity source-over of an all-Normal/Over subtree: Over is associative,
 						// so the subtree draws inline - no layer, no snapshot, no composite draw.
-						pass = renderPlanNodes(frame, node.children, target, depth, inputs, pass, scissor, orderOpacity)
+						pass = renderPlanNodes(frame, node.children, target, depth, inputs, pass, scissor, orderTarget, orderOpacity)
 						continue
 					}
 					// A fully faded non-Out layer composites to the unchanged destination, so skip it
@@ -223,7 +229,7 @@ internal class RenderPlanEncoder(
 						}
 					}
 					pass.end()
-					pass = compositeGroup(frame, node, target, depth, inputs, layerRect, scissor, orderOpacity * poseOpacity)
+					pass = compositeGroup(frame, node, target, depth, inputs, layerRect, scissor, orderTarget, orderOpacity * poseOpacity)
 				}
 			}
 		}
@@ -244,6 +250,8 @@ internal class RenderPlanEncoder(
 	 *   draw, null for a full-viewport layer (Out alpha or uncomputable bounds).
 	 * @param ScissorRect?        parentScissor [target]'s own scissor (the enclosing layer's rect), null at
 	 *   the top level; the composite-back is confined to it intersected with [layerRect].
+	 * @param RenderTarget?       parentOrder   The draw-order target the enclosing span's passes carry, which
+	 *   the subtree inherits when this composite covers and the pass after the composite carries again.
 	 * @param Float               orderOpacity  The opacity product the subtree's draws scale their alpha by
 	 *   before the draw-order threshold, this composite's own included.
 	 * @return RenderPassEncoder The fresh open pass on [target] after the composite.
@@ -256,16 +264,22 @@ internal class RenderPlanEncoder(
 		inputs: FrameInputs,
 		layerRect: ScissorRect?,
 		parentScissor: ScissorRect?,
+		parentOrder: RenderTarget?,
 		orderOpacity: Float,
 	): RenderPassEncoder {
 		val layerTarget = sideTargets.acquireLayer(depth)
 		// The layer's draws write the frame's draw order too: a composite's children cover as they are seen,
-		// while a composite that blends other than Normal over tints, so its children write none.
+		// while a composite that blends other than Normal over tints, so nothing beneath it writes any, nested
+		// composites included.  The order is written as the children draw, before the composite applies its clip
+		// mask, so a masked composite records its children's whole extent as covering; and an Out composite or
+		// drawable erases the art behind it without clearing the order that art wrote.  Either way a wire behind
+		// is culled where the art in front of it is not shown - an accepted approximation, since putting it right
+		// means masking and erasing the order target alongside the color.
 		val covers = node.composite.blendMode == BlendMode.Normal && node.composite.alphaBlendMode == AlphaBlendMode.Over
-		val layerOrder = if (covers) inputs.drawOrderTarget else null
+		val layerOrder = if (covers) parentOrder else null
 		var subtreePass =
 			frame.beginRenderPass(passSpec(layerTarget, LoadAction.Clear, inputs.viewportWidth, inputs.viewportHeight, clearAlpha = 0f, scissor = layerRect, drawOrder = layerOrder))
-		subtreePass = renderPlanNodes(frame, node.children, layerTarget, depth + 1, inputs, subtreePass, layerRect, orderOpacity)
+		subtreePass = renderPlanNodes(frame, node.children, layerTarget, depth + 1, inputs, subtreePass, layerRect, layerOrder, orderOpacity)
 		subtreePass.end()
 		val masked = node.composite.maskedBy.isNotEmpty()
 		if (masked) {
@@ -287,7 +301,7 @@ internal class RenderPlanEncoder(
 		compositeScratch.screenBlue = screen.blue
 		compositeScratch.useMask = masked
 		compositeScratch.invertMask = masked && node.composite.invertMask
-		return encodeComposite(frame, layerTarget, target, inputs, intersectScissor(layerRect, parentScissor), parentScissor)
+		return encodeComposite(frame, layerTarget, target, inputs, intersectScissor(layerRect, parentScissor), parentScissor, parentOrder)
 	}
 
 	/**
@@ -303,6 +317,8 @@ internal class RenderPlanEncoder(
 	 * @param ScissorRect? layerRect     The drawable's bounds - confines the layer clear + draw, null
 	 *   for a full-viewport layer (Out alpha or uncomputable bounds).
 	 * @param ScissorRect? parentScissor [target]'s own scissor, null at the top level.
+	 * @param RenderTarget? parentOrder  The draw-order target the enclosing span's passes carry, which the
+	 *   pass after the composite carries again; the drawable's own layer pass writes none.
 	 * @return RenderPassEncoder The fresh open pass on [target] after the composite.
 	 */
 	private fun compositeDrawable(
@@ -313,6 +329,7 @@ internal class RenderPlanEncoder(
 		inputs: FrameInputs,
 		layerRect: ScissorRect?,
 		parentScissor: ScissorRect?,
+		parentOrder: RenderTarget?,
 	): RenderPassEncoder {
 		var maskCoverage: GpuTexture? = null
 		if (gpuDrawable.maskIds.isNotEmpty()) {
@@ -349,7 +366,7 @@ internal class RenderPlanEncoder(
 		compositeScratch.screenBlue = 0f
 		compositeScratch.useMask = false
 		compositeScratch.invertMask = false
-		return encodeComposite(frame, layerTarget, target, inputs, intersectScissor(layerRect, parentScissor), parentScissor)
+		return encodeComposite(frame, layerTarget, target, inputs, intersectScissor(layerRect, parentScissor), parentScissor, parentOrder)
 	}
 
 	/**
@@ -371,6 +388,8 @@ internal class RenderPlanEncoder(
 	 * @param FrameInputs  inputs              The frame's inputs.
 	 * @param ScissorRect? compositeScissor    The rect the snapshot + composite are confined to, or null.
 	 * @param ScissorRect? continuationScissor The scissor the returned pass carries, or null.
+	 * @param RenderTarget? continuationOrder The draw-order target the returned pass carries: the enclosing
+	 *   span's, so a span under a tinting composite stays without one past a nested composite.
 	 * @return RenderPassEncoder A fresh open pass on [target] under [continuationScissor].
 	 */
 	private fun encodeComposite(
@@ -380,6 +399,7 @@ internal class RenderPlanEncoder(
 		inputs: FrameInputs,
 		compositeScissor: ScissorRect?,
 		continuationScissor: ScissorRect?,
+		continuationOrder: RenderTarget?,
 	): RenderPassEncoder {
 		// Snapshot the destination so the composite shader can sample it (a pass cannot sample its
 		// own target); the copy is ordered between the passes around it, and confined to the same
@@ -404,7 +424,7 @@ internal class RenderPlanEncoder(
 		compositePass.end()
 		// A fresh pass under the ENCLOSING span's scissor - the composite's own scissor must not leak
 		// onto whatever the caller draws next into this target.
-		return frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = continuationScissor, drawOrder = inputs.drawOrderTarget))
+		return frame.beginRenderPass(passSpec(target, LoadAction.Load, inputs.viewportWidth, inputs.viewportHeight, scissor = continuationScissor, drawOrder = continuationOrder))
 	}
 
 	/**
