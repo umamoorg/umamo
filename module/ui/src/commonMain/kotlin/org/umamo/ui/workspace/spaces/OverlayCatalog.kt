@@ -49,6 +49,7 @@ internal enum class OverlayToggle(
 	Info(OverlaySection.Text, OverlaySurface.entries.toSet(), Res.string.overlay_row_info, Res.string.overlay_row_info_description),
 	SelectionTint(OverlaySection.Objects, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_selection_tint, Res.string.overlay_row_selection_tint_description),
 	Wireframe(OverlaySection.Geometry, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_wireframe, Res.string.overlay_row_wireframe_description),
+	CullHidden(OverlaySection.Geometry, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_cull_hidden, Res.string.overlay_row_cull_hidden_description),
 	;
 
 	/**
@@ -66,6 +67,7 @@ internal enum class OverlayToggle(
 			Info -> state.showInfo
 			SelectionTint -> state.showSelectionTint
 			Wireframe -> state.showWireframe
+			CullHidden -> state.cullHiddenWireframe
 		}
 
 	/**
@@ -82,6 +84,7 @@ internal enum class OverlayToggle(
 			Info -> state.showInfo = on
 			SelectionTint -> state.showSelectionTint = on
 			Wireframe -> state.showWireframe = on
+			CullHidden -> state.cullHiddenWireframe = on
 		}
 	}
 }

@@ -473,13 +473,18 @@ class CommandDispatchTest {
 		overUv.run("view.overlay.selectionTint")
 		assertTrue(uvOverlays.showSelectionTint, "nor a selection tint")
 		assertTrue(viewportOverlays.showSelectionTint, "the 2D area's tint stays on")
+		overUv.run("view.overlay.wireframeCulling")
+		assertTrue(uvOverlays.cullHiddenWireframe, "nor the wireframe's culling")
+		assertTrue(viewportOverlays.cullHiddenWireframe, "the 2D area's culling stays on")
 		val overViewport = overlayCommands(hub, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), viewportPresent = true)
 		overViewport.run("view.overlay.axes")
 		overViewport.run("view.overlay.wireframe")
 		overViewport.run("view.overlay.selectionTint")
+		overViewport.run("view.overlay.wireframeCulling")
 		assertFalse(viewportOverlays.showAxes, "over the 2D viewport the axes flip")
 		assertTrue(viewportOverlays.showWireframe, "and so does the wireframe")
 		assertFalse(viewportOverlays.showSelectionTint, "and the selection tint")
+		assertFalse(viewportOverlays.cullHiddenWireframe, "and the wireframe's culling")
 
 		overlayCommands(hub, routing(null), viewportPresent = true).run("view.overlay.all")
 

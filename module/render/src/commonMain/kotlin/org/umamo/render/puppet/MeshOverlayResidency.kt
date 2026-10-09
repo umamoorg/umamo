@@ -23,6 +23,7 @@ import org.umamo.runtime.model.PuppetModel
  * @property IslandStyle? islandStyle Its island colors, read only by an islands overlay.
  * @property Boolean wireframeOnly Whether it is a plain wireframe inside an Edit overlay: edges only, and
  *   only in a frame that draws the wireframe.
+ * @property DrawableId drawableId The drawable the mesh belongs to, by which a culling frame finds its draw order.
  */
 internal class OverlayDrawEntry(
 	val buffers: OverlayMeshBuffers,
@@ -35,6 +36,7 @@ internal class OverlayDrawEntry(
 	val activeFaceC: Int,
 	val islandStyle: IslandStyle?,
 	val wireframeOnly: Boolean,
+	val drawableId: DrawableId,
 )
 
 /**
@@ -82,6 +84,7 @@ internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers
 		activeFaceC = if (faceResolved) faceCorners[faceStart + 2] else -1,
 		islandStyle = mesh.islandStyle,
 		wireframeOnly = mesh.wireframeOnly,
+		drawableId = mesh.drawableId,
 	)
 }
 

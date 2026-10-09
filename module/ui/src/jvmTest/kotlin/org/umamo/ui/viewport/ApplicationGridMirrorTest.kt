@@ -60,4 +60,32 @@ class ApplicationGridMirrorTest {
 			state.gridGeometry = null
 			assertEquals(GridConfig(50f, 4), state.grid, "so the reset returns to the current setting")
 		}
+
+	/** A UV editor's mirror follows the UV grid pair: it seeds 256 texels in 8, moves with a UV key, and never with a 2D key. */
+	@Test
+	fun aUvAreasMirrorFollowsTheUvKeys() =
+		runComposeUiTest {
+			val settings = inMemorySettings()
+			val state = ViewportOverlayState(OverlaySurface.UvEditor)
+			assertEquals(GridConfig(256f, 8), state.applicationGrid, "a UV state seeds its surface's default before any mirror runs")
+			setContent {
+				CompositionLocalProvider(LocalSettings provides settings) {
+					ApplicationGridMirror(state)
+				}
+			}
+			waitForIdle()
+			assertEquals(GridConfig(256f, 8), state.applicationGrid, "the UV setting's defaults seed the mirror")
+
+			settings.setDouble(ViewportSettings.GRID_SCALE_KEY, 50.0)
+			settings.setInt(ViewportSettings.GRID_SUBDIVISIONS_KEY, 4)
+			waitForIdle()
+			assertEquals(GridConfig(256f, 8), state.applicationGrid, "the 2D viewport's pair never reaches a UV area")
+
+			settings.setDouble(ViewportSettings.UV_GRID_SCALE_KEY, 512.0)
+			waitForIdle()
+			assertEquals(GridConfig(512f, 8), state.applicationGrid, "the UV scale reached the mirror")
+			settings.setInt(ViewportSettings.UV_GRID_SUBDIVISIONS_KEY, 16)
+			waitForIdle()
+			assertEquals(GridConfig(512f, 16), state.grid, "and the UV subdivisions, which the area's readers resolve")
+		}
 }

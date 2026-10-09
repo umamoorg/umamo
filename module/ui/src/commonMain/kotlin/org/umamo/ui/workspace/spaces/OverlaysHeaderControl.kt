@@ -27,7 +27,6 @@ import org.umamo.ui.kit.field.formatDecimals
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
-import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.ViewportSettings
 import kotlin.math.roundToInt
@@ -158,10 +157,10 @@ private fun WireframeOpacityField(state: ViewportOverlayState, field: OverlayFie
 }
 
 /**
- * The grid geometry fields under the Grid row: Scale and Subdivisions on a 2D viewport, Subdivisions alone on
- * a UV editor, whose major spacing is the shown image.  The fields show the grid the area draws; an edit gives
- * the area a grid of its own (on a UV editor its subdivisions, over the application's scale), and the reset
- * beside the first field, shown only then, returns it to following the application's grid.
+ * The grid geometry fields under the Grid row, Scale and Subdivisions on both surfaces: the scale is world
+ * units on a 2D viewport and texels on a UV editor.  The fields show the grid the area draws; an edit gives
+ * the area a grid of its own, and the reset beside Scale, shown only then, returns it to following the
+ * application's grid.
  *
  * @param ViewportOverlayState state The area's overlay state.
  */
@@ -169,37 +168,34 @@ private fun WireframeOpacityField(state: ViewportOverlayState, field: OverlayFie
 private fun GridGeometryFields(state: ViewportOverlayState) {
 	val grid = state.grid
 	val own = state.gridGeometry != null
-	val uvEditor = state.surface == OverlaySurface.UvEditor
 	// A field commits on focus loss as well as on Enter, so leaving it - the popover closing on Escape, a
 	// click elsewhere - hands back the value it already showed.  Only a value that differs is an edit;
 	// the same one must not give the area a grid of its own that merely equals the application's.  The
 	// Scale field commits what it shows, rounded to its places, so a scale carrying more places than that
 	// (a file's, a setting's) is the same value when its rounding comes back: the guard compares what the
 	// field shows, not the floats.
-	if (!uvEditor) {
-		GridGeometryRow(
-			label = stringResource(Res.string.overlay_grid_scale),
-			description = stringResource(Res.string.overlay_grid_scale_description),
-			resettable = own,
-			onReset = { state.gridGeometry = null },
-		) { modifier ->
-			NumberField(
-				value = grid.scale,
-				onValueChange = { scale ->
-					if (formatDecimals(scale, GRID_SCALE_DECIMALS) != formatDecimals(grid.scale, GRID_SCALE_DECIMALS)) {
-						state.gridGeometry = grid.copy(scale = scale)
-					}
-				},
-				range = ViewportSettings.GRID_SCALE_RANGE,
-				decimals = GRID_SCALE_DECIMALS,
-				modifier = modifier,
-			)
-		}
+	GridGeometryRow(
+		label = stringResource(Res.string.overlay_grid_scale),
+		description = stringResource(Res.string.overlay_grid_scale_description),
+		resettable = own,
+		onReset = { state.gridGeometry = null },
+	) { modifier ->
+		NumberField(
+			value = grid.scale,
+			onValueChange = { scale ->
+				if (formatDecimals(scale, GRID_SCALE_DECIMALS) != formatDecimals(grid.scale, GRID_SCALE_DECIMALS)) {
+					state.gridGeometry = grid.copy(scale = scale)
+				}
+			},
+			range = ViewportSettings.GRID_SCALE_RANGE,
+			decimals = GRID_SCALE_DECIMALS,
+			modifier = modifier,
+		)
 	}
 	GridGeometryRow(
 		label = stringResource(Res.string.overlay_grid_subdivisions),
 		description = stringResource(Res.string.overlay_grid_subdivisions_description),
-		resettable = own && uvEditor,
+		resettable = false,
 		onReset = { state.gridGeometry = null },
 	) { modifier ->
 		NumberField(

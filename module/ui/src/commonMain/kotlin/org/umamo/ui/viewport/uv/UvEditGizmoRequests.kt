@@ -12,6 +12,7 @@ import org.umamo.edit.UvSnapKind
 import org.umamo.edit.transform.mirrorSelectedUvs
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
@@ -38,8 +39,8 @@ import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
  * @param State<ViewportCamera> camera The area camera.
  * @param State<IntSize> size The area size in pixels.
  * @param State<Offset> areaPointer Where the pointer last was in the area, tracked by the host.
- * @param ViewportOverlayState? overlays The area's overlay state, whose grid subdivisions a grid snap rounds
- *   to; null (no area state) rounds to the built-in grid's.
+ * @param ViewportOverlayState? overlays The area's overlay state, whose grid a grid snap rounds to (its scale
+ *   in texels over its subdivisions); null (no area state) rounds to the UV editor's built-in grid.
  */
 internal suspend fun collectUvEditGizmoRequests(
 	areaId: String,
@@ -89,7 +90,7 @@ internal suspend fun collectUvEditGizmoRequests(
 					} else {
 						geometries.value
 					}
-				handleUvSnapRequest(session, editable, frame.value, request.kind, (overlays?.grid ?: GridConfig()).subdivisions)
+				handleUvSnapRequest(session, editable, frame.value, request.kind, overlays?.grid ?: GridConfig.applicationDefault(OverlaySurface.UvEditor))
 			}
 		}
 	}

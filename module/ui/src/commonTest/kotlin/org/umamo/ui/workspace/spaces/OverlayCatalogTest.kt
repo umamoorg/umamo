@@ -22,7 +22,7 @@ class OverlayCatalogTest {
 	@Test
 	fun eachSurfaceOffersItsRowsAndFieldsInSectionOrder() {
 		assertEquals(
-			listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info, OverlayToggle.SelectionTint, OverlayToggle.Wireframe),
+			listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info, OverlayToggle.SelectionTint, OverlayToggle.Wireframe, OverlayToggle.CullHidden),
 			overlayRowsFor(OverlaySurface.Viewport2D),
 		)
 		assertEquals(listOf(OverlayToggle.Grid, OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(OverlaySurface.UvEditor))
@@ -32,6 +32,7 @@ class OverlayCatalogTest {
 		assertEquals(OverlaySection.Text, OverlayToggle.Info.section)
 		assertEquals(OverlaySection.Objects, OverlayToggle.SelectionTint.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.Wireframe.section)
+		assertEquals(OverlaySection.Geometry, OverlayToggle.CullHidden.section)
 		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Objects, OverlaySection.Geometry), OverlaySection.entries)
 		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.Viewport2D))
 		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.UvEditor), "the UV editor's islands fade by the same field")
@@ -48,8 +49,13 @@ class OverlayCatalogTest {
 
 		assertFalse(state.showSelectionTint)
 		assertFalse(OverlayToggle.SelectionTint.isOn(state))
-		assertTrue(state.showGrid && state.showAxes && state.showCursor && state.showInfo, "every other row is untouched")
+		assertTrue(state.showGrid && state.showAxes && state.showCursor && state.showInfo && state.cullHiddenWireframe, "every other row is untouched")
 		assertFalse(state.showWireframe)
+
+		assertTrue(OverlayToggle.CullHidden.isOn(state), "culling starts on")
+		OverlayToggle.CullHidden.set(state, false)
+		assertFalse(state.cullHiddenWireframe)
+		assertFalse(state.showWireframe, "and flips nothing else")
 	}
 
 	/** The grid, axis, and wireframe rows read and write their own flags. */
@@ -94,11 +100,11 @@ class OverlayCatalogTest {
 
 		state.showOverlays = false
 
-		assertFalse(state.effectiveCursor || state.effectiveInfo || state.effectiveGrid || state.effectiveAxes || state.effectiveWireframe || state.effectiveSelectionTint)
-		assertTrue(state.showCursor && state.showInfo && state.showGrid && state.showAxes && state.showWireframe && state.showSelectionTint, "the flags keep what the rigger set")
+		assertFalse(state.effectiveCursor || state.effectiveInfo || state.effectiveGrid || state.effectiveAxes || state.effectiveWireframe || state.effectiveSelectionTint || state.effectiveCullHiddenWireframe)
+		assertTrue(state.showCursor && state.showInfo && state.showGrid && state.showAxes && state.showWireframe && state.showSelectionTint && state.cullHiddenWireframe, "the flags keep what the rigger set")
 		assertTrue(OverlayToggle.Cursor.isOn(state), "a row shows its flag, not its effect")
 		state.showOverlays = true
-		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe && state.effectiveSelectionTint)
+		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe && state.effectiveSelectionTint && state.effectiveCullHiddenWireframe)
 	}
 
 	/** Everything is on by default but the wireframe, the opacity is whole, and a reset returns there. */
@@ -106,7 +112,7 @@ class OverlayCatalogTest {
 	fun defaultsAreEverythingOnButTheWireframe() {
 		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
 		assertTrue(state.isAtDefaults)
-		assertTrue(state.showOverlays && state.showGrid && state.showAxes && state.showCursor && state.showInfo && state.showSelectionTint)
+		assertTrue(state.showOverlays && state.showGrid && state.showAxes && state.showCursor && state.showInfo && state.showSelectionTint && state.cullHiddenWireframe)
 		assertFalse(state.showWireframe)
 		assertEquals(1f, state.wireframeOpacity)
 
@@ -118,17 +124,20 @@ class OverlayCatalogTest {
 		state.wireframeOpacity = 0.5f
 		assertFalse(state.isAtDefaults, "an opacity off whole is a deviation")
 		state.showSelectionTint = false
+		state.cullHiddenWireframe = false
+		assertFalse(state.isAtDefaults, "culling off is a deviation")
 		state.reset()
-		assertTrue(state.isAtDefaults, "a reset returns the opacity and the tint too")
+		assertTrue(state.isAtDefaults, "a reset returns the opacity, the tint, and the culling too")
 		assertEquals(1f, state.wireframeOpacity)
-		assertTrue(state.showSelectionTint)
+		assertTrue(state.showSelectionTint && state.cullHiddenWireframe)
 	}
 
-	/** The area's grid is its own over the application's: whole on a 2D viewport, subdivisions alone on a UV editor. */
+	/** The area's grid is its own over the application's, whole on both surfaces, each surface seeded with its own default. */
 	@Test
 	fun theGridIsTheAreasOwnOverTheApplications() {
 		val application = GridConfig(100f, 10)
 		val viewport = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertEquals(application, viewport.grid, "a fresh 2D viewport resolves the world grid's default, 100 in 10")
 		assertEquals(application, viewport.gridOver(application), "following, the application's grid")
 
 		viewport.gridGeometry = GridConfig(50f, 4)
@@ -141,7 +150,9 @@ class OverlayCatalogTest {
 		assertTrue(viewport.isAtDefaults)
 
 		val uvEditor = ViewportOverlayState(OverlaySurface.UvEditor)
+		assertEquals(GridConfig(256f, 8), uvEditor.grid, "a fresh UV editor resolves the UV grid's default, 256 texels in 8")
+		assertTrue(uvEditor.isAtDefaults, "which is following, not an own grid")
 		uvEditor.gridGeometry = GridConfig(50f, 4)
-		assertEquals(GridConfig(100f, 4), uvEditor.gridOver(application), "a UV editor's own grid is its subdivisions over the application's scale")
+		assertEquals(GridConfig(50f, 4), uvEditor.gridOver(application), "a UV editor's own grid is its own whole, the scale in texels")
 	}
 }

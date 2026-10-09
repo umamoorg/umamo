@@ -95,6 +95,8 @@ class OverlaysHeaderControlTest {
 			assertTrue(overlays.showWireframe, "the wireframe row starts off and switches on")
 			clickMenuEntry(SELECTION_TINT_ROW)
 			assertFalse(overlays.showSelectionTint, "the selection tint row starts on and switches off")
+			clickMenuEntry(CULL_HIDDEN_ROW)
+			assertFalse(overlays.cullHiddenWireframe, "the cull hidden row starts on and switches off")
 		}
 
 	/** The UV editor's popover offers the grid row but no axis row and no Geometry section, since its surface has neither. */
@@ -110,11 +112,37 @@ class OverlaysHeaderControlTest {
 			assertTrue(popupShows(GRID_ROW), "the grid row is offered")
 			assertFalse(popupShows(AXES_ROW), "the axis row is not")
 			assertFalse(popupShows(OBJECTS) || popupShows(SELECTION_TINT_ROW), "nor the Objects section with its tint row")
-			assertFalse(popupShows(WIREFRAME_ROW), "nor the wireframe row")
+			assertFalse(popupShows(WIREFRAME_ROW) || popupShows(CULL_HIDDEN_ROW), "nor the wireframe row and its culling")
 			assertTrue(popupShows(GEOMETRY) && popupShows(OPACITY_FIELD), "the Geometry section stays for the Opacity field, which fades the islands")
-			assertTrue(popupShows(SUBDIVISIONS_FIELD) && !popupShows(SCALE_FIELD), "the grid fields are the subdivisions alone: the major spacing is the shown image")
+			assertTrue(popupShows(SCALE_FIELD) && popupShows(SUBDIVISIONS_FIELD), "the grid fields are both: the scale is read in texels")
+			assertTrue(popupShows(UV_SCALE_SHOWN) && popupShows(UV_SUBDIVISIONS_SHOWN), "following the application, the fields show the UV grid's own defaults")
+			assertFalse(popupShows(SCALE_SHOWN), "not the 2D viewport's")
 			clickMenuEntry(GRID_ROW)
 			assertFalse(overlays.showGrid)
+		}
+
+	/** On a UV editor the Scale field is read in texels: typing one gives the area a grid of its own, and the reset beside it takes it back. */
+	@Test
+	fun theUvScaleFieldGivesTheAreaItsOwnGridAndTheResetTakesItBack() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.UvEditor, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(UV_EDITOR_VIEW_STATE_KEY) { UvEditorViewState() }.overlays
+
+			clickDescribed(VIEWPORT_OVERLAYS)
+			assertEquals(0, countOfDescription(FOLLOW_APPLICATION), "following the application, there is nothing to reset")
+
+			onNode(hasText(UV_SCALE_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
+			waitForIdle()
+			onNode(hasSetTextAction() and isFocused()).performTextReplacement("512")
+			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+			waitForIdle()
+
+			assertEquals(GridConfig(512f, 8), overlays.gridGeometry, "the edit gives the UV area its own grid, the scale in texels over the UV subdivisions")
+			assertEquals(1, countOfDescription(FOLLOW_APPLICATION), "which shows the one reset, beside Scale")
+			clickDescribed(FOLLOW_APPLICATION)
+			assertNull(overlays.gridGeometry, "the reset returns the area to following")
+			assertEquals(0, countOfDescription(FOLLOW_APPLICATION))
 		}
 
 	/** Typing a scale into the popover's field gives the area a grid of its own, and the reset beside it takes it back. */
@@ -369,11 +397,14 @@ class OverlaysHeaderControlTest {
 		const val OBJECTS = "Objects"
 		const val SELECTION_TINT_ROW = "Selection Tint"
 		const val WIREFRAME_ROW = "Wireframe"
+		const val CULL_HIDDEN_ROW = "Cull Hidden"
 
-		/** The grid fields' labels, the scale the default grid shows, and the reset icon's English name. */
+		/** The grid fields' labels, the scale the default 2D grid shows, what the UV editor's default grid shows, and the reset icon's English name. */
 		const val SCALE_FIELD = "Scale"
 		const val SUBDIVISIONS_FIELD = "Subdivisions"
 		const val SCALE_SHOWN = "100.00"
+		const val UV_SCALE_SHOWN = "256.00"
+		const val UV_SUBDIVISIONS_SHOWN = "8"
 		const val FOLLOW_APPLICATION = "Follow Application Grid"
 
 		/** The Opacity field's label and what the whole opacity shows in it; exact matches, apart from the Scale field's "100.00". */
@@ -386,7 +417,7 @@ class OverlaysHeaderControlTest {
 		/** The English descriptions the hover case looks for: a heading's, a row's, and a field's. */
 		const val GUIDES_DESCRIPTION = "The visual helpers for placement and alignment."
 		const val GRID_DESCRIPTION = "The divided grid behind the scene that is used for snapping and visual alignment."
-		const val SCALE_DESCRIPTION = "The spacing of the major grid lines, in world units."
+		const val SCALE_DESCRIPTION = "The spacing of the major grid lines, in world units; in the UV editor, in texels."
 
 		/** Comfortably past the tooltip's dwell delay. */
 		const val TOOLTIP_WAIT_MILLIS = 1_000L

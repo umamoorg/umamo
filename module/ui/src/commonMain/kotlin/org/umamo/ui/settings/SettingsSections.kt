@@ -70,6 +70,8 @@ import org.umamo.ui.resources.settings_viewport_grid_scale
 import org.umamo.ui.resources.settings_viewport_grid_subdivisions
 import org.umamo.ui.resources.settings_viewport_supersample
 import org.umamo.ui.resources.settings_viewport_supersample_while_resizing
+import org.umamo.ui.resources.settings_viewport_uv_grid_scale
+import org.umamo.ui.resources.settings_viewport_uv_grid_subdivisions
 import org.umamo.ui.resources.settings_viewport_zoom_step
 import org.umamo.ui.resources.settings_viewport_zoom_step_coarse
 import org.umamo.ui.theme.LocalUmamoColors
@@ -360,8 +362,10 @@ private fun ColorSettingRow(label: String, key: String, defaultHex: String) {
 /**
  * The Viewport section: pointer-interaction tuning plus the rendering performance toggles.  The zoom
  * steps are the percent change per wheel notch (fine) and per Shift-wheel notch (coarse); the grid
- * scale and subdivisions are what a viewport or UV editor area draws and snaps to while it follows the
- * application's grid (an area given its own in its overlays popover keeps it); the supersampling pair
+ * scale and subdivisions are what a 2D viewport area draws and snaps to while it follows the application's
+ * grid (world units), and the UV grid pair is the UV editor's own, in texels, so a page's cells land on texel
+ * boundaries independent of the world grid (an area given its own grid in its overlays popover keeps it);
+ * the supersampling pair
  * trades render quality for speed on weak GPUs (off = 1x everywhere; the resize toggle keeps 2x during
  * panel drags).  The viewport binding and each area's render-options publisher read every key live, so a
  * committed edit re-tunes wheel zoom / re-draws the grid / re-renders at the new quality immediately.
@@ -373,6 +377,8 @@ internal fun ViewportSection() {
 	var zoomStepCoarse by rememberDoubleSetting(ViewportSettings.ZOOM_STEP_COARSE_KEY, ViewportSettings.ZOOM_STEP_COARSE_DEFAULT)
 	var gridScale by rememberDoubleSetting(ViewportSettings.GRID_SCALE_KEY, ViewportSettings.GRID_SCALE_DEFAULT)
 	var gridSubdivisions by rememberIntSetting(ViewportSettings.GRID_SUBDIVISIONS_KEY, ViewportSettings.GRID_SUBDIVISIONS_DEFAULT)
+	var uvGridScale by rememberDoubleSetting(ViewportSettings.UV_GRID_SCALE_KEY, ViewportSettings.UV_GRID_SCALE_DEFAULT)
+	var uvGridSubdivisions by rememberIntSetting(ViewportSettings.UV_GRID_SUBDIVISIONS_KEY, ViewportSettings.UV_GRID_SUBDIVISIONS_DEFAULT)
 	var supersample by rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_KEY, ViewportSettings.SUPERSAMPLE_DEFAULT)
 	var supersampleWhileResizing by
 		rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_KEY, ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_DEFAULT)
@@ -406,6 +412,22 @@ internal fun ViewportSection() {
 			NumberField(
 				value = gridSubdivisions,
 				onValueChange = { committed -> gridSubdivisions = committed },
+				range = ViewportSettings.GRID_SUBDIVISIONS_RANGE,
+				modifier = Modifier.width(80.dp),
+			)
+		}
+		SettingRow(label = stringResource(Res.string.settings_viewport_uv_grid_scale)) {
+			NumberField(
+				value = uvGridScale.toFloat(),
+				onValueChange = { committed -> uvGridScale = committed.toDouble() },
+				range = ViewportSettings.GRID_SCALE_RANGE,
+				modifier = Modifier.width(80.dp),
+			)
+		}
+		SettingRow(label = stringResource(Res.string.settings_viewport_uv_grid_subdivisions)) {
+			NumberField(
+				value = uvGridSubdivisions,
+				onValueChange = { committed -> uvGridSubdivisions = committed },
 				range = ViewportSettings.GRID_SUBDIVISIONS_RANGE,
 				modifier = Modifier.width(80.dp),
 			)

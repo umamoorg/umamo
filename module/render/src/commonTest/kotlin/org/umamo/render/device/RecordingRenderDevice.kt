@@ -139,6 +139,9 @@ internal class RecordedPass(
 
 	/** The target this pass writes, as the recorder's own type. */
 	val target: RecordedTarget get() = spec.colorTarget as RecordedTarget
+
+	/** The draw-order target the pass's art draws write, as the recorder's own type, or null. */
+	val drawOrderTarget: RecordedTarget? get() = spec.drawOrderTarget as RecordedTarget?
 }
 
 /**
@@ -227,6 +230,10 @@ internal sealed interface RecordedDraw {
  * @property Int                cornerCount       The active keyform corners; 0 for a glue draw.
  * @property Int                parentType        0 direct, 1 rotation, 2 warp; 0 for a glue draw.
  * @property List<Float>        glueIntensities   The per-glue weld intensities; empty for a deforming draw.
+ * @property Int                drawOrder         The back-to-front index the draw's covering fragments write into
+ *   the pass's draw-order target; 0 for a draw that writes none.
+ * @property Float              orderOpacity      The composite opacity product the alpha is scaled by before the
+ *   order threshold.
  */
 internal class RecordedMeshDraw(
 	override val pipeline: RenderPipelineSpec,
@@ -248,6 +255,8 @@ internal class RecordedMeshDraw(
 	val cornerCount: Int,
 	val parentType: Int,
 	val glueIntensities: List<Float>,
+	val drawOrder: Int = 0,
+	val orderOpacity: Float = 1f,
 ) : RecordedDraw
 
 /**
@@ -341,6 +350,8 @@ internal class RecordedQuadDraw(
  * @property List<Float> idleColor The idle color, straight RGBA.
  * @property List<Float> selectedColor The selected color.
  * @property List<Float> activeColor The active color.
+ * @property Int cullOrder The edge draw's own draw order it culls by, or -1 for no culling.
+ * @property RecordedTexture? orderTexture The draw-order texture a culling edge draw reads, or null.
  */
 internal class RecordedOverlayDraw(
 	override val pipeline: RenderPipelineSpec,
@@ -357,6 +368,8 @@ internal class RecordedOverlayDraw(
 	val idleColor: List<Float>,
 	val selectedColor: List<Float>,
 	val activeColor: List<Float>,
+	val cullOrder: Int = -1,
+	val orderTexture: RecordedTexture? = null,
 ) : RecordedDraw
 
 /** One resource operation, in the order the renderer issued it. */
@@ -849,6 +862,7 @@ internal class RecordingRenderDevice : RenderDevice {
 		}
 		val recorded = liveTexture(texture, operation)
 		check(recorded !== pass.target.sampledTexture) { "$operation samples target #${pass.target.serial}, which its own pass is writing" }
+		check(recorded !== pass.drawOrderTarget?.sampledTexture) { "$operation samples the draw-order target its own pass is writing" }
 		return recorded
 	}
 
@@ -884,6 +898,10 @@ internal class RecordingRenderDevice : RenderDevice {
 			check(frameOpen) { "beginRenderPass after the frame ended" }
 			check(openPass == null && openCapture == null) { "beginRenderPass while another pass is open" }
 			liveTarget(spec.colorTarget, "beginRenderPass")
+			spec.drawOrderTarget?.let { order ->
+				liveTarget(order, "beginRenderPass")
+				check(order !== spec.colorTarget) { "beginRenderPass with the draw-order target as its own color target" }
+			}
 			val pass = RecordedPass(spec)
 			recordedSteps.add(pass)
 			openPass = pass
@@ -958,6 +976,8 @@ internal class RecordingRenderDevice : RenderDevice {
 					cornerCount = deform.cornerCount,
 					parentType = deform.parentType,
 					glueIntensities = emptyList(),
+					drawOrder = fragment.drawOrder,
+					orderOpacity = fragment.orderOpacity,
 				),
 			)
 		}
@@ -993,6 +1013,8 @@ internal class RecordingRenderDevice : RenderDevice {
 					cornerCount = 0,
 					parentType = 0,
 					glueIntensities = glueIntensities.toList(),
+					drawOrder = fragment.drawOrder,
+					orderOpacity = fragment.orderOpacity,
 				),
 			)
 		}
@@ -1048,8 +1070,8 @@ internal class RecordingRenderDevice : RenderDevice {
 			recordOverlayDraw(PipelinePurpose.OverlayFaceFill, "drawOverlayFaceFill", buffers, store, uniforms)
 		}
 
-		override fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
-			recordOverlayDraw(PipelinePurpose.OverlayEdge, "drawOverlayEdges", buffers, store, uniforms)
+		override fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms, orderTexture: GpuTexture?) {
+			recordOverlayDraw(PipelinePurpose.OverlayEdge, "drawOverlayEdges", buffers, store, uniforms, orderTexture)
 		}
 
 		override fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
@@ -1068,6 +1090,7 @@ internal class RecordingRenderDevice : RenderDevice {
 		 * @param OverlayMeshBuffers buffers The mesh's overlay buffers.
 		 * @param DeformedPositionStore store The overlay's store.
 		 * @param OverlayDrawUniforms uniforms The draw's inputs.
+		 * @param GpuTexture? orderTexture The draw-order texture an edge draw culls by, or null.
 		 */
 		private fun recordOverlayDraw(
 			purpose: PipelinePurpose,
@@ -1075,8 +1098,10 @@ internal class RecordingRenderDevice : RenderDevice {
 			buffers: OverlayMeshBuffers,
 			store: DeformedPositionStore,
 			uniforms: OverlayDrawUniforms,
+			orderTexture: GpuTexture? = null,
 		) {
 			val pipeline = pipelineFor(purpose, operation)
+			check(uniforms.cullOrder < 0 || orderTexture != null) { "$operation culls by order ${uniforms.cullOrder} with no order texture" }
 			pass.draws.add(
 				RecordedOverlayDraw(
 					pipeline = pipeline,
@@ -1093,6 +1118,8 @@ internal class RecordingRenderDevice : RenderDevice {
 					idleColor = uniforms.idleColor.toList(),
 					selectedColor = uniforms.selectedColor.toList(),
 					activeColor = uniforms.activeColor.toList(),
+					cullOrder = uniforms.cullOrder,
+					orderTexture = sampledTexture(orderTexture, pass, operation),
 				),
 			)
 		}

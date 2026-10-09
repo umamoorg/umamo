@@ -86,7 +86,8 @@ class UvSceneRenderStructureTest {
 
 	/**
 	 * The UV grid carries the shown surface's rectangle (the page, the layer, or the unit square with
-	 * nothing shown) and the border width in framebuffer pixels; the 2D grid carries neither.
+	 * nothing shown) and the border width in framebuffer pixels, while its major spacing is the area's scale
+	 * on both axes whatever the surface's size; the 2D grid carries no surface.
 	 */
 	@Test
 	fun theUvGridCarriesItsSurface() {
@@ -99,14 +100,19 @@ class UvSceneRenderStructureTest {
 		val pageGrid = gridDraw(device)
 		assertEquals(ContentBounds(0f, 0f, 16f, 16f), pageGrid.uniforms.surface, "a page bounds the grid by its texels")
 		assertEquals(3f, pageGrid.uniforms.frameWidthPx, "the border is its display width times the render scale")
+		assertEquals(64f to 64f, pageGrid.uniforms.majorSpacingX to pageGrid.uniforms.majorSpacingY, "the major spacing is the area's scale, not the page's size")
 
 		device.clearLog()
 		renderer.renderUnderlayImage(target, DecodedImage(ByteArray(8 * 12 * 4), 8, 12), viewportSize, viewportSize)
-		assertEquals(ContentBounds(0f, 0f, 8f, 12f), gridDraw(device).uniforms.surface, "a layer bounds it by its own size")
+		val layerGrid = gridDraw(device)
+		assertEquals(ContentBounds(0f, 0f, 8f, 12f), layerGrid.uniforms.surface, "a layer bounds it by its own size")
+		assertEquals(64f to 64f, layerGrid.uniforms.majorSpacingX to layerGrid.uniforms.majorSpacingY, "and draws the same square spacing over it")
 
 		device.clearLog()
 		renderer.renderAtlasPage(target, null, viewportSize, viewportSize)
-		assertEquals(ContentBounds(0f, 0f, 1f, 1f), gridDraw(device).uniforms.surface, "nothing shown bounds it by the unit square")
+		val emptyGrid = gridDraw(device)
+		assertEquals(ContentBounds(0f, 0f, 1f, 1f), emptyGrid.uniforms.surface, "nothing shown bounds it by the unit square")
+		assertEquals(64f to 64f, emptyGrid.uniforms.majorSpacingX to emptyGrid.uniforms.majorSpacingY, "at the same spacing")
 
 		device.clearLog()
 		renderer.render(target, viewportSize, viewportSize)

@@ -11,6 +11,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,9 +21,9 @@ import kotlin.test.assertSame
 /**
  * Verifies the UV snap executor ([handleUvSnapRequest]) end to end at the model level: each of the
  * seven operations transforms the selected texture coordinates (or moves the UV cursor) as the UV snap
- * pie promises, over the texel display space the UV editor works in.  A 100x100 page with a
- * 10-subdivision grid is used unless a test names another, so the display coordinate of a uv is u * 100 across and
- * (1 - v) * 100 down (the v-flip), the pixel step is one texel, and the grid step is ten.
+ * pie promises, over the texel display space the UV editor works in.  A 100x100 page and a grid of 100
+ * texels over 10 subdivisions are used unless a test names another grid, so the display coordinate of a uv is
+ * u * 100 across and (1 - v) * 100 down (the v-flip), the pixel step is one texel, and the grid step is ten.
  *
  * The single triangle's three vertices sit at display (12.3, 45.7), (34.6, 45.7), (12.3, 78.2) - chosen
  * so no round lands on a tie and every expected target is exact to four decimals.
@@ -76,8 +77,8 @@ class UvSnapTest {
 			GizmoMeshGeometry(drawable.id, mesh.indices, emptyList(), uvToDisplay(mesh.uvs, pageWidth, pageHeight))
 		}
 
-	private fun snap(session: EditorSession, kind: UvSnapKind, subdivisions: Int = 10) {
-		handleUvSnapRequest(session, geometriesOf(session), atlasPageEditFrame(pageWidth, pageHeight), kind, subdivisions)
+	private fun snap(session: EditorSession, kind: UvSnapKind, grid: GridConfig = GridConfig(100f, 10)) {
+		handleUvSnapRequest(session, geometriesOf(session), atlasPageEditFrame(pageWidth, pageHeight), kind, grid)
 	}
 
 	private fun currentUvs(session: EditorSession): FloatArray = session.model.value.drawables[0].mesh!!.uvs
@@ -99,7 +100,7 @@ class UvSnapTest {
 		assertEquals("change.uv.move", session.historyView.value.steps.last().labelKey, "one TransformUvs undo step")
 	}
 
-	/** Selection to Grid rounds each covered vertex to the page / subdivisions grid (step 10 here). */
+	/** Selection to Grid rounds each covered vertex to the drawn grid's minor lines, scale / subdivisions (step 10 here). */
 	@Test
 	fun selectionToGridRoundsToTheDrawnGrid() {
 		val session = snapSession()
@@ -112,9 +113,18 @@ class UvSnapTest {
 	@Test
 	fun selectionToGridRoundsToTheAreasSubdivisions() {
 		val session = snapSession()
-		snap(session, UvSnapKind.SelectionToGrid, subdivisions = 4)
+		snap(session, UvSnapKind.SelectionToGrid, grid = GridConfig(100f, 4))
 		// (12.3,45.7)->(0,50) (34.6,45.7)->(25,50) (12.3,78.2)->(0,75).
 		assertUvsEqual(listOf(0.00f, 0.50f, 0.25f, 0.50f, 0.00f, 0.25f), currentUvs(session), "each vertex snaps to the coarser line")
+	}
+
+	/** The grid's scale is the area's too, in texels: a 50-texel scale over ten subdivisions makes a 5-texel step, which the page's size would not. */
+	@Test
+	fun selectionToGridRoundsToTheAreasScale() {
+		val session = snapSession()
+		snap(session, UvSnapKind.SelectionToGrid, grid = GridConfig(50f, 10))
+		// (12.3,45.7)->(10,45) (34.6,45.7)->(35,45) (12.3,78.2)->(10,80).
+		assertUvsEqual(listOf(0.10f, 0.55f, 0.35f, 0.55f, 0.10f, 0.20f), currentUvs(session), "each vertex snaps to the finer line")
 	}
 
 	/** Selection to Cursor piles every covered vertex onto the UV cursor (Blender parity). */
@@ -151,7 +161,7 @@ class UvSnapTest {
 		assertEquals(0.54f, cursor.v, 1e-4f, "cursor v snaps to a texel corner")
 	}
 
-	/** Cursor to Grid snaps the UV cursor to the page / subdivisions grid. */
+	/** Cursor to Grid snaps the UV cursor to the drawn grid's minor lines. */
 	@Test
 	fun cursorToGridSnapsTheCursor() {
 		val session = snapSession(select = false)

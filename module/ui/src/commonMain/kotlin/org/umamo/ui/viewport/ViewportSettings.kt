@@ -2,7 +2,8 @@ package org.umamo.ui.viewport
 
 /**
  * The settings keys and bundled defaults for the viewport interaction settings: the wheel-zoom
- * increments, the grid, and the rendering toggles.  The overlay colors live in
+ * increments, the grid of each work surface (the 2D viewport's and the UV editor's), and the rendering
+ * toggles.  The overlay colors live in
  * [ViewportColorSettings].  The defaults are kept in lockstep with defaultSettings.json (the
  * merged-settings baseline); these constants are the Kotlin-side fallback for a missing or
  * unparseable value, shared by the viewport binding and the preferences window so neither duplicates
@@ -13,6 +14,8 @@ internal object ViewportSettings {
 	const val ZOOM_STEP_COARSE_KEY = "viewport.zoomStepCoarsePercent"
 	const val GRID_SCALE_KEY = "viewport.grid.scale"
 	const val GRID_SUBDIVISIONS_KEY = "viewport.grid.subdivisions"
+	const val UV_GRID_SCALE_KEY = "viewport.uvGrid.scale"
+	const val UV_GRID_SUBDIVISIONS_KEY = "viewport.uvGrid.subdivisions"
 	const val SUPERSAMPLE_KEY = "viewport.rendering.supersample"
 	const val SUPERSAMPLE_WHILE_RESIZING_KEY = "viewport.rendering.supersampleWhileResizing"
 
@@ -25,8 +28,17 @@ internal object ViewportSettings {
 	/** On by default: frames rendered while an area is actively resizing keep the supersample. */
 	const val SUPERSAMPLE_WHILE_RESIZING_DEFAULT = true
 
+	/** The 2D viewport's grid: 100 world units per major cell, 10 minor lines each. */
 	const val GRID_SCALE_DEFAULT = 100.0
 	const val GRID_SUBDIVISIONS_DEFAULT = 10
+
+	/**
+	 * The UV editor's own grid: 256 texels per major cell, 8 minor lines each, a power of two that lands on
+	 * the texel boundaries riggers lay art out on.  A UV area that follows the application follows this pair,
+	 * never the 2D viewport's.
+	 */
+	const val UV_GRID_SCALE_DEFAULT = 256.0
+	const val UV_GRID_SUBDIVISIONS_DEFAULT = 8
 
 	/**
 	 * The commit clamp for the zoom-step preference fields: 0.1 % (ultra-fine) up to 100 % (a
@@ -35,9 +47,34 @@ internal object ViewportSettings {
 	 */
 	val ZOOM_STEP_RANGE = 0.1f..100f
 
-	/** The commit clamp for the grid major spacing (world units): 1 up to 100000, so the grid stays finite. */
+	/** The commit clamp for the grid major spacing (world units on a 2D viewport, texels on a UV editor): 1 up to 100000, so the grid stays finite. */
 	val GRID_SCALE_RANGE = 1f..100_000f
 
 	/** The commit clamp for the grid subdivision count: 1 (no minor lines) up to 100 per major cell. */
 	val GRID_SUBDIVISIONS_RANGE = 1..100
+
+	/**
+	 * The key of the application grid scale a surface follows: the 2D viewport's world-unit pair or the UV
+	 * editor's texel pair.
+	 *
+	 * @param OverlaySurface surface The work surface.
+	 * @return String The settings key.
+	 */
+	fun gridScaleKey(surface: OverlaySurface): String =
+		when (surface) {
+			OverlaySurface.Viewport2D -> GRID_SCALE_KEY
+			OverlaySurface.UvEditor -> UV_GRID_SCALE_KEY
+		}
+
+	/**
+	 * The key of the application grid subdivision count a surface follows.
+	 *
+	 * @param OverlaySurface surface The work surface.
+	 * @return String The settings key.
+	 */
+	fun gridSubdivisionsKey(surface: OverlaySurface): String =
+		when (surface) {
+			OverlaySurface.Viewport2D -> GRID_SUBDIVISIONS_KEY
+			OverlaySurface.UvEditor -> UV_GRID_SUBDIVISIONS_KEY
+		}
 }
