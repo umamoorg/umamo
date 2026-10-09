@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -46,6 +47,7 @@ import org.umamo.ui.theme.UmamoIcon
  * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
  * @param ChipToggle? iconToggle       A toggle riding on the glyph, splitting the face into the glyph's own button and the
  *   chevron that opens the panel (see [ChipToggle]).
+ * @param Dp?       panelWidth         The panel's content width, or null to hug its widest row (see [PopupPanel]).
  * @param Function  content            The panel's rows.
  */
 @Composable
@@ -59,6 +61,7 @@ fun PopupChip(
 	style: DropdownChipStyle = DropdownChipStyle.Header,
 	iconTint: Color? = null,
 	iconToggle: ChipToggle? = null,
+	panelWidth: Dp? = null,
 	content: @Composable ColumnScope.() -> Unit,
 ) {
 	var selfOpen by remember { mutableStateOf(false) }
@@ -81,7 +84,7 @@ fun PopupChip(
 		iconTint = iconTint,
 		iconToggle = iconToggle,
 	) {
-		PopupPanel(onDismissRequest = { setOpen(false) }, content = content)
+		PopupPanel(onDismissRequest = { setOpen(false) }, contentWidth = panelWidth, content = content)
 	}
 }
 
@@ -94,12 +97,23 @@ fun PopupChip(
  * The panel provides [LocalPopupDismissOwned], so a [org.umamo.ui.kit.menu.Menu] or nested chip composed inside the content
  * yields the dismiss to this popup instead of fighting it for focus.
  *
+ * The panel hugs its widest row by default.  A panel of two-column property rows passes [contentWidth]
+ * instead: a Row of two equal weights has an intrinsic width of twice its most demanding half, so left to
+ * hug, a long checkbox label would widen the whole panel to twice its own length.
+ *
  * @param Function onDismissRequest Called on an outside click or Esc.
+ * @param Dp?      contentWidth     The column's width, or null to hug the widest row.
  * @param Function content          The panel's rows.
  */
 @Composable
-fun PopupPanel(onDismissRequest: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+fun PopupPanel(onDismissRequest: () -> Unit, contentWidth: Dp? = null, content: @Composable ColumnScope.() -> Unit) {
 	val colors = LocalUmamoColors.current
+	val widthModifier =
+		if (contentWidth != null) {
+			Modifier.width(contentWidth)
+		} else {
+			Modifier.width(IntrinsicSize.Max)
+		}
 	Popup(
 		popupPositionProvider = BelowAnchorPositionProvider,
 		onDismissRequest = onDismissRequest,
@@ -107,8 +121,7 @@ fun PopupPanel(onDismissRequest: () -> Unit, content: @Composable ColumnScope.()
 	) {
 		CompositionLocalProvider(LocalPopupDismissOwned provides true) {
 			Surface(color = colors.menuBackground, shape = LocalUmamoShapes.current.medium) {
-				// Intrinsic width so the panel hugs its widest row rather than needing a magic dp.
-				Column(modifier = Modifier.width(IntrinsicSize.Max).padding(vertical = 4.dp), content = content)
+				Column(modifier = widthModifier.padding(vertical = 4.dp), content = content)
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.spaces
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasSetTextAction
@@ -10,6 +11,7 @@ import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.isPopup
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -37,7 +39,8 @@ import kotlin.test.assertTrue
 /**
  * The overlays control on the two work-surface headers, driven through the REAL header strips: the Show
  * Overlays button flips the area's master, a popover row flips the flag it stands for, each header writes its
- * own area's state, and the control follows its host header's no-document convention.
+ * own area's state, the control follows its host header's no-document convention, and every heading, row,
+ * and field explains itself on hover.
  */
 @OptIn(ExperimentalTestApi::class)
 class OverlaysHeaderControlTest {
@@ -275,6 +278,39 @@ class OverlaysHeaderControlTest {
 			assertEquals(GridConfig(33.34f, 10), overlays.gridGeometry, "a scale that shows differently is an edit")
 		}
 
+	/**
+	 * A toggle row, a grid field, and a section heading each show their description once the pointer has
+	 * rested on them.  The tooltip is a popup of its own, so the open popover's matcher finds it.
+	 */
+	@Test
+	fun aRowAFieldAndASectionShowTheirDescriptionsOnHover() =
+		runComposeUiTest {
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()))
+			clickDescribed(VIEWPORT_OVERLAYS)
+
+			hoverPopupText(GRID_ROW)
+			assertTrue(popupShows(GRID_DESCRIPTION), "the Grid row's description")
+
+			hoverPopupText(SCALE_FIELD)
+			assertTrue(popupShows(SCALE_DESCRIPTION), "the Scale field's description")
+
+			hoverPopupText(GUIDES)
+			assertTrue(popupShows(GUIDES_DESCRIPTION), "the Guides heading's description")
+		}
+
+	/**
+	 * Rests the pointer on the popover text labelled [label] and lets the tooltip's dwell run out.
+	 *
+	 * @param String label The text.
+	 */
+	private fun ComposeUiTest.hoverPopupText(label: String) {
+		onNode(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performMouseInput {
+			moveTo(center)
+		}
+		mainClock.advanceTimeBy(TOOLTIP_WAIT_MILLIS)
+		waitForIdle()
+	}
+
 	private companion object {
 		/** The toggle button's English name; it doubles as its accessible label. */
 		const val SHOW_OVERLAYS = "Show Overlays"
@@ -300,5 +336,13 @@ class OverlaysHeaderControlTest {
 
 		/** The overflow chip's English name. */
 		const val MORE = "More"
+
+		/** The English descriptions the hover case looks for: a heading's, a row's, and a field's. */
+		const val GUIDES_DESCRIPTION = "The visual helpers for placement and alignment."
+		const val GRID_DESCRIPTION = "The divided grid behind the scene that is used for snapping and visual alignment."
+		const val SCALE_DESCRIPTION = "The spacing of the major grid lines, in world units."
+
+		/** Comfortably past the tooltip's dwell delay. */
+		const val TOOLTIP_WAIT_MILLIS = 1_000L
 	}
 }

@@ -1,4 +1,4 @@
-package org.umamo.ui.properties
+package org.umamo.ui.kit.field
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,8 +21,8 @@ import org.umamo.ui.theme.UmamoTheme
 import kotlin.test.Test
 
 /**
- * The row description under real pointer input: it shows over a row's label, never over its control, and
- * a blank one shows nothing.
+ * The kit property rows' description under real pointer input: it shows over a field row's label, never
+ * over its control, over a checkbox row's box, and a blank one shows nothing.
  *
  * The control half is the case worth pinning.  A tooltip wrapping the whole row compiles, looks right on a
  * plain row, and stacks a second card over every relation and color field's own button tooltips, because

@@ -32,10 +32,10 @@ import org.umamo.edit.OperatorParameter
 import org.umamo.edit.withParameter
 import org.umamo.ui.kit.container.SectionHeader
 import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.PropertyCheckboxRow
+import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.SelectField
 import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.properties.PropertyCheckboxRow
-import org.umamo.ui.properties.PropertyFieldRow
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.workspace.LocalOperationStripInset

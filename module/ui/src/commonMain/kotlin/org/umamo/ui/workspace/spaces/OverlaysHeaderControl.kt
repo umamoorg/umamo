@@ -1,9 +1,10 @@
 package org.umamo.ui.workspace.spaces
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -13,14 +14,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.kit.chip.ChipToggle
 import org.umamo.ui.kit.chip.FilterSectionLabel
 import org.umamo.ui.kit.chip.PopupChip
-import org.umamo.ui.kit.field.Checkbox
-import org.umamo.ui.kit.field.FieldRow
 import org.umamo.ui.kit.field.NumberField
+import org.umamo.ui.kit.field.PropertyCheckboxRow
+import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.formatDecimals
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -29,14 +31,22 @@ import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.ViewportSettings
 
-/** The label column of a grid field row: narrower than a settings row, since the popover hugs its rows, but wide enough for "Subdivisions". */
-private val GRID_LABEL_WIDTH = 96.dp
+/**
+ * The popover's content width: a narrow Properties section, so its half-and-half rows read exactly like the
+ * panel's.  The width is given rather than hugged because a Row of two equal weights has an intrinsic width
+ * of twice its most demanding half - "General Information" beside its box would widen the panel to twice
+ * its own length.
+ */
+private val OVERLAYS_POPOVER_WIDTH = 300.dp
 
-/** The grid fields' width, the Preferences rows' shape. */
-private val GRID_FIELD_WIDTH = 80.dp
+/** The inset of the rows from the panel's edges, the section headings' own. */
+private val OVERLAYS_ROW_INSET = 8.dp
 
 /** The reset icon's size, and the space held for it while the area follows the application's grid. */
 private val GRID_RESET_SIZE = 20.dp
+
+/** The gap between a grid field and the reset icon beside it. */
+private val GRID_RESET_GAP = 4.dp
 
 /** The fractional places the Scale field shows and commits: the kit field's default, named so the edit guard compares at the same places. */
 private const val GRID_SCALE_DECIMALS = 2
@@ -49,11 +59,14 @@ private const val GRID_SCALE_DECIMALS = 2
  * directly - a per-area view choice, not a session operation, so no registry dispatch (the view.overlay.*
  * commands are the separate, hovered-area-routed path onto the same state).
  *
- * Under the Grid row sit the area's grid fields: an edit gives the area a grid of its own, and the reset
- * beside them, shown only then, returns it to following the application's grid - no checkbox to flip, the
- * edit is the choice.  The rows and the fields stay enabled while the master is off: each row's flag is
- * what comes back when the master returns, so the rigger can set up the set they want before switching
- * it on.  A section with no row for this surface is left out.
+ * The rows are the editor's property rows, the Properties area's two-column grid: a toggle sits in the
+ * right half beside its box, a field's label is right-aligned in the left half, and every heading, toggle,
+ * and field carries its description as a hover tooltip.  Under the Grid row sit the area's grid fields: an
+ * edit gives the area a grid of its own, and the reset beside them, shown only then, returns it to
+ * following the application's grid - no checkbox to flip, the edit is the choice.  The rows and the fields
+ * stay enabled while the master is off: each row's flag is what comes back when the master returns, so the
+ * rigger can set up the set they want before switching it on.  A section with no row for this surface is
+ * left out.
  *
  * @param ViewportOverlayState state The area's overlay state.
  * @param Boolean enabled Whether the control takes input (false renders it disabled, the 2D header's no-document look).
@@ -70,6 +83,7 @@ internal fun OverlaysHeaderControl(state: ViewportOverlayState, enabled: Boolean
 				contentDescription = stringResource(Res.string.header_show_overlays),
 			),
 		enabled = enabled,
+		panelWidth = OVERLAYS_POPOVER_WIDTH,
 	) {
 		val rows = overlayRowsFor(state.surface)
 		for (section in OverlaySection.entries) {
@@ -77,15 +91,23 @@ internal fun OverlaysHeaderControl(state: ViewportOverlayState, enabled: Boolean
 			if (sectionRows.isEmpty()) {
 				continue
 			}
-			FilterSectionLabel(stringResource(section.label))
-			for (row in sectionRows) {
-				Checkbox(
-					checked = row.isOn(state),
-					onCheckedChange = { checked -> row.set(state, checked) },
-					label = stringResource(row.label),
-				)
-				if (row == OverlayToggle.Grid) {
-					GridGeometryFields(state)
+			Tooltip(text = stringResource(section.description)) {
+				FilterSectionLabel(stringResource(section.label))
+			}
+			Column(
+				modifier = Modifier.fillMaxWidth().padding(horizontal = OVERLAYS_ROW_INSET),
+				verticalArrangement = Arrangement.spacedBy(2.dp),
+			) {
+				for (row in sectionRows) {
+					PropertyCheckboxRow(
+						checked = row.isOn(state),
+						onCheckedChange = { checked -> row.set(state, checked) },
+						label = stringResource(row.label),
+						description = stringResource(row.description),
+					)
+					if (row == OverlayToggle.Grid) {
+						GridGeometryFields(state)
+					}
 				}
 			}
 		}
@@ -112,7 +134,12 @@ private fun GridGeometryFields(state: ViewportOverlayState) {
 	// (a file's, a setting's) is the same value when its rounding comes back: the guard compares what the
 	// field shows, not the floats.
 	if (!uvEditor) {
-		GridGeometryRow(label = stringResource(Res.string.overlay_grid_scale), resettable = own, onReset = { state.gridGeometry = null }) {
+		GridGeometryRow(
+			label = stringResource(Res.string.overlay_grid_scale),
+			description = stringResource(Res.string.overlay_grid_scale_description),
+			resettable = own,
+			onReset = { state.gridGeometry = null },
+		) { modifier ->
 			NumberField(
 				value = grid.scale,
 				onValueChange = { scale ->
@@ -122,11 +149,16 @@ private fun GridGeometryFields(state: ViewportOverlayState) {
 				},
 				range = ViewportSettings.GRID_SCALE_RANGE,
 				decimals = GRID_SCALE_DECIMALS,
-				modifier = Modifier.width(GRID_FIELD_WIDTH),
+				modifier = modifier,
 			)
 		}
 	}
-	GridGeometryRow(label = stringResource(Res.string.overlay_grid_subdivisions), resettable = own && uvEditor, onReset = { state.gridGeometry = null }) {
+	GridGeometryRow(
+		label = stringResource(Res.string.overlay_grid_subdivisions),
+		description = stringResource(Res.string.overlay_grid_subdivisions_description),
+		resettable = own && uvEditor,
+		onReset = { state.gridGeometry = null },
+	) { modifier ->
 		NumberField(
 			value = grid.subdivisions,
 			onValueChange = { subdivisions ->
@@ -135,37 +167,44 @@ private fun GridGeometryFields(state: ViewportOverlayState) {
 				}
 			},
 			range = ViewportSettings.GRID_SUBDIVISIONS_RANGE,
-			modifier = Modifier.width(GRID_FIELD_WIDTH),
+			modifier = modifier,
 		)
 	}
 }
 
 /**
- * One grid field row, indented under the Grid checkbox: the label, the field, and the reset icon while the
- * row carries it, else a spacer of the icon's size so the row keeps its width.
+ * One grid field row, a property field row whose control half holds the field and, at its end, the reset
+ * icon while the row carries it, else a spacer of the icon's size so the field keeps its width either way.
  *
  * @param String label The field's label.
+ * @param String description What the field sets, the label's tooltip.
  * @param Boolean resettable Whether the reset icon shows on this row.
  * @param Function onReset What the reset icon does.
- * @param Function field The number field.
+ * @param Function field The number field, given the modifier that fills the half up to the icon.
  */
 @Composable
-private fun GridGeometryRow(label: String, resettable: Boolean, onReset: () -> Unit, field: @Composable () -> Unit) {
-	Row(
-		modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 4.dp).height(24.dp),
-		verticalAlignment = Alignment.CenterVertically,
-	) {
-		FieldRow(label = label, modifier = Modifier.weight(1f), labelWidth = GRID_LABEL_WIDTH, control = field)
-		if (resettable) {
-			IconButton(
-				icon = LocalUmamoIcons.reset,
-				onClick = onReset,
-				contentDescription = stringResource(Res.string.overlay_grid_follow_application),
-				size = DpSize(GRID_RESET_SIZE, GRID_RESET_SIZE),
-				appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
-			)
-		} else {
-			Spacer(modifier = Modifier.size(GRID_RESET_SIZE))
+private fun GridGeometryRow(
+	label: String,
+	description: String,
+	resettable: Boolean,
+	onReset: () -> Unit,
+	field: @Composable (Modifier) -> Unit,
+) {
+	PropertyFieldRow(label = label, description = description) {
+		Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+			field(Modifier.weight(1f))
+			Spacer(modifier = Modifier.width(GRID_RESET_GAP))
+			if (resettable) {
+				IconButton(
+					icon = LocalUmamoIcons.reset,
+					onClick = onReset,
+					contentDescription = stringResource(Res.string.overlay_grid_follow_application),
+					size = DpSize(GRID_RESET_SIZE, GRID_RESET_SIZE),
+					appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
+				)
+			} else {
+				Spacer(modifier = Modifier.size(GRID_RESET_SIZE))
+			}
 		}
 	}
 }

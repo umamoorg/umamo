@@ -717,6 +717,18 @@
 	<string name="overlay_grid_scale">Scale</string>
 	<string name="overlay_grid_subdivisions">Subdivisions</string>
 	<string name="overlay_grid_follow_application">Follow Application Grid</string>
+	<!-- The popover's descriptions, each heading's, row's, and field's hover tooltip; named after its label key like
+	     the Properties row descriptions below. -->
+	<string name="overlay_section_guides_description">The visual helpers for placement and alignment.</string>
+	<string name="overlay_section_text_description">Informational text shown around the edges of the viewport.</string>
+	<string name="overlay_section_geometry_description">The visual helpers for displaying drawables.</string>
+	<string name="overlay_row_grid_description">The divided grid behind the scene that is used for snapping and visual alignment.</string>
+	<string name="overlay_row_axes_description">The world X and Z axis lines through the origin.</string>
+	<string name="overlay_row_cursor_description">The 2D cursor used for snap and pivot operations.</string>
+	<string name="overlay_row_info_description">The general information such as the current selection and zoom level.</string>
+	<string name="overlay_row_wireframe_description">Show the mesh wireframe of drawables not currently selected for editing.</string>
+	<string name="overlay_grid_scale_description">The spacing of the major grid lines, in world units.</string>
+	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
 	<string name="hud_placement">Placement</string>

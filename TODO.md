@@ -60,14 +60,14 @@
 ## Overlay Toggles
 * Improvements
 	* Wireframe:
-		* Toggle culling of mesh parts hidden by other drawables.(On by default.)
+		* Toggle culling of mesh parts hidden by other drawables.(On by default.)  This way a cleaner look can be presented and will be possible to see mesh parts become hidden as the model is posed.
 		* Opacity
 	* Objects:
 		* Selection Tint
-		* Deformers
-	* Hover tooltips for all controls.
+		* Deformers (Deferred until deformer overlays are built after this work.)
+	* Hover tooltips for all controls.(Like in the Properties area.)
 	* UV grid should have both scale and subdivisions.
-	* Clean up styles: Use properties area styling.
+	* Clean up styles: Use properties area styling.  Two column label and field.
 
 
 ## Object and Mesh Editing
