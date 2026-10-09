@@ -365,13 +365,24 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 	}
 }
 
-/** Records the pass-1 deform capture into the shared position store. */
+/**
+ * Records the pass-1 deform capture into the shared position store.
+ *
+ * One transform-feedback session serves every capture that continues where the last one ended: the store
+ * is laid out contiguously in capture order, so the draws append under one begin / end pair, and a capture
+ * at any other offset (a mesh the walk skipped, a glue mesh placed elsewhere) closes the session and opens
+ * one at its offset.  Beginning and ending feedback per mesh drains the pipeline on the desktop drivers, so
+ * a rig of a thousand meshes pays that drain once per gap instead of once per mesh.
+ */
 internal class GlDeformCapturePassEncoder(
 	private val pipeline: GlDeformCapturePipeline,
 	private val store: GlDeformedPositionStore,
 ) : DeformCapturePassEncoder {
 	private val cornerCellScratch = BufferUtils.createIntBuffer(org.umamo.render.glsl.MAX_CORNERS)
 	private val cornerWeightScratch = BufferUtils.createFloatBuffer(org.umamo.render.glsl.MAX_CORNERS)
+
+	// The vertex index the open feedback session writes next, or -1 while none is open.
+	private var feedbackCursor = -1
 
 	override fun captureDeformedPositions(
 		mesh: GpuMesh,
@@ -382,20 +393,35 @@ internal class GlDeformCapturePassEncoder(
 	) {
 		marshalDeformUniforms(pipeline.locations, deform, textures, cornerCellScratch, cornerWeightScratch)
 		GL30.glBindVertexArray((mesh as GlMesh).vao)
-		GL30.glBindBufferRange(
-			GL30.GL_TRANSFORM_FEEDBACK_BUFFER,
-			0,
-			store.buffer,
-			destinationVertexOffset.toLong() * 2 * Float.SIZE_BYTES,
-			vertexCount.toLong() * 2 * Float.SIZE_BYTES,
-		)
-		GL30.glBeginTransformFeedback(GL11.GL_POINTS)
+		if (feedbackCursor != destinationVertexOffset) {
+			closeSession()
+			// The range runs to the store's end, so the session's later appends land inside it; feedback never
+			// writes past a range, so the store's capacity bounds the writes as it did per mesh.
+			GL30.glBindBufferRange(
+				GL30.GL_TRANSFORM_FEEDBACK_BUFFER,
+				0,
+				store.buffer,
+				destinationVertexOffset.toLong() * 2 * Float.SIZE_BYTES,
+				(store.vertexCapacity - destinationVertexOffset).toLong() * 2 * Float.SIZE_BYTES,
+			)
+			GL30.glBeginTransformFeedback(GL11.GL_POINTS)
+			feedbackCursor = destinationVertexOffset
+		}
 		GL11.glDrawArrays(GL11.GL_POINTS, 0, vertexCount)
-		GL30.glEndTransformFeedback()
+		feedbackCursor += vertexCount
 	}
 
 	override fun end() {
+		closeSession()
 		GL11.glDisable(GL30.GL_RASTERIZER_DISCARD)
+	}
+
+	/** Ends the open feedback session, if any. */
+	private fun closeSession() {
+		if (feedbackCursor >= 0) {
+			GL30.glEndTransformFeedback()
+			feedbackCursor = -1
+		}
 	}
 }
 
