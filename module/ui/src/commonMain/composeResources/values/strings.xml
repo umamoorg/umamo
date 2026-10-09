@@ -735,7 +735,7 @@
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
 	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so that they stand out in the art.</string>
-	<string name="overlay_row_cull_hidden_description">Leave out wires under art drawn in front of their own drawable, so a posed model shows which mesh parts are covered.</string>
+	<string name="overlay_row_cull_hidden_description">Hide parts of the wireframe that are covered by other drawables.</string>
 	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe, or of the UV editor's islands, as a percentage.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
@@ -1088,6 +1088,8 @@
 	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step (%)</string>
 	<string name="settings_viewport_grid_scale">Grid Scale</string>
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
+	<string name="settings_viewport_uv_grid_scale">UV Grid Scale</string>
+	<string name="settings_viewport_uv_grid_subdivisions">UV Grid Subdivisions</string>
 	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
 	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
 	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>

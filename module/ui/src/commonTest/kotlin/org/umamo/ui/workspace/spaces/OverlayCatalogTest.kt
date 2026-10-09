@@ -132,11 +132,12 @@ class OverlayCatalogTest {
 		assertTrue(state.showSelectionTint && state.cullHiddenWireframe)
 	}
 
-	/** The area's grid is its own over the application's, whole on both surfaces. */
+	/** The area's grid is its own over the application's, whole on both surfaces, each surface seeded with its own default. */
 	@Test
 	fun theGridIsTheAreasOwnOverTheApplications() {
 		val application = GridConfig(100f, 10)
 		val viewport = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertEquals(application, viewport.grid, "a fresh 2D viewport resolves the world grid's default, 100 in 10")
 		assertEquals(application, viewport.gridOver(application), "following, the application's grid")
 
 		viewport.gridGeometry = GridConfig(50f, 4)
@@ -149,6 +150,8 @@ class OverlayCatalogTest {
 		assertTrue(viewport.isAtDefaults)
 
 		val uvEditor = ViewportOverlayState(OverlaySurface.UvEditor)
+		assertEquals(GridConfig(256f, 8), uvEditor.grid, "a fresh UV editor resolves the UV grid's default, 256 texels in 8")
+		assertTrue(uvEditor.isAtDefaults, "which is following, not an own grid")
 		uvEditor.gridGeometry = GridConfig(50f, 4)
 		assertEquals(GridConfig(50f, 4), uvEditor.gridOver(application), "a UV editor's own grid is its own whole, the scale in texels")
 	}

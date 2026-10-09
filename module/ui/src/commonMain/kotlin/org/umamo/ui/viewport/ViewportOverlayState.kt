@@ -73,20 +73,21 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	var wireframeOpacity by mutableStateOf(1f)
 
 	/**
-	 * The area's own grid geometry, or null while the area follows the application's viewport.grid.* setting.
-	 * The first edit of a grid field in the overlays popover gives the area its own; the reset beside the fields
+	 * The area's own grid geometry, or null while the area follows the application's grid for its surface (the
+	 * viewport.grid.* setting on a 2D viewport, viewport.uvGrid.* on a UV editor).  The first edit of a grid field in the overlays popover gives the area its own; the reset beside the fields
 	 * takes it back.  Saved as the `gridGeometry` key on both surfaces: the scale is world units on a 2D viewport
 	 * and texels on a UV editor, one grid model read in each surface's unit.
 	 */
 	var gridGeometry by mutableStateOf<GridConfig?>(null)
 
 	/**
-	 * The application's grid as [ApplicationGridMirror] last mirrored it from the settings; never saved.
-	 * Mirrored here so every reader of the area - the snap handlers, the hovered-area commands, the popover's
-	 * fields - resolves the one grid the renderer draws through [grid] without reaching for the settings
-	 * themselves.
+	 * The application's grid for this surface as [ApplicationGridMirror] last mirrored it from the settings;
+	 * never saved.  Mirrored here so every reader of the area - the snap handlers, the hovered-area commands,
+	 * the popover's fields - resolves the one grid the renderer draws through [grid] without reaching for the
+	 * settings themselves.  Seeded with the surface's bundled default, so an area with no mirror behind it
+	 * shows the grid a fresh install does.
 	 */
-	var applicationGrid by mutableStateOf(GridConfig())
+	var applicationGrid by mutableStateOf(GridConfig.applicationDefault(surface))
 
 	/** The grid this area draws and snaps to: its own over the application's (see [gridOver]). */
 	val grid: GridConfig
@@ -131,7 +132,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	 * The grid this area draws and snaps to over a given application grid: its own, else the application's,
 	 * whole on both surfaces - a UV editor reads the scale as texels.
 	 *
-	 * @param GridConfig applicationGrid The application's viewport.grid.* grid.
+	 * @param GridConfig applicationGrid The application's grid for this surface.
 	 * @return GridConfig The area's grid.
 	 */
 	fun gridOver(applicationGrid: GridConfig): GridConfig = gridGeometry ?: applicationGrid
@@ -154,7 +155,23 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 }
 
 /**
- * Keeps [state]'s mirror of the application's grid current from the viewport.grid.* settings, for the area's
+ * The application's grid for a surface, read live from its pair of settings: viewport.grid.* for the 2D
+ * viewport, viewport.uvGrid.* for the UV editor.  The one place the grid settings are read, so the mirror
+ * and the publisher cannot disagree on which pair a surface follows.
+ *
+ * @param OverlaySurface surface The work surface.
+ * @return GridConfig The current application grid for the surface.
+ */
+@Composable
+fun rememberApplicationGrid(surface: OverlaySurface): GridConfig {
+	val default = GridConfig.applicationDefault(surface)
+	val gridScale by rememberDoubleSetting(ViewportSettings.gridScaleKey(surface), default.scale.toDouble())
+	val gridSubdivisions by rememberIntSetting(ViewportSettings.gridSubdivisionsKey(surface), default.subdivisions)
+	return GridConfig(gridScale.toFloat(), gridSubdivisions)
+}
+
+/**
+ * Keeps [state]'s mirror of the application's grid current from the settings of its surface, for the area's
  * readers that resolve its grid through [ViewportOverlayState.grid]: the popover's fields, the snap commands,
  * and the gizmo overlays' snap handlers.  Mounted by the space body that owns the state, with or without a
  * renderer behind the area, so a platform with no render host resolves the setting too and never the
@@ -164,9 +181,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
  */
 @Composable
 fun ApplicationGridMirror(state: ViewportOverlayState) {
-	val gridScale by rememberDoubleSetting(ViewportSettings.GRID_SCALE_KEY, ViewportSettings.GRID_SCALE_DEFAULT)
-	val gridSubdivisions by rememberIntSetting(ViewportSettings.GRID_SUBDIVISIONS_KEY, ViewportSettings.GRID_SUBDIVISIONS_DEFAULT)
-	val applicationGrid = GridConfig(gridScale.toFloat(), gridSubdivisions)
+	val applicationGrid = rememberApplicationGrid(state.surface)
 	SideEffect {
 		if (state.applicationGrid != applicationGrid) {
 			state.applicationGrid = applicationGrid
