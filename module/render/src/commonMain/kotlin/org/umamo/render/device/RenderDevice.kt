@@ -588,13 +588,16 @@ public interface RenderPassEncoder {
 
 	/**
 	 * Draws the mesh overlay's edges of one mesh, as [drawOverlayFaceFill] draws its fills, or the one
-	 * active edge when the uniforms say so; the bound pipeline must be [PipelinePurpose.OverlayEdge].
+	 * active edge when the uniforms say so; the bound pipeline must be [PipelinePurpose.OverlayEdge].  With
+	 * a cull order in the uniforms the draw samples [orderTexture], the frame's draw-order target, at its
+	 * own framebuffer pixel and leaves out the edge where a drawable in front of the mesh's own was drawn.
 	 *
 	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
 	 * @param DeformedPositionStore store The overlay's deformed positions.
 	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 * @param GpuTexture? orderTexture The draw-order texture a culling draw reads, or null for none.
 	 */
-	fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
+	fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms, orderTexture: GpuTexture? = null)
 
 	/**
 	 * Draws the mesh overlay's vertex dots of one mesh: one instance per vertex, the instance index being

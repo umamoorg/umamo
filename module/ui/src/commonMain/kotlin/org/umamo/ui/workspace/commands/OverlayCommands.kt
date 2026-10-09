@@ -72,5 +72,9 @@ internal fun overlayCommands(areaOverlays: AreaOverlayHub, routing: CommandRouti
 		Command("view.overlay.wireframe", title = Res.string.cmd_view_overlay_wireframe, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {
 			hovered2DOverlays()?.let { state -> state.showWireframe = !state.showWireframe }
 		},
+		// The wireframe's culling qualifies the wireframe, so it is the 2D viewport's alone like it.
+		Command("view.overlay.wireframeCulling", title = Res.string.cmd_view_overlay_wireframe_culling, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {
+			hovered2DOverlays()?.let { state -> state.cullHiddenWireframe = !state.cullHiddenWireframe }
+		},
 	)
 }

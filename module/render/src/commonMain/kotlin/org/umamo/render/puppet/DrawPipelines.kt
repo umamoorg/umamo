@@ -39,6 +39,10 @@ internal class DrawPipelines(
 	private var overlayVertexDotPipeline: RenderPipeline? = null
 	private var overlayFaceDotPipeline: RenderPipeline? = null
 
+	// The draw-order pass's two pipelines (double-sided / back-face-culled, as the puppet draws), created on
+	// the first culling wireframe frame.
+	private val drawOrderPipelines = arrayOfNulls<RenderPipeline>(2)
+
 	/** The pipeline that captures glue meshes' deformed positions.  Read only after [create]. */
 	val capture: DeformCapturePipeline get() = capturePipeline!!
 
@@ -95,6 +99,18 @@ internal class DrawPipelines(
 			val purpose = if (isGlueMesh) PipelinePurpose.PuppetGlueDraw else PipelinePurpose.PuppetDeformDraw
 			device.createRenderPipeline(RenderPipelineSpec(purpose, blendOf(blendMode), cullBackFaces))
 		}
+	}
+
+	/**
+	 * The cached draw-order pipeline for a cull state, created on first use: the order program with
+	 * blending off, so the frontmost writer's index is what stays.
+	 *
+	 * @param Boolean cullBackFaces Whether back faces are culled, as the drawable's own draw culls them.
+	 * @return RenderPipeline The pipeline.
+	 */
+	fun drawOrderPipelineFor(cullBackFaces: Boolean): RenderPipeline {
+		val slot = if (cullBackFaces) 1 else 0
+		return drawOrderPipelines[slot] ?: device.createRenderPipeline(RenderPipelineSpec(PipelinePurpose.DrawOrder, PipelineBlend.Opaque, cullBackFaces)).also { created -> drawOrderPipelines[slot] = created }
 	}
 
 	/**

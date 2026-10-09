@@ -134,6 +134,14 @@ public enum class PipelinePurpose {
 
 	/** The mesh overlay's face-centroid dots: one instance per triangle, the quad at the mean of its corners. */
 	OverlayFaceDot,
+
+	/**
+	 * The draw-order pass's draw of one art mesh: the deform vertex stage over a fragment that samples the
+	 * atlas's alpha through the opacity and the mask, discards under the order threshold, and writes the
+	 * drawable's back-to-front index packed into two bytes, with blending disabled so the frontmost writer
+	 * wins.  Pair with [PipelineBlend.Opaque].
+	 */
+	DrawOrder,
 }
 
 /**

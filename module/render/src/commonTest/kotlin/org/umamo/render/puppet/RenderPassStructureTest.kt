@@ -236,11 +236,16 @@ class RenderPassStructureTest {
 					val draws =
 						step.draws.joinToString(", ") { draw ->
 							when (draw) {
-								is RecordedMeshDraw -> "mesh(${draw.mesh.restPositions.size / 2} vertices, ${draw.pipeline.blend}, opacity ${draw.opacity})"
+								is RecordedMeshDraw ->
+									if (draw.pipeline.purpose == PipelinePurpose.DrawOrder) {
+										"order(${draw.mesh.restPositions.size / 2} vertices, ${draw.drawOrder}, opacity ${draw.opacity})"
+									} else {
+										"mesh(${draw.mesh.restPositions.size / 2} vertices, ${draw.pipeline.blend}, opacity ${draw.opacity})"
+									}
 								is RecordedCompositeDraw -> "composite"
 								is RecordedGridDraw -> "grid"
 								is RecordedAxisDraw -> "axis"
-								is RecordedOverlayDraw -> "overlay ${draw.purpose}${if (draw.activeDraw) " active" else ""}"
+								is RecordedOverlayDraw -> "overlay ${draw.purpose}${if (draw.activeDraw) " active" else ""}${if (draw.cullOrder >= 0) " culled" else ""}"
 								else -> "other"
 							}
 						}
@@ -1024,10 +1029,11 @@ class RenderPassStructureTest {
 			listOf(
 				"capture 2",
 				"barrier",
-				"pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), mesh(4 vertices, Normal, opacity 1.0), overlay OverlayEdge, overlay OverlayEdge]",
+				"pass side Clear scissor=null [order(4 vertices, 1, opacity 1.0), order(4 vertices, 2, opacity 1.0)]",
+				"pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), mesh(4 vertices, Normal, opacity 1.0), overlay OverlayEdge culled, overlay OverlayEdge culled]",
 			),
 			describe(device, target),
-			"the frame that asks captures the positions and draws every mesh's edges",
+			"the frame that asks captures the positions, writes the draw order, and draws every mesh's edges culled by it",
 		)
 		assertTrue(device.resourceEvents.filterIsInstance<OverlayBuffersCreated>().isEmpty(), "over the buffers it kept")
 	}
@@ -1173,6 +1179,160 @@ class RenderPassStructureTest {
 			atZero.map { draw -> draw.purpose to draw.baseOffset },
 			"at zero the cage draws alone",
 		)
+	}
+
+	/**
+	 * A frame that draws an Object-mode wireframe and culls it writes the draw order first, on its own
+	 * target, every covering drawable at its back-to-front index, and then draws each mesh's edges culled by
+	 * that order; a frame with culling off, or without the wireframe, writes no order and culls nothing.
+	 */
+	@Test
+	fun aCullingWireframeFrameWritesTheDrawOrderAndCullsItsEdgesByIt() {
+		val source =
+			model(
+				drawables = listOf(drawable("back", fullQuad()), drawable("front", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("back")), OrgChild.Drawable(DrawableId("front"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, listOf("back", "front")))
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+		assertEquals(
+			listOf(
+				"capture 2",
+				"barrier",
+				"pass side Clear scissor=null [order(4 vertices, 1, opacity 1.0), order(4 vertices, 2, opacity 1.0)]",
+				"pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), mesh(4 vertices, Normal, opacity 1.0), overlay OverlayEdge culled, overlay OverlayEdge culled]",
+			),
+			describe(device, target),
+			"the order is written before the main pass, and the edges draw culled",
+		)
+		val orderPass = device.passes().first()
+		val orderDraws = orderPass.draws.filterIsInstance<RecordedMeshDraw>()
+		assertEquals(listOf(PipelineBlend.Opaque, PipelineBlend.Opaque), orderDraws.map { draw -> draw.pipeline.blend }, "the order writes replace, so the frontmost wins")
+		assertEquals(listOf(0f, 0f), orderDraws.map { draw -> draw.highlight }, "no tint in the order pass")
+		val edges = device.overlayDraws()
+		assertEquals(listOf(1, 2), edges.map { draw -> draw.cullOrder }, "each mesh's edges cull by its own index")
+		assertTrue(edges.all { draw -> draw.orderTexture === orderPass.target.sampledTexture }, "and read the order target the pass wrote")
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(wireframeCulling = false))
+		assertEquals(
+			listOf(
+				"pass main DontCare scissor=null [grid, mesh(4 vertices, Normal, opacity 1.0), mesh(4 vertices, Normal, opacity 1.0), overlay OverlayEdge, overlay OverlayEdge]",
+			),
+			describe(device, target),
+			"culling off writes no order and draws the edges whole (the capture is already current)",
+		)
+		assertTrue(device.overlayDraws().all { draw -> draw.cullOrder == -1 && draw.orderTexture == null })
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(wireframe = false))
+		assertTrue(device.passes().none { pass -> pass.draws.any { draw -> draw is RecordedMeshDraw && draw.pipeline.purpose == PipelinePurpose.DrawOrder } }, "no wireframe, no order pass")
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(meshOverlay = false))
+		assertTrue(device.passes().none { pass -> pass.draws.any { draw -> draw is RecordedMeshDraw && draw.pipeline.purpose == PipelinePurpose.DrawOrder } }, "no overlay, no order pass")
+	}
+
+	/**
+	 * In an Edit overlay the plain wireframe meshes cull by their order while the cage never does: its edges,
+	 * its active edge, its fills, and its dots draw whole over everything.
+	 */
+	@Test
+	fun anEditOverlayCullsItsWireframeMeshesAndNeverTheCage() {
+		val source =
+			model(
+				drawables = listOf(drawable("other", fullQuad()), drawable("art", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("other")), OrgChild.Drawable(DrawableId("art"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+
+		val draws = overlayDrawsFor(renderer, device, target, overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("other", "art"), activeEdge = 0, wireframeOnly = setOf("other")))
+
+		assertEquals(
+			listOf(PipelinePurpose.OverlayFaceFill to -1, PipelinePurpose.OverlayEdge to 1, PipelinePurpose.OverlayEdge to -1, PipelinePurpose.OverlayEdge to -1, PipelinePurpose.OverlayVertexDot to -1),
+			draws.map { draw -> draw.purpose to draw.cullOrder },
+			"the wireframe mesh's edges cull by its order; the cage's fill, edges, active edge, and dots do not",
+		)
+		assertEquals(1, device.passes().count { pass -> pass.draws.any { draw -> draw is RecordedMeshDraw && draw.pipeline.purpose == PipelinePurpose.DrawOrder } }, "one order pass")
+
+		device.clearLog()
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf("art")))
+		renderer.render(target, viewportSize, viewportSize)
+		assertTrue(device.passes().none { pass -> pass.draws.any { draw -> draw is RecordedMeshDraw && draw.pipeline.purpose == PipelinePurpose.DrawOrder } }, "an Edit overlay with no wireframe mesh writes no order")
+	}
+
+	/**
+	 * The order walk honors what the main walk honors: a masked drawable writes through a coverage pass, a
+	 * composite's child writes at the composite's opacity, a drawable that blends other than Normal writes
+	 * nothing while keeping its place in the order, and a flattened composite's children write at full.
+	 */
+	@Test
+	fun theOrderWalkHonorsMasksCompositesAndBlends() {
+		val source =
+			model(
+				drawables =
+					listOf(
+						drawable("mask", bandQuad()),
+						drawable("masked", fullQuad(), maskedBy = listOf(DrawableId("mask"))),
+						drawable("additive", bandQuad(), blendMode = BlendMode.Additive),
+						drawable("layered", fullQuad()),
+						drawable("following", bandQuad()),
+					),
+				parts = listOf(isolatedPart("fx", "layered", PartComposite(opacity = 0.5f))),
+				backToFront =
+					listOf(
+						OrgChild.Drawable(DrawableId("mask")),
+						OrgChild.Drawable(DrawableId("masked")),
+						OrgChild.Drawable(DrawableId("additive")),
+						OrgChild.Part(PartId("fx")),
+						OrgChild.Drawable(DrawableId("following")),
+					),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		val target = mainTarget(device)
+		renderer.setMeshOverlay(overlayOver(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, listOf("mask", "masked", "additive", "layered", "following")))
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize)
+
+		val orderPasses = device.passes().filter { pass -> pass.draws.any { draw -> draw is RecordedMeshDraw && draw.pipeline.purpose == PipelinePurpose.DrawOrder } }
+		val orderDraws = orderPasses.flatMap { pass -> pass.draws.filterIsInstance<RecordedMeshDraw>() }
+		assertEquals(listOf(1, 2, 4, 5), orderDraws.map { draw -> draw.drawOrder }, "the mask, the masked, the composite's child, and the follower write; the additive keeps its place and writes nothing")
+		assertEquals(listOf(1f, 1f, 0.5f, 1f), orderDraws.map { draw -> draw.opacity }, "the composite's child writes at the composite's opacity")
+		val maskedWrite = orderDraws.single { draw -> draw.drawOrder == 2 }
+		assertTrue(maskedWrite.useMask, "the masked drawable writes through its coverage")
+		val coverage = assertNotNull(maskedWrite.maskCoverage)
+		val coveragePass = device.passes().single { pass -> pass.target === device.targetSampledAs(coverage) && pass.draws.isNotEmpty() && device.passes().indexOf(pass) < device.passes().indexOf(orderPasses.last()) }
+		assertEquals(LoadAction.Clear, coveragePass.spec.loadAction, "the order walk renders the mask's coverage afresh")
+		assertEquals(2, orderPasses.size, "the order pass is fragmented around the coverage pass")
+		assertEquals(LoadAction.Load, orderPasses.last().spec.loadAction, "and resumes on what it wrote")
+		assertEquals(listOf(1, 2, 3, 4, 5), device.overlayDraws().map { draw -> draw.cullOrder }, "every mesh's edges cull by its index, the additive's too")
+	}
+
+	/** A wireframe mesh whose drawable the frame did not draw culls by nothing: its edges draw whole. */
+	@Test
+	fun aWireframeMeshOutsideTheDrawOrderDrawsWhole() {
+		val source =
+			model(
+				drawables = listOf(drawable("back", fullQuad()), drawable("front", bandQuad())),
+				backToFront = listOf(OrgChild.Drawable(DrawableId("back")), OrgChild.Drawable(DrawableId("front"))),
+			)
+		val device = RecordingRenderDevice()
+		val renderer = posedRenderer(source, device)
+		renderer.setShownDrawables(setOf(DrawableId("back")))
+		renderer.setPose(emptyMap())
+		val target = mainTarget(device)
+
+		val draws = overlayDrawsFor(renderer, device, target, overlayOver(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, listOf("back", "front")))
+
+		assertEquals(listOf(1, -1), draws.map { draw -> draw.cullOrder }, "the hidden drawable's wireframe has no order to cull by")
 	}
 
 	/** An overlay mesh whose resident disagrees with it is left out of the frame, and the frame is as without it. */

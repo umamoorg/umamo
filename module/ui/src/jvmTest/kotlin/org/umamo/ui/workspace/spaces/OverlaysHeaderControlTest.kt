@@ -95,6 +95,8 @@ class OverlaysHeaderControlTest {
 			assertTrue(overlays.showWireframe, "the wireframe row starts off and switches on")
 			clickMenuEntry(SELECTION_TINT_ROW)
 			assertFalse(overlays.showSelectionTint, "the selection tint row starts on and switches off")
+			clickMenuEntry(CULL_HIDDEN_ROW)
+			assertFalse(overlays.cullHiddenWireframe, "the cull hidden row starts on and switches off")
 		}
 
 	/** The UV editor's popover offers the grid row but no axis row and no Geometry section, since its surface has neither. */
@@ -110,7 +112,7 @@ class OverlaysHeaderControlTest {
 			assertTrue(popupShows(GRID_ROW), "the grid row is offered")
 			assertFalse(popupShows(AXES_ROW), "the axis row is not")
 			assertFalse(popupShows(OBJECTS) || popupShows(SELECTION_TINT_ROW), "nor the Objects section with its tint row")
-			assertFalse(popupShows(WIREFRAME_ROW), "nor the wireframe row")
+			assertFalse(popupShows(WIREFRAME_ROW) || popupShows(CULL_HIDDEN_ROW), "nor the wireframe row and its culling")
 			assertTrue(popupShows(GEOMETRY) && popupShows(OPACITY_FIELD), "the Geometry section stays for the Opacity field, which fades the islands")
 			assertTrue(popupShows(SCALE_FIELD) && popupShows(SUBDIVISIONS_FIELD), "the grid fields are both: the scale is read in texels")
 			clickMenuEntry(GRID_ROW)
@@ -393,6 +395,7 @@ class OverlaysHeaderControlTest {
 		const val OBJECTS = "Objects"
 		const val SELECTION_TINT_ROW = "Selection Tint"
 		const val WIREFRAME_ROW = "Wireframe"
+		const val CULL_HIDDEN_ROW = "Cull Hidden"
 
 		/** The grid fields' labels, the scale the default grid shows, and the reset icon's English name. */
 		const val SCALE_FIELD = "Scale"

@@ -719,6 +719,7 @@
 	<string name="overlay_grid_follow_application">Follow Application Grid</string>
 	<string name="overlay_section_objects">Objects</string>
 	<string name="overlay_row_selection_tint">Selection Tint</string>
+	<string name="overlay_row_cull_hidden">Cull Hidden</string>
 	<string name="overlay_wireframe_opacity">Opacity</string>
 	<!-- The popover's descriptions, each heading's, row's, and field's hover tooltip; named after its label key like
 	     the Properties row descriptions below. -->
@@ -734,6 +735,7 @@
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
 	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so that they stand out in the art.</string>
+	<string name="overlay_row_cull_hidden_description">Leave out wires under art drawn in front of their own drawable, so a posed model shows which mesh parts are covered.</string>
 	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe, or of the UV editor's islands, as a percentage.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
@@ -766,6 +768,7 @@
 	<string name="cmd_view_overlay_info">Toggle General Information Overlay</string>
 	<string name="cmd_view_overlay_selection_tint">Toggle Selection Tint Overlay</string>
 	<string name="cmd_view_overlay_wireframe">Toggle Wireframe Overlay</string>
+	<string name="cmd_view_overlay_wireframe_culling">Toggle Wireframe Cull Hidden</string>
 	<string name="sidebar_title">Sidebar</string>
 	<string name="sidebar_empty_hint">Tool and item panels will live here.</string>
 

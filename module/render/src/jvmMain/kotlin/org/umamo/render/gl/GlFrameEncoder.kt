@@ -32,6 +32,7 @@ import org.umamo.render.glsl.UNIT_ATLAS
 import org.umamo.render.glsl.UNIT_CP
 import org.umamo.render.glsl.UNIT_DELTA
 import org.umamo.render.glsl.UNIT_DEST
+import org.umamo.render.glsl.UNIT_DRAW_ORDER
 import org.umamo.render.glsl.UNIT_LAYER
 import org.umamo.render.glsl.UNIT_MASK
 import org.umamo.render.glsl.UNIT_POSITION
@@ -140,6 +141,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL20.glUniform1i(locations.positionBuffer, UNIT_POSITION)
 		GL20.glUniform1i(locations.layerTexture, UNIT_LAYER)
 		GL20.glUniform1i(locations.destTexture, UNIT_DEST)
+		GL20.glUniform1i(locations.orderTexture, UNIT_DRAW_ORDER)
 	}
 
 	override fun setCamera(worldToNdc: WorldToNdc, screenTexWidth: Int, screenTexHeight: Int) {
@@ -250,9 +252,9 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		drawOverlay(glBuffers.faceVao, glBuffers.faceCount, FACE_VERTICES, store, uniforms)
 	}
 
-	override fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+	override fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms, orderTexture: GpuTexture?) {
 		val glBuffers = buffers as GlOverlayMeshBuffers
-		drawOverlay(glBuffers.edgeVao, glBuffers.edgeCount, QUAD_VERTICES, store, uniforms)
+		drawOverlay(glBuffers.edgeVao, glBuffers.edgeCount, QUAD_VERTICES, store, uniforms, orderTexture)
 	}
 
 	override fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
@@ -275,8 +277,9 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 	 * @param Int verticesPerInstance Three for a fill, six for a band or a dot quad.
 	 * @param DeformedPositionStore store The overlay's deformed positions.
 	 * @param OverlayDrawUniforms uniforms The draw's inputs.
+	 * @param GpuTexture? orderTexture The draw-order texture a culling edge draw reads, or null.
 	 */
-	private fun drawOverlay(vao: Int, instanceCount: Int, verticesPerInstance: Int, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
+	private fun drawOverlay(vao: Int, instanceCount: Int, verticesPerInstance: Int, store: DeformedPositionStore, uniforms: OverlayDrawUniforms, orderTexture: GpuTexture? = null) {
 		if (vao == 0) {
 			return
 		}
@@ -296,6 +299,11 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		setOverlayColor(locations.idleColor, uniforms.idleColor)
 		setOverlayColor(locations.selectedColor, uniforms.selectedColor)
 		setOverlayColor(locations.activeColor, uniforms.activeColor)
+		// The edge program alone declares these; the others resolve -1, a no-op.
+		GL20.glUniform1i(locations.cullOrder, uniforms.cullOrder)
+		if (orderTexture != null) {
+			bindTexture2D(UNIT_DRAW_ORDER, orderTexture)
+		}
 		GL30.glBindVertexArray(vao)
 		if (uniforms.activeDraw) {
 			GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, verticesPerInstance)
@@ -344,6 +352,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int) : RenderPassEncode
 		GL20.glUniform3f(locations.screenColor, fragment.screenRed, fragment.screenGreen, fragment.screenBlue)
 		GL20.glUniform1f(locations.highlight, fragment.highlight)
 		GL20.glUniform3f(locations.highlightColor, fragment.highlightRed, fragment.highlightGreen, fragment.highlightBlue)
+		GL20.glUniform1i(locations.drawOrder, fragment.drawOrder)
 		// Sent every draw, like the rest of these - a program that does not declare them resolves -1, and
 		// glUniform* with -1 is a defined no-op, so the grid / composite / axis pipelines ignore it.
 		GL20.glUniform3f(locations.uvAffineRow0, fragment.uvAffine[0], fragment.uvAffine[1], fragment.uvAffine[2])

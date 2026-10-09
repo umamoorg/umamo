@@ -43,8 +43,8 @@ data class AreaOverlays(
  * in a standalone shell) shows everything on the application's grid; an area with a grid of its own draws that
  * one; a UV editor never asks for the world axes, the wireframe, or the tint off, which its surface has no
  * rows for; the mesh overlay follows the Show Overlays master alone, since the Edit cage has no row of its
- * own, while the wireframe and the tint follow their rows under the master; the wireframe's opacity is the
- * area's on both surfaces, a UV editor's islands fading by it.
+ * own, while the wireframe, its culling, and the tint follow their rows under the master; the wireframe's
+ * opacity is the area's on both surfaces, a UV editor's islands fading by it.
  *
  * @param ViewportOverlayState? state           The area's overlay state, or null for none.
  * @param GridConfig            applicationGrid The application's viewport.grid.* grid.
@@ -60,6 +60,7 @@ fun areaOverlaysFor(state: ViewportOverlayState?, applicationGrid: GridConfig): 
 			wireframe = state == null || (state.surface == OverlaySurface.Viewport2D && state.effectiveWireframe),
 			selectionTint = state == null || state.surface == OverlaySurface.UvEditor || state.effectiveSelectionTint,
 			wireframeOpacity = state?.wireframeOpacity ?: 1f,
+			wireframeCulling = state == null || state.surface == OverlaySurface.UvEditor || state.effectiveCullHiddenWireframe,
 		),
 	)
 

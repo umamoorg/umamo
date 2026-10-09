@@ -227,6 +227,7 @@ internal sealed interface RecordedDraw {
  * @property Int                cornerCount       The active keyform corners; 0 for a glue draw.
  * @property Int                parentType        0 direct, 1 rotation, 2 warp; 0 for a glue draw.
  * @property List<Float>        glueIntensities   The per-glue weld intensities; empty for a deforming draw.
+ * @property Int                drawOrder         The back-to-front index a draw-order write carries; 0 elsewhere.
  */
 internal class RecordedMeshDraw(
 	override val pipeline: RenderPipelineSpec,
@@ -248,6 +249,7 @@ internal class RecordedMeshDraw(
 	val cornerCount: Int,
 	val parentType: Int,
 	val glueIntensities: List<Float>,
+	val drawOrder: Int = 0,
 ) : RecordedDraw
 
 /**
@@ -341,6 +343,8 @@ internal class RecordedQuadDraw(
  * @property List<Float> idleColor The idle color, straight RGBA.
  * @property List<Float> selectedColor The selected color.
  * @property List<Float> activeColor The active color.
+ * @property Int cullOrder The edge draw's own draw order it culls by, or -1 for no culling.
+ * @property RecordedTexture? orderTexture The draw-order texture a culling edge draw reads, or null.
  */
 internal class RecordedOverlayDraw(
 	override val pipeline: RenderPipelineSpec,
@@ -357,6 +361,8 @@ internal class RecordedOverlayDraw(
 	val idleColor: List<Float>,
 	val selectedColor: List<Float>,
 	val activeColor: List<Float>,
+	val cullOrder: Int = -1,
+	val orderTexture: RecordedTexture? = null,
 ) : RecordedDraw
 
 /** One resource operation, in the order the renderer issued it. */
@@ -936,7 +942,8 @@ internal class RecordingRenderDevice : RenderDevice {
 		}
 
 		override fun drawPuppetMesh(mesh: GpuMesh, deform: DeformUniforms, fragment: FragmentUniforms, textures: DrawTextures) {
-			val pipeline = pipelineFor(PipelinePurpose.PuppetDeformDraw, "drawPuppetMesh")
+			// The deform stage draws the art or writes the draw order; the recorded pipeline says which.
+			val pipeline = pipelineFor(PipelinePurpose.PuppetDeformDraw, "drawPuppetMesh", PipelinePurpose.DrawOrder)
 			pass.draws.add(
 				RecordedMeshDraw(
 					pipeline = pipeline,
@@ -958,6 +965,7 @@ internal class RecordingRenderDevice : RenderDevice {
 					cornerCount = deform.cornerCount,
 					parentType = deform.parentType,
 					glueIntensities = emptyList(),
+					drawOrder = fragment.drawOrder,
 				),
 			)
 		}
@@ -1048,8 +1056,8 @@ internal class RecordingRenderDevice : RenderDevice {
 			recordOverlayDraw(PipelinePurpose.OverlayFaceFill, "drawOverlayFaceFill", buffers, store, uniforms)
 		}
 
-		override fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
-			recordOverlayDraw(PipelinePurpose.OverlayEdge, "drawOverlayEdges", buffers, store, uniforms)
+		override fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms, orderTexture: GpuTexture?) {
+			recordOverlayDraw(PipelinePurpose.OverlayEdge, "drawOverlayEdges", buffers, store, uniforms, orderTexture)
 		}
 
 		override fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
@@ -1068,6 +1076,7 @@ internal class RecordingRenderDevice : RenderDevice {
 		 * @param OverlayMeshBuffers buffers The mesh's overlay buffers.
 		 * @param DeformedPositionStore store The overlay's store.
 		 * @param OverlayDrawUniforms uniforms The draw's inputs.
+		 * @param GpuTexture? orderTexture The draw-order texture an edge draw culls by, or null.
 		 */
 		private fun recordOverlayDraw(
 			purpose: PipelinePurpose,
@@ -1075,8 +1084,10 @@ internal class RecordingRenderDevice : RenderDevice {
 			buffers: OverlayMeshBuffers,
 			store: DeformedPositionStore,
 			uniforms: OverlayDrawUniforms,
+			orderTexture: GpuTexture? = null,
 		) {
 			val pipeline = pipelineFor(purpose, operation)
+			check(uniforms.cullOrder < 0 || orderTexture != null) { "$operation culls by order ${uniforms.cullOrder} with no order texture" }
 			pass.draws.add(
 				RecordedOverlayDraw(
 					pipeline = pipeline,
@@ -1093,6 +1104,8 @@ internal class RecordingRenderDevice : RenderDevice {
 					idleColor = uniforms.idleColor.toList(),
 					selectedColor = uniforms.selectedColor.toList(),
 					activeColor = uniforms.activeColor.toList(),
+					cullOrder = uniforms.cullOrder,
+					orderTexture = sampledTexture(orderTexture, pass, operation),
 				),
 			)
 		}
@@ -1117,12 +1130,13 @@ internal class RecordingRenderDevice : RenderDevice {
 		 *
 		 * @param PipelinePurpose purpose   The purpose the draw requires.
 		 * @param String          operation The draw being issued, for the failure message.
+		 * @param PipelinePurpose? alternative A second purpose the draw also serves, or null.
 		 * @return RenderPipelineSpec The bound pipeline's spec.
 		 */
-		private fun pipelineFor(purpose: PipelinePurpose, operation: String): RenderPipelineSpec {
+		private fun pipelineFor(purpose: PipelinePurpose, operation: String, alternative: PipelinePurpose? = null): RenderPipelineSpec {
 			requireOpen(operation)
 			val pipeline = boundPipeline ?: error("$operation with no pipeline bound")
-			check(pipeline.spec.purpose == purpose) { "$operation with a ${pipeline.spec.purpose} pipeline bound" }
+			check(pipeline.spec.purpose == purpose || pipeline.spec.purpose == alternative) { "$operation with a ${pipeline.spec.purpose} pipeline bound" }
 			return pipeline.spec
 		}
 	}

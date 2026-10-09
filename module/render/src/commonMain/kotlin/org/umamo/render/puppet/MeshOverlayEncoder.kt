@@ -4,10 +4,12 @@ import org.umamo.render.device.DeformUniforms
 import org.umamo.render.device.DeformedPositionStore
 import org.umamo.render.device.DrawTextures
 import org.umamo.render.device.FrameEncoder
+import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.OverlayDrawUniforms
 import org.umamo.render.device.RenderPassEncoder
 import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.WorldToNdc
+import org.umamo.runtime.model.DrawableId
 
 /**
  * What an overlay draw needs from the frame it lands in, whichever scene that is.
@@ -23,6 +25,10 @@ import org.umamo.render.device.WorldToNdc
  * @property Float wireframeOpacity The alpha scale, 0 to 1, of the overlay drawn outside an edit: an
  *   Object-mode wireframe, an Edit overlay's plain wireframe meshes, a UV scene's islands.  The cage keeps
  *   the palette.
+ * @property GpuTexture? orderTexture The draw-order target the frame's order pass wrote, which the wireframe
+ *   edges cull by, or null when nothing culls (a UV scene, a frame with culling off).
+ * @property Map<DrawableId, Int> drawOrderOf Each drawn drawable's back-to-front index, as the order pass
+ *   wrote it; a wireframe entry absent from it draws unculled.
  */
 internal class OverlayFrame(
 	val affine: WorldToNdc,
@@ -34,6 +40,8 @@ internal class OverlayFrame(
 	val screenTexHeight: Int,
 	val drawWireframe: Boolean,
 	val wireframeOpacity: Float,
+	val orderTexture: GpuTexture? = null,
+	val drawOrderOf: Map<DrawableId, Int> = emptyMap(),
 )
 
 /**
@@ -117,6 +125,8 @@ internal class MeshOverlayEncoder(
 				sideTargets.capacityHeight,
 				inputs.drawWireframe,
 				inputs.wireframeOpacity,
+				inputs.drawOrderTexture,
+				inputs.drawOrderOf,
 			)
 		drawEntries(pass, overlay, entries, store, frame)
 	}
@@ -185,7 +195,11 @@ internal class MeshOverlayEncoder(
 		uniformsScratch.sizePx = sizes.edgeWidthPx * frame.pixelScale / 2f
 		uniformsScratch.fillIdle = true
 		// The colors are written per entry, since a wireframe entry's are the palette's scaled by the opacity
-		// and a cage entry's the palette's as they are, and the scratch holds one set at a time.
+		// and a cage entry's the palette's as they are, and the scratch holds one set at a time.  The cull
+		// order is the wireframe entry's too: its drawable's place in the frame's draw order when the frame
+		// wrote one, so its edges leave out what a drawable in front covers; the cage is never culled, and a
+		// wireframe entry the order does not know (its drawable not drawn this frame) draws whole.
+		val orderTexture = frame.orderTexture
 		for (entry in entries) {
 			if (skipWireframeEdges && entry.wireframeOnly) {
 				continue
@@ -193,8 +207,11 @@ internal class MeshOverlayEncoder(
 			val faded = wholeIsWireframe || (editing && entry.wireframeOnly)
 			setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false, alphaScale = if (faded) frame.wireframeOpacity else 1f)
 			batch(entry)
-			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
+			val cullOrder = if (faded && orderTexture != null) frame.drawOrderOf[entry.drawableId] ?: -1 else -1
+			uniformsScratch.cullOrder = cullOrder
+			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch, if (cullOrder >= 0) orderTexture else null)
 		}
+		uniformsScratch.cullOrder = -1
 		if (editing) {
 			setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false)
 			forEachCageEntry(entries) { entry ->
@@ -304,6 +321,7 @@ internal class MeshOverlayEncoder(
 			setColors(edge, edge, edge, opaque = false, alphaScale = alphaScale)
 			uniformsScratch.sizePx = edgeHalfWidth
 			batch(entry)
+			uniformsScratch.cullOrder = -1
 			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
 		}
 	}

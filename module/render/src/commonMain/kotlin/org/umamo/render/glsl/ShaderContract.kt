@@ -56,3 +56,12 @@ internal const val UNIT_POSITION = 4
 // buffer) and the destination snapshot it blends against.
 internal const val UNIT_LAYER = 5
 internal const val UNIT_DEST = 6
+
+// The overlay edge program's draw-order sampler, the side target the order pass wrote.
+internal const val UNIT_DRAW_ORDER = 7
+
+/**
+ * The drawn alpha at which a pixel of a drawable counts as covering what is behind it in the draw-order
+ * pass: half covered counts as hidden, so a faint strand or a soft edge hides no wire while solid art does.
+ */
+internal const val DRAW_ORDER_ALPHA_THRESHOLD = 0.5f

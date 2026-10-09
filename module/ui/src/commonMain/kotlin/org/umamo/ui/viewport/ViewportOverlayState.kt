@@ -60,6 +60,12 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	var showSelectionTint by mutableStateOf(true)
 
 	/**
+	 * Whether the wireframe leaves out its wires under art drawn in front of their own drawable (the 2D viewport
+	 * only), so a posed model shows which mesh parts are covered; on by default.  The Edit cage is never culled.
+	 */
+	var cullHiddenWireframe by mutableStateOf(true)
+
+	/**
 	 * The opacity, 0 to 1, of the mesh overlay drawn outside an edit: the wireframe on a 2D viewport, the islands
 	 * on a UV editor, each drawn at its palette alpha times this.  The Edit cage keeps the palette.  At 0 none
 	 * of it draws while the row that shows it stays as set.  Saved as the `wireframeOpacity` key on both surfaces.
@@ -110,12 +116,16 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	val effectiveSelectionTint: Boolean
 		get() = showOverlays && showSelectionTint
 
+	/** Whether the wireframe culls: the flag under the master, like the wireframe it qualifies. */
+	val effectiveCullHiddenWireframe: Boolean
+		get() = showOverlays && cullHiddenWireframe
+
 	/**
 	 * Whether every flag and value sits at its default and the grid follows the application: what a fresh area
 	 * shows, and what a save writes as nothing.
 	 */
 	val isAtDefaults: Boolean
-		get() = showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && wireframeOpacity == 1f && gridGeometry == null
+		get() = showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && cullHiddenWireframe && wireframeOpacity == 1f && gridGeometry == null
 
 	/**
 	 * The grid this area draws and snaps to over a given application grid: its own, else the application's,
@@ -137,6 +147,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 		showInfo = true
 		showWireframe = false
 		showSelectionTint = true
+		cullHiddenWireframe = true
 		wireframeOpacity = 1f
 		gridGeometry = null
 	}

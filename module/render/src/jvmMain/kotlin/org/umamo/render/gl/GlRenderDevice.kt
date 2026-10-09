@@ -38,6 +38,7 @@ import org.umamo.render.glsl.axisFragmentShader
 import org.umamo.render.glsl.axisVertexShader
 import org.umamo.render.glsl.compositeFragmentShader
 import org.umamo.render.glsl.compositeVertexShader
+import org.umamo.render.glsl.drawOrderFragmentShader
 import org.umamo.render.glsl.glueVertexShader
 import org.umamo.render.glsl.gridFragmentShader
 import org.umamo.render.glsl.gridVertexShader
@@ -582,6 +583,7 @@ class GlRenderDevice : RenderDevice {
 			PipelinePurpose.OverlayEdge -> overlayEdgeVertexShader(DIALECT) to overlayFragmentShader(DIALECT, OverlayShape.Band)
 			PipelinePurpose.OverlayVertexDot -> overlayDotVertexShader(DIALECT, fromFaceCentroid = false) to overlayFragmentShader(DIALECT, OverlayShape.Round)
 			PipelinePurpose.OverlayFaceDot -> overlayDotVertexShader(DIALECT, fromFaceCentroid = true) to overlayFragmentShader(DIALECT, OverlayShape.Round)
+			PipelinePurpose.DrawOrder -> puppetVertexShader(DIALECT) to drawOrderFragmentShader(DIALECT)
 		}
 
 	/**

@@ -180,10 +180,10 @@ class PersistentViewStatesTest {
 
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
-		assertEquals(listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "wireframeOpacity", "gridGeometry"), overlays.keys.toList(), "every key is named, so a merge can take a deviation back out")
+		assertEquals(listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "wireframeCulling", "wireframeOpacity", "gridGeometry"), overlays.keys.toList(), "every key is named, so a merge can take a deviation back out")
 		assertEquals(JsonPrimitive(false), overlays["all"])
 		assertEquals(JsonPrimitive(false), overlays["cursor"])
-		assertTrue(listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull }, "a flag at its default, an opacity that is whole, and a grid that follows, is a null")
+		assertTrue(listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull }, "a flag at its default, an opacity that is whole, and a grid that follows, is a null")
 
 		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
 		assertFalse(reopened.overlays.showOverlays)
@@ -274,18 +274,22 @@ class PersistentViewStatesTest {
 	fun theTintAndTheOpacityRoundTrip() {
 		val saved = Viewport2DViewState()
 		saved.overlays.showSelectionTint = false
+		saved.overlays.cullHiddenWireframe = false
 		saved.overlays.wireframeOpacity = 0.3f
 
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
 		assertEquals(JsonPrimitive(false), overlays["selectionTint"])
+		assertEquals(JsonPrimitive(false), overlays["wireframeCulling"])
 		assertEquals(JsonPrimitive(0.3f), overlays["wireframeOpacity"])
 		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
 		assertFalse(reopened.overlays.showSelectionTint)
+		assertFalse(reopened.overlays.cullHiddenWireframe)
 		assertEquals(0.3f, reopened.overlays.wireframeOpacity)
 		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
 
 		saved.overlays.showSelectionTint = true
+		saved.overlays.cullHiddenWireframe = true
 		saved.overlays.wireframeOpacity = 1f
 		assertEquals(JsonNull, saved.toJson()["overlays"], "back at their defaults the member is a null")
 
@@ -360,6 +364,7 @@ class PersistentViewStatesTest {
 						put("axes", false)
 						put("wireframe", true)
 						put("selectionTint", false)
+						put("wireframeCulling", false)
 					},
 				)
 			}
@@ -369,6 +374,7 @@ class PersistentViewStatesTest {
 		assertTrue(reopened.overlays.showAxes, "a UV editor's axes flag stays at its default")
 		assertFalse(reopened.overlays.showWireframe, "a UV editor's wireframe flag stays at its default")
 		assertTrue(reopened.overlays.showSelectionTint, "and so does its tint flag")
+		assertTrue(reopened.overlays.cullHiddenWireframe, "and its culling flag")
 		assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
 	}
 

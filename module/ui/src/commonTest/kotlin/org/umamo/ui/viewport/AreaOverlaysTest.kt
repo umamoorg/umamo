@@ -40,6 +40,9 @@ class AreaOverlaysTest {
 		state.showSelectionTint = true
 		state.wireframeOpacity = 0.3f
 		assertEquals(viewportDefaults.copy(wireframeOpacity = 0.3f), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
+		state.wireframeOpacity = 1f
+		state.cullHiddenWireframe = false
+		assertEquals(viewportDefaults.copy(wireframeCulling = false), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
 	}
 
 	/** An area with a grid of its own asks for that grid, whatever the application's is. */
@@ -62,7 +65,7 @@ class AreaOverlaysTest {
 		state.wireframeOpacity = 0.5f
 		state.showOverlays = false
 		assertEquals(
-			AreaOverlays(GridConfig(25f, 5), FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.5f)),
+			AreaOverlays(GridConfig(25f, 5), FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.5f, wireframeCulling = false)),
 			areaOverlaysFor(state, GridConfig(25f, 5)),
 		)
 	}
@@ -73,8 +76,9 @@ class AreaOverlaysTest {
 		val state = ViewportOverlayState(OverlaySurface.UvEditor)
 		state.showWireframe = true
 		state.showSelectionTint = false
+		state.cullHiddenWireframe = false
 		state.wireframeOpacity = 0.3f
-		assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, selectionTint = true, wireframeOpacity = 0.3f), areaOverlaysFor(state, applicationGrid).frame)
+		assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, selectionTint = true, wireframeOpacity = 0.3f, wireframeCulling = true), areaOverlaysFor(state, applicationGrid).frame)
 	}
 
 	/** No area state (a standalone shell) shows everything, the wireframe included, on the application's grid. */

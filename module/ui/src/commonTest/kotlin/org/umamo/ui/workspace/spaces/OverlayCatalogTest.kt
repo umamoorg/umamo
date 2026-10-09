@@ -22,7 +22,7 @@ class OverlayCatalogTest {
 	@Test
 	fun eachSurfaceOffersItsRowsAndFieldsInSectionOrder() {
 		assertEquals(
-			listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info, OverlayToggle.SelectionTint, OverlayToggle.Wireframe),
+			listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info, OverlayToggle.SelectionTint, OverlayToggle.Wireframe, OverlayToggle.CullHidden),
 			overlayRowsFor(OverlaySurface.Viewport2D),
 		)
 		assertEquals(listOf(OverlayToggle.Grid, OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(OverlaySurface.UvEditor))
@@ -32,6 +32,7 @@ class OverlayCatalogTest {
 		assertEquals(OverlaySection.Text, OverlayToggle.Info.section)
 		assertEquals(OverlaySection.Objects, OverlayToggle.SelectionTint.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.Wireframe.section)
+		assertEquals(OverlaySection.Geometry, OverlayToggle.CullHidden.section)
 		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Objects, OverlaySection.Geometry), OverlaySection.entries)
 		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.Viewport2D))
 		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.UvEditor), "the UV editor's islands fade by the same field")
@@ -48,8 +49,13 @@ class OverlayCatalogTest {
 
 		assertFalse(state.showSelectionTint)
 		assertFalse(OverlayToggle.SelectionTint.isOn(state))
-		assertTrue(state.showGrid && state.showAxes && state.showCursor && state.showInfo, "every other row is untouched")
+		assertTrue(state.showGrid && state.showAxes && state.showCursor && state.showInfo && state.cullHiddenWireframe, "every other row is untouched")
 		assertFalse(state.showWireframe)
+
+		assertTrue(OverlayToggle.CullHidden.isOn(state), "culling starts on")
+		OverlayToggle.CullHidden.set(state, false)
+		assertFalse(state.cullHiddenWireframe)
+		assertFalse(state.showWireframe, "and flips nothing else")
 	}
 
 	/** The grid, axis, and wireframe rows read and write their own flags. */
@@ -94,11 +100,11 @@ class OverlayCatalogTest {
 
 		state.showOverlays = false
 
-		assertFalse(state.effectiveCursor || state.effectiveInfo || state.effectiveGrid || state.effectiveAxes || state.effectiveWireframe || state.effectiveSelectionTint)
-		assertTrue(state.showCursor && state.showInfo && state.showGrid && state.showAxes && state.showWireframe && state.showSelectionTint, "the flags keep what the rigger set")
+		assertFalse(state.effectiveCursor || state.effectiveInfo || state.effectiveGrid || state.effectiveAxes || state.effectiveWireframe || state.effectiveSelectionTint || state.effectiveCullHiddenWireframe)
+		assertTrue(state.showCursor && state.showInfo && state.showGrid && state.showAxes && state.showWireframe && state.showSelectionTint && state.cullHiddenWireframe, "the flags keep what the rigger set")
 		assertTrue(OverlayToggle.Cursor.isOn(state), "a row shows its flag, not its effect")
 		state.showOverlays = true
-		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe && state.effectiveSelectionTint)
+		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe && state.effectiveSelectionTint && state.effectiveCullHiddenWireframe)
 	}
 
 	/** Everything is on by default but the wireframe, the opacity is whole, and a reset returns there. */
@@ -106,7 +112,7 @@ class OverlayCatalogTest {
 	fun defaultsAreEverythingOnButTheWireframe() {
 		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
 		assertTrue(state.isAtDefaults)
-		assertTrue(state.showOverlays && state.showGrid && state.showAxes && state.showCursor && state.showInfo && state.showSelectionTint)
+		assertTrue(state.showOverlays && state.showGrid && state.showAxes && state.showCursor && state.showInfo && state.showSelectionTint && state.cullHiddenWireframe)
 		assertFalse(state.showWireframe)
 		assertEquals(1f, state.wireframeOpacity)
 
@@ -118,10 +124,12 @@ class OverlayCatalogTest {
 		state.wireframeOpacity = 0.5f
 		assertFalse(state.isAtDefaults, "an opacity off whole is a deviation")
 		state.showSelectionTint = false
+		state.cullHiddenWireframe = false
+		assertFalse(state.isAtDefaults, "culling off is a deviation")
 		state.reset()
-		assertTrue(state.isAtDefaults, "a reset returns the opacity and the tint too")
+		assertTrue(state.isAtDefaults, "a reset returns the opacity, the tint, and the culling too")
 		assertEquals(1f, state.wireframeOpacity)
-		assertTrue(state.showSelectionTint)
+		assertTrue(state.showSelectionTint && state.cullHiddenWireframe)
 	}
 
 	/** The area's grid is its own over the application's, whole on both surfaces. */
