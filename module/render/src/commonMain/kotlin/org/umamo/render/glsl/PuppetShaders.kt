@@ -97,73 +97,102 @@ internal fun glueVertexShader(dialect: GlslDialect): String =
  */
 internal fun puppetFragmentShader(dialect: GlslDialect): String =
 	glslHeader(dialect) +
+		artAlphaGlsl() +
 		"""
-		in vec2 vUv;
-		out vec4 fragColor;
-		uniform sampler2D atlas;
-		uniform int useTexture;
-		uniform vec4 drawColor;
-		uniform float opacity;
-		uniform int useMask;
-		uniform sampler2D maskTexture;
-		uniform vec2 screenTexSize;
-		uniform int invertMask;
 		uniform vec3 multiplyColor;
 		uniform vec3 screenColor;
 		uniform float highlight;
 		uniform vec3 highlightColor;
-		// The stored-to-sampled texture-coordinate affine, as two row vectors (m00 m01 m02 / m10 m11 m12).
-		// Rows rather than a mat3 because the value arrives row-major and a GLSL mat3 is column-major -
-		// passing rows keeps one convention end to end, and transliterates to MSL unchanged.  Identity
-		// for a drawable sampling the atlas it was authored against.
-		uniform vec3 uvAffineRow0;
-		uniform vec3 uvAffineRow1;
-		// How the bound art texture was created: 1 when it filters linearly (0 nearest), and 1 when it
-		// wraps to a transparent border (0 to its edge texels).
-		uniform int atlasLinear;
-		uniform int atlasTransparentBorder;
-		// One art texel, premultiplied.  A texel outside the image reads as the texture's wrap says.
-		vec4 premultipliedTexel(ivec2 texel, ivec2 size) {
-			if (atlasTransparentBorder == 1 && (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size)))) {
-				return vec4(0.0);
-			}
-			vec4 straight = texelFetch(atlas, clamp(texel, ivec2(0), size - ivec2(1)), 0);
-			return vec4(straight.rgb * straight.a, straight.a);
-		}
-		// The art at a texture coordinate, as straight color.  Linear filtering blends the four surrounding
-		// texels premultiplied, so a transparent texel's color never reaches the edge it borders.
-		vec4 sampleArt(vec2 uv) {
-			if (atlasLinear == 0) {
-				return texture(atlas, uv);
-			}
-			ivec2 size = textureSize(atlas, 0);
-			vec2 corner = uv * vec2(size) - 0.5;
-			vec2 cornerFloor = floor(corner);
-			vec2 fraction = corner - cornerFloor;
-			ivec2 origin = ivec2(cornerFloor);
-			vec4 firstRow = mix(premultipliedTexel(origin, size), premultipliedTexel(origin + ivec2(1, 0), size), fraction.x);
-			vec4 secondRow = mix(premultipliedTexel(origin + ivec2(0, 1), size), premultipliedTexel(origin + ivec2(1, 1), size), fraction.x);
-			vec4 premultiplied = mix(firstRow, secondRow, fraction.y);
-			if (premultiplied.a <= 0.0) {
-				return vec4(0.0);
-			}
-			return vec4(min(premultiplied.rgb / premultiplied.a, vec3(1.0)), premultiplied.a);
-		}
+		// The draw order, written as the pass's second draw buffer by a pass that has one: a covering fragment
+		// (the drawn alpha, scaled by the enclosing composites' opacities, at the threshold or over) writes its
+		// drawable's back-to-front index packed into the red and green bytes at alpha one, which the blend
+		// replaces the target with; any other fragment writes zeros, which every blend the art uses leaves
+		// alone.  An order of zero never covers.  A pass without the second buffer discards this output.
+		uniform int drawOrder;
+		uniform float orderOpacity;
+		layout(location = 1) out vec4 fragOrder;
 		void main() {
-			vec3 uvHomogeneous = vec3(vUv, 1.0);
-			vec2 sampleUv = vec2(dot(uvAffineRow0, uvHomogeneous), dot(uvAffineRow1, uvHomogeneous));
-			vec4 base = (useTexture == 1) ? sampleArt(sampleUv) : drawColor;
-			float alpha = base.a * opacity;
-			if (useMask == 1) {
-				float coverage = texture(maskTexture, gl_FragCoord.xy / screenTexSize).a;
-				alpha *= (invertMask == 1) ? (1.0 - coverage) : coverage;
-			}
+			float alpha;
+			vec4 base = drawnArt(alpha);
 			vec3 tinted = base.rgb * multiplyColor;
 			tinted = tinted + screenColor - tinted * screenColor;
 			vec3 rgb = mix(tinted, highlightColor, highlight);
 			fragColor = vec4(rgb * alpha, alpha);
+			float covering = (drawOrder > 0 && alpha * orderOpacity >= $DRAW_ORDER_ALPHA_THRESHOLD) ? 1.0 : 0.0;
+			fragOrder = vec4(float(drawOrder / 256) / 255.0 * covering, float(drawOrder % 256) / 255.0 * covering, 0.0, covering);
 		}
 		""".trimIndent()
+
+/**
+ * The art sampling every puppet fragment stage shares: the atlas or flat color through the stored-to-sampled
+ * affine, the linear filter done premultiplied in-shader, and the drawn alpha through the opacity and the
+ * mask coverage.  `drawnArt` returns the straight color and writes the alpha out.
+ *
+ * @return String The declarations and functions, to be followed by a `main`.
+ */
+private fun artAlphaGlsl(): String =
+	"""
+	in vec2 vUv;
+	out vec4 fragColor;
+	uniform sampler2D atlas;
+	uniform int useTexture;
+	uniform vec4 drawColor;
+	uniform float opacity;
+	uniform int useMask;
+	uniform sampler2D maskTexture;
+	uniform vec2 screenTexSize;
+	uniform int invertMask;
+	// The stored-to-sampled texture-coordinate affine, as two row vectors (m00 m01 m02 / m10 m11 m12).
+	// Rows rather than a mat3 because the value arrives row-major and a GLSL mat3 is column-major -
+	// passing rows keeps one convention end to end, and transliterates to MSL unchanged.  Identity
+	// for a drawable sampling the atlas it was authored against.
+	uniform vec3 uvAffineRow0;
+	uniform vec3 uvAffineRow1;
+	// How the bound art texture was created: 1 when it filters linearly (0 nearest), and 1 when it
+	// wraps to a transparent border (0 to its edge texels).
+	uniform int atlasLinear;
+	uniform int atlasTransparentBorder;
+	// One art texel, premultiplied.  A texel outside the image reads as the texture's wrap says.
+	vec4 premultipliedTexel(ivec2 texel, ivec2 size) {
+		if (atlasTransparentBorder == 1 && (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size)))) {
+			return vec4(0.0);
+		}
+		vec4 straight = texelFetch(atlas, clamp(texel, ivec2(0), size - ivec2(1)), 0);
+		return vec4(straight.rgb * straight.a, straight.a);
+	}
+	// The art at a texture coordinate, as straight color.  Linear filtering blends the four surrounding
+	// texels premultiplied, so a transparent texel's color never reaches the edge it borders.
+	vec4 sampleArt(vec2 uv) {
+		if (atlasLinear == 0) {
+			return texture(atlas, uv);
+		}
+		ivec2 size = textureSize(atlas, 0);
+		vec2 corner = uv * vec2(size) - 0.5;
+		vec2 cornerFloor = floor(corner);
+		vec2 fraction = corner - cornerFloor;
+		ivec2 origin = ivec2(cornerFloor);
+		vec4 firstRow = mix(premultipliedTexel(origin, size), premultipliedTexel(origin + ivec2(1, 0), size), fraction.x);
+		vec4 secondRow = mix(premultipliedTexel(origin + ivec2(0, 1), size), premultipliedTexel(origin + ivec2(1, 1), size), fraction.x);
+		vec4 premultiplied = mix(firstRow, secondRow, fraction.y);
+		if (premultiplied.a <= 0.0) {
+			return vec4(0.0);
+		}
+		return vec4(min(premultiplied.rgb / premultiplied.a, vec3(1.0)), premultiplied.a);
+	}
+	// The art at this fragment as straight color, with the drawn alpha - the art's through the opacity and
+	// the mask coverage - written out.
+	vec4 drawnArt(out float alpha) {
+		vec3 uvHomogeneous = vec3(vUv, 1.0);
+		vec2 sampleUv = vec2(dot(uvAffineRow0, uvHomogeneous), dot(uvAffineRow1, uvHomogeneous));
+		vec4 base = (useTexture == 1) ? sampleArt(sampleUv) : drawColor;
+		alpha = base.a * opacity;
+		if (useMask == 1) {
+			float coverage = texture(maskTexture, gl_FragCoord.xy / screenTexSize).a;
+			alpha *= (invertMask == 1) ? (1.0 - coverage) : coverage;
+		}
+		return base;
+	}
+	""".trimIndent() + "\n"
 
 /**
  * The UV scene's image-quad vertex shader: an atlas page or a source-layer image, and the placement drag's

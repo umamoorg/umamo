@@ -239,7 +239,9 @@ class GlRenderDevice : RenderDevice {
 		renderPipelines.getOrPut(spec) {
 			val (vertexSource, fragmentSource) = sourcesFor(spec.purpose)
 			val program = linkGlProgram(vertexSource, fragmentSource, spec.purpose.name)
-			GlRenderPipeline(program, spec.blend, spec.cullBackFaces, GlUniformLocations(program))
+			// The art programs alone write a pass's draw-order buffer; every other program's single output stays on the color target.
+			val writesDrawOrder = spec.purpose == PipelinePurpose.PuppetDeformDraw || spec.purpose == PipelinePurpose.PuppetGlueDraw
+			GlRenderPipeline(program, spec.blend, spec.cullBackFaces, GlUniformLocations(program), writesDrawOrder)
 		}
 
 	override fun createDeformCapturePipeline(): DeformCapturePipeline =

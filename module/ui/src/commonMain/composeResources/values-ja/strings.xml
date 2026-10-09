@@ -655,6 +655,10 @@
 	<string name="overlay_grid_scale">間隔</string>
 	<string name="overlay_grid_subdivisions">分割数</string>
 	<string name="overlay_grid_follow_application">アプリケーションのグリッドに従う</string>
+	<string name="overlay_section_objects">オブジェクト</string>
+	<string name="overlay_row_selection_tint">選択のハイライト</string>
+	<string name="overlay_row_cull_hidden">隠れた部分を省略</string>
+	<string name="overlay_wireframe_opacity">不透明度</string>
 	<!-- オーバーレイのポップオーバーの説明（見出し・行・フィールドのツールチップ）。下訳、確認待ち。 -->
 	<string name="overlay_section_guides_description">配置と整列のための視覚的な補助。</string>
 	<string name="overlay_section_text_description">ビューポートの端に表示される情報テキスト。</string>
@@ -664,8 +668,12 @@
 	<string name="overlay_row_cursor_description">スナップやピボット操作に使う2Dカーソル。</string>
 	<string name="overlay_row_info_description">現在の選択やズーム倍率などの一般情報。</string>
 	<string name="overlay_row_wireframe_description">編集対象として選択されていないドローアブルのメッシュワイヤーフレームを表示します。</string>
-	<string name="overlay_grid_scale_description">主グリッド線の間隔（ワールド単位）。</string>
+	<string name="overlay_grid_scale_description">主グリッド線の間隔（ワールド単位、UV エディターではテクセル）。</string>
 	<string name="overlay_grid_subdivisions_description">主グリッドの各マスを分ける補助線の数。</string>
+	<string name="overlay_section_objects_description">選択中・アクティブなドローアブルの視覚的な補助。</string>
+	<string name="overlay_row_selection_tint_description">選択中・アクティブなドローアブルに色を重ねて、アート上で目立たせます。</string>
+	<string name="overlay_row_cull_hidden_description">自分より前面に描かれるアートに隠れたワイヤーを省略し、ポーズでどのメッシュ部分が隠れるかを示します。</string>
+	<string name="overlay_wireframe_opacity_description">ワイヤーフレーム（UV エディターではアイランド）の不透明度（パーセント）。</string>
 	<string name="cmd_mesh_proportional_connected">プロポーショナル編集の「接続のみ」を切り替え</string>
 	<string name="hud_connected">接続のみ</string>
 	<string name="hud_placement">配置</string>
@@ -691,7 +699,9 @@
 	<string name="cmd_view_overlay_axes">X/Z 軸の表示切り替え</string>
 	<string name="cmd_view_overlay_cursor">2Dカーソルの表示切り替え</string>
 	<string name="cmd_view_overlay_info">一般情報の表示切り替え</string>
+	<string name="cmd_view_overlay_selection_tint">選択のハイライトの表示切り替え</string>
 	<string name="cmd_view_overlay_wireframe">ワイヤーフレームの表示切り替え</string>
+	<string name="cmd_view_overlay_wireframe_culling">ワイヤーフレームの隠れた部分の省略を切り替え</string>
 	<string name="sidebar_title">サイドバー</string>
 	<string name="sidebar_empty_hint">ツールやアイテムのパネルがここに入ります。</string>
 
@@ -995,6 +1005,8 @@
 	<string name="settings_viewport_zoom_step_coarse">粗いズーム刻み (%)</string>
 	<string name="settings_viewport_grid_scale">グリッド間隔（既定）</string>
 	<string name="settings_viewport_grid_subdivisions">グリッド分割数</string>
+	<string name="settings_viewport_uv_grid_scale">UV グリッド間隔（既定）</string>
+	<string name="settings_viewport_uv_grid_subdivisions">UV グリッド分割数</string>
 	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）。 -->
 	<string name="settings_viewport_supersample">スーパーサンプリング（2 倍精細レンダリング）</string>
 	<string name="settings_viewport_supersample_while_resizing">パネルのリサイズ中もスーパーサンプリングを維持</string>

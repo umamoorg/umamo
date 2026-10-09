@@ -77,6 +77,10 @@ public class DeformUniforms {
  * @property Float   highlightRed   Highlight tint red.
  * @property Float   highlightGreen Highlight tint green.
  * @property Float   highlightBlue  Highlight tint blue.
+ * @property Int     drawOrder    The drawable's back-to-front index (1 = the backmost) its covering fragments
+ *   write into a pass's draw-order target; 0 writes nothing (a drawable that tints rather than covers).
+ * @property Float   orderOpacity The product of the enclosing composites' opacities, which the drawn alpha is
+ *   scaled by before the order threshold, since a composite's layer draws its children at full opacity.
  * @property FloatArray uvAffine   The 2x3 row-major affine (m00, m01, m02, m10, m11, m12) applied to the
  *   interpolated texture coordinate before sampling.  Identity leaves the stored mapping alone; a
  *   drawable sampling its SOURCE ARTWORK instead of the packed atlas carries the transform between
@@ -103,6 +107,8 @@ public class FragmentUniforms {
 	var highlightRed: Float = 0f
 	var highlightGreen: Float = 0f
 	var highlightBlue: Float = 0f
+	var drawOrder: Int = 0
+	var orderOpacity: Float = 1f
 
 	// Six floats reused in place, like every other value here - see the class contract.  Identity, NOT
 	// zeroes: a zeroed affine collapses every coordinate onto one texel.
@@ -230,7 +236,9 @@ public data class AxisLineUniforms(
  * dots are expanded in pixels.  The size is the line half-width or the dot radius, with the render scale
  * already applied.  The colors are STRAIGHT RGBA; the shader premultiplies.  An active draw paints ONE
  * primitive, the one at the active indices (a vertex dot uses A, an edge A and B, a face dot all three),
- * in the active color, ignoring the instance buffers.  The face fill has no active draw.
+ * in the active color, ignoring the instance buffers.  The face fill has no active draw.  An edge draw
+ * with a cull order at or above zero reads the frame's draw-order texture and leaves out every fragment
+ * under a drawable drawn in front of its own; -1 culls nothing, the other domains never read it.
  */
 public class OverlayDrawUniforms {
 	var baseOffset: Int = 0
@@ -245,4 +253,5 @@ public class OverlayDrawUniforms {
 	var activeIndexA: Int = -1
 	var activeIndexB: Int = -1
 	var activeIndexC: Int = -1
+	var cullOrder: Int = -1
 }

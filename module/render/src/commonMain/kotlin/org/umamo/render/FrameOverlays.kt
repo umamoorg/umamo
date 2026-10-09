@@ -20,10 +20,23 @@ package org.umamo.render
  *   whole, its deform capture pass included, and the meshes outside the edit that an Edit overlay carries
  *   as plain wireframes.  The Edit cage itself draws under [meshOverlay] alone.  True by default, as
  *   [meshOverlay] is: a headless render draws what the renderer holds, and the editor's areas say otherwise.
+ * @property Boolean selectionTint Whether the selected and active drawables draw tinted this frame.  Off,
+ *   the frame draws the art as a capture does, with no selection at all, while the renderer's selection
+ *   stays what it is for the next area that tints.
+ * @property Float wireframeOpacity The alpha scale, 0 to 1, of the mesh overlay drawn outside an edit: an
+ *   Object-mode wireframe whole, an Edit overlay's plain wireframe meshes, and a UV scene's islands, each
+ *   drawn at its palette alpha times this.  The Edit cage keeps the palette.  At 0 none of it draws.
+ * @property Boolean wireframeCulling Whether the wireframe's edges are left out under art drawn in front of
+ *   their own drawable, so a posed model shows which mesh parts are covered: a frame that draws a
+ *   wireframe with this on first writes the draw order into a side target, which the edges read.  The
+ *   Edit cage is never culled.  True by default, as [wireframe] is.
  */
 data class FrameOverlays(
 	val gridLines: Boolean = true,
 	val axes: Boolean = false,
 	val meshOverlay: Boolean = true,
 	val wireframe: Boolean = true,
+	val selectionTint: Boolean = true,
+	val wireframeOpacity: Float = 1f,
+	val wireframeCulling: Boolean = true,
 )

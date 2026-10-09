@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.drop
 
 /**
  * Keeps the keyboard on the shell root: takes root focus back after every transition that can leave it
- * null, whenever the window regains OS focus, and after a language switch.
+ * null, a text editor closing inside an open overlay included, whenever the window regains OS focus, and
+ * after a language switch.
  *
  * The shell calls this outside its locale key, so a language switch restarts none of the effects.
  *
@@ -32,7 +33,8 @@ internal fun ReclaimShellFocus(controllers: ShellControllers, languageTag: Strin
 	// root must reclaim focus after each such transition.  One effect keyed on every reclaim trigger:
 	//  - structuralEditCount: area-tree edits and popup-invoked workspace CRUD;
 	//  - selfFocusedOverlayOpen / inline edit: reclaim when the palette, preferences, Help dialogs, or an
-	//    inline rename CLOSE (while one is open it owns focus, so the effect waits);
+	//    inline rename CLOSE (while one is open it owns focus, so the effect waits; an editor closing INSIDE
+	//    an open overlay is the trigger of its own below);
 	//  - topmostModalAlert: the confirm dialog, the file-open alert, the app layer's alerts, the export report,
 	//    and the repack refusal report do NOT own focus - root focus is (re)claimed on open too, so their
 	//    Escape/Enter route through the modal ladder while open.  Keyed on the topmost arrival rather than on
@@ -51,6 +53,27 @@ internal fun ReclaimShellFocus(controllers: ShellControllers, languageTag: Strin
 		withFrameNanos {}
 		withFrameNanos {}
 		focusRequester.requestFocus()
+	}
+
+	// A text editor closing inside an overlay the root holds focus for.  Preferences owns no focus node of
+	// its own: the root keeps the keyboard while it is open, which is how its Escape reaches the ladder.  A
+	// number field in it takes focus to type and confirms Enter by clearing focus, so the field's close
+	// leaves focus null with the overlay still open.  The effect above keys on the overlay and the editor
+	// together, so it sees no change there and waits for the open overlay in any case, and the press release
+	// runs for presses alone, never for a key.  So the editor's close is a trigger of its own: keyed on the
+	// editor alone, so an overlay opening never fires it and the palette's search field keeps the focus it
+	// asks for; gated to an open overlay, since outside one the effect above already reclaims; and the root
+	// takes focus back only when nothing under it holds focus by then, the language switch's check.
+	val textEntryActive = inlineEditController.cancel != null
+	LaunchedEffect(textEntryActive) {
+		if (textEntryActive || !overlays.selfFocusedOverlayOpen) {
+			return@LaunchedEffect
+		}
+		withFrameNanos {}
+		withFrameNanos {}
+		if (!controllers.rootHoldsFocus) {
+			focusRequester.requestFocus()
+		}
 	}
 
 	// An OS-level focus round-trip (alt-tab away and back) restores focus to the WINDOW but to no Compose

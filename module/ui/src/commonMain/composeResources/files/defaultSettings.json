@@ -33,6 +33,10 @@
 			"scale": 100.0,
 			"subdivisions": 10
 		},
+		"uvGrid": {
+			"scale": 256.0,
+			"subdivisions": 8
+		},
 		"rendering": {
 			"supersample": true,
 			"supersampleWhileResizing": true

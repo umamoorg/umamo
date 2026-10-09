@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces
 
 import androidx.compose.ui.unit.dp
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -179,10 +180,10 @@ class PersistentViewStatesTest {
 
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
-		assertEquals(listOf("all", "grid", "axes", "cursor", "info", "wireframe", "gridGeometry"), overlays.keys.toList(), "every key is named, so a merge can take a deviation back out")
+		assertEquals(listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "wireframeCulling", "wireframeOpacity", "gridGeometry"), overlays.keys.toList(), "every key is named, so a merge can take a deviation back out")
 		assertEquals(JsonPrimitive(false), overlays["all"])
 		assertEquals(JsonPrimitive(false), overlays["cursor"])
-		assertTrue(listOf("grid", "axes", "info", "wireframe", "gridGeometry").all { key -> overlays[key] is JsonNull }, "a flag at its default, and a grid that follows, is a null")
+		assertTrue(listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull }, "a flag at its default, an opacity that is whole, and a grid that follows, is a null")
 
 		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
 		assertFalse(reopened.overlays.showOverlays)
@@ -215,7 +216,7 @@ class PersistentViewStatesTest {
 		val tree = saved.toJson()
 		assertEquals(listOf("texture", "overlays"), tree.keys.toList())
 		val overlays = tree["overlays"] as JsonObject
-		assertEquals(listOf("all", "grid", "cursor", "info", "gridGeometry"), overlays.keys.toList(), "a UV editor has no axes and no object wireframe")
+		assertEquals(listOf("all", "grid", "cursor", "info", "wireframeOpacity", "gridGeometry"), overlays.keys.toList(), "a UV editor has no axes, no object wireframe, and no tint, while its islands fade by the opacity")
 		assertEquals(JsonPrimitive(false), overlays["info"])
 
 		val reopened = UvEditorViewState().also { state -> state.restore(tree) }
@@ -247,18 +248,69 @@ class PersistentViewStatesTest {
 		assertEquals(JsonNull, saved.toJson()["overlays"], "following again with nothing else set, the member is a null")
 	}
 
-	/** A UV editor's own grid is its subdivisions alone, restored over the application's scale. */
+	/** A UV editor's own grid round-trips whole, its scale in texels, the one shape the 2D viewport writes. */
 	@Test
-	fun theUvEditorRoundTripsItsOwnSubdivisions() {
+	fun theUvEditorRoundTripsItsOwnGrid() {
 		val saved = UvEditorViewState()
 		saved.overlays.gridGeometry = GridConfig(123f, 4)
 
 		val tree = saved.toJson()
-		assertEquals(buildJsonObject { put("subdivisions", 4) }, (tree["overlays"] as JsonObject)["gridGeometry"], "the scale is the shown image's, never written")
+		assertEquals(
+			buildJsonObject {
+				put("scale", 123f)
+				put("subdivisions", 4)
+			},
+			(tree["overlays"] as JsonObject)["gridGeometry"],
+			"the scale is written, in texels",
+		)
 		val reopened = UvEditorViewState().also { state -> state.restore(tree) }
-		assertEquals(4, reopened.overlays.gridGeometry?.subdivisions)
-		assertEquals(GridConfig(100f, 4), reopened.overlays.grid, "the area's grid is its subdivisions over the application's scale")
+		assertEquals(GridConfig(123f, 4), reopened.overlays.gridGeometry)
+		assertEquals(GridConfig(123f, 4), reopened.overlays.grid, "the area's grid is its own, whole")
 		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+	}
+
+	/** The tint off and an opacity round-trip on a 2D viewport, the opacity alone on a UV editor, and back at their defaults the member is a null. */
+	@Test
+	fun theTintAndTheOpacityRoundTrip() {
+		val saved = Viewport2DViewState()
+		saved.overlays.showSelectionTint = false
+		saved.overlays.cullHiddenWireframe = false
+		saved.overlays.wireframeOpacity = 0.3f
+
+		val tree = saved.toJson()
+		val overlays = tree["overlays"] as JsonObject
+		assertEquals(JsonPrimitive(false), overlays["selectionTint"])
+		assertEquals(JsonPrimitive(false), overlays["wireframeCulling"])
+		assertEquals(JsonPrimitive(0.3f), overlays["wireframeOpacity"])
+		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+		assertFalse(reopened.overlays.showSelectionTint)
+		assertFalse(reopened.overlays.cullHiddenWireframe)
+		assertEquals(0.3f, reopened.overlays.wireframeOpacity)
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+
+		saved.overlays.showSelectionTint = true
+		saved.overlays.cullHiddenWireframe = true
+		saved.overlays.wireframeOpacity = 1f
+		assertEquals(JsonNull, saved.toJson()["overlays"], "back at their defaults the member is a null")
+
+		val uvSaved = UvEditorViewState()
+		uvSaved.overlays.wireframeOpacity = 0f
+		val uvTree = uvSaved.toJson()
+		assertEquals(JsonPrimitive(0f), (uvTree["overlays"] as JsonObject)["wireframeOpacity"], "zero is a value, not a default")
+		val uvReopened = UvEditorViewState().also { state -> state.restore(uvTree) }
+		assertEquals(0f, uvReopened.overlays.wireframeOpacity)
+		assertEquals(uvTree, uvReopened.toJson())
+	}
+
+	/** A wireframeOpacity outside 0 to 1, or not a number, reads as whole. */
+	@Test
+	fun aBrokenWireframeOpacityReadsAsWhole() {
+		for (planted in listOf<JsonElement>(JsonPrimitive(1.5f), JsonPrimitive(-0.1f), JsonPrimitive("no"), JsonPrimitive(true))) {
+			val tree = buildJsonObject { put("overlays", buildJsonObject { put("wireframeOpacity", planted) }) }
+			val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+			assertEquals(1f, reopened.overlays.wireframeOpacity, "$planted reads as whole")
+			assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
+		}
 	}
 
 	/** A gridGeometry that fails its checks leaves the area following the application's grid. */
@@ -297,8 +349,8 @@ class PersistentViewStatesTest {
 			}
 		assertNull(Viewport2DViewState().also { state -> state.restore(zeroSubdivisions) }.overlays.gridGeometry, "zero subdivisions")
 		val subdivisionsAlone = buildJsonObject { put("overlays", buildJsonObject { put("gridGeometry", buildJsonObject { put("subdivisions", 4) }) }) }
-		assertEquals(4, UvEditorViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry?.subdivisions, "a UV editor needs no scale")
-		assertNull(Viewport2DViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry, "a 2D viewport does")
+		assertNull(Viewport2DViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry, "a grid without a scale")
+		assertNull(UvEditorViewState().also { state -> state.restore(subdivisionsAlone) }.overlays.gridGeometry, "on a UV editor too: the shape a UV grid was saved in before it carried a scale follows")
 	}
 
 	/** Keys a UV editor has no overlay for are ignored on read and never written back. */
@@ -311,6 +363,8 @@ class PersistentViewStatesTest {
 					buildJsonObject {
 						put("axes", false)
 						put("wireframe", true)
+						put("selectionTint", false)
+						put("wireframeCulling", false)
 					},
 				)
 			}
@@ -319,6 +373,8 @@ class PersistentViewStatesTest {
 
 		assertTrue(reopened.overlays.showAxes, "a UV editor's axes flag stays at its default")
 		assertFalse(reopened.overlays.showWireframe, "a UV editor's wireframe flag stays at its default")
+		assertTrue(reopened.overlays.showSelectionTint, "and so does its tint flag")
+		assertTrue(reopened.overlays.cullHiddenWireframe, "and its culling flag")
 		assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
 	}
 

@@ -226,8 +226,10 @@ class EditGrabRenderPerfProbeTest {
 
 	/**
 	 * The frame with the Object-mode wireframe of every mesh: the first frame (every edge buffer uploaded, the
-	 * capture, the draws), a still frame, a frame that holds the wireframe but hides it (an area with the row
-	 * off while another has it on: no capture, no draws), and a frame after a preview push (re-capture + draws).
+	 * capture, the draws), a still frame culled (the draw-order pass over every drawable, then the draws), a
+	 * still frame unculled (the draws alone, so the two differ by the order pass), a frame that holds the
+	 * wireframe but hides it (an area with the row off while another has it on: no capture, no draws), and a
+	 * frame after a preview push (re-capture + order + draws).
 	 *
 	 * @param PuppetRenderer renderer The renderer.
 	 * @param RenderTarget target The frame target.
@@ -248,6 +250,7 @@ class EditGrabRenderPerfProbeTest {
 		GL11.glFinish()
 		val firstNanos = System.nanoTime() - firstStart
 		val stillTimes = ArrayList<Long>(rounds)
+		val unculledTimes = ArrayList<Long>(rounds)
 		val hiddenTimes = ArrayList<Long>(rounds)
 		val pushedTimes = ArrayList<Long>(rounds)
 		var current = start
@@ -256,6 +259,10 @@ class EditGrabRenderPerfProbeTest {
 			renderer.render(target, viewportWidth, viewportHeight)
 			GL11.glFinish()
 			stillTimes.add(System.nanoTime() - stillStart)
+			val unculledStart = System.nanoTime()
+			renderer.render(target, viewportWidth, viewportHeight, overlays = FrameOverlays(wireframeCulling = false))
+			GL11.glFinish()
+			unculledTimes.add(System.nanoTime() - unculledStart)
 			val hiddenStart = System.nanoTime()
 			renderer.render(target, viewportWidth, viewportHeight, overlays = FrameOverlays(wireframe = false))
 			GL11.glFinish()
@@ -270,7 +277,8 @@ class EditGrabRenderPerfProbeTest {
 		}
 		renderer.setMeshOverlay(null)
 		report("G5w first frame with the wireframe of every mesh (buffer uploads + capture + draws): %.1f ms".format(firstNanos / 1e6))
-		stats("G6w renderer.render with the wireframe, nothing moved (draws only) [per frame; host GL]", stillTimes)
+		stats("G6w renderer.render with the wireframe culled, nothing moved (the draw-order pass + draws) [per frame; host GL]", stillTimes)
+		stats("G6u renderer.render with the wireframe unculled, nothing moved (draws only) [per frame; host GL]", unculledTimes)
 		stats("G6h renderer.render holding the wireframe but hiding it (no capture, no draws) [per frame; host GL]", hiddenTimes)
 		stats("G7w renderer.render with the wireframe after a preview push (re-capture + draws) [per frame; host GL]", pushedTimes)
 	}

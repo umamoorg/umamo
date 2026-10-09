@@ -119,7 +119,7 @@ class CommandTableOrderTest {
 		)
 		assertEquals(listOf("frame.all"), frameCommands(CommandRegistry(), routing()).map { command -> command.id })
 		assertEquals(
-			listOf("view.overlay.all", "view.overlay.grid", "view.overlay.axes", "view.overlay.cursor", "view.overlay.info", "view.overlay.wireframe"),
+			listOf("view.overlay.all", "view.overlay.grid", "view.overlay.axes", "view.overlay.cursor", "view.overlay.info", "view.overlay.selectionTint", "view.overlay.wireframe", "view.overlay.wireframeCulling"),
 			overlayCommands(AreaOverlayHub(), routing(), viewportPresent = false).map { command -> command.id },
 		)
 	}

@@ -34,6 +34,14 @@ internal class SideTargetPool(
 		private set
 
 	/**
+	 * The draw-order target the order pass writes and the culling wireframe edges read, each pixel the
+	 * packed back-to-front index of the frontmost covering drawable; null until [ensure].  Rgba8 like the
+	 * rest, since every backend renders to and reads back that format.
+	 */
+	var drawOrderTarget: RenderTarget? = null
+		private set
+
+	/**
 	 * The destination snapshot a composite blends against; null until [ensure].  Composites are strictly
 	 * sequential, so a single snapshot suffices.
 	 */
@@ -49,11 +57,11 @@ internal class SideTargetPool(
 		private set
 
 	/**
-	 * Grows the shared side-target capacity (mask + snapshot + composite pool) to hold a
+	 * Grows the shared side-target capacity (mask + draw order + snapshot + composite pool) to hold a
 	 * [viewportWidth] x [viewportHeight] render, per-axis high-water: a request inside the current
 	 * capacity allocates nothing (the per-frame path during a gutter drag), growth destroys the mask,
-	 * snapshot, and pool together and recreates mask + snapshot at the new capacity (the pool refills
-	 * lazily in [acquireLayer]).
+	 * draw order, snapshot, and pool together and recreates mask + draw order + snapshot at the new
+	 * capacity (the pool refills lazily in [acquireLayer]).
 	 *
 	 * @param Int viewportWidth  The render width in pixels.
 	 * @param Int viewportHeight The render height in pixels.
@@ -61,6 +69,7 @@ internal class SideTargetPool(
 	fun ensure(viewportWidth: Int, viewportHeight: Int) {
 		if (viewportWidth > capacityWidth || viewportHeight > capacityHeight) {
 			maskTarget?.let { device.destroyRenderTarget(it) }
+			drawOrderTarget?.let { device.destroyRenderTarget(it) }
 			layerTargets.forEach { device.destroyRenderTarget(it) }
 			layerTargets.clear()
 			snapshotTarget?.let { device.destroyRenderTarget(it) }
@@ -68,6 +77,10 @@ internal class SideTargetPool(
 			capacityWidth = maxOf(viewportWidth, capacityWidth)
 			capacityHeight = maxOf(viewportHeight, capacityHeight)
 			maskTarget =
+				device.createRenderTarget(
+					RenderTargetSpec(capacityWidth, capacityHeight, TextureFormat.Rgba8, sampled = true),
+				)
+			drawOrderTarget =
 				device.createRenderTarget(
 					RenderTargetSpec(capacityWidth, capacityHeight, TextureFormat.Rgba8, sampled = true),
 				)
@@ -100,13 +113,15 @@ internal class SideTargetPool(
 	}
 
 	/**
-	 * Frees the mask, destination-snapshot, and composite-layer targets and resets their shared capacity,
+	 * Frees the mask, draw-order, destination-snapshot, and composite-layer targets and resets their shared capacity,
 	 * so the next [ensure] allocates them afresh at its own size.  The capacity is otherwise grow-only;
 	 * this is how a one-off large render gives the memory back.
 	 */
 	fun release() {
 		maskTarget?.let { target -> device.destroyRenderTarget(target) }
 		maskTarget = null
+		drawOrderTarget?.let { target -> device.destroyRenderTarget(target) }
+		drawOrderTarget = null
 		for (target in layerTargets) {
 			device.destroyRenderTarget(target)
 		}

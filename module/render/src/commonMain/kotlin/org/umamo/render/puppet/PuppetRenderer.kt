@@ -143,6 +143,11 @@ class PuppetRenderer(
 	@Volatile
 	private var lastDrawnOrder: List<DrawableId> = emptyList()
 
+	// Each drawn drawable's back-to-front index (1 the backmost), built from the last drawn order on the first
+	// culling frame after a pose resolve and dropped with it: the order the draw-order pass writes and the
+	// wireframe edges cull by.
+	private var drawOrderIndex: Map<DrawableId, Int>? = null
+
 	// Framebuffer pixels per on-screen pixel. 1 = native; the offscreen service sets >1 when it supersamples,
 	// so the grid line width scales to match and reads back at a constant on-screen size.
 	private var gridPixelScale: Float = 1f
@@ -341,7 +346,17 @@ class PuppetRenderer(
 				boundsScissorEnabled = compositeBoundsScissorEnabled,
 			)
 		lastDrawnOrder = resolved.drawOrder // publish the resolved back-to-front order for picking
+		drawOrderIndex = null
 	}
+
+	/**
+	 * Each drawn drawable's back-to-front index, 1 the backmost, as the draw-order pass writes it: the
+	 * position in the last drawn order plus one.
+	 *
+	 * @return Map<DrawableId, Int> The index per drawn drawable.
+	 */
+	private fun drawOrderOf(): Map<DrawableId, Int> =
+		drawOrderIndex ?: lastDrawnOrder.withIndex().associate { (index, id) -> id to index + 1 }.also { built -> drawOrderIndex = built }
 
 	/**
 	 * Sets the view the next [render] projects through.  Before any is set, a render fits the rest-pose
@@ -368,7 +383,7 @@ class PuppetRenderer(
 	 * area's grid.  The next [render] picks them up.
 	 *
 	 * @param GridColors colors       The background / major / minor grid colors.
-	 * @param Float      scale        The major grid line spacing in world units.
+	 * @param Float      scale        The major grid line spacing: world units in a 2D frame, texels in a UV scene.
 	 * @param Int        subdivisions The minor lines per major cell.
 	 */
 	fun setGrid(colors: GridColors, scale: Float, subdivisions: Int) {
@@ -571,7 +586,7 @@ class PuppetRenderer(
 	 * @param FrameBackdrop backdrop       What the puppet is drawn over: the grid (the viewport), or a flat
 	 *   fill (an image capture).
 	 * @param FrameOverlays overlays       What the frame draws beyond the backdrop: the grid lines, the world
-	 *   axes, the mesh overlay, and the wireframe.
+	 *   axes, the mesh overlay, the wireframe and its opacity, and the selection tint.
 	 */
 	fun render(
 		target: RenderTarget,
@@ -584,10 +599,21 @@ class PuppetRenderer(
 		val overlay = meshOverlay
 		// The residency follows the held overlay even for a frame that hides it, so the buffers stay warm and
 		// an area showing the overlay never re-uploads after one that hides it; a hidden frame draws none.
-		// An Object-mode wireframe is hidden whole, its deform capture pass included, when the frame draws no wireframe;
-		// an Edit overlay still draws its cage then, and the encoder leaves out its wireframe meshes.
+		// An Object-mode wireframe is hidden whole, its deform capture pass included, when the frame draws no wireframe
+		// or draws it at an opacity of zero; an Edit overlay still draws its cage then, and the encoder leaves out
+		// its wireframe meshes.
 		overlayResidency.apply(overlay, residency.residents, currentModel)
-		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || overlays.wireframe) }
+		val drawsWireframe = overlays.wireframe && overlays.wireframeOpacity > 0f
+		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || drawsWireframe) }
+		// The draw-order pass is paid only by a frame that draws a wireframe and culls it: an Object-mode
+		// wireframe, or an Edit overlay carrying plain wireframe meshes outside the edit.
+		val cullsWireframe =
+			drawn != null &&
+				drawsWireframe &&
+				overlays.wireframeCulling &&
+				(drawn.kind == MeshOverlayKind.ObjectWireframe || (drawn.kind == MeshOverlayKind.Edit && drawn.meshes.any { mesh -> mesh.wireframeOnly }))
+		// A frame without the selection tint is drawn as a capture is, from no selection at all: the renderer's
+		// selection stays as set, for the next area that tints.
 		renderFrame(
 			target,
 			viewportWidth,
@@ -595,10 +621,11 @@ class PuppetRenderer(
 			backdrop,
 			effectiveCamera(viewportWidth, viewportHeight),
 			gridPixelScale,
-			selectedIds,
-			activeId,
+			if (overlays.selectionTint) selectedIds else emptySet(),
+			if (overlays.selectionTint) activeId else null,
 			drawn,
 			overlays,
+			cullsWireframe,
 		)
 	}
 
@@ -616,7 +643,10 @@ class PuppetRenderer(
 	 * @param DrawableId?     active         The drawable tinted as active, or null.
 	 * @param MeshOverlay?    overlay        The mesh overlay drawn over the art, or null for none; its
 	 *   device objects must already reflect it (the viewport applies before each frame, a capture passes null).
-	 * @param FrameOverlays   overlays       The grid lines and axes to draw with a grid backdrop.
+	 * @param FrameOverlays   overlays       What the frame draws beyond the backdrop: the grid lines and axes
+	 *   with a grid backdrop, and whether and how opaque the overlay's wireframe meshes draw.
+	 * @param Boolean         cullWireframe  Whether the frame writes the draw order first and culls the
+	 *   wireframe by it (a capture never does).
 	 */
 	private fun renderFrame(
 		target: RenderTarget,
@@ -629,6 +659,7 @@ class PuppetRenderer(
 		active: DrawableId?,
 		overlay: MeshOverlay?,
 		overlays: FrameOverlays,
+		cullWireframe: Boolean = false,
 	) {
 		sideTargets.ensure(viewportWidth, viewportHeight)
 		val frame = device.beginFrame()
@@ -640,31 +671,9 @@ class PuppetRenderer(
 
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
 		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
-
-		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
-		// A flat backdrop is the pass's own clear, and the puppet blends over it exactly as over the grid.
-		var pass =
-			when (backdrop) {
-				FrameBackdrop.Grid -> {
-					val gridPass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight))
-					drawBackdrop(gridPass, affine, viewportWidth, viewportHeight, pixelScale, overlays)
-					gridPass
-				}
-
-				is FrameBackdrop.Clear ->
-					frame.beginRenderPass(
-						passSpec(
-							target,
-							LoadAction.Clear,
-							viewportWidth,
-							viewportHeight,
-							clearRed = backdrop.red,
-							clearGreen = backdrop.green,
-							clearBlue = backdrop.blue,
-							clearAlpha = backdrop.alpha,
-						),
-					)
-			}
+		// A culling frame's art passes write the draw order as their second draw buffer; the main pass clears
+		// it first, and the overlay draws read it from a pass of their own that has it detached.
+		val orderTarget = if (cullWireframe) sideTargets.drawOrderTarget else null
 		val inputs =
 			FrameInputs(
 				affine = affine,
@@ -681,9 +690,44 @@ class PuppetRenderer(
 				overlay = overlay,
 				overlayPalette = meshOverlayPalette,
 				drawWireframe = overlays.wireframe,
+				wireframeOpacity = overlays.wireframeOpacity,
+				drawOrderTarget = orderTarget,
+				drawOrderOf = if (orderTarget != null) drawOrderOf() else emptyMap(),
 			)
+
+		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
+		// A flat backdrop is the pass's own clear, and the puppet blends over it exactly as over the grid.
+		var pass =
+			when (backdrop) {
+				FrameBackdrop.Grid -> {
+					val gridPass = frame.beginRenderPass(passSpec(target, LoadAction.DontCare, viewportWidth, viewportHeight, drawOrder = orderTarget, clearDrawOrder = true))
+					drawBackdrop(gridPass, affine, viewportWidth, viewportHeight, pixelScale, overlays)
+					gridPass
+				}
+
+				is FrameBackdrop.Clear ->
+					frame.beginRenderPass(
+						passSpec(
+							target,
+							LoadAction.Clear,
+							viewportWidth,
+							viewportHeight,
+							clearRed = backdrop.red,
+							clearGreen = backdrop.green,
+							clearBlue = backdrop.blue,
+							clearAlpha = backdrop.alpha,
+							drawOrder = orderTarget,
+							clearDrawOrder = true,
+						),
+					)
+			}
 		pass = planEncoder.encodePlan(frame, inputs, currentPlan, target, pass)
 		if (overlay != null) {
+			if (orderTarget != null) {
+				// The edges sample the order, so they draw in a pass that no longer has it attached.
+				pass.end()
+				pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
+			}
 			overlayEncoder.encodeDraws(pass, inputs)
 		}
 		pass.end()
@@ -870,7 +914,7 @@ class PuppetRenderer(
 	 * uploads nothing; the placement preview's scrims and crops keep drawing, since they are gesture feedback.
 	 *
 	 * @param RenderTarget       target         The surface to draw into.
-	 * @param DecodedImage?      image          The image whose extent the quad and grid tile take, or null.
+	 * @param DecodedImage?      image          The image whose extent the quad and the grid's surface take, or null; the grid's lines are the area's scale in texels.
 	 * @param GpuTexture?        handle         The uploaded texture for [image], or null.
 	 * @param Int                viewportWidth  The target width in pixels.
 	 * @param Int                viewportHeight The target height in pixels.
@@ -897,13 +941,15 @@ class PuppetRenderer(
 		val camera = effectiveCamera(viewportWidth, viewportHeight)
 		val transform = camera.worldToNdc(viewportWidth, viewportHeight)
 		val affine = WorldToNdc(transform[0], transform[1], transform[2], transform[3])
-		// The UV grid's major lines fall on the unit image tile (UV integers), so the major spacing is the
-		// image's pixel extent; minor lines subdivide the tile. With no image, fall back to the square grid.
-		val majorSpacingX = image?.width?.toFloat() ?: gridScale
-		val majorSpacingY = image?.height?.toFloat() ?: gridScale
+		// The UV grid's major lines are the area's grid scale, read in texels, on both axes - the one grid
+		// model the 2D viewport draws, so the popover's Scale means the same thing over a page.  The surface
+		// and its frame stay the image: an image whose size is no multiple of the scale ends mid-cell, and the
+		// frame marks its edge.
+		val majorSpacingX = gridScale
+		val majorSpacingY = gridScale
 
-		// The UV grid's unit tile starts at the image origin (UV 0,0 = image-pixel 0,0), so anchor at (0, 0).
-		// The surface is the image's tile, or the unit square an untextured mesh's UVs map into.
+		// The lattice is anchored at the image origin (UV 0,0 = image-pixel 0,0), so a major line crosses the
+		// image's corner.  The surface is the image's tile, or the unit square an untextured mesh's UVs map into.
 		val surface = ContentBounds(0f, 0f, image?.width?.toFloat() ?: 1f, image?.height?.toFloat() ?: 1f)
 		// Lines off is the same fill with its lines in the background color: the surround and the frame are
 		// the shader's own colors, so the page keeps its border either way.
@@ -931,7 +977,7 @@ class PuppetRenderer(
 			overlayEncoder.encodeDirectDraws(
 				pass,
 				scene,
-				OverlayFrame(affine, viewportWidth, viewportHeight, gridPixelScale, palette, viewportWidth, viewportHeight, overlays.wireframe),
+				OverlayFrame(affine, viewportWidth, viewportHeight, gridPixelScale, palette, viewportWidth, viewportHeight, overlays.wireframe, overlays.wireframeOpacity),
 			)
 		}
 		pass.end()
