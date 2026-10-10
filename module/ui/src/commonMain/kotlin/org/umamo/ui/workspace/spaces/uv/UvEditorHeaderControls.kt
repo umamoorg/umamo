@@ -24,14 +24,16 @@ import org.umamo.ui.workspace.spaces.OverlaysHeaderControl
 import org.umamo.ui.workspace.spaces.PivotModeDropdown
 import org.umamo.ui.workspace.spaces.ProportionalEditControls
 import org.umamo.ui.workspace.spaces.ProportionalSizeField
+import org.umamo.ui.workspace.spaces.SnapDropdown
+import org.umamo.ui.workspace.spaces.SnapMenuKind
 
 /**
  * The UV editor's space-specific header strip (mounted via SpaceDescriptor.headerContent): the
  * texture selector naming what the space shows (follow the selection, a pinned atlas page, or the
  * source-layer view) and the layer picker that finds a drawable by its artwork, then the vertex /
- * edge / face select-mode buttons, the transform pivot dropdown, and the proportional-editing
- * chip - the shared EditHeaderControls.kt composables the 2D viewport's header also mounts, so
- * the two surfaces stay one behavior.  The proportional panel's size row is this area's own radius
+ * edge / face select-mode buttons, the transform pivot dropdown, the snap menu (its texture-space
+ * snaps, Edit mode only), and the proportional-editing chip - the shared EditHeaderControls.kt
+ * composables the 2D viewport's header also mounts, so the two surfaces stay one behavior.  The proportional panel's size row is this area's own radius
  * for the shown texture, in texels, never the session's world radius.  The shared controls drive the SHARED session state (the
  * selection and its select mode are one, Blender's UV sync selection): switching to face mode here
  * switches the viewport too, by design.  The texture selector instead reads and writes the area's own
@@ -59,6 +61,7 @@ internal fun OverflowRowScope.uvEditorHeaderControls(scope: AreaScope) {
 	item("selectMode") { MeshSelectModeButtons() }
 	flexibleSpace()
 	item("pivot") { PivotModeDropdown() }
+	item("snap") { SnapDropdown(SnapMenuKind.UvEditor) }
 	item("proportional") { ProportionalEditControls(size = uvProportionalSizeField(viewState.proportionalRadii)) }
 	flexibleSpace()
 	item("overlays") {
