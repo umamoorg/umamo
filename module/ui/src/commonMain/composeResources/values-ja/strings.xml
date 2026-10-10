@@ -532,6 +532,7 @@
 	<string name="cmd_transform_pivot_individual">それぞれの原点</string>
 	<string name="cmd_transform_pivot_active">アクティブ要素</string>
 	<string name="cmd_transform_pivot_cursor">2Dカーソル</string>
+	<string name="header_transform_pivot_point">トランスフォームピボットポイント</string>
 	<string name="cmd_snap_pie">スナップ</string>
 	<string name="cmd_snap_cursor_world_origin">カーソル → ワールド原点</string>
 	<string name="cmd_snap_cursor_selected">カーソル → 選択物</string>

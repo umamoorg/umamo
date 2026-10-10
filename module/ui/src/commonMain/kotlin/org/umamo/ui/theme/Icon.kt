@@ -109,7 +109,6 @@ data class UmamoIcons(
 	val toolGrab: UmamoIcon,
 	val toolRotate: UmamoIcon,
 	val toolScale: UmamoIcon,
-	val transformPivot: UmamoIcon,
 	val snap: UmamoIcon,
 	val proportionalOff: UmamoIcon,
 	val proportionalOn: UmamoIcon,
@@ -291,8 +290,6 @@ val LocalUmamoIcons =
 		toolRotate = simpleIcon("M4.05 11a8 8 0 1 1 .5 4m-.5 5v-5h5"),
 		// Tabler "arrows-diagonal" (viewBox 0 0 24 24, stroked) - the Scale operator.
 		toolScale = simpleIcon("M16 4l4 0l0 4 M14 10l6 -6 M8 20l-4 0l0 -4 M4 20l6 -6"),
-		// Tabler "focus-centered" (viewBox 0 0 24 24, stroked) - the transform pivot point.
-		transformPivot = simpleIcon("M12 12m-1.5 0a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0 M4 8v-2a2 2 0 0 1 2 -2h2 M4 16v2a2 2 0 0 0 2 2h2 M16 4h2a2 2 0 0 1 2 2v2 M16 20h2a2 2 0 0 0 2 -2v-2"),
 		// Tabler "magnet" (viewBox 0 0 24 24, stroked) - the snap operations.
 		snap = simpleIcon("M4 13v-8a2 2 0 0 1 2 -2h1a2 2 0 0 1 2 2v8a2 2 0 0 0 6 0v-8a2 2 0 0 1 2 -2h1a2 2 0 0 1 2 2v8a8 8 0 0 1 -16 0 M4 8l5 0 M15 8l4 0"),
 		// Tabler "terminal" (viewBox 0 0 24 24, stroked).

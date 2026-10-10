@@ -9,9 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
@@ -24,20 +21,17 @@ import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.transform.choiceKey
 import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.StackAxis
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.button.ButtonGroup
 import org.umamo.ui.kit.button.ButtonGroupItem
 import org.umamo.ui.kit.chip.ChipToggle
-import org.umamo.ui.kit.chip.DropdownChip
+import org.umamo.ui.kit.chip.FilterSectionLabel
 import org.umamo.ui.kit.chip.PopupChip
 import org.umamo.ui.kit.field.Checkbox
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.formatDecimals
-import org.umamo.ui.kit.menu.Menu
-import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
@@ -48,7 +42,7 @@ import org.umamo.ui.workspace.commands.ProportionalConnectedRequest
 
 /*
  * The Edit-mode header controls shared by the editor surfaces that host element editing - the 2D
- * viewport and the UV editor mount the same select-mode buttons, pivot dropdown, and proportional
+ * viewport and the UV editor mount the same select-mode buttons, pivot panel, and proportional
  * control, so the two headers stay one behavior (and one look) by construction.  Every control
  * mutates by dispatching registry commands, per the everything-through-the-action-registry rule; the
  * one exception is the proportional panel's size row, a value no command carries, which each header
@@ -58,8 +52,8 @@ import org.umamo.ui.workspace.commands.ProportionalConnectedRequest
 /** The opacity of the proportional panel while the tool is off: Blender's inactive look, still live. */
 private const val PROPORTIONAL_PANEL_INACTIVE_ALPHA = 0.5f
 
-/** The inset of the proportional panel's checkbox, curves, and size row from its edges. */
-private val PROPORTIONAL_PANEL_ROW_INSET = 8.dp
+/** The inset of the header panels' rows (the pivots; Connected Only, the curves, and the size) from their edges, the headings' own. */
+private val HEADER_PANEL_ROW_INSET = 8.dp
 
 /** The space between the proportional panel's groups (Connected Only, the curves, the size), Blender's separator gap. */
 private val PROPORTIONAL_PANEL_GROUP_GAP = 6.dp
@@ -110,9 +104,11 @@ internal fun MeshSelectModeButtons() {
 }
 
 /**
- * The transform pivot selector (Blender's pivot point dropdown, the header face of the Period pie):
- * the chip shows the current pivot's name; each row dispatches its transform.pivot command, so the
- * pie, the palette, and this dropdown stay one behavior.
+ * The transform pivot selector (Blender's Transform Pivot Point, the header face of the Period pie): the
+ * chip wears the current pivot's glyph, and its panel heads one vertical [ButtonGroup] of the pivots, each
+ * with the glyph the chip and the pie show for it, the current one lit - the proportional panel's option
+ * group, so the header's two option panels work alike.  The panel stays open across picks.  Each segment
+ * dispatches its transform.pivot command, so the pie, the palette, and this panel stay one behavior.
  */
 @Composable
 internal fun PivotModeDropdown() {
@@ -120,33 +116,27 @@ internal fun PivotModeDropdown() {
 	val session = LocalEditorSession.current
 	val enabled = session != null
 	val pivotMode = session?.pivotMode?.collectAsState()?.value ?: TransformPivotMode.MedianPoint
-	var expanded by remember { mutableStateOf(false) }
-	val currentLabel =
-		when (pivotMode) {
-			TransformPivotMode.MedianPoint -> stringResource(Res.string.cmd_transform_pivot_median)
-			TransformPivotMode.IndividualOrigins -> stringResource(Res.string.cmd_transform_pivot_individual)
-			TransformPivotMode.ActiveElement -> stringResource(Res.string.cmd_transform_pivot_active)
-			TransformPivotMode.Cursor -> stringResource(Res.string.cmd_transform_pivot_cursor)
-		}
-	val items =
-		listOf(
-			MenuItem.Action(label = stringResource(Res.string.cmd_transform_pivot_median), onSelect = { commands.invoke("transform.pivot.median") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_transform_pivot_individual), onSelect = { commands.invoke("transform.pivot.individual") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_transform_pivot_active), onSelect = { commands.invoke("transform.pivot.active") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_transform_pivot_cursor), onSelect = { commands.invoke("transform.pivot.cursor") }),
-		)
-	DropdownChip(
-		expanded = expanded,
-		onExpandRequest = { expanded = true },
-		contentDescription = stringResource(Res.string.cmd_transform_pivot_pie),
-		icon = LocalUmamoIcons.transformPivot,
-		label = currentLabel,
+	val title = stringResource(Res.string.header_transform_pivot_point)
+	PopupChip(
+		contentDescription = title,
+		icon = pivotIcon(pivotMode),
 		enabled = enabled,
 	) {
-		Menu(
-			items = items,
-			onDismissRequest = { expanded = false },
-			positionProvider = BelowAnchorPositionProvider,
+		FilterSectionLabel(title)
+		ButtonGroup(
+			items =
+				TransformPivotMode.entries.map { mode ->
+					val label = pivotLabel(mode)
+					ButtonGroupItem(
+						icon = pivotIcon(mode),
+						selected = mode == pivotMode,
+						onClick = { commands.invoke(pivotCommandId(mode)) },
+						contentDescription = label,
+						label = label,
+					)
+				},
+			modifier = Modifier.fillMaxWidth().padding(horizontal = HEADER_PANEL_ROW_INSET),
+			axis = StackAxis.Vertical,
 		)
 	}
 }
@@ -236,7 +226,7 @@ internal fun ProportionalEditControls(size: ProportionalSizeField?) {
 		Column(modifier = Modifier.alpha(if (enabled) 1f else PROPORTIONAL_PANEL_INACTIVE_ALPHA)) {
 			Tooltip(
 				text = stringResource(Res.string.transform_options_connected_description),
-				modifier = Modifier.padding(horizontal = PROPORTIONAL_PANEL_ROW_INSET, vertical = 2.dp),
+				modifier = Modifier.padding(horizontal = HEADER_PANEL_ROW_INSET, vertical = 2.dp),
 			) {
 				Checkbox(
 					checked = settings.connectedOnly,
@@ -257,7 +247,7 @@ internal fun ProportionalEditControls(size: ProportionalSizeField?) {
 							label = falloffLabel(falloff),
 						)
 					},
-				modifier = Modifier.fillMaxWidth().padding(horizontal = PROPORTIONAL_PANEL_ROW_INSET),
+				modifier = Modifier.fillMaxWidth().padding(horizontal = HEADER_PANEL_ROW_INSET),
 				axis = StackAxis.Vertical,
 			)
 			if (size != null) {
@@ -281,7 +271,7 @@ private fun ProportionalSizeRow(size: ProportionalSizeField) {
 	PropertyFieldRow(
 		label = stringResource(Res.string.transform_options_proportional_size),
 		description = stringResource(Res.string.transform_options_proportional_size_description),
-		modifier = Modifier.padding(horizontal = PROPORTIONAL_PANEL_ROW_INSET, vertical = 2.dp),
+		modifier = Modifier.padding(horizontal = HEADER_PANEL_ROW_INSET, vertical = 2.dp),
 	) {
 		NumberField(
 			value = size.value,
@@ -297,6 +287,50 @@ private fun ProportionalSizeRow(size: ProportionalSizeField) {
 		)
 	}
 }
+
+/**
+ * A transform pivot's glyph: Blender's pivot icon, the one the Period pie shows for it, on the chip while the
+ * pivot is current and on the pivot's menu row.
+ *
+ * @param TransformPivotMode pivotMode The pivot.
+ * @return UmamoIcon The pivot's glyph.
+ */
+private fun pivotIcon(pivotMode: TransformPivotMode): UmamoIcon =
+	when (pivotMode) {
+		TransformPivotMode.MedianPoint -> LocalUmamoIcons.pivotMedian
+		TransformPivotMode.IndividualOrigins -> LocalUmamoIcons.pivotIndividual
+		TransformPivotMode.ActiveElement -> LocalUmamoIcons.pivotActive
+		TransformPivotMode.Cursor -> LocalUmamoIcons.pivotCursor
+	}
+
+/**
+ * A transform pivot's display name, the label of its command.
+ *
+ * @param TransformPivotMode pivotMode The pivot.
+ * @return String The localized name.
+ */
+@Composable
+private fun pivotLabel(pivotMode: TransformPivotMode): String =
+	when (pivotMode) {
+		TransformPivotMode.MedianPoint -> stringResource(Res.string.cmd_transform_pivot_median)
+		TransformPivotMode.IndividualOrigins -> stringResource(Res.string.cmd_transform_pivot_individual)
+		TransformPivotMode.ActiveElement -> stringResource(Res.string.cmd_transform_pivot_active)
+		TransformPivotMode.Cursor -> stringResource(Res.string.cmd_transform_pivot_cursor)
+	}
+
+/**
+ * The command that sets a transform pivot, the one the Period pie's entry dispatches too.
+ *
+ * @param TransformPivotMode pivotMode The pivot.
+ * @return String The command id.
+ */
+private fun pivotCommandId(pivotMode: TransformPivotMode): String =
+	when (pivotMode) {
+		TransformPivotMode.MedianPoint -> "transform.pivot.median"
+		TransformPivotMode.IndividualOrigins -> "transform.pivot.individual"
+		TransformPivotMode.ActiveElement -> "transform.pivot.active"
+		TransformPivotMode.Cursor -> "transform.pivot.cursor"
+	}
 
 /**
  * A falloff curve's glyph: Blender's curve icon, on the chip beside the chevron and on the curve's row.

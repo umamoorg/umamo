@@ -585,6 +585,7 @@
 	<string name="cmd_transform_pivot_individual">Individual Origins</string>
 	<string name="cmd_transform_pivot_active">Active Element</string>
 	<string name="cmd_transform_pivot_cursor">2D Cursor</string>
+	<string name="header_transform_pivot_point">Transform Pivot Point</string>
 	<string name="cmd_snap_pie">Snap</string>
 	<string name="cmd_snap_cursor_world_origin">Cursor to World Origin</string>
 	<string name="cmd_snap_cursor_selected">Cursor to Selected</string>
