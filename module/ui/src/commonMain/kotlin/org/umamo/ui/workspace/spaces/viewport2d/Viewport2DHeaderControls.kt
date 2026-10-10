@@ -51,6 +51,7 @@ fun OverflowRowScope.viewport2DHeaderControls(scope: AreaScope) {
 	val viewState = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }
 	pinnedItem("editorMode") { EditorModeDropdown() }
 	item("selectMode") { MeshSelectModeButtons() }
+	flexibleSpace()
 	item("pivot") { PivotModeDropdown() }
 	item("snap") { SnapDropdown() }
 	item("proportional") { ProportionalEditControls(size = sessionProportionalSizeField()) }

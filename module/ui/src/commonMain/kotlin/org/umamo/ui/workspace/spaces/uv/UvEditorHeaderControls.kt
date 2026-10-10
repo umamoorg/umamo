@@ -57,6 +57,7 @@ internal fun OverflowRowScope.uvEditorHeaderControls(scope: AreaScope) {
 		}
 	}
 	item("selectMode") { MeshSelectModeButtons() }
+	flexibleSpace()
 	item("pivot") { PivotModeDropdown() }
 	item("proportional") { ProportionalEditControls(size = uvProportionalSizeField(viewState.proportionalRadii)) }
 	flexibleSpace()
