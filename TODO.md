@@ -28,6 +28,10 @@
 * Final pass on default settings.
 * Final pass on default workspace layouts.
 * Final pass on theme colors.
+* Hire artist to make the application.
+	* Horse is critical.
+* Hire artist to make the DMG background art.
+	* Chibi Tamamo carrying the icon to the application folder.
 
 ## User Stories
 * glTF export for easy import into game engines.  (Requested; far future.)

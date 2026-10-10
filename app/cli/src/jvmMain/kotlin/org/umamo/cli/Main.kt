@@ -3,8 +3,8 @@ package org.umamo.cli
 import kotlin.system.exitProcess
 
 /*
- * The Umamo diagnostic CLI: dump / extract / atlas / convert / diff over cmo3, moc3, and source
- * artwork files.
+ * The Umamo diagnostic CLI: dump / extract / atlas / mesh / convert / diff over cmo3, moc3, and
+ * source artwork files.
  *
  * Replaces the diagnostic-tests-in-disguise workflow (Cmo3ResaveDumpTest's -Dcmo3.resave, ad-hoc
  * probe printlns) with a proper operator tool.  Data goes to stdout, diagnostics to stderr; exit 0
@@ -17,6 +17,7 @@ Usage (via Gradle; -q suppresses Gradle's own build output, leaving only this to
   ./gradlew -q :cli:run --args="dump <file> [--sections] [--xml] [--puppet]"
   ./gradlew -q :cli:run --args="extract <file> [<directory>]"
   ./gradlew -q :cli:run --args="atlas <file> [<directory>] [options]"
+  ./gradlew -q :cli:run --args="mesh <file> [<directory>] [options]"
   ./gradlew -q :cli:run --args="convert <in> <out>"
   ./gradlew -q :cli:run --args="diff <a> <b>"
 
@@ -49,6 +50,24 @@ Commands:
                      --preview       Also write preview.png: the canvas recomposited
                                      from the packed pages (Source-over; blend modes
                                      and layer opacity ignored).
+  mesh <file> [<directory>]
+                   Run the art mesher over a source artwork document's raster layers.
+                   Prints each layer's vertex and triangle counts, outline and interior
+                   point counts, smallest triangle angle, timing, and notices, and writes
+                   the same table to mesh.txt in a NEW subdirectory named after the input
+                   with a -mesh suffix.
+                     --layer=NAME    Mesh only the layer with this exact name.
+                     --preset=NAME   standard, fine, or coarse (Default: standard).
+                     --visible-only  Skip layers hidden by their own or a folder's eye.
+                     --fill-holes    Mesh over holes in the art instead of cutting them
+                                     out: one solid sheet per piece (lace, webs).
+                     --preview       Also write NNN-<layer>.png: each mesh drawn over its
+                                     art (outline magenta, interior edges blue).
+                     --scale=N       Magnify previews N times (Default: 1).
+                     --alpha-threshold=N, --outline-spacing=N, --interior-spacing=N,
+                     --outer-margin=N, --inner-margin=N, --minimum-margin=N,
+                     --minimum-outline-points=N, --vertex-budget=N
+                                     Override one setting of the preset (pixels).
   convert <in> <out>
                    Direction by input format and output extension:
                      cmo3 -> cmo3  Resave (An unedited main.xml will reemit byte-identical.)
@@ -92,6 +111,7 @@ internal fun runCli(arguments: List<String>): Int {
 			"dump" -> runDump(arguments.drop(1))
 			"extract" -> runExtract(arguments.drop(1))
 			"atlas" -> runAtlas(arguments.drop(1))
+			"mesh" -> runMesh(arguments.drop(1))
 			"convert" -> runConvert(arguments.drop(1))
 			"diff" -> runDiff(arguments.drop(1))
 			else -> {
