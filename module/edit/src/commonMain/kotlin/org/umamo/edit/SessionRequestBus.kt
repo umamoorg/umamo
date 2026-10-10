@@ -241,6 +241,10 @@ enum class SnapKind {
  * texel boundary is a natural target for artwork-edge accuracy) and no Active-element snaps, while the
  * world grid has no meaning here (the UV grid subdivides the atlas page instead - see the UV editor's
  * display mapping).
+ *
+ * Each runs in both modes, read in each mode's unit of motion: Edit mode snaps the selected vertices' texture
+ * coordinates, Object mode the selected placed art tiles on the shown page (each moved by its origin, its
+ * footprint's center).  The cursor-only snaps read no selection and behave the same in both.
  */
 enum class UvSnapKind {
 	SelectionToPixels,

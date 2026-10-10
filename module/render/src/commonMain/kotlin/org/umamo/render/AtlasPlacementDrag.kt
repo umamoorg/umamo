@@ -36,7 +36,8 @@ import kotlin.math.floor
 
 /**
  * Per tile, the union of its bound drawables' mesh reach in the tile's own art frame, rounded out to
- * whole pixels - what a pack must keep clear BEYOND the opaque pixels.
+ * whole pixels (a bound within float noise of a pixel edge counts as on it) - what a pack must keep clear
+ * BEYOND the opaque pixels.
  *
  * The pixels alone do not bound what samples a tile: an art mesh rings outside the opaque region
  * (Erica's reach up to 58px past their trim, and past the raster itself), so a pack spaced by
@@ -74,15 +75,25 @@ public fun meshReserveByTile(model: PuppetModel): Map<AtlasTileId, AtlasPackRese
 			componentIndex += 2
 		}
 	}
+	// A bound within float noise of a pixel edge counts as on it, so the rounding out cannot add a pixel.
 	return boundsByTile.mapValues { (_, bounds) ->
 		AtlasPackReserve(
-			left = floor(bounds[0]).toInt(),
-			top = floor(bounds[1]).toInt(),
-			right = ceil(bounds[2]).toInt(),
-			bottom = ceil(bounds[3]).toInt(),
+			left = floor(bounds[0] + RESERVE_EDGE_TOLERANCE).toInt(),
+			top = floor(bounds[1] + RESERVE_EDGE_TOLERANCE).toInt(),
+			right = ceil(bounds[2] - RESERVE_EDGE_TOLERANCE).toInt(),
+			bottom = ceil(bounds[3] - RESERVE_EDGE_TOLERANCE).toInt(),
 		)
 	}
 }
+
+/**
+ * How far a mesh bound may sit from a whole art pixel and still count as on it, in art pixels.  Stored
+ * coordinates are float32 page fractions re-derived whenever a placement moves, so a mesh edge exactly on a
+ * pixel edge comes back a few ULPs to either side of it; floored or ceiled raw, that noise would widen the
+ * reserve by a whole pixel, and a tile's footprint and origin would shift each time it moved.  Far below
+ * any reach a mesh really has past a pixel edge.
+ */
+private const val RESERVE_EDGE_TOLERANCE = 1e-3f
 
 /**
  * A placement's axis-aligned extent on its page, in continuous page pixels: the bounds of the

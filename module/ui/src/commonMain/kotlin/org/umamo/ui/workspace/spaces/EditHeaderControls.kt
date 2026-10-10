@@ -9,9 +9,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MAX_PROPORTIONAL_RADIUS_WORLD
@@ -21,17 +25,21 @@ import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.transform.choiceKey
 import org.umamo.ui.action.LocalCommands
+import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.StackAxis
 import org.umamo.ui.kit.Tooltip
 import org.umamo.ui.kit.button.ButtonGroup
 import org.umamo.ui.kit.button.ButtonGroupItem
 import org.umamo.ui.kit.chip.ChipToggle
+import org.umamo.ui.kit.chip.DropdownChip
 import org.umamo.ui.kit.chip.FilterSectionLabel
 import org.umamo.ui.kit.chip.PopupChip
 import org.umamo.ui.kit.field.Checkbox
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.formatDecimals
+import org.umamo.ui.kit.menu.Menu
+import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
@@ -42,8 +50,8 @@ import org.umamo.ui.workspace.commands.ProportionalConnectedRequest
 
 /*
  * The Edit-mode header controls shared by the editor surfaces that host element editing - the 2D
- * viewport and the UV editor mount the same select-mode buttons, pivot panel, and proportional
- * control, so the two headers stay one behavior (and one look) by construction.  Every control
+ * viewport and the UV editor mount the same select-mode buttons, pivot panel, snap menu, and
+ * proportional control, so the two headers stay one behavior (and one look) by construction.  Every control
  * mutates by dispatching registry commands, per the everything-through-the-action-registry rule; the
  * one exception is the proportional panel's size row, a value no command carries, which each header
  * routes to its own surface's radius.
@@ -140,6 +148,112 @@ internal fun PivotModeDropdown() {
 		)
 	}
 }
+
+/** Which snap menu a header mounts: the 2D viewport's world snaps or the UV editor's texture-space ones. */
+internal enum class SnapMenuKind {
+	Viewport2D,
+	UvEditor,
+}
+
+/**
+ * One row of a snap menu: the command it dispatches, its title, and its glyph.
+ *
+ * @property String commandId The snap command the row dispatches.
+ * @property StringResource title The command's title, the row's label.
+ * @property UmamoIcon icon The row's glyph, the one the snap pie shows for the same command.
+ */
+private class SnapMenuRow(
+	val commandId: String,
+	val title: StringResource,
+	val icon: UmamoIcon,
+)
+
+/** The 2D viewport's snap rows: the cursor moves, then the selection moves. */
+private val VIEWPORT_SNAP_CURSOR_ROWS =
+	listOf(
+		SnapMenuRow("snap.cursorToWorldOrigin", Res.string.cmd_snap_cursor_world_origin, LocalUmamoIcons.cursor),
+		SnapMenuRow("snap.cursorToGrid", Res.string.cmd_snap_cursor_grid, LocalUmamoIcons.cursor),
+		SnapMenuRow("snap.cursorToSelected", Res.string.cmd_snap_cursor_selected, LocalUmamoIcons.cursor),
+		SnapMenuRow("snap.cursorToActive", Res.string.cmd_snap_cursor_active, LocalUmamoIcons.cursor),
+	)
+
+/** The 2D viewport's selection snap rows. */
+private val VIEWPORT_SNAP_SELECTION_ROWS =
+	listOf(
+		SnapMenuRow("snap.selectionToGrid", Res.string.cmd_snap_selection_grid, LocalUmamoIcons.selection),
+		SnapMenuRow("snap.selectionToCursor", Res.string.cmd_snap_selection_cursor, LocalUmamoIcons.selection),
+		SnapMenuRow("snap.selectionToCursorOffset", Res.string.cmd_snap_selection_cursor_offset, LocalUmamoIcons.selection),
+		SnapMenuRow("snap.selectionToActive", Res.string.cmd_snap_selection_active, LocalUmamoIcons.selection),
+	)
+
+/** The UV editor's cursor snap rows, wearing the cursor glyph Blender's UV editor uses. */
+private val UV_SNAP_CURSOR_ROWS =
+	listOf(
+		SnapMenuRow("uv.snap.cursorToPixels", Res.string.cmd_uv_snap_cursor_pixels, LocalUmamoIcons.pivotCursor),
+		SnapMenuRow("uv.snap.cursorToSelected", Res.string.cmd_uv_snap_cursor_selected, LocalUmamoIcons.pivotCursor),
+		SnapMenuRow("uv.snap.cursorToGrid", Res.string.cmd_uv_snap_cursor_grid, LocalUmamoIcons.pivotCursor),
+	)
+
+/** The UV editor's selection snap rows. */
+private val UV_SNAP_SELECTION_ROWS =
+	listOf(
+		SnapMenuRow("uv.snap.selectionToPixels", Res.string.cmd_uv_snap_selection_pixels, LocalUmamoIcons.selection),
+		SnapMenuRow("uv.snap.selectionToCursor", Res.string.cmd_uv_snap_selection_cursor, LocalUmamoIcons.selection),
+		SnapMenuRow("uv.snap.selectionToCursorOffset", Res.string.cmd_uv_snap_selection_cursor_offset, LocalUmamoIcons.selection),
+		SnapMenuRow("uv.snap.selectionToGrid", Res.string.cmd_uv_snap_selection_grid, LocalUmamoIcons.selection),
+	)
+
+/**
+ * The snap menu (Blender's Shift+S, as a header dropdown): an icon-only magnet chip over a menu of the
+ * surface's snap commands - the cursor moves, a separator, then the selection moves, Blender's grouping.
+ * Each row dispatches the command the snap pie's entry dispatches and wears the pie entry's glyph, so the
+ * pie, the palette, and this menu stay one behavior.  Every row is a one-shot command, so this stays a
+ * menu: a pick runs it and closes.
+ *
+ * The 2D viewport's menu is the world snaps; the UV editor's is the texture-space snaps, which move UVs in
+ * Edit mode and placed art tiles in Object mode.  Both are offered in either mode and disabled with no
+ * document.  A pick acts on the header's own area: the click that opened the chip stamped that area as the
+ * hovered one, and the open menu keeps the pointer from stamping another.
+ *
+ * @param SnapMenuKind kind Which surface's snaps the menu offers.
+ */
+@Composable
+internal fun SnapDropdown(kind: SnapMenuKind) {
+	val commands = LocalCommands.current
+	val session = LocalEditorSession.current
+	var expanded by remember { mutableStateOf(false) }
+	val (cursorRows, selectionRows) =
+		when (kind) {
+			SnapMenuKind.Viewport2D -> VIEWPORT_SNAP_CURSOR_ROWS to VIEWPORT_SNAP_SELECTION_ROWS
+			SnapMenuKind.UvEditor -> UV_SNAP_CURSOR_ROWS to UV_SNAP_SELECTION_ROWS
+		}
+	val cursorItems = cursorRows.map { row -> snapMenuItem(row) { commands.invoke(row.commandId) } }
+	val selectionItems = selectionRows.map { row -> snapMenuItem(row) { commands.invoke(row.commandId) } }
+	DropdownChip(
+		expanded = expanded,
+		onExpandRequest = { expanded = true },
+		contentDescription = stringResource(Res.string.cmd_snap_pie),
+		icon = LocalUmamoIcons.snap,
+		enabled = session != null,
+	) {
+		Menu(
+			items = cursorItems + MenuItem.Separator + selectionItems,
+			onDismissRequest = { expanded = false },
+			positionProvider = BelowAnchorPositionProvider,
+		)
+	}
+}
+
+/**
+ * A snap row's menu entry: its title and glyph, running [onSelect] when picked.
+ *
+ * @param SnapMenuRow row The row.
+ * @param Function onSelect Dispatches the row's command.
+ * @return MenuItem.Action The entry.
+ */
+@Composable
+private fun snapMenuItem(row: SnapMenuRow, onSelect: () -> Unit): MenuItem.Action =
+	MenuItem.Action(label = stringResource(row.title), onSelect = onSelect, icon = row.icon)
 
 /**
  * The Proportional Size row of the proportional panel: the radius a surface's proportional editing reaches,
