@@ -44,10 +44,10 @@ private val SETTING_OPTIONS =
  * @return Int The exit code; 1 when the mesher withheld a mesh after a failed structural check.
  */
 internal fun runMesh(arguments: List<String>): Int {
-	val parsed = parseArguments(arguments, knownFlags = setOf("--visible-only", "--preview"), knownOptions = setOf("--layer", "--preset", "--scale") + SETTING_OPTIONS)
+	val parsed = parseArguments(arguments, knownFlags = setOf("--visible-only", "--preview", "--fill-holes"), knownOptions = setOf("--layer", "--preset", "--scale") + SETTING_OPTIONS)
 
 	if (parsed.positionals.isEmpty() || parsed.positionals.size > 2) {
-		throw CliUsageException("Usage: mesh <file> [<directory>] [--layer=NAME] [--preset=standard|fine|coarse] [--visible-only] [--preview] [--scale=N] [setting overrides]")
+		throw CliUsageException("Usage: mesh <file> [<directory>] [--layer=NAME] [--preset=standard|fine|coarse] [--visible-only] [--fill-holes] [--preview] [--scale=N] [setting overrides]")
 	}
 
 	val loaded = loadInput(parsed.positionals[0])
@@ -135,7 +135,7 @@ internal fun runMesh(arguments: List<String>): Int {
 }
 
 /**
- * Builds the settings: a preset, then any per-setting overrides.
+ * Builds the settings: a preset, then any per-setting overrides and --fill-holes.
  *
  * @param CliArguments parsed The command line.
  * @return ArtMeshSettings The settings.
@@ -157,6 +157,7 @@ private fun settingsFrom(parsed: CliArguments): ArtMeshSettings {
 			minimumMargin = parsed.doubleOption("--minimum-margin", base.minimumMargin),
 			minimumOutlinePoints = parsed.intOption("--minimum-outline-points", base.minimumOutlinePoints),
 			vertexBudget = parsed.intOption("--vertex-budget", base.vertexBudget),
+			fillHoles = "--fill-holes" in parsed.flags,
 		)
 	} catch (invalid: IllegalArgumentException) {
 		throw CliUsageException(invalid.message ?: "invalid mesh settings")

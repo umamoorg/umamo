@@ -242,7 +242,7 @@ A moc3 input may also be given as its `.model3.json` manifest; textures and side
 
 `dump`, `atlas`, and `mesh` accept source layered artwork(`.psd`, `.clip`, `.kra`) or any flat raster read as a one-layer document.
 * The `atlas` command takes `--page-size=N`, `--gutter=N`, `--extrude=N`, `--rotate`, `--visible-only`, and `--no-shrink`.  It reads every packed tile back out of its page and exits non-zero if any byte differs and reports layers it could not pack(no opaque pixels, or larger than a page) rather than dropping them silently.
-* The `mesh` command takes `--layer=NAME`, `--preset=standard|fine|coarse`, `--visible-only`, `--preview`, `--scale=N`, and one `--key=value` per mesher setting.  It prints each layer's vertex counts, smallest triangle angle, timing, and notices.  It will exit with a non-zero status if the mesher withheld a mesh after a failed structural check.
+* The `mesh` command takes `--layer=NAME`, `--preset=standard|fine|coarse`, `--visible-only`, `--fill-holes`, `--preview`, `--scale=N`, and one `--key=value` per mesher setting.  Use `--fill-holes` meshes over holes in the art (lace, a spider web) as one solid sheet instead of cutting them out.  It prints each layer's vertex counts, smallest triangle angle, timing, and notices.  It will exit with a non-zero status if the mesher withheld a mesh after a failed structural check.
 
 #### Running Tests
 

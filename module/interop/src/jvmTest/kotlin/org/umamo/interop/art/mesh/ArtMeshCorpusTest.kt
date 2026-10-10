@@ -6,13 +6,15 @@ import org.umamo.format.art.SourceLayerKind
 import org.umamo.geometry.mesh.measureQuality
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
  * The art mesher over every raster layer of every real layered file in the local corpus (PSD, CLIP,
- * KRA), at every preset, each mesh checked by the same independent oracle the synthetic tests use:
- * orientation, manifold edges, every art pixel covered, every boundary edge clear of the art.  Real
+ * KRA), at every preset and once more at Standard with holes filled, each mesh checked by the same
+ * independent oracle the synthetic tests use: orientation, manifold edges, every art pixel covered,
+ * every boundary edge clear of the art, and with holes filled one disc per outline ring.  Real
  * art is where the shapes the synthetic tests never imagined live - ragged antialiasing, hair tips,
  * lace, specks of eraser residue - and it reports counts, quality, and timing per sample.
  *
@@ -20,6 +22,11 @@ import kotlin.test.fail
  * found by walking up from the working directory, self-skipping with a printed line when none exist.
  */
 class ArtMeshCorpusTest {
+	/** Every preset, and Standard again with holes filled. */
+	private val configurations: List<Pair<String, ArtMeshSettings>> =
+		ArtMeshPreset.entries.map { preset -> preset.name to preset.settings } +
+			("Standard with holes filled" to ArtMeshPreset.Standard.settings.copy(fillHoles = true))
+
 	@Test
 	fun everyCorpusLayerMeshesWithCoverage() {
 		val samples = locateSamples()
@@ -40,7 +47,7 @@ class ArtMeshCorpusTest {
 	}
 
 	/**
-	 * Meshes every raster layer of one sample at every preset and checks each mesh.
+	 * Meshes every raster layer of one sample in every configuration and checks each mesh.
 	 *
 	 * @param File sample The artwork file.
 	 * @return Int The number of layers meshed at least once.
@@ -60,10 +67,9 @@ class ArtMeshCorpusTest {
 		for (layer in art.layers.filter { it.kind == SourceLayerKind.Raster }) {
 			var meshedOnce = false
 
-			for (preset in ArtMeshPreset.entries) {
-				val settings = preset.settings
+			for ((configurationName, settings) in configurations) {
 				val result = generateArtMesh(layer.raster, settings)
-				val context = "${sample.name}: '${layer.name}' (order ${layer.order}, ${layer.raster.width}x${layer.raster.height}) at ${preset.name}"
+				val context = "${sample.name}: '${layer.name}' (order ${layer.order}, ${layer.raster.width}x${layer.raster.height}) at $configurationName"
 
 				if (result.notices.any { it is ArtMeshNotice.StructureCheckFailed }) {
 					fail("$context: mesh withheld - ${result.notices}")
@@ -85,6 +91,10 @@ class ArtMeshCorpusTest {
 					assertArtCovered(layer.raster, mesh, settings.alphaThreshold)
 					assertBoundaryClearsArt(layer.raster, mesh, settings.alphaThreshold, settings.minimumMargin)
 					assertTrue(mesh.vertexCount <= settings.vertexBudget, "over the vertex budget")
+
+					if (settings.fillHoles) {
+						assertEquals(result.statistics!!.outlineRingCount, eulerCharacteristic(mesh), "a mesh with its holes filled is one disc per outline ring")
+					}
 				} catch (failure: AssertionError) {
 					throw AssertionError("$context: ${failure.message}", failure)
 				}
@@ -103,7 +113,7 @@ class ArtMeshCorpusTest {
 
 		val elapsedMilliseconds = (System.nanoTime() - startNanos) / 1_000_000
 		println(
-			"checked ${sample.name}: $meshedCount layers meshed across ${ArtMeshPreset.entries.size} presets, " +
+			"checked ${sample.name}: $meshedCount layers meshed across ${configurations.size} configurations, " +
 				"$nothingOpaqueCount empty, $overBudgetCount over budget, $vertexTotal vertices, " +
 				"smallest angle ${"%.2f".format(smallestAngle)}, $sliverTotal triangles under 10 degrees, $elapsedMilliseconds ms",
 		)

@@ -1,7 +1,9 @@
 package org.umamo.interop.art.mesh
 
 import org.umamo.format.art.LayerRaster
+import org.umamo.geometry.mesh.PlanarTriangleMesh
 import kotlin.math.abs
+import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -14,7 +16,8 @@ import kotlin.test.assertTrue
 /**
  * The art mesher on synthetic shapes, every mesh checked by the independent oracle in
  * ArtMeshTestSupport (orientation, manifold edges, used and distinct vertices, exact pins, every art
- * pixel covered, every boundary edge clear of the art by the minimum margin).
+ * pixel covered, every boundary edge clear of the art by the minimum margin, and with holes filled
+ * one disc per outline ring).
  */
 class ArtMesherTest {
 	private val standard = ArtMeshPreset.Standard.settings
@@ -40,6 +43,52 @@ class ArtMesherTest {
 		val mesh = assertValidArtMesh(raster, standard, result)
 		assertEquals(2, result.statistics!!.outlineRingCount)
 		assertFalse(meshCovers(mesh, 50.0, 50.0), "the hole's center stays open")
+	}
+
+	@Test
+	fun aFilledAnnulusIsOneSheetWithPointsAcrossItsHole() {
+		val raster = rasterOf(200, 200) { column, row -> inDisc(column, row, 100.0, 100.0, 90.0) && !inDisc(column, row, 100.0, 100.0, 40.0) }
+		val inHole = { mesh: PlanarTriangleMesh ->
+			(0 until mesh.vertexCount).any { vertex -> distanceFromCenter(mesh, vertex, 100.0, 100.0) < 30.0 }
+		}
+		val kept = assertValidArtMesh(raster, standard, generateArtMesh(raster, standard))
+		val filledSettings = standard.copy(fillHoles = true)
+		val filledResult = generateArtMesh(raster, filledSettings)
+		val filled = assertValidArtMesh(raster, filledSettings, filledResult)
+		assertEquals(1, filledResult.statistics!!.outlineRingCount)
+		assertFalse(inHole(kept), "with the hole kept no vertex sits in it")
+		assertTrue(inHole(filled), "with the hole filled the lattice runs across it")
+		assertTrue(meshCovers(filled, 100.0, 100.0))
+	}
+
+	@Test
+	fun aNetTooHoleyForTheBudgetMeshesWhenFilled() {
+		// 2 px strands every 24 px: 361 holes, each a ring of at least six vertices when kept.
+		val raster = rasterOf(470, 470) { column, row -> column <= 457 && row <= 457 && (column % 24 < 2 || row % 24 < 2) }
+		val keptResult = generateArtMesh(raster, standard)
+		assertNull(keptResult.mesh)
+		assertTrue(keptResult.notices.single() is ArtMeshNotice.OverBudget, "${keptResult.notices}")
+		val filledSettings = standard.copy(fillHoles = true)
+		val filledResult = generateArtMesh(raster, filledSettings)
+		val mesh = assertValidArtMesh(raster, filledSettings, filledResult)
+		val statistics = filledResult.statistics!!
+		assertEquals(1, statistics.outlineRingCount)
+		assertTrue(statistics.latticeVertexCount > 0)
+		assertTrue(meshCovers(mesh, 228.5, 228.5), "a hole's center is covered")
+	}
+
+	@Test
+	fun anIslandInsideAFilledHoleNeedsNoRingOfItsOwn() {
+		val raster =
+			rasterOf(120, 120) { column, row ->
+				val inAnnulus = inDisc(column, row, 60.0, 60.0, 50.0) && !inDisc(column, row, 60.0, 60.0, 30.0)
+				inAnnulus || inDisc(column, row, 60.0, 60.0, 6.0)
+			}
+		assertEquals(3, generateArtMesh(raster, standard).statistics!!.outlineRingCount)
+		val filledSettings = standard.copy(fillHoles = true)
+		val filledResult = generateArtMesh(raster, filledSettings)
+		assertValidArtMesh(raster, filledSettings, filledResult)
+		assertEquals(1, filledResult.statistics!!.outlineRingCount)
 	}
 
 	@Test
@@ -194,7 +243,10 @@ class ArtMesherTest {
 			}
 
 			for (preset in ArtMeshPreset.entries) {
-				assertValidArtMesh(raster, preset.settings, generateArtMesh(raster, preset.settings))
+				for (fillHoles in listOf(false, true)) {
+					val settings = preset.settings.copy(fillHoles = fillHoles)
+					assertValidArtMesh(raster, settings, generateArtMesh(raster, settings))
+				}
 			}
 		}
 	}
@@ -216,6 +268,22 @@ class ArtMesherTest {
 		assertFailsWith<IllegalArgumentException> { standard.copy(outlineSpacing = 0.0) }
 		assertFailsWith<IllegalArgumentException> { generateArtMesh(noisyBlob(), standard, doubleArrayOf(1.0)) }
 		assertFailsWith<IllegalArgumentException> { generateArtMesh(noisyBlob(), standard, doubleArrayOf(Double.NaN, 1.0)) }
+	}
+
+	/**
+	 * How far a mesh vertex lies from a point.
+	 *
+	 * @param PlanarTriangleMesh mesh    The mesh.
+	 * @param Int                vertex  The vertex.
+	 * @param Double             centerX The point's x.
+	 * @param Double             centerY The point's y.
+	 * @return Double The distance.
+	 */
+	private fun distanceFromCenter(mesh: PlanarTriangleMesh, vertex: Int, centerX: Double, centerY: Double): Double {
+		val deltaX = mesh.positions[2 * vertex] - centerX
+		val deltaY = mesh.positions[2 * vertex + 1] - centerY
+
+		return sqrt(deltaX * deltaX + deltaY * deltaY)
 	}
 
 	/**

@@ -59,6 +59,8 @@ Commands:
                      --layer=NAME    Mesh only the layer with this exact name.
                      --preset=NAME   standard, fine, or coarse (Default: standard).
                      --visible-only  Skip layers hidden by their own or a folder's eye.
+                     --fill-holes    Mesh over holes in the art instead of cutting them
+                                     out: one solid sheet per piece (lace, webs).
                      --preview       Also write NNN-<layer>.png: each mesh drawn over its
                                      art (outline magenta, interior edges blue).
                      --scale=N       Magnify previews N times (Default: 1).

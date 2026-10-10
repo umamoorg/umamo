@@ -3,6 +3,7 @@ package org.umamo.interop.art.mesh
 import org.umamo.format.art.AlphaField
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.alphaField
+import org.umamo.geometry.polyline.outermostRings
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.sqrt
@@ -21,6 +22,12 @@ import kotlin.math.sqrt
  * is split again from the traced contour.  An INNER RING follows the art's edge a margin inside it, a
  * hexagonal LATTICE fills the interior, PINS become vertices at their exact positions, and the
  * constrained triangulation of all of it, clipped to the outline, is the mesh.
+ *
+ * Filling holes meshes the art's silhouette instead.  The outline keeps only the rings nothing else
+ * encloses, so no hole ring (and no ring of art inside a hole) ever reaches the triangulation and the
+ * mesh is one solid sheet per piece; the outline itself is traced from the art's own field, so every
+ * guarantee above still holds.  The inner ring and lattice come from the field with its holes
+ * filled, so they run evenly across the holes instead of only through the art.
  *
  * Everything is in the layer raster's own pixels, y down, rounded to Float before it is triangulated,
  * so the triangles' orientation (orient2d > 0, the birth quad's winding) holds as stored.  The output
@@ -62,8 +69,11 @@ public fun generateArtMesh(raster: LayerRaster, settings: ArtMeshSettings, pins:
 	val outlineLevel = maxOf(settings.outerMargin, settings.minimumMargin + 2.0 * cellSize)
 	val tolerance = maxOf(1.0, cellSize.toDouble())
 	val thinning = cellSize / 4.0
-	val denseOutline = field.isoRings(outlineLevel).map { ring -> thinTracedRing(ring, thinning) }
-	val denseInner = if (settings.innerMargin > 0.0) field.isoRings(-settings.innerMargin).map { ring -> thinTracedRing(ring, thinning) } else emptyList()
+	val tracedOutline = field.isoRings(outlineLevel)
+	val outlineRings = if (settings.fillHoles) outermostRings(tracedOutline).map { index -> tracedOutline[index] } else tracedOutline
+	val denseOutline = outlineRings.map { ring -> thinTracedRing(ring, thinning) }
+	val interiorField = if (settings.fillHoles) field.withHolesFilled(outlineLevel) else field
+	val denseInner = if (settings.innerMargin > 0.0) interiorField.isoRings(-settings.innerMargin).map { ring -> thinTracedRing(ring, thinning) } else emptyList()
 	val roundedPins = DoubleArray(pins.size) { component -> pins[component].toFloat().toDouble() }
 	val pinCount = pins.size / 2
 	val vertexFloor = denseOutline.size * settings.minimumOutlinePoints + pinCount
@@ -79,7 +89,7 @@ public fun generateArtMesh(raster: LayerRaster, settings: ArtMeshSettings, pins:
 	var round = 0
 
 	while (true) {
-		val points = placePoints(field, settings, denseOutline, denseInner, roundedPins, outlineSpacing, interiorSpacing, tolerance)
+		val points = placePoints(field, interiorField, settings, denseOutline, denseInner, roundedPins, outlineSpacing, interiorSpacing, tolerance)
 
 		if (points.vertexCount <= settings.vertexBudget) {
 			if (round > 0) {
@@ -126,7 +136,8 @@ private class PlacedPoints(val outline: List<SampledRing>, val innerRings: List<
 /**
  * Places the outline, inner rings, and lattice at one pair of spacings.
  *
- * @param AlphaField        field           The field.
+ * @param AlphaField        field           The art's field, which every outline chord is checked against.
+ * @param AlphaField        interiorField   The field the inner rings and lattice follow (the silhouette's when filling holes).
  * @param ArtMeshSettings   settings        The settings.
  * @param List<DoubleArray> denseOutline    The traced outline contours.
  * @param List<DoubleArray> denseInner      The traced inner contours.
@@ -138,6 +149,7 @@ private class PlacedPoints(val outline: List<SampledRing>, val innerRings: List<
  */
 private fun placePoints(
 	field: AlphaField,
+	interiorField: AlphaField,
 	settings: ArtMeshSettings,
 	denseOutline: List<DoubleArray>,
 	denseInner: List<DoubleArray>,
@@ -181,8 +193,8 @@ private fun placePoints(
 			ring.refine(coversArt)
 			ring
 		}
-	val innerRings = innerRingPoints(denseInner, field, interiorSpacing, settings.innerMargin, tolerance, pins)
-	val lattice = latticePoints(field, interiorSpacing, settings.innerMargin, pins)
+	val innerRings = innerRingPoints(denseInner, interiorField, interiorSpacing, settings.innerMargin, tolerance, pins)
+	val lattice = latticePoints(interiorField, interiorSpacing, settings.innerMargin, pins)
 
 	return PlacedPoints(outline, innerRings, lattice, pins)
 }

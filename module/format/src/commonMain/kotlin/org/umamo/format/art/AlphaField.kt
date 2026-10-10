@@ -118,6 +118,60 @@ public class AlphaField internal constructor(
 	 * @return Boolean True for an opaque or seeded pixel.
 	 */
 	public fun isOpaquePixel(column: Int, row: Int): Boolean = mask.isOpaque(column, row)
+
+	/**
+	 * This field over the art's silhouette at a level: the art with every hole its contours at that
+	 * level enclose filled in, for placing points across the holes as if the art were solid.
+	 *
+	 * A cell is outside when the grid's border reaches it through cells at or above the level, joined
+	 * the way the contours join them.  The silhouette is every opaque cell plus every enclosed cell at
+	 * least the level (and half a cell) away from the outside: what the outer contours enclose, drawn
+	 * back in by the level, which closes the holes and any inlet narrower than twice the level.  On
+	 * the art's outer side the silhouette is the art itself, so the field there barely moves.  The
+	 * result is the silhouette's signed distance on the same grid, never above this field anywhere.
+	 *
+	 * Only the field changes: the exact checks ([segmentClears], [containsOpaquePixelCenter],
+	 * [isOpaquePixel]) still answer for the art's own pixels.
+	 *
+	 * @param Double level The level whose holes to fill, raster px (positive).
+	 * @return AlphaField The filled field, or this field when nothing is filled.
+	 * @note The contours of the filled field at the level can still hold a small hole where a narrow
+	 *       pinch leaves one too shallow to fill; select the outermost rings when none may remain.
+	 */
+	public fun withHolesFilled(level: Double): AlphaField {
+		require(level > 0.0 && level.isFinite()) { "level must be positive and finite: $level" }
+		val exterior = exteriorCells(values, columns, rows, level)
+
+		// With nothing outside at all the level is beyond the padding, and every cell would fill.
+		if (exterior.none { it }) {
+			return this
+		}
+
+		val squaredDistances = IntArray(columns * rows)
+		squaredDistanceToFeatures(exterior, true, columns, rows, squaredDistances)
+		// Grid distances are between cell centers; an outside cell sits at least level + half a cell
+		// from the art, and the silhouette keeps that same reach from the outside.
+		val reach = level + cellSize / 2.0
+		val silhouette = BooleanArray(columns * rows)
+		var addedCount = 0
+
+		for (cell in silhouette.indices) {
+			val isOpaque = values[cell] < 0f
+			val squaredDistance = squaredDistances[cell]
+			val isFarInside = !exterior[cell] && sqrt(squaredDistance.toDouble()) * cellSize >= reach
+			silhouette[cell] = isOpaque || isFarInside
+
+			if (!isOpaque && isFarInside) {
+				addedCount++
+			}
+		}
+
+		if (addedCount == 0) {
+			return this
+		}
+
+		return AlphaField(cellSize, gridLeft, gridTop, columns, rows, opaquePixelCount, mask, signedField(silhouette, columns, rows, cellSize))
+	}
 }
 
 /**

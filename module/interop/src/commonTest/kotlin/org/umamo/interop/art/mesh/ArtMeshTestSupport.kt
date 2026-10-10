@@ -60,7 +60,9 @@ internal fun inDisc(column: Int, row: Int, centerX: Double, centerY: Double, rad
  * with it: every triangle positively oriented on its Float coordinates, every directed edge used
  * once, every vertex used and distinct, pins at their exact Float positions, every art pixel's
  * center inside some triangle (scan conversion by orient2d), and every boundary edge at least the
- * minimum margin from every art pixel square (brute force).
+ * minimum margin from every art pixel square (brute force).  With holes filled, the mesh must also be
+ * one disc per outline ring: its Euler characteristic (vertices - edges + triangles) equals the ring
+ * count, where every hole would take one away.
  *
  * @param LayerRaster     raster   The meshed raster.
  * @param ArtMeshSettings settings The settings used.
@@ -105,7 +107,30 @@ internal fun assertValidArtMesh(raster: LayerRaster, settings: ArtMeshSettings, 
 	assertArtCovered(raster, mesh, settings.alphaThreshold)
 	assertBoundaryClearsArt(raster, mesh, settings.alphaThreshold, settings.minimumMargin)
 
+	if (settings.fillHoles) {
+		assertEquals(result.statistics!!.outlineRingCount, eulerCharacteristic(mesh), "a mesh with its holes filled is one disc per outline ring")
+	}
+
 	return mesh
+}
+
+/**
+ * A mesh's Euler characteristic: vertices minus undirected edges plus triangles - one for each
+ * connected disc, less one for each hole.
+ *
+ * @param PlanarTriangleMesh mesh The mesh.
+ * @return Int The characteristic.
+ */
+internal fun eulerCharacteristic(mesh: PlanarTriangleMesh): Int {
+	val edges = HashSet<Long>()
+
+	for (entry in mesh.triangles.indices) {
+		val start = mesh.triangles[entry]
+		val end = mesh.triangles[if (entry % 3 == 2) entry - 2 else entry + 1]
+		edges.add(edgeKey(minOf(start, end), maxOf(start, end)))
+	}
+
+	return mesh.vertexCount - edges.size + mesh.triangleCount
 }
 
 /**

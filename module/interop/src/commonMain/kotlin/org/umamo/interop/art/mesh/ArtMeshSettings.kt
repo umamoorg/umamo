@@ -13,16 +13,19 @@ public const val DEFAULT_ART_MESH_VERTEX_BUDGET: Int = 1024
  * Pixels at or above [alphaThreshold] are guaranteed covered: the outline keeps at least
  * [minimumMargin] from every such pixel, and runs [outerMargin] outside the art where the shape
  * allows.  A second, inner ring runs [innerMargin] inside the art's edge (none when zero), and a
- * hexagonal lattice fills the rest.
+ * hexagonal lattice fills the rest.  With [fillHoles] the mesh covers the art's silhouette instead:
+ * holes in the art (a lace pattern, a spider web) are meshed over rather than cut out, so the part
+ * deforms as one sheet, and the inner ring and lattice run across them.
  *
- * @property Int    alphaThreshold       The minimum alpha byte counted as art (1..255).
- * @property Double outlineSpacing       The target distance between outline vertices.
- * @property Double interiorSpacing      The target distance between inner-ring and lattice vertices.
- * @property Double outerMargin          How far outside the art the outline runs.
- * @property Double innerMargin          How far inside the art's edge the inner ring runs; 0 for none.
- * @property Double minimumMargin        The least distance the outline may come to any art pixel (at least 0.5).
- * @property Int    minimumOutlinePoints The fewest vertices one outline ring may have (at least 3).
- * @property Int    vertexBudget         The most vertices one mesh may have.
+ * @property Int     alphaThreshold       The minimum alpha byte counted as art (1..255).
+ * @property Double  outlineSpacing       The target distance between outline vertices.
+ * @property Double  interiorSpacing      The target distance between inner-ring and lattice vertices.
+ * @property Double  outerMargin          How far outside the art the outline runs.
+ * @property Double  innerMargin          How far inside the art's edge the inner ring runs; 0 for none.
+ * @property Double  minimumMargin        The least distance the outline may come to any art pixel (at least 0.5).
+ * @property Int     minimumOutlinePoints The fewest vertices one outline ring may have (at least 3).
+ * @property Int     vertexBudget         The most vertices one mesh may have.
+ * @property Boolean fillHoles            Whether to mesh over the art's holes instead of cutting them out.
  */
 public data class ArtMeshSettings(
 	val alphaThreshold: Int,
@@ -33,6 +36,7 @@ public data class ArtMeshSettings(
 	val minimumMargin: Double,
 	val minimumOutlinePoints: Int,
 	val vertexBudget: Int = DEFAULT_ART_MESH_VERTEX_BUDGET,
+	val fillHoles: Boolean = false,
 ) {
 	init {
 		require(alphaThreshold in 1..255) { "alphaThreshold must be in 1..255: $alphaThreshold" }
