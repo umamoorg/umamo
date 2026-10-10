@@ -44,6 +44,8 @@ kotlin {
 				// diff types from :runtime — so consumers (:ui, tests) see them transitively.
 				api(project(":format"))
 				api(project(":runtime"))
+				// `api` as well: the art mesher (art/mesh) returns :geometry's PlanarTriangleMesh.
+				api(project(":geometry"))
 			}
 		}
 		commonTest {

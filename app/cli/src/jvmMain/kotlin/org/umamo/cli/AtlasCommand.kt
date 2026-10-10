@@ -22,9 +22,6 @@ import java.io.File
  * back out of the page it landed on before claiming success.
  */
 
-/** Canvas pixels past which the preview composite is skipped rather than allocated. */
-private const val PREVIEW_PIXEL_CAP = 128_000_000
-
 /**
  * Runs `atlas <file> [<directory>] [options]`.
  *
@@ -98,22 +95,6 @@ internal fun runAtlas(arguments: List<String>): Int {
 	}
 	println("Verified ${result.placements.size}/${result.placements.size} tiles byte-exact")
 	return 0
-}
-
-/**
- * Resolves the output subdirectory, named after the input file.
- *
- * @param File inputFile          The source artwork file.
- * @param String? parentDirectory The caller's directory argument, when given.
- * @return File The directory the pages and report write into.
- */
-private fun resolveOutputDirectory(inputFile: File, parentDirectory: String?): File {
-	val parent = if (parentDirectory != null) File(parentDirectory) else (inputFile.parentFile ?: File("."))
-	val directory = File(parent, inputFile.nameWithoutExtension)
-	if (directory.exists()) {
-		System.err.println("Note: ${directory.path} already exists; its matching files will be overwritten.")
-	}
-	return directory
 }
 
 /**

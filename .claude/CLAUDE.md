@@ -168,10 +168,10 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
 :geometry     commonMain  — pure vector geometry, zero project deps: Shewchuk's exact orient2d /
                             incircle, the constrained Delaunay triangulation the auto-mesh is built on
                             (boundary rings by even-odd, neutral segments, crossings rejected never
-                            forced, no vertex ever added), arc-length resampling, and a point locator
-                            over arbitrary triangle meshes.  Knows no pixels, puppets, or formats.
-                            Also declares linuxX64() so its tests RUN under Kotlin/Native (iosArm64
-                            only compiles; the predicates assume no FMA).
+                            forced, no vertex ever added), resampling / Douglas-Peucker, a point
+                            locator, and the neutral PlanarTriangleMesh.  Knows no pixels, puppets, or
+                            formats.  Also declares linuxX64() so its tests RUN under Kotlin/Native
+                            (iosArm64 only compiles; the predicates assume no FMA).
 :runtime      commonMain  — the pure puppet runtime: the immutable PuppetModel + typed ids, the
                             keyform grid algebra, the sampling eval, and the atlas domain (PuppetAtlas:
                             pages + tiles, each tile's AtlasPlacement, plus the uv-affine algebra that
@@ -192,8 +192,10 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             container format.  `art/` is the source-art → PuppetModel bridge
                             (`SourceArtImport`: an UNPACKED model the app packs at open, the blend
                             table, the import notices; it seeds the parameter list it is handed and
-                            knows no template).
-                            → :format (api), :runtime (api)
+                            knows no template); `art/mesh/` is the art mesher (generateArtMesh: a
+                            layer's signed distance field → outline + inner ring + hex lattice → CDT,
+                            every art pixel provably covered) behind the `umamo mesh` CLI.
+                            → :format (api), :runtime (api), :geometry (api)
 :edit         commonMain  — the editing session over the immutable PuppetModel.  The root package
                             is the session core: EditorSession (snapshot-based undo History, the one
                             commitStep seam, the selection / mode / pose state) with the tool latches,
@@ -257,7 +259,7 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
 :android      android     — thin Android entrypoint (Activity) over the same shared EditorApp;
                             the GLES `PuppetViewportService` implementation is pending — viewport
                             areas render placeholders until it lands.
-:cli          jvm         — headless diagnostic tool: dump / extract / atlas / convert / diff over
+:cli          jvm         — headless diagnostic tool: dump / extract / atlas / mesh / convert / diff over
                             cmo3, moc3, and source artwork files.  An operator's tool, not a
                             shipping app target, so it skips :ui and :edit entirely.
                             → :interop (api brings :format, :runtime), :render
