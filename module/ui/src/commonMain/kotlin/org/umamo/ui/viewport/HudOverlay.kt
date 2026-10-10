@@ -206,7 +206,9 @@ internal fun falloffLabel(falloff: ProportionalFalloff): String =
 		ProportionalFalloff.Smooth -> stringResource(Res.string.falloff_smooth)
 		ProportionalFalloff.Sphere -> stringResource(Res.string.falloff_sphere)
 		ProportionalFalloff.Root -> stringResource(Res.string.falloff_root)
+		ProportionalFalloff.InverseSquare -> stringResource(Res.string.falloff_inverse_square)
 		ProportionalFalloff.Sharp -> stringResource(Res.string.falloff_sharp)
 		ProportionalFalloff.Linear -> stringResource(Res.string.falloff_linear)
 		ProportionalFalloff.Constant -> stringResource(Res.string.falloff_constant)
+		ProportionalFalloff.Random -> stringResource(Res.string.falloff_random)
 	}

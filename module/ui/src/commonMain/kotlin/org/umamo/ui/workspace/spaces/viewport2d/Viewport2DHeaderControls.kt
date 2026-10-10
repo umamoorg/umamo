@@ -24,17 +24,20 @@ import org.umamo.ui.workspace.spaces.MeshSelectModeButtons
 import org.umamo.ui.workspace.spaces.OverlaysHeaderControl
 import org.umamo.ui.workspace.spaces.PivotModeDropdown
 import org.umamo.ui.workspace.spaces.ProportionalEditControls
+import org.umamo.ui.workspace.spaces.SnapDropdown
+import org.umamo.ui.workspace.spaces.SnapMenuKind
+import org.umamo.ui.workspace.spaces.sessionProportionalSizeField
 
 /**
  * The 2D viewport's space-specific header strip (mounted via SpaceDescriptor.headerContent): the
  * Object / Edit mode dropdown, the vertex / edge / face select-mode buttons (Edit mode), the transform
- * pivot dropdown, the snap menu, and the proportional-editing toggle with its falloff dropdown (Edit
- * mode).  With no open document the chips render disabled rather than vanishing, so the viewport
+ * pivot dropdown, the snap menu, and the proportional-editing chip, whose panel's size row is the
+ * session's world radius (Edit mode).  With no open document the chips render disabled rather than vanishing, so the viewport
  * chrome reads the same before the first file opens.
  *
  * Every control observes the session's own flows and mutates only by dispatching registry commands,
  * per the everything-through-the-action-registry rule - a rebind or palette invocation stays
- * consistent with these controls for free.  The Edit-mode pieces (select modes, pivot, proportional)
+ * consistent with these controls for free.  The editing pieces (select modes, pivot, snap, proportional)
  * are the shared EditHeaderControls.kt composables the UV editor's header mounts too, and each gates
  * itself on the session's mode: an item that renders nothing measures zero and costs the strip nothing.
  *
@@ -50,9 +53,10 @@ fun OverflowRowScope.viewport2DHeaderControls(scope: AreaScope) {
 	val viewState = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }
 	pinnedItem("editorMode") { EditorModeDropdown() }
 	item("selectMode") { MeshSelectModeButtons() }
+	flexibleSpace()
 	item("pivot") { PivotModeDropdown() }
-	item("snap") { SnapDropdown() }
-	item("proportional") { ProportionalEditControls() }
+	item("snap") { SnapDropdown(SnapMenuKind.Viewport2D) }
+	item("proportional") { ProportionalEditControls(size = sessionProportionalSizeField()) }
 	flexibleSpace()
 	item("overlays") {
 		// Disabled, not hidden, with no document: the strip reads the same before the first file opens.
@@ -109,42 +113,6 @@ private fun EditorModeDropdown() {
 		contentDescription = currentLabel,
 		icon = modeIcon,
 		label = currentLabel,
-		enabled = enabled,
-	) {
-		Menu(
-			items = items,
-			onDismissRequest = { expanded = false },
-			positionProvider = BelowAnchorPositionProvider,
-		)
-	}
-}
-
-/**
- * The snap menu (Blender's Shift+S, as a header dropdown): an icon-only magnet chip whose rows
- * dispatch the eight snap commands - the cursor moves and the selection moves - so the pie and this
- * menu stay one behavior.
- */
-@Composable
-private fun SnapDropdown() {
-	val commands = LocalCommands.current
-	val enabled = LocalEditorSession.current != null
-	var expanded by remember { mutableStateOf(false) }
-	val items =
-		listOf(
-			MenuItem.Action(label = stringResource(Res.string.cmd_snap_cursor_world_origin), onSelect = { commands.invoke("snap.cursorToWorldOrigin") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_snap_cursor_grid), onSelect = { commands.invoke("snap.cursorToGrid") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_snap_cursor_selected), onSelect = { commands.invoke("snap.cursorToSelected") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_snap_cursor_active), onSelect = { commands.invoke("snap.cursorToActive") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_snap_selection_grid), onSelect = { commands.invoke("snap.selectionToGrid") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_snap_selection_cursor), onSelect = { commands.invoke("snap.selectionToCursor") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_snap_selection_cursor_offset), onSelect = { commands.invoke("snap.selectionToCursorOffset") }),
-			MenuItem.Action(label = stringResource(Res.string.cmd_snap_selection_active), onSelect = { commands.invoke("snap.selectionToActive") }),
-		)
-	DropdownChip(
-		expanded = expanded,
-		onExpandRequest = { expanded = true },
-		contentDescription = stringResource(Res.string.cmd_snap_pie),
-		icon = LocalUmamoIcons.snap,
 		enabled = enabled,
 	) {
 		Menu(

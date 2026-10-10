@@ -122,7 +122,7 @@ Parameter-driven morph blending, **not** skeletal: `p = base + Σ wᵢ·Δᵢ`, 
 
 Mesh and keyform-deformation editing should feel like **sculpting, not CAD**, adopting Blender's UV-editor interactions.
 
-- **Proportional editing — shipped.**  Moving one vertex drags its neighbours within an adjustable radius, with six selectable **falloff curves** (smooth / sphere / root / sharp / linear / constant) plus a geodesic "connected only" mode that follows mesh edges instead of screen-space distance (`module/edit/.../ProportionalEditing.kt`).
+- **Proportional editing — shipped.**  Moving one vertex drags its neighbours within an adjustable radius, with Blender's eight selectable **falloff curves** (smooth / sphere / root / inverse square / sharp / linear / constant / random) plus a geodesic "connected only" mode that follows mesh edges instead of screen-space distance (`module/edit/.../ProportionalEditing.kt`).
 - **Brush radius for grab / smooth / relax — not yet implemented.**  The only existing brush-radius tool today is circle-select, a selection brush, not a vertex-manipulation one; there are no grab/smooth/relax sculpt operators yet.
 - **Pen-pressure-driven brush radius / falloff strength — not yet implemented.**  No pressure/tilt input is wired anywhere in the codebase yet (see the Pen input note above); this stays the target pen-first advantage over Cubism's click-drag-per-vertex model once it lands.
 

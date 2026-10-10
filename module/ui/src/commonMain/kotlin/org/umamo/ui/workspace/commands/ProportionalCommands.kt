@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.commands
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.transform.choiceKey
 import org.umamo.ui.action.Command
 import org.umamo.ui.resources.*
 
@@ -12,14 +13,26 @@ private val FALLOFF_TITLES: Map<ProportionalFalloff, StringResource> =
 		ProportionalFalloff.Smooth to Res.string.cmd_mesh_proportional_falloff_smooth,
 		ProportionalFalloff.Sphere to Res.string.cmd_mesh_proportional_falloff_sphere,
 		ProportionalFalloff.Root to Res.string.cmd_mesh_proportional_falloff_root,
+		ProportionalFalloff.InverseSquare to Res.string.cmd_mesh_proportional_falloff_inverse_square,
 		ProportionalFalloff.Sharp to Res.string.cmd_mesh_proportional_falloff_sharp,
 		ProportionalFalloff.Linear to Res.string.cmd_mesh_proportional_falloff_linear,
 		ProportionalFalloff.Constant to Res.string.cmd_mesh_proportional_falloff_constant,
+		ProportionalFalloff.Random to Res.string.cmd_mesh_proportional_falloff_random,
 	)
 
 /**
- * Proportional editing (Blender's O): the toggle flips it, the falloff commands select the curve
- * (enabling it if off).  The Edit overlay reads the state when an operator latches and the wheel resizes
+ * The payload a control that shows Connected Only hands mesh.proportional.connectedToggle: the flag to set,
+ * set silently.  The proportional panel's checkbox is its own confirmation, and a near-cursor notice raised
+ * from inside the open panel would land under it, at the pointer as it was when the panel opened.  Without
+ * the payload (Alt+O, the palette) the command flips the flag and confirms with the notice.
+ *
+ * @property Boolean connectedOnly Whether influence spreads only along mesh edges.
+ */
+internal class ProportionalConnectedRequest(val connectedOnly: Boolean)
+
+/**
+ * Proportional editing (Blender's O): the toggle flips it, the falloff commands select the curve and the
+ * connected toggle flips Connected Only, neither switching the tool on or off.  The Edit overlay reads the state when an operator latches and the wheel resizes
  * the radius mid-gesture, so nothing here needs to know which area the gesture will run in.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
@@ -35,15 +48,19 @@ internal fun proportionalCommands(editorSession: EditorSession?, availability: S
 			"mesh.proportional.connectedToggle",
 			title = Res.string.cmd_mesh_proportional_connected,
 			availability = availability.inEditMode,
-		) {
-			editorSession?.toggleProportionalConnected()
+		) { argument ->
+			if (argument is ProportionalConnectedRequest) {
+				editorSession?.setProportionalConnected(argument.connectedOnly)
+			} else {
+				editorSession?.toggleProportionalConnected()
+			}
 		},
 	) +
 		// One falloff command per curve, looped over the enum so a new falloff cannot be forgotten here -
 		// getValue throws on a curve with no title rather than silently registering an unlabelled command.
 		ProportionalFalloff.entries.map { falloff ->
 			Command(
-				"mesh.proportional.falloff.${falloff.name.lowercase()}",
+				"mesh.proportional.falloff.${falloff.choiceKey}",
 				title = FALLOFF_TITLES.getValue(falloff),
 				availability = availability.inEditMode,
 			) { editorSession?.setProportionalFalloff(falloff) }

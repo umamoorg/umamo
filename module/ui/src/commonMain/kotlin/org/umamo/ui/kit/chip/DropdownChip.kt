@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
@@ -79,7 +80,10 @@ enum class DropdownChipStyle {
 
 /**
  * The header dropdown chip, Blender-style: an optional 16.dp leading glyph, an optional labelMedium
- * text, and a 12.dp chevron that points right while the dropdown is closed and down while it is open.
+ * text, an optional value glyph, and a 12.dp chevron that points right while the dropdown is closed and
+ * down while it is open.  The value glyph sits beside the chevron and shows what the dropdown is set to
+ * (Blender's falloff curve beside the proportional toggle, its snap target beside the magnet), so a face
+ * can carry a setting's current value without a label.
  * Flat like the rest of the kit - the default indication is suppressed and the chip paints its own
  * three-state border and fill: accent while open, panelBackground / panelBorderHover under the
  * pointer, tabBackground / panelBorder at rest; content is accentText while open, text
@@ -105,6 +109,10 @@ enum class DropdownChipStyle {
  *   with a toggle, the toggle half's glyph while unlit.
  * @param ChipToggle? iconToggle       A toggle riding on the glyph: the face splits into the glyph's own lit / unlit
  *   button and the chevron that opens the dropdown (see [ChipToggle]; needs [icon], Header and Compact only).
+ * @param UmamoIcon? valueIcon         A glyph beside the chevron showing the dropdown's current value, or null for none;
+ *   with a toggle it rides the chevron half, so a click on it opens the dropdown and never flips the toggle.
+ * @param Color?    valueIconTint      A status color for the value glyph at rest, or null for the chip's own content
+ *   color (a muted tint reads as Blender's inactive setting).
  * @param Function  dropdown           The popup content, rendered while expanded.
  */
 @Composable
@@ -119,6 +127,8 @@ fun DropdownChip(
 	style: DropdownChipStyle = DropdownChipStyle.Header,
 	iconTint: Color? = null,
 	iconToggle: ChipToggle? = null,
+	valueIcon: UmamoIcon? = null,
+	valueIconTint: Color? = null,
 	dropdown: @Composable () -> Unit,
 ) {
 	// The popup is a child of this Box rather than of the padded chip Row: the position provider is
@@ -140,6 +150,8 @@ fun DropdownChip(
 				enabled = enabled,
 				style = style,
 				iconTint = iconTint,
+				valueIcon = valueIcon,
+				valueIconTint = valueIconTint,
 			)
 		} else {
 			PlainChipFace(
@@ -151,6 +163,8 @@ fun DropdownChip(
 				enabled = enabled,
 				style = style,
 				iconTint = iconTint,
+				valueIcon = valueIcon,
+				valueIconTint = valueIconTint,
 			)
 		}
 		if (expanded) {
@@ -160,8 +174,8 @@ fun DropdownChip(
 }
 
 /**
- * The one-clickable face of a chip without a toggle: the glyph, the label, and the chevron on one painted
- * border and fill that follow the open and hover states together.
+ * The one-clickable face of a chip without a toggle: the glyph, the label, the value glyph, and the chevron
+ * on one painted border and fill that follow the open and hover states together.
  *
  * @param Boolean           expanded           Whether the dropdown is open (drives the accent state).
  * @param Function          onExpandRequest    Invoked on click to open the dropdown.
@@ -171,6 +185,8 @@ fun DropdownChip(
  * @param Boolean           enabled            When false the content dims and clicks are inert.
  * @param DropdownChipStyle style              Which role the chip plays; see [DropdownChipStyle].
  * @param Color?            iconTint           A status color for the glyph at rest, or null for the content color.
+ * @param UmamoIcon?        valueIcon          Optional glyph beside the chevron showing the dropdown's value.
+ * @param Color?            valueIconTint      A status color for the value glyph at rest, or null for the content color.
  */
 @Composable
 private fun PlainChipFace(
@@ -182,6 +198,8 @@ private fun PlainChipFace(
 	enabled: Boolean,
 	style: DropdownChipStyle,
 	iconTint: Color?,
+	valueIcon: UmamoIcon?,
+	valueIconTint: Color?,
 ) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
@@ -272,6 +290,9 @@ private fun PlainChipFace(
 					modifier = labelModifier,
 				)
 			}
+			if (valueIcon != null) {
+				ChipValueGlyph(valueIcon, valueIconTint, chipContentColor, glyphSize, enabled = enabled, expanded = expanded)
+			}
 			val chevron =
 				when {
 					expanded -> LocalUmamoIcons.chevronDown
@@ -286,7 +307,7 @@ private fun PlainChipFace(
 
 /**
  * The split face of a chip carrying an [iconToggle]: the glyph is a lit / unlit button of its own and the
- * chevron (with the label, if any) opens the dropdown, the two halves sharing one border with a seam between
+ * chevron (with the label and the value glyph, if any) opens the dropdown, the two halves sharing one border with a seam between
  * them.  Each half paints its own fill and carries its own tooltip and accessible name; the border follows
  * the whole - accent while open, hover-lit while the pointer is over either half.  The toggle half's lit fill
  * is the IconButton family's accent ramp, so it reads like the header's other filled toggles.
@@ -300,6 +321,8 @@ private fun PlainChipFace(
  * @param Boolean           enabled            When false both halves dim and clicks are inert.
  * @param DropdownChipStyle style              Header or Compact sizing.
  * @param Color?            iconTint           A status color for the glyph while unlit, or null for the text color.
+ * @param UmamoIcon?        valueIcon          Optional glyph ahead of the chevron showing the dropdown's value.
+ * @param Color?            valueIconTint      A status color for the value glyph at rest, or null for the content color.
  */
 @Composable
 private fun SplitChipFace(
@@ -312,6 +335,8 @@ private fun SplitChipFace(
 	enabled: Boolean,
 	style: DropdownChipStyle,
 	iconTint: Color?,
+	valueIcon: UmamoIcon?,
+	valueIconTint: Color?,
 ) {
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
@@ -413,6 +438,9 @@ private fun SplitChipFace(
 						modifier = Modifier.padding(horizontal = 4.dp),
 					)
 				}
+				if (valueIcon != null) {
+					ChipValueGlyph(valueIcon, valueIconTint, expandContentColor, glyphSize, enabled = enabled, expanded = expanded)
+				}
 				val chevron =
 					when {
 						expanded -> LocalUmamoIcons.chevronDown
@@ -423,5 +451,26 @@ private fun SplitChipFace(
 				}
 			}
 		}
+	}
+}
+
+/**
+ * The value glyph beside a chip's chevron, at the leading glyph's size.  A status tint colors it at rest only,
+ * as the leading glyph's does: the open and disabled faces keep their own contrast.
+ *
+ * @param UmamoIcon icon         The glyph showing the dropdown's current value.
+ * @param Color?    tint         The status color at rest, or null for the content color.
+ * @param Color     contentColor The face's content color in its current state.
+ * @param Dp        size         The glyph's edge length.
+ * @param Boolean   enabled      Whether the chip takes input.
+ * @param Boolean   expanded     Whether the dropdown is open.
+ */
+@Composable
+private fun ChipValueGlyph(icon: UmamoIcon, tint: Color?, contentColor: Color, size: Dp, enabled: Boolean, expanded: Boolean) {
+	val glyphColor = if (tint != null && enabled && !expanded) tint else contentColor
+	// requiredSize, like the face's other glyphs: a starved parent pushes the chip off its edge rather than
+	// measuring the glyph at zero.
+	Canvas(modifier = Modifier.requiredSize(size)) {
+		drawIcon(icon, glyphColor)
 	}
 }

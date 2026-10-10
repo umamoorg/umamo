@@ -532,6 +532,7 @@
 	<string name="cmd_transform_pivot_individual">それぞれの原点</string>
 	<string name="cmd_transform_pivot_active">アクティブ要素</string>
 	<string name="cmd_transform_pivot_cursor">2Dカーソル</string>
+	<string name="header_transform_pivot_point">トランスフォームピボットポイント</string>
 	<string name="cmd_snap_pie">スナップ</string>
 	<string name="cmd_snap_cursor_world_origin">カーソル → ワールド原点</string>
 	<string name="cmd_snap_cursor_selected">カーソル → 選択物</string>
@@ -628,15 +629,19 @@
 	<string name="cmd_mesh_proportional_falloff_smooth">プロポーショナル減衰: スムーズ</string>
 	<string name="cmd_mesh_proportional_falloff_sphere">プロポーショナル減衰: 球状</string>
 	<string name="cmd_mesh_proportional_falloff_root">プロポーショナル減衰: ルート</string>
+	<string name="cmd_mesh_proportional_falloff_inverse_square">プロポーショナル減衰: 逆二乗</string>
 	<string name="cmd_mesh_proportional_falloff_sharp">プロポーショナル減衰: シャープ</string>
 	<string name="cmd_mesh_proportional_falloff_linear">プロポーショナル減衰: リニア</string>
 	<string name="cmd_mesh_proportional_falloff_constant">プロポーショナル減衰: 一定</string>
+	<string name="cmd_mesh_proportional_falloff_random">プロポーショナル減衰: ランダム</string>
 	<string name="falloff_smooth">スムーズ</string>
 	<string name="falloff_sphere">球状</string>
 	<string name="falloff_root">ルート</string>
+	<string name="falloff_inverse_square">逆二乗</string>
 	<string name="falloff_sharp">シャープ</string>
 	<string name="falloff_linear">リニア</string>
 	<string name="falloff_constant">一定</string>
+	<string name="falloff_random">ランダム</string>
 	<string name="hud_proportional">プロポーショナル %1$s · %2$d</string>
 	<string name="notice_proportional_on">プロポーショナル編集: オン</string>
 	<string name="notice_proportional_off">プロポーショナル編集: オフ</string>

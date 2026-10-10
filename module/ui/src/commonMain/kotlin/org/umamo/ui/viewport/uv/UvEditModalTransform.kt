@@ -33,6 +33,29 @@ import kotlin.math.pow
 private const val MIN_UV_PROPORTIONAL_RADIUS_DISPLAY = 1f
 
 /**
+ * The proportional radius a UV surface starts with before anything resizes it: an eighth of its shorter side,
+ * never under the smallest useful radius.  One rule for the gesture that seeds the radius and the header row
+ * that shows it before any gesture has.
+ *
+ * @param Int displayWidth The surface's width in texels.
+ * @param Int displayHeight The surface's height in texels.
+ * @return Float The starting radius in display (texel) units.
+ */
+internal fun uvProportionalRadiusSeed(displayWidth: Int, displayHeight: Int): Float =
+	(minOf(displayWidth, displayHeight) / 8f).coerceAtLeast(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY)
+
+/**
+ * The proportional radii a UV surface accepts: from the smallest useful radius to four times its longer side,
+ * past which every texel is already inside.  One clamp for the mid-gesture wheel and the header row.
+ *
+ * @param Int displayWidth The surface's width in texels.
+ * @param Int displayHeight The surface's height in texels.
+ * @return ClosedFloatingPointRange<Float> The accepted radii in display (texel) units.
+ */
+internal fun uvProportionalRadiusRange(displayWidth: Int, displayHeight: Int): ClosedFloatingPointRange<Float> =
+	MIN_UV_PROPORTIONAL_RADIUS_DISPLAY..(4f * maxOf(displayWidth, displayHeight))
+
+/**
  * The captured state of an in-flight UV transform: the shared [ModalTransformCapture] (its entries hold each
  * mesh's frozen display-space coordinates as their positions, plus the pivot groups, proportional halos, and
  * moved sets) together with the frame those coordinates were mapped in.  The texture-space sibling of the
@@ -243,10 +266,9 @@ internal class UvEditModalTransform(
 
 		if (steps != 0f && proportional != null && gestureData != null) {
 			val radiusState = gestureData.proportionalRadius
-			val maxRadius = 4f * maxOf(gestureData.frame.displayWidth, gestureData.frame.displayHeight)
 			val resized =
 				(resolvedProportionalRadius(radiusState, gestureData.frame) * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
-					.coerceIn(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY, maxRadius)
+					.coerceIn(uvProportionalRadiusRange(gestureData.frame.displayWidth, gestureData.frame.displayHeight))
 			radiusState.value = resized
 			gestureData.transform.applyProportional(proportional, resized)
 			submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
@@ -308,7 +330,7 @@ internal class UvEditModalTransform(
 			return current
 		}
 
-		val seeded = (minOf(frame.displayWidth, frame.displayHeight) / 8f).coerceAtLeast(MIN_UV_PROPORTIONAL_RADIUS_DISPLAY)
+		val seeded = uvProportionalRadiusSeed(frame.displayWidth, frame.displayHeight)
 		radiusState.value = seeded
 
 		return seeded

@@ -37,7 +37,8 @@ internal fun uvCommands(
 	availability: SessionAvailability,
 ): List<Command> {
 	/**
-	 * Fires one UV snap request at the hovered area.
+	 * Fires one UV snap request at the hovered area, in either mode: the Edit overlay snaps texture
+	 * coordinates and the Object overlay placed art tiles, each running only the requests made in its mode.
 	 *
 	 * @param UvSnapKind kind The snap to perform.
 	 */
@@ -96,25 +97,25 @@ internal fun uvCommands(
 		Command("uv.mirrorV", title = Res.string.cmd_uv_mirror_v, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
 			requestUvMirror(mirrorU = false)
 		},
-		Command("uv.snap.selectionToPixels", title = Res.string.cmd_uv_snap_selection_pixels, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.selectionToPixels", title = Res.string.cmd_uv_snap_selection_pixels, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
 			requestUvSnap(UvSnapKind.SelectionToPixels)
 		},
-		Command("uv.snap.selectionToCursor", title = Res.string.cmd_uv_snap_selection_cursor, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.selectionToCursor", title = Res.string.cmd_uv_snap_selection_cursor, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
 			requestUvSnap(UvSnapKind.SelectionToCursor)
 		},
-		Command("uv.snap.selectionToCursorOffset", title = Res.string.cmd_uv_snap_selection_cursor_offset, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.selectionToCursorOffset", title = Res.string.cmd_uv_snap_selection_cursor_offset, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
 			requestUvSnap(UvSnapKind.SelectionToCursorOffset)
 		},
-		Command("uv.snap.selectionToGrid", title = Res.string.cmd_uv_snap_selection_grid, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.selectionToGrid", title = Res.string.cmd_uv_snap_selection_grid, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
 			requestUvSnap(UvSnapKind.SelectionToGrid)
 		},
-		Command("uv.snap.cursorToPixels", title = Res.string.cmd_uv_snap_cursor_pixels, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.cursorToPixels", title = Res.string.cmd_uv_snap_cursor_pixels, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
 			requestUvSnap(UvSnapKind.CursorToPixels)
 		},
-		Command("uv.snap.cursorToSelected", title = Res.string.cmd_uv_snap_cursor_selected, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.cursorToSelected", title = Res.string.cmd_uv_snap_cursor_selected, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
 			requestUvSnap(UvSnapKind.CursorToSelected)
 		},
-		Command("uv.snap.cursorToGrid", title = Res.string.cmd_uv_snap_cursor_grid, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.cursorToGrid", title = Res.string.cmd_uv_snap_cursor_grid, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
 			requestUvSnap(UvSnapKind.CursorToGrid)
 		},
 		// Texture page switching (the header selector's palette path): retargets the hovered UV

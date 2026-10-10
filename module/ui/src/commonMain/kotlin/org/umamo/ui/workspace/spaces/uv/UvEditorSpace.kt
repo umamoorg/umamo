@@ -318,12 +318,16 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	}
 	val image by imageFlow.collectAsState()
 	val liveCamera by cameraFlow.collectAsState()
-	// The UV editor's proportional influence radius, in display (texel) units, kept per surface for the
-	// area's life (rememberUvProportionalRadius).  Owned here, by the overlay stack's host, because two
-	// sibling overlays need it: UvEditGizmoOverlay's gesture machinery seeds and resizes it, UvHudOverlay's
-	// status badge reads it.
-	val proportionalRadiusDisplay =
-		rememberUvProportionalRadius(scope.areaId, UvRadiusSurfaceKey(displayWidth, displayHeight, layerView?.layerKey))
+	// The UV editor's proportional influence radius, in display (texel) units, kept per surface on the area's
+	// view state (UvProportionalRadii).  Resolved here, by the overlay stack's host, because two sibling
+	// overlays need it: UvEditGizmoOverlay's gesture machinery seeds and resizes it, UvHudOverlay's status badge
+	// reads it.  The header's Proportional Size row reaches the same radius through the shown surface.
+	val radiusSurface = UvRadiusSurfaceKey(displayWidth, displayHeight, layerView?.layerKey)
+	val proportionalRadiusDisplay = rememberUvProportionalRadius(viewState.proportionalRadii, radiusSurface)
+	DisposableEffect(viewState.proportionalRadii, radiusSurface) {
+		viewState.proportionalRadii.shownSurface = radiusSurface
+		onDispose { viewState.proportionalRadii.shownSurface = null }
+	}
 
 	// Where the pointer last was in this area, for the pointer-addressed requests the Edit overlay answers
 	// (Select Linked): tracked here, by the host, so it stays current while the overlay's own pointer loop is

@@ -60,7 +60,7 @@ class DropdownChipSizingTest {
 							expanded = false,
 							onExpandRequest = {},
 							contentDescription = CHIP_LABEL,
-							icon = LocalUmamoIcons.transformPivot,
+							icon = LocalUmamoIcons.pivotMedian,
 							label = "Median Point",
 						) {}
 					}

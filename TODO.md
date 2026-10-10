@@ -55,6 +55,9 @@
 ## Deleted References (Unused Data)
 * Add a Blender like unused data to inspect and clean up dead references.
 
+# Object/Edit Mode Switch
+* When there is no drawable selected, a default is found to select.  However, this does not update the selection and leaves the Properties and Outliner panels in a bad state.  The Properties shows nothing and Outliner has nothing selected.
+
 ## Tools, Shortcuts, and Gizmos
 * Improvements
 	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.

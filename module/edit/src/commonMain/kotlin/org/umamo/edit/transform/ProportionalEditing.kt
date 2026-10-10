@@ -15,15 +15,22 @@ import kotlin.math.sqrt
  * The falloff weight at a normalized distance: 1 at the selection (distance 0), 0 at and beyond the
  * radius edge (distance >= 1), shaped in between by the curve.  The formulas match Blender's
  * proportional falloffs over fade = 1 - distance: Smooth is the smoothstep 3·fade² - 2·fade³, Sphere is
- * the quarter-circle sqrt(1 - distance²), Root is sqrt(fade), Sharp is fade², Linear is fade, and
- * Constant is 1 everywhere inside the radius.
+ * the quarter-circle sqrt(1 - distance²), Root is sqrt(fade), Inverse Square is fade·(2 - fade) (that
+ * is, 1 - distance²), Sharp is fade², Linear is fade, Constant is 1 everywhere inside the radius, and
+ * Random is fade scaled by a per-vertex value in [0, 1).
+ *
+ * Random's per-vertex value is a hash of the vertex index rather than a draw from a generator, so it is
+ * the same every time the influence map is derived: the map is re-derived when the wheel resizes the
+ * radius mid-gesture and when the operation strip adjusts the transform, and a fresh draw each time would
+ * reshuffle the halo under the rigger.  Blender draws afresh; here only the fade rescales.
  *
  * @param ProportionalFalloff falloff The falloff curve.
  * @param Float normalizedDistance The vertex's distance to the nearest selected vertex, divided by the
  *   influence radius (values below 0 clamp to full weight).
+ * @param Int vertexIndex The vertex the weight is for; only Random reads it.
  * @return Float The weight in [0, 1].
  */
-fun proportionalWeight(falloff: ProportionalFalloff, normalizedDistance: Float): Float {
+fun proportionalWeight(falloff: ProportionalFalloff, normalizedDistance: Float, vertexIndex: Int): Float {
 	if (normalizedDistance >= 1f) {
 		return 0f
 	}
@@ -35,11 +42,34 @@ fun proportionalWeight(falloff: ProportionalFalloff, normalizedDistance: Float):
 		ProportionalFalloff.Smooth -> fade * fade * (3f - 2f * fade)
 		ProportionalFalloff.Sphere -> sqrt(1f - normalizedDistance * normalizedDistance)
 		ProportionalFalloff.Root -> sqrt(fade)
+		ProportionalFalloff.InverseSquare -> fade * (2f - fade)
 		ProportionalFalloff.Sharp -> fade * fade
 		ProportionalFalloff.Linear -> fade
 		ProportionalFalloff.Constant -> 1f
+		ProportionalFalloff.Random -> fade * randomFalloffSample(vertexIndex)
 	}
 }
+
+/**
+ * The Random falloff's per-vertex value: a 32-bit integer hash of the vertex index (an xorshift-multiply
+ * avalanche), so neighboring indices land far apart, mapped to [0, 1) from its top 24 bits.  Stateless, so
+ * the same vertex always gets the same value and the influence builders can run on any thread.
+ *
+ * @param Int vertexIndex The vertex.
+ * @return Float The vertex's value in [0, 1).
+ */
+internal fun randomFalloffSample(vertexIndex: Int): Float {
+	var hash = vertexIndex
+	hash = hash xor (hash ushr 16)
+	hash *= 0x7feb352d
+	hash = hash xor (hash ushr 15)
+	hash *= 0x846ca68b.toInt()
+	hash = hash xor (hash ushr 16)
+	return (hash ushr 8) / RANDOM_FALLOFF_SAMPLE_SPAN
+}
+
+/** The span the Random falloff's 24 hash bits divide by: 2^24, so the value stays below 1. */
+private const val RANDOM_FALLOFF_SAMPLE_SPAN = 16_777_216f
 
 /**
  * One influenced vertex's proportional-editing sample: its falloff weight and the covered vertex it
@@ -101,7 +131,7 @@ fun proportionalInfluences(
 			}
 		}
 		if (nearestSquared < radiusSquared && nearestCovered >= 0) {
-			val weight = proportionalWeight(falloff, sqrt(nearestSquared) / radiusWorld)
+			val weight = proportionalWeight(falloff, sqrt(nearestSquared) / radiusWorld, vertexIndex)
 			if (weight > 0f) {
 				influences[vertexIndex] = ProportionalInfluence(weight, nearestCovered)
 			}
@@ -199,7 +229,7 @@ fun proportionalInfluencesConnected(
 		if (vertexIndex in coveredIndices || sourceCovered[vertexIndex] < 0 || distance[vertexIndex] >= radiusWorld) {
 			continue
 		}
-		val weight = proportionalWeight(falloff, distance[vertexIndex] / radiusWorld)
+		val weight = proportionalWeight(falloff, distance[vertexIndex] / radiusWorld, vertexIndex)
 		if (weight > 0f) {
 			influences[vertexIndex] = ProportionalInfluence(weight, sourceCovered[vertexIndex])
 		}

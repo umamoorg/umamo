@@ -38,6 +38,7 @@ import org.umamo.ui.viewport.gizmo.gizmoAreaTag
 import org.umamo.ui.viewport.gizmo.moveIn
 import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.workspace.commands.inMemorySettings
+import org.umamo.ui.workspace.spaces.uv.UvProportionalRadii
 import org.umamo.ui.workspace.spaces.uv.UvRadiusSurfaceKey
 import org.umamo.ui.workspace.spaces.uv.rememberUvProportionalRadius
 
@@ -207,9 +208,11 @@ internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession, placemen
 										uvIslandPick(geometries = geometries, frontRank = restFrontRank(model), uvsById = uvsById, image = null)
 									}
 								val camera = if (surface.cameraLost) null else fixture.cameraOf(surface)
+								// Each area's radii, the way UvEditorViewState holds them for UvEditorSpace.
+								val radii = remember(areaId) { UvProportionalRadii() }
 								val radiusState =
 									rememberUvProportionalRadius(
-										areaId,
+										radii,
 										UvRadiusSurfaceKey(frame.displayWidth, frame.displayHeight, if (surface.layer) UV_RIG_LAYER_KEY else null),
 									)
 								SideEffect { fixture.radiusStateByArea[areaId] = radiusState }

@@ -8,6 +8,7 @@ import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.PieMenuKind
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
@@ -356,6 +357,24 @@ class CommandDispatchTest {
 		snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), hub).run("snap.cursorToGrid")
 
 		assertEquals(Cursor2d(37.5f, 37.5f), session.cursor2d.value, "over the viewport the cursor rounds to its own 12.5 step")
+	}
+
+	/**
+	 * Shift+S over a UV editor opens the UV snap pie in either mode - its snaps move texture coordinates in Edit
+	 * mode and placed art tiles in Object mode - and over a 2D viewport the world snap pie.
+	 */
+	@Test
+	fun theSnapPieOverAUvEditorIsTheUvPieInEitherMode() {
+		for (mode in EditorMode.entries) {
+			val session = session(mode)
+			assertEquals(mode, session.mode.value, "the case must really be in $mode")
+
+			snapCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session), AreaOverlayHub()).run("snap.pie")
+			assertEquals(PieMenuKind.UvSnap, session.activePieMenu.value, "over a UV editor in $mode")
+			session.closePieMenu()
+			snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), AreaOverlayHub()).run("snap.pie")
+			assertEquals(PieMenuKind.Snap, session.activePieMenu.value, "over a viewport in $mode")
+		}
 	}
 
 	/**

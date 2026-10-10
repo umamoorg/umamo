@@ -230,7 +230,9 @@ private fun falloffWireName(falloff: ProportionalFalloff): String =
 		ProportionalFalloff.Smooth -> "smooth"
 		ProportionalFalloff.Sphere -> "sphere"
 		ProportionalFalloff.Root -> "root"
+		ProportionalFalloff.InverseSquare -> "inverseSquare"
 		ProportionalFalloff.Sharp -> "sharp"
 		ProportionalFalloff.Linear -> "linear"
 		ProportionalFalloff.Constant -> "constant"
+		ProportionalFalloff.Random -> "random"
 	}

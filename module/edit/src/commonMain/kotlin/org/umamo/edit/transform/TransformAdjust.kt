@@ -294,9 +294,12 @@ fun rederiveProportionalHalos(transform: ModalTransformCapture, parameters: List
 fun slideParameters(factor: Float): List<OperatorParameter> =
 	listOf(OperatorParameter.FloatParameter(TransformParameterKeys.SLIDE_FACTOR, TransformParameterKeys.SLIDE_FACTOR, factor, 0f, 1f, SLIDE_FACTOR_STEP))
 
-/** The stable choice key of a falloff curve, as the Falloff row stores it. */
+/**
+ * The stable key of a falloff curve: its name in lower camel case (smooth, inverseSquare), the one spelling
+ * the Falloff row stores and the mesh.proportional.falloff command ids end with.
+ */
 val ProportionalFalloff.choiceKey: String
-	get() = name.lowercase()
+	get() = name.replaceFirstChar { first -> first.lowercaseChar() }
 
 /** The proportional rows: the flag, the curve, the size, and Connected Only. */
 private fun proportionalParameters(proportional: ProportionalRows): List<OperatorParameter> =

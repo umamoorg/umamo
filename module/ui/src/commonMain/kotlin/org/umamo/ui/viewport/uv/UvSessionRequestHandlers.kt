@@ -1,25 +1,35 @@
 package org.umamo.ui.viewport.uv
 
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshTopology
+import org.umamo.edit.NoticePlacement
 import org.umamo.edit.UvCursor
 import org.umamo.edit.UvSnapKind
+import org.umamo.edit.atlas.placementDragTileIds
+import org.umamo.edit.atlas.placementSelectedTileIds
+import org.umamo.edit.atlas.setAtlasPlacements
 import org.umamo.edit.mesh.commitMeshUvs
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.edit.transform.snapToGrid
+import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.meshOf
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
+import kotlin.math.round
 import kotlin.math.roundToInt
 
 /**
- * Executes the UV editor's Shift+S snaps over the shown surface's texture coordinates: the cursor
- * moves read the UV cursor or the covered median and write the UV cursor directly, and the selection
- * moves transform the covered vertices in the texel display space and commit ONE TransformUvs step (the
- * same commit path a finished modal UV gesture uses).  All math is identity display space - no deformer
+ * Executes the UV editor's Shift+S snaps in Edit mode, over the shown surface's texture coordinates (Object
+ * mode moves placed art instead - see handleUvObjectSnapRequest): the cursor moves read the UV cursor or the
+ * covered median and write the UV cursor directly, and the selection moves transform the covered vertices in
+ * the texel display space and commit ONE TransformUvs step (the same commit path a finished modal UV gesture
+ * uses).  All math is identity display space - no deformer
  * inverse, no movement transfer - since UVs live in one flat space; only the covered vertices of the
  * meshes on the shown surface participate (the overlay only shows one surface at a time, exactly as the
  * modal capture scopes).
@@ -75,17 +85,7 @@ internal fun handleUvSnapRequest(
 	}
 
 	when (kind) {
-		UvSnapKind.CursorToPixels -> {
-			val (cursorU, cursorV) =
-				frame.storedUvAt(cursorDisplayX.roundToInt().toFloat(), cursorDisplayY.roundToInt().toFloat())
-			session.setUvCursor(cursorU, cursorV)
-		}
-
-		UvSnapKind.CursorToGrid -> {
-			val (cursorU, cursorV) =
-				frame.storedUvAt(snapToGrid(cursorDisplayX, 0f, gridStep), snapToGrid(cursorDisplayY, 0f, gridStep))
-			session.setUvCursor(cursorU, cursorV)
-		}
+		UvSnapKind.CursorToPixels, UvSnapKind.CursorToGrid -> snapUvCursor(session, frame, kind, gridStep)
 
 		UvSnapKind.CursorToSelected -> {
 			// Nothing selected on the shown surface: no median to move the cursor to (a silent no-op).
@@ -154,3 +154,164 @@ internal fun handleUvSnapRequest(
 		}
 	}
 }
+
+/**
+ * Runs a UV snap that moves the UV cursor alone and reads no selection: Cursor to Pixels rounds the cursor to
+ * the nearest texel corner of the shown surface, Cursor to Grid to the area's grid step, both in display space
+ * and both from an unplaced cursor's resting place (UV 0,0).  One rule for the Edit and the Object handler,
+ * whose other snaps read different selections; any other kind is not this function's and does nothing.
+ *
+ * @param EditorSession session The session owning the UV cursor.
+ * @param UvEditFrame frame The shown surface's frame, mapping the cursor to display space and back.
+ * @param UvSnapKind kind The requested snap.
+ * @param Float gridStep The area's grid snap step in display texels.
+ */
+internal fun snapUvCursor(session: EditorSession, frame: UvEditFrame, kind: UvSnapKind, gridStep: Float) {
+	val cursor = session.uvCursor.value ?: UvCursor(0f, 0f)
+	val (cursorDisplayX, cursorDisplayY) = frame.displayAt(cursor.u, cursor.v)
+	val (snappedX, snappedY) =
+		when (kind) {
+			UvSnapKind.CursorToPixels -> cursorDisplayX.roundToInt().toFloat() to cursorDisplayY.roundToInt().toFloat()
+			UvSnapKind.CursorToGrid -> snapToGrid(cursorDisplayX, 0f, gridStep) to snapToGrid(cursorDisplayY, 0f, gridStep)
+			UvSnapKind.CursorToSelected,
+			UvSnapKind.SelectionToPixels,
+			UvSnapKind.SelectionToCursor,
+			UvSnapKind.SelectionToCursorOffset,
+			UvSnapKind.SelectionToGrid,
+			-> return
+		}
+	val (cursorU, cursorV) = frame.storedUvAt(snappedX, snappedY)
+	session.setUvCursor(cursorU, cursorV)
+}
+
+/**
+ * Executes the UV editor's Shift+S snaps in Object mode, where the unit of motion is a placed art tile: the
+ * selection moves translate tile placements on the shown atlas page, and the cursor moves read them.  A
+ * tile's origin is its footprint center (footprintCenterDisplay), the point Individual Origins turns it
+ * about, so Cursor to Selected followed by Selection to Cursor moves nothing.
+ *
+ * - Cursor to Pixels / Grid move the cursor alone (snapUvCursor), over a page or a source layer.
+ * - Cursor to Selected puts the cursor on the mean of the selected placed tiles' origins, pinned tiles
+ *   included, since it moves none of them.
+ * - Selection to Cursor lands each movable tile's origin on the cursor, Blender's pile-up.
+ * - Selection to Cursor (Keep Offset) moves every movable tile by one delta, landing the mean of their
+ *   origins on the cursor and keeping their layout.
+ * - Selection to Grid rounds each origin to the area's grid step in display space, the lines its backdrop
+ *   draws (anchored at the page's bottom-left, so the snap runs before the flip into page space).
+ * - Selection to Pixels rounds each placement's position, where raster pixel (0,0) lands, to whole page
+ *   pixels, so an unscaled, upright tile composes pixel for pixel instead of resampled.
+ *
+ * The movable tiles are the ones a placement drag would move: the selection's placed, unpinned tiles shown
+ * on the page.  With none, the snap answers with the drag's own notices.  Every move commits as ONE placement
+ * step, which re-derives the UVs of every drawable over each moved tile; like every snap, it registers no
+ * operation-strip entry and runs none of the drag's overlap checks.  The origins need the movers' art
+ * decoded, which runs on [computeDispatcher]; a document that changed while it ran drops the snap rather
+ * than commit placements read from the old one.
+ *
+ * @param EditorSession session The session owning the selection, the UV cursor, and the commit.
+ * @param UvPlacementSurface? surface The shown atlas page and the source-art store, or null over a source
+ *   layer, where only the cursor-only snaps run.
+ * @param List<GizmoMeshGeometry> geometries The shown islands' display geometry, which names the tiles shown.
+ * @param UvEditFrame frame The shown surface's frame, mapping the UV cursor to display space and back.
+ * @param UvSnapKind kind The requested snap.
+ * @param GridConfig grid The executing area's grid.
+ * @param CoroutineDispatcher computeDispatcher Where the art decode runs, off the UI thread.
+ */
+internal suspend fun handleUvObjectSnapRequest(
+	session: EditorSession,
+	surface: UvPlacementSurface?,
+	geometries: List<GizmoMeshGeometry>,
+	frame: UvEditFrame,
+	kind: UvSnapKind,
+	grid: GridConfig,
+	computeDispatcher: CoroutineDispatcher,
+) {
+	when (kind) {
+		UvSnapKind.CursorToPixels, UvSnapKind.CursorToGrid -> {
+			snapUvCursor(session, frame, kind, grid.snapStep)
+			return
+		}
+
+		UvSnapKind.CursorToSelected,
+		UvSnapKind.SelectionToPixels,
+		UvSnapKind.SelectionToCursor,
+		UvSnapKind.SelectionToCursorOffset,
+		UvSnapKind.SelectionToGrid,
+		-> Unit
+	}
+	if (surface == null) {
+		session.emitNotice("notice.uv.placement.pageViewOnly", NoticePlacement.NearCursor)
+		return
+	}
+	val model = session.model.value
+	if (!model.atlas.storedUvsAddressPages) {
+		session.emitNotice("notice.uv.placement.layerAddressed", NoticePlacement.NearCursor)
+		return
+	}
+	val selection = session.selection.value
+	// Cursor to Selected only reads, so pinned art counts; a move takes the tiles a drag would move.
+	val selectedTileIds = model.placementSelectedTileIds(selection)
+	val subjectTileIds = if (kind == UvSnapKind.CursorToSelected) selectedTileIds else model.placementDragTileIds(selection)
+	if (subjectTileIds.isEmpty()) {
+		// The drag's answers: no placed art under the selection, or placed art that is all pinned.
+		session.emitNotice(if (selectedTileIds.isEmpty()) "notice.uv.placement.noPlacedArt" else "notice.uv.placement.pinned", NoticePlacement.NearCursor)
+		return
+	}
+	val shownDrawableIds = geometries.mapTo(HashSet()) { geometry -> geometry.drawableId }
+	val shownTileIds = model.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId?.takeIf { drawable.id in shownDrawableIds } }
+	val candidateTileIds = subjectTileIds.filter { tileId -> tileId in shownTileIds }
+	val origins = if (candidateTileIds.isEmpty()) emptyMap() else withContext(computeDispatcher) { placementFootprintCenters(model, surface, candidateTileIds) }
+	if (origins == null) {
+		session.emitNotice("notice.uv.placement.notDerivable", NoticePlacement.NearCursor)
+		return
+	}
+	if (origins.isEmpty()) {
+		session.emitNotice("notice.uv.placement.notOnPage", NoticePlacement.NearCursor)
+		return
+	}
+	if (session.model.value !== model) {
+		return
+	}
+
+	val meanX = origins.values.sumOf { origin -> origin.first.toDouble() }.toFloat() / origins.size
+	val meanY = origins.values.sumOf { origin -> origin.second.toDouble() }.toFloat() / origins.size
+	if (kind == UvSnapKind.CursorToSelected) {
+		val (cursorU, cursorV) = frame.storedUvAt(meanX, meanY)
+		session.setUvCursor(cursorU, cursorV)
+		return
+	}
+	val cursor = session.uvCursor.value ?: UvCursor(0f, 0f)
+	val (cursorDisplayX, cursorDisplayY) = frame.displayAt(cursor.u, cursor.v)
+	val gridStep = grid.snapStep
+	val changed = LinkedHashMap<AtlasTileId, AtlasPlacement?>()
+	for ((tileId, origin) in origins) {
+		val placement = model.atlas.tileById[tileId]?.placement ?: continue
+		val (originX, originY) = origin
+		val moved =
+			when (kind) {
+				UvSnapKind.SelectionToCursor -> placement.translatedInDisplay(cursorDisplayX - originX, cursorDisplayY - originY)
+				UvSnapKind.SelectionToCursorOffset -> placement.translatedInDisplay(cursorDisplayX - meanX, cursorDisplayY - meanY)
+				UvSnapKind.SelectionToGrid ->
+					placement.translatedInDisplay(snapToGrid(originX, 0f, gridStep) - originX, snapToGrid(originY, 0f, gridStep) - originY)
+				UvSnapKind.SelectionToPixels -> placement.copy(positionX = round(placement.positionX), positionY = round(placement.positionY))
+				UvSnapKind.CursorToPixels, UvSnapKind.CursorToGrid, UvSnapKind.CursorToSelected -> placement
+			}
+		if (moved != placement) {
+			changed[tileId] = moved
+		}
+	}
+	if (changed.isNotEmpty()) {
+		session.setAtlasPlacements(changed, MeshOperatorKind.Grab)
+	}
+}
+
+/**
+ * This placement moved by a display-space delta: display is y up and the page y down, so the page moves by
+ * (deltaX, -deltaY).
+ *
+ * @param Float deltaX The move along display x, in texels.
+ * @param Float deltaY The move along display y (up), in texels.
+ * @return AtlasPlacement The moved placement.
+ */
+private fun AtlasPlacement.translatedInDisplay(deltaX: Float, deltaY: Float): AtlasPlacement =
+	copy(positionX = positionX + deltaX, positionY = positionY - deltaY)
