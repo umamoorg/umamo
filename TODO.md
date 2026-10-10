@@ -16,11 +16,11 @@
 6.) (Everything required for glue, deformers, and so on.)
 7.) UMA Format (Phase G - Art Sourcing Pipeline) - Mostly done, a few final pieces to go through.
 
-## WORK STEPS - 2026-10-09
-~~1.) Icon Conversion Script~~
-2.) Proportional Header Menu Clean Up
-~~3.) Pie Menu Icons~~
-4.) Snap Header Menu - Utilize the new combined PopupChip and improvements from the Proportional Header Menu changes.
+## 0.5.0 Goals
+0.) Merge in the existing language translations.
+1.) Work on the 2D Viewport sidebar that is empty.
+2.) Deformer Gizmos and Editing
+3.) Glue Gizmos and Editing
 
 ## VERY IMPORTANT
 * Hire translators for localization.

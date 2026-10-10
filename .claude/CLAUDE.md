@@ -5,7 +5,7 @@
 Umamo is an open-source cross-platform rigging editor for 2D puppet animation, with first class pen and touch support, built as a drop-in replacement for the Live2D Cubism Editor.
 
 - **Language:** Kotlin, Kotlin Multiplatform (shared core across desktop + Android).
-- **Package root:** `org.umamo` (reverse-DNS of the `umamo.org` domain). Shared library modules are flat — `org.umamo.format`, `org.umamo.runtime`, `org.umamo.interop`, `org.umamo.render`, `org.umamo.ui`, `org.umamo.reimport`. App code carries product + platform — `org.umamo.editor.desktop`, `org.umamo.editor.android` (a future viewer takes `org.umamo.viewer.*`); the headless diagnostic tool is `org.umamo.cli` (JVM-only).  The editor's Android `applicationId` is `org.umamo.editor`, keeping bare `org.umamo` a clean umbrella.
+- **Package root:** `org.umamo` (reverse-DNS of the `umamo.org` domain). Shared library modules are flat — `org.umamo.format`, `org.umamo.geometry`, `org.umamo.runtime`, `org.umamo.interop`, `org.umamo.render`, `org.umamo.ui`, `org.umamo.reimport`. App code carries product + platform — `org.umamo.editor.desktop`, `org.umamo.editor.android` (a future viewer takes `org.umamo.viewer.*`); the headless diagnostic tool is `org.umamo.cli` (JVM-only).  The editor's Android `applicationId` is `org.umamo.editor`, keeping bare `org.umamo` a clean umbrella.
 - **Platforms:** Windows, macOS, Linux (keyboard/mouse/pen) **and Android tablets** (pen/touch — e.g.  Wacom MovinkPad).  Rigging is a first-class workflow on **all** of these, not desktop-only.
 - **Headline workflow:** draw in Clip Studio Paint (or Photoshop), save/export, switch to Umamo, and the rig **refreshes against the updated art** without losing rigging work.
 - **Compatibility is the product:** read and write the existing Cubism source format so riggers can adopt incrementally and interoperate with the official editor.
@@ -165,6 +165,10 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
                             jvmMain/androidMain (no expect/actual). → okio, FileKit
 :settings     commonMain  — JSON settings engine: bundled defaults ← user overrides, dotted-key
                             get/set, persistence, change-event Flow. → :storage, kotlinx-serialization
+:geometry     commonMain  — pure vector geometry, zero project deps: Shewchuk's exact orient2d /
+                            incircle and the Delaunay triangulation the auto-mesh is built on.  Knows
+                            no pixels, puppets, or formats.  Also declares linuxX64() so its tests RUN
+                            under Kotlin/Native (iosArm64 only compiles; the predicates assume no FMA).
 :runtime      commonMain  — the pure puppet runtime: the immutable PuppetModel + typed ids, the
                             keyform grid algebra, the sampling eval, and the atlas domain (PuppetAtlas:
                             pages + tiles, each tile's AtlasPlacement, plus the uv-affine algebra that
@@ -258,7 +262,7 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
 
 **On disk:** library modules live under `module/`, application targets under `app/` (e.g. `module/format`, `app/desktop`); everything else at the repo root is intentionally non-module.  A module's Gradle path (`:format`, `:desktop`) is kept **flat and decoupled from its folder** via `projectDir` in `settings.gradle.kts`, so dependency declarations stay terse (`project(":format")`) and *path ≠ directory ≠ package*.  Stretch-phase modules follow the same scheme.
 
-Keep `:format`, `:reimport`, `:runtime`, `:interop`, `:edit`, `:ui` in `commonMain` so Android and desktop share them verbatim.  Platform-specific code (GPU contexts, FFI, pen, windowing) lives in `jvmMain` / `androidMain`.
+Keep `:format`, `:geometry`, `:reimport`, `:runtime`, `:interop`, `:edit`, `:ui` in `commonMain` so Android and desktop share them verbatim.  Platform-specific code (GPU contexts, FFI, pen, windowing) lives in `jvmMain` / `androidMain`.
 
 **Build logic that more than one module needs is a convention plugin, not a copied block.**  `gradle/build-logic` is an included build (not `buildSrc` — the configuration cache is on, and a `buildSrc` edit invalidates the whole build) exposing three plugins a module opts into by id:
 
