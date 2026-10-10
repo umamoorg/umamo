@@ -27,6 +27,7 @@ import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
+import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.LocalModalDriveDispatcher
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
@@ -215,6 +216,13 @@ internal fun UvObjectGizmoOverlay(
 		collectModalConfirmRequests(session, { session.activeUvOperator.value?.areaId == areaId }) {
 			modalTransform.confirm()
 		}
+	}
+
+	// The Shift+S snaps in Object mode (the pie and the header's snap menu), gated to this area: they move or
+	// read placed art tiles on the shown page, decoding their art on the drive dispatcher like the capture.
+	val areaOverlays = LocalAreaOverlays.current
+	LaunchedEffect(session, areaId, areaOverlays) {
+		collectUvObjectGizmoRequests(areaId, session, liveSurface, liveGeometries, liveFrame, areaOverlays, driveDispatcher)
 	}
 
 	// Start the placement gesture as a UV operator latches IN THIS AREA; tear it down (clearing the host's

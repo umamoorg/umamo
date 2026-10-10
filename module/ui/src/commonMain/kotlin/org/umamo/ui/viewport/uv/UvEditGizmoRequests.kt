@@ -20,7 +20,7 @@ import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
 /**
  * Collects the keymap commands the UV Edit overlay executes for its area: Mirror U / V, Select Linked, and
- * the Shift+S snaps.  Each request carries the area its command resolved at dispatch, and only that area's
+ * the Shift+S snaps (in Object mode the Object overlay runs the snaps - see collectUvObjectGizmoRequests).  Each request carries the area its command resolved at dispatch, and only that area's
  * overlay runs it - every open UV editor collects the same flows, and an ungated request would run once per
  * editor.  The area check comes BEFORE the empty-surface notice, so a request over a surface holding none of
  * the edit's meshes answers once, from the asking area, rather than acting on coordinates nobody can see.

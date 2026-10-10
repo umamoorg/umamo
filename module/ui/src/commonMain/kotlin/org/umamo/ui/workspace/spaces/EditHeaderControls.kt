@@ -210,10 +210,10 @@ private val UV_SNAP_SELECTION_ROWS =
  * pie, the palette, and this menu stay one behavior.  Every row is a one-shot command, so this stays a
  * menu: a pick runs it and closes.
  *
- * The 2D viewport's menu is the world snaps, offered in both modes and disabled with no document.  The UV
- * editor's is the texture-space snaps, which are Edit-mode operations, so it renders only in Edit mode.  A
- * pick acts on the header's own area: the click that opened the chip stamped that area as the hovered one,
- * and the open menu keeps the pointer from stamping another.
+ * The 2D viewport's menu is the world snaps; the UV editor's is the texture-space snaps, which move UVs in
+ * Edit mode and placed art tiles in Object mode.  Both are offered in either mode and disabled with no
+ * document.  A pick acts on the header's own area: the click that opened the chip stamped that area as the
+ * hovered one, and the open menu keeps the pointer from stamping another.
  *
  * @param SnapMenuKind kind Which surface's snaps the menu offers.
  */
@@ -221,10 +221,6 @@ private val UV_SNAP_SELECTION_ROWS =
 internal fun SnapDropdown(kind: SnapMenuKind) {
 	val commands = LocalCommands.current
 	val session = LocalEditorSession.current
-	val editorMode = session?.mode?.collectAsState()?.value
-	if (kind == SnapMenuKind.UvEditor && editorMode != EditorMode.Edit) {
-		return
-	}
 	var expanded by remember { mutableStateOf(false) }
 	val (cursorRows, selectionRows) =
 		when (kind) {

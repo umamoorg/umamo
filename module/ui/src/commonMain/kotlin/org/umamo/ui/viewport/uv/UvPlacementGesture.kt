@@ -549,7 +549,7 @@ internal fun buildPlacementGesture(
 		val analysis = analyzeAlpha(raster.width, raster.height, raster.rgba, model.atlas.composition.alphaThreshold) ?: continue
 		val trim = analysis.opaqueBounds
 		val reserve = reserveByTile[tileId]
-		val footprint = placementFootprint(placement, trim, reserve)
+		val (pivotDisplayX, pivotDisplayY) = footprintCenterDisplay(placementFootprint(placement, trim, reserve), surface.pageHeight)
 		movers.add(
 			PlacementMover(
 				tileId = tileId,
@@ -559,8 +559,8 @@ internal fun buildPlacementGesture(
 				meshMask = meshMaskOf(model, tileId),
 				mask = TileOpaqueMask.of(raster, trim, model.atlas.composition.alphaThreshold),
 				contours = analysis.contours,
-				pivotDisplayX = (footprint.left + footprint.right) / 2f,
-				pivotDisplayY = surface.pageHeight - (footprint.top + footprint.bottom) / 2f,
+				pivotDisplayX = pivotDisplayX,
+				pivotDisplayY = pivotDisplayY,
 				crop = cropRaster(raster, trim),
 			),
 		)
@@ -629,6 +629,52 @@ internal fun buildPlacementGesture(
 			extrude = extrude,
 		),
 	)
+}
+
+/**
+ * A tile's origin in UV Object mode, in display space: the center of its footprint (the opaque art and the
+ * mesh reserve, carried through the placement), flipped out of the page's y-down space.  The pivot each tile
+ * turns and scales about under Individual Origins, and the point the Object-mode snaps move and read.
+ *
+ * @param PlacementFootprint footprint The tile's footprint in page pixels.
+ * @param Int pageHeight The page's height in texels.
+ * @return Pair<Float, Float> The center in display space.
+ */
+internal fun footprintCenterDisplay(footprint: PlacementFootprint, pageHeight: Int): Pair<Float, Float> =
+	(footprint.left + footprint.right) / 2f to pageHeight - (footprint.top + footprint.bottom) / 2f
+
+/**
+ * The display-space origins (footprint centers) of placed tiles on the shown page, decoded the way a
+ * placement gesture decodes its movers, so a snap and a drag agree on where each tile's origin is.  A tile
+ * with nothing opaque has nothing on the page and is left out, as the drag leaves it out; so is a tile with
+ * no placement or one on another page.
+ *
+ * Decodes rasters, so callers run it off the UI thread.
+ *
+ * @param PuppetModel model The session's committed model.
+ * @param UvPlacementSurface surface The shown page and the source-art store.
+ * @param Collection<AtlasTileId> tileIds The tiles to find origins for.
+ * @return Map<AtlasTileId, Pair<Float, Float>>? Each tile's origin, or null when the shown page and the
+ *   model disagree or a tile's art will not decode to its own size (the drag's Not Derivable).
+ */
+internal fun placementFootprintCenters(model: PuppetModel, surface: UvPlacementSurface, tileIds: Collection<AtlasTileId>): Map<AtlasTileId, Pair<Float, Float>>? {
+	val reserveByTile = meshReserveByTile(model)
+	val centers = LinkedHashMap<AtlasTileId, Pair<Float, Float>>()
+	for (tileId in tileIds) {
+		val tile = model.atlas.tileById[tileId] ?: continue
+		val placement = tile.placement ?: continue
+		val page = model.atlas.pages.getOrNull(placement.pageIndex) ?: return null
+		if (page.width != surface.pageWidth || page.height != surface.pageHeight) {
+			return null
+		}
+		val raster = surface.artRasters.decodeRaster(tileId) ?: return null
+		if (raster.width != tile.width || raster.height != tile.height) {
+			return null
+		}
+		val trim = analyzeAlpha(raster.width, raster.height, raster.rgba, model.atlas.composition.alphaThreshold)?.opaqueBounds ?: continue
+		centers[tileId] = footprintCenterDisplay(placementFootprint(placement, trim, reserveByTile[tileId]), surface.pageHeight)
+	}
+	return centers
 }
 
 /**

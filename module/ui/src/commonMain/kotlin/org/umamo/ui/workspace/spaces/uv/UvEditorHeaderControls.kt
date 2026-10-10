@@ -32,7 +32,7 @@ import org.umamo.ui.workspace.spaces.SnapMenuKind
  * texture selector naming what the space shows (follow the selection, a pinned atlas page, or the
  * source-layer view) and the layer picker that finds a drawable by its artwork, then the vertex /
  * edge / face select-mode buttons, the transform pivot dropdown, the snap menu (its texture-space
- * snaps, Edit mode only), and the proportional-editing chip - the shared EditHeaderControls.kt
+ * snaps, in either mode), and the proportional-editing chip - the shared EditHeaderControls.kt
  * composables the 2D viewport's header also mounts, so the two surfaces stay one behavior.  The proportional panel's size row is this area's own radius
  * for the shown texture, in texels, never the session's world radius.  The shared controls drive the SHARED session state (the
  * selection and its select mode are one, Blender's UV sync selection): switching to face mode here

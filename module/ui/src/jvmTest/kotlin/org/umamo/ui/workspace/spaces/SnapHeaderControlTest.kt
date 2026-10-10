@@ -17,7 +17,6 @@ import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.snapCommands
 import org.umamo.ui.workspace.spaces.parameters.clickDescribed
 import org.umamo.ui.workspace.spaces.parameters.clickMenuEntry
-import org.umamo.ui.workspace.spaces.parameters.countOfDescription
 import org.umamo.ui.workspace.spaces.parameters.popupShows
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,7 +26,8 @@ import kotlin.test.assertTrue
 /**
  * The snap menu on the two work-surface headers, driven through the REAL header strips: the 2D viewport's
  * lists the world snaps and a pick runs its command, the UV editor's lists the texture-space snaps and a
- * pick dispatches the UV command, and the UV editor offers its menu in Edit mode only.
+ * pick dispatches the UV command, and the UV editor offers its menu in Object mode too, where its snaps move
+ * placed art.
  */
 @OptIn(ExperimentalTestApi::class)
 class SnapHeaderControlTest {
@@ -75,23 +75,23 @@ class SnapHeaderControlTest {
 			assertEquals(listOf("uv.snap.cursorToPixels"), invoked)
 		}
 
-	/** In Object mode the UV editor's header carries no snap menu, its snaps being Edit-mode operations. */
+	/** In Object mode the UV editor's header carries its snap menu too, whose snaps move placed art there. */
 	@Test
-	fun theUvHeaderOffersNoSnapMenuInObjectMode() =
+	fun theUvHeaderOffersItsSnapMenuInObjectMode() =
 		runComposeUiTest {
 			val session = gizmoObjectSession()
 			setAreaHeader(kind = SpaceKind.UvEditor, headerWidth = 1200.dp, puppet = mutableStateOf(session.model.value), session = session)
 
-			assertTrue(countOfDescription(PIVOT) > 0, "the strip is up: its pivot chip shows")
-			assertEquals(0, countOfDescription(SNAP), "but no snap chip")
+			clickDescribed(SNAP)
+
+			for (row in UV_ROWS) {
+				assertTrue(popupShows(row), "the $row row")
+			}
 		}
 
 	private companion object {
 		/** The snap chip's accessible name. */
 		const val SNAP = "Snap"
-
-		/** The pivot chip's accessible name. */
-		const val PIVOT = "Transform Pivot Point"
 
 		/** The 2D viewport's Cursor to World Origin row. */
 		const val CURSOR_TO_WORLD_ORIGIN = "Cursor to World Origin"
