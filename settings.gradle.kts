@@ -38,6 +38,7 @@ fun includeAt(path: String, dir: String) {
 }
 
 includeAt(":format", "module/format")
+includeAt(":geometry", "module/geometry")
 includeAt(":reimport", "module/reimport")
 includeAt(":storage", "module/storage")
 includeAt(":settings", "module/settings")

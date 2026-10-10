@@ -221,7 +221,7 @@ jobs:
       # AGP's com.android.kotlin.multiplatform.library and Gradle configures all projects even for a
       # :desktop-only task graph, so this looked like it would be required — but it measurably is
       # not: `env -u ANDROID_HOME -u ANDROID_SDK_ROOT ./gradlew :desktop:createDistributable
-      # --dry-run --no-configuration-cache` configures all seven android targets and resolves the
+      # --dry-run --no-configuration-cache` configures every android target and resolves the
       # task graph cleanly. Skipping it saves ~40 s per leg and avoids the arm64-Linux problem that
       # Google ships only x86-64 build-tools binaries.
 
@@ -260,8 +260,8 @@ jobs:
       # share (the explicit target, the host check, the heap limits, the packaging JDK) and says why.
       #
       # Do NOT add `check` or `build` to this job. `check` pulls compileKotlinIosArm64 in :format,
-      # :runtime, and :render, and ubuntu-24.04-arm is not a supported Kotlin/Native host. The
-      # verification suite above is where testing happens.
+      # :geometry, :runtime, :interop, and :render (and :geometry's linuxX64Test), and ubuntu-24.04-arm
+      # is not a supported Kotlin/Native host. The verification suite above is where testing happens.
       - name: Build the app image and the uber jar
         shell: bash
         env:

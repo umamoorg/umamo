@@ -86,6 +86,17 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## Robust Geometric Predicates (Public Domain)
+
+- Upstream: robust-predicates - https://github.com/mourner/robust-predicates
+- Author: Vladimir Agafonkin
+- License: The Unlicense (Public Domain Dedication)
+
+- Original: Jonathan Richard Shewchuk, "Adaptive Precision Floating-Point Arithmetic and Fast Robust Geometric Predicates" (1997) and its `predicates.c` - https://www.cs.cmu.edu/~quake/robust.html
+- License: Placed in the public domain by the author.
+
+Umamo's exact `orient2d` and `incircle` (`org.umamo.geometry.predicate`) and the expansion arithmetic beneath them are ported from robust-predicates' `orient2d.js`, `incircle.js`, and `util.js`, with Shewchuk's original sign convention kept (robust-predicates negates `orient2d` for a downward y axis).  The triangulator built on them is Umamo's own, written from the published papers.
+
 ## Baseline JPEG Decoder - Independent JPEG Group
 
 - Upstream: Independent JPEG Group's reference JPEG library (libjpeg) - https://www.ijg.org/
