@@ -218,6 +218,21 @@ class TransformStateTest {
 		assertEquals(true, session.proportionalEdit.value?.connectedOnly, "connected only survives an off/on cycle")
 	}
 
+	/** Setting Connected Only outright is silent and never switches proportional editing on or off. */
+	@Test
+	fun proportionalConnectedSetIsSilent() {
+		val session = meshedSession()
+		session.setProportionalConnected(true)
+		assertNull(session.proportionalEdit.value, "setting the flag while off leaves proportional editing off")
+		assertEquals(true, session.proportionalSettings.value.connectedOnly, "the flag waits in the settings")
+		assertNull(session.notice.value, "the setting control is its own confirmation: no notice")
+
+		session.toggleProportionalEdit()
+		session.setProportionalConnected(false)
+		assertEquals(false, session.proportionalEdit.value?.connectedOnly, "while on, the live state takes the flag")
+		assertEquals("notice.proportional.on", session.notice.value?.messageKey, "and the toggle's own notice is the last one")
+	}
+
 	/** A suppressed latch (the duplicate / rip auto-grab) opts the gesture out of proportional editing. */
 	@Test
 	fun suppressedMeshOperatorLatch() {

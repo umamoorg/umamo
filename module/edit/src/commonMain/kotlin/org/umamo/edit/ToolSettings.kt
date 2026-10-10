@@ -102,6 +102,16 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
+	 * Sets Connected Only outright, silently: the control that calls this shows the flag itself.
+	 * Proportional editing itself stays as it is.
+	 *
+	 * @param Boolean connectedOnly Whether influence spreads only along mesh edges.
+	 */
+	override fun setProportionalConnected(connectedOnly: Boolean) {
+		applyProportionalSettings(mutableProportionalSettings.value.copy(connectedOnly = connectedOnly))
+	}
+
+	/**
 	 * Selects the proportional falloff curve.  Proportional editing itself stays as it is: while it is off
 	 * the curve is what the next toggle brings back, and the header chip's curve glyph shows it.
 	 *

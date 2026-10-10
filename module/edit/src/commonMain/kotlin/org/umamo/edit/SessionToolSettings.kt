@@ -86,6 +86,15 @@ interface SessionToolSettings {
 	fun toggleProportionalConnected()
 
 	/**
+	 * Sets Connected Only outright, silently, never switching proportional editing itself on or off.  The
+	 * write of a control that shows the flag (the proportional panel's checkbox): the control is its own
+	 * confirmation, as the operation strip's rows are for [setProportionalEdit], so no notice fires.
+	 *
+	 * @param Boolean connectedOnly Whether influence spreads only along mesh edges.
+	 */
+	fun setProportionalConnected(connectedOnly: Boolean)
+
+	/**
 	 * Selects the proportional falloff curve.  Never switches proportional editing itself on or off: while
 	 * it is off, the curve waits in [proportionalSettings] for the next toggle.
 	 *

@@ -44,6 +44,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.viewport.falloffLabel
+import org.umamo.ui.workspace.commands.ProportionalConnectedRequest
 
 /*
  * The Edit-mode header controls shared by the editor surfaces that host element editing - the 2D
@@ -196,7 +197,8 @@ internal fun sessionProportionalSizeField(): ProportionalSizeField? {
  * session's proportional settings, so they show the configuration a toggle brings back while the tool is
  * off; the glyph dims and the panel dims with it, yet every row stays live, and a change made while off
  * waits for the next toggle (Blender's rule - a setting never switches the tool on).  The checkbox and the
- * curves dispatch their registry commands; the size goes through [size].  Renders nothing outside Edit mode.
+ * curves dispatch their registry commands, the checkbox with the flag it sets so the change stays silent (the
+ * box is its own confirmation); the size goes through [size].  Renders nothing outside Edit mode.
  *
  * @param ProportionalSizeField? size The surface's Proportional Size row, or null to leave the row out.
  */
@@ -238,7 +240,7 @@ internal fun ProportionalEditControls(size: ProportionalSizeField?) {
 			) {
 				Checkbox(
 					checked = settings.connectedOnly,
-					onCheckedChange = { commands.invoke("mesh.proportional.connectedToggle") },
+					onCheckedChange = { checked -> commands.invoke("mesh.proportional.connectedToggle", ProportionalConnectedRequest(checked)) },
 					label = stringResource(Res.string.transform_options_connected),
 				)
 			}

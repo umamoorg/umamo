@@ -21,6 +21,16 @@ private val FALLOFF_TITLES: Map<ProportionalFalloff, StringResource> =
 	)
 
 /**
+ * The payload a control that shows Connected Only hands mesh.proportional.connectedToggle: the flag to set,
+ * set silently.  The proportional panel's checkbox is its own confirmation, and a near-cursor notice raised
+ * from inside the open panel would land under it, at the pointer as it was when the panel opened.  Without
+ * the payload (Alt+O, the palette) the command flips the flag and confirms with the notice.
+ *
+ * @property Boolean connectedOnly Whether influence spreads only along mesh edges.
+ */
+internal class ProportionalConnectedRequest(val connectedOnly: Boolean)
+
+/**
  * Proportional editing (Blender's O): the toggle flips it, the falloff commands select the curve and the
  * connected toggle flips Connected Only, neither switching the tool on or off.  The Edit overlay reads the state when an operator latches and the wheel resizes
  * the radius mid-gesture, so nothing here needs to know which area the gesture will run in.
@@ -38,8 +48,12 @@ internal fun proportionalCommands(editorSession: EditorSession?, availability: S
 			"mesh.proportional.connectedToggle",
 			title = Res.string.cmd_mesh_proportional_connected,
 			availability = availability.inEditMode,
-		) {
-			editorSession?.toggleProportionalConnected()
+		) { argument ->
+			if (argument is ProportionalConnectedRequest) {
+				editorSession?.setProportionalConnected(argument.connectedOnly)
+			} else {
+				editorSession?.toggleProportionalConnected()
+			}
 		},
 	) +
 		// One falloff command per curve, looped over the enum so a new falloff cannot be forgotten here -

@@ -104,7 +104,7 @@ class ProportionalHeaderControlTest {
 			assertEquals(ProportionalFalloff.Sharp, session.proportionalEdit.value?.falloff, "the next toggle brings the curve in")
 		}
 
-	/** Connected Only flipped while the tool is off waits for the next toggle too. */
+	/** Connected Only flipped while the tool is off waits for the next toggle too, and the checkbox raises no notice. */
 	@Test
 	fun connectedOnlyWhileOffWaitsForTheToggle() =
 		runComposeUiTest {
@@ -116,6 +116,10 @@ class ProportionalHeaderControlTest {
 
 			assertTrue(session.proportionalSettings.value.connectedOnly, "the flag is set")
 			assertNull(session.proportionalEdit.value, "and the tool stays off")
+			assertNull(session.notice.value, "the checkbox is its own confirmation: no notice under the open panel")
+			clickMenuEntry(CONNECTED_ONLY)
+			assertFalse(session.proportionalSettings.value.connectedOnly, "a second click clears the flag")
+			assertNull(session.notice.value, "silently as well")
 		}
 
 	/** On the 2D viewport the size row is the session's world radius. */
