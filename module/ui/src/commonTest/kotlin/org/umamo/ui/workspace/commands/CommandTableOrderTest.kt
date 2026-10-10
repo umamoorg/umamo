@@ -136,7 +136,7 @@ class CommandTableOrderTest {
 	/**
 	 * The document-scoped groups in the order the shell concatenates them - by far the largest set, and
 	 * the one a split most easily loses a command from.  The eight proportional-falloff commands are
-	 * appended by a loop over the enum, so they trail their group's hand-written pair in Blender's order.
+	 * appended by a loop over the enum, so they trail their group's hand-written pair.
 	 */
 	@Test
 	fun sessionTablesAreComplete() {

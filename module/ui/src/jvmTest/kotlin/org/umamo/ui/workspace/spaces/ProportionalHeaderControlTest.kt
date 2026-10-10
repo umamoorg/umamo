@@ -215,7 +215,6 @@ class ProportionalHeaderControlTest {
 		/** The Sharp curve. */
 		const val SHARP = "Sharp"
 
-		/** The eight curves, in Blender's order. */
 		val CURVE_LABELS = listOf(SMOOTH, "Sphere", "Root", "Inverse Square", SHARP, "Linear", "Constant", "Random")
 
 		/** The session's default world radius as the field shows it. */
