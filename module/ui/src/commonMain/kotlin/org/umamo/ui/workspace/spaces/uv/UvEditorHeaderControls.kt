@@ -16,19 +16,23 @@ import org.umamo.ui.model.LocalPuppetTextures
 import org.umamo.ui.model.documentIsOpen
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.uv.atlasPageIndexFor
+import org.umamo.ui.viewport.uv.uvProportionalRadiusRange
+import org.umamo.ui.viewport.uv.uvProportionalRadiusSeed
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.spaces.MeshSelectModeButtons
 import org.umamo.ui.workspace.spaces.OverlaysHeaderControl
 import org.umamo.ui.workspace.spaces.PivotModeDropdown
 import org.umamo.ui.workspace.spaces.ProportionalEditControls
+import org.umamo.ui.workspace.spaces.ProportionalSizeField
 
 /**
  * The UV editor's space-specific header strip (mounted via SpaceDescriptor.headerContent): the
  * texture selector naming what the space shows (follow the selection, a pinned atlas page, or the
  * source-layer view) and the layer picker that finds a drawable by its artwork, then the vertex /
  * edge / face select-mode buttons, the transform pivot dropdown, and the proportional-editing
- * controls - the shared EditHeaderControls.kt composables the 2D viewport's header also mounts, so
- * the two surfaces stay one behavior.  The shared controls drive the SHARED session state (the
+ * chip - the shared EditHeaderControls.kt composables the 2D viewport's header also mounts, so
+ * the two surfaces stay one behavior.  The proportional panel's size row is this area's own radius
+ * for the shown texture, in texels, never the session's world radius.  The shared controls drive the SHARED session state (the
  * selection and its select mode are one, Blender's UV sync selection): switching to face mode here
  * switches the viewport too, by design.  The texture selector instead reads and writes the area's own
  * UvEditorViewState, so two UV editors pin independently, and so does the overlays control at the trailing
@@ -54,7 +58,7 @@ internal fun OverflowRowScope.uvEditorHeaderControls(scope: AreaScope) {
 	}
 	item("selectMode") { MeshSelectModeButtons() }
 	item("pivot") { PivotModeDropdown() }
-	item("proportional") { ProportionalEditControls() }
+	item("proportional") { ProportionalEditControls(size = uvProportionalSizeField(viewState.proportionalRadii)) }
 	flexibleSpace()
 	item("overlays") {
 		if (documentIsOpen()) {
@@ -161,4 +165,23 @@ private fun UvTextureSelectorDropdown(viewState: UvEditorViewState) {
 			positionProvider = BelowAnchorPositionProvider,
 		)
 	}
+}
+
+/**
+ * The UV editor's Proportional Size row: the radius of the surface the area shows, in texels, seeded from
+ * the surface's size before any gesture has resized it - the number a gesture would start from - and
+ * clamped as the mid-gesture wheel clamps it.
+ *
+ * @param UvProportionalRadii radii The area's per-surface radii.
+ * @return ProportionalSizeField? The row, or null while the area shows no surface.
+ */
+@Composable
+private fun uvProportionalSizeField(radii: UvProportionalRadii): ProportionalSizeField? {
+	val surface = radii.shownSurface ?: return null
+	val radiusState = radii.stateFor(surface)
+	return ProportionalSizeField(
+		value = radiusState.value ?: uvProportionalRadiusSeed(surface.displayWidth, surface.displayHeight),
+		onValueChange = { radius -> radiusState.value = radius },
+		range = uvProportionalRadiusRange(surface.displayWidth, surface.displayHeight),
+	)
 }

@@ -15,31 +15,52 @@ class ProportionalEditingTest {
 	@Test
 	fun everyFalloffIsFullAtZeroAndZeroAtRadiusEdge() {
 		for (falloff in allFalloffs) {
-			assertEquals(1f, proportionalWeight(falloff, 0f), "$falloff at distance 0")
-			assertEquals(0f, proportionalWeight(falloff, 1f), "$falloff at the radius edge")
-			assertEquals(0f, proportionalWeight(falloff, 1.5f), "$falloff beyond the radius")
-			assertEquals(1f, proportionalWeight(falloff, -0.5f), "$falloff clamps negative distances to full weight")
+			assertEquals(1f, proportionalWeight(falloff, 0f, ANY_VERTEX), "$falloff at distance 0")
+			assertEquals(0f, proportionalWeight(falloff, 1f, ANY_VERTEX), "$falloff at the radius edge")
+			assertEquals(0f, proportionalWeight(falloff, 1.5f, ANY_VERTEX), "$falloff beyond the radius")
+			assertEquals(1f, proportionalWeight(falloff, -0.5f, ANY_VERTEX), "$falloff clamps negative distances to full weight")
 		}
 	}
 
 	@Test
 	fun falloffCurvesMatchTheirFormulasAtMidpoint() {
 		// fade = 0.5 at the midpoint; each curve's closed form evaluated by hand.
-		assertEquals(0.5f, proportionalWeight(ProportionalFalloff.Smooth, 0.5f), 1e-6f, "smoothstep is 0.5 at its midpoint")
-		assertEquals(sqrt(0.75f), proportionalWeight(ProportionalFalloff.Sphere, 0.5f), 1e-6f, "sphere is sqrt(1 - 0.25)")
-		assertEquals(sqrt(0.5f), proportionalWeight(ProportionalFalloff.Root, 0.5f), 1e-6f, "root is sqrt(fade)")
-		assertEquals(0.25f, proportionalWeight(ProportionalFalloff.Sharp, 0.5f), 1e-6f, "sharp is fade squared")
-		assertEquals(0.5f, proportionalWeight(ProportionalFalloff.Linear, 0.5f), 1e-6f, "linear is fade")
-		assertEquals(1f, proportionalWeight(ProportionalFalloff.Constant, 0.5f), "constant is full inside the radius")
+		assertEquals(0.5f, proportionalWeight(ProportionalFalloff.Smooth, 0.5f, ANY_VERTEX), 1e-6f, "smoothstep is 0.5 at its midpoint")
+		assertEquals(sqrt(0.75f), proportionalWeight(ProportionalFalloff.Sphere, 0.5f, ANY_VERTEX), 1e-6f, "sphere is sqrt(1 - 0.25)")
+		assertEquals(sqrt(0.5f), proportionalWeight(ProportionalFalloff.Root, 0.5f, ANY_VERTEX), 1e-6f, "root is sqrt(fade)")
+		assertEquals(0.75f, proportionalWeight(ProportionalFalloff.InverseSquare, 0.5f, ANY_VERTEX), 1e-6f, "inverse square is 1 - distance squared")
+		assertEquals(0.25f, proportionalWeight(ProportionalFalloff.Sharp, 0.5f, ANY_VERTEX), 1e-6f, "sharp is fade squared")
+		assertEquals(0.5f, proportionalWeight(ProportionalFalloff.Linear, 0.5f, ANY_VERTEX), 1e-6f, "linear is fade")
+		assertEquals(1f, proportionalWeight(ProportionalFalloff.Constant, 0.5f, ANY_VERTEX), "constant is full inside the radius")
+	}
+
+	/** Random scales the fade by a per-vertex value: never above the fade, the same for a vertex every time. */
+	@Test
+	fun randomStaysUnderTheFadeAndRepeatsPerVertex() {
+		for (vertexIndex in 0 until RANDOM_SAMPLE_COUNT) {
+			val weight = proportionalWeight(ProportionalFalloff.Random, 0.5f, vertexIndex)
+			assertTrue(weight in 0f..0.5f, "vertex $vertexIndex weighs within [0, fade], got $weight")
+			assertEquals(weight, proportionalWeight(ProportionalFalloff.Random, 0.5f, vertexIndex), "vertex $vertexIndex repeats its weight")
+		}
+	}
+
+	/** Random's per-vertex values spread across [0, 1) instead of clustering, so the halo reads as noise. */
+	@Test
+	fun randomSamplesSpreadAcrossTheUnitRange() {
+		val samples = (0 until RANDOM_SAMPLE_COUNT).map { vertexIndex -> randomFalloffSample(vertexIndex) }
+		assertTrue(samples.all { sample -> sample >= 0f && sample < 1f }, "every sample is in [0, 1)")
+		assertTrue(samples.toSet().size > RANDOM_SAMPLE_COUNT * 9 / 10, "neighboring vertices draw different values")
+		assertTrue(samples.min() < 0.05f && samples.max() > 0.95f, "the samples reach both ends of the range")
+		assertEquals(0.5f, samples.average().toFloat(), 0.05f, "the samples center on one half")
 	}
 
 	@Test
 	fun everyFalloffIsMonotonicallyNonIncreasing() {
 		val sampleCount = 20
 		for (falloff in allFalloffs) {
-			var previousWeight = proportionalWeight(falloff, 0f)
+			var previousWeight = proportionalWeight(falloff, 0f, ANY_VERTEX)
 			for (sampleIndex in 1..sampleCount) {
-				val weight = proportionalWeight(falloff, sampleIndex / sampleCount.toFloat())
+				val weight = proportionalWeight(falloff, sampleIndex / sampleCount.toFloat(), ANY_VERTEX)
 				assertTrue(weight <= previousWeight + 1e-6f, "$falloff must not increase with distance (sample $sampleIndex)")
 				previousWeight = weight
 			}
@@ -117,5 +138,13 @@ class ProportionalEditingTest {
 		assertEquals(setOf(1, 2), partitions[0].keys, "vertices nearest end 0 follow the first island (2 ties to 0, iterated first)")
 		assertEquals(setOf(3), partitions[1].keys, "vertex 3 follows the second island")
 		assertEquals(influences.getValue(3).weight, partitions[1].getValue(3), "weights carry into the partitions")
+	}
+
+	private companion object {
+		/** A vertex index for the curves that ignore it. */
+		const val ANY_VERTEX = 7
+
+		/** How many vertices the Random checks sample. */
+		const val RANDOM_SAMPLE_COUNT = 1000
 	}
 }

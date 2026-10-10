@@ -135,8 +135,8 @@ class CommandTableOrderTest {
 
 	/**
 	 * The document-scoped groups in the order the shell concatenates them - by far the largest set, and
-	 * the one a split most easily loses a command from.  The six proportional-falloff commands are
-	 * appended by a loop over the enum, so they trail their group's hand-written pair.
+	 * the one a split most easily loses a command from.  The eight proportional-falloff commands are
+	 * appended by a loop over the enum, so they trail their group's hand-written pair in Blender's order.
 	 */
 	@Test
 	fun sessionTablesAreComplete() {
@@ -218,9 +218,11 @@ class CommandTableOrderTest {
 				"mesh.proportional.falloff.smooth",
 				"mesh.proportional.falloff.sphere",
 				"mesh.proportional.falloff.root",
+				"mesh.proportional.falloff.inverseSquare",
 				"mesh.proportional.falloff.sharp",
 				"mesh.proportional.falloff.linear",
 				"mesh.proportional.falloff.constant",
+				"mesh.proportional.falloff.random",
 				"document.toggleSourceArtworkDisplay",
 				"document.repackAtlas",
 			),

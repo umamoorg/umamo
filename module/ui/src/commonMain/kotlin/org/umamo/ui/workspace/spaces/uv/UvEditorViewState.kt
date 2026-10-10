@@ -71,6 +71,9 @@ internal class UvEditorViewState : PersistentSpaceState {
 	/** Which overlays this area shows (UMA §7.3 `overlays`). */
 	val overlays = ViewportOverlayState(OverlaySurface.UvEditor)
 
+	/** The area's proportional radius per surface, which the body's gestures and the header's size row share; never saved. */
+	val proportionalRadii = UvProportionalRadii()
+
 	/**
 	 * The UV editor's member of its area block.
 	 *

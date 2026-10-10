@@ -34,16 +34,13 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	/** Proportional editing, non-null while enabled (see [SessionToolSettings.proportionalEdit]). */
 	override val proportionalEdit: StateFlow<ProportionalEditState?> = mutableProportionalEdit.asStateFlow()
 
-	// The configuration proportional editing re-enables with: the last falloff and radius survive an
-	// off/on toggle (the circle-select radius pattern), so O comes back the way it was left.
-	private var lastProportionalEdit = DEFAULT_PROPORTIONAL_EDIT_STATE
+	// The configuration proportional editing applies with, kept while it is off: the falloff, radius, and
+	// connected flag survive an off/on toggle (the circle-select radius pattern), so O comes back the way it
+	// was left.  Equal to the live state whenever proportional editing is on.
+	private val mutableProportionalSettings = MutableStateFlow(DEFAULT_PROPORTIONAL_EDIT_STATE)
 
-	/**
-	 * The proportional falloff, radius, and connected flag as they would apply now: the live state while
-	 * proportional editing is on, else the configuration a toggle would bring back.
-	 */
-	val proportionalSettings: ProportionalEditState
-		get() = mutableProportionalEdit.value ?: lastProportionalEdit
+	/** The proportional configuration, live or remembered (see [SessionToolSettings.proportionalSettings]). */
+	override val proportionalSettings: StateFlow<ProportionalEditState> = mutableProportionalSettings.asStateFlow()
 
 	/**
 	 * Places (or moves) the 2D cursor.
@@ -80,33 +77,24 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	 * visible effect - the influence circle only shows during a modal transform).
 	 */
 	override fun toggleProportionalEdit() {
-		val current = mutableProportionalEdit.value
-		if (current != null) {
-			lastProportionalEdit = current
+		if (mutableProportionalEdit.value != null) {
 			mutableProportionalEdit.value = null
 			notify("notice.proportional.off", NoticePlacement.NearCursor)
 		} else {
-			mutableProportionalEdit.value = lastProportionalEdit
+			mutableProportionalEdit.value = mutableProportionalSettings.value
 			notify("notice.proportional.on", NoticePlacement.NearCursor)
 		}
 	}
 
 	/**
 	 * Toggles Connected Only for proportional editing (influence measured along mesh edges instead of
-	 * straight-line, so the halo never leaps to unconnected geometry), enabling proportional editing
-	 * if it was off - and then connected mode turns ON regardless of the remembered flag, since the
-	 * command expresses the intent to use it.  Confirms either way with a near-cursor notice.
+	 * straight-line, so the halo never leaps to unconnected geometry).  Proportional editing itself stays
+	 * as it is: while it is off the flag is what the next toggle brings back (Blender's rule - changing a
+	 * setting never switches the tool on).  Confirms either way with a near-cursor notice.
 	 */
 	override fun toggleProportionalConnected() {
-		val current = mutableProportionalEdit.value
-		val updated =
-			if (current == null) {
-				lastProportionalEdit.copy(connectedOnly = true)
-			} else {
-				current.copy(connectedOnly = !current.connectedOnly)
-			}
-		lastProportionalEdit = updated
-		mutableProportionalEdit.value = updated
+		val updated = mutableProportionalSettings.value.let { settings -> settings.copy(connectedOnly = !settings.connectedOnly) }
+		applyProportionalSettings(updated)
 		notify(
 			if (updated.connectedOnly) "notice.proportional.connected.on" else "notice.proportional.connected.off",
 			NoticePlacement.NearCursor,
@@ -114,29 +102,36 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
-	 * Selects the proportional falloff curve, enabling proportional editing if it was off - picking a
-	 * falloff from the palette or header expresses the intent to use it, and silently updating a
-	 * disabled state would look like the command did nothing.
+	 * Selects the proportional falloff curve.  Proportional editing itself stays as it is: while it is off
+	 * the curve is what the next toggle brings back, and the header chip's curve glyph shows it.
 	 *
 	 * @param ProportionalFalloff falloff The falloff curve the influence weights follow.
 	 */
 	override fun setProportionalFalloff(falloff: ProportionalFalloff) {
-		val updated = (mutableProportionalEdit.value ?: lastProportionalEdit).copy(falloff = falloff)
-		lastProportionalEdit = updated
-		mutableProportionalEdit.value = updated
+		applyProportionalSettings(mutableProportionalSettings.value.copy(falloff = falloff))
 	}
 
 	/**
-	 * Sets the proportional influence radius, clamped to the allowed range.  A no-op while proportional
-	 * editing is off (the radius only changes from the mid-gesture scroll, which requires it on).
+	 * Sets the proportional influence radius, clamped to the allowed range.  Proportional editing itself
+	 * stays as it is: while it is off the radius is what the next toggle brings back.
 	 *
 	 * @param Float radiusWorld The influence radius in world units (canvas px).
 	 */
 	override fun setProportionalRadius(radiusWorld: Float) {
-		val current = mutableProportionalEdit.value ?: return
-		val updated = current.copy(radiusWorld = clampProportionalRadius(radiusWorld))
-		lastProportionalEdit = updated
-		mutableProportionalEdit.value = updated
+		applyProportionalSettings(mutableProportionalSettings.value.copy(radiusWorld = clampProportionalRadius(radiusWorld)))
+	}
+
+	/**
+	 * Stores a changed proportional configuration, and makes it the live state only while proportional
+	 * editing is on - the one rule every setting write follows, so no setter can switch the tool on.
+	 *
+	 * @param ProportionalEditState settings The configuration to store.
+	 */
+	private fun applyProportionalSettings(settings: ProportionalEditState) {
+		mutableProportionalSettings.value = settings
+		if (mutableProportionalEdit.value != null) {
+			mutableProportionalEdit.value = settings
+		}
 	}
 
 	/**
@@ -149,12 +144,11 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	 */
 	override fun setProportionalEdit(state: ProportionalEditState?) {
 		if (state == null) {
-			mutableProportionalEdit.value?.let { current -> lastProportionalEdit = current }
 			mutableProportionalEdit.value = null
 			return
 		}
 		val clamped = state.copy(radiusWorld = clampProportionalRadius(state.radiusWorld))
-		lastProportionalEdit = clamped
+		mutableProportionalSettings.value = clamped
 		mutableProportionalEdit.value = clamped
 	}
 
@@ -170,8 +164,8 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 		mutableUvCursor.value = viewState.uvCursor
 		mutablePivotMode.value = viewState.pivotMode
 		viewState.proportionalSettings?.let { settings ->
-			lastProportionalEdit = settings.copy(radiusWorld = clampProportionalRadius(settings.radiusWorld))
+			mutableProportionalSettings.value = settings.copy(radiusWorld = clampProportionalRadius(settings.radiusWorld))
 		}
-		mutableProportionalEdit.value = lastProportionalEdit.takeIf { viewState.proportionalEnabled }
+		mutableProportionalEdit.value = mutableProportionalSettings.value.takeIf { viewState.proportionalEnabled }
 	}
 }

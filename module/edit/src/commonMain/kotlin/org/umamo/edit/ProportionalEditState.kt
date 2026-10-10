@@ -28,15 +28,18 @@ fun clampProportionalRadius(radiusWorld: Float): Float = radiusWorld.coerceIn(MI
 
 /**
  * The falloff curve shaping how a vertex's influence fades from 1 (at the selection) to 0 (at the
- * radius edge) - Blender's proportional-editing falloff set, minus the randomized ones.
+ * radius edge) - Blender's proportional-editing falloff set, in Blender's order.  Every consumer (the
+ * saved editor state, the commands, the operation strip) keys a curve by its name, never its position.
  */
 enum class ProportionalFalloff {
 	Smooth,
 	Sphere,
 	Root,
+	InverseSquare,
 	Sharp,
 	Linear,
 	Constant,
+	Random,
 }
 
 /**

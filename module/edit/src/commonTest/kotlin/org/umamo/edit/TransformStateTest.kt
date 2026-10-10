@@ -136,7 +136,7 @@ class TransformStateTest {
 		assertTrue(session.canRedo.value)
 	}
 
-	/** Proportional editing toggles off/on remembering its configuration; falloff selection enables it. */
+	/** Proportional editing toggles off/on remembering its configuration; a setting changed while off never enables it. */
 	@Test
 	fun proportionalEditToggleAndConfiguration() {
 		val session = meshedSession()
@@ -156,12 +156,19 @@ class TransformStateTest {
 		session.toggleProportionalEdit()
 		assertEquals(ProportionalEditState(ProportionalFalloff.Sharp, 500f), session.proportionalEdit.value, "the configuration survives an off/on cycle")
 
-		// The radius clamps to its bounds; a falloff pick while off re-enables.
+		// The radius clamps to its bounds, and the settings flow tracks the live state while on.
 		session.setProportionalRadius(0f)
 		assertEquals(MIN_PROPORTIONAL_RADIUS_WORLD, session.proportionalEdit.value?.radiusWorld, "the radius clamps at the minimum")
+		assertEquals(session.proportionalEdit.value, session.proportionalSettings.value, "the settings are the live state while on")
+
+		// A falloff or radius change while off waits in the settings for the next toggle (Blender's rule).
 		session.toggleProportionalEdit()
 		session.setProportionalFalloff(ProportionalFalloff.Linear)
-		assertEquals(ProportionalFalloff.Linear, session.proportionalEdit.value?.falloff, "picking a falloff while off enables proportional editing")
+		session.setProportionalRadius(64f)
+		assertNull(session.proportionalEdit.value, "a setting changed while off leaves proportional editing off")
+		assertEquals(ProportionalEditState(ProportionalFalloff.Linear, 64f), session.proportionalSettings.value, "the settings carry the change")
+		session.toggleProportionalEdit()
+		assertEquals(ProportionalEditState(ProportionalFalloff.Linear, 64f), session.proportionalEdit.value, "the next toggle brings the change in")
 	}
 
 	/** The rotate accumulator crosses the atan2 branch cut, reverses through zero, and multi-turns. */
@@ -189,13 +196,17 @@ class TransformStateTest {
 		assertEquals(-pi + 0.2f, wrapAngle(pi + 0.2f), 1e-5f, "wrapAngle folds past +pi into the negative side")
 	}
 
-	/** Connected Only toggles with a notice, enabling proportional editing when it was off. */
+	/** Connected Only toggles with a notice and never switches proportional editing itself on or off. */
 	@Test
 	fun proportionalConnectedOnlyToggle() {
 		val session = meshedSession()
 		session.toggleProportionalConnected()
-		assertEquals(true, session.proportionalEdit.value?.connectedOnly, "toggling while off enables proportional editing, connected on")
+		assertNull(session.proportionalEdit.value, "toggling while off leaves proportional editing off")
+		assertEquals(true, session.proportionalSettings.value.connectedOnly, "the flag waits in the settings")
 		assertEquals("notice.proportional.connected.on", session.notice.value?.messageKey, "the toggle confirms with a notice")
+		session.toggleProportionalEdit()
+		assertEquals(true, session.proportionalEdit.value?.connectedOnly, "the next toggle brings the flag in")
+
 		session.toggleProportionalConnected()
 		assertEquals(false, session.proportionalEdit.value?.connectedOnly, "the second toggle turns connected off")
 		assertTrue(session.proportionalEdit.value != null, "proportional editing itself stays on")

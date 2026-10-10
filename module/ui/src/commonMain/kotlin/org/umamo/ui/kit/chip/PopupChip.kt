@@ -48,6 +48,8 @@ import org.umamo.ui.theme.UmamoIcon
  * @param Color?    iconTint           A status color for the glyph at rest, or null for the chip's own content color.
  * @param ChipToggle? iconToggle       A toggle riding on the glyph, splitting the face into the glyph's own button and the
  *   chevron that opens the panel (see [ChipToggle]).
+ * @param UmamoIcon? valueIcon         A glyph beside the chevron showing the panel's current value, or null for none.
+ * @param Color?    valueIconTint      A status color for the value glyph at rest, or null for the chip's own content color.
  * @param Dp?       panelMinWidth      The narrowest the panel's content may be, or null for no floor; the panel
  *   hugs its widest row above it (see [PopupPanel]).
  * @param Function  content            The panel's rows.
@@ -63,6 +65,8 @@ fun PopupChip(
 	style: DropdownChipStyle = DropdownChipStyle.Header,
 	iconTint: Color? = null,
 	iconToggle: ChipToggle? = null,
+	valueIcon: UmamoIcon? = null,
+	valueIconTint: Color? = null,
 	panelMinWidth: Dp? = null,
 	content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -85,6 +89,8 @@ fun PopupChip(
 		style = style,
 		iconTint = iconTint,
 		iconToggle = iconToggle,
+		valueIcon = valueIcon,
+		valueIconTint = valueIconTint,
 	) {
 		PopupPanel(onDismissRequest = { setOpen(false) }, minContentWidth = panelMinWidth, content = content)
 	}

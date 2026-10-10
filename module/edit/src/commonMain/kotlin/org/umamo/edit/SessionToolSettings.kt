@@ -64,6 +64,13 @@ interface SessionToolSettings {
 	val proportionalEdit: StateFlow<ProportionalEditState?>
 
 	/**
+	 * The proportional falloff, radius, and connected flag as they apply now: the live state while
+	 * proportional editing is on (always equal to [proportionalEdit]), else the configuration a toggle
+	 * brings back.  What the header shows while the tool is off, and what a setting change while off edits.
+	 */
+	val proportionalSettings: StateFlow<ProportionalEditState>
+
+	/**
 	 * Toggles proportional editing on or off (Blender's O), restoring the last falloff and radius on
 	 * re-enable and confirming either way with a near-cursor notice (an idle toggle has no other
 	 * visible effect - the influence circle only shows during a modal transform).
@@ -72,24 +79,24 @@ interface SessionToolSettings {
 
 	/**
 	 * Toggles Connected Only for proportional editing (influence measured along mesh edges instead of
-	 * straight-line, so the halo never leaps to unconnected geometry), enabling proportional editing
-	 * if it was off - and then connected mode turns ON regardless of the remembered flag, since the
-	 * command expresses the intent to use it.  Confirms either way with a near-cursor notice.
+	 * straight-line, so the halo never leaps to unconnected geometry).  Never switches proportional
+	 * editing itself on or off (Blender's rule): while it is off, the flag waits in [proportionalSettings]
+	 * for the next toggle.  Confirms either way with a near-cursor notice.
 	 */
 	fun toggleProportionalConnected()
 
 	/**
-	 * Selects the proportional falloff curve, enabling proportional editing if it was off - picking a
-	 * falloff from the palette or header expresses the intent to use it, and silently updating a
-	 * disabled state would look like the command did nothing.
+	 * Selects the proportional falloff curve.  Never switches proportional editing itself on or off: while
+	 * it is off, the curve waits in [proportionalSettings] for the next toggle.
 	 *
 	 * @param ProportionalFalloff falloff The falloff curve the influence weights follow.
 	 */
 	fun setProportionalFalloff(falloff: ProportionalFalloff)
 
 	/**
-	 * Sets the proportional influence radius, clamped to the allowed range.  A no-op while proportional
-	 * editing is off (the radius only changes from the mid-gesture scroll, which requires it on).
+	 * Sets the proportional influence radius, clamped to the allowed range.  Never switches proportional
+	 * editing itself on or off: while it is off, the radius waits in [proportionalSettings] for the next
+	 * toggle.
 	 *
 	 * @param Float radiusWorld The influence radius in world units (canvas px).
 	 */

@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.commands
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.transform.choiceKey
 import org.umamo.ui.action.Command
 import org.umamo.ui.resources.*
 
@@ -12,14 +13,16 @@ private val FALLOFF_TITLES: Map<ProportionalFalloff, StringResource> =
 		ProportionalFalloff.Smooth to Res.string.cmd_mesh_proportional_falloff_smooth,
 		ProportionalFalloff.Sphere to Res.string.cmd_mesh_proportional_falloff_sphere,
 		ProportionalFalloff.Root to Res.string.cmd_mesh_proportional_falloff_root,
+		ProportionalFalloff.InverseSquare to Res.string.cmd_mesh_proportional_falloff_inverse_square,
 		ProportionalFalloff.Sharp to Res.string.cmd_mesh_proportional_falloff_sharp,
 		ProportionalFalloff.Linear to Res.string.cmd_mesh_proportional_falloff_linear,
 		ProportionalFalloff.Constant to Res.string.cmd_mesh_proportional_falloff_constant,
+		ProportionalFalloff.Random to Res.string.cmd_mesh_proportional_falloff_random,
 	)
 
 /**
- * Proportional editing (Blender's O): the toggle flips it, the falloff commands select the curve
- * (enabling it if off).  The Edit overlay reads the state when an operator latches and the wheel resizes
+ * Proportional editing (Blender's O): the toggle flips it, the falloff commands select the curve and the
+ * connected toggle flips Connected Only, neither switching the tool on or off.  The Edit overlay reads the state when an operator latches and the wheel resizes
  * the radius mid-gesture, so nothing here needs to know which area the gesture will run in.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
@@ -43,7 +46,7 @@ internal fun proportionalCommands(editorSession: EditorSession?, availability: S
 		// getValue throws on a curve with no title rather than silently registering an unlabelled command.
 		ProportionalFalloff.entries.map { falloff ->
 			Command(
-				"mesh.proportional.falloff.${falloff.name.lowercase()}",
+				"mesh.proportional.falloff.${falloff.choiceKey}",
 				title = FALLOFF_TITLES.getValue(falloff),
 				availability = availability.inEditMode,
 			) { editorSession?.setProportionalFalloff(falloff) }

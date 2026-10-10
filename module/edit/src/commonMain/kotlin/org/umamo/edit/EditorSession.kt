@@ -806,7 +806,7 @@ class EditorSession private constructor(
 			uvCursor = settings.uvCursor.value,
 			pivotMode = settings.pivotMode.value,
 			proportionalEnabled = settings.proportionalEdit.value != null,
-			proportionalSettings = settings.proportionalSettings,
+			proportionalSettings = settings.proportionalSettings.value,
 		)
 
 	/**

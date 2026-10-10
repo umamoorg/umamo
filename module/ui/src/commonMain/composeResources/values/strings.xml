@@ -685,15 +685,19 @@
 	<string name="cmd_mesh_proportional_falloff_smooth">Proportional Falloff: Smooth</string>
 	<string name="cmd_mesh_proportional_falloff_sphere">Proportional Falloff: Sphere</string>
 	<string name="cmd_mesh_proportional_falloff_root">Proportional Falloff: Root</string>
+	<string name="cmd_mesh_proportional_falloff_inverse_square">Proportional Falloff: Inverse Square</string>
 	<string name="cmd_mesh_proportional_falloff_sharp">Proportional Falloff: Sharp</string>
 	<string name="cmd_mesh_proportional_falloff_linear">Proportional Falloff: Linear</string>
 	<string name="cmd_mesh_proportional_falloff_constant">Proportional Falloff: Constant</string>
+	<string name="cmd_mesh_proportional_falloff_random">Proportional Falloff: Random</string>
 	<string name="falloff_smooth">Smooth</string>
 	<string name="falloff_sphere">Sphere</string>
 	<string name="falloff_root">Root</string>
+	<string name="falloff_inverse_square">Inverse Square</string>
 	<string name="falloff_sharp">Sharp</string>
 	<string name="falloff_linear">Linear</string>
 	<string name="falloff_constant">Constant</string>
+	<string name="falloff_random">Random</string>
 	<!-- %1$s is the falloff name, %2$d the influence radius in world units. -->
 	<string name="hud_proportional">Proportional %1$s · %2$d</string>
 	<string name="notice_proportional_on">Proportional editing on.</string>

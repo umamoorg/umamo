@@ -24,12 +24,13 @@ import org.umamo.ui.workspace.spaces.MeshSelectModeButtons
 import org.umamo.ui.workspace.spaces.OverlaysHeaderControl
 import org.umamo.ui.workspace.spaces.PivotModeDropdown
 import org.umamo.ui.workspace.spaces.ProportionalEditControls
+import org.umamo.ui.workspace.spaces.sessionProportionalSizeField
 
 /**
  * The 2D viewport's space-specific header strip (mounted via SpaceDescriptor.headerContent): the
  * Object / Edit mode dropdown, the vertex / edge / face select-mode buttons (Edit mode), the transform
- * pivot dropdown, the snap menu, and the proportional-editing toggle with its falloff dropdown (Edit
- * mode).  With no open document the chips render disabled rather than vanishing, so the viewport
+ * pivot dropdown, the snap menu, and the proportional-editing chip, whose panel's size row is the
+ * session's world radius (Edit mode).  With no open document the chips render disabled rather than vanishing, so the viewport
  * chrome reads the same before the first file opens.
  *
  * Every control observes the session's own flows and mutates only by dispatching registry commands,
@@ -52,7 +53,7 @@ fun OverflowRowScope.viewport2DHeaderControls(scope: AreaScope) {
 	item("selectMode") { MeshSelectModeButtons() }
 	item("pivot") { PivotModeDropdown() }
 	item("snap") { SnapDropdown() }
-	item("proportional") { ProportionalEditControls() }
+	item("proportional") { ProportionalEditControls(size = sessionProportionalSizeField()) }
 	flexibleSpace()
 	item("overlays") {
 		// Disabled, not hidden, with no document: the strip reads the same before the first file opens.

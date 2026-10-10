@@ -38,14 +38,17 @@ internal const val HEADER_TEST_AREA_ID = "area-1"
  *
  * By default no puppet and no session are provided, which is the no-document state every header already
  * handles - the viewport chips render disabled and the panel headers render nothing.  A puppet comes with a
- * session over it, as the app provides the two together.  The scope is the test's to hold when it reads the
- * per-area state a control writes.
+ * session over it, as the app provides the two together, unless the case brings its own session (one already
+ * in Edit mode, say).  The registry is empty unless the case registers the commands its controls dispatch.
+ * The scope is the test's to hold when it reads the per-area state a control writes.
  *
  * @param SpaceKind kind        The space whose header strip to mount.
  * @param Dp        headerWidth The width the header is given.
  * @param State     puppet      The open document, or null for the no-document state; a case that writes it
  *   publishes a model, as an edit does.
  * @param AreaScope scope       The hosting area's scope, the one channel the header shares state through.
+ * @param EditorSession? session The session to provide, or null for one over [puppet].
+ * @param CommandRegistry commands The command registry the controls dispatch through.
  */
 @OptIn(ExperimentalTestApi::class)
 internal fun ComposeUiTest.setAreaHeader(
@@ -53,16 +56,18 @@ internal fun ComposeUiTest.setAreaHeader(
 	headerWidth: Dp,
 	puppet: State<PuppetModel?> = mutableStateOf(null),
 	scope: AreaScope = AreaScope(HEADER_TEST_AREA_ID),
+	session: EditorSession? = null,
+	commands: CommandRegistry = CommandRegistry(),
 ) {
 	setContent {
-		val session = remember { puppet.value?.let { model -> EditorSession(model) } }
+		val providedSession = remember { session ?: puppet.value?.let { model -> EditorSession(model) } }
 		UmamoTheme {
 			CompositionLocalProvider(
 				LocalSpaceRegistry provides defaultSpaceRegistry(),
-				LocalCommands provides CommandRegistry(),
+				LocalCommands provides commands,
 				LocalKeymap provides defaultKeymap(),
 				LocalPuppet provides puppet.value,
-				LocalEditorSession provides session,
+				LocalEditorSession provides providedSession,
 			) {
 				Box(modifier = Modifier.width(headerWidth)) {
 					AreaHeader(area = LeafArea(scope.areaId, kind), scope = scope, onCommand = {})
