@@ -321,15 +321,89 @@ internal class HalfEdgeTriangulation(private val coordinates: DoubleArray, val p
 	}
 
 	/**
+	 * Finds the half-edge running from one vertex to another by walking the first vertex's star.
+	 *
+	 * @param Int from The start vertex (inserted).
+	 * @param Int to   The end vertex.
+	 * @return Int The half-edge from -> to, or [NO_HALF_EDGE] when the two are not joined.
+	 */
+	fun findHalfEdge(from: Int, to: Int): Int {
+		val first = vertexHalfEdge[from]
+
+		if (first == NO_HALF_EDGE) {
+			return NO_HALF_EDGE
+		}
+
+		var spoke = first
+
+		do {
+			if (destination(spoke) == to) {
+				return spoke
+			}
+
+			spoke = twin[previous(spoke)]
+		} while (spoke != first)
+
+		return NO_HALF_EDGE
+	}
+
+	/**
+	 * Marks an edge as a constraint on both halves, and counts one more boundary ring along it when
+	 * the constraint is a boundary.
+	 *
+	 * @param Int     halfEdge   Either half of the edge.
+	 * @param Boolean isBoundary Whether the constraint belongs to a boundary ring.
+	 */
+	fun markConstraint(halfEdge: Int, isBoundary: Boolean) {
+		val opposed = twin[halfEdge]
+		constrained[halfEdge] = true
+		constrained[opposed] = true
+
+		if (isBoundary) {
+			boundaryCount[halfEdge]++
+			boundaryCount[opposed]++
+		}
+	}
+
+	/**
+	 * Every constrained edge once, as (low, high) vertex pairs in ascending order.
+	 *
+	 * @return IntArray Two vertex indices per constrained edge.
+	 */
+	fun constrainedEdgePairs(): IntArray {
+		val keys = ArrayList<Long>()
+
+		for (halfEdge in 0 until halfEdgeCount) {
+			val start = origin[halfEdge]
+			val end = destination(halfEdge)
+
+			if (constrained[halfEdge] && start < end) {
+				keys.add((start.toLong() shl 32) or end.toLong())
+			}
+		}
+
+		keys.sort()
+		val pairs = IntArray(2 * keys.size)
+
+		for ((position, key) in keys.withIndex()) {
+			pairs[2 * position] = (key ushr 32).toInt()
+			pairs[2 * position + 1] = key.toInt()
+		}
+
+		return pairs
+	}
+
+	/**
 	 * The real triangles as vertex triples, in slot order.
 	 *
-	 * @return IntArray Three vertex indices per real triangle, each triple positively oriented.
+	 * @param BooleanArray? selected Per triangle slot, whether to include it; null includes every real triangle.
+	 * @return IntArray Three vertex indices per included triangle, each triple positively oriented.
 	 */
-	fun realTriangles(): IntArray {
+	fun realTriangles(selected: BooleanArray? = null): IntArray {
 		var realCount = 0
 
 		for (triangle in 0 until triangleCount) {
-			if (!isGhostTriangle(triangle)) {
+			if (isIncluded(triangle, selected)) {
 				realCount++
 			}
 		}
@@ -338,7 +412,7 @@ internal class HalfEdgeTriangulation(private val coordinates: DoubleArray, val p
 		var written = 0
 
 		for (triangle in 0 until triangleCount) {
-			if (!isGhostTriangle(triangle)) {
+			if (isIncluded(triangle, selected)) {
 				triangles[written] = origin[3 * triangle]
 				triangles[written + 1] = origin[3 * triangle + 1]
 				triangles[written + 2] = origin[3 * triangle + 2]
@@ -351,8 +425,9 @@ internal class HalfEdgeTriangulation(private val coordinates: DoubleArray, val p
 
 	/**
 	 * Checks every structural invariant, for tests and fuzzing: twins pair up and agree on their ends,
-	 * attributes match across twins, each triangle has at most one ghost corner, real triangles are
-	 * positively oriented, and the vertex map points at half-edges leaving each vertex.
+	 * attributes match across twins (and a boundary edge is always constrained), each triangle has at
+	 * most one ghost corner, real triangles are positively oriented, and the vertex map points at
+	 * half-edges leaving each vertex.
 	 */
 	fun validate() {
 		check(halfEdgeCount % 3 == 0) { "half-edge count $halfEdgeCount is not a multiple of three" }
@@ -365,6 +440,7 @@ internal class HalfEdgeTriangulation(private val coordinates: DoubleArray, val p
 			check(origin[halfEdge] != destination(halfEdge)) { "half-edge $halfEdge is a loop" }
 			check(constrained[halfEdge] == constrained[opposed]) { "half-edge $halfEdge and its twin disagree on the constraint flag" }
 			check(boundaryCount[halfEdge] == boundaryCount[opposed]) { "half-edge $halfEdge and its twin disagree on the boundary count" }
+			check(boundaryCount[halfEdge] == 0 || constrained[halfEdge]) { "half-edge $halfEdge counts boundary rings but is not constrained" }
 		}
 
 		for (triangle in 0 until triangleCount) {
@@ -392,6 +468,15 @@ internal class HalfEdgeTriangulation(private val coordinates: DoubleArray, val p
 			}
 		}
 	}
+
+	/**
+	 * Whether [realTriangles] includes a triangle.
+	 *
+	 * @param Int           triangle The triangle slot.
+	 * @param BooleanArray? selected The selection, or null for every real triangle.
+	 * @return Boolean True for a real triangle the selection keeps.
+	 */
+	private fun isIncluded(triangle: Int, selected: BooleanArray?): Boolean = !isGhostTriangle(triangle) && (selected == null || selected[triangle])
 
 	/**
 	 * Appends a triangle with unlinked, unconstrained half-edges.

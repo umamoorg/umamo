@@ -166,9 +166,12 @@ This is where Live2D's own reimport is lossy; doing it well is a competitive fea
 :settings     commonMain  — JSON settings engine: bundled defaults ← user overrides, dotted-key
                             get/set, persistence, change-event Flow. → :storage, kotlinx-serialization
 :geometry     commonMain  — pure vector geometry, zero project deps: Shewchuk's exact orient2d /
-                            incircle and the Delaunay triangulation the auto-mesh is built on.  Knows
-                            no pixels, puppets, or formats.  Also declares linuxX64() so its tests RUN
-                            under Kotlin/Native (iosArm64 only compiles; the predicates assume no FMA).
+                            incircle, the constrained Delaunay triangulation the auto-mesh is built on
+                            (boundary rings by even-odd, neutral segments, crossings rejected never
+                            forced, no vertex ever added), arc-length resampling, and a point locator
+                            over arbitrary triangle meshes.  Knows no pixels, puppets, or formats.
+                            Also declares linuxX64() so its tests RUN under Kotlin/Native (iosArm64
+                            only compiles; the predicates assume no FMA).
 :runtime      commonMain  — the pure puppet runtime: the immutable PuppetModel + typed ids, the
                             keyform grid algebra, the sampling eval, and the atlas domain (PuppetAtlas:
                             pages + tiles, each tile's AtlasPlacement, plus the uv-affine algebra that
