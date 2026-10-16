@@ -18,9 +18,6 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import org.umamo.ui.theme.LocalUmamoColors
 
-/** How long the indeterminate bar's segment takes to cross the track once, in milliseconds. */
-private const val INDETERMINATE_CROSSING_MS = 1200
-
 /** The indeterminate bar's segment, as a fraction of the track. */
 private const val INDETERMINATE_SEGMENT = 0.3f
 
@@ -54,7 +51,7 @@ fun ProgressBar(fraction: Float?, modifier: Modifier = Modifier) {
 	val sweep by rememberInfiniteTransition(label = "progress").animateFloat(
 		initialValue = -INDETERMINATE_SEGMENT,
 		targetValue = 1f,
-		animationSpec = infiniteRepeatable(tween(INDETERMINATE_CROSSING_MS, easing = LinearEasing), RepeatMode.Restart),
+		animationSpec = infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart),
 		label = "progress sweep",
 	)
 	Canvas(modifier = semantic) {
