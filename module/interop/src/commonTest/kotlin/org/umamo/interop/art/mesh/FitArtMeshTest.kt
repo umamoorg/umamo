@@ -1,10 +1,7 @@
-package org.umamo.ui.model.mesh
+package org.umamo.interop.art.mesh
 
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.alphaChannel
-import org.umamo.interop.art.mesh.ArtMeshNotice
-import org.umamo.interop.art.mesh.ArtMeshPreset
-import org.umamo.interop.art.mesh.generateArtMesh
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -12,8 +9,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Fitting a mesh the rows cannot fit: the budget raised up to its cap, then holes filled from the rows'
- * budget up, and a refusal for any other reason left standing.
+ * Fitting a mesh the settings asked for cannot fit: the budget raised up to its cap, then holes filled
+ * from the asked budget up, and a refusal for any other reason left standing.
  */
 class FitArtMeshTest {
 	private val noPoints = DoubleArray(0)

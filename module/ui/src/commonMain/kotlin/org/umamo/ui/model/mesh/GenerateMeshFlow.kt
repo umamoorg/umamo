@@ -15,6 +15,8 @@ import org.umamo.edit.mesh.commitGeneratedMeshes
 import org.umamo.edit.mesh.commitUnchangedGeneration
 import org.umamo.interop.art.mesh.ArtMeshNotice
 import org.umamo.interop.art.mesh.ArtMeshPreset
+import org.umamo.interop.art.mesh.MeshFit
+import org.umamo.interop.art.mesh.isMeshingGuardFailure
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel

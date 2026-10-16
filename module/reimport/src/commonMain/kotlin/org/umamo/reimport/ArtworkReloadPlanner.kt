@@ -1,16 +1,20 @@
 package org.umamo.reimport
 
-import org.umamo.format.art.LayerBounds
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
+import org.umamo.format.art.alphaChannel
 import org.umamo.format.art.analyzeAlpha
 import org.umamo.format.art.isFullyTransparent
 import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.BirthResolution
+import org.umamo.interop.art.PendingBirth
+import org.umamo.interop.art.SourceArtAdditions
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.mesh.meshCoversOpaquePixels
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.ArtSourceLayer
 import org.umamo.runtime.model.ArtworkReload
@@ -54,6 +58,8 @@ import org.umamo.runtime.model.storedToArtAffineForTile
  * @property Map             leftovers    Each lost binding's best candidate that fell under the bar, by
  *   its lost key - scored before anything was minted, so a candidate the plan then minted a fresh
  *   drawable for is still named; what the caller publishes for the review chips.
+ * @property List            pendingBirths The added drawables the Automatic birth mode wants meshed,
+ *   each still over its quad until [withBirths] lands the meshes; empty under the Quad mode.
  */
 class ReloadPlan(
 	val reload: ArtworkReload,
@@ -61,7 +67,27 @@ class ReloadPlan(
 	val report: ReconcileReport,
 	val notices: List<SourceArtImportNotice>,
 	val leftovers: Map<String, LayerMatch> = emptyMap(),
-)
+	val pendingBirths: List<PendingBirth> = emptyList(),
+) {
+	/**
+	 * This plan with its pending births' outcomes landed: each born drawable among the additions over
+	 * its new mesh, each refused one over its quad with a notice naming why.
+	 *
+	 * @param BirthResolution resolution The outcome of every pending birth.
+	 * @return ReloadPlan The plan, no birth pending.
+	 */
+	fun withBirths(resolution: BirthResolution): ReloadPlan {
+		val additions = reload.additions
+
+		if (pendingBirths.isEmpty() || additions == null) {
+			return this
+		}
+
+		val born = SourceArtAdditions(additions, rasterByTile, emptyList(), pendingBirths).withBirths(resolution)
+
+		return ReloadPlan(reload.copy(additions = born.additions), rasterByTile, report, notices + born.notices, leftovers)
+	}
+}
 
 /** One tile's replacement and everything that came with it. */
 private class TileReplacement(
@@ -70,9 +96,6 @@ private class TileReplacement(
 	val meshes: Map<DrawableId, DrawableMesh>,
 	val outgrown: List<DrawableId>,
 )
-
-/** Half a pixel: how far a mesh may fall short of the opaque art before it counts as outgrown. */
-private const val COVERAGE_TOLERANCE = 0.5f
 
 /**
  * Plans reloads and relinks.  See the file comment for the rules.
@@ -269,6 +292,7 @@ object ArtworkReloadPlanner {
 			ReconcileReport(report.results + emptied),
 			notices,
 			leftovers,
+			added?.pendingBirths.orEmpty(),
 		)
 	}
 
@@ -510,13 +534,8 @@ object ArtworkReloadPlanner {
 		val oldTop = (oldInventory?.top ?: layer.bounds.top).toFloat()
 		val newLeft = layer.bounds.left.toFloat()
 		val newTop = layer.bounds.top.toFloat()
-		val opaqueOnCanvas =
-			LayerBounds(
-				left = layer.bounds.left + analysis.opaqueBounds.left,
-				top = layer.bounds.top + analysis.opaqueBounds.top,
-				width = analysis.opaqueBounds.width,
-				height = analysis.opaqueBounds.height,
-			)
+		val newAlpha = raster.alphaChannel()
+		val alreadyCutOff = alreadyArtOf(old, (layer.bounds.left - oldLeft).toInt(), (layer.bounds.top - oldTop).toInt(), options.alphaThreshold)
 		val storedToArt = model.atlas.storedToArtAffineForTile(tile.id)
 		val meshes = LinkedHashMap<DrawableId, DrawableMesh>()
 		val outgrown = ArrayList<DrawableId>()
@@ -555,8 +574,9 @@ object ArtworkReloadPlanner {
 			}
 
 			meshes[drawable.id] = mesh.withUvs(carried)
+			val artPoints = FloatArray(carried.size) { component -> carried[component] * if (component % 2 == 0) raster.width else raster.height }
 
-			if (!covers(mesh.positions, opaqueOnCanvas)) {
+			if (!meshCoversOpaquePixels(newAlpha, options.alphaThreshold, artPoints, mesh.indices, alreadyCutOff)) {
 				outgrown.add(drawable.id)
 			}
 		}
@@ -565,34 +585,23 @@ object ArtworkReloadPlanner {
 	}
 
 	/**
-	 * Whether a mesh's canvas extent contains the opaque art's canvas rectangle, within half a pixel.
+	 * Which pixels of the new art were art already before it changed, at the same canvas spot: a mesh
+	 * that left such a pixel out left it out before too, so it is no art that grew past the mesh.
 	 *
-	 * @param FloatArray  positions The mesh's canvas positions, x then y per vertex.
-	 * @param LayerBounds opaque    The opaque art's rectangle on the canvas.
-	 * @return Boolean True when the art lies inside the mesh's reach.
+	 * @param LayerRaster? old            The old art, or null when the document has none (every pixel counts).
+	 * @param Int          shiftX         How far right the new art's frame sits from the old one's, in pixels.
+	 * @param Int          shiftY         How far down it sits.
+	 * @param Int          alphaThreshold The least alpha byte counted as art.
+	 * @return Function Whether a pixel (column, row) of the new art was art in the old.
 	 */
-	private fun covers(positions: FloatArray, opaque: LayerBounds): Boolean {
-		if (positions.size < 2) {
-			return false
+	private fun alreadyArtOf(old: LayerRaster?, shiftX: Int, shiftY: Int, alphaThreshold: Int): (Int, Int) -> Boolean {
+		val oldAlpha = old?.alphaChannel() ?: return { _, _ -> false }
+
+		return { column, row ->
+			val oldColumn = column + shiftX
+			val oldRow = row + shiftY
+
+			oldColumn in 0 until oldAlpha.width && oldRow in 0 until oldAlpha.height && oldAlpha.alphaAt(oldColumn, oldRow) >= alphaThreshold
 		}
-
-		var minX = Float.POSITIVE_INFINITY
-		var minY = Float.POSITIVE_INFINITY
-		var maxX = Float.NEGATIVE_INFINITY
-		var maxY = Float.NEGATIVE_INFINITY
-
-		for (vertex in 0 until positions.size / 2) {
-			val x = positions[vertex * 2]
-			val y = positions[vertex * 2 + 1]
-			minX = minOf(minX, x)
-			minY = minOf(minY, y)
-			maxX = maxOf(maxX, x)
-			maxY = maxOf(maxY, y)
-		}
-
-		return minX <= opaque.left + COVERAGE_TOLERANCE &&
-			minY <= opaque.top + COVERAGE_TOLERANCE &&
-			maxX >= opaque.left + opaque.width - COVERAGE_TOLERANCE &&
-			maxY >= opaque.top + opaque.height - COVERAGE_TOLERANCE
 	}
 }

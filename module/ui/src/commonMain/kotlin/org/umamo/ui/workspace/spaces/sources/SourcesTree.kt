@@ -351,7 +351,7 @@ internal fun buildSourcesTree(
 
 					when {
 						candidate == null -> null
-						boundToCandidate.any { tile -> !puppet.tileCarriesNoRigWork(tile.id, candidate) } -> null
+						boundToCandidate.any { tile -> !puppet.tileCarriesNoRigWork(tile.id) } -> null
 						else -> LayerSuggestion(match.key, candidate.name, match.score, boundToCandidate.map { tile -> tile.id })
 					}
 				}

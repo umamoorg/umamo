@@ -6,6 +6,9 @@ public const val DEFAULT_ART_MESH_ALPHA_THRESHOLD: Int = 16
 /** The art mesher's default vertex cap per mesh: what every renderer target can hold. */
 public const val DEFAULT_ART_MESH_VERTEX_BUDGET: Int = 1024
 
+/** The largest vertex budget a mesh is ever fitted to: a delta texture this tall draws on any desktop GPU and most tablets. */
+public const val MAXIMUM_ART_MESH_VERTEX_BUDGET: Int = 4096
+
 /** The art mesher's default deformation tolerance: how far, in art pixels, a regenerated mesh may stray from the rig it replaces. */
 public const val DEFAULT_ART_MESH_DEFORMATION_TOLERANCE: Double = 0.5
 
