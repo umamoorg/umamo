@@ -10,6 +10,7 @@ import org.umamo.edit.intValue
 import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.interop.art.mesh.ArtMeshSettings
 import org.umamo.interop.art.mesh.MAXIMUM_ART_MESH_MINIMUM_ANGLE
+import org.umamo.interop.art.mesh.MAXIMUM_ART_MESH_VERTEX_BUDGET
 import org.umamo.interop.art.mesh.MINIMUM_ART_MESH_DEFORMATION_TOLERANCE
 import org.umamo.interop.art.mesh.MINIMUM_ART_MESH_INTERIOR_THINNING_LIMIT
 
@@ -77,8 +78,8 @@ private const val MAXIMUM_INTERIOR_THINNING_LIMIT: Float = 64f
 /** The smallest vertex budget the strip offers. */
 private const val SMALLEST_VERTEX_BUDGET: Int = 16
 
-/** The largest vertex budget the strip offers: a delta texture this tall draws on any desktop GPU and most tablets. */
-internal const val MAXIMUM_VERTEX_BUDGET: Int = 4096
+/** The largest vertex budget the strip offers: the most any mesh is fitted to. */
+internal const val MAXIMUM_VERTEX_BUDGET: Int = MAXIMUM_ART_MESH_VERTEX_BUDGET
 
 /** The fewest outline points one ring may be asked for: a ring needs three to enclose anything. */
 private const val SMALLEST_OUTLINE_POINTS: Int = 3

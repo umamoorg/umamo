@@ -41,8 +41,10 @@ import kotlin.math.roundToInt
 
 /*
  * The SourceArt -> PuppetModel bridge: the first point where a layered file (or a flat raster)
- * becomes an editable rig.  One drawable per raster layer over a quad birth mesh, one part per
- * folder, one atlas tile per layer bound to its source layer by the reader's key.
+ * becomes an editable rig.  One drawable per raster layer over a birth mesh, one part per folder, one
+ * atlas tile per layer bound to its source layer by the reader's key.  Every drawable is minted over a
+ * quad; under the Automatic birth mode the result also names it a pending birth, which the caller
+ * meshes with the art mesher and hands back (BirthMeshes.kt).
  *
  * The model comes out UNPACKED - every tile unplaced, every drawable's coordinates addressing its own
  * art - so this stays a pure conversion that the pack at open then moves onto pages through the same
@@ -86,6 +88,8 @@ class ArtSourceDescriptor(
  * @property Int             nudgeX          Pixels added to the anchor's placement along x.
  * @property Int             nudgeZ          Pixels added to the anchor's placement along z - up, the
  *   viewport's world axis, so a negative nudge moves the art down the canvas.
+ * @property BirthMeshMode   birthMesh       How each new drawable gets its first mesh: the quad, or
+ *   the art mesher's mesh over every pixel at or above [alphaThreshold] (raised to the atlas's own).
  */
 class SourceArtImportOptions(
 	val parameters: List<Parameter> = emptyList(),
@@ -94,6 +98,7 @@ class SourceArtImportOptions(
 	val anchor: ArtworkAnchor = ArtworkAnchor.Default,
 	val nudgeX: Int = 0,
 	val nudgeZ: Int = 0,
+	val birthMesh: BirthMeshMode = BirthMeshMode.Quad,
 ) {
 	init {
 		require(alphaThreshold in 1..255) { "alphaThreshold must be in 1..255: $alphaThreshold" }
@@ -104,30 +109,70 @@ class SourceArtImportOptions(
 /**
  * What an import produced.
  *
- * @property PuppetModel puppet       The unpacked model.
- * @property Map         rasterByTile Each tile's pixels, by tile - the document's pixel supplier takes
+ * @property PuppetModel puppet        The unpacked model.
+ * @property Map         rasterByTile  Each tile's pixels, by tile - the document's pixel supplier takes
  *   them from here, since the model itself carries none.
- * @property List        notices      Everything the import could not carry as drawn, in document order.
+ * @property List        notices       Everything the import could not carry as drawn, in document order.
+ * @property List        pendingBirths The drawables the Automatic birth mode wants meshed, each still
+ *   over its quad until [withBirths] lands the meshes; empty under the Quad mode.
  */
 class SourceArtImportResult(
 	val puppet: PuppetModel,
 	val rasterByTile: Map<AtlasTileId, LayerRaster>,
 	val notices: List<SourceArtImportNotice>,
-)
+	val pendingBirths: List<PendingBirth> = emptyList(),
+) {
+	/**
+	 * This result with its pending births' outcomes landed: each born drawable over its new mesh, each
+	 * refused one over its quad with a notice naming why.
+	 *
+	 * @param BirthResolution resolution The outcome of every pending birth.
+	 * @return SourceArtImportResult The result, no birth pending.
+	 */
+	fun withBirths(resolution: BirthResolution): SourceArtImportResult {
+		if (pendingBirths.isEmpty()) {
+			return this
+		}
+
+		val puppet = puppet.copy(drawables = bornDrawables(puppet.drawables, pendingBirths, resolution))
+
+		return SourceArtImportResult(puppet, rasterByTile, notices + birthRefusalNotices(pendingBirths, resolution))
+	}
+}
 
 /**
  * What one artwork file adds to a model, with its pixels and its notes: the delta a fresh import
  * assembles into a new model and an open document appends to itself.
  *
- * @property ArtworkAdditions additions    The source record, tiles, drawables, parts, and root order.
- * @property Map              rasterByTile Each added tile's pixels, by tile.
- * @property List             notices      Everything the import could not carry as drawn, in document order.
+ * @property ArtworkAdditions additions     The source record, tiles, drawables, parts, and root order.
+ * @property Map              rasterByTile  Each added tile's pixels, by tile.
+ * @property List             notices       Everything the import could not carry as drawn, in document order.
+ * @property List             pendingBirths The added drawables the Automatic birth mode wants meshed,
+ *   each still over its quad until [withBirths] lands the meshes; empty under the Quad mode.
  */
 class SourceArtAdditions(
 	val additions: ArtworkAdditions,
 	val rasterByTile: Map<AtlasTileId, LayerRaster>,
 	val notices: List<SourceArtImportNotice>,
-)
+	val pendingBirths: List<PendingBirth> = emptyList(),
+) {
+	/**
+	 * These additions with their pending births' outcomes landed: each born drawable over its new mesh,
+	 * each refused one over its quad with a notice naming why.
+	 *
+	 * @param BirthResolution resolution The outcome of every pending birth.
+	 * @return SourceArtAdditions The additions, no birth pending.
+	 */
+	fun withBirths(resolution: BirthResolution): SourceArtAdditions {
+		if (pendingBirths.isEmpty()) {
+			return this
+		}
+
+		val drawables = bornDrawables(additions.drawables, pendingBirths, resolution)
+
+		return SourceArtAdditions(additions.copy(drawables = drawables), rasterByTile, notices + birthRefusalNotices(pendingBirths, resolution))
+	}
+}
 
 /** One raster layer that became a drawable, kept for the passes that run after the first. */
 private class ImportedLayer(
@@ -240,7 +285,7 @@ object SourceArtImport {
 		// imports the same art come out identical.
 		val model = withSeedParameters(withFirstArtworkState(assembled, art), options.parameters)
 
-		return SourceArtImportResult(model.copy(renderRoot = model.deriveRenderRoot()), added.rasterByTile, added.notices)
+		return SourceArtImportResult(model.copy(renderRoot = model.deriveRenderRoot()), added.rasterByTile, added.notices, added.pendingBirths)
 	}
 
 	/**
@@ -403,6 +448,15 @@ object SourceArtImport {
 		val layersTopFirst = art.layers.sortedBy { layer -> layer.order }
 		val notices = ArrayList<SourceArtImportNotice>()
 
+		// Under the Automatic mode every pixel the quad would have drawn is meshed: the import's own
+		// threshold, raised only to the atlas's, since art the atlas does not draw is no art to mesh.
+		val birthSettings =
+			when (val mode = options.birthMesh) {
+				BirthMeshMode.Quad -> null
+				is BirthMeshMode.Automatic -> mode.settings.copy(alphaThreshold = maxOf(options.alphaThreshold, existing.atlas.composition.alphaThreshold))
+			}
+		val pendingBirths = ArrayList<PendingBirth>()
+
 		// Pass 1: one drawable and one tile per raster layer with art in it.
 		val imported = ArrayList<ImportedLayer>()
 		val drawables = ArrayList<Drawable>()
@@ -481,6 +535,10 @@ object SourceArtImport {
 				),
 			)
 			imported.add(ImportedLayer(layer, drawableId))
+
+			if (birthSettings != null) {
+				pendingBirths.add(PendingBirth(drawableId, layer.name, layer.raster, layer.bounds.left, layer.bounds.top, birthSettings))
+			}
 		}
 
 		// Pass 2: a clipping layer clips to the nearest non-clipped layer BELOW it in its own folder -
@@ -613,6 +671,7 @@ object SourceArtImport {
 			),
 			rasterByTile,
 			notices,
+			pendingBirths,
 		)
 	}
 

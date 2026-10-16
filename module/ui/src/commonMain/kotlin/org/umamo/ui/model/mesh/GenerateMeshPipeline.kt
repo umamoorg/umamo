@@ -20,9 +20,10 @@ import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.geometry.triangulation.refine.PiecewiseLinearGuide
 import org.umamo.interop.art.mesh.ArtMeshNotice
-import org.umamo.interop.art.mesh.ArtMeshResult
 import org.umamo.interop.art.mesh.ArtMeshSettings
-import org.umamo.interop.art.mesh.generateArtMesh
+import org.umamo.interop.art.mesh.MeshFit
+import org.umamo.interop.art.mesh.fitArtMesh
+import org.umamo.interop.art.mesh.isMeshingGuardFailure
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SampledRegion
@@ -50,7 +51,6 @@ import org.umamo.ui.model.repack.lowerPack
 import org.umamo.ui.model.repack.repackPageSizeOf
 import org.umamo.ui.model.repack.repackRefusals
 import org.umamo.ui.viewport.gizmo.mapInBalancedChunks
-import kotlin.coroutines.cancellation.CancellationException
 
 /*
  * Generate Mesh from Art, the headless part: which drawables a run covers, what art each one meshes,
@@ -442,16 +442,6 @@ internal suspend fun generateMeshOutcome(
 }
 
 /**
- * Whether a throwable is a guard inside the pipeline refusing to go on - a require (an
- * IllegalArgumentException) or a check (an IllegalStateException) in the mesher, the triangulator,
- * or the transfer - which the flow turns into a skip or a notice rather than a crash.  A cancellation
- * is an IllegalStateException too and is never one: it propagates.
- *
- * @return Boolean True for a guard's refusal.
- */
-internal fun Throwable.isMeshingGuardFailure(): Boolean = this !is CancellationException && (this is IllegalArgumentException || this is IllegalStateException)
-
-/**
  * The work one tile group stands for: its tile's size, once per drawable meshed over it.
  *
  * @param List<RegenerationInput.Ready> group The group, all over one tile.
@@ -523,73 +513,6 @@ private fun meshOne(
 
 		return MeshingResult(input.drawableId, null, GenerateMeshSkipReason.MesherFailed, emptyList())
 	}
-}
-
-/**
- * How one generated drawable's mesh was made to fit when the rows' settings could not fit it.
- *
- * @property Int?    budget      The vertex budget it was meshed under, or null when the rows' budget held.
- * @property Boolean holesFilled Whether its holes were filled, the rows leaving Fill Holes off.
- */
-internal data class MeshFit(val budget: Int?, val holesFilled: Boolean)
-
-/**
- * The mesher's answer for one drawable's art and how it was made to fit.  A plain class: it holds the result.
- *
- * @property ArtMeshResult result The mesh, or why there is none.
- * @property MeshFit?      fit    How the mesh was made to fit, or null when the rows' settings fit it.
- */
-internal class FittedArtMesh(val result: ArtMeshResult, val fit: MeshFit?)
-
-/**
- * Meshes art under the rows' settings and, while the mesher finds it over the vertex budget, again: first
- * under a raised budget (doubled, or straight to the count the mesher reported, up to [budgetCap]), then
- * with holes filled from the rows' budget up.  Art the rows cannot fit is meshed however it fits rather
- * than skipped - lace and webs whose every hole is a ring of its own, layers of many specks - and a
- * refusal for any other reason stands at once.
- *
- * @param AlphaChannel    alpha           The drawable's alpha.
- * @param ArtMeshSettings settings        The rows' settings.
- * @param DoubleArray     pins            The pins.
- * @param DoubleArray     pinSurroundings The pins' old triangles.
- * @param Int             budgetCap       The highest budget to raise to.
- * @param PiecewiseLinearGuide? guide     The old mesh's guide, kept through every refit, or null.
- * @return FittedArtMesh The last answer and how it was fitted.
- */
-internal fun fitArtMesh(
-	alpha: AlphaChannel,
-	settings: ArtMeshSettings,
-	pins: DoubleArray,
-	pinSurroundings: DoubleArray,
-	budgetCap: Int = MAXIMUM_VERTEX_BUDGET,
-	guide: PiecewiseLinearGuide? = null,
-): FittedArtMesh {
-	val holeStages = if (settings.fillHoles) listOf(true) else listOf(false, true)
-	var last: FittedArtMesh? = null
-
-	for (fillHoles in holeStages) {
-		var budget = settings.vertexBudget
-
-		while (true) {
-			val result = generateArtMesh(alpha, settings.copy(vertexBudget = budget, fillHoles = fillHoles), pins, pinSurroundings, guide)
-			val holesFilled = fillHoles && !settings.fillHoles
-			val fit = if (budget != settings.vertexBudget || holesFilled) MeshFit(budget.takeIf { raised -> raised != settings.vertexBudget }, holesFilled) else null
-			last = FittedArtMesh(result, fit)
-			val overBudget = result.notices.firstNotNullOfOrNull { notice -> notice as? ArtMeshNotice.OverBudget }
-
-			if (result.mesh != null || overBudget == null) {
-				return last
-			}
-
-			if (budget >= budgetCap) {
-				break
-			}
-
-			budget = minOf(budgetCap, maxOf(2 * budget, overBudget.vertexCount))
-		}
-	}
-
-	return last!!
 }
 
 /**

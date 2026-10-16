@@ -223,11 +223,8 @@ fun confidentMatches(suggestions: Map<String, LayerMatch>, threshold: Float): Ma
  * @param Set<AtlasTileId> except       The tiles doing the claiming.
  * @return List<AtlasTileId> The tiles to retire, in atlas order.
  */
-fun retirableTiles(model: PuppetModel, sourceId: ArtSourceId, candidateKey: String, except: Set<AtlasTileId>): List<AtlasTileId> {
-	val row = model.sources.firstOrNull { source -> source.id == sourceId }?.layers?.firstOrNull { layer -> layer.key == candidateKey }
-
-	return model.atlas.tiles
+fun retirableTiles(model: PuppetModel, sourceId: ArtSourceId, candidateKey: String, except: Set<AtlasTileId>): List<AtlasTileId> =
+	model.atlas.tiles
 		.filter { tile -> tile.id !in except && tile.source?.sourceId == sourceId && tile.source?.layerKey == candidateKey }
-		.filter { tile -> model.tileCarriesNoRigWork(tile.id, row) }
+		.filter { tile -> model.tileCarriesNoRigWork(tile.id) }
 		.map { tile -> tile.id }
-}

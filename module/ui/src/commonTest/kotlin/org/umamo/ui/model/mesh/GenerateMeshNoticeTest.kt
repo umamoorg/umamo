@@ -1,5 +1,6 @@
 package org.umamo.ui.model.mesh
 
+import org.umamo.interop.art.mesh.MeshFit
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test

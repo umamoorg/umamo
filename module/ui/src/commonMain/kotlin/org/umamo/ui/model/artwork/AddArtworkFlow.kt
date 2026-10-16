@@ -20,6 +20,7 @@ import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.ArtworkAnchor
+import org.umamo.interop.art.BirthRefusal
 import org.umamo.interop.art.SourceArtAdditions
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
@@ -167,8 +168,8 @@ internal fun addArtworkParameters(options: SourceArtImportOptions, placed: Boole
 }
 
 /**
- * The options [parameters] describe, over [fallback] for the seed parameters the rows do not carry
- * (and for the placement, when the step had no placement rows).
+ * The options [parameters] describe, over [fallback] for the seed parameters and the birth mode the
+ * rows do not carry (and for the placement, when the step had no placement rows).
  *
  * @param List                   parameters The strip's rows.
  * @param SourceArtImportOptions fallback   The options the first run used.
@@ -182,6 +183,7 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
 		anchor = ArtworkAnchor.fromKey(parameters.choiceValue(ImportParameterKeys.ALIGN, fallback.anchor.key)),
 		nudgeX = parameters.intValue(ImportParameterKeys.OFFSET_X, fallback.nudgeX).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
 		nudgeZ = parameters.intValue(ImportParameterKeys.OFFSET_Z, fallback.nudgeZ).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
+		birthMesh = fallback.birthMesh,
 	)
 
 /**
@@ -497,4 +499,20 @@ fun describeImportNotice(notice: SourceArtImportNotice): String =
 		is SourceArtImportNotice.FolderClipDropped -> "folder '${notice.groupPath}' clips to the layer below; its part imports unclipped"
 		is SourceArtImportNotice.LayerLargerThanPage -> "layer '${notice.layerName}' is larger than the largest atlas page; left unpacked"
 		is SourceArtImportNotice.LayerNotPacked -> "layer '${notice.layerName}' could not be packed (${notice.reason}); left unpacked"
+		is SourceArtImportNotice.BirthMeshFellBackToQuad -> "layer '${notice.layerName}' could not be meshed automatically (${birthRefusalWording(notice.reason)}); born as a quad"
+	}
+
+/**
+ * Why the art mesher gave a layer no birth mesh, as the end of a log line.
+ *
+ * @param BirthRefusal reason The refusal.
+ * @return String The wording.
+ */
+private fun birthRefusalWording(reason: BirthRefusal): String =
+	when (reason) {
+		BirthRefusal.NothingOpaque -> "no pixel reaches the atlas's alpha threshold"
+		BirthRefusal.OverBudget -> "it needs more vertices than the largest budget"
+		BirthRefusal.Withheld -> "its mesh failed a structural check"
+		BirthRefusal.MesherRefused -> "the mesher refused it"
+		BirthRefusal.MesherFailed -> "the mesher failed on it"
 	}

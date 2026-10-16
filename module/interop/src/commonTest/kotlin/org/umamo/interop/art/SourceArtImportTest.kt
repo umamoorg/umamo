@@ -8,8 +8,10 @@ import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceGroup
 import org.umamo.format.art.SourceLayer
 import org.umamo.format.art.SourceLayerKind
+import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.runtime.model.ArtSource
 import org.umamo.runtime.model.ArtSourceId
+import org.umamo.runtime.model.AtlasComposition
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.DrawableId
@@ -24,6 +26,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.SourceLayerRef
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -519,5 +522,72 @@ class SourceArtImportTest {
 		val listed = existing.copy(sources = existing.sources.map { source -> source.copy(offsetX = 8, offsetZ = 9) })
 		val underListed = SourceArtImport.additionsFor(fixture(), descriptor, SourceArtImportOptions(), listed, underSource = ArtSourceId("art-0"), layerKeys = setOf("lyid:1"), offset = offset).additions
 		assertEquals(8 to 9, underListed.source.offsetX to underListed.source.offsetZ, "a listed file's record keeps its own offset")
+	}
+
+	/**
+	 * The Automatic birth mode mints exactly what the Quad mode mints - the same drawables, each over its
+	 * quad, the same notices - and names every drawable a pending birth at its layer's canvas place; the
+	 * Quad mode names none.
+	 */
+	@Test
+	fun theAutomaticModeMintsWhatTheQuadModeMintsAndNamesEachDrawableAPendingBirth() {
+		val quad = SourceArtImport.fromSourceArt(fixture(), descriptor)
+		val automatic = SourceArtImport.fromSourceArt(fixture(), descriptor, SourceArtImportOptions(birthMesh = BirthMeshMode.Automatic(ArtMeshPreset.Standard.settings)))
+
+		assertTrue(quad.pendingBirths.isEmpty(), "the quad mode meshes nothing more")
+		assertEquals(quad.puppet.drawables.map { drawable -> Triple(drawable.id, drawable.atlasTileId, drawable.maskedBy) }, automatic.puppet.drawables.map { drawable -> Triple(drawable.id, drawable.atlasTileId, drawable.maskedBy) })
+		assertEquals(quad.notices, automatic.notices)
+
+		for ((quadDrawable, automaticDrawable) in quad.puppet.drawables.zip(automatic.puppet.drawables)) {
+			assertContentEquals(assertNotNull(quadDrawable.mesh).positions, assertNotNull(automaticDrawable.mesh).positions, "${automaticDrawable.name} is minted over its quad")
+		}
+
+		assertEquals(automatic.puppet.drawables.map { drawable -> drawable.id }, automatic.pendingBirths.map { birth -> birth.drawableId }, "each drawable a pending birth, in mint order")
+		val face = automatic.pendingBirths.first { birth -> birth.layerName == "Face" }
+		assertEquals(90 to 40, face.layerLeft to face.layerTop, "at the layer's canvas place")
+	}
+
+	/**
+	 * Landing the births swaps each born drawable's quad for its mesh; a refused one keeps its quad, and a
+	 * notice names it and why.
+	 */
+	@Test
+	fun landedBirthsTakeTheirMeshesAndARefusalKeepsItsQuadWithANotice() {
+		val automatic = SourceArtImport.fromSourceArt(fixture(), descriptor, SourceArtImportOptions(birthMesh = BirthMeshMode.Automatic(ArtMeshPreset.Standard.settings)))
+		val resolution = BirthMesher.resolveSequentially(automatic.pendingBirths)
+		val landed = automatic.withBirths(resolution)
+
+		assertTrue(landed.pendingBirths.isEmpty(), "nothing is pending once landed")
+
+		for (drawable in landed.puppet.drawables) {
+			val born = assertNotNull(resolution.outcomes[drawable.id] as? BirthOutcome.Born, "${drawable.name} is born")
+			assertSame(born.mesh, drawable.mesh, "${drawable.name} takes its mesh")
+		}
+
+		val faceId = automatic.puppet.drawables.first { drawable -> drawable.name == "Face" }.id
+		val partly = automatic.withBirths(BirthResolution(resolution.outcomes + (faceId to BirthOutcome.Refused(BirthRefusal.OverBudget))))
+		assertSame(automatic.puppet.drawables.first { drawable -> drawable.id == faceId }.mesh, partly.puppet.drawables.first { drawable -> drawable.id == faceId }.mesh, "the refused one keeps its quad")
+		assertEquals(SourceArtImportNotice.BirthMeshFellBackToQuad("Face", BirthRefusal.OverBudget), partly.notices.last())
+	}
+
+	/**
+	 * A birth meshes every pixel the quad would have drawn: at the import's own threshold, raised only to
+	 * the atlas's - never at the preset's.
+	 */
+	@Test
+	fun theMesherThresholdIsTheImportsRaisedToTheAtlas() {
+		val existing = SourceArtImport.fromSourceArt(fixture(), descriptor).puppet
+		val automatic = BirthMeshMode.Automatic(ArtMeshPreset.Standard.settings)
+
+		fun thresholdOf(importThreshold: Int, atlasThreshold: Int): Int {
+			val host = existing.copy(atlas = existing.atlas.copy(composition = AtlasComposition(alphaThreshold = atlasThreshold)))
+			val added = SourceArtImport.additionsFor(fixture(), descriptor, SourceArtImportOptions(alphaThreshold = importThreshold, birthMesh = automatic), host)
+
+			return added.pendingBirths.map { birth -> birth.settings.alphaThreshold }.distinct().single()
+		}
+
+		assertEquals(1, thresholdOf(importThreshold = 1, atlasThreshold = 1), "the import's own threshold, not the preset's 16")
+		assertEquals(30, thresholdOf(importThreshold = 30, atlasThreshold = 1))
+		assertEquals(50, thresholdOf(importThreshold = 30, atlasThreshold = 50), "raised to the atlas's")
 	}
 }
