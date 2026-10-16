@@ -44,6 +44,9 @@ import org.umamo.ui.model.repack.lowerPack
 import org.umamo.ui.model.repack.packAtlasOf
 import org.umamo.ui.model.repack.repackPageSizeOf
 import org.umamo.ui.model.repack.repackRefusals
+import org.umamo.ui.progress.ProgressHandle
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.track
 
 /*
  * Adding an artwork file to an OPEN document: the bridge's additions appended to the live model, the
@@ -208,6 +211,7 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
  * @param SourceArtImportOptions options            The placement, threshold, and margin to import with.
  * @param SourceArtRasters       artRasters         The document's raster store.
  * @param Boolean                premultipliedAlpha The document's texture-convention flag.
+ * @param ProgressHandle?        progress           Says when the atlas packs, or null.
  * @return AddArtworkOutcome? The outcome, or null when the file has no layer with art to add.
  */
 private fun addArtworkOutcome(
@@ -216,6 +220,7 @@ private fun addArtworkOutcome(
 	options: SourceArtImportOptions,
 	artRasters: SourceArtRasters,
 	premultipliedAlpha: Boolean,
+	progress: ProgressHandle? = null,
 ): AddArtworkOutcome {
 	val offset = SourceArtImport.offsetFor(base, request.art, options)
 	val added = SourceArtImport.additionsFor(request.art.placedBy(offset), request.descriptor, options, base, offset = offset)
@@ -242,6 +247,7 @@ private fun addArtworkOutcome(
 	val decodedByTile = added.rasterByTile.mapValues { (_, raster) -> request.decodedFor(raster) }
 	artRasters.addDecoded(decodedByTile)
 	val decode: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] ?: artRasters.decodeRaster(tileId) }
+	progress?.stage(ProgressLabels.ATLAS_PACKING)
 
 	return when (val packed = packNewTilesAround(seeded, added.additions.tiles.mapTo(HashSet()) { tile -> tile.id }, decode, premultipliedAlpha, added.notices)) {
 		is PackAroundOutcome.Refused -> AddArtworkOutcome.Refused(packed.refusals)
@@ -372,8 +378,10 @@ suspend fun runAddArtwork(host: AtlasRepackHost, request: AddArtworkRequest, are
 	val session = host.session
 	val modelAtStart = session.model.value
 	val outcome =
-		withContext(Dispatchers.Default) {
-			addArtworkOutcome(modelAtStart, request, request.options, host.artRasters, host.premultipliedAlpha)
+		host.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(request.descriptor.name)) { progress ->
+			withContext(Dispatchers.Default) {
+				addArtworkOutcome(modelAtStart, request, request.options, host.artRasters, host.premultipliedAlpha, progress)
+			}
 		}
 
 	when (outcome) {
@@ -430,8 +438,10 @@ internal suspend fun adjustAddArtwork(host: AtlasRepackHost, record: AdjustableO
 	val base = record.baseSnapshot.model
 	val options = addArtworkOptionsOf(record.parameters, request.options)
 	val outcome =
-		withContext(Dispatchers.Default) {
-			addArtworkOutcome(base, request, options, host.artRasters, host.premultipliedAlpha)
+		host.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(request.descriptor.name)) { progress ->
+			withContext(Dispatchers.Default) {
+				addArtworkOutcome(base, request, options, host.artRasters, host.premultipliedAlpha, progress)
+			}
 		}
 
 	when (outcome) {

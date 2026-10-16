@@ -19,6 +19,7 @@ import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.mesh.generateMeshLauncher
 import org.umamo.ui.model.repack.atlasRepackLauncher
+import org.umamo.ui.progress.LocalProgressTracker
 import org.umamo.ui.settings.MESH_GENERATION_PRESET_KEY
 import org.umamo.ui.workspace.KeyformHover
 import org.umamo.ui.workspace.commands.ArtworkOperations
@@ -149,6 +150,7 @@ internal fun RegisterShellCommands(
 	val artRasters = LocalSourceArtRasters.current
 	val sessionAtlasPages = LocalSessionAtlasPages.current
 	val puppetTextures = LocalPuppetTextures.current
+	val progress = LocalProgressTracker.current
 	val repackAtlas: ((String?) -> Unit)? =
 		if (editorSession != null && artRasters != null) {
 			atlasRepackLauncher(
@@ -159,6 +161,7 @@ internal fun RegisterShellCommands(
 				scope = shellScope,
 				sessionOptions = repackOptions,
 				report = { refusalReport -> commandRegistry.invoke("document.repackReport", refusalReport) },
+				progress = progress,
 			)
 		} else {
 			null
@@ -177,6 +180,7 @@ internal fun RegisterShellCommands(
 				sessionOptions = meshGenerationOptions,
 				runState = meshGenerationRun,
 				seedPresetKey = { settings.getString(MESH_GENERATION_PRESET_KEY) },
+				progress = progress,
 			)
 		} else {
 			null

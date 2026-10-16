@@ -1,7 +1,17 @@
 package org.umamo.ui.app
 
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.name
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.umamo.edit.EditorSession
+import org.umamo.edit.NoticePlacement
 import org.umamo.format.FileKind
+import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.storage.platformFileFromSavedPath
 import org.umamo.ui.document.DocumentLoad
@@ -10,6 +20,9 @@ import org.umamo.ui.document.UmaDocument
 import org.umamo.ui.document.addRecentFile
 import org.umamo.ui.document.loadDocument
 import org.umamo.ui.document.newBlankDocument
+import org.umamo.ui.progress.ProgressHandle
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.track
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.alert_document_read_only
 import org.umamo.ui.workspace.AlertRequest
@@ -19,16 +32,31 @@ import org.umamo.ui.workspace.AlertRequest
  * its stored path (Open Recent, or a file the operating system hands the running editor).  Each goes
  * through the unsaved-changes gate first, since a replace discards the session.
  *
+ * A file is read and built off the UI thread, with its progress on the status bar, so the window stays
+ * responsive while a large document opens.  That leaves the rigger free to keep editing the document being
+ * replaced, so a load that finds the document edited since the gate passed asks again before it swaps.  One
+ * open runs at a time: another open, or New, while one runs is refused with a notice rather than raced.
+ *
  * Lives for the application's life, like the save controller whose gate it borrows.  An artwork import is
  * NOT here: it adds to the open document rather than replacing it (see ArtworkController).
  *
  * @property EditorAppServices      services The app's shared collaborators.
  * @property DocumentSaveController save     The owner of the unsaved-changes gate.
+ * @property Function               load     Reads and builds one file into a document; the real loader by
+ *   default, and a stand-in for tests.
  */
 internal class DocumentOpenController(
 	private val services: EditorAppServices,
 	private val save: DocumentSaveController,
+	private val load: suspend (PlatformFile, SourceArtImportOptions, ProgressHandle?) -> DocumentLoad = ::loadDocument,
 ) {
+	/** The open running now, from its file choice to its swap; null when none runs.  Touched on the UI thread only. */
+	private var opening: Job? = null
+
+	/** Whether an open is running now. */
+	val isOpening: Boolean
+		get() = opening != null
+
 	/**
 	 * Lands the result of a load: success records the recent file and swaps the document in, and a failure
 	 * raises the shell's modal alert (document.openFailed) so the rigger sees why nothing opened.  The swap waits
@@ -83,7 +111,15 @@ internal class DocumentOpenController(
 	 * document asks first, and the swap waits for a model export started while it asked.
 	 */
 	fun newDocument() {
-		save.confirmIfDirty { services.afterRunningExport { services.onOpen(newBlankDocument()) } }
+		if (refusedWhileOpening()) {
+			return
+		}
+
+		save.confirmIfDirty {
+			if (!refusedWhileOpening()) {
+				services.afterRunningExport { services.onOpen(newBlankDocument()) }
+			}
+		}
 	}
 
 	/**
@@ -120,11 +156,7 @@ internal class DocumentOpenController(
 	 * @param String path The stored path or uri.
 	 */
 	fun openStoredPath(path: String) {
-		save.confirmIfDirty {
-			services.scope.launch {
-				applyDocumentLoad(loadDocument(platformFileFromSavedPath(path), services.configuredArtworkImportOptions()))
-			}
-		}
+		openFile { platformFileFromSavedPath(path) }
 	}
 
 	/**
@@ -134,12 +166,84 @@ internal class DocumentOpenController(
 	 * @param FileKind kind The one format the picker offers.
 	 */
 	private fun pickAndLoad(kind: FileKind) {
+		openFile { services.filePicker.openFile(listOf(kind.extension)) }
+	}
+
+	/**
+	 * Opens the file [choose] names over the open document: behind the unsaved-changes gate, as the one
+	 * open running, read and built off the UI thread with its task on the status bar, and landed back on
+	 * the app's scope.  The file is chosen on the app's scope too - a native dialog wants the UI thread.
+	 *
+	 * @param Function choose Names the file, or null when there is none to open (a cancelled picker).
+	 */
+	private fun openFile(choose: suspend () -> PlatformFile?) {
+		if (refusedWhileOpening()) {
+			return
+		}
+
 		save.confirmIfDirty {
-			services.scope.launch {
-				services.filePicker.openFile(listOf(kind.extension))?.let { picked ->
-					applyDocumentLoad(loadDocument(picked))
+			if (refusedWhileOpening()) {
+				return@confirmIfDirty
+			}
+
+			// What the rigger agreed to replace: an edit made while the file loads is not covered by that answer.
+			val confirmedSession = services.current().session
+			val confirmedModel = confirmedSession?.model?.value
+			val options = services.configuredArtworkImportOptions()
+			// Started lazily so the gate holds the job before any of it can run, and so before it can complete.
+			val open =
+				services.scope.launch(start = CoroutineStart.LAZY) {
+					val file = choose() ?: return@launch
+					val loaded =
+						services.progress.track(ProgressLabels.DOCUMENT_OPENING, listOf(file.name)) { progress ->
+							withContext(Dispatchers.Default) { load(file, options, progress) }
+						}
+					landLoad(loaded, confirmedSession, confirmedModel)
+				}
+			opening = open
+			open.invokeOnCompletion {
+				if (opening === open) {
+					opening = null
 				}
 			}
+			open.start()
 		}
+	}
+
+	/**
+	 * Lands a finished load, first asking again when the document it replaces was edited after the
+	 * unsaved-changes gate passed - the answer given then did not cover those edits.
+	 *
+	 * @param DocumentLoad   load             The load's result.
+	 * @param EditorSession? confirmedSession The session the gate passed over, or null when none was open.
+	 * @param PuppetModel?   confirmedModel   Its model as the gate passed.
+	 */
+	private fun landLoad(load: DocumentLoad, confirmedSession: EditorSession?, confirmedModel: PuppetModel?) {
+		val session = services.current().session
+		val editedSince = session != null && session === confirmedSession && session.model.value !== confirmedModel && session.dirty.value
+
+		if (load is DocumentLoad.Loaded && editedSince) {
+			save.confirmIfDirty { applyDocumentLoad(load) }
+
+			return
+		}
+
+		applyDocumentLoad(load)
+	}
+
+	/**
+	 * Whether an open is running, telling the rigger so when it is: a second replace would race the first.
+	 *
+	 * @return Boolean True when the request must be refused.
+	 */
+	private fun refusedWhileOpening(): Boolean {
+		if (opening == null) {
+			return false
+		}
+
+		UmamoLog.info("open: another document is still opening; this request was refused")
+		services.current().session?.emitNotice("notice.document.openBusy", NoticePlacement.StatusBar)
+
+		return true
 	}
 }

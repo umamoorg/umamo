@@ -64,6 +64,7 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.document.exportedModel" -> stringResource(Res.string.notice_document_exported_model, arguments.firstOrNull().orEmpty())
 		"notice.document.exportBusy" -> stringResource(Res.string.notice_document_export_busy)
 		"notice.document.waitingForExport" -> stringResource(Res.string.notice_document_waiting_for_export)
+		"notice.document.openBusy" -> stringResource(Res.string.notice_document_open_busy)
 		"notice.document.cmo3Loss" -> stringResource(Res.string.notice_document_cmo3_loss)
 		"notice.document.moc3Loss" -> stringResource(Res.string.notice_document_moc3_loss)
 		"notice.import.artworkSuperseded" -> stringResource(Res.string.notice_import_artwork_superseded)

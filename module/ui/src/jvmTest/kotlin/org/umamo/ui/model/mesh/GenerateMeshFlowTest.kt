@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.job
 import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorMode
@@ -39,6 +40,10 @@ import org.umamo.runtime.model.invertUvAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.ui.document.blendedAt
 import org.umamo.ui.model.repack.MAX_IMPORT_PAGE_SIZE
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.ProgressTask
+import org.umamo.ui.progress.ProgressTracker
+import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import kotlin.math.abs
 import kotlin.test.Test
@@ -83,6 +88,22 @@ class GenerateMeshFlowTest {
 			assertEquals(listOf("2"), session.notice.value?.arguments)
 			session.undo()
 			assertSame(model, session.model.value)
+		}
+
+	@Test
+	fun aRunShowsItsCountedTaskWhileItMeshesAndEndsItAfter() =
+		runBlocking {
+			val model = model(listOf(quad(drawableA, tileA, 10f, 10f, 54f, 54f), quad(drawableB, tileB, 10f, 10f, 54f, 54f)), unplacedAtlas(listOf(tileA, tileB)))
+			val session = EditorSession(model)
+			val tracker = ProgressTracker()
+			val seen = Collections.synchronizedList(ArrayList<ProgressTask>())
+			val watcher = launch(Dispatchers.Unconfined) { tracker.tasks.collect { tasks -> seen.addAll(tasks) } }
+
+			assertTrue(runGenerateMesh(host(session, rasters(tileA to disc(), tileB to disc()), this, progress = tracker), listOf(drawableA, drawableB), standard, null))
+			watcher.cancel()
+
+			assertTrue(seen.any { task -> task.labelKey == ProgressLabels.MESH_GENERATING && task.total == 2 }, "counted by drawable: ${seen.toList()}")
+			assertTrue(tracker.tasks.value.isEmpty(), "the task ends with the run")
 		}
 
 	@Test
@@ -575,11 +596,12 @@ class GenerateMeshFlowTest {
 	 * @param EditorSession    session  The session.
 	 * @param SourceArtRasters rasters  The art.
 	 * @param CoroutineScope   scope    Where reruns run.
+	 * @param ProgressTracker? progress Where the run shows while it works, or null.
 	 * @param Function         remember Receives the landed options.
 	 * @return GenerateMeshHost The host.
 	 */
-	private fun host(session: EditorSession, rasters: SourceArtRasters, scope: CoroutineScope, remember: (MeshGenerationOptions) -> Unit = {}): GenerateMeshHost =
-		GenerateMeshHost(session, rasters, sessionAtlasPages = null, premultipliedAlpha = false, scope = scope, rememberOptions = remember)
+	private fun host(session: EditorSession, rasters: SourceArtRasters, scope: CoroutineScope, progress: ProgressTracker? = null, remember: (MeshGenerationOptions) -> Unit = {}): GenerateMeshHost =
+		GenerateMeshHost(session, rasters, sessionAtlasPages = null, premultipliedAlpha = false, scope = scope, progress = progress, rememberOptions = remember)
 
 	/**
 	 * A raster store over fixed art.

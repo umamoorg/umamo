@@ -28,6 +28,8 @@ import org.umamo.ui.model.artwork.SourceFilePresence
 import org.umamo.ui.model.artwork.describeImportNotice
 import org.umamo.ui.model.repack.AtlasRepackRefusalReason
 import org.umamo.ui.model.repack.packModelAtOpen
+import org.umamo.ui.progress.ProgressHandle
+import org.umamo.ui.progress.ProgressLabels
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.initialLiveParams
 
@@ -208,6 +210,7 @@ internal fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): S
  * @param SourceArtImportOptions options     The seed parameters, threshold, and margin the import runs with.
  * @param String?                contentHash The whole-file content hash of the bytes the art was read from, recorded on its source.
  * @param Long?                  lastModified The file's modification time when read, recorded on its source; null when unknown.
+ * @param ProgressHandle?        progress     Says when the atlas packs, or null.
  * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
  */
 internal fun buildArtDocument(
@@ -218,6 +221,7 @@ internal fun buildArtDocument(
 	options: SourceArtImportOptions,
 	contentHash: String? = null,
 	lastModified: Long? = null,
+	progress: ProgressHandle? = null,
 ): DocumentLoad {
 	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension, contentHash, lastModified), options)
 
@@ -233,6 +237,7 @@ internal fun buildArtDocument(
 
 	val decodedByTile = imported.rasterByTile.mapValues { (_, raster) -> DecodedImage(raster.rgba, raster.width, raster.height) }
 	val decodeRaster: (org.umamo.runtime.model.AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] }
+	progress?.stage(ProgressLabels.ATLAS_PACKING)
 	val packed = packModelAtOpen(imported.puppet, decodeRaster)
 	val notices =
 		imported.notices +
