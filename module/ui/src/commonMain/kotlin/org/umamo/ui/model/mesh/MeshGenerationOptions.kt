@@ -78,9 +78,6 @@ private const val MAXIMUM_INTERIOR_THINNING_LIMIT: Float = 64f
 /** The smallest vertex budget the strip offers. */
 private const val SMALLEST_VERTEX_BUDGET: Int = 16
 
-/** The largest vertex budget the strip offers: the most any mesh is fitted to. */
-internal const val MAXIMUM_VERTEX_BUDGET: Int = MAXIMUM_ART_MESH_VERTEX_BUDGET
-
 /** The fewest outline points one ring may be asked for: a ring needs three to enclose anything. */
 private const val SMALLEST_OUTLINE_POINTS: Int = 3
 
@@ -246,7 +243,7 @@ private fun clampedMeshSettingsOf(
 		innerMargin = INNER_MARGIN_ROW.clamp(innerMargin),
 		minimumMargin = MINIMUM_MARGIN_ROW.clamp(minimumMargin),
 		minimumOutlinePoints = minimumPoints,
-		vertexBudget = vertexBudget.coerceIn(maxOf(SMALLEST_VERTEX_BUDGET, minimumPoints), MAXIMUM_VERTEX_BUDGET),
+		vertexBudget = vertexBudget.coerceIn(maxOf(SMALLEST_VERTEX_BUDGET, minimumPoints), MAXIMUM_ART_MESH_VERTEX_BUDGET),
 		fillHoles = fillHoles,
 		strandRungs = strandRungs,
 		strandWidth = STRAND_WIDTH_ROW.clamp(strandWidth),
@@ -289,7 +286,7 @@ internal fun meshGenerationParameters(options: MeshGenerationOptions, minimumAlp
 		MINIMUM_MARGIN_ROW.row(settings.minimumMargin),
 		OperatorParameter.IntParameter(MeshGenerationParameterKeys.MINIMUM_OUTLINE_POINTS, MeshGenerationParameterKeys.MINIMUM_OUTLINE_POINTS, settings.minimumOutlinePoints, SMALLEST_OUTLINE_POINTS, MAXIMUM_OUTLINE_POINTS),
 		MINIMUM_ANGLE_ROW.row(settings.minimumAngle),
-		OperatorParameter.IntParameter(MeshGenerationParameterKeys.VERTEX_BUDGET, MeshGenerationParameterKeys.VERTEX_BUDGET, settings.vertexBudget, SMALLEST_VERTEX_BUDGET, MAXIMUM_VERTEX_BUDGET, step = 16),
+		OperatorParameter.IntParameter(MeshGenerationParameterKeys.VERTEX_BUDGET, MeshGenerationParameterKeys.VERTEX_BUDGET, settings.vertexBudget, SMALLEST_VERTEX_BUDGET, MAXIMUM_ART_MESH_VERTEX_BUDGET, step = 16),
 		INTERIOR_THINNING_LIMIT_ROW.row(settings.interiorThinningLimit),
 		OperatorParameter.BooleanParameter(MeshGenerationParameterKeys.FILL_HOLES, MeshGenerationParameterKeys.FILL_HOLES, settings.fillHoles),
 		OperatorParameter.BooleanParameter(MeshGenerationParameterKeys.STRAND_RUNGS, MeshGenerationParameterKeys.STRAND_RUNGS, settings.strandRungs),
