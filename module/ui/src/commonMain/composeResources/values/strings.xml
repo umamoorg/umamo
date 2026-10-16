@@ -662,6 +662,14 @@
 	<string name="notice_document_exported_model">Exported %1$s.</string>
 	<string name="notice_document_export_busy">An export is already in progress.</string>
 	<string name="notice_document_waiting_for_export">Waiting on export to finish…</string>
+	<string name="notice_document_open_busy">Another document is still opening.</string>
+	<string name="progress_document_opening">Opening %1$s…</string>
+	<string name="progress_artwork_adding">Adding %1$s…</string>
+	<string name="progress_artwork_reloading">Reloading artwork…</string>
+	<string name="progress_mesh_generating">Generating meshes…</string>
+	<string name="progress_atlas_packing">Packing the atlas…</string>
+	<string name="progress_count">%1$d / %2$d</string>
+	<string name="progress_more_tasks">+%1$d more</string>
 	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3's physics, guides, keyform notes, random pose, model state sets, user data, and other editor settings are not carried in this file.  CMO3 exports from this session still keep them, but a CMO3 exported after reopening the file will not.</string>
 	<string name="notice_document_moc3_loss">Saved as UMA.  Physics, motions, expressions, user data, and pose from the MOC3 family are not carried in this file.</string>
 	<string name="notice_import_artwork_superseded">The document changed while the artwork was being added; nothing was applied.</string>

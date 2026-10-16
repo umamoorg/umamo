@@ -14,6 +14,7 @@ import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.progress.ProgressTracker
 import org.umamo.ui.settings.IMPORT_ALIGNMENT_KEY
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
 import org.umamo.ui.viewport.AtlasPageBinding
@@ -102,6 +103,7 @@ internal class DocumentViewportSlot {
  * @property Function        untitledName    The localized name a never-saved document's Save As suggests.
  * @property HostHeap?       hostHeap        The memory limit the host started the editor with, which an export
  *   that runs out of memory names; null for a host that has no say in it.
+ * @property ProgressTracker progress        Where the long operations the controllers run show while they work.
  */
 internal class EditorAppServices(
 	val settings: Settings,
@@ -112,6 +114,7 @@ internal class EditorAppServices(
 	val onOpen: (Document) -> Unit,
 	val untitledName: () -> String,
 	val hostHeap: HostHeap? = null,
+	val progress: ProgressTracker = ProgressTracker(),
 ) {
 	/** The model export running now, which a second export, a quit, and a document replace all defer to. */
 	val modelExports: ModelExportGate = ModelExportGate()

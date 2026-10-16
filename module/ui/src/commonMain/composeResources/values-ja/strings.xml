@@ -604,6 +604,14 @@
 	<string name="notice_document_exported_model">%1$s をエクスポートしました。</string>
 	<string name="notice_document_export_busy">エクスポートを実行中です。</string>
 	<string name="notice_document_waiting_for_export">先にエクスポートを完了しています…</string>
+	<string name="notice_document_open_busy">別のドキュメントをまだ開いています。</string>
+	<string name="progress_document_opening">%1$s を開いています…</string>
+	<string name="progress_artwork_adding">%1$s を追加しています…</string>
+	<string name="progress_artwork_reloading">アートワークを再読み込みしています…</string>
+	<string name="progress_mesh_generating">メッシュを生成しています…</string>
+	<string name="progress_atlas_packing">アトラスをパックしています…</string>
+	<string name="progress_count">%1$d / %2$d</string>
+	<string name="progress_more_tasks">ほか %1$d 件</string>
 	<string name="notice_document_cmo3_loss">UMA として保存しました。CMO3 の物理演算、ガイド、キーフォームのメモ、ランダムポーズ、モデルステートセット、ユーザーデータなどのエディター設定はこのファイルには含まれません。このセッションからの CMO3 エクスポートには引き続き含まれますが、ファイルを開き直した後にエクスポートした CMO3 には含まれません。</string>
 	<string name="notice_document_moc3_loss">UMA として保存しました。MOC3 ファミリーの物理演算、モーション、表情、ユーザーデータ、ポーズはこのファイルには含まれません。</string>
 	<string name="notice_import_artwork_superseded">アートワークの追加中にドキュメントが変更されたため、何も適用されませんでした。</string>

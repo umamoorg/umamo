@@ -11,8 +11,8 @@ import kotlin.concurrent.Volatile
  * (`PuppetModel.atlas`), because a repack authors them; this holds the one thing a model must not,
  * since a raster in the model would ride along in every undo snapshot.
  *
- * Nothing is decoded until it is asked for: a CMO3 document loads synchronously on the UI thread, so
- * decoding every tile up front would stall the open by seconds on a real model.  A decoded tile is
+ * Nothing is decoded until it is asked for: decoding every tile of a real CMO3 model up front would add
+ * seconds to its open, for tiles the rigger may never touch.  A decoded tile is
  * retained for the store's life, which is the document's life - a replaced document drops the store.
  *
  * Format-agnostic by construction: the decoder is injected.  A CMO3 document supplies one over its

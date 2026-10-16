@@ -29,6 +29,8 @@ import org.umamo.ui.help.openLinkQuietly
 import org.umamo.ui.kit.FileDropTarget
 import org.umamo.ui.menu.buildAppMenu
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.progress.LocalProgressTracker
+import org.umamo.ui.progress.ProgressTracker
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.title_untitled_document
 import org.umamo.ui.settings.LocalQuickSetup
@@ -142,6 +144,9 @@ fun EditorApp(
 	val quickSetup = remember { QuickSetupState(visible = !settings.foundUserFile) }
 	// The alerts the app raises about work that can finish across a document swap, held here for the same reason.
 	val appAlerts = remember { AppAlertQueues() }
+	// The long operations running now, for the status bar: held here for the same reason, since an open runs
+	// before the document it opens has a session and its progress must outlast the swap.
+	val progress = remember { ProgressTracker() }
 	// The session's effective atlas pages: a repack swaps them and undo swaps them back, driven by the
 	// model through the resolver's collector.  Created up here rather than in the viewport wiring so
 	// a save and an export read the same page set the viewport shows.
@@ -196,6 +201,7 @@ fun EditorApp(
 				onOpen = { opened -> currentOnOpen(opened) },
 				untitledName = { currentUntitledName },
 				hostHeap = hostHeap,
+				progress = progress,
 			)
 		}
 	val save = remember { DocumentSaveController(services) }
@@ -333,6 +339,7 @@ fun EditorApp(
 			LocalQuickSetup provides quickSetup,
 			LocalAppAlerts provides appAlerts,
 			LocalUpdateChecks provides (updateTransport != null),
+			LocalProgressTracker provides progress,
 		) {
 			DocumentViewport(
 				document = document,

@@ -33,6 +33,8 @@ import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.repack.AtlasRepackHost
 import org.umamo.ui.model.repack.AtlasRepackRefusal
 import org.umamo.ui.model.repack.AtlasRepackReport
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.track
 
 /*
  * Reloading the document's artwork files, and relinking a tile with the layer's art pulled in: the
@@ -431,8 +433,10 @@ suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkReques
 	val session = host.session
 	val modelAtStart = session.model.value
 	val outcome =
-		withContext(Dispatchers.Default) {
-			reloadOutcome(modelAtStart, request, request.options, request.matchThreshold, host.artRasters, host.premultipliedAlpha)
+		host.progress.track(ProgressLabels.ARTWORK_RELOADING) {
+			withContext(Dispatchers.Default) {
+				reloadOutcome(modelAtStart, request, request.options, request.matchThreshold, host.artRasters, host.premultipliedAlpha)
+			}
 		}
 
 	when (outcome) {
@@ -502,8 +506,10 @@ internal suspend fun adjustReloadArtwork(host: AtlasRepackHost, record: Adjustab
 	val options = addArtworkOptionsOf(record.parameters, request.options)
 	val matchThreshold = matchThresholdOf(record.parameters, request.matchThreshold)
 	val outcome =
-		withContext(Dispatchers.Default) {
-			reloadOutcome(base, request, options, matchThreshold, host.artRasters, host.premultipliedAlpha)
+		host.progress.track(ProgressLabels.ARTWORK_RELOADING) {
+			withContext(Dispatchers.Default) {
+				reloadOutcome(base, request, options, matchThreshold, host.artRasters, host.premultipliedAlpha)
+			}
 		}
 
 	when (outcome) {
