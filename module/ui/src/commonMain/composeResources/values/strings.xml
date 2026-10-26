@@ -637,18 +637,13 @@
 	<string name="notice_mesh_generated_with_skips">Generated %1$d mesh(es) from art; %2$d skipped.  See the log.</string>
 	<string name="notice_mesh_generated_coarser">Generated %1$d mesh(es) from art; %2$d built coarser than asked to stay within the Vertex Budget.  See the log.</string>
 	<string name="notice_mesh_generated_refit">Generated %1$d mesh(es) from art; %2$d needed a higher Vertex Budget or Fill Holes to fit.  See the log.</string>
-	<string name="notice_mesh_pinned_without_room">Generated %1$d mesh(es); %2$d skipped because pinned art has no room to grow.  Unpin the art or lower the Outer Margin.</string>
+	<string name="notice_mesh_pinned_without_room">Generated %1$d mesh(es); %2$d skipped because pinned art has no room to grow.  Unpin the art or lower the margin.</string>
 	<string name="notice_mesh_over_budget">Generated %1$d mesh(es); %2$d skipped because they need more than 4096 vertices even with holes filled.  Raise the Alpha Threshold or lower the Minimum Outline Points.</string>
 	<string name="notice_mesh_glued_throughout">Generated %1$d mesh(es); %2$d skipped because glue holds most of their vertices, and regenerating them would change how they follow what they are glued to.</string>
 	<string name="notice_mesh_none_generated">No mesh was generated.  See the log.</string>
 	<string name="notice_mesh_pack_refused">Nothing was generated: The atlas has no room for the larger meshes.</string>
 	<string name="notice_mesh_superseded">The document changed while the meshes were being generated; nothing was applied.</string>
 	<string name="notice_mesh_no_targets">Select a drawable with a mesh to generate one from its art.</string>
-	<!-- Generate Quad Mesh notices.  %1$d is the number of quads generated, %2$d the number skipped. -->
-	<string name="notice_mesh_quad_generated">Generated %1$d quad mesh(es).</string>
-	<string name="notice_mesh_quad_generated_with_skips">Generated %1$d quad mesh(es); %2$d skipped.  See the log.</string>
-	<string name="notice_mesh_quad_pinned_without_room">Generated %1$d quad mesh(es); %2$d skipped because pinned art has no room to grow.  Unpin the art or lower the Margin.</string>
-	<string name="notice_mesh_quad_no_targets">Select a drawable with a mesh to give it a quad mesh.</string>
 	<string name="history_drawable_duplicate">Duplicate Drawable</string>
 	<string name="notice_merge_needs_vertices">Merge needs two or more selected vertices (vertex mode).</string>
 	<string name="notice_connect_needs_two_vertices">Connect needs exactly two selected vertices (vertex mode).</string>

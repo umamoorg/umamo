@@ -110,7 +110,7 @@ class GenerateQuadMeshFlowTest {
 			assertTrue(mesh.isUntouchedBirthQuad(artUvs, 64, 64, ORIGIN_X, ORIGIN_Y), "a reload takes it for the import's own quad")
 			assertEquals(stepsBefore + 1, session.historyView.value.steps.size)
 			assertEquals("change.mesh.generateQuad", session.historyView.value.steps.last().labelKey)
-			assertEquals("notice.mesh.quadGenerated", session.notice.value?.messageKey)
+			assertEquals("notice.mesh.generated", session.notice.value?.messageKey)
 			assertEquals(listOf("1"), session.notice.value?.arguments)
 			session.undo()
 			assertSame(generated, session.model.value, "one undo brings the generated mesh back")
@@ -247,7 +247,7 @@ class GenerateQuadMeshFlowTest {
 			assertFalse(runGenerateMesh(host(session, rasters(tileA to disc(), tileB to disc()), this), listOf(drawableA), QuadMeshOptions(margin = 10), null))
 
 			assertSame(model, session.model.value)
-			assertEquals("notice.mesh.quadPinnedWithoutRoom", session.notice.value?.messageKey)
+			assertEquals("notice.mesh.pinnedWithoutRoom", session.notice.value?.messageKey)
 			assertEquals(listOf("0", "1"), session.notice.value?.arguments)
 			assertEquals(10, assertNotNull(session.adjustableOperation.value).parameters.intValue(QuadMeshParameterKeys.MARGIN, 0), "the strip opens on the Margin to lower")
 		}
@@ -286,7 +286,7 @@ class GenerateQuadMeshFlowTest {
 			val quadLauncher = generateQuadMeshLauncher(session, blocking, null, false, this, sessionOptions, runState)
 
 			quadLauncher(null)
-			assertEquals("notice.mesh.quadNoTargets", session.notice.value?.messageKey)
+			assertEquals("notice.mesh.noTargets", session.notice.value?.messageKey)
 
 			session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(drawableA)))
 			fromArt(null)

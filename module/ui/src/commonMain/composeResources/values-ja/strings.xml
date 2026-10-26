@@ -586,10 +586,6 @@
 	<string name="notice_mesh_pack_refused">アトラスに大きくなったメッシュの余地がないため、何も生成しませんでした。</string>
 	<string name="notice_mesh_superseded">メッシュの生成中にドキュメントが変更されたため、何も適用しませんでした。</string>
 	<string name="notice_mesh_no_targets">アートからメッシュを生成するには、メッシュのあるドローアブルを選択してください。</string>
-	<string name="notice_mesh_quad_generated">%1$d 個の四角形メッシュを生成しました。</string>
-	<string name="notice_mesh_quad_generated_with_skips">%1$d 個の四角形メッシュを生成し、%2$d 個をスキップしました。ログを参照してください。</string>
-	<string name="notice_mesh_quad_pinned_without_room">%1$d 個の四角形メッシュを生成しました。ピン留めされたアートに広がる余地がないため %2$d 個をスキップしました。ピン留めを解除するか、余白を小さくしてください。</string>
-	<string name="notice_mesh_quad_no_targets">四角形メッシュにするには、メッシュのあるドローアブルを選択してください。</string>
 	<string name="history_drawable_duplicate">ドローアブルを複製</string>
 	<string name="notice_merge_needs_vertices">マージには2つ以上の選択頂点が必要です（頂点モード）。</string>
 	<string name="notice_connect_needs_two_vertices">連結にはちょうど2つの選択頂点が必要です（頂点モード）。</string>

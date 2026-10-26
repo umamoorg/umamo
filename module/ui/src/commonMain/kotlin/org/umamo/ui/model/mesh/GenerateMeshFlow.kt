@@ -77,20 +77,15 @@ private val ROW_ADJUSTABLE_SKIPS: Set<GenerateMeshSkipReason> =
  * The notice an outcome reports: a refused pack first, then the skips a rigger can do something about
  * (pinned art with no room, a mesh over every budget), then drawables glue holds throughout, then any
  * skip, then meshes that needed a raised budget or their holes filled, then meshes built coarser than
- * the rows asked for, then the plain count.  A quad is never over budget, refitted, or coarsened, and
- * its counts and its pinned-art advice name quads.
+ * the rows asked for, then the plain count.  Generate Quad Mesh reports through the same notices; a quad
+ * is never over budget, refitted, or coarsened.
  *
  * @param GenerateMeshOutcome outcome The outcome.
- * @param MeshGenerationKind  kind    What the run generated.
  * @return GenerateMeshNotice The notice.
  */
-internal fun generateMeshNoticeOf(outcome: GenerateMeshOutcome, kind: MeshGenerationKind): GenerateMeshNotice {
+internal fun generateMeshNoticeOf(outcome: GenerateMeshOutcome): GenerateMeshNotice {
 	if (outcome is GenerateMeshOutcome.PackRefused) {
 		return GenerateMeshNotice("notice.mesh.packRefused")
-	}
-
-	if (kind == MeshGenerationKind.Quad) {
-		return quadNoticeOf(outcome)
 	}
 
 	val generated = outcome as? GenerateMeshOutcome.Generated
@@ -112,39 +107,6 @@ internal fun generateMeshNoticeOf(outcome: GenerateMeshOutcome, kind: MeshGenera
 		else -> GenerateMeshNotice("notice.mesh.generated", listOf(generatedCount.toString()))
 	}
 }
-
-/**
- * The notice a Generate Quad Mesh outcome that is not a refused pack reports: pinned art with no room,
- * then drawables glue holds throughout, then any skip, then the plain count.
- *
- * @param GenerateMeshOutcome outcome The outcome.
- * @return GenerateMeshNotice The notice.
- */
-private fun quadNoticeOf(outcome: GenerateMeshOutcome): GenerateMeshNotice {
-	val generatedCount = (outcome as? GenerateMeshOutcome.Generated)?.generatedIds?.size ?: 0
-	val pinnedCount = outcome.skips.values.count { reason -> reason == GenerateMeshSkipReason.PinnedWithoutRoom }
-	val gluedCount = outcome.skips.values.count { reason -> reason == GenerateMeshSkipReason.GluedThroughout }
-
-	return when {
-		pinnedCount > 0 -> GenerateMeshNotice("notice.mesh.quadPinnedWithoutRoom", listOf(generatedCount.toString(), pinnedCount.toString()))
-		gluedCount > 0 -> GenerateMeshNotice("notice.mesh.gluedThroughout", listOf(generatedCount.toString(), gluedCount.toString()))
-		generatedCount == 0 -> GenerateMeshNotice("notice.mesh.noneGenerated")
-		outcome.skips.isNotEmpty() -> GenerateMeshNotice("notice.mesh.quadGeneratedWithSkips", listOf(generatedCount.toString(), outcome.skips.size.toString()))
-		else -> GenerateMeshNotice("notice.mesh.quadGenerated", listOf(generatedCount.toString()))
-	}
-}
-
-/**
- * The notice a command asked for with nothing selected to mesh reports.
- *
- * @param MeshGenerationKind kind What the command generates.
- * @return String The notice key.
- */
-internal fun noTargetsNoticeKeyOf(kind: MeshGenerationKind): String =
-	when (kind) {
-		MeshGenerationKind.FromArt -> "notice.mesh.noTargets"
-		MeshGenerationKind.Quad -> "notice.mesh.quadNoTargets"
-	}
 
 /**
  * Generates meshes by [options] for [targets] (and every drawable sharing their art) as ONE undo step
@@ -192,7 +154,7 @@ internal suspend fun runGenerateMesh(host: GenerateMeshHost, targets: List<Drawa
 	logOutcome(modelAtStart, outcome)
 
 	if (outcome !is GenerateMeshOutcome.Generated) {
-		emitNotice(session, generateMeshNoticeOf(outcome, kind))
+		emitNotice(session, generateMeshNoticeOf(outcome))
 
 		// When a row could change the outcome, an unchanged step opens the strip on it, so the rigger is
 		// never left with no way to reach the rows; an adjustment that generates lands over the step.
@@ -212,7 +174,7 @@ internal suspend fun runGenerateMesh(host: GenerateMeshHost, targets: List<Drawa
 	}
 
 	outcome.textures?.let { textures -> host.sessionAtlasPages?.prewarm(outcome.model.atlas, textures) }
-	emitNotice(session, generateMeshNoticeOf(outcome, kind))
+	emitNotice(session, generateMeshNoticeOf(outcome))
 	host.rememberOptions(landedOptions)
 	registerGenerateMesh(host, outcome.model, areaId, plan, landedOptions, minimumAlphaThreshold)
 
@@ -300,7 +262,7 @@ internal suspend fun adjustGenerateMesh(
 
 	if (outcome !is GenerateMeshOutcome.Generated) {
 		UmamoLog.warn("generate mesh: the adjusted settings generate nothing; the previous result stands")
-		emitNotice(session, generateMeshNoticeOf(outcome, options.kind))
+		emitNotice(session, generateMeshNoticeOf(outcome))
 
 		return
 	}
@@ -320,7 +282,7 @@ internal suspend fun adjustGenerateMesh(
 		return
 	}
 
-	emitNotice(session, generateMeshNoticeOf(outcome, options.kind))
+	emitNotice(session, generateMeshNoticeOf(outcome))
 	host.rememberOptions(options)
 }
 
@@ -503,7 +465,7 @@ internal fun generateMeshLauncher(
 	progress: ProgressTracker? = null,
 	seedPresetKey: () -> String?,
 ): (areaId: String?) -> Unit =
-	meshGenerationLauncher(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, sessionOptions, runState, progress, MeshGenerationKind.FromArt) {
+	meshGenerationLauncher(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, sessionOptions, runState, progress) {
 		sessionOptions.optionsFor(seedPresetKey())
 	}
 
@@ -533,7 +495,7 @@ internal fun generateQuadMeshLauncher(
 	runState: MeshGenerationRunState,
 	progress: ProgressTracker? = null,
 ): (areaId: String?) -> Unit =
-	meshGenerationLauncher(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, sessionOptions, runState, progress, MeshGenerationKind.Quad) {
+	meshGenerationLauncher(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, sessionOptions, runState, progress) {
 		sessionOptions.quadOptions()
 	}
 
@@ -548,7 +510,6 @@ internal fun generateQuadMeshLauncher(
  * @param MeshGenerationSessionOptions sessionOptions     The window's memory of the last options.
  * @param MeshGenerationRunState       runState           The window's record of a run in flight.
  * @param ProgressTracker?             progress           Where a run shows while it works, or null.
- * @param MeshGenerationKind           kind               What the command generates, for its no-targets notice.
  * @param Function                     startingRecipe     The recipe a call starts from, read when it is made.
  * @return Function The action, handed the area id the command was dispatched over, or null.
  */
@@ -561,7 +522,6 @@ private fun meshGenerationLauncher(
 	sessionOptions: MeshGenerationSessionOptions,
 	runState: MeshGenerationRunState,
 	progress: ProgressTracker?,
-	kind: MeshGenerationKind,
 	startingRecipe: () -> MeshRecipe,
 ): (areaId: String?) -> Unit {
 	val host = GenerateMeshHost(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, progress, sessionOptions::record)
@@ -570,7 +530,7 @@ private fun meshGenerationLauncher(
 		val targets = generateMeshTargets(session)
 
 		if (targets.isEmpty()) {
-			session.emitNotice(noTargetsNoticeKeyOf(kind), NoticePlacement.StatusBar)
+			session.emitNotice("notice.mesh.noTargets", NoticePlacement.StatusBar)
 		} else if (runState.running) {
 			UmamoLog.info("generate mesh: a run is already going; this one was ignored")
 		} else {
