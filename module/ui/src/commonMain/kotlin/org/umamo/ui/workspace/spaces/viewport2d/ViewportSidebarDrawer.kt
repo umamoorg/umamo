@@ -27,6 +27,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.Tooltip
+import org.umamo.ui.kit.blocksPointerFallThrough
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
@@ -52,10 +53,15 @@ private val SIDEBAR_TAB_HEIGHT = 48.dp
  * [LocalViewportChrome] flag.  The panel body is currently an empty shell; it does not yet host the
  * tool/item tabs.
  *
+ * The open panel keeps the pointer from reaching the surface beneath it, so a click or a wheel turn on it
+ * never selects or zooms under it; the column around the pull tab stays transparent, as it looks.
+ *
  * @param Modifier modifier The layout modifier (the caller aligns it to the viewport's right edge).
+ * @param Boolean passPointerThrough Whether the panel lets the pointer through to the surface, true while a
+ *   gesture of this area owns the pointer and has to follow it across the panel.
  */
 @Composable
-internal fun ViewportSidebarDrawer(modifier: Modifier = Modifier) {
+internal fun ViewportSidebarDrawer(modifier: Modifier = Modifier, passPointerThrough: Boolean = false) {
 	val chrome = LocalViewportChrome.current
 	val colors = LocalUmamoColors.current
 	Row(modifier = modifier.fillMaxHeight()) {
@@ -69,6 +75,8 @@ internal fun ViewportSidebarDrawer(modifier: Modifier = Modifier) {
 					Modifier
 						.fillMaxHeight()
 						.width(SIDEBAR_PANEL_WIDTH)
+						// Before the padding, so the padding is the panel's too.
+						.blocksPointerFallThrough(enabled = !passPointerThrough)
 						.background(colors.panelBackground)
 						.border(width = 1.dp, color = colors.panelBorder)
 						.padding(8.dp),

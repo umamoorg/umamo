@@ -699,12 +699,7 @@ private suspend fun PointerInputScope.viewportNavigation(
 			// object G / S / R grab would pan.  A gesture latched in ANOTHER area does not block: its
 			// events never reach here, so this area keeps panning and zooming during it (Blender
 			// parity).
-			if (session.activeMeshOperator.value?.areaId == areaId ||
-				session.activeObjectOperator.value?.areaId == areaId ||
-				session.activeSelectTool.value?.areaId == areaId ||
-				session.viewportGestureActive.value ||
-				session.zoomRegionArmedArea.value == areaId
-			) {
+			if (session.gestureOwnsViewport2dPointer(areaId)) {
 				continue
 			}
 

@@ -1,11 +1,9 @@
 package org.umamo.ui.workspace.spaces.properties
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,14 +19,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.Selection
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
-import org.umamo.ui.kit.container.SectionHeader
+import org.umamo.ui.kit.container.SectionCard
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
@@ -153,33 +150,20 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 							// A search forces its matching sections open; otherwise the user's fold state wins,
 							// defaulting to open for an untouched section.
 							val expanded = if (searching) true else viewState.expandedSections[section.id] ?: true
-							PropertySectionIsland {
-								SectionHeader(
-									label = stringResource(section.title),
-									expanded = expanded,
-									onToggle = {
-										viewState.expandedSections[section.id] =
-											!(viewState.expandedSections[section.id] ?: true)
-									},
-								)
-
-								if (expanded) {
-									Column(
-										modifier =
-											Modifier.fillMaxWidth()
-												.padding(start = 12.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
-										// Breathing room between separate rows so filled controls do not touch; a
-										// FieldStack's own 1.dp seam is internal, so stacked groups stay tight.
-										verticalArrangement = Arrangement.spacedBy(4.dp),
-									) {
-										// Only the rows that survived the search (every row when not searching).
-										for (rowIndex in visible.visibleRowIndices) {
-											key(rowIndex) {
-												// A row that keeps per-area state (a relation list's dragged height) reaches it here.
-												CompositionLocalProvider(LocalPropertiesViewState provides viewState) {
-													visible.rows[rowIndex].content(context)
-												}
-											}
+							SectionCard(
+								title = stringResource(section.title),
+								expanded = expanded,
+								onToggle = {
+									viewState.expandedSections[section.id] =
+										!(viewState.expandedSections[section.id] ?: true)
+								},
+							) {
+								// Only the rows that survived the search (every row when not searching).
+								for (rowIndex in visible.visibleRowIndices) {
+									key(rowIndex) {
+										// A row that keeps per-area state (a relation list's dragged height) reaches it here.
+										CompositionLocalProvider(LocalPropertiesViewState provides viewState) {
+											visible.rows[rowIndex].content(context)
 										}
 									}
 								}
@@ -244,29 +228,6 @@ private fun buildVisibilityIndex(
 	}
 
 	return index
-}
-
-/**
- * A raised section card: one elevation step above the panel body (headerBackground over panelBackground,
- * the kit's standard two-tone step), rounded with the medium shape and outlined, mirroring the Parameters
- * panel's ParameterIsland.  It holds the section's disclosure header and, while open, its rows.  The header
- * spans the card (its hover fill is clipped to the rounded corners), so the island adds no inner padding of
- * its own - the header and body manage their own insets.
- *
- * @param Function content The card's contents (the SectionHeader and the open section body).
- */
-@Composable
-private fun PropertySectionIsland(content: @Composable ColumnScope.() -> Unit) {
-	val colors = LocalUmamoColors.current
-	val shapes = LocalUmamoShapes.current
-	Column(
-		modifier =
-			Modifier.fillMaxWidth()
-				.clip(shapes.medium)
-				.background(colors.panelThirdElevation, shape = shapes.medium)
-				.border(width = 1.dp, color = colors.panelThirdElevationBorder, shape = shapes.medium),
-		content = content,
-	)
 }
 
 /**

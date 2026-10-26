@@ -17,6 +17,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.viewport.ApplicationGridMirror
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.viewport2d.ViewportSpaceCamera
+import org.umamo.ui.viewport.viewport2d.rememberViewport2dGestureOwnsPointer
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
 import org.umamo.ui.workspace.LocalAreaOverlayHub
@@ -79,6 +80,9 @@ internal fun Viewport2DBody(scope: AreaScope) {
 	// The state's mirror of the application's grid, kept here rather than by the render host, so the popover's
 	// fields and the snap commands resolve the setting with or without a renderer behind the area.
 	ApplicationGridMirror(viewState.overlays)
+	// The floating chrome stops the pointer reaching the surface, except while one of this area's gestures
+	// owns it: a G started over the surface keeps following the pointer across the drawer.
+	val gestureOwnsPointer = rememberViewport2dGestureOwnsPointer(session, scope.areaId)
 	CompositionLocalProvider(LocalAreaOverlays provides viewState.overlays) {
 		Box(modifier = Modifier.fillMaxSize()) {
 			if (host != null) {
@@ -93,10 +97,11 @@ internal fun Viewport2DBody(scope: AreaScope) {
 						Modifier
 							.align(Alignment.CenterStart)
 							.padding(start = 6.dp),
+					passPointerThrough = gestureOwnsPointer,
 				)
 			}
 
-			ViewportSidebarDrawer(modifier = Modifier.align(Alignment.CenterEnd))
+			ViewportSidebarDrawer(modifier = Modifier.align(Alignment.CenterEnd), passPointerThrough = gestureOwnsPointer)
 		}
 	}
 }
