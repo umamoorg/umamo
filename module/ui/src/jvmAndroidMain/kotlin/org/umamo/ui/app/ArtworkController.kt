@@ -3,8 +3,10 @@ package org.umamo.ui.app
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.atlas.deleteTile
 import org.umamo.edit.atlas.setLayerIgnored
@@ -45,6 +47,8 @@ import org.umamo.ui.model.artwork.runReloadArtwork
 import org.umamo.ui.model.artwork.runReplaceArtwork
 import org.umamo.ui.model.artwork.scoreSourceSuggestions
 import org.umamo.ui.model.repack.AtlasRepackHost
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.track
 import org.umamo.ui.settings.IMPORT_DELETE_ART_IGNORES_LAYER_KEY
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.ImportArtworkRequest
@@ -106,6 +110,7 @@ internal class ArtworkController(
 			scope = services.scope,
 			report = { report -> services.commandRegistry.invoke("document.repackReport", report) },
 			rememberOptions = { _, _ -> },
+			progress = services.progress,
 		)
 
 	/**
@@ -151,8 +156,11 @@ internal class ArtworkController(
 
 				return null
 			}
+		// A layered file can take seconds to parse: off the UI thread, under the add's task on the status bar.
 		val read =
-			readArtwork(bytes, picked.name) ?: run {
+			services.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(picked.name)) {
+				withContext(Dispatchers.Default) { readArtwork(bytes, picked.name) }
+			} ?: run {
 				services.commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
 
 				return null
@@ -207,7 +215,7 @@ internal class ArtworkController(
 	private suspend fun readArtworkForPath(path: String): PickedArtwork? {
 		val name = fileDisplayName(path)
 		val read =
-			readArtworkAt(path) ?: run {
+			services.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(name)) { readArtworkAt(path) } ?: run {
 				services.commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, name))
 
 				return null

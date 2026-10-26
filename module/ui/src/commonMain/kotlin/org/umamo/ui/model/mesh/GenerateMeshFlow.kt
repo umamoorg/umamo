@@ -22,6 +22,9 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.ProgressTracker
+import org.umamo.ui.progress.track
 import kotlin.math.round
 
 /*
@@ -40,6 +43,7 @@ import kotlin.math.round
  * @property SessionAtlasPages? sessionAtlasPages  The page resolver to pre-warm after a pack, or null.
  * @property Boolean            premultipliedAlpha The document's texture-convention flag.
  * @property CoroutineScope     scope              Where the strip's reruns run.
+ * @property ProgressTracker?   progress           Where a run and its reruns show while they work, or null.
  * @property Function           rememberOptions    Remembers the options a run or an adjustment landed with.
  */
 internal class GenerateMeshHost(
@@ -48,6 +52,7 @@ internal class GenerateMeshHost(
 	val sessionAtlasPages: SessionAtlasPages?,
 	val premultipliedAlpha: Boolean,
 	val scope: CoroutineScope,
+	val progress: ProgressTracker? = null,
 	val rememberOptions: (MeshGenerationOptions) -> Unit,
 )
 
@@ -123,11 +128,13 @@ internal suspend fun runGenerateMesh(host: GenerateMeshHost, targets: List<Drawa
 	val landedOptions = MeshGenerationOptions(options.preset, clampedMeshSettings(options.settings, minimumAlphaThreshold))
 	val planned =
 		try {
-			withContext(Dispatchers.Default) {
-				// The run's own decoder: every tile once, and nothing of it outlives the run.
-				val decode = RunTileDecoder { tileId -> host.artRasters.decodeRaster(tileId) }
-				val plan = planMeshGeneration(modelAtStart, targets, decode)
-				plan to generateMeshOutcome(modelAtStart, plan, landedOptions.settings, decode, host.premultipliedAlpha)
+			host.progress.track(ProgressLabels.MESH_GENERATING) { progress ->
+				withContext(Dispatchers.Default) {
+					// The run's own decoder: every tile once, and nothing of it outlives the run.
+					val decode = RunTileDecoder { tileId -> host.artRasters.decodeRaster(tileId) }
+					val plan = planMeshGeneration(modelAtStart, targets, decode)
+					plan to generateMeshOutcome(modelAtStart, plan, landedOptions.settings, decode, host.premultipliedAlpha, progress)
+				}
 			}
 		} catch (failure: RuntimeException) {
 			if (!failure.isMeshingGuardFailure()) {
@@ -234,8 +241,10 @@ internal suspend fun adjustGenerateMesh(
 	val options = meshGenerationOptionsOf(record.parameters, fallback, minimumAlphaThreshold)
 	val outcome =
 		try {
-			withContext(Dispatchers.Default) {
-				generateMeshOutcome(base, plan, options.settings, RunTileDecoder { tileId -> host.artRasters.decodeRaster(tileId) }, host.premultipliedAlpha)
+			host.progress.track(ProgressLabels.MESH_GENERATING) { progress ->
+				withContext(Dispatchers.Default) {
+					generateMeshOutcome(base, plan, options.settings, RunTileDecoder { tileId -> host.artRasters.decodeRaster(tileId) }, host.premultipliedAlpha, progress)
+				}
 			}
 		} catch (failure: RuntimeException) {
 			if (!failure.isMeshingGuardFailure()) {
@@ -437,6 +446,7 @@ internal class MeshGenerationRunState {
  * @param CoroutineScope               scope              Where the run and its adjustments launch.
  * @param MeshGenerationSessionOptions sessionOptions     The window's memory of the last options.
  * @param MeshGenerationRunState       runState           The window's record of a run in flight.
+ * @param ProgressTracker?             progress           Where a run shows while it works, or null.
  * @param Function                     seedPresetKey      Reads the settings' preset key, for a first run.
  * @return Function The action, handed the area id the command was dispatched over, or null.
  */
@@ -448,9 +458,10 @@ internal fun generateMeshLauncher(
 	scope: CoroutineScope,
 	sessionOptions: MeshGenerationSessionOptions,
 	runState: MeshGenerationRunState,
+	progress: ProgressTracker? = null,
 	seedPresetKey: () -> String?,
 ): (areaId: String?) -> Unit {
-	val host = GenerateMeshHost(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, sessionOptions::record)
+	val host = GenerateMeshHost(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, progress, sessionOptions::record)
 
 	return { areaId ->
 		val targets = generateMeshTargets(session)

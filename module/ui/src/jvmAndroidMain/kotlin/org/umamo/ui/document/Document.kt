@@ -14,7 +14,9 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
+import org.umamo.ui.progress.ProgressHandle
 import org.umamo.ui.viewport.LiveParams
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * An open editor document - a parsed source file the viewport renders. Lives in jvmAndroidMain (not
@@ -122,12 +124,19 @@ sealed interface DocumentLoad {
  * @param PlatformFile           file          The picked or reconstructed file handle.
  * @param SourceArtImportOptions importOptions What an artwork import seeds and trims with; ignored by
  *   the model formats.
+ * @param ProgressHandle?        progress      The open's task on the status bar, told when an artwork's atlas
+ *   packs; or null.
  * @return DocumentLoad The loaded document, or the failure reason (missing, unrecognized, or failed to parse).
  */
-suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptions = artworkImportOptions()): DocumentLoad {
+suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptions = artworkImportOptions(), progress: ProgressHandle? = null): DocumentLoad {
 	val bytes =
-		runCatching { file.readBytes() }.getOrElse {
-			UmamoLog.error("failed to read ${file.name}", it)
+		runCatching { file.readBytes() }.getOrElse { failure ->
+			// A cancelled read is the caller going away, not a file that would not read.
+			if (failure is CancellationException) {
+				throw failure
+			}
+
+			UmamoLog.error("failed to read ${file.name}", failure)
 
 			return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ReadFailed, file.name))
 		}
@@ -136,7 +145,7 @@ suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptio
 		return loadMoc3Document(file, bytes)
 	}
 
-	return loadDocument(bytes, file.name, file.absolutePath(), importOptions)
+	return loadDocument(bytes, file.name, file.absolutePath(), importOptions, progress)
 }
 
 /**
@@ -151,6 +160,7 @@ suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptio
  * @param String                 name          The file name (the extension fallback for detection; the failure display name).
  * @param String                 path          The stored path or URI string recorded on the document.
  * @param SourceArtImportOptions importOptions What an artwork import seeds and trims with.
+ * @param ProgressHandle?        progress      Told when an artwork's atlas packs, or null.
  * @return DocumentLoad The loaded document, or the failure reason.
  */
 fun loadDocument(
@@ -158,6 +168,7 @@ fun loadDocument(
 	name: String,
 	path: String,
 	importOptions: SourceArtImportOptions = artworkImportOptions(),
+	progress: ProgressHandle? = null,
 ): DocumentLoad =
 	runCatching {
 		val codec = FormatRegistry.detect(bytes, name)
@@ -187,7 +198,7 @@ fun loadDocument(
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
 		}
 
-		buildArtDocument(artwork, codec.kind, name, path, importOptions, contentHashOf(bytes), fileModifiedAtMillis(path))
+		buildArtDocument(artwork, codec.kind, name, path, importOptions, contentHashOf(bytes), fileModifiedAtMillis(path), progress)
 	}.getOrElse {
 		UmamoLog.error("failed to open $path", it)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))

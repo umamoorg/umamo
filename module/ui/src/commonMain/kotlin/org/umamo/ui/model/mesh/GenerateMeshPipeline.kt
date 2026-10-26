@@ -50,6 +50,8 @@ import org.umamo.ui.model.repack.logPack
 import org.umamo.ui.model.repack.lowerPack
 import org.umamo.ui.model.repack.repackPageSizeOf
 import org.umamo.ui.model.repack.repackRefusals
+import org.umamo.ui.progress.ProgressHandle
+import org.umamo.ui.progress.ProgressLabels
 import org.umamo.ui.viewport.gizmo.mapInBalancedChunks
 
 /*
@@ -388,6 +390,7 @@ private fun skipReasonOf(refusal: RegenerationRefusal): GenerateMeshSkipReason =
  * @param ArtMeshSettings  settings           The mesher settings, already clamped.
  * @param Function         decode             Decodes any tile's art - the plan's, a neighbour's for the collision test, and every tile a pack composes.  A [RunTileDecoder] decodes each once.
  * @param Boolean          premultipliedAlpha The document's texture-convention flag.
+ * @param ProgressHandle?  progress           Counts each drawable meshed, then says when the atlas packs; or null.
  * @return GenerateMeshOutcome The outcome.
  */
 internal suspend fun generateMeshOutcome(
@@ -396,7 +399,9 @@ internal suspend fun generateMeshOutcome(
 	settings: ArtMeshSettings,
 	decode: (AtlasTileId) -> DecodedImage?,
 	premultipliedAlpha: Boolean,
+	progress: ProgressHandle? = null,
 ): GenerateMeshOutcome {
+	progress?.stage(ProgressLabels.MESH_GENERATING, total = plan.inputs.size)
 	val skips = LinkedHashMap(plan.skipsBeforeMeshing)
 	// Decoded here, before the parallel section, so the meshing reads a finished map and never the decoder.
 	val rasterByTile = plan.tileIds.associateWith { tileId -> decode(tileId) }
@@ -404,7 +409,7 @@ internal suspend fun generateMeshOutcome(
 	val groups = plan.inputs.groupBy { input -> input.tileId }.values.toList()
 	val results =
 		mapInBalancedChunks(groups, weightOf = { group -> meshingWeightOf(group) }) { group ->
-			group.map { input -> meshOne(base, plan, rasterByTile, input, settings) }
+			group.map { input -> meshOne(base, plan, rasterByTile, input, settings).also { progress?.advance() } }
 		}.flatten()
 	val edits = LinkedHashMap<DrawableId, MeshTopologyEdit>()
 	val noticesByDrawable = LinkedHashMap<DrawableId, List<ArtMeshNotice>>()
@@ -437,6 +442,8 @@ internal suspend fun generateMeshOutcome(
 
 		return GenerateMeshOutcome.NothingGenerated(skips)
 	}
+
+	progress?.stage(ProgressLabels.ATLAS_PACKING)
 
 	return withAtlasRoom(base, edited, edits, noticesByDrawable, fitsByDrawable, skips, decode, premultipliedAlpha)
 }
