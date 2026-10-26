@@ -1,5 +1,7 @@
 package org.umamo.ui.document
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.umamo.format.art.LayerId
 import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.SourceArt
@@ -14,6 +16,10 @@ import org.umamo.format.uma.UmaModel
 import org.umamo.format.uma.UmaWriterInfo
 import org.umamo.format.uma.textures.UmaPixelSource
 import org.umamo.format.uma.textures.UmaRenderPagePixels
+import org.umamo.interop.art.BirthMeshMode
+import org.umamo.interop.art.BirthMesher
+import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.interop.uma.UmaDocumentBridge
 import org.umamo.reimport.ArtworkReloadPlanner
 import org.umamo.reimport.ReconcileResult
@@ -35,7 +41,8 @@ import kotlin.test.assertTrue
  * §6): each corpus PSD, CLIP, and KRA opened packed, saved as UMA with its tiles and a thumbnail, and reopened comes
  * back with the same atlas and source records; the pages composed from the reopened tiles are byte for byte the
  * pages the open composed; and a reload of changed art planned before the save and one planned after the reopen are
- * the same plan.
+ * the same plan.  Once with quads, and once with every drawable born a mesh generated from its art (the reload's
+ * own births landed too).
  *
  * Corpus-gated: the PSD / CLIP / KRA files under test/corpus found by walking up from the working directory,
  * self-skipping with a printed line when none exist.
@@ -140,6 +147,21 @@ class UmaArtDocumentGateTest {
 	 */
 	@Test
 	fun artworkDocumentsReopenAndReloadAsSaved() {
+		runGate(artworkImportOptions(), "quads")
+	}
+
+	@Test
+	fun artworkDocumentsBornWithGeneratedMeshesReopenAndReloadAsSaved() {
+		runGate(artworkImportOptions(birthMesh = BirthMeshMode.Automatic(ArtMeshPreset.Standard.settings)), "generated meshes")
+	}
+
+	/**
+	 * Opens, saves, reopens, and reloads every corpus artwork file under [options].
+	 *
+	 * @param SourceArtImportOptions options The import options.
+	 * @param String                 label   What the options give each drawable, for the printed line.
+	 */
+	private fun runGate(options: SourceArtImportOptions, label: String) {
 		val samples = locateArtworkSamples()
 
 		if (samples.isEmpty()) {
@@ -154,7 +176,7 @@ class UmaArtDocumentGateTest {
 
 		for (sample in samples) {
 			try {
-				when (checkSample(sample)) {
+				when (checkSample(sample, options)) {
 					SampleOutcome.NotOpenable -> {
 						println("[Umamo][uma] ${sample.name}: the app does not open it as a document, so there is nothing to save")
 					}
@@ -175,7 +197,7 @@ class UmaArtDocumentGateTest {
 
 		assertTrue(failures.isEmpty(), "${failures.size} samples failed:\n${failures.joinToString("\n")}")
 		assertTrue(openedSamples > 0 && reloadedSamples > 0, "the gate saved $openedSamples documents and reloaded $reloadedSamples, so it compared nothing")
-		println("[Umamo][uma] $openedSamples artwork documents reopen as saved; $reloadedSamples reload identically after the reopen")
+		println("[Umamo][uma] with $label: $openedSamples artwork documents reopen as saved; $reloadedSamples reload identically after the reopen")
 	}
 
 	/** How far one sample got. */
@@ -194,13 +216,14 @@ class UmaArtDocumentGateTest {
 	 * One sample's open, save, reopen, derivation, and reload.  The file is parsed once and the document built from
 	 * that parse, as the app's open does, so the reload leg reuses the same layers rather than holding a second copy.
 	 *
-	 * @param File sample The artwork file.
+	 * @param File                   sample  The artwork file.
+	 * @param SourceArtImportOptions options The import options.
 	 * @return SampleOutcome How far the sample got.
 	 */
-	private fun checkSample(sample: File): SampleOutcome {
+	private fun checkSample(sample: File, options: SourceArtImportOptions): SampleOutcome {
 		val bytes = sample.readBytes()
 		val read = assertNotNull(readArtwork(bytes, sample.name), "${sample.name}: read")
-		val load = buildArtDocument(read.art, read.kind, sample.name, sample.path, artworkImportOptions(), read.contentHash)
+		val load = runBlocking(Dispatchers.Default) { buildArtDocumentConcurrently(read.art, read.kind, sample.name, sample.path, options, read.contentHash, null, null) }
 
 		if (load is DocumentLoad.Failed) {
 			return SampleOutcome.NotOpenable
@@ -250,10 +273,9 @@ class UmaArtDocumentGateTest {
 		val editedLayers = art.layers.mapNotNull { layer -> if (layer === rasterLayers[0]) RepaintedLayer(layer) else layer.takeIf { candidate -> candidate !== rasterLayers[1] } } + added
 		val editedArt = EditedArt(art, editedLayers)
 		val sourceId = puppet.sources.single().id
-		val options = artworkImportOptions()
 		val newHash = contentHashOf("${sample.name} saved again".encodeToByteArray())
-		val before = ArtworkReloadPlanner.plan(puppet, sourceId, editedArt, options, { tileId -> document.artRasters.rasterFor(tileId)?.let { raster -> LayerRaster(raster.width, raster.height, raster.rgba) } }, newHash)
-		val after = ArtworkReloadPlanner.plan(reopened, sourceId, editedArt, options, { tileId: AtlasTileId -> reopenedRasters.decodeRaster(tileId)?.let { raster -> LayerRaster(raster.width, raster.height, raster.rgba) } }, newHash)
+		val before = ArtworkReloadPlanner.plan(puppet, sourceId, editedArt, options, { tileId -> document.artRasters.rasterFor(tileId)?.let { raster -> LayerRaster(raster.width, raster.height, raster.rgba) } }, newHash)?.let(::withBirthsLanded)
+		val after = ArtworkReloadPlanner.plan(reopened, sourceId, editedArt, options, { tileId: AtlasTileId -> reopenedRasters.decodeRaster(tileId)?.let { raster -> LayerRaster(raster.width, raster.height, raster.rgba) } }, newHash)?.let(::withBirthsLanded)
 		val plan = assertNotNull(before, "${sample.name}: the edited art plans a reload")
 		assertTrue(plan.reload.replacedTiles.isNotEmpty(), "${sample.name}: the repainted layer supersedes its tile")
 		assertTrue(plan.report.results.any { result -> result !is ReconcileResult.Matched }, "${sample.name}: the deleted and added layers are more than matches")
@@ -261,4 +283,12 @@ class UmaArtDocumentGateTest {
 
 		return SampleOutcome.Reloaded
 	}
+
+	/**
+	 * A plan with the births of the layers it adds landed, as the app's reload lands them.
+	 *
+	 * @param ReloadPlan plan The plan.
+	 * @return ReloadPlan The plan, no birth pending.
+	 */
+	private fun withBirthsLanded(plan: ReloadPlan): ReloadPlan = plan.withBirths(BirthMesher.resolveSequentially(plan.pendingBirths))
 }

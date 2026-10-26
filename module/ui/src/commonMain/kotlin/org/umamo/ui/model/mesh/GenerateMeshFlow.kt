@@ -9,12 +9,11 @@ import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
-import org.umamo.edit.choiceValue
 import org.umamo.edit.eligibleTransformDrawables
+import org.umamo.edit.mesh.MeshGenerationKind
 import org.umamo.edit.mesh.commitGeneratedMeshes
 import org.umamo.edit.mesh.commitUnchangedGeneration
 import org.umamo.interop.art.mesh.ArtMeshNotice
-import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.interop.art.mesh.MeshFit
 import org.umamo.interop.art.mesh.isMeshingGuardFailure
 import org.umamo.render.SourceArtRasters
@@ -28,15 +27,16 @@ import org.umamo.ui.progress.track
 import kotlin.math.round
 
 /*
- * Generate Mesh from Art as an operation: the run on the UI thread around the headless pipeline
- * (GenerateMeshPipeline.kt), committed as ONE undo step and registered on the operation settings strip,
- * whose adjustments re-mesh from the same starting model.  The Add Artwork flow's shape: the model is
- * read at the start, the work runs on the default dispatcher, and the result lands only if the model is
- * still the one it was built from.
+ * Generate Mesh from Art and Generate Quad Mesh as operations: the run on the UI thread around the
+ * headless pipeline (GenerateMeshPipeline.kt), committed as ONE undo step and registered on the operation
+ * settings strip, whose adjustments re-mesh from the same starting model.  The Add Artwork flow's shape:
+ * the model is read at the start, the work runs on the default dispatcher, and the result lands only if
+ * the model is still the one it was built from.  The two commands share all of it; the run's MeshRecipe
+ * says which one it is.
  */
 
 /**
- * What a Generate Mesh from Art run needs from the shell.
+ * What a mesh generation run needs from the shell.
  *
  * @property EditorSession      session            The document's session.
  * @property SourceArtRasters   artRasters         The document's raster store.
@@ -53,7 +53,7 @@ internal class GenerateMeshHost(
 	val premultipliedAlpha: Boolean,
 	val scope: CoroutineScope,
 	val progress: ProgressTracker? = null,
-	val rememberOptions: (MeshGenerationOptions) -> Unit,
+	val rememberOptions: (MeshRecipe) -> Unit,
 )
 
 /**
@@ -66,9 +66,9 @@ internal data class GenerateMeshNotice(val messageKey: String, val arguments: Li
 
 /**
  * The skips a row of the operation strip can undo: the Alpha Threshold for art too faint, Minimum
- * Outline Points or the threshold for art that fits no budget, the Outer Margin for pinned art with no
- * room, the spacings for a mesh the mesher withheld.  A run that generates nothing but one of these still
- * opens the strip.
+ * Outline Points or the threshold for art that fits no budget, the Outer Margin (a quad's Margin) for
+ * pinned art with no room, the spacings for a mesh the mesher withheld.  A run that generates nothing but
+ * one of these still opens the strip.
  */
 private val ROW_ADJUSTABLE_SKIPS: Set<GenerateMeshSkipReason> =
 	setOf(GenerateMeshSkipReason.NothingOpaque, GenerateMeshSkipReason.OverBudget, GenerateMeshSkipReason.PinnedWithoutRoom, GenerateMeshSkipReason.Withheld)
@@ -77,7 +77,8 @@ private val ROW_ADJUSTABLE_SKIPS: Set<GenerateMeshSkipReason> =
  * The notice an outcome reports: a refused pack first, then the skips a rigger can do something about
  * (pinned art with no room, a mesh over every budget), then drawables glue holds throughout, then any
  * skip, then meshes that needed a raised budget or their holes filled, then meshes built coarser than
- * the rows asked for, then the plain count.
+ * the rows asked for, then the plain count.  Generate Quad Mesh reports through the same notices; a quad
+ * is never over budget, refitted, or coarsened.
  *
  * @param GenerateMeshOutcome outcome The outcome.
  * @return GenerateMeshNotice The notice.
@@ -108,32 +109,33 @@ internal fun generateMeshNoticeOf(outcome: GenerateMeshOutcome): GenerateMeshNot
 }
 
 /**
- * Generates meshes from art for [targets] (and every drawable sharing their art) as ONE undo step and
- * registers the step on the operation settings strip.
+ * Generates meshes by [options] for [targets] (and every drawable sharing their art) as ONE undo step
+ * and registers the step on the operation settings strip.
  *
  * Runs on the UI thread; the planning, the meshing, and any pack run on the default dispatcher.  The
  * meshes are built against the model current at the start, so any edit landing meanwhile supersedes
  * them.  A guard tripping anywhere in the pipeline is a refusal with a notice, never a crash.
  *
- * @param GenerateMeshHost      host    The session, art, resolver, scope, and options memory.
- * @param List<DrawableId>      targets The drawables asked for.
- * @param MeshGenerationOptions options The options to run with.
- * @param String?               areaId  The area the command was dispatched over, or null - where the strip shows.
+ * @param GenerateMeshHost host    The session, art, resolver, scope, and options memory.
+ * @param List<DrawableId> targets The drawables asked for.
+ * @param MeshRecipe       options The recipe to run with: Generate Mesh from Art's options or Generate Quad Mesh's.
+ * @param String?          areaId  The area the command was dispatched over, or null - where the strip shows.
  * @return Boolean Whether any mesh landed.
  */
-internal suspend fun runGenerateMesh(host: GenerateMeshHost, targets: List<DrawableId>, options: MeshGenerationOptions, areaId: String?): Boolean {
+internal suspend fun runGenerateMesh(host: GenerateMeshHost, targets: List<DrawableId>, options: MeshRecipe, areaId: String?): Boolean {
 	val session = host.session
 	val modelAtStart = session.model.value
 	val minimumAlphaThreshold = modelAtStart.atlas.composition.alphaThreshold
-	val landedOptions = MeshGenerationOptions(options.preset, clampedMeshSettings(options.settings, minimumAlphaThreshold))
+	val landedOptions = options.clamped(minimumAlphaThreshold)
+	val kind = landedOptions.kind
 	val planned =
 		try {
 			host.progress.track(ProgressLabels.MESH_GENERATING) { progress ->
 				withContext(Dispatchers.Default) {
 					// The run's own decoder: every tile once, and nothing of it outlives the run.
 					val decode = RunTileDecoder { tileId -> host.artRasters.decodeRaster(tileId) }
-					val plan = planMeshGeneration(modelAtStart, targets, decode)
-					plan to generateMeshOutcome(modelAtStart, plan, landedOptions.settings, decode, host.premultipliedAlpha, progress)
+					val plan = planMeshGeneration(modelAtStart, targets, decode, guided = kind == MeshGenerationKind.FromArt)
+					plan to generateMeshOutcome(modelAtStart, plan, landedOptions, decode, host.premultipliedAlpha, progress)
 				}
 			}
 		} catch (failure: RuntimeException) {
@@ -156,7 +158,7 @@ internal suspend fun runGenerateMesh(host: GenerateMeshHost, targets: List<Drawa
 
 		// When a row could change the outcome, an unchanged step opens the strip on it, so the rigger is
 		// never left with no way to reach the rows; an adjustment that generates lands over the step.
-		if (outcome is GenerateMeshOutcome.NothingGenerated && outcome.skips.values.any { reason -> reason in ROW_ADJUSTABLE_SKIPS } && session.commitUnchangedGeneration(modelAtStart, plan.drawableIds)) {
+		if (outcome is GenerateMeshOutcome.NothingGenerated && outcome.skips.values.any { reason -> reason in ROW_ADJUSTABLE_SKIPS } && session.commitUnchangedGeneration(modelAtStart, plan.drawableIds, kind)) {
 			host.rememberOptions(landedOptions)
 			registerGenerateMesh(host, modelAtStart, areaId, plan, landedOptions, minimumAlphaThreshold)
 		}
@@ -164,7 +166,7 @@ internal suspend fun runGenerateMesh(host: GenerateMeshHost, targets: List<Drawa
 		return false
 	}
 
-	if (!session.commitGeneratedMeshes(modelAtStart, outcome.model, plan.drawableIds)) {
+	if (!session.commitGeneratedMeshes(modelAtStart, outcome.model, plan.drawableIds, kind)) {
 		UmamoLog.warn("generate mesh: the document changed while the meshes were generated; nothing was applied")
 		session.emitNotice("notice.mesh.superseded", NoticePlacement.StatusBar)
 
@@ -180,35 +182,36 @@ internal suspend fun runGenerateMesh(host: GenerateMeshHost, targets: List<Drawa
 }
 
 /**
- * Registers a landed run on the operation settings strip.  Choosing a preset - another one, or the one
- * already shown, to undo edits to its rows - re-seeds the density rows before the rerun reads them; a
- * newer adjustment cancels the rerun still in flight.
+ * Registers a landed run on the operation settings strip.  An adjustment the recipe re-seeds rows for -
+ * Generate Mesh from Art's Preset row, choosing another preset or the one already shown to undo edits to
+ * its rows - re-seeds them before the rerun reads them; a newer adjustment cancels the rerun still in
+ * flight.
  *
- * @param GenerateMeshHost      host                  The host.
- * @param PuppetModel           committed             The model the run committed.
- * @param String?               areaId                Where the strip shows.
- * @param GenerateMeshPlan      plan                  The run's plan, kept for the reruns.
- * @param MeshGenerationOptions options               The options the run landed with.
- * @param Int                   minimumAlphaThreshold The atlas's alpha threshold.
+ * @param GenerateMeshHost host                  The host.
+ * @param PuppetModel      committed             The model the run committed.
+ * @param String?          areaId                Where the strip shows.
+ * @param GenerateMeshPlan plan                  The run's plan, kept for the reruns.
+ * @param MeshRecipe       options               The recipe the run landed with.
+ * @param Int              minimumAlphaThreshold The atlas's alpha threshold.
  */
 private fun registerGenerateMesh(
 	host: GenerateMeshHost,
 	committed: PuppetModel,
 	areaId: String?,
 	plan: GenerateMeshPlan,
-	options: MeshGenerationOptions,
+	options: MeshRecipe,
 	minimumAlphaThreshold: Int,
 ) {
 	val session = host.session
-	var seededPreset = options.preset
+	var seeded = options
 	var adjustmentJob: Job? = null
-	session.registerAdjustableOperation(committed, areaId, meshGenerationParameters(options, minimumAlphaThreshold)) { record ->
+	session.registerAdjustableOperation(committed, areaId, options.rows(minimumAlphaThreshold)) { record ->
 		var current = record
-		val rowPreset = ArtMeshPreset.fromKey(record.parameters.choiceValue(MeshGenerationParameterKeys.PRESET, seededPreset.key))
+		val reseeded = seeded.reseededRows(record, minimumAlphaThreshold)
 
-		if (rowPreset != seededPreset || record.adjustedKey == MeshGenerationParameterKeys.PRESET) {
-			seededPreset = rowPreset
-			current = session.reviseAdjustableParameters(record, reseededMeshGenerationParameters(record.parameters, rowPreset, minimumAlphaThreshold)) ?: return@registerAdjustableOperation
+		if (reseeded != null) {
+			seeded = seeded.fromRows(reseeded, minimumAlphaThreshold)
+			current = session.reviseAdjustableParameters(record, reseeded) ?: return@registerAdjustableOperation
 		}
 
 		adjustmentJob?.cancel()
@@ -218,32 +221,32 @@ private fun registerGenerateMesh(
 }
 
 /**
- * Re-meshes for an adjustment of the strip: the record's rows become the options, the SAME plan meshes
+ * Re-meshes for an adjustment of the strip: the record's rows become the recipe, the SAME plan meshes
  * again over the record's base model, and the result lands over the operation's own step.  An outcome
  * that generates nothing leaves the previous result standing; a newer adjustment, or a record cleared
  * while this one ran, drops it.
  *
- * @param GenerateMeshHost      host                  The host.
- * @param AdjustableOperation   record                The record with the adjusted rows.
- * @param GenerateMeshPlan      plan                  The first run's plan.
- * @param MeshGenerationOptions fallback              The options the first run used.
- * @param Int                   minimumAlphaThreshold The atlas's alpha threshold.
+ * @param GenerateMeshHost    host                  The host.
+ * @param AdjustableOperation record                The record with the adjusted rows.
+ * @param GenerateMeshPlan    plan                  The first run's plan.
+ * @param MeshRecipe          fallback              The recipe the first run used.
+ * @param Int                 minimumAlphaThreshold The atlas's alpha threshold.
  */
 internal suspend fun adjustGenerateMesh(
 	host: GenerateMeshHost,
 	record: AdjustableOperation,
 	plan: GenerateMeshPlan,
-	fallback: MeshGenerationOptions,
+	fallback: MeshRecipe,
 	minimumAlphaThreshold: Int,
 ) {
 	val session = host.session
 	val base = record.baseSnapshot.model
-	val options = meshGenerationOptionsOf(record.parameters, fallback, minimumAlphaThreshold)
+	val options = fallback.fromRows(record.parameters, minimumAlphaThreshold)
 	val outcome =
 		try {
 			host.progress.track(ProgressLabels.MESH_GENERATING) { progress ->
 				withContext(Dispatchers.Default) {
-					generateMeshOutcome(base, plan, options.settings, RunTileDecoder { tileId -> host.artRasters.decodeRaster(tileId) }, host.premultipliedAlpha, progress)
+					generateMeshOutcome(base, plan, options, RunTileDecoder { tileId -> host.artRasters.decodeRaster(tileId) }, host.premultipliedAlpha, progress)
 				}
 			}
 		} catch (failure: RuntimeException) {
@@ -410,7 +413,7 @@ private fun emitNotice(session: EditorSession, notice: GenerateMeshNotice) {
 }
 
 /**
- * The drawables Generate Mesh from Art is asked for: the Edit-mode session's meshes, whole, or the
+ * The drawables a mesh generation is asked for: the Edit-mode session's meshes, whole, or the
  * Object-mode selection's drawables that have a mesh.  The run adds every drawable sharing their art.
  *
  * @param EditorSession session The document's session.
@@ -424,9 +427,10 @@ internal fun generateMeshTargets(session: EditorSession): List<DrawableId> =
 	}
 
 /**
- * Whether a Generate Mesh from Art run is in flight.  Held for as long as the window, beside the
- * options memory, because the command table that holds the launcher is rebuilt whenever its keys
- * change (a selection change mid-run does) and a flag inside the launcher would start over with it.
+ * Whether a mesh generation run is in flight - one for both Generate Mesh from Art and Generate Quad
+ * Mesh, so the two never race over one document.  Held for as long as the window, beside the options
+ * memory, because the command table that holds the launchers is rebuilt whenever its keys change (a
+ * selection change mid-run does) and a flag inside a launcher would start over with it.
  */
 internal class MeshGenerationRunState {
 	/** True from a run's launch until it has landed or given up. */
@@ -436,8 +440,8 @@ internal class MeshGenerationRunState {
 /**
  * The Generate Mesh from Art command's action for one document: each call meshes the drawables
  * [generateMeshTargets] names, starting from the options the window remembers (or the settings' preset
- * before any run), and shows its strip over the area it is given.  A call while a run is still going is
- * ignored - the rigger sees the first one land.
+ * before any run), and shows its strip over the area it is given.  A call while a run of either command
+ * is still going is ignored - the rigger sees the first one land.
  *
  * @param EditorSession                session            The document's session.
  * @param SourceArtRasters             artRasters         The document's raster store.
@@ -460,6 +464,65 @@ internal fun generateMeshLauncher(
 	runState: MeshGenerationRunState,
 	progress: ProgressTracker? = null,
 	seedPresetKey: () -> String?,
+): (areaId: String?) -> Unit =
+	meshGenerationLauncher(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, sessionOptions, runState, progress) {
+		sessionOptions.optionsFor(seedPresetKey())
+	}
+
+/**
+ * The Generate Quad Mesh command's action for one document: each call gives the drawables
+ * [generateMeshTargets] names a quad over their art, starting from the margin and threshold the window
+ * remembers (or the import's margin before any run), and shows its strip over the area it is given.  A
+ * call while a run of either command is still going is ignored.
+ *
+ * @param EditorSession                session            The document's session.
+ * @param SourceArtRasters             artRasters         The document's raster store.
+ * @param SessionAtlasPages?           sessionAtlasPages  The page resolver to pre-warm after a pack, or null.
+ * @param Boolean                      premultipliedAlpha The document's texture-convention flag.
+ * @param CoroutineScope               scope              Where the run and its adjustments launch.
+ * @param MeshGenerationSessionOptions sessionOptions     The window's memory of the last options.
+ * @param MeshGenerationRunState       runState           The window's record of a run in flight.
+ * @param ProgressTracker?             progress           Where a run shows while it works, or null.
+ * @return Function The action, handed the area id the command was dispatched over, or null.
+ */
+internal fun generateQuadMeshLauncher(
+	session: EditorSession,
+	artRasters: SourceArtRasters,
+	sessionAtlasPages: SessionAtlasPages?,
+	premultipliedAlpha: Boolean,
+	scope: CoroutineScope,
+	sessionOptions: MeshGenerationSessionOptions,
+	runState: MeshGenerationRunState,
+	progress: ProgressTracker? = null,
+): (areaId: String?) -> Unit =
+	meshGenerationLauncher(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, sessionOptions, runState, progress) {
+		sessionOptions.quadOptions()
+	}
+
+/**
+ * One mesh generation command's action: the targets, the one-run-at-a-time gate, and the run.
+ *
+ * @param EditorSession                session            The document's session.
+ * @param SourceArtRasters             artRasters         The document's raster store.
+ * @param SessionAtlasPages?           sessionAtlasPages  The page resolver to pre-warm after a pack, or null.
+ * @param Boolean                      premultipliedAlpha The document's texture-convention flag.
+ * @param CoroutineScope               scope              Where the run and its adjustments launch.
+ * @param MeshGenerationSessionOptions sessionOptions     The window's memory of the last options.
+ * @param MeshGenerationRunState       runState           The window's record of a run in flight.
+ * @param ProgressTracker?             progress           Where a run shows while it works, or null.
+ * @param Function                     startingRecipe     The recipe a call starts from, read when it is made.
+ * @return Function The action, handed the area id the command was dispatched over, or null.
+ */
+private fun meshGenerationLauncher(
+	session: EditorSession,
+	artRasters: SourceArtRasters,
+	sessionAtlasPages: SessionAtlasPages?,
+	premultipliedAlpha: Boolean,
+	scope: CoroutineScope,
+	sessionOptions: MeshGenerationSessionOptions,
+	runState: MeshGenerationRunState,
+	progress: ProgressTracker?,
+	startingRecipe: () -> MeshRecipe,
 ): (areaId: String?) -> Unit {
 	val host = GenerateMeshHost(session, artRasters, sessionAtlasPages, premultipliedAlpha, scope, progress, sessionOptions::record)
 
@@ -472,7 +535,7 @@ internal fun generateMeshLauncher(
 			UmamoLog.info("generate mesh: a run is already going; this one was ignored")
 		} else {
 			runState.running = true
-			val options = sessionOptions.optionsFor(seedPresetKey())
+			val options = startingRecipe()
 			scope.launch {
 				try {
 					runGenerateMesh(host, targets, options, areaId)

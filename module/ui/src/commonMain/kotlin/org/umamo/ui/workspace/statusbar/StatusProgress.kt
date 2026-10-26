@@ -78,6 +78,7 @@ internal fun progressText(labelKey: String, arguments: List<String>): String =
 		ProgressLabels.DOCUMENT_OPENING -> stringResource(Res.string.progress_document_opening, arguments.firstOrNull().orEmpty())
 		ProgressLabels.ARTWORK_ADDING -> stringResource(Res.string.progress_artwork_adding, arguments.firstOrNull().orEmpty())
 		ProgressLabels.ARTWORK_RELOADING -> stringResource(Res.string.progress_artwork_reloading)
+		ProgressLabels.ARTWORK_MESHING -> stringResource(Res.string.progress_artwork_meshing)
 		ProgressLabels.MESH_GENERATING -> stringResource(Res.string.progress_mesh_generating)
 		ProgressLabels.ATLAS_PACKING -> stringResource(Res.string.progress_atlas_packing)
 		else -> labelKey

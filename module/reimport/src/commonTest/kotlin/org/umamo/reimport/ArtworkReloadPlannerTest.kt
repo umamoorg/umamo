@@ -140,6 +140,62 @@ class ArtworkReloadPlannerTest {
 	}
 
 	@Test
+	fun aQuadOverOnePieceOfASplitLayerIsCarriedNotReborn() {
+		// Two pieces of layer 1, each an untouched-looking quad over its own half: re-born, either would
+		// become the whole layer's quad and cover the other piece's art.
+		val left = halfQuad(left = 10f, right = 12f, uvLeft = 0f, uvRight = 0.5f)
+		val right = halfQuad(left = 12f, right = 14f, uvLeft = 0.5f, uvRight = 1f)
+		val split = withTileOneDrawables(drawable("d1", tile1, left), drawable("d3", tile1, right))
+		val repainted = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 6, 6), solidRaster(6, 6, 9))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(split, source, TestArt(listOf(repainted, layer2)), options, oldRasterOf))
+
+		assertSame(left.positions, plan.reload.drawableMeshes.getValue(DrawableId("d1")).positions, "the left piece keeps its quad")
+		assertSame(right.positions, plan.reload.drawableMeshes.getValue(DrawableId("d3")).positions, "the right piece keeps its quad")
+	}
+
+	@Test
+	fun twinsOverTheSameQuadAreBothReborn() {
+		val twins = withTileOneDrawables(drawable("d1", tile1, birthQuad1), drawable("d3", tile1, SourceArtImport.birthMeshFor(layer1, options.alphaThreshold, options.birthMeshMargin)!!))
+		val repainted = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 6, 6), solidRaster(6, 6, 9))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(twins, source, TestArt(listOf(repainted, layer2)), options, oldRasterOf))
+		val expected = SourceArtImport.birthMeshFor(repainted, options.alphaThreshold, options.birthMeshMargin)!!
+
+		for (twin in listOf("d1", "d3")) {
+			assertContentEquals(expected.positions, plan.reload.drawableMeshes.getValue(DrawableId(twin)).positions, "$twin is re-born over the new art")
+		}
+	}
+
+	/**
+	 * A quad over a vertical strip of layer 1, its corners on the texels under them, as a split piece's
+	 * untouched quad is.
+	 *
+	 * @param Float left    The canvas left edge.
+	 * @param Float right   The canvas right edge.
+	 * @param Float uvLeft  The art-frame left edge, 0..1.
+	 * @param Float uvRight The art-frame right edge.
+	 * @return DrawableMesh The quad.
+	 */
+	private fun halfQuad(left: Float, right: Float, uvLeft: Float, uvRight: Float): DrawableMesh =
+		DrawableMesh.withLocalEqualToCanvas(
+			floatArrayOf(left, 20f, right, 20f, right, 24f, left, 24f),
+			floatArrayOf(uvLeft, 0f, uvRight, 0f, uvRight, 1f, uvLeft, 1f),
+			intArrayOf(0, 1, 2, 0, 2, 3),
+		)
+
+	/**
+	 * The model with these drawables over tile 1 in place of d1, d2 kept over tile 2.
+	 *
+	 * @param Array<Drawable> overTileOne The drawables over tile 1.
+	 * @return PuppetModel The model.
+	 */
+	private fun withTileOneDrawables(vararg overTileOne: Drawable): PuppetModel {
+		val base = model()
+		val drawables = overTileOne.toList() + base.drawables.filter { drawable -> drawable.atlasTileId == tile2 }
+
+		return base.copy(drawables = drawables, rootChildren = drawables.map { drawable -> OrgChild.Drawable(drawable.id) })
+	}
+
+	@Test
 	fun aMovedLayerUnderAnEditedMeshKeepsThePositionsAndCarriesTheCoordinates() {
 		// Layer 2 moved right by 3 and down by 1 with the same pixels: the mesh stays on the canvas and
 		// each vertex keeps sampling the canvas pixel under it, which is 3 art pixels further left now.

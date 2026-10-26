@@ -33,6 +33,9 @@
 * Hire artist to make the DMG background art.
 	* Chibi Tamamo carrying the icon to the application folder.
 
+## Documentation
+* Add a note somewhere in the repository and the web site asking game developers to please credit Umamo in the game credits if they used it as part of the development.
+
 ## User Stories
 * glTF export for easy import into game engines.  (Requested; far future.)
 	* Shares buffer/accessor concepts with UMA's bulk-geometry encoding decision (docs/plan/uma-format.md U1), and would slot into the Document › Runtime export-targets model (§ Properties Panel).
@@ -95,7 +98,6 @@
 	* New custom image selection control.  This will also be an entry point for adding artwork.
 	* Support renaming images.
 * Improvements
-	* Long running atlas packing should have a progress visible in the status bar.  We can also reuse this for other operations such as file open/import/export.
 	* Ability to have unplaced tiles.  For example, guide images don't need to be in the atlas, but any imported at the moment are forced into an atlas.
 * Bugs
 	* When relinking EricaTamamo.psd in EricaTamamo.cmo3 it results in some layers getting fringe artifacts like what was experienced in the past.
@@ -181,6 +183,7 @@ See format planning document: docs/plan/uma-format.md
 * AreaHeader/Viewport2DHeaderControls
 	* Font size and icon sizes don't line up resulting in the font being 1px offset.(Lots of manual tweaking is required.)
 * Merge pie menu icons.
+* Zoom increment needs to scale up logarithmically as the zoom increases.  We can make it a setting have it turned on by default.
 
 * Menu - New Items
 	* Edit
@@ -345,3 +348,11 @@ rigger what they could do about it.
 tile; allow a larger page for this document (weighed against what the target runtimes load); leave it
 unplaced on purpose so the dialog stops asking; for a refused generation, lower the Outer Margin or unpin
 the tile.  Each is its own design question.
+
+## Relink after a binding-only relink carries from the wrong frame (found 2026-10-16)
+
+**What.** A relink with no file to read (`RelinkArtworkRequest(art = null)`) changes a tile's binding alone: the tile keeps its old layer's pixels and size while its binding names the new layer.  A later relink that pulls art onto that tile carries its meshes from the BINDING's inventory row (`ArtworkReloadPlanner.replaceTile`, `oldInventory`), which describes where the new-bound layer sits, not where the tile's pixels came from - so the carried UVs shift by the distance between the two layers and the drawable samples the wrong pixels.
+
+**Why it showed now.** The exact outgrown test (auto-mesh Phase 5a) reads the texture mapping and flags the shifted mesh; the bounding-box test it replaced compared canvas positions and did not.  `ReloadArtworkFlowTest`'s last step walked exactly this sequence; it now relinks a tile whose binding matches its pixels.
+
+**Fix options.** Record the frame a tile's pixels were read at on the tile itself (it is the inventory row of whatever layer last filled it), or have a binding-only relink also retarget the tile's recorded frame; either way the carry would read the pixels' own origin.

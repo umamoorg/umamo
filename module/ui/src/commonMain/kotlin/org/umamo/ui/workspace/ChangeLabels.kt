@@ -59,6 +59,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.mesh.rip" -> stringResource(Res.string.history_mesh_rip)
 		"change.mesh.connect" -> stringResource(Res.string.history_mesh_connect)
 		"change.mesh.generateFromArt" -> stringResource(Res.string.history_mesh_generate_from_art)
+		"change.mesh.generateQuad" -> stringResource(Res.string.history_mesh_generate_quad)
 		"change.drawable.duplicate" -> stringResource(Res.string.history_drawable_duplicate)
 		"change.object.move" -> stringResource(Res.string.history_object_move)
 		"change.object.scale" -> stringResource(Res.string.history_object_scale)

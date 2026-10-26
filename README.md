@@ -2,7 +2,7 @@
 
 An open-source cross-platform modelling editor for 2D puppet animation, with first class pen and touch support, designed to interoperate with the Live2D Cubism source format (`.cmo3`).  Runs on Windows, macOS, Linux, and Android tablets with pen/touch input.  Supports importing and exporting both CMO3 and MOC3 formats.
 
-> **Status:** Early development.  Prebuilt downloads are on the [Releases page](https://github.com/umamoorg/umamo/releases).  Note, releases are not currently signed so Windows and MacOS will complain about it.  APIs, formats, and scope are in flux.
+> **Status:** Early development.  Prebuilt downloads are on the [Releases page](https://github.com/umamoorg/umamo/releases).
 
 ![Screenshot showing the main Umamo window with 2D puppet posed and smiling in a centered viewport.  The left side shows an adjustable parameter panel while the right shows an object outliner, information, and history panel.](docs/screenshots/readme20260905.webp)
 

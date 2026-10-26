@@ -42,7 +42,10 @@ import org.umamo.runtime.model.storedToArtAffineForTile
  * names it.  A drawable's mesh changes in only two ways: an untouched birth quad of a drawable with no
  * deformer is re-born over the new art, and every other mesh keeps its vertices with its texture
  * coordinates carried so each vertex samples the canvas pixel it did before - Cubism's own re-import
- * behavior, where the art moves under a mesh that stays.  Its visibility follows the file's eye toggle
+ * behavior, where the art moves under a mesh that stays.  A quad is re-born only when it covers the
+ * whole tile's art: its drawable is the tile's one meshed user, or every user carries the same quad
+ * (twins).  A quad over one piece of a split layer is carried like an authored mesh, since a re-born one
+ * would cover every other piece's art.  Its visibility follows the file's eye toggle
  * only while it still shows the state the file last had: a toggle the rigger made in the outliner is rig
  * work and stays.
  */
@@ -539,6 +542,8 @@ object ArtworkReloadPlanner {
 		val storedToArt = model.atlas.storedToArtAffineForTile(tile.id)
 		val meshes = LinkedHashMap<DrawableId, DrawableMesh>()
 		val outgrown = ArrayList<DrawableId>()
+		val tileMeshes = model.drawables.mapNotNull { drawable -> drawable.mesh.takeIf { drawable.atlasTileId == tile.id } }
+		val quadsCoverTheTile = tileMeshes.all { mesh -> sameMesh(mesh, tileMeshes.first()) }
 
 		for (drawable in model.drawables) {
 			if (drawable.atlasTileId != tile.id) {
@@ -557,7 +562,7 @@ object ArtworkReloadPlanner {
 
 			// A fresh quad is born on the canvas, which is its base's space only for a drawable with no deformer;
 			// under one, the quad is kept and its coordinates carried like any authored mesh.
-			if (drawable.parentDeformerId == null && mesh.isUntouchedBirthQuad(artUvs, tile.width, tile.height, oldLeft, oldTop)) {
+			if (quadsCoverTheTile && drawable.parentDeformerId == null && mesh.isUntouchedBirthQuad(artUvs, tile.width, tile.height, oldLeft, oldTop)) {
 				val reborn = SourceArtImport.birthMeshFor(layer, options.alphaThreshold, options.birthMeshMargin) ?: continue
 				meshes[drawable.id] = reborn
 
@@ -583,6 +588,16 @@ object ArtworkReloadPlanner {
 
 		return TileReplacement(ReplacedTile(tile.id, newTile), raster, meshes, outgrown)
 	}
+
+	/**
+	 * Whether two meshes are the same mesh: the same positions, texture coordinates, and triangles.
+	 *
+	 * @param DrawableMesh first  One mesh.
+	 * @param DrawableMesh second The other.
+	 * @return Boolean True for the same mesh.
+	 */
+	private fun sameMesh(first: DrawableMesh, second: DrawableMesh): Boolean =
+		first === second || (first.positions.contentEquals(second.positions) && first.uvs.contentEquals(second.uvs) && first.indices.contentEquals(second.indices))
 
 	/**
 	 * Which pixels of the new art were art already before it changed, at the same canvas spot: a mesh

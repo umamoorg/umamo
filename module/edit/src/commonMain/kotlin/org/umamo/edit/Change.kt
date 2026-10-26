@@ -957,6 +957,18 @@ sealed interface MeshChange : Change {
 	}
 
 	/**
+	 * Gives one or more drawables a quad over their art in one step: every listed mesh is replaced by a
+	 * quad (with any glued vertex kept in it), its keyform deltas, blend shapes, and glue pairs carried
+	 * over from the mesh it replaced.
+	 *
+	 * @property List<DrawableId> drawableIds The drawables whose meshes were replaced.
+	 */
+	data class GenerateQuad(val drawableIds: List<DrawableId>) : MeshChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.mesh.generateQuad"
+	}
+
+	/**
 	 * Transforms every vertex of one or more whole drawables to new rest positions - an Object-mode Grab /
 	 * Scale / Rotate of the selected drawables, or the Properties panel's typed Position / Size rows.
 	 * Recorded as one undo step for the whole gesture even though several drawables move.  The pose is

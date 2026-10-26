@@ -30,12 +30,14 @@ public const val MINIMUM_ART_MESH_INTERIOR_THINNING_LIMIT: Double = 1.0
  *
  * Pixels at or above [alphaThreshold] are guaranteed covered: the outline keeps at least
  * [minimumMargin] from every such pixel, and runs [outerMargin] outside the art where the shape
- * allows.  A second, inner ring runs [innerMargin] inside the art's edge (none when zero), and a
+ * allows.  A hole in the art whose outline ring would be shorter than [outlineSpacing] around is meshed
+ * over rather than cut out.  A second, inner ring runs [innerMargin] inside the art's edge (none when zero), and a
  * hexagonal lattice fills the rest.  With [fillHoles] the mesh covers the art's silhouette instead:
  * holes in the art (a lace pattern, a spider web) are meshed over rather than cut out, so the part
- * deforms as one sheet, and the inner ring and lattice run across them.  With a [minimumAngle] the
- * triangulation is then refined until every triangle's smallest angle reaches it, within the vertex
- * budget; angles the art's own shape fixes (a hair tip's) are left as they are.  When the mesh replaces
+ * deforms as one sheet, and the inner ring and lattice run across them.  With a [minimumAngle], vertices
+ * are then added beside every triangle whose narrowest corner falls short of it, never moving one
+ * already placed, until no such triangle is left that a vertex can fix or the vertex budget runs out;
+ * corners the outline itself makes (a hair tip's) are left as they are.  When the mesh replaces
  * one a rig is built on, the old vertices where that rig bends are kept until the new mesh follows it to
  * within [deformationTolerance].  Over the [vertexBudget] the interior thins first, to at most
  * [interiorThinningLimit] times the outline spacing, and past that the outline widens with it.  With
@@ -52,7 +54,7 @@ public const val MINIMUM_ART_MESH_INTERIOR_THINNING_LIMIT: Double = 1.0
  * @property Int     minimumOutlinePoints The fewest vertices one outline ring may have (at least 3).
  * @property Int     vertexBudget         The most vertices one mesh may have.
  * @property Boolean fillHoles            Whether to mesh over the art's holes instead of cutting them out.
- * @property Double  minimumAngle         The smallest angle, in degrees, refinement brings every triangle up to; 0 for none.
+ * @property Double  minimumAngle         The narrowest corner, in degrees, a triangle may have: added vertices break up any thinner one; 0 adds none.
  * @property Double  deformationTolerance How far, in art pixels, the new mesh may stray from a rig it replaces before old vertices are kept to hold it.
  * @property Double  interiorThinningLimit Over the budget, the most the interior spacing grows to, in outline spacings, before the outline widens with it (never below the two spacings' own ratio; at least 1).
  * @property Boolean strandRungs          Whether thin strands are meshed as rung strips rather than from their outline alone.

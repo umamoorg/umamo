@@ -1,6 +1,7 @@
 package org.umamo.interop.art.mesh
 
 import org.umamo.format.art.AlphaChannel
+import org.umamo.format.art.opaqueBounds
 import org.umamo.geometry.predicate.orient2d
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -96,31 +97,14 @@ private class CoverageBits(val bounds: PixelBounds) {
 }
 
 /**
- * The bounds of the art's pixels at or above a threshold, or null when there are none.
+ * The inclusive pixel bounds of the art at or above a threshold, or null when there are none.
  *
  * @param AlphaChannel alpha          The art.
  * @param Int          alphaThreshold The least alpha byte counted as art.
  * @return PixelBounds? The bounds.
  */
-private fun opaqueBoundsOf(alpha: AlphaChannel, alphaThreshold: Int): PixelBounds? {
-	var left = Int.MAX_VALUE
-	var top = Int.MAX_VALUE
-	var right = Int.MIN_VALUE
-	var bottom = Int.MIN_VALUE
-
-	for (row in 0 until alpha.height) {
-		for (column in 0 until alpha.width) {
-			if (alpha.alphaAt(column, row) >= alphaThreshold) {
-				left = minOf(left, column)
-				top = minOf(top, row)
-				right = maxOf(right, column)
-				bottom = maxOf(bottom, row)
-			}
-		}
-	}
-
-	return if (left > right) null else PixelBounds(left, top, right, bottom)
-}
+private fun opaqueBoundsOf(alpha: AlphaChannel, alphaThreshold: Int): PixelBounds? =
+	alpha.opaqueBounds(alphaThreshold)?.let { bounds -> PixelBounds(bounds.left, bounds.top, bounds.left + bounds.width - 1, bounds.top + bounds.height - 1) }
 
 /**
  * Marks every pixel of the bounds whose center lies inside or on one triangle, decided by the exact

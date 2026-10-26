@@ -110,19 +110,9 @@ internal fun latticePoints(field: AlphaField, spacing: Double, innerMargin: Doub
  * @return Boolean True when the ring is at least three spacings around and a quarter spacing wide on average.
  */
 private fun hasRoomForSpacing(ring: DoubleArray, spacing: Double): Boolean {
-	val vertexCount = ring.size / 2
-	var perimeter = 0.0
-	var doubledArea = 0.0
+	val measure = RingMeasure.of(ring)
 
-	for (vertex in 0 until vertexCount) {
-		val next = (vertex + 1) % vertexCount
-		val deltaX = ring[2 * next] - ring[2 * vertex]
-		val deltaY = ring[2 * next + 1] - ring[2 * vertex + 1]
-		perimeter += sqrt(deltaX * deltaX + deltaY * deltaY)
-		doubledArea += ring[2 * vertex] * ring[2 * next + 1] - ring[2 * next] * ring[2 * vertex + 1]
-	}
-
-	return perimeter >= MINIMUM_INNER_RING_POINTS * spacing && abs(doubledArea) / 2.0 / perimeter >= spacing / 4.0
+	return measure.perimeter >= MINIMUM_INNER_RING_POINTS * spacing && abs(measure.doubledArea) / 2.0 / measure.perimeter >= spacing / 4.0
 }
 
 /**

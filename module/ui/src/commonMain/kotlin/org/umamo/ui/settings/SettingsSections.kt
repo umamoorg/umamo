@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.interop.art.ArtworkAnchor
+import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.reimport.WatchMode
 import org.umamo.ui.app.CHECK_FOR_UPDATES_KEY
 import org.umamo.ui.kit.Text
@@ -35,6 +36,9 @@ import org.umamo.ui.rememberDoubleSetting
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.rememberStringSetting
 import org.umamo.ui.resources.Res
+import org.umamo.ui.resources.mesh_preset_coarse
+import org.umamo.ui.resources.mesh_preset_fine
+import org.umamo.ui.resources.mesh_preset_standard
 import org.umamo.ui.resources.settings_check_for_updates
 import org.umamo.ui.resources.settings_colors_active_selection_highlight
 import org.umamo.ui.resources.settings_colors_group_edge
@@ -50,8 +54,12 @@ import org.umamo.ui.resources.settings_colors_selection_highlight
 import org.umamo.ui.resources.settings_colors_viewport
 import org.umamo.ui.resources.settings_colors_warning
 import org.umamo.ui.resources.settings_import_alignment
+import org.umamo.ui.resources.settings_import_birth_mesh
+import org.umamo.ui.resources.settings_import_birth_mesh_automatic
+import org.umamo.ui.resources.settings_import_birth_mesh_quad
 import org.umamo.ui.resources.settings_import_delete_art_ignores_layer
 import org.umamo.ui.resources.settings_import_layer_positions_from_world_axes
+import org.umamo.ui.resources.settings_import_mesh_preset
 import org.umamo.ui.resources.settings_import_parameter_template
 import org.umamo.ui.resources.settings_import_parameter_template_humanoid
 import org.umamo.ui.resources.settings_import_parameter_template_none
@@ -194,13 +202,21 @@ internal const val IMPORT_DELETE_ART_IGNORES_LAYER_KEY = "import.deleteArtIgnore
 /** The settings key for whether the Sources layer rows measure positions from the world axes instead of the art file's top-left corner. */
 internal const val IMPORT_LAYER_POSITIONS_FROM_WORLD_AXES_KEY = "import.layerPositionsFromWorldAxes"
 
-/** The settings key for the preset Generate Mesh from Art starts from before any run; the values are ArtMeshPreset keys. */
+/** The settings key for the mesh an artwork import gives each new drawable; the values are BirthMeshSetting keys. */
+internal const val IMPORT_BIRTH_MESH_KEY = "import.birthMesh"
+
+/**
+ * The settings key for the preset meshes are generated at: an import's generated meshes, and the first
+ * Generate Mesh from Art run of a session.  The values are ArtMeshPreset keys.
+ */
 internal const val MESH_GENERATION_PRESET_KEY = "meshGeneration.preset"
 
 /**
- * The Import section: what an artwork import seeds a new model with, where a later file is anchored
- * on the rig's canvas, what a document does when a watched artwork file changes, whether Delete Art
- * keeps the deleted layer out of the rig, and which frame the Sources layer rows measure positions in.
+ * The Import section: what an artwork import seeds a new model with, the mesh each new drawable starts
+ * with and the preset it is generated at, where a later file is anchored on the rig's canvas, what a
+ * document does when a watched artwork file changes, whether Delete Art keeps the deleted layer out of
+ * the rig, and which frame the Sources layer rows measure positions in.  The initial mesh and its preset
+ * are read when an import runs; the preset also seeds a session's first Generate Mesh from Art.
  * The parameter template and the anchor are stored as their keys so a later entry is one more option
  * here and one more enum entry, nothing else; the import reads them at the moment it runs, so a change
  * applies to the next import (and the anchor is only the default of the import's own Align row).  The
@@ -214,6 +230,21 @@ internal fun ImportSection() {
 		linkedMapOf(
 			ParameterTemplate.Humanoid.key to stringResource(Res.string.settings_import_parameter_template_humanoid),
 			ParameterTemplate.None.key to stringResource(Res.string.settings_import_parameter_template_none),
+		)
+
+	var birthMeshKey by rememberStringSetting(IMPORT_BIRTH_MESH_KEY, BirthMeshSetting.Default.key)
+	val birthMeshLabels =
+		linkedMapOf(
+			BirthMeshSetting.Automatic.key to stringResource(Res.string.settings_import_birth_mesh_automatic),
+			BirthMeshSetting.Quad.key to stringResource(Res.string.settings_import_birth_mesh_quad),
+		)
+
+	var meshPresetKey by rememberStringSetting(MESH_GENERATION_PRESET_KEY, ArtMeshPreset.Default.key)
+	val meshPresetLabels =
+		linkedMapOf(
+			ArtMeshPreset.Standard.key to stringResource(Res.string.mesh_preset_standard),
+			ArtMeshPreset.Fine.key to stringResource(Res.string.mesh_preset_fine),
+			ArtMeshPreset.Coarse.key to stringResource(Res.string.mesh_preset_coarse),
 		)
 
 	var alignmentKey by rememberStringSetting(IMPORT_ALIGNMENT_KEY, ArtworkAnchor.Default.key)
@@ -238,6 +269,22 @@ internal fun ImportSection() {
 				options = templateLabels.keys.toList(),
 				label = { value -> templateLabels[value] ?: value },
 				onSelect = { value -> templateKey = value },
+			)
+		}
+		SettingRow(label = stringResource(Res.string.settings_import_birth_mesh)) {
+			SelectField(
+				selected = BirthMeshSetting.fromKey(birthMeshKey).key,
+				options = birthMeshLabels.keys.toList(),
+				label = { value -> birthMeshLabels[value] ?: value },
+				onSelect = { value -> birthMeshKey = value },
+			)
+		}
+		SettingRow(label = stringResource(Res.string.settings_import_mesh_preset)) {
+			SelectField(
+				selected = ArtMeshPreset.fromKey(meshPresetKey).key,
+				options = meshPresetLabels.keys.toList(),
+				label = { value -> meshPresetLabels[value] ?: value },
+				onSelect = { value -> meshPresetKey = value },
 			)
 		}
 		// The default of the import's Align row: the art programs' own canvas-resize anchors, Center

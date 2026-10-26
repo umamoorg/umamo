@@ -108,7 +108,7 @@ class GeneratedMeshCmo3ExportGateTest {
 			val outcome =
 				withContext(Dispatchers.Default) {
 					val plan = planMeshGeneration(base, targets, decode)
-					generateMeshOutcome(base, plan, options.settings, decode, document.textures.premultipliedAlpha)
+					generateMeshOutcome(base, plan, options, decode, document.textures.premultipliedAlpha)
 				}
 			val generated = assertIs<GenerateMeshOutcome.Generated>(outcome, "the atlas refused nothing")
 			val allowedSkips = setOf(GenerateMeshSkipReason.OverBudget, GenerateMeshSkipReason.NothingOpaque, GenerateMeshSkipReason.DegenerateOldMesh, GenerateMeshSkipReason.GluedThroughout)

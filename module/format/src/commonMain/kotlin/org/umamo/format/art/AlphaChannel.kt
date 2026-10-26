@@ -24,6 +24,35 @@ public interface AlphaChannel {
 }
 
 /**
+ * The smallest rectangle holding every pixel at or above [alphaThreshold], raster-local, or null when no
+ * pixel reaches it - the same rectangle [analyzeAlpha] reports as its opaque bounds, read through the
+ * channel so a caller meshing part of a tile sees only its own region.
+ *
+ * @param Int alphaThreshold The least alpha byte (1..255) counted as art.
+ * @return LayerBounds? The bounds, or null.
+ */
+public fun AlphaChannel.opaqueBounds(alphaThreshold: Int): LayerBounds? {
+	require(alphaThreshold in 1..255) { "alphaThreshold must be in 1..255: $alphaThreshold" }
+	var left = Int.MAX_VALUE
+	var top = Int.MAX_VALUE
+	var right = Int.MIN_VALUE
+	var bottom = Int.MIN_VALUE
+
+	for (row in 0 until height) {
+		for (column in 0 until width) {
+			if (alphaAt(column, row) >= alphaThreshold) {
+				left = minOf(left, column)
+				top = minOf(top, row)
+				right = maxOf(right, column)
+				bottom = maxOf(bottom, row)
+			}
+		}
+	}
+
+	return if (left > right) null else LayerBounds(left, top, right - left + 1, bottom - top + 1)
+}
+
+/**
  * This raster's alpha channel.
  *
  * @return AlphaChannel The channel, reading the raster's alpha bytes in place.

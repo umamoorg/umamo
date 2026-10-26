@@ -7,6 +7,7 @@ import org.umamo.edit.floatValue
 import org.umamo.edit.intValue
 import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.interop.art.mesh.MAXIMUM_ART_MESH_MINIMUM_ANGLE
+import org.umamo.interop.art.mesh.MAXIMUM_ART_MESH_VERTEX_BUDGET
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -49,7 +50,7 @@ class MeshGenerationOptionsTest {
 		assertEquals(0.0, settings.innerMargin, "a value that is not finite falls back to its floor")
 		assertEquals(0.5, settings.minimumMargin)
 		assertEquals(3, settings.minimumOutlinePoints)
-		assertEquals(MAXIMUM_VERTEX_BUDGET, settings.vertexBudget)
+		assertEquals(MAXIMUM_ART_MESH_VERTEX_BUDGET, settings.vertexBudget)
 		assertEquals(MAXIMUM_ART_MESH_MINIMUM_ANGLE, settings.minimumAngle)
 		assertEquals(1.0, settings.interiorThinningLimit)
 		assertEquals(1.0, settings.strandWidth)
