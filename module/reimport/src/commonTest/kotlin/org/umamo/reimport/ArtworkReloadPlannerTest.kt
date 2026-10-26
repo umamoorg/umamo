@@ -3,10 +3,13 @@ package org.umamo.reimport
 import org.umamo.format.art.LayerBounds
 import org.umamo.format.art.LayerRaster
 import org.umamo.interop.art.ArtSourceDescriptor
+import org.umamo.interop.art.BirthMeshMode
+import org.umamo.interop.art.BirthMesher
 import org.umamo.interop.art.CanvasOffset
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.interop.art.placedBy
 import org.umamo.interop.art.placedFor
 import org.umamo.runtime.model.ArtSource
@@ -18,6 +21,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.OrgInsertion
 import org.umamo.runtime.model.OrgSlot
@@ -133,6 +137,62 @@ class ArtworkReloadPlannerTest {
 		assertSame(birthQuad1.positions, kept.positions, "the canvas mesh passes through by reference")
 		assertSame(birthQuad1.localPositions, kept.localPositions, "the base passes through by reference")
 		assertTrue(kept.uvs !== birthQuad1.uvs, "the coordinates are carried to the new art frame")
+	}
+
+	@Test
+	fun aQuadOverOnePieceOfASplitLayerIsCarriedNotReborn() {
+		// Two pieces of layer 1, each an untouched-looking quad over its own half: re-born, either would
+		// become the whole layer's quad and cover the other piece's art.
+		val left = halfQuad(left = 10f, right = 12f, uvLeft = 0f, uvRight = 0.5f)
+		val right = halfQuad(left = 12f, right = 14f, uvLeft = 0.5f, uvRight = 1f)
+		val split = withTileOneDrawables(drawable("d1", tile1, left), drawable("d3", tile1, right))
+		val repainted = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 6, 6), solidRaster(6, 6, 9))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(split, source, TestArt(listOf(repainted, layer2)), options, oldRasterOf))
+
+		assertSame(left.positions, plan.reload.drawableMeshes.getValue(DrawableId("d1")).positions, "the left piece keeps its quad")
+		assertSame(right.positions, plan.reload.drawableMeshes.getValue(DrawableId("d3")).positions, "the right piece keeps its quad")
+	}
+
+	@Test
+	fun twinsOverTheSameQuadAreBothReborn() {
+		val twins = withTileOneDrawables(drawable("d1", tile1, birthQuad1), drawable("d3", tile1, SourceArtImport.birthMeshFor(layer1, options.alphaThreshold, options.birthMeshMargin)!!))
+		val repainted = TestLayer("lyid:1", "One", 0, LayerBounds(10, 20, 6, 6), solidRaster(6, 6, 9))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(twins, source, TestArt(listOf(repainted, layer2)), options, oldRasterOf))
+		val expected = SourceArtImport.birthMeshFor(repainted, options.alphaThreshold, options.birthMeshMargin)!!
+
+		for (twin in listOf("d1", "d3")) {
+			assertContentEquals(expected.positions, plan.reload.drawableMeshes.getValue(DrawableId(twin)).positions, "$twin is re-born over the new art")
+		}
+	}
+
+	/**
+	 * A quad over a vertical strip of layer 1, its corners on the texels under them, as a split piece's
+	 * untouched quad is.
+	 *
+	 * @param Float left    The canvas left edge.
+	 * @param Float right   The canvas right edge.
+	 * @param Float uvLeft  The art-frame left edge, 0..1.
+	 * @param Float uvRight The art-frame right edge.
+	 * @return DrawableMesh The quad.
+	 */
+	private fun halfQuad(left: Float, right: Float, uvLeft: Float, uvRight: Float): DrawableMesh =
+		DrawableMesh.withLocalEqualToCanvas(
+			floatArrayOf(left, 20f, right, 20f, right, 24f, left, 24f),
+			floatArrayOf(uvLeft, 0f, uvRight, 0f, uvRight, 1f, uvLeft, 1f),
+			intArrayOf(0, 1, 2, 0, 2, 3),
+		)
+
+	/**
+	 * The model with these drawables over tile 1 in place of d1, d2 kept over tile 2.
+	 *
+	 * @param Array<Drawable> overTileOne The drawables over tile 1.
+	 * @return PuppetModel The model.
+	 */
+	private fun withTileOneDrawables(vararg overTileOne: Drawable): PuppetModel {
+		val base = model()
+		val drawables = overTileOne.toList() + base.drawables.filter { drawable -> drawable.atlasTileId == tile2 }
+
+		return base.copy(drawables = drawables, rootChildren = drawables.map { drawable -> OrgChild.Drawable(drawable.id) })
 	}
 
 	@Test
@@ -459,12 +519,12 @@ class ArtworkReloadPlannerTest {
 	}
 
 	@Test
-	fun anAcceptedMatchRetiresTheUntouchedDrawableOverItsLayerAndKeepsARiggedOne() {
+	fun anAcceptedMatchRetiresTheFreshDrawableOverItsLayerAndKeepsARiggedOne() {
 		// Layer 1 was re-created under lyid:3 and an earlier reload minted a fresh drawable for it (the
 		// match scored under the bar); accepting the reload's proposal now moves the rigged tile onto the
 		// layer and retires the fresh drawable with its tile - the tile the proposal named, and only
-		// when it still carries no rig work: the same fresh drawable, once edited, stays, and the layer
-		// is then bound twice for a person to sort out.
+		// while no rig structure hangs off it: reshaping its mesh does not keep it, keying it does, and
+		// the layer is then bound twice for a person to sort out.
 		val recreated = TestLayer("lyid:3", "One", 0, LayerBounds(10, 20, 4, 4), layer1.raster)
 		val freshQuad = SourceArtImport.birthMeshFor(recreated, options.alphaThreshold, options.birthMeshMargin)!!
 		val tile3 = AtlasTileId("art-0/lyid:3")
@@ -490,7 +550,10 @@ class ArtworkReloadPlannerTest {
 
 		val editedFresh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(10f, 20f, 11f, 20f, 10f, 21f), floatArrayOf(0f, 0f, 0.25f, 0f, 0f, 0.25f), intArrayOf(0, 1, 2))
 		val edited = afterMint.copy(drawables = afterMint.drawables.map { drawable -> if (drawable.id.raw == "d3") drawable.copy(mesh = editedFresh) else drawable })
-		val kept = assertNotNull(ArtworkReloadPlanner.planMatches(edited, source, art, listOf(tile1 to "lyid:3"), options, { tileId -> rasters[tileId] }, retire = setOf(tile3)))
+		val reshaped = assertNotNull(ArtworkReloadPlanner.planMatches(edited, source, art, listOf(tile1 to "lyid:3"), options, { tileId -> rasters[tileId] }, retire = setOf(tile3)))
+		assertEquals(listOf(tile3), reshaped.reload.retiredTiles, "a reshaped mesh is no rig work: the fresh drawable still goes")
+		val keyed = afterMint.copy(drawables = afterMint.drawables.map { drawable -> if (drawable.id.raw == "d3") drawable.copy(geometryGrid = KeyformGrid(emptyList(), emptyList())) else drawable })
+		val kept = assertNotNull(ArtworkReloadPlanner.planMatches(keyed, source, art, listOf(tile1 to "lyid:3"), options, { tileId -> rasters[tileId] }, retire = setOf(tile3)))
 		assertTrue(kept.reload.retiredTiles.isEmpty(), "rig work over the layer is never removed, whatever the proposal named")
 	}
 
@@ -537,5 +600,102 @@ class ArtworkReloadPlannerTest {
 		assertNull(ArtworkReloadPlanner.plan(recorded, source, TestArt(listOf(hidden, layer2)), options, oldRasterOf), "recorded and unchanged: nothing to do")
 		val shownAgain = assertNotNull(ArtworkReloadPlanner.plan(recorded, source, TestArt(listOf(layer1, layer2)), options, oldRasterOf))
 		assertEquals(mapOf(DrawableId("d1") to true), shownAgain.reload.drawableVisibility, "shown again in the file, a hidden drawable that matches the recorded state follows back")
+	}
+
+	/** Whether an art pixel of the 20 x 20 L belongs to it: the square with its top-right quarter cut away. */
+	private fun inEll(column: Int, row: Int): Boolean = column < 10 || row >= 10
+
+	/** An L-shaped mesh over a 20 x 20 layer at (50, 60), covering exactly the L: what a generated mesh of it looks like. */
+	private val ellMesh =
+		DrawableMesh.withLocalEqualToCanvas(
+			floatArrayOf(50f, 60f, 60f, 60f, 60f, 70f, 70f, 70f, 70f, 80f, 50f, 80f),
+			floatArrayOf(0f, 0f, 0.5f, 0f, 0.5f, 0.5f, 1f, 0.5f, 1f, 1f, 0f, 1f),
+			intArrayOf(0, 1, 2, 0, 2, 5, 2, 3, 4, 2, 4, 5),
+		)
+
+	/**
+	 * The fixture's model with a third drawable, d3, under [ellMesh] over a 20 x 20 layer at (50, 60) whose
+	 * art the document last read as [oldArt].
+	 *
+	 * @param LayerRaster oldArt The layer's pixels as last read.
+	 * @return Pair The model and the document's pixels by tile.
+	 */
+	private fun ellModel(oldArt: LayerRaster): Pair<PuppetModel, Map<AtlasTileId, LayerRaster>> {
+		val tile3 = AtlasTileId("art-0/lyid:3")
+		val ellLayer = TestLayer("lyid:3", "Ell", 2, LayerBounds(50, 60, 20, 20), oldArt)
+		val base = model()
+		val withEll =
+			base.copy(
+				drawables = base.drawables + drawable("d3", tile3, ellMesh),
+				rootChildren = base.rootChildren + OrgChild.Drawable(DrawableId("d3")),
+				atlas = base.atlas.copy(tiles = base.atlas.tiles + AtlasTile(tile3, "Ell", 20, 20, source = SourceLayerRef(source, "lyid:3", true))),
+				sources = listOf(base.sources.single().copy(layers = SourceArtImport.inventoryOf(TestArt(listOf(layer1, layer2, ellLayer))))),
+			)
+
+		return withEll to (oldRasters + (tile3 to oldArt))
+	}
+
+	/**
+	 * A raster of one opaque color where [art] says so, transparent elsewhere.
+	 *
+	 * @param Int                   width  The width.
+	 * @param Int                   height The height.
+	 * @param Byte                  value  The byte every color channel takes.
+	 * @param (Int, Int) -> Boolean art    Whether a pixel is art.
+	 * @return LayerRaster The raster.
+	 */
+	private fun rasterWhere(width: Int, height: Int, value: Byte, art: (Int, Int) -> Boolean): LayerRaster {
+		val rgba = ByteArray(width * height * 4)
+
+		for (pixel in 0 until width * height) {
+			if (art(pixel % width, pixel / width)) {
+				rgba[pixel * 4] = value
+				rgba[pixel * 4 + 3] = 0xFF.toByte()
+			}
+		}
+
+		return LayerRaster(width, height, rgba)
+	}
+
+	@Test
+	fun artGrowingIntoAConcaveMeshsNotchIsOutgrownAndTheMeshIsCarried() {
+		// Art painted into the L's notch lies inside the mesh's bounding box but outside the mesh.
+		val (base, rasters) = ellModel(rasterWhere(20, 20, 5) { column, row -> inEll(column, row) })
+		val grown = TestLayer("lyid:3", "Ell", 2, LayerBounds(50, 60, 20, 20), rasterWhere(20, 20, 5) { column, row -> inEll(column, row) || (column == 14 && row == 5) })
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(base, source, TestArt(listOf(layer1, layer2, grown)), options, { tileId -> rasters[tileId] }))
+
+		assertEquals(listOf(DrawableId("d3")), plan.reload.outgrown, "the notch pixel is art the mesh cuts off")
+		assertSame(ellMesh.positions, plan.reload.drawableMeshes.getValue(DrawableId("d3")).positions, "a mesh that is no untouched quad keeps its vertices; nothing re-meshes it")
+	}
+
+	@Test
+	fun artTheMeshAlreadyLeftOutIsNotOutgrown() {
+		// The notch pixel was art before the reload too, and the mesh left it out then: the modeller's
+		// choice, not art that grew.  Only the color changes.
+		val withSpeck: (Int, Int) -> Boolean = { column, row -> inEll(column, row) || (column == 14 && row == 5) }
+		val (base, rasters) = ellModel(rasterWhere(20, 20, 5, withSpeck))
+		val recolored = TestLayer("lyid:3", "Ell", 2, LayerBounds(50, 60, 20, 20), rasterWhere(20, 20, 9, withSpeck))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(base, source, TestArt(listOf(layer1, layer2, recolored)), options, { tileId -> rasters[tileId] }))
+
+		assertEquals(1, plan.reload.replacedTiles.size, "the recolored layer reloads")
+		assertTrue(plan.reload.outgrown.isEmpty(), "${plan.reload.outgrown}")
+	}
+
+	@Test
+	fun aLayerAReloadAddsIsBornPerTheBirthMode() {
+		val third = TestLayer("lyid:3", "Third", 2, LayerBounds(50, 50, 24, 24), solidRaster(24, 24, 3))
+		val art = TestArt(listOf(layer1, layer2, third))
+		val quadPlan = assertNotNull(ArtworkReloadPlanner.plan(model(), source, art, options, oldRasterOf))
+		assertTrue(quadPlan.pendingBirths.isEmpty(), "the Quad mode names no birth")
+
+		val automatic = SourceArtImportOptions(alphaThreshold = 1, birthMeshMargin = 2, birthMesh = BirthMeshMode.Automatic(ArtMeshPreset.Standard.settings))
+		val plan = assertNotNull(ArtworkReloadPlanner.plan(model(), source, art, automatic, oldRasterOf))
+		val added = assertNotNull(plan.reload.additions).drawables.single()
+		assertEquals(listOf(added.id), plan.pendingBirths.map { birth -> birth.drawableId })
+		assertEquals(4, assertNotNull(added.mesh).vertexCount, "minted over its quad")
+
+		val born = plan.withBirths(BirthMesher.resolveSequentially(plan.pendingBirths))
+		assertTrue(born.pendingBirths.isEmpty())
+		assertTrue(assertNotNull(assertNotNull(born.reload.additions).drawables.single().mesh).vertexCount > 4, "born as a mesh")
 	}
 }

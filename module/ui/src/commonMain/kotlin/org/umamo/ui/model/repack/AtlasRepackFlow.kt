@@ -34,6 +34,9 @@ import org.umamo.runtime.model.placementAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.ProgressTracker
+import org.umamo.ui.progress.track
 
 /*
  * Repacking the atlas: the repack command and the pack steps every artwork operation shares - the pack
@@ -277,6 +280,7 @@ internal fun repackRefusals(
  * @property Function           report             Receives the abort report when a pack refuses.
  * @property Function           rememberOptions    Receives the options and the keep-pinned choice every
  *   successful pack ran with.
+ * @property ProgressTracker?   progress           Where the operations it runs show while they work, or null.
  */
 class AtlasRepackHost(
 	val session: EditorSession,
@@ -286,6 +290,7 @@ class AtlasRepackHost(
 	val scope: CoroutineScope,
 	val report: (AtlasRepackReport) -> Unit,
 	val rememberOptions: (AtlasPackOptions, Boolean) -> Unit,
+	val progress: ProgressTracker? = null,
 )
 
 /**
@@ -454,8 +459,10 @@ suspend fun runAtlasRepack(
 	// Only a BOUND failure refuses the repack; a placed-unbound tile that cannot come along packs out
 	// instead, logged in the lowering.
 	val packed =
-		withContext(Dispatchers.Default) {
-			packAtlasOf(modelAtStart, { tileId -> host.artRasters.decodeRaster(tileId) }, options, keepPinned)
+		host.progress.track(ProgressLabels.ATLAS_PACKING) {
+			withContext(Dispatchers.Default) {
+				packAtlasOf(modelAtStart, { tileId -> host.artRasters.decodeRaster(tileId) }, options, keepPinned)
+			}
 		}
 	val packInput = packed.input
 	val packResult = packed.result
@@ -534,6 +541,7 @@ suspend fun runAtlasRepack(
  * @param CoroutineScope            scope              Where the pack and its adjustments launch.
  * @param AtlasRepackSessionOptions sessionOptions     The window's repack memory, read and recorded.
  * @param Function                  report             Receives the abort report when a pack refuses.
+ * @param ProgressTracker?          progress           Where the pack shows while it works, or null.
  * @return Function The action, handed the area id the command was dispatched over, or null.
  */
 internal fun atlasRepackLauncher(
@@ -544,6 +552,7 @@ internal fun atlasRepackLauncher(
 	scope: CoroutineScope,
 	sessionOptions: AtlasRepackSessionOptions,
 	report: (AtlasRepackReport) -> Unit,
+	progress: ProgressTracker? = null,
 ): (areaId: String?) -> Unit {
 	val host =
 		AtlasRepackHost(
@@ -554,6 +563,7 @@ internal fun atlasRepackLauncher(
 			scope = scope,
 			report = report,
 			rememberOptions = { options, keepPinned -> sessionOptions.record(session, options, keepPinned) },
+			progress = progress,
 		)
 
 	return { areaId ->
@@ -584,7 +594,9 @@ internal suspend fun adjustAtlasRepack(
 	val keepPinned = repackKeepPinnedOf(record.parameters)
 	val packResult =
 		try {
-			withContext(Dispatchers.Default) { packAtlas(packInput.itemsFor(keepPinned), options) }
+			host.progress.track(ProgressLabels.ATLAS_PACKING) {
+				withContext(Dispatchers.Default) { packAtlas(packInput.itemsFor(keepPinned), options) }
+			}
 		} catch (exception: IllegalArgumentException) {
 			// The rows keep every value inside the packer's contract, so this is a bug, not a rigger's
 			// mistake - but a bug in an adjustment must not take the shell's scope down with it.

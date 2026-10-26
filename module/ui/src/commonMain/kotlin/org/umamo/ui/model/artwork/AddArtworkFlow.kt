@@ -20,6 +20,7 @@ import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.ArtworkAnchor
+import org.umamo.interop.art.BirthRefusal
 import org.umamo.interop.art.SourceArtAdditions
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
@@ -43,6 +44,9 @@ import org.umamo.ui.model.repack.lowerPack
 import org.umamo.ui.model.repack.packAtlasOf
 import org.umamo.ui.model.repack.repackPageSizeOf
 import org.umamo.ui.model.repack.repackRefusals
+import org.umamo.ui.progress.ProgressHandle
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.track
 
 /*
  * Adding an artwork file to an OPEN document: the bridge's additions appended to the live model, the
@@ -79,12 +83,13 @@ internal const val IMPORT_MAX_OFFSET = 8192
  * One artwork file to add to the open document, as read from disk.
  *
  * Holds the parsed art for the strip's adjustments (a re-run re-derives the additions from the same
- * layers) and the decoded wrapper of every layer raster, minted once: a re-run hands the raster store
- * the same instances again, and the renderer's texture cache keys on that identity.
+ * layers), the decoded wrapper of every layer raster, minted once - a re-run hands the raster store the
+ * same instances again, and the renderer's texture cache keys on that identity - and the birth meshes
+ * made for its layers, so a re-run that only moves the art meshes nothing again.
  *
  * @property SourceArt              art        The parsed source art.
  * @property ArtSourceDescriptor    descriptor What the model records about the file.
- * @property SourceArtImportOptions options    The threshold and margin the first run uses.
+ * @property SourceArtImportOptions options    The threshold, margin, and birth mesh the first run uses.
  */
 class AddArtworkRequest(
 	val art: SourceArt,
@@ -92,6 +97,9 @@ class AddArtworkRequest(
 	val options: SourceArtImportOptions,
 ) {
 	private val decoded = DecodedLayerRasters()
+
+	/** The birth meshes made for this file's layers, for every run of the request. */
+	internal val births = BirthMeshCache()
 
 	/**
 	 * The decoded wrapper of one of this file's layer rasters.
@@ -167,8 +175,8 @@ internal fun addArtworkParameters(options: SourceArtImportOptions, placed: Boole
 }
 
 /**
- * The options [parameters] describe, over [fallback] for the seed parameters the rows do not carry
- * (and for the placement, when the step had no placement rows).
+ * The options [parameters] describe, over [fallback] for the seed parameters and the birth mode the
+ * rows do not carry (and for the placement, when the step had no placement rows).
  *
  * @param List                   parameters The strip's rows.
  * @param SourceArtImportOptions fallback   The options the first run used.
@@ -182,6 +190,7 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
 		anchor = ArtworkAnchor.fromKey(parameters.choiceValue(ImportParameterKeys.ALIGN, fallback.anchor.key)),
 		nudgeX = parameters.intValue(ImportParameterKeys.OFFSET_X, fallback.nudgeX).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
 		nudgeZ = parameters.intValue(ImportParameterKeys.OFFSET_Z, fallback.nudgeZ).coerceIn(-IMPORT_MAX_OFFSET, IMPORT_MAX_OFFSET),
+		birthMesh = fallback.birthMesh,
 	)
 
 /**
@@ -191,6 +200,10 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
  * result re-derives through [withAtlasRepack] under the document's current composition so the pages
  * the existing art sits on compose exactly as they did.  A new tile the pack cannot carry stays
  * unplaced and is a note; the source-layer display still draws it.
+ *
+ * Under the Automatic birth mode every new drawable's quad gives way to the mesh generated from its art
+ * before the pack, which reserves each tile by its meshes' reach; a layer the mesher cannot mesh keeps
+ * its quad, and a note says why.
  *
  * A file joining a rig that already has art is first placed on the rig's canvas by the options'
  * anchor and nudge ([SourceArtImport.offsetFor]), and its record keeps that offset so every later
@@ -206,17 +219,21 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
  * @param SourceArtImportOptions options            The placement, threshold, and margin to import with.
  * @param SourceArtRasters       artRasters         The document's raster store.
  * @param Boolean                premultipliedAlpha The document's texture-convention flag.
+ * @param ProgressHandle?        progress           Counts the birth meshes and says when the atlas packs, or null.
  * @return AddArtworkOutcome? The outcome, or null when the file has no layer with art to add.
  */
-private fun addArtworkOutcome(
+private suspend fun addArtworkOutcome(
 	base: PuppetModel,
 	request: AddArtworkRequest,
 	options: SourceArtImportOptions,
 	artRasters: SourceArtRasters,
 	premultipliedAlpha: Boolean,
+	progress: ProgressHandle? = null,
 ): AddArtworkOutcome {
 	val offset = SourceArtImport.offsetFor(base, request.art, options)
-	val added = SourceArtImport.additionsFor(request.art.placedBy(offset), request.descriptor, options, base, offset = offset)
+	val named = SourceArtImport.additionsFor(request.art.placedBy(offset), request.descriptor, options, base, offset = offset)
+	// The birth meshes land before the pack, which reserves each tile by its meshes' reach.
+	val added = named.withBirths(resolveBirths(named.pendingBirths, request.births, progress))
 
 	if (added.additions.drawables.isEmpty()) {
 		return AddArtworkOutcome.NothingToAdd
@@ -240,6 +257,7 @@ private fun addArtworkOutcome(
 	val decodedByTile = added.rasterByTile.mapValues { (_, raster) -> request.decodedFor(raster) }
 	artRasters.addDecoded(decodedByTile)
 	val decode: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] ?: artRasters.decodeRaster(tileId) }
+	progress?.stage(ProgressLabels.ATLAS_PACKING)
 
 	return when (val packed = packNewTilesAround(seeded, added.additions.tiles.mapTo(HashSet()) { tile -> tile.id }, decode, premultipliedAlpha, added.notices)) {
 		is PackAroundOutcome.Refused -> AddArtworkOutcome.Refused(packed.refusals)
@@ -370,8 +388,10 @@ suspend fun runAddArtwork(host: AtlasRepackHost, request: AddArtworkRequest, are
 	val session = host.session
 	val modelAtStart = session.model.value
 	val outcome =
-		withContext(Dispatchers.Default) {
-			addArtworkOutcome(modelAtStart, request, request.options, host.artRasters, host.premultipliedAlpha)
+		host.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(request.descriptor.name)) { progress ->
+			withContext(Dispatchers.Default) {
+				addArtworkOutcome(modelAtStart, request, request.options, host.artRasters, host.premultipliedAlpha, progress)
+			}
 		}
 
 	when (outcome) {
@@ -428,8 +448,10 @@ internal suspend fun adjustAddArtwork(host: AtlasRepackHost, record: AdjustableO
 	val base = record.baseSnapshot.model
 	val options = addArtworkOptionsOf(record.parameters, request.options)
 	val outcome =
-		withContext(Dispatchers.Default) {
-			addArtworkOutcome(base, request, options, host.artRasters, host.premultipliedAlpha)
+		host.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(request.descriptor.name)) { progress ->
+			withContext(Dispatchers.Default) {
+				addArtworkOutcome(base, request, options, host.artRasters, host.premultipliedAlpha, progress)
+			}
 		}
 
 	when (outcome) {
@@ -497,4 +519,20 @@ fun describeImportNotice(notice: SourceArtImportNotice): String =
 		is SourceArtImportNotice.FolderClipDropped -> "folder '${notice.groupPath}' clips to the layer below; its part imports unclipped"
 		is SourceArtImportNotice.LayerLargerThanPage -> "layer '${notice.layerName}' is larger than the largest atlas page; left unpacked"
 		is SourceArtImportNotice.LayerNotPacked -> "layer '${notice.layerName}' could not be packed (${notice.reason}); left unpacked"
+		is SourceArtImportNotice.BirthMeshFellBackToQuad -> "layer '${notice.layerName}' could not be meshed automatically (${birthRefusalWording(notice.reason)}); born as a quad"
+	}
+
+/**
+ * Why the art mesher gave a layer no birth mesh, as the end of a log line.
+ *
+ * @param BirthRefusal reason The refusal.
+ * @return String The wording.
+ */
+private fun birthRefusalWording(reason: BirthRefusal): String =
+	when (reason) {
+		BirthRefusal.NothingOpaque -> "no pixel reaches the atlas's alpha threshold"
+		BirthRefusal.OverBudget -> "it needs more vertices than the largest budget"
+		BirthRefusal.Withheld -> "its mesh failed a structural check"
+		BirthRefusal.MesherRefused -> "the mesher refused it"
+		BirthRefusal.MesherFailed -> "the mesher failed on it"
 	}

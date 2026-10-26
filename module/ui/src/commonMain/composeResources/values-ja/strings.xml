@@ -562,6 +562,7 @@
 	<string name="cmd_mesh_duplicate">複製</string>
 	<string name="cmd_mesh_merge">頂点をマージ</string>
 	<string name="cmd_mesh_generate_from_art">アートからメッシュを生成</string>
+	<string name="cmd_mesh_generate_quad">四角形メッシュを生成</string>
 	<string name="cmd_mesh_merge_at_center">中心にマージ</string>
 	<string name="cmd_mesh_merge_at_first">最初の頂点にマージ</string>
 	<string name="cmd_mesh_merge_at_last">最後の頂点にマージ</string>
@@ -573,11 +574,12 @@
 	<string name="history_mesh_rip">リップ</string>
 	<string name="history_mesh_connect">頂点を連結</string>
 	<string name="history_mesh_generate_from_art">アートからメッシュを生成</string>
+	<string name="history_mesh_generate_quad">四角形メッシュを生成</string>
 	<string name="notice_mesh_generated">アートから %1$d 個のメッシュを生成しました。</string>
 	<string name="notice_mesh_generated_with_skips">アートから %1$d 個のメッシュを生成し、%2$d 個をスキップしました。ログを参照してください。</string>
 	<string name="notice_mesh_generated_coarser">アートから %1$d 個のメッシュを生成しました。頂点数の上限に収めるため、%2$d 個は指定より粗く生成しました。ログを参照してください。</string>
 	<string name="notice_mesh_generated_refit">アートから %1$d 個のメッシュを生成しました。%2$d 個は収めるために頂点数の上限を上げるか、穴を埋める必要がありました（ログを参照）。</string>
-	<string name="notice_mesh_pinned_without_room">%1$d 個のメッシュを生成しました。ピン留めされたアートに広がる余地がないため %2$d 個をスキップしました。ピン留めを解除するか、外側の余白を小さくしてください。</string>
+	<string name="notice_mesh_pinned_without_room">%1$d 個のメッシュを生成しました。ピン留めされたアートに広がる余地がないため %2$d 個をスキップしました。ピン留めを解除するか、余白を小さくしてください。</string>
 	<string name="notice_mesh_over_budget">%1$d 個のメッシュを生成しました。穴を埋めても 4096 頂点を超えるため %2$d 個をスキップしました。アルファしきい値を上げるか、輪郭の最小点数を下げてください。</string>
 	<string name="notice_mesh_glued_throughout">%1$d 個のメッシュを生成しました。頂点の大半がグルーで固定されているため %2$d 個をスキップしました。再生成するとグルー先への追従が変わってしまいます。</string>
 	<string name="notice_mesh_none_generated">メッシュは生成されませんでした。ログを参照してください。</string>
@@ -604,13 +606,25 @@
 	<string name="notice_document_exported_model">%1$s をエクスポートしました。</string>
 	<string name="notice_document_export_busy">エクスポートを実行中です。</string>
 	<string name="notice_document_waiting_for_export">先にエクスポートを完了しています…</string>
+	<string name="notice_document_open_busy">別のドキュメントをまだ開いています。</string>
+	<string name="progress_document_opening">%1$s を開いています…</string>
+	<string name="progress_artwork_adding">%1$s を追加しています…</string>
+	<string name="progress_artwork_reloading">アートワークを再読み込みしています…</string>
+	<string name="progress_artwork_meshing">アートのメッシュを作成しています…</string>
+	<string name="progress_mesh_generating">メッシュを生成しています…</string>
+	<string name="progress_atlas_packing">アトラスをパックしています…</string>
+	<string name="progress_count">%1$d / %2$d</string>
+	<string name="progress_more_tasks">ほか %1$d 件</string>
 	<string name="notice_document_cmo3_loss">UMA として保存しました。CMO3 の物理演算、ガイド、キーフォームのメモ、ランダムポーズ、モデルステートセット、ユーザーデータなどのエディター設定はこのファイルには含まれません。このセッションからの CMO3 エクスポートには引き続き含まれますが、ファイルを開き直した後にエクスポートした CMO3 には含まれません。</string>
 	<string name="notice_document_moc3_loss">UMA として保存しました。MOC3 ファミリーの物理演算、モーション、表情、ユーザーデータ、ポーズはこのファイルには含まれません。</string>
 	<string name="notice_import_artwork_superseded">アートワークの追加中にドキュメントが変更されたため、何も適用されませんでした。</string>
 	<string name="notice_import_no_art_layers">このファイルには追加できるピクセルを持つレイヤーがありません。</string>
 	<string name="notice_reload_done">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件照合。</string>
 	<string name="notice_reload_notes">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件照合、%4$d 件要確認。ログを参照してください。</string>
-	<string name="notice_reload_outgrown">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件照合、%4$d 件要確認。一部のアートがメッシュの外に出ています。ログを参照してください。</string>
+	<string name="notice_reload_outgrown">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件照合、%4$d 件要確認。一部のアートがメッシュの外に出ています。「アートからメッシュを生成」で作り直せます。ログを参照してください。</string>
+	<string name="notice_relink_outgrown">アートを再リンクしましたが、一部のアートがメッシュの外に出ています。「アートからメッシュを生成」で作り直せます。ログを参照してください。</string>
+	<string name="notice_match_outgrown">%1$d 件のレイヤーを照合、%2$d 件が要確認です。一部のアートがメッシュの外に出ています。「アートからメッシュを生成」で作り直せます。ログを参照してください。</string>
+	<string name="notice_replace_outgrown">アートワークを差し替えました：%1$d 件をキーで再読み込み、%2$d 件を照合、%3$d 件が要確認です。一部のアートがメッシュの外に出ています。「アートからメッシュを生成」で作り直せます。ログを参照してください。</string>
 	<string name="notice_watch_changed">%1$d 個のアートワークファイルがディスク上で変更されました。再読み込みで反映します。</string>
 	<string name="notice_watch_stale_at_open">%1$d 個のアートワークファイルが前回の読み込み後に変更されています。再読み込みで反映します。</string>
 	<string name="notice_watch_missing">%1$s は読み込んだ場所にありません。</string>
@@ -852,6 +866,7 @@
 	<string name="mesh_options_strand_rungs">細部をはしご状に</string>
 	<string name="mesh_options_strand_width">はしご状にする幅</string>
 	<string name="mesh_options_deformation_tolerance">変形の許容差</string>
+	<string name="mesh_options_quad_margin">余白</string>
 	<string name="import_options_align">基準位置</string>
 	<string name="import_options_offset_x">オフセット X</string>
 	<string name="import_options_offset_z">オフセット Z</string>
@@ -925,8 +940,8 @@
 	<string name="import_options_align_description">追加したファイルのキャンバスを、ドキュメントのキャンバスのどこに置くか。「左上」は左上の角同士を合わせ、「中央」は中央に置きます。他の位置も同様です。</string>
 	<string name="import_options_offset_x_description">基準位置で置いた位置から、追加したアートを右へずらす量（ピクセル）。負の値は左です。</string>
 	<string name="import_options_offset_z_description">基準位置で置いた位置から、追加したアートを上へずらす量（ピクセル）。負の値は下です。</string>
-	<string name="import_options_alpha_threshold_description">レイヤーの初期メッシュをアートに合わせるとき、アートとみなすピクセルの不透明度（1〜255）。</string>
-	<string name="import_options_margin_description">レイヤーの初期メッシュが、見えているアートの外側へ各辺でどれだけはみ出すか（ピクセル）。</string>
+	<string name="import_options_alpha_threshold_description">レイヤーの初期メッシュを作るとき、アートとみなすピクセルの不透明度（1〜255）。四角形はこれに合わせ、アートから生成したメッシュはこれを覆います。</string>
+	<string name="import_options_margin_description">レイヤーの初期の四角形が、見えているアートの外側へ各辺でどれだけはみ出すか（ピクセル）。アートから生成したメッシュはプリセットの余白を使います。</string>
 	<string name="match_options_threshold_description">見失ったレイヤーを自動で再リンクするのに必要な照合の確かさ（パーセント）。これに満たない候補は、ソースパネルで確認できるように残されます。</string>
 	<string name="transform_options_move_x_description">選択が右に移動した距離（ピクセル）。負の値は左です。</string>
 	<string name="transform_options_move_y_description">選択がテクスチャ上で下に移動した距離（ピクセル）。負の値は上です。</string>
@@ -949,13 +964,14 @@
 	<string name="mesh_options_inner_margin_description">内側の輪をアートの縁からどれだけ内側に置くか（ピクセル）。0 で内側の輪なし。</string>
 	<string name="mesh_options_minimum_margin_description">輪郭がアートのピクセルに近づける最小距離（ピクセル）。</string>
 	<string name="mesh_options_minimum_outline_points_description">アートの断片がどれだけ小さくても、1 つの輪郭が持つ最少の頂点数。</string>
-	<string name="mesh_options_minimum_angle_description">頂点を追加して、すべての三角形の最小の角をこの角度（度）まで広げます（頂点数の上限内）。髪の毛先など、輪郭そのものが作る角度はそのままです。0 で無効。</string>
+	<string name="mesh_options_minimum_angle_description">細長い三角形に頂点を追加して分割し、各三角形の最も狭い角がこの角度（度）以上になるようにします。値を大きくすると三角形が均一になり、変形がなめらかになりますが、頂点数は増えます（頂点数の上限まで）。髪の毛先など、輪郭そのものが作る角は広げられないため、そのまま残ります。0 で追加しません。</string>
 	<string name="mesh_options_vertex_budget_description">1 つのメッシュの頂点数の目安。収まらないアートは上限を 4096 まで上げて、それでも収まらなければ穴を埋めて生成し直します。</string>
 	<string name="mesh_options_interior_thinning_limit_description">頂点数の上限より多くの頂点が必要なアートでは、まず内部を間引きます。間隔は最大で輪郭の間隔のこの倍数まで広がります。それを超えると、輪郭も一緒に間引きます。大きいほど輪郭の細部を長く保ち、小さいほど内部が均一になります。</string>
-	<string name="mesh_options_fill_holes_description">アートの穴を切り抜かず、1 枚のシートとしてメッシュで覆います。</string>
+	<string name="mesh_options_fill_holes_description">アートの穴を切り抜かず、1 枚のシートとしてメッシュで覆います。輪郭の間隔より小さい穴は常にメッシュで覆います。</string>
 	<string name="mesh_options_strand_rungs_description">細いアートを、輪郭をなぞる代わりに、中央に 1 本の列を通した均等な帯としてメッシュにします。</string>
 	<string name="mesh_options_strand_width_description">「細部をはしご状に」がオンのとき、この幅（ピクセル）より細いアートをはしご状の帯にします。各プリセットは内側の輪が収まらなくなる幅に設定します。大きくすると太めのストラップや髪の房も帯になり、小さくすると内側の輪を持つ部分が増えます。</string>
 	<string name="mesh_options_deformation_tolerance_description">新しいメッシュが、リグが元のメッシュに与える形（初期状態と各キーフォーム）からずれてよい距離（ピクセル）。それを超える箇所では、その形を保つ元の頂点を残します。小さいほど多くの頂点が残ります。</string>
+	<string name="mesh_options_quad_margin_description">四角形が、見えているアートとグルーで固定された頂点の外側へ、各辺でどれだけはみ出すか（ピクセル）。</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
 	<string name="blend_mode_normal">通常</string>
 	<string name="blend_mode_additive">加算</string>
@@ -1052,6 +1068,10 @@
 	<string name="settings_import_layer_positions_from_world_axes">「ソース」のレイヤー位置を、アートファイルの左上ではなくワールド軸から測って表示する</string>
 	<string name="settings_import_parameter_template_humanoid">人型</string>
 	<string name="settings_import_parameter_template_none">なし</string>
+	<string name="settings_import_birth_mesh">初期メッシュ</string>
+	<string name="settings_import_birth_mesh_automatic">アートから生成</string>
+	<string name="settings_import_birth_mesh_quad">四角形</string>
+	<string name="settings_import_mesh_preset">メッシュ生成のプリセット</string>
 	<!-- ビューポート設定：ホイール 1 ノッチあたりのズーム率（%）。 -->
 	<string name="settings_viewport_zoom_step">ズーム刻み (%)</string>
 	<string name="settings_viewport_zoom_step_coarse">粗いズーム刻み (%)</string>

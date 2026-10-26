@@ -226,7 +226,7 @@ data class ReplacedTile(
  *   texture coordinates in the ART frame of the drawable's new tile, which the pack that follows
  *   converts exactly as it does an import's.
  * @property ArtworkAdditions? additions       The layers the file gained, minted under [source], or null.
- * @property List<DrawableId>  outgrown        Drawables whose kept mesh no longer covers the new opaque art.
+ * @property List<DrawableId>  outgrown        Drawables whose kept mesh cuts off art the new pixels added - art it already left out does not count.
  * @property List<AtlasTileId> retiredTiles    Tiles a rebinding made redundant: a lost layer's rig work took
  *   the layer a reload had minted a fresh, untouched drawable for, so that drawable and its tile go (the
  *   pixels stay in the raster store for undo).  Never a replaced tile; a part minted for the drawable stays.

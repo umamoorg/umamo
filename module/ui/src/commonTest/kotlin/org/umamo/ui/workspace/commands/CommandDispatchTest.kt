@@ -318,6 +318,29 @@ class CommandDispatchTest {
 			assertEquals(SnapKind.SelectionToCursor, received.single().kind)
 		}
 
+	/**
+	 * Generate Mesh from Art and Generate Quad Mesh each run their own launcher, handed the area their
+	 * strip shows in - two lambdas of one shape, so a crossed pair would type-check and run the wrong
+	 * operation.
+	 */
+	@Test
+	fun eachMeshGenerationCommandRunsItsOwnLauncherOverTheStripArea() {
+		val session = session(EditorMode.Object)
+		val launched = mutableListOf<Pair<String, String?>>()
+		val commands =
+			meshGenerationCommands(
+				SessionAvailability(session),
+				routing(HoveredSurface(uvArea, SpaceKind.UvEditor)),
+				generate = { areaId -> launched += "fromArt" to areaId },
+				generateQuad = { areaId -> launched += "quad" to areaId },
+			)
+
+		commands.run("mesh.generateQuad")
+		commands.run("mesh.generateFromArt")
+
+		assertEquals(listOf<Pair<String, String?>>("quad" to uvArea, "fromArt" to uvArea), launched)
+	}
+
 	/** Over a viewport the same snap carries that viewport, electing exactly one overlay. */
 	@Test
 	fun aWorldSnapOverAViewportCarriesIt() =

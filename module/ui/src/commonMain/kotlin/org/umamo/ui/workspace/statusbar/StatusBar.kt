@@ -34,6 +34,7 @@ import org.umamo.ui.kit.Text
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalSelection
+import org.umamo.ui.progress.LocalProgressTracker
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -42,7 +43,7 @@ import org.umamo.ui.workspace.noticeText
 
 /*
  * The status bar: the strip itself (this file), the shortcut suggestions it derives from command hints
- * (StatusHints.kt), and the vertex and triangle totals (MeshTotals.kt).
+ * (StatusHints.kt), the vertex and triangle totals (MeshTotals.kt), and the running tasks (StatusProgress.kt).
  */
 
 // The strip reads better a touch shorter than the area header (HEADER_HEIGHT = 28.dp in AreaHeader);
@@ -82,15 +83,36 @@ fun StatusBar(modifier: Modifier = Modifier) {
 				ContextBindsZone()
 			}
 			// The flexible middle doubles as the transient-notice slot: a blank gap normally, a brief message
-			// when the session emits one (e.g. an Object-mode transform blocked by a part / deformer selection).
+			// when the session emits one (e.g. an Object-mode transform blocked by a part / deformer selection),
+			// and the running tasks while a long operation works.
 			Box(modifier = Modifier.weight(1f).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-				StatusNotice()
+				StatusMiddle()
 			}
 			SelectedItemZone()
 			Spacer(modifier = Modifier.width(16.dp))
 			ModelStats()
 		}
 	}
+}
+
+/**
+ * The middle zone: the running tasks while any runs, else the transient notice.  A task outranks a
+ * notice - it is what the window is busy with - and the notice's timer starts only once it shows, so one
+ * raised while a task runs is shown in full when the task ends.  The tasks show with no document open
+ * too: an open runs before the document it opens has a session.
+ */
+@Composable
+private fun StatusMiddle() {
+	val tracker = LocalProgressTracker.current
+	val tasks = tracker?.tasks?.collectAsState()?.value.orEmpty()
+
+	if (tasks.isNotEmpty()) {
+		StatusProgress(tasks)
+
+		return
+	}
+
+	StatusNotice()
 }
 
 /** How long (ms) a transient status notice stays visible before it auto-dismisses. */

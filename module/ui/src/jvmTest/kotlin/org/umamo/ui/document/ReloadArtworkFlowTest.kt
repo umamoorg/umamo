@@ -6,9 +6,13 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.umamo.edit.DocumentChange
 import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshChange
+import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.atlas.commitArtworkReloaded
 import org.umamo.edit.atlas.withAtlasRepack
+import org.umamo.edit.mesh.MeshRestPositions
+import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.format.FileKind
 import org.umamo.format.art.LayerBounds
 import org.umamo.interop.art.SourceArtImportOptions
@@ -233,9 +237,44 @@ class ReloadArtworkFlowTest {
 			assertFalse(runRelinkArtwork(host, RelinkArtworkRequest(pulled.id, refA, art = null, options), areaId = null), "no file, no art")
 			assertEquals(refA, session.model.value.atlas.tileById.getValue(pulled.id).source, "but the binding changed")
 			// Art read from the document's own tiles pulls the same way, and the notice says where it came from.
-			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(listOf(pulled.id), refB, InMemoryArt(listOf(layerARepainted, layerB, layerC)), options, fromDocument = true), areaId = null))
+			// A's replacement tile still binds A and sits over A's art, so A repainted again lands under its quad.
+			val layerARepaintedAgain = InMemoryLayer("lyid:1", "A", 0, LayerBounds(10, 10, 12, 12), solidRaster(12, 12, 7))
+			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(listOf(tileA1), refA, InMemoryArt(listOf(layerARepaintedAgain, layerB, layerC)), options, fromDocument = true), areaId = null))
 			assertEquals("notice.relink.pulledFromDocument", session.notice.value?.messageKey)
 			follower.cancel()
+		}
+
+	/**
+	 * A relink whose art lands past the mesh it keeps says so, and with nothing to count it shows no
+	 * counts: the reload's notice would read "0 updated, 0 added" there.
+	 */
+	@Test
+	fun aRelinkWhoseArtOutgrowsItsMeshSaysSoWithoutCounts() =
+		runBlocking {
+			val load = buildArtDocument(InMemoryArt(listOf(layerA, layerB)), FileKind.Psd, "a.psd", "/art/a.psd", options)
+			val document = assertIs<ArtDocument>(assertIs<DocumentLoad.Loaded>(load).document)
+			val session = EditorSession(document.puppet, document.liveParams.values)
+			val host =
+				AtlasRepackHost(
+					session = session,
+					artRasters = document.artRasters,
+					sessionAtlasPages = null,
+					premultipliedAlpha = document.textures.premultipliedAlpha,
+					scope = this,
+					report = { report -> error("the relink must not refuse: ${report.refusals.joinToString { "${it.tileName}: ${it.reason}" }}") },
+					rememberOptions = { _, _ -> },
+				)
+			val tileA = AtlasTileId("art-0/lyid:1")
+			val drawableA = session.model.value.drawables.first { drawable -> drawable.atlasTileId == tileA }
+			// A's quad with one corner pulled in: a mesh the rigger made their own, which a relink keeps.
+			val tweaked = assertNotNull(drawableA.mesh).positions.copyOf().also { positions -> positions[4] -= 1f }
+			session.commitMeshPositions(MeshChange.TransformVertices(mapOf(drawableA.id to listOf(2)), MeshOperatorKind.Grab), mapOf(drawableA.id to MeshRestPositions.shared(tweaked)))
+
+			// B's art sits elsewhere on the canvas, so A's kept mesh covers none of it.
+			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(tileA, SourceLayerRef(sourceId, "lyid:2", true), InMemoryArt(listOf(layerA, layerB)), options), areaId = null))
+
+			assertEquals("notice.relink.outgrown", session.notice.value?.messageKey)
+			assertTrue(session.notice.value?.arguments.isNullOrEmpty(), "nothing counted, nothing shown as zero")
 		}
 
 	/**

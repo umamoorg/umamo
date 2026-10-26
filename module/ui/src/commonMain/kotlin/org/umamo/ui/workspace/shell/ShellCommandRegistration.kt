@@ -18,7 +18,9 @@ import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.model.mesh.generateMeshLauncher
+import org.umamo.ui.model.mesh.generateQuadMeshLauncher
 import org.umamo.ui.model.repack.atlasRepackLauncher
+import org.umamo.ui.progress.LocalProgressTracker
 import org.umamo.ui.settings.MESH_GENERATION_PRESET_KEY
 import org.umamo.ui.workspace.KeyformHover
 import org.umamo.ui.workspace.commands.ArtworkOperations
@@ -149,6 +151,7 @@ internal fun RegisterShellCommands(
 	val artRasters = LocalSourceArtRasters.current
 	val sessionAtlasPages = LocalSessionAtlasPages.current
 	val puppetTextures = LocalPuppetTextures.current
+	val progress = LocalProgressTracker.current
 	val repackAtlas: ((String?) -> Unit)? =
 		if (editorSession != null && artRasters != null) {
 			atlasRepackLauncher(
@@ -159,12 +162,14 @@ internal fun RegisterShellCommands(
 				scope = shellScope,
 				sessionOptions = repackOptions,
 				report = { refusalReport -> commandRegistry.invoke("document.repackReport", refusalReport) },
+				progress = progress,
 			)
 		} else {
 			null
 		}
-	// Generate Mesh from Art, the same shape: the run off-thread, its strip, and the window's memory of the
-	// last options; the settings' preset seeds the first run and is read when the command fires.
+	// Generate Mesh from Art and Generate Quad Mesh, the same shape: the run off-thread, its strip, and the
+	// window's memory of each command's last options, one run at a time across both; the settings' preset
+	// seeds the first from-art run and is read when the command fires.
 	val settings = LocalSettings.current
 	val generateMesh: ((String?) -> Unit)? =
 		if (editorSession != null && artRasters != null) {
@@ -177,6 +182,22 @@ internal fun RegisterShellCommands(
 				sessionOptions = meshGenerationOptions,
 				runState = meshGenerationRun,
 				seedPresetKey = { settings.getString(MESH_GENERATION_PRESET_KEY) },
+				progress = progress,
+			)
+		} else {
+			null
+		}
+	val generateQuadMesh: ((String?) -> Unit)? =
+		if (editorSession != null && artRasters != null) {
+			generateQuadMeshLauncher(
+				session = editorSession,
+				artRasters = artRasters,
+				sessionAtlasPages = sessionAtlasPages,
+				premultipliedAlpha = puppetTextures?.premultipliedAlpha ?: false,
+				scope = shellScope,
+				sessionOptions = meshGenerationOptions,
+				runState = meshGenerationRun,
+				progress = progress,
 			)
 		} else {
 			null
@@ -191,7 +212,7 @@ internal fun RegisterShellCommands(
 					snapCommands(editorSession, routing, availability, areaOverlays) +
 					uvCommands(editorSession, routing, availability) +
 					topologyCommands(editorSession, routing, availability) +
-					meshGenerationCommands(availability, routing, generateMesh) +
+					meshGenerationCommands(availability, routing, generateMesh, generateQuadMesh) +
 					proportionalCommands(editorSession, availability) +
 					displayCommands(editorSession, availability) +
 					atlasCommands(availability, routing, repackAtlas) +

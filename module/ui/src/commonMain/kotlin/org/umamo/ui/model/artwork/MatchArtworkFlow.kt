@@ -522,8 +522,9 @@ suspend fun runMatchArtwork(host: AtlasRepackHost, request: MatchArtworkRequest,
 		return false
 	}
 
-	val change = (outcome as MatchOutcome.Applied).change as DocumentChange.MatchArtwork
-	session.emitNotice("notice.match.done", NoticePlacement.StatusBar, listOf(change.matchedCount.toString(), change.remainingCount.toString()))
+	val applied = outcome as MatchOutcome.Applied
+	val change = applied.change as DocumentChange.MatchArtwork
+	session.emitNotice(if (applied.outgrown.isEmpty()) "notice.match.done" else "notice.match.outgrown", NoticePlacement.StatusBar, listOf(change.matchedCount.toString(), change.remainingCount.toString()))
 	session.registerAdjustableOperation(session.model.value, areaId, matchArtworkParameters(request.threshold, request.options)) { record ->
 		host.scope.launch { adjustMatchArtwork(host, record, request, publish) }
 	}
@@ -629,8 +630,13 @@ suspend fun runReplaceArtwork(host: AtlasRepackHost, request: ReplaceArtworkRequ
 		return false
 	}
 
-	val change = (outcome as MatchOutcome.Applied).change as DocumentChange.ReplaceArtwork
-	session.emitNotice("notice.replace.done", NoticePlacement.StatusBar, listOf(change.matchedCount.toString(), change.reboundCount.toString(), change.missingCount.toString()))
+	val applied = outcome as MatchOutcome.Applied
+	val change = applied.change as DocumentChange.ReplaceArtwork
+	session.emitNotice(
+		if (applied.outgrown.isEmpty()) "notice.replace.done" else "notice.replace.outgrown",
+		NoticePlacement.StatusBar,
+		listOf(change.matchedCount.toString(), change.reboundCount.toString(), change.missingCount.toString()),
+	)
 	session.registerAdjustableOperation(session.model.value, areaId, matchArtworkParameters(request.threshold, request.options)) { record ->
 		host.scope.launch { adjustReplaceArtwork(host, record, request, publish) }
 	}
@@ -745,7 +751,7 @@ private fun reportMatch(operation: String, outcome: MatchOutcome.Applied, commit
 
 	for (drawableId in outcome.outgrown) {
 		val name = committed.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.name ?: drawableId.raw
-		UmamoLog.warn("$operation: the new art of '$name' reaches past its edited mesh; re-mesh it or extend the mesh")
+		UmamoLog.warn("$operation: the new art of '$name' reaches past its mesh; re-mesh it with Generate Mesh from Art, or extend the mesh")
 	}
 
 	for ((binding, match) in outcome.suggestions) {

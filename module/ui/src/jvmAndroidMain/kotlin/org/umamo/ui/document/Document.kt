@@ -7,6 +7,7 @@ import io.github.vinceglb.filekit.readBytes
 import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
+import org.umamo.format.art.SourceArt
 import org.umamo.format.binary.contentHashOf
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.interop.art.SourceArtImportOptions
@@ -14,7 +15,9 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
+import org.umamo.ui.progress.ProgressHandle
 import org.umamo.ui.viewport.LiveParams
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * An open editor document - a parsed source file the viewport renders. Lives in jvmAndroidMain (not
@@ -122,12 +125,19 @@ sealed interface DocumentLoad {
  * @param PlatformFile           file          The picked or reconstructed file handle.
  * @param SourceArtImportOptions importOptions What an artwork import seeds and trims with; ignored by
  *   the model formats.
+ * @param ProgressHandle?        progress      The open's task on the status bar, told when an artwork's atlas
+ *   packs; or null.
  * @return DocumentLoad The loaded document, or the failure reason (missing, unrecognized, or failed to parse).
  */
-suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptions = artworkImportOptions()): DocumentLoad {
+suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptions = artworkImportOptions(), progress: ProgressHandle? = null): DocumentLoad {
 	val bytes =
-		runCatching { file.readBytes() }.getOrElse {
-			UmamoLog.error("failed to read ${file.name}", it)
+		runCatching { file.readBytes() }.getOrElse { failure ->
+			// A cancelled read is the caller going away, not a file that would not read.
+			if (failure is CancellationException) {
+				throw failure
+			}
+
+			UmamoLog.error("failed to read ${file.name}", failure)
 
 			return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ReadFailed, file.name))
 		}
@@ -136,7 +146,12 @@ suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptio
 		return loadMoc3Document(file, bytes)
 	}
 
-	return loadDocument(bytes, file.name, file.absolutePath(), importOptions)
+	val path = file.absolutePath()
+
+	// Artwork meshes its layers in parallel here, which the byte-level loader below cannot: it is not suspending.
+	return loadDocumentWith(bytes, file.name, path) { artwork, kind ->
+		buildArtDocumentConcurrently(artwork, kind, file.name, path, importOptions, contentHashOf(bytes), fileModifiedAtMillis(path), progress)
+	}
 }
 
 /**
@@ -151,6 +166,7 @@ suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptio
  * @param String                 name          The file name (the extension fallback for detection; the failure display name).
  * @param String                 path          The stored path or URI string recorded on the document.
  * @param SourceArtImportOptions importOptions What an artwork import seeds and trims with.
+ * @param ProgressHandle?        progress      Told when an artwork's atlas packs, or null.
  * @return DocumentLoad The loaded document, or the failure reason.
  */
 fun loadDocument(
@@ -158,7 +174,24 @@ fun loadDocument(
 	name: String,
 	path: String,
 	importOptions: SourceArtImportOptions = artworkImportOptions(),
+	progress: ProgressHandle? = null,
 ): DocumentLoad =
+	loadDocumentWith(bytes, name, path) { artwork, kind ->
+		buildArtDocument(artwork, kind, name, path, importOptions, contentHashOf(bytes), fileModifiedAtMillis(path), progress)
+	}
+
+/**
+ * The format detection and the branch every loader shares: a native document, a CMO3, artwork handed to
+ * [buildArt], or a failure - logged, never thrown, except a cancellation, which propagates.  Inline so a
+ * suspending loader can pass a suspending art build.
+ *
+ * @param ByteArray bytes    The file contents.
+ * @param String    name     The file name.
+ * @param String    path     The stored path or URI string.
+ * @param Function  buildArt Builds the document from parsed artwork and the format it came in.
+ * @return DocumentLoad The loaded document, or the failure reason.
+ */
+private inline fun loadDocumentWith(bytes: ByteArray, name: String, path: String, buildArt: (SourceArt, FileKind) -> DocumentLoad): DocumentLoad =
 	runCatching {
 		val codec = FormatRegistry.detect(bytes, name)
 
@@ -187,8 +220,12 @@ fun loadDocument(
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
 		}
 
-		buildArtDocument(artwork, codec.kind, name, path, importOptions, contentHashOf(bytes), fileModifiedAtMillis(path))
-	}.getOrElse {
-		UmamoLog.error("failed to open $path", it)
+		buildArt(artwork, codec.kind)
+	}.getOrElse { failure ->
+		if (failure is CancellationException) {
+			throw failure
+		}
+
+		UmamoLog.error("failed to open $path", failure)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
 	}

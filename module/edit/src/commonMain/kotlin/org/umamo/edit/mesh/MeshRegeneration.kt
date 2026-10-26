@@ -192,19 +192,20 @@ fun EditorSession.commitMeshRegenerate(edits: Map<DrawableId, MeshTopologyEdit>)
  * of every listed drawable are cleared, whether or not its mesh changed in this run: a later adjustment
  * may replace a different set of them and keeps this step's selection.
  *
- * @param PuppetModel      base        The model the generation started from.
- * @param PuppetModel      generated   The model with the generated meshes.
- * @param List<DrawableId> drawableIds Every drawable the operation targets.
+ * @param PuppetModel        base        The model the generation started from.
+ * @param PuppetModel        generated   The model with the generated meshes.
+ * @param List<DrawableId>   drawableIds Every drawable the operation targets.
+ * @param MeshGenerationKind kind        What the meshes were generated as, which names the step.
  * @return Boolean True when a step was recorded; false when the model moved or nothing changed.
  */
-fun EditorSession.commitGeneratedMeshes(base: PuppetModel, generated: PuppetModel, drawableIds: List<DrawableId>): Boolean {
+fun EditorSession.commitGeneratedMeshes(base: PuppetModel, generated: PuppetModel, drawableIds: List<DrawableId>, kind: MeshGenerationKind = MeshGenerationKind.FromArt): Boolean {
 	if (model.value !== base || generated === base) {
 		return false
 	}
 
 	val targets = drawableIds.toSet()
 	commitStep(
-		MeshChange.GenerateFromArt(drawableIds),
+		generationChangeOf(kind, drawableIds),
 		model = generated,
 		meshSelection = MeshSelectionOps.clearElementsOf(meshSelection.value, targets),
 	)
@@ -214,23 +215,46 @@ fun EditorSession.commitGeneratedMeshes(base: PuppetModel, generated: PuppetMode
 }
 
 /**
- * Records a Generate Mesh from Art step that changes nothing, as ONE undo step, so the operation that
- * generated nothing can still be adjusted: the strip opens on this step, and a rerun that generates lands
- * over it through [amendLastCommit].  Lands only while [base] is still the session's model.
+ * Records a mesh generation step that changes nothing, as ONE undo step, so the operation that generated
+ * nothing can still be adjusted: the strip opens on this step, and a rerun that generates lands over it
+ * through [amendLastCommit].  Lands only while [base] is still the session's model.
  *
- * @param PuppetModel      base        The model the generation started from.
- * @param List<DrawableId> drawableIds Every drawable the operation targets.
+ * @param PuppetModel        base        The model the generation started from.
+ * @param List<DrawableId>   drawableIds Every drawable the operation targets.
+ * @param MeshGenerationKind kind        What the meshes would have been generated as, which names the step.
  * @return Boolean True when the step was recorded; false when the model moved.
  */
-fun EditorSession.commitUnchangedGeneration(base: PuppetModel, drawableIds: List<DrawableId>): Boolean {
+fun EditorSession.commitUnchangedGeneration(base: PuppetModel, drawableIds: List<DrawableId>, kind: MeshGenerationKind = MeshGenerationKind.FromArt): Boolean {
 	if (model.value !== base) {
 		return false
 	}
 
-	commitStep(MeshChange.GenerateFromArt(drawableIds), model = base)
+	commitStep(generationChangeOf(kind, drawableIds), model = base)
 
 	return true
 }
+
+/** What a mesh generation makes, which names its undo step. */
+enum class MeshGenerationKind {
+	/** Meshes generated from the art's shape (Generate Mesh from Art). */
+	FromArt,
+
+	/** Quads over the art's bounds (Generate Quad Mesh). */
+	Quad,
+}
+
+/**
+ * The change a mesh generation records.
+ *
+ * @param MeshGenerationKind kind        What the meshes were generated as.
+ * @param List<DrawableId>   drawableIds Every drawable the operation targets.
+ * @return MeshChange The change.
+ */
+private fun generationChangeOf(kind: MeshGenerationKind, drawableIds: List<DrawableId>): MeshChange =
+	when (kind) {
+		MeshGenerationKind.FromArt -> MeshChange.GenerateFromArt(drawableIds)
+		MeshGenerationKind.Quad -> MeshChange.GenerateQuad(drawableIds)
+	}
 
 /** A drawable's old mesh made ready for a transfer, or why it cannot be. */
 private sealed interface SourcePreparation {

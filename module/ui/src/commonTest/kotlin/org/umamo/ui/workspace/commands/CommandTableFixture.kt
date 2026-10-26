@@ -166,7 +166,7 @@ internal fun shellCommandTables(session: EditorSession? = null): List<Command> {
 		snapCommands(session, routing, availability, AreaOverlayHub()) +
 		uvCommands(session, routing, availability) +
 		topologyCommands(session, routing, availability) +
-		meshGenerationCommands(availability, routing, null) +
+		meshGenerationCommands(availability, routing, null, null) +
 		proportionalCommands(session, availability) +
 		displayCommands(session, availability) +
 		atlasCommands(availability, routing, null) +

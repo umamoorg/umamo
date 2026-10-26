@@ -3,8 +3,10 @@ package org.umamo.ui.app
 import io.github.vinceglb.filekit.absolutePath
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.atlas.deleteTile
 import org.umamo.edit.atlas.setLayerIgnored
@@ -20,7 +22,6 @@ import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.document.ReadArtwork
 import org.umamo.ui.document.SourceReadOrigin
 import org.umamo.ui.document.artworkImportExtensions
-import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.document.fileModifiedAtMillis
 import org.umamo.ui.document.isFileSystemPath
@@ -45,6 +46,8 @@ import org.umamo.ui.model.artwork.runReloadArtwork
 import org.umamo.ui.model.artwork.runReplaceArtwork
 import org.umamo.ui.model.artwork.scoreSourceSuggestions
 import org.umamo.ui.model.repack.AtlasRepackHost
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.track
 import org.umamo.ui.settings.IMPORT_DELETE_ART_IGNORES_LAYER_KEY
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.ImportArtworkRequest
@@ -106,6 +109,7 @@ internal class ArtworkController(
 			scope = services.scope,
 			report = { report -> services.commandRegistry.invoke("document.repackReport", report) },
 			rememberOptions = { _, _ -> },
+			progress = services.progress,
 		)
 
 	/**
@@ -151,8 +155,11 @@ internal class ArtworkController(
 
 				return null
 			}
+		// A layered file can take seconds to parse: off the UI thread, under the add's task on the status bar.
 		val read =
-			readArtwork(bytes, picked.name) ?: run {
+			services.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(picked.name)) {
+				withContext(Dispatchers.Default) { readArtwork(bytes, picked.name) }
+			} ?: run {
 				services.commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, picked.name))
 
 				return null
@@ -207,7 +214,7 @@ internal class ArtworkController(
 	private suspend fun readArtworkForPath(path: String): PickedArtwork? {
 		val name = fileDisplayName(path)
 		val read =
-			readArtworkAt(path) ?: run {
+			services.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(name)) { readArtworkAt(path) } ?: run {
 				services.commandRegistry.invoke("document.openFailed", DocumentOpenFailure(DocumentOpenError.Unrecognized, name))
 
 				return null
@@ -277,7 +284,7 @@ internal class ArtworkController(
 
 			// A reload that lands publishes what its matcher left under the bar (scored before it minted);
 			// one that found nothing changed re-scores the files as they stand.
-			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD), areaId) { scored -> publishSuggestions(covered, scored) }
+			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, services.configuredArtworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD), areaId) { scored -> publishSuggestions(covered, scored) }
 
 			if (result == ReloadArtworkResult.NothingChanged) {
 				publishSuggestions(covered, scoreSourceSuggestions(host, entries))
@@ -323,7 +330,7 @@ internal class ArtworkController(
 					request.tileIds,
 					ref,
 					read?.art,
-					artworkImportOptions(),
+					services.configuredArtworkImportOptions(),
 					request.retire,
 					inventoryOverride = read?.inventory,
 					fromDocument = read?.origin == SourceReadOrigin.DocumentTiles,
@@ -359,7 +366,7 @@ internal class ArtworkController(
 			val covered = entries.mapTo(HashSet()) { entry -> entry.sourceId }
 			runMatchArtwork(
 				host,
-				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, artworkImportOptions(), standing = suggestions.value),
+				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, services.configuredArtworkImportOptions(), standing = suggestions.value),
 				areaId,
 			) { scored -> publishSuggestions(covered, scored) }
 		}
@@ -380,7 +387,7 @@ internal class ArtworkController(
 			val picked = pickArtwork() ?: return@launch
 			runReplaceArtwork(
 				host,
-				ReplaceArtworkRequest(request.sourceId, picked.read.art.placedFor(source), picked.descriptor, picked.read.contentHash, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD),
+				ReplaceArtworkRequest(request.sourceId, picked.read.art.placedFor(source), picked.descriptor, picked.read.contentHash, services.configuredArtworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD),
 				areaId,
 			) { scored -> publishSuggestions(setOf(request.sourceId), scored) }
 		}

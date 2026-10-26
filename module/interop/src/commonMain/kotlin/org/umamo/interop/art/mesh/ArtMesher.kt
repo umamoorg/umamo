@@ -6,6 +6,7 @@ import org.umamo.format.art.LayerRaster
 import org.umamo.format.art.alphaChannel
 import org.umamo.format.art.alphaField
 import org.umamo.geometry.polyline.outermostRings
+import org.umamo.geometry.polyline.ringContainsPoint
 import org.umamo.geometry.triangulation.refine.PiecewiseLinearGuide
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -21,7 +22,11 @@ import kotlin.math.sqrt
  * traced ring's near-duplicate vertices costs at most a quarter cell more, so every chord kept from
  * the thinned ring still clears the margin and every art pixel stays enclosed.  It is simplified to
  * the outline spacing with keypoints at sharp turns, and any simplified chord that comes too close to
- * the art, or cuts off a piece of it, is split again from the traced contour.  An INNER RING follows
+ * the art, or cuts off a piece of it, is split again from the traced contour.  A HOLE in the art too
+ * small for the outline spacing - its ring at the outline's level shorter than one spacing around, as
+ * where a gap barely twice that level wide pinches off a pocket - is meshed over instead of cut out,
+ * along with any ring inside it: cutting it would crowd the minimum outline points into a speck of
+ * transparency, and refinement would grade the mesh around it down to that size.  An INNER RING follows
  * the art's edge a margin inside it, a hexagonal LATTICE fills the interior, PINS become vertices at
  * their exact positions, and the constrained triangulation of all of it, clipped to the outline, is
  * the mesh.  A pin's SURROUNDINGS (the old triangles around a glued vertex) count as art, so a pin off
@@ -158,6 +163,7 @@ private fun requireFinitePins(pins: DoubleArray, pinSurroundings: DoubleArray) {
  * @property Double                outlineLevel  The outline's level, how far outside the art it runs.
  * @property Double                tolerance     The corner-finding tolerance.
  * @property List<SampledRing>     outline       The outline rings, sampled afresh by every attempt; their arcs are measured once.
+ * @property Int                   meshedOverRingCount The traced outline rings left out: holes too small for the outline spacing and any ring inside one.
  * @property List<DoubleArray>     denseInner    The traced inner contours.
  * @property DoubleArray           pins          The pins, Float-rounded.
  * @property PiecewiseLinearGuide? guide         The mesh being replaced, or null.
@@ -170,6 +176,7 @@ private class TracedLayer(
 	val outlineLevel: Double,
 	val tolerance: Double,
 	val outline: List<SampledRing>,
+	val meshedOverRingCount: Int,
 	val denseInner: List<DoubleArray>,
 	val pins: DoubleArray,
 	val guide: PiecewiseLinearGuide?,
@@ -181,7 +188,7 @@ private class TracedLayer(
 
 /**
  * Builds a layer's field at the working cell the margins ask for and traces its outline and inner
- * contours.
+ * contours, leaving out of the outline the holes too small for the outline spacing.
  *
  * @param AlphaChannel          alpha           The layer's alpha.
  * @param ArtMeshSettings       settings        The settings.
@@ -208,13 +215,46 @@ private fun traceLayer(alpha: AlphaChannel, settings: ArtMeshSettings, pins: Dou
 	val outlineLevel = maxOf(settings.outerMargin, settings.minimumMargin + 2.0 * cellSize)
 	val thinning = cellSize / 4.0
 	val tracedOutline = field.isoRings(outlineLevel)
-	val outlineRings = if (settings.fillHoles) outermostRings(tracedOutline).map { index -> tracedOutline[index] } else tracedOutline
+	val outlineRings = if (settings.fillHoles) outermostRings(tracedOutline).map { index -> tracedOutline[index] } else withoutSmallHoles(tracedOutline, settings.outlineSpacing)
+	val meshedOverRingCount = if (settings.fillHoles) 0 else tracedOutline.size - outlineRings.size
 	val interiorField = if (settings.fillHoles) field.withHolesFilled(outlineLevel) else field
 	val denseInner = if (settings.innerMargin > 0.0) interiorField.isoRings(-settings.innerMargin).map { ring -> thinTracedRing(ring, thinning) } else emptyList()
 	val roundedPins = DoubleArray(pins.size) { component -> pins[component].toFloat().toDouble() }
 	val outline = outlineRings.map { ring -> SampledRing(thinTracedRing(ring, thinning)) }
 
-	return TracedLayer(field, interiorField, settings, cellSize, outlineLevel, maxOf(1.0, cellSize.toDouble()), outline, denseInner, roundedPins, guide)
+	return TracedLayer(field, interiorField, settings, cellSize, outlineLevel, maxOf(1.0, cellSize.toDouble()), outline, meshedOverRingCount, denseInner, roundedPins, guide)
+}
+
+/**
+ * The outline's traced rings without the holes too small for the outline spacing: a hole ring shorter
+ * than one spacing around is left out, and with it every ring inside it, so even-odd still reads
+ * every other ring the same.  Leaving a hole out only adds transparent pixels to the mesh, so every
+ * art pixel stays enclosed; art inside a hole left out (a speck in a pocket) lies inside the ring
+ * around the hole, so the mesh covers it too.
+ *
+ * @param List<DoubleArray> rings   The traced rings at the outline's level, pairwise disjoint.
+ * @param Double            spacing The outline spacing.
+ * @return List<DoubleArray> The rings kept, in their order.
+ */
+internal fun withoutSmallHoles(rings: List<DoubleArray>, spacing: Double): List<DoubleArray> {
+	val leftOut = BooleanArray(rings.size)
+
+	for ((index, ring) in rings.withIndex()) {
+		val measure = RingMeasure.of(ring)
+
+		if (!measure.isHole || measure.perimeter >= spacing) {
+			continue
+		}
+
+		// Rings at one level never cross, so one vertex tells whether a ring lies inside.
+		for ((other, otherRing) in rings.withIndex()) {
+			if (other == index || ringContainsPoint(ring, otherRing[0], otherRing[1])) {
+				leftOut[other] = true
+			}
+		}
+	}
+
+	return if (leftOut.none { it }) rings else rings.filterIndexed { index, _ -> !leftOut[index] }
 }
 
 /**
@@ -487,6 +527,7 @@ private fun statisticsOf(layer: TracedLayer, points: PlacedPoints, assembled: As
 		outlineSpacing = outlineSpacing,
 		interiorSpacing = interiorSpacing,
 		outlineRingCount = points.outline.size,
+		meshedOverRingCount = layer.meshedOverRingCount,
 		outlineVertexCount = assembled.outlineVertexCount,
 		refinedChordCount = refinedChordCount,
 		innerRingCount = points.innerRings.size,

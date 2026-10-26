@@ -5,7 +5,9 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.seed.ParameterTemplate
 import org.umamo.interop.art.ArtworkAnchor
+import org.umamo.interop.art.BirthMeshMode
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.settings.Settings
 import org.umamo.storage.FilePicker
 import org.umamo.ui.action.CommandRegistry
@@ -14,8 +16,12 @@ import org.umamo.ui.document.DocumentFile
 import org.umamo.ui.document.PuppetDocument
 import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.model.SessionAtlasPages
+import org.umamo.ui.progress.ProgressTracker
+import org.umamo.ui.settings.BirthMeshSetting
 import org.umamo.ui.settings.IMPORT_ALIGNMENT_KEY
+import org.umamo.ui.settings.IMPORT_BIRTH_MESH_KEY
 import org.umamo.ui.settings.IMPORT_PARAMETER_TEMPLATE_KEY
+import org.umamo.ui.settings.MESH_GENERATION_PRESET_KEY
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.workspace.editorstate.AreaViewStates
@@ -102,6 +108,7 @@ internal class DocumentViewportSlot {
  * @property Function        untitledName    The localized name a never-saved document's Save As suggests.
  * @property HostHeap?       hostHeap        The memory limit the host started the editor with, which an export
  *   that runs out of memory names; null for a host that has no say in it.
+ * @property ProgressTracker progress        Where the long operations the controllers run show while they work.
  */
 internal class EditorAppServices(
 	val settings: Settings,
@@ -112,6 +119,7 @@ internal class EditorAppServices(
 	val onOpen: (Document) -> Unit,
 	val untitledName: () -> String,
 	val hostHeap: HostHeap? = null,
+	val progress: ProgressTracker = ProgressTracker(),
 ) {
 	/** The model export running now, which a second export, a quit, and a document replace all defer to. */
 	val modelExports: ModelExportGate = ModelExportGate()
@@ -133,14 +141,30 @@ internal class EditorAppServices(
 	}
 
 	/**
-	 * What an artwork import seeds with and where it places a later file, read at the moment the import
-	 * runs so the preferences rows apply to the next import without a restart.
+	 * What an artwork import seeds with, where it places a later file, and the mesh each new drawable starts
+	 * with, read at the moment the import runs so the preferences rows apply to the next import without a
+	 * restart.  A reload, relink, match, and replace read the same options, so a layer a reload adds is born
+	 * the way an import's would be.
 	 *
-	 * @return SourceArtImportOptions The import options under the configured parameter template and anchor.
+	 * @return SourceArtImportOptions The import options under the configured template, anchor, and initial mesh.
 	 */
 	fun configuredArtworkImportOptions(): SourceArtImportOptions =
 		artworkImportOptions(
 			ParameterTemplate.fromKey(settings.getString(IMPORT_PARAMETER_TEMPLATE_KEY)),
 			ArtworkAnchor.fromKey(settings.getString(IMPORT_ALIGNMENT_KEY)),
+			configuredBirthMesh(settings),
 		)
 }
+
+/**
+ * The mesh an artwork import gives each new drawable under [settings]: the quad, or a mesh generated
+ * from the art at the mesh generation preset.
+ *
+ * @param Settings settings The settings.
+ * @return BirthMeshMode The birth mesh.
+ */
+internal fun configuredBirthMesh(settings: Settings): BirthMeshMode =
+	when (BirthMeshSetting.fromKey(settings.getString(IMPORT_BIRTH_MESH_KEY))) {
+		BirthMeshSetting.Quad -> BirthMeshMode.Quad
+		BirthMeshSetting.Automatic -> BirthMeshMode.Automatic(ArtMeshPreset.fromKey(settings.getString(MESH_GENERATION_PRESET_KEY)).settings)
+	}

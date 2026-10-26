@@ -50,6 +50,60 @@ class ArtMesherTest {
 	}
 
 	@Test
+	fun aPocketTooSmallForTheOutlineSpacingIsMeshedOver() {
+		// Standard's outline runs 6 px out, so a 10 px pocket's ring is about 8 px across: under 32 px around.
+		val raster = rasterOf(100, 100) { column, row -> inDisc(column, row, 50.0, 50.0, 40.0) && !inDisc(column, row, 50.0, 50.0, 10.0) }
+		val (result, mesh) = generateValidated(raster, standard)
+		val statistics = result.statistics!!
+		assertEquals(1, statistics.outlineRingCount)
+		assertEquals(1, statistics.meshedOverRingCount, "the pocket traced a ring of its own")
+		assertTrue(meshCovers(mesh, 50.0, 50.0), "the pocket is meshed over")
+		assertEquals(1, eulerCharacteristic(mesh), "the mesh is one disc")
+	}
+
+	@Test
+	fun theOutlineSpacingDecidesWhetherAPocketIsCutOut() {
+		// A 12 px pocket's ring runs about 6 px from its center, so it is about 38 px around.
+		val raster = rasterOf(100, 100) { column, row -> inDisc(column, row, 50.0, 50.0, 40.0) && !inDisc(column, row, 50.0, 50.0, 12.0) }
+		val (keptResult, kept) = generateValidated(raster, standard.copy(outlineSpacing = 24.0))
+		val (meshedOverResult, meshedOver) = generateValidated(raster, standard.copy(outlineSpacing = 64.0))
+		assertEquals(2, keptResult.statistics!!.outlineRingCount)
+		assertFalse(meshCovers(kept, 50.0, 50.0), "under a finer outline the pocket is a hole")
+		assertEquals(1, meshedOverResult.statistics!!.outlineRingCount)
+		assertTrue(meshCovers(meshedOver, 50.0, 50.0), "under a coarser outline it is meshed over")
+	}
+
+	@Test
+	fun artInsideAPocketMeshedOverIsCovered() {
+		// The pocket's ring (about 88 px around) and the speck's own ring inside it both go.
+		val raster =
+			rasterOf(100, 100) { column, row ->
+				val inAnnulus = inDisc(column, row, 50.0, 50.0, 40.0) && !inDisc(column, row, 50.0, 50.0, 20.0)
+				inAnnulus || inDisc(column, row, 50.0, 50.0, 2.0)
+			}
+		assertEquals(3, generateArtMesh(raster, standard).statistics!!.outlineRingCount)
+		val (result, mesh) = generateValidated(raster, standard.copy(outlineSpacing = 120.0))
+		val statistics = result.statistics!!
+		assertEquals(1, statistics.outlineRingCount)
+		assertEquals(2, statistics.meshedOverRingCount)
+		assertEquals(1, eulerCharacteristic(mesh), "the mesh is one disc")
+	}
+
+	@Test
+	fun onlySmallHolesAreLeftOutAndEachTakesWhatItEncloses() {
+		val outer = squareRing(0.0, 0.0, 100.0, hole = false)
+		val smallHole = squareRing(10.0, 10.0, 4.0, hole = true)
+		val islandInSmallHole = squareRing(11.5, 11.5, 1.0, hole = false)
+		val largeHole = squareRing(40.0, 40.0, 40.0, hole = true)
+		val islandInLargeHole = squareRing(55.0, 55.0, 10.0, hole = false)
+		val tinyIsland = squareRing(200.0, 200.0, 2.0, hole = false)
+		val rings = listOf(outer, smallHole, islandInSmallHole, largeHole, islandInLargeHole, tinyIsland)
+		val kept = withoutSmallHoles(rings, spacing = 20.0)
+		assertEquals(listOf(outer, largeHole, islandInLargeHole, tinyIsland), kept, "a hole under the spacing goes with what it encloses; islands and larger holes stay")
+		assertEquals(rings, withoutSmallHoles(rings, spacing = 16.0), "a hole exactly one spacing around stays")
+	}
+
+	@Test
 	fun aFilledAnnulusIsOneSheetWithPointsAcrossItsHole() {
 		val raster = rasterOf(200, 200) { column, row -> inDisc(column, row, 100.0, 100.0, 90.0) && !inDisc(column, row, 100.0, 100.0, 40.0) }
 		val inHole = { mesh: PlanarTriangleMesh ->
@@ -448,9 +502,9 @@ class ArtMesherTest {
 
 	@Test
 	fun theReserveGivesWayRatherThanLoseAMesh() {
-		// A star of forty spikes, whose refined outline stays well above its rings' floor however wide
-		// its spacing: at the smallest budget it meshes under, only the reserve giving way lets it in.
-		val raster = spikyStar()
+		// Six stars whose refined outlines stay well above their rings' floor however wide the spacing:
+		// at the smallest budget they mesh under, only the reserve giving way lets them in.
+		val raster = spikyStars()
 		val budget = (64..1024).first { candidate -> generateArtMesh(raster, standard.copy(vertexBudget = candidate)).mesh != null }
 		val settings = standard.copy(vertexBudget = budget)
 		val (result, _) = generateValidated(raster, settings)
@@ -608,6 +662,23 @@ class ArtMesherTest {
 	}
 
 	/**
+	 * A square ring wound the way the field traces one: around art with a positive shoelace area in
+	 * raster coordinates, around a hole with a negative one.
+	 *
+	 * @param Double  left The square's left x.
+	 * @param Double  top  Its top y.
+	 * @param Double  side Its side length.
+	 * @param Boolean hole Whether it goes around a hole.
+	 * @return DoubleArray The ring, x0, y0, ...
+	 */
+	private fun squareRing(left: Double, top: Double, side: Double, hole: Boolean): DoubleArray {
+		val right = left + side
+		val bottom = top + side
+
+		return if (hole) doubleArrayOf(left, top, left, bottom, right, bottom, right, top) else doubleArrayOf(left, top, right, top, right, bottom, left, bottom)
+	}
+
+	/**
 	 * A disc of radius 150: an outline of about thirty points around an interior of a few hundred.
 	 *
 	 * @return LayerRaster The raster.
@@ -615,17 +686,19 @@ class ArtMesherTest {
 	private fun largeDisc(): LayerRaster = rasterOf(320, 320) { column, row -> inDisc(column, row, 160.0, 160.0, 150.0) }
 
 	/**
-	 * A star of forty sharp spikes between radii 100 and 150.
+	 * Six stars of twelve sharp spikes between radii 40 and 70, in a three-by-two grid.  The tips are
+	 * 30 degrees apart, too far for an outline chord to skip one without cutting into it, so every star's
+	 * outline keeps a vertex at each tip: twice the rings' floor at Standard, however wide the spacing.
 	 *
 	 * @return LayerRaster The raster.
 	 */
-	private fun spikyStar(): LayerRaster =
-		rasterOf(320, 320) { column, row ->
-			val deltaX = column + 0.5 - 160.0
-			val deltaY = row + 0.5 - 160.0
-			val turns = atan2(deltaY, deltaX) / (2.0 * PI) * 40.0
+	private fun spikyStars(): LayerRaster =
+		rasterOf(480, 320) { column, row ->
+			val deltaX = column + 0.5 - (80.0 + 160.0 * (column / 160))
+			val deltaY = row + 0.5 - (80.0 + 160.0 * (row / 160))
+			val turns = atan2(deltaY, deltaX) / (2.0 * PI) * 12.0
 			val phase = turns - floor(turns)
-			val radius = 100.0 + 50.0 * (1.0 - 2.0 * abs(phase - 0.5))
+			val radius = 40.0 + 30.0 * (1.0 - 2.0 * abs(phase - 0.5))
 			deltaX * deltaX + deltaY * deltaY <= radius * radius
 		}
 

@@ -33,6 +33,9 @@ import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.repack.AtlasRepackHost
 import org.umamo.ui.model.repack.AtlasRepackRefusal
 import org.umamo.ui.model.repack.AtlasRepackReport
+import org.umamo.ui.progress.ProgressHandle
+import org.umamo.ui.progress.ProgressLabels
+import org.umamo.ui.progress.track
 
 /*
  * Reloading the document's artwork files, and relinking a tile with the layer's art pulled in: the
@@ -92,7 +95,8 @@ enum class ReloadArtworkResult {
 /**
  * The files a reload re-reads, as read from disk, with the decoded wrapper of every layer raster
  * minted once so a re-run hands the raster store the same instances (the renderer's texture cache
- * keys on that identity).
+ * keys on that identity), and the birth meshes made for the layers it adds, so a re-run meshes them
+ * once.
  *
  * @property List                   entries        The files, each with its art.
  * @property SourceArtImportOptions options        The threshold and margin the first run uses.
@@ -105,6 +109,9 @@ class ReloadArtworkRequest(
 	val matchThreshold: Float = InventoryLayerMatcher.DEFAULT_THRESHOLD,
 ) {
 	private val decoded = DecodedLayerRasters()
+
+	/** The birth meshes made for the layers the reload adds, for every run of the request. */
+	internal val births = BirthMeshCache()
 
 	/**
 	 * The decoded wrapper of one of the files' layer rasters.
@@ -313,15 +320,17 @@ private fun oldRasterLookup(artRasters: SourceArtRasters): (AtlasTileId) -> Laye
  * @param Float                  matchThreshold     The bar a lost binding's best candidate must reach.
  * @param SourceArtRasters       artRasters         The document's raster store (read, never written here).
  * @param Boolean                premultipliedAlpha The document's texture-convention flag.
+ * @param ProgressHandle?        progress           Counts the birth meshes of the layers a file gained, or null.
  * @return ReloadOutcome The outcome.
  */
-private fun reloadOutcome(
+private suspend fun reloadOutcome(
 	base: PuppetModel,
 	request: ReloadArtworkRequest,
 	options: SourceArtImportOptions,
 	matchThreshold: Float,
 	artRasters: SourceArtRasters,
 	premultipliedAlpha: Boolean,
+	progress: ProgressHandle? = null,
 ): ReloadOutcome {
 	var model = base
 	val rasters = LinkedHashMap<AtlasTileId, LayerRaster>()
@@ -337,9 +346,16 @@ private fun reloadOutcome(
 	val oldRasterOf = oldRasterLookup(artRasters)
 
 	for (entry in request.entries) {
-		val plan =
+		val planned =
 			ArtworkReloadPlanner.plan(model, entry.sourceId, entry.art, options, oldRasterOf, entry.contentHash, inventory = entry.inventory, lastModified = entry.lastModified, matchThreshold = matchThreshold)
 				?: continue
+		// The layers a file gained are born the way an import's are, before the pack reserves their tiles.
+		val plan = planned.withBirths(resolveBirths(planned.pendingBirths, request.births, progress))
+
+		if (planned.pendingBirths.isNotEmpty()) {
+			progress?.stage(ProgressLabels.ARTWORK_RELOADING)
+		}
+
 		val next = model.withArtworkReloaded(plan.reload)
 
 		if (next === model) {
@@ -431,8 +447,10 @@ suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkReques
 	val session = host.session
 	val modelAtStart = session.model.value
 	val outcome =
-		withContext(Dispatchers.Default) {
-			reloadOutcome(modelAtStart, request, request.options, request.matchThreshold, host.artRasters, host.premultipliedAlpha)
+		host.progress.track(ProgressLabels.ARTWORK_RELOADING) { progress ->
+			withContext(Dispatchers.Default) {
+				reloadOutcome(modelAtStart, request, request.options, request.matchThreshold, host.artRasters, host.premultipliedAlpha, progress)
+			}
 		}
 
 	when (outcome) {
@@ -502,8 +520,10 @@ internal suspend fun adjustReloadArtwork(host: AtlasRepackHost, record: Adjustab
 	val options = addArtworkOptionsOf(record.parameters, request.options)
 	val matchThreshold = matchThresholdOf(record.parameters, request.matchThreshold)
 	val outcome =
-		withContext(Dispatchers.Default) {
-			reloadOutcome(base, request, options, matchThreshold, host.artRasters, host.premultipliedAlpha)
+		host.progress.track(ProgressLabels.ARTWORK_RELOADING) { progress ->
+			withContext(Dispatchers.Default) {
+				reloadOutcome(base, request, options, matchThreshold, host.artRasters, host.premultipliedAlpha, progress)
+			}
 		}
 
 	when (outcome) {
@@ -562,7 +582,7 @@ private fun reportReload(outcome: ReloadOutcome.Reloaded, committed: PuppetModel
 
 	for (drawableId in outcome.outgrown) {
 		val name = committed.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.name ?: drawableId.raw
-		UmamoLog.warn("reload artwork: the new art of '$name' reaches past its edited mesh; re-mesh it or extend the mesh")
+		UmamoLog.warn("reload artwork: the new art of '$name' reaches past its mesh; re-mesh it with Generate Mesh from Art, or extend the mesh")
 	}
 
 	reportRebindings("reload artwork", outcome.rebindings)
@@ -730,7 +750,7 @@ private inline fun landRelink(
 	prewarmPages(host, committed, outcome.textures)
 	reportReload(outcome, committed)
 	val pulledNotice = if (request.fromDocument) "notice.relink.pulledFromDocument" else "notice.relink.pulled"
-	session.emitNotice(if (outcome.outgrown.isEmpty()) pulledNotice else "notice.reload.outgrown", NoticePlacement.StatusBar)
+	session.emitNotice(if (outcome.outgrown.isEmpty()) pulledNotice else "notice.relink.outgrown", NoticePlacement.StatusBar)
 
 	return true
 }
