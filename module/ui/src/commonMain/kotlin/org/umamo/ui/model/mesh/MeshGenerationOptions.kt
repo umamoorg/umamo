@@ -1,5 +1,6 @@
 package org.umamo.ui.model.mesh
 
+import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ParameterChoice
 import org.umamo.edit.ParameterUnit
@@ -7,6 +8,7 @@ import org.umamo.edit.booleanValue
 import org.umamo.edit.choiceValue
 import org.umamo.edit.floatValue
 import org.umamo.edit.intValue
+import org.umamo.edit.mesh.MeshGenerationKind
 import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.interop.art.mesh.ArtMeshSettings
 import org.umamo.interop.art.mesh.MAXIMUM_ART_MESH_MINIMUM_ANGLE
@@ -23,7 +25,7 @@ import org.umamo.interop.art.mesh.MINIMUM_ART_MESH_INTERIOR_THINNING_LIMIT
  * which is about the rig, not density - as they were.
  *
  * The values a run used are remembered for the rest of the app session (never saved), and a first run
- * starts from the preset the settings name.
+ * starts from the preset the settings name.  Generate Quad Mesh's values are remembered beside them.
  */
 
 /** The parameter keys the Generate Mesh from Art rows carry (the strip maps them to strings). */
@@ -82,7 +84,7 @@ private const val SMALLEST_VERTEX_BUDGET: Int = 16
 private const val SMALLEST_OUTLINE_POINTS: Int = 3
 
 /** The largest alpha threshold, and the cap on the atlas's own. */
-private const val MAXIMUM_ALPHA_THRESHOLD: Int = 255
+internal const val MAXIMUM_ALPHA_THRESHOLD: Int = 255
 
 /**
  * One decimal row of the strip: its key (also its label key), its range, the step its field nudges by,
@@ -155,7 +157,53 @@ private val DEFORMATION_TOLERANCE_ROW = DecimalRow(MeshGenerationParameterKeys.D
  * @property ArtMeshPreset   preset   The preset the Preset row shows.
  * @property ArtMeshSettings settings The mesher settings, already clamped.
  */
-internal data class MeshGenerationOptions(val preset: ArtMeshPreset, val settings: ArtMeshSettings) {
+internal data class MeshGenerationOptions(val preset: ArtMeshPreset, val settings: ArtMeshSettings) : MeshRecipe {
+	override val kind: MeshGenerationKind
+		get() = MeshGenerationKind.FromArt
+
+	/**
+	 * These options with their settings clamped.
+	 *
+	 * @param Int minimumAlphaThreshold The atlas's alpha threshold.
+	 * @return MeshGenerationOptions The clamped options.
+	 */
+	override fun clamped(minimumAlphaThreshold: Int): MeshGenerationOptions = MeshGenerationOptions(preset, clampedMeshSettings(settings, minimumAlphaThreshold))
+
+	/**
+	 * The strip's rows for these options.
+	 *
+	 * @param Int minimumAlphaThreshold The atlas's alpha threshold, the threshold row's floor.
+	 * @return List<OperatorParameter> The rows.
+	 */
+	override fun rows(minimumAlphaThreshold: Int): List<OperatorParameter> = meshGenerationParameters(this, minimumAlphaThreshold)
+
+	/**
+	 * The options the rows describe, over these for a row that is missing, clamped.
+	 *
+	 * @param List<OperatorParameter> parameters            The strip's rows.
+	 * @param Int                     minimumAlphaThreshold The atlas's alpha threshold.
+	 * @return MeshGenerationOptions The options.
+	 */
+	override fun fromRows(parameters: List<OperatorParameter>, minimumAlphaThreshold: Int): MeshGenerationOptions = meshGenerationOptionsOf(parameters, this, minimumAlphaThreshold)
+
+	/**
+	 * The rows re-seeded from the Preset row's preset when the rigger chose one - another than [preset],
+	 * the one the rows were last seeded from, or the same one again to undo edits to its rows.
+	 *
+	 * @param AdjustableOperation record                The record with the adjusted rows.
+	 * @param Int                 minimumAlphaThreshold The atlas's alpha threshold.
+	 * @return List<OperatorParameter>? The re-seeded rows, or null when no preset was chosen.
+	 */
+	override fun reseededRows(record: AdjustableOperation, minimumAlphaThreshold: Int): List<OperatorParameter>? {
+		val rowPreset = ArtMeshPreset.fromKey(record.parameters.choiceValue(MeshGenerationParameterKeys.PRESET, preset.key))
+
+		if (rowPreset == preset && record.adjustedKey != MeshGenerationParameterKeys.PRESET) {
+			return null
+		}
+
+		return reseededMeshGenerationParameters(record.parameters, rowPreset, minimumAlphaThreshold)
+	}
+
 	companion object {
 		/**
 		 * The options a preset stands for, as they are.
@@ -259,7 +307,7 @@ private fun clampedMeshSettingsOf(
  * @param Int minimumAlphaThreshold The atlas's alpha threshold.
  * @return Int The floor.
  */
-private fun alphaThresholdFloor(minimumAlphaThreshold: Int): Int = minimumAlphaThreshold.coerceIn(1, MAXIMUM_ALPHA_THRESHOLD)
+internal fun alphaThresholdFloor(minimumAlphaThreshold: Int): Int = minimumAlphaThreshold.coerceIn(1, MAXIMUM_ALPHA_THRESHOLD)
 
 /**
  * The strip's rows for a run with [options].
@@ -354,12 +402,14 @@ internal fun reseededMeshGenerationParameters(parameters: List<OperatorParameter
 }
 
 /**
- * The options Generate Mesh from Art remembers between runs for the rest of the app session - never
- * saved, the same for every document (every value is in art pixels).  Before any run it starts from the
- * preset the settings name.
+ * The options Generate Mesh from Art and Generate Quad Mesh each remember between runs for the rest of
+ * the app session - never saved, the same for every document (every value is in art pixels).  Before any
+ * run Generate Mesh from Art starts from the preset the settings name, and Generate Quad Mesh from the
+ * import's margin.
  */
 internal class MeshGenerationSessionOptions {
 	private var remembered: MeshGenerationOptions? = null
+	private var rememberedQuad: QuadMeshOptions? = null
 
 	/**
 	 * The options the next run starts from.
@@ -370,11 +420,21 @@ internal class MeshGenerationSessionOptions {
 	fun optionsFor(seedPresetKey: String?): MeshGenerationOptions = remembered ?: MeshGenerationOptions.of(ArtMeshPreset.fromKey(seedPresetKey))
 
 	/**
-	 * Remembers the options a run landed with.
+	 * The options the next Generate Quad Mesh run starts from.
 	 *
-	 * @param MeshGenerationOptions options The options.
+	 * @return QuadMeshOptions The remembered options, or the defaults.
 	 */
-	fun record(options: MeshGenerationOptions) {
-		remembered = options
+	fun quadOptions(): QuadMeshOptions = rememberedQuad ?: QuadMeshOptions()
+
+	/**
+	 * Remembers the recipe a run landed with, for its own command.
+	 *
+	 * @param MeshRecipe recipe The recipe.
+	 */
+	fun record(recipe: MeshRecipe) {
+		when (recipe) {
+			is MeshGenerationOptions -> remembered = recipe
+			is QuadMeshOptions -> rememberedQuad = recipe
+		}
 	}
 }

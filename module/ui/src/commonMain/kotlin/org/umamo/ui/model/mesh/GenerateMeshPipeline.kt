@@ -18,12 +18,13 @@ import org.umamo.format.atlas.AtlasPackOptions
 import org.umamo.format.atlas.AtlasPackReserve
 import org.umamo.format.atlas.AtlasPackSkipReason
 import org.umamo.format.atlas.packAtlas
+import org.umamo.geometry.mesh.PlanarTriangleMesh
 import org.umamo.geometry.triangulation.refine.PiecewiseLinearGuide
 import org.umamo.interop.art.mesh.ArtMeshNotice
-import org.umamo.interop.art.mesh.ArtMeshSettings
 import org.umamo.interop.art.mesh.MeshFit
 import org.umamo.interop.art.mesh.fitArtMesh
 import org.umamo.interop.art.mesh.isMeshingGuardFailure
+import org.umamo.interop.art.mesh.quadMeshOver
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SampledRegion
@@ -55,9 +56,10 @@ import org.umamo.ui.progress.ProgressLabels
 import org.umamo.ui.viewport.gizmo.mapInBalancedChunks
 
 /*
- * Generate Mesh from Art, the headless part: which drawables a run covers, what art each one meshes,
- * the meshing and the rig transfer, and the atlas room the new meshes need.  Pure over its inputs and
- * safe off the UI thread; GenerateMeshFlow.kt commits and registers what it produces.
+ * Generate Mesh from Art and Generate Quad Mesh, the headless part: which drawables a run covers, what
+ * art each one meshes, the meshing and the rig transfer, and the atlas room the new meshes need.  The two
+ * differ only in what meshes the art (the run's MeshRecipe); everything around it is shared.  Pure over
+ * its inputs and safe off the UI thread; GenerateMeshFlow.kt commits and registers what it produces.
  *
  * The plan a run keeps for the strip's reruns holds no pixels: each run or adjustment decodes the art
  * it needs through a [RunTileDecoder] of its own (every tile once) and lets it go when it is done, so
@@ -250,9 +252,10 @@ internal fun expandedMeshTargets(model: PuppetModel, targets: Collection<Drawabl
  * @param PuppetModel          base    The model the run starts on.
  * @param Collection<DrawableId> targets The drawables asked for.
  * @param Function             decode  Decodes a tile's art; safe off the UI thread.  The run's [RunTileDecoder], so the meshing does not decode again.
+ * @param Boolean              guided  Whether the meshing follows each rig's guide; a quad follows none, so its plan skips the rest-pose evaluation.
  * @return GenerateMeshPlan The plan.
  */
-internal fun planMeshGeneration(base: PuppetModel, targets: Collection<DrawableId>, decode: (AtlasTileId) -> DecodedImage?): GenerateMeshPlan {
+internal fun planMeshGeneration(base: PuppetModel, targets: Collection<DrawableId>, decode: (AtlasTileId) -> DecodedImage?, guided: Boolean = true): GenerateMeshPlan {
 	val drawableIds = expandedMeshTargets(base, targets)
 	val meshedCountByTile = HashMap<AtlasTileId, Int>()
 
@@ -303,7 +306,7 @@ internal fun planMeshGeneration(base: PuppetModel, targets: Collection<DrawableI
 		inputs.add(input)
 	}
 
-	return GenerateMeshPlan(drawableIds, inputs, skips, coverage, guidesOf(base, inputs))
+	return GenerateMeshPlan(drawableIds, inputs, skips, coverage, if (guided) guidesOf(base, inputs) else emptyMap())
 }
 
 /**
@@ -381,13 +384,13 @@ private fun skipReasonOf(refusal: RegenerationRefusal): GenerateMeshSkipReason =
 	}
 
 /**
- * Generates the plan's meshes under [settings] over [base]: decodes the plan's tiles, meshes every
- * input (tiles in parallel), carries each rig onto its new mesh, applies them, and finds the atlas
- * room they need.
+ * Generates the plan's meshes by [recipe] over [base]: decodes the plan's tiles, meshes every input
+ * (tiles in parallel), carries each rig onto its new mesh, applies them, and finds the atlas room they
+ * need.
  *
  * @param PuppetModel      base               The model the run starts on (the plan's).
  * @param GenerateMeshPlan plan               The plan.
- * @param ArtMeshSettings  settings           The mesher settings, already clamped.
+ * @param MeshRecipe       recipe             What meshes the art, already clamped.
  * @param Function         decode             Decodes any tile's art - the plan's, a neighbour's for the collision test, and every tile a pack composes.  A [RunTileDecoder] decodes each once.
  * @param Boolean          premultipliedAlpha The document's texture-convention flag.
  * @param ProgressHandle?  progress           Counts each drawable meshed, then says when the atlas packs; or null.
@@ -396,7 +399,7 @@ private fun skipReasonOf(refusal: RegenerationRefusal): GenerateMeshSkipReason =
 internal suspend fun generateMeshOutcome(
 	base: PuppetModel,
 	plan: GenerateMeshPlan,
-	settings: ArtMeshSettings,
+	recipe: MeshRecipe,
 	decode: (AtlasTileId) -> DecodedImage?,
 	premultipliedAlpha: Boolean,
 	progress: ProgressHandle? = null,
@@ -409,7 +412,7 @@ internal suspend fun generateMeshOutcome(
 	val groups = plan.inputs.groupBy { input -> input.tileId }.values.toList()
 	val results =
 		mapInBalancedChunks(groups, weightOf = { group -> meshingWeightOf(group) }) { group ->
-			group.map { input -> meshOne(base, plan, rasterByTile, input, settings).also { progress?.advance() } }
+			group.map { input -> meshOne(base, plan, rasterByTile, input, recipe).also { progress?.advance() } }
 		}.flatten()
 	val edits = LinkedHashMap<DrawableId, MeshTopologyEdit>()
 	val noticesByDrawable = LinkedHashMap<DrawableId, List<ArtMeshNotice>>()
@@ -471,14 +474,14 @@ private fun meshingWeightOf(group: List<RegenerationInput.Ready>): Int {
 private class MeshingResult(val drawableId: DrawableId, val edit: MeshTopologyEdit?, val skip: GenerateMeshSkipReason?, val notices: List<ArtMeshNotice>, val fit: MeshFit? = null)
 
 /**
- * Meshes one drawable's art and carries its rig onto the result.  A guard tripping inside the mesher
- * or the transfer skips this drawable alone; the others in the run still land.
+ * Meshes one drawable's art by the recipe and carries its rig onto the result.  A guard tripping inside
+ * the mesher or the transfer skips this drawable alone; the others in the run still land.
  *
  * @param PuppetModel                       base         The model the run starts on.
  * @param GenerateMeshPlan                  plan         The plan.
  * @param Map<AtlasTileId, DecodedImage?>   rasterByTile The decoded art of the plan's tiles.
  * @param RegenerationInput.Ready           input        The drawable's input.
- * @param ArtMeshSettings                   settings     The mesher settings.
+ * @param MeshRecipe                        recipe       What meshes the art.
  * @return MeshingResult The edit or the skip.
  */
 private fun meshOne(
@@ -486,7 +489,7 @@ private fun meshOne(
 	plan: GenerateMeshPlan,
 	rasterByTile: Map<AtlasTileId, DecodedImage?>,
 	input: RegenerationInput.Ready,
-	settings: ArtMeshSettings,
+	recipe: MeshRecipe,
 ): MeshingResult {
 	val decoded = rasterByTile[input.tileId] ?: return MeshingResult(input.drawableId, null, GenerateMeshSkipReason.NoRaster, emptyList())
 
@@ -497,12 +500,26 @@ private fun meshOne(
 	val alpha = tileAlphaChannel(decoded, plan.coverageByDrawable[input.drawableId])
 
 	try {
-		val fitted = fitArtMesh(alpha, settings, input.pinPoints, input.pinSurroundings, guide = plan.guidesByDrawable[input.drawableId])
-		val result = fitted.result
-		val mesh = result.mesh ?: return MeshingResult(input.drawableId, null, skipReasonOf(result.notices), emptyList())
+		val mesh: PlanarTriangleMesh
+		val notices: List<ArtMeshNotice>
+		var fit: MeshFit? = null
+
+		when (recipe) {
+			is MeshGenerationOptions -> {
+				val fitted = fitArtMesh(alpha, recipe.settings, input.pinPoints, input.pinSurroundings, guide = plan.guidesByDrawable[input.drawableId])
+				mesh = fitted.result.mesh ?: return MeshingResult(input.drawableId, null, skipReasonOf(fitted.result.notices), emptyList())
+				notices = fitted.result.notices
+				fit = fitted.fit
+			}
+
+			is QuadMeshOptions -> {
+				mesh = quadMeshOver(alpha, recipe.alphaThreshold, recipe.margin, input.pinPoints) ?: return MeshingResult(input.drawableId, null, GenerateMeshSkipReason.NothingOpaque, emptyList())
+				notices = emptyList()
+			}
+		}
 
 		return when (val regeneration = base.meshRegeneration(input, mesh)) {
-			is MeshRegeneration.Built -> MeshingResult(input.drawableId, regeneration.edit, null, result.notices, fitted.fit)
+			is MeshRegeneration.Built -> MeshingResult(input.drawableId, regeneration.edit, null, notices, fit)
 			is MeshRegeneration.Refused -> MeshingResult(input.drawableId, null, skipReasonOf(regeneration.refusal), emptyList())
 		}
 	} catch (failure: RuntimeException) {

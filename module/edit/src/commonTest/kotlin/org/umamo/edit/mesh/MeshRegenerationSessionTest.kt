@@ -114,6 +114,20 @@ class MeshRegenerationSessionTest {
 		assertTrue(session.meshSelection.value.elementsOf(drawableId).isEmpty())
 	}
 
+	@Test
+	fun theGenerationKindNamesBothStepsAndFromArtIsTheDefault() {
+		val model = RegenerationFixtures.model()
+		val generated = model.withMeshTopologyEdits(mapOf(drawableId to regeneratedEdit(model)))!!
+		val session = EditorSession(model)
+
+		assertTrue(session.commitGeneratedMeshes(model, generated, listOf(drawableId), MeshGenerationKind.Quad))
+		assertEquals("change.mesh.generateQuad", session.historyView.value.steps.last().labelKey)
+		assertTrue(session.commitUnchangedGeneration(generated, listOf(drawableId), MeshGenerationKind.Quad))
+		assertEquals("change.mesh.generateQuad", session.historyView.value.steps.last().labelKey)
+		assertTrue(session.commitUnchangedGeneration(generated, listOf(drawableId)))
+		assertEquals("change.mesh.generateFromArt", session.historyView.value.steps.last().labelKey)
+	}
+
 	/**
 	 * The rigged drawable's regeneration over a 5x5 point grid.
 	 *

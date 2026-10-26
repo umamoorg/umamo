@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.Change
 import org.umamo.edit.DeformerChange
@@ -73,7 +74,7 @@ import kotlin.math.roundToInt
  * deformer, and a part each get their own face of this tab.
  */
 
-/** Data (drawable): mesh vertex / triangle counts, and Generate Mesh from Art for a drawable with a mesh. */
+/** Data (drawable): mesh vertex / triangle counts, and Generate Mesh from Art and Generate Quad Mesh for a drawable with a mesh. */
 internal val MeshSection =
 	PropertySection(
 		id = "data.mesh",
@@ -92,23 +93,27 @@ internal val MeshSection =
 				)
 
 				if (mesh != null) {
-					add(PropertyRow(terms = listOf(Res.string.cmd_mesh_generate_from_art)) { _ -> GenerateMeshFromArtButton() })
+					add(PropertyRow(terms = listOf(Res.string.cmd_mesh_generate_from_art)) { _ -> CommandButton("mesh.generateFromArt", Res.string.cmd_mesh_generate_from_art) })
+					add(PropertyRow(terms = listOf(Res.string.cmd_mesh_generate_quad)) { _ -> CommandButton("mesh.generateQuad", Res.string.cmd_mesh_generate_quad) })
 				}
 			}
 		},
 	)
 
 /**
- * The Generate Mesh from Art button: it dispatches the command (so the chord, the palette, and this
- * button run the same thing over the same selection) and is enabled exactly when the command is.
+ * A button that runs one command: it dispatches the command (so the chord, the palette, and this button
+ * run the same thing over the same selection) and is enabled exactly when the command is.
+ *
+ * @param String         commandId The command.
+ * @param StringResource label     The button's label, the command's title.
  */
 @Composable
-private fun GenerateMeshFromArtButton() {
+private fun CommandButton(commandId: String, label: StringResource) {
 	val commands = LocalCommands.current
-	val available = commands["mesh.generateFromArt"]?.availability?.isAvailable() == true
+	val available = commands[commandId]?.availability?.isAvailable() == true
 	Button(
-		label = stringResource(Res.string.cmd_mesh_generate_from_art),
-		onClick = { commands.invoke("mesh.generateFromArt") },
+		label = stringResource(label),
+		onClick = { commands.invoke(commandId) },
 		primary = false,
 		enabled = available,
 	)

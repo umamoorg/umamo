@@ -187,4 +187,12 @@ class KeymapTest {
 		val cubism = Keymap.fromSpecs(keymapPresetSpecs("cubism"))
 		assertNull(cubism.commandFor(chord))
 	}
+
+	/** Generate Quad Mesh ships unbound in every preset; a rigger binds it in Preferences. */
+	@Test
+	fun generateQuadMeshShipsUnbound() {
+		for (presetId in listOf("default", "blender", "cubism")) {
+			assertNull(Keymap.fromSpecs(keymapPresetSpecs(presetId)).chordFor("mesh.generateQuad"), "unbound in $presetId")
+		}
+	}
 }

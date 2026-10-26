@@ -15,6 +15,7 @@ import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.ui.model.artwork.ImportParameterKeys
 import org.umamo.ui.model.artwork.MatchParameterKeys
 import org.umamo.ui.model.mesh.MeshGenerationParameterKeys
+import org.umamo.ui.model.mesh.QuadMeshParameterKeys
 import org.umamo.ui.model.repack.RepackParameterKeys
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.falloffLabel
@@ -130,6 +131,8 @@ internal fun operatorParameterLabel(labelKey: String): String =
 
 		MeshGenerationParameterKeys.INTERIOR_THINNING_LIMIT -> stringResource(Res.string.mesh_options_interior_thinning_limit)
 
+		QuadMeshParameterKeys.MARGIN -> stringResource(Res.string.mesh_options_quad_margin)
+
 		else -> choiceLabel(labelKey) ?: labelKey
 	}
 
@@ -195,6 +198,7 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 		MeshGenerationParameterKeys.STRAND_WIDTH -> Res.string.mesh_options_strand_width_description
 		MeshGenerationParameterKeys.DEFORMATION_TOLERANCE -> Res.string.mesh_options_deformation_tolerance_description
 		MeshGenerationParameterKeys.INTERIOR_THINNING_LIMIT -> Res.string.mesh_options_interior_thinning_limit_description
+		QuadMeshParameterKeys.MARGIN -> Res.string.mesh_options_quad_margin_description
 		else -> null
 	}
 

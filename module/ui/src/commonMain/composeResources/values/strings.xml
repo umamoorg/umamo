@@ -619,6 +619,7 @@
 	<string name="cmd_mesh_duplicate">Duplicate</string>
 	<string name="cmd_mesh_merge">Merge Vertices</string>
 	<string name="cmd_mesh_generate_from_art">Generate Mesh from Art</string>
+	<string name="cmd_mesh_generate_quad">Generate Quad Mesh</string>
 	<string name="cmd_mesh_merge_at_center">Merge at Center</string>
 	<string name="cmd_mesh_merge_at_first">Merge at First</string>
 	<string name="cmd_mesh_merge_at_last">Merge at Last</string>
@@ -630,12 +631,13 @@
 	<string name="history_mesh_rip">Rip</string>
 	<string name="history_mesh_connect">Connect Vertices</string>
 	<string name="history_mesh_generate_from_art">Generate Mesh from Art</string>
+	<string name="history_mesh_generate_quad">Generate Quad Mesh</string>
 	<!-- Generate Mesh from Art notices.  %1$d is the number of meshes generated, %2$d the number skipped. -->
 	<string name="notice_mesh_generated">Generated %1$d mesh(es) from art.</string>
 	<string name="notice_mesh_generated_with_skips">Generated %1$d mesh(es) from art; %2$d skipped.  See the log.</string>
 	<string name="notice_mesh_generated_coarser">Generated %1$d mesh(es) from art; %2$d built coarser than asked to stay within the Vertex Budget.  See the log.</string>
 	<string name="notice_mesh_generated_refit">Generated %1$d mesh(es) from art; %2$d needed a higher Vertex Budget or Fill Holes to fit.  See the log.</string>
-	<string name="notice_mesh_pinned_without_room">Generated %1$d mesh(es); %2$d skipped because pinned art has no room to grow.  Unpin the art or lower the Outer Margin.</string>
+	<string name="notice_mesh_pinned_without_room">Generated %1$d mesh(es); %2$d skipped because pinned art has no room to grow.  Unpin the art or lower the margin.</string>
 	<string name="notice_mesh_over_budget">Generated %1$d mesh(es); %2$d skipped because they need more than 4096 vertices even with holes filled.  Raise the Alpha Threshold or lower the Minimum Outline Points.</string>
 	<string name="notice_mesh_glued_throughout">Generated %1$d mesh(es); %2$d skipped because glue holds most of their vertices, and regenerating them would change how they follow what they are glued to.</string>
 	<string name="notice_mesh_none_generated">No mesh was generated.  See the log.</string>
@@ -938,6 +940,7 @@
 	<string name="mesh_options_strand_rungs">Strand Rungs</string>
 	<string name="mesh_options_strand_width">Strand Width</string>
 	<string name="mesh_options_deformation_tolerance">Deformation Tolerance</string>
+	<string name="mesh_options_quad_margin">Margin</string>
 	<string name="import_options_align">Align</string>
 	<string name="import_options_offset_x">Offset X</string>
 	<string name="import_options_offset_z">Offset Z</string>
@@ -1046,6 +1049,7 @@
 	<string name="mesh_options_strand_rungs_description">Meshes thin art as even strips with a single run down the center instead of outlining the art.</string>
 	<string name="mesh_options_strand_width_description">With Strand Rungs on, art narrower than this, in pixels, is meshed as a strip of rungs.  Each preset sets it where an inner ring stops fitting; raise it to mesh wider straps and locks as strips too, lower it to give more of them an inner ring.</string>
 	<string name="mesh_options_deformation_tolerance_description">How far, in pixels, the new mesh may stray from the shapes the rig gives the old one, at rest and in every keyform.  Where it would stray further, the old vertices that hold those shapes are kept.  Smaller keeps more of them.</string>
+	<string name="mesh_options_quad_margin_description">How far the quad reaches past the visible art, and past any glued vertex, on every side, in pixels.</string>
 	<!-- Blend modes (Cubism color blend list). -->
 	<string name="blend_mode_normal">Normal</string>
 	<string name="blend_mode_additive">Additive</string>
