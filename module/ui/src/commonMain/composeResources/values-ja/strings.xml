@@ -562,6 +562,7 @@
 	<string name="cmd_mesh_duplicate">複製</string>
 	<string name="cmd_mesh_merge">頂点をマージ</string>
 	<string name="cmd_mesh_generate_from_art">アートからメッシュを生成</string>
+	<string name="cmd_mesh_generate_quad">四角形メッシュを生成</string>
 	<string name="cmd_mesh_merge_at_center">中心にマージ</string>
 	<string name="cmd_mesh_merge_at_first">最初の頂点にマージ</string>
 	<string name="cmd_mesh_merge_at_last">最後の頂点にマージ</string>
@@ -573,6 +574,7 @@
 	<string name="history_mesh_rip">リップ</string>
 	<string name="history_mesh_connect">頂点を連結</string>
 	<string name="history_mesh_generate_from_art">アートからメッシュを生成</string>
+	<string name="history_mesh_generate_quad">四角形メッシュを生成</string>
 	<string name="notice_mesh_generated">アートから %1$d 個のメッシュを生成しました。</string>
 	<string name="notice_mesh_generated_with_skips">アートから %1$d 個のメッシュを生成し、%2$d 個をスキップしました。ログを参照してください。</string>
 	<string name="notice_mesh_generated_coarser">アートから %1$d 個のメッシュを生成しました。頂点数の上限に収めるため、%2$d 個は指定より粗く生成しました。ログを参照してください。</string>
@@ -584,6 +586,10 @@
 	<string name="notice_mesh_pack_refused">アトラスに大きくなったメッシュの余地がないため、何も生成しませんでした。</string>
 	<string name="notice_mesh_superseded">メッシュの生成中にドキュメントが変更されたため、何も適用しませんでした。</string>
 	<string name="notice_mesh_no_targets">アートからメッシュを生成するには、メッシュのあるドローアブルを選択してください。</string>
+	<string name="notice_mesh_quad_generated">%1$d 個の四角形メッシュを生成しました。</string>
+	<string name="notice_mesh_quad_generated_with_skips">%1$d 個の四角形メッシュを生成し、%2$d 個をスキップしました。ログを参照してください。</string>
+	<string name="notice_mesh_quad_pinned_without_room">%1$d 個の四角形メッシュを生成しました。ピン留めされたアートに広がる余地がないため %2$d 個をスキップしました。ピン留めを解除するか、余白を小さくしてください。</string>
+	<string name="notice_mesh_quad_no_targets">四角形メッシュにするには、メッシュのあるドローアブルを選択してください。</string>
 	<string name="history_drawable_duplicate">ドローアブルを複製</string>
 	<string name="notice_merge_needs_vertices">マージには2つ以上の選択頂点が必要です（頂点モード）。</string>
 	<string name="notice_connect_needs_two_vertices">連結にはちょうど2つの選択頂点が必要です（頂点モード）。</string>
@@ -864,6 +870,7 @@
 	<string name="mesh_options_strand_rungs">細部をはしご状に</string>
 	<string name="mesh_options_strand_width">はしご状にする幅</string>
 	<string name="mesh_options_deformation_tolerance">変形の許容差</string>
+	<string name="mesh_options_quad_margin">余白</string>
 	<string name="import_options_align">基準位置</string>
 	<string name="import_options_offset_x">オフセット X</string>
 	<string name="import_options_offset_z">オフセット Z</string>
@@ -968,6 +975,7 @@
 	<string name="mesh_options_strand_rungs_description">細いアートを、輪郭をなぞる代わりに、中央に 1 本の列を通した均等な帯としてメッシュにします。</string>
 	<string name="mesh_options_strand_width_description">「細部をはしご状に」がオンのとき、この幅（ピクセル）より細いアートをはしご状の帯にします。各プリセットは内側の輪が収まらなくなる幅に設定します。大きくすると太めのストラップや髪の房も帯になり、小さくすると内側の輪を持つ部分が増えます。</string>
 	<string name="mesh_options_deformation_tolerance_description">新しいメッシュが、リグが元のメッシュに与える形（初期状態と各キーフォーム）からずれてよい距離（ピクセル）。それを超える箇所では、その形を保つ元の頂点を残します。小さいほど多くの頂点が残ります。</string>
+	<string name="mesh_options_quad_margin_description">四角形が、見えているアートとグルーで固定された頂点の外側へ、各辺でどれだけはみ出すか（ピクセル）。</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
 	<string name="blend_mode_normal">通常</string>
 	<string name="blend_mode_additive">加算</string>

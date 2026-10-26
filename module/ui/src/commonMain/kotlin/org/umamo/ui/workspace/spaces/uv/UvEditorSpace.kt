@@ -47,6 +47,7 @@ import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.model.LocalSourceArtRasters
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_mesh_generate_from_art
+import org.umamo.ui.resources.cmd_mesh_generate_quad
 import org.umamo.ui.resources.menu_uv_mirror_x
 import org.umamo.ui.resources.menu_uv_mirror_y
 import org.umamo.ui.theme.LocalUmamoColors
@@ -411,11 +412,12 @@ internal fun UvEditorSpace(scope: AreaScope) {
 	// has over the area menu); the area context stays on the header.  Mirror X / Mirror Y dispatch the
 	// existing uv.mirror* commands through the registry (never a hardcoded handler); rebuilt on mode change
 	// (mode is observed above), so the rows enable and disable with Edit / Object mode.  Generate Mesh from
-	// Art follows, in either mode, enabled exactly when its command is.
+	// Art and Generate Quad Mesh follow, in either mode, each enabled exactly when its command is.
 	val commands = LocalCommands.current
 	val keymap = LocalKeymap.current
 	val mirrorEnabled = mode == EditorMode.Edit
 	val generateMeshEnabled = commands["mesh.generateFromArt"]?.availability?.isAvailable() == true
+	val generateQuadEnabled = commands["mesh.generateQuad"]?.availability?.isAvailable() == true
 	val uvContextItems =
 		listOf(
 			MenuItem.Action(
@@ -434,6 +436,12 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				onSelect = { commands.invoke("mesh.generateFromArt") },
 				shortcut = keymap.chordFor("mesh.generateFromArt")?.let { chord -> formatAccelerator(chord) },
 				enabled = generateMeshEnabled,
+			),
+			MenuItem.Action(
+				label = stringResource(Res.string.cmd_mesh_generate_quad),
+				onSelect = { commands.invoke("mesh.generateQuad") },
+				shortcut = keymap.chordFor("mesh.generateQuad")?.let { chord -> formatAccelerator(chord) },
+				enabled = generateQuadEnabled,
 			),
 		)
 
