@@ -52,9 +52,6 @@ private val SIDEBAR_TAB_HEIGHT = 48.dp
  * [LocalViewportChrome] flag.  The panel body is currently an empty shell; it does not yet host the
  * tool/item tabs.
  *
- * ビューポート右側のサイドバー（Blender の N パネル）。プルタブで開閉し、view.toggleSidebar コマンドを
- * 発行する。中身は今のところ骨組みのみ。
- *
  * @param Modifier modifier The layout modifier (the caller aligns it to the viewport's right edge).
  */
 @Composable

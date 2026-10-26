@@ -8,19 +8,14 @@
 * Android GLES renderer backend (deferred 2026-06-21)
 
 ## WORK STEPS - 2026-09-14
-~~1.) Leftovers - Art Sourcing Pipeline Verification~~
-~~2.) Operation Strip - Make sure all application operations are using it.~~
-~~3.) Phase C - Art Sourcing Pipeline - Cmo3AtlasUndedup Refit~~
-~~4.) Phase H - Art Sourcing Pipeline - CMO3 Interop Hardening~~
-5.) Phase D - Art Sourcing Pipeline - Automatic Mesh from Art - This should become it's own planning document.
 6.) (Everything required for glue, deformers, and so on.)
-7.) UMA Format (Phase G - Art Sourcing Pipeline) - Mostly done, a few final pieces to go through.
+7.) UMA Format - Mostly done, a few final pieces to go through.  I'm leaving it "unfinished" as pre-v1.0 for the format until Umamo 1.0 is ready to release.
 
 ## 0.5.0 Goals
-0.) Merge in the existing language translations.
+0.) Merge in the existing language translations.(Some were merged.)
 1.) Work on the 2D Viewport sidebar that is empty.
-2.) Deformer Gizmos and Editing
-3.) Glue Gizmos and Editing
+2.) Warp Deformer Gizmos and Editing(Rotation deformer is deferred.)
+3.) Glue Gizmos and Editing(Deferred)
 
 ## VERY IMPORTANT
 * Hire translators for localization.
