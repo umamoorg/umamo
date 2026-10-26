@@ -7,6 +7,7 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
+* UI: The status bar shows a progress bar while a document opens, artwork is added or reloaded, meshes are generated, or the atlas is packed.
 * UI: Viewport Overlays has a new Show Overlays toggle and dropdown at the end of the 2D Viewport and UV Editor headers to toggle viewport overlays.  The choices are saved per document.
 * Mesh: Generate Mesh from Art(Shift+M) builds a new mesh from the art's opaque pixels for the selected drawables.
 
