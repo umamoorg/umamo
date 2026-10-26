@@ -7,6 +7,7 @@ import io.github.vinceglb.filekit.readBytes
 import org.umamo.edit.EditorSession
 import org.umamo.format.FileKind
 import org.umamo.format.FormatRegistry
+import org.umamo.format.art.SourceArt
 import org.umamo.format.binary.contentHashOf
 import org.umamo.format.cmo3.Cmo3Model
 import org.umamo.interop.art.SourceArtImportOptions
@@ -145,7 +146,12 @@ suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptio
 		return loadMoc3Document(file, bytes)
 	}
 
-	return loadDocument(bytes, file.name, file.absolutePath(), importOptions, progress)
+	val path = file.absolutePath()
+
+	// Artwork meshes its layers in parallel here, which the byte-level loader below cannot: it is not suspending.
+	return loadDocumentWith(bytes, file.name, path) { artwork, kind ->
+		buildArtDocumentConcurrently(artwork, kind, file.name, path, importOptions, contentHashOf(bytes), fileModifiedAtMillis(path), progress)
+	}
 }
 
 /**
@@ -170,6 +176,22 @@ fun loadDocument(
 	importOptions: SourceArtImportOptions = artworkImportOptions(),
 	progress: ProgressHandle? = null,
 ): DocumentLoad =
+	loadDocumentWith(bytes, name, path) { artwork, kind ->
+		buildArtDocument(artwork, kind, name, path, importOptions, contentHashOf(bytes), fileModifiedAtMillis(path), progress)
+	}
+
+/**
+ * The format detection and the branch every loader shares: a native document, a CMO3, artwork handed to
+ * [buildArt], or a failure - logged, never thrown, except a cancellation, which propagates.  Inline so a
+ * suspending loader can pass a suspending art build.
+ *
+ * @param ByteArray bytes    The file contents.
+ * @param String    name     The file name.
+ * @param String    path     The stored path or URI string.
+ * @param Function  buildArt Builds the document from parsed artwork and the format it came in.
+ * @return DocumentLoad The loaded document, or the failure reason.
+ */
+private inline fun loadDocumentWith(bytes: ByteArray, name: String, path: String, buildArt: (SourceArt, FileKind) -> DocumentLoad): DocumentLoad =
 	runCatching {
 		val codec = FormatRegistry.detect(bytes, name)
 
@@ -198,8 +220,12 @@ fun loadDocument(
 			return@runCatching DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NotOpenable, name))
 		}
 
-		buildArtDocument(artwork, codec.kind, name, path, importOptions, contentHashOf(bytes), fileModifiedAtMillis(path), progress)
-	}.getOrElse {
-		UmamoLog.error("failed to open $path", it)
+		buildArt(artwork, codec.kind)
+	}.getOrElse { failure ->
+		if (failure is CancellationException) {
+			throw failure
+		}
+
+		UmamoLog.error("failed to open $path", failure)
 		DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
 	}

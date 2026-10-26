@@ -26,6 +26,9 @@ object ProgressLabels {
 	/** Reloading the document's artwork files. */
 	const val ARTWORK_RELOADING = "progress.artwork.reloading"
 
+	/** Meshing the art an import or a reload brings in, counted by layer. */
+	const val ARTWORK_MESHING = "progress.artwork.meshing"
+
 	/** Generating meshes from art, counted by drawable. */
 	const val MESH_GENERATING = "progress.mesh.generating"
 

@@ -61,7 +61,8 @@
 		"alignment": "center",
 		"watchMode": "auto",
 		"deleteArtIgnoresLayer": false,
-		"layerPositionsFromWorldAxes": false
+		"layerPositionsFromWorldAxes": false,
+		"birthMesh": "automatic"
 	},
 	"meshGeneration": {
 		"preset": "standard"

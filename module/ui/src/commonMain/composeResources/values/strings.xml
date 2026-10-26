@@ -666,6 +666,7 @@
 	<string name="progress_document_opening">Opening %1$s…</string>
 	<string name="progress_artwork_adding">Adding %1$s…</string>
 	<string name="progress_artwork_reloading">Reloading artwork…</string>
+	<string name="progress_artwork_meshing">Meshing the art…</string>
 	<string name="progress_mesh_generating">Generating meshes…</string>
 	<string name="progress_atlas_packing">Packing the atlas…</string>
 	<string name="progress_count">%1$d / %2$d</string>
@@ -676,7 +677,10 @@
 	<string name="notice_import_no_art_layers">The file has no layers with pixels to add.</string>
 	<string name="notice_reload_done">Artwork reloaded: %1$d updated, %2$d added, %3$d matched.</string>
 	<string name="notice_reload_notes">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review.  See the log.</string>
-	<string name="notice_reload_outgrown">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review; some art now reaches past its mesh.  See the log.</string>
+	<string name="notice_reload_outgrown">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review; some art now reaches past its mesh.  Generate Mesh from Art re-meshes it; see the log.</string>
+	<string name="notice_relink_outgrown">Art relinked; some of it now reaches past its mesh.  Generate Mesh from Art re-meshes it; see the log.</string>
+	<string name="notice_match_outgrown">%1$d layer(s) matched, %2$d left for review; some art now reaches past its mesh.  Generate Mesh from Art re-meshes it; see the log.</string>
+	<string name="notice_replace_outgrown">Artwork replaced: %1$d layer(s) reloaded by key, %2$d matched, %3$d left for review; some art now reaches past its mesh.  Generate Mesh from Art re-meshes it; see the log.</string>
 	<string name="notice_watch_changed">%1$d artwork file(s) changed on disk.  Press Reload to take the changes.</string>
 	<string name="notice_watch_stale_at_open">%1$d artwork file(s) changed since they were last read.  Press Reload to take the changes.</string>
 	<string name="notice_watch_missing">%1$s is no longer where the document read it.</string>
@@ -1011,8 +1015,8 @@
 	<string name="import_options_align_description">Where the added file's canvas sits on the document's canvas: Top Left lines up their top-left corners, Center centers it, and so on.</string>
 	<string name="import_options_offset_x_description">Moves the added art right from where Align puts it, in pixels.  Negative moves it left.</string>
 	<string name="import_options_offset_z_description">Moves the added art up from where Align puts it, in pixels.  Negative moves it down.</string>
-	<string name="import_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to count as art when a layer's starting mesh is fitted around it.</string>
-	<string name="import_options_margin_description">How far a layer's starting mesh reaches past its visible art on every side, in pixels.</string>
+	<string name="import_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to count as art when a layer's initial mesh is made: the quad fits around it, and a mesh generated from art covers it.</string>
+	<string name="import_options_margin_description">How far a layer's initial quad reaches past its visible art on every side, in pixels.  A mesh generated from art keeps its preset's margins.</string>
 	<string name="match_options_threshold_description">How sure a match must be, as a percentage, before a lost layer is relinked to it automatically.  Weaker matches are left for review in the Sources panel.</string>
 	<string name="transform_options_move_x_description">How far the selection moved right, in pixels.  Negative moves it left.</string>
 	<string name="transform_options_move_y_description">How far the selection moved down the texture, in pixels.  Negative moves it up.</string>
@@ -1035,7 +1039,7 @@
 	<string name="mesh_options_inner_margin_description">How far inside the art's edge the inner ring runs, in pixels.  0 for no inner ring.</string>
 	<string name="mesh_options_minimum_margin_description">The closest the outline may come to any art pixel, in pixels.</string>
 	<string name="mesh_options_minimum_outline_points_description">The fewest vertices one outline ring may have, however small its piece of art.</string>
-	<string name="mesh_options_minimum_angle_description">The smallest angle, in degrees, the mesher brings every triangle up to by adding vertices, within the vertex budget.  Angles the outline itself makes, such as a hair tip's, stay as they are.  0 for none.</string>
+	<string name="mesh_options_minimum_angle_description">Adds vertices to break up thin, sliver-shaped triangles until each triangle's narrowest corner is at least this many degrees.  Higher gives more even triangles that bend more smoothly, but uses more vertices, up to the Vertex Budget.  Corners the outline itself makes, such as a hair tip's, can't be widened and stay as they are.  0 adds none.</string>
 	<string name="mesh_options_vertex_budget_description">The most vertices one mesh should have.  Art that can't fit is meshed again under a higher budget, up to 4096, and then with its holes filled.</string>
 	<string name="mesh_options_interior_thinning_limit_description">When the art needs more vertices than the Vertex Budget it thins the interior first.  The spacing grows to at most this value times the outline spacing.  Past that, the outline thins along with it.  Higher keeps the outline's detail longer and lower keeps the interior even.</string>
 	<string name="mesh_options_fill_holes_description">Meshes over holes in the art as one sheet instead of cutting them out.</string>
@@ -1145,6 +1149,10 @@
 	<string name="settings_import_layer_positions_from_world_axes">In the Sources area, measure layer positions from the world axes instead of the art file's top-left corner.</string>
 	<string name="settings_import_parameter_template_humanoid">Humanoid</string>
 	<string name="settings_import_parameter_template_none">None</string>
+	<string name="settings_import_birth_mesh">Initial Mesh</string>
+	<string name="settings_import_birth_mesh_automatic">Generated from Art</string>
+	<string name="settings_import_birth_mesh_quad">Quad</string>
+	<string name="settings_import_mesh_preset">Mesh Generation Preset</string>
 	<!-- Viewport section: wheel-zoom increments, in percent per notch. -->
 	<string name="settings_viewport_zoom_step">Zoom Step (%)</string>
 	<string name="settings_viewport_zoom_step_coarse">Coarse Zoom Step (%)</string>

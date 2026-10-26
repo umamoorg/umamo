@@ -22,7 +22,6 @@ import org.umamo.ui.document.DocumentOpenFailure
 import org.umamo.ui.document.ReadArtwork
 import org.umamo.ui.document.SourceReadOrigin
 import org.umamo.ui.document.artworkImportExtensions
-import org.umamo.ui.document.artworkImportOptions
 import org.umamo.ui.document.fileDisplayName
 import org.umamo.ui.document.fileModifiedAtMillis
 import org.umamo.ui.document.isFileSystemPath
@@ -285,7 +284,7 @@ internal class ArtworkController(
 
 			// A reload that lands publishes what its matcher left under the bar (scored before it minted);
 			// one that found nothing changed re-scores the files as they stand.
-			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD), areaId) { scored -> publishSuggestions(covered, scored) }
+			val result = runReloadArtwork(host, ReloadArtworkRequest(entries, services.configuredArtworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD), areaId) { scored -> publishSuggestions(covered, scored) }
 
 			if (result == ReloadArtworkResult.NothingChanged) {
 				publishSuggestions(covered, scoreSourceSuggestions(host, entries))
@@ -331,7 +330,7 @@ internal class ArtworkController(
 					request.tileIds,
 					ref,
 					read?.art,
-					artworkImportOptions(),
+					services.configuredArtworkImportOptions(),
 					request.retire,
 					inventoryOverride = read?.inventory,
 					fromDocument = read?.origin == SourceReadOrigin.DocumentTiles,
@@ -367,7 +366,7 @@ internal class ArtworkController(
 			val covered = entries.mapTo(HashSet()) { entry -> entry.sourceId }
 			runMatchArtwork(
 				host,
-				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, artworkImportOptions(), standing = suggestions.value),
+				MatchArtworkRequest(entries, InventoryLayerMatcher.DEFAULT_THRESHOLD, services.configuredArtworkImportOptions(), standing = suggestions.value),
 				areaId,
 			) { scored -> publishSuggestions(covered, scored) }
 		}
@@ -388,7 +387,7 @@ internal class ArtworkController(
 			val picked = pickArtwork() ?: return@launch
 			runReplaceArtwork(
 				host,
-				ReplaceArtworkRequest(request.sourceId, picked.read.art.placedFor(source), picked.descriptor, picked.read.contentHash, artworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD),
+				ReplaceArtworkRequest(request.sourceId, picked.read.art.placedFor(source), picked.descriptor, picked.read.contentHash, services.configuredArtworkImportOptions(), InventoryLayerMatcher.DEFAULT_THRESHOLD),
 				areaId,
 			) { scored -> publishSuggestions(setOf(request.sourceId), scored) }
 		}

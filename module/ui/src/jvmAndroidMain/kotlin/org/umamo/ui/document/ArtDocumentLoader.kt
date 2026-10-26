@@ -15,9 +15,12 @@ import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.rasterToSourceArt
 import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.ArtworkAnchor
+import org.umamo.interop.art.BirthMeshMode
+import org.umamo.interop.art.BirthMesher
 import org.umamo.interop.art.SourceArtImport
 import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.art.SourceArtImportOptions
+import org.umamo.interop.art.SourceArtImportResult
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
@@ -26,6 +29,7 @@ import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.artwork.LoggedSourceFilePresence
 import org.umamo.ui.model.artwork.SourceFilePresence
 import org.umamo.ui.model.artwork.describeImportNotice
+import org.umamo.ui.model.artwork.resolveBirths
 import org.umamo.ui.model.repack.AtlasRepackRefusalReason
 import org.umamo.ui.model.repack.packModelAtOpen
 import org.umamo.ui.progress.ProgressHandle
@@ -54,19 +58,24 @@ class ArtDocument(
 ) : PuppetDocument
 
 /**
- * The options an artwork import runs with under [template] and [anchor].  The bridge takes the
- * resolved parameter list and knows nothing about templates, so the template-to-parameters step
- * happens once here for every caller: the shell resolves the preferences into it, and the loaders
+ * The options an artwork import runs with under [template], [anchor], and [birthMesh].  The bridge
+ * takes the resolved parameter list and knows nothing about templates, so the template-to-parameters
+ * step happens once here for every caller: the shell resolves the preferences into it, and the loaders
  * default through it so a caller with no setting to read still seeds the configured defaults.  The
  * anchor only matters to an import into a rig that already has art; a reload or a relink reads the
- * options for their threshold and margin alone.
+ * options for their threshold, margin, and birth mesh alone.  The birth mesh defaults to the quad, so a
+ * caller with no setting to read keeps the import as it always was; the shell passes the preference.
  *
- * @param ParameterTemplate template The parameter set to seed.
- * @param ArtworkAnchor     anchor   Where a later file is anchored on the rig's canvas.
+ * @param ParameterTemplate template  The parameter set to seed.
+ * @param ArtworkAnchor     anchor    Where a later file is anchored on the rig's canvas.
+ * @param BirthMeshMode     birthMesh The mesh each new drawable starts with.
  * @return SourceArtImportOptions The import options.
  */
-fun artworkImportOptions(template: ParameterTemplate = ParameterTemplate.Default, anchor: ArtworkAnchor = ArtworkAnchor.Default): SourceArtImportOptions =
-	SourceArtImportOptions(parameters = template.parameters, anchor = anchor)
+fun artworkImportOptions(
+	template: ParameterTemplate = ParameterTemplate.Default,
+	anchor: ArtworkAnchor = ArtworkAnchor.Default,
+	birthMesh: BirthMeshMode = BirthMeshMode.Quad,
+): SourceArtImportOptions = SourceArtImportOptions(parameters = template.parameters, anchor = anchor, birthMesh = birthMesh)
 
 /**
  * A layered artwork file, or a flat raster wrapped as one layer, read for the artwork paths: the
@@ -193,8 +202,10 @@ internal fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): S
 	}
 
 /**
- * Assembles an [ArtDocument] from parsed source art: the bridge builds the unpacked model, the pack
- * at open moves it onto pages, and the rasters the reader decoded become the document's pixel store.
+ * Assembles an [ArtDocument] from parsed source art: the bridge builds the unpacked model, the birth
+ * meshes the options name are made one after another (an open from the app makes them in parallel,
+ * through [buildArtDocumentConcurrently]), the pack at open moves it onto pages, and the rasters the
+ * reader decoded become the document's pixel store.
  *
  * Every raster is wrapped into ONE decoded image up front, so the store's cached and uncached reads
  * hand out the same instance for a tile - the identity the renderer's texture cache and the
@@ -225,6 +236,49 @@ internal fun buildArtDocument(
 ): DocumentLoad {
 	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension, contentHash, lastModified), options)
 
+	return finishArtDocument(imported.withBirths(BirthMesher.resolveSequentially(imported.pendingBirths)), name, path, progress)
+}
+
+/**
+ * [buildArtDocument] with the birth meshes made in parallel and counted on [progress]: what an open from
+ * the app runs, off the UI thread.
+ *
+ * @param SourceArt              art          The parsed source art.
+ * @param FileKind               kind         The format it was read from.
+ * @param String                 name         The file name.
+ * @param String                 path         The stored path or URI string recorded on the document.
+ * @param SourceArtImportOptions options      The seed parameters, threshold, margin, and birth mesh.
+ * @param String?                contentHash  The whole-file content hash of the bytes the art was read from.
+ * @param Long?                  lastModified The file's modification time when read; null when unknown.
+ * @param ProgressHandle?        progress     Counts the birth meshes and says when the atlas packs, or null.
+ * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
+ */
+internal suspend fun buildArtDocumentConcurrently(
+	art: SourceArt,
+	kind: FileKind,
+	name: String,
+	path: String,
+	options: SourceArtImportOptions,
+	contentHash: String?,
+	lastModified: Long?,
+	progress: ProgressHandle?,
+): DocumentLoad {
+	val imported = SourceArtImport.fromSourceArt(art, ArtSourceDescriptor(name, path.takeIf { stored -> stored.isNotEmpty() }, kind.extension, contentHash, lastModified), options)
+
+	return finishArtDocument(imported.withBirths(resolveBirths(imported.pendingBirths, cache = null, progress)), name, path, progress)
+}
+
+/**
+ * The rest of an artwork open once its drawables have their meshes: the pack at open, the notes, and the
+ * document over the decoded rasters.
+ *
+ * @param SourceArtImportResult imported The import, its births landed.
+ * @param String                name     The file name.
+ * @param String                path     The stored path or URI string recorded on the document.
+ * @param ProgressHandle?       progress Says when the atlas packs, or null.
+ * @return DocumentLoad The loaded document, or NoArtLayers when nothing in the file can be rigged.
+ */
+private fun finishArtDocument(imported: SourceArtImportResult, name: String, path: String, progress: ProgressHandle?): DocumentLoad {
 	if (imported.puppet.drawables.isEmpty()) {
 		for (notice in imported.notices) {
 			UmamoLog.warn("import: ${describeImportNotice(notice)}")

@@ -83,12 +83,13 @@ internal const val IMPORT_MAX_OFFSET = 8192
  * One artwork file to add to the open document, as read from disk.
  *
  * Holds the parsed art for the strip's adjustments (a re-run re-derives the additions from the same
- * layers) and the decoded wrapper of every layer raster, minted once: a re-run hands the raster store
- * the same instances again, and the renderer's texture cache keys on that identity.
+ * layers), the decoded wrapper of every layer raster, minted once - a re-run hands the raster store the
+ * same instances again, and the renderer's texture cache keys on that identity - and the birth meshes
+ * made for its layers, so a re-run that only moves the art meshes nothing again.
  *
  * @property SourceArt              art        The parsed source art.
  * @property ArtSourceDescriptor    descriptor What the model records about the file.
- * @property SourceArtImportOptions options    The threshold and margin the first run uses.
+ * @property SourceArtImportOptions options    The threshold, margin, and birth mesh the first run uses.
  */
 class AddArtworkRequest(
 	val art: SourceArt,
@@ -96,6 +97,9 @@ class AddArtworkRequest(
 	val options: SourceArtImportOptions,
 ) {
 	private val decoded = DecodedLayerRasters()
+
+	/** The birth meshes made for this file's layers, for every run of the request. */
+	internal val births = BirthMeshCache()
 
 	/**
 	 * The decoded wrapper of one of this file's layer rasters.
@@ -197,6 +201,10 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
  * the existing art sits on compose exactly as they did.  A new tile the pack cannot carry stays
  * unplaced and is a note; the source-layer display still draws it.
  *
+ * Under the Automatic birth mode every new drawable's quad gives way to the mesh generated from its art
+ * before the pack, which reserves each tile by its meshes' reach; a layer the mesher cannot mesh keeps
+ * its quad, and a note says why.
+ *
  * A file joining a rig that already has art is first placed on the rig's canvas by the options'
  * anchor and nudge ([SourceArtImport.offsetFor]), and its record keeps that offset so every later
  * read of the file lands the same way.  The request's own art stays unplaced: an adjustment places
@@ -211,10 +219,10 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
  * @param SourceArtImportOptions options            The placement, threshold, and margin to import with.
  * @param SourceArtRasters       artRasters         The document's raster store.
  * @param Boolean                premultipliedAlpha The document's texture-convention flag.
- * @param ProgressHandle?        progress           Says when the atlas packs, or null.
+ * @param ProgressHandle?        progress           Counts the birth meshes and says when the atlas packs, or null.
  * @return AddArtworkOutcome? The outcome, or null when the file has no layer with art to add.
  */
-private fun addArtworkOutcome(
+private suspend fun addArtworkOutcome(
 	base: PuppetModel,
 	request: AddArtworkRequest,
 	options: SourceArtImportOptions,
@@ -223,7 +231,9 @@ private fun addArtworkOutcome(
 	progress: ProgressHandle? = null,
 ): AddArtworkOutcome {
 	val offset = SourceArtImport.offsetFor(base, request.art, options)
-	val added = SourceArtImport.additionsFor(request.art.placedBy(offset), request.descriptor, options, base, offset = offset)
+	val named = SourceArtImport.additionsFor(request.art.placedBy(offset), request.descriptor, options, base, offset = offset)
+	// The birth meshes land before the pack, which reserves each tile by its meshes' reach.
+	val added = named.withBirths(resolveBirths(named.pendingBirths, request.births, progress))
 
 	if (added.additions.drawables.isEmpty()) {
 		return AddArtworkOutcome.NothingToAdd
