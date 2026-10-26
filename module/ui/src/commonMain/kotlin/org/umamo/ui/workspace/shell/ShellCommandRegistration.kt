@@ -23,6 +23,7 @@ import org.umamo.ui.model.repack.atlasRepackLauncher
 import org.umamo.ui.progress.LocalProgressTracker
 import org.umamo.ui.settings.MESH_GENERATION_PRESET_KEY
 import org.umamo.ui.workspace.KeyformHover
+import org.umamo.ui.workspace.LocalViewportChrome
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.atlasCommands
@@ -47,6 +48,7 @@ import org.umamo.ui.workspace.commands.topologyCommands
 import org.umamo.ui.workspace.commands.transformCommands
 import org.umamo.ui.workspace.commands.uvCommands
 import org.umamo.ui.workspace.commands.viewCommands
+import org.umamo.ui.workspace.commands.viewportChromeCommands
 import org.umamo.ui.workspace.commands.workspaceCommands
 
 /**
@@ -83,6 +85,7 @@ internal fun RegisterShellCommands(
 	val areaCameras = controllers.areaCameras
 	val areaOverlays = controllers.areaOverlays
 	val areaSidebars = controllers.areaSidebars
+	val areaToolbars = controllers.areaToolbars
 	val repackOptions = controllers.repackOptions
 	val meshGenerationOptions = controllers.meshGenerationOptions
 	val meshGenerationRun = controllers.meshGenerationRun
@@ -132,10 +135,15 @@ internal fun RegisterShellCommands(
 		val cleanup = commandRegistry.registerAll(frameCommands(commandRegistry, routing))
 		onDispose { cleanup() }
 	}
-	// The sidebar tab commands key on the registry alone: a sidebar exists with no renderer behind its area,
-	// and re-registering them on a renderer change would only shuffle their palette position.
+	// The viewport chrome toggles and the sidebar tab commands key on the registry alone: the chrome exists with
+	// no renderer behind its area, and re-registering them on a renderer change would only shuffle their palette
+	// position.  The toggles read the application's chrome defaults when they run.
+	val currentChromeDefaults by rememberUpdatedState(LocalViewportChrome.current)
 	DisposableEffect(commandRegistry) {
-		val cleanup = commandRegistry.registerAll(sidebarCommands(areaSidebars, routing))
+		val cleanup =
+			commandRegistry.registerAll(
+				viewportChromeCommands(areaToolbars, areaSidebars, routing) { currentChromeDefaults } + sidebarCommands(areaSidebars, routing),
+			)
 		onDispose { cleanup() }
 	}
 	val selection = LocalSelection.current

@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.sidebar
 
+import androidx.compose.ui.unit.dp
 import org.umamo.ui.l10n.UiText
 import org.umamo.ui.sidebar.SidebarPanel
 import org.umamo.ui.workspace.SpaceKind
@@ -81,5 +82,26 @@ class SidebarStateTest {
 		state.toggleExpanded(folded)
 		assertFalse(state.isExpanded(open))
 		assertTrue(state.isExpanded(folded))
+	}
+
+	/** A panel folded and opened again is back at its default and keeps no entry, so nothing is saved for it. */
+	@Test
+	fun foldingBackToTheDefaultLeavesNoEntry() {
+		val state = SidebarState()
+		val open = panel("open")
+		state.toggleExpanded(open)
+		assertEquals(mapOf("open" to false), state.expandedByPanel.toMap())
+		state.toggleExpanded(open)
+		assertTrue(state.expandedByPanel.isEmpty())
+	}
+
+	/** The stack keeps the rigger's width when the area has room, and is held between its limits and the room left. */
+	@Test
+	fun theStackWidthFitsTheArea() {
+		assertEquals(200.dp, sidebarStackWidth(200.dp, 600.dp), "the chosen width fits")
+		assertEquals(SIDEBAR_MIN_WIDTH, sidebarStackWidth(100.dp, 600.dp), "never narrower than the minimum")
+		assertEquals(SIDEBAR_MAX_WIDTH, sidebarStackWidth(600.dp, 1000.dp), "never wider than the maximum")
+		assertEquals(400.dp - SIDEBAR_AREA_RESERVE, sidebarStackWidth(400.dp, 400.dp), "never wider than the area leaves")
+		assertNull(sidebarStackWidth(200.dp, SIDEBAR_MIN_WIDTH + SIDEBAR_AREA_RESERVE - 1.dp), "an area too narrow for the narrowest stack fits none")
 	}
 }

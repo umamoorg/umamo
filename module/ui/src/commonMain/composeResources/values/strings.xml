@@ -1174,6 +1174,8 @@
 	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
 	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
 	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>
+	<string name="settings_viewport_show_toolbar">Show Toolbar by Default</string>
+	<string name="settings_viewport_show_sidebar">Show Sidebar by Default</string>
 	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state. -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>

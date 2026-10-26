@@ -71,7 +71,8 @@ private const val AREA_ID = "area-1"
  *
  * The sidebar drawer is a Row hugging the right edge: the pull-tab column (x 358..372, the 14 x 48 chip at
  * y 176..224) and then the open sidebar (x 372..600): the 200-wide panel stack (x 372..572, its 6 dp padding
- * ending at x 378, the active tab's one card at the top) beside the 28-wide tab rail (x 572..600).
+ * all round, the resize grip over its left 5 dp at x 372..377, the active tab's one card from y 6) beside the
+ * 28-wide tab rail (x 572..600).
  * The toolbar is centered on the left edge behind the caller's 6 dp margin: a Column at x 6..40, y 123..277
  * holding five 28 dp buttons 2 dp apart inside 3 dp of padding, so its top padding is y 123..126 and the
  * first gap y 154..156.
@@ -83,8 +84,11 @@ private val OPEN_SURFACE = Offset(300f, 200f)
 /** A point on the drawer panel's empty body, below its text. */
 private val PANEL_BODY = Offset(500f, 300f)
 
-/** A point in the drawer panel's left padding, above the pull tab's span. */
-private val PANEL_PADDING = Offset(375f, 100f)
+/** A point in the drawer panel's top padding, above its first card and clear of the resize grip. */
+private val PANEL_PADDING = Offset(450f, 3f)
+
+/** A point on the resize grip along the drawer panel's inner edge, above the pull tab's span. */
+private val RESIZE_GRIP = Offset(374f, 100f)
 
 /** A point in the toolbar's top padding. */
 private val TOOLBAR_TOP_PADDING = Offset(23f, 124.5f)
@@ -263,6 +267,17 @@ class ViewportChromePointerIsolationTest {
 			mountBody(host)
 			clickAt(PANEL_PADDING)
 			assertEquals(0, host.presses, "a click in the panel's padding must not reach the surface")
+		}
+
+	/** The resize grip belongs to the sidebar: a press on it starts a resize, never a click on the surface. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun theResizeGripSwallowsPress() =
+		runComposeUiTest {
+			val host = RecordingViewportHost()
+			mountBody(host)
+			clickAt(RESIZE_GRIP)
+			assertEquals(0, host.presses, "a click on the grip must not reach the surface")
 		}
 
 	/** The toolbar's padding and the gaps between its buttons belong to the toolbar. */

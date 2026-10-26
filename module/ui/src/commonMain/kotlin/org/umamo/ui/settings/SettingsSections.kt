@@ -76,6 +76,8 @@ import org.umamo.ui.resources.settings_theme_light
 import org.umamo.ui.resources.settings_theme_system
 import org.umamo.ui.resources.settings_viewport_grid_scale
 import org.umamo.ui.resources.settings_viewport_grid_subdivisions
+import org.umamo.ui.resources.settings_viewport_show_sidebar
+import org.umamo.ui.resources.settings_viewport_show_toolbar
 import org.umamo.ui.resources.settings_viewport_supersample
 import org.umamo.ui.resources.settings_viewport_supersample_while_resizing
 import org.umamo.ui.resources.settings_viewport_uv_grid_scale
@@ -87,6 +89,9 @@ import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportSettings
+import org.umamo.ui.workspace.SHOW_SIDEBAR_SETTINGS_KEY
+import org.umamo.ui.workspace.SHOW_TOOLBAR_SETTINGS_KEY
+import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.operationstrip.artworkAnchorLabel
 
 /** The settings key + values for the UI theme mode, kept in lockstep with org.umamo.ui.theme.Theme. */
@@ -433,6 +438,10 @@ internal fun ViewportSection() {
 	var supersample by rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_KEY, ViewportSettings.SUPERSAMPLE_DEFAULT)
 	var supersampleWhileResizing by
 		rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_KEY, ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_DEFAULT)
+	// The chrome defaults: what a viewport shows until the rigger toggles its toolbar (T) or sidebar (N) there,
+	// so a change here reaches every viewport that has no choice of its own.
+	var showToolbar by rememberBooleanSetting(SHOW_TOOLBAR_SETTINGS_KEY, ViewportChromeState().showToolbar)
+	var showSidebar by rememberBooleanSetting(SHOW_SIDEBAR_SETTINGS_KEY, ViewportChromeState().showSidebar)
 
 	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
 		SettingRow(label = stringResource(Res.string.settings_viewport_zoom_step)) {
@@ -496,6 +505,16 @@ internal fun ViewportSection() {
 			onCheckedChange = { checked -> supersampleWhileResizing = checked },
 			label = stringResource(Res.string.settings_viewport_supersample_while_resizing),
 			enabled = supersample,
+		)
+		Checkbox(
+			checked = showToolbar,
+			onCheckedChange = { checked -> showToolbar = checked },
+			label = stringResource(Res.string.settings_viewport_show_toolbar),
+		)
+		Checkbox(
+			checked = showSidebar,
+			onCheckedChange = { checked -> showSidebar = checked },
+			label = stringResource(Res.string.settings_viewport_show_sidebar),
 		)
 	}
 }

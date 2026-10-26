@@ -5,14 +5,39 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import org.umamo.ui.sidebar.SidebarPanel
 import org.umamo.ui.workspace.AreaHub
+import org.umamo.ui.workspace.ChromeVisibility
+
+/** The narrowest the sidebar's panel stack may be dragged. */
+internal val SIDEBAR_MIN_WIDTH = 160.dp
+
+/** The panel stack's width until the rigger drags it. */
+internal val SIDEBAR_DEFAULT_WIDTH = 200.dp
+
+/** The widest the sidebar's panel stack may be dragged. */
+internal val SIDEBAR_MAX_WIDTH = 480.dp
 
 /**
- * One area's sidebar: which tab it shows and which panels the rigger folded.  The work surface hosting the
- * sidebar keeps one per area, so two viewports each remember their own.
+ * What the rest of an area keeps beside the open sidebar's panel stack: room for the toolbar on the left
+ * edge (its 6 dp margin, its 34 dp strip, and a gap), the pull tab, and the tab rail.
+ */
+internal val SIDEBAR_AREA_RESERVE = 48.dp + 14.dp + 28.dp
+
+/**
+ * One area's sidebar: whether it is open, how wide its panel stack is, which tab it shows, and which panels
+ * the rigger folded.  The work surface hosting the sidebar keeps one per area, so two viewports each
+ * remember their own, and a saved document carries it.
  */
 class SidebarState {
+	/** Whether the sidebar is open: the area's own choice, else the application's default. */
+	val visibility = ChromeVisibility()
+
+	/** The panel stack's width as the rigger dragged it, before it is fitted to the area. */
+	var width: Dp by mutableStateOf(SIDEBAR_DEFAULT_WIDTH)
+
 	/**
 	 * The tab the rigger last chose, or null before any choice.  Kept as chosen even while that tab is not
 	 * shown, so a tab that comes back (a contributor reloaded, a selection made again) is shown again.
@@ -21,9 +46,10 @@ class SidebarState {
 
 	/**
 	 * The panels the rigger opened or folded against their default, by panel id.  An absent entry means the
-	 * panel's own default.
+	 * panel's own default, so the map holds only deviations; an entry for a panel no contributor registers
+	 * right now is kept as it was read.
 	 */
-	private val expandedByPanel = mutableStateMapOf<String, Boolean>()
+	internal val expandedByPanel = mutableStateMapOf<String, Boolean>()
 
 	/**
 	 * The ids of the tabs on the rail right now, top to bottom, or empty while the sidebar is closed.  Written
@@ -67,13 +93,39 @@ class SidebarState {
 	fun isExpanded(panel: SidebarPanel): Boolean = expandedByPanel[panel.id] ?: !panel.initiallyCollapsed
 
 	/**
-	 * Opens [panel] if it is folded and folds it if it is open.
+	 * Opens [panel] if it is folded and folds it if it is open.  Back at its own default, the panel keeps no
+	 * entry, so only real deviations are saved.
 	 *
 	 * @param SidebarPanel panel The panel.
 	 */
 	fun toggleExpanded(panel: SidebarPanel) {
-		expandedByPanel[panel.id] = !isExpanded(panel)
+		val expanded = !isExpanded(panel)
+
+		if (expanded == !panel.initiallyCollapsed) {
+			expandedByPanel.remove(panel.id)
+		} else {
+			expandedByPanel[panel.id] = expanded
+		}
 	}
+}
+
+/**
+ * The panel stack's width in an area [areaWidth] wide: the rigger's [chosen] width, held between the
+ * narrowest the stack may be and the widest the area leaves it, or null when the area cannot fit even the
+ * narrowest stack (the sidebar then shows only its pull tab, staying open for when the area grows).
+ *
+ * @param Dp chosen The width the rigger dragged the stack to.
+ * @param Dp areaWidth The width of the area the sidebar sits in.
+ * @return Dp? The width to lay the stack out at, or null when it does not fit.
+ */
+internal fun sidebarStackWidth(chosen: Dp, areaWidth: Dp): Dp? {
+	val room = minOf(SIDEBAR_MAX_WIDTH, areaWidth - SIDEBAR_AREA_RESERVE)
+
+	if (room < SIDEBAR_MIN_WIDTH) {
+		return null
+	}
+
+	return chosen.coerceIn(SIDEBAR_MIN_WIDTH, room)
 }
 
 /**

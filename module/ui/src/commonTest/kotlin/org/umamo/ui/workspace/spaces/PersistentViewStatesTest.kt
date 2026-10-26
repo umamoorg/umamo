@@ -10,13 +10,17 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
+import org.umamo.ui.l10n.UiText
 import org.umamo.ui.properties.PropertiesViewState
 import org.umamo.ui.properties.PropertyTabId
+import org.umamo.ui.sidebar.SidebarPanel
 import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_DEFAULT_WIDTH
 import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_MAX_WIDTH
 import org.umamo.ui.tracks.TrackWindow
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.PersistentSpaceState
+import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.sidebar.SIDEBAR_MAX_WIDTH
 import org.umamo.ui.workspace.spaces.keyformsheet.KeyformSheetViewState
 import org.umamo.ui.workspace.spaces.outliner.OUTLINER_ROOT_ID
 import org.umamo.ui.workspace.spaces.outliner.OutlinerViewState
@@ -207,6 +211,75 @@ class PersistentViewStatesTest {
 		assertTrue(state.overlays.isAtDefaults)
 	}
 
+	/**
+	 * The 2D viewport's toolbar and sidebar round-trip beside its overlays: a toolbar the rigger hid, an open
+	 * sidebar dragged wider, a chosen tab, and folds against each panel's default - a tab and a panel no
+	 * contributor registers right now included, kept as read.
+	 */
+	@Test
+	fun theViewportRoundTripsItsToolbarAndSidebar() {
+		val saved = Viewport2DViewState()
+		saved.toolbar.choice = false
+		saved.sidebar.visibility.choice = true
+		saved.sidebar.width = 260.dp
+		saved.sidebar.activeTabId = "plugin.bones"
+		saved.sidebar.toggleExpanded(SidebarPanel("umamo.item.transform", "umamo.item", UiText.Literal("Transform"), 100, setOf(SpaceKind.Viewport2D), content = {}))
+		saved.sidebar.expandedByPanel["plugin.bones.chains"] = true
+
+		val tree = saved.toJson()
+		assertEquals(listOf("overlays", "toolbar", "sidebar"), tree.keys.toList(), "the block names its members in the spec's order")
+		assertEquals(JsonPrimitive(false), tree["toolbar"])
+		val sidebar = tree["sidebar"] as JsonObject
+		assertEquals(listOf("open", "width", "tab", "expandedPanels", "collapsedPanels"), sidebar.keys.toList(), "every sidebar key is named")
+		assertEquals(JsonPrimitive(true), sidebar["open"])
+		assertEquals(JsonPrimitive(260f), sidebar["width"])
+		assertEquals(JsonPrimitive("plugin.bones"), sidebar["tab"])
+
+		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+		assertEquals(false, reopened.toolbar.choice)
+		assertEquals(true, reopened.sidebar.visibility.choice)
+		assertEquals(260.dp, reopened.sidebar.width)
+		assertEquals("plugin.bones", reopened.sidebar.activeTabId, "a tab no contributor registers is kept")
+		assertEquals(mapOf("umamo.item.transform" to false, "plugin.bones.chains" to true), reopened.sidebar.expandedByPanel.toMap(), "and so is a panel")
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same members")
+	}
+
+	/** A toolbar choice and a sidebar back at their defaults write nulls, which the merge turns into removals. */
+	@Test
+	fun aSidebarBackAtItsDefaultsWritesANull() {
+		val state = Viewport2DViewState()
+		val panel = SidebarPanel("umamo.item.transform", "umamo.item", UiText.Literal("Transform"), 100, setOf(SpaceKind.Viewport2D), content = {})
+		state.sidebar.width = 300.dp
+		state.sidebar.toggleExpanded(panel)
+		state.sidebar.width = 200.dp
+		state.sidebar.toggleExpanded(panel)
+
+		assertEquals(JsonNull, state.toJson()["sidebar"], "folding back to the default leaves nothing to save")
+		assertTrue(writesOnlyNulls(state))
+	}
+
+	/** Sidebar members of the wrong type are skipped, a width not above zero reads as the default, and one too wide is held. */
+	@Test
+	fun brokenSidebarMembersAreSkipped() {
+		val broken =
+			buildJsonObject {
+				put("toolbar", 1)
+				put(
+					"sidebar",
+					buildJsonObject {
+						put("open", "yes")
+						put("width", -3)
+						put("tab", 7)
+						put("expandedPanels", "x")
+						put("collapsedPanels", 4)
+					},
+				)
+			}
+		assertTrue(writesOnlyNulls(Viewport2DViewState().also { state -> state.restore(broken) }), "every broken member is skipped")
+		val tooWide = buildJsonObject { put("sidebar", buildJsonObject { put("width", 9999) }) }
+		assertEquals(SIDEBAR_MAX_WIDTH, Viewport2DViewState().also { state -> state.restore(tooWide) }.sidebar.width, "a width past the limit is held to it")
+	}
+
 	/** The UV editor writes its overlays beside its texture selection, with only the keys a UV editor has overlays for. */
 	@Test
 	fun theUvEditorRoundTripsItsOverlaysBesideItsTexture() {
@@ -390,6 +463,8 @@ class PersistentViewStatesTest {
 
 				put("onlySelected", "yes")
 				put("overlays", "yes")
+				put("toolbar", "yes")
+				put("sidebar", "yes")
 				put("tab", 7)
 				put("texture", buildJsonObject { put("page", "two") })
 				put(
