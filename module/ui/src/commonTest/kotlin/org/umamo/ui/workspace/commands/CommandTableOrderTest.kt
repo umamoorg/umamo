@@ -17,6 +17,7 @@ import org.umamo.ui.workspace.layout.WorkspaceLayoutController
 import org.umamo.ui.workspace.layout.defaultLayout
 import org.umamo.ui.workspace.operationstrip.OperationStripState
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -267,6 +268,15 @@ class CommandTableOrderTest {
 		commands.single().handler.run(null)
 
 		assertEquals(1, checks)
+	}
+
+	/** The sidebar tab commands, which step the hovered area's sidebar. */
+	@Test
+	fun sidebarTableIsComplete() {
+		assertEquals(
+			listOf("view.sidebar.nextTab", "view.sidebar.previousTab"),
+			sidebarCommands(AreaSidebarHub(), routing()).map { command -> command.id },
+		)
 	}
 
 	/** The viewport chrome toggles the settings-backed shell registers; they write settings, so they build over an in-memory tree. */

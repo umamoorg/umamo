@@ -27,6 +27,7 @@ import org.umamo.ui.workspace.layout.WorkspaceLayoutController
 import org.umamo.ui.workspace.layout.defaultLayout
 import org.umamo.ui.workspace.operationstrip.OperationStripState
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
 import kotlin.test.assertEquals
 
 /*
@@ -158,6 +159,7 @@ internal fun shellCommandTables(session: EditorSession? = null): List<Command> {
 		viewCommands(AreaCameraHub(), routing, viewportPresent = false) +
 		overlayCommands(AreaOverlayHub(), routing, viewportPresent = false) +
 		frameCommands(CommandRegistry(), routing) +
+		sidebarCommands(AreaSidebarHub(), routing) +
 		modeCommands(handles, handles) +
 		historyCommands(session, availability, OperationStripState()) +
 		objectCommands(session, handles, availability) +

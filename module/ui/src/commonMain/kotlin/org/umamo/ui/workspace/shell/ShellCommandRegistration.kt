@@ -41,6 +41,7 @@ import org.umamo.ui.workspace.commands.overlayCommands
 import org.umamo.ui.workspace.commands.proportionalCommands
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.commands.selectCommands
+import org.umamo.ui.workspace.commands.sidebarCommands
 import org.umamo.ui.workspace.commands.snapCommands
 import org.umamo.ui.workspace.commands.topologyCommands
 import org.umamo.ui.workspace.commands.transformCommands
@@ -81,6 +82,7 @@ internal fun RegisterShellCommands(
 	val keyformSheetViews = controllers.keyformSheetViews
 	val areaCameras = controllers.areaCameras
 	val areaOverlays = controllers.areaOverlays
+	val areaSidebars = controllers.areaSidebars
 	val repackOptions = controllers.repackOptions
 	val meshGenerationOptions = controllers.meshGenerationOptions
 	val meshGenerationRun = controllers.meshGenerationRun
@@ -128,6 +130,12 @@ internal fun RegisterShellCommands(
 	// at all), and re-registering it on a renderer change would only shuffle its palette position.
 	DisposableEffect(commandRegistry) {
 		val cleanup = commandRegistry.registerAll(frameCommands(commandRegistry, routing))
+		onDispose { cleanup() }
+	}
+	// The sidebar tab commands key on the registry alone: a sidebar exists with no renderer behind its area,
+	// and re-registering them on a renderer change would only shuffle their palette position.
+	DisposableEffect(commandRegistry) {
+		val cleanup = commandRegistry.registerAll(sidebarCommands(areaSidebars, routing))
 		onDispose { cleanup() }
 	}
 	val selection = LocalSelection.current

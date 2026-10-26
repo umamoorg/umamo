@@ -804,8 +804,15 @@
 	<string name="cmd_view_overlay_selection_tint">Toggle Selection Tint Overlay</string>
 	<string name="cmd_view_overlay_wireframe">Toggle Wireframe Overlay</string>
 	<string name="cmd_view_overlay_wireframe_culling">Toggle Wireframe Cull Hidden</string>
-	<string name="sidebar_title">Sidebar</string>
-	<string name="sidebar_empty_hint">Tool and item panels will live here.</string>
+	<!-- The viewport sidebar: its tabs, its built-in panels, and the commands that step through its tabs. -->
+	<string name="sidebar_tab_item">Item</string>
+	<string name="sidebar_tab_tool">Tool</string>
+	<string name="sidebar_tab_view">View</string>
+	<string name="sidebar_panel_active_tool">Active Tool</string>
+	<string name="sidebar_tool_settings_hint">Tool settings will appear here.</string>
+	<string name="sidebar_panel_placeholder">This panel is not built yet.</string>
+	<string name="cmd_view_sidebar_next_tab">Next Sidebar Tab</string>
+	<string name="cmd_view_sidebar_previous_tab">Previous Sidebar Tab</string>
 
 	<!-- Inspector per-entity property view (the selected part / drawable / deformer). -->
 	<string name="properties_part_ref">Parent Part</string>

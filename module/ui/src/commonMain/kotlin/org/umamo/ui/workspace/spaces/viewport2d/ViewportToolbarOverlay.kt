@@ -9,14 +9,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.kit.blocksPointerFallThrough
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.model.LocalEditorSession
@@ -42,15 +40,13 @@ private val TOOLBAR_GLYPH_SIZE = 18.dp
  * Visibility is [org.umamo.ui.workspace.LocalViewportChrome] (settings-backed, toggled by
  * view.toggleToolbar / T) - the caller gates on it, keeping this composable a pure strip.
  *
- * Inside its outline the strip keeps the pointer from reaching the surface beneath it, so a click in its
- * padding or between two buttons never selects under it.  The margin the caller adds stays the surface's.
+ * The caller mounts the strip in a [org.umamo.ui.kit.PointerShield] clipped to its outline, which keeps a
+ * click in its padding or between two buttons from selecting under it and steps aside for a running gesture.
  *
- * @param Modifier modifier The layout modifier (the caller aligns it to the viewport's left edge).
- * @param Boolean passPointerThrough Whether the strip lets the pointer through to the surface, true while a
- *   gesture of this area owns the pointer and has to follow it across the strip.
+ * @param Modifier modifier The layout modifier.
  */
 @Composable
-internal fun ViewportToolbarOverlay(modifier: Modifier = Modifier, passPointerThrough: Boolean = false) {
+internal fun ViewportToolbarOverlay(modifier: Modifier = Modifier) {
 	val session = LocalEditorSession.current
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
@@ -62,9 +58,6 @@ internal fun ViewportToolbarOverlay(modifier: Modifier = Modifier, passPointerTh
 	Column(
 		modifier =
 			modifier
-				// After the caller's margin and clipped to the outline, so only the strip itself blocks.
-				.clip(shapes.small)
-				.blocksPointerFallThrough(enabled = !passPointerThrough)
 				.background(colors.panelBackground, shapes.small)
 				.border(width = 1.dp, color = colors.panelBorder, shape = shapes.small)
 				.padding(3.dp),

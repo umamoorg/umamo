@@ -31,6 +31,8 @@ import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetSurface
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
+import org.umamo.ui.workspace.sidebar.SidebarState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -533,5 +535,42 @@ class CommandDispatchTest {
 
 		assertFalse(uvOverlays.showOverlays, "with no hovered area nothing flips")
 		assertTrue(viewportOverlays.showOverlays)
+	}
+
+	/**
+	 * The sidebar tab commands step the hovered area's sidebar along its rail, wrapping past either end, and
+	 * leave every other area's sidebar alone; with no hovered area, or the hovered sidebar closed, they do
+	 * nothing.
+	 */
+	@Test
+	fun sidebarCommandsStepTheHoveredAreasTabsAndNoOther() {
+		val hub = AreaSidebarHub()
+		val hoveredSidebar = SidebarState()
+		val otherSidebar = SidebarState()
+		val shown = listOf("umamo.item", "umamo.tool", "umamo.view")
+		hoveredSidebar.shownTabIds = shown
+		otherSidebar.shownTabIds = shown
+		hub.register("area-hovered", hoveredSidebar)
+		hub.register("area-other", otherSidebar)
+		val overHovered = sidebarCommands(hub, routing(HoveredSurface("area-hovered", SpaceKind.Viewport2D)))
+
+		overHovered.run("view.sidebar.nextTab")
+
+		assertEquals("umamo.tool", hoveredSidebar.activeTabId, "the first tab steps to the second")
+		assertNull(otherSidebar.activeTabId, "the other area's sidebar is untouched")
+
+		overHovered.run("view.sidebar.previousTab")
+		overHovered.run("view.sidebar.previousTab")
+
+		assertEquals("umamo.view", hoveredSidebar.activeTabId, "stepping back past the first tab wraps to the last")
+
+		sidebarCommands(hub, routing(null)).run("view.sidebar.nextTab")
+
+		assertEquals("umamo.view", hoveredSidebar.activeTabId, "with no hovered area nothing steps")
+
+		hoveredSidebar.shownTabIds = emptyList()
+		overHovered.run("view.sidebar.nextTab")
+
+		assertEquals("umamo.view", hoveredSidebar.activeTabId, "a closed sidebar has no tab to step to")
 	}
 }

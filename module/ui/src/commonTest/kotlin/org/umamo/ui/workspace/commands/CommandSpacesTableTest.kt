@@ -36,6 +36,8 @@ class CommandSpacesTableTest {
 				"view.overlay.all" to workSurfaces,
 				"view.overlay.grid" to workSurfaces,
 				"view.overlay.axes" to viewport,
+				"view.sidebar.nextTab" to viewport,
+				"view.sidebar.previousTab" to viewport,
 				"view.overlay.cursor" to workSurfaces,
 				"view.overlay.info" to workSurfaces,
 				"view.overlay.selectionTint" to viewport,

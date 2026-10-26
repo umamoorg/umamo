@@ -36,6 +36,7 @@ import org.umamo.ui.resources.title_untitled_document
 import org.umamo.ui.settings.LocalQuickSetup
 import org.umamo.ui.settings.LocalUpdateChecks
 import org.umamo.ui.settings.QuickSetupState
+import org.umamo.ui.sidebar.rememberSidebarRegistry
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.workspace.AppAlertQueues
 import org.umamo.ui.workspace.LocalAppAlerts
@@ -133,6 +134,9 @@ fun EditorApp(
 	val scope = rememberCoroutineScope()
 	val filePicker = remember { FileKitFilePicker() }
 	val commandRegistry = remember { CommandRegistry() }
+	// The sidebar's tabs and panels, held per window like the commands so a document swap keeps every
+	// registration (and a contributor's) in place.
+	val sidebarRegistry = rememberSidebarRegistry()
 	// The MOC3 export dialog's session memory: sticky for the application's life, never persisted.
 	// Held here rather than in the shell because it must survive document swaps (nothing in this
 	// remember block is keyed on the document), which is also why it outlives the export controller.
@@ -346,6 +350,7 @@ fun EditorApp(
 				session = session,
 				sessionAtlasPages = sessionAtlasPages,
 				commandRegistry = commandRegistry,
+				sidebarRegistry = sidebarRegistry,
 				appMenu = appMenu,
 				viewportServiceFactory = viewportServiceFactory,
 				filePicker = filePicker,

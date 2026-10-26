@@ -24,6 +24,8 @@ import org.umamo.ui.action.rememberLiveKeymap
 import org.umamo.ui.kit.menu.TopLevelMenu
 import org.umamo.ui.l10n.rememberLocaleTag
 import org.umamo.ui.resources.*
+import org.umamo.ui.sidebar.SidebarRegistry
+import org.umamo.ui.sidebar.rememberSidebarRegistry
 import org.umamo.ui.workspace.LocalViewportChrome
 import org.umamo.ui.workspace.SHOW_SIDEBAR_SETTINGS_KEY
 import org.umamo.ui.workspace.SHOW_TOOLBAR_SETTINGS_KEY
@@ -59,6 +61,7 @@ private const val PERSIST_DEBOUNCE_MS = 400L
  * @param ViewportHost? viewportHost What draws a 2D viewport area, or null with no render service to draw with.
  * @param Map spaceOverrides Per-kind space descriptors layered over the base registry.
  * @param CommandRegistry commandRegistry The action registry (the app may pre-register commands).
+ * @param SidebarRegistry sidebarRegistry The tabs and panels every work-surface sidebar draws from.
  * @param List appMenu The application menu-bar contents, forwarded to the shell (empty renders no bar).
  * @param ArtworkOperations? artwork The app's artwork orchestrations over the hovered area, forwarded
  *   to the shell; null (the default) when no open document can take artwork.
@@ -73,6 +76,7 @@ fun PersistentEditorShell(
 	viewportHost: ViewportHost? = null,
 	spaceOverrides: Map<SpaceKind, SpaceDescriptor> = emptyMap(),
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
+	sidebarRegistry: SidebarRegistry = rememberSidebarRegistry(),
 	appMenu: List<TopLevelMenu> = emptyList(),
 	artwork: ArtworkOperations? = null,
 	exportImage: ((viewportAreaId: String?) -> Unit)? = null,
@@ -151,6 +155,7 @@ fun PersistentEditorShell(
 			viewportHost = viewportHost,
 			spaceOverrides = spaceOverrides,
 			commandRegistry = commandRegistry,
+			sidebarRegistry = sidebarRegistry,
 			appMenu = appMenu,
 			languageTag = locale,
 			keymap = keymap,

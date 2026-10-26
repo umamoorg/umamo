@@ -735,8 +735,14 @@
 	<string name="cmd_view_overlay_selection_tint">選択のハイライトの表示切り替え</string>
 	<string name="cmd_view_overlay_wireframe">ワイヤーフレームの表示切り替え</string>
 	<string name="cmd_view_overlay_wireframe_culling">ワイヤーフレームの隠れた部分の省略を切り替え</string>
-	<string name="sidebar_title">サイドバー</string>
-	<string name="sidebar_empty_hint">ツールやアイテムのパネルがここに入ります。</string>
+	<string name="sidebar_tab_item">アイテム</string>
+	<string name="sidebar_tab_tool">ツール</string>
+	<string name="sidebar_tab_view">ビュー</string>
+	<string name="sidebar_panel_active_tool">アクティブツール</string>
+	<string name="sidebar_tool_settings_hint">ツールの設定はここに表示されます。</string>
+	<string name="sidebar_panel_placeholder">このパネルはまだ実装されていません。</string>
+	<string name="cmd_view_sidebar_next_tab">次のサイドバータブ</string>
+	<string name="cmd_view_sidebar_previous_tab">前のサイドバータブ</string>
 
 	<string name="properties_part_ref">親パーツ</string>
 	<string name="properties_parent_deformer">親デフォーマ</string>

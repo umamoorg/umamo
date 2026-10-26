@@ -52,6 +52,8 @@ import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 import org.umamo.ui.workspace.operationstrip.OperationStripState
 import org.umamo.ui.workspace.rowdrag.LocalRowDragCancel
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
+import org.umamo.ui.workspace.sidebar.LocalAreaSidebarHub
 
 /**
  * Everything the shell remembers for its whole lifetime: the layout controller, the modal chrome, the
@@ -180,6 +182,12 @@ internal class ShellControllers(
 	val areaOverlays = AreaOverlayHub()
 
 	/**
+	 * The work surfaces' per-area sidebar state, registered by each 2D viewport for its lifetime; the sidebar
+	 * commands resolve the hovered area here at dispatch time.
+	 */
+	val areaSidebars = AreaSidebarHub()
+
+	/**
 	 * The repack's session memory who's lifetime is the open document.
 	 */
 	val repackOptions = AtlasRepackSessionOptions()
@@ -222,6 +230,7 @@ internal class ShellControllers(
 			LocalHoveredSurfaceTracker provides hoveredSurfaces,
 			LocalAreaCameraHub provides areaCameras,
 			LocalAreaOverlayHub provides areaOverlays,
+			LocalAreaSidebarHub provides areaSidebars,
 			LocalOperationStrip provides operationStrip,
 			LocalOperationStripArea provides operationStripArea,
 		)
