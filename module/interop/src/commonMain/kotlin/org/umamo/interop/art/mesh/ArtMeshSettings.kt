@@ -30,7 +30,8 @@ public const val MINIMUM_ART_MESH_INTERIOR_THINNING_LIMIT: Double = 1.0
  *
  * Pixels at or above [alphaThreshold] are guaranteed covered: the outline keeps at least
  * [minimumMargin] from every such pixel, and runs [outerMargin] outside the art where the shape
- * allows.  A second, inner ring runs [innerMargin] inside the art's edge (none when zero), and a
+ * allows.  A hole in the art whose outline ring would be shorter than [outlineSpacing] around is meshed
+ * over rather than cut out.  A second, inner ring runs [innerMargin] inside the art's edge (none when zero), and a
  * hexagonal lattice fills the rest.  With [fillHoles] the mesh covers the art's silhouette instead:
  * holes in the art (a lace pattern, a spider web) are meshed over rather than cut out, so the part
  * deforms as one sheet, and the inner ring and lattice run across them.  With a [minimumAngle], vertices

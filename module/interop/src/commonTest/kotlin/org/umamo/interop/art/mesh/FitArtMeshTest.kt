@@ -17,13 +17,8 @@ class FitArtMeshTest {
 
 	@Test
 	fun artNoBudgetUnderTheCapFitsIsMeshedWithItsHolesFilled() {
-		// A square with four large holes: five outline rings, at least thirty vertices with the holes.
-		val webbed =
-			alphaOf(64, 64) { column, row ->
-				val inSquare = column in 4 until 60 && row in 4 until 60
-				val inHole = (column in 12 until 28 || column in 36 until 52) && (row in 12 until 28 || row in 36 until 52)
-				inSquare && !inHole
-			}
+		// Five outline rings with the holes: at least thirty vertices.
+		val webbed = webbedSquare()
 		val settings = ArtMeshPreset.Standard.settings.copy(vertexBudget = 16)
 		assertNull(generateArtMesh(webbed, settings.copy(vertexBudget = 24)).mesh, "no budget up to the cap fits the holes")
 
@@ -35,12 +30,7 @@ class FitArtMeshTest {
 
 	@Test
 	fun theBudgetRisesBeforeHolesAreFilled() {
-		val webbed =
-			alphaOf(64, 64) { column, row ->
-				val inSquare = column in 4 until 60 && row in 4 until 60
-				val inHole = (column in 12 until 28 || column in 36 until 52) && (row in 12 until 28 || row in 36 until 52)
-				inSquare && !inHole
-			}
+		val webbed = webbedSquare()
 
 		val fitted = fitArtMesh(webbed, ArtMeshPreset.Standard.settings.copy(vertexBudget = 16), noPoints, noPoints)
 
@@ -58,6 +48,19 @@ class FitArtMeshTest {
 		assertNull(fitted.fit, "nothing was raised or filled")
 		assertTrue(fitted.result.notices.any { notice -> notice is ArtMeshNotice.NothingOpaque })
 	}
+
+	/**
+	 * A square with four holes, each wide enough that Standard cuts it out: a hole's outline ring runs
+	 * about 12 px on a side, past the 32 px outline spacing around.
+	 *
+	 * @return AlphaChannel The channel.
+	 */
+	private fun webbedSquare() =
+		alphaOf(74, 74) { column, row ->
+			val inSquare = column in 4 until 70 && row in 4 until 70
+			val inHole = (column in 10 until 34 || column in 40 until 64) && (row in 10 until 34 || row in 40 until 64)
+			inSquare && !inHole
+		}
 
 	/**
 	 * An alpha channel opaque where a predicate says so.

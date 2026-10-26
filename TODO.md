@@ -33,6 +33,9 @@
 * Hire artist to make the DMG background art.
 	* Chibi Tamamo carrying the icon to the application folder.
 
+## Documentation
+* Add a note somewhere in the repository and the web site asking game developers to please credit Umamo in the game credits if they used it as part of the development.
+
 ## User Stories
 * glTF export for easy import into game engines.  (Requested; far future.)
 	* Shares buffer/accessor concepts with UMA's bulk-geometry encoding decision (docs/plan/uma-format.md U1), and would slot into the Document › Runtime export-targets model (§ Properties Panel).
@@ -180,6 +183,7 @@ See format planning document: docs/plan/uma-format.md
 * AreaHeader/Viewport2DHeaderControls
 	* Font size and icon sizes don't line up resulting in the font being 1px offset.(Lots of manual tweaking is required.)
 * Merge pie menu icons.
+* Zoom increment needs to scale up logarithmically as the zoom increases.  We can make it a setting have it turned on by default.
 
 * Menu - New Items
 	* Edit

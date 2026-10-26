@@ -964,7 +964,7 @@
 	<string name="mesh_options_minimum_angle_description">細長い三角形に頂点を追加して分割し、各三角形の最も狭い角がこの角度（度）以上になるようにします。値を大きくすると三角形が均一になり、変形がなめらかになりますが、頂点数は増えます（頂点数の上限まで）。髪の毛先など、輪郭そのものが作る角は広げられないため、そのまま残ります。0 で追加しません。</string>
 	<string name="mesh_options_vertex_budget_description">1 つのメッシュの頂点数の目安。収まらないアートは上限を 4096 まで上げて、それでも収まらなければ穴を埋めて生成し直します。</string>
 	<string name="mesh_options_interior_thinning_limit_description">頂点数の上限より多くの頂点が必要なアートでは、まず内部を間引きます。間隔は最大で輪郭の間隔のこの倍数まで広がります。それを超えると、輪郭も一緒に間引きます。大きいほど輪郭の細部を長く保ち、小さいほど内部が均一になります。</string>
-	<string name="mesh_options_fill_holes_description">アートの穴を切り抜かず、1 枚のシートとしてメッシュで覆います。</string>
+	<string name="mesh_options_fill_holes_description">アートの穴を切り抜かず、1 枚のシートとしてメッシュで覆います。輪郭の間隔より小さい穴は常にメッシュで覆います。</string>
 	<string name="mesh_options_strand_rungs_description">細いアートを、輪郭をなぞる代わりに、中央に 1 本の列を通した均等な帯としてメッシュにします。</string>
 	<string name="mesh_options_strand_width_description">「細部をはしご状に」がオンのとき、この幅（ピクセル）より細いアートをはしご状の帯にします。各プリセットは内側の輪が収まらなくなる幅に設定します。大きくすると太めのストラップや髪の房も帯になり、小さくすると内側の輪を持つ部分が増えます。</string>
 	<string name="mesh_options_deformation_tolerance_description">新しいメッシュが、リグが元のメッシュに与える形（初期状態と各キーフォーム）からずれてよい距離（ピクセル）。それを超える箇所では、その形を保つ元の頂点を残します。小さいほど多くの頂点が残ります。</string>
