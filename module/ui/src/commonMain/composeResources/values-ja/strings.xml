@@ -579,7 +579,7 @@
 	<string name="notice_mesh_generated_with_skips">アートから %1$d 個のメッシュを生成し、%2$d 個をスキップしました。ログを参照してください。</string>
 	<string name="notice_mesh_generated_coarser">アートから %1$d 個のメッシュを生成しました。頂点数の上限に収めるため、%2$d 個は指定より粗く生成しました。ログを参照してください。</string>
 	<string name="notice_mesh_generated_refit">アートから %1$d 個のメッシュを生成しました。%2$d 個は収めるために頂点数の上限を上げるか、穴を埋める必要がありました（ログを参照）。</string>
-	<string name="notice_mesh_pinned_without_room">%1$d 個のメッシュを生成しました。ピン留めされたアートに広がる余地がないため %2$d 個をスキップしました。ピン留めを解除するか、外側の余白を小さくしてください。</string>
+	<string name="notice_mesh_pinned_without_room">%1$d 個のメッシュを生成しました。ピン留めされたアートに広がる余地がないため %2$d 個をスキップしました。ピン留めを解除するか、余白を小さくしてください。</string>
 	<string name="notice_mesh_over_budget">%1$d 個のメッシュを生成しました。穴を埋めても 4096 頂点を超えるため %2$d 個をスキップしました。アルファしきい値を上げるか、輪郭の最小点数を下げてください。</string>
 	<string name="notice_mesh_glued_throughout">%1$d 個のメッシュを生成しました。頂点の大半がグルーで固定されているため %2$d 個をスキップしました。再生成するとグルー先への追従が変わってしまいます。</string>
 	<string name="notice_mesh_none_generated">メッシュは生成されませんでした。ログを参照してください。</string>
