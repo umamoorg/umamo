@@ -78,8 +78,9 @@ internal fun Viewport2DBody(scope: AreaScope) {
 		}
 	}
 	// Register the area's overlay, toolbar, and sidebar states for its lifetime, so the shell's view.overlay.*,
-	// view.toggle*, and view.sidebar.* commands act on THIS area when the pointer last touched it.  Unlike the camera, the states
-	// exist with or without a renderer, so nothing gates the registration; the commands carry their own gates.
+	// view.toggle*, and view.sidebar.* commands act on THIS area when the pointer last touched it.  Unlike the
+	// camera, the states exist with or without a renderer, so nothing gates the registration; the commands carry
+	// their own gates.
 	val overlayHub = LocalAreaOverlayHub.current
 	val toolbarHub = LocalAreaToolbarHub.current
 	val sidebarHub = LocalAreaSidebarHub.current

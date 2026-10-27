@@ -23,6 +23,8 @@ import org.umamo.ui.model.mesh.MeshGenerationSessionOptions
 import org.umamo.ui.model.repack.AtlasRepackSessionOptions
 import org.umamo.ui.settings.LocalQuickSetup
 import org.umamo.ui.settings.QuickSetupState
+import org.umamo.ui.viewport.LiveMeshPreview
+import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.workspace.AppAlertQueues
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaOverlayHub
@@ -165,6 +167,9 @@ internal class ShellControllers(
 	 */
 	val operationStripArea: () -> String? = { routing.operationStripArea() }
 
+	/** The Edit-mode modal transform's live preview, which the sidebar's Vertex / Median panel follows. */
+	val liveMeshPreview = LiveMeshPreview()
+
 	/** The keyable property under the pointer, so a keyform insert needs no prior selection. */
 	val keyableHover = KeyableHover()
 
@@ -242,6 +247,7 @@ internal class ShellControllers(
 			LocalAreaSidebarHub provides areaSidebars,
 			LocalOperationStrip provides operationStrip,
 			LocalOperationStripArea provides operationStripArea,
+			LocalLiveMeshPreview provides liveMeshPreview,
 		)
 
 	/**

@@ -95,7 +95,7 @@ class TransformAdjustRegistrationTest {
 		var writeBacks = 0
 		val record =
 			assertNotNull(
-				registerMeshTransformAdjustment(session, "area-1", transform, mapOf(drawableId to geometry), landed, ProportionalRows.of(null, 200f)) { state ->
+				registerMeshTransformAdjustment(session, "area-1", transform, mapOf(drawableId to geometry), landed, ProportionalRows.of(null, 200f)) { _, state ->
 					writtenBack = state
 					writeBacks++
 				},

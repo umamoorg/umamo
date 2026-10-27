@@ -743,6 +743,10 @@
 	<string name="sidebar_item_nothing_selected">何も選択されていません。</string>
 	<string name="sidebar_cursor_x_description">2Dカーソルの水平方向の位置（ワールド軸からの距離）。値を入力またはドラッグするとカーソルが配置されます。</string>
 	<string name="sidebar_cursor_z_description">2Dカーソルの垂直方向の位置（ワールド軸から上が正）。値を入力またはドラッグするとカーソルが配置されます。</string>
+	<string name="sidebar_edit_vertex">頂点:</string>
+	<string name="sidebar_edit_median">中点:</string>
+	<string name="sidebar_median_x_description">選択した頂点の水平方向の位置（複数のときはその中点、ワールド軸からの距離）。値を変えると、形を保ったまますべてを一緒に移動します。</string>
+	<string name="sidebar_median_z_description">選択した頂点の垂直方向の位置（複数のときはその中点、ワールド軸から上が正）。値を変えると、形を保ったまますべてを一緒に移動します。</string>
 	<string name="properties_transform_unavailable">この項目には表示できる配置がありません。</string>
 	<string name="cmd_view_sidebar_next_tab">次のサイドバータブ</string>
 	<string name="cmd_view_sidebar_previous_tab">前のサイドバータブ</string>
@@ -1102,7 +1106,7 @@
 	<string name="settings_viewport_grid_subdivisions">グリッド分割数</string>
 	<string name="settings_viewport_uv_grid_scale">UV グリッド間隔</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV グリッド分割数</string>
-	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）。 -->
+	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）、続いてツールバー・サイドバーの既定の表示（interface.viewport.showToolbar / showSidebar）。 -->
 	<string name="settings_viewport_supersample">スーパーサンプリング（2 倍精細レンダリング）</string>
 	<string name="settings_viewport_supersample_while_resizing">パネルのリサイズ中もスーパーサンプリングを維持</string>
 	<string name="settings_viewport_show_toolbar">ツールバーを既定で表示</string>

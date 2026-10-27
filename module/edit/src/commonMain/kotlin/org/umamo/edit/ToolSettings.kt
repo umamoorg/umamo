@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 internal class ToolSettings(private val notify: (String, NoticePlacement) -> Unit) : SessionToolSettings {
 	private val mutableCursor2d = MutableStateFlow<Cursor2d?>(null)
 
-	/** The 2D cursor's world position, or null before any placement (see [SessionToolSettings.cursor2d]). */
+	/** The 2D cursor's world position, or null while unplaced (see [SessionToolSettings.cursor2d]). */
 	override val cursor2d: StateFlow<Cursor2d?> = mutableCursor2d.asStateFlow()
 
 	private val mutableUvCursor = MutableStateFlow<UvCursor?>(null)

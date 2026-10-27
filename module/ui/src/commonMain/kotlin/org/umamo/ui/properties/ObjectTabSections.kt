@@ -166,7 +166,7 @@ internal val TransformSection =
  * move on an axis nobody edited.  Size is a difference and needs no conversion.
  *
  * @param PropertyContext context The row's context (its session supplies the live pose).
- * @param DrawableId drawableId The active drawable.
+ * @param DrawableId drawableId The shown drawable.
  * @param Boolean showSize False for the Position pair, true for the Size pair.
  */
 @Composable
@@ -306,7 +306,7 @@ internal fun rememberShownPose(context: PropertyContext): Pose {
  * A degenerate axis (zero extent) has no ratio to preserve, so a locked edit against one falls back to
  * changing only the edited axis - and [resizedAboutBoundsCenter] then leaves the degenerate one alone.
  *
- * @param MeshBounds bounds The active drawable's current world bounds (the displayed extents).
+ * @param MeshBounds bounds The shown drawable's current world bounds (the displayed extents).
  * @param Boolean enabled Whether the fields and the lock accept input (false on a posed rig).
  * @param Function onPreviewResize Previews new (width, height) extents for one scrub frame, recording nothing.
  * @param Function onResize Commits new (width, height) extents as one undo step.
@@ -458,7 +458,7 @@ internal fun DeformerBaseAngleField(deformer: Deformer.Rotation, session: Editor
 	}
 }
 
-/** Object > Relations: owning part, parent deformer, masks / children of the active item. */
+/** Object > Relations: owning part, parent deformer, masks / children of the shown item. */
 internal val RelationsSection =
 	PropertySection(
 		id = "object.relations",

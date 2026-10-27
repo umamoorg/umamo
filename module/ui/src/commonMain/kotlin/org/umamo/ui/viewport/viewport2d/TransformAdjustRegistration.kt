@@ -42,8 +42,9 @@ import org.umamo.ui.viewport.gizmo.slideVertexByFactor
  * positions under the edited proportional rows, applies the edited numbers per mesh, inverts each
  * world shape back onto the rest arrays through the frozen [geometryById], lands the result over the
  * gesture's own step from the record's base, and hands the proportional state back to
- * [onProportional] so the next gesture starts from it.  Synchronous: an evaluation is the
- * per-pointer-frame cost.
+ * [onProportional] so the next gesture can start from it.  The adjusted record goes with it, so a caller
+ * whose rows did not start from the session's own state can write back only what the rigger set there.
+ * Synchronous: an evaluation is the per-pointer-frame cost.
  *
  * @param EditorSession              session      The session the gesture committed into.
  * @param String                     areaId       The viewport the gesture ran in (where the strip shows).
@@ -51,8 +52,8 @@ import org.umamo.ui.viewport.gizmo.slideVertexByFactor
  * @param Map                        geometryById Each moving drawable's frozen world geometry.
  * @param TransformGestureParameters parameters   The numbers the gesture landed with.
  * @param ProportionalRows?          proportional The proportional rows, or null when the gesture took no weights.
- * @param Function                   onProportional Receives the adjusted proportional state (null for
- *   off) after each landed adjustment; unused when [proportional] is null.
+ * @param Function                   onProportional Receives the adjusted record and its proportional state
+ *   (null for off) after each landed adjustment; unused when [proportional] is null.
  * @return AdjustableOperation? The record, or null when the session refused the registration or the
  *   operator has no rows.
  */
@@ -63,7 +64,7 @@ internal fun registerMeshTransformAdjustment(
 	geometryById: Map<DrawableId, DrawableWorldGeometry>,
 	parameters: TransformGestureParameters,
 	proportional: ProportionalRows?,
-	onProportional: (ProportionalEditState?) -> Unit,
+	onProportional: (AdjustableOperation, ProportionalEditState?) -> Unit,
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
 	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional)
@@ -80,7 +81,7 @@ internal fun registerMeshTransformAdjustment(
 		val landed = computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model)).folded
 
 		if (session.amendLastCommit(record, landed) && proportionalRows != null) {
-			onProportional(proportionalRows.asState())
+			onProportional(record, proportionalRows.asState())
 		}
 	}
 }
