@@ -143,13 +143,17 @@ internal class WarpWorld(
 }
 
 /** A rotation deformer's world transform: a baked affine. [xform] is `internal` so the GPU renderer can
- *  upload its 6 coefficients as shader uniforms (the same affine the CPU `apply` evaluates). */
+ *  upload its 6 coefficients as shader uniforms (the same affine the CPU `apply` evaluates).
+ *  [ownAngleDegrees] and [ownScale] are the deformer's own blended angle (base angle included) and scale,
+ *  before any ancestor composes onto them: the values a rigger keys, which [deformerPlacement] reports. */
 internal class RotationWorld(
 	internal val xform: RotationXform,
 	override val accY: Float,
 	override val accumulatedOpacity: Float = 1f,
 	override val accumulatedMultiplyColor: ColorRgb = ColorRgb.MultiplyIdentity,
 	override val accumulatedScreenColor: ColorRgb = ColorRgb.ScreenIdentity,
+	internal val ownAngleDegrees: Float = 0f,
+	internal val ownScale: Float = 1f,
 ) : DeformerWorld {
 	/**
 	 * Applies the rotation affine to `(x, y)`.
@@ -501,6 +505,8 @@ private fun buildRotationWorld(
 		channels.opacity,
 		channels.multiplyColor,
 		channels.screenColor,
+		ownAngleDegrees = angleDegrees,
+		ownScale = scaleAccum,
 	)
 }
 

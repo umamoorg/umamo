@@ -44,7 +44,7 @@ fun registerBuiltInSidebar(registry: SidebarRegistry): () -> Unit {
 					title = UiText.Resource(Res.string.properties_section_transform),
 					order = 100,
 					spaces = VIEWPORT_ONLY,
-					content = { PanelHint(Res.string.sidebar_panel_placeholder) },
+					content = { context -> ItemTransformPanel(context) },
 				),
 			),
 			registry.register(
@@ -64,7 +64,7 @@ fun registerBuiltInSidebar(registry: SidebarRegistry): () -> Unit {
 					title = UiText.Resource(Res.string.overlay_row_cursor),
 					order = 100,
 					spaces = VIEWPORT_ONLY,
-					content = { PanelHint(Res.string.sidebar_panel_placeholder) },
+					content = { context -> CursorPanel(context) },
 				),
 			),
 		)
@@ -110,6 +110,6 @@ private fun ActiveToolPanel(context: SidebarContext) {
  * @param StringResource hint The note.
  */
 @Composable
-private fun PanelHint(hint: StringResource) {
+internal fun PanelHint(hint: StringResource) {
 	Text(text = stringResource(hint), style = LocalUmamoTypography.current.labelSmall, color = LocalUmamoColors.current.textMuted)
 }

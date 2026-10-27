@@ -53,6 +53,13 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
+	 * Takes the 2D cursor off the canvas again, back to never placed.
+	 */
+	override fun clearCursor2d() {
+		mutableCursor2d.value = null
+	}
+
+	/**
 	 * Places (or moves) the UV editor's cursor.
 	 *
 	 * @param Float u The cursor's new normalized atlas u coordinate.

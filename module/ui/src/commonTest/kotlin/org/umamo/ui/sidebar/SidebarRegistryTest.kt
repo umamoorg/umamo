@@ -37,6 +37,7 @@ class SidebarRegistryTest {
 				),
 			mode = mode,
 			selection = Selection(),
+			shownTarget = null,
 			meshSelection = MeshSelection(),
 			session = null,
 		)

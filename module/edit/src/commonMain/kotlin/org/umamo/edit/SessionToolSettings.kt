@@ -27,6 +27,13 @@ interface SessionToolSettings {
 	fun setCursor2d(worldX: Float, worldZ: Float)
 
 	/**
+	 * Takes the 2D cursor off the canvas again, back to never placed: it is drawn nowhere, saved nowhere, and
+	 * an operation that uses it as a point reads the world origin.  What a cancelled cursor drag restores when
+	 * the cursor was unplaced before the drag began.
+	 */
+	fun clearCursor2d()
+
+	/**
 	 * The UV editor's cursor in normalized atlas coordinates, or null before any placement.  The
 	 * texture-space sibling of [cursor2d] (see [UvCursor]): placed by Shift+RightClick in the UV editor,
 	 * drawn by its overlay, and read as the UV transform pivot in [TransformPivotMode.Cursor].

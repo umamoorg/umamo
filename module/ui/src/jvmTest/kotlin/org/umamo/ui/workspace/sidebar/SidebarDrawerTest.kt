@@ -188,10 +188,10 @@ class SidebarDrawerTest {
 		runComposeUiTest {
 			val state = SidebarState()
 			mountDrawer(state = state)
-			onNodeWithText("This panel is not built yet.").assertExists()
+			onNodeWithText("Nothing selected.").assertExists()
 			onNodeWithText("Transform").performClick()
 			waitForIdle()
-			onNodeWithText("This panel is not built yet.").assertDoesNotExist()
+			onNodeWithText("Nothing selected.").assertDoesNotExist()
 		}
 
 	/** Ctrl+wheel over the rail steps through the tabs; a plain wheel turn does not. */

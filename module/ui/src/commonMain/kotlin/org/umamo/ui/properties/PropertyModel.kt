@@ -18,8 +18,9 @@ import org.umamo.ui.theme.UmamoIcon
  *
  * @property PuppetModel puppet The open document's model (never null - the space guards on it first).
  * @property Selection selection The current object-mode selection.
- * @property SelectionTarget? activeTarget The single active item that drives the per-item tabs, or null
- *   when nothing is selected or several items are (per-item tabs need one focused item).
+ * @property SelectionTarget? activeTarget The item that drives the per-item tabs: the active item, even among
+ *   several selected, else the item last made active, else any selected item, or null when there is none
+ *   (see org.umamo.ui.model.shownTargetOf).
  * @property EditorSession? session The editing session an editable control writes through, or null when
  *   no document is open (the controls then render disabled / inert).  Rebuilt from the composition local
  *   each recomposition alongside the read-only fields.
@@ -75,10 +76,10 @@ enum class PropertyTabId {
 	/** Document-wide properties (canvas, runtime compatibility) - always shown. */
 	Document,
 
-	/** The active item's universal properties (transform, relations) - shown when one item is active. */
+	/** The shown item's universal properties (transform, relations) - shown while there is an item to show. */
 	Object,
 
-	/** The active item's type-specific data - icon and sections resolve from the item's kind. */
+	/** The shown item's type-specific data - icon and sections resolve from the item's kind. */
 	Data,
 }
 
