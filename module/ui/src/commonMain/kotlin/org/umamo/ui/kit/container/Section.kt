@@ -30,43 +30,11 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 
 /*
- * The kit's containers, which hold content they know nothing about: the titled panel, the section header
- * row, and the collapsible section card (this file), the tab strip (Tabs.kt), the vertical tab rail
- * (VerticalTabRail.kt), and the strip that collapses what does not fit into an overflow chip (OverflowRow.kt,
- * over the pure packing in OverflowRowPacking.kt).
+ * The kit's containers, which hold content they know nothing about: the section header row and the
+ * collapsible section card (this file), the tab strip (Tabs.kt), the vertical tab rail (VerticalTabRail.kt),
+ * and the strip that collapses what does not fit into an overflow chip (OverflowRow.kt, over the pure packing
+ * in OverflowRowPacking.kt).
  */
-
-/**
- * A thin-bordered panel with a header bar (title on the left, an optional [headerAction] on the right) over a
- * tight content column.
- *
- * @param String   title        The header title.
- * @param Modifier modifier     Layout modifier.
- * @param Function headerAction Optional trailing header content (e.g. a [org.umamo.ui.kit.button.Button]).
- * @param Function content      The panel body.
- */
-@Composable
-fun Panel(
-	title: String,
-	modifier: Modifier = Modifier,
-	headerAction: (@Composable () -> Unit)? = null,
-	content: @Composable ColumnScope.() -> Unit,
-) {
-	val colors = LocalUmamoColors.current
-	Column(modifier = modifier.border(1.dp, colors.panelBorder).background(colors.panelBackground)) {
-		Row(
-			modifier =
-				Modifier.fillMaxWidth().background(colors.headerBackground)
-					.padding(horizontal = 6.dp, vertical = 4.dp),
-			verticalAlignment = Alignment.CenterVertically,
-		) {
-			Text(text = title, style = LocalUmamoTypography.current.labelLarge)
-			Spacer(modifier = Modifier.weight(1f))
-			headerAction?.invoke()
-		}
-		Column(modifier = Modifier.padding(6.dp), content = content)
-	}
-}
 
 /**
  * A disclosure row: a small chevron (right when collapsed, down when expanded) plus a label, the whole row
