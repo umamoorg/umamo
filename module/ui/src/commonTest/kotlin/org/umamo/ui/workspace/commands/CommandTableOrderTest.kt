@@ -7,10 +7,12 @@ import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaOverlayHub
+import org.umamo.ui.workspace.AreaToolbarHub
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.area.AreaDragController
 import org.umamo.ui.workspace.area.SplitterDragCancelController
 import org.umamo.ui.workspace.layout.WorkspaceLayoutController
@@ -279,12 +281,12 @@ class CommandTableOrderTest {
 		)
 	}
 
-	/** The viewport chrome toggles the settings-backed shell registers; they write settings, so they build over an in-memory tree. */
+	/** The viewport chrome toggles, which flip the hovered viewport's own toolbar and sidebar. */
 	@Test
 	fun viewportChromeTableIsComplete() {
 		assertEquals(
 			listOf("view.toggleToolbar", "view.toggleSidebar"),
-			viewportChromeCommands(inMemorySettings()).map { command -> command.id },
+			viewportChromeCommands(AreaToolbarHub(), AreaSidebarHub(), routing()) { ViewportChromeState() }.map { command -> command.id },
 		)
 	}
 

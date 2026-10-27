@@ -5,6 +5,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.l10n.UiText
 import org.umamo.ui.workspace.SpaceKind
@@ -55,13 +56,15 @@ class SidebarPanel(
 
 /**
  * The snapshot a sidebar's panels read from, rebuilt each recomposition from the open document and session
- * so a panel is a function of it rather than collecting flows of its own.
+ * so a panel reads the model, mode, and selections from it rather than resolving them itself.
  *
  * @property String areaId The area the sidebar belongs to.
  * @property SpaceKind space The work surface the area shows.
  * @property PuppetModel puppet The open document's model.
  * @property EditorMode mode The editor mode.
  * @property Selection selection The object selection.
+ * @property SelectionTarget? shownTarget The item a one-item panel shows: the active item, else the one last
+ *   made active, else any selected item, or null when there is none (see shownTargetOf).
  * @property MeshSelection meshSelection The Edit-mode element selection.
  * @property EditorSession? session The editing session an editable row writes through, or null with no session.
  */
@@ -71,6 +74,7 @@ class SidebarContext(
 	val puppet: PuppetModel,
 	val mode: EditorMode,
 	val selection: Selection,
+	val shownTarget: SelectionTarget?,
 	val meshSelection: MeshSelection,
 	val session: EditorSession?,
 )

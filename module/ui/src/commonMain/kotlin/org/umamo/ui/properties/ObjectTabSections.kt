@@ -50,20 +50,22 @@ import org.umamo.ui.transform.setDrawableParentDeformerKeepingRest
 import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 
 /*
- * The Object tab's sections: the universal properties of whatever single item is active - where it sits and
- * what it is bound to - as opposed to the type-specific data in DataTabSections.kt.
+ * The Object tab's sections: the universal properties of the shown item - where it sits and what it is bound
+ * to - as opposed to the type-specific data in DataTabSections.kt.
  */
 
 /**
- * Object > Transform: the active item's placement.  A drawable has no scalar transform - its placement IS
+ * Object > Transform: the shown item's placement.  A drawable has no scalar transform - its placement IS
  * its geometry - so the rows measure its WORLD bounds and write back through the deformer chain (see
- * DrawableWorldTransform.kt for why world, and not the raw base mesh array).
+ * DrawableWorldTransform.kt for why world, and not the raw base mesh array).  A part, a warp, and a rotation
+ * show where they sit too, read-only for now (ReadOnlyTransformRows.kt): a part by the drawables it holds, a
+ * warp by its lattice, and a rotation by its pivot with its own angle and scale, above its editable Base Angle.
  *
  * Axes are labelled by the DISPLAYED convention (Y+ forward, Z+ up), so the vertical field is Z and maps to
  * world y, which grows upward - the same naming the G / S / R axis lock uses.
  *
- * An item with no transform to show (a Part, a warp deformer, a mesh-less drawable) contributes NO rows,
- * and sectionVisibility then hides the whole section rather than drawing an empty card.
+ * A mesh-less drawable has no transform to show, so it contributes NO rows, and sectionVisibility then hides
+ * the whole section rather than drawing an empty card.
  */
 internal val TransformSection =
 	PropertySection(
@@ -72,6 +74,7 @@ internal val TransformSection =
 		rows = { context ->
 			val drawable = context.activeDrawable()
 			val deformer = context.activeDeformer()
+			val part = context.activePart()
 			val session = context.session
 			val mesh = drawable?.mesh
 
@@ -90,8 +93,44 @@ internal val TransformSection =
 				)
 			} else if (deformer is Deformer.Rotation) {
 				listOf(
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						RotationTransformRows(rowContext, deformer.id, showPivot = true)
+					},
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_angle, Res.string.properties_field_scale),
+					) { rowContext ->
+						RotationTransformRows(rowContext, deformer.id, showPivot = false)
+					},
 					PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
 						DeformerBaseAngleField(deformer, session)
+					},
+				)
+			} else if (deformer is Deformer.Warp) {
+				listOf(
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						WarpTransformRows(rowContext, deformer.id, showSize = false)
+					},
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_size_x, Res.string.properties_field_size_z),
+					) { rowContext ->
+						WarpTransformRows(rowContext, deformer.id, showSize = true)
+					},
+				)
+			} else if (part != null) {
+				listOf(
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						PartTransformRows(rowContext, part.id, showSize = false)
+					},
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_size_x, Res.string.properties_field_size_z),
+					) { rowContext ->
+						PartTransformRows(rowContext, part.id, showSize = true)
 					},
 				)
 			} else {
@@ -127,17 +166,13 @@ internal val TransformSection =
  * move on an axis nobody edited.  Size is a difference and needs no conversion.
  *
  * @param PropertyContext context The row's context (its session supplies the live pose).
- * @param DrawableId drawableId The active drawable.
+ * @param DrawableId drawableId The shown drawable.
  * @param Boolean showSize False for the Position pair, true for the Size pair.
  */
 @Composable
 private fun DrawableTransformRows(context: PropertyContext, drawableId: DrawableId, showSize: Boolean) {
 	val session = context.session
-	// Collected, not read: the pose and the mode change without the model changing, and both move what the
-	// rows show - the pose their numbers and disabled state, the mode whether that pose is pinned to rest.
-	val pose: Pose = session?.pose?.collectAsState()?.value ?: emptyMap()
-	val mode: EditorMode = session?.mode?.collectAsState()?.value ?: EditorMode.Object
-	val shownPose = remember(context.puppet, pose, mode) { mode.shownPose(context.puppet, pose) }
+	val shownPose = rememberShownPose(context)
 	// Keyed, because this is a full posed evaluation of the drawable's deformer chain - not something to
 	// redo when an unrelated recomposition happens to sweep the panel.  (Both Transform rows still evaluate
 	// once each when the model or pose genuinely changes; sharing one evaluation across them would mean
@@ -236,6 +271,24 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 }
 
 /**
+ * The pose the Transform rows measure at: the rig's pose, or the rest pose while Edit mode pins it
+ * (EditorMode.shownPose), which is what the viewport draws.  Collected, not read: the pose and the mode change
+ * without the model changing, and both move what the rows show - the pose their numbers (and a drawable's
+ * disabled state), the mode whether that pose is pinned to rest.
+ *
+ * @param PropertyContext context The row's context (its session supplies the live pose and mode).
+ * @return Pose The shown pose; the rest pose with no session.
+ */
+@Composable
+internal fun rememberShownPose(context: PropertyContext): Pose {
+	val session = context.session
+	val pose: Pose = session?.pose?.collectAsState()?.value ?: emptyMap()
+	val mode: EditorMode = session?.mode?.collectAsState()?.value ?: EditorMode.Object
+
+	return remember(context.puppet, pose, mode) { mode.shownPose(context.puppet, pose) }
+}
+
+/**
  * The Size X / Size Z stack plus its aspect-ratio lock.  Its own composable rather than an inline pair of
  * rows because the lock is stateful and the two fields are coupled through it: while locked, editing one
  * axis scales the other by the same factor, so the mesh keeps its proportions.
@@ -253,7 +306,7 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
  * A degenerate axis (zero extent) has no ratio to preserve, so a locked edit against one falls back to
  * changing only the edited axis - and [resizedAboutBoundsCenter] then leaves the degenerate one alone.
  *
- * @param MeshBounds bounds The active drawable's current world bounds (the displayed extents).
+ * @param MeshBounds bounds The shown drawable's current world bounds (the displayed extents).
  * @param Boolean enabled Whether the fields and the lock accept input (false on a posed rig).
  * @param Function onPreviewResize Previews new (width, height) extents for one scrub frame, recording nothing.
  * @param Function onResize Commits new (width, height) extents as one undo step.
@@ -405,7 +458,7 @@ internal fun DeformerBaseAngleField(deformer: Deformer.Rotation, session: Editor
 	}
 }
 
-/** Object > Relations: owning part, parent deformer, masks / children of the active item. */
+/** Object > Relations: owning part, parent deformer, masks / children of the shown item. */
 internal val RelationsSection =
 	PropertySection(
 		id = "object.relations",

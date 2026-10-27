@@ -22,6 +22,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
@@ -43,9 +44,11 @@ import org.umamo.ui.workspace.LocalViewportChrome
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.commands.commandFixtureSession
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /** The test tag on the box the drawer is mounted in. */
 private const val DRAWER_TAG = "drawer"
@@ -54,8 +57,9 @@ private const val DRAWER_TAG = "drawer"
 private const val AREA_ID = "area-1"
 
 /**
- * The open sidebar drawer: Umamo's own tabs and their panels, tabs a contributor registers while the drawer
- * shows, per-language labels following the UI language, folding, and stepping tabs with Ctrl+wheel.
+ * The sidebar drawer: Umamo's own tabs and their panels, tabs a contributor registers while the drawer shows,
+ * per-language labels following the UI language, folding, stepping tabs with Ctrl+wheel, dragging the stack's
+ * width, an area too narrow for the stack, and the area's own open choice.
  */
 class SidebarDrawerTest {
 	/**
@@ -65,6 +69,7 @@ class SidebarDrawerTest {
 	 * @param SidebarState state The area's sidebar state.
 	 * @param EditorSession session The session to provide.
 	 * @param MutableState languageTag The UI language, which a case may switch.
+	 * @param Dp areaWidth The width of the area the drawer hugs the right edge of.
 	 */
 	@OptIn(ExperimentalTestApi::class)
 	private fun ComposeUiTest.mountDrawer(
@@ -72,6 +77,7 @@ class SidebarDrawerTest {
 		state: SidebarState = SidebarState(),
 		session: EditorSession = commandFixtureSession(EditorMode.Object),
 		languageTag: MutableState<String> = mutableStateOf("en"),
+		areaWidth: Dp = 320.dp,
 	) {
 		setContent {
 			UmamoTheme {
@@ -84,7 +90,7 @@ class SidebarDrawerTest {
 					LocalEditorSession provides session,
 					LocalSidebarRegistry provides registry,
 				) {
-					Box(modifier = Modifier.size(320.dp, 400.dp).testTag(DRAWER_TAG)) {
+					Box(modifier = Modifier.size(areaWidth, 400.dp).testTag(DRAWER_TAG)) {
 						SidebarDrawer(
 							areaId = AREA_ID,
 							space = SpaceKind.Viewport2D,
@@ -183,10 +189,10 @@ class SidebarDrawerTest {
 		runComposeUiTest {
 			val state = SidebarState()
 			mountDrawer(state = state)
-			onNodeWithText("This panel is not built yet.").assertExists()
+			onNodeWithText("Nothing selected.").assertExists()
 			onNodeWithText("Transform").performClick()
 			waitForIdle()
-			onNodeWithText("This panel is not built yet.").assertDoesNotExist()
+			onNodeWithText("Nothing selected.").assertDoesNotExist()
 		}
 
 	/** Ctrl+wheel over the rail steps through the tabs; a plain wheel turn does not. */
@@ -228,5 +234,75 @@ class SidebarDrawerTest {
 			waitForIdle()
 			onNodeWithText("Box Select").assertExists()
 			assertFalse(state.shownTabIds.isEmpty(), "the open drawer publishes its rail for the tab commands")
+		}
+
+	/**
+	 * Drags the resize grip on the stack's inner edge horizontally through [through], each an offset from
+	 * where the press lands.  The grip sits at the stack's left edge, the stack's width left of the rail.
+	 *
+	 * @param SidebarState state The sidebar's state, whose width places the stack.
+	 * @param List through The x offsets moved through, in order.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	private fun ComposeUiTest.dragGrip(state: SidebarState, through: List<Float>) {
+		val railLeft = onNodeWithText("Item").getUnclippedBoundsInRoot().left.value
+		val gripX = railLeft - state.width.value + 2f
+		onNodeWithTag(DRAWER_TAG).performMouseInput {
+			moveTo(Offset(gripX, 300f))
+			press()
+
+			for (offset in through) {
+				moveTo(Offset(gripX + offset, 300f))
+			}
+
+			release()
+		}
+		waitForIdle()
+	}
+
+	/** Dragging the grip left widens the sidebar's panel stack by the drag. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun draggingTheGripWidensTheSidebar() =
+		runComposeUiTest {
+			val state = SidebarState()
+			mountDrawer(state = state, areaWidth = 600.dp)
+			dragGrip(state, listOf(-20f, -40f, -60f))
+			// A mouse drag gives up a fraction of a pixel to the pointer slop before its first step.
+			assertTrue(abs(state.width.value - 260f) < 1f, "a 60 px drag widens the stack by about 60 dp (got ${state.width})")
+		}
+
+	/** A drag past the room the area leaves stops at that room. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aDragStopsAtTheRoomTheAreaLeaves() =
+		runComposeUiTest {
+			val state = SidebarState()
+			mountDrawer(state = state, areaWidth = 400.dp)
+			dragGrip(state, listOf(-100f, -200f, -300f))
+			assertEquals(400.dp - SIDEBAR_AREA_RESERVE, state.width)
+		}
+
+	/** An area too narrow for the narrowest sidebar shows only the pull tab, and the sidebar stays open for later. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aNarrowAreaShowsOnlyThePullTab() =
+		runComposeUiTest {
+			val state = SidebarState()
+			mountDrawer(state = state, areaWidth = SIDEBAR_MIN_WIDTH + SIDEBAR_AREA_RESERVE - 10.dp)
+			onNodeWithText("Item").assertDoesNotExist()
+			assertTrue(state.shownTabIds.isEmpty(), "a sidebar with no room shows no tab to step through")
+			assertTrue(state.visibility.isShown(default = true), "the sidebar is still open, waiting for room")
+		}
+
+	/** The area's own choice wins over the application's default. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun theAreasOwnChoiceWinsOverTheDefault() =
+		runComposeUiTest {
+			val state = SidebarState()
+			state.visibility.choice = false
+			mountDrawer(state = state)
+			onNodeWithText("Item").assertDoesNotExist()
 		}
 }

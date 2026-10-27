@@ -19,8 +19,10 @@ import org.umamo.ui.model.EditorModeHandle
 import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaOverlayHub
+import org.umamo.ui.workspace.AreaToolbarHub
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.ShellOverlayState
+import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.area.AreaDragController
 import org.umamo.ui.workspace.area.SplitterDragCancelController
 import org.umamo.ui.workspace.layout.WorkspaceLayoutController
@@ -107,7 +109,7 @@ private class SessionHandles(private val session: EditorSession) : SelectionHand
 }
 
 /**
- * Settings over an in-memory filesystem, for the tables that write a key.
+ * Settings over an in-memory filesystem, for the tests that read or write a key.
  *
  * @return Settings Empty settings that persist nowhere real.
  */
@@ -129,7 +131,6 @@ internal fun inMemorySettings(): Settings {
  */
 internal fun everyCommandTable(session: EditorSession? = null): List<Command> =
 	shellCommandTables(session) +
-		viewportChromeCommands(inMemorySettings()) +
 		workspaceFileCommands({}, {}, {}) +
 		logCommands {} +
 		fileCommands({}, {}, {}, {}, { true }, {}, {}, {}, {}) +
@@ -159,6 +160,7 @@ internal fun shellCommandTables(session: EditorSession? = null): List<Command> {
 		viewCommands(AreaCameraHub(), routing, viewportPresent = false) +
 		overlayCommands(AreaOverlayHub(), routing, viewportPresent = false) +
 		frameCommands(CommandRegistry(), routing) +
+		viewportChromeCommands(AreaToolbarHub(), AreaSidebarHub(), routing) { ViewportChromeState() } +
 		sidebarCommands(AreaSidebarHub(), routing) +
 		modeCommands(handles, handles) +
 		historyCommands(session, availability, OperationStripState()) +

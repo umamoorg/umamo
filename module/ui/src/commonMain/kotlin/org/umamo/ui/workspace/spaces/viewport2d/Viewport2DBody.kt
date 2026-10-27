@@ -24,6 +24,7 @@ import org.umamo.ui.viewport.viewport2d.rememberViewport2dGestureOwnsPointer
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
 import org.umamo.ui.workspace.LocalAreaOverlayHub
+import org.umamo.ui.workspace.LocalAreaToolbarHub
 import org.umamo.ui.workspace.LocalViewportChrome
 import org.umamo.ui.workspace.LocalViewportHost
 import org.umamo.ui.workspace.SpaceKind
@@ -76,16 +77,20 @@ internal fun Viewport2DBody(scope: AreaScope) {
 			onDispose { }
 		}
 	}
-	// Register the area's overlay and sidebar states for its lifetime, so the shell's view.overlay.* and
-	// view.sidebar.* commands act on THIS area when the pointer last touched it.  Unlike the camera, the states
-	// exist with or without a renderer, so nothing gates the registration; the commands carry their own gates.
+	// Register the area's overlay, toolbar, and sidebar states for its lifetime, so the shell's view.overlay.*,
+	// view.toggle*, and view.sidebar.* commands act on THIS area when the pointer last touched it.  Unlike the
+	// camera, the states exist with or without a renderer, so nothing gates the registration; the commands carry
+	// their own gates.
 	val overlayHub = LocalAreaOverlayHub.current
+	val toolbarHub = LocalAreaToolbarHub.current
 	val sidebarHub = LocalAreaSidebarHub.current
-	DisposableEffect(scope.areaId, overlayHub, sidebarHub) {
+	DisposableEffect(scope.areaId, overlayHub, toolbarHub, sidebarHub) {
 		overlayHub?.register(scope.areaId, viewState.overlays)
+		toolbarHub?.register(scope.areaId, viewState.toolbar)
 		sidebarHub?.register(scope.areaId, viewState.sidebar)
 		onDispose {
 			overlayHub?.unregister(scope.areaId)
+			toolbarHub?.unregister(scope.areaId)
 			sidebarHub?.unregister(scope.areaId)
 		}
 	}
@@ -103,7 +108,7 @@ internal fun Viewport2DBody(scope: AreaScope) {
 				Box(modifier = Modifier.fillMaxSize().background(LocalUmamoColors.current.viewportGridBackground))
 			}
 
-			if (chrome.showToolbar) {
+			if (viewState.toolbar.isShown(chrome.showToolbar)) {
 				// Clipped to the strip's outline after the margin, so only the strip itself keeps the pointer.
 				PointerShield(
 					passPointerThrough = gestureOwnsPointer,

@@ -3,6 +3,7 @@ package org.umamo.ui.viewport.viewport2d
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -21,6 +22,8 @@ import org.umamo.render.pick.PickCandidate
 import org.umamo.settings.Settings
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.theme.UmamoTheme
+import org.umamo.ui.viewport.LiveMeshPreview
+import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.StubPuppetViewportService
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.gizmo.HeldDriveDispatcher
@@ -57,6 +60,9 @@ internal class GizmoOverlayFixture(
 	/** The drive dispatcher every overlay computes on: open (in place) unless a case holds it. */
 	val driveDispatcher = HeldDriveDispatcher()
 
+	/** The live mesh preview both areas' Edit transforms publish to, as the shell provides one per window. */
+	val livePreview = LiveMeshPreview()
+
 	/** Every overlap picker an overlay asked for, as the area, the anchor, and the candidates. */
 	val overlapRequests = ArrayList<Triple<String, Offset, List<PickCandidate>>>()
 
@@ -72,13 +78,19 @@ internal class GizmoOverlayFixture(
  * Mounts the Edit and Object gizmo overlays in the two areas over [session].
  *
  * @param EditorSession session The session to run the overlays over.
+ * @param Function? beside A surface to mount to the right of the two areas, under the same locals, for a case
+ *   that watches the overlays from outside them; null for none.
  * @return GizmoOverlayFixture What the case inspects.
  */
 @OptIn(ExperimentalTestApi::class)
-internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession): GizmoOverlayFixture {
+internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession, beside: (@Composable () -> Unit)? = null): GizmoOverlayFixture {
 	val fixture = GizmoOverlayFixture(session)
 	setContent {
-		CompositionLocalProvider(LocalSettings provides fixture.settings, LocalModalDriveDispatcher provides fixture.driveDispatcher) {
+		CompositionLocalProvider(
+			LocalSettings provides fixture.settings,
+			LocalModalDriveDispatcher provides fixture.driveDispatcher,
+			LocalLiveMeshPreview provides fixture.livePreview,
+		) {
 			UmamoTheme {
 				CompositionLocalProvider(LocalDensity provides Density(1f)) {
 					Row {
@@ -125,6 +137,8 @@ internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession): GizmoOver
 									}
 								}
 							}
+
+							beside?.invoke()
 						}
 					}
 				}

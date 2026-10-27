@@ -112,7 +112,7 @@ fun rememberDocumentFileFor(document: Document?): DocumentFile? = remember(docum
  * @param Function? openLogFolder Hands the session-log folder to the platform's file manager, returning null once it
  *   did or the folder's path when it could not; null for a host with no file manager to hand it to, which leaves
  *   Help > Open Log Folder out.
- * @param UpdateTransport? updateTransport The host's HTTP GET for the update check (docs/plan/distribution.md D8);
+ * @param UpdateTransport? updateTransport The host's HTTP GET for the update check;
  *   null for a host that makes no network request, which leaves Help > Check for Updates, the check at launch, and
  *   the setting's row out.
  */
@@ -226,8 +226,8 @@ fun EditorApp(
 		snapshotFlow { commandRegistry.revision }.first { commandRegistry.invoke("document.alert", notice) }
 	}
 
-	// The update notice (docs/plan/distribution.md D8): Umamo says a newer release is published and never installs
-	// it.  The release page opens in the platform's browser, through the handler the Help links use.
+	// The update notice: Umamo says a newer release is published and never installs it.
+	// The release page opens in the platform's browser, through the handler the Help links use.
 	val currentUriHandler by rememberUpdatedState(LocalUriHandler.current)
 	val openPage = remember { { url: String -> currentUriHandler.openLinkQuietly(url) } }
 	// The check at launch, once per launch and at most once a day.  It waits for Quick Setup on a first run, where the

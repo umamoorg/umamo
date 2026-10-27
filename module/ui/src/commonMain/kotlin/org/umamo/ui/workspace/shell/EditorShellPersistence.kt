@@ -36,7 +36,6 @@ import org.umamo.ui.workspace.ViewportHost
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.logCommands
 import org.umamo.ui.workspace.commands.registerAll
-import org.umamo.ui.workspace.commands.viewportChromeCommands
 import org.umamo.ui.workspace.commands.workspaceFileCommands
 import org.umamo.ui.workspace.editorstate.LocalAreaViewStates
 import org.umamo.ui.workspace.layout.LayoutSavePacer
@@ -109,8 +108,8 @@ fun PersistentEditorShell(
 			.collect { layout -> savePacer.saveDebounced(layout) }
 	}
 
-	// The viewport chrome flags follow their settings keys reactively, so the toggle commands (and any
-	// external write) take effect across every viewport at once.
+	// The viewport chrome defaults follow their settings keys reactively, so a change in Preferences (or any
+	// external write) reaches every viewport that has no choice of its own at once.
 	val viewportChrome by produceState(initialValue = loadViewportChrome(settings), settings) {
 		settings.changes.collect { changedKey ->
 			if (changedKey == SHOW_TOOLBAR_SETTINGS_KEY || changedKey == SHOW_SIDEBAR_SETTINGS_KEY) {
@@ -119,17 +118,9 @@ fun PersistentEditorShell(
 		}
 	}
 
-	// The chrome toggles are registered here rather than in EditorShell because they write settings, and
-	// the shell itself stays Settings-free (its documented contract); the standalone shell simply lacks
-	// them, the same division as the app-registered File commands.
-	DisposableEffect(settings, commandRegistry) {
-		val cleanup = commandRegistry.registerAll(viewportChromeCommands(settings))
-		onDispose { cleanup() }
-	}
-
-	// The workspace layout's file commands and the log export register here for the same reason: the
-	// exports read the persisted layout from settings.  None of them needs a document, so they are live
-	// from launch, on every platform that mounts this shell.
+	// The workspace layout's file commands and the log export register here rather than in EditorShell
+	// because the exports read the persisted layout from settings.  None of them needs a document, so they
+	// are live from launch, on every platform that mounts this shell.
 	val fileScope = rememberCoroutineScope()
 	val workspaceFiles =
 		remember(settings, filePicker, commandRegistry, savePacer) {
@@ -168,11 +159,11 @@ fun PersistentEditorShell(
 }
 
 /**
- * Reads the viewport chrome flags from settings (bundled defaults included), falling back to the
+ * Reads the viewport chrome defaults from settings (bundled defaults included), falling back to the
  * standalone defaults for a missing key.
  *
  * @param Settings settings The merged settings tree.
- * @return ViewportChromeState The current chrome visibility flags.
+ * @return ViewportChromeState The application's chrome defaults for areas with no choice of their own.
  */
 private fun loadViewportChrome(settings: Settings): ViewportChromeState =
 	ViewportChromeState(

@@ -4,10 +4,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.DraggableState
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -23,17 +27,24 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
@@ -57,14 +68,13 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.sidebar.LocalSidebarRegistry
 import org.umamo.ui.sidebar.SidebarContext
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.drawIcon
+import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.workspace.LocalViewportChrome
 import org.umamo.ui.workspace.SpaceKind
-
-/** The width of the open sidebar's panel stack; the tab rail adds its own beside it. */
-private val SIDEBAR_STACK_WIDTH = 200.dp
 
 /** The panel stack's inset around its cards and the gap between two cards. */
 private val SIDEBAR_STACK_SPACING = 6.dp
@@ -75,16 +85,22 @@ private val SIDEBAR_PULL_TAB_WIDTH = 14.dp
 /** The pull tab's height. */
 private val SIDEBAR_PULL_TAB_HEIGHT = 48.dp
 
+/** The width of the grip along the open sidebar's inner edge that drags its width. */
+private val SIDEBAR_RESIZE_GRIP_WIDTH = 5.dp
+
 /**
  * A work surface's sidebar (Blender's N panel) as chrome hugging the area's right edge: a pull tab riding
  * its outer border and, while open, a stack of collapsible panels beside a rail of vertical tabs.  The tabs
- * and panels come from the window's [LocalSidebarRegistry] for this area's surface; which tab shows and
- * which panels are folded is the area's own [state].
+ * and panels come from the window's [LocalSidebarRegistry] for this area's surface; whether it is open, how
+ * wide it is, which tab shows, and which panels are folded is the area's own [state].
  *
  * The pull tab's chevron points into the viewport ("<") while closed and back out (">") while open; it
- * dispatches view.toggleSidebar (N), which flips the settings-backed [LocalViewportChrome] flag.  The open
- * sidebar keeps the pointer from reaching the surface beneath it, except while a gesture of this area owns
- * the pointer; the column around the pull tab stays transparent, as it looks.
+ * dispatches view.toggleSidebar (N), which toggles this area's sidebar, open by the [LocalViewportChrome]
+ * default until the rigger chooses.  The grip along the sidebar's inner edge drags its width, fitted to what
+ * the area leaves; an area too narrow for even the narrowest sidebar shows only the pull tab, and the
+ * sidebar stays open for when the area grows.  The open sidebar keeps the pointer from reaching the surface
+ * beneath it, except while a gesture of this area owns the pointer; the column around the pull tab stays
+ * transparent, as it looks.
  *
  * @param String areaId The area the sidebar belongs to.
  * @param SpaceKind space The work surface the area shows, which decides the panels it gets.
@@ -101,22 +117,27 @@ internal fun SidebarDrawer(
 	passPointerThrough: Boolean,
 	modifier: Modifier = Modifier,
 ) {
-	val chrome = LocalViewportChrome.current
-	// The shield sits inside this row, and the hit test asks only the surface's direct sibling whether it hands
-	// the pointer on, so the row hands it on as well while the shield does.
-	val rowModifier = if (passPointerThrough) modifier.sharesPointerWithSiblings() else modifier
-	Row(modifier = rowModifier.fillMaxHeight()) {
-		Box(modifier = Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
-			SidebarPullTab(open = chrome.showSidebar)
-		}
-
-		if (chrome.showSidebar) {
-			PointerShield(passPointerThrough = passPointerThrough, modifier = Modifier.fillMaxHeight()) {
-				SidebarPanels(areaId = areaId, space = space, state = state)
+	val open = state.visibility.isShown(LocalViewportChrome.current.showSidebar)
+	// The shield sits inside this box, and the hit test asks only the surface's direct sibling whether it hands
+	// the pointer on, so the box hands it on as well while the shield does.
+	val rootModifier = if (passPointerThrough) modifier.sharesPointerWithSiblings() else modifier
+	BoxWithConstraints(modifier = rootModifier.fillMaxHeight()) {
+		val stackWidth = if (open) sidebarStackWidth(state.width, maxWidth) else null
+		val widestStack = sidebarStackWidth(SIDEBAR_MAX_WIDTH, maxWidth)
+		Row(modifier = Modifier.fillMaxHeight()) {
+			Box(modifier = Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
+				SidebarPullTab(open = stackWidth != null)
 			}
-		} else {
-			// A closed sidebar shows no tab, so the tab commands have nothing to step through.
-			SideEffect { state.shownTabIds = emptyList() }
+
+			if (stackWidth != null && widestStack != null) {
+				PointerShield(passPointerThrough = passPointerThrough, modifier = Modifier.fillMaxHeight()) {
+					SidebarPanels(areaId = areaId, space = space, state = state, stackWidth = stackWidth, widestStack = widestStack)
+				}
+			} else {
+				// A closed sidebar, or one the area has no room for, shows no tab, so the tab commands have
+				// nothing to step through.
+				SideEffect { state.shownTabIds = emptyList() }
+			}
 		}
 	}
 }
@@ -128,9 +149,17 @@ internal fun SidebarDrawer(
  * @param String areaId The area the sidebar belongs to.
  * @param SpaceKind space The work surface the area shows.
  * @param SidebarState state The area's sidebar state.
+ * @param Dp stackWidth The panel stack's width, fitted to the area.
+ * @param Dp widestStack The widest the area lets the stack be dragged.
  */
 @Composable
-private fun SidebarPanels(areaId: String, space: SpaceKind, state: SidebarState) {
+private fun SidebarPanels(
+	areaId: String,
+	space: SpaceKind,
+	state: SidebarState,
+	stackWidth: Dp,
+	widestStack: Dp,
+) {
 	val colors = LocalUmamoColors.current
 	val registry = LocalSidebarRegistry.current
 	val context = currentSidebarContext(areaId, space)
@@ -140,8 +169,21 @@ private fun SidebarPanels(areaId: String, space: SpaceKind, state: SidebarState)
 	val activeTabId = state.resolvedActiveTab(shownTabIds)
 	val activeTab = tabs.firstOrNull { resolved -> resolved.tab.id == activeTabId }
 	val scrollState = rememberScrollState()
-	Row(modifier = Modifier.fillMaxHeight().border(width = 1.dp, color = colors.panelBorder)) {
-		Box(modifier = Modifier.fillMaxHeight().width(SIDEBAR_STACK_WIDTH).background(colors.headerBackground)) {
+	// The resize cursor is declared once, on a node present the whole time: a hover icon that appears only
+	// mid-drag is not resolved again until the pointer crosses a node boundary, which mid-drag it may not.
+	var resizing by remember { mutableStateOf(false) }
+	Row(
+		modifier =
+			Modifier
+				.fillMaxHeight()
+				.border(width = 1.dp, color = colors.panelBorder)
+				.pointerHoverIcon(
+					icon = if (resizing) umamoPointerIcon(LocalUmamoCursors.ewScroll) else PointerIcon.Default,
+					// Only while a drag is live, so the controls' own hover cursors win otherwise.
+					overrideDescendants = resizing,
+				),
+	) {
+		Box(modifier = Modifier.fillMaxHeight().width(stackWidth).background(colors.headerBackground)) {
 			Column(
 				modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(SIDEBAR_STACK_SPACING),
 				verticalArrangement = Arrangement.spacedBy(SIDEBAR_STACK_SPACING),
@@ -161,6 +203,12 @@ private fun SidebarPanels(areaId: String, space: SpaceKind, state: SidebarState)
 				}
 			}
 			VerticalScrollbarOverlay(scrollState)
+			SidebarResizeGrip(
+				state = state,
+				widestStack = widestStack,
+				onResizingChange = { dragging -> resizing = dragging },
+				modifier = Modifier.align(Alignment.CenterStart),
+			)
 		}
 		VerticalTabRail(
 			tabs = tabs.map { resolved -> VerticalTabRailItem(resolved.tab.id, resolved.tab.label.resolve()) },
@@ -177,6 +225,50 @@ private fun SidebarPanels(areaId: String, space: SpaceKind, state: SidebarState)
 }
 
 /**
+ * The grip along the open sidebar's inner edge, over the stack's border and padding and clear of its cards:
+ * dragging it left widens the stack, between the narrowest it may be and the widest the area leaves.  Each
+ * step starts from the width on screen, so a stored width the area clamped never leaves a dead zone.
+ *
+ * @param SidebarState state The area's sidebar state, whose width the drag sets.
+ * @param Dp widestStack The widest the area lets the stack be.
+ * @param Function onResizingChange Told when a drag starts and ends, to hold the resize cursor meanwhile.
+ * @param Modifier modifier Layout modifier (the caller aligns the grip to the stack's inner edge).
+ */
+@Composable
+private fun SidebarResizeGrip(
+	state: SidebarState,
+	widestStack: Dp,
+	onResizingChange: (Boolean) -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	val density = LocalDensity.current
+	val latestWidestStack by rememberUpdatedState(widestStack)
+	val latestOnResizingChange by rememberUpdatedState(onResizingChange)
+	val dragState =
+		remember(density, state) {
+			DraggableState { deltaPx ->
+				val delta = with(density) { deltaPx.toDp() }
+				val shownWidth = state.width.coerceIn(SIDEBAR_MIN_WIDTH, latestWidestStack)
+				// The grip is on the stack's left edge and the sidebar hugs the right, so dragging left widens it.
+				state.width = (shownWidth - delta).coerceIn(SIDEBAR_MIN_WIDTH, latestWidestStack)
+			}
+		}
+	Box(
+		modifier =
+			modifier
+				.width(SIDEBAR_RESIZE_GRIP_WIDTH)
+				.fillMaxHeight()
+				.pointerHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll))
+				.draggable(
+					state = dragState,
+					orientation = Orientation.Horizontal,
+					onDragStarted = { latestOnResizingChange(true) },
+					onDragStopped = { latestOnResizingChange(false) },
+				),
+	)
+}
+
+/**
  * The context this area's panels read, or null with no document open (the sidebar then shows no tabs).
  *
  * @param String areaId The area the sidebar belongs to.
@@ -188,13 +280,15 @@ private fun currentSidebarContext(areaId: String, space: SpaceKind): SidebarCont
 	val puppet = LocalPuppet.current ?: return null
 	val session = LocalEditorSession.current
 	val meshSelection = session?.meshSelection?.collectAsState()?.value ?: MeshSelection()
+	val selectionHandle = LocalSelection.current
 
 	return SidebarContext(
 		areaId = areaId,
 		space = space,
 		puppet = puppet,
 		mode = LocalEditorMode.current?.mode ?: EditorMode.Object,
-		selection = LocalSelection.current?.selection ?: Selection(),
+		selection = selectionHandle?.selection ?: Selection(),
+		shownTarget = selectionHandle?.shownTarget(puppet),
 		meshSelection = meshSelection,
 		session = session,
 	)
