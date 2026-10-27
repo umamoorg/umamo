@@ -62,7 +62,7 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 			} else {
 				buildJsonObject {
 					put("targets", JsonArray(viewState.selection.targets.map { target -> JsonPrimitive(objectReferenceOf(target)) }))
-					put("active", viewState.selection.active?.let { active -> JsonPrimitive(objectReferenceOf(active)) } ?: JsonNull)
+					put("active", JsonPrimitive(viewState.selection.active?.let(::objectReferenceOf)))
 				}
 			},
 		)
@@ -73,7 +73,7 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 			} else {
 				buildJsonObject {
 					put("ids", JsonArray(viewState.parameterSelection.ids.map { parameterId -> JsonPrimitive(parameterId.raw) }))
-					put("active", viewState.parameterSelection.active?.let { active -> JsonPrimitive(active.raw) } ?: JsonNull)
+					put("active", JsonPrimitive(viewState.parameterSelection.active?.raw))
 				}
 			},
 		)

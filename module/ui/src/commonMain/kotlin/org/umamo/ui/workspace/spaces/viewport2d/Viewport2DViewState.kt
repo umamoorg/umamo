@@ -1,6 +1,5 @@
 package org.umamo.ui.workspace.spaces.viewport2d
 
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -49,7 +48,7 @@ internal class Viewport2DViewState : PersistentSpaceState {
 	override fun toJson(): JsonObject =
 		buildJsonObject {
 			put(OVERLAYS_MEMBER, overlays.overlaysJsonOrNull())
-			put(TOOLBAR_MEMBER, toolbar.choice?.let(::JsonPrimitive) ?: JsonNull)
+			put(TOOLBAR_MEMBER, JsonPrimitive(toolbar.choice))
 			put(SIDEBAR_MEMBER, sidebar.sidebarJsonOrNull())
 		}
 

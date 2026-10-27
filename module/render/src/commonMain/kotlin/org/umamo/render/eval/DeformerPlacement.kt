@@ -54,11 +54,9 @@ fun deformerPlacement(model: PuppetModel, parameters: Map<ParameterId, Float>, d
 		return null
 	}
 
-	val defaults = model.parameters.associate { parameter -> parameter.id to parameter.default }
-	val paramValue: (ParameterId) -> Float = { parameterId -> parameters[parameterId] ?: defaults[parameterId] ?: 0f }
-	val defaultValue: (ParameterId) -> Float = { parameterId -> defaults[parameterId] ?: 0f }
+	val pose = PoseParameters(model, parameters)
 
-	return when (val world = buildDeformerWorlds(chain, paramValue, defaultValue)[deformerId]) {
+	return when (val world = buildDeformerWorlds(chain, pose.paramValue, pose.defaultValue)[deformerId]) {
 		is WarpWorld -> warpPlacement(world)
 		is RotationWorld -> rotationPlacement(world)
 		null -> null
@@ -97,28 +95,10 @@ private fun ancestorChain(model: PuppetModel, deformerId: DeformerId): List<Defo
  * @return DeformerPlacement.Warp? The bounds, or null for a lattice with no points.
  */
 private fun warpPlacement(world: WarpWorld): DeformerPlacement.Warp? {
-	val points = world.cp
-
-	if (points.size < 2) {
-		return null
-	}
-
-	var minX = Float.POSITIVE_INFINITY
-	var minY = Float.POSITIVE_INFINITY
-	var maxX = Float.NEGATIVE_INFINITY
-	var maxY = Float.NEGATIVE_INFINITY
-	var slotIndex = 0
-
-	while (slotIndex + 1 < points.size) {
-		minX = minOf(minX, points[slotIndex])
-		maxX = maxOf(maxX, points[slotIndex])
-		minY = minOf(minY, points[slotIndex + 1])
-		maxY = maxOf(maxY, points[slotIndex + 1])
-		slotIndex += 2
-	}
+	val extent = pointExtentOf(world.cp) ?: return null
 
 	// The cascade's y grows downward, so its largest y is the lowest world z.
-	return DeformerPlacement.Warp(worldMinX = minX, worldMinZ = -maxY, worldMaxX = maxX, worldMaxZ = -minY)
+	return DeformerPlacement.Warp(worldMinX = extent.minX, worldMinZ = -extent.maxY, worldMaxX = extent.maxX, worldMaxZ = -extent.minY)
 }
 
 /**

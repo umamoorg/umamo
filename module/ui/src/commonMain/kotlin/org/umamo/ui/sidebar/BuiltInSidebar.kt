@@ -7,6 +7,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.ui.kit.Text
 import org.umamo.ui.l10n.UiText
+import org.umamo.ui.properties.MutedNote
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
@@ -96,20 +97,10 @@ private fun ActiveToolPanel(context: SidebarContext) {
 		}
 
 	if (activeLabel == null) {
-		PanelHint(Res.string.sidebar_tool_settings_hint)
+		MutedNote(Res.string.sidebar_tool_settings_hint)
 
 		return
 	}
 
 	Text(text = stringResource(activeLabel), style = LocalUmamoTypography.current.labelMedium, color = LocalUmamoColors.current.text)
-}
-
-/**
- * A muted one-line note standing in for a panel's rows.
- *
- * @param StringResource hint The note.
- */
-@Composable
-internal fun PanelHint(hint: StringResource) {
-	Text(text = stringResource(hint), style = LocalUmamoTypography.current.labelSmall, color = LocalUmamoColors.current.textMuted)
 }

@@ -4,9 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -29,19 +27,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
-import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -58,6 +52,8 @@ import org.umamo.ui.kit.container.RailContentSide
 import org.umamo.ui.kit.container.SectionCard
 import org.umamo.ui.kit.container.VerticalTabRail
 import org.umamo.ui.kit.container.VerticalTabRailItem
+import org.umamo.ui.kit.dragResizes
+import org.umamo.ui.kit.holdsHoverIcon
 import org.umamo.ui.kit.sharesPointerWithSiblings
 import org.umamo.ui.l10n.resolve
 import org.umamo.ui.model.LocalEditorMode
@@ -169,19 +165,15 @@ private fun SidebarPanels(
 	val activeTabId = state.resolvedActiveTab(shownTabIds)
 	val activeTab = tabs.firstOrNull { resolved -> resolved.tab.id == activeTabId }
 	val scrollState = rememberScrollState()
-	// The resize cursor is declared once, on a node present the whole time: a hover icon that appears only
-	// mid-drag is not resolved again until the pointer crosses a node boundary, which mid-drag it may not.
+	// The resize cursor is held over the whole sidebar while the grip drags (see holdsHoverIcon).
 	var resizing by remember { mutableStateOf(false) }
 	Row(
 		modifier =
 			Modifier
 				.fillMaxHeight()
 				.border(width = 1.dp, color = colors.panelBorder)
-				.pointerHoverIcon(
-					icon = if (resizing) umamoPointerIcon(LocalUmamoCursors.ewScroll) else PointerIcon.Default,
-					// Only while a drag is live, so the controls' own hover cursors win otherwise.
-					overrideDescendants = resizing,
-				),
+				// Only while a drag is live, so the controls' own hover cursors win otherwise.
+				.holdsHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll), held = resizing),
 	) {
 		Box(modifier = Modifier.fillMaxHeight().width(stackWidth).background(colors.headerBackground)) {
 			Column(
@@ -241,29 +233,21 @@ private fun SidebarResizeGrip(
 	onResizingChange: (Boolean) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
-	val density = LocalDensity.current
-	val latestWidestStack by rememberUpdatedState(widestStack)
-	val latestOnResizingChange by rememberUpdatedState(onResizingChange)
-	val dragState =
-		remember(density, state) {
-			DraggableState { deltaPx ->
-				val delta = with(density) { deltaPx.toDp() }
-				val shownWidth = state.width.coerceIn(SIDEBAR_MIN_WIDTH, latestWidestStack)
-				// The grip is on the stack's left edge and the sidebar hugs the right, so dragging left widens it.
-				state.width = (shownWidth - delta).coerceIn(SIDEBAR_MIN_WIDTH, latestWidestStack)
-			}
-		}
 	Box(
 		modifier =
 			modifier
 				.width(SIDEBAR_RESIZE_GRIP_WIDTH)
 				.fillMaxHeight()
-				.pointerHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll))
-				.draggable(
-					state = dragState,
+				.dragResizes(
+					size = { state.width },
+					min = SIDEBAR_MIN_WIDTH,
+					max = widestStack,
 					orientation = Orientation.Horizontal,
-					onDragStarted = { latestOnResizingChange(true) },
-					onDragStopped = { latestOnResizingChange(false) },
+					hoverIcon = umamoPointerIcon(LocalUmamoCursors.ewScroll),
+					onResize = { width -> state.width = width },
+					// The grip is on the stack's left edge and the sidebar hugs the right, so dragging left widens it.
+					growsBackward = true,
+					onDraggingChange = onResizingChange,
 				),
 	)
 }

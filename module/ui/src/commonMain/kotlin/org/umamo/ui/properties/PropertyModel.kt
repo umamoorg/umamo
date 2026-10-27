@@ -30,7 +30,14 @@ class PropertyContext(
 	val selection: Selection,
 	val activeTarget: SelectionTarget?,
 	val session: EditorSession?,
-)
+) {
+	/**
+	 * The context's one mutable member: the cache a part's two Transform rows share, so the whole-subtree
+	 * capture behind them runs once per pose rather than once per row (see [PartBoundsMemo]).  It holds only
+	 * what the fields above already determine, so the context still reads as a snapshot.
+	 */
+	internal val partBoundsMemo = PartBoundsMemo()
+}
 
 /**
  * The active target as a [Drawable], resolved against the model, or null when the active target is not a

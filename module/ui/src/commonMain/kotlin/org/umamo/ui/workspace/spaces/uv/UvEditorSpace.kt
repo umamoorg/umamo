@@ -59,6 +59,7 @@ import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.ViewportRegionOverlay
+import org.umamo.ui.viewport.gestureOwnsAreaPointer
 import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.tracksAreaPointer
@@ -591,9 +592,10 @@ internal fun UvEditorSpace(scope: AreaScope) {
  * the pointer then (a wheel scroll resizes the proportional radius, not the zoom) - and while an un-armed
  * box drag is live (viewportGestureActive, area-less by design: pointer capture pins the drag's events to
  * the dragging overlay, and zooming under a live rubber-band would desync the box from the camera used at
- * release) or Zoom Region is armed here (its overlay owns the drag above).  The four-term gate is the 2D
- * viewport loop's.  A gesture latched in ANOTHER area does not block: its events never reach here, so this
- * area keeps panning and zooming during it (Blender parity).
+ * release) or Zoom Region is armed here (its overlay owns the drag above).  The gate is the one the 2D
+ * viewport loop and the floating chrome read (gestureOwnsAreaPointer).  A gesture latched in ANOTHER area
+ * does not block: its events never reach here, so this area keeps panning and zooming during it (Blender
+ * parity).
  *
  * This loop stamps nothing about where the pointer is: the hovered surface is stamped by the hosting
  * leaf, for every space alike (see stampsHoveredSurface).
@@ -614,11 +616,7 @@ private suspend fun PointerInputScope.uvEditorNavigation(
 			val event = awaitPointerEvent()
 			val change = event.changes.firstOrNull() ?: continue
 
-			if (session.activeUvOperator.value?.areaId == areaId ||
-				session.activeSelectTool.value?.areaId == areaId ||
-				session.viewportGestureActive.value ||
-				session.zoomRegionArmedArea.value == areaId
-			) {
+			if (session.gestureOwnsAreaPointer(areaId)) {
 				continue
 			}
 

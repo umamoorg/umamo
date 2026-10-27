@@ -1,11 +1,8 @@
 package org.umamo.ui.workspace.sidebar
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
@@ -26,23 +23,20 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.Selection
 import org.umamo.edit.transform.beginBoxSelect
-import org.umamo.ui.action.CommandRegistry
-import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.Text
 import org.umamo.ui.l10n.LocalAppLocale
 import org.umamo.ui.l10n.UiText
-import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalPuppet
-import org.umamo.ui.sidebar.LocalSidebarRegistry
+import org.umamo.ui.sidebar.ProvideSidebarLocals
+import org.umamo.ui.sidebar.SidebarDrawerInArea
 import org.umamo.ui.sidebar.SidebarPanel
 import org.umamo.ui.sidebar.SidebarRegistry
 import org.umamo.ui.sidebar.SidebarTab
+import org.umamo.ui.sidebar.builtInSidebarRegistry
 import org.umamo.ui.sidebar.registerBuiltInSidebar
 import org.umamo.ui.theme.UmamoTheme
-import org.umamo.ui.workspace.LocalViewportChrome
 import org.umamo.ui.workspace.SpaceKind
-import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.commands.commandFixtureSession
 import kotlin.math.abs
 import kotlin.test.Test
@@ -73,7 +67,7 @@ class SidebarDrawerTest {
 	 */
 	@OptIn(ExperimentalTestApi::class)
 	private fun ComposeUiTest.mountDrawer(
-		registry: SidebarRegistry = SidebarRegistry().also { built -> registerBuiltInSidebar(built) },
+		registry: SidebarRegistry = builtInSidebarRegistry(),
 		state: SidebarState = SidebarState(),
 		session: EditorSession = commandFixtureSession(EditorMode.Object),
 		languageTag: MutableState<String> = mutableStateOf("en"),
@@ -81,24 +75,8 @@ class SidebarDrawerTest {
 	) {
 		setContent {
 			UmamoTheme {
-				CompositionLocalProvider(
-					LocalDensity provides Density(1f),
-					LocalAppLocale provides languageTag.value,
-					LocalCommands provides CommandRegistry(),
-					LocalViewportChrome provides ViewportChromeState(showSidebar = true),
-					LocalPuppet provides session.model.value,
-					LocalEditorSession provides session,
-					LocalSidebarRegistry provides registry,
-				) {
-					Box(modifier = Modifier.size(areaWidth, 400.dp).testTag(DRAWER_TAG)) {
-						SidebarDrawer(
-							areaId = AREA_ID,
-							space = SpaceKind.Viewport2D,
-							state = state,
-							passPointerThrough = false,
-							modifier = Modifier.align(Alignment.CenterEnd),
-						)
-					}
+				ProvideSidebarLocals(session, registry, LocalDensity provides Density(1f), LocalAppLocale provides languageTag.value) {
+					SidebarDrawerInArea(AREA_ID, state, width = areaWidth, height = 400.dp, modifier = Modifier.testTag(DRAWER_TAG))
 				}
 			}
 		}
@@ -188,7 +166,9 @@ class SidebarDrawerTest {
 	fun foldingHidesAPanelsRows() =
 		runComposeUiTest {
 			val state = SidebarState()
-			mountDrawer(state = state)
+			// Nothing selected, so the Item tab's Transform panel holds the one line this case watches.
+			val session = commandFixtureSession(EditorMode.Object).also { emptied -> emptied.setSelection(Selection()) }
+			mountDrawer(state = state, session = session)
 			onNodeWithText("Nothing selected.").assertExists()
 			onNodeWithText("Transform").performClick()
 			waitForIdle()

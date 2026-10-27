@@ -165,8 +165,11 @@ fun PersistentEditorShell(
  * @param Settings settings The merged settings tree.
  * @return ViewportChromeState The application's chrome defaults for areas with no choice of their own.
  */
-private fun loadViewportChrome(settings: Settings): ViewportChromeState =
-	ViewportChromeState(
-		showToolbar = settings.getBoolean(SHOW_TOOLBAR_SETTINGS_KEY) ?: true,
-		showSidebar = settings.getBoolean(SHOW_SIDEBAR_SETTINGS_KEY) ?: false,
+private fun loadViewportChrome(settings: Settings): ViewportChromeState {
+	val standalone = ViewportChromeState()
+
+	return ViewportChromeState(
+		showToolbar = settings.getBoolean(SHOW_TOOLBAR_SETTINGS_KEY) ?: standalone.showToolbar,
+		showSidebar = settings.getBoolean(SHOW_SIDEBAR_SETTINGS_KEY) ?: standalone.showSidebar,
 	)
+}

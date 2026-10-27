@@ -3,6 +3,7 @@ package org.umamo.ui.sidebar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import org.umamo.edit.EditorMode
+import org.umamo.ui.properties.MutedNote
 import org.umamo.ui.properties.PropertyContext
 import org.umamo.ui.properties.TransformSection
 import org.umamo.ui.resources.*
@@ -26,7 +27,7 @@ internal fun ItemTransformPanel(context: SidebarContext) {
 	val shown = context.shownTarget
 
 	if (shown == null) {
-		PanelHint(Res.string.sidebar_item_nothing_selected)
+		MutedNote(Res.string.sidebar_item_nothing_selected)
 
 		return
 	}
@@ -35,7 +36,7 @@ internal fun ItemTransformPanel(context: SidebarContext) {
 	val rows = TransformSection.rows(propertyContext)
 
 	if (rows.isEmpty()) {
-		PanelHint(Res.string.properties_transform_unavailable)
+		MutedNote(Res.string.properties_transform_unavailable)
 
 		return
 	}

@@ -3,10 +3,7 @@ package org.umamo.ui.sidebar
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalDensity
@@ -46,15 +43,6 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.LocalSettings
-import org.umamo.ui.action.CommandRegistry
-import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.action.LocalKeymap
-import org.umamo.ui.action.defaultKeymap
-import org.umamo.ui.model.LocalEditorMode
-import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalPuppet
-import org.umamo.ui.model.LocalSelection
-import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.properties.LocalPropertyTabRegistry
 import org.umamo.ui.properties.PROPERTIES_VIEW_STATE_KEY
 import org.umamo.ui.properties.PropertiesViewState
@@ -62,11 +50,7 @@ import org.umamo.ui.properties.PropertyTabId
 import org.umamo.ui.properties.defaultPropertyTabRegistry
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.workspace.AreaScope
-import org.umamo.ui.workspace.LocalViewportChrome
-import org.umamo.ui.workspace.SpaceKind
-import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.commands.inMemorySettings
-import org.umamo.ui.workspace.sidebar.SidebarDrawer
 import org.umamo.ui.workspace.sidebar.SidebarState
 import org.umamo.ui.workspace.spaces.properties.PropertiesSpace
 import kotlin.test.Test
@@ -190,37 +174,21 @@ class ItemPropertiesParityTest {
 		val settings = inMemorySettings()
 		val propertiesScope = AreaScope("properties")
 		propertiesScope.spaceState(PROPERTIES_VIEW_STATE_KEY) { PropertiesViewState() }.activeTab = PropertyTabId.Object
-		val sidebarRegistry = SidebarRegistry().also { registry -> registerBuiltInSidebar(registry) }
+		val sidebarRegistry = builtInSidebarRegistry()
 		setContent {
 			UmamoTheme {
-				val puppet by session.model.collectAsState()
-				val editorState = rememberSessionEditorState(session)
-				CompositionLocalProvider(
+				ProvideSidebarLocals(
+					session,
+					sidebarRegistry,
 					LocalDensity provides Density(1f),
 					LocalSettings provides settings,
-					LocalCommands provides CommandRegistry(),
-					LocalKeymap provides defaultKeymap(),
 					LocalPropertyTabRegistry provides defaultPropertyTabRegistry(),
-					LocalSidebarRegistry provides sidebarRegistry,
-					LocalViewportChrome provides ViewportChromeState(showSidebar = true),
-					LocalPuppet provides puppet,
-					LocalEditorSession provides session,
-					LocalSelection provides editorState,
-					LocalEditorMode provides editorState,
 				) {
 					Row {
 						Box(modifier = Modifier.size(360.dp, 500.dp)) {
 							PropertiesSpace(propertiesScope)
 						}
-						Box(modifier = Modifier.size(420.dp, 500.dp)) {
-							SidebarDrawer(
-								areaId = "area-1",
-								space = SpaceKind.Viewport2D,
-								state = SidebarState(),
-								passPointerThrough = false,
-								modifier = Modifier.align(Alignment.CenterEnd),
-							)
-						}
+						SidebarDrawerInArea("area-1", SidebarState(), width = 420.dp, height = 500.dp)
 					}
 				}
 			}

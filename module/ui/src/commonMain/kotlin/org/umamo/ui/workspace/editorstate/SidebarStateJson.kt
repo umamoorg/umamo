@@ -1,6 +1,5 @@
 package org.umamo.ui.workspace.editorstate
 
-import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -46,20 +45,18 @@ private const val COLLAPSED_PANELS_MEMBER = "collapsedPanels"
  * @return JsonElement The member value.
  */
 internal fun SidebarState.sidebarJsonOrNull(): JsonElement {
-	val openChoice = visibility.choice
-	val chosenTab = activeTabId
-	val atDefaults = openChoice == null && width == SIDEBAR_DEFAULT_WIDTH && chosenTab == null && expandedByPanel.isEmpty()
-
-	if (atDefaults) {
+	if (isAtDefaults) {
 		return JsonNull
 	}
 
+	val (expandedPanels, collapsedPanels) = recordedFoldsOf(expandedByPanel) { panelId -> panelId }
+
 	return buildJsonObject {
-		put(OPEN_MEMBER, openChoice?.let(::JsonPrimitive) ?: JsonNull)
-		put(WIDTH_MEMBER, if (width == SIDEBAR_DEFAULT_WIDTH) JsonNull else JsonPrimitive(width.value))
-		put(TAB_MEMBER, chosenTab?.let(::JsonPrimitive) ?: JsonNull)
-		put(EXPANDED_PANELS_MEMBER, stringArrayOrNull(expandedByPanel.filterValues { expanded -> expanded }.keys))
-		put(COLLAPSED_PANELS_MEMBER, stringArrayOrNull(expandedByPanel.filterValues { expanded -> !expanded }.keys))
+		put(OPEN_MEMBER, JsonPrimitive(visibility.choice))
+		put(WIDTH_MEMBER, dpOrNull(width, SIDEBAR_DEFAULT_WIDTH))
+		put(TAB_MEMBER, JsonPrimitive(activeTabId))
+		put(EXPANDED_PANELS_MEMBER, expandedPanels)
+		put(COLLAPSED_PANELS_MEMBER, collapsedPanels)
 	}
 }
 
@@ -72,17 +69,14 @@ internal fun SidebarState.sidebarJsonOrNull(): JsonElement {
  * @param JsonObject? tree The member as the file held it, or null when it is absent or not an object.
  */
 internal fun SidebarState.restoreSidebar(tree: JsonObject?) {
-	visibility.choice = null
-	width = SIDEBAR_DEFAULT_WIDTH
-	activeTabId = null
-	expandedByPanel.clear()
+	reset()
 
 	if (tree == null) {
 		return
 	}
 
 	visibility.choice = booleanOf(tree, OPEN_MEMBER)
-	width = finiteFloatOf(tree[WIDTH_MEMBER])?.takeIf { value -> value > 0f }?.dp?.coerceIn(SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH) ?: SIDEBAR_DEFAULT_WIDTH
+	width = positiveDpOf(tree[WIDTH_MEMBER], SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH) ?: SIDEBAR_DEFAULT_WIDTH
 	activeTabId = stringOf(tree, TAB_MEMBER)
 	restoreFoldStates(expandedByPanel, tree, EXPANDED_PANELS_MEMBER, COLLAPSED_PANELS_MEMBER)
 }

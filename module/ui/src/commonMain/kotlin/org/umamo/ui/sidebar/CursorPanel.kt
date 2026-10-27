@@ -1,23 +1,14 @@
 package org.umamo.ui.sidebar
 
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorSession
-import org.umamo.runtime.model.originRelativeX
-import org.umamo.runtime.model.originRelativeZ
-import org.umamo.runtime.model.worldXFromOriginRelative
-import org.umamo.runtime.model.worldZFromOriginRelative
-import org.umamo.ui.kit.field.FieldStack
-import org.umamo.ui.kit.field.NumberField
-import org.umamo.ui.kit.field.PropertyFieldRow
-import org.umamo.ui.properties.UNBOUNDED_RANGE
+import org.umamo.ui.properties.WorldPositionFields
 import org.umamo.ui.resources.*
+import org.umamo.ui.transform.moved
 
 /**
  * Where the 2D cursor stood when a scrub of one of its fields began, held so a cancelled scrub can put it
@@ -85,45 +76,21 @@ internal fun CursorPanel(context: SidebarContext) {
 		restoreCursor(session, start.cursor)
 	}
 
-	// Only the edited axis converts: the other passes its world value through untouched, since a subtract
-	// then add can land one float step off.
-	FieldStack(
-		listOf(
-			{ position ->
-				PropertyFieldRow(
-					label = stringResource(Res.string.properties_field_position_x),
-					description = stringResource(Res.string.sidebar_cursor_x_description),
-				) {
-					NumberField(
-						value = puppet.originRelativeX(cursor.worldX),
-						onValueChange = { newX -> commitAt(puppet.worldXFromOriginRelative(newX), cursor.worldZ) },
-						onPreview = { newX -> previewAt(puppet.worldXFromOriginRelative(newX), cursor.worldZ) },
-						onScrubCancel = { cancelScrub() },
-						modifier = Modifier.fillMaxWidth(),
-						range = UNBOUNDED_RANGE,
-						decimals = 1,
-						stackPosition = position,
-					)
-				}
-			},
-			{ position ->
-				PropertyFieldRow(
-					label = stringResource(Res.string.properties_field_position_z),
-					description = stringResource(Res.string.sidebar_cursor_z_description),
-				) {
-					NumberField(
-						value = puppet.originRelativeZ(cursor.worldZ),
-						onValueChange = { newZ -> commitAt(cursor.worldX, puppet.worldZFromOriginRelative(newZ)) },
-						onPreview = { newZ -> previewAt(cursor.worldX, puppet.worldZFromOriginRelative(newZ)) },
-						onScrubCancel = { cancelScrub() },
-						modifier = Modifier.fillMaxWidth(),
-						range = UNBOUNDED_RANGE,
-						decimals = 1,
-						stackPosition = position,
-					)
-				}
-			},
-		),
+	WorldPositionFields(
+		puppet = puppet,
+		worldX = cursor.worldX,
+		worldZ = cursor.worldZ,
+		xDescription = Res.string.sidebar_cursor_x_description,
+		zDescription = Res.string.sidebar_cursor_z_description,
+		onCommit = { axis, worldValue ->
+			val (worldX, worldZ) = axis.moved(worldValue, cursor.worldX, cursor.worldZ)
+			commitAt(worldX, worldZ)
+		},
+		onPreview = { axis, worldValue ->
+			val (worldX, worldZ) = axis.moved(worldValue, cursor.worldX, cursor.worldZ)
+			previewAt(worldX, worldZ)
+		},
+		onScrubCancel = { cancelScrub() },
 	)
 }
 

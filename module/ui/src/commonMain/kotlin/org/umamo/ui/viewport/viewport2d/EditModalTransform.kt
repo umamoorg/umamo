@@ -68,15 +68,18 @@ internal class EditGesture(
  * @param String areaId The viewport area the overlay covers; only an operator latched here drives.
  * @param EditorSession session The session owning the model, the mesh selection, and the operator latch.
  * @param Function pushPreview Pushes a folded preview model to the renderer.
- * @param LiveMeshPreview livePreview The window's live mesh preview, which each published drive writes and the
- *   gesture's end clears; a transform built without one keeps a private slot nothing reads.
+ * @param LiveMeshPreview? livePreview The window's live mesh preview, which each published drive writes and the
+ *   gesture's end clears, or null outside a shell; a transform built without one keeps a private slot nothing reads.
  */
 internal class EditModalTransform(
 	private val areaId: String,
 	private val session: EditorSession,
 	private val pushPreview: (PuppetModel) -> Unit,
-	private val livePreview: LiveMeshPreview = LiveMeshPreview(),
+	livePreview: LiveMeshPreview? = null,
 ) : ModalTransformTarget {
+	/** The preview this transform writes: the window's, else a private slot nothing reads. */
+	private val livePreview: LiveMeshPreview = livePreview ?: LiveMeshPreview()
+
 	/**
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, area origin,
 	 * cursor wrap, pointer controller).  The capture is the Edit-mode gesture; preview holds each moving

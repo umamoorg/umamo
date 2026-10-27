@@ -58,6 +58,20 @@ class SidebarState {
 	 */
 	var shownTabIds: List<String> = emptyList()
 
+	/** Whether everything sits at its default: no open choice, the default width, no tab chosen, and no panel folded. */
+	val isAtDefaults: Boolean
+		get() = visibility.choice == null && width == SIDEBAR_DEFAULT_WIDTH && activeTabId == null && expandedByPanel.isEmpty()
+
+	/**
+	 * Puts everything back to its default, as an area that never had a sidebar choice made in it.
+	 */
+	fun reset() {
+		visibility.choice = null
+		width = SIDEBAR_DEFAULT_WIDTH
+		activeTabId = null
+		expandedByPanel.clear()
+	}
+
 	/**
 	 * The tab to show among [shown]: the rigger's choice when it is shown, else the first.  The choice itself
 	 * is left as it was.

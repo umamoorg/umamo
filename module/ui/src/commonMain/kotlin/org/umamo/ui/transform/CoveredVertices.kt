@@ -79,27 +79,7 @@ internal fun coveredVerticesOf(
  * @param List<CoveredVertices> covered The covered vertices.
  * @return WorldMedian? The median, or null when nothing is covered.
  */
-internal fun coveredMedian(covered: List<CoveredVertices>): WorldMedian? {
-	var sumX = 0f
-	var sumZ = 0f
-	var count = 0
-
-	for (mesh in covered) {
-		val world = mesh.geometry.world
-
-		for (vertexIndex in mesh.indices) {
-			sumX += world[vertexIndex * 2]
-			sumZ += world[vertexIndex * 2 + 1]
-			count++
-		}
-	}
-
-	if (count == 0) {
-		return null
-	}
-
-	return WorldMedian(sumX / count, sumZ / count, count)
-}
+internal fun coveredMedian(covered: List<CoveredVertices>): WorldMedian? = coveredMedianIn(covered, emptyMap())
 
 /**
  * The median as a gesture's preview has the covered vertices: each mesh's previewed base, carried onto the

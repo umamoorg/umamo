@@ -10,7 +10,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.DrawableWorldGeometry
-import org.umamo.ui.transform.captureDrawableWorlds
+import org.umamo.ui.transform.captureEditModeMeshes
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /**
@@ -59,28 +59,23 @@ internal class EditMeshGeometry(
 
 /**
  * Each session mesh's geometry at the constant neutral pose Edit mode is pinned to: its rest shape
- * (displayed = base + the neutral keyform blend), its deformer-chain mapping, and its world projection.
+ * (displayed = base + the neutral keyform blend), its deformer-chain mapping, and its world projection,
+ * captured by [captureEditModeMeshes], plus each mesh's unique edges.
  *
  * A drawable whose mapping cannot be built (a hidden ancestor) is skipped: it cannot be drawn, so it
  * cannot be edited - the same primitive the object gizmo and Properties use.  An empty
  * result is therefore a real state, not a failure, and it is exactly the state the pointer-addressed
- * commands have to keep working in.  The capture is one batch, so the deformer chain bakes once per
- * commit rather than once per mesh.
+ * commands have to keep working in.
  *
  * @param PuppetModel model The model to project.
  * @param List<DrawableId> drawableIds The session's mesh selection.
  * @return List The per-mesh geometry, skipping what cannot be projected.
  */
-internal fun editMeshGeometries(model: PuppetModel, drawableIds: List<DrawableId>): List<EditMeshGeometry> {
-	val drawableById = model.drawables.associateBy { drawable -> drawable.id }
-
-	// Edit mode is pinned to the neutral pose, so the geometry is captured at emptyMap().
-	return captureDrawableWorlds(model, emptyMap(), drawableIds).mapNotNull { worldGeometry ->
-		val mesh = drawableById[worldGeometry.drawableId]?.mesh ?: return@mapNotNull null
+internal fun editMeshGeometries(model: PuppetModel, drawableIds: List<DrawableId>): List<EditMeshGeometry> =
+	captureEditModeMeshes(model, drawableIds).map { captured ->
 		EditMeshGeometry(
-			worldGeometry = worldGeometry,
-			mesh = mesh,
-			edges = MeshTopology.uniqueEdges(mesh.indices),
+			worldGeometry = captured.geometry,
+			mesh = captured.mesh,
+			edges = MeshTopology.uniqueEdges(captured.mesh.indices),
 		)
 	}
-}

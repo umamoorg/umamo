@@ -25,27 +25,5 @@ internal fun partWorldBounds(model: PuppetModel, pose: Pose, partId: PartId): Me
 		return null
 	}
 
-	var minX = Float.POSITIVE_INFINITY
-	var minY = Float.POSITIVE_INFINITY
-	var maxX = Float.NEGATIVE_INFINITY
-	var maxY = Float.NEGATIVE_INFINITY
-
-	for (geometry in captureDrawableWorlds(model, pose, drawableIds)) {
-		val world = geometry.world
-		var slotIndex = 0
-
-		while (slotIndex + 1 < world.size) {
-			minX = minOf(minX, world[slotIndex])
-			maxX = maxOf(maxX, world[slotIndex])
-			minY = minOf(minY, world[slotIndex + 1])
-			maxY = maxOf(maxY, world[slotIndex + 1])
-			slotIndex += 2
-		}
-	}
-
-	if (minX > maxX) {
-		return null
-	}
-
-	return MeshBounds((minX + maxX) / 2f, (minY + maxY) / 2f, maxX - minX, maxY - minY)
+	return worldExtentOf(captureDrawableWorlds(model, pose, drawableIds))?.toMeshBounds()
 }

@@ -1,12 +1,7 @@
 package org.umamo.ui.sidebar
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalDensity
@@ -28,20 +23,10 @@ import org.umamo.edit.Cursor2d
 import org.umamo.edit.EditorSession
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.LocalSettings
-import org.umamo.ui.action.CommandRegistry
-import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.action.LocalKeymap
-import org.umamo.ui.action.defaultKeymap
 import org.umamo.ui.kit.field.LocalScrubCancel
 import org.umamo.ui.kit.field.ScrubCancelController
-import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.theme.UmamoTheme
-import org.umamo.ui.workspace.LocalViewportChrome
-import org.umamo.ui.workspace.SpaceKind
-import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.commands.inMemorySettings
-import org.umamo.ui.workspace.sidebar.SidebarDrawer
 import org.umamo.ui.workspace.sidebar.SidebarState
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -81,31 +66,18 @@ class CursorPanelTest {
 	 */
 	private fun ComposeUiTest.mountViewTab(session: EditorSession, scrubCancel: ScrubCancelController = ScrubCancelController()) {
 		val settings = inMemorySettings()
-		val sidebarRegistry = SidebarRegistry().also { registry -> registerBuiltInSidebar(registry) }
+		val sidebarRegistry = builtInSidebarRegistry()
 		val sidebarState = SidebarState().also { state -> state.activeTabId = VIEW_SIDEBAR_TAB_ID }
 		setContent {
 			UmamoTheme {
-				val puppet by session.model.collectAsState()
-				CompositionLocalProvider(
+				ProvideSidebarLocals(
+					session,
+					sidebarRegistry,
 					LocalDensity provides Density(1f),
 					LocalSettings provides settings,
-					LocalCommands provides CommandRegistry(),
-					LocalKeymap provides defaultKeymap(),
-					LocalSidebarRegistry provides sidebarRegistry,
-					LocalViewportChrome provides ViewportChromeState(showSidebar = true),
 					LocalScrubCancel provides scrubCancel,
-					LocalPuppet provides puppet,
-					LocalEditorSession provides session,
 				) {
-					Box(modifier = Modifier.size(420.dp, 500.dp)) {
-						SidebarDrawer(
-							areaId = "area-1",
-							space = SpaceKind.Viewport2D,
-							state = sidebarState,
-							passPointerThrough = false,
-							modifier = Modifier.align(Alignment.CenterEnd),
-						)
-					}
+					SidebarDrawerInArea("area-1", sidebarState, width = 420.dp, height = 500.dp)
 				}
 			}
 		}

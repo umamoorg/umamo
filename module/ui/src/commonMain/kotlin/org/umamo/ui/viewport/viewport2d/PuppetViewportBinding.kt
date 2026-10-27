@@ -70,6 +70,7 @@ import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.ViewportSettings
+import org.umamo.ui.viewport.gestureOwnsAreaPointer
 import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.parseSelectionHighlightColor
@@ -699,7 +700,7 @@ private suspend fun PointerInputScope.viewportNavigation(
 			// object G / S / R grab would pan.  A gesture latched in ANOTHER area does not block: its
 			// events never reach here, so this area keeps panning and zooming during it (Blender
 			// parity).
-			if (session.gestureOwnsViewport2dPointer(areaId)) {
+			if (session.gestureOwnsAreaPointer(areaId)) {
 				continue
 			}
 

@@ -16,6 +16,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.CoveredVertices
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.WorldAxis
 import org.umamo.ui.transform.WorldMedian
 import org.umamo.ui.transform.coveredMedian
 
@@ -33,15 +34,6 @@ private val PROPORTIONAL_ROW_KEYS =
 		TransformParameterKeys.PROPORTIONAL_SIZE,
 		TransformParameterKeys.CONNECTED_ONLY,
 	)
-
-/** The axis a median value is typed on. */
-internal enum class MedianAxis {
-	/** World x, across. */
-	X,
-
-	/** World z, up. */
-	Z,
-}
 
 /**
  * The covered vertices captured for a move of their median: a Grab capture over every covered vertex with no
@@ -63,15 +55,15 @@ internal class CoveredMedianMove(
 	 * The Grab that puts the median's [axis] coordinate on [worldValue]: the difference on that axis, and exactly
 	 * none on the other, so a value typed on one axis never nudges the other by a rounding step.
 	 *
-	 * @param MedianAxis axis The axis typed on.
+	 * @param WorldAxis axis The axis typed on.
 	 * @param Float worldValue The world coordinate the median should land on.
 	 * @return TransformGestureParameters? The Grab, or null when the median is already there.
 	 */
-	fun parametersFor(axis: MedianAxis, worldValue: Float): TransformGestureParameters? {
+	fun parametersFor(axis: WorldAxis, worldValue: Float): TransformGestureParameters? {
 		val delta =
 			when (axis) {
-				MedianAxis.X -> worldValue - median.worldX
-				MedianAxis.Z -> worldValue - median.worldZ
+				WorldAxis.X -> worldValue - median.worldX
+				WorldAxis.Z -> worldValue - median.worldZ
 			}
 
 		if (delta == 0f) {
@@ -79,8 +71,8 @@ internal class CoveredMedianMove(
 		}
 
 		return when (axis) {
-			MedianAxis.X -> TransformGestureParameters(delta, 0f, 1f, 1f, 0f)
-			MedianAxis.Z -> TransformGestureParameters(0f, delta, 1f, 1f, 0f)
+			WorldAxis.X -> TransformGestureParameters(delta, 0f, 1f, 1f, 0f)
+			WorldAxis.Z -> TransformGestureParameters(0f, delta, 1f, 1f, 0f)
 		}
 	}
 
@@ -134,12 +126,12 @@ internal fun coveredMedianMove(covered: List<CoveredVertices>): CoveredMedianMov
  * The model a scrub of the median shows for one frame, without committing anything.
  *
  * @param CoveredMedianMove move The captured move.
- * @param MedianAxis axis The axis scrubbed.
+ * @param WorldAxis axis The axis scrubbed.
  * @param Float worldValue The world coordinate the median would land on.
  * @return PuppetModel? The previewed model, or null when it would change nothing or a modal transform owns the
  *   meshes.
  */
-internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axis: MedianAxis, worldValue: Float): PuppetModel? {
+internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axis: WorldAxis, worldValue: Float): PuppetModel? {
 	if (activeMeshOperator.value != null) {
 		return null
 	}
@@ -160,11 +152,11 @@ internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axi
  * already there: the drive always returns fresh arrays, so an empty move would otherwise record a step.
  *
  * @param CoveredMedianMove move The captured move.
- * @param MedianAxis axis The axis typed on.
+ * @param WorldAxis axis The axis typed on.
  * @param Float worldValue The world coordinate the median should land on.
  * @param String areaId The area the strip shows in.
  */
-internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, axis: MedianAxis, worldValue: Float, areaId: String) {
+internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, axis: WorldAxis, worldValue: Float, areaId: String) {
 	if (activeMeshOperator.value != null) {
 		return
 	}

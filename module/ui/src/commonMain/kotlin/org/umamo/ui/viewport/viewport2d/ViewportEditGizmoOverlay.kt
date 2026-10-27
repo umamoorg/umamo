@@ -27,7 +27,6 @@ import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
-import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.PuppetViewportService
@@ -176,7 +175,7 @@ fun ViewportEditGizmoOverlay(
 	// instance they started with (see EditModalTransform).  Its gesture state is what the Box, the pointer
 	// loop, and the chrome read.
 	val livePreview = LocalLiveMeshPreview.current
-	val modalTransform = remember(areaId) { EditModalTransform(areaId, session, service::setModel, livePreview ?: LiveMeshPreview()) }
+	val modalTransform = remember(areaId) { EditModalTransform(areaId, session, service::setModel, livePreview) }
 	val gesture = modalTransform.gesture
 
 	// The drive's worker, alive exactly as long as the transform: each pointer event submits a drive and the
