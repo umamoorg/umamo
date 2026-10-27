@@ -21,8 +21,6 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * tooltip, scrollbar, progress bar, stacked shapes, click gestures, box gestures, resize drags, pointer
  * fall-through, thumbnails, file drops, and popup placement - and imports none of the subpackages: button, chip,
  * container, dialog, field, menu, and textentry.
- *
- * 独自デザイン系。Material を使わない平坦な Foundation 製ウィジェット群。
  */
 
 /**
