@@ -78,6 +78,7 @@ internal class DrawnPiece(
  * @property Boolean truncated Whether the label was cut short to fit its maximum length.
  * @property Int widthPx The column's width.
  * @property Int heightPx The column's height.
+ * @property List pieces The pieces to draw, each where the layout placed it.
  */
 @Immutable
 internal class MeasuredVerticalText internal constructor(

@@ -1192,7 +1192,7 @@
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
 	<string name="settings_viewport_uv_grid_scale">UV Grid Scale</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV Grid Subdivisions</string>
-	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
+	<!-- Viewport section: rendering performance toggles (viewport.rendering.*), then the chrome's defaults (interface.viewport.showToolbar / showSidebar). -->
 	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
 	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>
 	<string name="settings_viewport_show_toolbar">Show Toolbar by Default</string>

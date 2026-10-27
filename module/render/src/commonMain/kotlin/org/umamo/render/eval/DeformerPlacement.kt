@@ -23,9 +23,9 @@ sealed interface DeformerPlacement {
 
 	/**
 	 * A rotation deformer's pivot with its own angle and scale.  The angle and scale are the deformer's own
-	 * (its base angle plus what its keyforms and blend shapes add, and its keyformed scale), not the world
-	 * values every ancestor composes onto them: under a warp the world angle carries an inherited part probed
-	 * from the lattice, which moves whenever the lattice does.
+	 * (its base angle plus what its keyforms and blend shapes add, and the scale those same keyforms and blend
+	 * shapes give it), not the world values every ancestor composes onto them: under a warp the world angle
+	 * carries an inherited part probed from the lattice, which moves whenever the lattice does.
 	 *
 	 * @property Float worldPivotX The pivot's world x.
 	 * @property Float worldPivotZ The pivot's world z.

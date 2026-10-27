@@ -56,7 +56,7 @@ class SidebarPanel(
 
 /**
  * The snapshot a sidebar's panels read from, rebuilt each recomposition from the open document and session
- * so a panel is a function of it rather than collecting flows of its own.
+ * so a panel reads the model, mode, and selections from it rather than resolving them itself.
  *
  * @property String areaId The area the sidebar belongs to.
  * @property SpaceKind space The work surface the area shows.
