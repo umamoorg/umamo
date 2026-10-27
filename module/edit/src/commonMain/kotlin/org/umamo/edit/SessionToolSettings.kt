@@ -11,10 +11,11 @@ import kotlinx.coroutines.flow.StateFlow
  */
 interface SessionToolSettings {
 	/**
-	 * The 2D cursor's world position, or null before any placement.  Transient session state like the
-	 * tool latches (deliberately NOT part of EditorSnapshot - see [Cursor2d]); placed by Shift+RightClick
-	 * in the viewport, moved by the snap commands, and drawn by the HUD overlay only once placed.  An
-	 * operation that uses the cursor as a point reads [EditorSession.cursor2dOrWorldOrigin] instead.
+	 * The 2D cursor's world position, or null before any placement or after [clearCursor2d].  Transient
+	 * session state like the tool latches (deliberately NOT part of EditorSnapshot - see [Cursor2d]); placed
+	 * by Shift+RightClick in the viewport, moved by the snap commands, and drawn by the HUD overlay only once
+	 * placed.  An operation that uses the cursor as a point reads [EditorSession.cursor2dOrWorldOrigin]
+	 * instead.
 	 */
 	val cursor2d: StateFlow<Cursor2d?>
 

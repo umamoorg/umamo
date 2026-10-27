@@ -25,6 +25,11 @@ import org.umamo.runtime.model.PuppetModel
  *
  * 共通の選択/モードハンドルを EditorSession に接続する :ui 側アダプタ。読みは Compose State ミラー、
  * 書きはセッションへ一方向（取り消しに記録される）。
+ *
+ * @property EditorSession session The session every selection gesture and mode change is routed to.
+ * @property State selectionMirror The session's selection, mirrored as Compose state.
+ * @property State modeMirror The session's mode, mirrored as Compose state.
+ * @property State lastActive The item last made active, kept across a deselect, or null before any.
  */
 class SessionEditorState internal constructor(
 	private val session: EditorSession,

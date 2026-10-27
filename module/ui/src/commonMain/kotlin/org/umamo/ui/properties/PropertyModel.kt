@@ -36,7 +36,7 @@ class PropertyContext(
  * The active target as a [Drawable], resolved against the model, or null when the active target is not a
  * drawable (or no longer exists in the model).
  *
- * @return Drawable? The selected drawable, or null.
+ * @return Drawable? The shown drawable, or null.
  */
 fun PropertyContext.activeDrawable(): Drawable? {
 	val target = activeTarget as? SelectionTarget.Drawable ?: return null
@@ -48,7 +48,7 @@ fun PropertyContext.activeDrawable(): Drawable? {
  * The active target as a [Deformer], resolved against the model, or null when the active target is not a
  * deformer (or no longer exists in the model).
  *
- * @return Deformer? The selected deformer, or null.
+ * @return Deformer? The shown deformer, or null.
  */
 fun PropertyContext.activeDeformer(): Deformer? {
 	val target = activeTarget as? SelectionTarget.Deformer ?: return null
@@ -60,7 +60,7 @@ fun PropertyContext.activeDeformer(): Deformer? {
  * The active target as a [Part], resolved against the model, or null when the active target is not a part
  * (or no longer exists in the model).
  *
- * @return Part? The selected part, or null.
+ * @return Part? The shown part, or null.
  */
 fun PropertyContext.activePart(): Part? {
 	val target = activeTarget as? SelectionTarget.Part ?: return null

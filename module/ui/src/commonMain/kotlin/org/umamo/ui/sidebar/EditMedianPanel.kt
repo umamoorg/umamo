@@ -34,8 +34,8 @@ import org.umamo.ui.viewport.viewport2d.moveCoveredMedianAdjustable
 import org.umamo.ui.viewport.viewport2d.previewCoveredMedianMove
 
 /**
- * The meshes in the edit as the panel captured them: their world geometry at the pose Edit mode pins, and the
- * triangle indices that geometry belongs to.
+ * The meshes in the edit as the panel captured them: their world geometry at the neutral pose Edit mode is
+ * pinned to, and the triangle indices that geometry belongs to.
  *
  * @property List<DrawableWorldGeometry> geometries Each mesh's captured geometry, skipping one with no mapping.
  * @property Map<DrawableId, IntArray> triangleIndicesById Each captured mesh's triangle indices.

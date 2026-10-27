@@ -36,7 +36,7 @@ internal fun viewport2dGestureOwnsPointer(
 
 /**
  * Whether one of the area's gestures owns the pointer right now (see [viewport2dGestureOwnsPointer]), read
- * the way the session's pointer loop reads it.
+ * straight from the session's latches, the way the surface's navigation loop reads it on each pointer event.
  *
  * @param EditorSession session The session whose tool latches are read.
  * @param String areaId The area asking.

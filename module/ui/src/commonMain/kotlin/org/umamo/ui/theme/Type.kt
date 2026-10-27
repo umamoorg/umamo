@@ -50,7 +50,7 @@ fun rememberCjkFontFamily(): FontFamily = FontFamily(Font(cjkFontFor(LocalAppLoc
  * without a composition, the same split [umamoTypographyWith] makes for the type scale.
  *
  * @param String languageTag The active BCP-47 tag, bare ("ko") or regional ("ko-KR").
- * @return FontResource The cut to pair with Inter.
+ * @return FontResource The cut for that language.
  */
 internal fun cjkFontFor(languageTag: String): FontResource =
 	// Match the language subtag alone, so a regional tag resolves like the bare one.

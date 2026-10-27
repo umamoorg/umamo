@@ -40,7 +40,7 @@ internal class WorldMedian(val worldX: Float, val worldZ: Float, val vertexCount
  * An index at or past the captured vertex count is dropped too: the selection and the model can reach a reader
  * through separate collectors, so for a moment after a duplicate or a rip the selection may name vertices the
  * captured geometry does not have.  A set needing no such drop is kept as the topology returned it, so a sum over
- * it runs in the order it always has.
+ * it runs in the topology's order, the one a modal transform's capture sums the same vertices in.
  *
  * @param MeshSelection selection The mesh selection.
  * @param List<DrawableWorldGeometry> geometries The meshes' captured geometry.
