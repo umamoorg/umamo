@@ -743,6 +743,10 @@
 	<string name="sidebar_item_nothing_selected">何も選択されていません。</string>
 	<string name="sidebar_cursor_x_description">2Dカーソルの水平方向の位置（ワールド軸からの距離）。値を入力またはドラッグするとカーソルが配置されます。</string>
 	<string name="sidebar_cursor_z_description">2Dカーソルの垂直方向の位置（ワールド軸から上が正）。値を入力またはドラッグするとカーソルが配置されます。</string>
+	<string name="sidebar_edit_vertex">頂点:</string>
+	<string name="sidebar_edit_median">中点:</string>
+	<string name="sidebar_median_x_description">選択した頂点の水平方向の位置（複数のときはその中点、ワールド軸からの距離）。値を変えると、形を保ったまますべてを一緒に移動します。</string>
+	<string name="sidebar_median_z_description">選択した頂点の垂直方向の位置（複数のときはその中点、ワールド軸から上が正）。値を変えると、形を保ったまますべてを一緒に移動します。</string>
 	<string name="properties_transform_unavailable">この項目には表示できる配置がありません。</string>
 	<string name="cmd_view_sidebar_next_tab">次のサイドバータブ</string>
 	<string name="cmd_view_sidebar_previous_tab">前のサイドバータブ</string>

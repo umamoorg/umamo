@@ -813,6 +813,10 @@
 	<string name="sidebar_item_nothing_selected">Nothing selected.</string>
 	<string name="sidebar_cursor_x_description">The 2D cursor's horizontal position, measured from the world axes.  Typing or dragging a value places the cursor.</string>
 	<string name="sidebar_cursor_z_description">The 2D cursor's vertical position, measured up from the world axes.  Typing or dragging a value places the cursor.</string>
+	<string name="sidebar_edit_vertex">Vertex:</string>
+	<string name="sidebar_edit_median">Median:</string>
+	<string name="sidebar_median_x_description">The horizontal position of the selected vertices, their median when there are several, measured from the world axes.  A new value moves them all together, keeping their shape.</string>
+	<string name="sidebar_median_z_description">The vertical position of the selected vertices, their median when there are several, measured up from the world axes.  A new value moves them all together, keeping their shape.</string>
 	<string name="properties_transform_unavailable">This item has no placement to show.</string>
 	<string name="cmd_view_sidebar_next_tab">Next Sidebar Tab</string>
 	<string name="cmd_view_sidebar_previous_tab">Previous Sidebar Tab</string>
