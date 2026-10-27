@@ -810,7 +810,14 @@
 	<string name="sidebar_tab_view">View</string>
 	<string name="sidebar_panel_active_tool">Active Tool</string>
 	<string name="sidebar_tool_settings_hint">Tool settings will appear here.</string>
-	<string name="sidebar_panel_placeholder">This panel is not built yet.</string>
+	<string name="sidebar_item_nothing_selected">Nothing selected.</string>
+	<string name="sidebar_cursor_x_description">The 2D cursor's horizontal position, measured from the world axes.  Typing or dragging a value places the cursor.</string>
+	<string name="sidebar_cursor_z_description">The 2D cursor's vertical position, measured up from the world axes.  Typing or dragging a value places the cursor.</string>
+	<string name="sidebar_edit_vertex">Vertex:</string>
+	<string name="sidebar_edit_median">Median:</string>
+	<string name="sidebar_median_x_description">The horizontal position of the selected vertices, their median when there are several, measured from the world axes.  A new value moves them all together, keeping their shape.</string>
+	<string name="sidebar_median_z_description">The vertical position of the selected vertices, their median when there are several, measured up from the world axes.  A new value moves them all together, keeping their shape.</string>
+	<string name="properties_transform_unavailable">This item has no placement to show.</string>
 	<string name="cmd_view_sidebar_next_tab">Next Sidebar Tab</string>
 	<string name="cmd_view_sidebar_previous_tab">Previous Sidebar Tab</string>
 
@@ -883,6 +890,8 @@
 	<string name="properties_field_flip_x">Flip X</string>
 	<string name="properties_field_flip_y">Flip Y</string>
 	<string name="properties_field_base_angle">Base Angle</string>
+	<string name="properties_field_angle">Angle</string>
+	<string name="properties_field_scale">Scale</string>
 	<string name="properties_field_quad_transform">Bilinear (Quad)</string>
 	<string name="properties_field_sketch">Guide Image</string>
 	<string name="properties_field_draw_order">Draw Order</string>
@@ -980,6 +989,18 @@
 	<string name="properties_field_size_x_description">The width of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_size_z_description">The height of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_base_angle_description">The deformer's base rotation, in degrees.  The angle each keyform sets is added to it.</string>
+	<string name="properties_part_position_x_description">The horizontal center of everything the part holds, as it appears in the viewport, measured from the world axes.  Read-only until parts can be moved here.</string>
+	<string name="properties_part_position_z_description">The vertical center of everything the part holds, as it appears in the viewport, measured up from the world axes.  Read-only until parts can be moved here.</string>
+	<string name="properties_part_size_x_description">The width of everything the part holds, as it appears in the viewport.  Read-only until parts can be scaled here.</string>
+	<string name="properties_part_size_z_description">The height of everything the part holds, as it appears in the viewport.  Read-only until parts can be scaled here.</string>
+	<string name="properties_warp_position_x_description">The horizontal center of the deformer's lattice as it appears in the viewport, measured from the world axes.  Read-only until deformers can be moved here.</string>
+	<string name="properties_warp_position_z_description">The vertical center of the deformer's lattice as it appears in the viewport, measured up from the world axes.  Read-only until deformers can be moved here.</string>
+	<string name="properties_warp_size_x_description">The width of the deformer's lattice as it appears in the viewport.  Read-only until deformers can be scaled here.</string>
+	<string name="properties_warp_size_z_description">The height of the deformer's lattice as it appears in the viewport.  Read-only until deformers can be scaled here.</string>
+	<string name="properties_rotation_pivot_x_description">The horizontal position of the deformer's pivot as it appears in the viewport, measured from the world axes.  Read-only until deformers can be moved here.</string>
+	<string name="properties_rotation_pivot_z_description">The vertical position of the deformer's pivot as it appears in the viewport, measured up from the world axes.  Read-only until deformers can be moved here.</string>
+	<string name="properties_field_angle_description">The deformer's angle at the shown pose, in degrees: its Base Angle plus the angle its keyforms set there.  Read-only until deformers can be rotated here.</string>
+	<string name="properties_field_scale_description">The deformer's scale at the shown pose, as its keyforms set it there.  Read-only until deformers can be scaled here.</string>
 	<string name="properties_part_ref_description">The part this item belongs to.  Clearing it moves the item out of every part.</string>
 	<string name="properties_parent_deformer_description">The deformer this item is attached to.  The item follows it as it moves, bends, or turns.</string>
 	<string name="properties_field_pinned_description">Holds this art in place on its atlas page.  Moving it by hand in the UV editor is refused, and a repack leaves it where it is unless Keep Pinned Tiles is off.</string>
@@ -1171,7 +1192,7 @@
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
 	<string name="settings_viewport_uv_grid_scale">UV Grid Scale</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV Grid Subdivisions</string>
-	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
+	<!-- Viewport section: rendering performance toggles (viewport.rendering.*), then the chrome's defaults (interface.viewport.showToolbar / showSidebar). -->
 	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
 	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>
 	<string name="settings_viewport_show_toolbar">Show Toolbar by Default</string>

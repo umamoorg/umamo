@@ -440,4 +440,16 @@ class TransformStateTest {
 		session.setCursor2d(12f, 34f)
 		assertEquals(Cursor2d(12f, 34f), session.cursor2dOrWorldOrigin(), "a placed cursor is its own point")
 	}
+
+	/** Clearing the cursor takes it off the canvas again: unplaced, resting on the world origin, and no undo step. */
+	@Test
+	fun clearingTheCursorUnplacesIt() {
+		val session = EditorSession(meshedSession().model.value.copy(worldOriginX = 600f, worldOriginZ = -600f))
+		val stepsBefore = session.historyView.value.steps.size
+		session.setCursor2d(12f, 34f)
+		session.clearCursor2d()
+		assertNull(session.cursor2d.value, "the cursor is unplaced again")
+		assertEquals(Cursor2d(600f, -600f), session.cursor2dOrWorldOrigin(), "and rests on the world axes")
+		assertEquals(stepsBefore, session.historyView.value.steps.size, "placing and clearing it are not undo steps")
+	}
 }

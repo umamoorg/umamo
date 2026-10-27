@@ -109,7 +109,7 @@ private class SessionHandles(private val session: EditorSession) : SelectionHand
 }
 
 /**
- * Settings over an in-memory filesystem, for the tables that write a key.
+ * Settings over an in-memory filesystem, for the tests that read or write a key.
  *
  * @return Settings Empty settings that persist nowhere real.
  */

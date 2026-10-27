@@ -244,7 +244,7 @@ class PersistentViewStatesTest {
 		assertEquals(tree, reopened.toJson(), "and the restored state writes the same members")
 	}
 
-	/** A toolbar choice and a sidebar back at their defaults write nulls, which the merge turns into removals. */
+	/** A toolbar with no choice and a sidebar back at its defaults write nulls, which the merge turns into removals. */
 	@Test
 	fun aSidebarBackAtItsDefaultsWritesANull() {
 		val state = Viewport2DViewState()

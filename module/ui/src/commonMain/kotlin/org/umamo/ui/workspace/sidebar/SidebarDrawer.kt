@@ -280,13 +280,15 @@ private fun currentSidebarContext(areaId: String, space: SpaceKind): SidebarCont
 	val puppet = LocalPuppet.current ?: return null
 	val session = LocalEditorSession.current
 	val meshSelection = session?.meshSelection?.collectAsState()?.value ?: MeshSelection()
+	val selectionHandle = LocalSelection.current
 
 	return SidebarContext(
 		areaId = areaId,
 		space = space,
 		puppet = puppet,
 		mode = LocalEditorMode.current?.mode ?: EditorMode.Object,
-		selection = LocalSelection.current?.selection ?: Selection(),
+		selection = selectionHandle?.selection ?: Selection(),
+		shownTarget = selectionHandle?.shownTarget(puppet),
 		meshSelection = meshSelection,
 		session = session,
 	)

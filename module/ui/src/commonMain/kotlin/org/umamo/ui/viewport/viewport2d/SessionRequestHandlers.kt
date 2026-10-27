@@ -24,6 +24,8 @@ import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.transform.captureDrawableWorlds
+import org.umamo.ui.transform.coveredMedian
+import org.umamo.ui.transform.coveredVerticesOf
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.activeElementMedian
 import org.umamo.ui.viewport.gizmo.worldToScreen
@@ -160,30 +162,16 @@ internal fun handleEditSnapRequest(
 	gridStep: Float,
 ) {
 	val selection = session.meshSelection.value
+	// The covered set and median the sidebar's Vertex / Median panel reads too, so the two cannot disagree.
 	val coveredByMesh =
-		geometries.mapNotNull { geometry ->
-			val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(geometry.drawableId), geometry.mesh.indices)
-			if (covered.isEmpty()) null else geometry to covered
-		}
-
-	if (coveredByMesh.isEmpty()) {
-		return
-	}
-
-	var coveredSumX = 0f
-	var coveredSumY = 0f
-	var coveredCount = 0
-
-	for ((geometry, covered) in coveredByMesh) {
-		for (vertexIndex in covered) {
-			coveredSumX += geometry.worldPosed[vertexIndex * 2]
-			coveredSumY += geometry.worldPosed[vertexIndex * 2 + 1]
-			coveredCount++
-		}
-	}
-
-	val medianX = coveredSumX / coveredCount
-	val medianY = coveredSumY / coveredCount
+		coveredVerticesOf(
+			selection,
+			geometries.map { geometry -> geometry.worldGeometry },
+			geometries.associate { geometry -> geometry.drawableId to geometry.mesh.indices },
+		)
+	val median = coveredMedian(coveredByMesh) ?: return
+	val medianX = median.worldX
+	val medianY = median.worldZ
 	// The active element's own median (its covered vertices), or null when nothing is active.
 	val activeMedian = activeElementMedian(selection, geometries.map { geometry -> geometry.gizmo })
 	val model = session.model.value
@@ -210,8 +198,10 @@ internal fun handleEditSnapRequest(
 			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(coveredByMesh.size)
 			val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(coveredByMesh.size)
 
-			for ((geometry, covered) in coveredByMesh) {
-				val world = geometry.worldPosed
+			for (coveredMesh in coveredByMesh) {
+				val geometry = coveredMesh.geometry
+				val covered = coveredMesh.indices
+				val world = geometry.world
 				val transformedWorld =
 					when (kind) {
 						// Every covered vertex lands ON the cursor (Blender's pile-up semantics).

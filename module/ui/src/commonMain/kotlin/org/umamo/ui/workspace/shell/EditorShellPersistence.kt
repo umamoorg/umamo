@@ -119,8 +119,8 @@ fun PersistentEditorShell(
 	}
 
 	// The workspace layout's file commands and the log export register here rather than in EditorShell
-	// because the exports read the persisted layout from settings.  None of them needs a document, so they are live
-	// from launch, on every platform that mounts this shell.
+	// because the exports read the persisted layout from settings.  None of them needs a document, so they
+	// are live from launch, on every platform that mounts this shell.
 	val fileScope = rememberCoroutineScope()
 	val workspaceFiles =
 		remember(settings, filePicker, commandRegistry, savePacer) {
@@ -159,11 +159,11 @@ fun PersistentEditorShell(
 }
 
 /**
- * Reads the viewport chrome flags from settings (bundled defaults included), falling back to the
+ * Reads the viewport chrome defaults from settings (bundled defaults included), falling back to the
  * standalone defaults for a missing key.
  *
  * @param Settings settings The merged settings tree.
- * @return ViewportChromeState The current chrome visibility flags.
+ * @return ViewportChromeState The application's chrome defaults for areas with no choice of their own.
  */
 private fun loadViewportChrome(settings: Settings): ViewportChromeState =
 	ViewportChromeState(

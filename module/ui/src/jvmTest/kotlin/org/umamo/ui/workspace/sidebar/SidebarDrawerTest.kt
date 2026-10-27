@@ -57,8 +57,9 @@ private const val DRAWER_TAG = "drawer"
 private const val AREA_ID = "area-1"
 
 /**
- * The open sidebar drawer: Umamo's own tabs and their panels, tabs a contributor registers while the drawer
- * shows, per-language labels following the UI language, folding, and stepping tabs with Ctrl+wheel.
+ * The sidebar drawer: Umamo's own tabs and their panels, tabs a contributor registers while the drawer shows,
+ * per-language labels following the UI language, folding, stepping tabs with Ctrl+wheel, dragging the stack's
+ * width, an area too narrow for the stack, and the area's own open choice.
  */
 class SidebarDrawerTest {
 	/**
@@ -188,10 +189,10 @@ class SidebarDrawerTest {
 		runComposeUiTest {
 			val state = SidebarState()
 			mountDrawer(state = state)
-			onNodeWithText("This panel is not built yet.").assertExists()
+			onNodeWithText("Nothing selected.").assertExists()
 			onNodeWithText("Transform").performClick()
 			waitForIdle()
-			onNodeWithText("This panel is not built yet.").assertDoesNotExist()
+			onNodeWithText("Nothing selected.").assertDoesNotExist()
 		}
 
 	/** Ctrl+wheel over the rail steps through the tabs; a plain wheel turn does not. */

@@ -285,7 +285,7 @@ class EditGrabPerfProbeTest {
 		val liveGeometry = timed("A1 editMeshGeometries [once per commit; also the latch's input]", 3) { editMeshGeometries(model, drawableIds) }
 		probeOverlayDerive(model, meshSelection)
 
-		val modalTransform = EditModalTransform(PROBE_AREA_ID, session) { folded -> pushed.add(folded) }
+		val modalTransform = EditModalTransform(PROBE_AREA_ID, session, { folded -> pushed.add(folded) })
 		session.beginMeshOperator(MeshOperatorKind.Grab, PROBE_AREA_ID)
 		timed("B1 EditModalTransform.begin [once per gesture]", 1) { modalTransform.begin(MeshOperatorKind.Grab, liveGeometry, meshSelection) }
 		val capture = modalTransform.gesture.capture

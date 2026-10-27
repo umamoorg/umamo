@@ -37,8 +37,9 @@ private val TOOLBAR_GLYPH_SIZE = 18.dp
  * lights the matching button.  With no open document the strip still renders, disabled, so the viewport
  * chrome reads the same before the first file opens.
  *
- * Visibility is [org.umamo.ui.workspace.LocalViewportChrome] (settings-backed, toggled by
- * view.toggleToolbar / T) - the caller gates on it, keeping this composable a pure strip.
+ * Visibility is the area's own [org.umamo.ui.workspace.ChromeVisibility] (toggled by view.toggleToolbar / T),
+ * else the [org.umamo.ui.workspace.LocalViewportChrome] default - the caller gates on it, keeping this
+ * composable a pure strip.
  *
  * The caller mounts the strip in a [org.umamo.ui.kit.PointerShield] clipped to its outline, which keeps a
  * click in its padding or between two buttons from selecting under it and steps aside for a running gesture.
