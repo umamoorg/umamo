@@ -2,12 +2,12 @@ package org.umamo.ui.viewport
 
 /**
  * The settings keys and bundled defaults for the viewport interaction settings: the wheel-zoom
- * increments, the grid of each work surface (the 2D viewport's and the UV editor's), and the rendering
- * toggles.  The overlay colors live in
+ * increments, the chrome an area shows until it is toggled there, the grid of each work surface (the 2D
+ * viewport's and the UV editor's), and the rendering toggles.  The overlay colors live in
  * [ViewportColorSettings].  The defaults are kept in lockstep with defaultSettings.json (the
  * merged-settings baseline); these constants are the Kotlin-side fallback for a missing or
- * unparseable value, shared by the viewport binding and the preferences window so neither duplicates
- * key literals.
+ * unparseable value, shared by the viewport binding, the settings-backed shell, and the preferences
+ * window so none of them duplicates key literals.
  */
 internal object ViewportSettings {
 	const val ZOOM_STEP_KEY = "viewport.zoomStepPercent"
@@ -18,6 +18,8 @@ internal object ViewportSettings {
 	const val UV_GRID_SUBDIVISIONS_KEY = "viewport.uvGrid.subdivisions"
 	const val SUPERSAMPLE_KEY = "viewport.rendering.supersample"
 	const val SUPERSAMPLE_WHILE_RESIZING_KEY = "viewport.rendering.supersampleWhileResizing"
+	const val SHOW_TOOLBAR_KEY = "viewport.showToolbar"
+	const val SHOW_SIDEBAR_KEY = "viewport.showSidebar"
 
 	const val ZOOM_STEP_DEFAULT = 1.0
 	const val ZOOM_STEP_COARSE_DEFAULT = 5.0
@@ -39,6 +41,9 @@ internal object ViewportSettings {
 	 */
 	const val UV_GRID_SCALE_DEFAULT = 256.0
 	const val UV_GRID_SUBDIVISIONS_DEFAULT = 8
+
+	const val SHOW_TOOLBAR_DEFAULT = true
+	const val SHOW_SIDEBAR_DEFAULT = false
 
 	/**
 	 * The commit clamp for the zoom-step preference fields: 0.1 % (ultra-fine) up to 100 % (a

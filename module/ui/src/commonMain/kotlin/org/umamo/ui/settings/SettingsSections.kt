@@ -89,9 +89,6 @@ import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportSettings
-import org.umamo.ui.workspace.SHOW_SIDEBAR_SETTINGS_KEY
-import org.umamo.ui.workspace.SHOW_TOOLBAR_SETTINGS_KEY
-import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.operationstrip.artworkAnchorLabel
 
 /** The settings key + values for the UI theme mode, kept in lockstep with org.umamo.ui.theme.Theme. */
@@ -438,10 +435,8 @@ internal fun ViewportSection() {
 	var supersample by rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_KEY, ViewportSettings.SUPERSAMPLE_DEFAULT)
 	var supersampleWhileResizing by
 		rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_KEY, ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_DEFAULT)
-	// The chrome defaults: what a viewport shows until the rigger toggles its toolbar (T) or sidebar (N) there,
-	// so a change here reaches every viewport that has no choice of its own.
-	var showToolbar by rememberBooleanSetting(SHOW_TOOLBAR_SETTINGS_KEY, ViewportChromeState().showToolbar)
-	var showSidebar by rememberBooleanSetting(SHOW_SIDEBAR_SETTINGS_KEY, ViewportChromeState().showSidebar)
+	var showToolbar by rememberBooleanSetting(ViewportSettings.SHOW_TOOLBAR_KEY, ViewportSettings.SHOW_TOOLBAR_DEFAULT)
+	var showSidebar by rememberBooleanSetting(ViewportSettings.SHOW_SIDEBAR_KEY, ViewportSettings.SHOW_SIDEBAR_DEFAULT)
 
 	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
 		SettingRow(label = stringResource(Res.string.settings_viewport_zoom_step)) {
@@ -530,8 +525,6 @@ internal fun KeybindingsSection() {
 
 /**
  * The Pen section: a placeholder until the pen backend (JPen / Wacom) and the radial menu land.
- *
- * ペン設定。ペンバックエンド実装までのプレースホルダ。
  */
 @Composable
 internal fun PenSection() {
