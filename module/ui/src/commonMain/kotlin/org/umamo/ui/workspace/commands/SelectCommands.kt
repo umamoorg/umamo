@@ -12,10 +12,10 @@ import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginCircleSelect
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * The selection commands: the Edit-mode element domains, select all / invert, the Box and Circle marquee
@@ -94,7 +94,7 @@ internal fun selectCommands(
 			"mesh.boxSelect",
 			title = Res.string.cmd_mesh_box_select,
 			availability = availability.hasDocument,
-			spaces = CommandSpaces.WorkSurfacesAndSheet,
+			spaces = SpaceScope.WorkSurfacesAndSheet,
 		) {
 			// Only reach for a sheet when the pointer actually names one.  The registry's lookup falls back
 			// to the lone open sheet when handed no area, so asking it unconditionally would hijack B in the
@@ -110,7 +110,7 @@ internal fun selectCommands(
 		// No sheet branch here, unlike Box Select: the keyform sheet has no circle brush to arm, so C over a
 		// sheet arms nothing at all - selectToolArea answers only for a viewport or an Edit-mode UV editor,
 		// and arming a viewport the pointer has left is worse than doing nothing.
-		Command("mesh.circleSelect", title = Res.string.cmd_mesh_circle_select, availability = availability.hasDocument, spaces = CommandSpaces.WorkSurfaces) {
+		Command("mesh.circleSelect", title = Res.string.cmd_mesh_circle_select, availability = availability.hasDocument, spaces = SpaceScope.WorkSurfaces) {
 			routing.selectToolArea(editorSession)?.let { areaId -> editorSession?.beginCircleSelect(areaId) }
 		},
 		Command("mesh.circleSelect.grow", title = Res.string.cmd_mesh_circle_grow, availability = availability.circleToolLive) {
@@ -123,13 +123,13 @@ internal fun selectCommands(
 		// the projected geometry live in the overlays, so these fire session request flows they collect.
 		// The executing area resolves HERE, at dispatch, into the request payload (the hovered surface -
 		// viewport or UV editor alike), so the collectors gate deterministically on their own area id.
-		Command("mesh.selectLinkedAtCursor", title = Res.string.cmd_mesh_select_linked_cursor, availability = availability.inEditMode, spaces = CommandSpaces.WorkSurfaces) {
+		Command("mesh.selectLinkedAtCursor", title = Res.string.cmd_mesh_select_linked_cursor, availability = availability.inEditMode, spaces = SpaceScope.WorkSurfaces) {
 			editorSession?.requestSelectLinked(fromSelection = false, areaId = routing.hoveredAreaIdAnyKind())
 		},
-		Command("mesh.selectLinked", title = Res.string.cmd_mesh_select_linked, availability = availability.inEditMode, spaces = CommandSpaces.WorkSurfaces) {
+		Command("mesh.selectLinked", title = Res.string.cmd_mesh_select_linked, availability = availability.inEditMode, spaces = SpaceScope.WorkSurfaces) {
 			editorSession?.requestSelectLinked(fromSelection = true, areaId = routing.hoveredAreaIdAnyKind())
 		},
-		Command("edit.switchObjectUnderCursor", title = Res.string.cmd_switch_object_under_cursor, availability = availability.inEditMode, spaces = CommandSpaces.Viewport2D) {
+		Command("edit.switchObjectUnderCursor", title = Res.string.cmd_switch_object_under_cursor, availability = availability.inEditMode, spaces = SpaceScope.Viewport2D) {
 			editorSession?.requestSwitchObjectUnderCursor(routing.viewportArea())
 		},
 	)

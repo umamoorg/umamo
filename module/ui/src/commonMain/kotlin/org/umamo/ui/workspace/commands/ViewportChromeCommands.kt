@@ -1,10 +1,10 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.AreaToolbarHub
 import org.umamo.ui.workspace.ChromeVisibility
+import org.umamo.ui.workspace.SpaceScope
 import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.sidebar.AreaSidebarHub
 import org.umamo.ui.workspace.sidebar.SidebarState
@@ -43,10 +43,10 @@ internal fun viewportChromeCommands(
 	fun hoveredSidebar(): SidebarState? = routing.hovered()?.areaId?.let { areaId -> areaSidebars.forArea(areaId) }
 
 	return listOf(
-		Command("view.toggleToolbar", title = Res.string.cmd_view_toggle_toolbar, spaces = CommandSpaces.Viewport2D) {
+		Command("view.toggleToolbar", title = Res.string.cmd_view_toggle_toolbar, spaces = SpaceScope.Viewport2D) {
 			hoveredToolbar()?.toggle(defaults().showToolbar)
 		},
-		Command("view.toggleSidebar", title = Res.string.cmd_view_toggle_sidebar, spaces = CommandSpaces.WorkSurfaces) {
+		Command("view.toggleSidebar", title = Res.string.cmd_view_toggle_sidebar, spaces = SpaceScope.WorkSurfaces) {
 			hoveredSidebar()?.visibility?.toggle(defaults().showSidebar)
 		},
 	)
