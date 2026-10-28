@@ -1,5 +1,6 @@
 package org.umamo.ui.action
 
+import org.umamo.ui.workspace.SpaceScope
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -129,7 +130,7 @@ class CommandRegistryTest {
 	fun spacesNeverGateDispatch() {
 		val registry = CommandRegistry()
 		var runCount = 0
-		registry.register(Command("test.scoped", title = null, spaces = CommandSpaces.UvEditor, handler = { runCount++ }))
+		registry.register(Command("test.scoped", title = null, spaces = SpaceScope.UvEditor, handler = { runCount++ }))
 
 		assertTrue(registry.invoke("test.scoped"), "the registry knows nothing about where the pointer is")
 		assertEquals(1, runCount)

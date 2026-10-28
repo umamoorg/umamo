@@ -42,7 +42,7 @@ import org.umamo.ui.sidebar.SidebarTab
 import org.umamo.ui.sidebar.builtInSidebarRegistry
 import org.umamo.ui.sidebar.registerBuiltInSidebar
 import org.umamo.ui.theme.UmamoTheme
-import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 import org.umamo.ui.workspace.commands.commandFixtureSession
 import kotlin.math.abs
 import kotlin.test.Test
@@ -176,7 +176,7 @@ class SidebarDrawerTest {
 					tabId = "plugin.bones",
 					title = UiText.Literal("Bone Chains"),
 					order = 100,
-					spaces = setOf(SpaceKind.Viewport2D),
+					spaces = SpaceScope.Viewport2D,
 					content = { Text("Chain rows") },
 				),
 			)

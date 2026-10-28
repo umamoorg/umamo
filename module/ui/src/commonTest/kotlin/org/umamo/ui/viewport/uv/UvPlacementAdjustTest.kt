@@ -202,6 +202,11 @@ class UvPlacementAdjustTest {
 		confirm(session, scale, PlacementGestureParameters(0f, 0f, 1.5f, 1.5f, 0f)) {}
 		val scaleRecord = assertNotNull(session.adjustableOperation.value)
 		assertEquals("change.document.atlasPlacement.scale", scaleRecord.change.labelKey)
+		// Scale X names Scale Y as its ratio partner, so the strip draws the two as one lockable pair.
+		assertEquals(
+			listOf(PlacementParameterKeys.SCALE_Y, null),
+			scaleRecord.parameters.map { row -> (row as OperatorParameter.FloatParameter).ratioPartnerKey },
+		)
 
 		session.adjustLastOperation(
 			scaleRecord.parameters.withParameter(

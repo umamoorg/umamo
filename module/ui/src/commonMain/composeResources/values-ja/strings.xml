@@ -819,7 +819,7 @@
 	<string name="properties_field_position_y">位置 Y</string>
 	<string name="properties_field_size_x">サイズ X</string>
 	<string name="properties_field_size_z">サイズ Z</string>
-	<string name="properties_transform_lock_aspect">縦横比を固定</string>
+	<string name="common_lock_aspect_ratio">縦横比を固定</string>
 	<string name="properties_field_blend_mode">ブレンド</string>
 	<string name="properties_field_alpha_mode">アルファ</string>
 	<string name="properties_field_culling">裏面をカリング</string>

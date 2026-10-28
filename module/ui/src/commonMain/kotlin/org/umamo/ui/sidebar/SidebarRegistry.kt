@@ -78,7 +78,7 @@ class SidebarRegistry {
 			panelsById.values
 				.filter { registered ->
 					val panel = registered.item
-					panel.tabId in tabsById && context.space in panel.spaces && panel.isVisible(context)
+					panel.tabId in tabsById && panel.spaces.appliesIn(context.space) && panel.isVisible(context)
 				}
 				.sortedWith(compareBy({ registered -> registered.item.order }, { registered -> registered.sequence }))
 				.groupBy({ registered -> registered.item.tabId }, { registered -> registered.item })

@@ -11,9 +11,9 @@ import org.umamo.edit.atlas.placementSelectedTileIds
 import org.umamo.edit.atlas.setAtlasPins
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * The texture-coordinate commands: the axis mirrors, the UV editor's own snap pie, the texture
@@ -97,44 +97,44 @@ internal fun uvCommands(
 		// Mirror UVs (the duplicated-and-flipped texture regions workflow, e.g. both eyes sampling one
 		// eye texture): axis-aligned reflections about the transform pivot, palette-discoverable and
 		// unbound by default - an interactive flip is already S + axis + drag through the pivot.
-		Command("uv.mirrorU", title = Res.string.cmd_uv_mirror_u, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.mirrorU", title = Res.string.cmd_uv_mirror_u, availability = availability.inEditMode, spaces = SpaceScope.UvEditor) {
 			requestUvMirror(mirrorU = true)
 		},
-		Command("uv.mirrorV", title = Res.string.cmd_uv_mirror_v, availability = availability.inEditMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.mirrorV", title = Res.string.cmd_uv_mirror_v, availability = availability.inEditMode, spaces = SpaceScope.UvEditor) {
 			requestUvMirror(mirrorU = false)
 		},
-		Command("uv.snap.selectionToPixels", title = Res.string.cmd_uv_snap_selection_pixels, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.selectionToPixels", title = Res.string.cmd_uv_snap_selection_pixels, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvSnap(UvSnapKind.SelectionToPixels)
 		},
-		Command("uv.snap.selectionToCursor", title = Res.string.cmd_uv_snap_selection_cursor, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.selectionToCursor", title = Res.string.cmd_uv_snap_selection_cursor, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvSnap(UvSnapKind.SelectionToCursor)
 		},
-		Command("uv.snap.selectionToCursorOffset", title = Res.string.cmd_uv_snap_selection_cursor_offset, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.selectionToCursorOffset", title = Res.string.cmd_uv_snap_selection_cursor_offset, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvSnap(UvSnapKind.SelectionToCursorOffset)
 		},
-		Command("uv.snap.selectionToGrid", title = Res.string.cmd_uv_snap_selection_grid, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.selectionToGrid", title = Res.string.cmd_uv_snap_selection_grid, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvSnap(UvSnapKind.SelectionToGrid)
 		},
-		Command("uv.snap.cursorToPixels", title = Res.string.cmd_uv_snap_cursor_pixels, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.cursorToPixels", title = Res.string.cmd_uv_snap_cursor_pixels, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvSnap(UvSnapKind.CursorToPixels)
 		},
-		Command("uv.snap.cursorToSelected", title = Res.string.cmd_uv_snap_cursor_selected, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.cursorToSelected", title = Res.string.cmd_uv_snap_cursor_selected, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvSnap(UvSnapKind.CursorToSelected)
 		},
-		Command("uv.snap.cursorToGrid", title = Res.string.cmd_uv_snap_cursor_grid, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.snap.cursorToGrid", title = Res.string.cmd_uv_snap_cursor_grid, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvSnap(UvSnapKind.CursorToGrid)
 		},
 		// Texture page switching (the header selector's palette path): retargets the hovered UV
 		// editor's per-area texture selection - cycling pins with wrap-around, follow clears the pin.
 		// Mode-agnostic (reviewing pages is not an Edit-mode operation), palette-discoverable, and
 		// unbound by default like the rest of the table.
-		Command("uv.page.next", title = Res.string.cmd_uv_page_next, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.page.next", title = Res.string.cmd_uv_page_next, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvPage(UvPageKind.NextPage)
 		},
-		Command("uv.page.previous", title = Res.string.cmd_uv_page_previous, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.page.previous", title = Res.string.cmd_uv_page_previous, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvPage(UvPageKind.PreviousPage)
 		},
-		Command("uv.page.followSelection", title = Res.string.cmd_uv_page_follow, availability = availability.hasDocument, spaces = CommandSpaces.UvEditor) {
+		Command("uv.page.followSelection", title = Res.string.cmd_uv_page_follow, availability = availability.hasDocument, spaces = SpaceScope.UvEditor) {
 			requestUvPage(UvPageKind.FollowSelection)
 		},
 		// Placement pins (Blender's P / Alt+P in the UV editor): Object mode, where the selection names
@@ -143,12 +143,12 @@ internal fun uvCommands(
 			"uv.pinPlacement",
 			title = Res.string.cmd_uv_pin_placement,
 			availability = availability.inObjectMode,
-			spaces = CommandSpaces.UvEditor,
+			spaces = SpaceScope.UvEditor,
 			hint = CommandHint(Res.string.status_bind_pin),
 		) {
 			setPins(pinned = true)
 		},
-		Command("uv.unpinPlacement", title = Res.string.cmd_uv_unpin_placement, availability = availability.inObjectMode, spaces = CommandSpaces.UvEditor) {
+		Command("uv.unpinPlacement", title = Res.string.cmd_uv_unpin_placement, availability = availability.inObjectMode, spaces = SpaceScope.UvEditor) {
 			setPins(pinned = false)
 		},
 	)

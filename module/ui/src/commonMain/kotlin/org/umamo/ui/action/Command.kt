@@ -1,6 +1,7 @@
 package org.umamo.ui.action
 
 import org.jetbrains.compose.resources.StringResource
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * Receives a command invocation. A `fun interface` (Kotlin SAM) so call sites can pass a lambda -
@@ -50,8 +51,11 @@ fun interface CommandAvailability {
  * @property StringResource? title The localized menu/palette label, or null for commands never shown in UI (e.g. test-only).
  * @property CommandAvailability availability Whether the command currently applies (palette filter +
  *   dispatch guard); defaults to always.
- * @property CommandSpaces spaces The editor spaces the command belongs to (palette filter + status bar
- *   suggestion, never a dispatch guard); defaults to everywhere.
+ * @property SpaceScope spaces The editor spaces the command belongs to (palette filter + status bar
+ *   suggestion, never a dispatch guard); defaults to everywhere.  Read off what the handler's routing
+ *   actually does, never narrower: a handler that reaches back to a surface the pointer has left (the lone
+ *   open keyform sheet, the last work surface touched) works from anywhere, and so it is
+ *   [SpaceScope.Everywhere].  Narrowing a scope past its handler hides a command that would have run.
  * @property CommandHint? hint What the status bar suggests the command under and when, or null for a
  *   command it never suggests.  A hinted command's [availability] must depend on the document and the
  *   mode alone - see [CommandHint] for why.
@@ -61,7 +65,7 @@ class Command(
 	val id: String,
 	val title: StringResource?,
 	val availability: CommandAvailability = CommandAvailability.Always,
-	val spaces: CommandSpaces = CommandSpaces.Everywhere,
+	val spaces: SpaceScope = SpaceScope.Everywhere,
 	val hint: CommandHint? = null,
 	val handler: CommandHandler,
 )

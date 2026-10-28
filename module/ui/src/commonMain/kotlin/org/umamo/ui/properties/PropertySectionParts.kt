@@ -14,9 +14,9 @@ import org.umamo.ui.theme.LocalUmamoTypography
 
 /*
  * What every Properties section shares and nothing outside the area needs: the numeric ranges its controls
- * clamp to, the gutter the Size rows hold for their aspect lock, and the labelled block a relation list
- * sits in.  The rows themselves (the label + control grid, the read-only line, the checkbox row) are the
- * kit's org.umamo.ui.kit.field.PropertyRows, shared with the operation strip and the overlays popover.
+ * clamp to and the labelled block a relation list sits in.  The rows themselves (the label + control grid,
+ * the read-only line, the checkbox row) are the kit's org.umamo.ui.kit.field.PropertyRows, shared with the
+ * operation strip and the overlays popover.
  * Sections live in the per-tab files beside this one; anything used by more than one of them belongs here.
  */
 
@@ -34,13 +34,6 @@ internal val POSITIVE_RANGE = 1f..Float.POSITIVE_INFINITY
  * honest while still refusing the zero (collapse) and negative (mirror) cases.
  */
 internal val DRAWABLE_EXTENT_RANGE = 0.1f..Float.POSITIVE_INFINITY
-
-/**
- * Space the Size rows reserve at their right edge for the aspect lock that overlays it: the 20dp icon
- * button plus a little breathing room.  Keeping it a named constant is what ties the reservation and the
- * overlaid control to the same width - if they drift, the lock either overlaps the field or floats away.
- */
-internal val ASPECT_LOCK_GUTTER = 24.dp
 
 /**
  * A labelled block wrapping a relation list, since a tall list does not fit the two-column field row.  The

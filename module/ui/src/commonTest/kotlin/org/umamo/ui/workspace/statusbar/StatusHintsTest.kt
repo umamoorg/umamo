@@ -4,7 +4,6 @@ import org.jetbrains.compose.resources.StringResource
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandHint
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.parseKeyChord
 import org.umamo.ui.resources.Res
@@ -17,6 +16,7 @@ import org.umamo.ui.resources.status_bind_scale
 import org.umamo.ui.resources.status_bind_visibility
 import org.umamo.ui.resources.status_select_mode
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -31,7 +31,7 @@ class StatusHintsTest {
 	 *
 	 * @param String id The command id.
 	 * @param StringResource? hint The status label, or null for a command that is never suggested.
-	 * @param CommandSpaces spaces The spaces it belongs to.
+	 * @param SpaceScope spaces The spaces it belongs to.
 	 * @param Boolean available Whether it currently applies.
 	 * @param Boolean suggested Whether its hint is worth suggesting right now, on top of being available.
 	 * @return Command The command.
@@ -39,7 +39,7 @@ class StatusHintsTest {
 	private fun command(
 		id: String,
 		hint: StringResource?,
-		spaces: CommandSpaces = CommandSpaces.Everywhere,
+		spaces: SpaceScope = SpaceScope.Everywhere,
 		available: Boolean = true,
 		suggested: Boolean = true,
 	): Command =
@@ -79,7 +79,7 @@ class StatusHintsTest {
 	/** A scoped command is suggested inside its spaces and nowhere else - the point of deriving from the hovered space. */
 	@Test
 	fun aScopedCommandIsSuggestedOnlyInItsSpaces() {
-		val commands = listOf(command("test.pin", hint = Res.string.status_bind_pin, spaces = CommandSpaces.UvEditor))
+		val commands = listOf(command("test.pin", hint = Res.string.status_bind_pin, spaces = SpaceScope.UvEditor))
 		val bindings = keymap("KeyP" to "test.pin")
 
 		assertEquals(listOf(Res.string.status_bind_pin), statusHintsFor(commands, bindings, SpaceKind.UvEditor).labels())
@@ -123,9 +123,9 @@ class StatusHintsTest {
 		val commands =
 			listOf(
 				command("test.editMode", hint = Res.string.status_bind_edit_mode),
-				command("test.grab", hint = Res.string.status_bind_grab, spaces = CommandSpaces.WorkSurfaces),
+				command("test.grab", hint = Res.string.status_bind_grab, spaces = SpaceScope.WorkSurfaces),
 				command("test.visibility", hint = Res.string.status_bind_visibility),
-				command("test.scale", hint = Res.string.status_bind_scale, spaces = CommandSpaces.WorkSurfaces),
+				command("test.scale", hint = Res.string.status_bind_scale, spaces = SpaceScope.WorkSurfaces),
 			)
 		val bindings = keymap("Tab" to "test.editMode", "KeyG" to "test.grab", "KeyH" to "test.visibility", "KeyS" to "test.scale")
 

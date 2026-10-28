@@ -45,7 +45,7 @@ fun PropertyLine(text: String) {
  * over the icon buttons a relation or color field tooltips itself, and it would pop over a field mid-scrub.
  *
  * [trailingGutter] reserves space at the RIGHT EDGE OF THE CONTROL for an adornment that sits outside the
- * row (a size stack's aspect lock).  It shrinks the control only - the label column keeps its half of the
+ * row (an [AspectLockFieldPair]'s lock).  It shrinks the control only - the label column keeps its half of the
  * full row width, so a row with a gutter still lines up with the plain rows above and below it.  Reserving
  * the space here rather than wrapping the whole row in a narrower box is the difference between the field
  * shrinking and the entire two-column grid shifting.

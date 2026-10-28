@@ -19,7 +19,7 @@ import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_MAX_WIDTH
 import org.umamo.ui.tracks.TrackWindow
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.PersistentSpaceState
-import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 import org.umamo.ui.workspace.sidebar.SIDEBAR_MAX_WIDTH
 import org.umamo.ui.workspace.spaces.keyformsheet.KeyformSheetViewState
 import org.umamo.ui.workspace.spaces.outliner.OUTLINER_ROOT_ID
@@ -223,7 +223,7 @@ class PersistentViewStatesTest {
 		saved.sidebar.visibility.choice = true
 		saved.sidebar.width = 260.dp
 		saved.sidebar.activeTabId = "plugin.bones"
-		saved.sidebar.toggleExpanded(SidebarPanel("umamo.item.transform", "umamo.item", UiText.Literal("Transform"), 100, setOf(SpaceKind.Viewport2D), content = {}))
+		saved.sidebar.toggleExpanded(SidebarPanel("umamo.item.transform", "umamo.item", UiText.Literal("Transform"), 100, SpaceScope.Viewport2D, content = {}))
 		saved.sidebar.expandedByPanel["plugin.bones.chains"] = true
 
 		val tree = saved.toJson()
@@ -248,7 +248,7 @@ class PersistentViewStatesTest {
 	@Test
 	fun aSidebarBackAtItsDefaultsWritesANull() {
 		val state = Viewport2DViewState()
-		val panel = SidebarPanel("umamo.item.transform", "umamo.item", UiText.Literal("Transform"), 100, setOf(SpaceKind.Viewport2D), content = {})
+		val panel = SidebarPanel("umamo.item.transform", "umamo.item", UiText.Literal("Transform"), 100, SpaceScope.Viewport2D, content = {})
 		state.sidebar.width = 300.dp
 		state.sidebar.toggleExpanded(panel)
 		state.sidebar.width = 200.dp

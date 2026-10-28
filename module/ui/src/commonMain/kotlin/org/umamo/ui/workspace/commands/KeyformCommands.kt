@@ -8,11 +8,11 @@ import org.umamo.edit.keyform.removeTrackKeys
 import org.umamo.edit.keyform.removingKeys
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.KeyformHover
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 
 /*
  * The keyform-authoring command table: insert / delete on the hovered keyable property, and the keyform
@@ -69,7 +69,7 @@ internal fun keyformCommands(
 			"keyform.insert",
 			title = Res.string.cmd_keyform_insert,
 			availability = availability.hasDocument,
-			spaces = CommandSpaces.KeyableSurfaces,
+			spaces = SpaceScope.KeyableSurfaces,
 			hint = CommandHint(Res.string.status_bind_insert_key),
 		) {
 			editorSession?.let { session ->
@@ -84,7 +84,7 @@ internal fun keyformCommands(
 			"keyform.delete",
 			title = Res.string.cmd_keyform_delete,
 			availability = availability.hasDocument,
-			spaces = CommandSpaces.KeyableSurfaces,
+			spaces = SpaceScope.KeyableSurfaces,
 			hint = CommandHint(Res.string.status_bind_delete_key),
 		) {
 			editorSession?.let { session ->

@@ -1,8 +1,8 @@
 package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
+import org.umamo.ui.workspace.SpaceScope
 import org.umamo.ui.workspace.sidebar.AreaSidebarHub
 import org.umamo.ui.workspace.sidebar.SidebarState
 
@@ -25,10 +25,10 @@ internal fun sidebarCommands(areaSidebars: AreaSidebarHub, routing: CommandRouti
 	fun hoveredSidebar(): SidebarState? = routing.hovered()?.areaId?.let { areaId -> areaSidebars.forArea(areaId) }
 
 	return listOf(
-		Command("view.sidebar.nextTab", title = Res.string.cmd_view_sidebar_next_tab, spaces = CommandSpaces.WorkSurfaces) {
+		Command("view.sidebar.nextTab", title = Res.string.cmd_view_sidebar_next_tab, spaces = SpaceScope.WorkSurfaces) {
 			hoveredSidebar()?.selectAdjacentTab(1)
 		},
-		Command("view.sidebar.previousTab", title = Res.string.cmd_view_sidebar_previous_tab, spaces = CommandSpaces.WorkSurfaces) {
+		Command("view.sidebar.previousTab", title = Res.string.cmd_view_sidebar_previous_tab, spaces = SpaceScope.WorkSurfaces) {
 			hoveredSidebar()?.selectAdjacentTab(-1)
 		},
 	)

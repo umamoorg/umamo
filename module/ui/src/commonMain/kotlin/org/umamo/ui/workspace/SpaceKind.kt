@@ -16,9 +16,6 @@ import kotlinx.serialization.encoding.Encoder
  * Each entry carries a stable string [key] used for serialization - we serialize by key, not by
  * ordinal or enum name, so reordering or renaming an entry never corrupts a saved layout.
  *
- * エリアが表示できるエディタ種別の閉じた集合（Blender のエディタタイプ相当）。各エリアはヘッダの
- * ドロップダウンで任意の種別へ切替可能。直列化は安定した key 文字列で行う。
- *
  * @property String key The stable serialization token (never reorder-sensitive).
  */
 @Serializable(with = SpaceKindSerializer::class)
@@ -74,22 +71,20 @@ enum class SpaceKind(val key: String) {
 }
 
 /**
- * Whether a space hosts the operation settings strip: the 2D viewport and the UV editor, the two work
- * surfaces, and nothing else.  A panel never shows the strip - Blender's redo panel is a region of the
+ * Whether a space hosts the operation settings strip: the work surfaces ([SpaceScope.WorkSurfaces], the 2D
+ * viewport and the UV editor), and nothing else.  A panel never shows the strip - Blender's redo panel is a region of the
  * editors that have one - so a command fired over a panel places its strip in the last work surface the
  * pointer touched instead (CommandRouting.operationStripArea), and a work surface switched to a panel
  * after the operation stops showing it until it is switched back.
  */
 internal val SpaceKind.hostsOperationStrip: Boolean
-	get() = this == SpaceKind.Viewport2D || this == SpaceKind.UvEditor
+	get() = SpaceScope.WorkSurfaces.appliesIn(this)
 
 /**
  * Serializes [SpaceKind] as its stable [SpaceKind.key] string. An unknown key (a layout written by a
  * newer build that has a space this build lacks) decodes to a neutral [SpaceKind.Outliner] rather
  * than failing the whole layout - a forward-compatible, non-destructive fallback that also avoids
  * spinning up a GL viewport for an unknown kind.
- *
- * SpaceKind を安定キー文字列として直列化する。未知のキーは中立な Outliner にフォールバックする。
  */
 object SpaceKindSerializer : KSerializer<SpaceKind> {
 	override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("org.umamo.ui.workspace.SpaceKind", PrimitiveKind.STRING)

@@ -71,7 +71,15 @@ internal fun placementParameters(status: PlacementDragStatus, pageWidth: Int, pa
 
 		MeshOperatorKind.Scale -> {
 			listOf(
-				OperatorParameter.FloatParameter(PlacementParameterKeys.SCALE_X, PlacementParameterKeys.SCALE_X, status.factorX, TRANSFORM_SCALE_MIN, TRANSFORM_SCALE_MAX, TRANSFORM_SCALE_STEP),
+				OperatorParameter.FloatParameter(
+					PlacementParameterKeys.SCALE_X,
+					PlacementParameterKeys.SCALE_X,
+					status.factorX,
+					TRANSFORM_SCALE_MIN,
+					TRANSFORM_SCALE_MAX,
+					TRANSFORM_SCALE_STEP,
+					ratioPartnerKey = PlacementParameterKeys.SCALE_Y,
+				),
 				OperatorParameter.FloatParameter(PlacementParameterKeys.SCALE_Y, PlacementParameterKeys.SCALE_Y, status.factorY, TRANSFORM_SCALE_MIN, TRANSFORM_SCALE_MAX, TRANSFORM_SCALE_STEP),
 			)
 		}
