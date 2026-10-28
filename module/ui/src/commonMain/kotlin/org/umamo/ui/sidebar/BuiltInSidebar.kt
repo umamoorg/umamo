@@ -12,7 +12,7 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.viewport.labelResource
-import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 
 /** The Item tab's id: the selection's own properties.  A contributor adds a panel to it by this id. */
 const val ITEM_SIDEBAR_TAB_ID = "umamo.item"
@@ -22,15 +22,6 @@ const val TOOL_SIDEBAR_TAB_ID = "umamo.tool"
 
 /** The View tab's id: the view's own settings and the 2D cursor.  A contributor adds a panel to it by this id. */
 const val VIEW_SIDEBAR_TAB_ID = "umamo.view"
-
-/** The 2D viewport alone: a panel over world space. */
-private val VIEWPORT_ONLY = setOf(SpaceKind.Viewport2D)
-
-/** The UV editor alone: a panel over a page or source layer's texels. */
-private val UV_EDITOR_ONLY = setOf(SpaceKind.UvEditor)
-
-/** Both work surfaces: a panel that means the same over either. */
-private val WORK_SURFACES = setOf(SpaceKind.Viewport2D, SpaceKind.UvEditor)
 
 /**
  * Registers Umamo's own sidebar tabs and panels: Item, Tool, and View, in that order on the rail.  Item and View
@@ -51,7 +42,7 @@ fun registerBuiltInSidebar(registry: SidebarRegistry): () -> Unit {
 					tabId = ITEM_SIDEBAR_TAB_ID,
 					title = UiText.Resource(Res.string.properties_section_transform),
 					order = 100,
-					spaces = VIEWPORT_ONLY,
+					spaces = SpaceScope.Viewport2D,
 					content = { context -> ItemTransformPanel(context) },
 				),
 			),
@@ -61,7 +52,7 @@ fun registerBuiltInSidebar(registry: SidebarRegistry): () -> Unit {
 					tabId = ITEM_SIDEBAR_TAB_ID,
 					title = UiText.Resource(Res.string.properties_section_transform),
 					order = 100,
-					spaces = UV_EDITOR_ONLY,
+					spaces = SpaceScope.UvEditor,
 					content = { context -> UvItemTransformPanel(context) },
 				),
 			),
@@ -71,7 +62,7 @@ fun registerBuiltInSidebar(registry: SidebarRegistry): () -> Unit {
 					tabId = TOOL_SIDEBAR_TAB_ID,
 					title = UiText.Resource(Res.string.sidebar_panel_active_tool),
 					order = 100,
-					spaces = WORK_SURFACES,
+					spaces = SpaceScope.WorkSurfaces,
 					content = { context -> ActiveToolPanel(context) },
 				),
 			),
@@ -81,7 +72,7 @@ fun registerBuiltInSidebar(registry: SidebarRegistry): () -> Unit {
 					tabId = VIEW_SIDEBAR_TAB_ID,
 					title = UiText.Resource(Res.string.overlay_row_cursor),
 					order = 100,
-					spaces = VIEWPORT_ONLY,
+					spaces = SpaceScope.Viewport2D,
 					content = { context -> CursorPanel(context) },
 				),
 			),
@@ -91,7 +82,7 @@ fun registerBuiltInSidebar(registry: SidebarRegistry): () -> Unit {
 					tabId = VIEW_SIDEBAR_TAB_ID,
 					title = UiText.Resource(Res.string.overlay_row_cursor),
 					order = 100,
-					spaces = UV_EDITOR_ONLY,
+					spaces = SpaceScope.UvEditor,
 					content = { context -> UvCursorPanel(context) },
 				),
 			),

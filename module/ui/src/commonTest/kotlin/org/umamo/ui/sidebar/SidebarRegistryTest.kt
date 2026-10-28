@@ -6,6 +6,7 @@ import org.umamo.edit.Selection
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.l10n.UiText
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -57,7 +58,7 @@ class SidebarRegistryTest {
 	 * @param String id The panel's id.
 	 * @param String tabId The tab it shows under.
 	 * @param Int order Its order.
-	 * @param Set spaces The surfaces it appears in.
+	 * @param SpaceScope spaces The surfaces it appears in.
 	 * @param Function isVisible When it shows.
 	 * @return SidebarPanel The panel.
 	 */
@@ -65,7 +66,7 @@ class SidebarRegistryTest {
 		id: String,
 		tabId: String,
 		order: Int = 100,
-		spaces: Set<SpaceKind> = setOf(SpaceKind.Viewport2D),
+		spaces: SpaceScope = SpaceScope.Viewport2D,
 		isVisible: (SidebarContext) -> Boolean = { true },
 	): SidebarPanel = SidebarPanel(id, tabId, UiText.Literal(id), order, spaces, isVisible = isVisible, content = {})
 
@@ -124,7 +125,7 @@ class SidebarRegistryTest {
 	fun aPanelNeedsItsSurfaceAndItsTab() {
 		val registry = SidebarRegistry()
 		registry.register(tab("item"))
-		registry.register(panel("uvOnly", "item", spaces = setOf(SpaceKind.UvEditor)))
+		registry.register(panel("uvOnly", "item", spaces = SpaceScope.UvEditor))
 		registry.register(panel("orphan", "missingTab"))
 
 		assertEquals(emptyList(), shownTabIds(registry), "the UV panel is not the 2D viewport's, and the orphan has no tab")

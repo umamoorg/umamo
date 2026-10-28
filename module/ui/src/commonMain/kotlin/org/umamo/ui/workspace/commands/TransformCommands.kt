@@ -8,8 +8,8 @@ import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.edit.transform.beginUvOperator
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * The modal transform commands (Blender G / S / R) and their cancel.
@@ -33,7 +33,7 @@ internal fun transformCommands(
 			"mesh.grab",
 			title = Res.string.cmd_mesh_grab,
 			availability = availability.hasDocument,
-			spaces = CommandSpaces.WorkSurfaces,
+			spaces = SpaceScope.WorkSurfaces,
 			hint = CommandHint(Res.string.status_bind_grab),
 		) {
 			beginTransform(editorSession, MeshOperatorKind.Grab, routing)
@@ -42,7 +42,7 @@ internal fun transformCommands(
 			"mesh.scale",
 			title = Res.string.cmd_mesh_scale,
 			availability = availability.hasDocument,
-			spaces = CommandSpaces.WorkSurfaces,
+			spaces = SpaceScope.WorkSurfaces,
 			hint = CommandHint(Res.string.status_bind_scale),
 		) {
 			beginTransform(editorSession, MeshOperatorKind.Scale, routing)
@@ -51,7 +51,7 @@ internal fun transformCommands(
 			"mesh.rotate",
 			title = Res.string.cmd_mesh_rotate,
 			availability = availability.hasDocument,
-			spaces = CommandSpaces.WorkSurfaces,
+			spaces = SpaceScope.WorkSurfaces,
 			hint = CommandHint(Res.string.status_bind_rotate),
 		) {
 			beginTransform(editorSession, MeshOperatorKind.Rotate, routing)

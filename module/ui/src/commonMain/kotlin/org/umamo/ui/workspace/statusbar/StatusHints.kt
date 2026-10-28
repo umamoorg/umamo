@@ -2,11 +2,11 @@ package org.umamo.ui.workspace.statusbar
 
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.ui.action.Command
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.isOfferedIn
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * The most suggestions the status bar shows at once.  The strip is one line shared with the transient
@@ -68,7 +68,7 @@ internal fun everyStatusHintFor(commands: List<Command>, keymap: Keymap, hovered
 				?.let { hint -> hint.label to command }
 		}
 	// A stable sort, so each tier keeps registration order.
-	val tiered = suggested.sortedBy { (_, command) -> if (command.spaces is CommandSpaces.Everywhere) 1 else 0 }
+	val tiered = suggested.sortedBy { (_, command) -> if (command.spaces is SpaceScope.Everywhere) 1 else 0 }
 	// groupBy keeps first-occurrence order (a LinkedHashMap), so a group sits where its first member does.
 	val membersByLabel = tiered.groupBy({ (label, _) -> label }, { (_, command) -> command })
 	val hints = mutableListOf<StatusHint>()

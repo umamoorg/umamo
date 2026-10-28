@@ -2,11 +2,11 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.workspace.AreaOverlayHub
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * The overlay visibility commands, dispatching to the work surface the pointer last touched: each 2D
@@ -46,35 +46,35 @@ internal fun overlayCommands(areaOverlays: AreaOverlayHub, routing: CommandRouti
 	return listOf(
 		// The Show Overlays master (Blender's Shift+Alt+Z): every overlay of the area at once, each row's own
 		// flag kept for when it comes back.
-		Command("view.overlay.all", title = Res.string.cmd_view_overlay_all, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
+		Command("view.overlay.all", title = Res.string.cmd_view_overlay_all, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
 			hoveredOverlays()?.let { state -> state.showOverlays = !state.showOverlays }
 		},
-		Command("view.overlay.grid", title = Res.string.cmd_view_overlay_grid, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
+		Command("view.overlay.grid", title = Res.string.cmd_view_overlay_grid, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
 			hoveredOverlays()?.let { state -> state.showGrid = !state.showGrid }
 		},
 		// The world axes are the 2D viewport's alone - a UV editor's surface has none and its catalog offers no
 		// row for them - so the command is scoped to it and flips only a hovered 2D viewport's flag.
-		Command("view.overlay.axes", title = Res.string.cmd_view_overlay_axes, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {
+		Command("view.overlay.axes", title = Res.string.cmd_view_overlay_axes, availability = hasViewport, spaces = SpaceScope.Viewport2D) {
 			hovered2DOverlays()?.let { state -> state.showAxes = !state.showAxes }
 		},
-		Command("view.overlay.cursor", title = Res.string.cmd_view_overlay_cursor, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
+		Command("view.overlay.cursor", title = Res.string.cmd_view_overlay_cursor, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
 			hoveredOverlays()?.let { state -> state.showCursor = !state.showCursor }
 		},
-		Command("view.overlay.info", title = Res.string.cmd_view_overlay_info, availability = hasViewport, spaces = CommandSpaces.WorkSurfaces) {
+		Command("view.overlay.info", title = Res.string.cmd_view_overlay_info, availability = hasViewport, spaces = SpaceScope.WorkSurfaces) {
 			hoveredOverlays()?.let { state -> state.showInfo = !state.showInfo }
 		},
 		// The selection tint is the 2D viewport's alone, like the axes: a UV editor's surface draws no art to
 		// tint and offers no row for it, so this flips only a hovered 2D viewport's flag.
-		Command("view.overlay.selectionTint", title = Res.string.cmd_view_overlay_selection_tint, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {
+		Command("view.overlay.selectionTint", title = Res.string.cmd_view_overlay_selection_tint, availability = hasViewport, spaces = SpaceScope.Viewport2D) {
 			hovered2DOverlays()?.let { state -> state.showSelectionTint = !state.showSelectionTint }
 		},
 		// The wireframe is the 2D viewport's alone, like the axes: a UV editor's islands are its click targets
 		// and it offers no row for it, so this too flips only a hovered 2D viewport's flag.
-		Command("view.overlay.wireframe", title = Res.string.cmd_view_overlay_wireframe, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {
+		Command("view.overlay.wireframe", title = Res.string.cmd_view_overlay_wireframe, availability = hasViewport, spaces = SpaceScope.Viewport2D) {
 			hovered2DOverlays()?.let { state -> state.showWireframe = !state.showWireframe }
 		},
 		// The wireframe's culling qualifies the wireframe, so it is the 2D viewport's alone like it.
-		Command("view.overlay.wireframeCulling", title = Res.string.cmd_view_overlay_wireframe_culling, availability = hasViewport, spaces = CommandSpaces.Viewport2D) {
+		Command("view.overlay.wireframeCulling", title = Res.string.cmd_view_overlay_wireframe_culling, availability = hasViewport, spaces = SpaceScope.Viewport2D) {
 			hovered2DOverlays()?.let { state -> state.cullHiddenWireframe = !state.cullHiddenWireframe }
 		},
 	)
