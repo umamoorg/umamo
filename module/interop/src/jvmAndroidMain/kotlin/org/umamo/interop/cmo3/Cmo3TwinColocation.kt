@@ -14,15 +14,6 @@ import org.umamo.runtime.model.PuppetModel
  * place (a mirrored twin's is the exact mirror of its partner's).  The CMO3 model-image web cannot
  * carry that: a CModelImage has a single canvas placement, so a shared material at two placements
  * loses every twin but one in the editor's source-image mode.
- *
- * Official documents never contain the shape.  Their twins share ONE canvas mesh - every uv-identical
- * group across the corpus (160 of 160 over Erica, modelA-E, and miku, root-level twins included) has
- * bit-identical CArtMeshSource.positions - and the keyforms alone carry the twin to its displayed
- * place.  The canvas mesh is editing geometry: the lowering writes it to CArtMeshSource.positions and
- * GEditableMesh2.point, while every keyform is rebuilt from DrawableMesh.localPositions, so replacing
- * it changes nothing the editor renders.  This prepass restores the official shape: every further
- * placement of a shared slot takes the representative placement's canvas mesh, the slot then carries
- * a single placement, and the image chain shares one material over the bake's own pixels.
  */
 internal object Cmo3TwinColocation {
 	/** The co-located inputs for the fresh-graph pipeline. */
