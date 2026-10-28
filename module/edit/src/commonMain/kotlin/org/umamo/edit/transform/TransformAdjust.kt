@@ -199,7 +199,7 @@ fun transformParameters(
 		}
 
 		MeshOperatorKind.Scale -> {
-			rows.add(scaleRow(TransformParameterKeys.SCALE_X, parameters.factorX))
+			rows.add(scaleRow(TransformParameterKeys.SCALE_X, parameters.factorX, ratioPartnerKey = space.verticalScaleKey))
 			rows.add(scaleRow(space.verticalScaleKey, parameters.factorY))
 		}
 
@@ -348,9 +348,9 @@ private fun proportionalParameters(proportional: ProportionalRows): List<Operato
 private fun moveRow(key: String, value: Float): OperatorParameter =
 	OperatorParameter.FloatParameter(key, key, value, -TRANSFORM_MOVE_LIMIT, TRANSFORM_MOVE_LIMIT, unit = ParameterUnit.Pixels)
 
-/** A Scale row. */
-private fun scaleRow(key: String, value: Float): OperatorParameter =
-	OperatorParameter.FloatParameter(key, key, value, TRANSFORM_SCALE_MIN, TRANSFORM_SCALE_MAX, TRANSFORM_SCALE_STEP)
+/** A Scale row, naming the row whose ratio it can be locked with when it is the first of the pair. */
+private fun scaleRow(key: String, value: Float, ratioPartnerKey: String? = null): OperatorParameter =
+	OperatorParameter.FloatParameter(key, key, value, TRANSFORM_SCALE_MIN, TRANSFORM_SCALE_MAX, TRANSFORM_SCALE_STEP, ratioPartnerKey = ratioPartnerKey)
 
 /** The key of the vertical Move row: Z in world space, Y on the page. */
 private val TransformRowSpace.verticalMoveKey: String

@@ -1,6 +1,7 @@
 package org.umamo.ui.kit.container
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
@@ -72,13 +74,15 @@ enum class RailContentSide {
 }
 
 /**
- * A vertical rail of labelled tabs, read down the column ([VerticalText]): Blender's sidebar tabs.  The
- * selected tab takes the color of the content it switches and meets it, square on the content's side and
- * rounded on the outer side, so it reads as pulled out of the rail toward its content.  Tabs never take
- * focus, so selecting one leaves the keyboard where it was.  A rail too long for its height scrolls, and a
- * label too long for [maxLabelLength] is cut short and shown whole in a tooltip.
+ * A vertical rail of labelled tabs, read down the column ([VerticalText]): Blender's sidebar tabs.  Each tab is
+ * square on the content's side and rounded on the outer side, and the selected tab takes the color of the
+ * content it switches.  The rail leaves no inset on the content's side, so whether the tabs meet the content or
+ * stand a gap away from it is the caller's choice.  Tabs never take focus, so selecting one leaves the keyboard
+ * where it was.  A rail too long for its height scrolls, and a label too long for [maxLabelLength] is cut short
+ * and shown whole in a tooltip.
  *
- * The rail paints no background of its own; the caller paints the strip it sits in.
+ * The rail paints no background of its own; the caller paints the strip it sits in, or none, for tabs floating
+ * over a work surface, which the borders keep legible.
  *
  * @param List tabs The tabs, top to bottom.
  * @param String? selectedId The selected tab's id, or null for none.
@@ -87,8 +91,10 @@ enum class RailContentSide {
  * @param Modifier modifier Layout modifier.
  * @param Dp maxLabelLength The longest a label runs before it is cut short.
  * @param Color tabFill A tab's fill, or Unspecified for the panel background.
- * @param Color selectedFill The selected tab's fill, the color of the content it meets, or Unspecified for
+ * @param Color selectedFill The selected tab's fill, the color of the content it switches, or Unspecified for
  *   the header background.
+ * @param Color tabBorder A tab's hairline border when not selected, or Unspecified for none.
+ * @param Color selectedBorder The selected tab's hairline border, or Unspecified for none.
  */
 @Composable
 fun VerticalTabRail(
@@ -100,6 +106,8 @@ fun VerticalTabRail(
 	maxLabelLength: Dp = DEFAULT_MAX_TAB_LABEL_LENGTH,
 	tabFill: Color = Color.Unspecified,
 	selectedFill: Color = Color.Unspecified,
+	tabBorder: Color = Color.Unspecified,
+	selectedBorder: Color = Color.Unspecified,
 ) {
 	val colors = LocalUmamoColors.current
 	val resolvedTabFill = tabFill.takeOrElse { colors.panelBackground }
@@ -129,6 +137,7 @@ fun VerticalTabRail(
 					maxLabelLength = maxLabelLength,
 					tabFill = resolvedTabFill,
 					selectedFill = resolvedSelectedFill,
+					border = if (tab.id == selectedId) selectedBorder else tabBorder,
 				)
 			}
 		}
@@ -146,6 +155,7 @@ fun VerticalTabRail(
  * @param Dp maxLabelLength The longest its label runs before it is cut short.
  * @param Color tabFill Its fill when neither selected nor hovered.
  * @param Color selectedFill Its fill when selected.
+ * @param Color border Its hairline border, or Unspecified for none.
  */
 @Composable
 private fun RailTab(
@@ -156,16 +166,12 @@ private fun RailTab(
 	maxLabelLength: Dp,
 	tabFill: Color,
 	selectedFill: Color,
+	border: Color,
 ) {
 	val colors = LocalUmamoColors.current
-	val corner = LocalUmamoShapes.current.small.topStart
+	val shapes = LocalUmamoShapes.current
 	val square = CornerSize(0.dp)
-	val shape =
-		if (contentSide == RailContentSide.Start) {
-			RoundedCornerShape(topStart = square, topEnd = corner, bottomEnd = corner, bottomStart = square)
-		} else {
-			RoundedCornerShape(topStart = corner, topEnd = square, bottomEnd = square, bottomStart = corner)
-		}
+	val shape = shapes.medium
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
 	val fill =
@@ -176,6 +182,7 @@ private fun RailTab(
 		}
 	val textColor = if (selected || hovered) colors.text else colors.textMuted
 	val measured = rememberMeasuredVerticalText(tab.label, LocalUmamoTypography.current.labelMedium, maxLabelLength)
+	val outline = if (border.isSpecified) Modifier.border(width = 1.dp, color = border, shape = shape) else Modifier
 	Tooltip(text = if (measured.truncated) tab.label else "", modifier = Modifier.fillMaxWidth()) {
 		Box(
 			modifier =
@@ -183,6 +190,7 @@ private fun RailTab(
 					.fillMaxWidth()
 					.clip(shape)
 					.background(fill, shape)
+					.then(outline)
 					// NOT focusable: a tab click must leave the keyboard with the shell root, or every shortcut
 					// dies until something focusable is clicked again.
 					.focusProperties { canFocus = false }

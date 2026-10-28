@@ -606,8 +606,9 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		}
 
 		// The sidebar (N) over the area's right edge: a sibling of the surface, outside its graphics layer and clip,
-		// so its shield keeps clicks and wheel turns from the navigation loop and a right-click on it opens the
-		// area's own menu rather than the UV operations.  The UV panels read the shown surface through the local.
+		// so over its cards and tabs its shields keep clicks and wheel turns from the navigation loop and a
+		// right-click opens the area's own menu rather than the UV operations; around them the surface keeps the
+		// pointer.  The UV panels read the shown surface through the local.
 		CompositionLocalProvider(LocalUvSidebarSurface provides sidebarSurface) {
 			SidebarDrawer(
 				areaId = scope.areaId,

@@ -3,7 +3,7 @@ package org.umamo.ui.workspace.sidebar
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.l10n.UiText
 import org.umamo.ui.sidebar.SidebarPanel
-import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -26,7 +26,7 @@ class SidebarStateTest {
 	 * @return SidebarPanel The panel.
 	 */
 	private fun panel(id: String, initiallyCollapsed: Boolean = false): SidebarPanel =
-		SidebarPanel(id, "umamo.item", UiText.Literal(id), 100, setOf(SpaceKind.Viewport2D), initiallyCollapsed, content = {})
+		SidebarPanel(id, "umamo.item", UiText.Literal(id), 100, SpaceScope.Viewport2D, initiallyCollapsed, content = {})
 
 	/** With no choice made the first tab shows; a choice on the rail shows. */
 	@Test

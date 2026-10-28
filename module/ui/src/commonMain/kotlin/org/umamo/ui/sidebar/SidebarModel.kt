@@ -9,6 +9,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.l10n.UiText
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 
 /*
  * What a work surface's sidebar is made of: tabs down its outer edge, each switching a stack of collapsible
@@ -38,7 +39,7 @@ class SidebarTab(
  * @property String tabId The tab the panel shows under.
  * @property UiText title The panel's heading.
  * @property Int order Where the panel sits in its tab's stack, lowest first; registration order breaks a tie.
- * @property Set spaces The work surfaces whose sidebar shows the panel.
+ * @property SpaceScope spaces The work surfaces whose sidebar shows the panel.
  * @property Boolean initiallyCollapsed Whether the panel starts folded.
  * @property Function isVisible Whether the panel shows for a context, such as only with something selected.
  * @property Function content The panel's rows, drawn from the context.
@@ -48,7 +49,7 @@ class SidebarPanel(
 	val tabId: String,
 	val title: UiText,
 	val order: Int,
-	val spaces: Set<SpaceKind>,
+	val spaces: SpaceScope,
 	val initiallyCollapsed: Boolean = false,
 	val isVisible: (SidebarContext) -> Boolean = { true },
 	val content: @Composable (SidebarContext) -> Unit,

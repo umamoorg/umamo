@@ -489,7 +489,7 @@
 	<string name="properties_field_position_z">Z 위치</string>
 	<string name="properties_field_size_x">X 크기</string>
 	<string name="properties_field_size_z">Z 크기</string>
-	<string name="properties_transform_lock_aspect">종횡비 고정</string>
+	<string name="common_lock_aspect_ratio">종횡비 고정</string>
 	<string name="properties_field_blend_mode">혼합</string>
 	<string name="properties_field_alpha_mode">알파</string>
 	<string name="properties_field_culling">후면 제거</string>

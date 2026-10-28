@@ -12,6 +12,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.atlas.setAtlasPlacements
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.ui.kit.StackPosition
+import org.umamo.ui.kit.field.AspectLockFieldPair
 import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyFieldRow
@@ -26,7 +27,7 @@ import org.umamo.ui.viewport.uv.TexelAxis
  * The UV editor's Item tab in Object mode: where the shown drawable's art sits on its page, the tile placement the
  * UV editor's Object-mode Grab, Rotate, and Scale move.  Position is where the art's origin lands, in page pixels
  * from the top-left with y down; Angle turns the art about that origin; Scale sizes it along its own axes, a
- * negative scale mirroring it.  Each typed value is one undo step filed as the matching move, and the pages
+ * negative scale mirroring it, and its lock keeps the two in proportion.  Each typed value is one undo step filed as the matching move, and the pages
  * recompose from it.  While the area's own placement drag runs, the numbers follow it.
  *
  * The fields are dimmed wherever the UV editor's own placement drag would refuse: a pinned tile, a document whose
@@ -105,6 +106,24 @@ internal fun UvPlacementPanel(context: SidebarContext) {
 			commit(updated, MeshOperatorKind.Grab)
 		},
 	)
+	// A zero scale would collapse the art to a line no mapping can invert, so it is refused; a negative one
+	// mirrors the art and is kept.
+	AspectLockFieldPair(
+		firstLabel = stringResource(Res.string.placement_options_scale_x),
+		firstDescription = stringResource(Res.string.sidebar_placement_scale_x_description),
+		firstValue = placement.scaleX,
+		secondLabel = stringResource(Res.string.placement_options_scale_y),
+		secondDescription = stringResource(Res.string.sidebar_placement_scale_y_description),
+		secondValue = placement.scaleY,
+		range = UNBOUNDED_RANGE,
+		decimals = 2,
+		enabled = editable,
+		onCommit = { scaleX, scaleY ->
+			if (scaleX != 0f && scaleY != 0f) {
+				commit(committed.copy(scaleX = scaleX, scaleY = scaleY), MeshOperatorKind.Scale)
+			}
+		},
+	)
 	FieldStack(
 		listOf(
 			{ position ->
@@ -117,40 +136,6 @@ internal fun UvPlacementPanel(context: SidebarContext) {
 					enabled = editable,
 					position = position,
 				) { angle -> commit(committed.copy(rotationDegrees = angle), MeshOperatorKind.Rotate) }
-			},
-		),
-	)
-	// A zero scale would collapse the art to a line no mapping can invert, so it is refused; a negative one
-	// mirrors the art and is kept.
-	FieldStack(
-		listOf(
-			{ position ->
-				PlacementNumberRow(
-					label = Res.string.placement_options_scale_x,
-					description = Res.string.sidebar_placement_scale_x_description,
-					value = placement.scaleX,
-					decimals = 2,
-					enabled = editable,
-					position = position,
-				) { scale ->
-					if (scale != 0f) {
-						commit(committed.copy(scaleX = scale), MeshOperatorKind.Scale)
-					}
-				}
-			},
-			{ position ->
-				PlacementNumberRow(
-					label = Res.string.placement_options_scale_y,
-					description = Res.string.sidebar_placement_scale_y_description,
-					value = placement.scaleY,
-					decimals = 2,
-					enabled = editable,
-					position = position,
-				) { scale ->
-					if (scale != 0f) {
-						commit(committed.copy(scaleY = scale), MeshOperatorKind.Scale)
-					}
-				}
 			},
 		),
 	)
