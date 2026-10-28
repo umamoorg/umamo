@@ -14,8 +14,10 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextReplacement
@@ -358,6 +360,27 @@ class UvSidebarPanelsTest {
 			assertEquals(stepsBefore + 1, session.historyView.value.steps.size)
 		}
 
+	/** With the lock on, a typed Scale X scales Scale Y by the same factor as one undo step, and a zero is still refused. */
+	@Test
+	fun aLockedScaleKeepsItsProportions() =
+		runComposeUiTest {
+			val session = uvObjectSession(model = uvRigPlacedModel())
+			val stepsBefore = session.historyView.value.steps.size
+			mountUvSidebar(session, ITEM_SIDEBAR_TAB_ID, shown = listOf(UV_RIG_QUAD, UV_RIG_OTHER), placementSurface = uvRigPlacementSurface())
+			onNodeWithContentDescription(LOCK_ASPECT).performClick()
+			waitForIdle()
+
+			typeInto("1.00", index = 0, typed = "0")
+			assertEquals(stepsBefore, session.historyView.value.steps.size, "a locked zero collapses both axes, so it is refused")
+
+			typeInto("1.00", index = 0, typed = "2")
+			val scaled = assertNotNull(uvRigPlacementOf(session, UV_RIG_QUAD_TILE))
+			assertEquals(2f, scaled.scaleX)
+			assertEquals(2f, scaled.scaleY, "the locked partner scales with it")
+			assertEquals(stepsBefore + 1, session.historyView.value.steps.size, "both axes land as one undo step")
+			onAllNodesWithText("2.00").assertCountEquals(2)
+		}
+
 	/** A pinned tile shows its placement read-only. */
 	@Test
 	fun aPinnedTileIsReadOnly() =
@@ -396,6 +419,7 @@ class UvSidebarPanelsTest {
 
 	private companion object {
 		const val GESTURE_GAP_MILLIS = 1000L
+		const val LOCK_ASPECT = "Lock Aspect Ratio"
 		const val GESTURE_STEP_MILLIS = 16L
 		const val SCRUB_PIXELS = 90f
 		const val SCRUB_STEPS = 6

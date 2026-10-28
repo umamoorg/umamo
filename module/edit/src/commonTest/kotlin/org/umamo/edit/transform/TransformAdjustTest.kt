@@ -75,6 +75,9 @@ class TransformAdjustTest {
 		assertEquals(listOf(TransformParameterKeys.SCALE_X, TransformParameterKeys.SCALE_Z), worldRows.map { row -> row.key })
 		val pageRows = transformParameters(MeshOperatorKind.Scale, gesture, TransformRowSpace.UvDisplay, proportional = null)
 		assertEquals(listOf(TransformParameterKeys.SCALE_X, TransformParameterKeys.SCALE_Y), pageRows.map { row -> row.key })
+		// Scale X names the vertical row as its ratio partner, so the strip can lock the two together.
+		assertEquals(listOf(TransformParameterKeys.SCALE_Z, null), worldRows.map { row -> (row as OperatorParameter.FloatParameter).ratioPartnerKey })
+		assertEquals(listOf(TransformParameterKeys.SCALE_Y, null), pageRows.map { row -> (row as OperatorParameter.FloatParameter).ratioPartnerKey })
 
 		for (space in TransformRowSpace.entries) {
 			val back = transformGestureParametersOf(MeshOperatorKind.Scale, space, transformParameters(MeshOperatorKind.Scale, gesture, space, proportional = null))

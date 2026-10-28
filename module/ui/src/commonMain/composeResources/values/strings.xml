@@ -893,7 +893,7 @@
 	<string name="properties_field_position_y">Position Y</string>
 	<string name="properties_field_size_x">Size X</string>
 	<string name="properties_field_size_z">Size Z</string>
-	<string name="properties_transform_lock_aspect">Lock Aspect Ratio</string>
+	<string name="common_lock_aspect_ratio">Lock Aspect Ratio</string>
 	<string name="properties_field_blend_mode">Blend</string>
 	<string name="properties_field_alpha_mode">Alpha</string>
 	<string name="properties_field_culling">Cull Back Faces</string>
