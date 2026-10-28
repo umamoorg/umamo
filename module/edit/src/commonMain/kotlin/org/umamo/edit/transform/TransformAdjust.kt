@@ -67,6 +67,13 @@ object TransformParameterKeys {
 
 	/** The label-key prefix of the Falloff row's choices; the curve's [ProportionalFalloff.choiceKey] follows it. */
 	const val FALLOFF_CHOICE_PREFIX = "transform.falloff."
+
+	/**
+	 * The proportional rows: an adjustment that set one of them is the rigger setting proportional editing, which
+	 * the session then takes up.  A transform whose rows did not start from the session's own state (a value typed
+	 * in a panel registers them off) writes back only on these, so moving a Move row never switches it off.
+	 */
+	val PROPORTIONAL_ROWS: Set<String> = setOf(PROPORTIONAL, FALLOFF, PROPORTIONAL_SIZE, CONNECTED_ONLY)
 }
 
 /** The widest angle an Angle row accepts, in degrees either way. */

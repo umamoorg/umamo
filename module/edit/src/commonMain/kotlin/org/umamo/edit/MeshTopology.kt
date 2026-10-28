@@ -128,6 +128,28 @@ object MeshTopology {
 	}
 
 	/**
+	 * The vertices [elements] cover that a mesh of [vertexCount] vertices has: [coveredVertexIndices], less any index
+	 * at or past the count.  A reader that holds a selection and a mesh it captured separately needs this, since the
+	 * two can arrive a moment apart (a duplicate or a rip grows the selection before the reader sees the larger mesh).
+	 * A set that needs no such drop is returned as [coveredVertexIndices] built it, so a sum over it runs in the
+	 * order a modal transform's capture sums the same vertices in.
+	 *
+	 * @param Set<MeshElement> elements The selected elements (any mix of domains).
+	 * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).
+	 * @param Int vertexCount How many vertices the reader's copy of the mesh has.
+	 * @return Set<Int> The covered vertex indices inside the mesh.
+	 */
+	fun coveredVertexIndicesWithin(elements: Set<MeshElement>, triangleIndices: IntArray, vertexCount: Int): Set<Int> {
+		val covered = coveredVertexIndices(elements, triangleIndices)
+
+		if (covered.all { vertexIndex -> vertexIndex < vertexCount }) {
+			return covered
+		}
+
+		return covered.filterTo(HashSet()) { vertexIndex -> vertexIndex < vertexCount }
+	}
+
+	/**
 	 * The edges whose both endpoints are in the selected vertex set - the vertex-to-edge derive-up rule,
 	 * also used to highlight edges while selecting vertices.
 	 *

@@ -26,15 +26,6 @@ import org.umamo.ui.transform.coveredMedian
  * its label, and every later strip adjustment are the viewport's own.
  */
 
-/** The strip rows whose adjustment is the rigger setting proportional editing, which the session then takes up. */
-private val PROPORTIONAL_ROW_KEYS =
-	setOf(
-		TransformParameterKeys.PROPORTIONAL,
-		TransformParameterKeys.FALLOFF,
-		TransformParameterKeys.PROPORTIONAL_SIZE,
-		TransformParameterKeys.CONNECTED_ONLY,
-	)
-
 /**
  * The covered vertices captured for a move of their median: a Grab capture over every covered vertex with no
  * proportional weights, the geometry each mesh inverts through, and the median the move measures from.
@@ -182,7 +173,7 @@ internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, 
 	val settings = proportionalSettings.value
 	val proportional = ProportionalRows(false, settings.falloff, settings.radiusWorld, settings.connectedOnly)
 	registerMeshTransformAdjustment(this, areaId, move.transform, move.geometryById, parameters, proportional) { record, state ->
-		if (record.adjustedKey in PROPORTIONAL_ROW_KEYS) {
+		if (record.adjustedKey in TransformParameterKeys.PROPORTIONAL_ROWS) {
 			setProportionalEdit(state)
 		}
 	}

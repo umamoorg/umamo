@@ -23,11 +23,18 @@ const val TOOL_SIDEBAR_TAB_ID = "umamo.tool"
 /** The View tab's id: the view's own settings and the 2D cursor.  A contributor adds a panel to it by this id. */
 const val VIEW_SIDEBAR_TAB_ID = "umamo.view"
 
-/** The surfaces Umamo's own sidebar panels appear in. */
+/** The 2D viewport alone: a panel over world space. */
 private val VIEWPORT_ONLY = setOf(SpaceKind.Viewport2D)
 
+/** The UV editor alone: a panel over a page or source layer's texels. */
+private val UV_EDITOR_ONLY = setOf(SpaceKind.UvEditor)
+
+/** Both work surfaces: a panel that means the same over either. */
+private val WORK_SURFACES = setOf(SpaceKind.Viewport2D, SpaceKind.UvEditor)
+
 /**
- * Registers Umamo's own sidebar tabs and panels: Item, Tool, and View, in that order on the rail.
+ * Registers Umamo's own sidebar tabs and panels: Item, Tool, and View, in that order on the rail.  Item and View
+ * have one panel per work surface, each scoped to its space, and Tool's panel serves both.
  *
  * @param SidebarRegistry registry The registry to register into.
  * @return Function Withdraws everything this call registered.
@@ -50,11 +57,21 @@ fun registerBuiltInSidebar(registry: SidebarRegistry): () -> Unit {
 			),
 			registry.register(
 				SidebarPanel(
+					id = "umamo.item.uvTransform",
+					tabId = ITEM_SIDEBAR_TAB_ID,
+					title = UiText.Resource(Res.string.properties_section_transform),
+					order = 100,
+					spaces = UV_EDITOR_ONLY,
+					content = { context -> UvItemTransformPanel(context) },
+				),
+			),
+			registry.register(
+				SidebarPanel(
 					id = "umamo.tool.activeTool",
 					tabId = TOOL_SIDEBAR_TAB_ID,
 					title = UiText.Resource(Res.string.sidebar_panel_active_tool),
 					order = 100,
-					spaces = VIEWPORT_ONLY,
+					spaces = WORK_SURFACES,
 					content = { context -> ActiveToolPanel(context) },
 				),
 			),
@@ -66,6 +83,16 @@ fun registerBuiltInSidebar(registry: SidebarRegistry): () -> Unit {
 					order = 100,
 					spaces = VIEWPORT_ONLY,
 					content = { context -> CursorPanel(context) },
+				),
+			),
+			registry.register(
+				SidebarPanel(
+					id = "umamo.view.uvCursor",
+					tabId = VIEW_SIDEBAR_TAB_ID,
+					title = UiText.Resource(Res.string.overlay_row_cursor),
+					order = 100,
+					spaces = UV_EDITOR_ONLY,
+					content = { context -> UvCursorPanel(context) },
 				),
 			),
 		)
@@ -84,11 +111,13 @@ private fun ActiveToolPanel(context: SidebarContext) {
 	val session = context.session
 	val selectTool = session?.activeSelectTool?.collectAsState()?.value
 	val meshOperator = session?.activeMeshOperator?.collectAsState()?.value
+	val uvOperator = session?.activeUvOperator?.collectAsState()?.value
 	val objectOperator = session?.activeObjectOperator?.collectAsState()?.value
 	val zoomRegionArea = session?.zoomRegionArmedArea?.collectAsState()?.value
 	val activeLabel: StringResource? =
 		when {
 			meshOperator != null && meshOperator.areaId == context.areaId -> meshOperator.kind.labelResource()
+			uvOperator != null && uvOperator.areaId == context.areaId -> uvOperator.kind.labelResource()
 			objectOperator != null && objectOperator.areaId == context.areaId -> objectOperator.kind.labelResource()
 			selectTool is ActiveSelectTool.BoxArmed && selectTool.areaId == context.areaId -> Res.string.cmd_mesh_box_select
 			selectTool is ActiveSelectTool.Circle && selectTool.areaId == context.areaId -> Res.string.cmd_mesh_circle_select

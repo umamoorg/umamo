@@ -73,20 +73,28 @@ internal fun ProvideSidebarLocals(
 }
 
 /**
- * A 2D viewport's sidebar drawer against the right edge of an area [width] by [height].
+ * A work surface's sidebar drawer against the right edge of an area [width] by [height].
  *
  * @param String areaId The area the sidebar belongs to.
  * @param SidebarState state The area's sidebar state.
  * @param Dp width The area's width.
  * @param Dp height The area's height.
  * @param Modifier modifier Layout modifier for the area's box (a test tag, say).
+ * @param SpaceKind space The work surface the area shows, which scopes the panels.
  */
 @Composable
-internal fun SidebarDrawerInArea(areaId: String, state: SidebarState, width: Dp, height: Dp, modifier: Modifier = Modifier) {
+internal fun SidebarDrawerInArea(
+	areaId: String,
+	state: SidebarState,
+	width: Dp,
+	height: Dp,
+	modifier: Modifier = Modifier,
+	space: SpaceKind = SpaceKind.Viewport2D,
+) {
 	Box(modifier = modifier.size(width, height)) {
 		SidebarDrawer(
 			areaId = areaId,
-			space = SpaceKind.Viewport2D,
+			space = space,
 			state = state,
 			passPointerThrough = false,
 			modifier = Modifier.align(Alignment.CenterEnd),

@@ -70,6 +70,13 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
+	 * Takes the UV editor's cursor off the surface again, back to never placed.
+	 */
+	override fun clearUvCursor() {
+		mutableUvCursor.value = null
+	}
+
+	/**
 	 * Selects the transform pivot mode.
 	 *
 	 * @param TransformPivotMode mode The pivot mode the next transforms anchor on.

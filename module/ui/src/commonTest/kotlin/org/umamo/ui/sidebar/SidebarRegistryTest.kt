@@ -164,14 +164,25 @@ class SidebarRegistryTest {
 		assertEquals(UiText.Literal("Replaced"), shown.tab.label, "the replacement stays registered")
 	}
 
-	/** Umamo's own tabs sit Item, Tool, View, each with its one panel, and their cleanup withdraws them all. */
+	/**
+	 * Umamo's own tabs sit Item, Tool, View over both work surfaces: Item and View with a panel scoped to each surface,
+	 * Tool with one panel the two share.  Their cleanup withdraws them all.
+	 */
 	@Test
 	fun theBuiltInsRegisterAndWithdraw() {
 		val registry = SidebarRegistry()
 		val cleanup = registerBuiltInSidebar(registry)
 
 		assertEquals(listOf(ITEM_SIDEBAR_TAB_ID, TOOL_SIDEBAR_TAB_ID, VIEW_SIDEBAR_TAB_ID), shownTabIds(registry))
-		assertTrue(shownTabIds(registry, context(space = SpaceKind.UvEditor)).isEmpty(), "the built-in panels are the 2D viewport's")
+		assertEquals(listOf(ITEM_SIDEBAR_TAB_ID, TOOL_SIDEBAR_TAB_ID, VIEW_SIDEBAR_TAB_ID), shownTabIds(registry, context(space = SpaceKind.UvEditor)))
+		assertEquals(
+			listOf("umamo.item.transform", "umamo.tool.activeTool", "umamo.view.cursor2d"),
+			registry.tabsFor(context()).flatMap { tab -> tab.panels.map { panel -> panel.id } },
+		)
+		assertEquals(
+			listOf("umamo.item.uvTransform", "umamo.tool.activeTool", "umamo.view.uvCursor"),
+			registry.tabsFor(context(space = SpaceKind.UvEditor)).flatMap { tab -> tab.panels.map { panel -> panel.id } },
+		)
 
 		cleanup()
 

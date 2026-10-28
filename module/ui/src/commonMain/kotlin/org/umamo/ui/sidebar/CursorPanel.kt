@@ -11,19 +11,19 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.transform.moved
 
 /**
- * Where the 2D cursor stood when a scrub of one of its fields began, held so a cancelled scrub can put it
- * back, unplaced included.
+ * Where a cursor stood when a scrub of one of its fields began, held so a cancelled scrub can put it back,
+ * unplaced included.  The 2D cursor's panel and the UV cursor's share it.
  *
- * @property Cursor2d? cursor The cursor before the scrub, or null when it was unplaced.
+ * @property TCursor? cursor The cursor before the scrub, or null when it was unplaced.
  */
-private class CursorScrubStart(val cursor: Cursor2d?)
+internal class CursorScrubStart<TCursor>(val cursor: TCursor?)
 
 /**
- * The scrub in flight on the cursor's fields, if any.
+ * The scrub in flight on a cursor's fields, if any.
  */
-private class CursorScrubMemory {
+internal class CursorScrubMemory<TCursor> {
 	/** Where the cursor stood when the scrub in flight began, or null with no scrub in flight. */
-	var start: CursorScrubStart? = null
+	var start: CursorScrubStart<TCursor>? = null
 }
 
 /**
@@ -40,7 +40,7 @@ internal fun CursorPanel(context: SidebarContext) {
 	val placed by session.cursor2d.collectAsState()
 	val puppet = context.puppet
 	val cursor = placed ?: Cursor2d(puppet.worldOriginX, puppet.worldOriginZ)
-	val scrub = remember(session) { CursorScrubMemory() }
+	val scrub = remember(session) { CursorScrubMemory<Cursor2d>() }
 
 	/**
 	 * Moves the cursor for one frame of a scrub, remembering where it stood when the scrub began.

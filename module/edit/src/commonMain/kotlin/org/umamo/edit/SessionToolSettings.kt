@@ -50,6 +50,13 @@ interface SessionToolSettings {
 	fun setUvCursor(u: Float, v: Float)
 
 	/**
+	 * Takes the UV editor's cursor off the surface again, back to never placed: it is drawn nowhere, saved nowhere,
+	 * and an operation that uses it as a point reads the stored origin.  What a cancelled cursor scrub restores when
+	 * the cursor was unplaced before the scrub began.
+	 */
+	fun clearUvCursor()
+
+	/**
 	 * What a modal Scale / Rotate turns the selection about (the Period pie / the header dropdown).
 	 * Transient editor state - it survives mode switches but is never snapshotted; the default is
 	 * Blender's Median Point.
