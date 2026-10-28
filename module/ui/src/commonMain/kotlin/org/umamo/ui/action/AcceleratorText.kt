@@ -21,8 +21,6 @@ fun formatAccelerator(chord: KeyChord): String = formatAccelerator(chord, primar
  * A literal Control only ever appears on macOS, where Control is not the primary modifier, so it always
  * reads as the Control glyph "⌃".
  *
- * formatAccelerator の純粋核。主修飾ラベルを引数で受け取り、決定的にテストできるようにする。
- *
  * @param KeyChord chord The chord to format.
  * @param String primaryLabel The platform label for the primary modifier ("Ctrl" or "⌘").
  * @return String The display hint.

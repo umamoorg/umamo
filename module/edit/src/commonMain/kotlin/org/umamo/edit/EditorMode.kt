@@ -10,8 +10,6 @@ import org.umamo.runtime.model.PuppetModel
  *
  * Posing has a mode of its own rather than living in Object mode, so a drag in Object mode always means
  * "move the rest placement" and never silently means "pose this" depending on what is selected.
- *
- * エディタの操作モード（Blender 流）。オブジェクトモードは要素全体を選択し、編集モードは内部を編集する。
  */
 enum class EditorMode {
 	/** Whole-entity selection and rest placement — the default. */
