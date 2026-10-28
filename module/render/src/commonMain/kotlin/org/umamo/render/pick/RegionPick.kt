@@ -3,9 +3,10 @@ package org.umamo.render.pick
 import org.umamo.runtime.model.DrawableId
 
 /*
- * Region enclosure for object-mode box / circle select.  Object selection is whole-drawable, so a region
- * selects a drawable by its geometry CENTROID (the mean of its posed world vertices), Blender's object-mode
- * rule: a drawable is selected when its centroid falls inside the box or circle.  Centroid-inside is stable
+ * Region enclosure for object-mode box / circle select.  Object selection is whole-object, so a region
+ * selects a drawable by its geometry CENTROID (the mean of its posed world vertices) and a warp by its
+ * lattice's center, Blender's object-mode rule: an object is selected when its anchor falls inside the box
+ * or circle.  Centroid-inside is stable
  * and predictable - a full-canvas layer whose centroid sits at the canvas center is not grabbed by a region
  * that only grazes its edge, unlike an any-vertex-touching rule.
  *
@@ -50,28 +51,29 @@ fun drawableCentroids(worldPositions: Map<DrawableId, FloatArray>): Map<Drawable
 }
 
 /**
- * The drawables whose centroid lies inside the axis-aligned world rectangle (a box select).  Boundaries are
- * inclusive.  The caller normalises the corners, so [minX] <= [maxX] and [minY] <= [maxY] is assumed.
+ * The objects whose anchor lies inside the axis-aligned world rectangle (a box select), in the anchors'
+ * order.  Boundaries are inclusive.  The caller normalises the corners, so [minX] <= [maxX] and [minY] <= [maxY]
+ * is assumed.
  *
- * @param Map<DrawableId, FloatArray> centroids The per-drawable [x, y] centroids (see [drawableCentroids]).
+ * @param Map<Key, FloatArray> anchors The per-object [x, y] anchors (see [drawableCentroids], latticeCenters).
  * @param Float minX The rectangle's low x edge.
  * @param Float minY The rectangle's low y edge.
  * @param Float maxX The rectangle's high x edge.
  * @param Float maxY The rectangle's high y edge.
- * @return Set<DrawableId> The enclosed drawable ids.
+ * @return Set<Key> The enclosed objects.
  */
-fun drawablesInBox(
-	centroids: Map<DrawableId, FloatArray>,
+fun <Key> anchorsInBox(
+	anchors: Map<Key, FloatArray>,
 	minX: Float,
 	minY: Float,
 	maxX: Float,
 	maxY: Float,
-): Set<DrawableId> {
-	val enclosed = LinkedHashSet<DrawableId>()
+): Set<Key> {
+	val enclosed = LinkedHashSet<Key>()
 
-	for ((drawableId, centroid) in centroids) {
-		if (centroid[0] in minX..maxX && centroid[1] in minY..maxY) {
-			enclosed.add(drawableId)
+	for ((key, anchor) in anchors) {
+		if (anchor[0] in minX..maxX && anchor[1] in minY..maxY) {
+			enclosed.add(key)
 		}
 	}
 
@@ -79,30 +81,30 @@ fun drawablesInBox(
 }
 
 /**
- * The drawables whose centroid lies within [radius] of ([centerX], [centerY]) in world space (a circle
- * select brush stamp).  A point exactly on the circle counts as inside.
+ * The objects whose anchor lies within [radius] of ([centerX], [centerY]) in world space (a circle select
+ * brush stamp), in the anchors' order.  A point exactly on the circle counts as inside.
  *
- * @param Map<DrawableId, FloatArray> centroids The per-drawable [x, y] centroids (see [drawableCentroids]).
+ * @param Map<Key, FloatArray> anchors The per-object [x, y] anchors (see [drawableCentroids], latticeCenters).
  * @param Float centerX The brush center x in world space.
  * @param Float centerY The brush center y in world space.
  * @param Float radius The brush radius in world units.
- * @return Set<DrawableId> The enclosed drawable ids.
+ * @return Set<Key> The enclosed objects.
  */
-fun drawablesInCircle(
-	centroids: Map<DrawableId, FloatArray>,
+fun <Key> anchorsInCircle(
+	anchors: Map<Key, FloatArray>,
 	centerX: Float,
 	centerY: Float,
 	radius: Float,
-): Set<DrawableId> {
+): Set<Key> {
 	val radiusSquared = radius * radius
-	val enclosed = LinkedHashSet<DrawableId>()
+	val enclosed = LinkedHashSet<Key>()
 
-	for ((drawableId, centroid) in centroids) {
-		val offsetX = centroid[0] - centerX
-		val offsetY = centroid[1] - centerY
+	for ((key, anchor) in anchors) {
+		val offsetX = anchor[0] - centerX
+		val offsetY = anchor[1] - centerY
 
 		if (offsetX * offsetX + offsetY * offsetY <= radiusSquared) {
-			enclosed.add(drawableId)
+			enclosed.add(key)
 		}
 	}
 

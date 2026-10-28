@@ -39,7 +39,7 @@ internal fun ViewportOverlayState.overlaysJsonOrNull(): JsonElement {
 	val carriesViewportOnlyKeys = surface == OverlaySurface.Viewport2D
 
 	return buildJsonObject {
-		// UMA § 7.3 `overlays`: every key's default is true except the wireframe's.
+		// UMA § 7.3 `overlays`: every key's default is true except the wireframe's and the deformers'.
 		put("all", flagOrNull(showOverlays, defaultValue = true))
 		put("grid", flagOrNull(showGrid, defaultValue = true))
 
@@ -53,6 +53,7 @@ internal fun ViewportOverlayState.overlaysJsonOrNull(): JsonElement {
 		if (carriesViewportOnlyKeys) {
 			put("wireframe", flagOrNull(showWireframe, defaultValue = false))
 			put("selectionTint", flagOrNull(showSelectionTint, defaultValue = true))
+			put("deformers", flagOrNull(showDeformers, defaultValue = false))
 			put("wireframeCulling", flagOrNull(cullHiddenWireframe, defaultValue = true))
 		}
 
@@ -95,6 +96,7 @@ internal fun ViewportOverlayState.restoreOverlays(tree: JsonObject?) {
 		showAxes = booleanOf(tree, "axes") ?: true
 		showWireframe = booleanOf(tree, "wireframe") ?: false
 		showSelectionTint = booleanOf(tree, "selectionTint") ?: true
+		showDeformers = booleanOf(tree, "deformers") ?: false
 		cullHiddenWireframe = booleanOf(tree, "wireframeCulling") ?: true
 	}
 

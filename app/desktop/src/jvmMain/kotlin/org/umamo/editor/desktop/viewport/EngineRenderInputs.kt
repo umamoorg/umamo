@@ -4,6 +4,7 @@ import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
+import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.ModelUpdateKind
@@ -78,7 +79,12 @@ internal class EngineRenderInputs(
 	@Volatile
 	private var meshOverlayBacking: MeshOverlay? = null
 
-	// The eleven overlay colors, from settings; Classic until the host pushes the user's.
+	// The warps whose lattices the puppet areas draw, and in which role, or null for none.  Published whole and
+	// compared by identity, like the mesh overlay: the publisher hands over a new value only when a role changes.
+	@Volatile
+	private var latticeOverlayBacking: LatticeOverlay? = null
+
+	// The overlay colors, from settings; Classic until the host pushes the user's.
 	@Volatile
 	private var meshOverlayPaletteBacking: MeshOverlayPalette = MeshOverlayPalette.Classic
 
@@ -182,6 +188,10 @@ internal class EngineRenderInputs(
 	/** The mesh overlay as last pushed, or null when none is shown. */
 	val meshOverlay: MeshOverlay?
 		get() = meshOverlayBacking
+
+	/** The lattice overlay as last pushed, or null when none is shown. */
+	val latticeOverlay: LatticeOverlay?
+		get() = latticeOverlayBacking
 
 	/** The mesh overlay's colors as last pushed. */
 	val meshOverlayPalette: MeshOverlayPalette
@@ -364,6 +374,20 @@ internal class EngineRenderInputs(
 	fun setMeshOverlay(overlay: MeshOverlay?) {
 		if (overlay !== meshOverlayBacking) {
 			meshOverlayBacking = overlay
+			doPuppetRenderBump()
+		}
+	}
+
+	/**
+	 * Sets the warp lattices the puppet areas draw.  A new instance bumps the puppet render version after the
+	 * value is stored, as [setMeshOverlay] does; the same instance again is a no-op.  The value holds no
+	 * positions, so a pose change never re-publishes it: the pose re-renders the areas on its own.
+	 *
+	 * @param LatticeOverlay? overlay The lattices, or null for none.
+	 */
+	fun setLatticeOverlay(overlay: LatticeOverlay?) {
+		if (overlay !== latticeOverlayBacking) {
+			latticeOverlayBacking = overlay
 			doPuppetRenderBump()
 		}
 	}

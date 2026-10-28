@@ -71,6 +71,7 @@ import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.ViewportSettings
+import org.umamo.ui.viewport.asObjectPickCandidates
 import org.umamo.ui.viewport.gestureOwnsAreaPointer
 import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
@@ -301,6 +302,12 @@ fun rememberPuppetViewportHost(
 	val wireframeDemand = remember(service) { WireframeDemand() }
 	LaunchedEffect(service, session) {
 		publishMeshOverlay(service, session, snapshotFlow { meshOverlaySizes.value }, wireframeDemand.wanted)
+	}
+	// The warp lattices every 2D area draws over the art in Object and Pose mode: which warps, in which role.  The
+	// renderer reads their points off the pose it draws, so only a mode, selection, or model change publishes.
+	val latticeSizes = rememberUpdatedState(latticeOverlaySizes(LocalDensity.current))
+	LaunchedEffect(service, session) {
+		publishLatticeOverlay(service, session, snapshotFlow { latticeSizes.value })
 	}
 	// How many drawables have no usable artwork: the mapping failures the plan knows up front, plus the
 	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
@@ -570,15 +577,15 @@ fun rememberPuppetViewportHost(
 									// Edit mode's Alt+Q over a stack: picking a row switches the edited mesh
 									// (never the object selection - that follows inside switchEditDrawable).
 									overlap =
-										overlapStateFrom(service, position, candidates) { id ->
-											session.switchEditDrawable(id)
+										overlapStateFrom(service, session.model.value, position, candidates.asObjectPickCandidates()) { target ->
+											(target as? SelectionTarget.Drawable)?.let { picked -> session.switchEditDrawable(picked.id) }
 										}
 								},
 							)
 							// The Object-mode gizmo: the mode-exclusive sibling of the Edit gizmo (each self-gates to
-							// its mode). It owns the whole primary-button surface in Object mode - the click pick
-							// (including the Alt overlap popup), the un-armed box drag, and the armed box / circle
-							// tools and object G / S / R. Same frame-camera projection as the Edit gizmo so the
+							// its mode). It owns the whole primary-button surface in Object and Pose mode - the click
+							// pick (including the Alt overlap popup), the un-armed box drag, and the armed box / circle
+							// tools, and in Object mode object G / S / R. Same frame-camera projection as the Edit gizmo so the
 							// affordance stays glued to the art.
 							ViewportObjectGizmoOverlay(
 								areaId = areaId,
@@ -589,8 +596,8 @@ fun rememberPuppetViewportHost(
 								heightPx = heightPx,
 								onOverlapRequest = { position, candidates ->
 									overlap =
-										overlapStateFrom(service, position, candidates) { id ->
-											session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(id)))
+										overlapStateFrom(service, session.model.value, position, candidates) { target ->
+											session.setSelection(SelectionOps.replace(target))
 										}
 								},
 							)

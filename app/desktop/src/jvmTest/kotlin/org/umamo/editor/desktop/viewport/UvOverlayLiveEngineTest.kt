@@ -17,6 +17,7 @@ import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.LiveParams
@@ -89,7 +90,7 @@ class UvOverlayLiveEngineTest {
 	private fun bothFacesSelected(): DirectMeshOverlay {
 		val mesh =
 			MeshOverlayMesh(
-				drawableId = pageId,
+				owner = ElementOwner.Drawable(pageId),
 				vertexCount = 4,
 				edgeEndpoints = intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3),
 				vertexFlags = ByteArray(0),
@@ -102,8 +103,8 @@ class UvOverlayLiveEngineTest {
 
 		return DirectMeshOverlay(
 			MeshOverlay(MeshOverlayKind.Edit, MeshOverlaySelectMode.Edge, listOf(mesh), MeshOverlaySizes(3.5f, 1f, 2.5f)),
-			mapOf(pageId to floatArrayOf(0f, 0f, 16f, 0f, 0f, 16f, 16f, 16f)),
-			mapOf(pageId to intArrayOf(0, 1, 2, 1, 3, 2)),
+			mapOf<ElementOwner, FloatArray>(ElementOwner.Drawable(pageId) to floatArrayOf(0f, 0f, 16f, 0f, 0f, 16f, 16f, 16f)),
+			mapOf<ElementOwner, IntArray>(ElementOwner.Drawable(pageId) to intArrayOf(0, 1, 2, 1, 3, 2)),
 		)
 	}
 

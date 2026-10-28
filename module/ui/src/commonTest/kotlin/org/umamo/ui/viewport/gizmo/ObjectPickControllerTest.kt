@@ -2,12 +2,13 @@ package org.umamo.ui.viewport.gizmo
 
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
-import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.ObjectPickCandidate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -73,9 +74,9 @@ class ObjectPickControllerTest {
 	/** An Alt click over exactly one candidate selects it directly, no picker involved. */
 	@Test
 	fun altPickOverOneCandidateSelectsDirectly() {
-		val resolution = resolveAltOverlapPick(listOf(PickCandidate(DrawableId("a"), frontRank = 1f, centrality = 0.5f)))
+		val resolution = resolveAltOverlapPick(listOf(ObjectPickCandidate(SelectionTarget.Drawable(DrawableId("a")), centrality = 0.5f)))
 		val direct = assertIs<AltPickResolution.SelectSingle>(resolution, "a single candidate skips the picker")
-		assertEquals(DrawableId("a"), direct.id, "the sole candidate is the pick")
+		assertEquals(SelectionTarget.Drawable(DrawableId("a")), direct.target, "the sole candidate is the pick")
 	}
 
 	/** An Alt click over a stack opens the overlap picker with the candidates in their given order. */
@@ -83,12 +84,13 @@ class ObjectPickControllerTest {
 	fun altPickOverAStackShowsTheOverlapPickerInOrder() {
 		val candidates =
 			listOf(
-				PickCandidate(DrawableId("front"), frontRank = 2f, centrality = 0.2f),
-				PickCandidate(DrawableId("back"), frontRank = 1f, centrality = 0.9f),
+				ObjectPickCandidate(SelectionTarget.Deformer(DeformerId("lattice"))),
+				ObjectPickCandidate(SelectionTarget.Drawable(DrawableId("front")), centrality = 0.2f),
+				ObjectPickCandidate(SelectionTarget.Drawable(DrawableId("back")), centrality = 0.9f),
 			)
 		val resolution = resolveAltOverlapPick(candidates)
-		val overlap = assertIs<AltPickResolution.ShowOverlap>(resolution, "two candidates need the picker")
-		assertEquals(candidates, overlap.candidates, "the front-to-back order is preserved")
+		val overlap = assertIs<AltPickResolution.ShowOverlap>(resolution, "a stack needs the picker")
+		assertEquals(candidates, overlap.candidates, "the stack's order is preserved")
 	}
 
 	/** Plain box replaces; additive extends with the last enclosed drawable active. */

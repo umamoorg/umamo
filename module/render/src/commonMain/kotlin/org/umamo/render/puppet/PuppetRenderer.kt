@@ -83,6 +83,8 @@ private const val MINIMUM_DRAWN_OPACITY = 0.5f / 255f
  *  - [MeshOverlayResidency] and [MeshOverlayEncoder]: the 2D mesh overlay's store and buffers, its
  *    capture, and the overlay draws of every scene.
  *  - [UvSceneResidency]: each UV area's overlay store and buffers, and its placement crops.
+ *  - The lattice layer ([LatticeOverlay], [latticeLayerOf]): the warps' lattices drawn over the 2D art, read
+ *    from the pose being drawn, in a [DirectOverlayResidency] of its own.
  *
  * What stays here is what ties those to one model and one pose: the current model, the pose's resolved
  * plan, the view the host set, and what is published to the UI thread for picking.
@@ -196,6 +198,21 @@ class PuppetRenderer(
 	// thread only.
 	private val uvScenes = HashMap<String, UvSceneResidency>()
 
+	// Which warps' lattices the 2D viewport draws, and in which role: swapped whole and read once per frame,
+	// like the mesh overlay.  The layer drawn from it is rebuilt from the pose being drawn only when this or the
+	// pose changes, and its device objects follow the layer between frames.  The layer and its residency are
+	// render-thread only.
+	@Volatile
+	private var latticeOverlay: LatticeOverlay? = null
+	private var latticeLayer: DirectMeshOverlay? = null
+	private val latticeResidency = DirectOverlayResidency(device)
+
+	// The lattices of the last pose, with the pose and model they were read from: built on first request from
+	// either thread (the layer on the render thread, the picks on the UI thread) and swapped whole, so a racing
+	// rebuild only repeats the same pure computation.
+	@Volatile
+	private var latticePointsCache: LatticePointsCache? = null
+
 	// The live model used for the per-pose deform eval, the render order, and the reconcile diff. A var so
 	// an edit can re-push it via updateModel. @Volatile because the render thread writes it while the UI
 	// thread reads it (pickGeometry); a PuppetModel is immutable, so the reference swap is a safe publish.
@@ -300,6 +317,8 @@ class PuppetRenderer(
 		}
 
 		uvScenes.clear()
+		latticeLayer = null
+		latticeResidency.dispose()
 		overlayResidency.dispose()
 		residency.dispose()
 		art.dispose()
@@ -414,6 +433,17 @@ class PuppetRenderer(
 	 */
 	fun setMeshOverlay(overlay: MeshOverlay?) {
 		meshOverlay = overlay
+	}
+
+	/**
+	 * Sets which warps' lattices the 2D viewport draws over the art, and in which role, or none.  A whole-value
+	 * swap the next frame takes up; each listed warp's control points come from the pose that frame draws, so a
+	 * pose change needs no new value.  Safe from any thread; a capture never draws it.
+	 *
+	 * @param LatticeOverlay? overlay The lattices to draw, or null for none.
+	 */
+	fun setLatticeOverlay(overlay: LatticeOverlay?) {
+		latticeOverlay = overlay
 	}
 
 	/**
@@ -555,6 +585,29 @@ class PuppetRenderer(
 	}
 
 	/**
+	 * Every warp lattice the current pose draws, in the model's deformer order, in world space: the points the
+	 * lattice layer draws and every lattice pick reads, so a click lands on what is on screen.  A warp the pose
+	 * hides is absent.  Pure CPU with no device calls, so it is safe from the UI thread; empty before the first
+	 * pose.
+	 *
+	 * @return Map<DeformerId, LatticePoints> The lattices by warp.
+	 */
+	fun latticeWorldPoints(): Map<DeformerId, LatticePoints> {
+		val inputs = lastPoseInputs ?: return emptyMap()
+		val model = currentModel
+		val cached = latticePointsCache
+
+		if (cached != null && cached.inputs === inputs && cached.model === model) {
+			return cached.lattices
+		}
+
+		val lattices = latticePointsOf(model.deformers, inputs.deformerWorlds, cached?.lattices ?: emptyMap())
+		latticePointsCache = LatticePointsCache(inputs, model, lattices)
+
+		return lattices
+	}
+
+	/**
 	 * The world-space extent of what the current pose actually draws, from the same CPU deform as
 	 * [pickGeometry] - so, like it, safe from the UI thread.  Where [contentBounds] measures the rest pose
 	 * a view fits to, this measures the pose on screen, which is what a capture of it frames.
@@ -623,6 +676,10 @@ class PuppetRenderer(
 		// or draws it at an opacity of zero; an Edit overlay still draws its cage then, and the encoder leaves out
 		// its wireframe meshes.
 		overlayResidency.apply(overlay, residency.residents, currentModel)
+		// The lattice layer follows the held value the same way, whether or not this frame draws it.
+		val lattices = latticeOverlay
+		latticeLayer = lattices?.let { held -> latticeLayerOf(held, latticeWorldPoints(), latticeLayer) }
+		latticeResidency.applyOverlay(latticeLayer)
 		val drawsWireframe = overlays.wireframe && overlays.wireframeOpacity > 0f
 		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || drawsWireframe) }
 		// The draw-order pass is paid only by a frame that draws a wireframe and culls it: an Object-mode
@@ -642,6 +699,7 @@ class PuppetRenderer(
 			drawn,
 			overlays,
 			cullsWireframe,
+			drawLattices = latticeLayer != null && overlays.meshOverlay,
 		)
 	}
 
@@ -663,6 +721,8 @@ class PuppetRenderer(
 	 *   with a grid backdrop, and whether and how opaque the overlay's wireframe meshes draw.
 	 * @param Boolean         cullWireframe  Whether the frame writes the draw order first and culls the
 	 *   wireframe by it (a capture never does).
+	 * @param Boolean         drawLattices   Whether the lattice layer draws over the art and the mesh overlay; its
+	 *   device objects must already reflect it (a capture never draws it).
 	 */
 	private fun renderFrame(
 		target: RenderTarget,
@@ -676,6 +736,7 @@ class PuppetRenderer(
 		overlay: MeshOverlay?,
 		overlays: FrameOverlays,
 		cullWireframe: Boolean = false,
+		drawLattices: Boolean = false,
 	) {
 		sideTargets.ensure(viewportWidth, viewportHeight)
 		val frame = device.beginFrame()
@@ -741,14 +802,21 @@ class PuppetRenderer(
 			}
 		pass = planEncoder.encodePlan(frame, inputs, currentPlan, target, pass)
 
-		if (overlay != null) {
+		if (overlay != null || drawLattices) {
 			if (orderTarget != null) {
 				// The edges sample the order, so they draw in a pass that no longer has it attached.
 				pass.end()
 				pass = frame.beginRenderPass(passSpec(target, LoadAction.Load, viewportWidth, viewportHeight))
 			}
 
-			overlayEncoder.encodeDraws(pass, inputs)
+			if (overlay != null) {
+				overlayEncoder.encodeDraws(pass, inputs)
+			}
+
+			// Over the mesh overlay: a lattice is what a click in Object or Pose mode takes first.
+			if (drawLattices) {
+				overlayEncoder.encodeLatticeDraws(pass, latticeResidency, inputs, overlays.allLattices)
+			}
 		}
 
 		pass.end()
@@ -1001,7 +1069,7 @@ class PuppetRenderer(
 		if (scene != null && overlays.meshOverlay) {
 			overlayEncoder.encodeDirectDraws(
 				pass,
-				scene,
+				scene.overlay,
 				OverlayFrame(affine, viewportWidth, viewportHeight, gridPixelScale, palette, viewportWidth, viewportHeight, overlays.wireframe, overlays.wireframeOpacity),
 			)
 		}
@@ -1075,3 +1143,17 @@ class PuppetRenderer(
 		bboxReady = true
 	}
 }
+
+/**
+ * The lattices one pose produced, with the pose inputs and model they were read from, so a request against the
+ * same pair reads them back rather than rebuilding them.
+ *
+ * @property PoseDeformInputs inputs The pose.
+ * @property PuppetModel model The model.
+ * @property Map<DeformerId, LatticePoints> lattices The lattices, in model order.
+ */
+private class LatticePointsCache(
+	val inputs: PoseDeformInputs,
+	val model: PuppetModel,
+	val lattices: Map<DeformerId, LatticePoints>,
+)

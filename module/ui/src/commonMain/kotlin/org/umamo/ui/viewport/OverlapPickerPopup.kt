@@ -1,9 +1,11 @@
 package org.umamo.ui.viewport
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -35,41 +37,50 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import org.umamo.runtime.model.DrawableId
+import org.umamo.edit.SelectionTarget
 import org.umamo.ui.kit.AtPointPositionProvider
+import org.umamo.ui.kit.DefaultThumbnailSize
 import org.umamo.ui.kit.Surface
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.ThumbnailSlot
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.theme.UmamoIcon
+import org.umamo.ui.theme.drawIcon
 
 /**
- * One row of the overlap picker: a drawable to select, its display label, and an optional layer-art
- * thumbnail (shown in the row's leading slot when present, or an empty slot when null).
+ * One row of the overlap picker: a target to select, its display label, and what its leading slot shows - a
+ * drawable's layer-art thumbnail, or the icon of a deformer's kind, or nothing (an untextured drawable).
  *
- * @property DrawableId id        The drawable this row selects.
- * @property String label         The display label (the Outliner shows the same).
+ * @property SelectionTarget target What this row selects.
+ * @property String label The display label (the Outliner shows the same).
  * @property ImageBitmap? thumbnail A layer-art thumbnail for the leading slot, or null.
+ * @property UmamoIcon? icon An icon for the leading slot when there is no thumbnail, or null.
  */
-data class OverlapEntry(val id: DrawableId, val label: String, val thumbnail: ImageBitmap? = null)
+data class OverlapEntry(
+	val target: SelectionTarget,
+	val label: String,
+	val thumbnail: ImageBitmap? = null,
+	val icon: UmamoIcon? = null,
+)
 
 /**
- * A command-palette-styled popup for choosing among art meshes stacked under the cursor, when a single
- * click is ambiguous. Anchored at [anchor]; lists [entries] front-to-back with [defaultIndex] (the most
- * "unambiguously clicked" mesh) pre-highlighted. There is exactly one highlight state (Blender-style,
+ * A command-palette-styled popup for choosing among the art meshes and warp lattices stacked under the cursor,
+ * when a single click is ambiguous. Anchored at [anchor]; lists [entries] in the stack's order with
+ * [defaultIndex] (what a plain click there would take) pre-highlighted. There is exactly one highlight state (Blender-style,
  * no separate hover): moving the mouse over a row and pressing Up/Down both drive it, Enter or a click
  * picks it, Escape or a click outside dismisses. The popup itself is shared, ordinary Compose content;
  * desktop's Object gizmo triggers it with an Alt-click, and Android's own trigger (a pen long-press) is
  * intended for once its GLES viewport and gizmo overlay land. The popup never touches the selection
- * state; it reports the chosen drawable through [onPick] and closure through [onDismiss].
+ * state; it reports the chosen target through [onPick] and closure through [onDismiss].
  *
  * @param IntOffset anchor          The cursor position to anchor the popup at, local to the popup's
  *                                  parent layout node (AtPointPositionProvider offsets from the
  *                                  parent's bounds, clamped into the window).
  * @param List entries              The candidates, front-to-back.
  * @param Int defaultIndex          The pre-highlighted row (the centrality winner).
- * @param Function onPick           Called with the chosen drawable id.
+ * @param Function onPick           Called with the chosen target.
  * @param Function onDismiss        Called to close without choosing.
  */
 @Composable
@@ -77,7 +88,7 @@ fun OverlapPickerPopup(
 	anchor: IntOffset,
 	entries: List<OverlapEntry>,
 	defaultIndex: Int,
-	onPick: (DrawableId) -> Unit,
+	onPick: (SelectionTarget) -> Unit,
 	onDismiss: () -> Unit,
 ) {
 	if (entries.isEmpty()) {
@@ -119,7 +130,7 @@ fun OverlapPickerPopup(
 								}
 
 								Key.Enter, Key.NumPadEnter -> {
-									onPick(entries[highlighted].id)
+									onPick(entries[highlighted].target)
 									true
 								}
 
@@ -166,13 +177,25 @@ fun OverlapPickerPopup(
 										}
 									}
 								}
-								.clickable { onPick(entry.id) }
+								.clickable { onPick(entry.target) }
 								.padding(horizontal = 12.dp, vertical = 8.dp),
 						verticalAlignment = Alignment.CenterVertically,
 					) {
 						// Leading layer-art thumbnail. A checker backdrop sits behind it so transparent art reads as
-						// a clear silhouette; an untextured drawable leaves the slot empty so label-only rows align.
-						ThumbnailSlot(thumbnail = entry.thumbnail)
+						// a clear silhouette; a deformer shows its kind's icon in the same slot, and an untextured
+						// drawable leaves the slot empty so label-only rows align.
+						val icon = entry.icon
+
+						if (entry.thumbnail == null && icon != null) {
+							Box(modifier = Modifier.size(DefaultThumbnailSize), contentAlignment = Alignment.Center) {
+								Canvas(modifier = Modifier.size(20.dp)) {
+									drawIcon(icon, colors.outlinerDeformTint)
+								}
+							}
+						} else {
+							ThumbnailSlot(thumbnail = entry.thumbnail)
+						}
+
 						Spacer(modifier = Modifier.width(8.dp))
 						Text(
 							text = entry.label,

@@ -69,29 +69,43 @@ fun EditorSession.invertMeshSelection() {
 }
 
 /**
- * Selects every selectable entity in the model (Object mode's Select All) as one undo step.  A no-op
- * outside Object mode - so the bound command stays mode-agnostic (it dispatches to [selectAllMeshElements]
- * in Edit mode).  Not a document edit.
+ * Selects every selectable entity in the model (Object mode's Select All), or every selectable deformer in Pose
+ * mode, which selects deformers alone, as one undo step.  A no-op in Edit mode - so the bound command stays
+ * mode-agnostic (it dispatches to [selectAllMeshElements] there).  Not a document edit.
  */
 fun EditorSession.selectAllObjects() {
-	if (mode.value != EditorMode.Object) {
+	if (mode.value == EditorMode.Edit) {
 		return
 	}
 
-	setSelection(SelectionOps.selectAll(selection.value, model.value))
+	setSelection(SelectionOps.selectAll(selection.value, model.value, objectSelectionDomain(mode.value)))
 }
 
 /**
- * Inverts the object selection over every selectable entity (Object mode's Ctrl+I) as one undo step.  A
- * no-op outside Object mode.  Not a document edit.
+ * Inverts the object selection over every selectable entity (Object mode's Ctrl+I), or over the deformers in
+ * Pose mode, as one undo step.  A no-op in Edit mode.  Not a document edit.
  */
 fun EditorSession.invertObjectSelection() {
-	if (mode.value != EditorMode.Object) {
+	if (mode.value == EditorMode.Edit) {
 		return
 	}
 
-	setSelection(SelectionOps.invert(selection.value, model.value))
+	setSelection(SelectionOps.invert(selection.value, model.value, objectSelectionDomain(mode.value)))
 }
+
+/**
+ * The targets a whole-selection operation covers in [mode]: every kind in Object mode, the deformers alone in
+ * Pose mode, which poses and keys deformers and selects nothing else.
+ *
+ * @param EditorMode mode The editor mode.
+ * @return Function The domain filter.
+ */
+private fun objectSelectionDomain(mode: EditorMode): (SelectionTarget) -> Boolean =
+	if (mode == EditorMode.Pose) {
+		{ target -> target is SelectionTarget.Deformer }
+	} else {
+		{ true }
+	}
 
 /**
  * Re-seeds the Edit session onto one drawable (Alt+Q's switch), as ONE undo step covering both

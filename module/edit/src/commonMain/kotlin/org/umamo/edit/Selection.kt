@@ -198,31 +198,37 @@ object SelectionOps {
 	}
 
 	/**
-	 * Selects every selectable entity in the model (Blender's Select All in object mode).  Keeps the current
-	 * active target (it is necessarily still selected); with none, the last enumerated target becomes active.
+	 * Selects every selectable entity of [domain] in the model (Blender's Select All in object mode, or in pose
+	 * mode over deformers alone), leaving the selected targets outside the domain as they are.  Keeps the current
+	 * active target when it is still selected; otherwise the last enumerated domain target becomes active.
 	 *
 	 * @param Selection selection The current selection (its active target is preserved when possible).
 	 * @param PuppetModel model The rig whose entities to select.
-	 * @return Selection The selection holding every selectable target.
+	 * @param Function domain Which targets the operation covers; every target by default.
+	 * @return Selection The selection holding every selectable target of the domain.
 	 */
-	fun selectAll(selection: Selection, model: PuppetModel): Selection {
-		val allTargets = allSelectableTargets(model)
-		val active = selection.active?.takeIf { target -> target in allTargets } ?: allTargets.lastOrNull()
+	fun selectAll(selection: Selection, model: PuppetModel, domain: (SelectionTarget) -> Boolean = { true }): Selection {
+		val domainTargets = allSelectableTargets(model).filterTo(LinkedHashSet()) { target -> domain(target) }
+		val targets = selection.targets.filterTo(LinkedHashSet()) { target -> !domain(target) } + domainTargets
+		val active = selection.active?.takeIf { target -> target in targets } ?: domainTargets.lastOrNull()
 
-		return Selection(allTargets, active)
+		return Selection(targets, active)
 	}
 
 	/**
-	 * Inverts the object selection (Blender's Ctrl+I): every selectable entity not currently selected
-	 * becomes selected and vice versa.  The active target is kept only when it survives the inversion, which
-	 * in practice drops it (a selected active target is deselected by the inversion).
+	 * Inverts the object selection within [domain] (Blender's Ctrl+I): every selectable entity of the domain not
+	 * currently selected becomes selected and vice versa, and the selected targets outside the domain stay as they
+	 * are.  The active target is kept only when it survives the inversion, which for a domain target in practice
+	 * drops it (a selected active target is deselected by the inversion).
 	 *
 	 * @param Selection selection The selection to invert.
 	 * @param PuppetModel model The rig whose entities define the domain.
+	 * @param Function domain Which targets the operation covers; every target by default.
 	 * @return Selection The inverted selection.
 	 */
-	fun invert(selection: Selection, model: PuppetModel): Selection {
-		val inverted = allSelectableTargets(model) - selection.targets
+	fun invert(selection: Selection, model: PuppetModel, domain: (SelectionTarget) -> Boolean = { true }): Selection {
+		val domainTargets = allSelectableTargets(model).filterTo(LinkedHashSet()) { target -> domain(target) }
+		val inverted = selection.targets.filterTo(LinkedHashSet()) { target -> !domain(target) } + (domainTargets - selection.targets)
 
 		return Selection(inverted, selection.active?.takeIf { target -> target in inverted })
 	}

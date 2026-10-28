@@ -22,12 +22,12 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
-import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.model.LocalSessionAtlasPages
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
 import org.umamo.ui.viewport.LocalAreaOverlays
+import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.LocalModalDriveDispatcher
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
@@ -117,7 +117,7 @@ internal fun UvObjectGizmoOverlay(
 	placementSurface: UvPlacementSurface?,
 	placementDragStatusState: MutableState<PlacementDragStatus?>,
 	placementSceneState: UvPlacementSceneState,
-	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
+	onOverlapRequest: (Offset, List<ObjectPickCandidate>) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val mode by session.mode.collectAsState()

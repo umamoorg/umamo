@@ -434,9 +434,10 @@ internal class OffscreenRenderEngine(
 		// Read AFTER the versions above, like the selection: a publish stores its value before it bumps, so one
 		// landing after that read leaves this render stamped with the older version and the area renders again.
 		// Applying these in the hand-off instead would let an area stamp itself fresh over a frame that drew the
-		// outgoing overlay.  The puppet's overlay is renderer-wide state a UV render never reads (a UV area's
-		// overlay rides its content, below); the palette colors both.
+		// outgoing overlay.  The puppet's overlay and lattices are renderer-wide state a UV render never reads (a
+		// UV area's overlay rides its content, below); the palette colors both.
 		renderer.setMeshOverlay(inputs.meshOverlay)
+		renderer.setLatticeOverlay(inputs.latticeOverlay)
 		renderer.setMeshOverlayPalette(inputs.meshOverlayPalette)
 
 		// The shown set is applied in the hand-off's pose block (before setPose filters the draw list by it).

@@ -40,6 +40,9 @@
 * From @thesillydarku on Twitter: "I had to manually add the "-Xmx4g" flag otherwise got java memory heap errors when trying to export to CMO3"
 	* https://fixupx.com/thesillydarku/status/2102974212952707294
 
+## Deformer Generation
+* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
+
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 * Automatic visual matching of imported artwork layers to layers cut from a texture atlas after a MOC3 to CMO3 conversion.

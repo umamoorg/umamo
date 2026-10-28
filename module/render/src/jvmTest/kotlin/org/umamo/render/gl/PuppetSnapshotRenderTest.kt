@@ -24,6 +24,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -393,7 +394,7 @@ class PuppetSnapshotRenderTest {
 			MeshOverlay(
 				MeshOverlayKind.Edit,
 				MeshOverlaySelectMode.Vertex,
-				listOf(MeshOverlayMesh(quadId, 4, intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3), ByteArray(4), ByteArray(5), ByteArray(2), null, null, null)),
+				listOf(MeshOverlayMesh(ElementOwner.Drawable(quadId), 4, intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3), ByteArray(4), ByteArray(5), ByteArray(2), null, null, null)),
 				MeshOverlaySizes(4f, 2f, 3f),
 			),
 		)

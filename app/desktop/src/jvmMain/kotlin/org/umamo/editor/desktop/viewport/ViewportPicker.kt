@@ -1,15 +1,22 @@
 package org.umamo.editor.desktop.viewport
 
 import androidx.compose.ui.graphics.ImageBitmap
+import org.umamo.render.ContentBounds
+import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.render.pick.drawableCentroids
+import org.umamo.render.pick.latticeCenters
+import org.umamo.render.pick.latticeHitsAt
 import org.umamo.render.pick.pickAllDrawables
 import org.umamo.render.pick.pickDrawable
 import org.umamo.render.pick.screenToWorldX
 import org.umamo.render.pick.screenToWorldZ
+import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.PuppetRenderer
+import org.umamo.render.puppet.latticesDrawnIn
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasKeyByDrawable
@@ -185,6 +192,81 @@ internal class ViewportPicker(
 		val geometry = renderer.pickGeometry() ?: return emptyMap()
 
 		return drawableCentroids(geometry.worldPositions)
+	}
+
+	/**
+	 * The warps whose lattice a frame drawing with [overlays] shows under the cursor, best first, over the same
+	 * lattice points the renderer draws ([PuppetRenderer.latticeWorldPoints]).
+	 *
+	 * @param LatticeOverlay? overlay The lattices the renderer holds, or null.
+	 * @param FrameOverlays overlays The area's frame options, which decide which lattices it draws.
+	 * @param ViewportCamera camera The area's camera.
+	 * @param Int width The area's width in pixels.
+	 * @param Int height The area's height in pixels.
+	 * @param Float cursorXpx The cursor x in viewport pixels.
+	 * @param Float cursorYpx The cursor y in viewport pixels.
+	 * @param Float pointRadiusPx How near a control point must be.
+	 * @param Float lineRadiusPx How near a grid line must be.
+	 * @return List<DeformerId> The hit warps, best first.
+	 */
+	fun latticePicksAt(
+		overlay: LatticeOverlay?,
+		overlays: FrameOverlays,
+		camera: ViewportCamera,
+		width: Int,
+		height: Int,
+		cursorXpx: Float,
+		cursorYpx: Float,
+		pointRadiusPx: Float,
+		lineRadiusPx: Float,
+	): List<DeformerId> {
+		val drawn = latticesDrawnIn(overlay, renderer.latticeWorldPoints(), overlays)
+
+		return latticeHitsAt(drawn, cursorXpx, cursorYpx, pointRadiusPx, lineRadiusPx, camera, width, height)
+	}
+
+	/**
+	 * The world-space center of each lattice a frame drawing with [overlays] shows, for box and circle select.
+	 *
+	 * @param LatticeOverlay? overlay The lattices the renderer holds, or null.
+	 * @param FrameOverlays overlays The area's frame options.
+	 * @return Map<DeformerId, FloatArray> The [x, y] world center per drawn warp, in model order.
+	 */
+	fun latticeWorldCenters(overlay: LatticeOverlay?, overlays: FrameOverlays): Map<DeformerId, FloatArray> =
+		latticeCenters(latticesDrawnIn(overlay, renderer.latticeWorldPoints(), overlays))
+
+	/**
+	 * The world-space extent of the given warps' lattices at the current pose.
+	 *
+	 * @param Set<DeformerId> ids The warps.
+	 * @return ContentBounds? The extent, or null when none of them is drawn at this pose.
+	 */
+	fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? {
+		var minX = Float.POSITIVE_INFINITY
+		var minZ = Float.POSITIVE_INFINITY
+		var maxX = Float.NEGATIVE_INFINITY
+		var maxZ = Float.NEGATIVE_INFINITY
+
+		for ((deformerId, lattice) in renderer.latticeWorldPoints()) {
+			if (deformerId !in ids) {
+				continue
+			}
+
+			val world = lattice.world
+
+			for (pointIndex in 0 until world.size / 2) {
+				minX = minOf(minX, world[pointIndex * 2])
+				maxX = maxOf(maxX, world[pointIndex * 2])
+				minZ = minOf(minZ, world[pointIndex * 2 + 1])
+				maxZ = maxOf(maxZ, world[pointIndex * 2 + 1])
+			}
+		}
+
+		if (minX > maxX) {
+			return null
+		}
+
+		return ContentBounds(minX, minZ, maxX - minX, maxZ - minZ)
 	}
 
 	/**

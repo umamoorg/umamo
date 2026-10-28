@@ -14,9 +14,11 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.capturedOver
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.ModelUpdateKind
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.DrawableThumbnailProvider
@@ -182,6 +184,23 @@ class OffscreenPuppetService(
 	override fun setMeshOverlay(overlay: MeshOverlay?) = inputs.setMeshOverlay(overlay)
 
 	override fun setMeshOverlayPalette(palette: MeshOverlayPalette) = inputs.setMeshOverlayPalette(palette)
+
+	override fun setLatticeOverlay(overlay: LatticeOverlay?) = inputs.setLatticeOverlay(overlay)
+
+	override fun latticePicksAt(areaId: String, cursorXpx: Float, cursorYpx: Float, pointRadiusPx: Float, lineRadiusPx: Float): List<DeformerId> {
+		val view = registry.viewFor(areaId) ?: return emptyList()
+		val overlays = registry.areaOverlays(areaId) ?: return emptyList()
+
+		return picker.latticePicksAt(inputs.latticeOverlay, overlays.frame, view.camera, view.width, view.height, cursorXpx, cursorYpx, pointRadiusPx, lineRadiusPx)
+	}
+
+	override fun latticeWorldCenters(areaId: String): Map<DeformerId, FloatArray> {
+		val overlays = registry.areaOverlays(areaId) ?: return emptyMap()
+
+		return picker.latticeWorldCenters(inputs.latticeOverlay, overlays.frame)
+	}
+
+	override fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? = picker.latticeWorldExtent(ids)
 
 	override fun pickAt(areaId: String, cursorXpx: Float, cursorYpx: Float): DrawableId? {
 		val view = registry.viewFor(areaId) ?: return null

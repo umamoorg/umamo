@@ -35,6 +35,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
@@ -1485,7 +1486,7 @@ class RenderPassStructureTest {
 					edgeFlags[activeEdge] = OVERLAY_FLAG_ACTIVE
 				}
 
-				MeshOverlayMesh(DrawableId(id), vertexCount, quadEdges, vertexFlags, edgeFlags, ByteArray(2), activeVertex, activeEdge, null, wireframeOnly = id in wireframeOnly)
+				MeshOverlayMesh(ElementOwner.Drawable(DrawableId(id)), vertexCount, quadEdges, vertexFlags, edgeFlags, ByteArray(2), activeVertex, activeEdge, null, wireframeOnly = id in wireframeOnly)
 			},
 			MeshOverlaySizes(3.5f, 1f, 2.5f),
 		)
