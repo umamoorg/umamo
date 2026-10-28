@@ -7,16 +7,19 @@ import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.help.ProjectInfo
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaOverlayHub
+import org.umamo.ui.workspace.AreaToolbarHub
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.area.AreaDragController
 import org.umamo.ui.workspace.area.SplitterDragCancelController
 import org.umamo.ui.workspace.layout.WorkspaceLayoutController
 import org.umamo.ui.workspace.layout.defaultLayout
 import org.umamo.ui.workspace.operationstrip.OperationStripState
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -269,12 +272,21 @@ class CommandTableOrderTest {
 		assertEquals(1, checks)
 	}
 
-	/** The viewport chrome toggles the settings-backed shell registers; they write settings, so they build over an in-memory tree. */
+	/** The sidebar tab commands, which step the hovered area's sidebar. */
+	@Test
+	fun sidebarTableIsComplete() {
+		assertEquals(
+			listOf("view.sidebar.nextTab", "view.sidebar.previousTab"),
+			sidebarCommands(AreaSidebarHub(), routing()).map { command -> command.id },
+		)
+	}
+
+	/** The viewport chrome toggles, which flip the hovered viewport's own toolbar and sidebar. */
 	@Test
 	fun viewportChromeTableIsComplete() {
 		assertEquals(
 			listOf("view.toggleToolbar", "view.toggleSidebar"),
-			viewportChromeCommands(inMemorySettings()).map { command -> command.id },
+			viewportChromeCommands(AreaToolbarHub(), AreaSidebarHub(), routing()) { ViewportChromeState() }.map { command -> command.id },
 		)
 	}
 

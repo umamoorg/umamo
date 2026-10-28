@@ -678,8 +678,6 @@
 	<!-- Viewport chrome: the left tool toolbar and the right sidebar drawer. -->
 	<string name="cmd_view_toggle_toolbar">Activer/Désactiver la Toolbar</string>
 	<string name="cmd_view_toggle_sidebar">Activer/Désactiver la Sidebar</string>
-	<string name="sidebar_title">Sidebar</string>
-	<string name="sidebar_empty_hint">Les Outils et Objets vont vivre ici.</string>
 
 	<!-- Inspector per-entity property view (the selected part / drawable / deformer). -->
 	<string name="properties_part_ref">Partie Parente</string>

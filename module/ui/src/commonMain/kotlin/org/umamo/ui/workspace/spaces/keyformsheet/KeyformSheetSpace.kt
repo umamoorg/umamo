@@ -19,7 +19,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +29,7 @@ import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.kit.SCROLLBAR_THICKNESS
 import org.umamo.ui.kit.VerticalScrollbarOverlay
+import org.umamo.ui.kit.holdsHoverIcon
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.theme.LocalUmamoColors
@@ -143,12 +143,9 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 			Modifier
 				.fillMaxSize()
 				.background(colors.panelBackground)
-				.pointerHoverIcon(
-					icon = if (horizontalDrag) umamoPointerIcon(LocalUmamoCursors.ewScroll) else PointerIcon.Default,
-					// Only while a drag is live: otherwise the label column's own hover cursors, and the
-					// separator band's, must keep winning over this.
-					overrideDescendants = horizontalDrag,
-				)
+				// Only while a drag is live: otherwise the label column's own hover cursors, and the separator band's,
+				// keep winning over this.
+				.holdsHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll), held = horizontalDrag)
 				.trackWindowGestures(
 					window = viewState.window,
 					onWindowChange = { window -> viewState.window = window },

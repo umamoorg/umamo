@@ -56,11 +56,12 @@ private val TAB_STRIP_WIDTH = 32.dp
 
 /**
  * The Properties space: a Blender-style tabbed property editor.  A left icon strip switches between the
- * always-on Document tab and the per-item Object / Data tabs (visible only with one item active); the body
+ * always-on Document tab and the per-item Object / Data tabs, which show the active item, even among several
+ * selected, or the item last made active after a deselect, as Blender's do (see shownTargetOf); the body
  * renders the active tab's collapsible sections.  The header's search box (mounted separately via
  * [propertiesHeaderControls]) filters sections and auto-switches to a tab that has matches.
  *
- * Reads [LocalPuppet] for the document + object graph, [LocalSelection] for the active item, and
+ * Reads [LocalPuppet] for the document + object graph, [LocalSelection] for the item shown, and
  * [LocalEditorSession] for the session an editable row writes its change through.  Its search /
  * active-tab / expanded state lives on the area's [PropertiesViewState], shared with the header
  * controls, so it survives switching the space away and back.
@@ -76,14 +77,10 @@ fun PropertiesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		return
 	}
 
-	val selection = LocalSelection.current?.selection ?: Selection()
-	// Per-item tabs need one focused item; a multi-selection or empty selection leaves only Document.
-	val activeTarget =
-		if (selection.size == 1) {
-			selection.active ?: selection.targets.firstOrNull()
-		} else {
-			null
-		}
+	val selectionHandle = LocalSelection.current
+	val selection = selectionHandle?.selection ?: Selection()
+	// The per-item tabs show the item the sidebar's Item tab shows too, so the two never disagree.
+	val activeTarget = selectionHandle?.shownTarget(puppet)
 	val context =
 		PropertyContext(
 			puppet,

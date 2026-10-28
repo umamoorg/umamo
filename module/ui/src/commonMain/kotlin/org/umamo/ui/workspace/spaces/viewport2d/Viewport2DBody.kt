@@ -9,25 +9,33 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.kit.PointerShield
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
+import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.viewport.ApplicationGridMirror
 import org.umamo.ui.viewport.LocalAreaOverlays
+import org.umamo.ui.viewport.rememberGestureOwnsAreaPointer
 import org.umamo.ui.viewport.viewport2d.ViewportSpaceCamera
-import org.umamo.ui.viewport.viewport2d.rememberViewport2dGestureOwnsPointer
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
 import org.umamo.ui.workspace.LocalAreaOverlayHub
+import org.umamo.ui.workspace.LocalAreaToolbarHub
 import org.umamo.ui.workspace.LocalViewportChrome
 import org.umamo.ui.workspace.LocalViewportHost
+import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.sidebar.LocalAreaSidebarHub
+import org.umamo.ui.workspace.sidebar.SidebarDrawer
 
 /*
- * The 2D viewport space: the body (this file), its header controls, and the chrome floating over the
- * surface (ViewportToolbarOverlay.kt, ViewportSidebarDrawer.kt).  The surface itself is injected through
- * ViewportHost and built in org.umamo.ui.viewport.viewport2d.
+ * The 2D viewport space: the body (this file), its header controls, and the toolbar floating over the
+ * surface (ViewportToolbarOverlay.kt).  The sidebar is the shared work-surface drawer of
+ * org.umamo.ui.workspace.sidebar, and the surface itself is injected through ViewportHost and built in
+ * org.umamo.ui.viewport.viewport2d.
  */
 
 /**
@@ -69,20 +77,29 @@ internal fun Viewport2DBody(scope: AreaScope) {
 			onDispose { }
 		}
 	}
-	// Register the area's overlay state for its lifetime, so the shell's view.overlay.* commands flip THIS
-	// area's overlays when the pointer last touched it.  Unlike the camera, the state exists with or without
-	// a renderer, so nothing gates the registration; the commands carry the viewport gate.
+	// Register the area's overlay, toolbar, and sidebar states for its lifetime, so the shell's view.overlay.*,
+	// view.toggle*, and view.sidebar.* commands act on THIS area when the pointer last touched it.  Unlike the
+	// camera, the states exist with or without a renderer, so nothing gates the registration; the commands carry
+	// their own gates.
 	val overlayHub = LocalAreaOverlayHub.current
-	DisposableEffect(scope.areaId, overlayHub) {
+	val toolbarHub = LocalAreaToolbarHub.current
+	val sidebarHub = LocalAreaSidebarHub.current
+	DisposableEffect(scope.areaId, overlayHub, toolbarHub, sidebarHub) {
 		overlayHub?.register(scope.areaId, viewState.overlays)
-		onDispose { overlayHub?.unregister(scope.areaId) }
+		toolbarHub?.register(scope.areaId, viewState.toolbar)
+		sidebarHub?.register(scope.areaId, viewState.sidebar)
+		onDispose {
+			overlayHub?.unregister(scope.areaId)
+			toolbarHub?.unregister(scope.areaId)
+			sidebarHub?.unregister(scope.areaId)
+		}
 	}
 	// The state's mirror of the application's grid, kept here rather than by the render host, so the popover's
 	// fields and the snap commands resolve the setting with or without a renderer behind the area.
 	ApplicationGridMirror(viewState.overlays)
 	// The floating chrome stops the pointer reaching the surface, except while one of this area's gestures
 	// owns it: a G started over the surface keeps following the pointer across the drawer.
-	val gestureOwnsPointer = rememberViewport2dGestureOwnsPointer(session, scope.areaId)
+	val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, scope.areaId)
 	CompositionLocalProvider(LocalAreaOverlays provides viewState.overlays) {
 		Box(modifier = Modifier.fillMaxSize()) {
 			if (host != null) {
@@ -91,17 +108,27 @@ internal fun Viewport2DBody(scope: AreaScope) {
 				Box(modifier = Modifier.fillMaxSize().background(LocalUmamoColors.current.viewportGridBackground))
 			}
 
-			if (chrome.showToolbar) {
-				ViewportToolbarOverlay(
+			if (viewState.toolbar.isShown(chrome.showToolbar)) {
+				// Clipped to the strip's outline after the margin, so only the strip itself keeps the pointer.
+				PointerShield(
+					passPointerThrough = gestureOwnsPointer,
 					modifier =
 						Modifier
 							.align(Alignment.CenterStart)
-							.padding(start = 6.dp),
-					passPointerThrough = gestureOwnsPointer,
-				)
+							.padding(start = 6.dp)
+							.clip(LocalUmamoShapes.current.small),
+				) {
+					ViewportToolbarOverlay()
+				}
 			}
 
-			ViewportSidebarDrawer(modifier = Modifier.align(Alignment.CenterEnd), passPointerThrough = gestureOwnsPointer)
+			SidebarDrawer(
+				areaId = scope.areaId,
+				space = SpaceKind.Viewport2D,
+				state = viewState.sidebar,
+				passPointerThrough = gestureOwnsPointer,
+				modifier = Modifier.align(Alignment.CenterEnd),
+			)
 		}
 	}
 }

@@ -735,8 +735,21 @@
 	<string name="cmd_view_overlay_selection_tint">選択のハイライトの表示切り替え</string>
 	<string name="cmd_view_overlay_wireframe">ワイヤーフレームの表示切り替え</string>
 	<string name="cmd_view_overlay_wireframe_culling">ワイヤーフレームの隠れた部分の省略を切り替え</string>
-	<string name="sidebar_title">サイドバー</string>
-	<string name="sidebar_empty_hint">ツールやアイテムのパネルがここに入ります。</string>
+	<string name="sidebar_tab_item">アイテム</string>
+	<string name="sidebar_tab_tool">ツール</string>
+	<string name="sidebar_tab_view">ビュー</string>
+	<string name="sidebar_panel_active_tool">アクティブツール</string>
+	<string name="sidebar_tool_settings_hint">ツールの設定はここに表示されます。</string>
+	<string name="sidebar_item_nothing_selected">何も選択されていません。</string>
+	<string name="sidebar_cursor_x_description">2Dカーソルの水平方向の位置（ワールド軸からの距離）。値を入力またはドラッグするとカーソルが配置されます。</string>
+	<string name="sidebar_cursor_z_description">2Dカーソルの垂直方向の位置（ワールド軸から上が正）。値を入力またはドラッグするとカーソルが配置されます。</string>
+	<string name="sidebar_edit_vertex">頂点:</string>
+	<string name="sidebar_edit_median">中点:</string>
+	<string name="sidebar_median_x_description">選択した頂点の水平方向の位置（複数のときはその中点、ワールド軸からの距離）。値を変えると、形を保ったまますべてを一緒に移動します。</string>
+	<string name="sidebar_median_z_description">選択した頂点の垂直方向の位置（複数のときはその中点、ワールド軸から上が正）。値を変えると、形を保ったまますべてを一緒に移動します。</string>
+	<string name="properties_transform_unavailable">この項目には表示できる配置がありません。</string>
+	<string name="cmd_view_sidebar_next_tab">次のサイドバータブ</string>
+	<string name="cmd_view_sidebar_previous_tab">前のサイドバータブ</string>
 
 	<string name="properties_part_ref">親パーツ</string>
 	<string name="properties_parent_deformer">親デフォーマ</string>
@@ -803,6 +816,8 @@
 	<string name="properties_field_flip_x">左右反転</string>
 	<string name="properties_field_flip_y">上下反転</string>
 	<string name="properties_field_base_angle">基準角度</string>
+	<string name="properties_field_angle">角度</string>
+	<string name="properties_field_scale">スケール</string>
 	<string name="properties_field_quad_transform">バイリニア（クアッド）</string>
 	<string name="properties_field_sketch">ガイド画像</string>
 	<string name="properties_field_draw_order">描画順</string>
@@ -895,6 +910,18 @@
 	<string name="properties_field_size_x_description">ビューポートで見えているメッシュの幅。変更すると中心を基準に拡大縮小します。すべてのパラメータが初期値のときだけ編集できます。</string>
 	<string name="properties_field_size_z_description">ビューポートで見えているメッシュの高さ。変更すると中心を基準に拡大縮小します。すべてのパラメータが初期値のときだけ編集できます。</string>
 	<string name="properties_field_base_angle_description">デフォーマの基準の回転（度）。各キーフォームが設定する角度は、この値に加算されます。</string>
+	<string name="properties_part_position_x_description">パーツに含まれるすべてのものの、ビューポートで見えている水平方向の中心（ワールド軸からの距離）。パーツを移動できるようになるまでは読み取り専用です。</string>
+	<string name="properties_part_position_z_description">パーツに含まれるすべてのものの、ビューポートで見えている垂直方向の中心（ワールド軸から上が正）。パーツを移動できるようになるまでは読み取り専用です。</string>
+	<string name="properties_part_size_x_description">パーツに含まれるすべてのものの、ビューポートで見えている幅。パーツを拡大縮小できるようになるまでは読み取り専用です。</string>
+	<string name="properties_part_size_z_description">パーツに含まれるすべてのものの、ビューポートで見えている高さ。パーツを拡大縮小できるようになるまでは読み取り専用です。</string>
+	<string name="properties_warp_position_x_description">デフォーマの格子の、ビューポートで見えている水平方向の中心（ワールド軸からの距離）。デフォーマを移動できるようになるまでは読み取り専用です。</string>
+	<string name="properties_warp_position_z_description">デフォーマの格子の、ビューポートで見えている垂直方向の中心（ワールド軸から上が正）。デフォーマを移動できるようになるまでは読み取り専用です。</string>
+	<string name="properties_warp_size_x_description">デフォーマの格子の、ビューポートで見えている幅。デフォーマを拡大縮小できるようになるまでは読み取り専用です。</string>
+	<string name="properties_warp_size_z_description">デフォーマの格子の、ビューポートで見えている高さ。デフォーマを拡大縮小できるようになるまでは読み取り専用です。</string>
+	<string name="properties_rotation_pivot_x_description">デフォーマのピボットの、ビューポートで見えている水平方向の位置（ワールド軸からの距離）。デフォーマを移動できるようになるまでは読み取り専用です。</string>
+	<string name="properties_rotation_pivot_z_description">デフォーマのピボットの、ビューポートで見えている垂直方向の位置（ワールド軸から上が正）。デフォーマを移動できるようになるまでは読み取り専用です。</string>
+	<string name="properties_field_angle_description">表示中のポーズでのデフォーマの角度（度）。基準角度に、キーフォームとブレンドシェイプがそこで設定する角度を加えた値です。デフォーマを回転できるようになるまでは読み取り専用です。</string>
+	<string name="properties_field_scale_description">表示中のポーズでのデフォーマのスケール（キーフォームとブレンドシェイプがそこで設定する値）。デフォーマを拡大縮小できるようになるまでは読み取り専用です。</string>
 	<string name="properties_part_ref_description">この項目が属するパーツ。クリアすると、どのパーツにも属さなくなります。</string>
 	<string name="properties_parent_deformer_description">この項目が付いているデフォーマ。そのデフォーマが動いたり、曲がったり、回転したりすると、この項目も追従します。</string>
 	<string name="properties_field_pinned_description">アトラスページ上のこのアートの位置を固定します。UV エディターで手動で動かすことはできず、「ピン留めしたタイルを維持」がオフでない限り、再パックでもその場に残ります。</string>
@@ -1079,9 +1106,11 @@
 	<string name="settings_viewport_grid_subdivisions">グリッド分割数</string>
 	<string name="settings_viewport_uv_grid_scale">UV グリッド間隔</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV グリッド分割数</string>
-	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）。 -->
+	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）、続いてツールバー・サイドバーの既定の表示（viewport.showToolbar / showSidebar）。 -->
 	<string name="settings_viewport_supersample">スーパーサンプリング（2 倍精細レンダリング）</string>
 	<string name="settings_viewport_supersample_while_resizing">パネルのリサイズ中もスーパーサンプリングを維持</string>
+	<string name="settings_viewport_show_toolbar">ツールバーを既定で表示</string>
+	<string name="settings_viewport_show_sidebar">サイドバーを既定で表示</string>
 	<!-- カラー設定：ビューポートの選択ハイライト、続いて編集モードのギズモ配色（viewport.meshEdit.*）。 -->
 	<string name="settings_colors_viewport">ビューポート</string>
 	<string name="settings_colors_selection_highlight">選択ハイライト</string>

@@ -16,10 +16,6 @@
 		"historyLimit": 200,
 		"layout": {
 			"workspaces": []
-		},
-		"viewport": {
-			"showToolbar": true,
-			"showSidebar": false
 		}
 	},
 	"viewport": {
@@ -54,7 +50,9 @@
 			"faceSelected": "#66FF7A00",
 			"faceActive": "#FF7DE400",
 			"faceOffKey": "#44888888"
-		}
+		},
+		"showToolbar": true,
+		"showSidebar": false
 	},
 	"import": {
 		"parameterTemplate": "humanoid",

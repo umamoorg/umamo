@@ -76,6 +76,8 @@ import org.umamo.ui.resources.settings_theme_light
 import org.umamo.ui.resources.settings_theme_system
 import org.umamo.ui.resources.settings_viewport_grid_scale
 import org.umamo.ui.resources.settings_viewport_grid_subdivisions
+import org.umamo.ui.resources.settings_viewport_show_sidebar
+import org.umamo.ui.resources.settings_viewport_show_toolbar
 import org.umamo.ui.resources.settings_viewport_supersample
 import org.umamo.ui.resources.settings_viewport_supersample_while_resizing
 import org.umamo.ui.resources.settings_viewport_uv_grid_scale
@@ -433,6 +435,8 @@ internal fun ViewportSection() {
 	var supersample by rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_KEY, ViewportSettings.SUPERSAMPLE_DEFAULT)
 	var supersampleWhileResizing by
 		rememberBooleanSetting(ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_KEY, ViewportSettings.SUPERSAMPLE_WHILE_RESIZING_DEFAULT)
+	var showToolbar by rememberBooleanSetting(ViewportSettings.SHOW_TOOLBAR_KEY, ViewportSettings.SHOW_TOOLBAR_DEFAULT)
+	var showSidebar by rememberBooleanSetting(ViewportSettings.SHOW_SIDEBAR_KEY, ViewportSettings.SHOW_SIDEBAR_DEFAULT)
 
 	Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_ROW_SPACING)) {
 		SettingRow(label = stringResource(Res.string.settings_viewport_zoom_step)) {
@@ -497,6 +501,16 @@ internal fun ViewportSection() {
 			label = stringResource(Res.string.settings_viewport_supersample_while_resizing),
 			enabled = supersample,
 		)
+		Checkbox(
+			checked = showToolbar,
+			onCheckedChange = { checked -> showToolbar = checked },
+			label = stringResource(Res.string.settings_viewport_show_toolbar),
+		)
+		Checkbox(
+			checked = showSidebar,
+			onCheckedChange = { checked -> showSidebar = checked },
+			label = stringResource(Res.string.settings_viewport_show_sidebar),
+		)
 	}
 }
 
@@ -511,8 +525,6 @@ internal fun KeybindingsSection() {
 
 /**
  * The Pen section: a placeholder until the pen backend (JPen / Wacom) and the radial menu land.
- *
- * ペン設定。ペンバックエンド実装までのプレースホルダ。
  */
 @Composable
 internal fun PenSection() {

@@ -14,22 +14,33 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.ScrollWheel
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.isPopup
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.rightClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.ui.LocalSettings
+import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.defaultKeymap
 import org.umamo.ui.model.LocalEditorSession
+import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.sidebar.LocalSidebarRegistry
+import org.umamo.ui.sidebar.SidebarRegistry
+import org.umamo.ui.sidebar.registerBuiltInSidebar
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.HoveredSurface
@@ -58,8 +69,10 @@ private const val AREA_ID = "area-1"
 /*
  * The body is mounted 600 x 400 at density 1, so every point below is in dp and px alike.
  *
- * The sidebar drawer is a Row hugging the right edge: the pull-tab column (x 386..400, the 14 x 48 chip at
- * y 176..224) and then the 200-wide panel (x 400..600, its 8 dp padding ending at x 408, its text at the top).
+ * The sidebar drawer is a Row hugging the right edge: the pull-tab column (x 358..372, the 14 x 48 chip at
+ * y 176..224) and then the open sidebar (x 372..600): the 200-wide panel stack (x 372..572, its 6 dp padding
+ * all round, the resize grip over its left 5 dp at x 372..377, the active tab's one card from y 6) beside the
+ * 28-wide tab rail (x 572..600).
  * The toolbar is centered on the left edge behind the caller's 6 dp margin: a Column at x 6..40, y 123..277
  * holding five 28 dp buttons 2 dp apart inside 3 dp of padding, so its top padding is y 123..126 and the
  * first gap y 154..156.
@@ -71,8 +84,11 @@ private val OPEN_SURFACE = Offset(300f, 200f)
 /** A point on the drawer panel's empty body, below its text. */
 private val PANEL_BODY = Offset(500f, 300f)
 
-/** A point in the drawer panel's left padding, above the pull tab's span. */
-private val PANEL_PADDING = Offset(404f, 100f)
+/** A point in the drawer panel's top padding, above its first card and clear of the resize grip. */
+private val PANEL_PADDING = Offset(450f, 3f)
+
+/** A point on the resize grip along the drawer panel's inner edge, above the pull tab's span. */
+private val RESIZE_GRIP = Offset(374f, 100f)
 
 /** A point in the toolbar's top padding. */
 private val TOOLBAR_TOP_PADDING = Offset(23f, 124.5f)
@@ -87,7 +103,14 @@ private val TOOLBAR_START_PADDING = Offset(7.5f, 200f)
 private val TOOLBAR_MARGIN = Offset(3f, 200f)
 
 /** A point in the pull tab's column away from the chip, which is transparent over the surface. */
-private val PULL_TAB_COLUMN = Offset(393f, 100f)
+private val PULL_TAB_COLUMN = Offset(365f, 100f)
+
+/**
+ * The center of a node's bounds, in the root's px at density 1.
+ *
+ * @return Offset The center.
+ */
+private fun DpRect.center(): Offset = Offset((left.value + right.value) / 2f, (top.value + bottom.value) / 2f)
 
 /**
  * A stand-in for the render host: its surface counts the presses and wheel turns that reach it, which is
@@ -145,21 +168,30 @@ private class RecordingViewportHost : ViewportHost {
  */
 class ViewportChromePointerIsolationTest {
 	/**
-	 * Mounts the 2D viewport body with the toolbar and the drawer open over a recording surface.
+	 * Mounts the 2D viewport body with the toolbar and the drawer open over a recording surface, over a
+	 * document and with Umamo's own sidebar tabs, so the drawer has the geometry it has in the app.
 	 *
 	 * @param RecordingViewportHost host The surface stand-in.
-	 * @param EditorSession? session The session to provide, or null for the no-document state.
+	 * @param EditorSession session The session to provide.
+	 * @param CommandRegistry commands The registry the toolbar's buttons dispatch through.
 	 */
 	@OptIn(ExperimentalTestApi::class)
-	private fun ComposeUiTest.mountBody(host: RecordingViewportHost, session: EditorSession? = null) {
+	private fun ComposeUiTest.mountBody(
+		host: RecordingViewportHost,
+		session: EditorSession = commandFixtureSession(EditorMode.Object),
+		commands: CommandRegistry = CommandRegistry(),
+	) {
 		val settings = inMemorySettings()
+		val sidebarRegistry = SidebarRegistry().also { registry -> registerBuiltInSidebar(registry) }
 		setContent {
 			UmamoTheme {
 				CompositionLocalProvider(
 					LocalDensity provides Density(1f),
 					LocalSettings provides settings,
-					LocalCommands provides CommandRegistry(),
+					LocalCommands provides commands,
 					LocalEditorSession provides session,
+					LocalPuppet provides session.model.value,
+					LocalSidebarRegistry provides sidebarRegistry,
 					LocalViewportChrome provides ViewportChromeState(showToolbar = true, showSidebar = true),
 					LocalViewportHost provides host,
 				) {
@@ -237,6 +269,17 @@ class ViewportChromePointerIsolationTest {
 			assertEquals(0, host.presses, "a click in the panel's padding must not reach the surface")
 		}
 
+	/** The resize grip belongs to the sidebar: a press on it starts a resize, never a click on the surface. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun theResizeGripSwallowsPress() =
+		runComposeUiTest {
+			val host = RecordingViewportHost()
+			mountBody(host)
+			clickAt(RESIZE_GRIP)
+			assertEquals(0, host.presses, "a click on the grip must not reach the surface")
+		}
+
 	/** The toolbar's padding and the gaps between its buttons belong to the toolbar. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
@@ -285,6 +328,58 @@ class ViewportChromePointerIsolationTest {
 			assertEquals(1, host.presses, "the armed Zoom Region of this area receives the click over the panel")
 		}
 
+	/**
+	 * The rail's tabs answer the pointer themselves, without it reaching the surface: a click selects the tab.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun theRailSelectsItsTabWithoutReachingTheSurface() =
+		runComposeUiTest {
+			val host = RecordingViewportHost()
+			mountBody(host)
+			clickAt(onNodeWithText("Tool").getUnclippedBoundsInRoot().center())
+			onNodeWithText("Tool").assertIsSelected()
+			assertEquals(0, host.presses, "the click on the tab stayed with the rail")
+		}
+
+	/**
+	 * While a gesture of this area owns the pointer, the rail's tabs step aside too: the click reaches the
+	 * surface, which confirms the gesture there, and selects no tab on its way.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aGestureOwnedByThisAreaPassesThroughTheRail() =
+		runComposeUiTest {
+			val host = RecordingViewportHost()
+			val session = commandFixtureSession(EditorMode.Object)
+			session.armZoomRegion(AREA_ID)
+			mountBody(host, session)
+			clickAt(onNodeWithText("Tool").getUnclippedBoundsInRoot().center())
+			assertEquals(1, host.presses, "the armed Zoom Region receives the click over the tab")
+			onNodeWithText("Tool").assertIsNotSelected()
+		}
+
+	/**
+	 * While a gesture of this area owns the pointer, the toolbar's buttons step aside: the click reaches the
+	 * surface and the button under it dispatches nothing.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aGestureOwnedByThisAreaPassesThroughTheToolbarButtons() =
+		runComposeUiTest {
+			val host = RecordingViewportHost()
+			val session = commandFixtureSession(EditorMode.Object)
+			var grabs = 0
+			val commands = CommandRegistry()
+			commands.register(Command("mesh.grab", title = null) { grabs++ })
+			session.armZoomRegion(AREA_ID)
+			mountBody(host, session, commands)
+			val grabButton = onNodeWithContentDescription("Grab Vertices").getUnclippedBoundsInRoot().center()
+			clickAt(grabButton)
+			assertEquals(1, host.presses, "the armed Zoom Region receives the click over the button")
+			assertEquals(0, grabs, "the button under the click dispatches nothing")
+		}
+
 	/** A gesture owned by another area leaves this area's chrome blocking. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
@@ -309,11 +404,16 @@ class ViewportChromePointerIsolationTest {
 			val host = RecordingViewportHost()
 			val tracker = HoveredSurfaceTracker()
 			val settings = inMemorySettings()
+			val session = commandFixtureSession(EditorMode.Object)
+			val sidebarRegistry = SidebarRegistry().also { registry -> registerBuiltInSidebar(registry) }
 			setContent {
 				UmamoTheme {
 					CompositionLocalProvider(
 						LocalDensity provides Density(1f),
 						LocalSettings provides settings,
+						LocalEditorSession provides session,
+						LocalPuppet provides session.model.value,
+						LocalSidebarRegistry provides sidebarRegistry,
 						LocalCommands provides CommandRegistry(),
 						LocalKeymap provides defaultKeymap(),
 						LocalSpaceRegistry provides defaultSpaceRegistry(),

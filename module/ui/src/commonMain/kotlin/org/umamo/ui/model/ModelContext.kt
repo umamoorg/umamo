@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
 import org.umamo.runtime.model.DrawableId
@@ -253,6 +254,15 @@ interface SelectionHandle {
 	 * @param Selection selection The new selection.
 	 */
 	fun set(selection: Selection)
+
+	/**
+	 * The item the one-item panels show (see [shownTargetOf]).  This default knows no item made active
+	 * before the current selection; the session-backed handle remembers one across a deselect.
+	 *
+	 * @param PuppetModel model The open document's model.
+	 * @return SelectionTarget? The item to show, or null when there is none.
+	 */
+	fun shownTarget(model: PuppetModel): SelectionTarget? = shownTargetOf(selection, null, model)
 }
 
 /**

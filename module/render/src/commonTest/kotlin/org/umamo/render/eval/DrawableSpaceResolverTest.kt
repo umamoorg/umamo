@@ -1,6 +1,7 @@
 package org.umamo.render.eval
 
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
@@ -14,6 +15,7 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
+import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -42,6 +44,9 @@ class DrawableSpaceResolverTest {
 	private val keyed = DrawableId("keyed")
 	private val gridless = DrawableId("gridless")
 	private val unknown = DrawableId("unknown")
+	private val shapeParameter = ParameterId("S")
+	private val shapedWarpId = DeformerId("SW")
+	private val shapedChild = DrawableId("shapedChild")
 
 	@Test
 	fun siblingsUnderOneWarpShareOneBakedWorld() {
@@ -92,6 +97,63 @@ class DrawableSpaceResolverTest {
 		val posed = assertNotNull(resolver.localPosed(gridless))
 		assertNotSame(restPositions, posed, "an unkeyed drawable's posed shape is a copy of its rest mesh, never the stored array")
 		assertContentEquals(restPositions, posed)
+	}
+
+	/**
+	 * A warp's blend shape measures from the lattice at the default pose, as the renderer's bake does, so a
+	 * child lands where the viewport draws it even when the warp's own grid has moved the lattice away from
+	 * its default.  Measured from the posed lattice instead, the child would sit half the grid's move off.
+	 */
+	@Test
+	fun aWarpBlendShapeMeasuresFromTheDefaultPose() {
+		val rig = blendShapeModel()
+		val pose = mapOf(blendParameter to 1f, shapeParameter to 0.5f)
+		val rendered = assertNotNull(CpuDeformationEvaluator().evaluate(rig, pose).worldPositions[shapedChild], "precondition: the child renders")
+		val resolver = DrawableSpaceResolver(rig, pose)
+		val batched = assertNotNull(resolver.mapping(shapedChild)).localToWorld(assertNotNull(resolver.localPosed(shapedChild)))
+		val single = assertNotNull(drawableSpaceMapping(rig, pose, shapedChild)).localToWorld(assertNotNull(drawableLocalPosed(rig, pose, shapedChild)))
+
+		for (componentIndex in rendered.indices) {
+			assertEquals(rendered[componentIndex], batched[componentIndex], 1e-4f, "resolver component $componentIndex")
+			assertEquals(rendered[componentIndex], single[componentIndex], 1e-4f, "single-call component $componentIndex")
+		}
+	}
+
+	/**
+	 * A rig of one warp and one child: the warp's grid on A moves the unit lattice 4 right at A = 1, and its
+	 * blend shape on S lifts it 2 at S = 1, measured from the lattice at A's default.
+	 *
+	 * @return PuppetModel The rig.
+	 */
+	private fun blendShapeModel(): PuppetModel {
+		val restLattice = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f)
+		val movedLattice = floatArrayOf(4f, 0f, 5f, 0f, 4f, 1f, 5f, 1f)
+		val liftedLattice = floatArrayOf(0f, 2f, 1f, 2f, 0f, 3f, 1f, 3f)
+		val warp =
+			Deformer.Warp(
+				id = shapedWarpId,
+				name = "SW",
+				parent = null,
+				partId = null,
+				rows = 1,
+				columns = 1,
+				isQuadTransform = true,
+				geometryGrid =
+					KeyformGrid(
+						listOf(KeyformAxis(blendParameter, floatArrayOf(0f, 1f))),
+						listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(restLattice)), KeyformCell(intArrayOf(1), WarpLatticeForm(movedLattice))),
+					),
+				blendShapes = listOf(BlendShapeBinding(shapeParameter, floatArrayOf(0f, 1f), neutralIndex = 0, forms = listOf(null, WarpForm(liftedLattice)))),
+			)
+
+		return PuppetModel(
+			parameters = listOf(Parameter(blendParameter, "A", -1f, 1f, 0f), Parameter(shapeParameter, "S", 0f, 1f, 0f)),
+			parts = emptyList(),
+			deformers = listOf(warp),
+			drawables = listOf(drawable(shapedChild, shapedWarpId, floatArrayOf(0.25f, 0.25f, 0.75f, 0.25f, 0.25f, 0.75f), null)),
+			rootChildren = emptyList(),
+			rootPartId = null,
+		)
 	}
 
 	/**

@@ -13,9 +13,10 @@ import org.umamo.runtime.model.PuppetModel
  * defaults, the drawable index, and the deformer worlds, which bake once on the first parented request
  * and never for a batch of direct drawables.  Per drawable the answers are exactly what
  * [drawableSpaceMapping] and [drawableLocalPosed] give, because both halves run the same code
- * ([mappingOver], [localPosedOver]) and the worlds come from the same two-argument
- * [buildDeformerWorlds] call the single functions make (the pose doubles as the defaults, no channel
- * overrides), so a batch cannot answer differently from a single call.
+ * ([mappingOver], [localPosedOver]) and the worlds come from the same [buildDeformerWorlds] call the
+ * single functions make (the pose and the defaults from one [PoseParameters], no channel overrides), so a
+ * batch cannot answer differently from a single call.  Blend shapes measure from the defaults there, as
+ * the renderer's own bake measures them, so the worlds are where the viewport draws the rig.
  *
  * One resolver per batch is the whole point.  A loop over the single functions rebakes every deformer
  * world per drawable - 1330 x 623 on modelF, seconds per Edit-mode commit or Object-mode latch over
@@ -29,12 +30,11 @@ class DrawableSpaceResolver(
 	parameters: Map<ParameterId, Float>,
 ) {
 	private val deformers: List<Deformer> = model.deformers
-	private val defaults: Map<ParameterId, Float> = model.parameters.associate { parameter -> parameter.id to parameter.default }
-	private val paramValue: (ParameterId) -> Float = { parameterId -> parameters[parameterId] ?: defaults[parameterId] ?: 0f }
+	private val pose = PoseParameters(model, parameters)
 	private val drawableById: Map<DrawableId, Drawable> = model.drawables.associateBy { drawable -> drawable.id }
 
 	// Baked on the first parented request, so a batch of direct drawables never pays for the chain.
-	private val deformerWorlds: Map<DeformerId, DeformerWorld> by lazy { buildDeformerWorlds(deformers, paramValue) }
+	private val deformerWorlds: Map<DeformerId, DeformerWorld> by lazy { buildDeformerWorlds(deformers, pose.paramValue, pose.defaultValue) }
 
 	/**
 	 * The drawable behind an id, or null when the model does not carry it.
@@ -67,6 +67,6 @@ class DrawableSpaceResolver(
 	fun localPosed(drawableId: DrawableId): FloatArray? {
 		val drawable = drawableById[drawableId] ?: return null
 
-		return localPosedOver(drawable, paramValue)
+		return localPosedOver(drawable, pose.paramValue)
 	}
 }

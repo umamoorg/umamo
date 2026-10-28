@@ -18,11 +18,9 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * LocalUmamoShapes) directly. There is no ripple - interaction feedback is hover-highlight throughout.
  *
  * This package root holds the primitives the rest of the kit is built on - text, vertical text, surface,
- * tooltip, scrollbar, stacked shapes, click gestures, pointer fall-through, thumbnails, file drops, and
- * popup placement - and imports none of the subpackages: button, chip, container, dialog, field, menu, and
- * textentry.
- *
- * 独自デザイン系。Material を使わない平坦な Foundation 製ウィジェット群。
+ * tooltip, scrollbar, progress bar, stacked shapes, click gestures, box gestures, resize drags, pointer
+ * fall-through, thumbnails, file drops, and popup placement - and imports none of the subpackages: button, chip,
+ * container, dialog, field, menu, and textentry.
  */
 
 /**

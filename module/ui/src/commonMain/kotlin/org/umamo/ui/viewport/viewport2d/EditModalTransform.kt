@@ -22,6 +22,7 @@ import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.ModalGestureState
 import org.umamo.ui.viewport.gizmo.ModalTransformTarget
@@ -67,12 +68,18 @@ internal class EditGesture(
  * @param String areaId The viewport area the overlay covers; only an operator latched here drives.
  * @param EditorSession session The session owning the model, the mesh selection, and the operator latch.
  * @param Function pushPreview Pushes a folded preview model to the renderer.
+ * @param LiveMeshPreview? livePreview The window's live mesh preview, which each published drive writes and the
+ *   gesture's end clears, or null outside a shell; a transform built without one keeps a private slot nothing reads.
  */
 internal class EditModalTransform(
 	private val areaId: String,
 	private val session: EditorSession,
 	private val pushPreview: (PuppetModel) -> Unit,
+	livePreview: LiveMeshPreview? = null,
 ) : ModalTransformTarget {
+	/** The preview this transform writes: the window's, else a private slot nothing reads. */
+	private val livePreview: LiveMeshPreview = livePreview ?: LiveMeshPreview()
+
 	/**
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, area origin,
 	 * cursor wrap, pointer controller).  The capture is the Edit-mode gesture; preview holds each moving
@@ -194,7 +201,7 @@ internal class EditModalTransform(
 	 *   committed model; a bystander teardown (at mount, or another area's latch) must not, or it would
 	 *   stomp the initiating area's live preview.
 	 */
-	fun end(): Boolean = gesture.end()
+	fun end(): Boolean = endGesture()
 
 	/**
 	 * Ends the gesture because the overlay is leaving composition mid-gesture: the mode changed, the area
@@ -213,7 +220,23 @@ internal class EditModalTransform(
 			session.clearMeshOperator()
 		}
 
-		return gesture.end()
+		return endGesture()
+	}
+
+	/**
+	 * Ends the gesture state, and clears the live preview when this transform owned the gesture that wrote it:
+	 * a bystander's end (at mount, or as another area latches) leaves the owner's preview alone.
+	 *
+	 * @return Boolean True when a gesture was in flight.
+	 */
+	private fun endGesture(): Boolean {
+		val owned = gesture.end()
+
+		if (owned) {
+			livePreview.restByDrawable = null
+		}
+
+		return owned
 	}
 
 	/**
@@ -307,7 +330,7 @@ internal class EditModalTransform(
 							} else {
 								null
 							}
-						registerMeshTransformAdjustment(session, areaId, transform, gestureData.geometryById, parameters, proportional) { state ->
+						registerMeshTransformAdjustment(session, areaId, transform, gestureData.geometryById, parameters, proportional) { _, state ->
 							session.setProportionalEdit(state)
 						}
 					}
@@ -397,6 +420,7 @@ internal class EditModalTransform(
 		request.slide?.let { move -> slideLanding = move.landing }
 		publishedRequest = request
 		gesture.preview = result.preview
+		livePreview.restByDrawable = result.preview
 		val current = session.model.value
 
 		pushPreview(if (request.baseModel === current) result.folded else current.withMeshPositions(result.preview))

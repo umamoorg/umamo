@@ -18,8 +18,9 @@ import org.umamo.ui.theme.UmamoIcon
  *
  * @property PuppetModel puppet The open document's model (never null - the space guards on it first).
  * @property Selection selection The current object-mode selection.
- * @property SelectionTarget? activeTarget The single active item that drives the per-item tabs, or null
- *   when nothing is selected or several items are (per-item tabs need one focused item).
+ * @property SelectionTarget? activeTarget The item that drives the per-item tabs: the active item, even among
+ *   several selected, else the item last made active, else any selected item, or null when there is none
+ *   (see org.umamo.ui.model.shownTargetOf).
  * @property EditorSession? session The editing session an editable control writes through, or null when
  *   no document is open (the controls then render disabled / inert).  Rebuilt from the composition local
  *   each recomposition alongside the read-only fields.
@@ -29,13 +30,20 @@ class PropertyContext(
 	val selection: Selection,
 	val activeTarget: SelectionTarget?,
 	val session: EditorSession?,
-)
+) {
+	/**
+	 * The context's one mutable member: the cache a part's two Transform rows share, so the whole-subtree
+	 * capture behind them runs once per pose rather than once per row (see [PartBoundsMemo]).  It holds only
+	 * what the fields above already determine, so the context still reads as a snapshot.
+	 */
+	internal val partBoundsMemo = PartBoundsMemo()
+}
 
 /**
  * The active target as a [Drawable], resolved against the model, or null when the active target is not a
  * drawable (or no longer exists in the model).
  *
- * @return Drawable? The selected drawable, or null.
+ * @return Drawable? The shown drawable, or null.
  */
 fun PropertyContext.activeDrawable(): Drawable? {
 	val target = activeTarget as? SelectionTarget.Drawable ?: return null
@@ -47,7 +55,7 @@ fun PropertyContext.activeDrawable(): Drawable? {
  * The active target as a [Deformer], resolved against the model, or null when the active target is not a
  * deformer (or no longer exists in the model).
  *
- * @return Deformer? The selected deformer, or null.
+ * @return Deformer? The shown deformer, or null.
  */
 fun PropertyContext.activeDeformer(): Deformer? {
 	val target = activeTarget as? SelectionTarget.Deformer ?: return null
@@ -59,7 +67,7 @@ fun PropertyContext.activeDeformer(): Deformer? {
  * The active target as a [Part], resolved against the model, or null when the active target is not a part
  * (or no longer exists in the model).
  *
- * @return Part? The selected part, or null.
+ * @return Part? The shown part, or null.
  */
 fun PropertyContext.activePart(): Part? {
 	val target = activeTarget as? SelectionTarget.Part ?: return null
@@ -75,10 +83,10 @@ enum class PropertyTabId {
 	/** Document-wide properties (canvas, runtime compatibility) - always shown. */
 	Document,
 
-	/** The active item's universal properties (transform, relations) - shown when one item is active. */
+	/** The shown item's universal properties (transform, relations) - shown while there is an item to show. */
 	Object,
 
-	/** The active item's type-specific data - icon and sections resolve from the item's kind. */
+	/** The shown item's type-specific data - icon and sections resolve from the item's kind. */
 	Data,
 }
 

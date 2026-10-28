@@ -23,15 +23,19 @@ import org.umamo.ui.model.mesh.MeshGenerationSessionOptions
 import org.umamo.ui.model.repack.AtlasRepackSessionOptions
 import org.umamo.ui.settings.LocalQuickSetup
 import org.umamo.ui.settings.QuickSetupState
+import org.umamo.ui.viewport.LiveMeshPreview
+import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.workspace.AppAlertQueues
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaOverlayHub
+import org.umamo.ui.workspace.AreaToolbarHub
 import org.umamo.ui.workspace.HoveredSurfaceTracker
 import org.umamo.ui.workspace.KeyableHover
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.LocalAppAlerts
 import org.umamo.ui.workspace.LocalAreaCameraHub
 import org.umamo.ui.workspace.LocalAreaOverlayHub
+import org.umamo.ui.workspace.LocalAreaToolbarHub
 import org.umamo.ui.workspace.LocalHoveredSurfaceTracker
 import org.umamo.ui.workspace.LocalKeyableHover
 import org.umamo.ui.workspace.LocalKeyformSheetViews
@@ -52,6 +56,8 @@ import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 import org.umamo.ui.workspace.operationstrip.OperationStripState
 import org.umamo.ui.workspace.rowdrag.LocalRowDragCancel
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
+import org.umamo.ui.workspace.sidebar.LocalAreaSidebarHub
 
 /**
  * Everything the shell remembers for its whole lifetime: the layout controller, the modal chrome, the
@@ -161,6 +167,9 @@ internal class ShellControllers(
 	 */
 	val operationStripArea: () -> String? = { routing.operationStripArea() }
 
+	/** The Edit-mode modal transform's live preview, which the sidebar's Vertex / Median panel follows. */
+	val liveMeshPreview = LiveMeshPreview()
+
 	/** The keyable property under the pointer, so a keyform insert needs no prior selection. */
 	val keyableHover = KeyableHover()
 
@@ -178,6 +187,18 @@ internal class ShellControllers(
 	 * the overlay commands resolve the hovered area here at dispatch time (one hub for both surfaces).
 	 */
 	val areaOverlays = AreaOverlayHub()
+
+	/**
+	 * The 2D viewports' per-area toolbar visibility, registered by each viewport for its lifetime; the toolbar
+	 * toggle resolves the hovered area here at dispatch time.
+	 */
+	val areaToolbars = AreaToolbarHub()
+
+	/**
+	 * The work surfaces' per-area sidebar state, registered by each 2D viewport for its lifetime; the sidebar
+	 * commands resolve the hovered area here at dispatch time.
+	 */
+	val areaSidebars = AreaSidebarHub()
 
 	/**
 	 * The repack's session memory who's lifetime is the open document.
@@ -222,8 +243,11 @@ internal class ShellControllers(
 			LocalHoveredSurfaceTracker provides hoveredSurfaces,
 			LocalAreaCameraHub provides areaCameras,
 			LocalAreaOverlayHub provides areaOverlays,
+			LocalAreaToolbarHub provides areaToolbars,
+			LocalAreaSidebarHub provides areaSidebars,
 			LocalOperationStrip provides operationStrip,
 			LocalOperationStripArea provides operationStripArea,
+			LocalLiveMeshPreview provides liveMeshPreview,
 		)
 
 	/**

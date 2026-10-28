@@ -254,6 +254,20 @@ object SelectionOps {
 }
 
 /**
+ * Whether [target] names an object this model has.  A selection is not pruned when an object is deleted, so
+ * a target read from one can name an object that is gone.
+ *
+ * @param SelectionTarget target The target to look up.
+ * @return Boolean True when the model has the part, drawable, or deformer the target names.
+ */
+fun PuppetModel.hasTarget(target: SelectionTarget): Boolean =
+	when (target) {
+		is SelectionTarget.Part -> parts.any { part -> part.id == target.id }
+		is SelectionTarget.Drawable -> drawables.any { drawable -> drawable.id == target.id }
+		is SelectionTarget.Deformer -> deformers.any { deformer -> deformer.id == target.id }
+	}
+
+/**
  * Enumerates the outliner subtree rooted at [target], the target itself first, in tree order.  Matches
  * exactly what the outliner shows as children: a part yields itself plus every descendant part and every
  * drawable in those parts' org-tree children; a deformer yields itself plus its descendant deformers only
