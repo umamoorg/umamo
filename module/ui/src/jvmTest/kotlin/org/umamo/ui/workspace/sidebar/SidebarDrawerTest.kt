@@ -1,17 +1,23 @@
 package org.umamo.ui.workspace.sidebar
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -50,10 +56,22 @@ private const val DRAWER_TAG = "drawer"
 /** The area the drawer belongs to. */
 private const val AREA_ID = "area-1"
 
+/** The pull tab's accessible label, the toggle command's title. */
+private const val PULL_TAB_LABEL = "Toggle Sidebar"
+
+/**
+ * What reached the surface beneath the drawer.
+ *
+ * @property Int presses The presses the surface received.
+ * @property Int scrolls The wheel turns the surface received.
+ */
+private class SurfaceLandings(var presses: Int = 0, var scrolls: Int = 0)
+
 /**
  * The sidebar drawer: Umamo's own tabs and their panels, tabs a contributor registers while the drawer shows,
  * per-language labels following the UI language, folding, stepping tabs with Ctrl+wheel, dragging the stack's
- * width, an area too narrow for the stack, and the area's own open choice.
+ * width and dragging it closed, an area too narrow for the stack, the area's own open choice, the pull tab
+ * showing only while closed, and the surface keeping the pointer everywhere around the floating cards and tabs.
  */
 class SidebarDrawerTest {
 	/**
@@ -64,6 +82,8 @@ class SidebarDrawerTest {
 	 * @param EditorSession session The session to provide.
 	 * @param MutableState languageTag The UI language, which a case may switch.
 	 * @param Dp areaWidth The width of the area the drawer hugs the right edge of.
+	 * @param SurfaceLandings landings Where the surface beneath the drawer counts what reaches it.
+	 * @param Boolean passPointerThrough Whether the drawer lets the pointer through, as while a gesture owns it.
 	 */
 	@OptIn(ExperimentalTestApi::class)
 	private fun ComposeUiTest.mountDrawer(
@@ -72,15 +92,72 @@ class SidebarDrawerTest {
 		session: EditorSession = commandFixtureSession(EditorMode.Object),
 		languageTag: MutableState<String> = mutableStateOf("en"),
 		areaWidth: Dp = 320.dp,
+		landings: SurfaceLandings = SurfaceLandings(),
+		passPointerThrough: Boolean = false,
 	) {
 		setContent {
 			UmamoTheme {
 				ProvideSidebarLocals(session, registry, LocalDensity provides Density(1f), LocalAppLocale provides languageTag.value) {
-					SidebarDrawerInArea(AREA_ID, state, width = areaWidth, height = 400.dp, modifier = Modifier.testTag(DRAWER_TAG))
+					SidebarDrawerInArea(
+						AREA_ID,
+						state,
+						width = areaWidth,
+						height = 400.dp,
+						modifier = Modifier.testTag(DRAWER_TAG),
+						passPointerThrough = passPointerThrough,
+						surface = { RecordingSurface(landings) },
+					)
 				}
 			}
 		}
 		waitForIdle()
+	}
+
+	/**
+	 * A surface filling the area that counts the presses and wheel turns reaching it.
+	 *
+	 * @param SurfaceLandings landings Where they are counted.
+	 */
+	@Composable
+	private fun RecordingSurface(landings: SurfaceLandings) {
+		Box(
+			modifier =
+				Modifier.fillMaxSize().pointerInput(Unit) {
+					awaitPointerEventScope {
+						while (true) {
+							val event = awaitPointerEvent()
+
+							if (event.type == PointerEventType.Press) {
+								landings.presses++
+							}
+
+							if (event.type == PointerEventType.Scroll) {
+								landings.scrolls++
+							}
+						}
+					}
+				},
+		)
+	}
+
+	/**
+	 * A session with nothing selected, so the Item tab's Transform panel is a short card holding one line.
+	 *
+	 * @return EditorSession The session.
+	 */
+	private fun emptySelectionSession(): EditorSession = commandFixtureSession(EditorMode.Object).also { emptied -> emptied.setSelection(Selection()) }
+
+	/**
+	 * The center of the node showing [text], in the root's px at density 1.
+	 *
+	 * @param String text The node's text.
+	 * @return Offset The node's center.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	private fun ComposeUiTest.centerOf(text: String): Offset {
+		val bounds = onNodeWithText(text).getUnclippedBoundsInRoot()
+
+		return Offset((bounds.left.value + bounds.right.value) / 2f, (bounds.top.value + bounds.bottom.value) / 2f)
 	}
 
 	/**
@@ -167,8 +244,7 @@ class SidebarDrawerTest {
 		runComposeUiTest {
 			val state = SidebarState()
 			// Nothing selected, so the Item tab's Transform panel holds the one line this case watches.
-			val session = commandFixtureSession(EditorMode.Object).also { emptied -> emptied.setSelection(Selection()) }
-			mountDrawer(state = state, session = session)
+			mountDrawer(state = state, session = emptySelectionSession())
 			onNodeWithText("Nothing selected.").assertExists()
 			onNodeWithText("Transform").performClick()
 			waitForIdle()
@@ -182,8 +258,7 @@ class SidebarDrawerTest {
 		runComposeUiTest {
 			val state = SidebarState()
 			mountDrawer(state = state)
-			val itemTab = onNodeWithText("Item").getUnclippedBoundsInRoot()
-			val railPoint = Offset((itemTab.left.value + itemTab.right.value) / 2f, (itemTab.top.value + itemTab.bottom.value) / 2f)
+			val railPoint = centerOf("Item")
 			onNodeWithTag(DRAWER_TAG).performMouseInput {
 				moveTo(railPoint)
 				scroll(1f)
@@ -217,8 +292,9 @@ class SidebarDrawerTest {
 		}
 
 	/**
-	 * Drags the resize grip on the stack's inner edge horizontally through [through], each an offset from
-	 * where the press lands.  The grip sits at the stack's left edge, the stack's width left of the rail.
+	 * Drags the resize grip on the cards' inner edge horizontally through [through], each an offset from where
+	 * the press lands, level with the Transform card's header.  The grip starts at the stack's left edge, the
+	 * stack's width and the tab gap left of the rail.
 	 *
 	 * @param SidebarState state The sidebar's state, whose width places the stack.
 	 * @param List through The x offsets moved through, in order.
@@ -226,13 +302,14 @@ class SidebarDrawerTest {
 	@OptIn(ExperimentalTestApi::class)
 	private fun ComposeUiTest.dragGrip(state: SidebarState, through: List<Float>) {
 		val railLeft = onNodeWithText("Item").getUnclippedBoundsInRoot().left.value
-		val gripX = railLeft - state.width.value + 2f
+		val gripX = railLeft - SIDEBAR_TAB_GAP.value - state.width.value + 2f
+		val gripY = centerOf("Transform").y
 		onNodeWithTag(DRAWER_TAG).performMouseInput {
-			moveTo(Offset(gripX, 300f))
+			moveTo(Offset(gripX, gripY))
 			press()
 
 			for (offset in through) {
-				moveTo(Offset(gripX + offset, 300f))
+				moveTo(Offset(gripX + offset, gripY))
 			}
 
 			release()
@@ -271,6 +348,7 @@ class SidebarDrawerTest {
 			val state = SidebarState()
 			mountDrawer(state = state, areaWidth = SIDEBAR_MIN_WIDTH + SIDEBAR_AREA_RESERVE - 10.dp)
 			onNodeWithText("Item").assertDoesNotExist()
+			onNodeWithContentDescription(PULL_TAB_LABEL).assertExists()
 			assertTrue(state.shownTabIds.isEmpty(), "a sidebar with no room shows no tab to step through")
 			assertTrue(state.visibility.isShown(default = true), "the sidebar is still open, waiting for room")
 		}
@@ -284,5 +362,92 @@ class SidebarDrawerTest {
 			state.visibility.choice = false
 			mountDrawer(state = state)
 			onNodeWithText("Item").assertDoesNotExist()
+		}
+
+	/** Dragging the cards' edge far past the narrowest closes the sidebar, and puts back the width it began from. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun draggingFarPastTheMinimumCollapsesTheSidebar() =
+		runComposeUiTest {
+			val state = SidebarState()
+			mountDrawer(state = state, areaWidth = 600.dp)
+			// 200 dp less 130 asks for 70, under the collapse width.
+			dragGrip(state, listOf(40f, 80f, 130f))
+			assertEquals(false, state.visibility.choice, "the drag closed the sidebar as the area's own choice")
+			assertEquals(SIDEBAR_DEFAULT_WIDTH, state.width, "the width the drag began from comes back for the reopen")
+			onNodeWithText("Item").assertDoesNotExist()
+			onNodeWithContentDescription(PULL_TAB_LABEL).assertExists()
+		}
+
+	/** A drag that stops short of the collapse width only narrows the stack to its narrowest. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aDragThatStopsShortOfTheCollapseOnlyNarrows() =
+		runComposeUiTest {
+			val state = SidebarState()
+			mountDrawer(state = state, areaWidth = 600.dp)
+			// 200 dp less 110 asks for 90, over the collapse width.
+			dragGrip(state, listOf(40f, 80f, 110f))
+			assertEquals(SIDEBAR_MIN_WIDTH, state.width)
+			assertEquals(null, state.visibility.choice, "the sidebar is still open on the default")
+			onNodeWithText("Item").assertExists()
+		}
+
+	/** The pull tab shows only while the sidebar is closed, at the top of the area's right edge. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun thePullTabShowsOnlyWhileClosed() =
+		runComposeUiTest {
+			val state = SidebarState()
+			mountDrawer(state = state)
+			onNodeWithContentDescription(PULL_TAB_LABEL).assertDoesNotExist()
+			runOnIdle { state.visibility.choice = false }
+			waitForIdle()
+			val pullTab = onNodeWithContentDescription(PULL_TAB_LABEL).getUnclippedBoundsInRoot()
+			assertEquals(320.dp, pullTab.right, "the pull tab hugs the area's right edge")
+			assertTrue(pullTab.top < 20.dp, "the pull tab sits at the top of the edge (got ${pullTab.top})")
+		}
+
+	/** A press or a wheel turn below the floating cards reaches the surface; over a card or a tab it does not. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun theSurfaceKeepsThePointerAroundTheCardsAndTabs() =
+		runComposeUiTest {
+			val landings = SurfaceLandings()
+			mountDrawer(session = emptySelectionSession(), landings = landings)
+			val belowTheCards = Offset(centerOf("Transform").x, 300f)
+			val onTheCard = centerOf("Nothing selected.")
+			val onTheTab = centerOf("Item")
+			onNodeWithTag(DRAWER_TAG).performMouseInput {
+				click(belowTheCards)
+				moveTo(belowTheCards)
+				scroll(1f)
+			}
+			waitForIdle()
+			assertEquals(1, landings.presses, "a press below the cards reaches the surface")
+			assertEquals(1, landings.scrolls, "a wheel turn below the cards reaches the surface")
+			onNodeWithTag(DRAWER_TAG).performMouseInput {
+				click(onTheCard)
+				moveTo(onTheCard)
+				scroll(1f)
+				click(onTheTab)
+			}
+			waitForIdle()
+			assertEquals(1, landings.presses, "a press on a card or a tab stays with the sidebar")
+			assertEquals(1, landings.scrolls, "a wheel turn over a card stays with the sidebar")
+		}
+
+	/** While a gesture owns the pointer, a press on a card reaches the surface and leaves the card as it was. */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aPassingDrawerHandsCardPressesToTheSurface() =
+		runComposeUiTest {
+			val landings = SurfaceLandings()
+			mountDrawer(session = emptySelectionSession(), landings = landings, passPointerThrough = true)
+			val onTheHeader = centerOf("Transform")
+			onNodeWithTag(DRAWER_TAG).performMouseInput { click(onTheHeader) }
+			waitForIdle()
+			assertEquals(1, landings.presses, "the surface receives the press")
+			onNodeWithText("Nothing selected.").assertExists()
 		}
 }

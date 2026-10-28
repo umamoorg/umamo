@@ -21,10 +21,19 @@ internal val SIDEBAR_DEFAULT_WIDTH = 200.dp
 internal val SIDEBAR_MAX_WIDTH = 480.dp
 
 /**
- * What the rest of an area keeps beside the open sidebar's panel stack: room for the toolbar on the left
- * edge (its 6 dp margin, its 34 dp strip, and a gap), the pull tab, and the tab rail.
+ * The width a drag of the stack's edge has to ask for, past the narrowest, before it closes the sidebar, as
+ * dragging a Blender region's edge far enough hides the region.
  */
-internal val SIDEBAR_AREA_RESERVE = 48.dp + 14.dp + 28.dp
+internal val SIDEBAR_COLLAPSE_WIDTH = SIDEBAR_MIN_WIDTH / 2
+
+/** The gap between the panel stack and the tab rail, where the surface shows through. */
+internal val SIDEBAR_TAB_GAP = 3.dp
+
+/**
+ * What the rest of an area keeps beside the open sidebar's panel stack: room for the toolbar on the left
+ * edge (its 6 dp margin, its 34 dp strip, and a gap), the gap before the tabs, and the tab rail.
+ */
+internal val SIDEBAR_AREA_RESERVE = 48.dp + SIDEBAR_TAB_GAP + 28.dp
 
 /**
  * One area's sidebar: whether it is open, how wide its panel stack is, which tab it shows, and which panels
@@ -126,7 +135,8 @@ class SidebarState {
 /**
  * The panel stack's width in an area [areaWidth] wide: the rigger's [chosen] width, held between the
  * narrowest the stack may be and the widest the area leaves it, or null when the area cannot fit even the
- * narrowest stack (the sidebar then shows only its pull tab, staying open for when the area grows).
+ * narrowest stack (the sidebar then shows only the pull tab a closed one shows, staying open for when the area
+ * grows).
  *
  * @param Dp chosen The width the rigger dragged the stack to.
  * @param Dp areaWidth The width of the area the sidebar sits in.

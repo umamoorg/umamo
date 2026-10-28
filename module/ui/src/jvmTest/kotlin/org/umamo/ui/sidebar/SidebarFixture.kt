@@ -73,7 +73,8 @@ internal fun ProvideSidebarLocals(
 }
 
 /**
- * A work surface's sidebar drawer against the right edge of an area [width] by [height].
+ * A work surface's sidebar drawer against the right edge of an area [width] by [height], over [surface] as a
+ * space mounts it over its own surface.
  *
  * @param String areaId The area the sidebar belongs to.
  * @param SidebarState state The area's sidebar state.
@@ -81,6 +82,8 @@ internal fun ProvideSidebarLocals(
  * @param Dp height The area's height.
  * @param Modifier modifier Layout modifier for the area's box (a test tag, say).
  * @param SpaceKind space The work surface the area shows, which scopes the panels.
+ * @param Boolean passPointerThrough Whether the drawer lets the pointer through, as while a gesture owns it.
+ * @param Function surface What lies beneath the drawer, filling the area; nothing by default.
  */
 @Composable
 internal fun SidebarDrawerInArea(
@@ -90,13 +93,16 @@ internal fun SidebarDrawerInArea(
 	height: Dp,
 	modifier: Modifier = Modifier,
 	space: SpaceKind = SpaceKind.Viewport2D,
+	passPointerThrough: Boolean = false,
+	surface: @Composable () -> Unit = {},
 ) {
 	Box(modifier = modifier.size(width, height)) {
+		surface()
 		SidebarDrawer(
 			areaId = areaId,
 			space = space,
 			state = state,
-			passPointerThrough = false,
+			passPointerThrough = passPointerThrough,
 			modifier = Modifier.align(Alignment.CenterEnd),
 		)
 	}

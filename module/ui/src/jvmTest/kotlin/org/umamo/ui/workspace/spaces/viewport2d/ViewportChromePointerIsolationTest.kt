@@ -57,6 +57,8 @@ import org.umamo.ui.workspace.commands.commandFixtureSession
 import org.umamo.ui.workspace.commands.inMemorySettings
 import org.umamo.ui.workspace.layout.LeafArea
 import org.umamo.ui.workspace.shell.defaultSpaceRegistry
+import org.umamo.ui.workspace.sidebar.SIDEBAR_DEFAULT_WIDTH
+import org.umamo.ui.workspace.sidebar.SIDEBAR_TAB_GAP
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -69,10 +71,12 @@ private const val AREA_ID = "area-1"
 /*
  * The body is mounted 600 x 400 at density 1, so every point below is in dp and px alike.
  *
- * The sidebar drawer is a Row hugging the right edge: the pull-tab column (x 358..372, the 14 x 48 chip at
- * y 176..224) and then the open sidebar (x 372..600): the 200-wide panel stack (x 372..572, its 6 dp padding
- * all round, the resize grip over its left 5 dp at x 372..377, the active tab's one card from y 6) beside the
- * 28-wide tab rail (x 572..600).
+ * The open sidebar floats at the top of the right edge with no background: the 200-wide panel stack, from
+ * y 4, holding the active tab's one card behind a 3 dp gutter, then a 3 dp gap, then the tab rail against the
+ * edge.  The resize grip straddles the card's left edge, over the gutter and the card's first 3 dp.  The
+ * stack's points are found from its nodes (the rail's Item tab places the stack; the card reads "Nothing
+ * selected.", since no selection handle is provided), and everything around the card and the tabs is the
+ * surface's.
  * The toolbar is centered on the left edge behind the caller's 6 dp margin: a Column at x 6..40, y 123..277
  * holding five 28 dp buttons 2 dp apart inside 3 dp of padding, so its top padding is y 123..126 and the
  * first gap y 154..156.
@@ -81,14 +85,8 @@ private const val AREA_ID = "area-1"
 /** A point on the open surface, clear of every piece of chrome. */
 private val OPEN_SURFACE = Offset(300f, 200f)
 
-/** A point on the drawer panel's empty body, below its text. */
-private val PANEL_BODY = Offset(500f, 300f)
-
-/** A point in the drawer panel's top padding, above its first card and clear of the resize grip. */
-private val PANEL_PADDING = Offset(450f, 3f)
-
-/** A point on the resize grip along the drawer panel's inner edge, above the pull tab's span. */
-private val RESIZE_GRIP = Offset(374f, 100f)
+/** The muted line the card shows with nothing selected, a point on the card that is no control. */
+private const val CARD_TEXT = "Nothing selected."
 
 /** A point in the toolbar's top padding. */
 private val TOOLBAR_TOP_PADDING = Offset(23f, 124.5f)
@@ -101,9 +99,6 @@ private val TOOLBAR_START_PADDING = Offset(7.5f, 200f)
 
 /** A point in the caller's margin to the left of the toolbar, which the toolbar does not own. */
 private val TOOLBAR_MARGIN = Offset(3f, 200f)
-
-/** A point in the pull tab's column away from the chip, which is transparent over the surface. */
-private val PULL_TAB_COLUMN = Offset(365f, 100f)
 
 /**
  * The center of a node's bounds, in the root's px at density 1.
@@ -205,6 +200,24 @@ class ViewportChromePointerIsolationTest {
 	}
 
 	/**
+	 * A point on the sidebar's card, on its muted line rather than on a control.
+	 *
+	 * @return Offset The point, in the body's px.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	private fun ComposeUiTest.onTheCard(): Offset = onNodeWithText(CARD_TEXT).getUnclippedBoundsInRoot().center()
+
+	/**
+	 * The left edge of the sidebar's panel stack, where the resize grip starts: the stack's default width and
+	 * the tab gap left of the rail's Item tab.
+	 *
+	 * @return Float The edge's x, in the body's px.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	private fun ComposeUiTest.stackLeft(): Float =
+		onNodeWithText("Item").getUnclippedBoundsInRoot().left.value - SIDEBAR_TAB_GAP.value - SIDEBAR_DEFAULT_WIDTH.value
+
+	/**
 	 * Clicks the primary button at [point] in the body.
 	 *
 	 * @param Offset point Where to click, in the body's px.
@@ -245,28 +258,47 @@ class ViewportChromePointerIsolationTest {
 			assertEquals(1, host.scrolls, "a wheel turn over the open surface reaches it")
 		}
 
-	/** A click or a wheel turn on the drawer panel's empty body stays with the drawer. */
+	/** A click or a wheel turn on the sidebar's card stays with the sidebar. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun thePanelBodySwallowsPressAndWheel() =
+	fun theCardSwallowsPressAndWheel() =
 		runComposeUiTest {
 			val host = RecordingViewportHost()
 			mountBody(host)
-			clickAt(PANEL_BODY)
-			scrollAt(PANEL_BODY)
-			assertEquals(0, host.presses, "a click on the panel must not select or deselect under it")
-			assertEquals(0, host.scrolls, "a wheel turn over the panel must not zoom the view under it")
+			val cardPoint = onTheCard()
+			clickAt(cardPoint)
+			scrollAt(cardPoint)
+			assertEquals(0, host.presses, "a click on the card must not select or deselect under it")
+			assertEquals(0, host.scrolls, "a wheel turn over the card must not zoom the view under it")
 		}
 
-	/** The panel's padding belongs to the panel too. */
+	/**
+	 * The sidebar has no background: above and below its card, in the gap before the tabs, and below the tabs,
+	 * a click or a wheel turn reaches the surface.
+	 */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun thePanelPaddingSwallowsPress() =
+	fun theSpaceAroundTheCardAndTabsStaysTheSurfaces() =
 		runComposeUiTest {
 			val host = RecordingViewportHost()
 			mountBody(host)
-			clickAt(PANEL_PADDING)
-			assertEquals(0, host.presses, "a click in the panel's padding must not reach the surface")
+			val cardPoint = onTheCard()
+			val itemTab = onNodeWithText("Item").getUnclippedBoundsInRoot()
+			val clearOfTheSidebar =
+				listOf(
+					Offset(cardPoint.x, 2f),
+					Offset(cardPoint.x, 380f),
+					Offset(itemTab.left.value - SIDEBAR_TAB_GAP.value / 2f, cardPoint.y),
+					Offset(itemTab.center().x, 380f),
+				)
+
+			for (point in clearOfTheSidebar) {
+				clickAt(point)
+				scrollAt(point)
+			}
+
+			assertEquals(clearOfTheSidebar.size, host.presses, "every click around the card and the tabs reaches the surface")
+			assertEquals(clearOfTheSidebar.size, host.scrolls, "every wheel turn around the card and the tabs reaches the surface")
 		}
 
 	/** The resize grip belongs to the sidebar: a press on it starts a resize, never a click on the surface. */
@@ -276,7 +308,7 @@ class ViewportChromePointerIsolationTest {
 		runComposeUiTest {
 			val host = RecordingViewportHost()
 			mountBody(host)
-			clickAt(RESIZE_GRIP)
+			clickAt(Offset(stackLeft() + 1f, onTheCard().y))
 			assertEquals(0, host.presses, "a click on the grip must not reach the surface")
 		}
 
@@ -297,35 +329,31 @@ class ViewportChromePointerIsolationTest {
 			assertEquals(0, host.scrolls, "no wheel turn inside the toolbar's outline reaches the surface")
 		}
 
-	/**
-	 * What the chrome does not own stays the surface's: the margin the caller puts around the toolbar, and
-	 * the transparent column the pull tab sits in, away from the chip.
-	 */
+	/** What the chrome does not own stays the surface's: the margin the caller puts around the toolbar. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun theToolbarMarginAndPullTabColumnStayTransparent() =
+	fun theToolbarMarginStaysTransparent() =
 		runComposeUiTest {
 			val host = RecordingViewportHost()
 			mountBody(host)
 			clickAt(TOOLBAR_MARGIN)
-			clickAt(PULL_TAB_COLUMN)
-			assertEquals(2, host.presses, "both points show the surface, so both clicks reach it")
+			assertEquals(1, host.presses, "the margin shows the surface, so the click reaches it")
 		}
 
 	/**
 	 * While a gesture of this area owns the pointer, the chrome lets it through: a modal transform or an
-	 * armed tool keeps following the pointer across the panel and is confirmed or cancelled there.
+	 * armed tool keeps following the pointer across the card and is confirmed or cancelled there.
 	 */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun aGestureOwnedByThisAreaPassesThroughThePanel() =
+	fun aGestureOwnedByThisAreaPassesThroughTheCard() =
 		runComposeUiTest {
 			val host = RecordingViewportHost()
 			val session = commandFixtureSession(EditorMode.Object)
 			session.armZoomRegion(AREA_ID)
 			mountBody(host, session)
-			clickAt(PANEL_BODY)
-			assertEquals(1, host.presses, "the armed Zoom Region of this area receives the click over the panel")
+			clickAt(onTheCard())
+			assertEquals(1, host.presses, "the armed Zoom Region of this area receives the click over the card")
 		}
 
 	/**
@@ -383,23 +411,23 @@ class ViewportChromePointerIsolationTest {
 	/** A gesture owned by another area leaves this area's chrome blocking. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun aGestureInAnotherAreaKeepsThePanelBlocking() =
+	fun aGestureInAnotherAreaKeepsTheCardBlocking() =
 		runComposeUiTest {
 			val host = RecordingViewportHost()
 			val session = commandFixtureSession(EditorMode.Object)
 			session.armZoomRegion("area-2")
 			mountBody(host, session)
-			clickAt(PANEL_BODY)
-			assertEquals(0, host.presses, "another area's gesture does not open this area's panel")
+			clickAt(onTheCard())
+			assertEquals(0, host.presses, "another area's gesture does not open this area's card")
 		}
 
 	/**
-	 * The chrome blocks only its siblings: the area around it still sees the pointer, so hovering the panel
+	 * The chrome blocks only its siblings: the area around it still sees the pointer, so hovering the card
 	 * stamps the area as the hovered surface and a right click there still opens the area's context menu.
 	 */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun thePanelStillStampsTheAreaAndOpensItsMenu() =
+	fun theCardStillStampsTheAreaAndOpensItsMenu() =
 		runComposeUiTest {
 			val host = RecordingViewportHost()
 			val tracker = HoveredSurfaceTracker()
@@ -428,12 +456,12 @@ class ViewportChromePointerIsolationTest {
 				}
 			}
 			waitForIdle()
-			// Below the header whatever its height, and inside the panel's 200 dp at the right edge.
-			val panelPoint = Offset(550f, 320f)
-			onNodeWithTag(BODY_TAG).performMouseInput { moveTo(panelPoint) }
+			// Below the header whatever its height: the card's node is placed under it.
+			val cardPoint = onTheCard()
+			onNodeWithTag(BODY_TAG).performMouseInput { moveTo(cardPoint) }
 			waitForIdle()
-			assertEquals(HoveredSurface(AREA_ID, SpaceKind.Viewport2D), tracker.lastTouched, "hovering the panel stamps its area")
-			onNodeWithTag(BODY_TAG).performMouseInput { rightClick(panelPoint) }
+			assertEquals(HoveredSurface(AREA_ID, SpaceKind.Viewport2D), tracker.lastTouched, "hovering the card stamps its area")
+			onNodeWithTag(BODY_TAG).performMouseInput { rightClick(cardPoint) }
 			waitForIdle()
 			onAllNodes(isPopup()).assertCountEquals(1)
 			assertEquals(0, host.presses, "the right click opened the menu without reaching the surface")

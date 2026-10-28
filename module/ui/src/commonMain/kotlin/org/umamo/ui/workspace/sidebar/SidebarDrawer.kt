@@ -12,8 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -72,8 +73,14 @@ import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.workspace.LocalViewportChrome
 import org.umamo.ui.workspace.SpaceKind
 
-/** The panel stack's inset around its cards and the gap between two cards. */
+/** The gap between two cards in the panel stack. */
 private val SIDEBAR_STACK_SPACING = 6.dp
+
+/**
+ * The margin between the floating sidebar and the area's top and bottom edges: the tab rail's own inset at its
+ * ends and outer side, so the first card and the first tab start level.
+ */
+private val SIDEBAR_EDGE_MARGIN = 4.dp
 
 /** The pull tab's width (its height is [SIDEBAR_PULL_TAB_HEIGHT]). */
 private val SIDEBAR_PULL_TAB_WIDTH = 14.dp
@@ -81,28 +88,31 @@ private val SIDEBAR_PULL_TAB_WIDTH = 14.dp
 /** The pull tab's height. */
 private val SIDEBAR_PULL_TAB_HEIGHT = 48.dp
 
-/** The width of the grip along the open sidebar's inner edge that drags its width. */
-private val SIDEBAR_RESIZE_GRIP_WIDTH = 5.dp
+/** The width of the grip straddling the cards' inner edge that drags the stack's width. */
+private val SIDEBAR_RESIZE_GRIP_WIDTH = 6.dp
+
+/** How far the grip reaches past the cards' inner edge, into a transparent gutter the stack keeps for it. */
+private val SIDEBAR_GRIP_OUTSET = SIDEBAR_RESIZE_GRIP_WIDTH / 2
 
 /**
- * A work surface's sidebar (Blender's N panel) as chrome hugging the area's right edge: a pull tab riding
- * its outer border and, while open, a stack of collapsible panels beside a rail of vertical tabs.  The tabs
- * and panels come from the window's [LocalSidebarRegistry] for this area's surface; whether it is open, how
- * wide it is, which tab shows, and which panels are folded is the area's own [state].
+ * A work surface's sidebar (Blender's N panel) floating over the area's right edge, as Blender's overlapping
+ * regions do: while open, a stack of collapsible panel cards beside a column of vertical tabs, with no
+ * background of their own, and while closed, a pull tab at the top of the edge.  The tabs and panels come from
+ * the window's [LocalSidebarRegistry] for this area's surface; whether it is open, how wide it is, which tab
+ * shows, and which panels are folded is the area's own [state].
  *
- * The pull tab's chevron points into the viewport ("<") while closed and back out (">") while open; it
- * dispatches view.toggleSidebar (N), which toggles this area's sidebar, open by the [LocalViewportChrome]
- * default until the rigger chooses.  The grip along the sidebar's inner edge drags its width, fitted to what
- * the area leaves; an area too narrow for even the narrowest sidebar shows only the pull tab, and the
- * sidebar stays open for when the area grows.  The open sidebar keeps the pointer from reaching the surface
- * beneath it, except while a gesture of this area owns the pointer; the column around the pull tab stays
- * transparent, as it looks.
+ * The pull tab dispatches view.toggleSidebar (N), which toggles this area's sidebar, open by the
+ * [LocalViewportChrome] default until the rigger chooses.  The grip on the cards' inner edge drags the stack's
+ * width, fitted to what the area leaves, and dragging it far enough past the narrowest closes the sidebar.  An
+ * area too narrow for even the narrowest stack shows only the pull tab, and the sidebar stays open for when the
+ * area grows.  The cards and the tabs keep the pointer from reaching the surface beneath them, except while a
+ * gesture of this area owns the pointer; everywhere around them the pointer is the surface's.
  *
  * @param String areaId The area the sidebar belongs to.
  * @param SpaceKind space The work surface the area shows, which decides the panels it gets.
  * @param SidebarState state The area's sidebar state.
- * @param Boolean passPointerThrough Whether the open sidebar lets the pointer through to the surface, true
- *   while a gesture of this area owns the pointer and has to follow it across the sidebar.
+ * @param Boolean passPointerThrough Whether the cards, the tabs, and the pull tab let the pointer through to the
+ *   surface, true while a gesture of this area owns the pointer and has to follow it across them.
  * @param Modifier modifier The layout modifier (the caller aligns it to the area's right edge).
  */
 @Composable
@@ -114,39 +124,50 @@ internal fun SidebarDrawer(
 	modifier: Modifier = Modifier,
 ) {
 	val open = state.visibility.isShown(LocalViewportChrome.current.showSidebar)
-	// The shield sits inside this box, and the hit test asks only the surface's direct sibling whether it hands
-	// the pointer on, so the box hands it on as well while the shield does.
+	// Nothing on this box handles the pointer while it blocks, so the space around the cards and the tabs stays
+	// the surface's.  The shields sit inside it, and the hit test asks only the surface's direct sibling whether
+	// it hands the pointer on, so the box hands it on as well while the shields do.
 	val rootModifier = if (passPointerThrough) modifier.sharesPointerWithSiblings() else modifier
 	BoxWithConstraints(modifier = rootModifier.fillMaxHeight()) {
 		val stackWidth = if (open) sidebarStackWidth(state.width, maxWidth) else null
 		val widestStack = sidebarStackWidth(SIDEBAR_MAX_WIDTH, maxWidth)
-		Row(modifier = Modifier.fillMaxHeight()) {
-			Box(modifier = Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
-				SidebarPullTab(open = stackWidth != null)
-			}
 
-			if (stackWidth != null && widestStack != null) {
-				PointerShield(passPointerThrough = passPointerThrough, modifier = Modifier.fillMaxHeight()) {
-					SidebarPanels(areaId = areaId, space = space, state = state, stackWidth = stackWidth, widestStack = widestStack)
-				}
-			} else {
-				// A closed sidebar, or one the area has no room for, shows no tab, so the tab commands have
-				// nothing to step through.
-				SideEffect { state.shownTabIds = emptyList() }
+		if (stackWidth != null && widestStack != null) {
+			SidebarPanels(
+				areaId = areaId,
+				space = space,
+				state = state,
+				stackWidth = stackWidth,
+				widestStack = widestStack,
+				passPointerThrough = passPointerThrough,
+				modifier = Modifier.align(Alignment.TopEnd),
+			)
+		} else {
+			// A closed sidebar, or one the area has no room for, shows no tab, so the tab commands have
+			// nothing to step through.
+			SideEffect { state.shownTabIds = emptyList() }
+			PointerShield(
+				passPointerThrough = passPointerThrough,
+				modifier = Modifier.align(Alignment.TopEnd).padding(top = SIDEBAR_EDGE_MARGIN),
+			) {
+				SidebarPullTab()
 			}
 		}
 	}
 }
 
 /**
- * The open sidebar: the active tab's panels as section cards in a scrolling stack, beside the tab rail.  The
- * selected tab takes the stack's color and meets it, as the Properties panel's tab strip meets its body.
+ * The open sidebar: the active tab's panels as section cards in a scrolling stack, and a gap away the tab rail,
+ * the selected tab in the cards' color.  Each is shielded on its own and only as tall as its content, so the
+ * margins, the gap, and everything below them belong to the surface.
  *
  * @param String areaId The area the sidebar belongs to.
  * @param SpaceKind space The work surface the area shows.
  * @param SidebarState state The area's sidebar state.
  * @param Dp stackWidth The panel stack's width, fitted to the area.
  * @param Dp widestStack The widest the area lets the stack be dragged.
+ * @param Boolean passPointerThrough Whether the cards and the tabs let the pointer through to the surface.
+ * @param Modifier modifier Layout modifier (the caller aligns the sidebar to the area's top right).
  */
 @Composable
 private fun SidebarPanels(
@@ -155,6 +176,8 @@ private fun SidebarPanels(
 	state: SidebarState,
 	stackWidth: Dp,
 	widestStack: Dp,
+	passPointerThrough: Boolean,
+	modifier: Modifier = Modifier,
 ) {
 	val colors = LocalUmamoColors.current
 	val registry = LocalSidebarRegistry.current
@@ -165,63 +188,77 @@ private fun SidebarPanels(
 	val activeTabId = state.resolvedActiveTab(shownTabIds)
 	val activeTab = tabs.firstOrNull { resolved -> resolved.tab.id == activeTabId }
 	val scrollState = rememberScrollState()
-	// The resize cursor is held over the whole sidebar while the grip drags (see holdsHoverIcon).
+	// The resize cursor is held over the whole stack while the grip drags (see holdsHoverIcon).
 	var resizing by remember { mutableStateOf(false) }
-	Row(
-		modifier =
-			Modifier
-				.fillMaxHeight()
-				.border(width = 1.dp, color = colors.panelBorder)
-				// Only while a drag is live, so the controls' own hover cursors win otherwise.
-				.holdsHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll), held = resizing),
-	) {
-		Box(modifier = Modifier.fillMaxHeight().width(stackWidth).background(colors.headerBackground)) {
-			Column(
-				modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(SIDEBAR_STACK_SPACING),
-				verticalArrangement = Arrangement.spacedBy(SIDEBAR_STACK_SPACING),
-			) {
-				if (activeTab != null && context != null) {
-					for (panel in activeTab.panels) {
-						key(panel.id) {
-							SectionCard(
-								title = panel.title.resolve(),
-								expanded = state.isExpanded(panel),
-								onToggle = { state.toggleExpanded(panel) },
-							) {
-								panel.content(context)
+	Row(modifier = modifier) {
+		PointerShield(
+			passPointerThrough = passPointerThrough,
+			// The margin comes before the shield's handler, so it stays the surface's.  The hover icon is a
+			// pointer target of its own, so it sits on the stack and not around the whole sidebar.
+			modifier =
+				Modifier
+					.padding(vertical = SIDEBAR_EDGE_MARGIN)
+					.width(stackWidth)
+					// Only while a drag is live, so the controls' own hover cursors win otherwise.
+					.holdsHoverIcon(umamoPointerIcon(LocalUmamoCursors.ewScroll), held = resizing),
+		) {
+			Box(modifier = Modifier.fillMaxWidth()) {
+				Column(
+					modifier = Modifier.fillMaxWidth().verticalScroll(scrollState).padding(start = SIDEBAR_GRIP_OUTSET),
+					verticalArrangement = Arrangement.spacedBy(SIDEBAR_STACK_SPACING),
+				) {
+					if (activeTab != null && context != null) {
+						for (panel in activeTab.panels) {
+							key(panel.id) {
+								SectionCard(
+									title = panel.title.resolve(),
+									expanded = state.isExpanded(panel),
+									onToggle = { state.toggleExpanded(panel) },
+								) {
+									panel.content(context)
+								}
 							}
 						}
 					}
 				}
+				VerticalScrollbarOverlay(scrollState)
+				// Matched to the stack after it is measured, so the grip spans the cards without stretching the
+				// stack to the area's height.
+				Box(modifier = Modifier.matchParentSize()) {
+					SidebarResizeGrip(
+						state = state,
+						widestStack = widestStack,
+						onResizingChange = { dragging -> resizing = dragging },
+						modifier = Modifier.align(Alignment.CenterStart),
+					)
+				}
 			}
-			VerticalScrollbarOverlay(scrollState)
-			SidebarResizeGrip(
-				state = state,
-				widestStack = widestStack,
-				onResizingChange = { dragging -> resizing = dragging },
-				modifier = Modifier.align(Alignment.CenterStart),
+		}
+		Spacer(modifier = Modifier.width(SIDEBAR_TAB_GAP))
+		PointerShield(passPointerThrough = passPointerThrough) {
+			VerticalTabRail(
+				tabs = tabs.map { resolved -> VerticalTabRailItem(resolved.tab.id, resolved.tab.label.resolve()) },
+				selectedId = activeTabId,
+				onSelect = { tabId -> state.activeTabId = tabId },
+				contentSide = RailContentSide.Start,
+				modifier = Modifier.stepsTabsOnPrimaryWheel(state),
+				tabFill = colors.tabBackground,
+				selectedFill = colors.panelThirdElevation,
+				tabBorder = colors.panelBorder,
+				selectedBorder = colors.panelThirdElevationBorder,
 			)
 		}
-		VerticalTabRail(
-			tabs = tabs.map { resolved -> VerticalTabRailItem(resolved.tab.id, resolved.tab.label.resolve()) },
-			selectedId = activeTabId,
-			onSelect = { tabId -> state.activeTabId = tabId },
-			contentSide = RailContentSide.Start,
-			modifier =
-				Modifier
-					.fillMaxHeight()
-					.background(colors.tabBackground)
-					.stepsTabsOnPrimaryWheel(state),
-		)
 	}
 }
 
 /**
- * The grip along the open sidebar's inner edge, over the stack's border and padding and clear of its cards:
- * dragging it left widens the stack, between the narrowest it may be and the widest the area leaves.  Each
- * step starts from the width on screen, so a stored width the area clamped never leaves a dead zone.
+ * The grip straddling the cards' inner edge, half over the stack's gutter and half over the cards' border:
+ * dragging it left widens the stack, between the narrowest it may be and the widest the area leaves.  Each step
+ * starts from the width on screen, so a stored width the area clamped never leaves a dead zone.  Dragged right
+ * far enough past the narrowest, it closes the sidebar and puts back the width the drag began from, so the
+ * sidebar reopens as it was.
  *
- * @param SidebarState state The area's sidebar state, whose width the drag sets.
+ * @param SidebarState state The area's sidebar state, whose width and visibility the drag sets.
  * @param Dp widestStack The widest the area lets the stack be.
  * @param Function onResizingChange Told when a drag starts and ends, to hold the resize cursor meanwhile.
  * @param Modifier modifier Layout modifier (the caller aligns the grip to the stack's inner edge).
@@ -233,6 +270,8 @@ private fun SidebarResizeGrip(
 	onResizingChange: (Boolean) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
+	// Read only by the drag's callbacks, never drawn.
+	var widthAtDragStart by remember { mutableStateOf(state.width) }
 	Box(
 		modifier =
 			modifier
@@ -247,7 +286,18 @@ private fun SidebarResizeGrip(
 					onResize = { width -> state.width = width },
 					// The grip is on the stack's left edge and the sidebar hugs the right, so dragging left widens it.
 					growsBackward = true,
-					onDraggingChange = onResizingChange,
+					onDraggingChange = { dragging ->
+						if (dragging) {
+							widthAtDragStart = state.width
+						}
+
+						onResizingChange(dragging)
+					},
+					collapseBelow = SIDEBAR_COLLAPSE_WIDTH,
+					onCollapse = {
+						state.width = widthAtDragStart
+						state.visibility.choice = false
+					},
 				),
 	)
 }
@@ -314,20 +364,18 @@ private fun Modifier.stepsTabsOnPrimaryWheel(state: SidebarState): Modifier =
 	}
 
 /**
- * The drawer's pull tab: a slim rounded-start chip on the sidebar's outer edge whose chevron points the way
- * the sidebar will move.  Dispatches view.toggleSidebar through the registry.
- *
- * @param Boolean open Whether the sidebar is currently open (flips the chevron).
+ * The closed sidebar's pull tab: a slim chip rounded on the viewport side, flush with the area's right edge,
+ * whose chevron points the way the sidebar opens.  Dispatches view.toggleSidebar through the registry.
  */
 @Composable
-private fun SidebarPullTab(open: Boolean) {
+private fun SidebarPullTab() {
 	val commands = LocalCommands.current
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
 	val label = stringResource(Res.string.cmd_view_toggle_sidebar)
-	// Rounded on the viewport side only; the panel side sits flush against the sidebar (or the area edge).
+	// Rounded on the viewport side only; the other side sits flush against the area edge.
 	val tabShape = shapes.small.copy(topEnd = ZeroCornerSize, bottomEnd = ZeroCornerSize)
 	Tooltip(text = label) {
 		Box(
@@ -341,9 +389,8 @@ private fun SidebarPullTab(open: Boolean) {
 					.semantics { contentDescription = label },
 			contentAlignment = Alignment.Center,
 		) {
-			val chevron = if (open) LocalUmamoIcons.chevronRight else LocalUmamoIcons.chevronLeft
 			Canvas(modifier = Modifier.size(12.dp)) {
-				drawIcon(chevron, colors.controlGlyph)
+				drawIcon(LocalUmamoIcons.chevronLeft, colors.controlGlyph)
 			}
 		}
 	}
