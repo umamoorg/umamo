@@ -55,7 +55,8 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
 
 /**
  * The UV editor's Object-mode gizmo overlay, the mode-exclusive sibling of [UvEditGizmoOverlay]
- * (each one self-gates on the session's mode, the viewport overlay pair's convention): every
+ * (each one self-gates on the session's mode, the viewport overlay pair's convention; in Pose mode neither
+ * mounts, so the UV editor is view-only there): every
  * visible island on the shown surface is a click target writing the ONE session object selection, so a
  * selection made here flows out to the viewport and the outliner.  The islands themselves draw in the area's
  * frame, in the Blender object-overlay style (UvObjectSceneOverlay.kt).
@@ -121,7 +122,8 @@ internal fun UvObjectGizmoOverlay(
 ) {
 	val mode by session.mode.collectAsState()
 
-	if (mode == EditorMode.Edit || camera == null) {
+	// Object mode only: Edit mode mounts the Edit sibling, and the UV editor is view-only in Pose mode.
+	if (mode != EditorMode.Object || camera == null) {
 		return
 	}
 

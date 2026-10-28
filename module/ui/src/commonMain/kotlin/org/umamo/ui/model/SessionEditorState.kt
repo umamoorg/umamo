@@ -64,6 +64,20 @@ class SessionEditorState internal constructor(
 	override fun set(mode: EditorMode) {
 		session.setMode(mode)
 	}
+
+	/**
+	 * Routes the Edit toggle to the session, which remembers the mode Edit was entered from.
+	 */
+	override fun toggleEdit() {
+		session.toggleEditMode()
+	}
+
+	/**
+	 * Routes the Pose toggle to the session.
+	 */
+	override fun togglePose() {
+		session.togglePoseMode()
+	}
 }
 
 /**

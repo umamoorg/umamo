@@ -347,8 +347,9 @@ private fun handleShellKey(stroke: ShellKeyStroke, keymap: Keymap, registry: Com
 			primaryModifier = stroke.primaryModifier,
 			shift = stroke.shift,
 			alt = stroke.alt,
+			controlKey = stroke.controlKey,
 		)
-	val commandId = keymap.commandFor(chord) ?: return false
+	val commandId = keymap.commandForPress(chord) ?: return false
 
 	return registry.invoke(commandId)
 }
@@ -358,7 +359,11 @@ private fun handleShellKey(stroke: ShellKeyStroke, keymap: Keymap, registry: Com
  * lets it through to its selectable text; everything else it swallows.  Neither the keymap nor anything behind
  * the alert sees it, because the ladder returns before the keymap is consulted.
  *
+ * A literal Control counts too, so Control+C passes through on macOS exactly as it does where Control is the
+ * primary modifier.
+ *
  * @param ShellKeyStroke stroke The stroke.
  * @return Boolean Whether it copies.
  */
-private fun isCopyChord(stroke: ShellKeyStroke): Boolean = stroke.key == Key.Copy || (stroke.key == Key.C && stroke.primaryModifier)
+private fun isCopyChord(stroke: ShellKeyStroke): Boolean =
+	stroke.key == Key.Copy || (stroke.key == Key.C && (stroke.primaryModifier || stroke.controlKey))

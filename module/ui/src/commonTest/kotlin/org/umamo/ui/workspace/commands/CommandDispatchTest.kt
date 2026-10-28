@@ -16,6 +16,8 @@ import org.umamo.edit.SnapRequest
 import org.umamo.edit.UvMirrorRequest
 import org.umamo.edit.selectAllMeshElements
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -80,7 +82,8 @@ class CommandDispatchTest {
 				PuppetModel(
 					parameters = emptyList(),
 					parts = emptyList(),
-					deformers = emptyList(),
+					// One deformer, so the session can enter Pose mode (refused with nothing to pose).
+					deformers = listOf(Deformer.Warp(DeformerId("w"), "w", parent = null, partId = null, rows = 1, columns = 1, isQuadTransform = true, geometryGrid = null)),
 					drawables = listOf(meshDrawable("a")),
 					rootChildren = emptyList(),
 					rootPartId = null,
@@ -389,17 +392,19 @@ class CommandDispatchTest {
 	}
 
 	/**
-	 * Shift+S over a UV editor opens the UV snap pie in either mode - its snaps move texture coordinates in Edit
-	 * mode and placed art tiles in Object mode - and over a 2D viewport the world snap pie.
+	 * Shift+S over a UV editor opens the UV snap pie in Object and Edit mode - its snaps move texture coordinates
+	 * in Edit mode and placed art tiles in Object mode - and no pie in Pose mode, where the UV editor is view-only.
+	 * Over a 2D viewport it opens the world snap pie in every mode.
 	 */
 	@Test
-	fun theSnapPieOverAUvEditorIsTheUvPieInEitherMode() {
+	fun theSnapPieOverAUvEditorIsTheUvPieOutsidePoseMode() {
 		for (mode in EditorMode.entries) {
 			val session = session(mode)
 			assertEquals(mode, session.mode.value, "the case must really be in $mode")
 
 			snapCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session), AreaOverlayHub()).run("snap.pie")
-			assertEquals(PieMenuKind.UvSnap, session.activePieMenu.value, "over a UV editor in $mode")
+			val expectedOverUv = if (mode == EditorMode.Pose) null else PieMenuKind.UvSnap
+			assertEquals(expectedOverUv, session.activePieMenu.value, "over a UV editor in $mode")
 			session.closePieMenu()
 			snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), AreaOverlayHub()).run("snap.pie")
 			assertEquals(PieMenuKind.Snap, session.activePieMenu.value, "over a viewport in $mode")

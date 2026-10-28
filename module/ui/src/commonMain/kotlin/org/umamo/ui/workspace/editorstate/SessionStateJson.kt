@@ -77,7 +77,7 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 				}
 			},
 		)
-		put("mode", if (viewState.mode == EditorMode.Edit) JsonPrimitive("edit") else JsonNull)
+		put("mode", if (viewState.mode == EditorMode.Object) JsonNull else JsonPrimitive(modeWireName(viewState.mode)))
 		put("selectMode", if (viewState.selectMode == MeshSelectMode.Vertex) JsonNull else JsonPrimitive(selectModeWireName(viewState.selectMode)))
 		put("cursor2d", viewState.cursor2d?.let { cursor -> floatPairOrNull(cursor.worldX, cursor.worldZ) } ?: JsonNull)
 		put("uvCursor", viewState.uvCursor?.let { cursor -> floatPairOrNull(cursor.u, cursor.v) } ?: JsonNull)
@@ -115,7 +115,7 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 	return SessionViewState(
 		selection = Selection(targets, selection?.let { block -> stringOf(block, "active") }?.let(::selectionTargetOf)),
 		parameterSelection = ParameterSelection(parameterIds, parameterSelection?.let { block -> stringOf(block, "active") }?.let(::ParameterId)),
-		mode = if (stringOf(tree, "mode") == "edit") EditorMode.Edit else EditorMode.Object,
+		mode = stringOf(tree, "mode")?.let { wireName -> EditorMode.entries.firstOrNull { mode -> modeWireName(mode) == wireName } } ?: EditorMode.Object,
 		selectMode = stringOf(tree, "selectMode")?.let { wireName -> MeshSelectMode.entries.firstOrNull { mode -> selectModeWireName(mode) == wireName } } ?: MeshSelectMode.Vertex,
 		cursor2d = floatListOf(tree, "cursor2d", 2)?.let { (worldX, worldZ) -> Cursor2d(worldX, worldZ) },
 		uvCursor = floatListOf(tree, "uvCursor", 2)?.let { (u, v) -> UvCursor(u, v) },
@@ -191,6 +191,20 @@ internal fun selectionTargetOf(reference: String): SelectionTarget? =
 		reference.startsWith("drawable:") -> SelectionTarget.Drawable(DrawableId(reference.removePrefix("drawable:")))
 		reference.startsWith("deformer:") -> SelectionTarget.Deformer(DeformerId(reference.removePrefix("deformer:")))
 		else -> null
+	}
+
+/**
+ * An editor mode's name in the editor entry.
+ *
+ * @param EditorMode mode The mode.
+ * @return String The wire name.
+ */
+private fun modeWireName(mode: EditorMode): String =
+	// UMA §7.4: `mode`.
+	when (mode) {
+		EditorMode.Object -> "object"
+		EditorMode.Edit -> "edit"
+		EditorMode.Pose -> "pose"
 	}
 
 /**

@@ -142,6 +142,11 @@ fun EditorSession.beginUvOperator(kind: MeshOperatorKind, areaId: String) {
 				return
 			}
 		}
+
+		// The UV editor is view-only in Pose mode: posing has nothing to do with the texture, so nothing moves.
+		EditorMode.Pose -> {
+			return
+		}
 	}
 
 	latches.latchUvOperator(kind, areaId)

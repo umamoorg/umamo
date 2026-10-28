@@ -102,6 +102,20 @@ class SessionStateJsonTest {
 		assertEquals(saved, reopened)
 	}
 
+	/** Every editor mode round-trips under its UMA §7.4 wire name, and Object mode, the default, writes nothing. */
+	@Test
+	fun everyModeRoundTripsUnderItsWireName() {
+		for (mode in EditorMode.entries) {
+			val saved = SessionViewState(mode = mode)
+
+			assertEquals(saved, sessionViewStateOf(sessionStateJson(saved, defaultPose, model)), "$mode round-trips")
+		}
+
+		assertEquals("pose", sessionStateJson(SessionViewState(mode = EditorMode.Pose), defaultPose, model)["mode"]?.jsonPrimitive?.content)
+		assertEquals("edit", sessionStateJson(SessionViewState(mode = EditorMode.Edit), defaultPose, model)["mode"]?.jsonPrimitive?.content)
+		assertTrue(sessionStateJson(SessionViewState(mode = EditorMode.Object), defaultPose, model)["mode"] is JsonNull)
+	}
+
 	/** Every falloff curve round-trips under its UMA §7.4 wire name, the two-word one in lower camel case. */
 	@Test
 	fun everyFalloffRoundTripsUnderItsWireName() {

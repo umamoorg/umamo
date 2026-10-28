@@ -1179,6 +1179,26 @@ class ModalKeyLadderTest {
 		assertTrue(registry.invoked)
 	}
 
+	@Test
+	fun aLiteralControlStrokeDispatchesItsOwnBinding() {
+		val registry = RecordingRegistry("mode.togglePose")
+		val keymap = Keymap(mapOf(KeyChord("Tab", controlKey = true) to "mode.togglePose"))
+		val state = ShellModalState(commandRegistry = registry.registry, keymap = keymap)
+
+		assertTrue(handleModalKeyLadder(ShellKeyStroke(Key.Tab, isDown = true, controlKey = true), state))
+		assertTrue(registry.invoked)
+	}
+
+	@Test
+	fun aLiteralControlStrokeFallsBackToThePrimaryBinding() {
+		val registry = RecordingRegistry("mesh.grab")
+		val keymap = Keymap(mapOf(KeyChord("KeyG", primaryModifier = true) to "mesh.grab"))
+		val state = ShellModalState(commandRegistry = registry.registry, keymap = keymap)
+
+		assertTrue(handleModalKeyLadder(ShellKeyStroke(Key.G, isDown = true, controlKey = true), state), "Control+G reaches the primary binding on macOS")
+		assertTrue(registry.invoked)
+	}
+
 	// ---------------------------------------------------------------------------------------------
 	// Precedence: two or more modals live at once.  A per-arm sweep passes regardless of order, so
 	// these are what actually enforce the contract.

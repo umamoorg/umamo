@@ -10,6 +10,7 @@ import org.umamo.edit.SessionTestModels.partB
 import org.umamo.edit.SessionTestModels.twoMeshModel
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.edit.mesh.commitMeshPositions
+import org.umamo.edit.structure.deleteDeformer
 import org.umamo.edit.structure.withPartName
 import org.umamo.edit.structure.withPartVisibility
 import org.umamo.runtime.model.Drawable
@@ -314,6 +315,102 @@ class EditorSessionTest {
 
 		session.setMode(EditorMode.Object)
 		assertEquals(0.6f, session.pose.value[angleX], "leaving Edit leaves the pose untouched")
+	}
+
+	/**
+	 * Pose mode neither writes nor pins the pose: entering and leaving it leave the pose as it was, it shows
+	 * the rig's own pose rather than the rest, and the pose stays writable inside it - posing is what it is for.
+	 */
+	@Test
+	fun poseModeNeitherTouchesNorPinsThePose() {
+		val session = EditorSession(paramModel())
+		session.commitPose(ParameterChange.SetValue(listOf(angleX)), mapOf(angleX to 0.6f))
+
+		session.setMode(EditorMode.Pose)
+
+		assertEquals(EditorMode.Pose, session.mode.value, "Pose engages over a model with a deformer")
+		assertEquals(0.6f, session.pose.value[angleX], "entering Pose leaves the pose untouched")
+		assertFalse(session.posePinned, "Pose mode never pins the pose")
+		assertEquals(0.6f, session.shownPose[angleX], "Pose mode shows the rig's pose, not the rest")
+
+		session.commitPose(ParameterChange.SetValue(listOf(angleX)), mapOf(angleX to 0.3f))
+		assertEquals(0.3f, session.pose.value[angleX], "the pose is writable in Pose mode")
+
+		session.setMode(EditorMode.Object)
+		assertEquals(0.3f, session.pose.value[angleX], "leaving Pose leaves the pose untouched")
+	}
+
+	/** Pose mode is refused with a near-cursor notice when the model has no deformer, recording nothing. */
+	@Test
+	fun poseModeIsRefusedWithNothingToPose() {
+		val session = EditorSession(model().copy(deformers = emptyList()))
+
+		session.setMode(EditorMode.Pose)
+
+		assertEquals(EditorMode.Object, session.mode.value)
+		assertEquals("notice.mode.poseNeedsDeformer", session.notice.value?.messageKey)
+		assertEquals(NoticePlacement.NearCursor, session.notice.value?.placement)
+		assertFalse(session.canUndo.value, "a refused switch records no step")
+	}
+
+	/** Each switch into or out of Pose mode is its own undo step, as every mode change is. */
+	@Test
+	fun undoAndRedoWalkThroughPoseMode() {
+		val session = EditorSession(model())
+
+		session.setMode(EditorMode.Pose)
+		session.setMode(EditorMode.Object)
+		session.undo()
+		assertEquals(EditorMode.Pose, session.mode.value)
+		session.undo()
+		assertEquals(EditorMode.Object, session.mode.value)
+		session.redo()
+		assertEquals(EditorMode.Pose, session.mode.value)
+	}
+
+	/** Tab leaves Edit mode for the mode it was entered from, Blender's toggle: Pose comes back to Pose. */
+	@Test
+	fun theEditToggleReturnsToTheModeEditWasEnteredFrom() {
+		val session = EditorSession(meshModel())
+
+		session.toggleEditMode()
+		assertEquals(EditorMode.Edit, session.mode.value)
+		session.toggleEditMode()
+		assertEquals(EditorMode.Object, session.mode.value, "entered from Object, so it returns to Object")
+
+		session.setMode(EditorMode.Pose)
+		session.toggleEditMode()
+		assertEquals(EditorMode.Edit, session.mode.value)
+		session.toggleEditMode()
+		assertEquals(EditorMode.Pose, session.mode.value, "entered from Pose, so it returns to Pose")
+	}
+
+	/** A return to Pose mode the model can no longer hold lands in Object mode, so Tab never strands Edit mode. */
+	@Test
+	fun theEditToggleFallsBackToObjectWhenNothingIsLeftToPose() {
+		val session = EditorSession(meshModel())
+		session.setMode(EditorMode.Pose)
+		session.toggleEditMode()
+		session.deleteDeformer(SessionTestModels.warp.id) { emptyMap() }
+
+		session.toggleEditMode()
+
+		assertEquals(EditorMode.Object, session.mode.value)
+	}
+
+	/** The Pose toggle enters Pose from Object or Edit mode, and leaves it for Object mode. */
+	@Test
+	fun thePoseToggleEntersFromEitherModeAndLeavesForObject() {
+		val session = EditorSession(meshModel())
+
+		session.togglePoseMode()
+		assertEquals(EditorMode.Pose, session.mode.value)
+		session.togglePoseMode()
+		assertEquals(EditorMode.Object, session.mode.value)
+
+		session.setMode(EditorMode.Edit)
+		session.togglePoseMode()
+		assertEquals(EditorMode.Pose, session.mode.value, "from Edit, the toggle goes to Pose")
 	}
 
 	/**

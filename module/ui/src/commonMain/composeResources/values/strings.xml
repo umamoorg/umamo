@@ -334,6 +334,8 @@
 	<string name="cmd_mode_toggle_edit">Toggle Edit Mode</string>
 	<string name="cmd_mode_object">Object Mode</string>
 	<string name="cmd_mode_edit">Edit Mode</string>
+	<string name="cmd_mode_toggle_pose">Toggle Pose Mode</string>
+	<string name="cmd_mode_pose">Pose Mode</string>
 	<string name="cmd_mesh_grab">Grab Vertices</string>
 	<string name="cmd_mesh_scale">Scale Vertices</string>
 	<string name="cmd_mesh_rotate">Rotate Vertices</string>
@@ -573,6 +575,7 @@
 
 	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
 	<string name="notice_transform_only_drawables">Only drawables can be transformed.  Parts and deformers are not yet supported.</string>
+	<string name="notice_mode_pose_needs_deformer">Pose mode needs a deformer to pose.</string>
 	<string name="notice_transform_deformed">Can't transform while mesh is deformed.  Reset all parameters first.</string>
 	<string name="notice_unknown">Action unavailable.</string>
 

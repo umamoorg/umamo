@@ -75,11 +75,15 @@ internal class SessionAvailability(session: EditorSession?) {
 		}
 
 	/**
-	 * Applies when the document has art tiles to mesh from.  A MOC3-origin document has none (its
-	 * drawables sample packed pages, where cutting one drawable's art out would pick up its neighbours'),
-	 * so the command stays off there.
+	 * Applies when the document has art tiles to mesh from, outside Pose mode.  A MOC3-origin document has none
+	 * (its drawables sample packed pages, where cutting one drawable's art out would pick up its neighbours'),
+	 * so the command stays off there.  A generated mesh is a rest edit of drawables, which Pose mode - acting
+	 * on deformers at a pose - never makes.
 	 */
-	val canGenerateMeshFromArt = CommandAvailability { session?.model?.value?.atlas?.tiles?.isNotEmpty() == true }
+	val canGenerateMeshFromArt =
+		CommandAvailability {
+			session != null && session.mode.value != EditorMode.Pose && session.model.value.atlas.tiles.isNotEmpty()
+		}
 
 	/** Applies while an operation may still be adjusted - the strip's F9 has something to open. */
 	val hasAdjustableOperation = CommandAvailability { session?.adjustableOperation?.value != null }

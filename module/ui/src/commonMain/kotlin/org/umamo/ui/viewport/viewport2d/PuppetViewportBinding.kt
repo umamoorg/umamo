@@ -36,6 +36,7 @@ import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
+import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.pinsPose
@@ -189,6 +190,40 @@ private class SourceArtworkGaps {
 }
 
 /**
+ * The selection tint the viewport draws: the drawables it tints and the active one tinted apart.  Only drawables
+ * tint, and only in Object mode - Edit and Pose mode tint nothing.  In Edit mode the object selection still holds
+ * the drawable being edited, but the highlight is object-mode chrome that would fight the mesh gizmo overlay; Pose
+ * mode acts on deformers, so a tinted drawable would read as something it poses.  Derived from the mode rather
+ * than stashed, so entering either clears the tint and leaving restores it with the selection never touched.
+ *
+ * @param Selection selection The committed object selection.
+ * @param EditorMode mode The editor mode.
+ * @param Set<DrawableId>? previewSelection An in-flight object circle stroke's painted drawables, or null.
+ * @return Pair<Set<DrawableId>, DrawableId?> The tinted drawables and the active one, or null for none.
+ */
+internal fun selectionTintOf(selection: Selection, mode: EditorMode, previewSelection: Set<DrawableId>?): Pair<Set<DrawableId>, DrawableId?> =
+	when {
+		mode != EditorMode.Object -> {
+			emptySet<DrawableId>() to null
+		}
+
+		// An in-flight object circle stroke paints a transient preview; while it is live the tint shows exactly what
+		// the stroke has painted, with no active drawable yet, so drawables light up plain under the brush before the
+		// stroke commits.
+		previewSelection != null -> {
+			previewSelection to null
+		}
+
+		// Otherwise the committed selection's drawables tint, its active (last-selected) drawable apart.  A part or
+		// deformer active target yields no active, so every selected drawable tints plain.
+		else -> {
+			val selectedDrawableIds = selection.targets.filterIsInstance<SelectionTarget.Drawable>().map { target -> target.id }.toSet()
+			val activeDrawableId = (selection.active as? SelectionTarget.Drawable)?.id
+			selectedDrawableIds to activeDrawableId
+		}
+	}
+
+/**
  * Builds a [PuppetViewportBinding] backed by a [PuppetViewportService]: the puppet renders on the
  * engine's own thread and shows as a lightweight Compose `Image` with a per-area pan/zoom camera, so the
  * viewport is ordinary Compose content (the zoom readout - and future gizmos - layer over it correctly).
@@ -237,36 +272,9 @@ fun rememberPuppetViewportHost(
 	// viewport tints) plus the active (last-selected) one, so it re-renders the tint with the active drawable
 	// distinguished from the rest of a multi-selection. The session is the source of truth, so this also
 	// follows an undo/redo that changes the selection. Mirrors how settings/liveparams reach the render thread.
-	//
-	// Edit mode suppresses the tint entirely (an empty set, no active): the object selection still holds the
-	// drawable being edited, but the highlight is object-mode chrome that would fight the mesh gizmo overlay.
-	// Gated on the mode exactly like the pose override below, so entering Edit clears the tint and leaving
-	// restores it with no stash - session.selection is never touched.
+	// What tints in which mode is selectionTintOf's rule.
 	LaunchedEffect(service, session) {
-		combine(session.selection, session.mode, session.previewSelection) { selection, mode, previewSelection ->
-			when {
-				mode == EditorMode.Edit -> {
-					emptySet<DrawableId>() to null
-				}
-
-				// An in-flight object circle stroke paints a transient preview; while it is live the tint shows
-				// exactly what the stroke has painted (previewSelection) with no active drawable yet, so drawables
-				// light up plain under the brush before the stroke commits.
-				previewSelection != null -> {
-					previewSelection to null
-				}
-
-				// Otherwise the committed object selection's drawables tint as usual, with its active
-				// (last-selected) drawable tinted apart. A Part/Deformer active target yields null, so every
-				// selected drawable tints plain - correct, since only drawables are tinted.
-				else -> {
-					val selectedDrawableIds =
-						selection.targets.filterIsInstance<SelectionTarget.Drawable>().map { it.id }.toSet()
-					val activeDrawableId = (selection.active as? SelectionTarget.Drawable)?.id
-					selectedDrawableIds to activeDrawableId
-				}
-			}
-		}
+		combine(session.selection, session.mode, session.previewSelection, ::selectionTintOf)
 			.distinctUntilChanged()
 			.collect { (drawableIds, activeDrawableId) ->
 				service.setSelection(drawableIds)

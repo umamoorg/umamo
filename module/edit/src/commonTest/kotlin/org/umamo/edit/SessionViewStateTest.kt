@@ -1,6 +1,8 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -145,6 +147,24 @@ class SessionViewStateTest {
 
 		assertEquals(EditorMode.Object, session.mode.value)
 		assertTrue(session.meshSelection.value.drawableIds.isEmpty())
+	}
+
+	/** A saved Pose mode opens in Pose over a model with a deformer, and undo has no step to take back. */
+	@Test
+	fun aSavedPoseModeOpensInPose() {
+		val warp = Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 1, columns = 1, isQuadTransform = true, geometryGrid = null)
+		val session = EditorSession(meshedModel.copy(deformers = listOf(warp)), initialViewState = SessionViewState(mode = EditorMode.Pose))
+
+		assertEquals(EditorMode.Pose, session.mode.value)
+		assertFalse(session.canUndo.value, "the opening mode is where the history starts")
+	}
+
+	/** A saved Pose mode the model cannot satisfy - nothing to pose - opens in Object, the refusal setMode makes. */
+	@Test
+	fun aPoseModeWithNoDeformerOpensInObject() {
+		val session = EditorSession(meshedModel, initialViewState = SessionViewState(mode = EditorMode.Pose))
+
+		assertEquals(EditorMode.Object, session.mode.value)
 	}
 
 	/** A plain open is untouched: no saved state means the defaults the session always had. */

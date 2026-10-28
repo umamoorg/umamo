@@ -286,6 +286,16 @@ interface EditorModeHandle {
 	 * @param EditorMode mode The new mode.
 	 */
 	fun set(mode: EditorMode)
+
+	/**
+	 * Toggles Edit mode: enters it, or leaves it for the mode it was entered from (Blender's Tab).
+	 */
+	fun toggleEdit()
+
+	/**
+	 * Toggles Pose mode: enters it, or leaves it for Object mode.
+	 */
+	fun togglePose()
 }
 
 /**

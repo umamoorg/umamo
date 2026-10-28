@@ -65,7 +65,11 @@ internal fun ActiveMeshInfoLabel(
 	val activeDrawableId =
 		when (editorMode) {
 			EditorMode.Edit -> meshSelection.activeDrawableId
+
 			EditorMode.Object -> (objectSelection.active as? SelectionTarget.Drawable)?.id
+
+			// Pose mode acts on deformers, not drawables, so it shows no drawable chip.
+			EditorMode.Pose -> null
 		} ?: return
 	val activeDrawable = model.drawables.firstOrNull { drawable -> drawable.id == activeDrawableId } ?: return
 	val partName = partNameOfDrawable[activeDrawable.id]

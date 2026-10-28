@@ -22,14 +22,86 @@ class KeymapTest {
 	}
 
 	/**
-	 * "cmd"/"ctrl"/"control" all map to the single logical primary modifier.
+	 * Where Control is the primary modifier, "cmd" / "ctrl" / "control" all map to the single logical primary
+	 * modifier, so a "ctrl" spec can never conflict with or double-bind a "primary" one.
 	 */
 	@Test
-	fun primaryModifierAliasesUnify() {
-		val viaCmd = parseKeyChord("cmd+KeyA")
-		val viaCtrl = parseKeyChord("ctrl+KeyA")
+	fun primaryModifierAliasesUnifyWhereControlIsPrimary() {
+		val viaCmd = parseKeyChord("cmd+KeyA", controlIsDistinct = false)
+		val viaCtrl = parseKeyChord("ctrl+KeyA", controlIsDistinct = false)
+		val viaControl = parseKeyChord("control+KeyA", controlIsDistinct = false)
 		assertEquals(viaCmd, viaCtrl)
+		assertEquals(viaCmd, viaControl)
 		assertEquals(KeyChord(keyName = "KeyA", primaryModifier = true), viaCmd)
+	}
+
+	/**
+	 * Where Control is its own modifier (macOS), "ctrl" parses as the literal Control key and "cmd" as primary,
+	 * two different chords.
+	 */
+	@Test
+	fun ctrlIsLiteralWhereControlIsDistinct() {
+		assertEquals(KeyChord(keyName = "Tab", controlKey = true), parseKeyChord("ctrl+Tab", controlIsDistinct = true))
+		assertEquals(KeyChord(keyName = "Tab", controlKey = true), parseKeyChord("Control+Tab", controlIsDistinct = true))
+		assertEquals(KeyChord(keyName = "Tab", primaryModifier = true), parseKeyChord("cmd+Tab", controlIsDistinct = true))
+		assertEquals(
+			KeyChord(keyName = "KeyK", primaryModifier = true, shift = true, controlKey = true),
+			parseKeyChord("shift+ctrl+primary+KeyK", controlIsDistinct = true),
+		)
+	}
+
+	/**
+	 * A literal Control serializes as "ctrl" in the fixed primary, ctrl, shift, alt order, and parses back to
+	 * the same chord where Control is distinct.
+	 */
+	@Test
+	fun literalControlRoundTripsThroughItsSpec() {
+		val chord = KeyChord(keyName = "KeyK", primaryModifier = true, shift = true, alt = true, controlKey = true)
+		assertEquals("primary+ctrl+shift+alt+KeyK", chordToSpec(chord))
+		assertEquals(chord, parseKeyChord(chordToSpec(chord), controlIsDistinct = true))
+		assertEquals("ctrl+Tab", chordToSpec(KeyChord(keyName = "Tab", controlKey = true)))
+	}
+
+	/**
+	 * A press decodes by host: Control and Meta both press primary where Control is primary; on macOS Command
+	 * presses primary and Control is literal.
+	 */
+	@Test
+	fun aPressDecodesItsModifiersByHost() {
+		assertEquals(
+			KeyChord(keyName = "Tab", primaryModifier = true),
+			keyChordOf("Tab", controlPressed = true, metaPressed = false, shiftPressed = false, altPressed = false, controlIsDistinct = false),
+		)
+		assertEquals(
+			KeyChord(keyName = "Tab", primaryModifier = true),
+			keyChordOf("Tab", controlPressed = false, metaPressed = true, shiftPressed = false, altPressed = false, controlIsDistinct = false),
+		)
+		assertEquals(
+			KeyChord(keyName = "Tab", controlKey = true),
+			keyChordOf("Tab", controlPressed = true, metaPressed = false, shiftPressed = false, altPressed = false, controlIsDistinct = true),
+		)
+		assertEquals(
+			KeyChord(keyName = "Tab", primaryModifier = true, shift = true, controlKey = true),
+			keyChordOf("Tab", controlPressed = true, metaPressed = true, shiftPressed = true, altPressed = false, controlIsDistinct = true),
+		)
+	}
+
+	/**
+	 * A literal-Control press dispatches its own binding when one exists, and otherwise falls back to the
+	 * primary binding of the same key, so Control keeps reaching every primary chord on macOS.  A press with
+	 * no literal Control never falls back to anything.
+	 */
+	@Test
+	fun aLiteralControlPressPrefersItsOwnBindingThenFallsBackToPrimary() {
+		val literalTab = KeyChord(keyName = "Tab", controlKey = true)
+		val primaryTab = KeyChord(keyName = "Tab", primaryModifier = true)
+		val primaryS = KeyChord(keyName = "KeyS", primaryModifier = true)
+		val keymap = Keymap(mapOf(literalTab to "mode.togglePose", primaryTab to "workspace.cycle", primaryS to "file.save"))
+
+		assertEquals("mode.togglePose", keymap.commandForPress(literalTab))
+		assertEquals("file.save", keymap.commandForPress(KeyChord(keyName = "KeyS", controlKey = true)))
+		assertEquals("workspace.cycle", keymap.commandForPress(primaryTab))
+		assertNull(keymap.commandForPress(KeyChord(keyName = "KeyS")))
 	}
 
 	/**

@@ -118,8 +118,9 @@ internal fun editSeedOf(model: PuppetModel, selection: Selection, rememberedDraw
  * The snapshot a session opens on: the model and pose as given, with [viewState] fitted to the model laid in, so
  * the state a document was saved with is where its history STARTS rather than a run of undo steps on top of it.
  *
- * A saved Edit mode holds only when it can be entered over the restored selection; when the model has nothing
- * editable the session opens in Object mode, the same refusal [EditorSession.setMode] makes.
+ * A saved Edit mode holds only when it can be entered over the restored selection, and a saved Pose mode only
+ * when the model has a deformer; otherwise the session opens in Object mode, the same refusals
+ * [EditorSession.setMode] makes.
  *
  * @param PuppetModel        model     The document model at open.
  * @param Pose               pose      The pose at open.
@@ -132,13 +133,19 @@ internal fun openingSnapshotOf(model: PuppetModel, pose: Pose, viewState: Sessio
 	}
 
 	val editSeed = if (viewState.mode == EditorMode.Edit) editSeedOf(model, viewState.selection, rememberedDrawableId = null) else null
+	val mode =
+		when {
+			editSeed != null -> EditorMode.Edit
+			viewState.mode == EditorMode.Pose && model.deformers.isNotEmpty() -> EditorMode.Pose
+			else -> EditorMode.Object
+		}
 
 	return EditorSnapshot(
 		model = model,
 		selection = viewState.selection,
 		pose = pose,
 		meshSelection = editSeed?.let { seed -> MeshSelection.editing(seed.drawableIds, seed.activeId).copy(selectMode = viewState.selectMode) } ?: MeshSelection(),
-		mode = if (editSeed != null) EditorMode.Edit else EditorMode.Object,
+		mode = mode,
 		parameterSelection = viewState.parameterSelection,
 	)
 }

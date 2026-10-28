@@ -82,6 +82,11 @@ class EditorSession private constructor(
 	// may touch them.
 	private val history = HistoryCore(openingSnapshot, initialHistoryLimit)
 	internal val elementMemory = MeshElementMemory()
+
+	// The mode Edit's toggle returns to: the mode Edit was entered from (Blender's Tab).  Session-side memory
+	// like the element memory, not snapshot state, so undo never rewrites it, and never saved, so a document
+	// reopened in Edit mode returns to Object.
+	private var editReturnMode: EditorMode = EditorMode.Object
 	internal val latches: ToolLatches = collaborators.latches
 	private val settings: ToolSettings = collaborators.settings
 	private val requestBus: SessionRequestBus = collaborators.requestBus
@@ -680,8 +685,9 @@ class EditorSession private constructor(
 	 * mode stays Object and nothing is recorded - so Edit mode always holds meshes. Leaving Edit stashes the
 	 * element selection and clears it; re-entering on the same drawable restores the stash when every
 	 * element still fits the mesh (Blender's remembered mesh selection). Leaving also ends any in-flight
-	 * operator. The mode is editor state, not document content, so it does not dirty the document. A no-op
-	 * (already in [mode]) records nothing.
+	 * operator. Entering Pose mode is refused with a notice when the model has no deformer, since there is
+	 * nothing to pose. The mode is editor state, not document content, so it does not dirty the document. A
+	 * no-op (already in [mode]) records nothing.
 	 *
 	 * @param EditorMode mode The new mode.
 	 */
@@ -697,10 +703,12 @@ class EditorSession private constructor(
 					// The session spans EVERY selected mesh-carrying drawable (multi-mesh edit, needed for
 					// glue work); the object selection's active drawable becomes the session's active mesh.
 					// The model having nothing editable refuses Edit rather than opening an inert session
-					// (Blender needs an active object too): stay in Object, record nothing.
+					// (Blender needs an active object too): stay in the current mode, record nothing.
 					val editSeed = editSeedOf(model, mutableSelection.value, elementMemory.lastActiveDrawableId) ?: return
 					val seedDrawableIds = editSeed.drawableIds
 					val seedActiveId = editSeed.activeId
+					// The mode Edit was entered from is where its toggle returns to.
+					editReturnMode = mutableMode.value
 
 					if (!editSeed.activeSelected) {
 						// Seeded from the remembered drawable or the topmost fallback: remember it so the next
@@ -717,14 +725,55 @@ class EditorSession private constructor(
 					elementMemory.restore(MeshSelection.editing(seedDrawableIds, seedActiveId), model)
 				}
 
-				EditorMode.Object -> {
-					// Stash each mesh's element selection so re-entering Edit mode restores it per mesh.
+				EditorMode.Object, EditorMode.Pose -> {
+					// Pose mode poses deformers, so a model with none has nothing to pose: refuse with a notice
+					// rather than open a mode that can do nothing, as Edit refuses a model with nothing editable.
+					if (mode == EditorMode.Pose && mutableModel.value.deformers.isEmpty()) {
+						notices.emit("notice.mode.poseNeedsDeformer", NoticePlacement.NearCursor, emptyList())
+
+						return
+					}
+
+					// Stash each mesh's element selection so re-entering Edit mode restores it per mesh (a no-op
+					// when the mode being left is not Edit, whose element selection is empty).
 					elementMemory.stash(mutableMeshSelection.value)
 					latches.clearTransient(clearViewportGesture = true)
 					MeshSelection()
 				}
 			}
 		commitStep(EditorStateChange.ModeChanged(mode), meshSelection = newMeshSelection, mode = mode)
+	}
+
+	/**
+	 * Toggles Edit mode, Blender's Tab: enters Edit from Object or Pose mode, and leaves it for the mode it was
+	 * entered from.  Each switch is one [setMode] step, refused as that refuses.
+	 */
+	fun toggleEditMode() {
+		if (mutableMode.value == EditorMode.Edit) {
+			// A return to Pose mode the model can no longer hold (its last deformer was deleted during the edit)
+			// lands in Object mode instead, so the toggle can never strand the session in Edit mode.
+			val returnMode =
+				if (editReturnMode == EditorMode.Pose && mutableModel.value.deformers.isEmpty()) {
+					EditorMode.Object
+				} else {
+					editReturnMode
+				}
+			setMode(returnMode)
+		} else {
+			setMode(EditorMode.Edit)
+		}
+	}
+
+	/**
+	 * Toggles Pose mode: leaves it for Object mode, and enters it from Object or Edit mode.  Each switch is one
+	 * [setMode] step, refused as that refuses.
+	 */
+	fun togglePoseMode() {
+		if (mutableMode.value == EditorMode.Pose) {
+			setMode(EditorMode.Object)
+		} else {
+			setMode(EditorMode.Pose)
+		}
 	}
 
 	/**

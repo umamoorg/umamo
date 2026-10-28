@@ -131,7 +131,7 @@ class CommandTableOrderTest {
 	@Test
 	fun modeTableIsComplete() {
 		assertEquals(
-			listOf("select.clear", "mode.toggleEdit", "mode.object", "mode.edit"),
+			listOf("select.clear", "mode.toggleEdit", "mode.togglePose", "mode.object", "mode.edit", "mode.pose"),
 			modeCommands(null, null).map { command -> command.id },
 		)
 	}

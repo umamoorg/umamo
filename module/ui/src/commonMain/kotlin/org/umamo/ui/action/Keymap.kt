@@ -5,32 +5,116 @@ import androidx.compose.runtime.staticCompositionLocalOf
 /**
  * One key combination, stored logically rather than as a literal character. [primaryModifier] is the
  * platform's main accelerator (Cmd on macOS, Ctrl elsewhere) - the intent is stored, not "Ctrl", so a
- * binding resolves correctly per OS. [keyName] names the physical key by position
- * ("KeyP", "KeyK"), not the produced character, so a chord survives non-QWERTY layouts.
+ * binding resolves correctly per OS. [controlKey] is the literal Control key, a modifier of its own only
+ * where Control is not the primary one (macOS, see [controlIsDistinctFromPrimary]); everywhere else a
+ * Control chord IS a primary chord and never carries this flag. [keyName] names the physical key by
+ * position ("KeyP", "KeyK"), not the produced character, so a chord survives non-QWERTY layouts.
  *
  * @property String keyName The position-based key token (e.g. "KeyP"), layout-independent.
  * @property Boolean primaryModifier Whether the platform primary accelerator (Cmd/Ctrl) is held.
  * @property Boolean shift Whether Shift is held.
  * @property Boolean alt Whether Alt/Option is held.
+ * @property Boolean controlKey Whether the literal Control key is held, on a host where it is not the
+ *   primary modifier.
  */
 data class KeyChord(
 	val keyName: String,
 	val primaryModifier: Boolean = false,
 	val shift: Boolean = false,
 	val alt: Boolean = false,
+	val controlKey: Boolean = false,
 )
 
 /**
+ * Whether a press holds the primary modifier: Command on a host where Control is its own modifier, else
+ * Control or Meta, both of which press primary there.
+ *
+ * One half of the single rule that turns held keys into a chord's modifiers; [pressHoldsLiteralControl] is
+ * the other.  The shell's dispatch and the keybindings editor's capture both read it, so a chord the editor
+ * captures is exactly the chord dispatch looks up.
+ *
+ * @param Boolean controlPressed Whether the Control key is held.
+ * @param Boolean metaPressed Whether the Meta (Command / Windows) key is held.
+ * @param Boolean controlIsDistinct Whether Control is a modifier of its own on this host.
+ * @return Boolean True when the press holds the primary modifier.
+ */
+fun pressHoldsPrimary(
+	controlPressed: Boolean,
+	metaPressed: Boolean,
+	controlIsDistinct: Boolean = controlIsDistinctFromPrimary(),
+): Boolean = metaPressed || (controlPressed && !controlIsDistinct)
+
+/**
+ * Whether a press holds the literal Control modifier: only on a host where Control is not the primary one.
+ *
+ * @param Boolean controlPressed Whether the Control key is held.
+ * @param Boolean controlIsDistinct Whether Control is a modifier of its own on this host.
+ * @return Boolean True when the press holds a literal Control.
+ */
+fun pressHoldsLiteralControl(
+	controlPressed: Boolean,
+	controlIsDistinct: Boolean = controlIsDistinctFromPrimary(),
+): Boolean = controlPressed && controlIsDistinct
+
+/**
+ * The chord a key press makes, its modifiers decoded by [pressHoldsPrimary] and [pressHoldsLiteralControl].
+ *
+ * @param String keyName The position-based key token.
+ * @param Boolean controlPressed Whether the Control key is held.
+ * @param Boolean metaPressed Whether the Meta (Command / Windows) key is held.
+ * @param Boolean shiftPressed Whether Shift is held.
+ * @param Boolean altPressed Whether Alt / Option is held.
+ * @param Boolean controlIsDistinct Whether Control is a modifier of its own on this host.
+ * @return KeyChord The chord.
+ */
+fun keyChordOf(
+	keyName: String,
+	controlPressed: Boolean,
+	metaPressed: Boolean,
+	shiftPressed: Boolean,
+	altPressed: Boolean,
+	controlIsDistinct: Boolean = controlIsDistinctFromPrimary(),
+): KeyChord =
+	KeyChord(
+		keyName = keyName,
+		primaryModifier = pressHoldsPrimary(controlPressed, metaPressed, controlIsDistinct),
+		shift = shiftPressed,
+		alt = altPressed,
+		controlKey = pressHoldsLiteralControl(controlPressed, controlIsDistinct),
+	)
+
+/**
+ * The chords a press may dispatch as, in lookup order: the chord itself, then - when it holds a literal
+ * Control - the same press with Control folded into primary.
+ *
+ * The fallback keeps every primary binding reachable from Control on macOS, while a binding that names Control
+ * itself wins over it.
+ *
+ * @return List<KeyChord> The chords to try, the exact one first.
+ */
+fun KeyChord.dispatchCandidates(): List<KeyChord> =
+	if (controlKey) {
+		listOf(this, copy(primaryModifier = true, controlKey = false))
+	} else {
+		listOf(this)
+	}
+
+/**
  * Parses a human-authored chord spec like "primary+shift+KeyP" into a [KeyChord]. Tokens are split on
- * '+'; the final token is the key, the rest are modifiers ("primary", "shift", "alt"/"option", case
- * insensitive). This is the on-disk keymap form (settings input.keybinding) and the form preset files
- * use, so it must be tolerant of case and whitespace but reject a malformed spec (empty key, unknown
- * modifier) rather than silently mis-binding.
+ * '+'; the final token is the key, the rest are modifiers ("primary" / "cmd", "ctrl" / "control", "shift",
+ * "alt" / "option", case insensitive). This is the on-disk keymap form (settings input.keybinding) and the
+ * form preset files use, so it must be tolerant of case and whitespace but reject a malformed spec (empty
+ * key, unknown modifier) rather than silently mis-binding.
+ *
+ * "ctrl" names the literal Control key, which is the primary modifier everywhere but macOS: where Control is
+ * not distinct it parses as primary, so "ctrl+Tab" and "primary+Tab" are one chord there and can never
+ * conflict or double-bind.
  *
  * @param String spec The chord spec, modifiers and key joined by '+'.
+ * @param Boolean controlIsDistinct Whether Control is a modifier of its own on this host.
  * @return KeyChord? The parsed chord, or null if the spec is malformed.
  */
-fun parseKeyChord(spec: String): KeyChord? {
+fun parseKeyChord(spec: String, controlIsDistinct: Boolean = controlIsDistinctFromPrimary()): KeyChord? {
 	val tokens = spec.split('+').map { token -> token.trim() }.filter { token -> token.isNotEmpty() }
 
 	if (tokens.isEmpty()) {
@@ -46,24 +130,45 @@ fun parseKeyChord(spec: String): KeyChord? {
 	var primaryModifier = false
 	var shift = false
 	var alt = false
+	var controlKey = false
 
 	for (modifierIndex in 0 until tokens.size - 1) {
 		when (tokens[modifierIndex].lowercase()) {
-			"primary", "cmd", "ctrl", "control" -> primaryModifier = true
-			"shift" -> shift = true
-			"alt", "option", "opt" -> alt = true
-			else -> return null
+			"primary", "cmd" -> {
+				primaryModifier = true
+			}
+
+			"ctrl", "control" -> {
+				if (controlIsDistinct) {
+					controlKey = true
+				} else {
+					primaryModifier = true
+				}
+			}
+
+			"shift" -> {
+				shift = true
+			}
+
+			"alt", "option", "opt" -> {
+				alt = true
+			}
+
+			else -> {
+				return null
+			}
 		}
 	}
 
-	return KeyChord(keyName, primaryModifier, shift, alt)
+	return KeyChord(keyName, primaryModifier, shift, alt, controlKey)
 }
 
 /**
  * Serializes a [KeyChord] back to the spec string [parseKeyChord] reads ("primary+shift+KeyP") - the form
- * stored in settings input.keybinding.overrides.  Modifiers are emitted in a fixed order (primary, shift,
- * alt) so a given chord always round-trips to the same string and the stored override key stays stable;
- * parseKeyChord itself accepts any order, so this is the inverse of parsing for any chord it produced.
+ * stored in settings input.keybinding.overrides.  Modifiers are emitted in a fixed order (primary, ctrl,
+ * shift, alt) so a given chord always round-trips to the same string and the stored override key stays
+ * stable; parseKeyChord itself accepts any order, so this is the inverse of parsing for any chord it
+ * produced.
  *
  * @param KeyChord chord The chord to serialize.
  * @return String The spec string.
@@ -72,6 +177,10 @@ fun chordToSpec(chord: KeyChord): String =
 	buildList {
 		if (chord.primaryModifier) {
 			add("primary")
+		}
+
+		if (chord.controlKey) {
+			add("ctrl")
 		}
 
 		if (chord.shift) {
@@ -99,6 +208,15 @@ class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
 	 * @return String? The bound command id, or null.
 	 */
 	fun commandFor(chord: KeyChord): String? = commandIdByChord[chord]
+
+	/**
+	 * The command a key press dispatches, trying the press's [dispatchCandidates] in order: a binding on the
+	 * exact chord wins, and a literal-Control press falls back to its primary binding.
+	 *
+	 * @param KeyChord pressed The chord the press made ([keyChordOf]).
+	 * @return String? The bound command id, or null when no candidate is bound.
+	 */
+	fun commandForPress(pressed: KeyChord): String? = pressed.dispatchCandidates().firstNotNullOfOrNull { candidate -> commandFor(candidate) }
 
 	/**
 	 * The first chord bound to [commandId], or null if none is - the reverse of [commandFor], used to
@@ -165,6 +283,8 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"Space" to "palette.toggle",
 		"Escape" to "area.dragCancel",
 		"Tab" to "mode.toggleEdit",
+		// A literal Control, so macOS gets Ctrl+Tab rather than Cmd+Tab, which the OS takes for switching apps.
+		"ctrl+Tab" to "mode.togglePose",
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
 		// The document's own chords: Open, Save, and Save As on the keys every application uses for them.
@@ -236,6 +356,8 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 	presetSpecs(
 		"primary+KeyP" to "palette.toggle",
 		"Escape" to "area.dragCancel",
+		// A literal Control, so macOS gets Ctrl+Tab rather than Cmd+Tab, which the OS takes for switching apps.
+		"ctrl+Tab" to "mode.togglePose",
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
 		// The document's own chords: Open, Save, and Save As on the keys every application uses for them.
@@ -273,6 +395,8 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"F3" to "palette.toggle",
 		"Escape" to "area.dragCancel",
 		"Tab" to "mode.toggleEdit",
+		// A literal Control, so macOS gets Ctrl+Tab rather than Cmd+Tab, which the OS takes for switching apps.
+		"ctrl+Tab" to "mode.togglePose",
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
 		// The document's own chords: Open, Save, and Save As on the keys every application uses for them.
