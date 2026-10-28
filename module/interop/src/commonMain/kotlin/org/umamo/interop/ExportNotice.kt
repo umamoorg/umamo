@@ -68,18 +68,6 @@ sealed interface ExportNotice {
 	 * @property Int pageCount The number of atlas pages the stand-in source was built from.
 	 */
 	data class MissingSourceArt(val pageCount: Int) : ExportNotice
-
-	/**
-	 * Drawables that share one atlas slot with a twin at another canvas placement and could not be
-	 * given a slot of their own because their patch is too large for a page even on its own.  A CMO3
-	 * model image carries a single canvas placement, so the official editor shows such a drawable at
-	 * the first twin's placement in its layered-art display mode; the texture-atlas mode and the
-	 * runtime are unaffected.  A transparent twin (a hit area's) is not reported: nothing shows at
-	 * either placement.
-	 *
-	 * @property List drawableNames The affected drawables' display names, in document order.
-	 */
-	data class SharedAtlasSlotKept(val drawableNames: List<String>) : ExportNotice
 }
 
 /**
@@ -117,13 +105,6 @@ fun describeExportNotice(notice: ExportNotice): String =
 		is ExportNotice.MissingSourceArt -> {
 			"no source artwork: the CMO3 was built around a stand-in document rebuilt from ${notice.pageCount} atlas page(s), " +
 				"so its layers are atlas slices rather than the original artwork"
-		}
-
-		is ExportNotice.SharedAtlasSlotKept -> {
-			"twins sharing one atlas slot could not be given their own: " +
-				notice.drawableNames.take(8).joinToString() +
-				(if (notice.drawableNames.size > 8) " (+${notice.drawableNames.size - 8} more)" else "") +
-				"; the editor's layered view shows them at the first twin's placement"
 		}
 	}
 

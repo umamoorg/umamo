@@ -10,6 +10,7 @@ import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.Cmo3Conversion.AtlasPage
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.runtime.model.PuppetModel
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -146,8 +147,9 @@ class Cmo3ConversionRoundTripTest {
 					return
 				}
 		checkDrawablesSampleTheAtlasPages(label, reimportedSource, failures)
-		// Diff against the puppet the conversion ENCODED: the atlas un-dedup prepass remaps a
-		// baked twin's uvs onto its own synthesized slot, so the caller's puppet is not the
+		checkTwinsShareTheirSlot(label, reimportedSource, pages.map { page -> page.width to page.height }, result.puppet, pageIndexByDrawableId, failures)
+		// Diff against the puppet the conversion ENCODED: the twin co-location prepass gives a
+		// baked twin its slot representative's canvas mesh, so the caller's puppet is not the
 		// round-trip target wherever twins existed.
 		val reimported = Cmo3Import.fromModelSource(reimportedSource)
 		val residual = org.umamo.interop.diffPuppetModels(reimported, result.puppet)
@@ -196,6 +198,75 @@ class Cmo3ConversionRoundTripTest {
 			}
 		}
 	}
+
+	/**
+	 * Asserts a conversion kept every baked twin on its own slot: the written atlases are the source pages,
+	 * none synthesized, and every shared slot in the encoded puppet is sampled from ONE canvas placement - the
+	 * shape every official file has (docs/format/CMO3.md section 6, Fresh-Graph Synthesis).
+	 *
+	 * @param String       label                 The corpus model name, for failure text.
+	 * @param CModelSource source                The re-read model root.
+	 * @param List         pageSizes             The source atlas pages' pixel sizes, width then height.
+	 * @param PuppetModel  encoded               The puppet the conversion encoded.
+	 * @param Map          pageIndexByDrawableId Each drawable id's atlas page index.
+	 * @param ArrayList    failures              The shared violation collector.
+	 */
+	private fun checkTwinsShareTheirSlot(
+		label: String,
+		source: CModelSource,
+		pageSizes: List<Pair<Int, Int>>,
+		encoded: PuppetModel,
+		pageIndexByDrawableId: Map<String, Int>,
+		failures: ArrayList<String>,
+	) {
+		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
+		val textureManager = source.textureManager as? org.umamo.format.cmo3.model.gen.CTextureManager
+		val atlasCount =
+			Cmo3Import
+				.elementsOf(textureManager?._textureAtlases)
+				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+				.size
+
+		if (atlasCount != pageSizes.size) {
+			failures.add("$label: wrote $atlasCount atlases for ${pageSizes.size} source pages; a twin must share its slot, not get a page of its own")
+		}
+
+		val fitsBySlot = HashMap<List<Any>, MutableList<Pair<String, org.umamo.format.cmo3.model.type.CAffine>>>()
+
+		for (drawable in encoded.drawables) {
+			val mesh = drawable.mesh ?: continue
+			val pageIndex = pageIndexByDrawableId[drawable.id.raw] ?: continue
+			val page = pageSizes.getOrNull(pageIndex) ?: continue
+			val fit = fitAtlasPageToCanvasTransform(mesh.uvs, mesh.positions, page.first, page.second)
+			fitsBySlot.getOrPut(listOf(pageIndex, mesh.uvs.toList(), mesh.indices.toList())) { ArrayList() }.add(drawable.id.raw to fit)
+		}
+
+		for (fits in fitsBySlot.values) {
+			val (firstId, firstFit) = fits.first()
+
+			for ((drawableId, fit) in fits.drop(1)) {
+				if (!samePlacement(firstFit, fit)) {
+					failures.add("$label: $drawableId samples $firstId's atlas slot from another canvas placement")
+				}
+			}
+		}
+	}
+
+	/**
+	 * Whether two fitted atlas-to-canvas placements are one placement: the linear parts within 1/1024 and the
+	 * translations within a canvas pixel.
+	 *
+	 * @param CAffine first  One placement.
+	 * @param CAffine second The other.
+	 * @return Boolean True when they place the slot alike.
+	 */
+	private fun samePlacement(first: org.umamo.format.cmo3.model.type.CAffine, second: org.umamo.format.cmo3.model.type.CAffine): Boolean =
+		abs(first.m00 - second.m00) <= 1f / 1024f &&
+			abs(first.m01 - second.m01) <= 1f / 1024f &&
+			abs(first.m10 - second.m10) <= 1f / 1024f &&
+			abs(first.m11 - second.m11) <= 1f / 1024f &&
+			abs(first.m02 - second.m02) <= 1f &&
+			abs(first.m12 - second.m12) <= 1f
 
 	/**
 	 * Asserts every re-read drawable samples one of the document's own atlas page resources, by

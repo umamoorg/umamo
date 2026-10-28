@@ -253,12 +253,12 @@ internal object Cmo3ImageChainBuilder {
 	 * What makes two drawables share one CModelImage: the same crop rect and the same mesh.  The
 	 * mesh is part of the identity because it masks the crop - two drawables over one rect with
 	 * different topology no longer produce the same pixels.  The fitted PLACEMENT is deliberately
-	 * NOT part of the key, and that is only safe because Cmo3AtlasUndedup has already routed every
-	 * different-placement twin to its own slot: official multi-drawable materials are always
-	 * CO-LOCATED (Erica: 45 of 45 shared groups have identical mesh and placement), the shared
-	 * image carries a single canvas placement, and duplicating a material over one slot instead
-	 * makes the editor's atlas view - a recomposite of the materials - stack the shared art's
-	 * alpha (2a - a*a per extra copy), rendering the atlas more opaque than source-image mode.
+	 * NOT part of the key, and that is only safe because Cmo3TwinColocation has already given every
+	 * different-placement twin its slot representative's canvas mesh: official twins are always
+	 * CO-LOCATED (160 of 160 uv-identical corpus groups share one canvas mesh), the shared image
+	 * carries a single canvas placement, and duplicating a material over one slot instead makes
+	 * the editor's atlas view - a recomposite of the materials - stack the shared art's alpha
+	 * (2a - a*a per extra copy), rendering the atlas more opaque than source-image mode.
 	 */
 	private class PatchWebKey(
 		private val patchRect: IntArray,
@@ -1467,7 +1467,7 @@ internal object Cmo3ImageChainBuilder {
 		val atlasEntries = checkNotNull(mutableGraphListOf(atlas.modelImages)) { "pageAtlas builds a list" }
 		// Patch webs, shared across drawables sampling the same crop with the same mesh (mirror
 		// twins get ONE material like official files; each twin's placement rides its own
-		// region input, and the shared image keeps the first drawable's placement).
+		// region input, and the conversion's twin co-location makes those placements one).
 		val decodedPage = page.decodedPixels()
 		val patchWebByKey = HashMap<PatchWebKey, PatchWeb>()
 

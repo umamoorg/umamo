@@ -291,9 +291,9 @@ class Cmo3ImageChainBuilderTest {
 		// Two drawables sampling the SAME atlas slot with the SAME mesh share one CModelImage at
 		// the builder level (duplicating a material over one slot makes the editor's atlas
 		// recomposite stack the shared art's alpha).  Different-placement twins only reach the
-		// builder like this when the caller skips Cmo3AtlasUndedup - the conversion routes them
-		// to their own slots first, because the shared image carries a single canvas placement
-		// and the second twin would go missing in source-image mode.
+		// builder like this when the caller skips Cmo3TwinColocation - the conversion gives them
+		// one canvas mesh first, because the shared image carries a single canvas placement and
+		// the second twin would go missing in source-image mode.
 		val pageSize = 32
 		val pageRgba = ByteArray(pageSize * pageSize * 4)
 

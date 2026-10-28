@@ -490,10 +490,6 @@ internal fun exportReportMessage(report: ExportReport): String {
 				lines.add("• " + stringResource(Res.string.export_missing_source_art, notice.pageCount))
 			}
 
-			is ExportNotice.SharedAtlasSlotKept -> {
-				lines.add("• " + stringResource(Res.string.export_shared_atlas_slot_kept, abbreviatedSubjects(notice.drawableNames)))
-			}
-
 			is ExportNotice.FeatureStripped -> {
 				lines.add(
 					"• " +
