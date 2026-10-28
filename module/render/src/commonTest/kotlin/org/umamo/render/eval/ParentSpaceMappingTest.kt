@@ -24,15 +24,15 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Verifies [DrawableSpaceMapping]: the forward local->world projection matches the evaluator's world
+ * Verifies [ParentSpaceMapping]: the forward local->world projection matches the evaluator's world
  * positions exactly (same chain, same Y negation), and the inverse recovers local coordinates - in
  * closed form for rotation parents, by Newton iteration for warp parents - including for a moved
  * world target (the Edit-gizmo drag case). Degenerate transforms keep the seed instead of exploding.
- * The single-step [DrawableSpaceMapping.worldToLocalLinearized] used by the transform path is exact for
+ * The single-step [ParentSpaceMapping.worldToLocalLinearized] used by the transform path is exact for
  * affine parents and, unlike the Newton inverse, follows a large warp-child drag without pinning or
  * boiling.
  */
-class DrawableSpaceMappingTest {
+class ParentSpaceMappingTest {
 	private val tol = 1e-3f
 	private val paramA = ParameterId("A")
 	private val drawableId = DrawableId("M")
@@ -169,7 +169,7 @@ class DrawableSpaceMappingTest {
 
 	/**
 	 * A warp-child grab far past the lattice follows the cursor with the linearized inverse, where the
-	 * damped iterative [DrawableSpaceMapping.worldToLocal] pins short of the target: the 2x4 cage spans 2
+	 * damped iterative [ParentSpaceMapping.worldToLocal] pins short of the target: the 2x4 cage spans 2
 	 * world-x per lattice UV, so its damped ~10-UV Newton reach stalls near world-x 31, and a +200 grab
 	 * targets far beyond that reach.
 	 */

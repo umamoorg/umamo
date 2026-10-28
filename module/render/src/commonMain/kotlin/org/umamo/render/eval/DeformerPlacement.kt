@@ -72,7 +72,7 @@ fun deformerPlacement(model: PuppetModel, parameters: Map<ParameterId, Float>, d
  * @param DeformerId deformerId The deformer the chain ends at.
  * @return List<Deformer> The chain, root first; empty when the model does not hold the deformer.
  */
-private fun ancestorChain(model: PuppetModel, deformerId: DeformerId): List<Deformer> {
+internal fun ancestorChain(model: PuppetModel, deformerId: DeformerId): List<Deformer> {
 	val deformerById = model.deformers.associateBy { deformer -> deformer.id }
 	val chain = ArrayList<Deformer>()
 	val visited = HashSet<DeformerId>()

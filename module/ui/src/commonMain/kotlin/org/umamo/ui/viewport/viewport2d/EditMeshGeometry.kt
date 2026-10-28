@@ -5,7 +5,7 @@ import androidx.compose.runtime.setValue
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.mesh.MeshRestPositions
-import org.umamo.render.eval.DrawableSpaceMapping
+import org.umamo.render.eval.ParentSpaceMapping
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
@@ -36,7 +36,7 @@ internal class EditMeshGeometry(
 	val drawableId: DrawableId get() = worldGeometry.drawableId
 
 	/** The local-to-world deformer-chain projection. */
-	val mapping: DrawableSpaceMapping get() = worldGeometry.mapping
+	val mapping: ParentSpaceMapping get() = worldGeometry.mapping
 
 	/** The local rest shape the movement transfer anchors on (the base + the neutral keyform blend). */
 	val displayed: FloatArray get() = worldGeometry.displayed
