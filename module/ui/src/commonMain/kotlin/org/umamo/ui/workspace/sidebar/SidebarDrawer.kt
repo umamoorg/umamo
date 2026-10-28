@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -385,6 +386,10 @@ private fun SidebarPullTab() {
 					.clip(tabShape)
 					.background(if (hovered) colors.buttonHover else colors.panelBackground)
 					.border(width = 1.dp, color = if (hovered) colors.panelBorderHover else colors.panelBorder, shape = tabShape)
+					// NOT focusable: the click opens the sidebar, which takes the tab away, and a focused node
+					// leaving the composition leaves focus null - every shortcut then dies until something
+					// focusable is clicked again.  The keyboard belongs to the shell root.
+					.focusProperties { canFocus = false }
 					.clickable(interactionSource = interaction, indication = null) { commands.invoke("view.toggleSidebar") }
 					.semantics { contentDescription = label },
 			contentAlignment = Alignment.Center,

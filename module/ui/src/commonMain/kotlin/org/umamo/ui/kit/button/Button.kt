@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.theme.LocalUmamoColors
@@ -61,6 +62,11 @@ fun Button(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, pr
 			modifier
 				.clip(shapes.small)
 				.background(fill)
+				// NOT focusable: a button can sit in chrome that leaves the composition after its click (a
+				// Properties row when the selection moves on, a dialog closing), and a focused node leaving takes
+				// focus with it, killing every shortcut until something focusable is clicked again.  The keyboard
+				// belongs to the shell root.
+				.focusProperties { canFocus = false }
 				.clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
 				.padding(horizontal = 8.dp, vertical = 3.dp),
 		contentAlignment = Alignment.Center,

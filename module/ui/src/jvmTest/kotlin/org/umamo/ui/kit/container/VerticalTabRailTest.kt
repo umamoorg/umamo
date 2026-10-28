@@ -63,7 +63,7 @@ private const val TOOLTIP_WAIT_MILLIS = 1_000L
 
 /**
  * The vertical tab rail: clicking a tab selects it without taking the keyboard, a long rail scrolls, a cut
- * label shows whole in a tooltip, and the selected tab meets the content on the side the content is on.
+ * label shows whole in a tooltip, and the selected tab is rounded on both sides whichever side the content is on.
  */
 class VerticalTabRailTest {
 	/**
@@ -204,10 +204,13 @@ class VerticalTabRailTest {
 		waitForIdle()
 	}
 
-	/** The selected tab is square where it meets the content and rounded on the outer side, either way round. */
+	/**
+	 * The selected tab is rounded on both sides, whichever side the content is on, so it floats a gap away from
+	 * the content as a card does: every corner shows what is behind the rail, and both edges carry the fill.
+	 */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun theSelectedTabMeetsTheContentSide() {
+	fun theSelectedTabIsRoundedOnBothSides() {
 		for (contentSide in RailContentSide.entries) {
 			runComposeUiTest {
 				setContent {
@@ -248,12 +251,17 @@ class VerticalTabRailTest {
 				}
 
 				val top = (tab.top - rail.top).value
+				val bottom = (tab.bottom - rail.top).value - 1f
+				val middle = (top + bottom) / 2f
 				val left = (tab.left - rail.left).value
 				val right = (tab.right - rail.left).value - 1f
-				val contentCornerX = if (contentSide == RailContentSide.Start) left else right
-				val outerCornerX = if (contentSide == RailContentSide.Start) right else left
-				assertTrue(isSelectedFill(contentCornerX, top), "$contentSide: the corner on the content's side is square")
-				assertTrue(!isSelectedFill(outerCornerX, top), "$contentSide: the outer corner is rounded")
+
+				for ((cornerX, cornerY) in listOf(left to top, right to top, right to bottom, left to bottom)) {
+					assertTrue(!isSelectedFill(cornerX, cornerY), "$contentSide: the corner at ($cornerX, $cornerY) is rounded")
+				}
+
+				assertTrue(isSelectedFill(left, middle), "$contentSide: the left edge carries the fill")
+				assertTrue(isSelectedFill(right, middle), "$contentSide: the right edge carries the fill")
 			}
 		}
 	}

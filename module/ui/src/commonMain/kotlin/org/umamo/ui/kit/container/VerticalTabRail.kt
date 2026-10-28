@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CornerSize
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -75,9 +73,8 @@ enum class RailContentSide {
 
 /**
  * A vertical rail of labelled tabs, read down the column ([VerticalText]): Blender's sidebar tabs.  Each tab is
- * square on the content's side and rounded on the outer side, and the selected tab takes the color of the
- * content it switches.  The rail leaves no inset on the content's side, so whether the tabs meet the content or
- * stand a gap away from it is the caller's choice.  Tabs never take focus, so selecting one leaves the keyboard
+ * rounded on both sides, and the selected tab takes the color of the content it switches.  The rail leaves no
+ * inset on the content's side, so how far the tabs stand from the content is the caller's choice.  Tabs never take focus, so selecting one leaves the keyboard
  * where it was.  A rail too long for its height scrolls, and a label too long for [maxLabelLength] is cut short
  * and shown whole in a tooltip.
  *
@@ -133,7 +130,6 @@ fun VerticalTabRail(
 					tab = tab,
 					selected = tab.id == selectedId,
 					onSelect = onSelect,
-					contentSide = contentSide,
 					maxLabelLength = maxLabelLength,
 					tabFill = resolvedTabFill,
 					selectedFill = resolvedSelectedFill,
@@ -151,7 +147,6 @@ fun VerticalTabRail(
  * @param VerticalTabRailItem tab The tab.
  * @param Boolean selected Whether it is the selected tab.
  * @param Function onSelect Called with its id when it is clicked.
- * @param RailContentSide contentSide Which side the content sits on, the side its corners are square on.
  * @param Dp maxLabelLength The longest its label runs before it is cut short.
  * @param Color tabFill Its fill when neither selected nor hovered.
  * @param Color selectedFill Its fill when selected.
@@ -162,16 +157,13 @@ private fun RailTab(
 	tab: VerticalTabRailItem,
 	selected: Boolean,
 	onSelect: (String) -> Unit,
-	contentSide: RailContentSide,
 	maxLabelLength: Dp,
 	tabFill: Color,
 	selectedFill: Color,
 	border: Color,
 ) {
 	val colors = LocalUmamoColors.current
-	val shapes = LocalUmamoShapes.current
-	val square = CornerSize(0.dp)
-	val shape = shapes.medium
+	val shape = LocalUmamoShapes.current.medium
 	val interaction = remember { MutableInteractionSource() }
 	val hovered by interaction.collectIsHoveredAsState()
 	val fill =
