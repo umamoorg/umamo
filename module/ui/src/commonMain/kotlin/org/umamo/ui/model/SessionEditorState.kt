@@ -23,9 +23,6 @@ import org.umamo.runtime.model.PuppetModel
  * :ui adapter is the only place they become Compose-observable state. Writes are one-way to the session,
  * which is the single source of truth; the mirrors only follow it.
  *
- * 共通の選択/モードハンドルを EditorSession に接続する :ui 側アダプタ。読みは Compose State ミラー、
- * 書きはセッションへ一方向（取り消しに記録される）。
- *
  * @property EditorSession session The session every selection gesture and mode change is routed to.
  * @property State selectionMirror The session's selection, mirrored as Compose state.
  * @property State modeMirror The session's mode, mirrored as Compose state.

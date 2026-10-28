@@ -1,7 +1,6 @@
 package org.umamo.ui.tracks
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.layout.Box
@@ -12,13 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.umamo.ui.kit.dragResizes
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.umamoPointerIcon
@@ -69,22 +65,6 @@ fun TrackSheetSeparatorOverlay(
 	modifier: Modifier = Modifier,
 	onDraggingChange: (Boolean) -> Unit = {},
 ) {
-	val density = LocalDensity.current
-	// The callback and the width are read at DRAG time, not captured at construction: the drag state
-	// outlives a recomposition, and a captured width would make every delta apply to a stale base.
-	val latestWidth by rememberUpdatedState(labelColumnWidth)
-	val latestCallback by rememberUpdatedState(onLabelColumnWidthChange)
-	val dragState =
-		remember(density) {
-			DraggableState { deltaPx ->
-				val delta = with(density) { deltaPx.toDp() }
-				latestCallback(
-					(latestWidth + delta).coerceIn(TRACK_LABEL_COLUMN_MIN_WIDTH, TRACK_LABEL_COLUMN_MAX_WIDTH),
-				)
-			}
-		}
-	val resizeCursor = umamoPointerIcon(LocalUmamoCursors.ewScroll)
-	val latestDragging by rememberUpdatedState(onDraggingChange)
 	Row(modifier = modifier.fillMaxSize()) {
 		// A transparent spacer positions the grab band; it must not intercept anything, so the band is
 		// offset back by half its width to straddle the hairline the rows draw.
@@ -94,12 +74,14 @@ fun TrackSheetSeparatorOverlay(
 				Modifier
 					.width(SEPARATOR_GRAB_WIDTH)
 					.fillMaxHeight()
-					.pointerHoverIcon(resizeCursor)
-					.draggable(
-						state = dragState,
+					.dragResizes(
+						size = { labelColumnWidth },
+						min = TRACK_LABEL_COLUMN_MIN_WIDTH,
+						max = TRACK_LABEL_COLUMN_MAX_WIDTH,
 						orientation = Orientation.Horizontal,
-						onDragStarted = { latestDragging(true) },
-						onDragStopped = { latestDragging(false) },
+						hoverIcon = umamoPointerIcon(LocalUmamoCursors.ewScroll),
+						onResize = onLabelColumnWidthChange,
+						onDraggingChange = onDraggingChange,
 					),
 		)
 	}

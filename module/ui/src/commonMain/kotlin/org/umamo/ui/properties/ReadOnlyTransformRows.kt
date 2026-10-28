@@ -6,21 +6,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.Pose
 import org.umamo.edit.transform.MeshBounds
 import org.umamo.render.eval.DeformerPlacement
 import org.umamo.render.eval.deformerPlacement
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.originRelativeX
-import org.umamo.runtime.model.originRelativeZ
-import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.resources.*
-import org.umamo.ui.theme.LocalUmamoColors
-import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.transform.WorldExtent
 import org.umamo.ui.transform.partWorldBounds
 
 /*
@@ -91,8 +88,9 @@ private class ReadOnlyField(
 @Composable
 internal fun PartTransformRows(context: PropertyContext, partId: PartId, showSize: Boolean) {
 	val shownPose = rememberShownPose(context)
-	// Keyed, because this captures every drawable the part holds through the deformer chain.
-	val bounds = remember(context.puppet, shownPose, partId) { partWorldBounds(context.puppet, shownPose, partId) }
+	// Keyed, because this captures every drawable the part holds through the deformer chain; the context's memo
+	// lets the Position row and the Size row share that one capture.
+	val bounds = remember(context.puppet, shownPose, partId) { context.partBoundsMemo.boundsOf(context.puppet, shownPose, partId) }
 	ReadOnlyBoundsRows(context.puppet, bounds, showSize, PART_BOUNDS_TEXT)
 }
 
@@ -109,12 +107,7 @@ internal fun WarpTransformRows(context: PropertyContext, deformerId: DeformerId,
 	val bounds =
 		remember(context.puppet, shownPose, deformerId) {
 			(deformerPlacement(context.puppet, shownPose, deformerId) as? DeformerPlacement.Warp)?.let { lattice ->
-				MeshBounds(
-					(lattice.worldMinX + lattice.worldMaxX) / 2f,
-					(lattice.worldMinZ + lattice.worldMaxZ) / 2f,
-					lattice.worldMaxX - lattice.worldMinX,
-					lattice.worldMaxZ - lattice.worldMinZ,
-				)
+				WorldExtent(lattice.worldMinX, lattice.worldMinZ, lattice.worldMaxX, lattice.worldMaxZ).toMeshBounds()
 			}
 		}
 	ReadOnlyBoundsRows(context.puppet, bounds, showSize, WARP_BOUNDS_TEXT)
@@ -140,24 +133,20 @@ internal fun RotationTransformRows(context: PropertyContext, deformerId: Deforme
 	if (placement == null) {
 		// One note for the pair of rows, not one each.
 		if (showPivot) {
-			UnavailableNote()
+			MutedNote(Res.string.properties_transform_unavailable)
 		}
 
 		return
 	}
 
 	if (showPivot) {
-		ReadOnlyFieldStack(
-			ReadOnlyField(
-				Res.string.properties_field_position_x,
-				Res.string.properties_rotation_pivot_x_description,
-				puppet.originRelativeX(placement.worldPivotX),
-			),
-			ReadOnlyField(
-				Res.string.properties_field_position_z,
-				Res.string.properties_rotation_pivot_z_description,
-				puppet.originRelativeZ(placement.worldPivotZ),
-			),
+		WorldPositionFields(
+			puppet = puppet,
+			worldX = placement.worldPivotX,
+			worldZ = placement.worldPivotZ,
+			xDescription = Res.string.properties_rotation_pivot_x_description,
+			zDescription = Res.string.properties_rotation_pivot_z_description,
+			enabled = false,
 		)
 	} else {
 		ReadOnlyFieldStack(
@@ -185,7 +174,7 @@ private fun ReadOnlyBoundsRows(puppet: PuppetModel, bounds: MeshBounds?, showSiz
 	if (bounds == null) {
 		// One note for the pair of rows, not one each.
 		if (!showSize) {
-			UnavailableNote()
+			MutedNote(Res.string.properties_transform_unavailable)
 		}
 
 		return
@@ -197,9 +186,13 @@ private fun ReadOnlyBoundsRows(puppet: PuppetModel, bounds: MeshBounds?, showSiz
 			ReadOnlyField(Res.string.properties_field_size_z, text.sizeZ, bounds.height),
 		)
 	} else {
-		ReadOnlyFieldStack(
-			ReadOnlyField(Res.string.properties_field_position_x, text.positionX, puppet.originRelativeX(bounds.centerX)),
-			ReadOnlyField(Res.string.properties_field_position_z, text.positionZ, puppet.originRelativeZ(bounds.centerY)),
+		WorldPositionFields(
+			puppet = puppet,
+			worldX = bounds.centerX,
+			worldZ = bounds.centerY,
+			xDescription = text.positionX,
+			zDescription = text.positionZ,
+			enabled = false,
 		)
 	}
 }
@@ -232,13 +225,37 @@ private fun ReadOnlyFieldStack(vararg fields: ReadOnlyField) {
 }
 
 /**
- * The muted line standing in for a transform the item has none of at the shown pose.
+ * A single-slot cache of the last part bounds a Transform row measured, held on the [PropertyContext] both of a
+ * part's rows are handed, so the Position row and the Size row share one capture of everything the part holds.
+ * Each row recomposes on its own when the pose moves, and keeps the context it was given, so the second row to
+ * ask for the same model, pose, and part gets the first one's answer.
  */
-@Composable
-private fun UnavailableNote() {
-	Text(
-		text = stringResource(Res.string.properties_transform_unavailable),
-		style = LocalUmamoTypography.current.labelSmall,
-		color = LocalUmamoColors.current.textMuted,
-	)
+internal class PartBoundsMemo {
+	private var model: PuppetModel? = null
+	private var pose: Pose? = null
+	private var partId: PartId? = null
+	private var bounds: MeshBounds? = null
+
+	/**
+	 * The world bounds of everything [partId] holds at [pose] (see partWorldBounds), measured again only when
+	 * the model, the pose, or the part differs from the last call's.
+	 *
+	 * @param PuppetModel model The document model.
+	 * @param Pose pose The shown pose.
+	 * @param PartId partId The part to measure.
+	 * @return MeshBounds? The bounds, or null when nothing the part holds is on screen.
+	 */
+	fun boundsOf(model: PuppetModel, pose: Pose, partId: PartId): MeshBounds? {
+		if (model === this.model && partId == this.partId && pose == this.pose) {
+			return bounds
+		}
+
+		val measured = partWorldBounds(model, pose, partId)
+		this.model = model
+		this.pose = pose
+		this.partId = partId
+		bounds = measured
+
+		return measured
+	}
 }

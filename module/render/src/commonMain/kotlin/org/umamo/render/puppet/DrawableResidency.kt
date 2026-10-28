@@ -5,6 +5,7 @@ import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.MeshSpec
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.TextureFilter
+import org.umamo.render.eval.PoseParameters
 import org.umamo.render.eval.WarpWorld
 import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.runtime.eval.cellsByLinearIndex
@@ -324,10 +325,9 @@ internal class DrawableResidency(
 		// Blend-shape delta columns append after the grid cells; the zero-blend layout is empty and
 		// the texture build reduces to the plain grid texels.
 		val blendLayout = blendColumnLayout(drawable, cellCount)
-		val defaults = defaultParameters.associate { it.id to it.default }
 		val texels =
 			if (blendLayout.blendColumnCount > 0) {
-				buildDeltaTexelsWithBlend(grid, drawable, { defaults[it] ?: 0f }, vertexCount, blendLayout, cells)
+				buildDeltaTexelsWithBlend(grid, drawable, PoseParameters(defaultParameters, emptyMap()).defaultValue, vertexCount, blendLayout, cells)
 			} else {
 				buildDeltaTexels(grid, vertexCount, cellCount, cells)
 			}

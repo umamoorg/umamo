@@ -28,13 +28,9 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.deformerSelfAndDescendants
-import org.umamo.runtime.model.originRelativeX
-import org.umamo.runtime.model.originRelativeZ
 import org.umamo.runtime.model.parentPartByPart
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.partSelfAndDescendants
-import org.umamo.runtime.model.worldXFromOriginRelative
-import org.umamo.runtime.model.worldZFromOriginRelative
 import org.umamo.ui.kit.button.IconButton
 import org.umamo.ui.kit.button.IconButtonAppearance
 import org.umamo.ui.kit.field.FieldStack
@@ -44,6 +40,7 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.transform.drawableWorldTransform
+import org.umamo.ui.transform.moved
 import org.umamo.ui.transform.previewDrawableWorldCenter
 import org.umamo.ui.transform.previewDrawableWorldSize
 import org.umamo.ui.transform.setDrawableParentDeformerKeepingRest
@@ -200,72 +197,22 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 			onCancelResize = { scrub.end() },
 		)
 	} else {
-		val puppet = context.puppet
-		FieldStack(
-			listOf(
-				{ position ->
-					PropertyFieldRow(
-						stringResource(Res.string.properties_field_position_x),
-						description = stringResource(Res.string.properties_field_position_x_description),
-					) {
-						NumberField(
-							value = puppet.originRelativeX(bounds.centerX),
-							onValueChange = { newX ->
-								scrub.commit {
-									session?.setDrawableWorldCenterAdjustable(
-										drawableId,
-										puppet.worldXFromOriginRelative(newX),
-										bounds.centerY,
-										stripArea(),
-									)
-								}
-							},
-							onPreview = { newX ->
-								scrub.preview(
-									session?.previewDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(newX), bounds.centerY),
-								)
-							},
-							onScrubCancel = { scrub.end() },
-							modifier = Modifier.fillMaxWidth(),
-							range = UNBOUNDED_RANGE,
-							decimals = 1,
-							enabled = editable,
-							stackPosition = position,
-						)
-					}
-				},
-				{ position ->
-					PropertyFieldRow(
-						stringResource(Res.string.properties_field_position_z),
-						description = stringResource(Res.string.properties_field_position_z_description),
-					) {
-						NumberField(
-							value = puppet.originRelativeZ(bounds.centerY),
-							onValueChange = { newZ ->
-								scrub.commit {
-									session?.setDrawableWorldCenterAdjustable(
-										drawableId,
-										bounds.centerX,
-										puppet.worldZFromOriginRelative(newZ),
-										stripArea(),
-									)
-								}
-							},
-							onPreview = { newZ ->
-								scrub.preview(
-									session?.previewDrawableWorldCenter(drawableId, bounds.centerX, puppet.worldZFromOriginRelative(newZ)),
-								)
-							},
-							onScrubCancel = { scrub.end() },
-							modifier = Modifier.fillMaxWidth(),
-							range = UNBOUNDED_RANGE,
-							decimals = 1,
-							enabled = editable,
-							stackPosition = position,
-						)
-					}
-				},
-			),
+		WorldPositionFields(
+			puppet = context.puppet,
+			worldX = bounds.centerX,
+			worldZ = bounds.centerY,
+			xDescription = Res.string.properties_field_position_x_description,
+			zDescription = Res.string.properties_field_position_z_description,
+			enabled = editable,
+			onCommit = { axis, worldValue ->
+				val (centerX, centerZ) = axis.moved(worldValue, bounds.centerX, bounds.centerY)
+				scrub.commit { session?.setDrawableWorldCenterAdjustable(drawableId, centerX, centerZ, stripArea()) }
+			},
+			onPreview = { axis, worldValue ->
+				val (centerX, centerZ) = axis.moved(worldValue, bounds.centerX, bounds.centerY)
+				scrub.preview(session?.previewDrawableWorldCenter(drawableId, centerX, centerZ))
+			},
+			onScrubCancel = { scrub.end() },
 		)
 	}
 }

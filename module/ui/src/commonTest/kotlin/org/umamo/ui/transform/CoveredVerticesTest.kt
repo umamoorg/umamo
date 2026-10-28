@@ -165,7 +165,7 @@ class CoveredVerticesTest {
 
 				mesh.geometry.drawableId to MeshRestPositions(base.copyOf(), base)
 			}
-		val live = assertNotNull(coveredMedianIn(covered, restById))
+		val live = assertNotNull(coveredMedian(covered, restById))
 		val recaptured = assertNotNull(coveredMedian(coveredIn(model.withMeshPositions(restById), selection)))
 		assertEquals(recaptured.worldX, live.worldX, tolerance)
 		assertEquals(recaptured.worldZ, live.worldZ, tolerance)
@@ -178,7 +178,7 @@ class CoveredVerticesTest {
 	fun aMeshThePreviewDoesNotMoveCountsWhereItWas() {
 		val covered = coveredIn(model(), selecting(mapOf(flat to listOf(0, 2), turned to listOf(1))))
 		val captured = assertNotNull(coveredMedian(covered))
-		val live = assertNotNull(coveredMedianIn(covered, emptyMap()))
+		val live = assertNotNull(coveredMedian(covered, emptyMap()))
 		assertEquals(captured.worldX, live.worldX)
 		assertEquals(captured.worldZ, live.worldZ)
 	}

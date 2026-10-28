@@ -920,8 +920,8 @@
 	<string name="properties_warp_size_z_description">デフォーマの格子の、ビューポートで見えている高さ。デフォーマを拡大縮小できるようになるまでは読み取り専用です。</string>
 	<string name="properties_rotation_pivot_x_description">デフォーマのピボットの、ビューポートで見えている水平方向の位置（ワールド軸からの距離）。デフォーマを移動できるようになるまでは読み取り専用です。</string>
 	<string name="properties_rotation_pivot_z_description">デフォーマのピボットの、ビューポートで見えている垂直方向の位置（ワールド軸から上が正）。デフォーマを移動できるようになるまでは読み取り専用です。</string>
-	<string name="properties_field_angle_description">表示中のポーズでのデフォーマの角度（度）。基準角度に、キーフォームがそこで設定する角度を加えた値です。デフォーマを回転できるようになるまでは読み取り専用です。</string>
-	<string name="properties_field_scale_description">表示中のポーズでのデフォーマのスケール（キーフォームがそこで設定する値）。デフォーマを拡大縮小できるようになるまでは読み取り専用です。</string>
+	<string name="properties_field_angle_description">表示中のポーズでのデフォーマの角度（度）。基準角度に、キーフォームとブレンドシェイプがそこで設定する角度を加えた値です。デフォーマを回転できるようになるまでは読み取り専用です。</string>
+	<string name="properties_field_scale_description">表示中のポーズでのデフォーマのスケール（キーフォームとブレンドシェイプがそこで設定する値）。デフォーマを拡大縮小できるようになるまでは読み取り専用です。</string>
 	<string name="properties_part_ref_description">この項目が属するパーツ。クリアすると、どのパーツにも属さなくなります。</string>
 	<string name="properties_parent_deformer_description">この項目が付いているデフォーマ。そのデフォーマが動いたり、曲がったり、回転したりすると、この項目も追従します。</string>
 	<string name="properties_field_pinned_description">アトラスページ上のこのアートの位置を固定します。UV エディターで手動で動かすことはできず、「ピン留めしたタイルを維持」がオフでない限り、再パックでもその場に残ります。</string>
@@ -1106,7 +1106,7 @@
 	<string name="settings_viewport_grid_subdivisions">グリッド分割数</string>
 	<string name="settings_viewport_uv_grid_scale">UV グリッド間隔</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV グリッド分割数</string>
-	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）、続いてツールバー・サイドバーの既定の表示（interface.viewport.showToolbar / showSidebar）。 -->
+	<!-- ビューポート設定：描画パフォーマンスの切り替え（viewport.rendering.*）、続いてツールバー・サイドバーの既定の表示（viewport.showToolbar / showSidebar）。 -->
 	<string name="settings_viewport_supersample">スーパーサンプリング（2 倍精細レンダリング）</string>
 	<string name="settings_viewport_supersample_while_resizing">パネルのリサイズ中もスーパーサンプリングを維持</string>
 	<string name="settings_viewport_show_toolbar">ツールバーを既定で表示</string>

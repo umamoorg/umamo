@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -17,8 +16,9 @@ import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_MAX_WIDTH
 import org.umamo.ui.tracks.TRACK_LABEL_COLUMN_MIN_WIDTH
 import org.umamo.ui.tracks.TrackWindow
 import org.umamo.ui.workspace.PersistentSpaceState
-import org.umamo.ui.workspace.editorstate.finiteFloatOf
+import org.umamo.ui.workspace.editorstate.dpOrNull
 import org.umamo.ui.workspace.editorstate.floatListOf
+import org.umamo.ui.workspace.editorstate.positiveDpOf
 import org.umamo.ui.workspace.editorstate.stringArrayOrNull
 import org.umamo.ui.workspace.editorstate.stringListOf
 
@@ -122,7 +122,7 @@ internal class KeyformSheetViewState : PersistentSpaceState {
 			put("collapsedParameters", stringArrayOrNull(collapsedParameters.map { parameterId -> parameterId.raw }))
 			put("hidden", stringArrayOrNull(listOfNotNull("geometry".takeUnless { showGeometry }, "channels".takeUnless { showChannels }, "blendShapes".takeUnless { showBlendShapes })))
 			put("window", if (window == TrackWindow.Full) JsonNull else JsonArray(listOf(JsonPrimitive(window.start), JsonPrimitive(window.end))))
-			put("labelColumnWidth", if (labelColumnWidth == TRACK_LABEL_COLUMN_DEFAULT_WIDTH) JsonNull else JsonPrimitive(labelColumnWidth.value))
+			put("labelColumnWidth", dpOrNull(labelColumnWidth, TRACK_LABEL_COLUMN_DEFAULT_WIDTH))
 		}
 
 	/**
@@ -143,6 +143,6 @@ internal class KeyformSheetViewState : PersistentSpaceState {
 		showBlendShapes = "blendShapes" !in hidden
 		// UMA §7.3: `window` is [start, end] with 0 <= start < end <= 1; anything else keeps the whole domain.
 		window = floatListOf(tree, "window", 2)?.takeIf { (start, end) -> start >= 0f && end <= 1f && start < end }?.let { (start, end) -> TrackWindow(start, end) } ?: TrackWindow.Full
-		labelColumnWidth = finiteFloatOf(tree["labelColumnWidth"])?.dp?.coerceIn(TRACK_LABEL_COLUMN_MIN_WIDTH, TRACK_LABEL_COLUMN_MAX_WIDTH) ?: TRACK_LABEL_COLUMN_DEFAULT_WIDTH
+		labelColumnWidth = positiveDpOf(tree["labelColumnWidth"], TRACK_LABEL_COLUMN_MIN_WIDTH, TRACK_LABEL_COLUMN_MAX_WIDTH) ?: TRACK_LABEL_COLUMN_DEFAULT_WIDTH
 	}
 }

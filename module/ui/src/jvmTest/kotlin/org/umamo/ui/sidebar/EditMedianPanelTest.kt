@@ -1,12 +1,6 @@
 package org.umamo.ui.sidebar
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ComposeUiTest
@@ -27,19 +21,10 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.transform.beginMeshOperator
-import org.umamo.ui.action.CommandRegistry
-import org.umamo.ui.action.LocalCommands
-import org.umamo.ui.action.LocalKeymap
-import org.umamo.ui.action.defaultKeymap
 import org.umamo.ui.kit.field.LocalScrubCancel
 import org.umamo.ui.kit.field.ScrubCancelController
-import org.umamo.ui.model.LocalEditorMode
-import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.model.LocalPuppet
 import org.umamo.ui.model.LocalPuppetRenderSync
-import org.umamo.ui.model.LocalSelection
 import org.umamo.ui.model.PuppetRenderSync
-import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import org.umamo.ui.viewport.gizmo.moveIn
@@ -49,10 +34,6 @@ import org.umamo.ui.viewport.viewport2d.RIG_QUAD
 import org.umamo.ui.viewport.viewport2d.gizmoEditSession
 import org.umamo.ui.viewport.viewport2d.mountGizmoOverlays
 import org.umamo.ui.viewport.viewport2d.rigPositionsOf
-import org.umamo.ui.workspace.LocalViewportChrome
-import org.umamo.ui.workspace.SpaceKind
-import org.umamo.ui.workspace.ViewportChromeState
-import org.umamo.ui.workspace.sidebar.SidebarDrawer
 import org.umamo.ui.workspace.sidebar.SidebarState
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -90,32 +71,11 @@ class EditMedianPanelTest {
 		renderSync: PuppetRenderSync? = null,
 		scrubCancel: ScrubCancelController = ScrubCancelController(),
 	): GizmoOverlayFixture {
-		val sidebarRegistry = SidebarRegistry().also { registry -> registerBuiltInSidebar(registry) }
+		val sidebarRegistry = builtInSidebarRegistry()
 
 		return mountGizmoOverlays(session) {
-			val puppet by session.model.collectAsState()
-			val editorState = rememberSessionEditorState(session)
-			CompositionLocalProvider(
-				LocalCommands provides CommandRegistry(),
-				LocalKeymap provides defaultKeymap(),
-				LocalSidebarRegistry provides sidebarRegistry,
-				LocalViewportChrome provides ViewportChromeState(showSidebar = true),
-				LocalPuppetRenderSync provides renderSync,
-				LocalScrubCancel provides scrubCancel,
-				LocalPuppet provides puppet,
-				LocalEditorSession provides session,
-				LocalSelection provides editorState,
-				LocalEditorMode provides editorState,
-			) {
-				Box(modifier = Modifier.size(420.dp, 300.dp)) {
-					SidebarDrawer(
-						areaId = SIDEBAR_AREA,
-						space = SpaceKind.Viewport2D,
-						state = SidebarState(),
-						passPointerThrough = false,
-						modifier = Modifier.align(Alignment.CenterEnd),
-					)
-				}
+			ProvideSidebarLocals(session, sidebarRegistry, LocalPuppetRenderSync provides renderSync, LocalScrubCancel provides scrubCancel) {
+				SidebarDrawerInArea(SIDEBAR_AREA, SidebarState(), width = 420.dp, height = 300.dp)
 			}
 		}
 	}

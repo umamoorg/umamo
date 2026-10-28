@@ -4,8 +4,10 @@ import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.AreaToolbarHub
+import org.umamo.ui.workspace.ChromeVisibility
 import org.umamo.ui.workspace.ViewportChromeState
 import org.umamo.ui.workspace.sidebar.AreaSidebarHub
+import org.umamo.ui.workspace.sidebar.SidebarState
 
 /**
  * The viewport chrome toggles, acting on the 2D viewport the pointer last touched: each viewport registers
@@ -25,14 +27,27 @@ internal fun viewportChromeCommands(
 	areaSidebars: AreaSidebarHub,
 	routing: CommandRouting,
 	defaults: () -> ViewportChromeState,
-): List<Command> =
-	listOf(
+): List<Command> {
+	/**
+	 * The toolbar visibility of the area the pointer last touched, or null when none is registered under it.
+	 *
+	 * @return ChromeVisibility? The hovered area's toolbar visibility, or null.
+	 */
+	fun hoveredToolbar(): ChromeVisibility? = routing.hovered()?.areaId?.let { areaId -> areaToolbars.forArea(areaId) }
+
+	/**
+	 * The sidebar state of the area the pointer last touched, or null when none is registered under it.
+	 *
+	 * @return SidebarState? The hovered area's sidebar state, or null.
+	 */
+	fun hoveredSidebar(): SidebarState? = routing.hovered()?.areaId?.let { areaId -> areaSidebars.forArea(areaId) }
+
+	return listOf(
 		Command("view.toggleToolbar", title = Res.string.cmd_view_toggle_toolbar, spaces = CommandSpaces.Viewport2D) {
-			val hoveredArea = routing.hovered()?.areaId
-			hoveredArea?.let(areaToolbars::forArea)?.toggle(defaults().showToolbar)
+			hoveredToolbar()?.toggle(defaults().showToolbar)
 		},
 		Command("view.toggleSidebar", title = Res.string.cmd_view_toggle_sidebar, spaces = CommandSpaces.Viewport2D) {
-			val hoveredArea = routing.hovered()?.areaId
-			hoveredArea?.let(areaSidebars::forArea)?.visibility?.toggle(defaults().showSidebar)
+			hoveredSidebar()?.visibility?.toggle(defaults().showSidebar)
 		},
 	)
+}

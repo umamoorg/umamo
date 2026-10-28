@@ -6,14 +6,25 @@ import okio.fakefilesystem.FakeFileSystem
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
 import org.umamo.ui.defaultSettingsJson
+import org.umamo.ui.workspace.ViewportChromeState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Pins the bundled defaults of the grid settings to the Kotlin-side fallbacks: a fresh install and an area
- * with no settings behind it draw the same grid on each surface.
+ * Pins the bundled defaults of the viewport settings to the Kotlin-side fallbacks: a fresh install and an
+ * area with no settings behind it draw the same grid on each surface and show the same chrome.
  */
 class ViewportSettingsTest {
+	/** The chrome defaults resolve out of defaultSettings.json to the constants a standalone shell renders. */
+	@Test
+	fun theBundledChromeDefaultsMatchTheFallbacks() {
+		val settings = bundledSettings()
+
+		assertEquals(ViewportSettings.SHOW_TOOLBAR_DEFAULT, settings.getBoolean(ViewportSettings.SHOW_TOOLBAR_KEY), "the toolbar")
+		assertEquals(ViewportSettings.SHOW_SIDEBAR_DEFAULT, settings.getBoolean(ViewportSettings.SHOW_SIDEBAR_KEY), "the sidebar")
+		assertEquals(ViewportChromeState(showToolbar = true, showSidebar = false), ViewportChromeState())
+	}
+
 	/** Each surface's pair resolves out of defaultSettings.json to the constants the code falls back on. */
 	@Test
 	fun theBundledGridDefaultsMatchTheFallbacks() {

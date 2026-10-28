@@ -73,35 +73,6 @@ internal fun coveredVerticesOf(
 	}
 
 /**
- * The mean of every covered vertex's captured world position, across all meshes: the median Grab pivots about
- * and Shift+S snaps from.
- *
- * @param List<CoveredVertices> covered The covered vertices.
- * @return WorldMedian? The median, or null when nothing is covered.
- */
-internal fun coveredMedian(covered: List<CoveredVertices>): WorldMedian? {
-	var sumX = 0f
-	var sumZ = 0f
-	var count = 0
-
-	for (mesh in covered) {
-		val world = mesh.geometry.world
-
-		for (vertexIndex in mesh.indices) {
-			sumX += world[vertexIndex * 2]
-			sumZ += world[vertexIndex * 2 + 1]
-			count++
-		}
-	}
-
-	if (count == 0) {
-		return null
-	}
-
-	return WorldMedian(sumX / count, sumZ / count, count)
-}
-
-/**
  * The median as a gesture's preview has the covered vertices: each mesh's previewed base, carried onto the
  * captured displayed shape and through the captured deformer mapping.  Valid while the deformer chain holds
  * still, which Edit mode's pinned pose guarantees, and cheap, because only the covered vertices are mapped.  A
@@ -111,7 +82,7 @@ internal fun coveredMedian(covered: List<CoveredVertices>): WorldMedian? {
  * @param Map<DrawableId, MeshRestPositions> restByDrawable The preview's new rest shape per moved mesh.
  * @return WorldMedian? The median, or null when nothing is covered.
  */
-internal fun coveredMedianIn(covered: List<CoveredVertices>, restByDrawable: Map<DrawableId, MeshRestPositions>): WorldMedian? {
+internal fun coveredMedian(covered: List<CoveredVertices>, restByDrawable: Map<DrawableId, MeshRestPositions> = emptyMap()): WorldMedian? {
 	var sumX = 0f
 	var sumZ = 0f
 	var count = 0

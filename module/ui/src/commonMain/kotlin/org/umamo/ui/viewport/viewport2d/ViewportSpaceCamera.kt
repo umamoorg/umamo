@@ -2,9 +2,12 @@ package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshTopology
 import org.umamo.edit.eligibleTransformDrawables
-import org.umamo.render.eval.DrawableSpaceResolver
+import org.umamo.ui.transform.captureDrawableWorlds
+import org.umamo.ui.transform.captureEditModeMeshes
+import org.umamo.ui.transform.coveredVerticesOf
+import org.umamo.ui.transform.coveredWorldExtent
+import org.umamo.ui.transform.worldExtentOf
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.ServiceCameraController
 
@@ -24,62 +27,28 @@ internal class ViewportSpaceCamera(
 ) : ServiceCameraController(service, session, areaId) {
 	override fun frameSelected() {
 		val model = session.model.value
-		var minX = Float.MAX_VALUE
-		var minY = Float.MAX_VALUE
-		var maxX = -Float.MAX_VALUE
-		var maxY = -Float.MAX_VALUE
-
-		fun include(worldPositions: FloatArray, vertexIndices: Iterable<Int>) {
-			for (vertexIndex in vertexIndices) {
-				minX = minOf(minX, worldPositions[vertexIndex * 2])
-				maxX = maxOf(maxX, worldPositions[vertexIndex * 2])
-				minY = minOf(minY, worldPositions[vertexIndex * 2 + 1])
-				maxY = maxOf(maxY, worldPositions[vertexIndex * 2 + 1])
+		val extent =
+			if (session.mode.value == EditorMode.Edit) {
+				// The covered vertices of the session selection, at the neutral pose Edit mode is pinned to.
+				val meshSelection = session.meshSelection.value
+				val meshes = captureEditModeMeshes(model, meshSelection.drawableIds)
+				val covered =
+					coveredVerticesOf(
+						meshSelection,
+						meshes.map { captured -> captured.geometry },
+						meshes.associate { captured -> captured.geometry.drawableId to captured.mesh.indices },
+					)
+				coveredWorldExtent(covered)
+			} else {
+				// The selected drawables' whole posed geometry, at the LIVE pose - what the viewport shows.
+				val eligibleIds = eligibleTransformDrawables(session.selection.value, model) ?: return
+				worldExtentOf(captureDrawableWorlds(model, session.pose.value, eligibleIds))
 			}
-		}
 
-		if (session.mode.value == EditorMode.Edit) {
-			// The covered vertices of the session selection, at the neutral pose Edit mode is pinned to.
-			val meshSelection = session.meshSelection.value
-			// One resolver for the sweep, so the deformer chain bakes once rather than once per mesh.
-			val spaces = DrawableSpaceResolver(model, emptyMap())
-
-			for (drawableId in meshSelection.drawableIds) {
-				val elements = meshSelection.elementsOf(drawableId)
-
-				if (elements.isEmpty()) {
-					continue
-				}
-
-				val mesh = spaces.drawable(drawableId)?.mesh ?: continue
-				val covered = MeshTopology.coveredVertexIndices(elements, mesh.indices)
-
-				if (covered.isEmpty()) {
-					continue
-				}
-
-				val mapping = spaces.mapping(drawableId) ?: continue
-				val world = mapping.localToWorld(spaces.localPosed(drawableId) ?: mesh.localPositions)
-				include(world, covered)
-			}
-		} else {
-			// The selected drawables' whole posed geometry, at the LIVE pose - what the viewport shows.
-			val pose = session.pose.value
-			val eligibleIds = eligibleTransformDrawables(session.selection.value, model) ?: return
-			val spaces = DrawableSpaceResolver(model, pose)
-
-			for (drawableId in eligibleIds) {
-				val mesh = spaces.drawable(drawableId)?.mesh ?: continue
-				val mapping = spaces.mapping(drawableId) ?: continue
-				val world = mapping.localToWorld(spaces.localPosed(drawableId) ?: mesh.localPositions)
-				include(world, 0 until world.size / 2)
-			}
-		}
-
-		if (minX > maxX) {
+		if (extent == null) {
 			return
 		}
 
-		service.fitWorldRect(areaId, minX, minY, maxX, maxY)
+		service.fitWorldRect(areaId, extent.minX, extent.minZ, extent.maxX, extent.maxZ)
 	}
 }

@@ -19,8 +19,8 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.viewport.ApplicationGridMirror
 import org.umamo.ui.viewport.LocalAreaOverlays
+import org.umamo.ui.viewport.rememberGestureOwnsAreaPointer
 import org.umamo.ui.viewport.viewport2d.ViewportSpaceCamera
-import org.umamo.ui.viewport.viewport2d.rememberViewport2dGestureOwnsPointer
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
 import org.umamo.ui.workspace.LocalAreaOverlayHub
@@ -99,7 +99,7 @@ internal fun Viewport2DBody(scope: AreaScope) {
 	ApplicationGridMirror(viewState.overlays)
 	// The floating chrome stops the pointer reaching the surface, except while one of this area's gestures
 	// owns it: a G started over the surface keeps following the pointer across the drawer.
-	val gestureOwnsPointer = rememberViewport2dGestureOwnsPointer(session, scope.areaId)
+	val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, scope.areaId)
 	CompositionLocalProvider(LocalAreaOverlays provides viewState.overlays) {
 		Box(modifier = Modifier.fillMaxSize()) {
 			if (host != null) {

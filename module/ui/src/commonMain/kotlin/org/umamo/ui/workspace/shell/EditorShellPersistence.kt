@@ -26,9 +26,8 @@ import org.umamo.ui.l10n.rememberLocaleTag
 import org.umamo.ui.resources.*
 import org.umamo.ui.sidebar.SidebarRegistry
 import org.umamo.ui.sidebar.rememberSidebarRegistry
+import org.umamo.ui.viewport.ViewportSettings
 import org.umamo.ui.workspace.LocalViewportChrome
-import org.umamo.ui.workspace.SHOW_SIDEBAR_SETTINGS_KEY
-import org.umamo.ui.workspace.SHOW_TOOLBAR_SETTINGS_KEY
 import org.umamo.ui.workspace.SpaceDescriptor
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.ViewportChromeState
@@ -112,7 +111,7 @@ fun PersistentEditorShell(
 	// external write) reaches every viewport that has no choice of its own at once.
 	val viewportChrome by produceState(initialValue = loadViewportChrome(settings), settings) {
 		settings.changes.collect { changedKey ->
-			if (changedKey == SHOW_TOOLBAR_SETTINGS_KEY || changedKey == SHOW_SIDEBAR_SETTINGS_KEY) {
+			if (changedKey == ViewportSettings.SHOW_TOOLBAR_KEY || changedKey == ViewportSettings.SHOW_SIDEBAR_KEY) {
 				value = loadViewportChrome(settings)
 			}
 		}
@@ -159,14 +158,14 @@ fun PersistentEditorShell(
 }
 
 /**
- * Reads the viewport chrome defaults from settings (bundled defaults included), falling back to the
- * standalone defaults for a missing key.
+ * Reads the viewport chrome defaults from settings (bundled defaults included), falling back to
+ * [ViewportSettings]' defaults for a missing key.
  *
  * @param Settings settings The merged settings tree.
  * @return ViewportChromeState The application's chrome defaults for areas with no choice of their own.
  */
 private fun loadViewportChrome(settings: Settings): ViewportChromeState =
 	ViewportChromeState(
-		showToolbar = settings.getBoolean(SHOW_TOOLBAR_SETTINGS_KEY) ?: true,
-		showSidebar = settings.getBoolean(SHOW_SIDEBAR_SETTINGS_KEY) ?: false,
+		showToolbar = settings.getBoolean(ViewportSettings.SHOW_TOOLBAR_KEY) ?: ViewportSettings.SHOW_TOOLBAR_DEFAULT,
+		showSidebar = settings.getBoolean(ViewportSettings.SHOW_SIDEBAR_KEY) ?: ViewportSettings.SHOW_SIDEBAR_DEFAULT,
 	)

@@ -999,8 +999,8 @@
 	<string name="properties_warp_size_z_description">The height of the deformer's lattice as it appears in the viewport.  Read-only until deformers can be scaled here.</string>
 	<string name="properties_rotation_pivot_x_description">The horizontal position of the deformer's pivot as it appears in the viewport, measured from the world axes.  Read-only until deformers can be moved here.</string>
 	<string name="properties_rotation_pivot_z_description">The vertical position of the deformer's pivot as it appears in the viewport, measured up from the world axes.  Read-only until deformers can be moved here.</string>
-	<string name="properties_field_angle_description">The deformer's angle at the shown pose, in degrees: its Base Angle plus the angle its keyforms set there.  Read-only until deformers can be rotated here.</string>
-	<string name="properties_field_scale_description">The deformer's scale at the shown pose, as its keyforms set it there.  Read-only until deformers can be scaled here.</string>
+	<string name="properties_field_angle_description">The deformer's angle at the shown pose, in degrees: its Base Angle plus the angle its keyforms and blend shapes set there.  Read-only until deformers can be rotated here.</string>
+	<string name="properties_field_scale_description">The deformer's scale at the shown pose, as its keyforms and blend shapes set it there.  Read-only until deformers can be scaled here.</string>
 	<string name="properties_part_ref_description">The part this item belongs to.  Clearing it moves the item out of every part.</string>
 	<string name="properties_parent_deformer_description">The deformer this item is attached to.  The item follows it as it moves, bends, or turns.</string>
 	<string name="properties_field_pinned_description">Holds this art in place on its atlas page.  Moving it by hand in the UV editor is refused, and a repack leaves it where it is unless Keep Pinned Tiles is off.</string>
@@ -1192,7 +1192,7 @@
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
 	<string name="settings_viewport_uv_grid_scale">UV Grid Scale</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV Grid Subdivisions</string>
-	<!-- Viewport section: rendering performance toggles (viewport.rendering.*), then the chrome's defaults (interface.viewport.showToolbar / showSidebar). -->
+	<!-- Viewport section: rendering performance toggles (viewport.rendering.*), then the chrome's defaults (viewport.showToolbar / showSidebar). -->
 	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
 	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>
 	<string name="settings_viewport_show_toolbar">Show Toolbar by Default</string>
