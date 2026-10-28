@@ -12,7 +12,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.transform.CoveredVertices
 import org.umamo.ui.transform.captureEditModeMeshes
-import org.umamo.ui.transform.coveredMedianIn
+import org.umamo.ui.transform.coveredMedian
 import org.umamo.ui.transform.coveredVerticesOf
 import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.viewport2d.CoveredMedianMove
@@ -63,7 +63,7 @@ internal fun EditMedianPanel(context: SidebarContext) {
 		}
 	// A snapshot read, so a running transform recomposes the panel with each frame it publishes.
 	val live = LocalLiveMeshPreview.current?.restByDrawable
-	val median = remember(covered, live) { coveredMedianIn(covered, live.orEmpty()) }
+	val median = remember(covered, live) { coveredMedian(covered, live.orEmpty()) }
 
 	if (median == null) {
 		MutedNote(Res.string.sidebar_item_nothing_selected)
