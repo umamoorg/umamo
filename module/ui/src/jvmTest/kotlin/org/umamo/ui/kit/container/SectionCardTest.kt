@@ -1,9 +1,11 @@
 package org.umamo.ui.kit.container
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,8 +40,8 @@ private const val FIRST_ROW_TAG = "firstRow"
 private const val SECOND_ROW_TAG = "secondRow"
 
 /**
- * The kit section card: its header folds the rows away, and open rows sit at the section indent the
- * Properties panel and the sidebar draw them at.
+ * The kit section card: its header folds the rows away, open rows sit at the section indent the
+ * Properties panel, the sidebar, and the operation strip draw them at, and a caller can size it itself.
  */
 class SectionCardTest {
 	/**
@@ -110,5 +112,34 @@ class SectionCardTest {
 			assertEquals(4.dp, second.top - first.bottom, "rows are 4 dp apart")
 			val card = onNodeWithTag(CARD_TAG).getUnclippedBoundsInRoot()
 			assertEquals(56.dp, card.bottom - card.top, "header 22, 2 above the rows, two 10 dp rows 4 apart, 8 below")
+		}
+
+	/**
+	 * A card its caller sizes keeps that size instead of filling what it is offered: sized to its widest row,
+	 * as the operation strip sizes it, it is that row plus the section indent on either side.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun aCardSizedByItsCallerKeepsThatSize() =
+		runComposeUiTest {
+			setContent {
+				UmamoTheme {
+					CompositionLocalProvider(LocalDensity provides Density(1f)) {
+						Box(modifier = Modifier.width(600.dp)) {
+							SectionCard(
+								title = TITLE,
+								expanded = true,
+								onToggle = {},
+								modifier = Modifier.widthIn(min = 100.dp).width(IntrinsicSize.Max).testTag(CARD_TAG),
+							) {
+								Box(modifier = Modifier.width(200.dp).height(10.dp).testTag(FIRST_ROW_TAG))
+							}
+						}
+					}
+				}
+			}
+			waitForIdle()
+			val card = onNodeWithTag(CARD_TAG).getUnclippedBoundsInRoot()
+			assertEquals(220.dp, card.right - card.left, "a 200 dp row, 12 dp of indent before it and 8 dp after")
 		}
 }

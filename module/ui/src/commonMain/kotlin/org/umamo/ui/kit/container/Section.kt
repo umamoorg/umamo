@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.DisclosureChevron
@@ -72,16 +73,20 @@ fun SectionHeader(label: String, expanded: Boolean, onToggle: () -> Unit, modifi
 }
 
 /**
- * A collapsible section card: a [SectionHeader] over the section's rows, on a raised card one step above
- * the surface it sits on (the panelThirdElevation fill and border, rounded with the medium shape).  The
- * rows are composed only while the card is [expanded].  The header spans the card and its hover fill is
- * clipped to the rounded corners, so the card adds no inset of its own around it; the rows get the
- * section indent and a small gap between one another.
+ * A collapsible section card: a [SectionHeader] over the section's rows, rounded with the medium shape.  By
+ * default the card is raised one step above the panel it sits on (the panelThirdElevation fill and border);
+ * a card floating over a work surface passes its own [fill] and [border].  The rows are composed only while
+ * the card is [expanded].  The header spans the card and its hover fill is clipped to the rounded corners,
+ * so the card adds no inset of its own around it; the rows get the section indent and a small gap between
+ * one another.  The card fills the width it is offered; a caller that sizes it itself (the operation strip,
+ * as wide as its widest row) does so through [modifier], which comes first.
  *
  * @param String   title    The section heading.
  * @param Boolean  expanded Whether the rows are shown.
  * @param Function onToggle Called when the header is clicked, to open or fold the section.
  * @param Modifier modifier Layout modifier.
+ * @param Color    fill     The card's fill, or Unspecified for the raised panelThirdElevation.
+ * @param Color    border   The card's hairline border, or Unspecified for the one paired with the raised fill.
  * @param Function content  The section's rows, top to bottom.
  */
 @Composable
@@ -90,6 +95,8 @@ fun SectionCard(
 	expanded: Boolean,
 	onToggle: () -> Unit,
 	modifier: Modifier = Modifier,
+	fill: Color = Color.Unspecified,
+	border: Color = Color.Unspecified,
 	content: @Composable ColumnScope.() -> Unit,
 ) {
 	val colors = LocalUmamoColors.current
@@ -99,8 +106,8 @@ fun SectionCard(
 			modifier
 				.fillMaxWidth()
 				.clip(shapes.medium)
-				.background(colors.panelThirdElevation, shape = shapes.medium)
-				.border(width = 1.dp, color = colors.panelThirdElevationBorder, shape = shapes.medium),
+				.background(fill.takeOrElse { colors.panelThirdElevation }, shape = shapes.medium)
+				.border(width = 1.dp, color = border.takeOrElse { colors.panelThirdElevationBorder }, shape = shapes.medium),
 	) {
 		SectionHeader(label = title, expanded = expanded, onToggle = onToggle)
 
