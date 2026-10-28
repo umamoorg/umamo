@@ -4,7 +4,6 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
-import org.umamo.edit.DEFAULT_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
@@ -177,7 +176,7 @@ internal class UvEditModalTransform(
 
 		// The radius resolves here even with proportional editing off, so the surface's first gesture seeds it.
 		val radiusState = proportionalRadius.value
-		transform.applyProportional(session.proportionalEdit.value, resolvedProportionalRadius(radiusState, frame))
+		transform.applyProportional(session.proportionalEdit.value, resolvedUvProportionalRadius(radiusState, frame))
 		gesture.begin(UvEditGesture(transform, frame, radiusState), gesture.lastPointer)
 		publishedRequest = null
 	}
@@ -192,7 +191,7 @@ internal class UvEditModalTransform(
 		val gestureData = gesture.capture
 
 		if (gestureData != null && session.activeUvOperator.value != null) {
-			gestureData.transform.applyProportional(state, resolvedProportionalRadius(gestureData.proportionalRadius, gestureData.frame))
+			gestureData.transform.applyProportional(state, resolvedUvProportionalRadius(gestureData.proportionalRadius, gestureData.frame))
 		}
 	}
 
@@ -240,11 +239,9 @@ internal class UvEditModalTransform(
 				// on, which stays this step's surface whatever is shown when the row is edited.
 				if (parameters != null && session.model.value !== modelBefore) {
 					val radiusState = gestureData.proportionalRadius
-					val proportional = ProportionalRows.of(session.proportionalEdit.value, resolvedProportionalRadius(radiusState, gestureData.frame))
-					registerUvTransformAdjustment(session, areaId, transform, gestureData.frame, parameters, proportional) { state, radiusDisplay ->
-						radiusState.value = radiusDisplay
-						val radiusWorld = session.proportionalEdit.value?.radiusWorld ?: DEFAULT_PROPORTIONAL_RADIUS_WORLD
-						session.setProportionalEdit(state?.copy(radiusWorld = radiusWorld))
+					val proportional = ProportionalRows.of(session.proportionalEdit.value, resolvedUvProportionalRadius(radiusState, gestureData.frame))
+					registerUvTransformAdjustment(session, areaId, transform, gestureData.frame, parameters, proportional) { _, state, radiusDisplay ->
+						session.writeBackUvProportional(radiusState, state, radiusDisplay)
 					}
 				}
 			}
@@ -270,7 +267,7 @@ internal class UvEditModalTransform(
 		if (steps != 0f && proportional != null && gestureData != null) {
 			val radiusState = gestureData.proportionalRadius
 			val resized =
-				(resolvedProportionalRadius(radiusState, gestureData.frame) * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
+				(resolvedUvProportionalRadius(radiusState, gestureData.frame) * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
 					.coerceIn(uvProportionalRadiusRange(gestureData.frame.displayWidth, gestureData.frame.displayHeight))
 			radiusState.value = resized
 			gestureData.transform.applyProportional(proportional, resized)
@@ -317,25 +314,5 @@ internal class UvEditModalTransform(
 
 		val current = session.model.value
 		pushPreview(if (request.baseModel === current) result.folded else current.withMeshUvs(result.storedUvs))
-	}
-
-	/**
-	 * Resolves a surface's proportional radius, seeding it from the surface's size on first use.
-	 *
-	 * @param MutableState<Float?> radiusState The surface's radius state.
-	 * @param UvEditFrame frame The surface's frame.
-	 * @return Float The influence radius in display units.
-	 */
-	private fun resolvedProportionalRadius(radiusState: MutableState<Float?>, frame: UvEditFrame): Float {
-		val current = radiusState.value
-
-		if (current != null) {
-			return current
-		}
-
-		val seeded = uvProportionalRadiusSeed(frame.displayWidth, frame.displayHeight)
-		radiusState.value = seeded
-
-		return seeded
 	}
 }

@@ -280,15 +280,23 @@ class PersistentViewStatesTest {
 		assertEquals(SIDEBAR_MAX_WIDTH, Viewport2DViewState().also { state -> state.restore(tooWide) }.sidebar.width, "a width past the limit is held to it")
 	}
 
-	/** The UV editor writes its overlays beside its texture selection, with only the keys a UV editor has overlays for. */
+	/**
+	 * The UV editor writes its overlays and its sidebar beside its texture selection, the overlays with only the keys
+	 * a UV editor has overlays for and the sidebar in the 2D viewport's shape.
+	 */
 	@Test
-	fun theUvEditorRoundTripsItsOverlaysBesideItsTexture() {
+	fun theUvEditorRoundTripsItsOverlaysAndSidebarBesideItsTexture() {
 		val saved = UvEditorViewState()
 		saved.textureSelection = UvTextureSelection.PinnedPage(1)
 		saved.overlays.showInfo = false
+		saved.sidebar.visibility.choice = true
+		saved.sidebar.activeTabId = "umamo.view"
 
 		val tree = saved.toJson()
-		assertEquals(listOf("texture", "overlays"), tree.keys.toList())
+		assertEquals(listOf("texture", "overlays", "sidebar"), tree.keys.toList())
+		val sidebar = tree["sidebar"] as JsonObject
+		assertEquals(JsonPrimitive(true), sidebar["open"])
+		assertEquals(JsonPrimitive("umamo.view"), sidebar["tab"])
 		val overlays = tree["overlays"] as JsonObject
 		assertEquals(listOf("all", "grid", "cursor", "info", "wireframeOpacity", "gridGeometry"), overlays.keys.toList(), "a UV editor has no axes, no object wireframe, and no tint, while its islands fade by the opacity")
 		assertEquals(JsonPrimitive(false), overlays["info"])
@@ -297,6 +305,8 @@ class PersistentViewStatesTest {
 		assertEquals(UvTextureSelection.PinnedPage(1), reopened.textureSelection)
 		assertFalse(reopened.overlays.showInfo)
 		assertTrue(reopened.overlays.showOverlays && reopened.overlays.showCursor && reopened.overlays.showGrid)
+		assertEquals(true, reopened.sidebar.visibility.choice)
+		assertEquals("umamo.view", reopened.sidebar.activeTabId)
 		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
 	}
 

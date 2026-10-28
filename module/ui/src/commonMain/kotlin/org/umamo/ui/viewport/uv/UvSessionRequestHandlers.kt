@@ -5,7 +5,6 @@ import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.MeshTopology
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.UvCursor
 import org.umamo.edit.UvSnapKind
@@ -56,11 +55,9 @@ internal fun handleUvSnapRequest(
 	grid: GridConfig,
 ) {
 	val selection = session.meshSelection.value
-	val coveredByMesh =
-		geometries.mapNotNull { geometry ->
-			val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(geometry.drawableId), geometry.indices)
-			if (covered.isEmpty()) null else geometry to covered
-		}
+	// The covered set and median the sidebar's UV Vertex / Median panel reads too, so the two cannot disagree.
+	val coveredByMesh = uvCoveredVertices(selection, geometries)
+	val median = uvCoveredMedian(coveredByMesh)
 
 	// The UV grid is the area's scale in texels over its subdivisions, anchored at the image origin - so a grid
 	// snap rounds to the grid's snap step in display space on both axes, the same minor lines the area's
@@ -72,19 +69,6 @@ internal fun handleUvSnapRequest(
 	val cursor = session.uvCursor.value ?: UvCursor(0f, 0f)
 	val (cursorDisplayX, cursorDisplayY) = frame.displayAt(cursor.u, cursor.v)
 
-	// The covered vertices' median in display space, across the shown meshes.
-	var coveredSumX = 0f
-	var coveredSumY = 0f
-	var coveredCount = 0
-
-	for ((geometry, covered) in coveredByMesh) {
-		for (vertexIndex in covered) {
-			coveredSumX += geometry.positions[vertexIndex * 2]
-			coveredSumY += geometry.positions[vertexIndex * 2 + 1]
-			coveredCount++
-		}
-	}
-
 	when (kind) {
 		UvSnapKind.CursorToPixels, UvSnapKind.CursorToGrid -> {
 			snapUvCursor(session, frame, kind, gridStep)
@@ -92,11 +76,11 @@ internal fun handleUvSnapRequest(
 
 		UvSnapKind.CursorToSelected -> {
 			// Nothing selected on the shown surface: no median to move the cursor to (a silent no-op).
-			if (coveredCount == 0) {
+			if (median == null) {
 				return
 			}
 
-			val (cursorU, cursorV) = frame.storedUvAt(coveredSumX / coveredCount, coveredSumY / coveredCount)
+			val (cursorU, cursorV) = frame.storedUvAt(median.displayX, median.displayY)
 			session.setUvCursor(cursorU, cursorV)
 		}
 
@@ -105,17 +89,19 @@ internal fun handleUvSnapRequest(
 		UvSnapKind.SelectionToCursorOffset,
 		UvSnapKind.SelectionToGrid,
 		-> {
-			if (coveredCount == 0) {
+			if (median == null) {
 				return
 			}
 
-			val medianX = coveredSumX / coveredCount
-			val medianY = coveredSumY / coveredCount
+			val medianX = median.displayX
+			val medianY = median.displayY
 			val model = session.model.value
 			val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(coveredByMesh.size)
 			val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(coveredByMesh.size)
 
-			for ((geometry, covered) in coveredByMesh) {
+			for (coveredMesh in coveredByMesh) {
+				val geometry = coveredMesh.geometry
+				val covered = coveredMesh.indices
 				val display = geometry.positions
 				val transformedDisplay =
 					when (kind) {

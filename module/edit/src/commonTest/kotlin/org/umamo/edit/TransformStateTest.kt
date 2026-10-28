@@ -452,4 +452,16 @@ class TransformStateTest {
 		assertEquals(Cursor2d(600f, -600f), session.cursor2dOrWorldOrigin(), "and rests on the world axes")
 		assertEquals(stepsBefore, session.historyView.value.steps.size, "placing and clearing it are not undo steps")
 	}
+
+	/** Clearing the UV cursor takes it off the surface again, and neither placing nor clearing it is an undo step. */
+	@Test
+	fun clearingTheUvCursorUnplacesIt() {
+		val session = meshedSession()
+		val stepsBefore = session.historyView.value.steps.size
+		session.setUvCursor(0.25f, 0.75f)
+		assertEquals(UvCursor(0.25f, 0.75f), session.uvCursor.value)
+		session.clearUvCursor()
+		assertNull(session.uvCursor.value, "the cursor is unplaced again")
+		assertEquals(stepsBefore, session.historyView.value.steps.size, "placing and clearing it are not undo steps")
+	}
 }

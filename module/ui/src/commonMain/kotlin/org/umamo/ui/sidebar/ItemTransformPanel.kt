@@ -47,3 +47,20 @@ internal fun ItemTransformPanel(context: SidebarContext) {
 		}
 	}
 }
+
+/**
+ * The UV editor's Item tab Transform panel: in Edit mode the selected texture coordinates (see [UvMedianPanel]),
+ * in Object mode the shown drawable's placement on its page (see [UvPlacementPanel]).
+ *
+ * @param SidebarContext context The sidebar's context.
+ */
+@Composable
+internal fun UvItemTransformPanel(context: SidebarContext) {
+	if (context.mode == EditorMode.Edit) {
+		UvMedianPanel(context)
+
+		return
+	}
+
+	UvPlacementPanel(context)
+}

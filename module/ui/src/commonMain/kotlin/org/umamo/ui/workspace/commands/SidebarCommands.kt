@@ -25,10 +25,10 @@ internal fun sidebarCommands(areaSidebars: AreaSidebarHub, routing: CommandRouti
 	fun hoveredSidebar(): SidebarState? = routing.hovered()?.areaId?.let { areaId -> areaSidebars.forArea(areaId) }
 
 	return listOf(
-		Command("view.sidebar.nextTab", title = Res.string.cmd_view_sidebar_next_tab, spaces = CommandSpaces.Viewport2D) {
+		Command("view.sidebar.nextTab", title = Res.string.cmd_view_sidebar_next_tab, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredSidebar()?.selectAdjacentTab(1)
 		},
-		Command("view.sidebar.previousTab", title = Res.string.cmd_view_sidebar_previous_tab, spaces = CommandSpaces.Viewport2D) {
+		Command("view.sidebar.previousTab", title = Res.string.cmd_view_sidebar_previous_tab, spaces = CommandSpaces.WorkSurfaces) {
 			hoveredSidebar()?.selectAdjacentTab(-1)
 		},
 	)

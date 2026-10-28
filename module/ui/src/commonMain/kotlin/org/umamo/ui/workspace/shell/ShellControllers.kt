@@ -195,8 +195,8 @@ internal class ShellControllers(
 	val areaToolbars = AreaToolbarHub()
 
 	/**
-	 * The work surfaces' per-area sidebar state, registered by each 2D viewport for its lifetime; the sidebar
-	 * commands resolve the hovered area here at dispatch time.
+	 * The work surfaces' per-area sidebar state, registered by each 2D viewport and UV editor for its lifetime;
+	 * the sidebar commands resolve the hovered area here at dispatch time.
 	 */
 	val areaSidebars = AreaSidebarHub()
 

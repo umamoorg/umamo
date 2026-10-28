@@ -60,14 +60,7 @@ internal fun coveredVerticesOf(
 			return@mapNotNull null
 		}
 
-		val vertexCount = geometry.world.size / 2
-		val covered = MeshTopology.coveredVertexIndices(elements, triangleIndices)
-		val inside =
-			if (covered.all { vertexIndex -> vertexIndex < vertexCount }) {
-				covered
-			} else {
-				covered.filterTo(HashSet()) { vertexIndex -> vertexIndex < vertexCount }
-			}
+		val inside = MeshTopology.coveredVertexIndicesWithin(elements, triangleIndices, geometry.world.size / 2)
 
 		if (inside.isEmpty()) null else CoveredVertices(geometry, triangleIndices, inside)
 	}
