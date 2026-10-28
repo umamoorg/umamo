@@ -27,14 +27,10 @@ class ExportNoticeDescriptionTest {
 		val names = (1..11).map { index -> "Mesh$index" }
 
 		val stripped = describeExportNotice(ExportNotice.FeatureStripped(RuntimeFeature.ReversedMask, names))
-		val twins = describeExportNotice(ExportNotice.SharedAtlasSlotKept(names))
 
-		for (line in listOf(stripped, twins)) {
-			assertTrue(line.contains("Mesh8"), line)
-			assertTrue(!line.contains("Mesh9"), line)
-			assertTrue(line.contains("(+3 more)"), line)
-		}
-
+		assertTrue(stripped.contains("Mesh8"), stripped)
+		assertTrue(!stripped.contains("Mesh9"), stripped)
+		assertTrue(stripped.contains("(+3 more)"), stripped)
 		assertTrue(stripped.startsWith("ReversedMask "), stripped)
 	}
 

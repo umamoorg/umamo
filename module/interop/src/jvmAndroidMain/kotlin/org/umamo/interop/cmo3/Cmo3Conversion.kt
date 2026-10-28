@@ -85,8 +85,8 @@ public object Cmo3Conversion {
 
 	/**
 	 * The conversion outcome: the fresh model, the reconcile's advisory report, and the puppet
-	 * actually encoded - the input after the atlas un-dedup prepass, whose uvs differ from the
-	 * caller's wherever a baked twin was routed to its own synthesized slot.  Round-trip checks
+	 * actually encoded - the input after the twin co-location prepass, whose canvas meshes differ
+	 * from the caller's wherever a baked twin took its slot representative's.  Round-trip checks
 	 * must compare a re-import against THIS puppet, not the caller's.
 	 */
 	public class Result(
@@ -127,18 +127,16 @@ public object Cmo3Conversion {
 		modelThumbnail: RasterImage? = null,
 	): Result {
 		// Real layers first: a drawable whose tile has a raster and an inventory row writes that
-		// raster as its own layer, and leaves the crop path - the un-dedup included, since a real
-		// tile's model image is the single-placement shape by construction.
+		// raster as its own layer, and leaves the crop path - the twin co-location included, since a
+		// real tile's model image is the single-placement shape by construction.
 		val sourceImages = Cmo3SourceLayerWeb.inputsOf(puppet, tileRasters)
 		val realDrawableIds = sourceImages.flatMapTo(HashSet()) { image -> image.layers.flatMap { layer -> layer.drawableIds } }
 		val cropPageIndexByDrawableId = pageIndexByDrawableId.filterKeys { drawableId -> drawableId !in realDrawableIds }
 		// Baked twins (one atlas slot, several canvas placements) are unrepresentable in the
-		// model-image web; the prepass copies each additional placement's patch onto a synthesized
-		// page and remaps those drawables' uvs there.  Everything below runs on ITS outputs.
-		val undedup = Cmo3AtlasUndedup.undeduplicate(puppet, pages, cropPageIndexByDrawableId)
-		val effectivePuppet = undedup.puppet
-		val effectivePages = undedup.pages
-		val effectivePageIndexByDrawableId = undedup.pageIndexByDrawableId
+		// model-image web; the prepass gives every further placement the representative's canvas
+		// mesh, as official files do, so each slot keeps one placement and one material.  Everything
+		// below runs on ITS puppet.
+		val effectivePuppet = Cmo3TwinColocation.colocate(puppet, pages, cropPageIndexByDrawableId).puppet
 		val skeleton =
 			Cmo3SkeletonBuilder.buildBlank(
 				modelName = modelName,
@@ -152,10 +150,10 @@ public object Cmo3Conversion {
 		// derives each canvas mesh through :render's restMeshesToCanvasSpace before any export, and
 		// callers converting a raw Moc3Import puppet must do the same (the official source-level
 		// positions and the whole placement web are canvas geometry).
-		val regionsByPage = List(effectivePages.size) { ArrayList<Cmo3ImageChainBuilder.DrawableRegion>() }
+		val regionsByPage = List(pages.size) { ArrayList<Cmo3ImageChainBuilder.DrawableRegion>() }
 
 		for (drawable in effectivePuppet.drawables) {
-			val pageIndex = effectivePageIndexByDrawableId[drawable.id.raw] ?: continue
+			val pageIndex = cropPageIndexByDrawableId[drawable.id.raw] ?: continue
 			val mesh = drawable.mesh ?: continue
 			regionsByPage.getOrNull(pageIndex)?.add(
 				Cmo3ImageChainBuilder.DrawableRegion(drawable.id.raw, mesh.uvs, mesh.positions, mesh.indices),
@@ -165,7 +163,7 @@ public object Cmo3Conversion {
 		val chain =
 			Cmo3ImageChainBuilder.populate(
 				skeleton.root,
-				effectivePages,
+				pages,
 				regionsByPage,
 				nowMillis,
 				fromSourceLayers = effectivePuppet.rendersFromSourceLayers,
@@ -191,7 +189,7 @@ public object Cmo3Conversion {
 			// A real-layer drawable has its own binding; a crop-path drawable its own or its page's.
 			val binding =
 				chain.bindingByDrawableId[drawable.id.raw]
-					?: effectivePageIndexByDrawableId[drawable.id.raw]?.let { pageIndex -> chain.pageFallbackBindings.getOrNull(pageIndex) }
+					?: cropPageIndexByDrawableId[drawable.id.raw]?.let { pageIndex -> chain.pageFallbackBindings.getOrNull(pageIndex) }
 			binding?.let { resolved -> bindings[drawable.id.raw] = resolved }
 		}
 
@@ -201,18 +199,12 @@ public object Cmo3Conversion {
 		// the notice leads the report rather than hiding behind the per-entity findings.  It is the
 		// one finding that describes the WHOLE file rather than an entity in it, which no amount of
 		// per-drawable detail would tell the user; a document whose every drawable wrote its real
-		// layer carries no such finding.  A twin the prepass had to leave sharing its slot follows
-		// it, for the same reason.
+		// layer carries no such finding.
 		val everyDrawableIsReal = sourceImages.isNotEmpty() && effectivePuppet.drawables.all { drawable -> drawable.id.raw in realDrawableIds }
 		val leading = ArrayList<ExportNotice>()
 
 		if (!everyDrawableIsReal) {
-			leading.add(ExportNotice.MissingSourceArt(effectivePages.size))
-		}
-
-		if (undedup.sharedDrawableIds.isNotEmpty()) {
-			val nameById = effectivePuppet.drawables.associate { drawable -> drawable.id.raw to drawable.name }
-			leading.add(ExportNotice.SharedAtlasSlotKept(undedup.sharedDrawableIds.map { drawableId -> nameById[drawableId] ?: drawableId }))
+			leading.add(ExportNotice.MissingSourceArt(pages.size))
 		}
 
 		// A tile whose binding the routing could not honor - a file the document does not list, or a layer
