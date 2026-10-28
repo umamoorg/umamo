@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -181,6 +182,10 @@ private fun ButtonGroupSegment(item: ButtonGroupItem, shape: Shape, axis: StackA
 		Modifier
 			.clip(shape)
 			.background(fill)
+			// NOT focusable: a group can leave the composition with its own click (Edit mode's select modes go
+			// when the mode does), and a focused node leaving takes focus with it, killing every shortcut until
+			// something focusable is clicked again.  The keyboard belongs to the shell root.
+			.focusProperties { canFocus = false }
 			.clickable(interactionSource = interaction, indication = null, onClick = item.onClick)
 			.semantics {
 				contentDescription = item.contentDescription

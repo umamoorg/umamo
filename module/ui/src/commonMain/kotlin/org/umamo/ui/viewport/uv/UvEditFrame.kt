@@ -78,6 +78,57 @@ class UvEditFrame(
 	}
 
 	/**
+	 * Where a stored coordinate falls on the shown surface in texels measured from its top-left, y down: the way an
+	 * image editor, the operation strip's rows, and a tile's placement read a position.  Display space runs y up,
+	 * so the vertical reading is the surface's height less the display y.
+	 *
+	 * @param Float u The stored u.
+	 * @param Float v The stored v.
+	 * @return Pair<Float, Float> The texel (x, y), y down.
+	 */
+	fun texelAt(u: Float, v: Float): Pair<Float, Float> {
+		val (displayX, displayY) = displayAt(u, v)
+
+		return displayX to displayYOfTexelY(displayY)
+	}
+
+	/**
+	 * The display y of a y-down texel reading, or the reverse: the flip is its own inverse.
+	 *
+	 * @param Float texelY A vertical position in y-down texels (or in display y).
+	 * @return Float The same position in display y (or in y-down texels).
+	 */
+	fun displayYOfTexelY(texelY: Float): Float = displayHeight - texelY
+
+	/**
+	 * The stored coordinate that puts the point stored at ([u], [v]) on [texelValue] along one y-down texel axis,
+	 * the point's other texel coordinate held.  Over the stored frame the two axes are independent, so the other
+	 * stored component is kept exactly as it was rather than converted out and back, which can land one float
+	 * step off; over a layer's frame its mapping mixes the axes, and both come from the moved display point.
+	 *
+	 * @param Float u The point's stored u.
+	 * @param Float v The point's stored v.
+	 * @param TexelAxis axis The axis set.
+	 * @param Float texelValue The point's new coordinate on that axis, in y-down texels.
+	 * @return Pair<Float, Float> The moved point's stored (u, v).
+	 */
+	internal fun storedUvMovedTo(u: Float, v: Float, axis: TexelAxis, texelValue: Float): Pair<Float, Float> {
+		val (displayX, displayY) = displayAt(u, v)
+
+		return when (axis) {
+			TexelAxis.X -> {
+				val (movedU, movedV) = storedUvAt(texelValue, displayY)
+				if (isStoredFrame) movedU to v else movedU to movedV
+			}
+
+			TexelAxis.Y -> {
+				val (movedU, movedV) = storedUvAt(displayX, displayYOfTexelY(texelValue))
+				if (isStoredFrame) u to movedV else movedU to movedV
+			}
+		}
+	}
+
+	/**
 	 * Converts a whole display-space array into stored coordinates.
 	 *
 	 * @param FloatArray displayPositions The display coordinates, interleaved (x, y).

@@ -27,10 +27,15 @@ import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.workspace.AreaCameraHub
 import org.umamo.ui.workspace.AreaOverlayHub
+import org.umamo.ui.workspace.AreaToolbarHub
+import org.umamo.ui.workspace.ChromeVisibility
 import org.umamo.ui.workspace.HoveredSurface
 import org.umamo.ui.workspace.KeyformSheetSurface
 import org.umamo.ui.workspace.KeyformSheetViews
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.ViewportChromeState
+import org.umamo.ui.workspace.sidebar.AreaSidebarHub
+import org.umamo.ui.workspace.sidebar.SidebarState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -533,5 +538,82 @@ class CommandDispatchTest {
 
 		assertFalse(uvOverlays.showOverlays, "with no hovered area nothing flips")
 		assertTrue(viewportOverlays.showOverlays)
+	}
+
+	/**
+	 * The sidebar tab commands step the hovered area's sidebar along its rail, wrapping past either end, and
+	 * leave every other area's sidebar alone; with no hovered area, or the hovered sidebar closed, they do
+	 * nothing.
+	 */
+	@Test
+	fun sidebarCommandsStepTheHoveredAreasTabsAndNoOther() {
+		val hub = AreaSidebarHub()
+		val hoveredSidebar = SidebarState()
+		val otherSidebar = SidebarState()
+		val shown = listOf("umamo.item", "umamo.tool", "umamo.view")
+		hoveredSidebar.shownTabIds = shown
+		otherSidebar.shownTabIds = shown
+		hub.register("area-hovered", hoveredSidebar)
+		hub.register("area-other", otherSidebar)
+		val overHovered = sidebarCommands(hub, routing(HoveredSurface("area-hovered", SpaceKind.Viewport2D)))
+
+		overHovered.run("view.sidebar.nextTab")
+
+		assertEquals("umamo.tool", hoveredSidebar.activeTabId, "the first tab steps to the second")
+		assertNull(otherSidebar.activeTabId, "the other area's sidebar is untouched")
+
+		overHovered.run("view.sidebar.previousTab")
+		overHovered.run("view.sidebar.previousTab")
+
+		assertEquals("umamo.view", hoveredSidebar.activeTabId, "stepping back past the first tab wraps to the last")
+
+		sidebarCommands(hub, routing(null)).run("view.sidebar.nextTab")
+
+		assertEquals("umamo.view", hoveredSidebar.activeTabId, "with no hovered area nothing steps")
+
+		hoveredSidebar.shownTabIds = emptyList()
+		overHovered.run("view.sidebar.nextTab")
+
+		assertEquals("umamo.view", hoveredSidebar.activeTabId, "a closed sidebar has no tab to step to")
+	}
+
+	/**
+	 * The chrome toggles flip the hovered viewport's own toolbar and sidebar and no other area's: the first
+	 * toggle flips the application's default into the area's own choice, and that choice stays the area's when
+	 * the default later changes.  With no hovered area nothing toggles.
+	 */
+	@Test
+	fun chromeTogglesFlipOnlyTheHoveredViewport() {
+		val toolbars = AreaToolbarHub()
+		val sidebars = AreaSidebarHub()
+		val hoveredToolbar = ChromeVisibility()
+		val otherToolbar = ChromeVisibility()
+		val hoveredSidebar = SidebarState()
+		val otherSidebar = SidebarState()
+		toolbars.register("area-hovered", hoveredToolbar)
+		toolbars.register("area-other", otherToolbar)
+		sidebars.register("area-hovered", hoveredSidebar)
+		sidebars.register("area-other", otherSidebar)
+		var defaults = ViewportChromeState(showToolbar = true, showSidebar = false)
+		val overHovered = viewportChromeCommands(toolbars, sidebars, routing(HoveredSurface("area-hovered", SpaceKind.Viewport2D))) { defaults }
+
+		overHovered.run("view.toggleToolbar")
+		overHovered.run("view.toggleSidebar")
+
+		assertEquals(false, hoveredToolbar.choice, "the shown-by-default toolbar is hidden in the hovered area")
+		assertEquals(true, hoveredSidebar.visibility.choice, "the closed-by-default sidebar opens in the hovered area")
+		assertNull(otherToolbar.choice, "the other area's toolbar still follows the default")
+		assertNull(otherSidebar.visibility.choice, "and so does its sidebar")
+
+		defaults = ViewportChromeState(showToolbar = false, showSidebar = true)
+
+		assertFalse(hoveredToolbar.isShown(defaults.showToolbar), "the hovered area keeps its own choice")
+		assertTrue(hoveredSidebar.visibility.isShown(defaults.showSidebar))
+		assertTrue(otherSidebar.visibility.isShown(defaults.showSidebar), "the other area follows the new default")
+
+		viewportChromeCommands(toolbars, sidebars, routing(null)) { defaults }.run("view.toggleSidebar")
+
+		assertEquals(true, hoveredSidebar.visibility.choice, "with no hovered area nothing toggles")
+		assertNull(otherSidebar.visibility.choice)
 	}
 }

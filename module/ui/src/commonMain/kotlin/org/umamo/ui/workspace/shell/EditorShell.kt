@@ -46,6 +46,9 @@ import org.umamo.ui.properties.PropertyTab
 import org.umamo.ui.properties.defaultPropertyTabRegistry
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.workspace_new_name
+import org.umamo.ui.sidebar.LocalSidebarRegistry
+import org.umamo.ui.sidebar.SidebarRegistry
+import org.umamo.ui.sidebar.rememberSidebarRegistry
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.workspace.LocalSpaceRegistry
@@ -102,6 +105,8 @@ import org.umamo.ui.workspace.statusbar.StatusBar
  * @param Map spaceOverrides Per-kind space descriptors layered over the base registry.
  * @param List propertyTabOverrides Property tabs layered over the base tab set (a vendor extension seam).
  * @param CommandRegistry commandRegistry The action registry (the app may pre-register commands).
+ * @param SidebarRegistry sidebarRegistry The tabs and panels every work-surface sidebar draws from; the app
+ *   holds one per window, so it outlives a document swap.
  * @param List appMenu The application menu-bar contents, shown to the left of the workspace tabs; empty
  *   (the default) renders no bar.  The app supplies it because its items close over app-specific state
  *   (the open document, the file picker), while the bar component itself is shared.
@@ -128,6 +133,7 @@ fun EditorShell(
 	spaceOverrides: Map<SpaceKind, SpaceDescriptor> = emptyMap(),
 	propertyTabOverrides: List<PropertyTab> = emptyList(),
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
+	sidebarRegistry: SidebarRegistry = rememberSidebarRegistry(),
 	appMenu: List<TopLevelMenu> = emptyList(),
 	languageTag: String = "en",
 	keymap: Keymap = defaultKeymap(),
@@ -214,6 +220,7 @@ fun EditorShell(
 					LocalKeymap provides keymap,
 					LocalSpaceRegistry provides spaceRegistry,
 					LocalPropertyTabRegistry provides propertyTabRegistry,
+					LocalSidebarRegistry provides sidebarRegistry,
 					LocalViewportHost provides viewportHost,
 					*controllers.compositionLocals(),
 				) {

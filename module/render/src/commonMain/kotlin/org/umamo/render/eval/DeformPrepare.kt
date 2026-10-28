@@ -90,9 +90,9 @@ internal fun preparePose(
 	parameters: Map<ParameterId, Float>,
 	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
 ): PoseDeformInputs {
-	val defaults = model.parameters.associate { it.id to it.default }
-	val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
-	val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
+	val pose = PoseParameters(model, parameters)
+	val paramValue = pose.paramValue
+	val defaultValue = pose.defaultValue
 	// Null in the steady state (no pending unkeyed edit), so every lookup below short-circuits before
 	// constructing its KeyableTarget key - the per-frame path otherwise allocated a handful of key
 	// objects per entity purely to probe an empty map.

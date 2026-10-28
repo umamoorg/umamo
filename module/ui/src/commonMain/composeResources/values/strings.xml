@@ -804,8 +804,32 @@
 	<string name="cmd_view_overlay_selection_tint">Toggle Selection Tint Overlay</string>
 	<string name="cmd_view_overlay_wireframe">Toggle Wireframe Overlay</string>
 	<string name="cmd_view_overlay_wireframe_culling">Toggle Wireframe Cull Hidden</string>
-	<string name="sidebar_title">Sidebar</string>
-	<string name="sidebar_empty_hint">Tool and item panels will live here.</string>
+	<!-- The viewport sidebar: its tabs, its built-in panels, and the commands that step through its tabs. -->
+	<string name="sidebar_tab_item">Item</string>
+	<string name="sidebar_tab_tool">Tool</string>
+	<string name="sidebar_tab_view">View</string>
+	<string name="sidebar_panel_active_tool">Active Tool</string>
+	<string name="sidebar_tool_settings_hint">Tool settings will appear here.</string>
+	<string name="sidebar_item_nothing_selected">Nothing selected.</string>
+	<string name="sidebar_cursor_x_description">The 2D cursor's horizontal position, measured from the world axes.</string>
+	<string name="sidebar_cursor_z_description">The 2D cursor's vertical position, measured up from the world axes.</string>
+	<string name="sidebar_edit_vertex">Vertex:</string>
+	<string name="sidebar_edit_median">Median:</string>
+	<string name="sidebar_median_x_description">The horizontal position of the selected vertices, their median when there are several, measured from the world axes.</string>
+	<string name="sidebar_median_z_description">The vertical position of the selected vertices, their median when there are several, measured up from the world axes.</string>
+	<string name="sidebar_uv_cursor_x_description">The UV cursor's horizontal position on the shown page or artwork, in pixels from its left edge.</string>
+	<string name="sidebar_uv_cursor_y_description">The UV cursor's vertical position on the shown page or artwork, in pixels down from its top edge.</string>
+	<string name="sidebar_uv_median_x_description">The horizontal position of the selected texture coordinates, their median when there are several, in pixels from the left edge of the shown page or artwork.</string>
+	<string name="sidebar_uv_median_y_description">The vertical position of the selected texture coordinates, their median when there are several, in pixels down from the top edge of the shown page or artwork.</string>
+	<string name="sidebar_placement_x_description">Where the art's origin sits on its page, in pixels from the page's left edge.</string>
+	<string name="sidebar_placement_y_description">Where the art's origin sits on its page, in pixels down from the page's top edge.</string>
+	<string name="sidebar_placement_angle_description">How far the art is turned on its page about its origin, in degrees.</string>
+	<string name="sidebar_placement_scale_x_description">How much the art is scaled along its own width.  Enter a negative value to mirror it.</string>
+	<string name="sidebar_placement_scale_y_description">How much the art is scaled along its own height.  Enter a negative value to mirror it.</string>
+	<string name="sidebar_uv_unplaced">Not placed on a page.</string>
+	<string name="properties_transform_unavailable">This item has no placement to show.</string>
+	<string name="cmd_view_sidebar_next_tab">Next Sidebar Tab</string>
+	<string name="cmd_view_sidebar_previous_tab">Previous Sidebar Tab</string>
 
 	<!-- Inspector per-entity property view (the selected part / drawable / deformer). -->
 	<string name="properties_part_ref">Parent Part</string>
@@ -866,9 +890,10 @@
 	<string name="properties_field_origin_z">Origin Z</string>
 	<string name="properties_field_position_x">Position X</string>
 	<string name="properties_field_position_z">Position Z</string>
+	<string name="properties_field_position_y">Position Y</string>
 	<string name="properties_field_size_x">Size X</string>
 	<string name="properties_field_size_z">Size Z</string>
-	<string name="properties_transform_lock_aspect">Lock Aspect Ratio</string>
+	<string name="common_lock_aspect_ratio">Lock Aspect Ratio</string>
 	<string name="properties_field_blend_mode">Blend</string>
 	<string name="properties_field_alpha_mode">Alpha</string>
 	<string name="properties_field_culling">Cull Back Faces</string>
@@ -876,6 +901,8 @@
 	<string name="properties_field_flip_x">Flip X</string>
 	<string name="properties_field_flip_y">Flip Y</string>
 	<string name="properties_field_base_angle">Base Angle</string>
+	<string name="properties_field_angle">Angle</string>
+	<string name="properties_field_scale">Scale</string>
 	<string name="properties_field_quad_transform">Bilinear (Quad)</string>
 	<string name="properties_field_sketch">Guide Image</string>
 	<string name="properties_field_draw_order">Draw Order</string>
@@ -973,6 +1000,18 @@
 	<string name="properties_field_size_x_description">The width of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_size_z_description">The height of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_base_angle_description">The deformer's base rotation, in degrees.  The angle each keyform sets is added to it.</string>
+	<string name="properties_part_position_x_description">The horizontal center of everything the part holds, as it appears in the viewport, measured from the world axes.  Read-only until parts can be moved here.</string>
+	<string name="properties_part_position_z_description">The vertical center of everything the part holds, as it appears in the viewport, measured up from the world axes.  Read-only until parts can be moved here.</string>
+	<string name="properties_part_size_x_description">The width of everything the part holds, as it appears in the viewport.  Read-only until parts can be scaled here.</string>
+	<string name="properties_part_size_z_description">The height of everything the part holds, as it appears in the viewport.  Read-only until parts can be scaled here.</string>
+	<string name="properties_warp_position_x_description">The horizontal center of the deformer's lattice as it appears in the viewport, measured from the world axes.  Read-only until deformers can be moved here.</string>
+	<string name="properties_warp_position_z_description">The vertical center of the deformer's lattice as it appears in the viewport, measured up from the world axes.  Read-only until deformers can be moved here.</string>
+	<string name="properties_warp_size_x_description">The width of the deformer's lattice as it appears in the viewport.  Read-only until deformers can be scaled here.</string>
+	<string name="properties_warp_size_z_description">The height of the deformer's lattice as it appears in the viewport.  Read-only until deformers can be scaled here.</string>
+	<string name="properties_rotation_pivot_x_description">The horizontal position of the deformer's pivot as it appears in the viewport, measured from the world axes.  Read-only until deformers can be moved here.</string>
+	<string name="properties_rotation_pivot_z_description">The vertical position of the deformer's pivot as it appears in the viewport, measured up from the world axes.  Read-only until deformers can be moved here.</string>
+	<string name="properties_field_angle_description">The deformer's angle at the shown pose, in degrees: its Base Angle plus the angle its keyforms and blend shapes set there.  Read-only until deformers can be rotated here.</string>
+	<string name="properties_field_scale_description">The deformer's scale at the shown pose, as its keyforms and blend shapes set it there.  Read-only until deformers can be scaled here.</string>
 	<string name="properties_part_ref_description">The part this item belongs to.  Clearing it moves the item out of every part.</string>
 	<string name="properties_parent_deformer_description">The deformer this item is attached to.  The item follows it as it moves, bends, or turns.</string>
 	<string name="properties_field_pinned_description">Holds this art in place on its atlas page.  Moving it by hand in the UV editor is refused, and a repack leaves it where it is unless Keep Pinned Tiles is off.</string>
@@ -1164,9 +1203,11 @@
 	<string name="settings_viewport_grid_subdivisions">Grid Subdivisions</string>
 	<string name="settings_viewport_uv_grid_scale">UV Grid Scale</string>
 	<string name="settings_viewport_uv_grid_subdivisions">UV Grid Subdivisions</string>
-	<!-- Viewport section: rendering performance toggles (viewport.rendering.*). -->
+	<!-- Viewport section: rendering performance toggles (viewport.rendering.*), then the chrome's defaults (viewport.showToolbar / showSidebar). -->
 	<string name="settings_viewport_supersample">Supersampling (2x Render Quality)</string>
 	<string name="settings_viewport_supersample_while_resizing">Keep supersampling while resizing panels</string>
+	<string name="settings_viewport_show_toolbar">Show Toolbar by Default</string>
+	<string name="settings_viewport_show_sidebar">Show Sidebar by Default</string>
 	<!-- Colors section: the viewport selection highlight, then the Edit-mode gizmo palette (viewport.meshEdit.*), grouped element × state. -->
 	<string name="settings_colors_viewport">Viewport</string>
 	<string name="settings_colors_selection_highlight">Selection Highlight</string>

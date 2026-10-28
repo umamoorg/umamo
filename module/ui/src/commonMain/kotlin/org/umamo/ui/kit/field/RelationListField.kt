@@ -3,9 +3,7 @@ package org.umamo.ui.kit.field
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.DraggableState
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,20 +21,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.VerticalScrollbarOverlay
 import org.umamo.ui.kit.button.IconButton
+import org.umamo.ui.kit.dragResizes
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -112,24 +108,9 @@ fun <T> RelationListField(
 	val colors = LocalUmamoColors.current
 	val shapes = LocalUmamoShapes.current
 	val typography = LocalUmamoTypography.current
-	val density = LocalDensity.current
 	val scrollState = rememberScrollState()
 	var ownHeight by remember { mutableStateOf(RELATION_LIST_DEFAULT_HEIGHT) }
 	val listHeight = (height ?: ownHeight).coerceIn(RELATION_LIST_MIN_HEIGHT, RELATION_LIST_MAX_HEIGHT)
-	// The drag state is built once, so it reads the height and the callback through these rather than capturing
-	// the first composition's.
-	val latestHeight by rememberUpdatedState(listHeight)
-	val latestOnHeightChange by rememberUpdatedState(onHeightChange)
-	// The grip drags the list's own height; the panel around it is untouched (this is not an area splitter).
-	val dragState =
-		remember {
-			DraggableState { deltaPx ->
-				val delta = with(density) { deltaPx.toDp() }
-				val dragged = (latestHeight + delta).coerceIn(RELATION_LIST_MIN_HEIGHT, RELATION_LIST_MAX_HEIGHT)
-				ownHeight = dragged
-				latestOnHeightChange?.invoke(dragged)
-			}
-		}
 
 	Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
 		RelationField(
@@ -183,8 +164,19 @@ fun <T> RelationListField(
 				Modifier
 					.fillMaxWidth()
 					.height(RELATION_GRIP_HEIGHT)
-					.pointerHoverIcon(PointerIcon.Hand)
-					.draggable(state = dragState, orientation = Orientation.Vertical),
+					// The grip drags the list's own height; the panel around it is untouched (this is not an area
+					// splitter).
+					.dragResizes(
+						size = { listHeight },
+						min = RELATION_LIST_MIN_HEIGHT,
+						max = RELATION_LIST_MAX_HEIGHT,
+						orientation = Orientation.Vertical,
+						hoverIcon = PointerIcon.Hand,
+						onResize = { dragged ->
+							ownHeight = dragged
+							onHeightChange?.invoke(dragged)
+						},
+					),
 			contentAlignment = Alignment.Center,
 		) {
 			Canvas(modifier = Modifier.size(RELATION_ROW_GLYPH_SIZE)) {

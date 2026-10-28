@@ -1,5 +1,7 @@
 package org.umamo.ui.workspace.editorstate
 
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -130,6 +132,38 @@ internal fun foldDeviationsOf(states: Map<String, Boolean>, defaultOpen: (String
 
 	return stringArrayOrNull(opened) to stringArrayOrNull(closed)
 }
+
+/**
+ * A fold map written as recorded, as the pair of arrays the entry holds: the ids recorded open and the ids
+ * recorded closed.  The counterpart of [foldDeviationsOf] for a map that never records a node at its default
+ * (the sidebar's), or that keeps what the rigger set even where it matches the default (the parameters panel's).
+ *
+ * @param Map      states Each recorded node's open state.
+ * @param Function idOf   A node's id as the entry names it.
+ * @return Pair The open ids, then the closed ones, each as [stringArrayOrNull] writes them.
+ */
+internal fun <NodeT> recordedFoldsOf(states: Map<NodeT, Boolean>, idOf: (NodeT) -> String): Pair<JsonElement, JsonElement> =
+	stringArrayOrNull(states.filterValues { open -> open }.keys.map(idOf)) to stringArrayOrNull(states.filterValues { open -> !open }.keys.map(idOf))
+
+/**
+ * A width as the entry holds it: a JSON null at [default], else its value in density-independent pixels.
+ *
+ * @param Dp value   The width.
+ * @param Dp default The width an untouched state has.
+ * @return JsonElement The member value.
+ */
+internal fun dpOrNull(value: Dp, default: Dp): JsonElement = if (value == default) JsonNull else JsonPrimitive(value.value)
+
+/**
+ * The width [element] holds, held between [min] and [max], or null when it is not a finite number above zero: a
+ * width at or below zero is no width at all, so the caller keeps its default rather than the narrowest.
+ *
+ * @param JsonElement? element The element.
+ * @param Dp           min     The narrowest the width may be.
+ * @param Dp           max     The widest the width may be.
+ * @return Dp? The width, or null.
+ */
+internal fun positiveDpOf(element: JsonElement?, min: Dp, max: Dp): Dp? = finiteFloatOf(element)?.takeIf { value -> value > 0f }?.dp?.coerceIn(min, max)
 
 /**
  * Lays a saved fold state into [states]: what was recorded goes, the opened ids are open, and the closed ids are

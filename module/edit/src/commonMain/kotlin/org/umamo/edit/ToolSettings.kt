@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 internal class ToolSettings(private val notify: (String, NoticePlacement) -> Unit) : SessionToolSettings {
 	private val mutableCursor2d = MutableStateFlow<Cursor2d?>(null)
 
-	/** The 2D cursor's world position, or null before any placement (see [SessionToolSettings.cursor2d]). */
+	/** The 2D cursor's world position, or null while unplaced (see [SessionToolSettings.cursor2d]). */
 	override val cursor2d: StateFlow<Cursor2d?> = mutableCursor2d.asStateFlow()
 
 	private val mutableUvCursor = MutableStateFlow<UvCursor?>(null)
@@ -53,6 +53,13 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
+	 * Takes the 2D cursor off the canvas again, back to never placed.
+	 */
+	override fun clearCursor2d() {
+		mutableCursor2d.value = null
+	}
+
+	/**
 	 * Places (or moves) the UV editor's cursor.
 	 *
 	 * @param Float u The cursor's new normalized atlas u coordinate.
@@ -60,6 +67,13 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	 */
 	override fun setUvCursor(u: Float, v: Float) {
 		mutableUvCursor.value = UvCursor(u, v)
+	}
+
+	/**
+	 * Takes the UV editor's cursor off the surface again, back to never placed.
+	 */
+	override fun clearUvCursor() {
+		mutableUvCursor.value = null
 	}
 
 	/**

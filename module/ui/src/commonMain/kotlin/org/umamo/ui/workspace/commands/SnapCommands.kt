@@ -6,11 +6,11 @@ import org.umamo.edit.SnapKind
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.ui.action.Command
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.workspace.AreaOverlayHub
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * The transform pivot modes (the Period pie / the palette) and the Shift+S snap operations over world
@@ -71,7 +71,7 @@ internal fun snapCommands(
 				live.closePieMenu()
 			}
 		},
-		Command("snap.cursorToGrid", title = Res.string.cmd_snap_cursor_grid, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
+		Command("snap.cursorToGrid", title = Res.string.cmd_snap_cursor_grid, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
 			// The hovered 2D viewport's grid is the one the snap rounds to, since each area draws its own; over
 			// anything else the command does nothing (Blender's hovered-area rule, no fallback).
 			val areaId = routing.viewportArea()
@@ -86,27 +86,27 @@ internal fun snapCommands(
 				editorSession.closePieMenu()
 			}
 		},
-		Command("snap.cursorToSelected", title = Res.string.cmd_snap_cursor_selected, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
+		Command("snap.cursorToSelected", title = Res.string.cmd_snap_cursor_selected, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.CursorToSelected, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.cursorToActive", title = Res.string.cmd_snap_cursor_active, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
+		Command("snap.cursorToActive", title = Res.string.cmd_snap_cursor_active, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.CursorToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToGrid", title = Res.string.cmd_snap_selection_grid, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
+		Command("snap.selectionToGrid", title = Res.string.cmd_snap_selection_grid, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.SelectionToGrid, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToCursor", title = Res.string.cmd_snap_selection_cursor, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
+		Command("snap.selectionToCursor", title = Res.string.cmd_snap_selection_cursor, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursor, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
+		Command("snap.selectionToCursorOffset", title = Res.string.cmd_snap_selection_cursor_offset, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.SelectionToCursorOffset, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},
-		Command("snap.selectionToActive", title = Res.string.cmd_snap_selection_active, availability = availability.hasDocument, spaces = CommandSpaces.Viewport2D) {
+		Command("snap.selectionToActive", title = Res.string.cmd_snap_selection_active, availability = availability.hasDocument, spaces = SpaceScope.Viewport2D) {
 			editorSession?.requestSnap(SnapKind.SelectionToActive, routing.viewportArea())
 			editorSession?.closePieMenu()
 		},

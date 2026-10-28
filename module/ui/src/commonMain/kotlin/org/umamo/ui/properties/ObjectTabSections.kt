@@ -1,15 +1,9 @@
 package org.umamo.ui.properties
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
@@ -21,49 +15,43 @@ import org.umamo.edit.property.setDeformerPart
 import org.umamo.edit.shownPose
 import org.umamo.edit.structure.moveDeformer
 import org.umamo.edit.structure.moveOrgChild
-import org.umamo.edit.transform.MeshBounds
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.deformerSelfAndDescendants
-import org.umamo.runtime.model.originRelativeX
-import org.umamo.runtime.model.originRelativeZ
 import org.umamo.runtime.model.parentPartByPart
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.partSelfAndDescendants
-import org.umamo.runtime.model.worldXFromOriginRelative
-import org.umamo.runtime.model.worldZFromOriginRelative
-import org.umamo.ui.kit.button.IconButton
-import org.umamo.ui.kit.button.IconButtonAppearance
-import org.umamo.ui.kit.field.FieldStack
+import org.umamo.ui.kit.field.AspectLockFieldPair
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.resources.*
-import org.umamo.ui.theme.LocalUmamoIcons
-import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.transform.drawableWorldTransform
+import org.umamo.ui.transform.moved
 import org.umamo.ui.transform.previewDrawableWorldCenter
 import org.umamo.ui.transform.previewDrawableWorldSize
 import org.umamo.ui.transform.setDrawableParentDeformerKeepingRest
 import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 
 /*
- * The Object tab's sections: the universal properties of whatever single item is active - where it sits and
- * what it is bound to - as opposed to the type-specific data in DataTabSections.kt.
+ * The Object tab's sections: the universal properties of the shown item - where it sits and what it is bound
+ * to - as opposed to the type-specific data in DataTabSections.kt.
  */
 
 /**
- * Object > Transform: the active item's placement.  A drawable has no scalar transform - its placement IS
+ * Object > Transform: the shown item's placement.  A drawable has no scalar transform - its placement IS
  * its geometry - so the rows measure its WORLD bounds and write back through the deformer chain (see
- * DrawableWorldTransform.kt for why world, and not the raw base mesh array).
+ * DrawableWorldTransform.kt for why world, and not the raw base mesh array).  A part, a warp, and a rotation
+ * show where they sit too, read-only for now (ReadOnlyTransformRows.kt): a part by the drawables it holds, a
+ * warp by its lattice, and a rotation by its pivot with its own angle and scale, above its editable Base Angle.
  *
  * Axes are labelled by the DISPLAYED convention (Y+ forward, Z+ up), so the vertical field is Z and maps to
  * world y, which grows upward - the same naming the G / S / R axis lock uses.
  *
- * An item with no transform to show (a Part, a warp deformer, a mesh-less drawable) contributes NO rows,
- * and sectionVisibility then hides the whole section rather than drawing an empty card.
+ * A mesh-less drawable has no transform to show, so it contributes NO rows, and sectionVisibility then hides
+ * the whole section rather than drawing an empty card.
  */
 internal val TransformSection =
 	PropertySection(
@@ -72,6 +60,7 @@ internal val TransformSection =
 		rows = { context ->
 			val drawable = context.activeDrawable()
 			val deformer = context.activeDeformer()
+			val part = context.activePart()
 			val session = context.session
 			val mesh = drawable?.mesh
 
@@ -90,8 +79,44 @@ internal val TransformSection =
 				)
 			} else if (deformer is Deformer.Rotation) {
 				listOf(
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						RotationTransformRows(rowContext, deformer.id, showPivot = true)
+					},
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_angle, Res.string.properties_field_scale),
+					) { rowContext ->
+						RotationTransformRows(rowContext, deformer.id, showPivot = false)
+					},
 					PropertyRow(terms = listOf(Res.string.properties_field_base_angle)) { _ ->
 						DeformerBaseAngleField(deformer, session)
+					},
+				)
+			} else if (deformer is Deformer.Warp) {
+				listOf(
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						WarpTransformRows(rowContext, deformer.id, showSize = false)
+					},
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_size_x, Res.string.properties_field_size_z),
+					) { rowContext ->
+						WarpTransformRows(rowContext, deformer.id, showSize = true)
+					},
+				)
+			} else if (part != null) {
+				listOf(
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_position_x, Res.string.properties_field_position_z),
+					) { rowContext ->
+						PartTransformRows(rowContext, part.id, showSize = false)
+					},
+					PropertyRow(
+						terms = listOf(Res.string.properties_field_size_x, Res.string.properties_field_size_z),
+					) { rowContext ->
+						PartTransformRows(rowContext, part.id, showSize = true)
 					},
 				)
 			} else {
@@ -127,17 +152,13 @@ internal val TransformSection =
  * move on an axis nobody edited.  Size is a difference and needs no conversion.
  *
  * @param PropertyContext context The row's context (its session supplies the live pose).
- * @param DrawableId drawableId The active drawable.
+ * @param DrawableId drawableId The shown drawable.
  * @param Boolean showSize False for the Position pair, true for the Size pair.
  */
 @Composable
 private fun DrawableTransformRows(context: PropertyContext, drawableId: DrawableId, showSize: Boolean) {
 	val session = context.session
-	// Collected, not read: the pose and the mode change without the model changing, and both move what the
-	// rows show - the pose their numbers and disabled state, the mode whether that pose is pinned to rest.
-	val pose: Pose = session?.pose?.collectAsState()?.value ?: emptyMap()
-	val mode: EditorMode = session?.mode?.collectAsState()?.value ?: EditorMode.Object
-	val shownPose = remember(context.puppet, pose, mode) { mode.shownPose(context.puppet, pose) }
+	val shownPose = rememberShownPose(context)
 	// Keyed, because this is a full posed evaluation of the drawable's deformer chain - not something to
 	// redo when an unrelated recomposition happens to sweep the panel.  (Both Transform rows still evaluate
 	// once each when the model or pose genuinely changes; sharing one evaluation across them would mean
@@ -153,227 +174,64 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 	val stripArea = LocalOperationStripArea.current
 
 	if (showSize) {
-		SizeFieldsWithAspectLock(
-			bounds = bounds,
+		// A degenerate axis (zero extent) has no ratio to preserve, so a locked edit against one changes only the
+		// edited axis - and resizedAboutBoundsCenter then leaves the degenerate one alone.
+		AspectLockFieldPair(
+			firstLabel = stringResource(Res.string.properties_field_size_x),
+			firstDescription = stringResource(Res.string.properties_field_size_x_description),
+			firstValue = bounds.width,
+			secondLabel = stringResource(Res.string.properties_field_size_z),
+			secondDescription = stringResource(Res.string.properties_field_size_z_description),
+			secondValue = bounds.height,
+			range = DRAWABLE_EXTENT_RANGE,
+			decimals = 1,
 			enabled = editable,
-			onPreviewResize = { newWidth, newHeight ->
-				scrub.preview(session?.previewDrawableWorldSize(drawableId, newWidth, newHeight))
-			},
-			onResize = { newWidth, newHeight ->
+			onCommit = { newWidth, newHeight ->
 				scrub.commit { session?.setDrawableWorldSizeAdjustable(drawableId, newWidth, newHeight, stripArea()) }
 			},
-			onCancelResize = { scrub.end() },
+			onPreview = { newWidth, newHeight ->
+				scrub.preview(session?.previewDrawableWorldSize(drawableId, newWidth, newHeight))
+			},
+			onScrubCancel = { scrub.end() },
 		)
 	} else {
-		val puppet = context.puppet
-		FieldStack(
-			listOf(
-				{ position ->
-					PropertyFieldRow(
-						stringResource(Res.string.properties_field_position_x),
-						description = stringResource(Res.string.properties_field_position_x_description),
-					) {
-						NumberField(
-							value = puppet.originRelativeX(bounds.centerX),
-							onValueChange = { newX ->
-								scrub.commit {
-									session?.setDrawableWorldCenterAdjustable(
-										drawableId,
-										puppet.worldXFromOriginRelative(newX),
-										bounds.centerY,
-										stripArea(),
-									)
-								}
-							},
-							onPreview = { newX ->
-								scrub.preview(
-									session?.previewDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(newX), bounds.centerY),
-								)
-							},
-							onScrubCancel = { scrub.end() },
-							modifier = Modifier.fillMaxWidth(),
-							range = UNBOUNDED_RANGE,
-							decimals = 1,
-							enabled = editable,
-							stackPosition = position,
-						)
-					}
-				},
-				{ position ->
-					PropertyFieldRow(
-						stringResource(Res.string.properties_field_position_z),
-						description = stringResource(Res.string.properties_field_position_z_description),
-					) {
-						NumberField(
-							value = puppet.originRelativeZ(bounds.centerY),
-							onValueChange = { newZ ->
-								scrub.commit {
-									session?.setDrawableWorldCenterAdjustable(
-										drawableId,
-										bounds.centerX,
-										puppet.worldZFromOriginRelative(newZ),
-										stripArea(),
-									)
-								}
-							},
-							onPreview = { newZ ->
-								scrub.preview(
-									session?.previewDrawableWorldCenter(drawableId, bounds.centerX, puppet.worldZFromOriginRelative(newZ)),
-								)
-							},
-							onScrubCancel = { scrub.end() },
-							modifier = Modifier.fillMaxWidth(),
-							range = UNBOUNDED_RANGE,
-							decimals = 1,
-							enabled = editable,
-							stackPosition = position,
-						)
-					}
-				},
-			),
+		WorldPositionFields(
+			puppet = context.puppet,
+			worldX = bounds.centerX,
+			worldZ = bounds.centerY,
+			xDescription = Res.string.properties_field_position_x_description,
+			zDescription = Res.string.properties_field_position_z_description,
+			enabled = editable,
+			onCommit = { axis, worldValue ->
+				val (centerX, centerZ) = axis.moved(worldValue, bounds.centerX, bounds.centerY)
+				scrub.commit { session?.setDrawableWorldCenterAdjustable(drawableId, centerX, centerZ, stripArea()) }
+			},
+			onPreview = { axis, worldValue ->
+				val (centerX, centerZ) = axis.moved(worldValue, bounds.centerX, bounds.centerY)
+				scrub.preview(session?.previewDrawableWorldCenter(drawableId, centerX, centerZ))
+			},
+			onScrubCancel = { scrub.end() },
 		)
 	}
 }
 
 /**
- * The Size X / Size Z stack plus its aspect-ratio lock.  Its own composable rather than an inline pair of
- * rows because the lock is stateful and the two fields are coupled through it: while locked, editing one
- * axis scales the other by the same factor, so the mesh keeps its proportions.
+ * The pose the Transform rows measure at: the rig's pose, or the rest pose while Edit mode pins it
+ * (EditorMode.shownPose), which is what the viewport draws.  Collected, not read: the pose and the mode change
+ * without the model changing, and both move what the rows show - the pose their numbers (and a drawable's
+ * disabled state), the mode whether that pose is pinned to rest.
  *
- * The lock is transient UI state (a tool preference, not document data), so it lives in a remember and
- * resets when the panel unmounts.  The ratio is read from the CURRENT bounds rather than captured when the
- * lock was engaged, so it always reflects what the fields are showing.  Nothing commits mid-scrub, so
- * during one those bounds are still the ones the scrub started from, and every frame scales against the
- * same ratio.
- *
- * While one field is scrubbed the other follows it: the extents the scrub implies are held here, and the
- * field not being dragged shows its half (the dragged one shows its own draft).  That is what keeps the
- * locked partner live, and it needs no renderer to do it.
- *
- * A degenerate axis (zero extent) has no ratio to preserve, so a locked edit against one falls back to
- * changing only the edited axis - and [resizedAboutBoundsCenter] then leaves the degenerate one alone.
- *
- * @param MeshBounds bounds The active drawable's current world bounds (the displayed extents).
- * @param Boolean enabled Whether the fields and the lock accept input (false on a posed rig).
- * @param Function onPreviewResize Previews new (width, height) extents for one scrub frame, recording nothing.
- * @param Function onResize Commits new (width, height) extents as one undo step.
- * @param Function onCancelResize Drops a scrub's preview after the fields fell back to [bounds].
+ * @param PropertyContext context The row's context (its session supplies the live pose and mode).
+ * @return Pose The shown pose; the rest pose with no session.
  */
 @Composable
-private fun SizeFieldsWithAspectLock(
-	bounds: MeshBounds,
-	enabled: Boolean,
-	onPreviewResize: (Float, Float) -> Unit,
-	onResize: (Float, Float) -> Unit,
-	onCancelResize: () -> Unit,
-) {
-	var lockAspect by remember { mutableStateOf(false) }
-	// The extents of the scrub in flight, or null with none.  Keyed on enabled: a field disabled mid-scrub
-	// drops its draft without committing, and the extents it implied go with it.
-	var scrubbedExtents by remember(enabled) { mutableStateOf<WorldExtents?>(null) }
-	val icons = LocalUmamoIcons
-	// A locked edit on one axis derives the other from the ratio the mesh currently has.  The preview and the
-	// commit both resolve through these, so the release lands exactly the extents the last frame showed.
-	val extentsForWidth: (Float) -> WorldExtents = { newWidth ->
-		val scaledHeight =
-			if (lockAspect && bounds.width > 0f) {
-				bounds.height * (newWidth / bounds.width)
-			} else {
-				bounds.height
-			}
-		WorldExtents(newWidth, scaledHeight)
-	}
-	val extentsForHeight: (Float) -> WorldExtents = { newHeight ->
-		val scaledWidth =
-			if (lockAspect && bounds.height > 0f) {
-				bounds.width * (newHeight / bounds.height)
-			} else {
-				bounds.width
-			}
-		WorldExtents(scaledWidth, newHeight)
-	}
-	val previewExtents: (WorldExtents) -> Unit = { extents ->
-		scrubbedExtents = extents
-		onPreviewResize(extents.width, extents.height)
-	}
-	val commitExtents: (WorldExtents) -> Unit = { extents ->
-		scrubbedExtents = null
-		onResize(extents.width, extents.height)
-	}
-	// A cancel snaps the partner back with the dragged field: the extents the scrub implied are gone.
-	val cancelExtents: () -> Unit = {
-		scrubbedExtents = null
-		onCancelResize()
-	}
-	val shownExtents = scrubbedExtents ?: WorldExtents(bounds.width, bounds.height)
-	// The lock overlays the gutter the rows reserve, so the fields shrink by exactly the lock's width while
-	// the label column keeps its half of the FULL row width - that is what keeps these rows lined up with
-	// the Position rows above.
-	Box(modifier = Modifier.fillMaxWidth()) {
-		FieldStack(
-			listOf(
-				{ position ->
-					PropertyFieldRow(
-						stringResource(Res.string.properties_field_size_x),
-						description = stringResource(Res.string.properties_field_size_x_description),
-						trailingGutter = ASPECT_LOCK_GUTTER,
-					) {
-						NumberField(
-							value = shownExtents.width,
-							onValueChange = { newWidth -> commitExtents(extentsForWidth(newWidth)) },
-							onPreview = { newWidth -> previewExtents(extentsForWidth(newWidth)) },
-							onScrubCancel = cancelExtents,
-							modifier = Modifier.fillMaxWidth(),
-							range = DRAWABLE_EXTENT_RANGE,
-							decimals = 1,
-							enabled = enabled,
-							stackPosition = position,
-						)
-					}
-				},
-				{ position ->
-					PropertyFieldRow(
-						stringResource(Res.string.properties_field_size_z),
-						description = stringResource(Res.string.properties_field_size_z_description),
-						trailingGutter = ASPECT_LOCK_GUTTER,
-					) {
-						NumberField(
-							value = shownExtents.height,
-							onValueChange = { newHeight -> commitExtents(extentsForHeight(newHeight)) },
-							onPreview = { newHeight -> previewExtents(extentsForHeight(newHeight)) },
-							onScrubCancel = cancelExtents,
-							modifier = Modifier.fillMaxWidth(),
-							range = DRAWABLE_EXTENT_RANGE,
-							decimals = 1,
-							enabled = enabled,
-							stackPosition = position,
-						)
-					}
-				},
-			),
-		)
-		// The chain glyph spans both fields.  IconButton tooltips itself from contentDescription, and its own
-		// modifier already rides on that tooltip wrapper, so the alignment goes here rather than into a second
-		// enclosing Tooltip.
-		IconButton(
-			icon = if (lockAspect) icons.linked else icons.unlinked,
-			contentDescription = stringResource(Res.string.properties_transform_lock_aspect),
-			onClick = { lockAspect = !lockAspect },
-			modifier = Modifier.align(Alignment.CenterEnd),
-			active = lockAspect,
-			enabled = enabled,
-			appearance = IconButtonAppearance.Filled(LocalUmamoShapes.current.small),
-		)
-	}
-}
+internal fun rememberShownPose(context: PropertyContext): Pose {
+	val session = context.session
+	val pose: Pose = session?.pose?.collectAsState()?.value ?: emptyMap()
+	val mode: EditorMode = session?.mode?.collectAsState()?.value ?: EditorMode.Object
 
-/**
- * A drawable's world extents as the Size rows edit them: x across, y up (the panel's Z).
- *
- * @property Float width The world x extent.
- * @property Float height The world y extent.
- */
-private class WorldExtents(val width: Float, val height: Float)
+	return remember(context.puppet, pose, mode) { mode.shownPose(context.puppet, pose) }
+}
 
 /**
  * A rotation deformer's Base Angle field, shared by Object > Transform and the Data tab's deformer
@@ -405,7 +263,7 @@ internal fun DeformerBaseAngleField(deformer: Deformer.Rotation, session: Editor
 	}
 }
 
-/** Object > Relations: owning part, parent deformer, masks / children of the active item. */
+/** Object > Relations: owning part, parent deformer, masks / children of the shown item. */
 internal val RelationsSection =
 	PropertySection(
 		id = "object.relations",

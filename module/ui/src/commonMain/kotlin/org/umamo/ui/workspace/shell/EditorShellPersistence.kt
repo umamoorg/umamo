@@ -24,9 +24,10 @@ import org.umamo.ui.action.rememberLiveKeymap
 import org.umamo.ui.kit.menu.TopLevelMenu
 import org.umamo.ui.l10n.rememberLocaleTag
 import org.umamo.ui.resources.*
+import org.umamo.ui.sidebar.SidebarRegistry
+import org.umamo.ui.sidebar.rememberSidebarRegistry
+import org.umamo.ui.viewport.ViewportSettings
 import org.umamo.ui.workspace.LocalViewportChrome
-import org.umamo.ui.workspace.SHOW_SIDEBAR_SETTINGS_KEY
-import org.umamo.ui.workspace.SHOW_TOOLBAR_SETTINGS_KEY
 import org.umamo.ui.workspace.SpaceDescriptor
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.ViewportChromeState
@@ -34,7 +35,6 @@ import org.umamo.ui.workspace.ViewportHost
 import org.umamo.ui.workspace.commands.ArtworkOperations
 import org.umamo.ui.workspace.commands.logCommands
 import org.umamo.ui.workspace.commands.registerAll
-import org.umamo.ui.workspace.commands.viewportChromeCommands
 import org.umamo.ui.workspace.commands.workspaceFileCommands
 import org.umamo.ui.workspace.editorstate.LocalAreaViewStates
 import org.umamo.ui.workspace.layout.LayoutSavePacer
@@ -59,6 +59,7 @@ private const val PERSIST_DEBOUNCE_MS = 400L
  * @param ViewportHost? viewportHost What draws a 2D viewport area, or null with no render service to draw with.
  * @param Map spaceOverrides Per-kind space descriptors layered over the base registry.
  * @param CommandRegistry commandRegistry The action registry (the app may pre-register commands).
+ * @param SidebarRegistry sidebarRegistry The tabs and panels every work-surface sidebar draws from.
  * @param List appMenu The application menu-bar contents, forwarded to the shell (empty renders no bar).
  * @param ArtworkOperations? artwork The app's artwork orchestrations over the hovered area, forwarded
  *   to the shell; null (the default) when no open document can take artwork.
@@ -73,6 +74,7 @@ fun PersistentEditorShell(
 	viewportHost: ViewportHost? = null,
 	spaceOverrides: Map<SpaceKind, SpaceDescriptor> = emptyMap(),
 	commandRegistry: CommandRegistry = remember { CommandRegistry() },
+	sidebarRegistry: SidebarRegistry = rememberSidebarRegistry(),
 	appMenu: List<TopLevelMenu> = emptyList(),
 	artwork: ArtworkOperations? = null,
 	exportImage: ((viewportAreaId: String?) -> Unit)? = null,
@@ -105,27 +107,19 @@ fun PersistentEditorShell(
 			.collect { layout -> savePacer.saveDebounced(layout) }
 	}
 
-	// The viewport chrome flags follow their settings keys reactively, so the toggle commands (and any
-	// external write) take effect across every viewport at once.
+	// The viewport chrome defaults follow their settings keys reactively, so a change in Preferences (or any
+	// external write) reaches every viewport that has no choice of its own at once.
 	val viewportChrome by produceState(initialValue = loadViewportChrome(settings), settings) {
 		settings.changes.collect { changedKey ->
-			if (changedKey == SHOW_TOOLBAR_SETTINGS_KEY || changedKey == SHOW_SIDEBAR_SETTINGS_KEY) {
+			if (changedKey == ViewportSettings.SHOW_TOOLBAR_KEY || changedKey == ViewportSettings.SHOW_SIDEBAR_KEY) {
 				value = loadViewportChrome(settings)
 			}
 		}
 	}
 
-	// The chrome toggles are registered here rather than in EditorShell because they write settings, and
-	// the shell itself stays Settings-free (its documented contract); the standalone shell simply lacks
-	// them, the same division as the app-registered File commands.
-	DisposableEffect(settings, commandRegistry) {
-		val cleanup = commandRegistry.registerAll(viewportChromeCommands(settings))
-		onDispose { cleanup() }
-	}
-
-	// The workspace layout's file commands and the log export register here for the same reason: the
-	// exports read the persisted layout from settings.  None of them needs a document, so they are live
-	// from launch, on every platform that mounts this shell.
+	// The workspace layout's file commands and the log export register here rather than in EditorShell
+	// because the exports read the persisted layout from settings.  None of them needs a document, so they
+	// are live from launch, on every platform that mounts this shell.
 	val fileScope = rememberCoroutineScope()
 	val workspaceFiles =
 		remember(settings, filePicker, commandRegistry, savePacer) {
@@ -151,6 +145,7 @@ fun PersistentEditorShell(
 			viewportHost = viewportHost,
 			spaceOverrides = spaceOverrides,
 			commandRegistry = commandRegistry,
+			sidebarRegistry = sidebarRegistry,
 			appMenu = appMenu,
 			languageTag = locale,
 			keymap = keymap,
@@ -163,14 +158,14 @@ fun PersistentEditorShell(
 }
 
 /**
- * Reads the viewport chrome flags from settings (bundled defaults included), falling back to the
- * standalone defaults for a missing key.
+ * Reads the viewport chrome defaults from settings (bundled defaults included), falling back to
+ * [ViewportSettings]' defaults for a missing key.
  *
  * @param Settings settings The merged settings tree.
- * @return ViewportChromeState The current chrome visibility flags.
+ * @return ViewportChromeState The application's chrome defaults for areas with no choice of their own.
  */
 private fun loadViewportChrome(settings: Settings): ViewportChromeState =
 	ViewportChromeState(
-		showToolbar = settings.getBoolean(SHOW_TOOLBAR_SETTINGS_KEY) ?: true,
-		showSidebar = settings.getBoolean(SHOW_SIDEBAR_SETTINGS_KEY) ?: false,
+		showToolbar = settings.getBoolean(ViewportSettings.SHOW_TOOLBAR_KEY) ?: ViewportSettings.SHOW_TOOLBAR_DEFAULT,
+		showSidebar = settings.getBoolean(ViewportSettings.SHOW_SIDEBAR_KEY) ?: ViewportSettings.SHOW_SIDEBAR_DEFAULT,
 	)

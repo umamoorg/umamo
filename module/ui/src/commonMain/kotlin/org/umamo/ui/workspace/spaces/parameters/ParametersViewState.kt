@@ -12,6 +12,7 @@ import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.ui.workspace.PersistentSpaceState
 import org.umamo.ui.workspace.editorstate.booleanOf
+import org.umamo.ui.workspace.editorstate.recordedFoldsOf
 import org.umamo.ui.workspace.editorstate.stringArrayOrNull
 import org.umamo.ui.workspace.editorstate.stringListOf
 
@@ -86,8 +87,9 @@ internal class ParametersViewState : PersistentSpaceState {
 	override fun toJson(): JsonObject =
 		buildJsonObject {
 			// UMA §7.3: a group the rigger opened or closed; any other group follows its initiallyOpen (UMA §4.3).
-			put("expandedGroups", stringArrayOrNull(expandedGroups.filterValues { open -> open }.keys.map { groupId -> groupId.raw }))
-			put("collapsedGroups", stringArrayOrNull(expandedGroups.filterValues { open -> !open }.keys.map { groupId -> groupId.raw }))
+			val (expandedGroupIds, collapsedGroupIds) = recordedFoldsOf(expandedGroups) { groupId -> groupId.raw }
+			put("expandedGroups", expandedGroupIds)
+			put("collapsedGroups", collapsedGroupIds)
 			put("openRangeEditors", stringArrayOrNull(openRangeEditors.filterValues { open -> open }.keys.map { parameterId -> parameterId.raw }))
 			put("onlySelected", if (showOnlySelected) JsonPrimitive(true) else JsonNull)
 		}

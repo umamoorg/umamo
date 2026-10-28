@@ -67,6 +67,13 @@ object TransformParameterKeys {
 
 	/** The label-key prefix of the Falloff row's choices; the curve's [ProportionalFalloff.choiceKey] follows it. */
 	const val FALLOFF_CHOICE_PREFIX = "transform.falloff."
+
+	/**
+	 * The proportional rows: an adjustment that set one of them is the rigger setting proportional editing, which
+	 * the session then takes up.  A transform whose rows did not start from the session's own state (a value typed
+	 * in a panel registers them off) writes back only on these, so moving a Move row never switches it off.
+	 */
+	val PROPORTIONAL_ROWS: Set<String> = setOf(PROPORTIONAL, FALLOFF, PROPORTIONAL_SIZE, CONNECTED_ONLY)
 }
 
 /** The widest angle an Angle row accepts, in degrees either way. */
@@ -192,7 +199,7 @@ fun transformParameters(
 		}
 
 		MeshOperatorKind.Scale -> {
-			rows.add(scaleRow(TransformParameterKeys.SCALE_X, parameters.factorX))
+			rows.add(scaleRow(TransformParameterKeys.SCALE_X, parameters.factorX, ratioPartnerKey = space.verticalScaleKey))
 			rows.add(scaleRow(space.verticalScaleKey, parameters.factorY))
 		}
 
@@ -341,9 +348,9 @@ private fun proportionalParameters(proportional: ProportionalRows): List<Operato
 private fun moveRow(key: String, value: Float): OperatorParameter =
 	OperatorParameter.FloatParameter(key, key, value, -TRANSFORM_MOVE_LIMIT, TRANSFORM_MOVE_LIMIT, unit = ParameterUnit.Pixels)
 
-/** A Scale row. */
-private fun scaleRow(key: String, value: Float): OperatorParameter =
-	OperatorParameter.FloatParameter(key, key, value, TRANSFORM_SCALE_MIN, TRANSFORM_SCALE_MAX, TRANSFORM_SCALE_STEP)
+/** A Scale row, naming the row whose ratio it can be locked with when it is the first of the pair. */
+private fun scaleRow(key: String, value: Float, ratioPartnerKey: String? = null): OperatorParameter =
+	OperatorParameter.FloatParameter(key, key, value, TRANSFORM_SCALE_MIN, TRANSFORM_SCALE_MAX, TRANSFORM_SCALE_STEP, ratioPartnerKey = ratioPartnerKey)
 
 /** The key of the vertical Move row: Z in world space, Y on the page. */
 private val TransformRowSpace.verticalMoveKey: String

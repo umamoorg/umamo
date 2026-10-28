@@ -678,8 +678,6 @@
 	<!-- Viewport chrome: the left tool toolbar and the right sidebar drawer. -->
 	<string name="cmd_view_toggle_toolbar">Activer/Désactiver la Toolbar</string>
 	<string name="cmd_view_toggle_sidebar">Activer/Désactiver la Sidebar</string>
-	<string name="sidebar_title">Sidebar</string>
-	<string name="sidebar_empty_hint">Les Outils et Objets vont vivre ici.</string>
 
 	<!-- Inspector per-entity property view (the selected part / drawable / deformer). -->
 	<string name="properties_part_ref">Partie Parente</string>
@@ -742,7 +740,7 @@
 	<string name="properties_field_position_z">Position Z</string>
 	<string name="properties_field_size_x">Taille X</string>
 	<string name="properties_field_size_z">Taille Z</string>
-	<string name="properties_transform_lock_aspect">Verrouiler le Ratio d'Aspect</string>
+	<string name="common_lock_aspect_ratio">Verrouiler le Ratio d'Aspect</string>
 	<string name="properties_field_blend_mode">Mélange</string>
 	<string name="properties_field_alpha_mode">Alpha</string>
 	<string name="properties_field_culling">Couper les Faces Arrières</string>

@@ -11,10 +11,11 @@ import kotlinx.coroutines.flow.StateFlow
  */
 interface SessionToolSettings {
 	/**
-	 * The 2D cursor's world position, or null before any placement.  Transient session state like the
-	 * tool latches (deliberately NOT part of EditorSnapshot - see [Cursor2d]); placed by Shift+RightClick
-	 * in the viewport, moved by the snap commands, and drawn by the HUD overlay only once placed.  An
-	 * operation that uses the cursor as a point reads [EditorSession.cursor2dOrWorldOrigin] instead.
+	 * The 2D cursor's world position, or null before any placement or after [clearCursor2d].  Transient
+	 * session state like the tool latches (deliberately NOT part of EditorSnapshot - see [Cursor2d]); placed
+	 * by Shift+RightClick in the viewport, moved by the snap commands, and drawn by the HUD overlay only once
+	 * placed.  An operation that uses the cursor as a point reads [EditorSession.cursor2dOrWorldOrigin]
+	 * instead.
 	 */
 	val cursor2d: StateFlow<Cursor2d?>
 
@@ -25,6 +26,13 @@ interface SessionToolSettings {
 	 * @param Float worldZ The cursor's new world-space z (up).
 	 */
 	fun setCursor2d(worldX: Float, worldZ: Float)
+
+	/**
+	 * Takes the 2D cursor off the canvas again, back to never placed: it is drawn nowhere, saved nowhere, and
+	 * an operation that uses it as a point reads the world origin.  What a cancelled cursor drag restores when
+	 * the cursor was unplaced before the drag began.
+	 */
+	fun clearCursor2d()
 
 	/**
 	 * The UV editor's cursor in normalized atlas coordinates, or null before any placement.  The
@@ -40,6 +48,13 @@ interface SessionToolSettings {
 	 * @param Float v The cursor's new normalized atlas v coordinate.
 	 */
 	fun setUvCursor(u: Float, v: Float)
+
+	/**
+	 * Takes the UV editor's cursor off the surface again, back to never placed: it is drawn nowhere, saved nowhere,
+	 * and an operation that uses it as a point reads the stored origin.  What a cancelled cursor scrub restores when
+	 * the cursor was unplaced before the scrub began.
+	 */
+	fun clearUvCursor()
 
 	/**
 	 * What a modal Scale / Rotate turns the selection about (the Period pie / the header dropdown).

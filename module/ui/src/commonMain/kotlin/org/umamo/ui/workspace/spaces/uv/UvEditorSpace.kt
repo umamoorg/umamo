@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -59,9 +60,12 @@ import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.ViewportRegionOverlay
+import org.umamo.ui.viewport.gestureOwnsAreaPointer
 import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
+import org.umamo.ui.viewport.rememberGestureOwnsAreaPointer
 import org.umamo.ui.viewport.tracksAreaPointer
+import org.umamo.ui.viewport.uv.LocalUvSidebarSurface
 import org.umamo.ui.viewport.uv.PlacementDragStatus
 import org.umamo.ui.viewport.uv.UvCursorOverlay
 import org.umamo.ui.viewport.uv.UvEditGizmoOverlay
@@ -70,6 +74,7 @@ import org.umamo.ui.viewport.uv.UvObjectGizmoOverlay
 import org.umamo.ui.viewport.uv.UvPlacementSceneState
 import org.umamo.ui.viewport.uv.UvPlacementSurface
 import org.umamo.ui.viewport.uv.UvShownScene
+import org.umamo.ui.viewport.uv.UvSidebarSurface
 import org.umamo.ui.viewport.uv.UvSpaceCamera
 import org.umamo.ui.viewport.uv.atlasPageEditFrame
 import org.umamo.ui.viewport.uv.publishUvScene
@@ -79,6 +84,9 @@ import org.umamo.ui.viewport.uv.uvIslandPick
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
 import org.umamo.ui.workspace.LocalAreaOverlayHub
+import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.sidebar.LocalAreaSidebarHub
+import org.umamo.ui.workspace.sidebar.SidebarDrawer
 import org.umamo.ui.workspace.spaces.PlaceholderSpace
 
 /*
@@ -398,13 +406,28 @@ internal fun UvEditorSpace(scope: AreaScope) {
 		onDispose { areaCameraHub?.unregister(scope.areaId) }
 	}
 
-	// Register the area's overlay state for its lifetime, so the shell's view.overlay.* commands flip THIS
-	// UV editor's overlays when the pointer last touched it - the same hub the 2D viewport registers into.
+	// Register the area's overlay and sidebar state for its lifetime, so the shell's view.overlay.* commands and N
+	// act on THIS UV editor when the pointer last touched it - the same hubs the 2D viewport registers into.  Only
+	// once a surface is shown: with none (no renderer, nothing to show) no drawer mounts for N to open either.
 	val overlayHub = LocalAreaOverlayHub.current
-	DisposableEffect(scope.areaId, overlayHub) {
+	val sidebarHub = LocalAreaSidebarHub.current
+	DisposableEffect(scope.areaId, overlayHub, sidebarHub) {
 		overlayHub?.register(scope.areaId, viewState.overlays)
-		onDispose { overlayHub?.unregister(scope.areaId) }
+		sidebarHub?.register(scope.areaId, viewState.sidebar)
+		onDispose {
+			overlayHub?.unregister(scope.areaId)
+			sidebarHub?.unregister(scope.areaId)
+		}
 	}
+
+	// What the sidebar's UV panels read of the shown surface.  Remembered on its parts, which change with a drag's
+	// every previewed frame, so the panels re-read the geometry then and only then.
+	val sidebarSurface =
+		remember(editFrame, geometries, proportionalRadiusDisplay, placementSurface, placementSceneState) {
+			UvSidebarSurface(editFrame, geometries, proportionalRadiusDisplay, placementSurface, placementSceneState)
+		}
+	// The chrome steps aside while a gesture of this area owns the pointer, as the 2D viewport's does.
+	val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, scope.areaId)
 
 	// The UV viewport's own contextual menu: right-click anywhere in the viewport for UV operations.  A
 	// context menu is contextual - this holds ONLY UV ops, not area actions.  Nested in the content below,
@@ -581,6 +604,20 @@ internal fun UvEditorSpace(scope: AreaScope) {
 				}
 			}
 		}
+
+		// The sidebar (N) over the area's right edge: a sibling of the surface, outside its graphics layer and clip,
+		// so over its cards and tabs its shields keep clicks and wheel turns from the navigation loop and a
+		// right-click opens the area's own menu rather than the UV operations; around them the surface keeps the
+		// pointer.  The UV panels read the shown surface through the local.
+		CompositionLocalProvider(LocalUvSidebarSurface provides sidebarSurface) {
+			SidebarDrawer(
+				areaId = scope.areaId,
+				space = SpaceKind.UvEditor,
+				state = viewState.sidebar,
+				passPointerThrough = gestureOwnsPointer,
+				modifier = Modifier.align(Alignment.CenterEnd),
+			)
+		}
 	}
 }
 
@@ -591,9 +628,10 @@ internal fun UvEditorSpace(scope: AreaScope) {
  * the pointer then (a wheel scroll resizes the proportional radius, not the zoom) - and while an un-armed
  * box drag is live (viewportGestureActive, area-less by design: pointer capture pins the drag's events to
  * the dragging overlay, and zooming under a live rubber-band would desync the box from the camera used at
- * release) or Zoom Region is armed here (its overlay owns the drag above).  The four-term gate is the 2D
- * viewport loop's.  A gesture latched in ANOTHER area does not block: its events never reach here, so this
- * area keeps panning and zooming during it (Blender parity).
+ * release) or Zoom Region is armed here (its overlay owns the drag above).  The gate is the one the 2D
+ * viewport loop and the floating chrome read (gestureOwnsAreaPointer).  A gesture latched in ANOTHER area
+ * does not block: its events never reach here, so this area keeps panning and zooming during it (Blender
+ * parity).
  *
  * This loop stamps nothing about where the pointer is: the hovered surface is stamped by the hosting
  * leaf, for every space alike (see stampsHoveredSurface).
@@ -614,11 +652,7 @@ private suspend fun PointerInputScope.uvEditorNavigation(
 			val event = awaitPointerEvent()
 			val change = event.changes.firstOrNull() ?: continue
 
-			if (session.activeUvOperator.value?.areaId == areaId ||
-				session.activeSelectTool.value?.areaId == areaId ||
-				session.viewportGestureActive.value ||
-				session.zoomRegionArmedArea.value == areaId
-			) {
+			if (session.gestureOwnsAreaPointer(areaId)) {
 				continue
 			}
 

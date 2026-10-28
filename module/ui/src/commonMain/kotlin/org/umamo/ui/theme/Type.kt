@@ -35,11 +35,22 @@ fun rememberUiFontFamily(): FontFamily =
 	)
 
 /**
+ * The Noto Sans CJK cut for the active UI language on its own, for CJK text shaped with OpenType features
+ * such as the vertical forms (`vert`).  A feature applied to glyphs the layout reached by falling back from
+ * Inter comes out as unrelated ideographs on the desktop text stack, so text that needs one is shaped in a
+ * family whose first font already covers it.
+ *
+ * @return FontFamily The locale-appropriate Noto family, with no Inter in front of it.
+ */
+@Composable
+fun rememberCjkFontFamily(): FontFamily = FontFamily(Font(cjkFontFor(LocalAppLocale.current), FontWeight.Normal))
+
+/**
  * Picks the Noto Sans CJK cut for a UI language tag.  Pure (no composition), so the mapping is assertable
  * without a composition, the same split [umamoTypographyWith] makes for the type scale.
  *
  * @param String languageTag The active BCP-47 tag, bare ("ko") or regional ("ko-KR").
- * @return FontResource The cut to pair with Inter.
+ * @return FontResource The cut for that language.
  */
 internal fun cjkFontFor(languageTag: String): FontResource =
 	// Match the language subtag alone, so a regional tag resolves like the bare one.

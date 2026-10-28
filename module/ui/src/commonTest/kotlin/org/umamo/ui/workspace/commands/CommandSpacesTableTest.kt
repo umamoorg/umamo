@@ -1,7 +1,7 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.ui.action.CommandSpaces
 import org.umamo.ui.workspace.SpaceKind
+import org.umamo.ui.workspace.SpaceScope
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -36,6 +36,10 @@ class CommandSpacesTableTest {
 				"view.overlay.all" to workSurfaces,
 				"view.overlay.grid" to workSurfaces,
 				"view.overlay.axes" to viewport,
+				"view.toggleToolbar" to viewport,
+				"view.toggleSidebar" to workSurfaces,
+				"view.sidebar.nextTab" to workSurfaces,
+				"view.sidebar.previousTab" to workSurfaces,
 				"view.overlay.cursor" to workSurfaces,
 				"view.overlay.info" to workSurfaces,
 				"view.overlay.selectionTint" to viewport,
@@ -78,7 +82,7 @@ class CommandSpacesTableTest {
 			)
 		val actual =
 			everyCommandTable()
-				.mapNotNull { command -> (command.spaces as? CommandSpaces.Only)?.let { scoped -> command.id to scoped.kinds } }
+				.mapNotNull { command -> (command.spaces as? SpaceScope.Only)?.let { scoped -> command.id to scoped.kinds } }
 				.toMap()
 		assertEquals(expected, actual)
 	}
@@ -94,7 +98,7 @@ class CommandSpacesTableTest {
 		assertTrue(uvCommands.isNotEmpty(), "the table must actually hold uv commands for this to mean anything")
 
 		for (command in uvCommands) {
-			assertEquals(CommandSpaces.UvEditor, command.spaces, "${command.id} must be scoped to the UV editor")
+			assertEquals(SpaceScope.UvEditor, command.spaces, "${command.id} must be scoped to the UV editor")
 		}
 	}
 
@@ -108,7 +112,7 @@ class CommandSpacesTableTest {
 		val byId = everyCommandTable().associateBy { command -> command.id }
 
 		for (id in listOf("keyform.deleteSelectedKeys", "keyform.nudgeKeyLeft", "keyform.nudgeKeyRight", "keyform.frameAll")) {
-			assertEquals(CommandSpaces.Everywhere, byId.getValue(id).spaces, "$id reaches the lone open sheet from anywhere")
+			assertEquals(SpaceScope.Everywhere, byId.getValue(id).spaces, "$id reaches the lone open sheet from anywhere")
 		}
 	}
 }

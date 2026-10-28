@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
@@ -54,6 +55,9 @@ fun Tab(selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, l
 		modifier =
 			modifier
 				.padding(horizontal = 2.dp)
+				// NOT focusable: a tab click must leave the keyboard with the shell root, or every shortcut dies
+				// once the tab leaves the composition, until something focusable is clicked again.
+				.focusProperties { canFocus = false }
 				.clickable(interactionSource = interaction, indication = null, onClick = onClick)
 				.background(fill, shape = shapes.medium)
 				.padding(horizontal = 10.dp, vertical = 4.dp),

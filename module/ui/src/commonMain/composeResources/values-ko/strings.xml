@@ -437,8 +437,6 @@
 	<string name="pie_title_merge">병합</string>
 	<string name="cmd_view_toggle_toolbar">툴바 전환</string>
 	<string name="cmd_view_toggle_sidebar">사이드바 전환</string>
-	<string name="sidebar_title">사이드바</string>
-	<string name="sidebar_empty_hint">도구 및 항목 패널이 여기에 표시됩니다.</string>
 	<string name="properties_part_ref">상위 파트</string>
 	<string name="properties_parent_deformer">상위 디포머</string>
 	<string name="properties_mask_count">마스크: %1$d</string>
@@ -491,7 +489,7 @@
 	<string name="properties_field_position_z">Z 위치</string>
 	<string name="properties_field_size_x">X 크기</string>
 	<string name="properties_field_size_z">Z 크기</string>
-	<string name="properties_transform_lock_aspect">종횡비 고정</string>
+	<string name="common_lock_aspect_ratio">종횡비 고정</string>
 	<string name="properties_field_blend_mode">혼합</string>
 	<string name="properties_field_alpha_mode">알파</string>
 	<string name="properties_field_culling">후면 제거</string>

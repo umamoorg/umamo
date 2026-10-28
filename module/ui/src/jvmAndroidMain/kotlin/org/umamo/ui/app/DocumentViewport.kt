@@ -36,6 +36,7 @@ import org.umamo.ui.model.rememberSessionEditorState
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import org.umamo.ui.rememberIntSetting
 import org.umamo.ui.settings.HistorySettings
+import org.umamo.ui.sidebar.SidebarRegistry
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.PuppetViewportServiceFactory
@@ -57,6 +58,7 @@ import org.umamo.ui.workspace.shell.PersistentEditorShell
  * @param SessionAtlasPages? sessionAtlasPages The session's resolved atlas page set (repack/undo
  *   aware); null with no puppet document, in which case the document's own decoded textures are used.
  * @param CommandRegistry commandRegistry The registry the file commands are registered in (drives the keymap).
+ * @param SidebarRegistry sidebarRegistry The window's sidebar tabs and panels, handed to each shell.
  * @param List appMenu The menu-bar contents, mounted by each shell.
  * @param PuppetViewportServiceFactory? viewportServiceFactory Creates the platform render service, or null.
  * @param FilePicker filePicker The app's native dialogs, forwarded to the shell for its own file commands.
@@ -76,6 +78,7 @@ internal fun DocumentViewport(
 	session: EditorSession?,
 	sessionAtlasPages: SessionAtlasPages?,
 	commandRegistry: CommandRegistry,
+	sidebarRegistry: SidebarRegistry,
 	appMenu: List<TopLevelMenu>,
 	viewportServiceFactory: PuppetViewportServiceFactory?,
 	filePicker: FilePicker,
@@ -164,6 +167,7 @@ internal fun DocumentViewport(
 					PersistentEditorShell(
 						viewportHost = viewport?.host,
 						commandRegistry = commandRegistry,
+						sidebarRegistry = sidebarRegistry,
 						appMenu = appMenu,
 						// Registered by the shell (see fileArtworkCommands): the strip shows in the hovered work surface.
 						artwork = artwork,
@@ -176,7 +180,7 @@ internal fun DocumentViewport(
 
 		null -> {
 			// No document open: the shell renders with placeholder viewport areas (no host injected).
-			PersistentEditorShell(commandRegistry = commandRegistry, appMenu = appMenu, filePicker = filePicker)
+			PersistentEditorShell(commandRegistry = commandRegistry, sidebarRegistry = sidebarRegistry, appMenu = appMenu, filePicker = filePicker)
 		}
 	}
 }

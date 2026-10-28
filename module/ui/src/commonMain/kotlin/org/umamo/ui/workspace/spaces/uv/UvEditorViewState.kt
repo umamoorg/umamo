@@ -24,10 +24,14 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.uv.atlasPageIndexFor
 import org.umamo.ui.workspace.PersistentSpaceState
 import org.umamo.ui.workspace.editorstate.OVERLAYS_MEMBER
+import org.umamo.ui.workspace.editorstate.SIDEBAR_MEMBER
 import org.umamo.ui.workspace.editorstate.intOf
 import org.umamo.ui.workspace.editorstate.overlaysJsonOrNull
 import org.umamo.ui.workspace.editorstate.restoreOverlays
+import org.umamo.ui.workspace.editorstate.restoreSidebar
+import org.umamo.ui.workspace.editorstate.sidebarJsonOrNull
 import org.umamo.ui.workspace.editorstate.stringOf
+import org.umamo.ui.workspace.sidebar.SidebarState
 
 /** The AreaScope.spaceState key the UV editor parks its view state under, and its member in an area block (UMA §7.3). */
 internal const val UV_EDITOR_VIEW_STATE_KEY = "uv"
@@ -74,6 +78,9 @@ internal class UvEditorViewState : PersistentSpaceState {
 	/** The area's proportional radius per surface, which the body's gestures and the header's size row share; never saved. */
 	val proportionalRadii = UvProportionalRadii()
 
+	/** The area's sidebar: whether it is open, its width, the tab it shows, and the panels folded in it (UMA §7.3 `sidebar`). */
+	val sidebar = SidebarState()
+
 	/**
 	 * The UV editor's member of its area block.
 	 *
@@ -91,6 +98,7 @@ internal class UvEditorViewState : PersistentSpaceState {
 				},
 			)
 			put(OVERLAYS_MEMBER, overlays.overlaysJsonOrNull())
+			put(SIDEBAR_MEMBER, sidebar.sidebarJsonOrNull())
 		}
 
 	/**
@@ -107,6 +115,7 @@ internal class UvEditorViewState : PersistentSpaceState {
 				else -> UvTextureSelection.FollowSelection
 			}
 		overlays.restoreOverlays(tree[OVERLAYS_MEMBER] as? JsonObject)
+		sidebar.restoreSidebar(tree[SIDEBAR_MEMBER] as? JsonObject)
 	}
 }
 

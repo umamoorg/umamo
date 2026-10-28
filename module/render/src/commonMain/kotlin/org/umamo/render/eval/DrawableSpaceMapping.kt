@@ -278,9 +278,8 @@ fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>
 	// The defaults and the bake are built only when a parent asks for a world, so a direct drawable
 	// pays for neither.
 	return mappingOver(drawable) { parentDeformerId ->
-		val defaults = model.parameters.associate { it.id to it.default }
-		val paramValue: (ParameterId) -> Float = { parameters[it] ?: defaults[it] ?: 0f }
-		buildDeformerWorlds(model.deformers, paramValue)[parentDeformerId]
+		val pose = PoseParameters(model, parameters)
+		buildDeformerWorlds(model.deformers, pose.paramValue, pose.defaultValue)[parentDeformerId]
 	}
 }
 
@@ -316,9 +315,9 @@ internal fun mappingOver(drawable: Drawable, parentWorldOf: (DeformerId) -> Defo
 fun drawableLocalPosed(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): FloatArray? {
 	val drawable = model.drawables.firstOrNull { it.id == drawableId } ?: return null
 	// Lazy, so an unkeyed drawable answers without building the defaults.
-	val defaults by lazy { model.parameters.associate { it.id to it.default } }
+	val pose by lazy { PoseParameters(model, parameters) }
 
-	return localPosedOver(drawable) { parameterId -> parameters[parameterId] ?: defaults[parameterId] ?: 0f }
+	return localPosedOver(drawable) { parameterId -> pose.paramValue(parameterId) }
 }
 
 /**
@@ -439,22 +438,8 @@ private fun invertWarp(warp: WarpWorld, targetX: Float, targetY: Float, local: F
  * @return Float The squared world-distance tolerance.
  */
 private fun warpInverseToleranceSquared(cp: FloatArray): Float {
-	var minX = Float.MAX_VALUE
-	var maxX = -Float.MAX_VALUE
-	var minY = Float.MAX_VALUE
-	var maxY = -Float.MAX_VALUE
-	val pointCount = cp.size / 2
-
-	for (pointIndex in 0 until pointCount) {
-		val x = cp[pointIndex * 2]
-		val y = cp[pointIndex * 2 + 1]
-		minX = minOf(minX, x)
-		maxX = maxOf(maxX, x)
-		minY = minOf(minY, y)
-		maxY = maxOf(maxY, y)
-	}
-
-	val span = max(maxX - minX, maxY - minY)
+	val extent = pointExtentOf(cp)
+	val span = if (extent == null) 0f else max(extent.maxX - extent.minX, extent.maxY - extent.minY)
 	val tolerance = max(1e-5f * span, 1e-6f)
 
 	return tolerance * tolerance

@@ -28,6 +28,12 @@
 * Hire artist to make the DMG background art.
 	* Chibi Tamamo carrying the icon to the application folder.
 
+## MOC3 to CMO3 Conversion
+* The mirrored part/drawable detection is broken and is duplicating parts into new atlases instead of reusing the existing atlas.
+
+## SectionCard
+* Should be used for the operation strip as well.
+
 ## Documentation
 * Add a note somewhere in the repository and the web site asking game developers to please credit Umamo in the game credits if they used it as part of the development.
 

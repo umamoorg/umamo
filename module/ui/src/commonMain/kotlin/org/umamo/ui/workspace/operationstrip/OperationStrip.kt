@@ -31,6 +31,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.withParameter
 import org.umamo.ui.kit.container.SectionHeader
+import org.umamo.ui.kit.field.AspectLockFieldPair
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyCheckboxRow
 import org.umamo.ui.kit.field.PropertyFieldRow
@@ -48,7 +49,8 @@ import org.umamo.ui.workspace.hostsOperationStrip
  * bottom-left of the area the last operation ran in; expanded, one row per parameter, and editing a
  * row re-runs the operation over its own history step.  The rows are rendered from the parameter
  * KINDS, never from the operation, so a new adjustable operation adds a parameter list and label
- * strings, not a pane.
+ * strings, not a pane.  Two real-valued parameters the first names as its ratio partner (a Scale's
+ * factors) render as one pair with an aspect lock, the same control the Properties panel's Size uses.
  *
  * The strip lives in that one area and nowhere else - Blender's redo panel is a region of the editor
  * the operator ran in.  A record naming an area outside the active workspace's tree (the rigger
@@ -171,16 +173,85 @@ internal fun OperationStrip(
 				modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
 				verticalArrangement = Arrangement.spacedBy(4.dp),
 			) {
-				for (parameter in record.parameters) {
-					key(parameter.key) {
-						OperationParameterRow(parameter) { updated ->
-							session.adjustLastOperation(record.parameters.withParameter(parameter.key, updated), adjustedKey = parameter.key)
+				for (row in operationStripRows(record.parameters)) {
+					key(row.key) {
+						when (row) {
+							is OperationStripRow.Single -> {
+								OperationParameterRow(row.parameter) { updated ->
+									session.adjustLastOperation(record.parameters.withParameter(row.parameter.key, updated), adjustedKey = row.parameter.key)
+								}
+							}
+
+							is OperationStripRow.RatioPair -> {
+								// A pair adjusts as one setting, named by its first row: a locked edit sets both.
+								OperationParameterPair(row.first, row.second) { first, second ->
+									session.adjustLastOperation(
+										record.parameters.withParameter(first.key, first).withParameter(second.key, second),
+										adjustedKey = first.key,
+									)
+								}
+							}
 						}
 					}
 				}
 			}
 		}
 	}
+}
+
+/**
+ * One row of the strip: a lone parameter, or two real-valued parameters drawn as one ratio-lockable pair.
+ */
+internal sealed interface OperationStripRow {
+	/** The key the row composes under: its first parameter's. */
+	val key: String
+
+	/**
+	 * A lone parameter, rendered by its kind.
+	 *
+	 * @property OperatorParameter parameter The parameter.
+	 */
+	data class Single(val parameter: OperatorParameter) : OperationStripRow {
+		override val key: String get() = parameter.key
+	}
+
+	/**
+	 * Two parameters drawn as one [AspectLockFieldPair]: [first] names [second] as its ratio partner.
+	 *
+	 * @property OperatorParameter.FloatParameter first  The first parameter.
+	 * @property OperatorParameter.FloatParameter second The parameter right after it.
+	 */
+	data class RatioPair(val first: OperatorParameter.FloatParameter, val second: OperatorParameter.FloatParameter) : OperationStripRow {
+		override val key: String get() = first.key
+	}
+}
+
+/**
+ * The strip's rows for [parameters], in order: a real-valued parameter whose ratio partner is the real-valued
+ * parameter right after it pairs with it, and every other parameter stands alone - a partner key naming
+ * anything else is ignored.
+ *
+ * @param List parameters The record's parameters, in display order.
+ * @return List The rows.
+ */
+internal fun operationStripRows(parameters: List<OperatorParameter>): List<OperationStripRow> {
+	val rows = ArrayList<OperationStripRow>()
+	var parameterIndex = 0
+
+	while (parameterIndex < parameters.size) {
+		val parameter = parameters[parameterIndex]
+		val partner = parameters.getOrNull(parameterIndex + 1)
+
+		if (parameter is OperatorParameter.FloatParameter && partner is OperatorParameter.FloatParameter && parameter.ratioPartnerKey == partner.key) {
+			rows.add(OperationStripRow.RatioPair(parameter, partner))
+			parameterIndex += 2
+		} else {
+			rows.add(OperationStripRow.Single(parameter))
+			parameterIndex += 1
+		}
+	}
+
+	return rows
 }
 
 /**
@@ -257,4 +328,35 @@ private fun OperationParameterRow(
 			}
 		}
 	}
+}
+
+/**
+ * A ratio-lockable pair of the strip, drawn through the kit's [AspectLockFieldPair] - the control the Properties
+ * panel's Size uses - so a strip Scale and a panel Size are the same pair, lock included.  Both fields take the
+ * first parameter's range, step, and unit, as a pair measures one quantity along two axes, and commit once per
+ * edit as [OperationParameterRow]'s number fields do.
+ *
+ * @param OperatorParameter.FloatParameter first    The first parameter, naming [second] as its ratio partner.
+ * @param OperatorParameter.FloatParameter second   The parameter right after it.
+ * @param Function                         onChange Receives both parameters with their new values.
+ */
+@Composable
+private fun OperationParameterPair(
+	first: OperatorParameter.FloatParameter,
+	second: OperatorParameter.FloatParameter,
+	onChange: (OperatorParameter.FloatParameter, OperatorParameter.FloatParameter) -> Unit,
+) {
+	AspectLockFieldPair(
+		firstLabel = operatorParameterLabel(first.labelKey),
+		firstDescription = operatorParameterDescription(first.labelKey),
+		firstValue = first.value,
+		secondLabel = operatorParameterLabel(second.labelKey),
+		secondDescription = operatorParameterDescription(second.labelKey),
+		secondValue = second.value,
+		range = first.min..first.max,
+		decimals = 2,
+		step = first.step,
+		unitSuffix = parameterUnitSuffix(first.unit),
+		onCommit = { firstValue, secondValue -> onChange(first.copy(value = firstValue), second.copy(value = secondValue)) },
+	)
 }

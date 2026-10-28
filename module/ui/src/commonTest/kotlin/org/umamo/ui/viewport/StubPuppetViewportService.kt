@@ -59,6 +59,12 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every Zoom Region request, as the area and its left, top, right, and bottom edges in pixels. */
 	val zoomRegionRequests = ArrayList<Pair<String, List<Float>>>()
 
+	/** The area of every pan a navigation loop asked for, in order. */
+	val panRequests = ArrayList<String>()
+
+	/** The area of every wheel zoom a navigation loop asked for, in order. */
+	val zoomRequests = ArrayList<String>()
+
 	override var zoomStepPercent: Float = 0f
 
 	override var zoomStepCoarsePercent: Float = 0f
@@ -155,16 +161,18 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	override fun resize(areaId: String, width: Int, height: Int) {}
 
 	/**
-	 * Does nothing.
+	 * Records the pan's area and moves no camera.
 	 *
 	 * @param String areaId The area.
 	 * @param Float deltaXpx The x delta.
 	 * @param Float deltaYpx The y delta.
 	 */
-	override fun pan(areaId: String, deltaXpx: Float, deltaYpx: Float) {}
+	override fun pan(areaId: String, deltaXpx: Float, deltaYpx: Float) {
+		panRequests.add(areaId)
+	}
 
 	/**
-	 * Does nothing.
+	 * Records the zoom's area and moves no camera.
 	 *
 	 * @param String areaId The area.
 	 * @param Boolean zoomIn The direction.
@@ -172,7 +180,9 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	 * @param Float cursorXpx The cursor x.
 	 * @param Float cursorYpx The cursor y.
 	 */
-	override fun zoomAtCursor(areaId: String, zoomIn: Boolean, coarse: Boolean, cursorXpx: Float, cursorYpx: Float) {}
+	override fun zoomAtCursor(areaId: String, zoomIn: Boolean, coarse: Boolean, cursorXpx: Float, cursorYpx: Float) {
+		zoomRequests.add(areaId)
+	}
 
 	/**
 	 * Does nothing.

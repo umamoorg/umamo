@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
@@ -138,6 +139,20 @@ internal fun ViewportZoomBadge(
 }
 
 /**
+ * The name a modal operator goes by while it runs: the badge over the viewport and the sidebar's Active Tool
+ * panel both show it.
+ *
+ * @return StringResource The operator's display name.
+ */
+internal fun MeshOperatorKind.labelResource(): StringResource =
+	when (this) {
+		MeshOperatorKind.Grab -> Res.string.status_bind_grab
+		MeshOperatorKind.Scale -> Res.string.status_bind_scale
+		MeshOperatorKind.Rotate -> Res.string.status_bind_rotate
+		MeshOperatorKind.VertexSlide -> Res.string.cmd_mesh_vertex_slide
+	}
+
+/**
  * The modal status badge (top center): the operator's name, the axis lock, and optionally the
  * proportional-editing segment - so the gesture's state reads without glancing at the status bar.
  * Shared by the two HUD assemblies, [org.umamo.ui.viewport.viewport2d.ViewportHudOverlay] and [org.umamo.ui.viewport.uv.UvHudOverlay]; the assembly decides
@@ -161,13 +176,7 @@ internal fun ModalOperatorBadge(
 	modifier: Modifier = Modifier,
 ) {
 	val hudColors = LocalUmamoColors.current
-	val operatorLabel =
-		when (operatorKind) {
-			MeshOperatorKind.Grab -> stringResource(Res.string.status_bind_grab)
-			MeshOperatorKind.Scale -> stringResource(Res.string.status_bind_scale)
-			MeshOperatorKind.Rotate -> stringResource(Res.string.status_bind_rotate)
-			MeshOperatorKind.VertexSlide -> stringResource(Res.string.cmd_mesh_vertex_slide)
-		}
+	val operatorLabel = stringResource(operatorKind.labelResource())
 	val axisSuffix =
 		when (axisConstraint) {
 			TransformAxisConstraint.AxisX -> "  ${stringResource(Res.string.hud_along_x)}"
