@@ -1,10 +1,6 @@
 package org.umamo.ui.workspace.operationstrip
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -30,15 +27,18 @@ import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.withParameter
-import org.umamo.ui.kit.container.SectionHeader
+import org.umamo.ui.kit.PointerShield
+import org.umamo.ui.kit.container.SectionCard
 import org.umamo.ui.kit.field.AspectLockFieldPair
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyCheckboxRow
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.SelectField
+import org.umamo.ui.kit.sharesPointerWithSiblings
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
+import org.umamo.ui.viewport.rememberGestureOwnsAreaPointer
 import org.umamo.ui.workspace.LocalOperationStripInset
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.changeLabel
@@ -56,6 +56,10 @@ import org.umamo.ui.workspace.hostsOperationStrip
  * the operator ran in.  A record naming an area outside the active workspace's tree (the rigger
  * switched workspaces), an area that no longer hosts a work surface, or no area at all (the workspace
  * has no 2D viewport or UV editor) shows nowhere; it shows again when its area is back on screen.
+ *
+ * Like the sidebar and the toolbar floating over the same surface, the strip keeps the pointer from reaching
+ * the surface beneath it, gaps between its rows included, except while a gesture of its area owns the
+ * pointer and has to follow it across the strip.
  *
  * The labels for the strip's rows are in OperationStripLabels.kt.  Which spaces host the strip
  * (SpaceKind.hostsOperationStrip) and the inset the strip claims (LocalOperationStripInset) are at the
@@ -102,12 +106,12 @@ private val STRIP_MIN_WIDTH = 300.dp
  * rather than in each space - and it is the ONLY place the strip is drawn, so a record whose area is
  * not composed (another workspace is active, or the area closed) or names no area shows nowhere.
  *
- * @param String?   areaId  The hosting area's id.
+ * @param String    areaId  The hosting area's id.
  * @param SpaceKind kind    The space the area currently hosts.
  * @param Function  content The space body.
  */
 @Composable
-internal fun OperationStripHost(areaId: String?, kind: SpaceKind, content: @Composable () -> Unit) {
+internal fun OperationStripHost(areaId: String, kind: SpaceKind, content: @Composable () -> Unit) {
 	val session = LocalEditorSession.current
 	// Only a record naming THIS area shows here, and only while the area is a work surface; one naming
 	// another area, or none, is not this area's to show.
@@ -121,23 +125,31 @@ internal fun OperationStripHost(areaId: String?, kind: SpaceKind, content: @Comp
 	}
 
 	if (session != null && record != null) {
-		Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
-			OperationStrip(
-				record = record,
-				session = session,
+		val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, areaId)
+		// The hit test asks only the space body's direct sibling whether it hands the pointer on, and that is
+		// this box, so it hands the pointer on too while the shield inside it does.
+		val boxModifier = if (gestureOwnsPointer) Modifier.fillMaxSize().sharesPointerWithSiblings() else Modifier.fillMaxSize()
+		Box(modifier = boxModifier, contentAlignment = Alignment.BottomStart) {
+			// Clipped to the strip's outline after the margin, so only the strip itself keeps the pointer.
+			PointerShield(
+				passPointerThrough = gestureOwnsPointer,
 				modifier =
 					Modifier
 						.padding(start = STRIP_MARGIN, bottom = STRIP_MARGIN)
-						.onSizeChanged { size -> stripHeight = with(density) { size.height.toDp() } },
-			)
+						.onSizeChanged { size -> stripHeight = with(density) { size.height.toDp() } }
+						.clip(LocalUmamoShapes.current.medium),
+			) {
+				OperationStrip(record = record, session = session)
+			}
 		}
 	}
 }
 
 /**
- * The strip itself: the operation's label as a disclosure header, and its parameter rows when
- * expanded.  Editing a row publishes the whole parameter list back through
- * [EditorSession.adjustLastOperation], which re-runs the operation.
+ * The strip itself: a [SectionCard] in the strip's own colors, the operation's label as its heading and
+ * the parameter rows as its body, so a strip row sits exactly where a Properties or sidebar row does.
+ * Editing a row publishes the whole parameter list back through [EditorSession.adjustLastOperation],
+ * which re-runs the operation.
  *
  * @param AdjustableOperation record   The live record.
  * @param EditorSession       session  The session the record belongs to.
@@ -151,46 +163,31 @@ internal fun OperationStrip(
 ) {
 	val strip = LocalOperationStrip.current
 	val colors = LocalUmamoColors.current
-	val shapes = LocalUmamoShapes.current
-	Column(
-		modifier =
-			modifier
-				.widthIn(min = STRIP_MIN_WIDTH)
-				.width(IntrinsicSize.Max)
-				.background(colors.tabBackground, shapes.medium)
-				.border(width = 1.dp, color = colors.panelBorder, shape = shapes.medium),
+	SectionCard(
+		title = changeLabel(record.change.labelKey),
+		expanded = strip.expanded,
+		onToggle = { strip.expanded = !strip.expanded },
+		modifier = modifier.widthIn(min = STRIP_MIN_WIDTH).width(IntrinsicSize.Max),
+		// Chrome floating over the surface rather than a card raised inside a panel.
+		fill = colors.tabBackground,
+		border = colors.panelBorder,
 	) {
-		SectionHeader(
-			label = changeLabel(record.change.labelKey),
-			expanded = strip.expanded,
-			onToggle = { strip.expanded = !strip.expanded },
-		)
+		for (row in operationStripRows(record.parameters)) {
+			key(row.key) {
+				when (row) {
+					is OperationStripRow.Single -> {
+						OperationParameterRow(row.parameter) { updated ->
+							session.adjustLastOperation(record.parameters.withParameter(row.parameter.key, updated), adjustedKey = row.parameter.key)
+						}
+					}
 
-		if (strip.expanded) {
-			// The Properties section body's own insets and row spacing, so a strip row and a panel row
-			// sit identically inside their card.
-			Column(
-				modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 2.dp, bottom = 8.dp),
-				verticalArrangement = Arrangement.spacedBy(4.dp),
-			) {
-				for (row in operationStripRows(record.parameters)) {
-					key(row.key) {
-						when (row) {
-							is OperationStripRow.Single -> {
-								OperationParameterRow(row.parameter) { updated ->
-									session.adjustLastOperation(record.parameters.withParameter(row.parameter.key, updated), adjustedKey = row.parameter.key)
-								}
-							}
-
-							is OperationStripRow.RatioPair -> {
-								// A pair adjusts as one setting, named by its first row: a locked edit sets both.
-								OperationParameterPair(row.first, row.second) { first, second ->
-									session.adjustLastOperation(
-										record.parameters.withParameter(first.key, first).withParameter(second.key, second),
-										adjustedKey = first.key,
-									)
-								}
-							}
+					is OperationStripRow.RatioPair -> {
+						// A pair adjusts as one setting, named by its first row: a locked edit sets both.
+						OperationParameterPair(row.first, row.second) { first, second ->
+							session.adjustLastOperation(
+								record.parameters.withParameter(first.key, first).withParameter(second.key, second),
+								adjustedKey = first.key,
+							)
 						}
 					}
 				}
