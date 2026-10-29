@@ -16,6 +16,7 @@ import org.umamo.edit.shownPose
 import org.umamo.edit.structure.moveDeformer
 import org.umamo.edit.structure.moveOrgChild
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.OrgChild
@@ -32,7 +33,10 @@ import org.umamo.ui.transform.drawableWorldTransform
 import org.umamo.ui.transform.moved
 import org.umamo.ui.transform.previewDrawableWorldCenter
 import org.umamo.ui.transform.previewDrawableWorldSize
+import org.umamo.ui.transform.previewWarpWorldCenter
+import org.umamo.ui.transform.previewWarpWorldSize
 import org.umamo.ui.transform.setDrawableParentDeformerKeepingRest
+import org.umamo.ui.transform.warpWorldTransform
 import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 
 /*
@@ -209,6 +213,75 @@ private fun DrawableTransformRows(context: PropertyContext, drawableId: Drawable
 			onPreview = { axis, worldValue ->
 				val (centerX, centerZ) = axis.moved(worldValue, bounds.centerX, bounds.centerY)
 				scrub.preview(session?.previewDrawableWorldCenter(drawableId, centerX, centerZ))
+			},
+			onScrubCancel = { scrub.end() },
+		)
+	}
+}
+
+/**
+ * One of a warp's two Transform rows - Position X/Z, or Size X/Z with its aspect lock - over its lattice's world
+ * box, built like [DrawableTransformRows].  An edit moves the warp as a whole, every form it carries, so its art
+ * follows: Object mode's meaning, which is why the rows write only in Object mode, at the neutral pose (Edit mode
+ * shapes a lattice without moving the art, and Pose mode poses it).  Elsewhere they show the box and are inert.
+ *
+ * @param PropertyContext context The row's context (its session supplies the live pose and mode).
+ * @param DeformerId deformerId The shown warp.
+ * @param Boolean showSize False for the Position pair, true for the Size pair.
+ */
+@Composable
+private fun WarpTransformRows(context: PropertyContext, deformerId: DeformerId, showSize: Boolean) {
+	val session = context.session
+	val shownPose = rememberShownPose(context)
+	val mode = session?.mode?.collectAsState()?.value
+	val transform = remember(context.puppet, shownPose, deformerId) { warpWorldTransform(context.puppet, shownPose, deformerId) }
+
+	if (transform == null) {
+		MutedNote(Res.string.properties_transform_unavailable)
+
+		return
+	}
+
+	val bounds = transform.bounds
+	val editable = session != null && mode == EditorMode.Object && transform.editable
+	val scrub = rememberFieldScrubPreview(editable)
+	// Read here, called in the commit: the answer is the pointer's state as the release lands.
+	val stripArea = LocalOperationStripArea.current
+
+	if (showSize) {
+		AspectLockFieldPair(
+			firstLabel = stringResource(Res.string.properties_field_size_x),
+			firstDescription = stringResource(Res.string.properties_warp_size_x_description),
+			firstValue = bounds.width,
+			secondLabel = stringResource(Res.string.properties_field_size_z),
+			secondDescription = stringResource(Res.string.properties_warp_size_z_description),
+			secondValue = bounds.height,
+			range = DRAWABLE_EXTENT_RANGE,
+			decimals = 1,
+			enabled = editable,
+			onCommit = { newWidth, newHeight ->
+				scrub.commit { session?.setWarpWorldSizeAdjustable(deformerId, newWidth, newHeight, stripArea()) }
+			},
+			onPreview = { newWidth, newHeight ->
+				scrub.preview(session?.previewWarpWorldSize(deformerId, newWidth, newHeight))
+			},
+			onScrubCancel = { scrub.end() },
+		)
+	} else {
+		WorldPositionFields(
+			puppet = context.puppet,
+			worldX = bounds.centerX,
+			worldZ = bounds.centerY,
+			xDescription = Res.string.properties_warp_position_x_description,
+			zDescription = Res.string.properties_warp_position_z_description,
+			enabled = editable,
+			onCommit = { axis, worldValue ->
+				val (centerX, centerZ) = axis.moved(worldValue, bounds.centerX, bounds.centerY)
+				scrub.commit { session?.setWarpWorldCenterAdjustable(deformerId, centerX, centerZ, stripArea()) }
+			},
+			onPreview = { axis, worldValue ->
+				val (centerX, centerZ) = axis.moved(worldValue, bounds.centerX, bounds.centerY)
+				scrub.preview(session?.previewWarpWorldCenter(deformerId, centerX, centerZ))
 			},
 			onScrubCancel = { scrub.end() },
 		)

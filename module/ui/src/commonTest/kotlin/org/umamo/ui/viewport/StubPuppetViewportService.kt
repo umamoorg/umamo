@@ -19,6 +19,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.DrawableThumbnailProvider
 
 /**
@@ -39,6 +40,9 @@ internal class StubPuppetViewportService : PuppetViewportService {
 
 	/** Every direct Edit cage published through [setEditDirectOverlay], oldest first, nulls included. */
 	val pushedEditDirectOverlays = ArrayList<DirectMeshOverlay?>()
+
+	/** Every lattice preview published through [setLatticePreview], oldest first, empty maps included. */
+	val pushedLatticePreviews = ArrayList<Map<DeformerId, WarpLatticeForm>>()
 
 	/** What [latticePicksAt] answers per area, best first; an area with no entry answers nothing. */
 	val latticeStackByArea = HashMap<String, List<DeformerId>>()
@@ -351,6 +355,15 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	 */
 	override fun setEditDirectOverlay(overlay: DirectMeshOverlay?) {
 		pushedEditDirectOverlays.add(overlay)
+	}
+
+	/**
+	 * Records the lattice preview.
+	 *
+	 * @param Map<DeformerId, WarpLatticeForm> overrides The preview published.
+	 */
+	override fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>) {
+		pushedLatticePreviews.add(overrides)
 	}
 
 	/**

@@ -211,14 +211,16 @@ sealed interface DrawableChange : Change {
 	}
 
 	/**
-	 * Duplicates whole drawables (Object-mode Shift+D): each copy gets a fresh id and name, sits after
-	 * its source in the org tree, and carries no glue membership.
+	 * Duplicates whole objects (Object-mode Shift+D): each copied drawable gets a fresh id and name, sits after
+	 * its source in the org tree, and carries no glue membership; each copied warp gets a fresh id and name and
+	 * the same forms.  A copy whose source's parent was copied too sits under that parent's copy.
 	 *
-	 * @property List<DrawableId> ids The created copies.
+	 * @property List<DrawableId> ids The created drawable copies.
+	 * @property List<DeformerId> deformerIds The created warp copies.
 	 */
-	data class Duplicate(val ids: List<DrawableId>) : DrawableChange {
+	data class Duplicate(val ids: List<DrawableId>, val deformerIds: List<DeformerId> = emptyList()) : DrawableChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.drawable.duplicate"
+		override val labelKey: String = if (deformerIds.isEmpty()) "change.drawable.duplicate" else "change.object.duplicate"
 	}
 
 	/**
@@ -918,7 +920,7 @@ sealed interface KeyformChange : Change {
 /**
  * Changes to a drawable's art mesh (its interior geometry, edited in Edit mode).
  *
- * The three whole-gesture transforms ([TransformVertices], [TransformDrawables], [TransformUvs]) each carry
+ * The three whole-gesture transforms ([TransformVertices], [TransformObjects], [TransformUvs]) each carry
  * the [MeshOperatorKind] they performed, so the history panel can name the operation rather than filing
  * every Grab, Scale, and Rotate under one "Move" label.  The kind names WHAT the transform was, not how it
  * was driven: the Properties panel's typed Size row records Scale with no modal operator ever latching.
@@ -988,15 +990,21 @@ sealed interface MeshChange : Change {
 	}
 
 	/**
-	 * Transforms every vertex of one or more whole drawables to new rest positions - an Object-mode Grab /
-	 * Scale / Rotate of the selected drawables, or the Properties panel's typed Position / Size rows.
-	 * Recorded as one undo step for the whole gesture even though several drawables move.  The pose is
-	 * unaffected; this edits rest geometry, which is document content.
+	 * Transforms whole objects - an Object-mode Grab / Scale / Rotate of the selected drawables and warps, a
+	 * Shift+S selection snap, or the Properties panel's typed Position / Size rows.  A drawable's every vertex
+	 * moves to new rest positions; a warp's every grid cell and blend-shape form moves, its art following.
+	 * Recorded as one undo step for the whole gesture even though several objects move.  The pose is
+	 * unaffected; this edits rest geometry and lattice forms, which are document content.
 	 *
 	 * @property List<DrawableId> drawableIds The drawables this gesture moved (for the history-panel detail).
 	 * @property MeshOperatorKind kind The operator this gesture ran, which selects the history label.
+	 * @property List<DeformerId> deformerIds The warps this gesture moved.
 	 */
-	data class TransformDrawables(val drawableIds: List<DrawableId>, val kind: MeshOperatorKind) : MeshChange {
+	data class TransformObjects(
+		val drawableIds: List<DrawableId>,
+		val kind: MeshOperatorKind,
+		val deformerIds: List<DeformerId> = emptyList(),
+	) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String =
 			when (kind) {

@@ -6,7 +6,7 @@ import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.atlas.placementDragTileIds
 import org.umamo.edit.atlas.placementSelectedTileIds
-import org.umamo.edit.eligibleTransformDrawables
+import org.umamo.edit.eligibleTransformTargets
 
 /*
  * The guards between a command and a tool latch: the begin / arm entry points for the modal mesh, object,
@@ -43,11 +43,11 @@ fun EditorSession.beginMeshOperator(kind: MeshOperatorKind, areaId: String, supp
 }
 
 /**
- * Begins an Object-mode modal transform (Grab / Scale / Rotate) over the selected drawables' whole
- * geometry - the Object-mode counterpart to [beginMeshOperator]. A no-op unless Object mode is active
- * with an eligible selection: at least one selected target must be a drawable that carries a mesh (see
- * [eligibleTransformDrawables]; parts, deformers, and mesh-less drawables in the selection are silently
- * ignored, so a Select All that swept them in never blocks the gesture). The gesture is BLOCKED with a
+ * Begins an Object-mode modal transform (Grab / Scale / Rotate) over the selected drawables and warps as
+ * whole objects - the Object-mode counterpart to [beginMeshOperator]. A no-op unless Object mode is active
+ * with an eligible selection: at least one selected target must be a drawable that carries a mesh or a warp
+ * with a rest lattice (see [eligibleTransformTargets]; parts, rotation deformers, and mesh-less drawables in
+ * the selection are silently ignored, so a Select All that swept them in never blocks the gesture). The gesture is BLOCKED with a
  * near-cursor notice when the pose is not at parameter defaults: the object overlay captures at the live
  * pose, and writing a deformed capture back through the warp inverse corrupts the rest meshes - the
  * Blender-style guard tells the user to reset the parameters first. Clears any other latched tool /
@@ -61,7 +61,7 @@ fun EditorSession.beginObjectOperator(kind: MeshOperatorKind, areaId: String) {
 		return
 	}
 
-	if (eligibleTransformDrawables(selection.value, model.value) == null) {
+	if (eligibleTransformTargets(selection.value, model.value) == null) {
 		// Nothing transformable at all (empty, or only parts / deformers / mesh-less drawables).
 		emitNotice("notice.transform.onlyDrawables", NoticePlacement.NearCursor)
 

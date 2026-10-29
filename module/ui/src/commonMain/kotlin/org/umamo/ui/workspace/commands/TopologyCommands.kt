@@ -10,7 +10,7 @@ import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.connectSelectedVertices
 import org.umamo.edit.mesh.duplicateSelectedElements
 import org.umamo.edit.mesh.mergeSelectedVertices
-import org.umamo.edit.structure.duplicateSelectedDrawables
+import org.umamo.edit.structure.duplicateSelectedObjects
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.ui.action.Command
@@ -50,7 +50,7 @@ internal fun topologyCommands(
 					routing.viewportArea()?.let { areaId ->
 						live.beginMeshOperator(MeshOperatorKind.Grab, areaId, suppressProportional = true)
 					}
-				} else if (live.duplicateSelectedDrawables().isNotEmpty()) {
+				} else if (live.duplicateSelectedObjects().isNotEmpty()) {
 					routing.viewportArea()?.let { areaId -> live.beginObjectOperator(MeshOperatorKind.Grab, areaId) }
 				}
 			}

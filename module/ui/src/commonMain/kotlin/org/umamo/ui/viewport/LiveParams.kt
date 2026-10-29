@@ -5,9 +5,11 @@ import androidx.compose.runtime.mutableStateOf
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.LiveParamsHandle
 import kotlin.concurrent.Volatile
 
@@ -49,6 +51,14 @@ class LiveParams(
 	 */
 	@Volatile
 	var channelOverrides: Map<KeyableTarget, ChannelValue> = initialChannelOverrides
+
+	/**
+	 * Whole lattices standing in for warps' grid blends at the pose, published the same way as [values]: what an
+	 * Object-mode warp drag previews, moving the art under the warp without pushing a model.  Session state, so it
+	 * rides beside the pose as [channelOverrides] does; empty for none.
+	 */
+	@Volatile
+	var latticeOverrides: Map<DeformerId, WarpLatticeForm> = emptyMap()
 }
 
 /**

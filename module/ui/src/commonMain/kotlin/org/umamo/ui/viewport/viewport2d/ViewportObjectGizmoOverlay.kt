@@ -75,7 +75,7 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  *     (one undo step), previewed live through the GPU tint via [SessionToolLatches.setPreviewSelection]; the wheel
  *     resizes the brush; a right-click leaves the tool keeping what was painted.
  *   - Grab / Scale / Rotate: a modal transform of every selected drawable's whole geometry about their combined
- *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.TransformDrawables]).
+ *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.TransformObjects]).
  *     A right-click or Escape cancels (the renderer re-syncs to the committed model); a primary click or Enter
  *     confirms.  Only drawables transform - a selection with nothing transformable blocks at the session
  *     guard ([EditorSession.beginObjectOperator]) before an operator ever latches here.
@@ -134,7 +134,7 @@ fun ViewportObjectGizmoOverlay(
 	// The modal transform's commit side, one per area: the pointer loop and the collectors below keep the
 	// instance they started with (see ObjectModalTransform).  Its gesture state is what the Box, the pointer
 	// loop, and the HUD read.
-	val modalTransform = remember(areaId) { ObjectModalTransform(areaId, session, service::setModel) }
+	val modalTransform = remember(areaId) { ObjectModalTransform(areaId, session, service::setModel, service::setLatticePreview) }
 	val gesture = modalTransform.gesture
 
 	// The drive's worker, alive exactly as long as the transform: each pointer event submits a drive and the
@@ -156,7 +156,7 @@ fun ViewportObjectGizmoOverlay(
 	DisposableEffect(modalTransform) {
 		onDispose {
 			if (modalTransform.abandon()) {
-				service.setModel(session.model.value)
+				modalTransform.resyncRenderer()
 			}
 
 			marquee.discard()
@@ -197,7 +197,7 @@ fun ViewportObjectGizmoOverlay(
 			// branch at mount (and when another area's operator latches), and an unguarded setModel from
 			// a viewport split open mid-gesture would stomp the initiating area's live preview.
 			if (modalTransform.end()) {
-				service.setModel(session.model.value)
+				modalTransform.resyncRenderer()
 			}
 		}
 	}

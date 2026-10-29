@@ -4,14 +4,18 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.meshBounds
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.transform.setDrawableWorldCenter
 import org.umamo.ui.transform.setDrawableWorldSize
+import org.umamo.ui.transform.setWarpWorldCenter
+import org.umamo.ui.transform.setWarpWorldSize
 import org.umamo.ui.viewport.viewport2d.registerDrawableWorldAdjustment
+import org.umamo.ui.viewport.viewport2d.registerWarpWorldAdjustment
 
 /*
  * The Transform rows' commits with their operation-strip registration: a Position edit is a Grab and a
- * Size edit a Scale of one drawable, so each registers the rows the viewport's G / S register (Move X /
+ * Size edit a Scale of one drawable or warp, so each registers the rows the viewport's G / S register (Move X /
  * Move Z, Scale X / Scale Z) over the same rerun, and the strip adjusts it the same way.
  *
  * Registered only when the commit changed the model, the gate the object gizmo keeps: the session pairs
@@ -69,4 +73,52 @@ internal fun EditorSession.setDrawableWorldSizeAdjustable(id: DrawableId, width:
 	val factorZ = if (bounds.height > 0f) height / bounds.height else 1f
 	val parameters = TransformGestureParameters(0f, 0f, factorX, factorZ, 0f)
 	registerDrawableWorldAdjustment(this, areaId, geometry, MeshOperatorKind.Scale, parameters)
+}
+
+/**
+ * Moves warp [id] as a whole so its lattice's world bounds center lands on ([centerX], [centerZ]) as one undo step
+ * (see [setWarpWorldCenter]) and registers the move on the operation strip in [areaId], as a Grab by the delta from
+ * where the center was.
+ *
+ * @param DeformerId id The warp to move.
+ * @param Float centerX The world x its bounds center should land on.
+ * @param Float centerZ The world z (up) its bounds center should land on.
+ * @param String? areaId The area the strip should show in, or null for nowhere.
+ */
+internal fun EditorSession.setWarpWorldCenterAdjustable(id: DeformerId, centerX: Float, centerZ: Float, areaId: String?) {
+	val modelBefore = model.value
+	val lattice = setWarpWorldCenter(id, centerX, centerZ) ?: return
+
+	if (model.value === modelBefore) {
+		return
+	}
+
+	val bounds = meshBounds(lattice.world)
+	val parameters = TransformGestureParameters(centerX - bounds.centerX, centerZ - bounds.centerY, 1f, 1f, 0f)
+	registerWarpWorldAdjustment(this, areaId, lattice, MeshOperatorKind.Grab, parameters)
+}
+
+/**
+ * Scales warp [id] as a whole about its lattice's world bounds center to ([width], [height]) as one undo step (see
+ * [setWarpWorldSize]) and registers the resize on the operation strip in [areaId], as a Scale by the factors the
+ * extents changed by; a degenerate axis registers a factor of 1.
+ *
+ * @param DeformerId id The warp to resize.
+ * @param Float width The target world x extent.
+ * @param Float height The target world z extent.
+ * @param String? areaId The area the strip should show in, or null for nowhere.
+ */
+internal fun EditorSession.setWarpWorldSizeAdjustable(id: DeformerId, width: Float, height: Float, areaId: String?) {
+	val modelBefore = model.value
+	val lattice = setWarpWorldSize(id, width, height) ?: return
+
+	if (model.value === modelBefore) {
+		return
+	}
+
+	val bounds = meshBounds(lattice.world)
+	val factorX = if (bounds.width > 0f) width / bounds.width else 1f
+	val factorZ = if (bounds.height > 0f) height / bounds.height else 1f
+	val parameters = TransformGestureParameters(0f, 0f, factorX, factorZ, 0f)
+	registerWarpWorldAdjustment(this, areaId, lattice, MeshOperatorKind.Scale, parameters)
 }

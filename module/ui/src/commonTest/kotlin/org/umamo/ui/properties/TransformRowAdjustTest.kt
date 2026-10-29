@@ -118,7 +118,7 @@ class TransformRowAdjustTest {
 
 		val record = assertNotNull(session.adjustableOperation.value, "the commit registered")
 		assertEquals(areaId, record.areaId)
-		val change = assertIs<MeshChange.TransformDrawables>(record.change)
+		val change = assertIs<MeshChange.TransformObjects>(record.change)
 		assertEquals(MeshOperatorKind.Grab, change.kind)
 		assertEquals(-500f, record.parameters.floatValue(TransformParameterKeys.MOVE_X, Float.NaN))
 		assertEquals(500f, record.parameters.floatValue(TransformParameterKeys.MOVE_Z, Float.NaN), "world y up, shown as Z")
@@ -141,7 +141,7 @@ class TransformRowAdjustTest {
 		session.setDrawableWorldSizeAdjustable(drawableId, 50f, 25f, areaId)
 
 		val record = assertNotNull(session.adjustableOperation.value)
-		assertEquals(MeshOperatorKind.Scale, assertIs<MeshChange.TransformDrawables>(record.change).kind)
+		assertEquals(MeshOperatorKind.Scale, assertIs<MeshChange.TransformObjects>(record.change).kind)
 		assertEquals(0.5f, record.parameters.floatValue(TransformParameterKeys.SCALE_X, Float.NaN))
 		assertEquals(0.25f, record.parameters.floatValue(TransformParameterKeys.SCALE_Z, Float.NaN))
 

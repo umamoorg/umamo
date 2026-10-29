@@ -5,7 +5,8 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
-import org.umamo.edit.eligibleTransformDrawables
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
@@ -122,6 +123,72 @@ private fun PuppetModel.uniqueDuplicateName(name: String): String {
 }
 
 /**
+ * Duplicates one warp (Object-mode Shift+D): the copy takes a Blender-style ".001"-suffixed unique id and name and
+ * the same forms - its keyform grid re-wrapped, the form payloads and blend shapes shared by reference (immutable in
+ * practice; a later edit copy-on-writes them) - under the same parent, right after its source in the deformer list.
+ *
+ * @param DeformerId id The warp to duplicate.
+ * @return Pair<PuppetModel, DeformerId>? The edited model and the copy's id, or null when the model holds no warp
+ *   by that id.
+ */
+fun PuppetModel.withDeformerDuplicated(id: DeformerId): Pair<PuppetModel, DeformerId>? {
+	val sourceIndex = deformers.indexOfFirst { candidate -> candidate.id == id }
+	val source = deformers.getOrNull(sourceIndex) as? Deformer.Warp ?: return null
+	val copyId = uniqueDuplicateDeformerId(id)
+	val copy =
+		source.copy(
+			id = copyId,
+			name = uniqueDuplicateDeformerName(source.name),
+			geometryGrid =
+				source.geometryGrid?.let { grid ->
+					KeyformGrid(grid.axes, grid.cells.map { cell -> KeyformCell(cell.coordinate, cell.form) })
+				},
+		)
+
+	return copy(deformers = deformers.toMutableList().apply { add(sourceIndex + 1, copy) }) to copyId
+}
+
+/**
+ * The first free ".NNN"-suffixed deformer id derived from [id], as [uniqueDuplicateId] does for drawables.
+ *
+ * @param DeformerId id The source id.
+ * @return DeformerId The unique copy id.
+ */
+private fun PuppetModel.uniqueDuplicateDeformerId(id: DeformerId): DeformerId {
+	var counter = 1
+
+	while (true) {
+		val candidate = DeformerId("${id.raw}.${counter.toString().padStart(3, '0')}")
+
+		if (deformers.none { deformer -> deformer.id == candidate }) {
+			return candidate
+		}
+
+		counter++
+	}
+}
+
+/**
+ * The first free ".NNN"-suffixed deformer name derived from [name], mirroring [uniqueDuplicateDeformerId].
+ *
+ * @param String name The source display name.
+ * @return String The unique copy name.
+ */
+private fun PuppetModel.uniqueDuplicateDeformerName(name: String): String {
+	var counter = 1
+
+	while (true) {
+		val candidate = "$name.${counter.toString().padStart(3, '0')}"
+
+		if (deformers.none { deformer -> deformer.name == candidate }) {
+			return candidate
+		}
+
+		counter++
+	}
+}
+
+/**
  * A copy of [mesh] with its own position arrays, so moving the duplicate never moves the original; a mesh whose
  * canvas and keyform-space positions are one shared array stays shared in the copy.
  *
@@ -136,41 +203,84 @@ private fun duplicatedMesh(mesh: DrawableMesh): DrawableMesh {
 }
 
 /**
- * Duplicates every eligible selected drawable (Object-mode Shift+D) as ONE undo step: each copy
- * lands after its source in the org tree, and the selection becomes the copies - the caller follows
- * with a Grab so they pull away under the pointer, Blender-style.  The last copy becomes the active
- * target, and the remembered drawable follows it exactly as it follows a selection gesture, so an
- * Edit-mode entry after a deselect opens on the copy rather than on its source.
+ * Duplicates every selected meshed drawable and every selected warp (Object-mode Shift+D) as ONE undo step, keeping
+ * the hierarchy among the copies: a copy whose source's parent warp was copied too sits under that parent's copy,
+ * and every other copy keeps its source's parent (Blender).  An unselected child stays with its original.  Each
+ * drawable copy lands after its source in the org tree, and the selection becomes the copies - the caller follows
+ * with a Grab so they pull away under the pointer, Blender-style, and the Grab moves a copied warp with its copied
+ * children inside it.  The active original's copy becomes the active target (else the last copy), and the
+ * remembered owner follows it exactly as it follows a selection gesture.
  *
- * @return List<DrawableId> The created copies (empty when nothing was eligible).
+ * @return List<SelectionTarget> The created copies (empty when nothing was eligible).
  */
-fun EditorSession.duplicateSelectedDrawables(): List<DrawableId> {
+fun EditorSession.duplicateSelectedObjects(): List<SelectionTarget> {
 	if (mode.value != EditorMode.Object) {
 		return emptyList()
 	}
 
-	val eligibleIds = eligibleTransformDrawables(selection.value, model.value) ?: return emptyList()
-	var newModel = model.value
-	val copies = ArrayList<DrawableId>(eligibleIds.size)
+	val source = model.value
+	val selected = selection.value
+	var newModel = source
+	val drawableCopies = LinkedHashMap<DrawableId, DrawableId>()
+	val warpCopies = LinkedHashMap<DeformerId, DeformerId>()
 
-	for (drawableId in eligibleIds) {
-		val (edited, copyId) = newModel.withDrawableDuplicated(drawableId) ?: continue
-		newModel = edited
-		copies.add(copyId)
+	for (target in selected.targets) {
+		when (target) {
+			is SelectionTarget.Drawable -> {
+				val (edited, copyId) = newModel.withDrawableDuplicated(target.id) ?: continue
+				newModel = edited
+				drawableCopies[target.id] = copyId
+			}
+
+			is SelectionTarget.Deformer -> {
+				val (edited, copyId) = newModel.withDeformerDuplicated(target.id) ?: continue
+				newModel = edited
+				warpCopies[target.id] = copyId
+			}
+
+			is SelectionTarget.Part -> {}
+		}
 	}
 
-	if (copies.isEmpty() || newModel === model.value) {
+	if (drawableCopies.isEmpty() && warpCopies.isEmpty()) {
 		return emptyList()
 	}
 
-	val newSelection =
-		Selection(
-			copies.map { copyId -> SelectionTarget.Drawable(copyId) }.toSet<SelectionTarget>(),
-			SelectionTarget.Drawable(copies.last()),
+	// The hierarchy among the copies: a copy under a copied parent moves under that parent's copy.
+	val drawableCopyIds = drawableCopies.values.toSet()
+	val warpCopyIds = warpCopies.values.toSet()
+	newModel =
+		newModel.copy(
+			drawables =
+				newModel.drawables.map { drawable ->
+					val parentCopy = drawable.parentDeformerId?.let { parentId -> warpCopies[parentId] }
+					if (drawable.id in drawableCopyIds && parentCopy != null) drawable.copy(parentDeformerId = parentCopy) else drawable
+				},
+			deformers =
+				newModel.deformers.map { deformer ->
+					val parentCopy = deformer.parent?.let { parentId -> warpCopies[parentId] }
+					if (deformer.id in warpCopyIds && deformer is Deformer.Warp && parentCopy != null) deformer.copy(parent = parentCopy) else deformer
+				},
 		)
+
+	val copies =
+		drawableCopies.values.map { copyId -> SelectionTarget.Drawable(copyId) } +
+			warpCopies.values.map { copyId -> SelectionTarget.Deformer(copyId) }
+	val activeCopy =
+		when (val active = selected.active) {
+			is SelectionTarget.Drawable -> drawableCopies[active.id]?.let { copyId -> SelectionTarget.Drawable(copyId) }
+			is SelectionTarget.Deformer -> warpCopies[active.id]?.let { copyId -> SelectionTarget.Deformer(copyId) }
+			else -> null
+		} ?: copies.last()
+	val newSelection = Selection(copies.toSet(), activeCopy)
 	// The remembered owner tracks whatever is shown active (the rule setSelection and restore keep).
-	elementMemory.lastActiveOwner = ElementOwner.Drawable(copies.last())
-	commitStep(DrawableChange.Duplicate(copies), model = newModel, selection = newSelection)
+	elementMemory.lastActiveOwner =
+		when (activeCopy) {
+			is SelectionTarget.Drawable -> ElementOwner.Drawable(activeCopy.id)
+			is SelectionTarget.Deformer -> ElementOwner.Deformer(activeCopy.id)
+			is SelectionTarget.Part -> elementMemory.lastActiveOwner
+		}
+	commitStep(DrawableChange.Duplicate(drawableCopies.values.toList(), warpCopies.values.toList()), model = newModel, selection = newSelection)
 
 	return copies
 }

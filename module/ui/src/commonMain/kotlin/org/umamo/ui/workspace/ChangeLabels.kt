@@ -68,6 +68,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.object.move" -> stringResource(Res.string.history_object_move)
 		"change.object.scale" -> stringResource(Res.string.history_object_scale)
 		"change.object.rotate" -> stringResource(Res.string.history_object_rotate)
+		"change.object.duplicate" -> stringResource(Res.string.history_object_duplicate)
 		"change.mesh.select" -> stringResource(Res.string.history_mesh_select)
 		"change.keyform.select" -> stringResource(Res.string.history_keyform_select)
 		"change.mesh.selectMode" -> stringResource(Res.string.history_mesh_select_mode)

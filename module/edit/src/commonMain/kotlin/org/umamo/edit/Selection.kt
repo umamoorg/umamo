@@ -337,18 +337,11 @@ fun PuppetModel.subtreeTargets(target: SelectionTarget): List<SelectionTarget> =
 	}
 
 /**
- * The drawables an object-mode Grab / Scale / Rotate may transform, or null when the gesture must be
- * blocked.  Object G / S / R writes only a drawable's rest arrays (DrawableMesh.positions and
- * localPositions), so it can move a drawable but not a deformer (whose shape lives in absolute per-keyform
- * forms with no writer) nor a part (a container with no geometry of its own).  Those ineligible targets
- * are silently IGNORED rather than blocking: a Select All / Invert sweeps parts and deformers into the
- * selection, and the user expectation is that G still moves the meshes it can.  Only a selection with
- * nothing transformable at all (empty, or holding only parts / deformers / mesh-less drawables) returns
- * null, and the caller blocks with a note.
- *
- * The future Deformer to Part to Mesh cascade (transforming a part transforms its meshes; transforming a
- * deformer cascades through its parts into their meshes) is a separate project; until it and a
- * deformer-shape writer exist, parts and deformers are skipped.
+ * The selected drawables that carry a mesh, or null when there are none: what an Object-mode operation over
+ * drawables alone works on (Generate Mesh, Frame Selected's art).  Parts, deformers, and mesh-less drawables are
+ * silently IGNORED rather than blocking: a Select All / Invert sweeps them into the selection, and the user
+ * expectation is that the operation still reaches the meshes it can.  An Object-mode transform moves warps too,
+ * and resolves its items through [eligibleTransformTargets] instead.
  *
  * @param Selection selection The object-mode selection to evaluate.
  * @param PuppetModel model The rig the targets index into.
@@ -375,4 +368,92 @@ fun eligibleTransformDrawables(selection: Selection, model: PuppetModel): List<D
 	}
 
 	return drawableIds.ifEmpty { null }
+}
+
+/**
+ * What an Object-mode Grab / Scale / Rotate moves: the outermost transformable items of a selection.
+ *
+ * @property List<DrawableId> drawableIds The drawables, each carrying a mesh.
+ * @property List<DeformerId> warpIds The warps, each with a lattice the default pose draws.
+ */
+class TransformTargets(
+	val drawableIds: List<DrawableId>,
+	val warpIds: List<DeformerId>,
+)
+
+/**
+ * The items an Object-mode Grab / Scale / Rotate moves, or null when the gesture must be blocked.  A drawable
+ * moves by its rest arrays, so it needs a mesh; a warp moves as a whole deformer, every form it carries at once,
+ * so it needs a lattice the default pose draws.  Parts and rotation deformers cannot be transformed yet and are
+ * silently skipped, as are mesh-less drawables and warps hidden at rest: a Select All sweeps them in, and G still
+ * moves what it can.
+ *
+ * Each item moves once.  An item under a warp that moves follows that warp - its art lives in the warp's
+ * lattice - so it is left out rather than moved a second time on its own (Blender's rule for a selected parent
+ * and child).
+ *
+ * @param Selection selection The object-mode selection to evaluate.
+ * @param PuppetModel model The rig the targets index into.
+ * @return TransformTargets? The outermost transformable items, or null when nothing is transformable.
+ */
+fun eligibleTransformTargets(selection: Selection, model: PuppetModel): TransformTargets? {
+	if (selection.isEmpty) {
+		return null
+	}
+
+	val drawableById = model.drawables.associateBy { drawable -> drawable.id }
+	val parentByDeformer = model.deformers.associate { deformer -> deformer.id to deformer.parent }
+	val drawableIds = ArrayList<DrawableId>(selection.size)
+	val warpIds = LinkedHashSet<DeformerId>()
+
+	for (target in selection.targets) {
+		when (target) {
+			is SelectionTarget.Drawable -> {
+				if (drawableById[target.id]?.mesh != null) {
+					drawableIds.add(target.id)
+				}
+			}
+
+			is SelectionTarget.Deformer -> {
+				if (model.hasRestLattice(target.id)) {
+					warpIds.add(target.id)
+				}
+			}
+
+			is SelectionTarget.Part -> {}
+		}
+	}
+
+	val outerDrawables = drawableIds.filterNot { drawableId -> movesWithAncestor(drawableById[drawableId]?.parentDeformerId, warpIds, parentByDeformer) }
+	val outerWarps = warpIds.filterNot { warpId -> movesWithAncestor(parentByDeformer[warpId], warpIds, parentByDeformer) }
+
+	if (outerDrawables.isEmpty() && outerWarps.isEmpty()) {
+		return null
+	}
+
+	return TransformTargets(outerDrawables, outerWarps)
+}
+
+/**
+ * Whether the deformer chain from [parent] up holds one of [movingWarps], a parent the model does not hold or a
+ * cycle ending the walk.
+ *
+ * @param DeformerId? parent The first deformer up the chain, or null at the root.
+ * @param Set<DeformerId> movingWarps The warps that move.
+ * @param Map<DeformerId, DeformerId?> parentByDeformer Each deformer's parent.
+ * @return Boolean True when an ancestor moves.
+ */
+private fun movesWithAncestor(parent: DeformerId?, movingWarps: Set<DeformerId>, parentByDeformer: Map<DeformerId, DeformerId?>): Boolean {
+	var current = parent
+	val seen = HashSet<DeformerId>()
+
+	while (current != null && seen.add(current)) {
+		if (current in movingWarps) {
+			return true
+		}
+
+		current = parentByDeformer[current]
+	}
+
+	return false
 }

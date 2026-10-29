@@ -146,9 +146,9 @@ internal fun registerSlideAdjustment(
 	}
 
 /**
- * Registers the Object-mode drawable transform that just committed as the session's adjustable
- * operation: the mesh registration without proportional rows, each whole drawable inverted through
- * its frozen geometry over every vertex.
+ * Registers the Object-mode transform that just committed as the session's adjustable operation: the mesh
+ * registration without proportional rows, each whole drawable inverted through its frozen geometry over every
+ * vertex, and each warp in the capture moved as a whole by the adjusted affine (the Object drive's own landing).
  *
  * @param EditorSession              session      The session the gesture committed into.
  * @param String?                    areaId       The viewport the gesture ran in, or the area a panel-driven
@@ -176,7 +176,8 @@ internal fun registerObjectTransformAdjustment(
 	return session.registerAdjustableOperation(session.model.value, areaId, rows) { record ->
 		val adjusted = transformGestureParametersOf(kind, TransformRowSpace.World, record.parameters)
 		val jobs = meshDriveJobs(transform, geometryByOwner, wholeMeshes = true)
-		session.amendLastCommit(record, computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model)).folded)
+		val request = ObjectDriveRequest(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model), warpAffinesOf(transform, kind, adjusted))
+		session.amendLastCommit(record, computeObjectDrive(request).landed)
 	}
 }
 
@@ -216,4 +217,39 @@ internal fun registerDrawableWorldAdjustment(
 		) ?: return null
 
 	return registerObjectTransformAdjustment(session, areaId, transform, mapOf(geometry.owner to geometry), parameters)
+}
+
+/**
+ * Registers a world transform of ONE warp that committed outside any gesture - the Properties panel's Position and
+ * Size rows - as the session's adjustable operation, with the rows the viewport's Object-mode G / S register and the
+ * same rerun, the warp moved as a whole.  Pinned to the lattice's bounds center, as [registerDrawableWorldAdjustment]
+ * is, so an adjusted Size row scales about the point the panel scaled about.
+ *
+ * @param EditorSession              session    The session the transform committed into.
+ * @param String?                    areaId     The area the strip should show in, or null for nowhere.
+ * @param LatticeWorldGeometry       lattice    The warp's lattice as the commit was planned against.
+ * @param MeshOperatorKind           kind       Grab for a move, Scale for a resize.
+ * @param TransformGestureParameters parameters The numbers the commit landed with, in world space.
+ * @return AdjustableOperation? The record, or null when the session refused the registration.
+ */
+internal fun registerWarpWorldAdjustment(
+	session: EditorSession,
+	areaId: String?,
+	lattice: LatticeWorldGeometry,
+	kind: MeshOperatorKind,
+	parameters: TransformGestureParameters,
+): AdjustableOperation? {
+	val bounds = meshBounds(lattice.world)
+	val pointCount = lattice.world.size / 2
+	val transform =
+		buildModalTransformCapture(
+			sources = listOf(ModalCaptureSource(lattice.owner, lattice.world, ElementTopology.unconnected(pointCount), (0 until pointCount).toSet())),
+			pivotMode = TransformPivotMode.Cursor,
+			individualOriginScope = IndividualOriginScope.WholeMesh,
+			operatorKind = kind,
+			activeAnchor = null,
+			cursorAnchor = bounds.centerX to bounds.centerY,
+		) ?: return null
+
+	return registerObjectTransformAdjustment(session, areaId, transform, emptyMap(), parameters)
 }

@@ -237,7 +237,7 @@ class EditGrabPerfProbeTest {
 			return
 		}
 
-		val objectTransform = ObjectModalTransform(PROBE_AREA_ID, session) { folded -> pushed.add(folded) }
+		val objectTransform = ObjectModalTransform(PROBE_AREA_ID, session, pushPreview = { folded -> pushed.add(folded) })
 		timed("O1 ObjectModalTransform.begin (captureDrawableWorld per eligible drawable) [once per gesture]", 1) {
 			objectTransform.begin(MeshOperatorKind.Grab)
 		}

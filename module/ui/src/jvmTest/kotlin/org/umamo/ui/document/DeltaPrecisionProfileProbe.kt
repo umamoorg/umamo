@@ -295,7 +295,7 @@ class DeltaPrecisionProfileProbe {
 			movedIds = newPositions.keys
 			val allocatedBefore = threadAllocatedBytes()
 			val commitStart = System.nanoTime()
-			session!!.commitObjectPositions(MeshChange.TransformDrawables(newPositions.keys.toList(), MeshOperatorKind.Grab), newPositions)
+			session!!.commitObjectPositions(MeshChange.TransformObjects(newPositions.keys.toList(), MeshOperatorKind.Grab), newPositions)
 			commitNanos += System.nanoTime() - commitStart
 			commitAllocated += threadAllocatedBytes() - allocatedBefore
 			stepArrayBytes += newArrayBytes(model, session!!.model.value)

@@ -22,6 +22,7 @@ import org.umamo.render.puppet.ModelUpdateKind
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AreaOverlays
@@ -61,7 +62,7 @@ import org.umamo.ui.viewport.UvSceneContent
 class OffscreenPuppetService(
 	puppet: PuppetModel,
 	textures: PuppetTextures,
-	liveParams: LiveParams,
+	private val liveParams: LiveParams,
 ) : PuppetViewportService {
 	private val registry = ViewportAreaRegistry()
 	private val inputs = EngineRenderInputs(puppet, textures)
@@ -187,6 +188,10 @@ class OffscreenPuppetService(
 	override fun setMeshOverlayPalette(palette: MeshOverlayPalette) = inputs.setMeshOverlayPalette(palette)
 
 	override fun setLatticeOverlay(overlay: LatticeOverlay?) = inputs.setLatticeOverlay(overlay)
+
+	override fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>) {
+		liveParams.latticeOverrides = overrides
+	}
 
 	override fun setEditDirectOverlay(overlay: DirectMeshOverlay?) = inputs.setEditDirectOverlay(overlay)
 

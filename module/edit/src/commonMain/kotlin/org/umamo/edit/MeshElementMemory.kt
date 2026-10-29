@@ -11,9 +11,6 @@ import org.umamo.runtime.model.PuppetModel
  * selection across mode switches per mesh).  An owner is a drawable's mesh or a warp's lattice.
  * Transient UI convenience, deliberately NOT part of [EditorSnapshot]: undo restores whatever the
  * snapshot holds, this only seeds fresh entries.
- *
- * セッションの選択記憶。最後にアクティブだった描画対象と、メッシュごとの要素選択スタッシュを保持
- * する（Blender のモード切替をまたぐ選択記憶に相当）。スナップショットには含めない。
  */
 internal class MeshElementMemory {
 	/** The last owner that was active - a drawable or a warp - or null before any; Edit-mode entry falls back to it. */

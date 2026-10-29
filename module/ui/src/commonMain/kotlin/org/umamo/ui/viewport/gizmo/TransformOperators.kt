@@ -12,6 +12,8 @@ import org.umamo.edit.transform.TransformPivotGroup
 import org.umamo.edit.transform.TransformPivots
 import org.umamo.render.ViewportCamera
 import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * One modal gesture's pointer frame: everything the operator math needs to convert the screen-space
@@ -256,5 +258,46 @@ internal fun applyOperator(
 		// Vertex Slide never reaches here: the drive loop handles it with its own edge projection.
 		MeshOperatorKind.VertexSlide -> {
 			originalWorld
+		}
+	}
+
+/**
+ * The world transform [applyOperator] applies to a whole object in pivot group [group], as a 2x3 row-major affine
+ * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f): Grab translates, Scale scales about the group's
+ * pivot, and Rotate turns about it.  An object moved whole takes no proportional halo, so the affine is the
+ * operator exactly - what a warp moved as an object maps every one of its forms through.
+ *
+ * @param MeshOperatorKind operator The active operator.
+ * @param TransformGestureParameters parameters The delta / factors / angle to apply.
+ * @param TransformPivotGroup group The pivot group the object turns and scales about.
+ * @return FloatArray The affine; the identity for a Vertex Slide, which never moves a whole object.
+ */
+internal fun gestureAffine(operator: MeshOperatorKind, parameters: TransformGestureParameters, group: TransformPivotGroup): FloatArray =
+	when (operator) {
+		MeshOperatorKind.Grab -> {
+			floatArrayOf(1f, 0f, parameters.deltaX, 0f, 1f, parameters.deltaY)
+		}
+
+		MeshOperatorKind.Scale -> {
+			val factorX = parameters.factorX
+			val factorY = parameters.factorY
+			floatArrayOf(factorX, 0f, group.pivotX - group.pivotX * factorX, 0f, factorY, group.pivotY - group.pivotY * factorY)
+		}
+
+		MeshOperatorKind.Rotate -> {
+			val cosAngle = cos(parameters.rotationRadians)
+			val sinAngle = sin(parameters.rotationRadians)
+			floatArrayOf(
+				cosAngle,
+				-sinAngle,
+				group.pivotX - group.pivotX * cosAngle + group.pivotY * sinAngle,
+				sinAngle,
+				cosAngle,
+				group.pivotY - group.pivotX * sinAngle - group.pivotY * cosAngle,
+			)
+		}
+
+		MeshOperatorKind.VertexSlide -> {
+			floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
 		}
 	}

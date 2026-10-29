@@ -202,7 +202,7 @@ private fun EditorSession.previewWorldTransform(id: DrawableId, transformWorld: 
  * @return DrawableWorldGeometry? The geometry the move was planned against, or null when it was refused.
  */
 internal fun EditorSession.setDrawableWorldCenter(id: DrawableId, centerX: Float, centerZ: Float): DrawableWorldGeometry? =
-	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Grab)) { world ->
+	commitWorldTransform(id, MeshChange.TransformObjects(listOf(id), MeshOperatorKind.Grab)) { world ->
 		movedToBoundsCenter(world, centerX, centerZ)
 	}
 
@@ -230,7 +230,7 @@ internal fun EditorSession.previewDrawableWorldCenter(id: DrawableId, centerX: F
  */
 internal fun EditorSession.setDrawableWorldSize(id: DrawableId, width: Float, height: Float): DrawableWorldGeometry? =
 	// Scale, though no modal operator ran: the kind names what the transform WAS, not how it was driven.
-	commitWorldTransform(id, MeshChange.TransformDrawables(listOf(id), MeshOperatorKind.Scale)) { world ->
+	commitWorldTransform(id, MeshChange.TransformObjects(listOf(id), MeshOperatorKind.Scale)) { world ->
 		resizedAboutBoundsCenter(world, width, height)
 	}
 

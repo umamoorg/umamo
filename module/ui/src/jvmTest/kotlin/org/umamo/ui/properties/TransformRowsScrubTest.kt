@@ -33,6 +33,7 @@ import org.umamo.edit.Pose
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.transform.MeshBounds
+import org.umamo.render.eval.warpLatticeAt
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -46,6 +47,7 @@ import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.kit.field.LocalScrubCancel
 import org.umamo.ui.kit.field.ScrubCancelController
 import org.umamo.ui.kit.field.formatDecimals
@@ -77,15 +79,18 @@ class TransformRowsScrubTest {
 	private val drawableId = DrawableId("d")
 	private val rotationId = DeformerId("rot")
 	private val parameterId = ParameterId("Param")
+	private val warpId = DeformerId("w")
 	private val drawableTarget = SelectionTarget.Drawable(drawableId)
 	private val rotationTarget = SelectionTarget.Deformer(rotationId)
+	private val warpTarget = SelectionTarget.Deformer(warpId)
 
 	/** At the parameter's maximum the square sits 100 right of rest, so a posed rig shows a shape rest does not. */
 	private val posed: Pose = mapOf(parameterId to 1f)
 
 	/**
 	 * A 100 x 100 square centered on world (500, -500) at rest, keyed to move 100 right at the parameter's
-	 * maximum, beside a rotation deformer for the Base Angle row.
+	 * maximum, beside a rotation deformer for the Base Angle row and a 1 x 1 warp over canvas 100..200 (centered
+	 * on world (150, -150)), keyed the same at every key.
 	 *
 	 * @return PuppetModel The model.
 	 */
@@ -97,7 +102,27 @@ class TransformRowsScrubTest {
 		return PuppetModel(
 			parameters = listOf(Parameter(parameterId, "Param", min = -1f, max = 1f, default = 0f)),
 			parts = emptyList(),
-			deformers = listOf(Deformer.Rotation(id = rotationId, name = "rot", parent = null, partId = null, baseAngle = 15f, geometryGrid = null)),
+			deformers =
+				listOf(
+					Deformer.Rotation(id = rotationId, name = "rot", parent = null, partId = null, baseAngle = 15f, geometryGrid = null),
+					Deformer.Warp(
+						id = warpId,
+						name = "w",
+						parent = null,
+						partId = null,
+						rows = 1,
+						columns = 1,
+						isQuadTransform = true,
+						geometryGrid =
+							KeyformGrid(
+								axes = listOf(KeyformAxis(parameterId, floatArrayOf(-1f, 1f))),
+								cells =
+									listOf(-1, 1).mapIndexed { keyIndex, _ ->
+										KeyformCell(intArrayOf(keyIndex), WarpLatticeForm(floatArrayOf(100f, 100f, 200f, 100f, 100f, 200f, 200f, 200f)))
+									},
+							),
+					),
+				),
 			drawables =
 				listOf(
 					Drawable(
@@ -227,6 +252,52 @@ class TransformRowsScrubTest {
 
 			assertTrue(session.model.value !== before, "the edit lands rather than being refused for the held pose")
 			assertEquals(posed, session.pose.value, "the pinned pose is held as it is")
+		}
+
+	/** A warp's Position scrub moves the whole warp in the render as it goes, and commits once on release. */
+	@Test
+	fun aWarpPositionScrubMovesTheWholeWarpAndCommitsOnce() =
+		runComposeUiTest {
+			val session = sessionSelecting(warpTarget)
+			val renderSync = RecordingPuppetRenderSync()
+			mountTransformRows(session, warpTarget, renderSync)
+			val before = session.model.value
+
+			pressAndScrub(pointOfText(WARP_POSITION_X))
+
+			assertTrue(renderSync.previewed.isNotEmpty(), "the renderer sees the scrub as it happens")
+			assertSame(before, session.model.value, "a preview never reaches the session")
+			val lastFrame = warpCenterX(renderSync.previewed.last())
+			assertTrue(lastFrame > 150f, "a rightward scrub moves the warp right")
+
+			releaseScrub()
+
+			assertEquals(lastFrame, warpCenterX(session.model.value), 1e-3f, "the release lands what the last frame showed")
+			assertEquals(STRIP_AREA, session.adjustableOperation.value?.areaId, "and registers the strip")
+			assertEquals("change.object.move", session.historyView.value.steps.last().labelKey)
+			runOnIdle { session.undo() }
+			assertSame(before, session.model.value, "the whole drag is one undo step")
+		}
+
+	/** A warp's rows move it only in Object mode at rest: posed they are inert, and so they are in Edit mode. */
+	@Test
+	fun aWarpsRowsAreInertPosedAndInEditMode() =
+		runComposeUiTest {
+			val session = sessionSelecting(warpTarget, posed)
+			val renderSync = RecordingPuppetRenderSync()
+			mountTransformRows(session, warpTarget, renderSync)
+			val before = session.model.value
+
+			pressAndScrub(pointOfText(WARP_POSITION_X))
+			releaseScrub()
+			assertTrue(renderSync.previewed.isEmpty(), "posed, the fields are inert")
+
+			runOnIdle { session.setMode(EditorMode.Edit) }
+			waitForIdle()
+			pressAndScrub(pointOfText(WARP_POSITION_X))
+			releaseScrub()
+			assertTrue(renderSync.previewed.isEmpty(), "Edit mode shapes a lattice without moving the art, so the rows do not move the warp")
+			assertSame(before, session.model.value)
 		}
 
 	/** A Base Angle scrub turns the deformer in the render as it goes, and commits once. */
@@ -454,6 +525,18 @@ class TransformRowsScrubTest {
 	private fun baseAngleOf(model: PuppetModel): Float =
 		(model.deformers.first { deformer -> deformer.id == rotationId } as Deformer.Rotation).baseAngle
 
+	/**
+	 * The world x of the warp's lattice center at rest in [model].
+	 *
+	 * @param PuppetModel model The model.
+	 * @return Float The center's world x.
+	 */
+	private fun warpCenterX(model: PuppetModel): Float {
+		val world = assertNotNull(warpLatticeAt(model, emptyMap(), warpId)).world
+
+		return (0 until world.size / 2).sumOf { pointIndex -> world[pointIndex * 2].toDouble() }.toFloat() / (world.size / 2)
+	}
+
 	private companion object {
 		const val ROWS_TAG = "transformRows"
 		const val STRIP_AREA = "viewport-1"
@@ -467,6 +550,9 @@ class TransformRowsScrubTest {
 		const val REST_SIZE = "100.0"
 
 		const val BASE_ANGLE = "15.0"
+
+		/** The warp's Position X: its lattice's center, at rest and posed alike. */
+		const val WARP_POSITION_X = "150.0"
 
 		/** Far enough past the drag slop to move every field by several steps. */
 		const val SCRUB_PIXELS = 90f

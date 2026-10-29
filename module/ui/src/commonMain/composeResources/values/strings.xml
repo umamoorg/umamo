@@ -440,6 +440,7 @@
 	<string name="history_object_move">Move Objects</string>
 	<string name="history_object_scale">Scale Objects</string>
 	<string name="history_object_rotate">Rotate Objects</string>
+	<string name="history_object_duplicate">Duplicate Objects</string>
 	<string name="history_mesh_select">Select Elements</string>
 	<string name="history_mesh_select_mode">Change Select Mode</string>
 	<string name="history_part_delete">Delete Part</string>
@@ -581,7 +582,7 @@
 	<string name="status_tris_selected">Tris: %1$d/%2$d</string>
 
 	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
-	<string name="notice_transform_only_drawables">Only drawables can be transformed.  Parts and deformers are not yet supported.</string>
+	<string name="notice_transform_only_drawables">Only drawables and warp deformers can be transformed.  Parts and rotation deformers are not yet supported.</string>
 	<string name="notice_mode_pose_needs_deformer">Pose mode needs a deformer to pose.</string>
 	<string name="notice_transform_deformed">Can't transform while mesh is deformed.  Reset all parameters first.</string>
 	<string name="notice_unknown">Action unavailable.</string>
@@ -722,7 +723,7 @@
 	<string name="notice_edit_rotation_not_editable">A rotation deformer has no points to edit.  Move or turn it in Object mode.</string>
 	<string name="notice_edit_warp_has_no_lattice">This warp deformer has no lattice to edit.</string>
 	<string name="notice_edit_warp_hidden_at_rest">This warp deformer is not drawn at the default pose, so its lattice cannot be edited.</string>
-	<string name="notice_edit_lattice_topology_fixed">A lattice keeps its grid.  Its points can be moved, but not added, merged, ripped, or connected.</string>
+	<string name="notice_edit_lattice_topology_fixed">Lattice topology can be reshaped, but it can not be destructively changed.</string>
 	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds over %1$d of its children, so their art moved.  Undo to put it back.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
@@ -1021,10 +1022,10 @@
 	<string name="properties_part_position_z_description">The vertical center of everything the part holds, as it appears in the viewport, measured up from the world axes.  Read-only until parts can be moved here.</string>
 	<string name="properties_part_size_x_description">The width of everything the part holds, as it appears in the viewport.  Read-only until parts can be scaled here.</string>
 	<string name="properties_part_size_z_description">The height of everything the part holds, as it appears in the viewport.  Read-only until parts can be scaled here.</string>
-	<string name="properties_warp_position_x_description">The horizontal center of the deformer's lattice as it appears in the viewport, measured from the world axes.  Read-only until deformers can be moved here.</string>
-	<string name="properties_warp_position_z_description">The vertical center of the deformer's lattice as it appears in the viewport, measured up from the world axes.  Read-only until deformers can be moved here.</string>
-	<string name="properties_warp_size_x_description">The width of the deformer's lattice as it appears in the viewport.  Read-only until deformers can be scaled here.</string>
-	<string name="properties_warp_size_z_description">The height of the deformer's lattice as it appears in the viewport.  Read-only until deformers can be scaled here.</string>
+	<string name="properties_warp_position_x_description">The horizontal center of the deformer's lattice as it appears in the viewport, measured from the world axes.  Moving it moves the whole deformer, its art following; it can be edited in Object mode at the default pose.</string>
+	<string name="properties_warp_position_z_description">The vertical center of the deformer's lattice as it appears in the viewport, measured up from the world axes.  Moving it moves the whole deformer, its art following; it can be edited in Object mode at the default pose.</string>
+	<string name="properties_warp_size_x_description">The width of the deformer's lattice as it appears in the viewport.  Resizing it scales the whole deformer about its center, its art following; it can be edited in Object mode at the default pose.</string>
+	<string name="properties_warp_size_z_description">The height of the deformer's lattice as it appears in the viewport.  Resizing it scales the whole deformer about its center, its art following; it can be edited in Object mode at the default pose.</string>
 	<string name="properties_rotation_pivot_x_description">The horizontal position of the deformer's pivot as it appears in the viewport, measured from the world axes.  Read-only until deformers can be moved here.</string>
 	<string name="properties_rotation_pivot_z_description">The vertical position of the deformer's pivot as it appears in the viewport, measured up from the world axes.  Read-only until deformers can be moved here.</string>
 	<string name="properties_field_angle_description">The deformer's angle at the shown pose, in degrees: its Base Angle plus the angle its keyforms and blend shapes set there.  Read-only until deformers can be rotated here.</string>
