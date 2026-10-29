@@ -7,8 +7,8 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 
 /**
- * One owner an Edit-mode transform moves, captured in world space at the pose Edit mode is pinned to: a drawable's
- * mesh ([DrawableWorldGeometry]) or a warp's lattice ([LatticeWorldGeometry]).
+ * One owner an element transform moves, captured in world space at the pose it edits at: a drawable's mesh
+ * ([DrawableWorldGeometry]) at rest, or a warp's lattice ([LatticeWorldGeometry]) at rest or at the pose.
  */
 internal sealed interface OwnerWorldGeometry {
 	/** The owner: the drawable or the warp. */
@@ -19,12 +19,12 @@ internal sealed interface OwnerWorldGeometry {
 }
 
 /**
- * One warp's lattice captured at the rest pose: where the default pose draws its points, in its parent's space and in
- * world space, with the mapping between them.  The arrays are the bake's own copies, so a gesture transforms them
- * without freezing them first.
+ * One warp's lattice captured at a stage: where that pose draws its points, in its parent's space and in world space,
+ * with the mapping between them.  The arrays are the bake's own copies, so a gesture transforms them without freezing
+ * them first.
  *
  * @property DeformerId deformerId The warp.
- * @property WarpLattice lattice Its lattice at the default pose.
+ * @property WarpLattice lattice Its lattice at the stage's pose.
  */
 internal class LatticeWorldGeometry(
 	val deformerId: DeformerId,
@@ -36,12 +36,16 @@ internal class LatticeWorldGeometry(
 }
 
 /**
- * Captures warp [deformerId]'s lattice at the rest pose Edit mode is pinned to.
+ * Captures warp [deformerId]'s lattice at [stage]: at rest, or at the pose with the pending lattices in place.
  *
  * @param PuppetModel model The model.
  * @param DeformerId deformerId The warp.
- * @return LatticeWorldGeometry? The capture, or null when the model holds no such warp or the rest pose does not draw
- *   it.
+ * @param ElementEditStage stage Where to capture it.
+ * @return LatticeWorldGeometry? The capture, or null when the model holds no such warp or the stage's pose does not
+ *   draw it.
  */
-internal fun captureLatticeWorld(model: PuppetModel, deformerId: DeformerId): LatticeWorldGeometry? =
-	warpLatticeAt(model, emptyMap(), deformerId)?.let { lattice -> LatticeWorldGeometry(deformerId, lattice) }
+internal fun captureLatticeWorld(
+	model: PuppetModel,
+	deformerId: DeformerId,
+	stage: ElementEditStage = ElementEditStage.Rest,
+): LatticeWorldGeometry? = warpLatticeAt(model, stage.pose, deformerId, stage.latticeOverrides)?.let { lattice -> LatticeWorldGeometry(deformerId, lattice) }

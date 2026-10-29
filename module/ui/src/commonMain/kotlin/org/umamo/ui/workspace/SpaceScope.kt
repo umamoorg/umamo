@@ -77,10 +77,11 @@ sealed interface SpaceScope {
 		val WorkSurfacesAndSheet: SpaceScope = Only(workSurfaceKinds + SpaceKind.KeyformSheet)
 
 		/**
-		 * The surfaces showing keyable properties, the keyform sheet's lanes and the Properties rows: the
-		 * insert / delete pair that writes to whichever keyable the pointer is over.
+		 * The surfaces showing keyable things, the keyform sheet's lanes, the Properties rows, and the 2D viewport,
+		 * whose Pose-mode session keys the warps it poses: the insert / delete pair that writes to whichever keyable
+		 * the pointer is over.
 		 */
-		val KeyableSurfaces: SpaceScope = Only(setOf(SpaceKind.KeyformSheet, SpaceKind.Properties))
+		val KeyableSurfaces: SpaceScope = Only(setOf(SpaceKind.KeyformSheet, SpaceKind.Properties, SpaceKind.Viewport2D))
 
 		/**
 		 * Builds a scope whose spaces match none of the named sets.

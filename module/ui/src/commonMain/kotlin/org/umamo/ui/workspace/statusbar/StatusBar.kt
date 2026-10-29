@@ -27,6 +27,7 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.editTopologyOf
+import org.umamo.edit.editsElements
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
@@ -228,9 +229,10 @@ private fun SelectedItemZone() {
 	val editorMode by session.mode.collectAsState()
 	val text: String?
 
-	if (editorMode == EditorMode.Edit) {
+	if (editorMode.editsElements) {
 		// The denominators sum over EVERY session owner (multi-mesh edit), so "3/240 vertices" reads
-		// against everything the session can select; a lattice session counts points, grid lines, and cells.
+		// against everything the session can select; a lattice session (Edit or Pose) counts points, grid lines,
+		// and cells.
 		val meshSelection by session.meshSelection.collectAsState()
 		val sessionTopologies =
 			remember(puppet, meshSelection.owners) {

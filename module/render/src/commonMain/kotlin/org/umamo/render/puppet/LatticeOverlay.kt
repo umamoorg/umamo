@@ -31,10 +31,13 @@ enum class LatticeRole {
  * @property Map<DeformerId, LatticeRole> roles The warps to draw, each in its role.  A deformer that is not a
  *   warp, or that the pose hides, is left out.
  * @property MeshOverlaySizes sizes The control-point dot radius and the grid line width, in display pixels.
+ * @property Set<DeformerId> pendingIds The warps holding a Pose-mode lattice not yet keyed, drawn in the palette's
+ *   pending color whatever their role.
  */
 class LatticeOverlay(
 	val roles: Map<DeformerId, LatticeRole>,
 	val sizes: MeshOverlaySizes,
+	val pendingIds: Set<DeformerId> = emptySet(),
 )
 
 /**
@@ -136,8 +139,9 @@ internal fun latticeLayerOf(
 
 			val owner = ElementOwner.Deformer(deformerId)
 			val held = previousByOwner[owner]
+			val pending = deformerId in overlay.pendingIds
 			val mesh =
-				if (held != null && held.latticeRole == role && held.edgeEndpoints === lattice.layout.edgeEndpoints) {
+				if (held != null && held.latticeRole == role && held.pending == pending && held.edgeEndpoints === lattice.layout.edgeEndpoints) {
 					held
 				} else {
 					MeshOverlayMesh(
@@ -151,6 +155,7 @@ internal fun latticeLayerOf(
 						activeEdge = null,
 						activeFace = null,
 						latticeRole = role,
+						pending = pending,
 					)
 				}
 			meshes.add(mesh)

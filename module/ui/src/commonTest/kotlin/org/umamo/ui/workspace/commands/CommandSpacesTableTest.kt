@@ -22,7 +22,7 @@ class CommandSpacesTableTest {
 		val uvEditor = setOf(SpaceKind.UvEditor)
 		val workSurfaces = setOf(SpaceKind.Viewport2D, SpaceKind.UvEditor)
 		val workSurfacesAndSheet = setOf(SpaceKind.Viewport2D, SpaceKind.UvEditor, SpaceKind.KeyformSheet)
-		val keyableSurfaces = setOf(SpaceKind.KeyformSheet, SpaceKind.Properties)
+		val keyableSurfaces = setOf(SpaceKind.KeyformSheet, SpaceKind.Properties, SpaceKind.Viewport2D)
 		val expected =
 			mapOf(
 				"view.fit" to workSurfaces,

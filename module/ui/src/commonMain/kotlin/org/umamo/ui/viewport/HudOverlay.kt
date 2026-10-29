@@ -41,11 +41,10 @@ private val ACTIVE_MESH_INFO_MAX_WIDTH = 260.dp
  * The top-left active-object info chip shared by the 2D viewport and the UV editor: which drawable
  * element clicks and operators land on, or in the 2D viewport which deformer.  Row 1 is "Part | Name" (the
  * part omitted, pipe and all, for an object no part owns); row 2 is the innermost parent deformer's name (the
- * row omitted for an object no deformer moves).  Edit mode annotates the edit-target mesh; Object mode the
- * object selection's active drawable, or with [showsDeformers] its active deformer; Pose mode, which selects
- * deformers alone, its active deformer with [showsDeformers] and nothing otherwise.  With none resolved the
- * chip renders nothing, so the hosts need no gate of their own.  Every name is user data, rendered verbatim
- * (never localized) and capped at [ACTIVE_MESH_INFO_MAX_WIDTH] with an ellipsis - draw-only per the HUD
+ * row omitted for an object no deformer moves).  Edit and Pose mode annotate the session's active mesh or lattice;
+ * Object mode the object selection's active drawable, or with [showsDeformers] its active deformer.  With none
+ * resolved the chip renders nothing, so the hosts need no gate of their own.  Every name is user data, rendered
+ * verbatim (never localized) and capped at [ACTIVE_MESH_INFO_MAX_WIDTH] with an ellipsis - draw-only per the HUD
  * contract, so no tooltip carries the full name.
  *
  * @param EditorSession session The session whose mode, selections, and model resolve the active object.
@@ -69,7 +68,7 @@ internal fun ActiveMeshInfoLabel(
 	val deformerById = remember(model) { model.deformers.associateBy { deformer -> deformer.id } }
 	val activeTarget =
 		when (editorMode) {
-			EditorMode.Edit -> {
+			EditorMode.Edit, EditorMode.Pose -> {
 				when (val owner = meshSelection.activeOwner) {
 					is ElementOwner.Drawable -> SelectionTarget.Drawable(owner.id)
 					is ElementOwner.Deformer -> SelectionTarget.Deformer(owner.id)
@@ -79,10 +78,6 @@ internal fun ActiveMeshInfoLabel(
 
 			EditorMode.Object -> {
 				objectSelection.active
-			}
-
-			EditorMode.Pose -> {
-				objectSelection.active as? SelectionTarget.Deformer
 			}
 		} ?: return
 	val (nameRow, deformerName) =
@@ -94,7 +89,8 @@ internal fun ActiveMeshInfoLabel(
 			}
 
 			is SelectionTarget.Deformer -> {
-				// The lattice Edit mode shapes names itself whether or not the area shows every deformer.
+				// The lattice Edit mode shapes names itself whether or not the area shows every deformer; a posed one shows
+				// where deformers do (the UV editor is view-only in Pose mode).
 				val activeDeformer = deformerById[activeTarget.id]?.takeIf { showsDeformers || editorMode == EditorMode.Edit } ?: return
 				val partName = activeDeformer.partId?.let { partId -> partNameById[partId] }
 				infoRowOf(partName, activeDeformer.name) to activeDeformer.parent?.let { parentId -> deformerById[parentId]?.name }

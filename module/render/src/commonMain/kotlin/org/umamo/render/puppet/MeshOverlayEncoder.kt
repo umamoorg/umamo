@@ -264,7 +264,7 @@ internal class MeshOverlayEncoder(
 				continue
 			}
 
-			setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false, alphaScale = if (faded) frame.wireframeOpacity else 1f)
+			setColors(idleEdgeColorOf(entry, palette), palette.edgeSelected, palette.edgeActive, opaque = false, alphaScale = if (faded) frame.wireframeOpacity else 1f)
 			batch(entry)
 			val cullOrder = if (faded && orderTexture != null) (entry.owner as? ElementOwner.Drawable)?.let { owner -> frame.drawOrderOf[owner.id] } ?: -1 else -1
 			uniformsScratch.cullOrder = cullOrder
@@ -417,18 +417,19 @@ internal class MeshOverlayEncoder(
 				continue
 			}
 
-			val color =
+			val roleColor =
 				when (role) {
 					LatticeRole.Idle -> palette.latticeIdle
 					LatticeRole.Selected -> palette.latticeSelected
 					LatticeRole.Active -> palette.latticeActive
 				}
 			bind(pass, pipelines.overlayEdge, frame)
-			setColors(color, color, color, opaque = false)
 			uniformsScratch.sizePx = overlay.sizes.edgeWidthPx * frame.pixelScale / 2f
 
 			for (entry in entries) {
 				if ((entry.latticeRole ?: LatticeRole.Idle) == role) {
+					val color = if (entry.pending) palette.latticePending else roleColor
+					setColors(color, color, color, opaque = false)
 					batch(entry)
 					pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
 				}
@@ -439,6 +440,8 @@ internal class MeshOverlayEncoder(
 
 			for (entry in entries) {
 				if ((entry.latticeRole ?: LatticeRole.Idle) == role) {
+					val color = if (entry.pending) palette.latticePending else roleColor
+					setColors(color, color, color, opaque = false)
 					batch(entry)
 					pass.drawOverlayVertexDots(entry.buffers, store, uniformsScratch)
 				}
@@ -486,6 +489,16 @@ internal class MeshOverlayEncoder(
 		uniformsScratch.activeIndexB = indexB
 		uniformsScratch.activeIndexC = indexC
 	}
+
+	/**
+	 * The color an Edit overlay entry's unselected edges draw in: an unkeyed Pose-mode lattice's pending color, so the
+	 * cage shows what a key would capture, and every other entry's idle edge color.
+	 *
+	 * @param OverlayDrawEntry entry The entry.
+	 * @param MeshOverlayPalette palette The palette.
+	 * @return OverlayColor The color.
+	 */
+	private fun idleEdgeColorOf(entry: OverlayDrawEntry, palette: MeshOverlayPalette): OverlayColor = if (entry.pending) palette.latticePending else palette.edgeIdle
 
 	/**
 	 * Writes one domain's three colors into the scratch uniforms.

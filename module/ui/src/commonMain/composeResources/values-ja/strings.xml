@@ -385,6 +385,10 @@
 	<string name="history_lattice_scale">格子の点を拡縮</string>
 	<string name="history_lattice_rotate">格子の点を回転</string>
 	<string name="history_lattice_slide">格子の点をスライド</string>
+	<string name="history_pose_move">ポーズ：格子の点を移動</string>
+	<string name="history_pose_scale">ポーズ：格子の点を拡縮</string>
+	<string name="history_pose_rotate">ポーズ：格子の点を回転</string>
+	<string name="history_pose_slide">ポーズ：格子の点をスライド</string>
 	<string name="history_uv_move">UV を移動</string>
 	<string name="history_uv_scale">UV を拡縮</string>
 	<string name="history_uv_rotate">UV を回転</string>
@@ -532,6 +536,7 @@
 
 	<string name="notice_transform_only_drawables">変形できるのはドローアブルとワープデフォーマのみです。パーツと回転デフォーマは未対応です。</string>
 	<string name="notice_mode_pose_needs_deformer">ポーズモードにはデフォーマが必要です。</string>
+	<string name="notice_pose_lattice_edits_discarded">ポーズを動かしたため、キー未設定の格子の編集 %1$d 件を破棄しました。元に戻すには取り消してください。</string>
 	<string name="notice_transform_deformed">メッシュの変形中は変形操作できません。先にパラメータをすべてリセットしてください。</string>
 	<string name="notice_unknown">この操作は実行できません。</string>
 
@@ -785,6 +790,11 @@
 	<string name="properties_mesh">メッシュ: 頂点 %1$d / 三角 %2$d</string>
 	<string name="properties_no_mesh">メッシュなし</string>
 	<string name="properties_warp_grid">格子: %1$d × %2$d</string>
+	<string name="properties_warp_lattice">格子</string>
+	<string name="properties_warp_lattice_description">格子の形にキーが設定されているパラメータです。色は、ポーズがキーの上か、キーの間か、ポーズモードで作ったキー未設定の形があるかを示します。ここを指してキーを挿入すると、現在のポーズで格子にキーが設定されます。</string>
+	<string name="properties_warp_lattice_keyed_on">%1$s にキーあり</string>
+	<string name="properties_warp_lattice_unkeyed">キー未設定</string>
+	<string name="properties_warp_lattice_separator">、</string>
 	<string name="status_multi_selected">%1$d 個選択</string>
 
 	<!-- プロパティパネル（Blender 風のタブ式プロパティエディター）。機械翻訳の下訳、翻訳者による確認待ち。 -->
@@ -1156,6 +1166,7 @@
 	<string name="settings_colors_role_selected">選択中</string>
 	<string name="settings_colors_role_active">アクティブ</string>
 	<string name="settings_colors_role_offkey">キー外</string>
+	<string name="settings_colors_role_unkeyed">キー未設定</string>
 	<!-- リレーション選択（スポイト）：クリックで取得する対象を示すカーソル脇のバッジ。 -->
 	<string name="pick_hover_drawable">ドローアブル: %1$s</string>
 	<string name="pick_hover_part">パーツ: %1$s</string>

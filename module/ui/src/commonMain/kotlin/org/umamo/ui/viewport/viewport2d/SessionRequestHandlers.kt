@@ -2,7 +2,7 @@ package org.umamo.ui.viewport.viewport2d
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
-import org.umamo.edit.DeformerChange
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
@@ -13,14 +13,13 @@ import org.umamo.edit.SnapKind
 import org.umamo.edit.eligibleTransformTargets
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.edit.mesh.MeshTopologyOps
-import org.umamo.edit.mesh.commitLatticeReshape
 import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.mesh.commitMeshTopology
 import org.umamo.edit.mesh.commitObjectPositions
 import org.umamo.edit.mesh.commitObjectTransform
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.structure.selectableOf
-import org.umamo.edit.switchEditDrawable
+import org.umamo.edit.switchEditOwner
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.isPoseNeutral
@@ -28,16 +27,21 @@ import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.render.ViewportCamera
 import org.umamo.render.eval.warpLatticeAt
 import org.umamo.render.pick.PickCandidate
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.captureDrawableWorlds
+import org.umamo.ui.transform.commitLatticeLanding
 import org.umamo.ui.transform.coveredMedian
 import org.umamo.ui.transform.coveredVerticesOf
 import org.umamo.ui.transform.withWarpsTransformed
 import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.viewport.gizmo.HIT_RADIUS_PX
 import org.umamo.ui.viewport.gizmo.activeElementMedian
 import org.umamo.ui.viewport.gizmo.worldToScreen
 
@@ -52,9 +56,10 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  */
 
 /**
- * Alt+Q: switch the edited mesh to the drawable under the pointer.  One candidate switches directly;
- * a stack opens the overlap-picker popup (the same picker Object mode's Alt-click uses), so the
- * rigger chooses by name and thumbnail instead of blind-cycling through the layers.
+ * Alt+Q: switch the session to the owner under the pointer.  In Edit mode that is the drawable whose art is there:
+ * one candidate switches directly, and a stack opens the overlap-picker popup (the same picker Object mode's Alt-click
+ * uses), so the rigger chooses by name and thumbnail instead of blind-cycling through the layers.  In Pose mode it is
+ * the warp to pose ([poseWarpUnder]).
  *
  * @param EditorSession session The session owning the mesh selection.
  * @param PuppetViewportService service The render service (the GPU pick).
@@ -62,13 +67,19 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  * @param Offset pointer The pointer in area-local pixels.
  * @param Function onOverlapRequest Opens the overlap-picker popup for 2+ stacked candidates.
  */
-internal fun handleSwitchEditDrawableRequest(
+internal fun handleSwitchEditOwnerRequest(
 	session: EditorSession,
 	service: PuppetViewportService,
 	areaId: String,
 	pointer: Offset,
 	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
 ) {
+	if (session.mode.value == EditorMode.Pose) {
+		poseWarpUnder(session, service, areaId, pointer)?.let { warpId -> session.switchEditOwner(ElementOwner.Deformer(warpId)) }
+
+		return
+	}
+
 	val model = session.model.value
 	val candidates =
 		service.pickAllAt(areaId, pointer.x, pointer.y)
@@ -84,10 +95,54 @@ internal fun handleSwitchEditDrawableRequest(
 		// would wipe the element selection for nothing.
 		candidates.size == 1 && candidates.single().id == session.meshSelection.value.activeDrawableId -> return
 
-		candidates.size == 1 -> session.switchEditDrawable(candidates.single().id)
+		candidates.size == 1 -> session.switchEditOwner(ElementOwner.Drawable(candidates.single().id))
 
 		else -> onOverlapRequest(pointer, candidates)
 	}
+}
+
+/**
+ * The warp Alt+Q poses at [pointer] in Pose mode: the first selectable warp whose drawn lattice is under it (the
+ * posed warps draw as the session's cage, so these are the others), else the nearest warp up the deformer chain of
+ * the front-most art there that the pose draws - so pointing at art poses the lattice that moves it.
+ *
+ * @param EditorSession session The session.
+ * @param PuppetViewportService service The render service (the lattice and art picks).
+ * @param String areaId The requesting area.
+ * @param Offset pointer The pointer in area-local pixels.
+ * @return DeformerId? The warp, or null when there is none.
+ */
+private fun poseWarpUnder(
+	session: EditorSession,
+	service: PuppetViewportService,
+	areaId: String,
+	pointer: Offset,
+): DeformerId? {
+	val model = session.model.value
+	val lattice =
+		service.latticePicksAt(areaId, pointer.x, pointer.y, HIT_RADIUS_PX, LATTICE_LINE_HIT_RADIUS_PX)
+			.firstOrNull { deformerId -> model.selectableOf(SelectionTarget.Deformer(deformerId)) }
+
+	if (lattice != null) {
+		return lattice
+	}
+
+	val drawableId = service.pickAt(areaId, pointer.x, pointer.y) ?: return null
+	val deformerById = model.deformers.associateBy { deformer -> deformer.id }
+	var parentId = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.parentDeformerId
+	val seen = HashSet<DeformerId>()
+
+	while (parentId != null && seen.add(parentId)) {
+		val deformer = deformerById[parentId] ?: return null
+
+		if (deformer is Deformer.Warp && warpLatticeAt(model, session.pose.value, deformer.id, session.pendingLatticeEdits.value) != null) {
+			return deformer.id
+		}
+
+		parentId = deformer.parent
+	}
+
+	return null
 }
 
 /**
@@ -156,19 +211,22 @@ internal fun handleRipRequest(
 }
 
 /**
- * Executes the geometry-dependent Shift+S snaps for Edit mode: the cursor moves read the covered
+ * Executes the geometry-dependent Shift+S snaps for Edit and Pose mode: the cursor moves read the covered
  * world median, and the selection moves ride the same pipeline as a finished Grab (one undo step) - the
- * movement transfer for a mesh, the rest reshape for a lattice.  An unplaced cursor snaps from the world origin,
- * its conceptual resting place.  The grid snap rounds to the executing area's own grid, the lines that area draws.
+ * movement transfer for a mesh, the lattice's landing at [stage] for a lattice.  An unplaced cursor snaps from the
+ * world origin, its conceptual resting place.  The grid snap rounds to the executing area's own grid, the lines that
+ * area draws.
  *
  * @param EditorSession session The session owning the selection, cursor, and commits.
  * @param List<EditOwnerGeometry> geometries The session owners' live geometry.
+ * @param ElementEditStage stage Where [geometries] were captured.
  * @param SnapKind kind The requested snap.
  * @param Float gridStep The executing area's grid snap increment in world units.
  */
 internal fun handleEditSnapRequest(
 	session: EditorSession,
 	geometries: List<EditOwnerGeometry>,
+	stage: ElementEditStage,
 	kind: SnapKind,
 	gridStep: Float,
 ) {
@@ -209,6 +267,7 @@ internal fun handleEditSnapRequest(
 			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(coveredByMesh.size)
 			val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(coveredByMesh.size)
 			val latticeWorld = LinkedHashMap<DeformerId, FloatArray>()
+			val latticeMoved = LinkedHashMap<DeformerId, Set<Int>>()
 
 			for (coveredMesh in coveredByMesh) {
 				val geometry = coveredMesh.geometry
@@ -261,14 +320,17 @@ internal fun handleEditSnapRequest(
 
 					is LatticeWorldGeometry -> {
 						latticeWorld[geometry.deformerId] = transformedWorld
+						latticeMoved[geometry.deformerId] = covered
 					}
 				}
 			}
 
-			// A snap relocates geometry without scaling or turning it, so it files under the move label.
-			if (latticeWorld.isNotEmpty()) {
-				val landed = landedDrive(MeshDriveResult(restByDrawable, latticeWorld, model.withMeshPositions(restByDrawable)))
-				session.commitLatticeReshape(DeformerChange.ReshapeLattice(latticeWorld.keys.toList(), MeshOperatorKind.Grab), landed.model, landed.unconvertedCount)
+			// A snap relocates geometry without scaling or turning it, so it files under the move label; its lattices
+			// land at the stage they were captured at, as a finished Grab's do.
+			val landing = MeshDriveResult(restByDrawable, latticeWorld, model.withMeshPositions(restByDrawable), latticeMoved).latticeLanding(stage)
+
+			if (landing != null) {
+				session.commitLatticeLanding(landing, MeshOperatorKind.Grab)
 			} else {
 				session.commitMeshPositions(
 					MeshChange.TransformVertices(movedIndicesByDrawable, MeshOperatorKind.Grab),

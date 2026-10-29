@@ -2,8 +2,10 @@ package org.umamo.ui.viewport
 
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
+import org.umamo.edit.pinsPose
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyableTarget
@@ -53,13 +55,74 @@ class LiveParams(
 	var channelOverrides: Map<KeyableTarget, ChannelValue> = initialChannelOverrides
 
 	/**
-	 * Whole lattices standing in for warps' grid blends at the pose, published the same way as [values]: what an
-	 * Object-mode warp drag previews, moving the art under the warp without pushing a model.  Session state, so it
-	 * rides beside the pose as [channelOverrides] does; empty for none.
+	 * The session's pending Pose-mode lattices, each standing in for its warp's grid blend at the pose, published the
+	 * same way as [values].  Session state, so it rides beside the pose as [channelOverrides] does - and is suppressed
+	 * while the pose is pinned for the same reason; empty for none.
 	 */
 	@Volatile
 	var latticeOverrides: Map<DeformerId, WarpLatticeForm> = emptyMap()
+
+	/**
+	 * A gesture's per-frame lattices, published the same way as [values]: what an Object-mode warp drag or a Pose-mode
+	 * lattice drag previews, moving the art under the warp without pushing a model.  Laid over [latticeOverrides]
+	 * ([posedLattices]); empty for none.
+	 */
+	@Volatile
+	var latticePreview: Map<DeformerId, WarpLatticeForm> = emptyMap()
 }
+
+/**
+ * The pending Pose-mode lattices [mode] shows: none while it pins the pose (Edit mode shows the rest it edits), every
+ * one otherwise.  The one rule the viewport binding and a lattice gesture's end both publish by.
+ *
+ * @param EditorMode mode The editor mode.
+ * @param Map<DeformerId, WarpLatticeForm> pending The session's pending lattices.
+ * @return Map<DeformerId, WarpLatticeForm> The lattices to pose with.
+ */
+fun shownPendingLattices(
+	mode: EditorMode,
+	pending: Map<DeformerId, WarpLatticeForm>,
+): Map<DeformerId, WarpLatticeForm> = if (mode.pinsPose) emptyMap() else pending
+
+/**
+ * Writes the session's pending lattices, as [mode][EditorSession.mode] shows them, to [service] now - what a lattice
+ * gesture's end does before it clears its preview, so the frame after already shows what the gesture committed rather
+ * than waiting for the viewport binding to catch up.
+ *
+ * @param EditorSession session The session.
+ */
+fun PuppetViewportService.publishPendingLattices(session: EditorSession) {
+	setLatticeOverrides(shownPendingLattices(session.mode.value, session.pendingLatticeEdits.value))
+}
+
+/**
+ * Puts the renderer back on what the session committed after an element gesture ends: the model, then the pending
+ * lattices, then no lattice preview - in that order, so no frame shows the art back where the gesture started.
+ *
+ * @param EditorSession session The session.
+ */
+fun PuppetViewportService.resyncAfterElementGesture(session: EditorSession) {
+	setModel(session.model.value)
+	publishPendingLattices(session)
+	setLatticePreview(emptyMap())
+}
+
+/**
+ * The lattices a renderer poses with: the pending ones, each replaced where a gesture previews another.
+ *
+ * @param Map<DeformerId, WarpLatticeForm> pending The session's pending lattices.
+ * @param Map<DeformerId, WarpLatticeForm> preview A gesture's preview.
+ * @return Map<DeformerId, WarpLatticeForm> The merged lattices; one of the two maps itself when the other is empty.
+ */
+fun posedLattices(
+	pending: Map<DeformerId, WarpLatticeForm>,
+	preview: Map<DeformerId, WarpLatticeForm>,
+): Map<DeformerId, WarpLatticeForm> =
+	when {
+		preview.isEmpty() -> pending
+		pending.isEmpty() -> preview
+		else -> pending + preview
+	}
 
 /**
  * Builds the initial [LiveParams] from each parameter's default. Hosts with a headless-dump flow
@@ -106,12 +169,12 @@ class LiveParamsAdapter(private val liveParams: LiveParams, private val session:
 	 * Previews one parameter's value toward the render thread without recording an undo step (the fast
 	 * per-frame scrub path).
 	 *
-	 * Moving the pose RETIRES every pending unkeyed channel edit, on the first frame that actually moves
-	 * rather than at the gesture's end.  A pending value was chosen for one pose; carrying it across a scrub
-	 * would apply it at every pose on the way, showing a half-typed opacity as a flat override across the
-	 * whole range being scrubbed until release finally snapped it back to the track.  The session's own
-	 * commit already clears them on a pose move - this is the same rule applied to the preview path, which
-	 * does not go through commit.
+	 * Moving the pose RETIRES every pending unkeyed edit - channel values and Pose-mode lattices alike - on the
+	 * first frame that actually moves rather than at the gesture's end.  A pending value was chosen for one pose;
+	 * carrying it across a scrub would apply it at every pose on the way, showing a half-typed opacity as a flat
+	 * override across the whole range being scrubbed until release finally snapped it back to the track.  The
+	 * session's own commit already clears them on a pose move - this is the same rule applied to the preview path,
+	 * which does not go through commit - and says near the cursor how many shaped lattices went.
 	 *
 	 * Refused while the pose is pinned: the hand-off then holds the rest pose Edit mode shows, and a
 	 * preview written into it would pose the rig under an edit of its neutral state.
@@ -131,7 +194,7 @@ class LiveParamsAdapter(private val liveParams: LiveParams, private val session:
 		}
 
 		liveParams.values = current + (id to value)
-		session.clearPendingChannelEdits()
+		session.discardPendingEditsForPose()
 	}
 
 	/**

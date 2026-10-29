@@ -265,6 +265,9 @@ enum class TrackRowTone {
  * @property TrackRowTone tone The row's color band.
  * @property List<TrackKeyMark> marks The row's marks, in any order.
  * @property List<TrackRow> children Rows nested under this one, shown only while it is expanded.
+ * @property Float? pendingAt Where along the axis the row holds an edit not yet keyed, drawn as a hollow mark in the
+ *   modified color; null for none.  Not a key - it neither picks nor drags - only a reminder that keying there
+ *   would store something new.
  */
 data class TrackRow(
 	val key: String,
@@ -273,6 +276,7 @@ data class TrackRow(
 	val tone: TrackRowTone = TrackRowTone.Primary,
 	val marks: List<TrackKeyMark> = emptyList(),
 	val children: List<TrackRow> = emptyList(),
+	val pendingAt: Float? = null,
 )
 
 /**

@@ -89,7 +89,7 @@ internal fun latticeReshapeOf(model: PuppetModel, targetWorldById: Map<DeformerI
  * @param Map<DeformerId, DeformerId?> parentById Each deformer's parent.
  * @return Int The ancestor count.
  */
-private fun ancestorDepth(deformerId: DeformerId, parentById: Map<DeformerId, DeformerId?>): Int {
+internal fun ancestorDepth(deformerId: DeformerId, parentById: Map<DeformerId, DeformerId?>): Int {
 	var depth = 0
 	var parent = parentById[deformerId]
 	val seen = HashSet<DeformerId>()

@@ -64,7 +64,7 @@ internal fun everyStatusHintFor(commands: List<Command>, keymap: Keymap, hovered
 	val suggested =
 		commands.mapNotNull { command ->
 			command.hint
-				?.takeIf { hint -> command.isOfferedIn(hoveredKind) && hint.suggestedWhen.isAvailable() }
+				?.takeIf { hint -> command.isOfferedIn(hoveredKind) && hint.suggestedWhen.isAvailable() && hint.suggestedOver?.appliesIn(hoveredKind) != false }
 				?.let { hint -> hint.label to command }
 		}
 	// A stable sort, so each tier keeps registration order.

@@ -433,6 +433,10 @@
 	<string name="history_lattice_scale">Scale Lattice Points</string>
 	<string name="history_lattice_rotate">Rotate Lattice Points</string>
 	<string name="history_lattice_slide">Slide Lattice Point</string>
+	<string name="history_pose_move">Pose: Move Lattice Points</string>
+	<string name="history_pose_scale">Pose: Scale Lattice Points</string>
+	<string name="history_pose_rotate">Pose: Rotate Lattice Points</string>
+	<string name="history_pose_slide">Pose: Slide Lattice Point</string>
 	<string name="history_uv_move">Move UVs</string>
 	<string name="history_uv_scale">Scale UVs</string>
 	<string name="history_uv_rotate">Rotate UVs</string>
@@ -584,6 +588,7 @@
 	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
 	<string name="notice_transform_only_drawables">Only drawables and warp deformers can be transformed.  Parts and rotation deformers are not yet supported.</string>
 	<string name="notice_mode_pose_needs_deformer">Pose mode needs a deformer to pose.</string>
+	<string name="notice_pose_lattice_edits_discarded">Moving the pose discarded %1$d unkeyed lattice edit(s).  Undo to bring them back.</string>
 	<string name="notice_transform_deformed">Can't transform while mesh is deformed.  Reset all parameters first.</string>
 	<string name="notice_unknown">Action unavailable.</string>
 
@@ -856,6 +861,11 @@
 	<string name="properties_mesh">Mesh: %1$d verts, %2$d tris</string>
 	<string name="properties_no_mesh">No mesh</string>
 	<string name="properties_warp_grid">Grid: %1$d × %2$d</string>
+	<string name="properties_warp_lattice">Lattice</string>
+	<string name="properties_warp_lattice_description">The parameters the lattice's shape is keyed on.  The tint shows whether the pose sits on a key, between keys, or holds a shape made in Pose mode and not yet keyed; point here and insert a key to key the lattice at the pose.</string>
+	<string name="properties_warp_lattice_keyed_on">Keyed on %1$s</string>
+	<string name="properties_warp_lattice_unkeyed">Not keyed</string>
+	<string name="properties_warp_lattice_separator">, </string>
 	<string name="status_multi_selected">%1$d selected</string>
 
 	<!--
@@ -1242,6 +1252,7 @@
 	<string name="settings_colors_role_selected">Selected</string>
 	<string name="settings_colors_role_active">Active</string>
 	<string name="settings_colors_role_offkey">Off-key</string>
+	<string name="settings_colors_role_unkeyed">Unkeyed</string>
 	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Part: %1$s</string>

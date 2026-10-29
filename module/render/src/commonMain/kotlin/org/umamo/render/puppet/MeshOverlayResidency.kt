@@ -26,6 +26,7 @@ import org.umamo.runtime.model.PuppetModel
  *   only in a frame that draws the wireframe.
  * @property ElementOwner owner The mesh's owner; a drawable owner is how a culling frame finds its draw order.
  * @property LatticeRole? latticeRole Its lattice color, read only by a lattice overlay.
+ * @property Boolean pending Whether it is an unkeyed Pose-mode lattice, drawn in the lattice pending color.
  */
 internal class OverlayDrawEntry(
 	val buffers: OverlayMeshBuffers,
@@ -40,6 +41,7 @@ internal class OverlayDrawEntry(
 	val wireframeOnly: Boolean,
 	val owner: ElementOwner,
 	val latticeRole: LatticeRole? = null,
+	val pending: Boolean = false,
 )
 
 /**
@@ -94,6 +96,7 @@ internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers
 		wireframeOnly = mesh.wireframeOnly,
 		owner = mesh.owner,
 		latticeRole = mesh.latticeRole,
+		pending = mesh.pending,
 	)
 }
 

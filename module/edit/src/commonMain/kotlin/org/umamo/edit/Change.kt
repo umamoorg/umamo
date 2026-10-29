@@ -408,6 +408,25 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
+	 * Shapes one or more warps' lattices at the pose without keying them (a finished Pose-mode G / S / R, Vertex
+	 * Slide, or snap over lattice points): the shaped lattices are held pending until a key consumes them or the
+	 * pose moves, and the model is untouched.  Labelled by the operator, like a mesh transform.
+	 *
+	 * @property List<DeformerId> deformerIds The shaped warps.
+	 * @property MeshOperatorKind kind The operator that shaped them.
+	 */
+	data class PoseLattice(val deformerIds: List<DeformerId>, val kind: MeshOperatorKind) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String =
+			when (kind) {
+				MeshOperatorKind.Grab -> "change.pose.move"
+				MeshOperatorKind.Scale -> "change.pose.scale"
+				MeshOperatorKind.Rotate -> "change.pose.rotate"
+				MeshOperatorKind.VertexSlide -> "change.pose.slide"
+			}
+	}
+
+	/**
 	 * Sets a deformer's static opacity - the value its opacity channel falls back to when unkeyed.
 	 *
 	 * A deformer's render channels CASCADE: this multiplies onto every drawable beneath it, so it is not

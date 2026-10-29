@@ -10,9 +10,11 @@ import org.umamo.edit.keyform.channelValueAt
 import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.channelGridsOf
@@ -20,6 +22,7 @@ import org.umamo.ui.kit.field.KeyedFieldState
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
+import org.umamo.ui.viewport.shownPendingLattices
 
 /*
  * Resolving a properties-panel row's keyed state from the session.
@@ -59,6 +62,23 @@ internal fun keyedFieldStateOf(owner: KeyformOwner, channel: FormChannel): Keyed
 		pose = displayPose(session),
 		pendingEdits = pendingEdits,
 	)
+}
+
+/**
+ * The keyed state of [warp]'s lattice at the displayed pose: pending while it holds an unkeyed Pose-mode shape the
+ * viewport shows, else on or between the keys of its geometry grid.
+ *
+ * @param Deformer.Warp warp The warp the row describes.
+ * @return KeyedFieldState The state to tint the row with.
+ */
+@Composable
+internal fun keyedLatticeStateOf(warp: Deformer.Warp): KeyedFieldState {
+	val puppet = LocalPuppet.current ?: return KeyedFieldState.None
+	val session = LocalEditorSession.current ?: return KeyedFieldState.None
+	val pendingLattices by remember(session) { session.pendingLatticeEdits }.collectAsState()
+	val mode by remember(session) { session.mode }.collectAsState()
+
+	return keyedGridStateOf(puppet, warp.geometryGrid, displayPose(session), warp.id in shownPendingLattices(mode, pendingLattices))
 }
 
 /**
@@ -172,10 +192,29 @@ fun keyedFieldStateOf(
 	target: KeyableTarget,
 	pose: Pose,
 	pendingEdits: Map<KeyableTarget, ChannelValue>,
-): KeyedFieldState {
-	val track = puppet.channelGridsOf(target.owner)?.get(target.channel) ?: return KeyedFieldState.None
+): KeyedFieldState = keyedGridStateOf(puppet, puppet.channelGridsOf(target.owner)?.get(target.channel), pose, target in pendingEdits)
 
-	if (target in pendingEdits) {
+/**
+ * The keyed state of a track [grid] at [pose], by the rules [keyedFieldStateOf] spells out: no grid is
+ * [KeyedFieldState.None], a pending edit is [KeyedFieldState.ModifiedUnkeyed], and otherwise the pose sits on a key
+ * of every axis or between keys.  Shared by a channel's field and a warp lattice's row, so the two cannot read one
+ * situation differently.
+ *
+ * @param PuppetModel puppet The rig, for the parameters' defaults.
+ * @param KeyformGrid? grid The track's grid, or null when the property carries none.
+ * @param Pose pose The current pose.
+ * @param Boolean pending Whether an edit of it is pending.
+ * @return KeyedFieldState The state to tint with.
+ */
+fun keyedGridStateOf(
+	puppet: PuppetModel,
+	grid: KeyformGrid<*>?,
+	pose: Pose,
+	pending: Boolean,
+): KeyedFieldState {
+	val track = grid ?: return KeyedFieldState.None
+
+	if (pending) {
 		return KeyedFieldState.ModifiedUnkeyed
 	}
 

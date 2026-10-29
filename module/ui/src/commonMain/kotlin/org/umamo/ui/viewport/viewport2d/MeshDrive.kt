@@ -11,23 +11,27 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.transform.DrawableWorldGeometry
-import org.umamo.ui.transform.LatticeReshape
+import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.LatticeLanding
 import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.transform.latticeReshapeOf
+import org.umamo.ui.transform.posedLatticeForms
 import org.umamo.ui.viewport.gizmo.DRIVE_MIN_CHUNK_WEIGHT
 import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.mapInBalancedChunks
 import org.umamo.ui.viewport.gizmo.slideVertexByFactor
 
 /*
- * The 2D modal drive's compute, shared by the Edit and Object transforms and the operation settings strip's
+ * The 2D modal drive's compute, shared by the Edit, Pose, and Object transforms and the operation settings strip's
  * replays: each moving mesh's frozen world shape through the operator (or the Vertex Slide), back through its
  * deformer chain onto its rest arrays, then one batch fold into the model.  A moving lattice's points come out in
- * world space as they are: a lattice drag moves the cage and never the art, so nothing inverts or folds per frame,
- * and only the landing lowers them onto the model (latticeReshapeOf).  Pure over its request, so the drive worker
- * can run it off the UI thread, and the per-owner step in parallel.
+ * world space as they are.  At rest a lattice drag moves the cage and never the art, so nothing more happens per
+ * frame and only the landing lowers the points onto the model (latticeReshapeOf); at the pose the art follows, so
+ * each frame lowers them to the pending forms the renderer previews (posedLatticeForms).  Pure over its request, so
+ * the drive worker can run it off the UI thread, and the per-owner step in parallel.
  */
 
 /**
@@ -80,6 +84,7 @@ internal class SlideMove(
  * @property List<MeshDriveJob> jobs The moving meshes, in capture order.
  * @property SlideMove? slide The Vertex Slide's landing, or null (for a slide, the pointer landed on no edge).
  * @property PuppetModel baseModel The model the new rest shapes fold onto.
+ * @property ElementEditStage stage Where the moving lattices were captured, and so how they land.
  */
 internal class MeshDriveRequest(
 	val operator: MeshOperatorKind,
@@ -87,6 +92,7 @@ internal class MeshDriveRequest(
 	val jobs: List<MeshDriveJob>,
 	val slide: SlideMove?,
 	val baseModel: PuppetModel,
+	val stage: ElementEditStage = ElementEditStage.Rest,
 )
 
 /**
@@ -95,13 +101,18 @@ internal class MeshDriveRequest(
  * @property Map<DrawableId, MeshRestPositions> preview Each moving mesh's new rest shape, in capture order.
  * @property Map<DeformerId, FloatArray> latticeWorld Each moving lattice's new points in world space, interleaved
  *   x, z, in capture order.
- * @property PuppetModel folded The request's base model with the meshes folded in; the lattices are not, since a
- *   lattice drag never moves the art until it lands.
+ * @property PuppetModel folded The request's base model with the meshes folded in; the lattices are not - they land
+ *   through [latticeLanding].
+ * @property Map<DeformerId, Set<Int>> latticeMoved Each moving lattice's moved points.
+ * @property Map<DeformerId, WarpLatticeForm> latticeForms At the pose, each moving lattice lowered to the pending form
+ *   the renderer previews; empty at rest.
  */
 internal class MeshDriveResult(
 	val preview: Map<DrawableId, MeshRestPositions>,
 	val latticeWorld: Map<DeformerId, FloatArray>,
 	val folded: PuppetModel,
+	val latticeMoved: Map<DeformerId, Set<Int>> = emptyMap(),
+	val latticeForms: Map<DeformerId, WarpLatticeForm> = emptyMap(),
 )
 
 /**
@@ -201,7 +212,8 @@ internal suspend fun computeMeshDriveParallel(request: MeshDriveRequest, minChun
 }
 
 /**
- * Gathers each job's outcome and folds the meshes' new rest shapes onto the request's model in one pass.
+ * Gathers each job's outcome and folds the meshes' new rest shapes onto the request's model in one pass; at the pose,
+ * the moved lattices are lowered to their pending forms too, so the frame can preview them.
  *
  * @param MeshDriveRequest request The request.
  * @param List<MeshJobOutcome> outcomes Each job's outcome, in job order.
@@ -218,21 +230,32 @@ private fun foldMeshDrive(request: MeshDriveRequest, outcomes: List<MeshJobOutco
 		}
 	}
 
-	return MeshDriveResult(preview, latticeWorld, request.baseModel.withMeshPositions(preview))
+	val latticeMoved = request.jobs.filter { job -> job.owner is ElementOwner.Deformer }.associate { job -> (job.owner as ElementOwner.Deformer).id to job.movedIndices }
+	val latticeForms =
+		when (val stage = request.stage) {
+			ElementEditStage.Rest -> emptyMap()
+			is ElementEditStage.Posed -> posedLatticeForms(request.baseModel, stage, latticeWorld, latticeMoved)
+		}
+
+	return MeshDriveResult(preview, latticeWorld, request.baseModel.withMeshPositions(preview), latticeMoved, latticeForms)
 }
 
 /**
- * The model a drive lands as: its meshes folded in, and its lattices lowered onto that as a rest reshape
- * ([latticeReshapeOf]), which reshapes each warp's every form and keeps its children in place.  What a confirm
- * commits and an operation strip rerun amends with, so the two cannot drift apart.
+ * Where a drive's lattices land at [stage], or null when it moved none: at rest, a reshape of every form of each warp
+ * over the folded meshes with its children kept in place ([latticeReshapeOf]); at the pose, the pending forms the drive
+ * lowered them to (lowered here when it did not, as a snap's hand-built result does not).  What a confirm commits and an
+ * operation strip rerun amends with, so the two cannot drift apart.
  *
- * @param MeshDriveResult result The drive.
- * @return LatticeReshape The landed model, with the children a lattice reshape could not keep in place (none
- *   when the drive moved no lattice).
+ * @param ElementEditStage stage Where the lattices were captured.
+ * @return LatticeLanding? The landing, or null when no lattice moved.
  */
-internal fun landedDrive(result: MeshDriveResult): LatticeReshape =
-	if (result.latticeWorld.isEmpty()) {
-		LatticeReshape(result.folded, emptyList(), emptyList())
-	} else {
-		latticeReshapeOf(result.folded, result.latticeWorld)
+internal fun MeshDriveResult.latticeLanding(stage: ElementEditStage): LatticeLanding? {
+	if (latticeWorld.isEmpty()) {
+		return null
 	}
+
+	return when (stage) {
+		ElementEditStage.Rest -> LatticeLanding.Reshape(latticeWorld.keys.toList(), latticeReshapeOf(folded, latticeWorld))
+		is ElementEditStage.Posed -> LatticeLanding.Posed(latticeForms.ifEmpty { posedLatticeForms(folded, stage, latticeWorld, latticeMoved) })
+	}
+}

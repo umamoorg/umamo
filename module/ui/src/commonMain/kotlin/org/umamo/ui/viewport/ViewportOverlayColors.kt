@@ -20,7 +20,7 @@ import org.umamo.ui.rememberStringSetting
 /**
  * The settings keys and bundled defaults for the viewport overlay colors, one #AARRGGBB hex string
  * each: the Edit-mode element palette (vertex / edge / face by idle / selected / active / off-key),
- * the placement state colors, the selection highlights, and the warp lattice by role.  The lattice's
+ * the placement state colors, the selection highlights, and the warp lattice by role and while unkeyed.  The lattice's
  * selected and active defaults are the selection highlights', so a selected warp reads as selected art does.  The defaults here are kept in lockstep
  * with defaultSettings.json (the merged-settings baseline); these constants are the Kotlin-side
  * fallback for a missing or unparseable value, shared by the overlays, the GL viewport binding, and
@@ -46,6 +46,7 @@ internal object ViewportColorSettings {
 	const val LATTICE_IDLE_KEY = "viewport.deformer.latticeIdle"
 	const val LATTICE_SELECTED_KEY = "viewport.deformer.latticeSelected"
 	const val LATTICE_ACTIVE_KEY = "viewport.deformer.latticeActive"
+	const val LATTICE_PENDING_KEY = "viewport.deformer.latticePending"
 
 	const val VERTEX_IDLE_DEFAULT = "#FFFF00EC"
 	const val VERTEX_SELECTED_DEFAULT = "#FFFF7A00"
@@ -66,6 +67,7 @@ internal object ViewportColorSettings {
 	const val LATTICE_IDLE_DEFAULT = "#B3404040"
 	const val LATTICE_SELECTED_DEFAULT = "#FF338CFF"
 	const val LATTICE_ACTIVE_DEFAULT = "#FF7DE400"
+	const val LATTICE_PENDING_DEFAULT = "#FFDF8431"
 }
 
 /**
@@ -93,6 +95,7 @@ internal object ViewportColorSettings {
  * @property Color latticeIdle A warp lattice shown only because its area shows every deformer.
  * @property Color latticeSelected A selected warp's lattice.
  * @property Color latticeActive The active warp's lattice.
+ * @property Color latticePending A warp lattice shaped in Pose mode and not yet keyed, whatever its role.
  */
 internal data class ViewportOverlayColors(
 	val vertexIdle: Color,
@@ -114,6 +117,7 @@ internal data class ViewportOverlayColors(
 	val latticeIdle: Color,
 	val latticeSelected: Color,
 	val latticeActive: Color,
+	val latticePending: Color,
 )
 
 /**
@@ -145,10 +149,11 @@ internal fun rememberViewportOverlayColors(): ViewportOverlayColors =
 		latticeIdle = settingColor(ViewportColorSettings.LATTICE_IDLE_KEY, ViewportColorSettings.LATTICE_IDLE_DEFAULT),
 		latticeSelected = settingColor(ViewportColorSettings.LATTICE_SELECTED_KEY, ViewportColorSettings.LATTICE_SELECTED_DEFAULT),
 		latticeActive = settingColor(ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT),
+		latticePending = settingColor(ViewportColorSettings.LATTICE_PENDING_KEY, ViewportColorSettings.LATTICE_PENDING_DEFAULT),
 	)
 
 /**
- * The nine Edit-mode element colors, the two placement colors, and the three lattice colors as the renderer's
+ * The nine Edit-mode element colors, the two placement colors, and the four lattice colors as the renderer's
  * mesh overlay palette, straight alpha, each channel the color's own 0..1 component.  The off-key trio is drawn
  * nowhere and stays out.
  *
@@ -170,6 +175,7 @@ internal fun ViewportOverlayColors.toMeshOverlayPalette(): MeshOverlayPalette =
 		latticeIdle = latticeIdle.toOverlayColor(),
 		latticeSelected = latticeSelected.toOverlayColor(),
 		latticeActive = latticeActive.toOverlayColor(),
+		latticePending = latticePending.toOverlayColor(),
 	)
 
 /**

@@ -41,7 +41,7 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.pinsPose
-import org.umamo.edit.switchEditDrawable
+import org.umamo.edit.switchEditOwner
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
@@ -50,8 +50,11 @@ import org.umamo.render.SourceArtRasters
 import org.umamo.render.ViewportCamera
 import org.umamo.render.buildLayerDrawPlan
 import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.LocalSettings
@@ -80,6 +83,8 @@ import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.parseSelectionHighlightColor
 import org.umamo.ui.viewport.rememberViewportOverlayColors
+import org.umamo.ui.viewport.resyncAfterElementGesture
+import org.umamo.ui.viewport.shownPendingLattices
 import org.umamo.ui.viewport.toMeshOverlayPalette
 import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.workspace.ViewportHost
@@ -312,13 +317,20 @@ fun rememberPuppetViewportHost(
 	LaunchedEffect(service, session) {
 		publishLatticeOverlay(service, session, snapshotFlow { latticeSizes.value })
 	}
-	// The Edit cage of the warps a session shapes, drawn from positions of its own: the rest lattice, or the points a
-	// drag has moved, so the cage follows the drag while the art stays put.  The window's live mesh preview carries
-	// the drag; the shell provides it to what it composes and the host is built outside the shell, so the host learns
-	// it through its areas.
+	// The cage of the warps an Edit or Pose session shapes, drawn from positions of its own: the lattice as the shown
+	// pose draws it, or the points a rest drag has moved (the art stays put) or the forms a posed drag previews (the
+	// art follows).  The window's live mesh preview carries the drag; the shell provides it to what it composes and the
+	// host is built outside the shell, so the host learns it through its areas.  The pose is the hand-off's, so a
+	// scrub carries the cage along frame by frame.
 	val livePreviewLink = remember(service) { mutableStateOf<LiveMeshPreview?>(null) }
 	LaunchedEffect(service, session) {
-		publishLatticeCage(service, session, snapshotFlow { meshOverlaySizes.value }, snapshotFlow { livePreviewLink.value?.latticeWorldByDeformer })
+		publishLatticeCage(
+			service,
+			session,
+			snapshotFlow { meshOverlaySizes.value },
+			snapshotFlow { livePreviewLink.value?.let { preview -> LatticeDragPreview(preview.latticeWorldByDeformer, preview.latticeFormsByDeformer) } },
+			snapshotFlow { liveParams.observed },
+		)
 	}
 	// How many drawables have no usable artwork: the mapping failures the plan knows up front, plus the
 	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
@@ -421,6 +433,12 @@ fun rememberPuppetViewportHost(
 		combine(session.pendingChannelEdits, session.mode) { pending, mode ->
 			if (mode.pinsPose) emptyMap() else pending
 		}.collect { effectiveOverrides -> liveParams.channelOverrides = effectiveOverrides }
+	}
+	// Pending Pose-mode lattices reach the renderer the same way and are suppressed in Edit mode for the same
+	// reason: each stands in for its warp's grid blend at the pose, so the art follows the shape a key would capture.
+	LaunchedEffect(service, session) {
+		combine(session.pendingLatticeEdits, session.mode) { pending, mode -> shownPendingLattices(mode, pending) }
+			.collect { shown -> service.setLatticeOverrides(shown) }
 	}
 	// Feed the zoom-increment settings into the service and keep them live as settings change; the keys,
 	// defaults, and highlight parser are shared with the preferences window via ViewportSettings.
@@ -574,10 +592,10 @@ fun rememberPuppetViewportHost(
 									onDismiss = { overlap = null },
 								)
 							}
-							// The Edit-mode gizmo over the puppet image: the element selection, the modal
-							// transforms, and their chrome; the mesh itself is in the image (the overlay
-							// published above).  It self-gates on Edit mode with an active drawable, so it is inert
-							// (and passes input through) otherwise.  It projects with the DISPLAYED frame's camera,
+							// The element gizmo of Edit and Pose mode over the puppet image: the element selection, the
+							// modal transforms, and their chrome; the mesh or cage itself is in the image (the overlays
+							// published above).  It self-gates on a mode that edits elements with something in the
+							// session, so it is inert (and passes input through) otherwise.  It projects with the DISPLAYED frame's camera,
 							// not the live one: the raster lands a few frames behind, and the frame's camera keeps
 							// the chrome glued to it during pan and zoom.
 							ViewportEditGizmoOverlay(
@@ -590,17 +608,17 @@ fun rememberPuppetViewportHost(
 								areaPointer = areaPointer,
 								onOverlapRequest = { position, candidates ->
 									// Edit mode's Alt+Q over a stack: picking a row switches the edited mesh
-									// (never the object selection - that follows inside switchEditDrawable).
+									// (never the object selection - that follows inside switchEditOwner).
 									overlap =
 										overlapStateFrom(service, session.model.value, position, candidates.asObjectPickCandidates()) { target ->
-											(target as? SelectionTarget.Drawable)?.let { picked -> session.switchEditDrawable(picked.id) }
+											(target as? SelectionTarget.Drawable)?.let { picked -> session.switchEditOwner(ElementOwner.Drawable(picked.id)) }
 										}
 								},
 							)
-							// The Object-mode gizmo: the mode-exclusive sibling of the Edit gizmo (each self-gates to
-							// its mode). It owns the whole primary-button surface in Object and Pose mode - the click
-							// pick (including the Alt overlap popup), the un-armed box drag, and the armed box / circle
-							// tools, and in Object mode object G / S / R. Same frame-camera projection as the Edit gizmo so the
+							// The Object-mode gizmo: the mode-exclusive sibling of the element gizmo (each self-gates to
+							// its modes). It owns the whole primary-button surface in Object mode - the click pick
+							// (including the Alt overlap popup), the un-armed box drag, the armed box / circle tools,
+							// and object G / S / R. Same frame-camera projection as the Edit gizmo so the
 							// affordance stays glued to the art.
 							ViewportObjectGizmoOverlay(
 								areaId = areaId,
@@ -677,11 +695,15 @@ fun rememberPuppetViewportHost(
 					service.setModel(model)
 				}
 
+				override fun previewLattices(forms: Map<DeformerId, WarpLatticeForm>) {
+					service.setLatticePreview(forms)
+				}
+
 				override fun resync() {
 					// Cleared before the renderer is restored: a surface reading the preview must never be
 					// left holding one the renderer has already dropped.
 					previewState.value = null
-					service.setModel(session.model.value)
+					service.resyncAfterElementGesture(session)
 				}
 			}
 		PuppetViewportBinding(

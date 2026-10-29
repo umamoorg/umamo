@@ -1,11 +1,18 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.KeyformAim
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.keyform.captureKeyOnTrack
+import org.umamo.edit.keyform.captureKeysOnTracks
 import org.umamo.edit.keyform.removeKeyOnTrack
+import org.umamo.edit.keyform.removeKeysOnTracks
 import org.umamo.edit.keyform.removeTrackKeys
 import org.umamo.edit.keyform.removingKeys
+import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.resources.*
@@ -15,8 +22,8 @@ import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
 
 /*
- * The keyform-authoring command table: insert / delete on the hovered keyable property, and the keyform
- * sheet's own selection and view operations.
+ * The keyform-authoring command table: insert / delete on the hovered keyable property or, over a Pose-mode 2D
+ * viewport, on the warps it poses, and the keyform sheet's own selection and view operations.
  *
  * What is here is POINTER bookkeeping, not authoring rules.  A command resolves what the pointer is over,
  * refuses when that is nothing, and hands the plain description of it - track, parameter, aim - to the
@@ -26,12 +33,13 @@ import org.umamo.ui.workspace.SpaceScope
  *
  * Every target resolves at DISPATCH time (the hovered keyable, the hovered sheet), never latched at
  * registration - the same rule the viewport commands follow, and what lets `I` work with no prior
- * selection: point at Opacity and press it.
+ * selection: point at Opacity and press it.  Over a 2D viewport in Pose mode the target is the posed warps'
+ * lattices on the selected parameter (posedLatticeTracks), what Pose mode shapes.
  */
 
 /**
- * The keyform-authoring commands: insert / delete a key on the hovered keyable, and the keyform sheet's
- * delete-selected / nudge / frame-all.
+ * The keyform-authoring commands: insert / delete a key on the hovered keyable (or the posed warps' lattices over a
+ * Pose-mode 2D viewport), and the keyform sheet's delete-selected / nudge / frame-all.
  *
  * The sheet commands are registered ONCE here rather than per sheet area: CommandRegistry is
  * last-write-wins per id, so per-area registration made two open sheets clobber each other's handlers and
@@ -70,13 +78,20 @@ internal fun keyformCommands(
 			title = Res.string.cmd_keyform_insert,
 			availability = availability.hasDocument,
 			spaces = SpaceScope.KeyableSurfaces,
-			hint = CommandHint(Res.string.status_bind_insert_key),
+			// Suggested over the sheet and Properties alone: over a 2D viewport it keys only in Pose mode.
+			hint = CommandHint(Res.string.status_bind_insert_key, suggestedOver = SpaceScope.of(SpaceKind.KeyformSheet, SpaceKind.Properties)),
 		) {
 			editorSession?.let { session ->
-				aimedKeyable(session, hoveredKeyable())?.let { hover ->
-					// The hovered row goes with it, so the insert shifts the sheet's key selection past the key
-					// it adds instead of handing that key the selected mark's ordinal.
-					session.captureKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
+				val posed = posedLatticeTracks(session, routing)
+
+				if (posed != null) {
+					session.captureKeysOnTracks(posed, null, KeyformAim.Pose)
+				} else {
+					aimedKeyable(session, hoveredKeyable())?.let { hover ->
+						// The hovered row goes with it, so the insert shifts the sheet's key selection past the key
+						// it adds instead of handing that key the selected mark's ordinal.
+						session.captureKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
+					}
 				}
 			}
 		},
@@ -85,13 +100,19 @@ internal fun keyformCommands(
 			title = Res.string.cmd_keyform_delete,
 			availability = availability.hasDocument,
 			spaces = SpaceScope.KeyableSurfaces,
-			hint = CommandHint(Res.string.status_bind_delete_key),
+			hint = CommandHint(Res.string.status_bind_delete_key, suggestedOver = SpaceScope.of(SpaceKind.KeyformSheet, SpaceKind.Properties)),
 		) {
 			editorSession?.let { session ->
-				aimedKeyable(session, hoveredKeyable())?.let { hover ->
-					// The hovered row goes with it, so the removal re-points the sheet's key selection at what
-					// survives instead of leaving it on the ordinal the removal frees - the neighbouring key.
-					session.removeKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
+				val posed = posedLatticeTracks(session, routing)
+
+				if (posed != null) {
+					session.removeKeysOnTracks(posed, null, KeyformAim.Pose)
+				} else {
+					aimedKeyable(session, hoveredKeyable())?.let { hover ->
+						// The hovered row goes with it, so the removal re-points the sheet's key selection at what
+						// survives instead of leaving it on the ordinal the removal frees - the neighbouring key.
+						session.removeKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
+					}
 				}
 			}
 		},
@@ -118,6 +139,30 @@ internal fun keyformCommands(
 			keyformSheets.resolve(hoveredSheetArea())?.frameAll?.invoke()
 		},
 	)
+}
+
+/**
+ * The lattice tracks a key over a Pose-mode 2D viewport writes on - every warp the session poses, which D9's "the
+ * selected deformers" is in Pose mode - or null when the pointer is not over a 2D viewport in Pose mode, so the
+ * command falls back to the hovered keyable.  An empty session refuses with a notice and answers an empty list, so
+ * the command does nothing more.
+ *
+ * @param EditorSession session The session.
+ * @param CommandRouting routing Resolves the hovered surface.
+ * @return List<KeyformTrackRef>? The tracks, or null when the viewport rule does not apply.
+ */
+private fun posedLatticeTracks(session: EditorSession, routing: CommandRouting): List<KeyformTrackRef>? {
+	if (session.mode.value != EditorMode.Pose || routing.viewportArea() == null) {
+		return null
+	}
+
+	val tracks = session.meshSelection.value.owners.mapNotNull { owner -> (owner as? ElementOwner.Deformer)?.let { warp -> KeyformTrackRef.Geometry(KeyformOwner.Deformer(warp.id)) } }
+
+	if (tracks.isEmpty()) {
+		session.emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
+	}
+
+	return tracks
 }
 
 /**

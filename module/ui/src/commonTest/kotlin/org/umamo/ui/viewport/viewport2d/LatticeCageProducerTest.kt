@@ -7,17 +7,21 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.setMeshSelectMode
+import org.umamo.render.eval.warpLatticeAt
 import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.OVERLAY_FLAG_ACTIVE
 import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 /**
  * Pins the 2D viewport's lattice cage: a lattice draws as its grid lines alone, never its cells' diagonals, its cells
@@ -101,7 +105,7 @@ class LatticeCageProducerTest {
 		assertSame(first, producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, null), "nothing changed")
 
 		val dragged = floatArrayOf(10f, 0f, 40f, 0f, 0f, -40f, 40f, -40f)
-		val moving = assertNotNull(producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, mapOf(LATTICE_RIG_BODY to dragged)))
+		val moving = assertNotNull(producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, LatticeDragPreview(mapOf(LATTICE_RIG_BODY to dragged), null)))
 		assertSame(first.overlay, moving.overlay, "a drag keeps the overlay")
 		assertNear(floatArrayOf(10f, 0f, 40f, 0f, 0f, -40f, 40f, -40f, 22.5f, -20f), moving.positionsById.getValue(owner), "the cage follows the drag, its center with it")
 
@@ -118,5 +122,27 @@ class LatticeCageProducerTest {
 		val meshSession = latticeRigSession(listOf(SelectionTarget.Drawable(LATTICE_RIG_ART)))
 		meshSession.setMode(EditorMode.Edit)
 		assertNull(producer.produce(meshSession.mode.value, meshSession.meshSelection.value, meshSession.model.value, sizes, null), "a mesh session's cage rides the art")
+	}
+
+	@Test
+	fun inPoseModeTheCageIsTheLatticeAtThePoseMarkedWhilePending() {
+		val session = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+		session.setMode(EditorMode.Pose)
+		val pose = mapOf(LATTICE_RIG_PARAMETER to 0.5f)
+		val grid = assertNotNull(warpLatticeAt(session.model.value, pose, LATTICE_RIG_BODY)).gridLocal
+		val pending = mapOf(LATTICE_RIG_BODY to WarpLatticeForm(FloatArray(grid.size) { componentIndex -> grid[componentIndex] + if (componentIndex % 2 == 0) 5f else 0f }))
+		val producer = LatticeCageProducer()
+
+		val held = assertNotNull(producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, null, pose, pending))
+		val heldWorld = assertNotNull(warpLatticeAt(session.model.value, pose, LATTICE_RIG_BODY, pending)).world
+		assertNear(heldWorld, held.positionsById.getValue(owner).copyOf(heldWorld.size), "the cage is the posed lattice with its pending shape")
+		assertTrue(held.overlay.meshes.single().pending, "and is marked pending")
+
+		val dragForms = mapOf(LATTICE_RIG_BODY to WarpLatticeForm(FloatArray(grid.size) { componentIndex -> grid[componentIndex] + if (componentIndex % 2 == 0) 9f else 0f }))
+		val dragged = assertNotNull(producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, LatticeDragPreview(null, dragForms), pose, pending))
+		assertEquals(heldWorld[0] + 4f, dragged.positionsById.getValue(owner)[0], 1e-3f, "a posed drag's forms win over the pending ones")
+
+		val keyed = assertNotNull(producer.produce(session.mode.value, session.meshSelection.value, session.model.value, sizes, null, pose, emptyMap()))
+		assertFalse(keyed.overlay.meshes.single().pending, "nothing pending, no mark")
 	}
 }

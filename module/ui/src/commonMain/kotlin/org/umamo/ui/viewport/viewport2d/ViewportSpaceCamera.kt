@@ -1,15 +1,16 @@
 package org.umamo.ui.viewport.viewport2d
 
-import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ElementTopology
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.editsElements
 import org.umamo.edit.eligibleTransformDrawables
 import org.umamo.ui.transform.WorldExtent
 import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.transform.captureEditModeMeshes
 import org.umamo.ui.transform.coveredVerticesOf
 import org.umamo.ui.transform.coveredWorldExtent
+import org.umamo.ui.transform.elementEditStage
 import org.umamo.ui.transform.worldExtentOf
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.ServiceCameraController
@@ -32,11 +33,11 @@ internal class ViewportSpaceCamera(
 	override fun frameSelected() {
 		val model = session.model.value
 		val extent =
-			if (session.mode.value == EditorMode.Edit) {
-				// The covered vertices or lattice points of the session selection, at the neutral pose Edit mode is
-				// pinned to.
+			if (session.mode.value.editsElements) {
+				// The covered vertices or lattice points of the session selection, at the stage the session edits at:
+				// rest in Edit mode, the pose in Pose mode.
 				val meshSelection = session.meshSelection.value
-				val owners = editOwnerGeometries(model, meshSelection.owners)
+				val owners = editOwnerGeometries(model, meshSelection.owners, session.elementEditStage())
 				val covered =
 					coveredVerticesOf(
 						meshSelection,

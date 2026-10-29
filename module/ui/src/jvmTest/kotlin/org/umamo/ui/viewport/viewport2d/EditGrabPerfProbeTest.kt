@@ -47,6 +47,7 @@ import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.gizmo.EditMeshOverlayProducer
@@ -289,7 +290,7 @@ class EditGrabPerfProbeTest {
 
 		val modalTransform = EditModalTransform(PROBE_AREA_ID, session, { folded -> pushed.add(folded) })
 		session.beginMeshOperator(MeshOperatorKind.Grab, PROBE_AREA_ID)
-		timed("B1 EditModalTransform.begin [once per gesture]", 1) { modalTransform.begin(MeshOperatorKind.Grab, liveGeometry, meshSelection) }
+		timed("B1 EditModalTransform.begin [once per gesture]", 1) { modalTransform.begin(MeshOperatorKind.Grab, liveGeometry, meshSelection, ElementEditStage.Rest) }
 		val capture = modalTransform.gesture.capture
 
 		if (capture == null) {

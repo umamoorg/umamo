@@ -135,6 +135,9 @@ data class MeshOverlaySizes(
  *   cell, a quad, shows one dot where its center is.
  * @property Int vertexDotCount How many of the vertices, from the first, are the mesh's own and draw a vertex dot;
  *   the vertices after them are face-dot anchors only.  Every vertex by default.
+ * @property Boolean pending Whether the mesh is a warp's lattice shaped in Pose mode and not yet keyed: its idle
+ *   edges in an Edit overlay, and its grid lines and dots in a Lattice overlay, draw in the palette's lattice
+ *   pending color.  The other kinds ignore it.
  */
 class MeshOverlayMesh(
 	val owner: ElementOwner,
@@ -151,6 +154,7 @@ class MeshOverlayMesh(
 	val latticeRole: LatticeRole? = null,
 	val faceDotCorners: IntArray? = null,
 	val vertexDotCount: Int = vertexCount,
+	val pending: Boolean = false,
 ) {
 	/** How many unique edges the mesh carries. */
 	val edgeCount: Int get() = edgeEndpoints.size / 2

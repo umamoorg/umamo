@@ -64,6 +64,45 @@ class LatticePreviewLiveEngineTest {
 		}
 	}
 
+	@Test
+	fun pendingLatticesPoseTheWarpAndAPreviewWinsOverThem() {
+		val service = OffscreenPuppetService(model(), PuppetTextures(listOf(page()), mapOf(artId.raw to 0), false), LiveParams(emptyMap()))
+		service.start()
+
+		try {
+			service.register("area")
+			service.resize("area", 100, 100)
+
+			if (!awaitExtent(service) { bounds -> bounds.minX == -60f }) {
+				println("[lattice-preview-live] the lattice was never measured; skipping (no GL context)")
+
+				return
+			}
+
+			service.setLatticeOverrides(mapOf(warpId to WarpLatticeForm(shiftedBy(10f))))
+			assertTrue(awaitExtent(service) { bounds -> bounds.minX == -50f }, "the pending lattice poses the warp")
+
+			service.setLatticePreview(mapOf(warpId to WarpLatticeForm(shiftedBy(30f))))
+			assertTrue(awaitExtent(service) { bounds -> bounds.minX == -30f }, "a gesture's preview wins over the pending lattice")
+
+			service.setLatticePreview(emptyMap())
+			assertTrue(awaitExtent(service) { bounds -> bounds.minX == -50f }, "clearing the preview leaves the pending lattice")
+
+			service.setLatticeOverrides(emptyMap())
+			assertTrue(awaitExtent(service) { bounds -> bounds.minX == -60f }, "and clearing that puts the warp back")
+		} finally {
+			service.dispose()
+		}
+	}
+
+	/**
+	 * The cage moved [dx] units right.
+	 *
+	 * @param Float dx The shift.
+	 * @return FloatArray The moved points.
+	 */
+	private fun shiftedBy(dx: Float): FloatArray = FloatArray(cage.size) { componentIndex -> if (componentIndex % 2 == 0) cage[componentIndex] + dx else cage[componentIndex] }
+
 	/**
 	 * Waits until the warp's drawn lattice extent satisfies [accept].
 	 *

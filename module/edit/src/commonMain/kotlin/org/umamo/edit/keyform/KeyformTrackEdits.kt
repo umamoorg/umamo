@@ -189,11 +189,22 @@ fun PuppetModel.trackKeyIndexAfterMove(
  * @param Float position The new key's parameter value.
  */
 fun EditorSession.insertTrackKeyAt(track: KeyformTrackRef, parameter: Parameter, position: Float) {
+	insertTrackKeysAt(listOf(track), parameter, position)
+}
+
+/**
+ * Inserts a shape-preserving key at [position] on every track in [tracks], as ONE undo step.
+ *
+ * @param List<KeyformTrackRef> tracks The tracks to edit.
+ * @param Parameter parameter The parameter whose axis to insert on.
+ * @param Float position The new key's parameter value.
+ */
+fun EditorSession.insertTrackKeysAt(tracks: List<KeyformTrackRef>, parameter: Parameter, position: Float) {
 	// Clamped like a move: the lane's edge inset extrapolates a hit past the domain ends, and an unclamped
 	// insert would author a key outside the range that no scrub can ever reach.
 	val clamped = clampToParameterRange(position, parameter)
-	mutate(KeyformChange.InsertKey(channelOf(track))) { model ->
-		model.withTrackKeyInserted(track, parameter, clamped, shownPose)
+	mutate(KeyformChange.InsertKey(tracks.singleOrNull()?.let(::channelOf))) { model ->
+		tracks.fold(model) { current, track -> current.withTrackKeyInserted(track, parameter, clamped, shownPose) }
 	}
 }
 

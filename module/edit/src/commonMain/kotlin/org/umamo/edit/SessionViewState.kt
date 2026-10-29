@@ -6,6 +6,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.firstEditableDrawableInPanelOrder
 
@@ -134,13 +135,7 @@ internal fun editEntryOf(model: PuppetModel, selection: Selection, rememberedOwn
 					return EditEntry.Refused(if (deformer.geometryGrid == null) "notice.edit.warpHasNoLattice" else "notice.edit.warpHiddenAtRest")
 				}
 
-				val warps =
-					selection.targets
-						.filterIsInstance<SelectionTarget.Deformer>()
-						.filter { target -> model.hasRestLattice(target.id) }
-						.map { target -> ElementOwner.Deformer(target.id) }
-
-				return EditEntry.Opens(EditSeed(warps, ElementOwner.Deformer(deformer.id), activeSelected = true))
+				return EditEntry.Opens(EditSeed(selectedWarpOwners(model, selection, model.defaultValueLookup()), ElementOwner.Deformer(deformer.id), activeSelected = true))
 			}
 
 			null -> {}
@@ -167,6 +162,78 @@ internal fun editEntryOf(model: PuppetModel, selection: Selection, rememberedOwn
 }
 
 /**
+ * What entering Pose mode opens on: Edit mode's seed narrowed to warps, since Pose mode shapes lattices and nothing
+ * else - every selected warp the pose draws, the object selection's active warp active when it is one of them; else
+ * the remembered warp when the pose draws it; else the first warp the pose draws.  Null with none of those: Pose mode
+ * still scrubs and keys, so it opens on an empty session rather than refusing.
+ *
+ * @param PuppetModel model The session's model.
+ * @param Selection selection The object selection.
+ * @param ElementOwner? rememberedOwner The last owner that was active, or null.
+ * @param Pose pose The pose Pose mode shows.
+ * @return EditSeed? The warps to open on, or null for an empty session.
+ */
+internal fun poseSeedOf(model: PuppetModel, selection: Selection, rememberedOwner: ElementOwner?, pose: Pose): EditSeed? {
+	val valueOf = model.poseValueLookup(pose)
+	val warps = selectedWarpOwners(model, selection, valueOf)
+
+	if (warps.isNotEmpty()) {
+		val activeWarp = editOwnerOf(selection.active)?.takeIf { owner -> owner in warps }
+
+		return EditSeed(warps, activeWarp ?: warps.first(), activeSelected = activeWarp != null)
+	}
+
+	val fallback =
+		(rememberedOwner as? ElementOwner.Deformer)?.takeIf { owner -> model.hasLatticeAt(owner.id, valueOf) }
+			?: model.deformers.firstOrNull { deformer -> deformer.isVisible && model.hasLatticeAt(deformer.id, valueOf) }?.let { warp -> ElementOwner.Deformer(warp.id) }
+
+	return fallback?.let { owner -> EditSeed(listOf(owner), owner, activeSelected = false) }
+}
+
+/**
+ * Whether [owner] can join a session in [mode]: in Edit mode a drawable that carries a mesh or a warp with a rest
+ * lattice, in Pose mode a warp whose lattice [pose] draws, and nothing in Object mode.
+ *
+ * @param PuppetModel model The model.
+ * @param ElementOwner owner The owner.
+ * @param EditorMode mode The mode.
+ * @param Pose pose The pose Pose mode shows.
+ * @return Boolean True when the owner can be edited there.
+ */
+internal fun isSessionOwner(model: PuppetModel, owner: ElementOwner, mode: EditorMode, pose: Pose): Boolean =
+	when (mode) {
+		EditorMode.Object -> false
+		EditorMode.Edit -> isEditableOwner(model, owner)
+		EditorMode.Pose -> owner is ElementOwner.Deformer && model.hasLatticeAt(owner.id, model.poseValueLookup(pose))
+	}
+
+/**
+ * Each parameter's value at [pose], the default for one the pose does not name.
+ *
+ * @param Pose pose The pose.
+ * @return Function The lookup.
+ */
+private fun PuppetModel.poseValueLookup(pose: Pose): (ParameterId) -> Float {
+	val defaultValue = defaultValueLookup()
+
+	return { parameterId -> pose[parameterId] ?: defaultValue(parameterId) }
+}
+
+/**
+ * The selected warps whose lattice the pose [valueOf] reads draws, as session owners in selection order.
+ *
+ * @param PuppetModel model The model.
+ * @param Selection selection The object selection.
+ * @param Function valueOf Each parameter's value at the pose.
+ * @return List<ElementOwner> The warps.
+ */
+private fun selectedWarpOwners(model: PuppetModel, selection: Selection, valueOf: (ParameterId) -> Float): List<ElementOwner> =
+	selection.targets
+		.filterIsInstance<SelectionTarget.Deformer>()
+		.filter { target -> model.hasLatticeAt(target.id, valueOf) }
+		.map { target -> ElementOwner.Deformer(target.id) }
+
+/**
  * Whether Edit mode can open on [owner]: a drawable that carries a mesh, or a warp with a rest lattice.
  *
  * @param PuppetModel model The model.
@@ -187,14 +254,23 @@ private fun isEditableOwner(model: PuppetModel, owner: ElementOwner): Boolean =
  * @param DeformerId deformerId The deformer.
  * @return Boolean True for a warp with a rest lattice.
  */
-internal fun PuppetModel.hasRestLattice(deformerId: DeformerId): Boolean {
+internal fun PuppetModel.hasRestLattice(deformerId: DeformerId): Boolean = hasLatticeAt(deformerId, defaultValueLookup())
+
+/**
+ * Whether [deformerId] is a warp whose lattice the pose [valueOf] reads draws: its keyform grid, and every grid up its
+ * parent chain, brackets the pose, which is exactly when the evaluator draws it.
+ *
+ * @param DeformerId deformerId The deformer.
+ * @param Function valueOf Each parameter's value at the pose.
+ * @return Boolean True for a warp the pose draws.
+ */
+internal fun PuppetModel.hasLatticeAt(deformerId: DeformerId, valueOf: (ParameterId) -> Float): Boolean {
 	val deformerById = deformers.associateBy { deformer -> deformer.id }
 
 	if (deformerById[deformerId] !is Deformer.Warp) {
 		return false
 	}
 
-	val defaultValue = defaultValueLookup()
 	var current: Deformer? = deformerById[deformerId]
 	var depth = 0
 
@@ -206,7 +282,7 @@ internal fun PuppetModel.hasRestLattice(deformerId: DeformerId): Boolean {
 				is Deformer.Rotation -> current.geometryGrid
 			}
 
-		if (grid == null || gridCorners(grid, defaultValue) == null || depth > deformers.size) {
+		if (grid == null || gridCorners(grid, valueOf) == null || depth > deformers.size) {
 			return false
 		}
 
@@ -236,7 +312,7 @@ internal fun editOwnerOf(target: SelectionTarget?): ElementOwner? =
  *
  * A saved Edit mode holds only when it can be entered over the restored selection, and a saved Pose mode only
  * when the model has a deformer; otherwise the session opens in Object mode, the same refusals
- * [EditorSession.setMode] makes.
+ * [EditorSession.setMode] makes.  Either mode opens its session seeded as entering it seeds one.
  *
  * @param PuppetModel        model     The document model at open.
  * @param Pose               pose      The pose at open.
@@ -255,12 +331,14 @@ internal fun openingSnapshotOf(model: PuppetModel, pose: Pose, viewState: Sessio
 			viewState.mode == EditorMode.Pose && model.deformers.isNotEmpty() -> EditorMode.Pose
 			else -> EditorMode.Object
 		}
+	// A Pose session opens on the warps the saved selection poses, as entering Pose mode seeds it.
+	val sessionSeed = if (mode == EditorMode.Pose) poseSeedOf(model, viewState.selection, rememberedOwner = null, pose) else editSeed
 
 	return EditorSnapshot(
 		model = model,
 		selection = viewState.selection,
 		pose = pose,
-		meshSelection = editSeed?.let { seed -> MeshSelection.editing(seed.owners, seed.activeOwner).copy(selectMode = viewState.selectMode) } ?: MeshSelection(),
+		meshSelection = sessionSeed?.let { seed -> MeshSelection.editing(seed.owners, seed.activeOwner).copy(selectMode = viewState.selectMode) } ?: MeshSelection(),
 		mode = mode,
 		parameterSelection = viewState.parameterSelection,
 	)
