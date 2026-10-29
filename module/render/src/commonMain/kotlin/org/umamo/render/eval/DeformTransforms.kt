@@ -43,6 +43,130 @@ internal fun warpInGrid(
 	val cellU = gridU - gridU.toInt()
 	val cellV = gridV - gridV.toInt()
 	val cellIndex = gridV.toInt() * pointsPerRow + gridU.toInt()
+	latticeCellPoint(cp, pointsPerRow, bilinear, cellIndex, cellU, cellV, out, outIndex)
+
+	return true
+}
+
+/**
+ * A lattice point inside the lattice INCLUDING its far edges: [warpInGrid]'s map, with u = 1 and v = 1 landing
+ * on the last column's and row's points instead of falling to the extrapolation.  For resampling a lattice onto
+ * a new grid, whose far edge sits exactly on the old one's.  [u] and [v] are clamped into [0, 1].
+ *
+ * @param FloatArray cp       Control points, `(cols+1)*(rows+1)` interleaved x,y.
+ * @param Int        cols     Grid columns.
+ * @param Int        rows     Grid rows.
+ * @param Boolean    bilinear Quad blend (true) vs triangle split (false).
+ * @param Float      u        Normalized horizontal coordinate.
+ * @param Float      v        Normalized vertical coordinate.
+ * @param FloatArray out      Destination for the point.
+ * @param Int        outIndex Index of the x slot in [out] (y is `outIndex+1`).
+ */
+internal fun latticePointAt(
+	cp: FloatArray,
+	cols: Int,
+	rows: Int,
+	bilinear: Boolean,
+	u: Float,
+	v: Float,
+	out: FloatArray,
+	outIndex: Int,
+) {
+	val gridU = cols * u.coerceIn(0f, 1f)
+	val gridV = rows * v.coerceIn(0f, 1f)
+	val cellColumn = gridU.toInt().coerceAtMost(cols - 1)
+	val cellRow = gridV.toInt().coerceAtMost(rows - 1)
+	latticeCellPoint(cp, cols + 1, bilinear, cellRow * (cols + 1) + cellColumn, gridU - cellColumn, gridV - cellRow, out, outIndex)
+}
+
+/**
+ * The Jacobian of the lattice map at (u, v), in closed form from the cell it falls in - exact, where a finite
+ * difference of a float map is not - written row-major into [out]: d(x)/du, d(x)/dv, d(y)/du, d(y)/dv.  The cell
+ * is chosen as [latticePointAt] chooses it, so on a cell border it is the derivative of the cell the point is
+ * evaluated in.  Outside the lattice (the extrapolation, which has no cell) nothing is written.
+ *
+ * @param FloatArray cp       Control points, `(cols+1)*(rows+1)` interleaved x,y.
+ * @param Int        cols     Grid columns.
+ * @param Int        rows     Grid rows.
+ * @param Boolean    bilinear Quad blend (true) vs triangle split (false).
+ * @param Float      u        Normalized horizontal coordinate.
+ * @param Float      v        Normalized vertical coordinate.
+ * @param FloatArray out      Four slots for the Jacobian.
+ * @return Boolean true when (u, v) is inside the lattice, its far edges included, and the Jacobian was written.
+ */
+internal fun latticeJacobianAt(
+	cp: FloatArray,
+	cols: Int,
+	rows: Int,
+	bilinear: Boolean,
+	u: Float,
+	v: Float,
+	out: FloatArray,
+): Boolean {
+	if (u < 0f || v < 0f || u > 1f || v > 1f) {
+		return false
+	}
+
+	val pointsPerRow = cols + 1
+	val gridU = cols * u
+	val gridV = rows * v
+	val cellColumn = gridU.toInt().coerceAtMost(cols - 1)
+	val cellRow = gridV.toInt().coerceAtMost(rows - 1)
+	val cellU = gridU - cellColumn
+	val cellV = gridV - cellRow
+	val cellIndex = cellRow * pointsPerRow + cellColumn
+	val p00 = cellIndex * 2
+	val p10 = (cellIndex + 1) * 2
+	val p01 = (cellIndex + pointsPerRow) * 2
+	val p11 = (cellIndex + pointsPerRow + 1) * 2
+
+	for (axis in 0..1) {
+		val alongCellU: Float
+		val alongCellV: Float
+
+		if (bilinear) {
+			alongCellU = (cp[p10 + axis] - cp[p00 + axis]) * (1 - cellV) + (cp[p11 + axis] - cp[p01 + axis]) * cellV
+			alongCellV = (cp[p01 + axis] - cp[p00 + axis]) * (1 - cellU) + (cp[p11 + axis] - cp[p10 + axis]) * cellU
+		} else if (cellU + cellV <= 1f) {
+			alongCellU = cp[p10 + axis] - cp[p00 + axis]
+			alongCellV = cp[p01 + axis] - cp[p00 + axis]
+		} else {
+			alongCellU = cp[p11 + axis] - cp[p01 + axis]
+			alongCellV = cp[p11 + axis] - cp[p10 + axis]
+		}
+
+		// A cell spans 1 / cols of u and 1 / rows of v.
+		out[axis * 2] = alongCellU * cols
+		out[axis * 2 + 1] = alongCellV * rows
+	}
+
+	return true
+}
+
+/**
+ * The point at ([cellU], [cellV]) inside one lattice cell: the quad (bilinear) blend of its four control points,
+ * or the triangle split along the cell's top-right to bottom-left diagonal.  The one formula [warpInGrid] and
+ * [latticePointAt] share.
+ *
+ * @param FloatArray cp           Control points, interleaved x,y.
+ * @param Int        pointsPerRow The lattice's columns plus one.
+ * @param Boolean    bilinear     Quad blend (true) vs triangle split (false).
+ * @param Int        cellIndex    The point index of the cell's top-left control point.
+ * @param Float      cellU        The horizontal position inside the cell, 0 to 1.
+ * @param Float      cellV        The vertical position inside the cell, 0 to 1.
+ * @param FloatArray out          Destination for the point.
+ * @param Int        outIndex     Index of the x slot in [out] (y is `outIndex+1`).
+ */
+private fun latticeCellPoint(
+	cp: FloatArray,
+	pointsPerRow: Int,
+	bilinear: Boolean,
+	cellIndex: Int,
+	cellU: Float,
+	cellV: Float,
+	out: FloatArray,
+	outIndex: Int,
+) {
 	val p00 = cellIndex * 2
 	val p10 = (cellIndex + 1) * 2
 	val p01 = (cellIndex + pointsPerRow) * 2
@@ -64,8 +188,6 @@ internal fun warpInGrid(
 		out[outIndex + 1] =
 			invCellV * cp[p10 + 1] * cellU + cp[p00 + 1] * (1 - cellU) * invCellV + (1 - cellU) * cp[p01 + 1] * cellV + cellU * cp[p11 + 1] * cellV
 	}
-
-	return true
 }
 
 /**

@@ -27,24 +27,23 @@ private const val WARP_INVERSE_MAX_STEP = 0.5f
 private const val RIGID_INVERSE_MAX_ITERATIONS = 24
 
 /**
- * Maps between a drawable's local mesh space and the evaluator's world space at one fixed pose - the
+ * Maps between a parent deformer's local space and the evaluator's world space at one fixed pose - the
  * `DeformedGeometry.worldPositions` space the viewport camera and picker use.  Local space is the space
- * the drawable's keyforms and `DrawableMesh.localPositions` live in: model space for a direct
- * (deformer-less) drawable, the parent's normalized lattice UV for a warp child, the parent's affine frame
- * for a rotation child.  `DrawableMesh.positions` is the canvas editable mesh and is never local, not even
- * for a drawable with no keyforms.  The parent transform here is the FULLY COMPOSED chain
- * (`buildDeformerWorlds` bakes every ancestor in), so both directions are a single transform, never a
- * chain walk.
+ * whatever lives under that parent is stored in: model space with no parent, the parent's normalized lattice
+ * UV under a warp, the parent's affine frame under a rotation.  A drawable's keyforms and
+ * `DrawableMesh.localPositions` live there, and so do a child deformer's control points or pivot.
+ * `DrawableMesh.positions` is the canvas editable mesh and is never local, not even for a drawable with no
+ * keyforms.  The parent transform here is the FULLY COMPOSED chain (`buildDeformerWorlds` bakes every
+ * ancestor in), so both directions are a single transform, never a chain walk.
  *
- * The Edit-mode gizmo is the intended caller: it projects the active drawable's local shape to world
- * for drawing and hit-testing (forward), and converts a world-space drag back into local vertex
- * positions to write into the model (inverse).
+ * The gizmos are the intended callers: they project a local shape to world for drawing and hit-testing
+ * (forward), and convert a world-space drag back into local positions to write into the model (inverse).
  *
- * @property DeformerWorld? parentWorld The baked parent world this mapping composes, or null for a
- *   direct drawable.  Internal so a test can pin that drawables resolved together by one
- *   [DrawableSpaceResolver] share one instance; nothing outside the evaluator reads it.
+ * @property DeformerWorld? parentWorld The baked parent world this mapping composes, or null with no parent.
+ *   Internal so a test can pin that drawables resolved together by one [DrawableSpaceResolver] share one
+ *   instance; nothing outside the evaluator reads it.
  */
-class DrawableSpaceMapping internal constructor(
+class ParentSpaceMapping internal constructor(
 	internal val parentWorld: DeformerWorld?,
 ) {
 	/**
@@ -270,9 +269,9 @@ class DrawableSpaceMapping internal constructor(
  * @param PuppetModel model The rig.
  * @param Map parameters Parameter id -> value (partial; the rest default).
  * @param DrawableId drawableId The drawable to map.
- * @return DrawableSpaceMapping? The mapping, or null when unmappable.
+ * @return ParentSpaceMapping? The mapping, or null when unmappable.
  */
-fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): DrawableSpaceMapping? {
+fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): ParentSpaceMapping? {
 	val drawable = model.drawables.firstOrNull { it.id == drawableId } ?: return null
 
 	// The defaults and the bake are built only when a parent asks for a world, so a direct drawable
@@ -291,19 +290,19 @@ fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>
  *
  * @param Drawable drawable The drawable to map.
  * @param Function parentWorldOf Resolves a deformer's baked world at the pose, or null when it has none.
- * @return DrawableSpaceMapping? The mapping, or null when unmappable.
+ * @return ParentSpaceMapping? The mapping, or null when unmappable.
  */
-internal fun mappingOver(drawable: Drawable, parentWorldOf: (DeformerId) -> DeformerWorld?): DrawableSpaceMapping? {
-	val parentDeformerId = drawable.parentDeformerId ?: return DrawableSpaceMapping(null)
+internal fun mappingOver(drawable: Drawable, parentWorldOf: (DeformerId) -> DeformerWorld?): ParentSpaceMapping? {
+	val parentDeformerId = drawable.parentDeformerId ?: return ParentSpaceMapping(null)
 	val parentWorld = parentWorldOf(parentDeformerId) ?: return null
 
-	return DrawableSpaceMapping(parentWorld)
+	return ParentSpaceMapping(parentWorld)
 }
 
 /**
  * The drawable's blended LOCAL posed positions at the given pose - base plus the multilinear keyform
  * blend, before any parent deformer. This is the local shape the renderer feeds the deformer chain, so
- * a display that projects it through [DrawableSpaceMapping.localToWorld] lands exactly on the rendered
+ * a display that projects it through [ParentSpaceMapping.localToWorld] lands exactly on the rendered
  * art at ANY pose (including between keys, where a single cell's deltas would not).
  *
  * @param PuppetModel model The rig.

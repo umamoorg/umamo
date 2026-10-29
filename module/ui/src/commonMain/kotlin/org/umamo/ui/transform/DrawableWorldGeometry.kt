@@ -2,8 +2,8 @@ package org.umamo.ui.transform
 
 import org.umamo.edit.Pose
 import org.umamo.edit.mesh.MeshRestPositions
-import org.umamo.render.eval.DrawableSpaceMapping
 import org.umamo.render.eval.DrawableSpaceResolver
+import org.umamo.render.eval.ParentSpaceMapping
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 
@@ -28,7 +28,7 @@ import org.umamo.runtime.model.PuppetModel
  * captured [world] every frame, so an in-flight preview never compounds on its own output.
  *
  * @property DrawableId drawableId The captured drawable.
- * @property DrawableSpaceMapping mapping The local<->world mapping for the deformer chain at this pose.
+ * @property ParentSpaceMapping mapping The local<->world mapping for the deformer chain at this pose.
  * @property FloatArray canvas The canvas editable mesh (DrawableMesh.positions).
  * @property FloatArray local The keyform-space base the deltas are measured from (DrawableMesh.localPositions);
  *   the same instance as [canvas] when the mesh shares one array.
@@ -38,7 +38,7 @@ import org.umamo.runtime.model.PuppetModel
  */
 internal class DrawableWorldGeometry(
 	val drawableId: DrawableId,
-	val mapping: DrawableSpaceMapping,
+	val mapping: ParentSpaceMapping,
 	val canvas: FloatArray,
 	val local: FloatArray,
 	val displayed: FloatArray,

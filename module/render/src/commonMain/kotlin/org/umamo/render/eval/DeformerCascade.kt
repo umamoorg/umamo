@@ -16,6 +16,7 @@ import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.math.atan2
 
 /**
@@ -179,6 +180,8 @@ internal class RotationWorld(
  * @param Function paramValue       Current value for a given parameter id.
  * @param Function defaultValue     Default value for a given parameter id (the blend-shape delta reference pose).
  * @param Map      channelOverrides Pending unkeyed channel edits, which win over a deformer's stored channel value.
+ * @param Map      latticeOverrides Pending lattices by warp, each standing in for that warp's grid blend
+ *                                  ([warpGridLattice]); blend shapes still add on top.
  * @return Map<DeformerId, DeformerWorld> The built world transforms, keyed by deformer id.
  */
 internal fun buildDeformerWorlds(
@@ -186,6 +189,7 @@ internal fun buildDeformerWorlds(
 	paramValue: (ParameterId) -> Float,
 	defaultValue: (ParameterId) -> Float = paramValue,
 	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
+	latticeOverrides: Map<DeformerId, WarpLatticeForm> = emptyMap(),
 ): Map<DeformerId, DeformerWorld> {
 	val worlds = HashMap<DeformerId, DeformerWorld>(deformers.size)
 	val ids = deformers.mapTo(HashSet()) { it.id }
@@ -208,7 +212,7 @@ internal fun buildDeformerWorlds(
 			}
 
 			val parentWorld = parentId?.let { worlds[it] }
-			val world = buildDeformerWorld(deformer, paramValue, defaultValue, parentWorld, channelOverrides)
+			val world = buildDeformerWorld(deformer, paramValue, defaultValue, parentWorld, channelOverrides, latticeOverrides)
 
 			if (world != null) {
 				worlds[deformer.id] = world
@@ -234,6 +238,7 @@ internal fun buildDeformerWorlds(
  * @param Function       defaultValue     Default value for a given parameter id (the blend-shape delta reference pose).
  * @param DeformerWorld? parentWorld      The parent's world transform, or null.
  * @param Map            channelOverrides Pending unkeyed channel edits, which win over a deformer's stored channel value.
+ * @param Map            latticeOverrides Pending lattices by warp, each standing in for that warp's grid blend.
  * @return DeformerWorld? The world transform, or null when hidden.
  */
 private fun buildDeformerWorld(
@@ -242,35 +247,40 @@ private fun buildDeformerWorld(
 	defaultValue: (ParameterId) -> Float,
 	parentWorld: DeformerWorld?,
 	channelOverrides: Map<KeyableTarget, ChannelValue>,
+	latticeOverrides: Map<DeformerId, WarpLatticeForm>,
 ): DeformerWorld? =
 	when (deformer) {
-		is Deformer.Warp -> buildWarpWorld(deformer, paramValue, defaultValue, parentWorld, channelOverrides)
+		is Deformer.Warp -> buildWarpWorld(deformer, paramValue, defaultValue, parentWorld, channelOverrides, latticeOverrides[deformer.id])
 		is Deformer.Rotation -> buildRotationWorld(deformer, paramValue, defaultValue, parentWorld, channelOverrides)
 	}
 
 /**
- * Builds a warp's world transform: blend its keyform control points, then push each through the parent
- * (warps inherit the parent's accY; they add no scale of their own).
+ * A warp's grid-blended lattice at a pose, in its parent's space, before blend shapes: the keyform cells
+ * blended by the pose's corner weights, or [override] in their place.  Null when the warp is unkeyed or the
+ * pose hides it (out of its keyed range), which an override does not change - a pending lattice is only ever
+ * authored at a pose the warp is visible at.
  *
- * @param Deformer.Warp  warp             The warp deformer.
- * @param Function       paramValue       Current value for a given parameter id.
- * @param Function       defaultValue     Default value for a given parameter id (the blend-shape delta reference pose).
- * @param DeformerWorld? parentWorld      The parent's world transform, or null.
- * @param Map            channelOverrides Pending unkeyed channel edits, which win over the warp's stored channel value.
- * @return DeformerWorld? The world transform, or null when hidden.
+ * The override replaces the grid blend alone, so blend shapes still add on top of it ([addWarpBlendDeltas]):
+ * it is exactly the form a capture at this pose would write into the grid.
+ *
+ * @param Deformer.Warp     warp       The warp deformer.
+ * @param Function          paramValue Current value for a given parameter id.
+ * @param WarpLatticeForm?  override   A pending lattice standing in for the grid blend, or null.
+ * @return FloatArray? The interleaved control points, `(rows + 1) * (columns + 1)` pairs, or null when hidden.
  */
-private fun buildWarpWorld(
-	warp: Deformer.Warp,
-	paramValue: (ParameterId) -> Float,
-	defaultValue: (ParameterId) -> Float,
-	parentWorld: DeformerWorld?,
-	channelOverrides: Map<KeyableTarget, ChannelValue>,
-): DeformerWorld? {
+internal fun warpGridLattice(warp: Deformer.Warp, paramValue: (ParameterId) -> Float, override: WarpLatticeForm?): FloatArray? {
 	val grid = warp.geometryGrid ?: return null
 	val corners = gridCorners(grid, paramValue) ?: return null
-	val cells = cellsByLinearIndex(grid)
 	val pointCount = (warp.rows + 1) * (warp.columns + 1)
 	val cp = FloatArray(pointCount * 2)
+
+	if (override != null) {
+		override.controlPoints.copyInto(cp, endIndex = minOf(cp.size, override.controlPoints.size))
+
+		return cp
+	}
+
+	val cells = cellsByLinearIndex(grid)
 
 	for (corner in corners) {
 		val controlPoints = cells[corner.linearIndex]?.form?.controlPoints ?: continue
@@ -281,7 +291,19 @@ private fun buildWarpWorld(
 		}
 	}
 
-	// Blend shapes: additive control-point deltas on top of the grid blend, before parent transforms.
+	return cp
+}
+
+/**
+ * Adds a warp's blend-shape deltas at a pose onto its grid-blended lattice [cp], in place: the additive
+ * control-point deltas the renderer applies before the parent transform.
+ *
+ * @param Deformer.Warp warp         The warp deformer.
+ * @param Function      paramValue   Current value for a given parameter id.
+ * @param Function      defaultValue Default value for a given parameter id (the blend-shape delta reference pose).
+ * @param FloatArray    cp           The grid-blended lattice ([warpGridLattice]), updated in place.
+ */
+internal fun addWarpBlendDeltas(warp: Deformer.Warp, paramValue: (ParameterId) -> Float, defaultValue: (ParameterId) -> Float, cp: FloatArray) {
 	warpBlendDeltas(warp, paramValue, defaultValue)?.let { deltas ->
 		val count = minOf(cp.size, deltas.size)
 
@@ -289,6 +311,31 @@ private fun buildWarpWorld(
 			cp[coordIndex] += deltas[coordIndex]
 		}
 	}
+}
+
+/**
+ * Builds a warp's world transform: blend its keyform control points, then push each through the parent
+ * (warps inherit the parent's accY; they add no scale of their own).
+ *
+ * @param Deformer.Warp     warp             The warp deformer.
+ * @param Function          paramValue       Current value for a given parameter id.
+ * @param Function          defaultValue     Default value for a given parameter id (the blend-shape delta reference pose).
+ * @param DeformerWorld?    parentWorld      The parent's world transform, or null.
+ * @param Map               channelOverrides Pending unkeyed channel edits, which win over the warp's stored channel value.
+ * @param WarpLatticeForm?  latticeOverride  A pending lattice standing in for the warp's grid blend, or null.
+ * @return DeformerWorld? The world transform, or null when hidden.
+ */
+private fun buildWarpWorld(
+	warp: Deformer.Warp,
+	paramValue: (ParameterId) -> Float,
+	defaultValue: (ParameterId) -> Float,
+	parentWorld: DeformerWorld?,
+	channelOverrides: Map<KeyableTarget, ChannelValue>,
+	latticeOverride: WarpLatticeForm?,
+): DeformerWorld? {
+	val cp = warpGridLattice(warp, paramValue, latticeOverride) ?: return null
+	addWarpBlendDeltas(warp, paramValue, defaultValue, cp)
+	val pointCount = (warp.rows + 1) * (warp.columns + 1)
 	// The render channels are blended, never snapped to the nearest key, or they step instead of fading
 	// at mid-parameter values. Each track resolves its own corners; pre-compaction those are the same
 	// corners in the same order as the control points', so the sums are unchanged.
@@ -451,49 +498,11 @@ private fun buildRotationWorld(
 		worldPivotY = originY
 		worldAngle = angleDegrees
 	} else {
-		// Probe the parent's local rotation at the origin: displace along -Y and read the resulting
-		// direction. -10 step for a rotation parent, -0.1 for a warp (degenerate steps shrink ×0.1).
-		val disp = if (parentWorld is RotationWorld) -10f else -0.1f
 		val scratch = FloatArray(2)
 		parentWorld.apply(originX, originY, scratch, 0)
 		val worldPosX = scratch[0]
 		val worldPosY = scratch[1]
-		var dx = 0f
-		var dy = 0f
-		var probeScale = 1f
-		var iteration = 0
-
-		while (iteration < 10) {
-			parentWorld.apply(originX, originY + disp * probeScale, scratch, 0)
-			dx = scratch[0] - worldPosX
-			dy = scratch[1] - worldPosY
-
-			if (dx != 0f || dy != 0f) {
-				break
-			}
-
-			parentWorld.apply(originX, originY - disp * probeScale, scratch, 0)
-			dx = worldPosX - scratch[0]
-			dy = worldPosY - scratch[1]
-
-			if (dx != 0f || dy != 0f) {
-				break
-			}
-
-			probeScale *= 0.1f
-			iteration++
-		}
-
-		var inherited = atan2(disp.toDouble(), 0.0).toFloat() - atan2(dy.toDouble(), dx.toDouble()).toFloat()
-
-		while (inherited > PI_F) {
-			inherited -= 2f * PI_F
-		}
-
-		while (inherited < -PI_F) {
-			inherited += 2f * PI_F
-		}
-
+		val inherited = inheritedAngleRadians(parentWorld, originX, originY, worldPosX, worldPosY, scratch)
 		worldPivotX = worldPosX
 		worldPivotY = worldPosY
 		worldAngle = angleDegrees - inherited * 180f / PI_F
@@ -508,6 +517,71 @@ private fun buildRotationWorld(
 		ownAngleDegrees = angleDegrees,
 		ownScale = scaleAccum,
 	)
+}
+
+/**
+ * The rotation a parent transform imposes at a child rotation's origin, in radians: the parent is probed by
+ * displacing along -Y from the origin and reading the direction the displacement comes out in.  The step is
+ * -10 under a rotation parent and -0.1 under a warp, shrunk by tenths while it lands on the same point.
+ *
+ * The one definition both the rotation's world build and any edit that must hold a rotation's world angle
+ * read, so the two cannot disagree about what the parent contributes.
+ *
+ * @param DeformerWorld parentWorld The parent's world transform.
+ * @param Float         originX     The child's origin x in the parent's space.
+ * @param Float         originY     The child's origin y in the parent's space.
+ * @param Float         worldPosX   The origin pushed through [parentWorld], x.
+ * @param Float         worldPosY   The origin pushed through [parentWorld], y.
+ * @param FloatArray    scratch     A two-slot scratch the probe overwrites (the caller's, so the per-frame path
+ *                                  allocates nothing extra).
+ * @return Float The inherited angle in radians, wrapped to [-pi, pi].
+ */
+internal fun inheritedAngleRadians(
+	parentWorld: DeformerWorld,
+	originX: Float,
+	originY: Float,
+	worldPosX: Float,
+	worldPosY: Float,
+	scratch: FloatArray,
+): Float {
+	val disp = if (parentWorld is RotationWorld) -10f else -0.1f
+	var dx = 0f
+	var dy = 0f
+	var probeScale = 1f
+	var iteration = 0
+
+	while (iteration < 10) {
+		parentWorld.apply(originX, originY + disp * probeScale, scratch, 0)
+		dx = scratch[0] - worldPosX
+		dy = scratch[1] - worldPosY
+
+		if (dx != 0f || dy != 0f) {
+			break
+		}
+
+		parentWorld.apply(originX, originY - disp * probeScale, scratch, 0)
+		dx = worldPosX - scratch[0]
+		dy = worldPosY - scratch[1]
+
+		if (dx != 0f || dy != 0f) {
+			break
+		}
+
+		probeScale *= 0.1f
+		iteration++
+	}
+
+	var inherited = atan2(disp.toDouble(), 0.0).toFloat() - atan2(dy.toDouble(), dx.toDouble()).toFloat()
+
+	while (inherited > PI_F) {
+		inherited -= 2f * PI_F
+	}
+
+	while (inherited < -PI_F) {
+		inherited += 2f * PI_F
+	}
+
+	return inherited
 }
 
 /**

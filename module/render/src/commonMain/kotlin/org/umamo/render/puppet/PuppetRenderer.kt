@@ -24,12 +24,14 @@ import org.umamo.render.eval.RenderPlanNode
 import org.umamo.render.eval.applyCpuDeform
 import org.umamo.render.eval.preparePose
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.differsOnlyInMeshPositions
 import org.umamo.runtime.model.visibleDrawableIds
 import kotlin.concurrent.Volatile
@@ -316,10 +318,16 @@ class PuppetRenderer(
 	 *   default.
 	 * @param Map<KeyableTarget, ChannelValue> channelOverrides Channel values that replace what the pose
 	 *   would sample, by target.
+	 * @param Map<DeformerId, WarpLatticeForm> latticeOverrides Lattices that replace a warp's grid blend at
+	 *   this pose, by warp (its blend shapes still add on top).
 	 */
-	fun setPose(parameters: Map<ParameterId, Float>, channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap()) {
+	fun setPose(
+		parameters: Map<ParameterId, Float>,
+		channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
+		latticeOverrides: Map<DeformerId, WarpLatticeForm> = emptyMap(),
+	) {
 		// currentModel (not the construction-time model) so a deformer reparent / reorder re-evaluates here.
-		val inputs = preparePose(currentModel, parameters, channelOverrides)
+		val inputs = preparePose(currentModel, parameters, channelOverrides, latticeOverrides)
 		lastPoseInputs = inputs // publish for on-demand picking (CPU deform re-run at click time)
 		residency.glueStoreStale = true // the pose moved: pass 1 must re-deform the shared store next render
 		overlayResidency.storeStale = true

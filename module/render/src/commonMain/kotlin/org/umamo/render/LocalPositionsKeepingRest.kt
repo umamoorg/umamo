@@ -17,7 +17,7 @@ import kotlin.math.abs
  * warp inverse's own convergence (1e-5 of the lattice's span) for any lattice up to ten thousand pixels across,
  * and far below the whole pixels a vertex the inverse could not reach misses by.
  */
-private const val LANDING_TOLERANCE_PX = 0.1f
+internal const val LANDING_TOLERANCE_PX = 0.1f
 
 /**
  * The bases that keep each of [drawableIds] where it rests in [before] once [after] binds it to another
