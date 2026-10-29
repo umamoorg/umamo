@@ -25,6 +25,7 @@ import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.render.ViewportCamera
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.ui.kit.Text
 import org.umamo.ui.resources.*
@@ -68,9 +69,21 @@ internal fun ActiveMeshInfoLabel(
 	val deformerById = remember(model) { model.deformers.associateBy { deformer -> deformer.id } }
 	val activeTarget =
 		when (editorMode) {
-			EditorMode.Edit -> meshSelection.activeDrawableId?.let { drawableId -> SelectionTarget.Drawable(drawableId) }
-			EditorMode.Object -> objectSelection.active
-			EditorMode.Pose -> objectSelection.active as? SelectionTarget.Deformer
+			EditorMode.Edit -> {
+				when (val owner = meshSelection.activeOwner) {
+					is ElementOwner.Drawable -> SelectionTarget.Drawable(owner.id)
+					is ElementOwner.Deformer -> SelectionTarget.Deformer(owner.id)
+					null -> null
+				}
+			}
+
+			EditorMode.Object -> {
+				objectSelection.active
+			}
+
+			EditorMode.Pose -> {
+				objectSelection.active as? SelectionTarget.Deformer
+			}
 		} ?: return
 	val (nameRow, deformerName) =
 		when (activeTarget) {
@@ -81,7 +94,8 @@ internal fun ActiveMeshInfoLabel(
 			}
 
 			is SelectionTarget.Deformer -> {
-				val activeDeformer = deformerById[activeTarget.id]?.takeIf { showsDeformers } ?: return
+				// The lattice Edit mode shapes names itself whether or not the area shows every deformer.
+				val activeDeformer = deformerById[activeTarget.id]?.takeIf { showsDeformers || editorMode == EditorMode.Edit } ?: return
 				val partName = activeDeformer.partId?.let { partId -> partNameById[partId] }
 				infoRowOf(partName, activeDeformer.name) to activeDeformer.parent?.let { parentId -> deformerById[parentId]?.name }
 			}

@@ -194,12 +194,12 @@ internal class UvObjectOverlayProducer {
 		val shownIds = HashSet<DrawableId>(ordered.size)
 
 		for (geometry in ordered) {
-			val drawableId = geometry.drawableId
-			val owner = ElementOwner.Drawable(drawableId)
+			val drawableId = geometry.drawableId ?: continue
+			val owner = geometry.owner
 			val style = islandStyleOf(drawableId, selectedIds, activeId, lastTileByDrawable[drawableId], collidingTileIds, lastPinnedTileIds)
 			meshes.add(meshOf(drawableId, endpointsOf(drawableId, geometry.edges), geometry.positions.size / 2, style))
 			positionsByOwner[owner] = drag?.previewPositionsById?.get(drawableId) ?: geometry.positions
-			indicesByOwner[owner] = geometry.indices
+			indicesByOwner[owner] = geometry.topology.faceCorners
 			shownIds.add(drawableId)
 		}
 

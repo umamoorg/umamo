@@ -649,8 +649,8 @@ class EditorSession private constructor(
 			return
 		}
 
-		(selection.active as? SelectionTarget.Drawable)?.let { activeDrawable ->
-			elementMemory.lastActiveDrawableId = activeDrawable.id
+		editOwnerOf(selection.active)?.let { activeOwner ->
+			elementMemory.lastActiveOwner = activeOwner
 		}
 		commitStep(EditorStateChange.SelectionChanged, selection = selection)
 	}
@@ -700,29 +700,40 @@ class EditorSession private constructor(
 			when (mode) {
 				EditorMode.Edit -> {
 					val model = mutableModel.value
-					// The session spans EVERY selected mesh-carrying drawable (multi-mesh edit, needed for
-					// glue work); the object selection's active drawable becomes the session's active mesh.
-					// The model having nothing editable refuses Edit rather than opening an inert session
-					// (Blender needs an active object too): stay in the current mode, record nothing.
-					val editSeed = editSeedOf(model, mutableSelection.value, elementMemory.lastActiveDrawableId) ?: return
-					val seedDrawableIds = editSeed.drawableIds
-					val seedActiveId = editSeed.activeId
+					// The session spans EVERY selected owner of the active item's kind (multi-mesh edit, needed for
+					// glue work; several lattices at once); the object selection's active item becomes the session's
+					// active owner.  Nothing editable refuses Edit rather than opening an inert session (Blender needs
+					// an active object too): stay in the current mode, record nothing, and say why when there is a why.
+					val editSeed =
+						when (val entry = editEntryOf(model, mutableSelection.value, elementMemory.lastActiveOwner)) {
+							is EditEntry.Opens -> {
+								entry.seed
+							}
+
+							is EditEntry.Refused -> {
+								entry.noticeKey?.let { key -> notices.emit(key, NoticePlacement.NearCursor, emptyList()) }
+
+								return
+							}
+						}
+					val seedOwners = editSeed.owners
+					val seedActiveOwner = editSeed.activeOwner
 					// The mode Edit was entered from is where its toggle returns to.
 					editReturnMode = mutableMode.value
 
 					if (!editSeed.activeSelected) {
-						// Seeded from the remembered drawable or the topmost fallback: remember it so the next
+						// Seeded from the remembered owner or the topmost fallback: remember it so the next
 						// entry is stable. The object selection is left untouched - a soft seed, not a
 						// re-selection, matching the remembered-drawable behavior.
-						elementMemory.lastActiveDrawableId = seedActiveId
+						elementMemory.lastActiveOwner = seedActiveOwner
 					}
 
 					// Clear the transient tool state on entry too: the select tool is shared with Object mode, so
 					// an object tool armed before the switch must not leak in and drive the Edit overlay.
 					latches.clearTransient(clearViewportGesture = true)
-					// Restore each seeded drawable's remembered elements where they still fit its mesh;
-					// the rest start empty (a different mesh set no longer forgets the others' memory).
-					elementMemory.restore(MeshSelection.editing(seedDrawableIds, seedActiveId), model)
+					// Restore each seeded owner's remembered elements where they still fit its topology;
+					// the rest start empty, and entering on a different set of owners keeps every other owner's memory.
+					elementMemory.restore(MeshSelection.editing(seedOwners, seedActiveOwner), model)
 				}
 
 				EditorMode.Object, EditorMode.Pose -> {
@@ -980,9 +991,9 @@ class EditorSession private constructor(
 		// and voids the base so nothing can register against the step just left.
 		mutableAdjustableOperation.value = null
 		lastBaseSnapshot = null
-		// The remembered drawable tracks whatever was most recently shown active, undo/redo included.
-		(snapshot.selection.active as? SelectionTarget.Drawable)?.let { activeDrawable ->
-			elementMemory.lastActiveDrawableId = activeDrawable.id
+		// The remembered owner tracks whatever was most recently shown active, undo/redo included.
+		editOwnerOf(snapshot.selection.active)?.let { activeOwner ->
+			elementMemory.lastActiveOwner = activeOwner
 		}
 		// An undo / redo ends any in-flight gesture or armed tool, regardless of the restored mode: the select
 		// tool and its overlays are shared across modes, so a tool armed in one mode must not survive a restore

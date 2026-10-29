@@ -160,8 +160,8 @@ internal fun uvIslandPick(
 	image: DecodedImage?,
 ): UvIslandPickController =
 	UvIslandPickController(
-		displayPositionsById = geometries.associate { geometry -> geometry.drawableId to geometry.positions },
-		indicesById = geometries.associate { geometry -> geometry.drawableId to geometry.indices },
+		displayPositionsById = geometries.mapNotNull { geometry -> geometry.drawableId?.let { drawableId -> drawableId to geometry.positions } }.toMap(),
+		indicesById = geometries.mapNotNull { geometry -> geometry.drawableId?.let { drawableId -> drawableId to geometry.topology.faceCorners } }.toMap(),
 		meshUvsById = uvsById,
 		frontRankById = frontRank,
 		sampleAlpha = pageAlphaSampler(image),

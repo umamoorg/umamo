@@ -429,6 +429,10 @@
 	<string name="history_mesh_scale">Scale Vertices</string>
 	<string name="history_mesh_rotate">Rotate Vertices</string>
 	<string name="history_mesh_slide">Slide Vertex</string>
+	<string name="history_lattice_move">Move Lattice Points</string>
+	<string name="history_lattice_scale">Scale Lattice Points</string>
+	<string name="history_lattice_rotate">Rotate Lattice Points</string>
+	<string name="history_lattice_slide">Slide Lattice Point</string>
 	<string name="history_uv_move">Move UVs</string>
 	<string name="history_uv_scale">Scale UVs</string>
 	<string name="history_uv_rotate">Rotate UVs</string>
@@ -568,6 +572,9 @@
 	<string name="status_mesh_vertices">%1$d/%2$d vertices</string>
 	<string name="status_mesh_edges">%1$d/%2$d edges</string>
 	<string name="status_mesh_faces">%1$d/%2$d faces</string>
+	<string name="status_lattice_points">%1$d/%2$d points</string>
+	<string name="status_lattice_lines">%1$d/%2$d grid lines</string>
+	<string name="status_lattice_cells">%1$d/%2$d cells</string>
 	<string name="status_verts">Verts: %1$d</string>
 	<string name="status_verts_selected">Verts: %1$d/%2$d</string>
 	<string name="status_tris">Tris: %1$d</string>
@@ -712,6 +719,11 @@
 	<string name="notice_uv_placement_off_page">Placement extends past the page edge.  The overhang is cropped.</string>
 	<string name="notice_uv_placement_pinned">Selected tile is pinned.  Unpin it to transform it.</string>
 	<string name="notice_edit_no_editable_geometry">Nothing to edit, every selected drawable is hidden by a parent.</string>
+	<string name="notice_edit_rotation_not_editable">A rotation deformer has no points to edit.  Move or turn it in Object mode.</string>
+	<string name="notice_edit_warp_has_no_lattice">This warp deformer has no lattice to edit.</string>
+	<string name="notice_edit_warp_hidden_at_rest">This warp deformer is not drawn at the default pose, so its lattice cannot be edited.</string>
+	<string name="notice_edit_lattice_topology_fixed">A lattice keeps its grid.  Its points can be moved, but not added, merged, ripped, or connected.</string>
+	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds over %1$d of its children, so their art moved.  Undo to put it back.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
 	<string name="cmd_mesh_proportional_toggle">Toggle Proportional Editing</string>
@@ -773,7 +785,7 @@
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
 	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so that they stand out in the art.</string>
-	<string name="overlay_row_deformers_description">Show the lattice of every warp deformer, not only the selected ones, so that any of them can be clicked.</string>
+	<string name="overlay_row_deformers_description">Show the lattice of every warp deformer, not only the selected ones, so that any of them can be selected.</string>
 	<string name="overlay_row_cull_hidden_description">Hide parts of the wireframe that are covered by other drawables.</string>
 	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe, or of the UV editor's islands, as a percentage.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>

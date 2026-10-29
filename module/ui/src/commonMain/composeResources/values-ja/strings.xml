@@ -381,6 +381,10 @@
 	<string name="history_mesh_scale">頂点を拡縮</string>
 	<string name="history_mesh_rotate">頂点を回転</string>
 	<string name="history_mesh_slide">頂点をスライド</string>
+	<string name="history_lattice_move">格子の点を移動</string>
+	<string name="history_lattice_scale">格子の点を拡縮</string>
+	<string name="history_lattice_rotate">格子の点を回転</string>
+	<string name="history_lattice_slide">格子の点をスライド</string>
 	<string name="history_uv_move">UV を移動</string>
 	<string name="history_uv_scale">UV を拡縮</string>
 	<string name="history_uv_rotate">UV を回転</string>
@@ -517,6 +521,9 @@
 	<string name="status_mesh_vertices">頂点 %1$d/%2$d</string>
 	<string name="status_mesh_edges">辺 %1$d/%2$d</string>
 	<string name="status_mesh_faces">面 %1$d/%2$d</string>
+	<string name="status_lattice_points">点 %1$d/%2$d</string>
+	<string name="status_lattice_lines">格子線 %1$d/%2$d</string>
+	<string name="status_lattice_cells">セル %1$d/%2$d</string>
 	<string name="status_verts">頂点: %1$d</string>
 	<string name="status_verts_selected">頂点: %1$d/%2$d</string>
 	<string name="status_tris">三角形: %1$d</string>
@@ -654,6 +661,11 @@
 	<string name="notice_uv_placement_off_page">配置がページの端を超えています。はみ出した部分は切り取られます。</string>
 	<string name="notice_uv_placement_pinned">選択したタイルはピン留めされています。トランスフォームするにはピン留めを解除してください。</string>
 	<string name="notice_edit_no_editable_geometry">編集できるものがありません。選択中のドローアブルはすべて親によって非表示です。</string>
+	<string name="notice_edit_rotation_not_editable">回転デフォーマには編集できる点がありません。オブジェクトモードで移動・回転してください。</string>
+	<string name="notice_edit_warp_has_no_lattice">このワープデフォーマには編集できる格子がありません。</string>
+	<string name="notice_edit_warp_hidden_at_rest">このワープデフォーマはデフォルトのポーズで描画されないため、格子を編集できません。</string>
+	<string name="notice_edit_lattice_topology_fixed">格子のグリッドは変えられません。点の移動はできますが、追加・マージ・リップ・連結はできません。</string>
+	<string name="notice_edit_lattice_children_moved">変形した格子が子のうち %1$d 個の上で折り返しているため、それらのアートが動きました。元に戻すには取り消してください。</string>
 
 	<string name="cmd_mesh_proportional_toggle">プロポーショナル編集の切り替え</string>
 	<string name="cmd_mesh_proportional_falloff_smooth">プロポーショナル減衰: スムーズ</string>

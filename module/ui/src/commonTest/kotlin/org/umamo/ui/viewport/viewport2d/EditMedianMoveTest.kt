@@ -1,6 +1,7 @@
 package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
@@ -9,6 +10,7 @@ import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.withParameter
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.transform.WorldAxis
 import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.transform.coveredVerticesOf
@@ -38,10 +40,10 @@ class EditMedianMoveTest {
 		val session = gizmoEditSession(editing = listOf(RIG_QUAD, RIG_OTHER))
 		session.setMeshSelection(
 			session.meshSelection.value.copy(
-				elementsByDrawable =
+				elementsByOwner =
 					mapOf(
-						RIG_QUAD to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1)),
-						RIG_OTHER to setOf(MeshElement.Vertex(0)),
+						ElementOwner.Drawable(RIG_QUAD) to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1)),
+						ElementOwner.Drawable(RIG_OTHER) to setOf(MeshElement.Vertex(0)),
 					),
 			),
 		)
@@ -62,7 +64,7 @@ class EditMedianMoveTest {
 			coveredVerticesOf(
 				selection,
 				captureDrawableWorlds(model, emptyMap(), selection.drawableIds),
-				model.drawables.associate { drawable -> drawable.id to drawable.mesh!!.indices },
+				model.drawables.associate { drawable -> ElementOwner.Drawable(drawable.id) to ElementTopology.ofMesh(drawable.mesh!!) },
 			)
 
 		return assertNotNull(coveredMedianMove(covered))
@@ -200,7 +202,7 @@ class EditMedianMoveTest {
 		val before = session.model.value
 		val stepsBefore = session.historyView.value.steps.size
 
-		val preview = assertNotNull(session.previewCoveredMedianMove(moveOf(session), WorldAxis.X, 50f))
+		val preview = assertNotNull(session.previewCoveredMedianMove(moveOf(session), WorldAxis.X, 50f)).folded
 
 		assertEquals(30f, preview.drawables.first { drawable -> drawable.id == RIG_QUAD }.mesh!!.positions[0])
 		assertSame(before, session.model.value)

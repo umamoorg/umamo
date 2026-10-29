@@ -86,7 +86,7 @@ class MeshDriveParallelTest {
 		session.beginObjectOperator(MeshOperatorKind.Rotate, AREA_ID)
 		transform.begin(MeshOperatorKind.Rotate)
 		val gestureData = assertNotNull(transform.gesture.capture)
-		val jobs = meshDriveJobs(gestureData.transform, gestureData.geometryById, wholeMeshes = true)
+		val jobs = meshDriveJobs(gestureData.transform, gestureData.geometryByOwner, wholeMeshes = true)
 		assertEquals(48, jobs.size, "every mesh moves")
 		val parameters = TransformGestureParameters(3.5f, -2.25f, 1.3f, 0.7f, 0.9f)
 

@@ -37,13 +37,13 @@ internal class UvDisplayMedian(val displayX: Float, val displayY: Float, val ver
  */
 internal fun uvCoveredVertices(selection: MeshSelection, geometries: List<GizmoMeshGeometry>): List<UvCoveredVertices> =
 	geometries.mapNotNull { geometry ->
-		val elements = selection.elementsOf(geometry.drawableId)
+		val elements = selection.elementsOf(geometry.owner)
 
 		if (elements.isEmpty()) {
 			return@mapNotNull null
 		}
 
-		val covered = MeshTopology.coveredVertexIndicesWithin(elements, geometry.indices, geometry.positions.size / 2)
+		val covered = MeshTopology.coveredVertexIndicesWithin(elements, geometry.topology, geometry.positions.size / 2)
 
 		if (covered.isEmpty()) null else UvCoveredVertices(geometry, covered)
 	}

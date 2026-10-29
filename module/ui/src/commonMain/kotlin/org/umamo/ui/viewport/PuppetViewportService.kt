@@ -443,6 +443,16 @@ interface PuppetViewportService {
 	fun setLatticeOverlay(overlay: LatticeOverlay?)
 
 	/**
+	 * Sets the Edit-mode cage every 2D area draws over the art from positions of its own, or null for none: the
+	 * cage of whatever Edit mode shapes without moving the art, a warp's lattice.  Drawn under the Show Overlays
+	 * master like the mesh overlay; a new value replaces the old by identity, and a drag frame re-uploads only the
+	 * position arrays it replaced.
+	 *
+	 * @param DirectMeshOverlay? overlay The cage, or null.
+	 */
+	fun setEditDirectOverlay(overlay: DirectMeshOverlay?)
+
+	/**
 	 * The warps whose drawn lattice lies under the cursor in [areaId], best first: a control point within
 	 * [pointRadiusPx] ahead of a grid line within [lineRadiusPx], nearer first, and a tie to the warp later in the
 	 * model.  Only the lattices the area draws can be hit: none while it hides its overlays, and the idle ones only

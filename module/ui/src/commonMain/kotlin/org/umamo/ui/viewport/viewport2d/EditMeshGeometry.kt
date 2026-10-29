@@ -2,21 +2,49 @@ package org.umamo.ui.viewport.viewport2d
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.render.eval.ParentSpaceMapping
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeLayout
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.LatticeWorldGeometry
+import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.transform.captureEditModeMeshes
+import org.umamo.ui.transform.captureLatticeWorld
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
+
+/**
+ * One owner an Edit session shapes, as the 2D overlay picks and transforms it at the rest pose Edit mode is pinned
+ * to: a drawable's mesh ([EditMeshGeometry]) or a warp's lattice ([EditLatticeGeometry]).
+ */
+internal sealed interface EditOwnerGeometry {
+	/** The owner: the drawable or the warp. */
+	val owner: ElementOwner
+
+	/** Its world capture, which a transform of it moves and inverts. */
+	val worldGeometry: OwnerWorldGeometry
+
+	/** Its vertices, edges, and faces: a mesh's triangles, or a lattice's points, grid lines, and cells. */
+	val topology: ElementTopology
+
+	/** Its vertices in world space at the rest pose, interleaved x, y. */
+	val worldPosed: FloatArray
+
+	/** The geometry-source-agnostic view the shared element queries take. */
+	val gizmo: GizmoMeshGeometry
+}
 
 /**
  * One session mesh's live geometry at the neutral pose: its [DrawableWorldGeometry] (the rest arrays, the
  * posed rest shape, and its world projection, plus the deformer-chain mapping and the world->rest inverse),
- * along with its mesh and derived unique edges.  The Edit session spans several meshes, so the overlay
+ * along with its mesh and its topology.  The Edit session spans several meshes, so the overlay
  * carries one of these per drawable.
  *
  * The geometry is the SAME primitive the object gizmo and the Properties transform panel use, so
@@ -25,13 +53,16 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
  *
  * @property DrawableWorldGeometry worldGeometry The drawable's rest / displayed / world geometry and inverse.
  * @property DrawableMesh mesh The drawable's live mesh (positions, localPositions, uvs, indices).
- * @property List<MeshElement.Edge> edges The mesh's unique edges, in first-encounter order.
  */
 internal class EditMeshGeometry(
-	val worldGeometry: DrawableWorldGeometry,
+	override val worldGeometry: DrawableWorldGeometry,
 	val mesh: DrawableMesh,
-	val edges: List<MeshElement.Edge>,
-) {
+) : EditOwnerGeometry {
+	override val owner: ElementOwner = ElementOwner.Drawable(worldGeometry.drawableId)
+
+	/** The mesh's vertices, edges, and faces; its edges are built on first use. */
+	override val topology: ElementTopology = ElementTopology.ofMesh(mesh)
+
 	/** The drawable this geometry belongs to. */
 	val drawableId: DrawableId get() = worldGeometry.drawableId
 
@@ -42,10 +73,9 @@ internal class EditMeshGeometry(
 	val displayed: FloatArray get() = worldGeometry.displayed
 
 	/** The displayed shape projected to world space. */
-	val worldPosed: FloatArray get() = worldGeometry.world
+	override val worldPosed: FloatArray get() = worldGeometry.world
 
-	/** The geometry-source-agnostic view the shared element queries take. */
-	val gizmo = GizmoMeshGeometry(drawableId, mesh.indices, edges, worldGeometry.world)
+	override val gizmo = GizmoMeshGeometry(owner, topology, worldGeometry.world)
 
 	/**
 	 * Inverts a transformed WORLD shape back onto the rest arrays - the write-back a drag ends with.
@@ -58,9 +88,51 @@ internal class EditMeshGeometry(
 }
 
 /**
+ * One session lattice's geometry at the rest pose: the warp's lattice as the default pose draws it, with its points,
+ * grid lines, and cells.
+ *
+ * @property LatticeWorldGeometry worldGeometry The lattice's capture at the default pose.
+ */
+internal class EditLatticeGeometry(
+	override val worldGeometry: LatticeWorldGeometry,
+) : EditOwnerGeometry {
+	override val owner: ElementOwner get() = worldGeometry.owner
+
+	/** The warp. */
+	val deformerId: DeformerId get() = worldGeometry.deformerId
+
+	override val topology: ElementTopology = ElementTopology.ofLattice(WarpLatticeLayout(worldGeometry.lattice.rows, worldGeometry.lattice.columns))
+
+	override val worldPosed: FloatArray get() = worldGeometry.world
+
+	override val gizmo = GizmoMeshGeometry(owner, topology, worldGeometry.world)
+}
+
+/**
+ * Each session owner's geometry at the rest pose Edit mode is pinned to, in the session's order: a drawable's
+ * through [editMeshGeometries], a warp's lattice as the default pose draws it.  An owner that cannot be drawn there
+ * (a hidden ancestor, a lattice the defaults leave unkeyed) is skipped, so an empty result is a real state.
+ *
+ * @param PuppetModel model The model to project.
+ * @param List<ElementOwner> owners The session's owners.
+ * @return List<EditOwnerGeometry> The per-owner geometry, skipping what cannot be projected.
+ */
+internal fun editOwnerGeometries(model: PuppetModel, owners: List<ElementOwner>): List<EditOwnerGeometry> {
+	val drawableIds = owners.mapNotNull { owner -> (owner as? ElementOwner.Drawable)?.id }
+	val meshById = editMeshGeometries(model, drawableIds).associateBy { geometry -> geometry.owner }
+
+	return owners.mapNotNull { owner ->
+		when (owner) {
+			is ElementOwner.Drawable -> meshById[owner]
+			is ElementOwner.Deformer -> captureLatticeWorld(model, owner.id)?.let { capture -> EditLatticeGeometry(capture) }
+		}
+	}
+}
+
+/**
  * Each session mesh's geometry at the constant neutral pose Edit mode is pinned to: its rest shape
  * (displayed = base + the neutral keyform blend), its deformer-chain mapping, and its world projection,
- * captured by [captureEditModeMeshes], plus each mesh's unique edges.
+ * captured by [captureEditModeMeshes], with each mesh's topology.
  *
  * A drawable whose mapping cannot be built (a hidden ancestor) is skipped: it cannot be drawn, so it
  * cannot be edited - the same primitive the object gizmo and Properties use.  An empty
@@ -76,6 +148,5 @@ internal fun editMeshGeometries(model: PuppetModel, drawableIds: List<DrawableId
 		EditMeshGeometry(
 			worldGeometry = captured.geometry,
 			mesh = captured.mesh,
-			edges = MeshTopology.uniqueEdges(captured.mesh.indices),
 		)
 	}

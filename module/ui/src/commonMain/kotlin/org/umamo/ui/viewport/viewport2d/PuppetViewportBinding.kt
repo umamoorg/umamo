@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,8 +63,10 @@ import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AreaOverlaysPublisher
 import org.umamo.ui.viewport.AtlasPageBinding
+import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.LocalAreaOverlays
+import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.OverlapPickerPopup
 import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PuppetViewportService
@@ -309,6 +312,14 @@ fun rememberPuppetViewportHost(
 	LaunchedEffect(service, session) {
 		publishLatticeOverlay(service, session, snapshotFlow { latticeSizes.value })
 	}
+	// The Edit cage of the warps a session shapes, drawn from positions of its own: the rest lattice, or the points a
+	// drag has moved, so the cage follows the drag while the art stays put.  The window's live mesh preview carries
+	// the drag; the shell provides it to what it composes and the host is built outside the shell, so the host learns
+	// it through its areas.
+	val livePreviewLink = remember(service) { mutableStateOf<LiveMeshPreview?>(null) }
+	LaunchedEffect(service, session) {
+		publishLatticeCage(service, session, snapshotFlow { meshOverlaySizes.value }, snapshotFlow { livePreviewLink.value?.latticeWorldByDeformer })
+	}
 	// How many drawables have no usable artwork: the mapping failures the plan knows up front, plus the
 	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
 	// the renderer keeps every mapped layer or engages nothing, so there is no third case to confuse it
@@ -492,6 +503,10 @@ fun rememberPuppetViewportHost(
 					val overlayState = LocalAreaOverlays.current
 					AreaOverlaysPublisher(service, areaId, overlayState)
 					WireframeDemandPublisher(wireframeDemand, areaId, overlayState)
+					val livePreview = LocalLiveMeshPreview.current
+					SideEffect {
+						livePreviewLink.value = livePreview
+					}
 					val cameraFlow = remember(areaId, service) { service.cameraFlow(areaId) }
 					DisposableEffect(areaId, service) {
 						onDispose { service.unregister(areaId) }

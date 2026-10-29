@@ -1,105 +1,105 @@
 package org.umamo.edit
 
-import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.meshOf
 
 /**
- * The session's remembered-selection memory: which drawable was last active (so entering Edit mode
+ * The session's remembered-selection memory: which owner was last active (so entering Edit mode
  * with an empty selection lands somewhere sensible - Blender's remembered selection), and each
- * mesh's stashed element selection (stashed when Edit mode is left or the session switches meshes,
- * restored per drawable on re-entry when the elements still fit - Blender remembers the mesh
- * selection across mode switches per mesh).  Transient UI convenience, deliberately NOT part of
- * [EditorSnapshot]: undo restores whatever the snapshot holds, this only seeds fresh entries.
+ * owner's stashed element selection (stashed when Edit mode is left or the session switches meshes,
+ * restored per owner on re-entry when the elements still fit - Blender remembers the mesh
+ * selection across mode switches per mesh).  An owner is a drawable's mesh or a warp's lattice.
+ * Transient UI convenience, deliberately NOT part of [EditorSnapshot]: undo restores whatever the
+ * snapshot holds, this only seeds fresh entries.
  *
  * セッションの選択記憶。最後にアクティブだった描画対象と、メッシュごとの要素選択スタッシュを保持
  * する（Blender のモード切替をまたぐ選択記憶に相当）。スナップショットには含めない。
  */
 internal class MeshElementMemory {
-	/** The last drawable that was active, or null before any; Edit-mode entry falls back to it. */
-	var lastActiveDrawableId: DrawableId? = null
+	/** The last owner that was active - a drawable or a warp - or null before any; Edit-mode entry falls back to it. */
+	var lastActiveOwner: ElementOwner? = null
 
-	// Per-mesh element-selection memory, keyed by drawable, plus the select mode remembered alongside.
-	private val rememberedElementsByDrawable = HashMap<DrawableId, Set<MeshElement>>()
-	private val rememberedActiveElementByDrawable = HashMap<DrawableId, MeshElement>()
+	// Per-owner element-selection memory, plus the select mode remembered alongside.
+	private val rememberedElementsByOwner = HashMap<ElementOwner, Set<MeshElement>>()
+	private val rememberedActiveElementByOwner = HashMap<ElementOwner, MeshElement>()
 	private var rememberedSelectMode: MeshSelectMode? = null
 
 	/**
-	 * Stashes each session drawable's element selection into the per-mesh memory, so re-entering Edit
-	 * mode - or switching back to the mesh with Alt+Q - restores it.  An emptied mesh clears its slot;
+	 * Stashes each session owner's element selection into the per-owner memory, so re-entering Edit
+	 * mode - or switching back to the mesh with Alt+Q - restores it.  An emptied owner clears its slot;
 	 * the select mode is remembered alongside.
 	 *
 	 * @param MeshSelection current The element selection to stash.
 	 */
 	fun stash(current: MeshSelection) {
-		if (current.drawableIds.isEmpty()) {
+		if (current.owners.isEmpty()) {
 			return
 		}
 
 		rememberedSelectMode = current.selectMode
 
-		for (drawableId in current.drawableIds) {
-			val elements = current.elementsOf(drawableId)
+		for (owner in current.owners) {
+			val elements = current.elementsOf(owner)
 
 			if (elements.isEmpty()) {
-				rememberedElementsByDrawable.remove(drawableId)
-				rememberedActiveElementByDrawable.remove(drawableId)
+				rememberedElementsByOwner.remove(owner)
+				rememberedActiveElementByOwner.remove(owner)
 			} else {
-				rememberedElementsByDrawable[drawableId] = elements
+				rememberedElementsByOwner[owner] = elements
 			}
 		}
 
-		current.activeElement?.let { active -> rememberedActiveElementByDrawable[active.drawableId] = active.element }
+		current.activeElement?.let { active -> rememberedActiveElementByOwner[active.owner] = active.element }
 	}
 
 	/**
-	 * Forgets the remembered elements of meshes whose vertices were all replaced.  A restore checks only
+	 * Forgets the remembered elements of owners whose vertices were all replaced.  A restore checks only
 	 * that the remembered indices exist, so after a regenerated mesh a stale memory would select
 	 * different vertices under the same numbers.  The remembered select mode and the last active
-	 * drawable stay.
+	 * owner stay.
 	 *
-	 * @param Collection<DrawableId> drawableIds The drawables to forget.
+	 * @param Collection<ElementOwner> owners The owners to forget.
 	 */
-	fun forget(drawableIds: Collection<DrawableId>) {
-		for (drawableId in drawableIds) {
-			rememberedElementsByDrawable.remove(drawableId)
-			rememberedActiveElementByDrawable.remove(drawableId)
+	fun forget(owners: Collection<ElementOwner>) {
+		for (owner in owners) {
+			rememberedElementsByOwner.remove(owner)
+			rememberedActiveElementByOwner.remove(owner)
 		}
 	}
 
 	/**
-	 * Restores the per-mesh remembered elements into [seeded]: each seeded drawable whose stored
-	 * elements still fit its current mesh gets them back (validated per drawable, so one stale mesh
+	 * Restores the per-owner remembered elements into [seeded]: each seeded owner whose stored
+	 * elements still fit its current topology gets them back (validated per owner, so one stale owner
 	 * never discards the others' memory); the remembered select mode returns when anything restored.
 	 *
 	 * @param MeshSelection seeded The freshly seeded session selection.
-	 * @param PuppetModel model The current model (element fit is validated against its meshes).
+	 * @param PuppetModel model The current model (element fit is validated against its meshes and lattices).
 	 * @return MeshSelection The seeded selection with the remembered elements folded in.
 	 */
 	fun restore(seeded: MeshSelection, model: PuppetModel): MeshSelection {
 		val restored =
-			seeded.drawableIds.mapNotNull { drawableId ->
-				val stored = rememberedElementsByDrawable[drawableId]?.takeIf { elements -> elements.isNotEmpty() } ?: return@mapNotNull null
-				val probe = seeded.copy(selectMode = rememberedSelectMode ?: seeded.selectMode, elementsByDrawable = mapOf(drawableId to stored))
-				val fits = MeshSelectionOps.fitsWithinMeshes(probe) { candidateId -> model.meshOf(candidateId) }
-				if (fits) drawableId to stored else null
+			seeded.owners.mapNotNull { owner ->
+				val stored = rememberedElementsByOwner[owner]?.takeIf { elements -> elements.isNotEmpty() } ?: return@mapNotNull null
+				val probe = seeded.copy(selectMode = rememberedSelectMode ?: seeded.selectMode, elementsByOwner = mapOf(owner to stored))
+				val fits = MeshSelectionOps.fitsWithinMeshes(probe) { candidate -> model.editTopologyOf(candidate) }
+				if (fits) owner to stored else null
 			}.toMap()
 
 		if (restored.isEmpty()) {
 			return seeded
 		}
 
-		// The active mesh's remembered active element returns with it (when it is still selected there).
+		// The active owner's remembered active element returns with it (when it is still selected there).
 		val restoredActive =
-			seeded.activeDrawableId?.let { activeId ->
-				rememberedActiveElementByDrawable[activeId]
-					?.takeIf { element -> restored[activeId]?.contains(element) == true }
-					?.let { element -> ActiveMeshElement(activeId, element) }
+			seeded.activeOwner?.let { activeOwner ->
+				rememberedActiveElementByOwner[activeOwner]
+					?.takeIf { element -> restored[activeOwner]?.contains(element) == true }
+					?.let { element -> ActiveMeshElement(activeOwner, element) }
 			}
 
 		return seeded.copy(
 			selectMode = rememberedSelectMode ?: seeded.selectMode,
-			elementsByDrawable = restored,
+			elementsByOwner = restored,
 			activeElement = restoredActive,
 		)
 	}

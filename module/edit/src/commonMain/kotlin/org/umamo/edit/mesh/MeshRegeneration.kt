@@ -9,6 +9,7 @@ import org.umamo.geometry.predicate.orient2d
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.applyUvAffine
 import org.umamo.runtime.model.invertUvAffine
@@ -203,7 +204,7 @@ fun EditorSession.commitGeneratedMeshes(base: PuppetModel, generated: PuppetMode
 		return false
 	}
 
-	val targets = drawableIds.toSet()
+	val targets = drawableIds.mapTo(HashSet()) { drawableId -> ElementOwner.Drawable(drawableId) }
 	commitStep(
 		generationChangeOf(kind, drawableIds),
 		model = generated,

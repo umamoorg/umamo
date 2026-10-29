@@ -8,6 +8,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.eligibleTransformDrawables
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.OrgChild
@@ -167,8 +168,8 @@ fun EditorSession.duplicateSelectedDrawables(): List<DrawableId> {
 			copies.map { copyId -> SelectionTarget.Drawable(copyId) }.toSet<SelectionTarget>(),
 			SelectionTarget.Drawable(copies.last()),
 		)
-	// The remembered drawable tracks whatever is shown active (the rule setSelection and restore keep).
-	elementMemory.lastActiveDrawableId = copies.last()
+	// The remembered owner tracks whatever is shown active (the rule setSelection and restore keep).
+	elementMemory.lastActiveOwner = ElementOwner.Drawable(copies.last())
 	commitStep(DrawableChange.Duplicate(copies), model = newModel, selection = newSelection)
 
 	return copies

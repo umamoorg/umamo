@@ -143,6 +143,19 @@ internal class MeshOverlayEncoder(
 	}
 
 	/**
+	 * Records the 2D viewport's direct Edit cage into the open pass over the finished art and the mesh overlay - the
+	 * cage of whatever carries its own positions, a lattice's - from the positions its residency uploaded; nothing
+	 * when it holds nothing.
+	 *
+	 * @param RenderPassEncoder pass The open, unscissored pass on the frame's target.
+	 * @param DirectOverlayResidency residency The cage's residency, already brought to its value.
+	 * @param FrameInputs inputs The frame's inputs.
+	 */
+	fun encodeEditDirectDraws(pass: RenderPassEncoder, residency: DirectOverlayResidency, inputs: FrameInputs) {
+		encodeDirectDraws(pass, residency, overlayFrameOf(inputs, drawIdleLattices = true))
+	}
+
+	/**
 	 * The overlay frame a 2D frame's overlay draws land in: its camera, viewport, scale, palette, and wireframe and
 	 * culling state.
 	 *

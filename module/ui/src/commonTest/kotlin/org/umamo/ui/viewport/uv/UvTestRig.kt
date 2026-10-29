@@ -6,6 +6,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelectionOps
@@ -25,6 +26,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
@@ -253,7 +255,7 @@ internal fun uvRigGeometries(model: PuppetModel, frame: UvEditFrame, shown: List
 			display[vertexIndex * 2 + 1] = displayY
 		}
 
-		GizmoMeshGeometry(drawableId, mesh.indices, MeshTopology.uniqueEdges(mesh.indices), display)
+		GizmoMeshGeometry(ElementOwner.Drawable(drawableId), ElementTopology.ofMesh(mesh), display)
 	}
 
 /**

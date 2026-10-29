@@ -91,8 +91,9 @@ internal fun uvTransformLanding(
 	val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
 
 	for (entry in transform.entries) {
+		val drawableId = entry.drawableId ?: continue
 		val display = applyOperator(transform.operatorKind, entry.positions, entry.groups, parameters, entry.influence)
-		newUvsByDrawable[entry.drawableId] = storedUvsForCommit(baseModel, entry.drawableId, entry.movedIndices, display, frame)
+		newUvsByDrawable[drawableId] = storedUvsForCommit(baseModel, drawableId, entry.movedIndices, display, frame)
 	}
 
 	return newUvsByDrawable

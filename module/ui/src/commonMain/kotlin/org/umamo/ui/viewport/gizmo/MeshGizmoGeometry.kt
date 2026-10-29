@@ -3,6 +3,7 @@ package org.umamo.ui.viewport.gizmo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveMeshElement
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelection
@@ -12,6 +13,7 @@ import org.umamo.edit.transform.MeshTransforms
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.distanceToSegment
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 
 /*
  * The gizmo kit both work surfaces share, the 2D viewport and the UV editor: screen-space hit tests and
@@ -31,18 +33,23 @@ import org.umamo.runtime.model.DrawableId
  * overlays take this record, so a new editor space reuses them by constructing one - never by
  * re-implementing the hit / box / circle rules.
  *
- * @property DrawableId drawableId The drawable the mesh belongs to (the selection key).
- * @property IntArray indices The triangle vertex indices (three per triangle).
- * @property List<MeshElement.Edge> edges The unique edges, in first-encounter order.
+ * @property ElementOwner owner What the elements belong to (the selection key): a drawable's mesh, or a warp's
+ *   lattice.
+ * @property ElementTopology topology The vertices, edges, and faces.
  * @property FloatArray positions The interleaved (x, y) vertex positions in the hosting space's
  *   world units (what the area camera projects).
  */
 internal class GizmoMeshGeometry(
-	val drawableId: DrawableId,
-	val indices: IntArray,
-	val edges: List<MeshElement.Edge>,
+	val owner: ElementOwner,
+	val topology: ElementTopology,
 	val positions: FloatArray,
-)
+) {
+	/** The unique edges, in the topology's order. */
+	val edges: List<MeshElement.Edge> get() = topology.edges
+
+	/** The drawable whose mesh this is, or null for a lattice; a UV editor's geometry is always a drawable's. */
+	val drawableId: DrawableId? get() = (owner as? ElementOwner.Drawable)?.id
+}
 
 /**
  * The active element's own covered median: the median of the vertices the active element covers, in the
@@ -55,8 +62,8 @@ internal class GizmoMeshGeometry(
  */
 internal fun activeElementMedian(selection: MeshSelection, geometries: List<GizmoMeshGeometry>): Pair<Float, Float>? {
 	val active = selection.activeElement ?: return null
-	val activeGeometry = geometries.firstOrNull { geometry -> geometry.drawableId == active.drawableId } ?: return null
-	val activeCovered = MeshTopology.coveredVertexIndices(setOf(active.element), activeGeometry.indices)
+	val activeGeometry = geometries.firstOrNull { geometry -> geometry.owner == active.owner } ?: return null
+	val activeCovered = MeshTopology.coveredVertexIndices(setOf(active.element), activeGeometry.topology)
 
 	return if (activeCovered.isEmpty()) {
 		null
@@ -69,7 +76,8 @@ internal fun activeElementMedian(selection: MeshSelection, geometries: List<Gizm
  * The nearest element of the given domain under the pointer across every mesh, or null.  Each mesh's
  * own hit test already picks its nearest candidate; this compares the survivors across meshes by the
  * same screen-space metric each domain uses (vertex distance, point-to-segment distance, face
- * centroid distance), so overlapping meshes resolve to the visually closest element.
+ * centroid distance - the mean of the face's corners), so overlapping meshes resolve to the visually
+ * closest element.
  *
  * @param MeshSelectMode selectMode The element domain to pick in.
  * @param List<GizmoMeshGeometry> geometries The meshes' gizmo geometry.
@@ -97,7 +105,7 @@ internal fun hitTestMeshes(
 
 				if (metric < bestMetric) {
 					bestMetric = metric
-					best = ActiveMeshElement(geometry.drawableId, MeshElement.Vertex(vertexIndex))
+					best = ActiveMeshElement(geometry.owner, MeshElement.Vertex(vertexIndex))
 				}
 			}
 
@@ -109,30 +117,47 @@ internal fun hitTestMeshes(
 
 				if (metric < bestMetric) {
 					bestMetric = metric
-					best = ActiveMeshElement(geometry.drawableId, edge)
+					best = ActiveMeshElement(geometry.owner, edge)
 				}
 			}
 
 			MeshSelectMode.Face -> {
-				val face = hitTestFace(geometry.positions, geometry.indices, pointer, camera, size) ?: continue
-				val cornerA = geometry.indices[face.triangleIndex * 3]
-				val cornerB = geometry.indices[face.triangleIndex * 3 + 1]
-				val cornerC = geometry.indices[face.triangleIndex * 3 + 2]
-				val screenA = worldToScreen(geometry.positions[cornerA * 2], geometry.positions[cornerA * 2 + 1], camera, size)
-				val screenB = worldToScreen(geometry.positions[cornerB * 2], geometry.positions[cornerB * 2 + 1], camera, size)
-				val screenC = worldToScreen(geometry.positions[cornerC * 2], geometry.positions[cornerC * 2 + 1], camera, size)
-				val centroid = Offset((screenA.x + screenB.x + screenC.x) / 3f, (screenA.y + screenB.y + screenC.y) / 3f)
-				val metric = (centroid - pointer).getDistance()
+				val face = hitTestFace(geometry.positions, geometry.topology, pointer, camera, size) ?: continue
+				val metric = (faceCentroidOnScreen(geometry, face.index, camera, size) - pointer).getDistance()
 
 				if (metric < bestMetric) {
 					bestMetric = metric
-					best = ActiveMeshElement(geometry.drawableId, face)
+					best = ActiveMeshElement(geometry.owner, face)
 				}
 			}
 		}
 	}
 
 	return best
+}
+
+/**
+ * One face's centroid on screen: the mean of its corners' projections.
+ *
+ * @param GizmoMeshGeometry geometry The mesh's gizmo geometry.
+ * @param Int faceIndex The face.
+ * @param ViewportCamera camera The area camera.
+ * @param IntSize size The area size in pixels.
+ * @return Offset The centroid in screen pixels.
+ */
+private fun faceCentroidOnScreen(geometry: GizmoMeshGeometry, faceIndex: Int, camera: ViewportCamera, size: IntSize): Offset {
+	var sumX = 0f
+	var sumY = 0f
+	val topology = geometry.topology
+
+	for (cornerIndex in 0 until topology.cornersPerFace) {
+		val corner = topology.faceCorners[faceIndex * topology.cornersPerFace + cornerIndex]
+		val screen = worldToScreen(geometry.positions[corner * 2], geometry.positions[corner * 2 + 1], camera, size)
+		sumX += screen.x
+		sumY += screen.y
+	}
+
+	return Offset(sumX / topology.cornersPerFace, sumY / topology.cornersPerFace)
 }
 
 /**
@@ -167,7 +192,7 @@ internal fun elementsInBox(
 		}
 
 		MeshSelectMode.Face -> {
-			facesInBox(geometry.positions, geometry.indices, cornerA, cornerB, camera, size)
+			facesInBox(geometry.positions, geometry.topology, cornerA, cornerB, camera, size)
 		}
 	}
 
@@ -194,7 +219,7 @@ internal fun circleSelection(
 	camera: ViewportCamera,
 	size: IntSize,
 ): MeshSelection {
-	val insideByDrawable =
+	val insideByOwner =
 		geometries.associate { geometry ->
 			val inside: Set<MeshElement> =
 				when (working.selectMode) {
@@ -209,16 +234,16 @@ internal fun circleSelection(
 					}
 
 					MeshSelectMode.Face -> {
-						facesInCircle(geometry.positions, geometry.indices, center, radiusPx, camera, size)
+						facesInCircle(geometry.positions, geometry.topology, center, radiusPx, camera, size)
 					}
 				}
-			geometry.drawableId to inside
+			geometry.owner to inside
 		}
 
 	return if (erasing) {
-		MeshSelectionOps.remove(working, insideByDrawable)
+		MeshSelectionOps.remove(working, insideByOwner)
 	} else {
-		MeshSelectionOps.box(working, insideByDrawable, additive = true)
+		MeshSelectionOps.box(working, insideByOwner, additive = true)
 	}
 }
 
@@ -230,10 +255,10 @@ internal fun circleSelection(
  *
  * @property Set<Int> selectedVertexIndices Vertices drawn selected (vertex mode only).
  * @property Set<MeshElement.Edge> selectedEdges Edges drawn selected (stored or derived).
- * @property Set<Int> selectedFaceIndices Triangle ordinals drawn filled (stored or derived).
+ * @property Set<Int> selectedFaceIndices Face ordinals drawn filled (stored or derived).
  * @property Int? activeVertexIndex The active vertex (vertex mode), or null.
  * @property MeshElement.Edge? activeEdge The active edge (edge mode), or null.
- * @property Int? activeFaceIndex The active face's triangle ordinal (face mode), or null.
+ * @property Int? activeFaceIndex The active face's ordinal (face mode), or null.
  */
 internal class MeshHighlightSets(
 	val selectedVertexIndices: Set<Int>,
@@ -247,30 +272,30 @@ internal class MeshHighlightSets(
 /**
  * Projects the stored selection into per-domain highlight sets for the wireframe draw, applying
  * Blender's derive-up rules (vertex mode lights edges with both endpoints selected and faces with all
- * vertices selected; edge mode lights faces with all three own edges selected) and flush-down display
+ * vertices selected; edge mode lights faces with all their own edges selected) and flush-down display
  * (face mode lights the selected faces' own edges).
  *
  * @param Set<MeshElement> elements One mesh's stored elements (the current select mode's domain).
  * @param MeshElement? active The active element when it lives on this mesh, or null.
  * @param MeshSelectMode selectMode The current select mode.
- * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).
+ * @param ElementTopology topology The mesh's topology.
  * @return MeshHighlightSets The projected highlight state for this mesh.
  */
 internal fun buildHighlightSets(
 	elements: Set<MeshElement>,
 	active: MeshElement?,
 	selectMode: MeshSelectMode,
-	triangleIndices: IntArray,
+	topology: ElementTopology,
 ): MeshHighlightSets =
 	when (selectMode) {
 		MeshSelectMode.Vertex -> {
 			val vertexIndices = elements.filterIsInstance<MeshElement.Vertex>().map { it.index }.toSet()
 			MeshHighlightSets(
 				selectedVertexIndices = vertexIndices,
-				selectedEdges = MeshTopology.edgesWithBothEndpointsSelected(triangleIndices, vertexIndices),
+				selectedEdges = MeshTopology.edgesWithBothEndpointsSelected(topology, vertexIndices),
 				selectedFaceIndices =
-					MeshTopology.facesWithAllVerticesSelected(triangleIndices, vertexIndices)
-						.map { it.triangleIndex }
+					MeshTopology.facesWithAllVerticesSelected(topology, vertexIndices)
+						.map { face -> face.index }
 						.toSet(),
 				activeVertexIndex = (active as? MeshElement.Vertex)?.index,
 				activeEdge = null,
@@ -284,8 +309,8 @@ internal fun buildHighlightSets(
 				selectedVertexIndices = emptySet(),
 				selectedEdges = selectedEdges,
 				selectedFaceIndices =
-					MeshTopology.facesWithAllEdgesSelected(triangleIndices, selectedEdges)
-						.map { it.triangleIndex }
+					MeshTopology.facesWithAllEdgesSelected(topology, selectedEdges)
+						.map { face -> face.index }
 						.toSet(),
 				activeVertexIndex = null,
 				activeEdge = active as? MeshElement.Edge,
@@ -294,14 +319,14 @@ internal fun buildHighlightSets(
 		}
 
 		MeshSelectMode.Face -> {
-			val faceIndices = elements.filterIsInstance<MeshElement.Face>().map { it.triangleIndex }.toSet()
+			val faceIndices = elements.filterIsInstance<MeshElement.Face>().map { face -> face.index }.toSet()
 			MeshHighlightSets(
 				selectedVertexIndices = emptySet(),
-				selectedEdges = faceIndices.flatMap { faceIndex -> MeshTopology.edgesOfTriangle(triangleIndices, faceIndex) }.toSet(),
+				selectedEdges = faceIndices.flatMap { faceIndex -> topology.edgesOfFace(faceIndex) }.toSet(),
 				selectedFaceIndices = faceIndices,
 				activeVertexIndex = null,
 				activeEdge = null,
-				activeFaceIndex = (active as? MeshElement.Face)?.triangleIndex,
+				activeFaceIndex = (active as? MeshElement.Face)?.index,
 			)
 		}
 	}

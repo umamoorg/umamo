@@ -2,6 +2,7 @@ package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.eligibleTransformDrawables
 import org.umamo.ui.transform.WorldExtent
@@ -32,14 +33,15 @@ internal class ViewportSpaceCamera(
 		val model = session.model.value
 		val extent =
 			if (session.mode.value == EditorMode.Edit) {
-				// The covered vertices of the session selection, at the neutral pose Edit mode is pinned to.
+				// The covered vertices or lattice points of the session selection, at the neutral pose Edit mode is
+				// pinned to.
 				val meshSelection = session.meshSelection.value
-				val meshes = captureEditModeMeshes(model, meshSelection.drawableIds)
+				val owners = editOwnerGeometries(model, meshSelection.owners)
 				val covered =
 					coveredVerticesOf(
 						meshSelection,
-						meshes.map { captured -> captured.geometry },
-						meshes.associate { captured -> captured.geometry.drawableId to captured.mesh.indices },
+						owners.map { geometry -> geometry.worldGeometry },
+						owners.associate { geometry -> geometry.owner to geometry.topology },
 					)
 				coveredWorldExtent(covered)
 			} else {

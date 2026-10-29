@@ -1,6 +1,11 @@
 package org.umamo.edit
 
+import org.umamo.edit.parameter.defaultValueLookup
+import org.umamo.runtime.eval.gridCorners
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.firstEditableDrawableInPanelOrder
 
@@ -69,50 +74,161 @@ internal fun SessionViewState.fittedTo(model: PuppetModel): SessionViewState {
 }
 
 /**
- * The meshes an Edit-mode session opens on, and which of them is active.
+ * The owners an Edit-mode session opens on, and which of them is active: drawables' meshes, or warps' lattices, never
+ * both (Edit mode edits the active item's kind).
  *
- * @property List<DrawableId> drawableIds   The session's meshes.
- * @property DrawableId       activeId      The active mesh.
- * @property Boolean          activeSelected Whether [activeId] is the object selection's own active drawable, as opposed
- *   to a fallback the entry chose.
+ * @property List<ElementOwner> owners The session's owners.
+ * @property ElementOwner activeOwner The active owner.
+ * @property Boolean activeSelected Whether [activeOwner] is the object selection's own active item, as opposed to a
+ *   fallback the entry chose.
  */
 internal class EditSeed(
-	val drawableIds: List<DrawableId>,
-	val activeId: DrawableId,
+	val owners: List<ElementOwner>,
+	val activeOwner: ElementOwner,
 	val activeSelected: Boolean,
 )
 
+/** What an attempt to enter Edit mode comes to: a session to open, or a refusal. */
+internal sealed interface EditEntry {
+	/**
+	 * Edit mode opens on [seed].
+	 *
+	 * @property EditSeed seed The owners to open on.
+	 */
+	class Opens(val seed: EditSeed) : EditEntry
+
+	/**
+	 * Edit mode stays shut.
+	 *
+	 * @property String? noticeKey The near-cursor notice that says why, or null when the model simply has nothing
+	 *   editable.
+	 */
+	class Refused(val noticeKey: String?) : EditEntry
+}
+
 /**
- * What entering Edit mode opens on: every selected mesh-carrying drawable (multi-mesh edit, the object selection's
- * active drawable becoming the active mesh), else the remembered drawable, else the topmost editable drawable in
- * Parts-panel order - or null when the model has nothing editable, which refuses the entry.
+ * What entering Edit mode opens on, by the active item's kind (Blender's rule).
  *
- * @param PuppetModel model                The session's model.
- * @param Selection   selection            The object selection.
- * @param DrawableId? rememberedDrawableId The last drawable that was active, or null.
- * @return EditSeed? The meshes to open on, or null when Edit mode cannot be entered.
+ * An active warp opens on every selected warp Edit mode can shape (one with a lattice the default pose draws, see
+ * [hasRestLattice]); an active warp it cannot shape, or an active rotation deformer, refuses with a notice naming
+ * why.  Otherwise the session opens on every selected mesh-carrying drawable (multi-mesh edit, the object
+ * selection's active drawable becoming the active mesh), else the remembered owner when it is still editable, else
+ * the topmost editable drawable in Parts-panel order - or nothing, which refuses the entry silently.
+ *
+ * @param PuppetModel model The session's model.
+ * @param Selection selection The object selection.
+ * @param ElementOwner? rememberedOwner The last owner that was active, or null.
+ * @return EditEntry The session to open, or the refusal.
  */
-internal fun editSeedOf(model: PuppetModel, selection: Selection, rememberedDrawableId: DrawableId?): EditSeed? {
+internal fun editEntryOf(model: PuppetModel, selection: Selection, rememberedOwner: ElementOwner?): EditEntry {
+	val active = selection.active
+
+	if (active is SelectionTarget.Deformer) {
+		when (val deformer = model.deformers.firstOrNull { candidate -> candidate.id == active.id }) {
+			is Deformer.Rotation -> {
+				return EditEntry.Refused("notice.edit.rotationNotEditable")
+			}
+
+			is Deformer.Warp -> {
+				if (!model.hasRestLattice(deformer.id)) {
+					return EditEntry.Refused(if (deformer.geometryGrid == null) "notice.edit.warpHasNoLattice" else "notice.edit.warpHiddenAtRest")
+				}
+
+				val warps =
+					selection.targets
+						.filterIsInstance<SelectionTarget.Deformer>()
+						.filter { target -> model.hasRestLattice(target.id) }
+						.map { target -> ElementOwner.Deformer(target.id) }
+
+				return EditEntry.Opens(EditSeed(warps, ElementOwner.Deformer(deformer.id), activeSelected = true))
+			}
+
+			null -> {}
+		}
+	}
+
 	val selectedMeshedIds =
 		selection.targets
 			.filterIsInstance<SelectionTarget.Drawable>()
 			.map { target -> target.id }
 			.filter { candidateId -> model.drawables.any { drawable -> drawable.id == candidateId && drawable.mesh != null } }
-	val activeSelectedId = (selection.active as? SelectionTarget.Drawable)?.id?.takeIf { activeId -> activeId in selectedMeshedIds }
-	val remembered = rememberedDrawableId?.takeIf { candidateId -> model.drawables.any { drawable -> drawable.id == candidateId && drawable.mesh != null } }
-	val seedDrawableIds =
-		when {
-			selectedMeshedIds.isNotEmpty() -> selectedMeshedIds
-			remembered != null -> listOf(remembered)
-			else -> listOfNotNull(model.firstEditableDrawableInPanelOrder())
-		}
+	val activeSelectedId = (active as? SelectionTarget.Drawable)?.id?.takeIf { activeId -> activeId in selectedMeshedIds }
 
-	if (seedDrawableIds.isEmpty()) {
-		return null
+	if (selectedMeshedIds.isNotEmpty()) {
+		val owners = selectedMeshedIds.map { drawableId -> ElementOwner.Drawable(drawableId) }
+		val activeOwner = ElementOwner.Drawable(activeSelectedId ?: selectedMeshedIds.first())
+
+		return EditEntry.Opens(EditSeed(owners, activeOwner, activeSelected = activeSelectedId != null))
 	}
 
-	return EditSeed(seedDrawableIds, activeSelectedId ?: seedDrawableIds.first(), activeSelectedId != null)
+	val fallback = rememberedOwner?.takeIf { owner -> isEditableOwner(model, owner) } ?: model.firstEditableDrawableInPanelOrder()?.let { drawableId -> ElementOwner.Drawable(drawableId) }
+
+	return if (fallback != null) EditEntry.Opens(EditSeed(listOf(fallback), fallback, activeSelected = false)) else EditEntry.Refused(null)
 }
+
+/**
+ * Whether Edit mode can open on [owner]: a drawable that carries a mesh, or a warp with a rest lattice.
+ *
+ * @param PuppetModel model The model.
+ * @param ElementOwner owner The owner.
+ * @return Boolean True when it is editable.
+ */
+private fun isEditableOwner(model: PuppetModel, owner: ElementOwner): Boolean =
+	when (owner) {
+		is ElementOwner.Drawable -> model.drawables.any { drawable -> drawable.id == owner.id && drawable.mesh != null }
+		is ElementOwner.Deformer -> model.hasRestLattice(owner.id)
+	}
+
+/**
+ * Whether [deformerId] is a warp Edit mode can shape: one with a lattice the default pose draws.  Edit mode pins the
+ * pose at the defaults, so a warp whose keyform grid does not bracket every default - or one under a deformer whose grid
+ * does not - is hidden there and has no rest lattice to edit, which is exactly when the evaluator leaves it out.
+ *
+ * @param DeformerId deformerId The deformer.
+ * @return Boolean True for a warp with a rest lattice.
+ */
+internal fun PuppetModel.hasRestLattice(deformerId: DeformerId): Boolean {
+	val deformerById = deformers.associateBy { deformer -> deformer.id }
+
+	if (deformerById[deformerId] !is Deformer.Warp) {
+		return false
+	}
+
+	val defaultValue = defaultValueLookup()
+	var current: Deformer? = deformerById[deformerId]
+	var depth = 0
+
+	// A chain longer than the deformer count can only be a parent cycle, which the evaluator leaves out too.
+	while (current != null) {
+		val grid =
+			when (current) {
+				is Deformer.Warp -> current.geometryGrid
+				is Deformer.Rotation -> current.geometryGrid
+			}
+
+		if (grid == null || gridCorners(grid, defaultValue) == null || depth > deformers.size) {
+			return false
+		}
+
+		current = current.parent?.let { parentId -> deformerById[parentId] }
+		depth++
+	}
+
+	return true
+}
+
+/**
+ * The Edit owner a selection target names: a drawable's mesh or a deformer's lattice, or null for a part.
+ *
+ * @param SelectionTarget? target The target, or null.
+ * @return ElementOwner? Its owner, or null.
+ */
+internal fun editOwnerOf(target: SelectionTarget?): ElementOwner? =
+	when (target) {
+		is SelectionTarget.Drawable -> ElementOwner.Drawable(target.id)
+		is SelectionTarget.Deformer -> ElementOwner.Deformer(target.id)
+		is SelectionTarget.Part, null -> null
+	}
 
 /**
  * The snapshot a session opens on: the model and pose as given, with [viewState] fitted to the model laid in, so
@@ -132,7 +248,7 @@ internal fun openingSnapshotOf(model: PuppetModel, pose: Pose, viewState: Sessio
 		return EditorSnapshot(model, Selection(), pose)
 	}
 
-	val editSeed = if (viewState.mode == EditorMode.Edit) editSeedOf(model, viewState.selection, rememberedDrawableId = null) else null
+	val editSeed = if (viewState.mode == EditorMode.Edit) (editEntryOf(model, viewState.selection, rememberedOwner = null) as? EditEntry.Opens)?.seed else null
 	val mode =
 		when {
 			editSeed != null -> EditorMode.Edit
@@ -144,7 +260,7 @@ internal fun openingSnapshotOf(model: PuppetModel, pose: Pose, viewState: Sessio
 		model = model,
 		selection = viewState.selection,
 		pose = pose,
-		meshSelection = editSeed?.let { seed -> MeshSelection.editing(seed.drawableIds, seed.activeId).copy(selectMode = viewState.selectMode) } ?: MeshSelection(),
+		meshSelection = editSeed?.let { seed -> MeshSelection.editing(seed.owners, seed.activeOwner).copy(selectMode = viewState.selectMode) } ?: MeshSelection(),
 		mode = mode,
 		parameterSelection = viewState.parameterSelection,
 	)

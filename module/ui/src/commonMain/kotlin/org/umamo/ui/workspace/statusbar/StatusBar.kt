@@ -21,12 +21,15 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorMode
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.editTopologyOf
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
@@ -226,30 +229,33 @@ private fun SelectedItemZone() {
 	val text: String?
 
 	if (editorMode == EditorMode.Edit) {
-		// The denominators sum over EVERY session mesh (multi-mesh edit), so "3/240 vertices" reads
-		// against everything the session can select.
+		// The denominators sum over EVERY session owner (multi-mesh edit), so "3/240 vertices" reads
+		// against everything the session can select; a lattice session counts points, grid lines, and cells.
 		val meshSelection by session.meshSelection.collectAsState()
-		val drawableById = remember(puppet) { puppet.drawables.associateBy { drawable -> drawable.id } }
-		val sessionMeshes =
-			remember(puppet, meshSelection.drawableIds) {
-				meshSelection.drawableIds.mapNotNull { drawableId -> drawableById[drawableId]?.mesh }
+		val sessionTopologies =
+			remember(puppet, meshSelection.owners) {
+				meshSelection.owners.mapNotNull { owner -> puppet.editTopologyOf(owner) }
 			}
+		val latticeSession = meshSelection.owners.isNotEmpty() && meshSelection.owners.all { owner -> owner is ElementOwner.Deformer }
 		text =
-			if (sessionMeshes.isEmpty() || meshSelection.isEmpty) {
+			if (sessionTopologies.isEmpty() || meshSelection.isEmpty) {
 				null
 			} else {
 				when (meshSelection.selectMode) {
 					MeshSelectMode.Vertex -> {
-						stringResource(Res.string.status_mesh_vertices, meshSelection.size, sessionMeshes.sumOf { mesh -> mesh.vertexCount })
+						val label = if (latticeSession) Res.string.status_lattice_points else Res.string.status_mesh_vertices
+						stringResource(label, meshSelection.size, sessionTopologies.sumOf { topology -> topology.vertexCount })
 					}
 
 					MeshSelectMode.Edge -> {
-						val totalEdges = remember(sessionMeshes) { sessionMeshes.sumOf { mesh -> MeshTopology.uniqueEdges(mesh.indices).size } }
-						stringResource(Res.string.status_mesh_edges, meshSelection.size, totalEdges)
+						val totalEdges = remember(sessionTopologies) { sessionTopologies.sumOf { topology -> topology.edgeEndpoints.size / 2 } }
+						val label = if (latticeSession) Res.string.status_lattice_lines else Res.string.status_mesh_edges
+						stringResource(label, meshSelection.size, totalEdges)
 					}
 
 					MeshSelectMode.Face -> {
-						stringResource(Res.string.status_mesh_faces, meshSelection.size, sessionMeshes.sumOf { mesh -> mesh.triangleCount })
+						val label = if (latticeSession) Res.string.status_lattice_cells else Res.string.status_mesh_faces
+						stringResource(label, meshSelection.size, sessionTopologies.sumOf { topology -> topology.faceCount })
 					}
 				}
 			}
@@ -321,9 +327,10 @@ private fun ModelStats() {
 						var coveredFaceTotal = 0
 
 						for ((drawableId, mesh) in sessionMeshes) {
-							val coveredVertexIndices = MeshTopology.coveredVertexIndices(meshSelection.elementsOf(drawableId), mesh.indices)
+							val topology = ElementTopology.ofMesh(mesh)
+							val coveredVertexIndices = MeshTopology.coveredVertexIndices(meshSelection.elementsOf(drawableId), topology)
 							coveredVertexTotal += coveredVertexIndices.size
-							coveredFaceTotal += MeshTopology.facesWithAllVerticesSelected(mesh.indices, coveredVertexIndices).size
+							coveredFaceTotal += MeshTopology.facesWithAllVerticesSelected(topology, coveredVertexIndices).size
 						}
 
 						MeshTotals(vertexCount = coveredVertexTotal, triangleCount = coveredFaceTotal)

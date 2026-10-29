@@ -129,6 +129,12 @@ data class MeshOverlaySizes(
  *   cage stays on top, and only in a frame whose wireframe flag is on.  The other kinds ignore it.
  * @property LatticeRole? latticeRole The lattice's color in a [MeshOverlayKind.Lattice] overlay; null there
  *   reads as idle, and every other kind ignores it.
+ * @property IntArray? faceDotCorners Three vertex indices per triangle whose centroid is where that triangle's face
+ *   dot draws, parallel to the mesh's triangle list, in a direct overlay; null draws each dot at its own triangle's
+ *   centroid.  A lattice's Edit cage points both triangles of a cell at the cell's appended center vertex, so the
+ *   cell, a quad, shows one dot where its center is.
+ * @property Int vertexDotCount How many of the vertices, from the first, are the mesh's own and draw a vertex dot;
+ *   the vertices after them are face-dot anchors only.  Every vertex by default.
  */
 class MeshOverlayMesh(
 	val owner: ElementOwner,
@@ -143,6 +149,8 @@ class MeshOverlayMesh(
 	val islandStyle: IslandStyle? = null,
 	val wireframeOnly: Boolean = false,
 	val latticeRole: LatticeRole? = null,
+	val faceDotCorners: IntArray? = null,
+	val vertexDotCount: Int = vertexCount,
 ) {
 	/** How many unique edges the mesh carries. */
 	val edgeCount: Int get() = edgeEndpoints.size / 2
@@ -159,6 +167,8 @@ class MeshOverlayMesh(
 		require(activeVertex == null || activeVertex in 0 until vertexCount) { "active vertex $activeVertex is outside $owner" }
 		require(activeEdge == null || activeEdge in 0 until edgeCount) { "active edge $activeEdge is outside $owner" }
 		require(activeFace == null || activeFace in faceFlags.indices) { "active face $activeFace is outside the flagged faces of $owner" }
+		require(vertexDotCount in 0..vertexCount) { "$vertexDotCount vertex dots are more than the $vertexCount vertices of $owner" }
+		require(faceDotCorners == null || faceDotCorners.all { corner -> corner in 0 until vertexCount }) { "a face dot corner is outside the vertices of $owner" }
 	}
 }
 

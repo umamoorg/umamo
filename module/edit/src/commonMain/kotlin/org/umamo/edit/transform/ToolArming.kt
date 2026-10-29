@@ -19,7 +19,7 @@ import org.umamo.edit.eligibleTransformDrawables
 
 /**
  * Latches a modal mesh operator so the gizmo overlay begins the gesture. A no-op unless Edit mode is
- * active with a drawable and a non-empty selection — so the bound G / S / R commands need no context
+ * active with a mesh or lattice and a non-empty selection — so the bound G / S / R commands need no context
  * guard of their own and the keymap stays mode-agnostic. For an edge or face selection the gesture
  * moves the union of vertices the selected elements cover (resolved in the overlay).
  *
@@ -35,7 +35,7 @@ fun EditorSession.beginMeshOperator(kind: MeshOperatorKind, areaId: String, supp
 
 	val selection = meshSelection.value
 
-	if (selection.drawableIds.isEmpty() || selection.isEmpty) {
+	if (selection.owners.isEmpty() || selection.isEmpty) {
 		return
 	}
 
@@ -132,7 +132,7 @@ fun EditorSession.beginUvOperator(kind: MeshOperatorKind, areaId: String) {
 		EditorMode.Edit -> {
 			val selection = meshSelection.value
 
-			if (selection.drawableIds.isEmpty() || selection.isEmpty) {
+			if (selection.owners.isEmpty() || selection.isEmpty) {
 				return
 			}
 
@@ -154,14 +154,14 @@ fun EditorSession.beginUvOperator(kind: MeshOperatorKind, areaId: String) {
 
 /**
  * Arms the Box-select tool (Blender's B): the gizmo overlay shows full-viewport crosshair guides and the
- * next drag boxes.  Mode-agnostic - in Edit mode it needs an active drawable (the box selects that mesh's
- * elements); in Object mode it arms unconditionally (the box selects whole drawables).  A no-op in Edit
- * mode without a drawable.  Clears any other latched tool / operator (mutual exclusion).
+ * next drag boxes.  Mode-agnostic - in Edit mode it needs something in the edit (the box selects its meshes' or
+ * lattices' elements); in Object mode it arms unconditionally (the box selects whole drawables).  A no-op in Edit
+ * mode with nothing in the edit.  Clears any other latched tool / operator (mutual exclusion).
  *
  * @param String areaId The arming viewport's area id (only its overlay drives the drag).
  */
 fun EditorSession.beginBoxSelect(areaId: String) {
-	if (mode.value == EditorMode.Edit && meshSelection.value.drawableIds.isEmpty()) {
+	if (mode.value == EditorMode.Edit && meshSelection.value.owners.isEmpty()) {
 		return
 	}
 
@@ -170,13 +170,13 @@ fun EditorSession.beginBoxSelect(areaId: String) {
 
 /**
  * Arms the Circle-select tool (Blender's C) at the remembered radius.  Mode-agnostic like [beginBoxSelect]:
- * needs an active drawable in Edit mode, arms unconditionally in Object mode.  Clears any other latched
+ * needs something in the edit in Edit mode, arms unconditionally in Object mode.  Clears any other latched
  * tool / operator (mutual exclusion).
  *
  * @param String areaId The arming viewport's area id (only its overlay drives the brush).
  */
 fun EditorSession.beginCircleSelect(areaId: String) {
-	if (mode.value == EditorMode.Edit && meshSelection.value.drawableIds.isEmpty()) {
+	if (mode.value == EditorMode.Edit && meshSelection.value.owners.isEmpty()) {
 		return
 	}
 

@@ -2,6 +2,7 @@ package org.umamo.ui.viewport.viewport2d
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
+import org.umamo.edit.DeformerChange
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
@@ -11,9 +12,11 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.edit.mesh.MeshTopologyOps
+import org.umamo.edit.mesh.commitLatticeReshape
 import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.mesh.commitMeshTopology
 import org.umamo.edit.mesh.commitObjectPositions
+import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.structure.selectableOf
 import org.umamo.edit.switchEditDrawable
 import org.umamo.edit.transform.MeshTransforms
@@ -22,7 +25,10 @@ import org.umamo.edit.transform.isPoseNeutral
 import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.transform.coveredMedian
 import org.umamo.ui.transform.coveredVerticesOf
@@ -103,7 +109,7 @@ internal fun handleRipRequest(
 	val selection = session.meshSelection.value
 	val ripDrawableId = selection.activeDrawableId ?: return
 	val geometry = geometries.firstOrNull { candidate -> candidate.drawableId == ripDrawableId } ?: return
-	val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(ripDrawableId), geometry.mesh.indices)
+	val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(ripDrawableId), geometry.topology)
 
 	if (covered.isEmpty()) {
 		return
@@ -146,18 +152,18 @@ internal fun handleRipRequest(
 
 /**
  * Executes the geometry-dependent Shift+S snaps for Edit mode: the cursor moves read the covered
- * world median, and the selection moves ride the same movement-transfer pipeline as a finished Grab
- * (one undo step).  An unplaced cursor snaps from the world origin, its conceptual resting place.  The
- * grid snap rounds to the executing area's own grid, the lines that area draws.
+ * world median, and the selection moves ride the same pipeline as a finished Grab (one undo step) - the
+ * movement transfer for a mesh, the rest reshape for a lattice.  An unplaced cursor snaps from the world origin,
+ * its conceptual resting place.  The grid snap rounds to the executing area's own grid, the lines that area draws.
  *
  * @param EditorSession session The session owning the selection, cursor, and commits.
- * @param List<EditMeshGeometry> geometries The session meshes' live geometry.
+ * @param List<EditOwnerGeometry> geometries The session owners' live geometry.
  * @param SnapKind kind The requested snap.
  * @param Float gridStep The executing area's grid snap increment in world units.
  */
 internal fun handleEditSnapRequest(
 	session: EditorSession,
-	geometries: List<EditMeshGeometry>,
+	geometries: List<EditOwnerGeometry>,
 	kind: SnapKind,
 	gridStep: Float,
 ) {
@@ -167,7 +173,7 @@ internal fun handleEditSnapRequest(
 		coveredVerticesOf(
 			selection,
 			geometries.map { geometry -> geometry.worldGeometry },
-			geometries.associate { geometry -> geometry.drawableId to geometry.mesh.indices },
+			geometries.associate { geometry -> geometry.owner to geometry.topology },
 		)
 	val median = coveredMedian(coveredByMesh) ?: return
 	val medianX = median.worldX
@@ -197,6 +203,7 @@ internal fun handleEditSnapRequest(
 
 			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(coveredByMesh.size)
 			val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(coveredByMesh.size)
+			val latticeWorld = LinkedHashMap<DeformerId, FloatArray>()
 
 			for (coveredMesh in coveredByMesh) {
 				val geometry = coveredMesh.geometry
@@ -240,15 +247,29 @@ internal fun handleEditSnapRequest(
 							world
 						}
 					}
-				restByDrawable[geometry.drawableId] = geometry.worldToRest(transformedWorld, covered)
-				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
+
+				when (geometry) {
+					is DrawableWorldGeometry -> {
+						restByDrawable[geometry.drawableId] = geometry.worldToRest(transformedWorld, covered)
+						movedIndicesByDrawable[geometry.drawableId] = covered.toList()
+					}
+
+					is LatticeWorldGeometry -> {
+						latticeWorld[geometry.deformerId] = transformedWorld
+					}
+				}
 			}
 
 			// A snap relocates geometry without scaling or turning it, so it files under the move label.
-			session.commitMeshPositions(
-				MeshChange.TransformVertices(movedIndicesByDrawable, MeshOperatorKind.Grab),
-				restByDrawable,
-			)
+			if (latticeWorld.isNotEmpty()) {
+				val landed = landedDrive(MeshDriveResult(restByDrawable, latticeWorld, model.withMeshPositions(restByDrawable)))
+				session.commitLatticeReshape(DeformerChange.ReshapeLattice(latticeWorld.keys.toList(), MeshOperatorKind.Grab), landed.model, landed.unconvertedCount)
+			} else {
+				session.commitMeshPositions(
+					MeshChange.TransformVertices(movedIndicesByDrawable, MeshOperatorKind.Grab),
+					restByDrawable,
+				)
+			}
 		}
 	}
 }

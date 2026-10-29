@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.umamo.edit.EditorSession
+import org.umamo.edit.mesh.refusesLatticeTopology
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.viewport.GridConfig
@@ -28,7 +29,7 @@ import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
  * @param String areaId The overlay's area.
  * @param EditorSession session The session whose request flows to collect.
  * @param PuppetViewportService service The render service (the Alt+Q pick).
- * @param State<List<EditMeshGeometry>> geometries The session meshes' live geometry.
+ * @param State<List<EditOwnerGeometry>> geometries The session owners' live geometry.
  * @param State<ViewportCamera> camera The area camera.
  * @param State<IntSize> size The area size in pixels.
  * @param State<Offset> areaPointer Where the pointer last was in the area, tracked by the host.
@@ -40,7 +41,7 @@ internal suspend fun collectEditGizmoRequests(
 	areaId: String,
 	session: EditorSession,
 	service: PuppetViewportService,
-	geometries: State<List<EditMeshGeometry>>,
+	geometries: State<List<EditOwnerGeometry>>,
 	camera: State<ViewportCamera>,
 	size: State<IntSize>,
 	areaPointer: State<Offset>,
@@ -85,8 +86,13 @@ internal suspend fun collectEditGizmoRequests(
 					return@collect
 				}
 
+				// A lattice's points are fixed in number: rip refuses before it looks for anything to rip.
+				if (session.refusesLatticeTopology(session.meshSelection.value)) {
+					return@collect
+				}
+
 				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
-				handleRipRequest(session, editable, areaId, areaPointer.value, camera.value, size.value)
+				handleRipRequest(session, editable.filterIsInstance<EditMeshGeometry>(), areaId, areaPointer.value, camera.value, size.value)
 			}
 		}
 		// The geometry-dependent Shift+S snaps for Edit mode.  Only the pointer's own area executes: every

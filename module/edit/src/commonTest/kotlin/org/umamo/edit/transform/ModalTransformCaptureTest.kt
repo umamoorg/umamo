@@ -1,10 +1,12 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformPivotMode
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -17,13 +19,13 @@ import kotlin.test.assertTrue
  * not reach it.  These assertions are that missing gate.
  */
 class ModalTransformCaptureTest {
-	private val meshA = DrawableId("a")
-	private val meshB = DrawableId("b")
+	private val meshA: ElementOwner = ElementOwner.Drawable(DrawableId("a"))
+	private val meshB: ElementOwner = ElementOwner.Drawable(DrawableId("b"))
 
 	/** A single square mesh (4 verts, 2 tris) whose vertices span (0,0)-(2,2), so its centroid is (1,1). */
-	private fun square(id: DrawableId, offsetX: Float = 0f, offsetY: Float = 0f): ModalCaptureSource =
+	private fun square(id: ElementOwner, offsetX: Float = 0f, offsetY: Float = 0f): ModalCaptureSource =
 		ModalCaptureSource(
-			drawableId = id,
+			owner = id,
 			positions =
 				floatArrayOf(
 					offsetX + 0f,
@@ -35,7 +37,7 @@ class ModalTransformCaptureTest {
 					offsetX + 0f,
 					offsetY + 2f,
 				),
-			triangleIndices = intArrayOf(0, 1, 2, 0, 2, 3),
+			topology = trianglesOf(intArrayOf(0, 1, 2, 0, 2, 3)),
 			coveredIndices = setOf(0, 1, 2, 3),
 		)
 
@@ -57,9 +59,9 @@ class ModalTransformCaptureTest {
 		val small = square(meshA)
 		val wide =
 			ModalCaptureSource(
-				drawableId = meshB,
+				owner = meshB,
 				positions = floatArrayOf(10f, 10f, 12f, 10f), // just two vertices -> pulls the pooled mean less
-				triangleIndices = intArrayOf(),
+				topology = trianglesOf(intArrayOf()),
 				coveredIndices = setOf(0, 1),
 			)
 		val capture = build(listOf(small, wide))!!
@@ -102,8 +104,8 @@ class ModalTransformCaptureTest {
 				TransformPivotMode.IndividualOrigins,
 				scope = IndividualOriginScope.WholeMesh,
 			)!!
-		val groupA = capture.entries.first { it.drawableId == meshA }.groups.single()
-		val groupB = capture.entries.first { it.drawableId == meshB }.groups.single()
+		val groupA = capture.entries.first { it.owner == meshA }.groups.single()
+		val groupB = capture.entries.first { it.owner == meshB }.groups.single()
 		assertEquals(1f, groupA.pivotX, 1e-4f)
 		assertEquals(11f, groupB.pivotX, 1e-4f) // shifted square's own centroid, not the shared (6,1) anchor
 	}
@@ -114,9 +116,9 @@ class ModalTransformCaptureTest {
 		// Two disjoint triangles in one mesh (verts 0-2 and 3-5, no shared edge).
 		val twoIslands =
 			ModalCaptureSource(
-				drawableId = meshA,
+				owner = meshA,
 				positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 10f, 10f, 11f, 10f, 10f, 11f),
-				triangleIndices = intArrayOf(0, 1, 2, 3, 4, 5),
+				topology = trianglesOf(intArrayOf(0, 1, 2, 3, 4, 5)),
 				coveredIndices = setOf(0, 1, 2, 3, 4, 5),
 			)
 		val groups =
@@ -131,9 +133,9 @@ class ModalTransformCaptureTest {
 	/** A source with no covered vertices is dropped; an all-empty source list returns null (no gesture). */
 	@Test
 	fun emptyCoveredSourcesAreDroppedAndAllEmptyReturnsNull() {
-		val empty = ModalCaptureSource(meshB, floatArrayOf(5f, 5f), intArrayOf(), emptySet())
+		val empty = ModalCaptureSource(meshB, floatArrayOf(5f, 5f), trianglesOf(intArrayOf()), emptySet())
 		val capture = build(listOf(square(meshA), empty))!!
-		assertEquals(listOf(meshA), capture.drawableIds, "the empty source does not become an entry")
+		assertEquals(listOf(meshA), capture.owners, "the empty source does not become an entry")
 		assertNull(build(listOf(empty)), "no covered vertices anywhere -> no capture")
 		assertNull(build(emptyList()))
 	}
@@ -154,9 +156,9 @@ class ModalTransformCaptureTest {
 		// One selected vertex at the origin, one unselected vertex a short hop away, on a shared edge.
 		val mesh =
 			ModalCaptureSource(
-				drawableId = meshA,
+				owner = meshA,
 				positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f),
-				triangleIndices = intArrayOf(0, 1, 2),
+				topology = trianglesOf(intArrayOf(0, 1, 2)),
 				coveredIndices = setOf(0),
 			)
 		val capture = build(listOf(mesh))!!
@@ -178,9 +180,9 @@ class ModalTransformCaptureTest {
 		// shares no edge, so a geodesic halo must never reach it.
 		val mesh =
 			ModalCaptureSource(
-				drawableId = meshA,
+				owner = meshA,
 				positions = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 0.5f, 0.5f, 1.5f, 0.5f, 0.5f, 1.5f),
-				triangleIndices = intArrayOf(0, 1, 2, 3, 4, 5),
+				topology = trianglesOf(intArrayOf(0, 1, 2, 3, 4, 5)),
 				coveredIndices = setOf(0),
 			)
 		val capture = build(listOf(mesh))!!
@@ -188,4 +190,12 @@ class ModalTransformCaptureTest {
 		val influenced = capture.entries.single().influence.keys
 		assertTrue(influenced.all { it in setOf(1, 2) }, "geodesic halo stays on the connected island: $influenced")
 	}
+
+	/**
+	 * A triangle topology over just the vertices its triangles name.
+	 *
+	 * @param IntArray triangles Three vertex indices per triangle.
+	 * @return ElementTopology The topology.
+	 */
+	private fun trianglesOf(triangles: IntArray): ElementTopology = ElementTopology.ofTriangles((triangles.maxOrNull() ?: -1) + 1, triangles)
 }

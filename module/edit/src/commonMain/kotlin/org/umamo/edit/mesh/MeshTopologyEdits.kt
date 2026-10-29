@@ -3,6 +3,7 @@ package org.umamo.edit.mesh
 import org.umamo.edit.ActiveMeshElement
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectMode
@@ -10,8 +11,10 @@ import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.NoticePlacement
+import org.umamo.edit.editTopologyOf
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -324,13 +327,14 @@ fun EditorSession.commitMeshTopology(labelKey: String, drawableId: DrawableId, r
 	}
 
 	val current = meshSelection.value
+	val owner = ElementOwner.Drawable(drawableId)
 	val vertexResult =
 		MeshSelection(
-			drawableIds = current.drawableIds,
-			activeDrawableId = drawableId,
+			owners = current.owners,
+			activeOwner = owner,
 			selectMode = MeshSelectMode.Vertex,
-			elementsByDrawable = if (result.newElements.isEmpty()) emptyMap() else mapOf(drawableId to result.newElements),
-			activeElement = result.newElements.firstOrNull()?.let { element -> ActiveMeshElement(drawableId, element) },
+			elementsByOwner = if (result.newElements.isEmpty()) emptyMap() else mapOf(owner to result.newElements),
+			activeElement = result.newElements.firstOrNull()?.let { element -> ActiveMeshElement(owner, element) },
 		)
 	val newSelection = rederiveTopologyResult(vertexResult, current.selectMode, drawableId, newModel)
 	commitStep(MeshChange.TopologyEdit(drawableId, labelKey), model = newModel, meshSelection = newSelection)
@@ -363,8 +367,8 @@ private fun rederiveTopologyResult(
 	}
 
 	val rederived =
-		MeshSelectionOps.changeSelectMode(vertexResult, selectMode) { candidateId ->
-			newModel.meshOf(candidateId)?.indices
+		MeshSelectionOps.changeSelectMode(vertexResult, selectMode) { candidate ->
+			newModel.editTopologyOf(candidate)
 		}
 	val rederivedElements = rederived.elementsOf(drawableId)
 
@@ -372,7 +376,25 @@ private fun rederiveTopologyResult(
 		return vertexResult
 	}
 
-	return rederived.copy(activeElement = ActiveMeshElement(drawableId, rederivedElements.first()))
+	return rederived.copy(activeElement = ActiveMeshElement(ElementOwner.Drawable(drawableId), rederivedElements.first()))
+}
+
+/**
+ * Whether a topology command refuses [selection] because it edits a lattice, saying so near the cursor: a lattice's
+ * points, grid lines, and cells are fixed by its rows and columns, so nothing can be added, merged, ripped, or
+ * connected on it.
+ *
+ * @param MeshSelection selection The session's element selection.
+ * @return Boolean True when the command must stop here.
+ */
+fun EditorSession.refusesLatticeTopology(selection: MeshSelection): Boolean {
+	if (selection.activeOwner !is ElementOwner.Deformer) {
+		return false
+	}
+
+	emitNotice("notice.edit.latticeTopologyFixed", NoticePlacement.NearCursor)
+
+	return true
 }
 
 /**
@@ -386,9 +408,14 @@ fun EditorSession.duplicateSelectedElements() {
 	}
 
 	val selection = meshSelection.value
+
+	if (refusesLatticeTopology(selection)) {
+		return
+	}
+
 	val drawableId = selection.activeDrawableId ?: return
 	val mesh = model.value.meshOf(drawableId) ?: return
-	val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), mesh.indices)
+	val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), ElementTopology.ofMesh(mesh))
 	val result = MeshTopologyOps.duplicateElements(mesh, covered) ?: return
 	commitMeshTopology("change.mesh.duplicate", drawableId, result)
 }
@@ -411,6 +438,11 @@ fun EditorSession.mergeSelectedVertices(target: MergeTarget, areaId: String? = n
 	}
 
 	val selection = meshSelection.value
+
+	if (refusesLatticeTopology(selection)) {
+		return
+	}
+
 	val drawableId = selection.activeDrawableId ?: return
 
 	if (selection.selectMode != MeshSelectMode.Vertex) {
@@ -462,6 +494,11 @@ fun EditorSession.connectSelectedVertices() {
 	}
 
 	val selection = meshSelection.value
+
+	if (refusesLatticeTopology(selection)) {
+		return
+	}
+
 	val drawableId = selection.activeDrawableId ?: return
 	val vertices = selection.elementsOf(drawableId).filterIsInstance<MeshElement.Vertex>().map { vertex -> vertex.index }
 

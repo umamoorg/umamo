@@ -2,10 +2,12 @@ package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.floatValue
+import org.umamo.edit.mesh.reportLatticeChildrenMoved
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.IndividualOriginScope
 import org.umamo.edit.transform.ModalCaptureSource
@@ -20,16 +22,20 @@ import org.umamo.edit.transform.rederiveProportionalHalos
 import org.umamo.edit.transform.slideParameters
 import org.umamo.edit.transform.transformGestureParametersOf
 import org.umamo.edit.transform.transformParameters
-import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.LatticeWorldGeometry
+import org.umamo.ui.transform.OwnerWorldGeometry
+import org.umamo.ui.transform.latticeReshapeOf
 import org.umamo.ui.viewport.gizmo.slideVertexByFactor
 
 /*
  * The modal transforms' registrations on the operation settings strip - the half that needs geometry.
  * The rows and what they mean live in :edit (TransformAdjust.kt, next to the merge's); what stays here
  * is the rerun each gesture needs, because a rerun replays the RETAINED capture through the viewport's
- * frozen world geometry (DrawableWorldGeometry, which needs :render's evaluator and so cannot sit in
- * :edit) and applies the shared operator math (gizmo/TransformOperators.kt).  These are the 2D
+ * frozen world geometry (OwnerWorldGeometry, which needs :render's evaluator and so cannot sit in
+ * :edit), applies the shared operator math (gizmo/TransformOperators.kt), and lowers a lattice's points as a
+ * rest reshape, as the confirm did.  These are the 2D
  * viewport's gestures: the Edit-mode mesh transform, the vertex slide, and the Object-mode drawable
  * transform.  The UV editor's texture-coordinate transform has the same shape over its own frozen
  * frame (uv/UvTransformAdjustRegistration.kt).
@@ -39,9 +45,10 @@ import org.umamo.ui.viewport.gizmo.slideVertexByFactor
  * Registers the Edit-mode mesh transform that just committed as the session's adjustable operation.
  * Call it right after the commit and before the operator clears (its teardown drops the capture the
  * caller still holds).  An adjustment re-derives the halos on the RETAINED [transform] from its frozen
- * positions under the edited proportional rows, applies the edited numbers per mesh, inverts each
- * world shape back onto the rest arrays through the frozen [geometryById], lands the result over the
- * gesture's own step from the record's base, and hands the proportional state back to
+ * positions under the edited proportional rows, applies the edited numbers per owner, inverts each
+ * mesh's world shape back onto the rest arrays through the frozen [geometryByOwner] (a lattice's points lower as
+ * a rest reshape), lands the result over the gesture's own step from the record's base, and hands the
+ * proportional state back to
  * [onProportional] so the next gesture can start from it.  The adjusted record goes with it, so a caller
  * whose rows did not start from the session's own state can write back only what the rigger set there.
  * Synchronous: an evaluation is the per-pointer-frame cost.
@@ -49,7 +56,7 @@ import org.umamo.ui.viewport.gizmo.slideVertexByFactor
  * @param EditorSession              session      The session the gesture committed into.
  * @param String                     areaId       The viewport the gesture ran in (where the strip shows).
  * @param ModalTransformCapture      transform    The frozen capture.
- * @param Map                        geometryById Each moving drawable's frozen world geometry.
+ * @param Map                        geometryByOwner Each moving owner's frozen world geometry.
  * @param TransformGestureParameters parameters   The numbers the gesture landed with.
  * @param ProportionalRows?          proportional The proportional rows, or null when the gesture took no weights.
  * @param Function                   onProportional Receives the adjusted record and its proportional state
@@ -61,7 +68,7 @@ internal fun registerMeshTransformAdjustment(
 	session: EditorSession,
 	areaId: String,
 	transform: ModalTransformCapture,
-	geometryById: Map<DrawableId, DrawableWorldGeometry>,
+	geometryByOwner: Map<ElementOwner, OwnerWorldGeometry>,
 	parameters: TransformGestureParameters,
 	proportional: ProportionalRows?,
 	onProportional: (AdjustableOperation, ProportionalEditState?) -> Unit,
@@ -76,12 +83,16 @@ internal fun registerMeshTransformAdjustment(
 	return session.registerAdjustableOperation(session.model.value, areaId, rows) { record ->
 		val adjusted = transformGestureParametersOf(kind, TransformRowSpace.World, record.parameters)
 		val proportionalRows = rederiveProportionalHalos(transform, record.parameters)
-		// The drive's own compute, so a replay and the gesture it replays cannot drift apart.
-		val jobs = meshDriveJobs(transform, geometryById, wholeMeshes = false)
-		val landed = computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model)).folded
+		// The drive's own compute and landing, so a replay and the gesture it replays cannot drift apart.
+		val jobs = meshDriveJobs(transform, geometryByOwner, wholeMeshes = false)
+		val landed = landedDrive(computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model)))
 
-		if (session.amendLastCommit(record, landed) && proportionalRows != null) {
-			onProportional(record, proportionalRows.asState())
+		if (session.amendLastCommit(record, landed.model)) {
+			session.reportLatticeChildrenMoved(landed.unconvertedCount)
+
+			if (proportionalRows != null) {
+				onProportional(record, proportionalRows.asState())
+			}
 		}
 	}
 }
@@ -89,34 +100,49 @@ internal fun registerMeshTransformAdjustment(
 /**
  * Registers the Vertex Slide that just committed as the session's adjustable operation, with its
  * one Factor row.  The rerun slides the same vertex along the same frozen edge by the row's factor
- * from the record's base; the capture's other meshes stay where the base has them.
+ * from the record's base - a lattice's point along its grid line, lowered as a rest reshape; the capture's
+ * other owners stay where the base has them.
  *
- * @param EditorSession         session       The session the gesture committed into.
- * @param String                areaId        The viewport the gesture ran in.
- * @param ModalTransformCapture transform     The frozen capture.
- * @param Map                   geometryById  Each moving drawable's frozen world geometry.
- * @param DrawableId            drawableId    The mesh the sliding vertex lives in.
- * @param Int                   vertexIndex   The sliding vertex.
- * @param Int                   neighborIndex The edge's far endpoint the slide landed toward.
- * @param Float                 factor        The landed factor.
+ * @param EditorSession         session         The session the gesture committed into.
+ * @param String                areaId          The viewport the gesture ran in.
+ * @param ModalTransformCapture transform       The frozen capture.
+ * @param Map                   geometryByOwner Each moving owner's frozen world geometry.
+ * @param ElementOwner          owner           The mesh or lattice the sliding vertex lives in.
+ * @param Int                   vertexIndex     The sliding vertex.
+ * @param Int                   neighborIndex   The edge's far endpoint the slide landed toward.
+ * @param Float                 factor          The landed factor.
  * @return AdjustableOperation? The record, or null when the session refused the registration.
  */
 internal fun registerSlideAdjustment(
 	session: EditorSession,
 	areaId: String,
 	transform: ModalTransformCapture,
-	geometryById: Map<DrawableId, DrawableWorldGeometry>,
-	drawableId: DrawableId,
+	geometryByOwner: Map<ElementOwner, OwnerWorldGeometry>,
+	owner: ElementOwner,
 	vertexIndex: Int,
 	neighborIndex: Int,
 	factor: Float,
 ): AdjustableOperation? =
 	session.registerAdjustableOperation(session.model.value, areaId, slideParameters(factor)) { record ->
-		val entry = transform.entries.firstOrNull { candidate -> candidate.drawableId == drawableId } ?: return@registerAdjustableOperation
-		val geometry = geometryById[drawableId] ?: return@registerAdjustableOperation
+		val entry = transform.entries.firstOrNull { candidate -> candidate.owner == owner } ?: return@registerAdjustableOperation
+		val geometry = geometryByOwner[owner] ?: return@registerAdjustableOperation
 		val adjustedFactor = record.parameters.floatValue(TransformParameterKeys.SLIDE_FACTOR, factor)
 		val world = slideVertexByFactor(entry.positions, vertexIndex, neighborIndex, adjustedFactor)
-		session.amendLastCommit(record, record.baseSnapshot.model.withMeshPositions(drawableId, geometry.worldToRest(world, entry.movedIndices)))
+		val base = record.baseSnapshot.model
+
+		when (geometry) {
+			is DrawableWorldGeometry -> {
+				session.amendLastCommit(record, base.withMeshPositions(geometry.drawableId, geometry.worldToRest(world, entry.movedIndices)))
+			}
+
+			is LatticeWorldGeometry -> {
+				val landed = latticeReshapeOf(base, mapOf(geometry.deformerId to world))
+
+				if (session.amendLastCommit(record, landed.model)) {
+					session.reportLatticeChildrenMoved(landed.unconvertedCount)
+				}
+			}
+		}
 	}
 
 /**
@@ -128,7 +154,7 @@ internal fun registerSlideAdjustment(
  * @param String?                    areaId       The viewport the gesture ran in, or the area a panel-driven
  *   transform's strip should show in (null shows it nowhere).
  * @param ModalTransformCapture      transform    The frozen capture.
- * @param Map                        geometryById Each moving drawable's frozen world geometry.
+ * @param Map                        geometryByOwner Each moving drawable's frozen world geometry.
  * @param TransformGestureParameters parameters   The numbers the gesture landed with.
  * @return AdjustableOperation? The record, or null when the session refused the registration or the
  *   operator has no rows.
@@ -137,7 +163,7 @@ internal fun registerObjectTransformAdjustment(
 	session: EditorSession,
 	areaId: String?,
 	transform: ModalTransformCapture,
-	geometryById: Map<DrawableId, DrawableWorldGeometry>,
+	geometryByOwner: Map<ElementOwner, DrawableWorldGeometry>,
 	parameters: TransformGestureParameters,
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
@@ -149,7 +175,7 @@ internal fun registerObjectTransformAdjustment(
 
 	return session.registerAdjustableOperation(session.model.value, areaId, rows) { record ->
 		val adjusted = transformGestureParametersOf(kind, TransformRowSpace.World, record.parameters)
-		val jobs = meshDriveJobs(transform, geometryById, wholeMeshes = true)
+		val jobs = meshDriveJobs(transform, geometryByOwner, wholeMeshes = true)
 		session.amendLastCommit(record, computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model)).folded)
 	}
 }
@@ -181,7 +207,7 @@ internal fun registerDrawableWorldAdjustment(
 	val bounds = meshBounds(geometry.world)
 	val transform =
 		buildModalTransformCapture(
-			sources = listOf(ModalCaptureSource(geometry.drawableId, geometry.world, IntArray(0), geometry.allIndices)),
+			sources = listOf(ModalCaptureSource(geometry.owner, geometry.world, ElementTopology.unconnected(geometry.world.size / 2), geometry.allIndices)),
 			pivotMode = TransformPivotMode.Cursor,
 			individualOriginScope = IndividualOriginScope.WholeMesh,
 			operatorKind = kind,
@@ -189,5 +215,5 @@ internal fun registerDrawableWorldAdjustment(
 			cursorAnchor = bounds.centerX to bounds.centerY,
 		) ?: return null
 
-	return registerObjectTransformAdjustment(session, areaId, transform, mapOf(geometry.drawableId to geometry), parameters)
+	return registerObjectTransformAdjustment(session, areaId, transform, mapOf(geometry.owner to geometry), parameters)
 }

@@ -16,6 +16,7 @@ import org.umamo.edit.structure.withPartVisibility
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
@@ -552,7 +553,7 @@ class EditorSessionTest {
 		session.setMode(EditorMode.Edit)
 		assertEquals(DrawableId("d"), session.meshSelection.value.activeDrawableId)
 		assertEquals(setOf<MeshElement>(MeshElement.Vertex(1)), session.meshSelection.value.elementsOf(DrawableId("d")), "the stash restores on the same drawable")
-		assertEquals(ActiveMeshElement(DrawableId("d"), MeshElement.Vertex(1)), session.meshSelection.value.activeElement, "the active element restores too")
+		assertEquals(ActiveMeshElement(ElementOwner.Drawable(DrawableId("d")), MeshElement.Vertex(1)), session.meshSelection.value.activeElement, "the active element restores too")
 
 		// Leave again and land on the other drawable: the stash does not apply there.
 		session.setMode(EditorMode.Object)
@@ -595,7 +596,7 @@ class EditorSessionTest {
 		assertFalse(session.isQuiescent, "a circle stroke")
 		session.setPreviewSelection(null)
 		assertTrue(session.isQuiescent)
-		session.setMeshPreviewSelection(MeshSelection.editing(listOf(DrawableId("d"))))
+		session.setMeshPreviewSelection(MeshSelection.editingDrawables(listOf(DrawableId("d"))))
 		assertFalse(session.isQuiescent, "an Edit-mode circle stroke")
 		session.setMeshPreviewSelection(null)
 		assertTrue(session.isQuiescent)
@@ -613,7 +614,7 @@ class EditorSessionTest {
 		val session = EditorSession(model())
 		session.mutate(PartChange.SetVisibility(PartId("a"), false)) { it.withPartVisibility(PartId("a"), false) }
 		session.setPreviewSelection(setOf(DrawableId("d")))
-		session.setMeshPreviewSelection(MeshSelection.editing(listOf(DrawableId("d"))))
+		session.setMeshPreviewSelection(MeshSelection.editingDrawables(listOf(DrawableId("d"))))
 
 		session.undo()
 

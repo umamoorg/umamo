@@ -607,8 +607,9 @@ public interface RenderPassEncoder {
 	fun drawOverlayEdges(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms, orderTexture: GpuTexture? = null)
 
 	/**
-	 * Draws the mesh overlay's vertex dots of one mesh: one instance per vertex, the instance index being
-	 * the vertex index; the bound pipeline must be [PipelinePurpose.OverlayVertexDot].
+	 * Draws the mesh overlay's vertex dots of one mesh: one instance per dotted vertex (the first
+	 * [OverlayMeshSpec.vertexDotCount]), the instance index being the vertex index; the bound pipeline must be
+	 * [PipelinePurpose.OverlayVertexDot].
 	 *
 	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
 	 * @param DeformedPositionStore store The overlay's deformed positions.
@@ -617,8 +618,9 @@ public interface RenderPassEncoder {
 	fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms)
 
 	/**
-	 * Draws the mesh overlay's face-centroid dots of one mesh: one instance per triangle; the bound
-	 * pipeline must be [PipelinePurpose.OverlayFaceDot].
+	 * Draws the mesh overlay's face-centroid dots of one mesh: one instance per triangle, at the centroid of its
+	 * [OverlayMeshSpec.faceDotCorners] entry when the mesh has them, else of its own corners; the bound pipeline must
+	 * be [PipelinePurpose.OverlayFaceDot].
 	 *
 	 * @param OverlayMeshBuffers buffers The mesh's resident overlay buffers.
 	 * @param DeformedPositionStore store The overlay's deformed positions.

@@ -3,6 +3,7 @@ package org.umamo.ui.viewport.viewport2d
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.DEFAULT_PROPORTIONAL_RADIUS_WORLD
+import org.umamo.edit.DeformerChange
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
@@ -11,6 +12,7 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.mesh.MeshRestPositions
+import org.umamo.edit.mesh.commitLatticeReshape
 import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.IndividualOriginScope
@@ -19,9 +21,13 @@ import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.render.ViewportCamera
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.LatticeWorldGeometry
+import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.ModalGestureState
@@ -34,28 +40,30 @@ import kotlin.math.pow
 /**
  * The captured state of an in-flight Edit-mode transform: the shared [ModalTransformCapture] (entries with
  * their frozen positions, pivot groups, proportional halos, and moved sets, plus the anchor, the frozen
- * operator kind, and the rotation tracker) alongside the per-drawable frozen [DrawableWorldGeometry] the
- * drive loop inverts each transformed world shape back through.  The geometry is held in a map keyed on the
- * drawable id, looked up by [org.umamo.edit.ModalCaptureEntry], so nothing stays index-aligned.
+ * operator kind, and the rotation tracker) alongside each moving owner's frozen world geometry - a mesh's, which
+ * the drive loop inverts each transformed world shape back through, or a lattice's.  The geometry is held in a map
+ * keyed on the owner, looked up by [org.umamo.edit.ModalCaptureEntry], so nothing stays index-aligned.
  *
- * The geometry frozen here is a COPY of the live geometry's arrays (rest, displayed, world), so the whole
- * drag transforms a fixed snapshot even though the underlying model is immutable.
+ * A mesh's geometry frozen here is a COPY of the live geometry's arrays (rest, displayed, world), so the whole
+ * drag transforms a fixed snapshot even though the underlying model is immutable; a lattice's capture is the bake's
+ * own copy already.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).
- * @property Map<DrawableId, DrawableWorldGeometry> geometryById Each moving drawable's frozen world geometry.
+ * @property Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each moving owner's frozen world geometry.
  * @property SlideContext? slide A Vertex Slide's candidates; null for every other operator.
  */
 internal class EditGesture(
 	val transform: ModalTransformCapture,
-	val geometryById: Map<DrawableId, DrawableWorldGeometry>,
+	val geometryByOwner: Map<ElementOwner, OwnerWorldGeometry>,
 	val slide: SlideContext?,
 )
 
 /**
- * The commit side of the Edit overlay's modal G / S / R and Vertex Slide: it captures the moving meshes
- * when an operator latches in its area, drives per-mesh previews through the deformer inverse, confirms
- * via the movement transfer, cancels through the session's operator clear, and resizes the proportional
- * influence radius on scroll.  The drive runs through [drive]: each pointer event resolves a request here,
+ * The commit side of the Edit overlay's modal G / S / R and Vertex Slide: it captures the moving meshes or
+ * lattices when an operator latches in its area, drives per-mesh previews through the deformer inverse (a lattice's
+ * preview is its moved points, which the 2D viewport's cage draws while the art stays put), confirms via the
+ * movement transfer or the lattice reshape, cancels through the session's operator clear, and resizes the
+ * proportional influence radius on scroll.  The drive runs through [drive]: each pointer event resolves a request here,
  * on the UI thread, and the meshes' inverses run off it, in parallel, publishing back here.
  * The pointer-side mechanics (stale discard, virtual pointer, wrap, button semantics) live in
  * [org.umamo.ui.viewport.gizmo.ModalTransformController], which is handed this as its target.
@@ -97,6 +105,9 @@ internal class EditModalTransform(
 	// or falloff change since may have changed on the capture itself.
 	private var publishedRequest: MeshDriveRequest? = null
 
+	// The moved lattices' world points the published drive landed, which the confirm lowers onto the model.
+	private var publishedLatticeWorld: Map<DeformerId, FloatArray>? = null
+
 	/**
 	 * The drive: requests resolved per pointer event, the meshes computed off the UI thread in parallel, the
 	 * result published back on it.  The overlay runs it (ModalDriveEffect); with no worker running, a
@@ -111,39 +122,43 @@ internal class EditModalTransform(
 		)
 
 	/**
-	 * Starts the gesture as an operator latches in this area.  The capture covers only the session meshes
-	 * with covered vertices (an edge or face selection moves the union of vertices its elements cover); a
-	 * mesh with nothing selected does not move.  The shared pivot is the median of every covered vertex
-	 * across the session, so all meshes scale / rotate about one point together.
+	 * Starts the gesture as an operator latches in this area.  The capture covers only the session owners
+	 * with covered vertices (an edge or face selection moves the union of vertices its elements cover); an
+	 * owner with nothing selected does not move.  The shared pivot is the median of every covered vertex
+	 * across the session, so all meshes or lattices scale / rotate about one point together.
 	 *
 	 * @param MeshOperatorKind kind The latched operator.
-	 * @param List<EditMeshGeometry> geometries The session meshes' live geometry, as the overlay composed it.
+	 * @param List<EditOwnerGeometry> geometries The session owners' live geometry, as the overlay composed it.
 	 * @param MeshSelection selection The mesh selection, as the overlay collected it (the session's flow can
 	 *   lead it when a commit and a latch share one call stack, as the rip auto-grab does).
 	 */
-	fun begin(kind: MeshOperatorKind, geometries: List<EditMeshGeometry>, selection: MeshSelection) {
-		// Freeze a COPY of each moving mesh's world geometry (rest / displayed / world) so the whole drag
-		// transforms a fixed snapshot, and offer it to the shared capture builder as a source.  A mesh with
-		// nothing selected does not move.
-		val frozenById = LinkedHashMap<DrawableId, DrawableWorldGeometry>()
+	fun begin(kind: MeshOperatorKind, geometries: List<EditOwnerGeometry>, selection: MeshSelection) {
+		// Freeze each moving owner's world geometry so the whole drag transforms a fixed snapshot - a COPY of a
+		// mesh's (rest / displayed / world), a lattice's bake as it is - and offer it to the shared capture
+		// builder as a source.  An owner with nothing selected does not move.
+		val frozenByOwner = LinkedHashMap<ElementOwner, OwnerWorldGeometry>()
 		val sources = ArrayList<ModalCaptureSource>()
 
 		for (geometry in geometries) {
-			val elements = selection.elementsOf(geometry.drawableId)
+			val elements = selection.elementsOf(geometry.owner)
 
 			if (elements.isEmpty()) {
 				continue
 			}
 
-			val coveredIndices = MeshTopology.coveredVertexIndices(elements, geometry.mesh.indices)
+			val coveredIndices = MeshTopology.coveredVertexIndices(elements, geometry.topology)
 
 			if (coveredIndices.isEmpty()) {
 				continue
 			}
 
-			val frozen = geometry.worldGeometry.frozenCopy()
-			frozenById[geometry.drawableId] = frozen
-			sources.add(ModalCaptureSource(geometry.drawableId, frozen.world, geometry.mesh.indices, coveredIndices))
+			val frozen =
+				when (val world = geometry.worldGeometry) {
+					is DrawableWorldGeometry -> world.frozenCopy()
+					is LatticeWorldGeometry -> world
+				}
+			frozenByOwner[geometry.owner] = frozen
+			sources.add(ModalCaptureSource(geometry.owner, frozen.world, geometry.topology, coveredIndices))
 		}
 
 		// The Active-Element anchor the builder cannot resolve itself: the active element's own covered
@@ -185,9 +200,10 @@ internal class EditModalTransform(
 		// operator drops, AFTER the gesture begins, so the teardown resyncs the renderer as for any gesture.
 		val slide = if (kind == MeshOperatorKind.VertexSlide) slideContextFor(selection, geometries) else null
 
-		gesture.begin(EditGesture(transform, frozenById, slide), gesture.lastPointer)
+		gesture.begin(EditGesture(transform, frozenByOwner, slide), gesture.lastPointer)
 		slideLanding = null
 		publishedRequest = null
+		publishedLatticeWorld = null
 
 		if (kind == MeshOperatorKind.VertexSlide && slide == null) {
 			session.clearMeshOperator()
@@ -234,6 +250,7 @@ internal class EditModalTransform(
 
 		if (owned) {
 			livePreview.restByDrawable = null
+			livePreview.latticeWorldByDeformer = null
 		}
 
 		return owned
@@ -273,72 +290,100 @@ internal class EditModalTransform(
 
 	/**
 	 * Confirms the in-flight gesture at the latest pointer: settles a drive the worker has not published
-	 * yet, commits each moving mesh's new rest shape as ONE undo step, registers that step on the
-	 * operation settings strip, then clears the operator (its teardown resyncs the renderer).  A null
-	 * preview means no movement, so nothing is committed.  The preview already holds rest shapes (the
-	 * drive inverted them via worldToRest), so they are committed directly.
+	 * yet, commits what moved as ONE undo step - each moving mesh's new rest shape, or each moving lattice's points
+	 * lowered as a rest reshape - registers that step on the operation settings strip, then clears the operator (its
+	 * teardown resyncs the renderer).  A null preview means no movement, so nothing is committed.  A mesh's preview
+	 * already holds rest shapes (the drive inverted them via worldToRest), so they are committed directly.
 	 */
 	override fun confirm() {
 		drive.settle()
 
 		val committed = gesture.preview
 		val gestureData = gesture.capture
-		val parameters = gesture.lastParameters
 		val request = publishedRequest
+		val latticeWorld = publishedLatticeWorld
 
 		if (committed != null && gestureData != null && request != null) {
-			val transform = gestureData.transform
-			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(request.jobs.size)
-			val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(request.jobs.size)
+			val modelBefore = session.model.value
 
-			for (job in request.jobs) {
-				val transformed = committed[job.drawableId] ?: continue
-				restByDrawable[job.drawableId] = transformed
-				// The moved set, not just the covered set: proportional editing moves weighted
-				// unselected vertices too, and the change metadata must name every vertex the edit touched,
-				// as the drive that computed these positions moved them.
-				vertexIndicesByDrawable[job.drawableId] = job.movedIndices.toList()
+			if (!latticeWorld.isNullOrEmpty()) {
+				// The lattices land as a rest reshape over the meshes the same drive moved, as one step.
+				val landed = landedDrive(MeshDriveResult(committed, latticeWorld, modelBefore.withMeshPositions(committed)))
+				session.commitLatticeReshape(DeformerChange.ReshapeLattice(latticeWorld.keys.toList(), gestureData.transform.operatorKind), landed.model, landed.unconvertedCount)
+			} else {
+				commitMeshes(committed, gestureData, request)
 			}
 
-			if (restByDrawable.isNotEmpty()) {
-				val modelBefore = session.model.value
-				session.commitMeshPositions(
-					MeshChange.TransformVertices(vertexIndicesByDrawable, transform.operatorKind),
-					restByDrawable,
-				)
-
-				// The strip's rows for the step just pushed, over the RETAINED capture so an adjustment
-				// replays the same frozen geometry - registered before the operator clears, since the
-				// teardown drops the capture.  A commit that recorded nothing (the geometry landed where it
-				// started) has no step of its own to amend, so it registers nothing.
-				if (session.model.value !== modelBefore) {
-					val slide = gestureData.slide
-					val landing = slideLanding
-
-					if (transform.operatorKind == MeshOperatorKind.VertexSlide) {
-						if (slide != null && landing != null) {
-							registerSlideAdjustment(session, areaId, transform, gestureData.geometryById, slide.drawableId, slide.activeVertex, landing.neighborIndex, landing.factor)
-						}
-					} else if (parameters != null) {
-						// A suppressed latch (the duplicate / rip auto-grab) took no weights, so it offers no
-						// proportional rows; every other transform does, on or off, so the halo can be
-						// added after the fact the way Blender's redo panel allows.
-						val proportional =
-							if (session.meshOperatorTakesProportional(transform.operatorKind)) {
-								val state = session.proportionalEdit.value
-								ProportionalRows.of(state, state?.radiusWorld ?: DEFAULT_PROPORTIONAL_RADIUS_WORLD)
-							} else {
-								null
-							}
-						registerMeshTransformAdjustment(session, areaId, transform, gestureData.geometryById, parameters, proportional) { _, state ->
-							session.setProportionalEdit(state)
-						}
-					}
-				}
+			// The strip's rows for the step just pushed, over the RETAINED capture so an adjustment
+			// replays the same frozen geometry - registered before the operator clears, since the
+			// teardown drops the capture.  A commit that recorded nothing (the geometry landed where it
+			// started) has no step of its own to amend, so it registers nothing.
+			if (session.model.value !== modelBefore) {
+				registerOnStrip(gestureData)
 			}
 		}
 
 		session.clearMeshOperator()
+	}
+
+	/**
+	 * Commits each moving mesh's new rest shape, naming every vertex the drive moved.
+	 *
+	 * @param Map<DrawableId, MeshRestPositions> committed The published preview.
+	 * @param EditGesture gestureData The gesture.
+	 * @param MeshDriveRequest request The request the preview answers.
+	 */
+	private fun commitMeshes(committed: Map<DrawableId, MeshRestPositions>, gestureData: EditGesture, request: MeshDriveRequest) {
+		val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(request.jobs.size)
+		val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(request.jobs.size)
+
+		for (job in request.jobs) {
+			val drawableId = job.drawableId ?: continue
+			val transformed = committed[drawableId] ?: continue
+			restByDrawable[drawableId] = transformed
+			// The moved set, not just the covered set: proportional editing moves weighted
+			// unselected vertices too, and the change metadata must name every vertex the edit touched,
+			// as the drive that computed these positions moved them.
+			vertexIndicesByDrawable[drawableId] = job.movedIndices.toList()
+		}
+
+		if (restByDrawable.isNotEmpty()) {
+			session.commitMeshPositions(MeshChange.TransformVertices(vertexIndicesByDrawable, gestureData.transform.operatorKind), restByDrawable)
+		}
+	}
+
+	/**
+	 * Registers the step just committed on the operation settings strip: a slide's Factor row, or the transform's
+	 * rows with its proportional rows.
+	 *
+	 * @param EditGesture gestureData The gesture.
+	 */
+	private fun registerOnStrip(gestureData: EditGesture) {
+		val transform = gestureData.transform
+		val parameters = gesture.lastParameters
+
+		if (transform.operatorKind == MeshOperatorKind.VertexSlide) {
+			val slide = gestureData.slide
+			val landing = slideLanding
+
+			if (slide != null && landing != null) {
+				registerSlideAdjustment(session, areaId, transform, gestureData.geometryByOwner, slide.owner, slide.activeVertex, landing.neighborIndex, landing.factor)
+			}
+		} else if (parameters != null) {
+			// A suppressed latch (the duplicate / rip auto-grab) took no weights, so it offers no
+			// proportional rows; every other transform does, on or off, so the halo can be
+			// added after the fact the way Blender's redo panel allows.
+			val proportional =
+				if (session.meshOperatorTakesProportional(transform.operatorKind)) {
+					val state = session.proportionalEdit.value
+					ProportionalRows.of(state, state?.radiusWorld ?: DEFAULT_PROPORTIONAL_RADIUS_WORLD)
+				} else {
+					null
+				}
+			registerMeshTransformAdjustment(session, areaId, transform, gestureData.geometryByOwner, parameters, proportional) { _, state ->
+				session.setProportionalEdit(state)
+			}
+		}
 	}
 
 	/** Cancels the in-flight gesture; the teardown resyncs the renderer. */
@@ -393,14 +438,14 @@ internal class EditModalTransform(
 		val slideMove =
 			if (operator == MeshOperatorKind.VertexSlide && slide != null) {
 				transform.entries
-					.firstOrNull { entry -> entry.drawableId == slide.drawableId }
+					.firstOrNull { entry -> entry.owner == slide.owner }
 					?.let { entry -> slideLandingToward(slide, entry.positions, frame) }
-					?.let { landing -> SlideMove(slide.drawableId, slide.activeVertex, landing) }
+					?.let { landing -> SlideMove(slide.owner, slide.activeVertex, landing) }
 			} else {
 				null
 			}
 
-		val jobs = meshDriveJobs(transform, gestureData.geometryById, wholeMeshes = false)
+		val jobs = meshDriveJobs(transform, gestureData.geometryByOwner, wholeMeshes = false)
 		drive.submit(MeshDriveRequest(operator, parameters, jobs, slideMove, session.model.value))
 
 		return true
@@ -410,7 +455,8 @@ internal class EditModalTransform(
 	 * Lands one drive on the UI thread: the parameters and the slide landing the confirm reads, the preview,
 	 * and the folded model pushed to the renderer - folded again onto the session's model when a commit
 	 * replaced the one the request folded onto (a snap mid-drag), so the preview always shows the current
-	 * model.
+	 * model.  Moved lattices go to the live preview alone, which the 2D viewport's cage draws from: a drive that
+	 * moved no mesh pushes no model, so the art holds still.
 	 *
 	 * @param MeshDriveRequest request The request.
 	 * @param MeshDriveResult result Its result.
@@ -419,8 +465,15 @@ internal class EditModalTransform(
 		gesture.lastParameters = request.parameters
 		request.slide?.let { move -> slideLanding = move.landing }
 		publishedRequest = request
+		publishedLatticeWorld = result.latticeWorld
 		gesture.preview = result.preview
 		livePreview.restByDrawable = result.preview
+		livePreview.latticeWorldByDeformer = result.latticeWorld.takeIf { latticeWorld -> latticeWorld.isNotEmpty() }
+
+		if (result.preview.isEmpty()) {
+			return
+		}
+
 		val current = session.model.value
 
 		pushPreview(if (request.baseModel === current) result.folded else current.withMeshPositions(result.preview))

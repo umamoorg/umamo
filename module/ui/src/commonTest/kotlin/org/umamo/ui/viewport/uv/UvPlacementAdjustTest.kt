@@ -1,6 +1,7 @@
 package org.umamo.ui.viewport.uv
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.Selection
@@ -21,6 +22,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasPixelOf
@@ -93,7 +95,7 @@ class UvPlacementAdjustTest {
 		val transform =
 			assertNotNull(
 				buildModalTransformCapture(
-					sources = listOf(ModalCaptureSource(drawableId, positions.copyOf(), indices, setOf(0, 1, 2, 3))),
+					sources = listOf(ModalCaptureSource(ElementOwner.Drawable(drawableId), positions.copyOf(), ElementTopology.ofTriangles(positions.size / 2, indices), setOf(0, 1, 2, 3))),
 					pivotMode = TransformPivotMode.MedianPoint,
 					individualOriginScope = IndividualOriginScope.WholeMesh,
 					operatorKind = kind,

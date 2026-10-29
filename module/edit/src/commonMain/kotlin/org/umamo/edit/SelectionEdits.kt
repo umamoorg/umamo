@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.meshOf
 
 /*
@@ -27,8 +28,8 @@ fun EditorSession.setMeshSelectMode(selectMode: MeshSelectMode) {
 	val current = meshSelection.value
 	val model = model.value
 	val converted =
-		MeshSelectionOps.changeSelectMode(current, selectMode) { drawableId ->
-			model.meshOf(drawableId)?.indices
+		MeshSelectionOps.changeSelectMode(current, selectMode) { owner ->
+			model.editTopologyOf(owner)
 		}
 
 	if (converted == current) {
@@ -50,7 +51,7 @@ fun EditorSession.selectAllMeshElements() {
 
 	val current = meshSelection.value
 	val model = model.value
-	setMeshSelection(MeshSelectionOps.selectAll(current) { drawableId -> model.meshOf(drawableId) })
+	setMeshSelection(MeshSelectionOps.selectAll(current) { owner -> model.editTopologyOf(owner) })
 }
 
 /**
@@ -65,7 +66,7 @@ fun EditorSession.invertMeshSelection() {
 
 	val current = meshSelection.value
 	val model = model.value
-	setMeshSelection(MeshSelectionOps.invert(current) { drawableId -> model.meshOf(drawableId) })
+	setMeshSelection(MeshSelectionOps.invert(current) { owner -> model.editTopologyOf(owner) })
 }
 
 /**
@@ -134,9 +135,9 @@ fun EditorSession.switchEditDrawable(drawableId: DrawableId) {
 	}
 
 	elementMemory.stash(meshSelection.value)
-	elementMemory.lastActiveDrawableId = drawableId
+	elementMemory.lastActiveOwner = ElementOwner.Drawable(drawableId)
 	val newObjectSelection = SelectionOps.replace(SelectionTarget.Drawable(drawableId))
-	val newMeshSelection = elementMemory.restore(MeshSelection.editing(listOf(drawableId)), model)
+	val newMeshSelection = elementMemory.restore(MeshSelection.editingDrawables(listOf(drawableId)), model)
 
 	if (newObjectSelection == selection.value && newMeshSelection == meshSelection.value) {
 		return

@@ -16,6 +16,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
@@ -334,7 +335,7 @@ class MeshTopologyEditsTest {
 			"the copied face is selected in face mode",
 		)
 		assertEquals(
-			ActiveMeshElement(DrawableId("d"), MeshElement.Face(2)),
+			ActiveMeshElement(ElementOwner.Drawable(DrawableId("d")), MeshElement.Face(2)),
 			session.meshSelection.value.activeElement,
 			"the copied face becomes active",
 		)

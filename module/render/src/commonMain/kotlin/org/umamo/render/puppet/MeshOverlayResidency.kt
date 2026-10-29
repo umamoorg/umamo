@@ -63,7 +63,8 @@ internal class OverlayResident(
 
 /**
  * One mesh's draw entry, with its active primitive resolved to local indices: an edge to its two
- * endpoints, a face to its three corners (a face outside [faceCorners] is no active face).
+ * endpoints, a face to the three corners its dot draws at - its own, or its entry in the mesh's face-dot
+ * corners (a face outside them is no active face).
  *
  * @param MeshOverlayMesh mesh The mesh's overlay value.
  * @param OverlayMeshBuffers buffers Its device buffers.
@@ -74,7 +75,10 @@ internal class OverlayResident(
 internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers, baseOffset: Int, faceCorners: IntArray): OverlayDrawEntry {
 	val activeEdge = mesh.activeEdge
 	val activeFace = mesh.activeFace
-	val faceResolved = activeFace != null && activeFace * 3 + 2 < faceCorners.size
+	// The active face's dot draws where its face dot does: at its own corners, or where the mesh's face-dot
+	// corners put it.
+	val dotCorners = mesh.faceDotCorners ?: faceCorners
+	val faceResolved = activeFace != null && activeFace * 3 + 2 < dotCorners.size
 	val faceStart = if (faceResolved) activeFace * 3 else 0
 
 	return OverlayDrawEntry(
@@ -83,9 +87,9 @@ internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers
 		activeVertex = mesh.activeVertex ?: -1,
 		activeEdgeA = if (activeEdge != null) mesh.edgeEndpoints[activeEdge * 2] else -1,
 		activeEdgeB = if (activeEdge != null) mesh.edgeEndpoints[activeEdge * 2 + 1] else -1,
-		activeFaceA = if (faceResolved) faceCorners[faceStart] else -1,
-		activeFaceB = if (faceResolved) faceCorners[faceStart + 1] else -1,
-		activeFaceC = if (faceResolved) faceCorners[faceStart + 2] else -1,
+		activeFaceA = if (faceResolved) dotCorners[faceStart] else -1,
+		activeFaceB = if (faceResolved) dotCorners[faceStart + 1] else -1,
+		activeFaceC = if (faceResolved) dotCorners[faceStart + 2] else -1,
 		islandStyle = mesh.islandStyle,
 		wireframeOnly = mesh.wireframeOnly,
 		owner = mesh.owner,

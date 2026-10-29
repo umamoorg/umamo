@@ -209,7 +209,7 @@ internal class UvEditOverlayProducer {
 		val geometryById = HashMap<DrawableId, GizmoMeshGeometry>(scene.geometries.size)
 
 		for (geometry in scene.geometries) {
-			geometryById[geometry.drawableId] = geometry
+			geometry.drawableId?.let { drawableId -> geometryById[drawableId] = geometry }
 		}
 
 		val overlay = meshes.produce(mode, selection, scene.model, sizes, geometryById.keys)
@@ -232,7 +232,7 @@ internal class UvEditOverlayProducer {
 		for (mesh in overlay.meshes) {
 			val geometry = geometryOf(mesh, geometryById) ?: continue
 			positionsByOwner[mesh.owner] = geometry.positions
-			triangleIndicesByOwner[mesh.owner] = geometry.indices
+			triangleIndicesByOwner[mesh.owner] = geometry.topology.faceCorners
 		}
 
 		val direct = DirectMeshOverlay(overlay, positionsByOwner, triangleIndicesByOwner)
@@ -253,7 +253,7 @@ internal class UvEditOverlayProducer {
 			val geometry = geometryOf(mesh, geometryById)
 			geometry != null &&
 				previous.positionsById[mesh.owner] === geometry.positions &&
-				previous.triangleIndicesById[mesh.owner] === geometry.indices
+				previous.triangleIndicesById[mesh.owner] === geometry.topology.faceCorners
 		}
 
 	/**

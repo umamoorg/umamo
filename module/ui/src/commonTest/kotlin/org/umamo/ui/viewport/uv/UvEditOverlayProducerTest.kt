@@ -31,7 +31,7 @@ class UvEditOverlayProducerTest {
 	@Test
 	fun outsideEditModeThereIsNone() {
 		val model = uvRigModel()
-		val selection = MeshSelection.editing(listOf(UV_RIG_QUAD))
+		val selection = MeshSelection.editingDrawables(listOf(UV_RIG_QUAD))
 		assertNull(UvEditOverlayProducer().produce(EditorMode.Object, selection, sceneOf(model, uvRigGeometries(model, uvRigPageFrame())), sizes))
 	}
 
@@ -40,13 +40,13 @@ class UvEditOverlayProducerTest {
 		val model = uvRigModel()
 		val geometries = uvRigGeometries(model, uvRigPageFrame())
 
-		val direct = assertNotNull(UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editing(listOf(UV_RIG_QUAD, UV_RIG_OTHER)), sceneOf(model, geometries), sizes))
+		val direct = assertNotNull(UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editingDrawables(listOf(UV_RIG_QUAD, UV_RIG_OTHER)), sceneOf(model, geometries), sizes))
 
 		assertEquals(listOf(UV_RIG_QUAD, UV_RIG_OTHER), direct.overlay.meshes.map { mesh -> mesh.drawableOwnerId }, "the session meshes, in the session's order")
 
 		for (geometry in geometries) {
-			assertSame(geometry.positions, direct.positionsById[ElementOwner.Drawable(geometry.drawableId)], "${geometry.drawableId} draws the shown positions themselves")
-			assertSame(geometry.indices, direct.triangleIndicesById[ElementOwner.Drawable(geometry.drawableId)], "${geometry.drawableId} fills over the shown indices")
+			assertSame(geometry.positions, direct.positionsById[geometry.owner], "${geometry.owner} draws the shown positions themselves")
+			assertSame(geometry.topology.faceCorners, direct.triangleIndicesById[geometry.owner], "${geometry.owner} fills over the shown indices")
 		}
 	}
 
@@ -55,12 +55,12 @@ class UvEditOverlayProducerTest {
 		val model = uvRigModel()
 		val quadOnly = uvRigGeometries(model, uvRigPageFrame(), shown = listOf(UV_RIG_QUAD))
 
-		val direct = assertNotNull(UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editing(listOf(UV_RIG_QUAD, UV_RIG_OTHER)), sceneOf(model, quadOnly), sizes))
+		val direct = assertNotNull(UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editingDrawables(listOf(UV_RIG_QUAD, UV_RIG_OTHER)), sceneOf(model, quadOnly), sizes))
 
 		assertEquals(listOf(UV_RIG_QUAD), direct.overlay.meshes.map { mesh -> mesh.drawableOwnerId })
 		assertEquals(setOf<ElementOwner>(ElementOwner.Drawable(UV_RIG_QUAD)), direct.positionsById.keys)
 		assertNull(
-			UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editing(listOf(UV_RIG_OTHER)), sceneOf(model, quadOnly), sizes),
+			UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editingDrawables(listOf(UV_RIG_OTHER)), sceneOf(model, quadOnly), sizes),
 			"a scene showing none of the session's meshes shows no overlay",
 		)
 	}
@@ -85,7 +85,7 @@ class UvEditOverlayProducerTest {
 		val producer = UvEditOverlayProducer()
 		val model = uvRigModel()
 		val geometries = uvRigGeometries(model, uvRigPageFrame())
-		val selection = MeshSelection.editing(listOf(UV_RIG_QUAD, UV_RIG_OTHER))
+		val selection = MeshSelection.editingDrawables(listOf(UV_RIG_QUAD, UV_RIG_OTHER))
 		val first = producer.produce(EditorMode.Edit, selection, sceneOf(model, geometries), sizes)
 
 		val again = producer.produce(EditorMode.Edit, selection, sceneOf(model, geometries), sizes)
@@ -98,11 +98,11 @@ class UvEditOverlayProducerTest {
 		val producer = UvEditOverlayProducer()
 		val model = uvRigModel()
 		val geometries = uvRigGeometries(model, uvRigPageFrame())
-		val selection = MeshSelection.editing(listOf(UV_RIG_QUAD, UV_RIG_OTHER))
+		val selection = MeshSelection.editingDrawables(listOf(UV_RIG_QUAD, UV_RIG_OTHER))
 		val before = assertNotNull(producer.produce(EditorMode.Edit, selection, sceneOf(model, geometries), sizes))
 		val quad = geometries.first { geometry -> geometry.drawableId == UV_RIG_QUAD }
 		val movedPositions = FloatArray(quad.positions.size) { componentIndex -> quad.positions[componentIndex] + 4f }
-		val moved = geometries.map { geometry -> if (geometry === quad) GizmoMeshGeometry(quad.drawableId, quad.indices, quad.edges, movedPositions) else geometry }
+		val moved = geometries.map { geometry -> if (geometry === quad) GizmoMeshGeometry(quad.owner, quad.topology, movedPositions) else geometry }
 
 		val after = assertNotNull(producer.produce(EditorMode.Edit, selection, sceneOf(model, moved), sizes))
 
@@ -117,7 +117,7 @@ class UvEditOverlayProducerTest {
 		val producer = UvEditOverlayProducer()
 		val model = uvRigModel()
 		val geometries = uvRigGeometries(model, uvRigPageFrame())
-		val editing = MeshSelection.editing(listOf(UV_RIG_QUAD))
+		val editing = MeshSelection.editingDrawables(listOf(UV_RIG_QUAD))
 		val before = assertNotNull(producer.produce(EditorMode.Edit, editing, sceneOf(model, geometries), sizes))
 
 		val selected = MeshSelectionOps.add(editing, UV_RIG_QUAD, MeshElement.Vertex(1))

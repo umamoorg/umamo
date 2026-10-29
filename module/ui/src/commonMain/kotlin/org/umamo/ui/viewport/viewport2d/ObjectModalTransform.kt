@@ -3,6 +3,7 @@ package org.umamo.ui.viewport.viewport2d
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.SelectionTarget
@@ -16,7 +17,7 @@ import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.render.ViewportCamera
-import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.transform.captureDrawableWorlds
@@ -30,15 +31,15 @@ import org.umamo.ui.viewport.gizmo.gestureParameters
  * The captured state of an in-flight Object-mode transform: the shared [ModalTransformCapture] (which owns
  * the pivot groups, the anchor, the frozen operator kind, and the rotation tracker) plus the per-drawable
  * [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the rest
- * arrays.  The geometry is held in a map keyed on the drawable id, looked up by
+ * arrays.  The geometry is held in a map keyed on the drawable's owner, looked up by
  * [org.umamo.edit.ModalCaptureEntry], so nothing stays index-aligned with the capture's entry list.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, kind).
- * @property Map<DrawableId, DrawableWorldGeometry> geometryById Each captured drawable's world geometry.
+ * @property Map<ElementOwner, DrawableWorldGeometry> geometryByOwner Each captured drawable's world geometry.
  */
 internal class ObjectGesture(
 	val transform: ModalTransformCapture,
-	val geometryById: Map<DrawableId, DrawableWorldGeometry>,
+	val geometryByOwner: Map<ElementOwner, DrawableWorldGeometry>,
 )
 
 /**
@@ -97,13 +98,13 @@ internal class ObjectModalTransform(
 		// A drawable with a hidden ancestor has no world mapping and the batch drops it rather than abort
 		// the whole gesture (the others still transform).  One batch: the deformer chain bakes once per latch.
 		val geometries = captureDrawableWorlds(model, pose, eligibleIds.orEmpty())
-		val geometryById = geometries.associateBy { geometry -> geometry.drawableId }
+		val geometryByOwner = geometries.associateBy { geometry -> geometry.owner }
 
-		// Object mode moves every vertex of each drawable, so the covered set is the whole mesh.  Triangle
-		// connectivity is unused here (WholeMesh pivots, no proportional editing), so an empty array serves.
+		// Object mode moves every vertex of each drawable, so the covered set is the whole mesh.  Connectivity is
+		// unused here (WholeMesh pivots, no proportional editing), so a topology that connects nothing serves.
 		val sources =
 			geometries.map { geometry ->
-				ModalCaptureSource(geometry.drawableId, geometry.world, IntArray(0), geometry.allIndices)
+				ModalCaptureSource(geometry.owner, geometry.world, ElementTopology.unconnected(geometry.world.size / 2), geometry.allIndices)
 			}
 
 		// The two per-area anchors the shared builder cannot resolve itself: the active drawable's own
@@ -111,7 +112,7 @@ internal class ObjectModalTransform(
 		// unplaced cursor resolves to the world origin, like the snap commands.
 		val activeAnchor =
 			(session.selection.value.active as? SelectionTarget.Drawable)?.id
-				?.let { activeId -> geometryById[activeId] }
+				?.let { activeId -> geometryByOwner[ElementOwner.Drawable(activeId)] }
 				?.let { geometry -> MeshTransforms.medianPivot(geometry.world, geometry.allIndices) }
 		val cursorAnchor = session.cursor2dOrWorldOrigin().let { cursor -> cursor.worldX to cursor.worldZ }
 		val transform =
@@ -129,7 +130,7 @@ internal class ObjectModalTransform(
 			// Nothing transformable survived (all hidden, or the selection changed): drop the operator.
 			session.clearObjectOperator()
 		} else {
-			gesture.begin(ObjectGesture(transform, geometryById), gesture.lastPointer)
+			gesture.begin(ObjectGesture(transform, geometryByOwner), gesture.lastPointer)
 		}
 	}
 
@@ -191,12 +192,12 @@ internal class ObjectModalTransform(
 		if (committed != null && gestureData != null && committed.isNotEmpty()) {
 			val transform = gestureData.transform
 			val modelBefore = session.model.value
-			session.commitObjectPositions(MeshChange.TransformDrawables(transform.drawableIds, transform.operatorKind), committed)
+			session.commitObjectPositions(MeshChange.TransformDrawables(transform.entries.mapNotNull { entry -> entry.drawableId }, transform.operatorKind), committed)
 
 			// A commit that recorded nothing (the drawables landed where they started) has no step of its
 			// own to amend, so it registers nothing.
 			if (parameters != null && session.model.value !== modelBefore) {
-				registerObjectTransformAdjustment(session, areaId, transform, gestureData.geometryById, parameters)
+				registerObjectTransformAdjustment(session, areaId, transform, gestureData.geometryByOwner, parameters)
 			}
 		}
 
@@ -227,7 +228,7 @@ internal class ObjectModalTransform(
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
 		// Proportional editing is an Edit-mode feature: object mode moves whole drawables, so there are no
 		// unselected vertices to weight.
-		val jobs = meshDriveJobs(transform, gestureData.geometryById, wholeMeshes = true)
+		val jobs = meshDriveJobs(transform, gestureData.geometryByOwner, wholeMeshes = true)
 
 		drive.submit(MeshDriveRequest(operator, parameters, jobs, null, session.model.value))
 

@@ -387,6 +387,25 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
+	 * Reshapes one or more warps' lattices at rest (a finished Edit-mode G / S / R or Vertex Slide over lattice
+	 * points): every form of each warp shifts by the same parent-space offset, and the warps' children are
+	 * re-expressed so they rest where they rested.  Labelled by the operator, like a mesh transform.
+	 *
+	 * @property List<DeformerId> deformerIds The reshaped warps.
+	 * @property MeshOperatorKind kind The operator that reshaped them.
+	 */
+	data class ReshapeLattice(val deformerIds: List<DeformerId>, val kind: MeshOperatorKind) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String =
+			when (kind) {
+				MeshOperatorKind.Grab -> "change.lattice.move"
+				MeshOperatorKind.Scale -> "change.lattice.scale"
+				MeshOperatorKind.Rotate -> "change.lattice.rotate"
+				MeshOperatorKind.VertexSlide -> "change.lattice.slide"
+			}
+	}
+
+	/**
 	 * Sets a deformer's static opacity - the value its opacity channel falls back to when unkeyed.
 	 *
 	 * A deformer's render channels CASCADE: this multiplies onto every drawable beneath it, so it is not

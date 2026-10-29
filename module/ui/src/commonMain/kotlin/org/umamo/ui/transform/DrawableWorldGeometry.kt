@@ -5,6 +5,7 @@ import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.render.eval.DrawableSpaceResolver
 import org.umamo.render.eval.ParentSpaceMapping
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 
 /*
@@ -42,8 +43,10 @@ internal class DrawableWorldGeometry(
 	val canvas: FloatArray,
 	val local: FloatArray,
 	val displayed: FloatArray,
-	val world: FloatArray,
-) {
+	override val world: FloatArray,
+) : OwnerWorldGeometry {
+	override val owner: ElementOwner = ElementOwner.Drawable(drawableId)
+
 	/** Every vertex index of this drawable - the whole-mesh set an object-level transform moves. */
 	val allIndices: Set<Int> get() = (0 until world.size / 2).toSet()
 

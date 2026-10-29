@@ -76,8 +76,8 @@ internal class UvDriveResult(
  * @return List<UvDriveJob> The jobs, in capture order.
  */
 internal fun uvDriveJobs(transform: ModalTransformCapture): List<UvDriveJob> =
-	transform.entries.map { entry ->
-		UvDriveJob(entry.drawableId, entry.positions, entry.groups, entry.influence, entry.movedIndices)
+	transform.entries.mapNotNull { entry ->
+		entry.drawableId?.let { drawableId -> UvDriveJob(drawableId, entry.positions, entry.groups, entry.influence, entry.movedIndices) }
 	}
 
 /**

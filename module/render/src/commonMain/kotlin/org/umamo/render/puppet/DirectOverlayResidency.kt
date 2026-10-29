@@ -117,8 +117,9 @@ internal class DirectOverlayResidency(
 	}
 
 	/**
-	 * One mesh's buffers: the previous set when its edge and index arrays are the same instances (flags
-	 * updated in place when they changed by identity), else a fresh set, freeing the previous one.
+	 * One mesh's buffers: the previous set when its edge, index, and face-dot arrays are the same instances and its
+	 * dotted vertices as many (flags updated in place when they changed by identity), else a fresh set, freeing the
+	 * previous one.
 	 *
 	 * @param MeshOverlayMesh mesh The mesh's overlay value.
 	 * @param IntArray triangleIndices Its triangle indices.
@@ -130,7 +131,13 @@ internal class DirectOverlayResidency(
 		val edgeFlags = overlayFlagsOrZeros(mesh.edgeFlags, mesh.edgeCount)
 		val faceFlags = overlayFlagsOrZeros(mesh.faceFlags, triangleIndices.size / 3)
 
-		if (previous != null && previous.mesh.edgeEndpoints === mesh.edgeEndpoints && previous.triangleIndices === triangleIndices) {
+		if (
+			previous != null &&
+			previous.mesh.edgeEndpoints === mesh.edgeEndpoints &&
+			previous.triangleIndices === triangleIndices &&
+			previous.mesh.faceDotCorners === mesh.faceDotCorners &&
+			previous.mesh.vertexDotCount == mesh.vertexDotCount
+		) {
 			if (overlayFlagsDiffer(previous.mesh.vertexFlags, mesh.vertexFlags) ||
 				overlayFlagsDiffer(previous.mesh.edgeFlags, mesh.edgeFlags) ||
 				overlayFlagsDiffer(previous.mesh.faceFlags, mesh.faceFlags)
@@ -143,7 +150,7 @@ internal class DirectOverlayResidency(
 
 		previous?.let { stale -> device.destroyOverlayMeshBuffers(stale.entry.buffers) }
 
-		return device.createOverlayMeshBuffers(OverlayMeshSpec(mesh.edgeEndpoints, triangleIndices, vertexFlags, edgeFlags, faceFlags))
+		return device.createOverlayMeshBuffers(OverlayMeshSpec(mesh.edgeEndpoints, triangleIndices, vertexFlags, edgeFlags, faceFlags, mesh.faceDotCorners, mesh.vertexDotCount))
 	}
 
 	/**

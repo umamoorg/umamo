@@ -13,6 +13,7 @@ import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.drawableOwnerId
 import org.umamo.ui.viewport.viewport2d.RIG_HIDDEN
@@ -43,12 +44,12 @@ class EditMeshOverlayProducerTest {
 
 	@Test
 	fun outsideEditModeThereIsNoOverlay() {
-		assertNull(EditMeshOverlayProducer().produce(EditorMode.Object, MeshSelection.editing(listOf(RIG_QUAD)), gizmoRigModel(), sizes))
+		assertNull(EditMeshOverlayProducer().produce(EditorMode.Object, MeshSelection.editingDrawables(listOf(RIG_QUAD)), gizmoRigModel(), sizes))
 	}
 
 	@Test
 	fun anEmptySelectionListsEverySessionMeshWithEmptyFlags() {
-		val overlay = assertNotNull(produce(MeshSelection.editing(listOf(RIG_QUAD, RIG_OTHER))))
+		val overlay = assertNotNull(produce(MeshSelection.editingDrawables(listOf(RIG_QUAD, RIG_OTHER))))
 		assertEquals(listOf(RIG_QUAD, RIG_OTHER), overlay.meshes.map { mesh -> mesh.drawableOwnerId }, "every session mesh, in the session's order")
 		assertEquals(MeshOverlaySelectMode.Vertex, overlay.selectMode)
 
@@ -64,7 +65,7 @@ class EditMeshOverlayProducerTest {
 	@Test
 	fun shownIdsRestrictTheEntries() {
 		val producer = EditMeshOverlayProducer()
-		val selection = MeshSelection.editing(listOf(RIG_QUAD, RIG_OTHER))
+		val selection = MeshSelection.editingDrawables(listOf(RIG_QUAD, RIG_OTHER))
 
 		val narrowed = assertNotNull(producer.produce(EditorMode.Edit, selection, gizmoRigModel(), sizes, shownIds = setOf(RIG_OTHER)))
 		assertEquals(listOf(RIG_OTHER), narrowed.meshes.map { mesh -> mesh.drawableOwnerId }, "only the shown session mesh")
@@ -75,7 +76,7 @@ class EditMeshOverlayProducerTest {
 
 	@Test
 	fun anUnprojectableSessionMeshIsListedForTheRendererToSkip() {
-		val overlay = assertNotNull(produce(MeshSelection.editing(listOf(RIG_QUAD, RIG_HIDDEN))))
+		val overlay = assertNotNull(produce(MeshSelection.editingDrawables(listOf(RIG_QUAD, RIG_HIDDEN))))
 		assertEquals(listOf(RIG_QUAD, RIG_HIDDEN), overlay.meshes.map { mesh -> mesh.drawableOwnerId }, "the renderer, not the derive, skips what it cannot pose")
 	}
 
@@ -159,8 +160,8 @@ class EditMeshOverlayProducerTest {
 	fun aMalformedMeshIsLeftOutRatherThanThrown() {
 		val broken = withQuadMesh(gizmoRigModel()) { mesh -> DrawableMesh.withLocalEqualToCanvas(mesh.positions, mesh.uvs, intArrayOf(0, 1, 7, 0, 2, 3)) }
 		val producer = EditMeshOverlayProducer()
-		assertNull(producer.produce(EditorMode.Edit, MeshSelection.editing(listOf(RIG_QUAD)), broken, sizes), "the only session mesh is left out")
-		val overlay = assertNotNull(producer.produce(EditorMode.Edit, MeshSelection.editing(listOf(RIG_QUAD, RIG_OTHER)), broken, sizes))
+		assertNull(producer.produce(EditorMode.Edit, MeshSelection.editingDrawables(listOf(RIG_QUAD)), broken, sizes), "the only session mesh is left out")
+		val overlay = assertNotNull(producer.produce(EditorMode.Edit, MeshSelection.editingDrawables(listOf(RIG_QUAD, RIG_OTHER)), broken, sizes))
 		assertEquals(listOf(RIG_OTHER), overlay.meshes.map { mesh -> mesh.drawableOwnerId }, "the well-formed mesh stays")
 	}
 
@@ -193,7 +194,7 @@ class EditMeshOverlayProducerTest {
 		// the other mesh is untouched in every respect.
 		val seeded =
 			MeshSelectionOps.add(
-				MeshSelectionOps.add(MeshSelection.editing(listOf(RIG_QUAD, RIG_OTHER)), RIG_OTHER, MeshElement.Vertex(1)),
+				MeshSelectionOps.add(MeshSelection.editingDrawables(listOf(RIG_QUAD, RIG_OTHER)), RIG_OTHER, MeshElement.Vertex(1)),
 				RIG_QUAD,
 				MeshElement.Vertex(0),
 			)
@@ -209,7 +210,7 @@ class EditMeshOverlayProducerTest {
 	fun aTopologyChangeRebuildsOnlyThatMeshsEdges() {
 		val producer = EditMeshOverlayProducer()
 		val model = gizmoRigModel()
-		val selection = MeshSelection.editing(listOf(RIG_QUAD, RIG_OTHER))
+		val selection = MeshSelection.editingDrawables(listOf(RIG_QUAD, RIG_OTHER))
 		val before = assertNotNull(producer.produce(EditorMode.Edit, selection, model, sizes))
 		val flipped = withQuadMesh(model) { mesh -> DrawableMesh.withLocalEqualToCanvas(mesh.positions, mesh.uvs, intArrayOf(0, 1, 3, 1, 2, 3)) }
 		val after = assertNotNull(producer.produce(EditorMode.Edit, selection, flipped, sizes))
@@ -308,11 +309,11 @@ class EditMeshOverlayProducerTest {
 	 */
 	private fun selectionOf(selectMode: MeshSelectMode, elements: List<MeshElement>): MeshSelection =
 		MeshSelection(
-			drawableIds = listOf(RIG_QUAD),
-			activeDrawableId = RIG_QUAD,
+			owners = listOf(ElementOwner.Drawable(RIG_QUAD)),
+			activeOwner = ElementOwner.Drawable(RIG_QUAD),
 			selectMode = selectMode,
-			elementsByDrawable = mapOf(RIG_QUAD to elements.toSet()),
-			activeElement = ActiveMeshElement(RIG_QUAD, elements.last()),
+			elementsByOwner = mapOf(ElementOwner.Drawable(RIG_QUAD) to elements.toSet()),
+			activeElement = ActiveMeshElement(ElementOwner.Drawable(RIG_QUAD), elements.last()),
 		)
 
 	/**

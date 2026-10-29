@@ -3,7 +3,7 @@ package org.umamo.ui.viewport.viewport2d
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
-import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.slideFactorAlongEdge
 import org.umamo.ui.viewport.gizmo.worldToScreen
@@ -13,12 +13,13 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  * Only the candidates freeze at latch - the best edge is re-picked from the live pointer every move,
  * so the slide follows the pointer across the vertex's fan instead of locking to the first edge.
  *
- * @property DrawableId drawableId The mesh the active vertex lives in.
+ * @property ElementOwner owner The mesh or lattice the active vertex lives in.
  * @property Int activeVertex The sliding vertex's index.
- * @property IntArray neighborIndices The active vertex's incident neighbors (the edge candidates).
+ * @property IntArray neighborIndices The active vertex's incident neighbors (the edge candidates): on a lattice, the
+ *   points along its grid lines.
  */
 internal class SlideContext(
-	val drawableId: DrawableId,
+	val owner: ElementOwner,
 	val activeVertex: Int,
 	val neighborIndices: IntArray,
 )
@@ -42,18 +43,17 @@ internal class SlideLanding(
  * element, or an isolated vertex has none.
  *
  * @param MeshSelection selection The mesh selection the slide latched over.
- * @param List<EditMeshGeometry> geometries The session meshes' live geometry.
+ * @param List<EditOwnerGeometry> geometries The session owners' live geometry.
  * @return SlideContext? The candidates, or null when there is nothing to slide.
  */
-internal fun slideContextFor(selection: MeshSelection, geometries: List<EditMeshGeometry>): SlideContext? {
+internal fun slideContextFor(selection: MeshSelection, geometries: List<EditOwnerGeometry>): SlideContext? {
 	val active = selection.activeElement
 	val activeVertex = (active?.element as? MeshElement.Vertex)?.index
-	val activeGeometry = active?.let { candidate -> geometries.firstOrNull { it.drawableId == candidate.drawableId } }
+	val activeGeometry = active?.let { candidate -> geometries.firstOrNull { it.owner == candidate.owner } }
 
 	return if (activeVertex != null && activeGeometry != null) {
-		val adjacency = MeshTopology.buildVertexAdjacency(activeGeometry.mesh.vertexCount, activeGeometry.mesh.indices)
-		val neighbors = adjacency.getOrElse(activeVertex) { IntArray(0) }
-		if (neighbors.isNotEmpty()) SlideContext(active.drawableId, activeVertex, neighbors) else null
+		val neighbors = activeGeometry.topology.adjacency.getOrElse(activeVertex) { IntArray(0) }
+		if (neighbors.isNotEmpty()) SlideContext(activeGeometry.owner, activeVertex, neighbors) else null
 	} else {
 		null
 	}
@@ -65,7 +65,7 @@ internal fun slideContextFor(selection: MeshSelection, geometries: List<EditMesh
  * so the slide hops between the active vertex's edges as the pointer travels.
  *
  * @param SlideContext context The slide's frozen candidates.
- * @param FloatArray originalWorld The captured world positions of the sliding vertex's mesh.
+ * @param FloatArray originalWorld The captured world positions of the sliding vertex's mesh or lattice.
  * @param TransformGestureFrame frame The pointer frame (its current pointer, camera, and size).
  * @return SlideLanding? The landing, or null when the context has no candidate.
  */

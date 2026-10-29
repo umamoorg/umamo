@@ -639,7 +639,7 @@ internal fun buildPlacementGesture(
 	val movingGeometries = shownGeometries.filter { geometry -> tileByDrawable[geometry.drawableId] in moverIds }
 	val sources =
 		movingGeometries.map { geometry ->
-			ModalCaptureSource(geometry.drawableId, geometry.positions.copyOf(), geometry.indices, allVertexIndices(geometry.positions))
+			ModalCaptureSource(geometry.owner, geometry.positions.copyOf(), geometry.topology, allVertexIndices(geometry.positions))
 		}
 	val activeAnchor =
 		activeDrawableId
@@ -671,8 +671,8 @@ internal fun buildPlacementGesture(
 			movers = pivoted,
 			bystanders = bystanders,
 			occupancy = occupancy,
-			tileByDrawable = movingGeometries.associate { geometry -> geometry.drawableId to tileByDrawable.getValue(geometry.drawableId) },
-			frozenPositionsByDrawable = movingGeometries.associate { geometry -> geometry.drawableId to geometry.positions.copyOf() },
+			tileByDrawable = movingGeometries.mapNotNull { geometry -> geometry.drawableId?.let { drawableId -> drawableId to tileByDrawable.getValue(drawableId) } }.toMap(),
+			frozenPositionsByDrawable = movingGeometries.mapNotNull { geometry -> geometry.drawableId?.let { drawableId -> drawableId to geometry.positions.copyOf() } }.toMap(),
 			pageWidth = surface.pageWidth,
 			pageHeight = surface.pageHeight,
 			extrude = extrude,

@@ -123,18 +123,18 @@ fun ViewportEditGizmoOverlay(
 	// and reach the renderer through the viewport binding.
 	val overlayColors = LocalUmamoColors.current
 
-	val sessionDrawableIds = meshSelection.drawableIds
+	val sessionOwners = meshSelection.owners
 
-	if (mode != EditorMode.Edit || sessionDrawableIds.isEmpty() || camera == null) {
+	if (mode != EditorMode.Edit || sessionOwners.isEmpty() || camera == null) {
 		return
 	}
 
 	// The shared two-tone marching-ants style for the box / circle / crosshair affordances.
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
-	// Per-session-mesh geometry at the constant neutral pose Edit mode is pinned to.  Keyed on the model
-	// (a commit swaps it) and the session's mesh list; NOT per rendered frame.
-	val liveGeometry = remember(model, sessionDrawableIds) { editMeshGeometries(model, sessionDrawableIds) }
+	// Per-session-owner geometry at the constant neutral pose Edit mode is pinned to: each mesh, or each lattice.
+	// Keyed on the model (a commit swaps it) and the session's owners; NOT per rendered frame.
+	val liveGeometry = remember(model, sessionOwners) { editOwnerGeometries(model, sessionOwners) }
 
 	// Live values the long-running pointer loop, the marquee callbacks, and the request collectors read
 	// (they are keyed only on areaId / session, so they must not close over a stale camera / size / shape
