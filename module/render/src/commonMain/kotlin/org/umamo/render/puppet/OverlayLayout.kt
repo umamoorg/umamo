@@ -48,14 +48,16 @@ internal fun planOverlayLayout(
 	var totalVertexCount = 0
 
 	for (mesh in overlay.meshes) {
-		val residentVertexCount = residentVertexCountById[mesh.drawableId] ?: continue
+		// A 2D overlay pairs each mesh with a resident drawable, so a lattice (which has none) is never placed here.
+		val drawableId = mesh.pairedDrawableId ?: continue
+		val residentVertexCount = residentVertexCountById[drawableId] ?: continue
 
 		if (residentVertexCount != mesh.vertexCount) {
 			continue
 		}
 
 		if (overlay.kind == MeshOverlayKind.Edit && mesh.faceFlags.isNotEmpty()) {
-			val residentTriangleCount = residentTriangleCountById[mesh.drawableId] ?: continue
+			val residentTriangleCount = residentTriangleCountById[drawableId] ?: continue
 
 			if (residentTriangleCount != mesh.faceFlags.size) {
 				continue
@@ -111,8 +113,8 @@ internal fun planDirectOverlayLayout(direct: DirectMeshOverlay): DirectOverlayLa
 	var totalVertexCount = 0
 
 	for (mesh in direct.overlay.meshes) {
-		val positions = direct.positionsById[mesh.drawableId] ?: continue
-		val triangleIndices = direct.triangleIndicesById[mesh.drawableId] ?: continue
+		val positions = direct.positionsById[mesh.owner] ?: continue
+		val triangleIndices = direct.triangleIndicesById[mesh.owner] ?: continue
 
 		if (positions.size != mesh.vertexCount * 2 || triangleIndices.size % 3 != 0) {
 			continue

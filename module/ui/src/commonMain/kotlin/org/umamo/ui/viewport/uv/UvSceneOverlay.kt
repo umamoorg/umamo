@@ -14,10 +14,12 @@ import org.umamo.edit.MeshSelection
 import org.umamo.edit.Selection
 import org.umamo.render.ContentBounds
 import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.puppet.PlacementPreview
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.PuppetViewportService
@@ -224,16 +226,16 @@ internal class UvEditOverlayProducer {
 			return previous
 		}
 
-		val positionsById = HashMap<DrawableId, FloatArray>(overlay.meshes.size)
-		val triangleIndicesById = HashMap<DrawableId, IntArray>(overlay.meshes.size)
+		val positionsByOwner = HashMap<ElementOwner, FloatArray>(overlay.meshes.size)
+		val triangleIndicesByOwner = HashMap<ElementOwner, IntArray>(overlay.meshes.size)
 
 		for (mesh in overlay.meshes) {
-			val geometry = geometryById[mesh.drawableId] ?: continue
-			positionsById[mesh.drawableId] = geometry.positions
-			triangleIndicesById[mesh.drawableId] = geometry.indices
+			val geometry = geometryOf(mesh, geometryById) ?: continue
+			positionsByOwner[mesh.owner] = geometry.positions
+			triangleIndicesByOwner[mesh.owner] = geometry.indices
 		}
 
-		val direct = DirectMeshOverlay(overlay, positionsById, triangleIndicesById)
+		val direct = DirectMeshOverlay(overlay, positionsByOwner, triangleIndicesByOwner)
 		lastDirect = direct
 
 		return direct
@@ -248,9 +250,19 @@ internal class UvEditOverlayProducer {
 	 */
 	private fun pairsUnchanged(previous: DirectMeshOverlay, geometryById: Map<DrawableId, GizmoMeshGeometry>): Boolean =
 		previous.overlay.meshes.all { mesh ->
-			val geometry = geometryById[mesh.drawableId]
+			val geometry = geometryOf(mesh, geometryById)
 			geometry != null &&
-				previous.positionsById[mesh.drawableId] === geometry.positions &&
-				previous.triangleIndicesById[mesh.drawableId] === geometry.indices
+				previous.positionsById[mesh.owner] === geometry.positions &&
+				previous.triangleIndicesById[mesh.owner] === geometry.indices
 		}
+
+	/**
+	 * The shown geometry an overlay mesh draws over: its drawable's.  A UV overlay holds drawables alone.
+	 *
+	 * @param MeshOverlayMesh mesh The overlay mesh.
+	 * @param Map<DrawableId, GizmoMeshGeometry> geometryById The shown geometry by drawable.
+	 * @return GizmoMeshGeometry? The geometry, or null when its drawable is not shown.
+	 */
+	private fun geometryOf(mesh: MeshOverlayMesh, geometryById: Map<DrawableId, GizmoMeshGeometry>): GizmoMeshGeometry? =
+		(mesh.owner as? ElementOwner.Drawable)?.let { owner -> geometryById[owner.id] }
 }

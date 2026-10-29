@@ -364,6 +364,65 @@ fun PuppetModel.visibleDrawableIds(): Set<DrawableId> {
 }
 
 /**
+ * The deformers that are shown, after cascading the visibility toggles as [visibleDrawableIds] does for art: a
+ * deformer is shown only when its own [Deformer.isVisible] is set, every deformer above it in the transform
+ * hierarchy is shown, and the part it belongs to is shown with every ancestor part up the tree.  What the
+ * viewport draws over a deformer (a warp's lattice) follows it; the deformation itself does not, so the art
+ * under a hidden deformer still moves with it.
+ *
+ * A part the org tree does not reach is judged by its own toggle, and a parent deformer or part the model
+ * does not hold hides nothing.
+ *
+ * @return Set<DeformerId> The ids of the shown deformers.
+ */
+fun PuppetModel.visibleDeformerIds(): Set<DeformerId> {
+	val partById = parts.associateBy { part -> part.id }
+	val reached = HashSet<PartId>()
+	val shownParts = HashSet<PartId>()
+
+	fun walk(children: List<OrgChild>, ancestorsVisible: Boolean) {
+		for (child in children) {
+			if (child !is OrgChild.Part || !reached.add(child.id)) {
+				continue
+			}
+
+			val part = partById[child.id] ?: continue
+			val visible = ancestorsVisible && part.isVisible
+
+			if (visible) {
+				shownParts.add(part.id)
+			}
+
+			walk(part.children, visible)
+		}
+	}
+	walk(rootChildren, ancestorsVisible = true)
+	val deformerById = deformers.associateBy { deformer -> deformer.id }
+	val shownById = HashMap<DeformerId, Boolean>()
+
+	fun shown(deformer: Deformer, depth: Int): Boolean {
+		shownById[deformer.id]?.let { known -> return known }
+
+		val partId = deformer.partId
+		val partShown =
+			when {
+				partId == null -> true
+				partId in reached -> partId in shownParts
+				else -> partById[partId]?.isVisible ?: true
+			}
+		// A depth past the deformer count can only be a parent cycle, which the bake leaves out anyway.
+		val parent = deformer.parent?.let { parentId -> deformerById[parentId] }
+		val parentShown = parent == null || (depth < deformers.size && shown(parent, depth + 1))
+		val result = deformer.isVisible && partShown && parentShown
+		shownById[deformer.id] = result
+
+		return result
+	}
+
+	return deformers.filter { deformer -> shown(deformer, 0) }.mapTo(LinkedHashSet()) { deformer -> deformer.id }
+}
+
+/**
  * The owning part of each drawable, derived from the org tree (the drawable's parent in [rootChildren] /
  * [Part.children]), or null for a root-level drawable. Since membership lives only in the tree, this is how
  * the few sites that need "which part owns this mesh" (the Inspector) read it - computed once per model.

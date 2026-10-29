@@ -20,7 +20,8 @@ import org.umamo.ui.rememberStringSetting
 /**
  * The settings keys and bundled defaults for the viewport overlay colors, one #AARRGGBB hex string
  * each: the Edit-mode element palette (vertex / edge / face by idle / selected / active / off-key),
- * the placement state colors, and the selection highlights.  The defaults here are kept in lockstep
+ * the placement state colors, the selection highlights, and the warp lattice by role.  The lattice's
+ * selected and active defaults are the selection highlights', so a selected warp reads as selected art does.  The defaults here are kept in lockstep
  * with defaultSettings.json (the merged-settings baseline); these constants are the Kotlin-side
  * fallback for a missing or unparseable value, shared by the overlays, the GL viewport binding, and
  * the preferences window so none of them duplicates a key literal.
@@ -42,6 +43,9 @@ internal object ViewportColorSettings {
 	const val PINNED_PLACEMENT_COLOR_KEY = "viewport.pinnedPlacementColor"
 	const val SELECTION_HIGHLIGHT_KEY = "viewport.selectionHighlightColor"
 	const val ACTIVE_SELECTION_HIGHLIGHT_KEY = "viewport.activeSelectionHighlightColor"
+	const val LATTICE_IDLE_KEY = "viewport.deformer.latticeIdle"
+	const val LATTICE_SELECTED_KEY = "viewport.deformer.latticeSelected"
+	const val LATTICE_ACTIVE_KEY = "viewport.deformer.latticeActive"
 
 	const val VERTEX_IDLE_DEFAULT = "#FFFF00EC"
 	const val VERTEX_SELECTED_DEFAULT = "#FFFF7A00"
@@ -59,6 +63,9 @@ internal object ViewportColorSettings {
 	const val PINNED_PLACEMENT_COLOR_DEFAULT = "#FFB266FF"
 	const val SELECTION_HIGHLIGHT_DEFAULT = "#FF338CFF"
 	const val ACTIVE_SELECTION_HIGHLIGHT_DEFAULT = "#FF7DE400"
+	const val LATTICE_IDLE_DEFAULT = "#B3404040"
+	const val LATTICE_SELECTED_DEFAULT = "#FF338CFF"
+	const val LATTICE_ACTIVE_DEFAULT = "#FF7DE400"
 }
 
 /**
@@ -83,6 +90,9 @@ internal object ViewportColorSettings {
  * @property Color pinnedPlacement The edges of a pinned tile's islands in the UV editor, on every edge role.
  * @property Color selectionHighlight The tint the GL viewport mixes over selected drawables.
  * @property Color activeSelectionHighlight The tint the GL viewport mixes over the active drawable.
+ * @property Color latticeIdle A warp lattice shown only because its area shows every deformer.
+ * @property Color latticeSelected A selected warp's lattice.
+ * @property Color latticeActive The active warp's lattice.
  */
 internal data class ViewportOverlayColors(
 	val vertexIdle: Color,
@@ -101,6 +111,9 @@ internal data class ViewportOverlayColors(
 	val pinnedPlacement: Color,
 	val selectionHighlight: Color,
 	val activeSelectionHighlight: Color,
+	val latticeIdle: Color,
+	val latticeSelected: Color,
+	val latticeActive: Color,
 )
 
 /**
@@ -129,12 +142,15 @@ internal fun rememberViewportOverlayColors(): ViewportOverlayColors =
 		pinnedPlacement = settingColor(ViewportColorSettings.PINNED_PLACEMENT_COLOR_KEY, ViewportColorSettings.PINNED_PLACEMENT_COLOR_DEFAULT),
 		selectionHighlight = settingColor(ViewportColorSettings.SELECTION_HIGHLIGHT_KEY, ViewportColorSettings.SELECTION_HIGHLIGHT_DEFAULT),
 		activeSelectionHighlight = settingColor(ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_KEY, ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_DEFAULT),
+		latticeIdle = settingColor(ViewportColorSettings.LATTICE_IDLE_KEY, ViewportColorSettings.LATTICE_IDLE_DEFAULT),
+		latticeSelected = settingColor(ViewportColorSettings.LATTICE_SELECTED_KEY, ViewportColorSettings.LATTICE_SELECTED_DEFAULT),
+		latticeActive = settingColor(ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT),
 	)
 
 /**
- * The nine Edit-mode element colors and the two placement colors as the renderer's mesh overlay palette,
- * straight alpha, each channel the color's own 0..1 component.  The off-key trio is drawn nowhere and stays
- * out.
+ * The nine Edit-mode element colors, the two placement colors, and the three lattice colors as the renderer's
+ * mesh overlay palette, straight alpha, each channel the color's own 0..1 component.  The off-key trio is drawn
+ * nowhere and stays out.
  *
  * @return MeshOverlayPalette The palette.
  */
@@ -151,6 +167,9 @@ internal fun ViewportOverlayColors.toMeshOverlayPalette(): MeshOverlayPalette =
 		faceActive = faceActive.toOverlayColor(),
 		warning = warning.toOverlayColor(),
 		pinnedPlacement = pinnedPlacement.toOverlayColor(),
+		latticeIdle = latticeIdle.toOverlayColor(),
+		latticeSelected = latticeSelected.toOverlayColor(),
+		latticeActive = latticeActive.toOverlayColor(),
 	)
 
 /**

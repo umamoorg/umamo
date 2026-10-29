@@ -32,7 +32,7 @@ class RegionPickTest {
 	fun boxSelectsByCentroid() {
 		val centroids = drawableCentroids(mapOf(DrawableId("in") to square(), DrawableId("out") to canvasLayer()))
 		// A box around (1,1) that does NOT contain the origin.
-		val enclosed = drawablesInBox(centroids, minX = 0.5f, minY = 0.5f, maxX = 1.5f, maxY = 1.5f)
+		val enclosed = anchorsInBox(centroids, minX = 0.5f, minY = 0.5f, maxX = 1.5f, maxY = 1.5f)
 		assertEquals(setOf(DrawableId("in")), enclosed, "only the drawable centerd in the box is selected")
 	}
 
@@ -41,7 +41,7 @@ class RegionPickTest {
 	fun grazingBoxDoesNotGrabFullCanvasLayer() {
 		val centroids = drawableCentroids(mapOf(DrawableId("canvas") to canvasLayer()))
 		// A box in the top-right corner that overlaps the layer's geometry but not its centroid at the origin.
-		val enclosed = drawablesInBox(centroids, minX = 50f, minY = 50f, maxX = 90f, maxY = 90f)
+		val enclosed = anchorsInBox(centroids, minX = 50f, minY = 50f, maxX = 90f, maxY = 90f)
 		assertTrue(enclosed.isEmpty(), "centroid-inside means a grazing box does not select the whole layer")
 	}
 
@@ -52,10 +52,10 @@ class RegionPickTest {
 		val centroids = drawableCentroids(mapOf(DrawableId("near") to square(), DrawableId("far") to canvasLayer()))
 
 		// Center at (1,1), radius 0.5: the square's centroid (1,1) is inside, the origin (distance ~1.41) is not.
-		assertEquals(setOf(DrawableId("near")), drawablesInCircle(centroids, centerX = 1f, centerY = 1f, radius = 0.5f))
+		assertEquals(setOf(DrawableId("near")), anchorsInCircle(centroids, centerX = 1f, centerY = 1f, radius = 0.5f))
 
 		// A radius of 1.5 (> the ~1.41 distance to the origin) also encloses the canvas layer's centroid.
-		val reaching = drawablesInCircle(centroids, centerX = 1f, centerY = 1f, radius = 1.5f)
+		val reaching = anchorsInCircle(centroids, centerX = 1f, centerY = 1f, radius = 1.5f)
 		assertTrue(DrawableId("far") in reaching, "a centroid within the radius is enclosed")
 		assertTrue(DrawableId("near") in reaching, "the closer centroid is enclosed too")
 	}
@@ -63,7 +63,7 @@ class RegionPickTest {
 	/** Empty geometry encloses nothing. */
 	@Test
 	fun emptyGeometryEnclosesNothing() {
-		assertTrue(drawablesInBox(emptyMap(), 0f, 0f, 1f, 1f).isEmpty())
-		assertTrue(drawablesInCircle(emptyMap(), 0f, 0f, 1f).isEmpty())
+		assertTrue(anchorsInBox(emptyMap<DrawableId, FloatArray>(), 0f, 0f, 1f, 1f).isEmpty())
+		assertTrue(anchorsInCircle(emptyMap<DrawableId, FloatArray>(), 0f, 0f, 1f).isEmpty())
 	}
 }

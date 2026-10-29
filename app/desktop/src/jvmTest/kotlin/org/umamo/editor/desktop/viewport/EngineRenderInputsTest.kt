@@ -17,6 +17,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -249,7 +250,7 @@ class EngineRenderInputsTest {
 		MeshOverlay(
 			MeshOverlayKind.Edit,
 			MeshOverlaySelectMode.Vertex,
-			listOf(MeshOverlayMesh(probeId, 4, intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3), ByteArray(0), ByteArray(0), ByteArray(0), null, null, null)),
+			listOf(MeshOverlayMesh(ElementOwner.Drawable(probeId), 4, intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3), ByteArray(0), ByteArray(0), ByteArray(0), null, null, null)),
 			MeshOverlaySizes(3.5f, 1f, 2.5f),
 		)
 }

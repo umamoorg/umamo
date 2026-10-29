@@ -74,6 +74,12 @@ internal class PoseDeformInputs(
 	 * so the composite pass never has to re-derive them.
 	 */
 	val partCompositeStates: Map<PartId, PartRenderState> = emptyMap(),
+	/**
+	 * Every deformer the pose built, by id: the baked worlds the drawables' transforms came from.  A hidden
+	 * deformer, or one under a hidden ancestor, is absent, as [buildDeformerWorlds] leaves it out.  Kept so
+	 * what the viewport draws over a deformer (a warp's lattice) reads the same bake as the art under it.
+	 */
+	val deformerWorlds: Map<DeformerId, DeformerWorld> = emptyMap(),
 )
 
 /**
@@ -307,7 +313,7 @@ internal fun preparePose(
 	}
 	blendGroupStates(model.renderRoot)
 
-	return PoseDeformInputs(drawables, glues, partDrawOrders, partCompositeStates)
+	return PoseDeformInputs(drawables, glues, partDrawOrders, partCompositeStates, deformerWorlds)
 }
 
 /**

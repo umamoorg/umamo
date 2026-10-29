@@ -6,8 +6,10 @@ import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.OverlayColor
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.UvSceneContent
+import org.umamo.ui.viewport.drawableOwnerId
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,11 +42,11 @@ class UvEditOverlayProducerTest {
 
 		val direct = assertNotNull(UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editing(listOf(UV_RIG_QUAD, UV_RIG_OTHER)), sceneOf(model, geometries), sizes))
 
-		assertEquals(listOf(UV_RIG_QUAD, UV_RIG_OTHER), direct.overlay.meshes.map { mesh -> mesh.drawableId }, "the session meshes, in the session's order")
+		assertEquals(listOf(UV_RIG_QUAD, UV_RIG_OTHER), direct.overlay.meshes.map { mesh -> mesh.drawableOwnerId }, "the session meshes, in the session's order")
 
 		for (geometry in geometries) {
-			assertSame(geometry.positions, direct.positionsById[geometry.drawableId], "${geometry.drawableId} draws the shown positions themselves")
-			assertSame(geometry.indices, direct.triangleIndicesById[geometry.drawableId], "${geometry.drawableId} fills over the shown indices")
+			assertSame(geometry.positions, direct.positionsById[ElementOwner.Drawable(geometry.drawableId)], "${geometry.drawableId} draws the shown positions themselves")
+			assertSame(geometry.indices, direct.triangleIndicesById[ElementOwner.Drawable(geometry.drawableId)], "${geometry.drawableId} fills over the shown indices")
 		}
 	}
 
@@ -55,8 +57,8 @@ class UvEditOverlayProducerTest {
 
 		val direct = assertNotNull(UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editing(listOf(UV_RIG_QUAD, UV_RIG_OTHER)), sceneOf(model, quadOnly), sizes))
 
-		assertEquals(listOf(UV_RIG_QUAD), direct.overlay.meshes.map { mesh -> mesh.drawableId })
-		assertEquals(setOf(UV_RIG_QUAD), direct.positionsById.keys)
+		assertEquals(listOf(UV_RIG_QUAD), direct.overlay.meshes.map { mesh -> mesh.drawableOwnerId })
+		assertEquals(setOf<ElementOwner>(ElementOwner.Drawable(UV_RIG_QUAD)), direct.positionsById.keys)
 		assertNull(
 			UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editing(listOf(UV_RIG_OTHER)), sceneOf(model, quadOnly), sizes),
 			"a scene showing none of the session's meshes shows no overlay",
@@ -70,10 +72,10 @@ class UvEditOverlayProducerTest {
 
 		val direct = assertNotNull(UvEditOverlayProducer().produce(EditorMode.Edit, session.meshSelection.value, sceneOf(model, uvRigGeometries(model, uvRigPageFrame())), sizes))
 
-		val quad = direct.overlay.meshes.first { mesh -> mesh.drawableId == UV_RIG_QUAD }
+		val quad = direct.overlay.meshes.first { mesh -> mesh.drawableOwnerId == UV_RIG_QUAD }
 		assertEquals(listOf(1, 0, 2, 0), quad.vertexFlags.map { flag -> flag.toInt() }, "the selected vertices, the last one active")
 		assertEquals(2, quad.activeVertex)
-		val other = direct.overlay.meshes.first { mesh -> mesh.drawableId == UV_RIG_OTHER }
+		val other = direct.overlay.meshes.first { mesh -> mesh.drawableOwnerId == UV_RIG_OTHER }
 		assertTrue(other.vertexFlags.isEmpty(), "the other mesh has nothing selected")
 		assertNull(other.activeVertex, "and the active element is on its own mesh only")
 	}
@@ -106,8 +108,8 @@ class UvEditOverlayProducerTest {
 
 		assertNotSame(before, after, "a moved mesh is a new value")
 		assertSame(before.overlay, after.overlay, "with the same edges and flags")
-		assertSame(movedPositions, after.positionsById[UV_RIG_QUAD], "the moved mesh takes its new positions")
-		assertSame(before.positionsById[UV_RIG_OTHER], after.positionsById[UV_RIG_OTHER], "the other keeps its array")
+		assertSame(movedPositions, after.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], "the moved mesh takes its new positions")
+		assertSame(before.positionsById[ElementOwner.Drawable(UV_RIG_OTHER)], after.positionsById[ElementOwner.Drawable(UV_RIG_OTHER)], "the other keeps its array")
 	}
 
 	@Test
@@ -122,7 +124,7 @@ class UvEditOverlayProducerTest {
 		val after = assertNotNull(producer.produce(EditorMode.Edit, selected, sceneOf(model, geometries), sizes))
 
 		assertNotSame(before.overlay, after.overlay, "the flags changed")
-		assertSame(before.positionsById[UV_RIG_QUAD], after.positionsById[UV_RIG_QUAD], "the positions did not")
+		assertSame(before.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], after.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], "the positions did not")
 	}
 
 	/**

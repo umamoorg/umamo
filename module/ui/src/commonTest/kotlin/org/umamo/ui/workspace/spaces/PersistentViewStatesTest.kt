@@ -182,12 +182,18 @@ class PersistentViewStatesTest {
 		assertTrue(writesOnlyNulls(saved), "an untouched viewport has nothing to save")
 		saved.overlays.showOverlays = false
 		saved.overlays.showCursor = false
+		saved.overlays.showDeformers = true
 
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
-		assertEquals(listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "wireframeCulling", "wireframeOpacity", "gridGeometry"), overlays.keys.toList(), "every key is named, so a merge can take a deviation back out")
+		assertEquals(
+			listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "deformers", "wireframeCulling", "wireframeOpacity", "gridGeometry"),
+			overlays.keys.toList(),
+			"every key is named, so a merge can take a deviation back out",
+		)
 		assertEquals(JsonPrimitive(false), overlays["all"])
 		assertEquals(JsonPrimitive(false), overlays["cursor"])
+		assertEquals(JsonPrimitive(true), overlays["deformers"])
 		assertTrue(listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull }, "a flag at its default, an opacity that is whole, and a grid that follows, is a null")
 
 		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
@@ -195,6 +201,7 @@ class PersistentViewStatesTest {
 		assertFalse(reopened.overlays.showCursor)
 		assertTrue(reopened.overlays.showGrid && reopened.overlays.showAxes && reopened.overlays.showInfo)
 		assertFalse(reopened.overlays.showWireframe)
+		assertTrue(reopened.overlays.showDeformers)
 		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
 	}
 

@@ -13,9 +13,11 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.PlacementPreview
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
@@ -429,6 +431,50 @@ interface PuppetViewportService {
 	 * @param MeshOverlayPalette palette The palette.
 	 */
 	fun setMeshOverlayPalette(palette: MeshOverlayPalette)
+
+	/**
+	 * Sets which warps' lattices every 2D area draws over the art, and in which role, or null for none.  The value
+	 * holds no positions (the renderer reads each lattice off the pose it draws), so a pose change leaves it as it
+	 * is; a new value replaces the old by identity.  An area draws the idle lattices only while it shows every
+	 * deformer, and none of them while it hides its overlays.
+	 *
+	 * @param LatticeOverlay? overlay The lattices, or null.
+	 */
+	fun setLatticeOverlay(overlay: LatticeOverlay?)
+
+	/**
+	 * The warps whose drawn lattice lies under the cursor in [areaId], best first: a control point within
+	 * [pointRadiusPx] ahead of a grid line within [lineRadiusPx], nearer first, and a tie to the warp later in the
+	 * model.  Only the lattices the area draws can be hit: none while it hides its overlays, and the idle ones only
+	 * while it shows every deformer.
+	 *
+	 * @param String areaId The clicked area.
+	 * @param Float cursorXpx The cursor x in viewport pixels.
+	 * @param Float cursorYpx The cursor y in viewport pixels.
+	 * @param Float pointRadiusPx How near a control point must be, in viewport pixels.
+	 * @param Float lineRadiusPx How near a grid line must be, in viewport pixels.
+	 * @return List<DeformerId> The hit warps, best first.
+	 */
+	fun latticePicksAt(areaId: String, cursorXpx: Float, cursorYpx: Float, pointRadiusPx: Float, lineRadiusPx: Float): List<DeformerId>
+
+	/**
+	 * The world-space center of every lattice [areaId] draws at the current pose - the mean of its control points,
+	 * as [x, y] - what box and circle select test a warp by, as [drawableWorldCentroids] is for art.  Empty when
+	 * the area draws none.
+	 *
+	 * @param String areaId The area.
+	 * @return Map<DeformerId, FloatArray> Per-warp [x, y] world center, in model order.
+	 */
+	fun latticeWorldCenters(areaId: String): Map<DeformerId, FloatArray>
+
+	/**
+	 * The world-space extent of the given warps' lattices at the current pose, whether or not any area draws them:
+	 * what Frame Selected fits a selected warp to.  CPU-side, on the calling thread.
+	 *
+	 * @param Set<DeformerId> ids The warps.
+	 * @return ContentBounds? The extent, or null when none of them is drawn at this pose.
+	 */
+	fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds?
 
 	/**
 	 * Hit-tests the front-most opaque drawable under the cursor, or null on empty canvas.

@@ -148,7 +148,10 @@ class ObjectGizmoSelectionGestureTest {
 			fixture.service.stackByArea[LEFT_AREA] = stack
 
 			withKeyHeld(LEFT_AREA, Key.AltLeft) { clickIn(LEFT_AREA, quadCentroid) }
-			assertEquals(listOf(LEFT_AREA to stack), fixture.overlapRequests.map { request -> request.first to request.third })
+			assertEquals(
+				listOf(LEFT_AREA to stack.map { candidate -> SelectionTarget.Drawable(candidate.id) }),
+				fixture.overlapRequests.map { request -> request.first to request.third.map { candidate -> candidate.target } },
+			)
 			assertEquals(emptySet(), selectedIn(fixture.session), "the picker decides, not the click")
 
 			fixture.service.stackByArea[LEFT_AREA] = listOf(PickCandidate(RIG_OTHER, 0f, 0f))

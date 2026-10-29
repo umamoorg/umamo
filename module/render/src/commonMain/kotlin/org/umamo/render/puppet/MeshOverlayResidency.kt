@@ -5,12 +5,13 @@ import org.umamo.render.device.OverlayMeshBuffers
 import org.umamo.render.device.OverlayMeshSpec
 import org.umamo.render.device.RenderDevice
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 
 /**
  * What one overlay mesh's draws need, whichever scene it is drawn in: its per-instance buffers, its first
  * vertex's index in the position store, and its active primitive resolved to local vertex indices (-1 when
- * the domain has no active primitive), and its colors when it is an island.
+ * the domain has no active primitive), and its colors when it is an island or a lattice.
  *
  * @property OverlayMeshBuffers buffers Its per-instance device buffers.
  * @property Int baseOffset Its first vertex's index in the position store.
@@ -23,7 +24,8 @@ import org.umamo.runtime.model.PuppetModel
  * @property IslandStyle? islandStyle Its island colors, read only by an islands overlay.
  * @property Boolean wireframeOnly Whether it is a plain wireframe inside an Edit overlay: edges only, and
  *   only in a frame that draws the wireframe.
- * @property DrawableId drawableId The drawable the mesh belongs to, by which a culling frame finds its draw order.
+ * @property ElementOwner owner The mesh's owner; a drawable owner is how a culling frame finds its draw order.
+ * @property LatticeRole? latticeRole Its lattice color, read only by a lattice overlay.
  */
 internal class OverlayDrawEntry(
 	val buffers: OverlayMeshBuffers,
@@ -36,7 +38,8 @@ internal class OverlayDrawEntry(
 	val activeFaceC: Int,
 	val islandStyle: IslandStyle?,
 	val wireframeOnly: Boolean,
-	val drawableId: DrawableId,
+	val owner: ElementOwner,
+	val latticeRole: LatticeRole? = null,
 )
 
 /**
@@ -85,7 +88,8 @@ internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers
 		activeFaceC = if (faceResolved) faceCorners[faceStart + 2] else -1,
 		islandStyle = mesh.islandStyle,
 		wireframeOnly = mesh.wireframeOnly,
-		drawableId = mesh.drawableId,
+		owner = mesh.owner,
+		latticeRole = mesh.latticeRole,
 	)
 }
 
@@ -171,7 +175,7 @@ internal class MeshOverlayResidency(
 		}
 
 		residencyChanged = false
-		val previousById = entries.associateBy { entry -> entry.mesh.drawableId }
+		val previousByOwner = entries.associateBy { entry -> entry.mesh.owner }
 
 		if (overlay == null) {
 			for (entry in entries) {
@@ -192,13 +196,15 @@ internal class MeshOverlayResidency(
 			)
 		val drawableById = model.drawables.associateBy { drawable -> drawable.id }
 		val next = ArrayList<OverlayResident>(layout.placed.size)
-		val placedIds = HashSet<DrawableId>(layout.placed.size)
+		val placedOwners = HashSet<ElementOwner>(layout.placed.size)
 
 		for (placement in layout.placed) {
 			val mesh = placement.mesh
-			val resident = residents.getValue(mesh.drawableId)
-			val faceCorners = drawableById[mesh.drawableId]?.mesh?.indices ?: IntArray(0)
-			val previous = previousById[mesh.drawableId]
+			// The layout places drawable owners alone.
+			val drawableId = mesh.pairedDrawableId ?: continue
+			val resident = residents.getValue(drawableId)
+			val faceCorners = drawableById[drawableId]?.mesh?.indices ?: IntArray(0)
+			val previous = previousByOwner[mesh.owner]
 			val vertexFlags = overlayFlagsOrZeros(mesh.vertexFlags, mesh.vertexCount)
 			val edgeFlags = overlayFlagsOrZeros(mesh.edgeFlags, mesh.edgeCount)
 			val faceFlags = overlayFlagsOrZeros(mesh.faceFlags, faceCorners.size / 3)
@@ -225,12 +231,12 @@ internal class MeshOverlayResidency(
 				storeStale = true
 			}
 
-			placedIds.add(mesh.drawableId)
+			placedOwners.add(mesh.owner)
 			next.add(residentOf(mesh, resident, placement.baseOffset, buffers, faceCorners))
 		}
 
 		for (entry in entries) {
-			if (entry.mesh.drawableId !in placedIds) {
+			if (entry.mesh.owner !in placedOwners) {
 				device.destroyOverlayMeshBuffers(entry.buffers)
 			}
 		}

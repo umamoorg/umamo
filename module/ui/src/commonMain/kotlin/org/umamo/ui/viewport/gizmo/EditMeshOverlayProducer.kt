@@ -16,6 +16,7 @@ import org.umamo.render.puppet.OVERLAY_FLAG_ACTIVE
 import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 
 /*
@@ -235,7 +236,7 @@ internal class EditMeshOverlayProducer {
 			return cached.entry
 		}
 
-		val entry = MeshOverlayMesh(drawableId, topology.vertexCount, topology.edgeEndpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null, wireframeOnly = true)
+		val entry = MeshOverlayMesh(ElementOwner.Drawable(drawableId), topology.vertexCount, topology.edgeEndpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null, wireframeOnly = true)
 		wireframeEntryById[drawableId] = WireframeEntry(topology, entry)
 
 		return entry
@@ -311,7 +312,7 @@ internal class EditMeshOverlayProducer {
 		val edgeEndpoints = topology.edgeEndpoints
 
 		if (elements.isEmpty() && active == null) {
-			return MeshOverlayMesh(drawableId, vertexCount, edgeEndpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null)
+			return MeshOverlayMesh(ElementOwner.Drawable(drawableId), vertexCount, edgeEndpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null)
 		}
 
 		val triangleCount = topology.indices.size / 3
@@ -366,7 +367,7 @@ internal class EditMeshOverlayProducer {
 			faceFlags[activeFace] = OVERLAY_FLAG_ACTIVE
 		}
 
-		return MeshOverlayMesh(drawableId, vertexCount, edgeEndpoints, vertexFlags, edgeFlags, faceFlags, activeVertex, activeEdge, activeFace)
+		return MeshOverlayMesh(ElementOwner.Drawable(drawableId), vertexCount, edgeEndpoints, vertexFlags, edgeFlags, faceFlags, activeVertex, activeEdge, activeFace)
 	}
 
 	/**

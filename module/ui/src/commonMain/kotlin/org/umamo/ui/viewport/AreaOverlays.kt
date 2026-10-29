@@ -59,6 +59,7 @@ fun areaOverlaysFor(state: ViewportOverlayState?, applicationGrid: GridConfig): 
 			selectionTint = state == null || state.surface == OverlaySurface.UvEditor || state.effectiveSelectionTint,
 			wireframeOpacity = state?.wireframeOpacity ?: 1f,
 			wireframeCulling = state == null || state.surface == OverlaySurface.UvEditor || state.effectiveCullHiddenWireframe,
+			allLattices = state == null || (state.surface == OverlaySurface.Viewport2D && state.effectiveDeformers),
 		),
 	)
 

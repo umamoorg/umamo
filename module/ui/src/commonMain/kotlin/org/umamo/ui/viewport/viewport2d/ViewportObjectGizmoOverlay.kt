@@ -23,11 +23,11 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.render.ViewportCamera
-import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
 import org.umamo.ui.viewport.LocalAreaOverlays
+import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.applyOperator
@@ -53,21 +53,24 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  */
 
 /**
- * The Object-mode gizmo overlay: the Object-mode counterpart to [ViewportEditGizmoOverlay], driving whole-drawable
- * selection and transforms over the puppet image.  Composed whenever Object mode is active with a camera.
- * Gated to Object mode (returns in Edit, where [ViewportEditGizmoOverlay] owns the viewport), so the two overlays
- * are mutually exclusive by mode and never both drive the pointer.  Middle-drag pan and wheel zoom are
- * never consumed here, so they fall through to the navigation layer beneath.
+ * The Object-mode gizmo overlay: the Object-mode counterpart to [ViewportEditGizmoOverlay], driving whole-object
+ * selection and transforms over the puppet image.  Composed whenever Object or Pose mode is active with a
+ * camera, and gated off in Edit (where [ViewportEditGizmoOverlay] owns the viewport), so the two overlays are
+ * mutually exclusive by mode and never both drive the pointer.  In Pose mode it selects deformers alone - a
+ * click reaches only the drawn lattices - and transforms nothing, since the session refuses an object operator
+ * there.  Middle-drag pan and wheel zoom are never consumed here, so they fall through to the navigation layer
+ * beneath.
  *
- * Four gestures, mirroring Edit mode but over whole drawables rather than mesh elements:
- *   - Click pick (idle): the primary button picks the front-most drawable under the cursor on release
- *     (plain replaces, Shift / Ctrl toggles membership, an Alt click opens the overlap picker for stacked
- *     meshes, an unmodified click on empty canvas clears).
- *   - Box select: a primary drag rubber-bands and selects every drawable whose world centroid is enclosed
- *     (Shift adds to the current selection).  Works un-armed (a drag from empty canvas, Blender's default
+ * Four gestures, mirroring Edit mode but over whole objects rather than mesh elements:
+ *   - Click pick (idle): the primary button picks on release what lies under the cursor - a warp whose drawn
+ *     lattice is there before the front-most drawable's art (plain replaces, Shift / Ctrl toggles membership,
+ *     an Alt click opens the overlap picker over lattices and stacked meshes, an unmodified click on empty
+ *     canvas clears).
+ *   - Box select: a primary drag rubber-bands and selects every drawable whose world centroid, and every drawn
+ *     warp whose lattice center, is enclosed (Shift adds to the current selection).  Works un-armed (a drag from empty canvas, Blender's default
  *     drag) and armed (Blender's B, which skips the pick and always boxes, then disarms).  Escape or a
  *     right-click abandons an in-flight drag.
- *   - Circle select (Blender's C): a brush paints drawables by centroid - a primary drag adds, a middle or
+ *   - Circle select (Blender's C): a brush paints objects by the same anchors - a primary drag adds, a middle or
  *     Shift+primary drag erases; the stroke accumulates into a working selection committed once on release
  *     (one undo step), previewed live through the GPU tint via [SessionToolLatches.setPreviewSelection]; the wheel
  *     resizes the brush; a right-click leaves the tool keeping what was painted.
@@ -98,7 +101,7 @@ fun ViewportObjectGizmoOverlay(
 	camera: ViewportCamera?,
 	widthPx: Int,
 	heightPx: Int,
-	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
+	onOverlapRequest: (Offset, List<ObjectPickCandidate>) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val mode by session.mode.collectAsState()
@@ -108,7 +111,7 @@ fun ViewportObjectGizmoOverlay(
 	val axisConstraintState = session.axisConstraint.collectAsState()
 	val overlayColors = LocalUmamoColors.current
 
-	if (mode != EditorMode.Object || camera == null) {
+	if (mode == EditorMode.Edit || camera == null) {
 		return
 	}
 
@@ -126,7 +129,7 @@ fun ViewportObjectGizmoOverlay(
 
 	// The world points box and circle selection test against, one holder per area that the marquee, the pick
 	// controller, and the armed box all refresh and read (see ObjectSelectionAnchors).
-	val anchors = remember(areaId) { ObjectSelectionAnchors { service.drawableWorldCentroids() } }
+	val anchors = remember(areaId) { ObjectSelectionAnchors { viewportSelectionAnchors(service, areaId, session.mode.value) } }
 
 	// The modal transform's commit side, one per area: the pointer loop and the collectors below keep the
 	// instance they started with (see ObjectModalTransform).  Its gesture state is what the Box, the pointer

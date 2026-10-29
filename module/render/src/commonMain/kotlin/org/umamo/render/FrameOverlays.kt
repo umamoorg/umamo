@@ -2,7 +2,7 @@ package org.umamo.render
 
 /**
  * What one frame draws over and around the scene beyond its [FrameBackdrop]: the grid lines, the
- * world-origin axes, and the mesh overlay the renderer holds.  A value per frame rather than renderer
+ * world-origin axes, and the mesh overlay and warp lattices the renderer holds.  A value per frame rather than renderer
  * state, because the editor's areas differ in what they show while sharing one renderer: two viewports
  * of one document can hide different overlays, and a frame must draw what ITS area asks for.
  *
@@ -30,6 +30,10 @@ package org.umamo.render
  *   their own drawable, so a posed model shows which mesh parts are covered: a frame that draws a
  *   wireframe with this on first writes the draw order into a side target, which the edges read.  The
  *   Edit cage is never culled.  True by default, as [wireframe] is.
+ * @property Boolean allLattices Whether the idle warp lattices draw this frame: every warp the renderer's
+ *   lattice overlay lists beyond the selected and active ones, which draw whenever [meshOverlay] does.  The
+ *   2D viewport's Deformers toggle.  True by default, as [meshOverlay] is: a headless render draws what the
+ *   renderer holds, and the editor's areas say otherwise.
  */
 data class FrameOverlays(
 	val gridLines: Boolean = true,
@@ -39,4 +43,5 @@ data class FrameOverlays(
 	val selectionTint: Boolean = true,
 	val wireframeOpacity: Float = 1f,
 	val wireframeCulling: Boolean = true,
+	val allLattices: Boolean = true,
 )

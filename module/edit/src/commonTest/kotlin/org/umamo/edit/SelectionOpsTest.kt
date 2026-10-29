@@ -181,4 +181,46 @@ class SelectionOpsTest {
 		)
 		assertNull(inverted.active, "the previously active (now deselected) target drops")
 	}
+
+	/** A domain filter selects only its own targets and leaves the others selected as they were. */
+	@Test
+	fun selectAllOverADomainKeepsWhatLiesOutsideIt() {
+		val drawableB = SelectionTarget.Drawable(DrawableId("b"))
+		val all = SelectionOps.selectAll(SelectionOps.replace(drawableB), model()) { target -> target is SelectionTarget.Deformer }
+
+		assertEquals(setOf(drawableB, SelectionTarget.Deformer(DeformerId("w"))), all.targets, "the deformer joins and the drawable stays")
+		assertEquals(drawableB, all.active, "the active target is still selected, so it stays")
+		assertEquals(
+			SelectionTarget.Deformer(DeformerId("w")),
+			SelectionOps.selectAll(Selection(), model()) { target -> target is SelectionTarget.Deformer }.active,
+			"with none, the last domain target becomes active",
+		)
+	}
+
+	/** Invert over a domain complements within it and keeps the targets outside it. */
+	@Test
+	fun invertOverADomainComplementsOnlyWithinIt() {
+		val drawableB = SelectionTarget.Drawable(DrawableId("b"))
+		val warp = SelectionTarget.Deformer(DeformerId("w"))
+
+		val inverted = SelectionOps.invert(Selection(setOf(drawableB, warp), warp), model()) { target -> target is SelectionTarget.Deformer }
+
+		assertEquals(setOf<SelectionTarget>(drawableB), inverted.targets, "the deformer is deselected and the drawable kept")
+		assertNull(inverted.active)
+	}
+
+	/** Pose mode's Select All and Invert act on deformers alone. */
+	@Test
+	fun poseModeSelectsDeformersAlone() {
+		val session = EditorSession(model())
+		session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("b"))))
+		session.togglePoseMode()
+		assertEquals(EditorMode.Pose, session.mode.value, "the model has a deformer, so Pose mode opens")
+
+		session.selectAllObjects()
+		assertEquals(setOf(SelectionTarget.Drawable(DrawableId("b")), SelectionTarget.Deformer(DeformerId("w"))), session.selection.value.targets)
+
+		session.invertObjectSelection()
+		assertEquals(setOf<SelectionTarget>(SelectionTarget.Drawable(DrawableId("b"))), session.selection.value.targets, "neither the part nor the drawable joins")
+	}
 }

@@ -19,6 +19,7 @@ import org.umamo.render.puppet.PlacementPreview
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.UvSceneContent
@@ -188,27 +189,29 @@ internal class UvObjectOverlayProducer {
 		val collidingTileIds = drag?.result?.overlappingTileIds ?: emptySet()
 		val ordered = scene.geometries.sortedBy { geometry -> scene.frontRankById[geometry.drawableId] ?: 0f }
 		val meshes = ArrayList<MeshOverlayMesh>(ordered.size)
-		val positionsById = HashMap<DrawableId, FloatArray>(ordered.size)
-		val indicesById = HashMap<DrawableId, IntArray>(ordered.size)
+		val positionsByOwner = HashMap<ElementOwner, FloatArray>(ordered.size)
+		val indicesByOwner = HashMap<ElementOwner, IntArray>(ordered.size)
+		val shownIds = HashSet<DrawableId>(ordered.size)
 
 		for (geometry in ordered) {
 			val drawableId = geometry.drawableId
+			val owner = ElementOwner.Drawable(drawableId)
 			val style = islandStyleOf(drawableId, selectedIds, activeId, lastTileByDrawable[drawableId], collidingTileIds, lastPinnedTileIds)
 			meshes.add(meshOf(drawableId, endpointsOf(drawableId, geometry.edges), geometry.positions.size / 2, style))
-			positionsById[drawableId] = drag?.previewPositionsById?.get(drawableId) ?: geometry.positions
-			indicesById[drawableId] = geometry.indices
+			positionsByOwner[owner] = drag?.previewPositionsById?.get(drawableId) ?: geometry.positions
+			indicesByOwner[owner] = geometry.indices
+			shownIds.add(drawableId)
 		}
 
-		val shownIds = positionsById.keys
 		endpointsById.keys.retainAll(shownIds)
 		meshById.keys.retainAll(shownIds)
 		val previous = lastIslands
 
-		if (previous != null && previous.overlay.sizes == sizes && sameIslands(previous, meshes, positionsById, indicesById)) {
+		if (previous != null && previous.overlay.sizes == sizes && sameIslands(previous, meshes, positionsByOwner, indicesByOwner)) {
 			return previous
 		}
 
-		val islands = DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, meshes, sizes), positionsById, indicesById)
+		val islands = DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, meshes, sizes), positionsByOwner, indicesByOwner)
 		lastIslands = islands
 
 		return islands
@@ -331,7 +334,7 @@ internal class UvObjectOverlayProducer {
 			return cached
 		}
 
-		val mesh = MeshOverlayMesh(drawableId, vertexCount, endpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null, style)
+		val mesh = MeshOverlayMesh(ElementOwner.Drawable(drawableId), vertexCount, endpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null, style)
 		meshById[drawableId] = mesh
 
 		return mesh
@@ -342,15 +345,15 @@ internal class UvObjectOverlayProducer {
 	 *
 	 * @param DirectMeshOverlay previous The previous value.
 	 * @param List<MeshOverlayMesh> meshes This derive's entries, in order.
-	 * @param Map<DrawableId, FloatArray> positionsById This derive's positions.
-	 * @param Map<DrawableId, IntArray> indicesById This derive's indices.
+	 * @param Map<ElementOwner, FloatArray> positionsByOwner This derive's positions.
+	 * @param Map<ElementOwner, IntArray> indicesByOwner This derive's indices.
 	 * @return Boolean True when every part is the same instance.
 	 */
 	private fun sameIslands(
 		previous: DirectMeshOverlay,
 		meshes: List<MeshOverlayMesh>,
-		positionsById: Map<DrawableId, FloatArray>,
-		indicesById: Map<DrawableId, IntArray>,
+		positionsByOwner: Map<ElementOwner, FloatArray>,
+		indicesByOwner: Map<ElementOwner, IntArray>,
 	): Boolean {
 		val previousMeshes = previous.overlay.meshes
 
@@ -362,8 +365,8 @@ internal class UvObjectOverlayProducer {
 			val mesh = meshes[meshIndex]
 
 			if (previousMeshes[meshIndex] !== mesh ||
-				previous.positionsById[mesh.drawableId] !== positionsById[mesh.drawableId] ||
-				previous.triangleIndicesById[mesh.drawableId] !== indicesById[mesh.drawableId]
+				previous.positionsById[mesh.owner] !== positionsByOwner[mesh.owner] ||
+				previous.triangleIndicesById[mesh.owner] !== indicesByOwner[mesh.owner]
 			) {
 				return false
 			}
