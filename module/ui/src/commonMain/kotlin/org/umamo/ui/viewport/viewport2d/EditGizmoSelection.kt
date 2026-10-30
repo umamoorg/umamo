@@ -14,10 +14,10 @@ import org.umamo.ui.viewport.gizmo.meshMarquee
  * it.
  *
  * @param EditorSession session The session owning the mesh selection and the armed tool.
- * @param State<List<EditMeshGeometry>> geometries The session meshes' live geometry.
+ * @param State<List<EditOwnerGeometry>> geometries The session owners' live geometry.
  * @return MarqueeSelectController<MeshSelection> The marquee.
  */
-internal fun editMarquee(session: EditorSession, geometries: State<List<EditMeshGeometry>>): MarqueeSelectController<MeshSelection> =
+internal fun editMarquee(session: EditorSession, geometries: State<List<EditOwnerGeometry>>): MarqueeSelectController<MeshSelection> =
 	meshMarquee(
 		session = session,
 		geometries = { geometries.value.map { it.gizmo } },
@@ -30,13 +30,13 @@ internal fun editMarquee(session: EditorSession, geometries: State<List<EditMesh
  *
  * @param EditorSession session The session owning the mesh selection and the cursor.
  * @param MarqueeSelectController<MeshSelection> marquee The area's marquee.
- * @param State<List<EditMeshGeometry>> geometries The session meshes' live geometry.
+ * @param State<List<EditOwnerGeometry>> geometries The session owners' live geometry.
  * @return MeshPickController The controller.
  */
 internal fun editMeshPick(
 	session: EditorSession,
 	marquee: MarqueeSelectController<MeshSelection>,
-	geometries: State<List<EditMeshGeometry>>,
+	geometries: State<List<EditOwnerGeometry>>,
 ): MeshPickController =
 	MeshPickController(
 		session = session,

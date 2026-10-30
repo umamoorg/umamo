@@ -24,3 +24,9 @@ sealed interface ElementOwner {
 	 */
 	data class Deformer(val id: DeformerId) : ElementOwner
 }
+
+/** The drawable this owner names, or null for a lattice. */
+val ElementOwner.drawableId: DrawableId? get() = (this as? ElementOwner.Drawable)?.id
+
+/** The deformer this owner names, or null for a drawable's mesh. */
+val ElementOwner.deformerId: DeformerId? get() = (this as? ElementOwner.Deformer)?.id

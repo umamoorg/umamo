@@ -22,6 +22,7 @@ import org.umamo.render.eval.PartRenderState
 import org.umamo.render.eval.PoseDeformInputs
 import org.umamo.render.eval.RenderPlanNode
 import org.umamo.render.eval.applyCpuDeform
+import org.umamo.render.eval.listedPointsExtent
 import org.umamo.render.eval.preparePose
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DeformerId
@@ -207,6 +208,13 @@ class PuppetRenderer(
 	private var latticeLayer: DirectMeshOverlay? = null
 	private val latticeResidency = DirectOverlayResidency(device)
 
+	// The 2D viewport's direct Edit cage: the Edit-mode cage of whatever carries its own positions - a warp's lattice,
+	// whose drag moves the cage and not the art - swapped whole by the host and read once per frame like the mesh
+	// overlay, its device objects brought to it between frames.  The residency is render-thread only.
+	@Volatile
+	private var editDirectOverlay: DirectMeshOverlay? = null
+	private val editDirectResidency = DirectOverlayResidency(device)
+
 	// The lattices of the last pose, with the pose and model they were read from: built on first request from
 	// either thread (the layer on the render thread, the picks on the UI thread) and swapped whole, so a racing
 	// rebuild only repeats the same pure computation.
@@ -319,6 +327,7 @@ class PuppetRenderer(
 		uvScenes.clear()
 		latticeLayer = null
 		latticeResidency.dispose()
+		editDirectResidency.dispose()
 		overlayResidency.dispose()
 		residency.dispose()
 		art.dispose()
@@ -444,6 +453,18 @@ class PuppetRenderer(
 	 */
 	fun setLatticeOverlay(overlay: LatticeOverlay?) {
 		latticeOverlay = overlay
+	}
+
+	/**
+	 * Sets the 2D viewport's direct Edit cage, or none: the Edit-mode cage of whatever carries its own positions,
+	 * a warp's lattice, drawn over the art and the mesh overlay from the positions the value holds.  A whole-value
+	 * swap the next frame takes up, uploading only the position arrays that changed by identity, so a drag that
+	 * moves one lattice's points re-uploads that lattice alone.  Safe from any thread; a capture never draws it.
+	 *
+	 * @param DirectMeshOverlay? overlay The cage, or null for none.
+	 */
+	fun setEditDirectOverlay(overlay: DirectMeshOverlay?) {
+		editDirectOverlay = overlay
 	}
 
 	/**
@@ -585,6 +606,18 @@ class PuppetRenderer(
 	}
 
 	/**
+	 * The world-space extent of the given warps' lattices as the current pose draws them ([latticeWorldPoints]):
+	 * what Frame Selected frames a warp by.
+	 *
+	 * @param Set<DeformerId> ids The warps.
+	 * @return ContentBounds? The extent, or null when none of them is drawn at this pose.
+	 */
+	fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? =
+		listedPointsExtent(latticeWorldPoints().mapValues { (_, lattice) -> lattice.world }, ids)?.let { extent ->
+			ContentBounds(extent.minX, extent.minY, extent.maxX - extent.minX, extent.maxY - extent.minY)
+		}
+
+	/**
 	 * Every warp lattice the current pose draws, in the model's deformer order, in world space: the points the
 	 * lattice layer draws and every lattice pick reads, so a click lands on what is on screen.  A warp the pose
 	 * hides is absent.  Pure CPU with no device calls, so it is safe from the UI thread; empty before the first
@@ -680,6 +713,8 @@ class PuppetRenderer(
 		val lattices = latticeOverlay
 		latticeLayer = lattices?.let { held -> latticeLayerOf(held, latticeWorldPoints(), latticeLayer) }
 		latticeResidency.applyOverlay(latticeLayer)
+		val editDirect = editDirectOverlay
+		editDirectResidency.applyOverlay(editDirect)
 		val drawsWireframe = overlays.wireframe && overlays.wireframeOpacity > 0f
 		val drawn = overlay?.takeIf { held -> overlays.meshOverlay && (held.kind != MeshOverlayKind.ObjectWireframe || drawsWireframe) }
 		// The draw-order pass is paid only by a frame that draws a wireframe and culls it: an Object-mode
@@ -699,7 +734,8 @@ class PuppetRenderer(
 			drawn,
 			overlays,
 			cullsWireframe,
-			drawLattices = latticeLayer != null && overlays.meshOverlay,
+			drawLattices = latticeLayer != null && latticeRolesDrawnIn(overlays).isNotEmpty(),
+			drawEditDirect = editDirect != null && overlays.meshOverlay,
 		)
 	}
 
@@ -723,6 +759,8 @@ class PuppetRenderer(
 	 *   wireframe by it (a capture never does).
 	 * @param Boolean         drawLattices   Whether the lattice layer draws over the art and the mesh overlay; its
 	 *   device objects must already reflect it (a capture never draws it).
+	 * @param Boolean         drawEditDirect Whether the direct Edit cage draws over the art and the mesh overlay; its
+	 *   device objects must already reflect it (a capture never draws it).
 	 */
 	private fun renderFrame(
 		target: RenderTarget,
@@ -737,6 +775,7 @@ class PuppetRenderer(
 		overlays: FrameOverlays,
 		cullWireframe: Boolean = false,
 		drawLattices: Boolean = false,
+		drawEditDirect: Boolean = false,
 	) {
 		sideTargets.ensure(viewportWidth, viewportHeight)
 		val frame = device.beginFrame()
@@ -802,7 +841,7 @@ class PuppetRenderer(
 			}
 		pass = planEncoder.encodePlan(frame, inputs, currentPlan, target, pass)
 
-		if (overlay != null || drawLattices) {
+		if (overlay != null || drawLattices || drawEditDirect) {
 			if (orderTarget != null) {
 				// The edges sample the order, so they draw in a pass that no longer has it attached.
 				pass.end()
@@ -813,9 +852,13 @@ class PuppetRenderer(
 				overlayEncoder.encodeDraws(pass, inputs)
 			}
 
+			if (drawEditDirect) {
+				overlayEncoder.encodeEditDirectDraws(pass, editDirectResidency, inputs)
+			}
+
 			// Over the mesh overlay: a lattice is what a click in Object or Pose mode takes first.
 			if (drawLattices) {
-				overlayEncoder.encodeLatticeDraws(pass, latticeResidency, inputs, overlays.allLattices)
+				overlayEncoder.encodeLatticeDraws(pass, latticeResidency, inputs, latticeRolesDrawnIn(overlays))
 			}
 		}
 

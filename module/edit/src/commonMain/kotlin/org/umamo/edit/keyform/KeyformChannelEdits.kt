@@ -346,20 +346,6 @@ fun PuppetModel.isChannelKeyedOn(target: KeyableTarget, parameterId: ParameterId
 }
 
 /**
- * Captures [value] on [target] at the pose the editor shows ([EditorSession.shownPose]), keyed on
- * [parameter], as one undo step.
- *
- * @param KeyableTarget target The entity and channel to key.
- * @param Parameter parameter The parameter to key on.
- * @param ChannelValue value The value to store.
- */
-fun EditorSession.captureChannelKey(target: KeyableTarget, parameter: Parameter, value: ChannelValue) {
-	mutate(KeyformChange.InsertKey(target.channel)) { model ->
-		model.withChannelKeyCaptured(target, parameter, shownPose, value)
-	}
-}
-
-/**
  * Removes the key at the pose the editor shows ([EditorSession.shownPose]) from [target]'s channel on
  * [parameter], as one undo step.
  *

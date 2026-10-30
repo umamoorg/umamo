@@ -1,5 +1,6 @@
 package org.umamo.ui.transform
 
+import org.umamo.edit.ElementTopology
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -77,7 +78,7 @@ class WorldExtentTest {
 	@Test
 	fun onlyCoveredVerticesCount() {
 		val geometries = captureDrawableWorlds(model(), emptyMap(), listOf(left, right))
-		val covered = geometries.map { geometry -> CoveredVertices(geometry, intArrayOf(0, 1, 2, 0, 2, 3), setOf(0)) }
+		val covered = geometries.map { geometry -> CoveredVertices(geometry, ElementTopology.ofTriangles(4, intArrayOf(0, 1, 2, 0, 2, 3)), setOf(0)) }
 		val extent = assertNotNull(coveredWorldExtent(covered))
 		assertEquals(0f, extent.minX, tolerance)
 		assertEquals(20f, extent.maxX, tolerance)

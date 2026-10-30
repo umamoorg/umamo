@@ -3,8 +3,10 @@ package org.umamo.ui.properties
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.Change
@@ -43,7 +45,9 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.displayMultiplyColor
@@ -56,6 +60,7 @@ import org.umamo.ui.graphics.formatHexColor
 import org.umamo.ui.graphics.parseHexColor
 import org.umamo.ui.graphics.toColorRgb
 import org.umamo.ui.graphics.toComposeColor
+import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.Button
 import org.umamo.ui.kit.field.HexColorField
 import org.umamo.ui.kit.field.NumberField
@@ -63,8 +68,11 @@ import org.umamo.ui.kit.field.PropertyCheckboxRow
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.PropertyLine
 import org.umamo.ui.kit.field.SelectField
+import org.umamo.ui.kit.field.tint
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
 import kotlin.math.roundToInt
 
@@ -319,6 +327,9 @@ internal val DeformerSection =
 				is Deformer.Warp -> {
 					deformerRenderChannelRows(deformer, session, target) +
 						listOfNotNull(
+							PropertyRow(terms = listOf(Res.string.properties_warp_lattice)) { rowContext ->
+								WarpLatticeKeyRow(deformer, rowContext.puppet)
+							},
 							PropertyRow(terms = listOf(Res.string.properties_warp_grid)) { _ ->
 								// The lattice dimensions resize the control grid + every keyform, so they stay read-only here.
 								PropertyLine(stringResource(Res.string.properties_warp_grid, deformer.rows, deformer.columns))
@@ -712,6 +723,44 @@ private fun KeyableFlagChannelRow(
 			label = label,
 			description = description,
 		)
+	}
+}
+
+/**
+ * A warp's lattice as a keyable row: the parameters its geometry grid is keyed on, tinted by its keyed state at the
+ * displayed pose (on a key, between keys, or holding an unkeyed Pose-mode shape).  The row publishes the warp's
+ * geometry track on hover and carries the keyframe menu, so insert and delete over it key the lattice at the pose -
+ * the pending shape when there is one - as they do over the keyform sheet's geometry row.
+ *
+ * @param Deformer.Warp warp The warp the row describes.
+ * @param PuppetModel puppet The rig, whose parameters name the axes.
+ */
+@Composable
+private fun WarpLatticeKeyRow(
+	warp: Deformer.Warp,
+	puppet: PuppetModel,
+) {
+	val state = keyedLatticeStateOf(warp)
+	val colors = LocalUmamoColors.current
+	val parameterNameById = remember(puppet) { puppet.parameters.associate { parameter -> parameter.id to parameter.name } }
+	val keyedOn = warp.geometryGrid?.axes?.map { axis -> parameterNameById[axis.parameterId] ?: axis.parameterId.raw }.orEmpty()
+	val separator = stringResource(Res.string.properties_warp_lattice_separator)
+	val summary =
+		if (keyedOn.isEmpty()) {
+			stringResource(Res.string.properties_warp_lattice_unkeyed)
+		} else {
+			stringResource(Res.string.properties_warp_lattice_keyed_on, keyedOn.joinToString(separator))
+		}
+	KeyablePropertyRow(track = KeyformTrackRef.Geometry(KeyformOwner.Deformer(warp.id))) {
+		PropertyFieldRow(stringResource(Res.string.properties_warp_lattice), description = stringResource(Res.string.properties_warp_lattice_description)) {
+			Text(
+				text = summary,
+				style = LocalUmamoTypography.current.bodySmall,
+				color = state.tint(colors) ?: colors.text,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+			)
+		}
 	}
 }
 

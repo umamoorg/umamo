@@ -6,10 +6,12 @@ import org.umamo.runtime.model.DrawableId
  * One overlay mesh's place in the overlay position store.
  *
  * @property MeshOverlayMesh mesh The mesh.
+ * @property DrawableId drawableId The resident drawable it pairs with.
  * @property Int baseOffset Its first vertex's index in the store.
  */
 internal class OverlayPlacement(
 	val mesh: MeshOverlayMesh,
+	val drawableId: DrawableId,
 	val baseOffset: Int,
 )
 
@@ -64,7 +66,7 @@ internal fun planOverlayLayout(
 			}
 		}
 
-		placed.add(OverlayPlacement(mesh, totalVertexCount))
+		placed.add(OverlayPlacement(mesh, drawableId, totalVertexCount))
 		totalVertexCount += mesh.vertexCount
 	}
 
@@ -101,9 +103,9 @@ internal class DirectOverlayLayout(
  * Plans a direct overlay's store layout: the meshes are walked in overlay order and each placed one gets the
  * next region, as [planOverlayLayout] does, but each mesh pairs against its OWN positions and triangle
  * indices rather than a resident drawable.  A mesh is placed only when it carries positions of exactly its
- * vertex count, triangle indices in whole triangles that all name one of its vertices, and, in an Edit
- * overlay, face flags that are empty or one per triangle; a disagreeing mesh is left out rather than guessed
- * at.  Pure, so the rule is testable without a device.
+ * vertex count, triangle indices in whole triangles that all name one of its vertices, face-dot corners (when
+ * it has any) one triangle's worth per triangle, and, in an Edit overlay, face flags that are empty or one per
+ * triangle; a disagreeing mesh is left out rather than guessed at.  Pure, so the rule is testable without a device.
  *
  * @param DirectMeshOverlay direct The overlay to place.
  * @return DirectOverlayLayout The plan; empty when nothing pairs.
@@ -113,8 +115,8 @@ internal fun planDirectOverlayLayout(direct: DirectMeshOverlay): DirectOverlayLa
 	var totalVertexCount = 0
 
 	for (mesh in direct.overlay.meshes) {
-		val positions = direct.positionsById[mesh.owner] ?: continue
-		val triangleIndices = direct.triangleIndicesById[mesh.owner] ?: continue
+		val positions = direct.positionsByOwner[mesh.owner] ?: continue
+		val triangleIndices = direct.triangleIndicesByOwner[mesh.owner] ?: continue
 
 		if (positions.size != mesh.vertexCount * 2 || triangleIndices.size % 3 != 0) {
 			continue
@@ -125,6 +127,10 @@ internal fun planDirectOverlayLayout(direct: DirectMeshOverlay): DirectOverlayLa
 		}
 
 		if (direct.overlay.kind == MeshOverlayKind.Edit && mesh.faceFlags.isNotEmpty() && mesh.faceFlags.size != triangleIndices.size / 3) {
+			continue
+		}
+
+		if (mesh.faceDotCorners != null && mesh.faceDotCorners.size != triangleIndices.size) {
 			continue
 		}
 

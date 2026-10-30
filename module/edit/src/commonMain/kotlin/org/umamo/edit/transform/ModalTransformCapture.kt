@@ -1,9 +1,12 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.TransformPivotMode
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.drawableId
 
 /**
  * How Individual Origins ([TransformPivotMode.IndividualOrigins]) partitions one mesh into pivot groups.
@@ -30,17 +33,17 @@ enum class IndividualOriginScope {
  * elements span (every vertex, for an Object-mode whole-drawable transform).  A source whose covered set is
  * empty contributes nothing and is dropped by the builder.
  *
- * @property DrawableId drawableId The drawable this mesh belongs to (the capture's per-mesh key).
+ * @property ElementOwner owner The drawable or warp these points belong to (the capture's per-mesh key).
  * @property FloatArray positions The frozen interleaved positions the operator transforms and the pivots
  *   are measured in.  The builder does not copy it - the caller freezes (copies) before handing it over.
- * @property IntArray triangleIndices The mesh's triangle vertex indices (connectivity for islands and the
- *   geodesic proportional falloff).
+ * @property ElementTopology topology The mesh's topology, sized to [positions] (connectivity for islands and the
+ *   geodesic proportional falloff).  An Object-mode whole-drawable source carries none of its faces.
  * @property Set<Int> coveredIndices The vertices the selection covers on this mesh.
  */
 class ModalCaptureSource(
-	val drawableId: DrawableId,
+	val owner: ElementOwner,
 	val positions: FloatArray,
-	val triangleIndices: IntArray,
+	val topology: ElementTopology,
 	val coveredIndices: Set<Int>,
 )
 
@@ -52,20 +55,23 @@ class ModalCaptureSource(
  * re-derives them - always from [positions], never from a live preview, so the influence ring can never
  * feed back on its own output.
  *
- * @property DrawableId drawableId The drawable this entry belongs to.
+ * @property ElementOwner owner The drawable or warp this entry belongs to.
  * @property FloatArray positions The frozen positions the operator transforms (shared by reference from the
  *   source - never mutated).
  * @property Set<Int> coveredIndices The vertices the selection covers on this mesh.
- * @property IntArray triangleIndices The mesh's triangle vertex indices.
+ * @property ElementTopology topology The mesh's topology.
  * @property List<TransformPivotGroup> groups The pivot groups the covered vertices turn about.
  */
 class ModalCaptureEntry internal constructor(
-	val drawableId: DrawableId,
+	val owner: ElementOwner,
 	val positions: FloatArray,
 	val coveredIndices: Set<Int>,
-	val triangleIndices: IntArray,
+	val topology: ElementTopology,
 	val groups: List<TransformPivotGroup>,
 ) {
+	/** The drawable these points belong to, or null for a lattice. */
+	val drawableId: DrawableId? get() = owner.drawableId
+
 	/** The proportional-editing halo: influenced unselected vertices to weight, empty when proportional is off. */
 	var influence: Map<Int, ProportionalInfluence> = emptyMap()
 		private set
@@ -88,7 +94,7 @@ class ModalCaptureEntry internal constructor(
 				}
 
 				state.connectedOnly -> {
-					proportionalInfluencesConnected(positions, coveredIndices, radius, state.falloff, triangleIndices)
+					proportionalInfluencesConnected(positions, coveredIndices, radius, state.falloff, topology)
 				}
 
 				else -> {
@@ -112,7 +118,7 @@ class ModalCaptureEntry internal constructor(
  *
  * Overlays that need extra per-mesh data the shared capture does not carry (the Edit and Object overlays'
  * deformer-chain mapping, the UV editor's page dimensions) hold it in a map keyed on
- * [ModalCaptureEntry.drawableId] rather than a second index-aligned list.
+ * [ModalCaptureEntry.owner] rather than a second index-aligned list.
  *
  * @property List<ModalCaptureEntry> entries The moving meshes, one per source that had covered vertices.
  * @property Pair<Float, Float> anchor The point in the gesture's space that factors and angles measure
@@ -128,8 +134,8 @@ class ModalTransformCapture internal constructor(
 	/** The Rotate gesture's angle accumulator (unwrapped per-move increments; see RotationAngleTracker). */
 	val rotationTracker = RotationAngleTracker()
 
-	/** The captured drawables, in capture order. */
-	val drawableIds: List<DrawableId> get() = entries.map { entry -> entry.drawableId }
+	/** The captured owners, in capture order. */
+	val owners: List<ElementOwner> get() = entries.map { entry -> entry.owner }
 
 	/**
 	 * Re-derives every mesh's proportional halo from the frozen originals.  Called on latch and again on a
@@ -206,7 +212,7 @@ fun buildModalTransformCapture(
 			val groups =
 				when {
 					pivotMode == TransformPivotMode.IndividualOrigins && individualOriginScope == IndividualOriginScope.ConnectivityIsland -> {
-						TransformPivots.islandGroups(source.positions, source.coveredIndices, source.triangleIndices)
+						TransformPivots.islandGroups(source.positions, source.coveredIndices, source.topology)
 					}
 
 					pivotMode == TransformPivotMode.IndividualOrigins -> {
@@ -219,7 +225,7 @@ fun buildModalTransformCapture(
 						TransformPivots.sharedGroup(source.coveredIndices, anchor.first, anchor.second)
 					}
 				}
-			ModalCaptureEntry(source.drawableId, source.positions, source.coveredIndices, source.triangleIndices, groups)
+			ModalCaptureEntry(source.owner, source.positions, source.coveredIndices, source.topology, groups)
 		}
 
 	return ModalTransformCapture(entries, anchor, operatorKind)

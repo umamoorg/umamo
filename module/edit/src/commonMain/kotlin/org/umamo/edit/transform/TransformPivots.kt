@@ -1,5 +1,6 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshTopology
 
 /**
@@ -41,22 +42,18 @@ object TransformPivots {
 	 *
 	 * @param FloatArray positions The mesh's interleaved positions (the pivots' coordinate space).
 	 * @param Set<Int> coveredIndices The vertices the gesture moves.
-	 * @param IntArray triangleIndices The mesh triangle vertex indices (for connectivity).
+	 * @param ElementTopology topology The mesh's topology (for connectivity).
 	 * @return List<TransformPivotGroup> One group per island.
 	 */
 	fun islandGroups(
 		positions: FloatArray,
 		coveredIndices: Set<Int>,
-		triangleIndices: IntArray,
-	): List<TransformPivotGroup> {
-		val vertexCount = positions.size / 2
-		val adjacency = MeshTopology.buildVertexAdjacency(vertexCount, triangleIndices)
-
-		return MeshTopology.selectionIslands(adjacency, coveredIndices).map { island ->
+		topology: ElementTopology,
+	): List<TransformPivotGroup> =
+		MeshTopology.selectionIslands(topology.adjacency, coveredIndices).map { island ->
 			val pivot = MeshTransforms.medianPivot(positions, island)
 			TransformPivotGroup(island, pivot.first, pivot.second)
 		}
-	}
 
 	/**
 	 * Splits a proportional influence map into per-group weight maps, index-parallel to [groups]: each

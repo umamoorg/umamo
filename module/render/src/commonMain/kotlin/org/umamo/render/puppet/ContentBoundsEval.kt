@@ -2,6 +2,7 @@ package org.umamo.render.puppet
 
 import org.umamo.render.ContentBounds
 import org.umamo.render.eval.DeformedGeometry
+import org.umamo.render.eval.listedPointsExtent
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 
@@ -30,35 +31,10 @@ private const val EMPTY_FRAME_EXTENT = 1000f
  *   Fit does once every drawable is hidden, so the caller must choose what to frame instead
  *   ([emptyContentBoundsOf]).
  */
-internal fun contentBoundsOf(geometry: DeformedGeometry, shownIds: Set<DrawableId>): ContentBounds? {
-	var loX = Float.MAX_VALUE
-	var loY = Float.MAX_VALUE
-	var hiX = -Float.MAX_VALUE
-	var hiY = -Float.MAX_VALUE
-
-	for ((drawableId, world) in geometry.worldPositions) {
-		// A hidden full-canvas guide image / background must not stretch the framing it isn't drawn in.
-		if (drawableId !in shownIds) {
-			continue
-		}
-
-		var coordIndex = 0
-
-		while (coordIndex < world.size) {
-			loX = minOf(loX, world[coordIndex])
-			hiX = maxOf(hiX, world[coordIndex])
-			loY = minOf(loY, world[coordIndex + 1])
-			hiY = maxOf(hiY, world[coordIndex + 1])
-			coordIndex += 2
-		}
+internal fun contentBoundsOf(geometry: DeformedGeometry, shownIds: Set<DrawableId>): ContentBounds? =
+	listedPointsExtent(geometry.worldPositions, shownIds)?.let { extent ->
+		ContentBounds(extent.minX, extent.minY, maxOf(extent.maxX - extent.minX, 1f), maxOf(extent.maxY - extent.minY, 1f))
 	}
-
-	if (loX > hiX || loY > hiY) {
-		return null
-	}
-
-	return ContentBounds(loX, loY, maxOf(hiX - loX, 1f), maxOf(hiY - loY, 1f))
-}
 
 /**
  * What a view frames when the model shows nothing to measure: the document's canvas, or - for a model that

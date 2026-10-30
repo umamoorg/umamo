@@ -698,6 +698,8 @@ internal class RecordingRenderDevice : RenderDevice {
 		check(spec.faceCorners.size % 3 == 0) { "overlay face corners come in threes" }
 		check(spec.edgeFlags.size == spec.edgeEndpoints.size / 2) { "one overlay edge flag per edge" }
 		check(spec.faceFlags.size == spec.faceCorners.size / 3) { "one overlay face flag per triangle" }
+		check(spec.faceDotCorners == null || spec.faceDotCorners.size == spec.faceCorners.size) { "one overlay face-dot triangle per face triangle" }
+		check(spec.vertexDotCount in 0..spec.vertexFlags.size) { "overlay vertex dots past the vertices" }
 		val buffers = RecordedOverlayBuffers(nextSerial++, spec)
 		recordedResourceEvents.add(OverlayBuffersCreated(buffers))
 

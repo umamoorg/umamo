@@ -60,7 +60,7 @@ class StatusHintTableTest {
 	@Test
 	fun theHintedCommandsAreExactlyThese() {
 		val inObjectModeOnly = SuggestedIn(noDocument = false, objectMode = true, editMode = false, poseMode = false)
-		val inEditModeOnly = SuggestedIn(noDocument = false, objectMode = false, editMode = true, poseMode = false)
+		val inElementModes = SuggestedIn(noDocument = false, objectMode = false, editMode = true, poseMode = true)
 		val outsideEditMode = SuggestedIn(noDocument = false, objectMode = true, editMode = false, poseMode = true)
 		val withADocument = SuggestedIn(noDocument = false, objectMode = true, editMode = true, poseMode = true)
 		val expected =
@@ -70,9 +70,9 @@ class StatusHintTableTest {
 				"mesh.grab" to withADocument,
 				"mesh.scale" to withADocument,
 				"mesh.rotate" to withADocument,
-				"mesh.selectMode.vertex" to inEditModeOnly,
-				"mesh.selectMode.edge" to inEditModeOnly,
-				"mesh.selectMode.face" to inEditModeOnly,
+				"mesh.selectMode.vertex" to inElementModes,
+				"mesh.selectMode.edge" to inElementModes,
+				"mesh.selectMode.face" to inElementModes,
 				"uv.pinPlacement" to inObjectModeOnly,
 				"keyform.insert" to withADocument,
 				"keyform.delete" to withADocument,
@@ -96,8 +96,8 @@ class StatusHintTableTest {
 
 	/**
 	 * Over a viewport under the default keymap, each mode reads as its own short list: the way into Edit mode and
-	 * the visibility toggle from Object mode, the element domains from Edit mode, the way into Edit mode from Pose
-	 * mode.
+	 * the visibility toggle from Object mode, the element domains from Edit mode, and from Pose mode, which works on
+	 * the posed lattices' elements, the way into Edit mode and the element domains.
 	 */
 	@Test
 	fun eachModeSuggestsItsOwnListOverAViewport() {
@@ -108,7 +108,7 @@ class StatusHintTableTest {
 
 		assertEquals(transforms + Res.string.status_bind_edit_mode + Res.string.status_bind_visibility, objectHints.map { hint -> hint.label })
 		assertEquals(transforms + Res.string.status_select_mode, editHints.map { hint -> hint.label })
-		assertEquals(transforms + Res.string.status_bind_edit_mode, poseHints.map { hint -> hint.label })
+		assertEquals(transforms + Res.string.status_bind_edit_mode + Res.string.status_select_mode, poseHints.map { hint -> hint.label })
 	}
 
 	/**

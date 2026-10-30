@@ -41,13 +41,13 @@ internal class ProportionalConnectedRequest(val connectedOnly: Boolean)
  */
 internal fun proportionalCommands(editorSession: EditorSession?, availability: SessionAvailability): List<Command> =
 	listOf(
-		Command("mesh.proportional.toggle", title = Res.string.cmd_mesh_proportional_toggle, availability = availability.inEditMode) {
+		Command("mesh.proportional.toggle", title = Res.string.cmd_mesh_proportional_toggle, availability = availability.inElementMode) {
 			editorSession?.toggleProportionalEdit()
 		},
 		Command(
 			"mesh.proportional.connectedToggle",
 			title = Res.string.cmd_mesh_proportional_connected,
-			availability = availability.inEditMode,
+			availability = availability.inElementMode,
 		) { argument ->
 			if (argument is ProportionalConnectedRequest) {
 				editorSession?.setProportionalConnected(argument.connectedOnly)
@@ -62,6 +62,6 @@ internal fun proportionalCommands(editorSession: EditorSession?, availability: S
 			Command(
 				"mesh.proportional.falloff.${falloff.choiceKey}",
 				title = FALLOFF_TITLES.getValue(falloff),
-				availability = availability.inEditMode,
+				availability = availability.inElementMode,
 			) { editorSession?.setProportionalFalloff(falloff) }
 		}

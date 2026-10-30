@@ -1,6 +1,6 @@
 package org.umamo.edit.transform
 
-import org.umamo.edit.MeshTopology
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.ProportionalFalloff
 import kotlin.math.sqrt
 
@@ -185,7 +185,7 @@ fun proportionalWeights(
  * @param Set<Int> coveredIndices The vertices the selection covers (the geodesic sources).
  * @param Float radiusWorld The influence radius, along edges, in the positions' units.
  * @param ProportionalFalloff falloff The falloff curve shaping the weights.
- * @param IntArray triangleIndices The mesh's triangle vertex indices (the edge graph).
+ * @param ElementTopology topology The mesh's topology (the edge graph), sized to [positions].
  * @return Map<Int, ProportionalInfluence> Vertex index to influence, for every reachable vertex.
  */
 fun proportionalInfluencesConnected(
@@ -193,14 +193,14 @@ fun proportionalInfluencesConnected(
 	coveredIndices: Set<Int>,
 	radiusWorld: Float,
 	falloff: ProportionalFalloff,
-	triangleIndices: IntArray,
+	topology: ElementTopology,
 ): Map<Int, ProportionalInfluence> {
 	if (coveredIndices.isEmpty() || radiusWorld <= 0f) {
 		return emptyMap()
 	}
 
 	val vertexCount = positions.size / 2
-	val adjacency = MeshTopology.buildVertexAdjacency(vertexCount, triangleIndices)
+	val adjacency = topology.adjacency
 	val distance = FloatArray(vertexCount) { Float.MAX_VALUE }
 	val sourceCovered = IntArray(vertexCount) { -1 }
 	val settled = BooleanArray(vertexCount)
@@ -230,7 +230,7 @@ fun proportionalInfluencesConnected(
 
 		settled[frontier] = true
 
-		for (neighbor in adjacency[frontier]) {
+		for (neighbor in adjacency.getOrElse(frontier) { IntArray(0) }) {
 			if (settled[neighbor]) {
 				continue
 			}

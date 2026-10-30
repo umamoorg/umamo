@@ -11,6 +11,7 @@ import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.DirectMeshOverlay
 import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayPalette
@@ -18,6 +19,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.DrawableThumbnailProvider
 
 /**
@@ -35,6 +37,15 @@ internal class StubPuppetViewportService : PuppetViewportService {
 
 	/** Every lattice overlay published through [setLatticeOverlay], oldest first, nulls included. */
 	val pushedLatticeOverlays = ArrayList<LatticeOverlay?>()
+
+	/** Every direct Edit cage published through [setEditDirectOverlay], oldest first, nulls included. */
+	val pushedEditDirectOverlays = ArrayList<DirectMeshOverlay?>()
+
+	/** Every lattice preview published through [setLatticePreview], oldest first, empty maps included. */
+	val pushedLatticePreviews = ArrayList<Map<DeformerId, WarpLatticeForm>>()
+
+	/** Every pending-lattice map published through [setLatticeOverrides], oldest first, empty maps included. */
+	val pushedLatticeOverrides = ArrayList<Map<DeformerId, WarpLatticeForm>>()
 
 	/** What [latticePicksAt] answers per area, best first; an area with no entry answers nothing. */
 	val latticeStackByArea = HashMap<String, List<DeformerId>>()
@@ -338,6 +349,28 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	 */
 	override fun setLatticeOverlay(overlay: LatticeOverlay?) {
 		pushedLatticeOverlays.add(overlay)
+	}
+
+	/**
+	 * Records the direct Edit cage.
+	 *
+	 * @param DirectMeshOverlay? overlay The cage published.
+	 */
+	override fun setEditDirectOverlay(overlay: DirectMeshOverlay?) {
+		pushedEditDirectOverlays.add(overlay)
+	}
+
+	/**
+	 * Records the lattice preview.
+	 *
+	 * @param Map<DeformerId, WarpLatticeForm> overrides The preview published.
+	 */
+	override fun setLatticeOverrides(overrides: Map<DeformerId, WarpLatticeForm>) {
+		pushedLatticeOverrides.add(overrides)
+	}
+
+	override fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>) {
+		pushedLatticePreviews.add(overrides)
 	}
 
 	/**

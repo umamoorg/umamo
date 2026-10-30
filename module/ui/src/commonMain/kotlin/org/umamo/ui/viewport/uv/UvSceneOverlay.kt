@@ -22,6 +22,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.drawableId
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.gizmo.EditMeshOverlayProducer
@@ -209,7 +210,7 @@ internal class UvEditOverlayProducer {
 		val geometryById = HashMap<DrawableId, GizmoMeshGeometry>(scene.geometries.size)
 
 		for (geometry in scene.geometries) {
-			geometryById[geometry.drawableId] = geometry
+			geometry.drawableId?.let { drawableId -> geometryById[drawableId] = geometry }
 		}
 
 		val overlay = meshes.produce(mode, selection, scene.model, sizes, geometryById.keys)
@@ -232,7 +233,7 @@ internal class UvEditOverlayProducer {
 		for (mesh in overlay.meshes) {
 			val geometry = geometryOf(mesh, geometryById) ?: continue
 			positionsByOwner[mesh.owner] = geometry.positions
-			triangleIndicesByOwner[mesh.owner] = geometry.indices
+			triangleIndicesByOwner[mesh.owner] = geometry.topology.faceCorners
 		}
 
 		val direct = DirectMeshOverlay(overlay, positionsByOwner, triangleIndicesByOwner)
@@ -252,8 +253,8 @@ internal class UvEditOverlayProducer {
 		previous.overlay.meshes.all { mesh ->
 			val geometry = geometryOf(mesh, geometryById)
 			geometry != null &&
-				previous.positionsById[mesh.owner] === geometry.positions &&
-				previous.triangleIndicesById[mesh.owner] === geometry.indices
+				previous.positionsByOwner[mesh.owner] === geometry.positions &&
+				previous.triangleIndicesByOwner[mesh.owner] === geometry.topology.faceCorners
 		}
 
 	/**
@@ -264,5 +265,5 @@ internal class UvEditOverlayProducer {
 	 * @return GizmoMeshGeometry? The geometry, or null when its drawable is not shown.
 	 */
 	private fun geometryOf(mesh: MeshOverlayMesh, geometryById: Map<DrawableId, GizmoMeshGeometry>): GizmoMeshGeometry? =
-		(mesh.owner as? ElementOwner.Drawable)?.let { owner -> geometryById[owner.id] }
+		mesh.owner.drawableId?.let { drawableId -> geometryById[drawableId] }
 }

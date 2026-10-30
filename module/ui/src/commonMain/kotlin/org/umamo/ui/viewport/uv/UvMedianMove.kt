@@ -93,7 +93,7 @@ internal fun uvMedianMove(covered: List<UvCoveredVertices>, frame: UvEditFrame, 
 	val median = uvCoveredMedian(covered) ?: return null
 	val sources =
 		covered.map { mesh ->
-			ModalCaptureSource(mesh.geometry.drawableId, mesh.geometry.positions.copyOf(), mesh.geometry.indices, mesh.indices)
+			ModalCaptureSource(mesh.geometry.owner, mesh.geometry.positions.copyOf(), mesh.geometry.topology, mesh.indices)
 		}
 	val transform =
 		buildModalTransformCapture(
@@ -154,8 +154,10 @@ internal fun EditorSession.moveUvMedianAdjustable(move: UvMedianMove, axis: Texe
 	val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(move.transform.entries.size)
 
 	for (entry in move.transform.entries) {
-		if (entry.drawableId in landing) {
-			movedIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()
+		val drawableId = entry.drawableId ?: continue
+
+		if (drawableId in landing) {
+			movedIndicesByDrawable[drawableId] = entry.movedIndices.toList()
 		}
 	}
 

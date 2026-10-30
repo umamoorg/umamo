@@ -2,6 +2,7 @@ package org.umamo.ui.viewport.uv
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.UvCursor
@@ -10,6 +11,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
@@ -78,7 +80,7 @@ class UvSnapTest {
 	private fun geometriesOf(session: EditorSession): List<GizmoMeshGeometry> =
 		session.model.value.drawables.mapNotNull { drawable ->
 			val mesh = drawable.mesh ?: return@mapNotNull null
-			GizmoMeshGeometry(drawable.id, mesh.indices, emptyList(), uvToDisplay(mesh.uvs, pageWidth, pageHeight))
+			GizmoMeshGeometry(ElementOwner.Drawable(drawable.id), ElementTopology.ofMesh(mesh), uvToDisplay(mesh.uvs, pageWidth, pageHeight))
 		}
 
 	private fun snap(session: EditorSession, kind: UvSnapKind, grid: GridConfig = GridConfig(100f, 10)) {

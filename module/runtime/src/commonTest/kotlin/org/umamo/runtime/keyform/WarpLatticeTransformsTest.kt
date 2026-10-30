@@ -10,6 +10,8 @@ import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.applyAffine
+import org.umamo.runtime.model.identityAffine
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -73,11 +75,11 @@ class WarpLatticeTransformsTest {
 		assertContentEquals(intArrayOf(1), cells[1].coordinate, "coordinates are untouched")
 	}
 
-	/** The affine maps every point of every form: a quarter turn plus a translation here. */
+	/** Mapping every lattice through an affine reaches every point of every form: a quarter turn plus a translation here. */
 	@Test
 	fun theAffineReachesEveryCellAndBlendForm() {
 		val quarterTurn = floatArrayOf(0f, -1f, 100f, 1f, 0f, 50f)
-		val transformed = warp().withLatticeTransformed(quarterTurn)
+		val transformed = warp().withEveryLatticeMapped { points -> applyAffine(points, quarterTurn) }
 
 		val expected = { points: FloatArray ->
 			FloatArray(points.size) { componentIndex ->
@@ -96,7 +98,7 @@ class WarpLatticeTransformsTest {
 	fun identitiesChangeNothing() {
 		val original = warp()
 
-		for (moved in listOf(original.withLatticeTransformed(floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)), original.withLatticeShifted(FloatArray(8)))) {
+		for (moved in listOf(original.withEveryLatticeMapped { points -> applyAffine(points, identityAffine()) }, original.withLatticeShifted(FloatArray(8)))) {
 			assertContentEquals(original.geometryGrid!!.cells[1].form.controlPoints, moved.geometryGrid!!.cells[1].form.controlPoints)
 			assertContentEquals(original.blendShapes.single().forms[1]!!.controlPoints, moved.blendShapes.single().forms[1]!!.controlPoints)
 		}
@@ -127,6 +129,5 @@ class WarpLatticeTransformsTest {
 		val original = warp()
 
 		assertSame(original, original.withLatticeShifted(FloatArray(6)))
-		assertSame(original, original.withLatticeTransformed(FloatArray(4)))
 	}
 }

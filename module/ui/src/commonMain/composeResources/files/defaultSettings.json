@@ -54,7 +54,8 @@
 		"deformer": {
 			"latticeIdle": "#B3404040",
 			"latticeSelected": "#FF338CFF",
-			"latticeActive": "#FF7DE400"
+			"latticeActive": "#FF7DE400",
+			"latticePending": "#FFDF8431"
 		},
 		"showToolbar": true,
 		"showSidebar": false

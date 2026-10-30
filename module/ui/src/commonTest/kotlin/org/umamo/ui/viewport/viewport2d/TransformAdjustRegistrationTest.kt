@@ -1,6 +1,7 @@
 package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
@@ -18,8 +19,10 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.captureDrawableWorld
 import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.slideVertexByFactor
@@ -78,7 +81,7 @@ class TransformAdjustRegistrationTest {
 		val transform =
 			assertNotNull(
 				buildModalTransformCapture(
-					sources = listOf(ModalCaptureSource(drawableId, geometry.world.copyOf(), intArrayOf(0, 1, 2), setOf(0, 1, 2))),
+					sources = listOf(ModalCaptureSource(ElementOwner.Drawable(drawableId), geometry.world.copyOf(), ElementTopology.ofTriangles(geometry.world.size / 2, intArrayOf(0, 1, 2)), setOf(0, 1, 2))),
 					pivotMode = TransformPivotMode.MedianPoint,
 					individualOriginScope = IndividualOriginScope.ConnectivityIsland,
 					operatorKind = MeshOperatorKind.Grab,
@@ -95,7 +98,7 @@ class TransformAdjustRegistrationTest {
 		var writeBacks = 0
 		val record =
 			assertNotNull(
-				registerMeshTransformAdjustment(session, "area-1", transform, mapOf(drawableId to geometry), landed, ProportionalRows.of(null, 200f)) { _, state ->
+				registerMeshTransformAdjustment(session, "area-1", transform, mapOf(geometry.owner to geometry), ElementEditStage.Rest, landed, ProportionalRows.of(null, 200f)) { _, state ->
 					writtenBack = state
 					writeBacks++
 				},

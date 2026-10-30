@@ -5,6 +5,7 @@ import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.render.eval.DrawableSpaceResolver
 import org.umamo.render.eval.ParentSpaceMapping
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 
 /*
@@ -42,10 +43,9 @@ internal class DrawableWorldGeometry(
 	val canvas: FloatArray,
 	val local: FloatArray,
 	val displayed: FloatArray,
-	val world: FloatArray,
-) {
-	/** Every vertex index of this drawable - the whole-mesh set an object-level transform moves. */
-	val allIndices: Set<Int> get() = (0 until world.size / 2).toSet()
+	override val world: FloatArray,
+) : OwnerWorldGeometry {
+	override val owner: ElementOwner = ElementOwner.Drawable(drawableId)
 
 	/**
 	 * Inverts a transformed WORLD shape back onto the rest arrays - the write-back every whole-drawable
@@ -63,7 +63,7 @@ internal class DrawableWorldGeometry(
 	 * @return MeshRestPositions The new canvas mesh and base (fresh arrays).
 	 */
 	fun worldToRest(transformedWorld: FloatArray, indices: Set<Int> = allIndices): MeshRestPositions {
-		val transformedLocal = mapping.worldToLocalLinearized(transformedWorld, displayed, world, indices)
+		val transformedLocal = mapping.worldToLocalLinearized(transformedWorld, displayed, indices)
 		val newLocal = movementOnto(local, transformedLocal, displayed)
 
 		if (local === canvas) {
@@ -93,7 +93,7 @@ internal class DrawableWorldGeometry(
 	 *
 	 * @return DrawableWorldGeometry The copy.
 	 */
-	fun frozenCopy(): DrawableWorldGeometry {
+	override fun frozen(): DrawableWorldGeometry {
 		val canvasCopy = canvas.copyOf()
 		val localCopy = if (local === canvas) canvasCopy else local.copyOf()
 

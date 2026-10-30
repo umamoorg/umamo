@@ -138,19 +138,19 @@ internal class UvEditModalTransform(
 		val sources = ArrayList<ModalCaptureSource>()
 
 		for (geometry in geometries) {
-			val elements = selection.elementsOf(geometry.drawableId)
+			val elements = selection.elementsOf(geometry.owner)
 
 			if (elements.isEmpty()) {
 				continue
 			}
 
-			val coveredIndices = MeshTopology.coveredVertexIndices(elements, geometry.indices)
+			val coveredIndices = MeshTopology.coveredVertexIndices(elements, geometry.topology)
 
 			if (coveredIndices.isEmpty()) {
 				continue
 			}
 
-			sources.add(ModalCaptureSource(geometry.drawableId, geometry.positions.copyOf(), geometry.indices, coveredIndices))
+			sources.add(ModalCaptureSource(geometry.owner, geometry.positions.copyOf(), geometry.topology, coveredIndices))
 		}
 
 		// The two per-area anchors the shared builder cannot resolve itself, in display space: the active

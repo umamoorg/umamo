@@ -1,6 +1,7 @@
 package org.umamo.ui.action
 
 import org.jetbrains.compose.resources.StringResource
+import org.umamo.ui.workspace.SpaceScope
 
 /**
  * What the status bar suggests a [Command] under, and when.
@@ -18,8 +19,13 @@ import org.jetbrains.compose.resources.StringResource
  *   reads "Grab Vertices").  Commands sharing one label are suggested as one entry ("1/2/3 Select Mode").
  * @property CommandAvailability suggestedWhen Whether the command is worth suggesting right now, on top
  *   of being available; defaults to always.
+ * @property SpaceScope? suggestedOver The spaces the suggestion shows over, when narrower than the command's own
+ *   [Command.spaces] - a command that acts over a space only in some modes is worth suggesting only where it always
+ *   acts; null shows it over every space the command belongs to.  Like [suggestedWhen], dispatch and the palette never
+ *   read it.
  */
 class CommandHint(
 	val label: StringResource,
 	val suggestedWhen: CommandAvailability = CommandAvailability.Always,
+	val suggestedOver: SpaceScope? = null,
 )

@@ -21,6 +21,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.kit.field.LocalScrubCancel
 import org.umamo.ui.kit.field.ScrubCancelController
 import org.umamo.ui.model.LocalPuppetRenderSync
@@ -90,7 +91,7 @@ class EditMedianPanelTest {
 		runOnIdle {
 			session.setMeshSelection(
 				session.meshSelection.value.copy(
-					elementsByDrawable = mapOf(RIG_QUAD to vertices.map { vertexIndex -> MeshElement.Vertex(vertexIndex) }.toSet()),
+					elementsByOwner = mapOf(ElementOwner.Drawable(RIG_QUAD) to vertices.map { vertexIndex -> MeshElement.Vertex(vertexIndex) }.toSet()),
 					activeElement = null,
 				),
 			)

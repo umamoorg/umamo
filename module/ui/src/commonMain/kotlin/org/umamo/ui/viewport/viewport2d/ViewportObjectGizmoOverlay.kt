@@ -19,8 +19,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.IntSize
-import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.editsElements
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.theme.LocalUmamoColors
@@ -35,6 +35,7 @@ import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.screenToWorld
 import org.umamo.ui.viewport.gizmo.selectToolKind
 import org.umamo.ui.viewport.gizmo.worldToScreen
+import org.umamo.ui.viewport.resyncAfterElementGesture
 
 /*
  * The Object-mode gizmo overlay.  This file is the wiring: what the overlay collects, its guard, what it
@@ -54,12 +55,10 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
 
 /**
  * The Object-mode gizmo overlay: the Object-mode counterpart to [ViewportEditGizmoOverlay], driving whole-object
- * selection and transforms over the puppet image.  Composed whenever Object or Pose mode is active with a
- * camera, and gated off in Edit (where [ViewportEditGizmoOverlay] owns the viewport), so the two overlays are
- * mutually exclusive by mode and never both drive the pointer.  In Pose mode it selects deformers alone - a
- * click reaches only the drawn lattices - and transforms nothing, since the session refuses an object operator
- * there.  Middle-drag pan and wheel zoom are never consumed here, so they fall through to the navigation layer
- * beneath.
+ * selection and transforms over the puppet image.  Composed whenever Object mode is active with a camera, and
+ * gated off in the modes that edit elements (Edit and Pose, where [ViewportEditGizmoOverlay] owns the viewport), so
+ * the two overlays are mutually exclusive by mode and never both drive the pointer.  Middle-drag pan and wheel zoom
+ * are never consumed here, so they fall through to the navigation layer beneath.
  *
  * Four gestures, mirroring Edit mode but over whole objects rather than mesh elements:
  *   - Click pick (idle): the primary button picks on release what lies under the cursor - a warp whose drawn
@@ -75,7 +74,7 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  *     (one undo step), previewed live through the GPU tint via [SessionToolLatches.setPreviewSelection]; the wheel
  *     resizes the brush; a right-click leaves the tool keeping what was painted.
  *   - Grab / Scale / Rotate: a modal transform of every selected drawable's whole geometry about their combined
- *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.TransformDrawables]).
+ *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.TransformObjects]).
  *     A right-click or Escape cancels (the renderer re-syncs to the committed model); a primary click or Enter
  *     confirms.  Only drawables transform - a selection with nothing transformable blocks at the session
  *     guard ([EditorSession.beginObjectOperator]) before an operator ever latches here.
@@ -111,7 +110,7 @@ fun ViewportObjectGizmoOverlay(
 	val axisConstraintState = session.axisConstraint.collectAsState()
 	val overlayColors = LocalUmamoColors.current
 
-	if (mode == EditorMode.Edit || camera == null) {
+	if (mode.editsElements || camera == null) {
 		return
 	}
 
@@ -129,12 +128,12 @@ fun ViewportObjectGizmoOverlay(
 
 	// The world points box and circle selection test against, one holder per area that the marquee, the pick
 	// controller, and the armed box all refresh and read (see ObjectSelectionAnchors).
-	val anchors = remember(areaId) { ObjectSelectionAnchors { viewportSelectionAnchors(service, areaId, session.mode.value) } }
+	val anchors = remember(areaId) { ObjectSelectionAnchors { viewportSelectionAnchors(service, areaId) } }
 
 	// The modal transform's commit side, one per area: the pointer loop and the collectors below keep the
 	// instance they started with (see ObjectModalTransform).  Its gesture state is what the Box, the pointer
 	// loop, and the HUD read.
-	val modalTransform = remember(areaId) { ObjectModalTransform(areaId, session, service::setModel) }
+	val modalTransform = remember(areaId) { ObjectModalTransform(areaId, session, service::setModel, service::setLatticePreview) }
 	val gesture = modalTransform.gesture
 
 	// The drive's worker, alive exactly as long as the transform: each pointer event submits a drive and the
@@ -156,7 +155,7 @@ fun ViewportObjectGizmoOverlay(
 	DisposableEffect(modalTransform) {
 		onDispose {
 			if (modalTransform.abandon()) {
-				service.setModel(session.model.value)
+				service.resyncAfterElementGesture(session)
 			}
 
 			marquee.discard()
@@ -197,7 +196,7 @@ fun ViewportObjectGizmoOverlay(
 			// branch at mount (and when another area's operator latches), and an unguarded setModel from
 			// a viewport split open mid-gesture would stomp the initiating area's live preview.
 			if (modalTransform.end()) {
-				service.setModel(session.model.value)
+				service.resyncAfterElementGesture(session)
 			}
 		}
 	}

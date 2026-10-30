@@ -146,6 +146,10 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 ## Keymap
 * Keymappings will need to become area contextual.  For example: P is pin in the UV editor area.  Once the Separate operation(Into multiple drawables) exist, if we want to match Blender's P shortcut for that then it has to become contextual per area.
 
+## Selection
+* Select All of Type
+* Invert Selection of Type
+
 ## Format
 
 ### File
@@ -189,6 +193,7 @@ See format planning document: docs/plan/uma-format.md
 	* For Example: properties_field_base_angle - "base_angle" -> Expanded out to `properties_field_base_angle` and `properties_field_base_angle_description`.
 	* There are plenty of places in the code base that are passing the values around like this at the moment.  Difficulty: .* import level maybe?  I need to read up on the Kotlin compiler optimization to determine if this will be an issue.
 	* operatorParameterDescriptionRes also is the start of something of what I am thinking, but hardcoded.
+* Remove default parameter colors on MeshOverlayPalette.  They are not needed.
 
 ## Settings
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)

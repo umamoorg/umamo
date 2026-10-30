@@ -102,7 +102,7 @@ class UvGizmoGeometryCacheTest {
 		for (geometryIndex in oneShot.indices) {
 			assertContentEquals(oneShot[geometryIndex].positions, cached[geometryIndex].positions)
 			assertEquals(oneShot[geometryIndex].edges, cached[geometryIndex].edges)
-			assertSame(oneShot[geometryIndex].indices, cached[geometryIndex].indices)
+			assertSame(oneShot[geometryIndex].topology.faceCorners, cached[geometryIndex].topology.faceCorners)
 		}
 	}
 

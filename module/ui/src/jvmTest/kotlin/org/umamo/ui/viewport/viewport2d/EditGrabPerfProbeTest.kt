@@ -35,6 +35,7 @@ import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasKeyByDrawable
 import org.umamo.runtime.model.drawableNameByDrawable
@@ -46,6 +47,8 @@ import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.gizmo.EditMeshOverlayProducer
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
@@ -235,7 +238,7 @@ class EditGrabPerfProbeTest {
 			return
 		}
 
-		val objectTransform = ObjectModalTransform(PROBE_AREA_ID, session) { folded -> pushed.add(folded) }
+		val objectTransform = ObjectModalTransform(PROBE_AREA_ID, session, pushPreview = { folded -> pushed.add(folded) })
 		timed("O1 ObjectModalTransform.begin (captureDrawableWorld per eligible drawable) [once per gesture]", 1) {
 			objectTransform.begin(MeshOperatorKind.Grab)
 		}
@@ -250,7 +253,7 @@ class EditGrabPerfProbeTest {
 			timedRequests("O2r drivePreview, worker attached: the request alone [per pointer event, UI thread]", objectTransform.drive) { round ->
 				objectTransform.drivePreview(pointerFor(round), camera, size)
 			}
-			val jobs = meshDriveJobs(capture.transform, capture.geometryById, wholeMeshes = true)
+			val jobs = meshDriveJobs(capture.transform, capture.geometryByOwner, wholeMeshes = true)
 			probeComputes("O2", MeshDriveRequest(MeshOperatorKind.Grab, grabParameters(capture.transform, camera, size), jobs, null, session.model.value))
 		}
 
@@ -287,7 +290,7 @@ class EditGrabPerfProbeTest {
 
 		val modalTransform = EditModalTransform(PROBE_AREA_ID, session, { folded -> pushed.add(folded) })
 		session.beginMeshOperator(MeshOperatorKind.Grab, PROBE_AREA_ID)
-		timed("B1 EditModalTransform.begin [once per gesture]", 1) { modalTransform.begin(MeshOperatorKind.Grab, liveGeometry, meshSelection) }
+		timed("B1 EditModalTransform.begin [once per gesture]", 1) { modalTransform.begin(MeshOperatorKind.Grab, liveGeometry, meshSelection, ElementEditStage.Rest) }
 		val capture = modalTransform.gesture.capture
 
 		if (capture == null) {
@@ -305,7 +308,7 @@ class EditGrabPerfProbeTest {
 		timedRequests("C1r drivePreview, worker attached: the request alone [per pointer event, UI thread]", modalTransform.drive) { round ->
 			modalTransform.drivePreview(pointerFor(round), camera, size)
 		}
-		val jobs = meshDriveJobs(capture.transform, capture.geometryById, wholeMeshes = false)
+		val jobs = meshDriveJobs(capture.transform, capture.geometryByOwner, wholeMeshes = false)
 		probeComputes("C1", MeshDriveRequest(MeshOperatorKind.Grab, grabParameters(capture.transform, camera, size), jobs, null, model))
 
 		if (previews.isEmpty()) {
@@ -315,7 +318,7 @@ class EditGrabPerfProbeTest {
 			return
 		}
 
-		probeDriveHalves(capture.transform, capture.geometryById, model, camera, size)
+		probeDriveHalves(capture.transform, capture.geometryByOwner, model, camera, size)
 		probePushRebuilds(model, previews)
 		probeFrameImage()
 		session.clearMeshOperator()
@@ -328,14 +331,14 @@ class EditGrabPerfProbeTest {
 	 * drawable at a time, and as the drive's one batch).
 	 *
 	 * @param ModalTransformCapture transform The gesture's shared capture.
-	 * @param Map<DrawableId, DrawableWorldGeometry> geometryById Each moving mesh's frozen geometry.
+	 * @param Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each moving mesh's frozen geometry.
 	 * @param PuppetModel model The committed model the fold starts from.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
 	 */
 	private fun probeDriveHalves(
 		transform: ModalTransformCapture,
-		geometryById: Map<DrawableId, DrawableWorldGeometry>,
+		geometryByOwner: Map<ElementOwner, OwnerWorldGeometry>,
 		model: PuppetModel,
 		camera: ViewportCamera,
 		size: IntSize,
@@ -345,21 +348,23 @@ class EditGrabPerfProbeTest {
 		val transformedById = HashMap<DrawableId, FloatArray>()
 		timed("C1a   applyOperator (translate + weighted pass) over every entry") {
 			for (entry in transform.entries) {
-				transformedById[entry.drawableId] = applyOperator(MeshOperatorKind.Grab, entry.positions, entry.groups, parameters, entry.influence)
+				transformedById[checkNotNull(entry.drawableId)] = applyOperator(MeshOperatorKind.Grab, entry.positions, entry.groups, parameters, entry.influence)
 			}
 		}
 		val newBaseById = HashMap<DrawableId, MeshRestPositions>()
 		timed("C1b   worldToRest (deformer inverse + movementOnto + canvas move) over every entry") {
 			for (entry in transform.entries) {
-				val geometry = geometryById.getValue(entry.drawableId)
-				newBaseById[entry.drawableId] = geometry.worldToRest(transformedById.getValue(entry.drawableId), entry.movedIndices)
+				val drawableId = checkNotNull(entry.drawableId)
+				val geometry = geometryByOwner.getValue(entry.owner) as DrawableWorldGeometry
+				newBaseById[drawableId] = geometry.worldToRest(transformedById.getValue(drawableId), entry.movedIndices)
 			}
 		}
 		timed("C1c   withMeshPositions fold over every entry, one drawable at a time") {
 			var working = model
 
 			for (entry in transform.entries) {
-				working = working.withMeshPositions(entry.drawableId, newBaseById.getValue(entry.drawableId))
+				val drawableId = checkNotNull(entry.drawableId)
+				working = working.withMeshPositions(drawableId, newBaseById.getValue(drawableId))
 			}
 
 			working
@@ -460,7 +465,7 @@ class EditGrabPerfProbeTest {
 		val warm = timed("A2w mesh overlay derive, warm (nothing it shows changed) [per positions-only commit]") { producer.produce(EditorMode.Edit, meshSelection, model, sizes) }
 		report("A2w handed back the same instance: ${warm === first}")
 		val firstId = meshSelection.drawableIds.first()
-		val trimmed = meshSelection.copy(elementsByDrawable = meshSelection.elementsByDrawable + (firstId to meshSelection.elementsOf(firstId).drop(1).toSet()))
+		val trimmed = meshSelection.copy(elementsByOwner = meshSelection.elementsByOwner + (ElementOwner.Drawable(firstId) to meshSelection.elementsOf(firstId).drop(1).toSet()))
 		timed("A2s mesh overlay derive, one mesh's selection changed [per click or brush stamp]") { round ->
 			producer.produce(EditorMode.Edit, if (round % 2 == 0) trimmed else meshSelection, model, sizes)
 		}
@@ -473,7 +478,7 @@ class EditGrabPerfProbeTest {
 		val firstWireframe = wireframeProducer.produce(EditorMode.Object, meshSelection, model, sizes, wireframeOver = shown)
 		val warmWireframe = timed("A3w wireframe derive, warm (nothing it shows changed) [per commit in Object mode]") { wireframeProducer.produce(EditorMode.Object, meshSelection, model, sizes, wireframeOver = shown) }
 		report("A3w handed back the same instance: ${warmWireframe === firstWireframe}")
-		val oneMesh = MeshSelection(listOf(firstId), firstId, meshSelection.selectMode, mapOf(firstId to meshSelection.elementsOf(firstId)), null)
+		val oneMesh = MeshSelection(listOf(ElementOwner.Drawable(firstId)), ElementOwner.Drawable(firstId), meshSelection.selectMode, mapOf(ElementOwner.Drawable(firstId) to meshSelection.elementsOf(firstId)), null)
 		timed("A3e one mesh's cage plus the wireframe of every other shown mesh, cold [on Edit entry with an area asking]", 3) {
 			EditMeshOverlayProducer().produce(EditorMode.Edit, oneMesh, model, sizes, wireframeOver = shown)
 		}

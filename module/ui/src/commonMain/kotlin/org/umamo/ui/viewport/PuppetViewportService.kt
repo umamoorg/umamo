@@ -21,6 +21,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.DrawableThumbnailProvider
 
 /**
@@ -441,6 +442,39 @@ interface PuppetViewportService {
 	 * @param LatticeOverlay? overlay The lattices, or null.
 	 */
 	fun setLatticeOverlay(overlay: LatticeOverlay?)
+
+	/**
+	 * Sets the Edit-mode cage every 2D area draws over the art from positions of its own, or null for none: the
+	 * cage of whatever Edit mode shapes without moving the art, a warp's lattice.  Drawn under the Show Overlays
+	 * master like the mesh overlay; a new value replaces the old by identity, and a drag frame re-uploads only the
+	 * position arrays it replaced.
+	 *
+	 * @param DirectMeshOverlay? overlay The cage, or null.
+	 */
+	fun setEditDirectOverlay(overlay: DirectMeshOverlay?)
+
+	/**
+	 * Previews warps at new lattices in every 2D area without a model push: each entry stands in for that warp's
+	 * grid blend at the pose (its blend shapes still add on top), so the warp's art and everything nested under it
+	 * follow, and the lattice layer and the picks read the moved lattice.  An Object-mode warp drag publishes one
+	 * per frame; a model push that changes a deformer's forms re-poses the whole rig and rebuilds the picker, which
+	 * a drag cannot afford.  An empty map clears the preview; the same instance again is a no-op.
+	 *
+	 * @param Map<DeformerId, WarpLatticeForm> overrides Each previewed warp's lattice in its parent's space, before
+	 *   blend shapes.
+	 */
+	fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>)
+
+	/**
+	 * Poses warps at the session's pending Pose-mode lattices in every 2D area, each standing in for that warp's grid
+	 * blend at the pose; a [setLatticePreview] entry for the same warp wins while a gesture runs.  The viewport binding
+	 * keeps it in step with the session, and a lattice gesture's end writes it first, so the frame after the preview
+	 * clears already shows what was committed.  An empty map clears it; the same instance again is a no-op.
+	 *
+	 * @param Map<DeformerId, WarpLatticeForm> overrides Each pending warp's lattice in its parent's space, before
+	 *   blend shapes.
+	 */
+	fun setLatticeOverrides(overrides: Map<DeformerId, WarpLatticeForm>)
 
 	/**
 	 * The warps whose drawn lattice lies under the cursor in [areaId], best first: a control point within

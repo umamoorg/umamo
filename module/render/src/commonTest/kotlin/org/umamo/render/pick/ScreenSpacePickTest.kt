@@ -79,18 +79,18 @@ class ScreenSpacePickTest {
 	@Test
 	fun hitTestFaceUsesCentroidTieBreak() {
 		// Screen (202, 148) = world (2, 2): inside triangle 0 only.
-		assertEquals(0, hitTestFace(positions, triangleIndices, 202f, 148f, camera, viewportWidth, viewportHeight))
+		assertEquals(0, hitTestFace(positions, triangleIndices, 3, 202f, 148f, camera, viewportWidth, viewportHeight))
 		// Screen (208, 142) = world (8, 8): inside triangle 1 only.
-		assertEquals(1, hitTestFace(positions, triangleIndices, 208f, 142f, camera, viewportWidth, viewportHeight))
+		assertEquals(1, hitTestFace(positions, triangleIndices, 3, 208f, 142f, camera, viewportWidth, viewportHeight))
 		// Outside the quad entirely.
-		assertNull(hitTestFace(positions, triangleIndices, 250f, 250f, camera, viewportWidth, viewportHeight))
+		assertNull(hitTestFace(positions, triangleIndices, 3, 250f, 250f, camera, viewportWidth, viewportHeight))
 
 		// Two coincident triangles both contain the pointer: the one with the nearer centroid wins.
 		// Triangle 0 spans the quad's lower-left half; triangle 1 (here duplicated smaller) hugs v0.
 		val overlappingPositions = floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f, 4f, 0f, 0f, 4f)
 		val overlappingTriangles = intArrayOf(0, 1, 2, 0, 3, 4)
 		// World (1, 1) is inside both; the small triangle's centroid is much closer.
-		assertEquals(1, hitTestFace(overlappingPositions, overlappingTriangles, 201f, 149f, camera, viewportWidth, viewportHeight))
+		assertEquals(1, hitTestFace(overlappingPositions, overlappingTriangles, 3, 201f, 149f, camera, viewportWidth, viewportHeight))
 	}
 
 	/** verticesInBox encloses by screen position, corner order agnostic. */
@@ -111,7 +111,7 @@ class ScreenSpacePickTest {
 		assertEquals(setOf(2), edgesInBox(positions, edgeEndpoints, 205f, 135f, 195f, 155f, camera, viewportWidth, viewportHeight))
 		// Triangle 0's centroid is world (10/3, 10/3) = screen (~203.3, ~146.7); a tight box around it
 		// selects face 0 only even though its corners poke out.
-		assertEquals(setOf(0), facesInBox(positions, triangleIndices, 202f, 145f, 205f, 148f, camera, viewportWidth, viewportHeight))
+		assertEquals(setOf(0), facesInBox(positions, triangleIndices, 3, 202f, 145f, 205f, 148f, camera, viewportWidth, viewportHeight))
 	}
 
 	/** The circle brush encloses vertices by distance, edges by segment overlap, faces by centroid. */
@@ -122,8 +122,26 @@ class ScreenSpacePickTest {
 		// The same brush touches every edge incident to v1 (ordinals 0: 0-1, 1: 1-2, 3: 1-3).
 		assertEquals(setOf(0, 1, 3), edgesInCircle(positions, edgeEndpoints, 210f, 150f, 6f, camera, viewportWidth, viewportHeight))
 		// A 3 px brush at triangle 0's centroid paints face 0 only.
-		assertEquals(setOf(0), facesInCircle(positions, triangleIndices, 203.3f, 146.7f, 3f, camera, viewportWidth, viewportHeight))
+		assertEquals(setOf(0), facesInCircle(positions, triangleIndices, 3, 203.3f, 146.7f, 3f, camera, viewportWidth, viewportHeight))
 		// A brush over empty canvas paints nothing.
 		assertEquals(emptySet(), verticesInCircle(positions, 50f, 50f, 10f, camera, viewportWidth, viewportHeight))
+	}
+
+	/**
+	 * A four-corner face (a lattice cell) hits anywhere inside its ring, on both sides of where a diagonal would
+	 * run, and boxes and brushes by the mean of its four corners.
+	 */
+	@Test
+	fun aQuadFaceHitsAcrossItsWholeRingAndCentersOnItsCorners() {
+		// The quad as one ring around: v0 (0, 0), v1 (10, 0), v3 (10, 10), v2 (0, 10).
+		val quadRing = intArrayOf(0, 1, 3, 2)
+
+		assertEquals(0, hitTestFace(positions, quadRing, 4, 202f, 148f, camera, viewportWidth, viewportHeight), "the lower-left half")
+		assertEquals(0, hitTestFace(positions, quadRing, 4, 208f, 142f, camera, viewportWidth, viewportHeight), "the upper-right half")
+		assertNull(hitTestFace(positions, quadRing, 4, 250f, 250f, camera, viewportWidth, viewportHeight))
+		// The center, world (5, 5), sits at screen (205, 145).
+		assertEquals(setOf(0), facesInBox(positions, quadRing, 4, 204f, 144f, 206f, 146f, camera, viewportWidth, viewportHeight))
+		assertEquals(emptySet(), facesInBox(positions, quadRing, 4, 201f, 141f, 203f, 143f, camera, viewportWidth, viewportHeight), "a corner of the cell is not its center")
+		assertEquals(setOf(0), facesInCircle(positions, quadRing, 4, 205f, 145f, 1f, camera, viewportWidth, viewportHeight))
 	}
 }

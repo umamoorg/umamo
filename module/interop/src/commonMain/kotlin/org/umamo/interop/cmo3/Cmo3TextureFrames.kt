@@ -11,8 +11,8 @@ import org.umamo.format.cmo3.model.gen.CTextureAtlas
 import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.type.CAffine
-import org.umamo.runtime.model.applyUvAffine
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.applyAffine
+import org.umamo.runtime.model.invertAffine
 
 /**
  * The frame a drawable's stored texture coordinates are in, read off the image its texture names.
@@ -122,9 +122,9 @@ internal class Cmo3TextureFrames(private val modelSource: CModelSource) {
 		}
 
 		val artUvs = if (frame == Cmo3StoredFrame.Cache) rasterUvsOfCache(source, storedUvs) else storedUvs
-		val artToModel = storedToArt?.takeUnless(::isIdentityAffine)?.let(::invertUvAffine) ?: return artUvs
+		val artToModel = storedToArt?.takeUnless(::isIdentityAffine)?.let(::invertAffine) ?: return artUvs
 
-		return applyUvAffine(artUvs, artToModel)
+		return applyAffine(artUvs, artToModel)
 	}
 
 	/**
@@ -187,7 +187,7 @@ internal class Cmo3TextureFrames(private val modelSource: CModelSource) {
 			return modelUvs.copyOf()
 		}
 
-		val artUvs = storedToArt?.takeUnless(::isIdentityAffine)?.let { affine -> applyUvAffine(modelUvs, affine) } ?: modelUvs
+		val artUvs = storedToArt?.takeUnless(::isIdentityAffine)?.let { affine -> applyAffine(modelUvs, affine) } ?: modelUvs
 		val cacheAffine = if (frame == Cmo3StoredFrame.Cache) cacheAffineOf(source) else null
 		val keptStored = storedUvs?.takeIf { stored -> stored.size == modelUvs.size && baselineUvs?.size == modelUvs.size }
 		val result = FloatArray(modelUvs.size)

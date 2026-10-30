@@ -1,5 +1,6 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.ProportionalFalloff
 import kotlin.math.sqrt
 import kotlin.test.Test
@@ -112,7 +113,7 @@ class ProportionalEditingTest {
 		val positions = floatArrayOf(0f, 0f, 0f, 4f, 3f, 0f, 3f, 4f)
 		val indices = intArrayOf(0, 1, 2, 1, 2, 3)
 		val straight = proportionalInfluences(positions, setOf(0), radiusWorld = 6f, falloff = ProportionalFalloff.Linear)
-		val connected = proportionalInfluencesConnected(positions, setOf(0), radiusWorld = 6f, falloff = ProportionalFalloff.Linear, triangleIndices = indices)
+		val connected = proportionalInfluencesConnected(positions, setOf(0), radiusWorld = 6f, falloff = ProportionalFalloff.Linear, topology = ElementTopology.ofTriangles(4, indices))
 		assertTrue(3 in straight, "straight-line influence reaches vertex 3 (distance 5, radius 6)")
 		assertFalse(3 in connected, "along edges vertex 3 is 7 away - outside the radius")
 		assertEquals(1f - 4f / 6f, connected.getValue(1).weight, 1e-6f, "a direct edge matches the straight-line distance")
@@ -122,7 +123,7 @@ class ProportionalEditingTest {
 		val twoIslands = floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f, 5f, 0f, 7f, 0f, 5f, 2f)
 		val islandIndices = intArrayOf(0, 1, 2, 3, 4, 5)
 		val islandConnected =
-			proportionalInfluencesConnected(twoIslands, setOf(0), radiusWorld = 100f, falloff = ProportionalFalloff.Constant, triangleIndices = islandIndices)
+			proportionalInfluencesConnected(twoIslands, setOf(0), radiusWorld = 100f, falloff = ProportionalFalloff.Constant, topology = ElementTopology.ofTriangles(6, islandIndices))
 		assertEquals(setOf(1, 2), islandConnected.keys, "influence never leaps to the unconnected island")
 	}
 

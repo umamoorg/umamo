@@ -21,11 +21,8 @@ import org.umamo.runtime.model.PuppetModel
  * @property Int activeFaceA The active triangle's first corner, or -1.
  * @property Int activeFaceB The active triangle's second corner, or -1.
  * @property Int activeFaceC The active triangle's third corner, or -1.
- * @property IslandStyle? islandStyle Its island colors, read only by an islands overlay.
- * @property Boolean wireframeOnly Whether it is a plain wireframe inside an Edit overlay: edges only, and
- *   only in a frame that draws the wireframe.
+ * @property MeshStyle style How it draws beyond its flags ([MeshOverlayMesh.style]).
  * @property ElementOwner owner The mesh's owner; a drawable owner is how a culling frame finds its draw order.
- * @property LatticeRole? latticeRole Its lattice color, read only by a lattice overlay.
  */
 internal class OverlayDrawEntry(
 	val buffers: OverlayMeshBuffers,
@@ -36,10 +33,8 @@ internal class OverlayDrawEntry(
 	val activeFaceA: Int,
 	val activeFaceB: Int,
 	val activeFaceC: Int,
-	val islandStyle: IslandStyle?,
-	val wireframeOnly: Boolean,
+	val style: MeshStyle,
 	val owner: ElementOwner,
-	val latticeRole: LatticeRole? = null,
 )
 
 /**
@@ -63,7 +58,8 @@ internal class OverlayResident(
 
 /**
  * One mesh's draw entry, with its active primitive resolved to local indices: an edge to its two
- * endpoints, a face to its three corners (a face outside [faceCorners] is no active face).
+ * endpoints, a face to the three corners its dot draws at - its own, or its entry in the mesh's face-dot
+ * corners (a face outside them is no active face).
  *
  * @param MeshOverlayMesh mesh The mesh's overlay value.
  * @param OverlayMeshBuffers buffers Its device buffers.
@@ -74,7 +70,10 @@ internal class OverlayResident(
 internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers, baseOffset: Int, faceCorners: IntArray): OverlayDrawEntry {
 	val activeEdge = mesh.activeEdge
 	val activeFace = mesh.activeFace
-	val faceResolved = activeFace != null && activeFace * 3 + 2 < faceCorners.size
+	// The active face's dot draws where its face dot does: at its own corners, or where the mesh's face-dot
+	// corners put it.
+	val dotCorners = mesh.faceDotCorners ?: faceCorners
+	val faceResolved = activeFace != null && activeFace * 3 + 2 < dotCorners.size
 	val faceStart = if (faceResolved) activeFace * 3 else 0
 
 	return OverlayDrawEntry(
@@ -83,13 +82,11 @@ internal fun overlayDrawEntry(mesh: MeshOverlayMesh, buffers: OverlayMeshBuffers
 		activeVertex = mesh.activeVertex ?: -1,
 		activeEdgeA = if (activeEdge != null) mesh.edgeEndpoints[activeEdge * 2] else -1,
 		activeEdgeB = if (activeEdge != null) mesh.edgeEndpoints[activeEdge * 2 + 1] else -1,
-		activeFaceA = if (faceResolved) faceCorners[faceStart] else -1,
-		activeFaceB = if (faceResolved) faceCorners[faceStart + 1] else -1,
-		activeFaceC = if (faceResolved) faceCorners[faceStart + 2] else -1,
-		islandStyle = mesh.islandStyle,
-		wireframeOnly = mesh.wireframeOnly,
+		activeFaceA = if (faceResolved) dotCorners[faceStart] else -1,
+		activeFaceB = if (faceResolved) dotCorners[faceStart + 1] else -1,
+		activeFaceC = if (faceResolved) dotCorners[faceStart + 2] else -1,
+		style = mesh.style,
 		owner = mesh.owner,
-		latticeRole = mesh.latticeRole,
 	)
 }
 
@@ -119,6 +116,94 @@ internal fun overlayFlagsOrZeros(flags: ByteArray, count: Int): ByteArray =
 internal fun overlayFlagsDiffer(previous: ByteArray, next: ByteArray): Boolean = previous !== next && !(previous.isEmpty() && next.isEmpty())
 
 /**
+ * One overlay mesh's buffer set on this device: [previousBuffers] while the mesh keeps the topology they were built
+ * from - the same edge and face-dot arrays, as many dotted vertices, and the caller's own source ([sameSource]: the
+ * resident it pairs with, or the triangle indices it was given) - with only its flags updated in place when they
+ * changed by identity; else a fresh set, freeing the previous one.  The one reuse rule every overlay residency keeps.
+ *
+ * @param MeshOverlayMesh mesh The mesh's overlay value.
+ * @param IntArray faceCorners Its triangle indices.
+ * @param MeshOverlayMesh? previousMesh The mesh as the buffers were last given it, or null.
+ * @param OverlayMeshBuffers? previousBuffers Its buffers, or null.
+ * @param Boolean sameSource Whether the caller's own source for the mesh is unchanged.
+ * @return OverlayMeshBuffers The buffers.
+ */
+internal fun RenderDevice.overlayBuffersFor(
+	mesh: MeshOverlayMesh,
+	faceCorners: IntArray,
+	previousMesh: MeshOverlayMesh?,
+	previousBuffers: OverlayMeshBuffers?,
+	sameSource: Boolean,
+): OverlayMeshBuffers {
+	val vertexFlags = overlayFlagsOrZeros(mesh.vertexFlags, mesh.vertexCount)
+	val edgeFlags = overlayFlagsOrZeros(mesh.edgeFlags, mesh.edgeCount)
+	val faceFlags = overlayFlagsOrZeros(mesh.faceFlags, faceCorners.size / 3)
+
+	if (
+		previousMesh != null &&
+		previousBuffers != null &&
+		sameSource &&
+		previousMesh.edgeEndpoints === mesh.edgeEndpoints &&
+		previousMesh.faceDotCorners === mesh.faceDotCorners &&
+		previousMesh.vertexDotCount == mesh.vertexDotCount
+	) {
+		if (overlayFlagsDiffer(previousMesh.vertexFlags, mesh.vertexFlags) ||
+			overlayFlagsDiffer(previousMesh.edgeFlags, mesh.edgeFlags) ||
+			overlayFlagsDiffer(previousMesh.faceFlags, mesh.faceFlags)
+		) {
+			updateOverlayMeshFlags(previousBuffers, vertexFlags, edgeFlags, faceFlags)
+		}
+
+		return previousBuffers
+	}
+
+	previousBuffers?.let { stale -> destroyOverlayMeshBuffers(stale) }
+
+	return createOverlayMeshBuffers(OverlayMeshSpec(mesh.edgeEndpoints, faceCorners, vertexFlags, edgeFlags, faceFlags, mesh.faceDotCorners, mesh.vertexDotCount))
+}
+
+/**
+ * An overlay's position store that only grows: sized to the largest overlay it has held, replaced when a larger one
+ * arrives and kept for a smaller one, and freed by [dispose].  The one store policy every overlay residency keeps.
+ *
+ * @param RenderDevice device The backend the store lives on.
+ */
+internal class GrowingPositionStore(
+	private val device: RenderDevice,
+) {
+	/** The store, or null before the first overlay that needs one. */
+	var store: DeformedPositionStore? = null
+		private set
+
+	private var capacity = 0
+
+	/**
+	 * Grows the store to hold [vertexCount] vertices.
+	 *
+	 * @param Int vertexCount The vertices the overlay needs.
+	 * @return Boolean True when the store was replaced, so nothing in it survives.
+	 */
+	fun ensureCapacity(vertexCount: Int): Boolean {
+		if (vertexCount <= capacity) {
+			return false
+		}
+
+		store?.let { outgrown -> device.destroyDeformedPositionStore(outgrown) }
+		store = device.createDeformedPositionStore(vertexCount)
+		capacity = vertexCount
+
+		return true
+	}
+
+	/** Frees the store.  Must run with the device's context current. */
+	fun dispose() {
+		store?.let { live -> device.destroyDeformedPositionStore(live) }
+		store = null
+		capacity = 0
+	}
+}
+
+/**
  * The mesh overlay's device objects and what they reflect: the overlay store the capture writes, and one
  * buffer set per overlay mesh.  Render thread only; [apply] is a self-contained resource operation that
  * runs between frames, never inside one.
@@ -135,11 +220,10 @@ internal fun overlayFlagsDiffer(previous: ByteArray, next: ByteArray): Boolean =
 internal class MeshOverlayResidency(
 	private val device: RenderDevice,
 ) {
-	/** The overlay store, or null before the first non-empty overlay. */
-	var store: DeformedPositionStore? = null
-		private set
+	private val positionStore = GrowingPositionStore(device)
 
-	private var storeCapacity = 0
+	/** The overlay store, or null before the first non-empty overlay. */
+	val store: DeformedPositionStore? get() = positionStore.store
 
 	/**
 	 * Whether the store is behind the positions: set by a pose, by a model push of either kind, and by an
@@ -200,32 +284,10 @@ internal class MeshOverlayResidency(
 
 		for (placement in layout.placed) {
 			val mesh = placement.mesh
-			// The layout places drawable owners alone.
-			val drawableId = mesh.pairedDrawableId ?: continue
-			val resident = residents.getValue(drawableId)
-			val faceCorners = drawableById[drawableId]?.mesh?.indices ?: IntArray(0)
+			val resident = residents.getValue(placement.drawableId)
+			val faceCorners = drawableById[placement.drawableId]?.mesh?.indices ?: IntArray(0)
 			val previous = previousByOwner[mesh.owner]
-			val vertexFlags = overlayFlagsOrZeros(mesh.vertexFlags, mesh.vertexCount)
-			val edgeFlags = overlayFlagsOrZeros(mesh.edgeFlags, mesh.edgeCount)
-			val faceFlags = overlayFlagsOrZeros(mesh.faceFlags, faceCorners.size / 3)
-			val buffers: OverlayMeshBuffers
-
-			if (previous != null && previous.gpuDrawable === resident && previous.mesh.edgeEndpoints === mesh.edgeEndpoints) {
-				buffers = previous.buffers
-
-				if (overlayFlagsDiffer(previous.mesh.vertexFlags, mesh.vertexFlags) ||
-					overlayFlagsDiffer(previous.mesh.edgeFlags, mesh.edgeFlags) ||
-					overlayFlagsDiffer(previous.mesh.faceFlags, mesh.faceFlags)
-				) {
-					device.updateOverlayMeshFlags(buffers, vertexFlags, edgeFlags, faceFlags)
-				}
-			} else {
-				if (previous != null) {
-					device.destroyOverlayMeshBuffers(previous.buffers)
-				}
-
-				buffers = device.createOverlayMeshBuffers(OverlayMeshSpec(mesh.edgeEndpoints, faceCorners, vertexFlags, edgeFlags, faceFlags))
-			}
+			val buffers = device.overlayBuffersFor(mesh, faceCorners, previous?.mesh, previous?.buffers, sameSource = previous?.gpuDrawable === resident)
 
 			if (previous == null || previous.gpuDrawable !== resident || previous.baseOffset != placement.baseOffset) {
 				storeStale = true
@@ -243,10 +305,7 @@ internal class MeshOverlayResidency(
 
 		entries = next
 
-		if (layout.totalVertexCount > storeCapacity) {
-			store?.let { outgrown -> device.destroyDeformedPositionStore(outgrown) }
-			store = device.createDeformedPositionStore(layout.totalVertexCount)
-			storeCapacity = layout.totalVertexCount
+		if (positionStore.ensureCapacity(layout.totalVertexCount)) {
 			storeStale = true
 		}
 
@@ -260,9 +319,7 @@ internal class MeshOverlayResidency(
 		}
 
 		entries = emptyList()
-		store?.let { live -> device.destroyDeformedPositionStore(live) }
-		store = null
-		storeCapacity = 0
+		positionStore.dispose()
 		applied = null
 	}
 

@@ -2,6 +2,7 @@ package org.umamo.render.eval
 
 import org.umamo.runtime.keyform.withEveryLatticeMapped
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.WarpLatticeLayout
 
 /**
  * This warp on a lattice of [rows] x [columns] cells: every grid cell's and every blend-shape form's lattice
@@ -26,13 +27,14 @@ fun Deformer.Warp.resampledTo(rows: Int, columns: Int): Deformer.Warp {
 	val oldColumns = this.columns
 	val bilinear = isQuadTransform
 
+	val layout = WarpLatticeLayout(rows, columns)
+
 	return withEveryLatticeMapped { points ->
-		val resampled = FloatArray((rows + 1) * (columns + 1) * 2)
+		val resampled = FloatArray(layout.pointCount * 2)
 
 		for (row in 0..rows) {
 			for (column in 0..columns) {
-				val pointIndex = row * (columns + 1) + column
-				latticePointAt(points, oldColumns, oldRows, bilinear, column.toFloat() / columns, row.toFloat() / rows, resampled, pointIndex * 2)
+				latticePointAt(points, oldColumns, oldRows, bilinear, column.toFloat() / columns, row.toFloat() / rows, resampled, layout.pointIndex(row, column) * 2)
 			}
 		}
 

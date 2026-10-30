@@ -3,23 +3,23 @@ package org.umamo.ui.viewport.viewport2d
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.SelectionTarget
-import org.umamo.edit.eligibleTransformDrawables
+import org.umamo.edit.eligibleTransformTargets
 import org.umamo.edit.mesh.MeshRestPositions
-import org.umamo.edit.mesh.commitObjectPositions
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.IndividualOriginScope
-import org.umamo.edit.transform.MeshTransforms
-import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.render.ViewportCamera
-import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.activeObjectCentroid
 import org.umamo.ui.transform.captureDrawableWorlds
+import org.umamo.ui.transform.captureLatticeWorlds
+import org.umamo.ui.transform.commitObjectMove
 import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.ModalGestureState
 import org.umamo.ui.viewport.gizmo.ModalTransformTarget
@@ -30,21 +30,24 @@ import org.umamo.ui.viewport.gizmo.gestureParameters
  * The captured state of an in-flight Object-mode transform: the shared [ModalTransformCapture] (which owns
  * the pivot groups, the anchor, the frozen operator kind, and the rotation tracker) plus the per-drawable
  * [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the rest
- * arrays.  The geometry is held in a map keyed on the drawable id, looked up by
- * [org.umamo.edit.ModalCaptureEntry], so nothing stays index-aligned with the capture's entry list.
+ * arrays.  The geometry is held in a map keyed on the drawable's owner, looked up by
+ * [org.umamo.edit.ModalCaptureEntry], so nothing stays index-aligned with the capture's entry list.  A moving
+ * warp is a capture entry too, with no geometry here: it moves as a whole by the gesture's affine, mapped
+ * through its parent from the model as it is.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, kind).
- * @property Map<DrawableId, DrawableWorldGeometry> geometryById Each captured drawable's world geometry.
+ * @property Map<ElementOwner, DrawableWorldGeometry> geometryByOwner Each captured drawable's world geometry.
  */
 internal class ObjectGesture(
 	val transform: ModalTransformCapture,
-	val geometryById: Map<DrawableId, DrawableWorldGeometry>,
+	val geometryByOwner: Map<ElementOwner, DrawableWorldGeometry>,
 )
 
 /**
- * The commit side of the Object overlay's modal G / S / R over whole drawables: it captures the selected
- * drawables when an operator latches in its area, drives whole-drawable previews about the shared pivot,
- * confirms as one TransformDrawables undo step, and cancels through the session's operator clear.  The
+ * The commit side of the Object overlay's modal G / S / R over whole objects: it captures the selected drawables
+ * and warps when an operator latches in its area, drives whole-object previews about the shared pivot - a drawable
+ * through a positions-only model push, a warp through the renderer's lattice preview, so its art follows without a
+ * model push - confirms as one TransformObjects undo step, and cancels through the session's operator clear.  The
  * pointer-side mechanics live in [org.umamo.ui.viewport.gizmo.ModalTransformController], which is handed
  * this as its target; Object mode has no scroll behavior.  The drive runs through [drive], resolved per
  * pointer event here and computed off the UI thread in parallel, as the Edit transform's.
@@ -57,11 +60,13 @@ internal class ObjectGesture(
  * @param String areaId The viewport area the overlay covers; only an operator latched here drives.
  * @param EditorSession session The session owning the model, the object selection, and the operator latch.
  * @param Function pushPreview Pushes a folded preview model to the renderer.
+ * @param Function pushLatticePreview Publishes the moving warps' lattices to the renderer (empty for none).
  */
 internal class ObjectModalTransform(
 	private val areaId: String,
 	private val session: EditorSession,
 	private val pushPreview: (PuppetModel) -> Unit,
+	private val pushLatticePreview: (Map<DeformerId, WarpLatticeForm>) -> Unit = {},
 ) : ModalTransformTarget {
 	/**
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, cursor wrap,
@@ -70,55 +75,49 @@ internal class ObjectModalTransform(
 	val gesture = ModalGestureState<ObjectGesture, MeshRestPositions>()
 
 	/**
-	 * The drive: requests resolved per pointer event, the drawables computed off the UI thread in parallel,
-	 * the result published back on it.  The overlay runs it (ModalDriveEffect); with no worker running, a
-	 * request computes inline.
+	 * The drive: requests resolved per pointer event, the drawables computed off the UI thread in parallel and
+	 * the warps moved beside them, the result published back on it.  The overlay runs it (ModalDriveEffect); with
+	 * no worker running, a request computes inline.
 	 */
 	val drive =
-		ModalDriveWorker<MeshDriveRequest, MeshDriveResult>(
+		ModalDriveWorker<ObjectDriveRequest, ObjectDriveResult>(
 			gesture = gesture,
-			computeSequential = ::computeMeshDrive,
-			computeOffThread = { request -> computeMeshDriveParallel(request) },
+			computeSequential = ::computeObjectDrive,
+			computeOffThread = { request -> computeObjectDriveParallel(request) },
 			publish = { request, result -> publishDrive(request, result) },
 		)
 
 	/**
-	 * Starts the gesture as an operator latches in this area: freezes each selected drawable's world
-	 * geometry at the current object-mode pose and hands the shared builder its sources plus this area's
-	 * active-element / cursor anchors.  Drops the operator when nothing transformable survives.
+	 * Starts the gesture as an operator latches in this area: freezes each moving drawable's world geometry and
+	 * each moving warp's lattice at the current object-mode pose (the rest pose, which the latch requires) and hands
+	 * the shared builder its sources plus this area's active-element / cursor anchors.  Only the outermost selected
+	 * items move ([eligibleTransformTargets]).  Drops the operator when nothing transformable survives.
 	 *
 	 * @param MeshOperatorKind kind The latched operator.
 	 */
 	fun begin(kind: MeshOperatorKind) {
 		val model = session.model.value
 		val pose = session.pose.value
-		val eligibleIds = eligibleTransformDrawables(session.selection.value, model)
+		val targets = eligibleTransformTargets(session.selection.value, model)
 
 		// A drawable with a hidden ancestor has no world mapping and the batch drops it rather than abort
 		// the whole gesture (the others still transform).  One batch: the deformer chain bakes once per latch.
-		val geometries = captureDrawableWorlds(model, pose, eligibleIds.orEmpty())
-		val geometryById = geometries.associateBy { geometry -> geometry.drawableId }
-
-		// Object mode moves every vertex of each drawable, so the covered set is the whole mesh.  Triangle
-		// connectivity is unused here (WholeMesh pivots, no proportional editing), so an empty array serves.
-		val sources =
-			geometries.map { geometry ->
-				ModalCaptureSource(geometry.drawableId, geometry.world, IntArray(0), geometry.allIndices)
-			}
-
-		// The two per-area anchors the shared builder cannot resolve itself: the active drawable's own
-		// centroid and the 2D cursor.  The builder falls back to the combined median when nothing is active; an
-		// unplaced cursor resolves to the world origin, like the snap commands.
-		val activeAnchor =
-			(session.selection.value.active as? SelectionTarget.Drawable)?.id
-				?.let { activeId -> geometryById[activeId] }
-				?.let { geometry -> MeshTransforms.medianPivot(geometry.world, geometry.allIndices) }
+		val geometries = captureDrawableWorlds(model, pose, targets?.drawableIds.orEmpty())
+		val geometryByOwner = geometries.associateBy { geometry -> geometry.owner }
+		val lattices = captureLatticeWorlds(model, targets?.warpIds.orEmpty())
+		val owners = geometries + lattices
+		// Object mode moves every vertex of each drawable and every point of each lattice.
+		val sources = owners.map { geometry -> geometry.wholeObjectSource() }
+		// The two per-area anchors the shared builder cannot resolve itself: the active item's own centroid and
+		// the 2D cursor.  The builder falls back to the combined median when nothing is active; an unplaced cursor
+		// resolves to the world origin, like the snap commands.
+		val activeAnchor = activeObjectCentroid(session.selection.value.active, owners)
 		val cursorAnchor = session.cursor2dOrWorldOrigin().let { cursor -> cursor.worldX to cursor.worldZ }
 		val transform =
 			buildModalTransformCapture(
 				sources = sources,
 				pivotMode = session.pivotMode.value,
-				// Object mode's Individual Origins turns each whole drawable about its own centroid.
+				// Object mode's Individual Origins turns each whole object about its own centroid.
 				individualOriginScope = IndividualOriginScope.WholeMesh,
 				operatorKind = kind,
 				activeAnchor = activeAnchor,
@@ -129,7 +128,7 @@ internal class ObjectModalTransform(
 			// Nothing transformable survived (all hidden, or the selection changed): drop the operator.
 			session.clearObjectOperator()
 		} else {
-			gesture.begin(ObjectGesture(transform, geometryById), gesture.lastPointer)
+			gesture.begin(ObjectGesture(transform, geometryByOwner), gesture.lastPointer)
 		}
 	}
 
@@ -178,9 +177,10 @@ internal class ObjectModalTransform(
 
 	/**
 	 * Confirms the in-flight object transform at the latest pointer: settles a drive the worker has not
-	 * published yet, commits every drawable's new rest shape as one undo step (a null / empty preview
-	 * means no movement, so nothing commits), registers that step on the operation settings strip over the
-	 * retained capture, then clears the operator - its teardown resyncs the renderer.
+	 * published yet, commits every drawable's new rest shape and every warp moved as a whole as one undo step (a
+	 * null preview means no drive landed, so nothing commits), registers that step on the operation settings strip
+	 * over the retained capture, then clears the operator - its teardown resyncs the renderer.  The warps land on
+	 * the session's model as it is now, by the same affines the drive previewed.
 	 */
 	override fun confirm() {
 		drive.settle()
@@ -188,15 +188,15 @@ internal class ObjectModalTransform(
 		val gestureData = gesture.capture
 		val parameters = gesture.lastParameters
 
-		if (committed != null && gestureData != null && committed.isNotEmpty()) {
+		if (committed != null && gestureData != null && parameters != null) {
 			val transform = gestureData.transform
 			val modelBefore = session.model.value
-			session.commitObjectPositions(MeshChange.TransformDrawables(transform.drawableIds, transform.operatorKind), committed)
+			session.commitObjectMove(transform.entries.mapNotNull { entry -> entry.drawableId }, committed, warpAffinesOf(transform, transform.operatorKind, parameters), transform.operatorKind)
 
-			// A commit that recorded nothing (the drawables landed where they started) has no step of its
-			// own to amend, so it registers nothing.
-			if (parameters != null && session.model.value !== modelBefore) {
-				registerObjectTransformAdjustment(session, areaId, transform, gestureData.geometryById, parameters)
+			// A commit that recorded nothing (everything landed where it started) has no step of its own to
+			// amend, so it registers nothing.
+			if (session.model.value !== modelBefore) {
+				registerObjectTransformAdjustment(session, areaId, transform, gestureData.geometryByOwner, parameters)
 			}
 		}
 
@@ -210,8 +210,8 @@ internal class ObjectModalTransform(
 
 	/**
 	 * Resolves and submits a drive for one virtual-pointer position, on the UI thread: the pointer frame into
-	 * the parameters every drawable applies about the shared pivot (once per event: the Rotate branch
-	 * advances the accumulator, which must see every step) and the model to fold onto.
+	 * the parameters every object applies about its pivot (once per event: the Rotate branch advances the
+	 * accumulator, which must see every step), each warp's affine, and the model to fold onto.
 	 *
 	 * @param MeshOperatorKind operator The latched operator.
 	 * @param Offset virtualPointer The wrap-continuous pointer.
@@ -227,25 +227,34 @@ internal class ObjectModalTransform(
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
 		// Proportional editing is an Edit-mode feature: object mode moves whole drawables, so there are no
 		// unselected vertices to weight.
-		val jobs = meshDriveJobs(transform, gestureData.geometryById, wholeMeshes = true)
+		val jobs = meshDriveJobs(transform, gestureData.geometryByOwner, wholeMeshes = true)
 
-		drive.submit(MeshDriveRequest(operator, parameters, jobs, null, session.model.value))
+		drive.submit(ObjectDriveRequest(MeshDriveRequest(operator, parameters, jobs, null, session.model.value), warpAffinesOf(transform, operator, parameters)))
 
 		return true
 	}
 
 	/**
-	 * Lands one drive on the UI thread: the parameters the confirm hands the strip, the preview, and the
-	 * folded model pushed to the renderer - folded again onto the session's model when a commit replaced the
-	 * one the request folded onto, so the preview always shows the current model.
+	 * Lands one drive on the UI thread: the parameters the confirm hands the strip, the preview, the folded model
+	 * pushed to the renderer when a drawable moved - folded again onto the session's model when a commit replaced
+	 * the one the request folded onto, so the preview always shows the current model - and the moving warps'
+	 * lattices published as the renderer's lattice preview, which moves their art with no model push.
 	 *
-	 * @param MeshDriveRequest request The request.
-	 * @param MeshDriveResult result Its result.
+	 * @param ObjectDriveRequest request The request.
+	 * @param ObjectDriveResult result Its result.
 	 */
-	private fun publishDrive(request: MeshDriveRequest, result: MeshDriveResult) {
-		gesture.lastParameters = request.parameters
-		gesture.preview = result.preview
-		val current = session.model.value
-		pushPreview(if (request.baseModel === current) result.folded else current.withMeshPositions(result.preview))
+	private fun publishDrive(request: ObjectDriveRequest, result: ObjectDriveResult) {
+		val mesh = result.mesh
+		gesture.lastParameters = request.mesh.parameters
+		gesture.preview = mesh.preview
+
+		if (mesh.preview.isNotEmpty()) {
+			val current = session.model.value
+			pushPreview(if (request.mesh.baseModel === current) mesh.folded else current.withMeshPositions(mesh.preview))
+		}
+
+		if (request.warpAffines.isNotEmpty()) {
+			pushLatticePreview(result.previews)
+		}
 	}
 }

@@ -21,7 +21,7 @@ class RegionPickTest {
 	/** A drawable's centroid is the mean of its interleaved vertices; an empty array is skipped. */
 	@Test
 	fun centroidIsVertexMean() {
-		val centroids = drawableCentroids(mapOf(DrawableId("s") to square(), DrawableId("blank") to FloatArray(0)))
+		val centroids = centroidsOf(mapOf(DrawableId("s") to square(), DrawableId("blank") to FloatArray(0)))
 		assertEquals(1f, centroids.getValue(DrawableId("s"))[0], "centroid x")
 		assertEquals(1f, centroids.getValue(DrawableId("s"))[1], "centroid y")
 		assertTrue(DrawableId("blank") !in centroids, "an empty array has no centroid")
@@ -30,7 +30,7 @@ class RegionPickTest {
 	/** Box select selects a drawable whose centroid is inside and excludes one whose centroid is outside. */
 	@Test
 	fun boxSelectsByCentroid() {
-		val centroids = drawableCentroids(mapOf(DrawableId("in") to square(), DrawableId("out") to canvasLayer()))
+		val centroids = centroidsOf(mapOf(DrawableId("in") to square(), DrawableId("out") to canvasLayer()))
 		// A box around (1,1) that does NOT contain the origin.
 		val enclosed = anchorsInBox(centroids, minX = 0.5f, minY = 0.5f, maxX = 1.5f, maxY = 1.5f)
 		assertEquals(setOf(DrawableId("in")), enclosed, "only the drawable centerd in the box is selected")
@@ -39,7 +39,7 @@ class RegionPickTest {
 	/** A box grazing a full-canvas layer's edge does not grab it - its centroid (the origin) is far outside. */
 	@Test
 	fun grazingBoxDoesNotGrabFullCanvasLayer() {
-		val centroids = drawableCentroids(mapOf(DrawableId("canvas") to canvasLayer()))
+		val centroids = centroidsOf(mapOf(DrawableId("canvas") to canvasLayer()))
 		// A box in the top-right corner that overlaps the layer's geometry but not its centroid at the origin.
 		val enclosed = anchorsInBox(centroids, minX = 50f, minY = 50f, maxX = 90f, maxY = 90f)
 		assertTrue(enclosed.isEmpty(), "centroid-inside means a grazing box does not select the whole layer")
@@ -49,7 +49,7 @@ class RegionPickTest {
 	@Test
 	fun circleSelectsByCentroidWithinRadius() {
 		// "near" centroid (1,1) sits at distance sqrt(2) ~= 1.41 from (1,1)'s... the canvas centroid is the origin.
-		val centroids = drawableCentroids(mapOf(DrawableId("near") to square(), DrawableId("far") to canvasLayer()))
+		val centroids = centroidsOf(mapOf(DrawableId("near") to square(), DrawableId("far") to canvasLayer()))
 
 		// Center at (1,1), radius 0.5: the square's centroid (1,1) is inside, the origin (distance ~1.41) is not.
 		assertEquals(setOf(DrawableId("near")), anchorsInCircle(centroids, centerX = 1f, centerY = 1f, radius = 0.5f))

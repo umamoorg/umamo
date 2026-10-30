@@ -23,6 +23,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.settings.Settings
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.model.LocalPuppetRenderSync
@@ -202,9 +203,10 @@ internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession, placemen
 								val islandPick =
 									remember(model, geometries) {
 										val uvsById =
-											geometries.associate { geometry ->
-												geometry.drawableId to displayToUv(geometry.positions, frame.displayWidth, frame.displayHeight)
-											}
+											geometries
+												.mapNotNull { geometry ->
+													geometry.drawableId?.let { drawableId -> drawableId to displayToUv(geometry.positions, frame.displayWidth, frame.displayHeight) }
+												}.toMap()
 										uvIslandPick(geometries = geometries, frontRank = restFrontRank(model), uvsById = uvsById, image = null)
 									}
 								val camera = if (surface.cameraLost) null else fixture.cameraOf(surface)

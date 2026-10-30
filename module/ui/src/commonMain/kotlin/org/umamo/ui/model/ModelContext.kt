@@ -13,10 +13,12 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.viewport.PuppetViewportService
 
 /*
@@ -103,7 +105,17 @@ interface PuppetRenderSync {
 	 */
 	fun previewModel(model: PuppetModel)
 
-	/** Restores the renderer to the session's committed model (a cancelled / torn-down gesture). */
+	/**
+	 * Previews warps at pending lattices at the pose (transient; no undo step), each standing in for its warp's grid
+	 * blend so the art follows - what a Pose-mode lattice edit outside the viewport shows while it is in flight.
+	 * [resync] clears it.  A surface that cannot preview lattices ignores it.
+	 *
+	 * @param Map<DeformerId, WarpLatticeForm> forms Each previewed warp's lattice in its parent's space, before blend
+	 *   shapes.
+	 */
+	fun previewLattices(forms: Map<DeformerId, WarpLatticeForm>) {}
+
+	/** Restores the renderer to the session's committed model and lattices (a cancelled / torn-down gesture). */
 	fun resync()
 }
 

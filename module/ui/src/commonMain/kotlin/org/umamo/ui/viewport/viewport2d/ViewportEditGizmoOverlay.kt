@@ -20,23 +20,28 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.IntSize
-import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.editsElements
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
+import org.umamo.ui.transform.elementEditStageOf
+import org.umamo.ui.transform.rememberElementEditStage
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.selectToolKind
+import org.umamo.ui.viewport.resyncAfterElementGesture
 
 /*
- * The Edit-mode gizmo overlay.  This file is the wiring: what the overlay collects, its guards, what it
- * holds per area and for how long, the effects in the order they launch, and the layer it draws.
+ * The element gizmo overlay of Edit and Pose mode.  This file is the wiring: what the overlay collects, its guards,
+ * what it holds per area and for how long, the effects in the order they launch, and the layer it draws.  What the
+ * two modes do differently - where the elements are captured and how a lattice edit lands - is the stage
+ * (transform/ElementEditStage.kt), read once here and handed to everything below.
  * Its parts:
  *   - EditModalTransform.kt: the commit side of the modal G / S / R and Vertex Slide (capture, drive,
  *     confirm, cancel, the wheel) - the ModalTransformTarget the pointer loop hands a gesture's events to.
@@ -45,7 +50,7 @@ import org.umamo.ui.viewport.gizmo.selectToolKind
  *   - EditGizmoPointerInput.kt: the pointer loop (modal transform, circle brush, idle selection).
  *   - EditGizmoSelection.kt: the marquee and the element pick over mesh elements.
  *   - EditGizmoDraw.kt: the gesture chrome, read in the draw phase.
- *   - EditMeshGeometry.kt: the session meshes' live geometry at the neutral pose, which the picks read.
+ *   - EditMeshGeometry.kt: the session owners' live geometry at the stage, which the picks read.
  *   - MeshOverlayPublish.kt: the wireframe, dots, and face fills as data for the renderer, which draws them
  *     into the frame with the art; the viewport binding publishes them, not this overlay.
  * The collectors' handlers are in SessionRequestHandlers.kt, and the strip registrations in
@@ -53,12 +58,17 @@ import org.umamo.ui.viewport.gizmo.selectToolKind
  */
 
 /**
- * The Edit-mode gizmo overlay: a Compose layer over the offscreen puppet image that runs the element
- * selection and the modal G / S / R operators and draws their gesture chrome.  The mesh itself (the
- * vertices, edges, and faces of the session meshes' rest shape) is drawn by the renderer into the image,
- * from the overlay the viewport binding publishes (MeshOverlayPublish.kt), so it and the art are the same
- * pixels.  It is gated on Edit mode with an active drawable; in Object mode nothing is composed, so pointer
- * input flows untouched to the viewport navigation beneath.
+ * The element gizmo overlay of Edit and Pose mode: a Compose layer over the offscreen puppet image that runs the
+ * element selection and the modal G / S / R operators and draws their gesture chrome.  The mesh itself (the
+ * vertices, edges, and faces of the session meshes' rest shape, or a lattice's points, grid lines, and cells) is
+ * drawn by the renderer into the image, from the overlays the viewport binding publishes (MeshOverlayPublish.kt,
+ * LatticeCagePublish.kt), so it and the art are the same pixels.  It is gated on a mode that edits elements
+ * ([editsElements]) with something in the session; in Object mode nothing is composed, so pointer input flows
+ * untouched to the viewport navigation beneath.
+ *
+ * Pose mode works exactly as Edit mode does over the warps it poses, at the session's pose instead of at rest: a
+ * finished lattice edit is held pending at the pose rather than reshaping the rest lattice, and the art follows the
+ * drag.  The stage ([elementEditStageOf]) carries the difference.
  *
  * Selection follows Blender's select modes (vertex / edge / face, switched by the mesh.selectMode
  * commands): only the current mode's domain is clickable and stored, while the other domains highlight by
@@ -123,18 +133,22 @@ fun ViewportEditGizmoOverlay(
 	// and reach the renderer through the viewport binding.
 	val overlayColors = LocalUmamoColors.current
 
-	val sessionDrawableIds = meshSelection.drawableIds
+	val sessionOwners = meshSelection.owners
 
-	if (mode != EditorMode.Edit || sessionDrawableIds.isEmpty() || camera == null) {
+	if (!mode.editsElements || sessionOwners.isEmpty() || camera == null) {
 		return
 	}
+
+	// Where the elements are captured and how a lattice edit lands: at rest in Edit mode, at the pose with the pending
+	// lattices in place in Pose mode.  Remembered once, so every reader below agrees.
+	val stage = rememberElementEditStage(session)
 
 	// The shared two-tone marching-ants style for the box / circle / crosshair affordances.
 	val overlayStyle = selectionOverlayStyle(overlayColors)
 
-	// Per-session-mesh geometry at the constant neutral pose Edit mode is pinned to.  Keyed on the model
-	// (a commit swaps it) and the session's mesh list; NOT per rendered frame.
-	val liveGeometry = remember(model, sessionDrawableIds) { editMeshGeometries(model, sessionDrawableIds) }
+	// Per-session-owner geometry at the stage: each mesh at rest, or each lattice at rest or at the pose.  Keyed on
+	// the model (a commit swaps it), the session's owners, and the stage; NOT per rendered frame.
+	val liveGeometry = remember(model, sessionOwners, stage) { editOwnerGeometries(model, sessionOwners, stage) }
 
 	// Live values the long-running pointer loop, the marquee callbacks, and the request collectors read
 	// (they are keyed only on areaId / session, so they must not close over a stale camera / size / shape
@@ -142,9 +156,10 @@ fun ViewportEditGizmoOverlay(
 	val liveCamera = rememberUpdatedState(camera)
 	val liveSize = rememberUpdatedState(IntSize(widthPx, heightPx))
 	val liveGeometryState = rememberUpdatedState(liveGeometry)
+	val liveStage = rememberUpdatedState(stage)
 
 	// The keymap-command collectors, mounted above the EMPTY-GEOMETRY guard below but still inside every
-	// guard above it: this overlay is Edit-mode-only and so are these commands, so there is nothing to
+	// guard above it: this overlay serves the element modes only and so do these commands, so there is nothing to
 	// gain by outliving the mode / selection / camera checks, and a second collector live in Object mode
 	// would only duplicate what the object overlay already runs.
 	//
@@ -158,7 +173,7 @@ fun ViewportEditGizmoOverlay(
 	// written once the guard below fires.
 	val overlays = LocalAreaOverlays.current
 	LaunchedEffect(session, areaId, service, overlays) {
-		collectEditGizmoRequests(areaId, session, service, liveGeometryState, liveCamera, liveSize, areaPointer, onOverlapRequest, overlays)
+		collectEditGizmoRequests(areaId, session, service, liveGeometryState, liveStage, liveCamera, liveSize, areaPointer, onOverlapRequest, overlays)
 	}
 
 	if (liveGeometry.isEmpty()) {
@@ -175,7 +190,7 @@ fun ViewportEditGizmoOverlay(
 	// instance they started with (see EditModalTransform).  Its gesture state is what the Box, the pointer
 	// loop, and the chrome read.
 	val livePreview = LocalLiveMeshPreview.current
-	val modalTransform = remember(areaId) { EditModalTransform(areaId, session, service::setModel, livePreview) }
+	val modalTransform = remember(areaId) { EditModalTransform(areaId, session, service::setModel, livePreview, service::setLatticePreview) }
 	val gesture = modalTransform.gesture
 
 	// The drive's worker, alive exactly as long as the transform: each pointer event submits a drive and the
@@ -190,7 +205,7 @@ fun ViewportEditGizmoOverlay(
 	DisposableEffect(modalTransform) {
 		onDispose {
 			if (modalTransform.abandon()) {
-				service.setModel(session.model.value)
+				service.resyncAfterElementGesture(session)
 			}
 
 			marquee.discard()
@@ -247,19 +262,19 @@ fun ViewportEditGizmoOverlay(
 	}
 
 	// Start the modal gesture as an operator latches IN THIS AREA; tear it down (re-syncing the renderer
-	// to the committed model) as it clears.  liveGeometry is the value this composition held when the
-	// operator changed, and meshSelection is read as the effect runs, as the collected state has it.
+	// to the committed model and lattices) as it clears.  liveGeometry and stage are the values this composition held
+	// when the operator changed, and meshSelection is read as the effect runs, as the collected state has it.
 	LaunchedEffect(activeOperator) {
 		val operator = activeOperator?.takeIf { it.areaId == areaId }
 
 		if (operator != null) {
-			modalTransform.begin(operator.kind, liveGeometry, meshSelection)
+			modalTransform.begin(operator.kind, liveGeometry, meshSelection, stage)
 		} else {
 			// Resync the renderer only when THIS overlay owned a gesture: the effect also runs its else
 			// branch at mount (and when another area's operator latches), and an unguarded setModel from
 			// a viewport split open mid-gesture would stomp the initiating area's live preview.
 			if (modalTransform.end()) {
-				service.setModel(session.model.value)
+				service.resyncAfterElementGesture(session)
 			}
 		}
 	}

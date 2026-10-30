@@ -1,7 +1,5 @@
 package org.umamo.render.pick
 
-import org.umamo.runtime.model.DrawableId
-
 /*
  * Region enclosure for object-mode box / circle select.  Object selection is whole-object, so a region
  * selects a drawable by its geometry CENTROID (the mean of its posed world vertices) and a warp by its
@@ -20,16 +18,17 @@ import org.umamo.runtime.model.DrawableId
  */
 
 /**
- * The world-space centroid of each drawable: the mean of its interleaved (x, y) world vertices.  A drawable
- * with an empty array is skipped (it has no centroid to test).
+ * The world-space centroid of each object: the mean of its interleaved (x, y) world points - a drawable's posed
+ * vertices, a warp's lattice points ([latticeCenters]).  An object with an empty array is skipped (it has no
+ * centroid to test).
  *
- * @param Map<DrawableId, FloatArray> worldPositions Interleaved world vertices per drawable.
- * @return Map<DrawableId, FloatArray> A two-element [x, y] centroid per drawable.
+ * @param Map<Key, FloatArray> worldPositions Interleaved world points per object.
+ * @return Map<Key, FloatArray> A two-element [x, y] centroid per object, in the same order.
  */
-fun drawableCentroids(worldPositions: Map<DrawableId, FloatArray>): Map<DrawableId, FloatArray> {
-	val centroids = LinkedHashMap<DrawableId, FloatArray>(worldPositions.size)
+fun <Key> centroidsOf(worldPositions: Map<Key, FloatArray>): Map<Key, FloatArray> {
+	val centroids = LinkedHashMap<Key, FloatArray>(worldPositions.size)
 
-	for ((drawableId, positions) in worldPositions) {
+	for ((key, positions) in worldPositions) {
 		var sumX = 0f
 		var sumY = 0f
 		var vertexCount = 0
@@ -43,7 +42,7 @@ fun drawableCentroids(worldPositions: Map<DrawableId, FloatArray>): Map<Drawable
 		}
 
 		if (vertexCount > 0) {
-			centroids[drawableId] = floatArrayOf(sumX / vertexCount, sumY / vertexCount)
+			centroids[key] = floatArrayOf(sumX / vertexCount, sumY / vertexCount)
 		}
 	}
 
@@ -55,7 +54,7 @@ fun drawableCentroids(worldPositions: Map<DrawableId, FloatArray>): Map<Drawable
  * order.  Boundaries are inclusive.  The caller normalises the corners, so [minX] <= [maxX] and [minY] <= [maxY]
  * is assumed.
  *
- * @param Map<Key, FloatArray> anchors The per-object [x, y] anchors (see [drawableCentroids], latticeCenters).
+ * @param Map<Key, FloatArray> anchors The per-object [x, y] anchors (see [centroidsOf]).
  * @param Float minX The rectangle's low x edge.
  * @param Float minY The rectangle's low y edge.
  * @param Float maxX The rectangle's high x edge.
@@ -84,7 +83,7 @@ fun <Key> anchorsInBox(
  * The objects whose anchor lies within [radius] of ([centerX], [centerY]) in world space (a circle select
  * brush stamp), in the anchors' order.  A point exactly on the circle counts as inside.
  *
- * @param Map<Key, FloatArray> anchors The per-object [x, y] anchors (see [drawableCentroids], latticeCenters).
+ * @param Map<Key, FloatArray> anchors The per-object [x, y] anchors (see [centroidsOf]).
  * @param Float centerX The brush center x in world space.
  * @param Float centerY The brush center y in world space.
  * @param Float radius The brush radius in world units.
