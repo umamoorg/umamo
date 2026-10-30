@@ -15,7 +15,6 @@ import org.umamo.render.puppet.LatticeRole
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
-import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDeformerIds
 import org.umamo.ui.viewport.PuppetViewportService
@@ -112,7 +111,7 @@ internal suspend fun publishLatticeOverlay(
 	val shownModels = session.model.map { model -> model to model.visibleDeformerIds() }
 	val posedAndPending =
 		combine(session.meshSelection, session.pendingLatticeEdits) { meshSelection, pending ->
-			meshSelection.owners.mapNotNullTo(HashSet()) { owner -> (owner as? ElementOwner.Deformer)?.id } to pending.keys
+			meshSelection.deformerIds.toHashSet() to pending.keys
 		}
 	combine(session.mode, session.selection, shownModels, sizes, posedAndPending) { mode, selection, (model, shownDeformers), latticeSizes, (posedIds, pendingIds) ->
 		latticeOverlayOf(mode, selection, model, shownDeformers, latticeSizes, posedIds, pendingIds)

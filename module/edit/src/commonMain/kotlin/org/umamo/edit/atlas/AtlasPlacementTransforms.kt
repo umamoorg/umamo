@@ -7,6 +7,8 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.placementAffine
+import org.umamo.runtime.model.rotationAboutAffine
+import org.umamo.runtime.model.scaleAboutAffine
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -22,7 +24,8 @@ import kotlin.math.sin
  * drift the gizmo must not have.
  *
  * Every affine here is the runtime's 2x3 row-major form (m00, m01, m02, m10, m11, m12) over PAGE
- * pixels, y down, the frame AtlasPlacement is expressed in.
+ * pixels, y down, the frame AtlasPlacement is expressed in; the translate / rotate / scale builders the
+ * operators compose are the runtime's own (Affine2d.kt).
  */
 
 /**
@@ -86,52 +89,6 @@ fun AtlasPlacement.composedWith(pageAffine: FloatArray): AtlasPlacement? {
 		rotationDegrees = (radians * 180.0 / PI).toFloat(),
 	)
 }
-
-/**
- * The page-space translation by ([deltaX], [deltaY]).
- *
- * @param Float deltaX The horizontal move in page pixels.
- * @param Float deltaY The vertical move in page pixels (positive is down).
- * @return FloatArray The affine.
- */
-fun translationAffine(deltaX: Float, deltaY: Float): FloatArray = floatArrayOf(1f, 0f, deltaX, 0f, 1f, deltaY)
-
-/**
- * The page-space rotation by [radians] about ([pivotX], [pivotY]), in the same sense
- * [AtlasPlacement.rotationDegrees] uses - composing this onto a placement adds the angle to it.
- *
- * @param Float pivotX The pivot's x in page pixels.
- * @param Float pivotY The pivot's y in page pixels.
- * @param Float radians The angle.
- * @return FloatArray The affine.
- */
-fun rotationAboutAffine(pivotX: Float, pivotY: Float, radians: Float): FloatArray {
-	val cosine = cos(radians)
-	val sine = sin(radians)
-
-	return floatArrayOf(
-		cosine,
-		-sine,
-		pivotX - cosine * pivotX + sine * pivotY,
-		sine,
-		cosine,
-		pivotY - sine * pivotX - cosine * pivotY,
-	)
-}
-
-/**
- * The page-space scale by ([factorX], [factorY]) about ([pivotX], [pivotY]), along the PAGE axes.
- * Only a uniform factor composes onto a rotated placement; the axis-locked form for a rotated tile is
- * [localAxisScaleAboutAffine].
- *
- * @param Float pivotX  The pivot's x in page pixels.
- * @param Float pivotY  The pivot's y in page pixels.
- * @param Float factorX The horizontal factor.
- * @param Float factorY The vertical factor.
- * @return FloatArray The affine.
- */
-fun scaleAboutAffine(pivotX: Float, pivotY: Float, factorX: Float, factorY: Float): FloatArray =
-	floatArrayOf(factorX, 0f, pivotX - factorX * pivotX, 0f, factorY, pivotY - factorY * pivotY)
 
 /**
  * The page-space scale by ([factorX], [factorY]) about ([pivotX], [pivotY]) along [placement]'s OWN

@@ -22,10 +22,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.combine
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.TrackKeyRef
+import org.umamo.edit.shownPendingLatticeEdits
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.kit.SCROLLBAR_THICKNESS
@@ -43,7 +43,6 @@ import org.umamo.ui.tracks.TrackSheetSeparatorOverlay
 import org.umamo.ui.tracks.TrackWindow
 import org.umamo.ui.tracks.TrackWindowScrollbar
 import org.umamo.ui.tracks.trackWindowGestures
-import org.umamo.ui.viewport.shownPendingLattices
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.KeyformSheetSurface
 import org.umamo.ui.workspace.LocalKeyformSheetViews
@@ -112,7 +111,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	// The warps holding an unkeyed Pose-mode lattice the viewport shows, and the pose it was shaped at: their geometry
 	// rows ring the pose so a rigger sees that keying there would store something new.
 	val shownPendingLattices by remember(session) {
-		session?.let { live -> combine(live.pendingLatticeEdits, live.mode) { pending, mode -> shownPendingLattices(mode, pending) } } ?: MutableStateFlow(emptyMap())
+		session?.shownPendingLatticeEdits ?: MutableStateFlow(emptyMap())
 	}.collectAsState(emptyMap())
 	val sessionPose by remember(session) {
 		session?.pose ?: MutableStateFlow(emptyMap())

@@ -12,6 +12,7 @@ import org.umamo.edit.structure.selectableOf
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.anchorsInBox
 import org.umamo.render.pick.anchorsInCircle
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.ObjectPickCandidate
@@ -92,10 +93,23 @@ internal const val LATTICE_LINE_HIT_RADIUS_PX = 4f
  * @return SelectionTarget? The target, or null on empty canvas.
  */
 internal fun viewportTopmostTarget(service: PuppetViewportService, areaId: String, position: Offset, model: PuppetModel): SelectionTarget? {
-	val lattices = service.latticePicksAt(areaId, position.x, position.y, HIT_RADIUS_PX, LATTICE_LINE_HIT_RADIUS_PX)
+	val lattices = latticesUnder(service, areaId, position)
 
 	return selectableDeformerTargets(lattices, model).firstOrNull() ?: service.pickAt(areaId, position.x, position.y)?.let { drawableId -> SelectionTarget.Drawable(drawableId) }
 }
+
+/**
+ * The warps whose drawn lattice lies under [position] in [areaId], best first, at the viewport's pick radii: a control
+ * point within [HIT_RADIUS_PX], else a grid line within [LATTICE_LINE_HIT_RADIUS_PX].  Every click that can land on a
+ * lattice reads these radii here.
+ *
+ * @param PuppetViewportService service The render service.
+ * @param String areaId The area.
+ * @param Offset position The pointer in area-local pixels.
+ * @return List<DeformerId> The warps, best first.
+ */
+internal fun latticesUnder(service: PuppetViewportService, areaId: String, position: Offset): List<DeformerId> =
+	service.latticePicksAt(areaId, position.x, position.y, HIT_RADIUS_PX, LATTICE_LINE_HIT_RADIUS_PX)
 
 /**
  * Everything an Alt click at [position] in [areaId] lists: the warps whose drawn lattice is under it, best first,
@@ -107,10 +121,7 @@ internal fun viewportTopmostTarget(service: PuppetViewportService, areaId: Strin
  * @return List<ObjectPickCandidate> The stack, unfiltered.
  */
 internal fun viewportPickStack(service: PuppetViewportService, areaId: String, position: Offset): List<ObjectPickCandidate> {
-	val lattices =
-		service.latticePicksAt(areaId, position.x, position.y, HIT_RADIUS_PX, LATTICE_LINE_HIT_RADIUS_PX).map { deformerId ->
-			ObjectPickCandidate(SelectionTarget.Deformer(deformerId))
-		}
+	val lattices = latticesUnder(service, areaId, position).map { deformerId -> ObjectPickCandidate(SelectionTarget.Deformer(deformerId)) }
 
 	return lattices + service.pickAllAt(areaId, position.x, position.y).asObjectPickCandidates()
 }
@@ -120,7 +131,7 @@ internal fun viewportPickStack(service: PuppetViewportService, areaId: String, p
  *
  * @return Set<DrawableId> The selected drawables.
  */
-internal fun Selection.selectedDrawableIds(): Set<DrawableId> = targets.mapNotNull { (it as? SelectionTarget.Drawable)?.id }.toSet()
+internal fun Selection.selectedDrawableIds(): Set<DrawableId> = targets.mapNotNull { target -> (target as? SelectionTarget.Drawable)?.id }.toSet()
 
 /**
  * One Circle-select brush stamp: encloses the objects whose world anchor is within the brush, filters

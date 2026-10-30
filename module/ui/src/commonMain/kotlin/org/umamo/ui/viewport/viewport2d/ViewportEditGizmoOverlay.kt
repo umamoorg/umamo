@@ -28,6 +28,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
 import org.umamo.ui.transform.elementEditStageOf
+import org.umamo.ui.transform.rememberElementEditStage
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.PuppetViewportService
@@ -123,8 +124,6 @@ fun ViewportEditGizmoOverlay(
 	val mode by session.mode.collectAsState()
 	val meshSelection by session.meshSelection.collectAsState()
 	val model by session.model.collectAsState()
-	val pose by session.pose.collectAsState()
-	val pendingLattices by session.pendingLatticeEdits.collectAsState()
 	val activeOperator by session.activeMeshOperator.collectAsState()
 	val activeSelectTool by session.activeSelectTool.collectAsState()
 	// Held as State, not read here: the chrome reads them only while drawing a gesture this area owns.
@@ -141,8 +140,8 @@ fun ViewportEditGizmoOverlay(
 	}
 
 	// Where the elements are captured and how a lattice edit lands: at rest in Edit mode, at the pose with the pending
-	// lattices in place in Pose mode.  Built here once per change of its inputs, so every reader below agrees.
-	val stage = remember(mode, pose, pendingLattices) { elementEditStageOf(mode, pose, pendingLattices) }
+	// lattices in place in Pose mode.  Remembered once, so every reader below agrees.
+	val stage = rememberElementEditStage(session)
 
 	// The shared two-tone marching-ants style for the box / circle / crosshair affordances.
 	val overlayStyle = selectionOverlayStyle(overlayColors)

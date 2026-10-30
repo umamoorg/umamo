@@ -14,6 +14,7 @@ import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.distanceToSegment
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.drawableId
 
 /*
  * The gizmo kit both work surfaces share, the 2D viewport and the UV editor: screen-space hit tests and
@@ -48,7 +49,7 @@ internal class GizmoMeshGeometry(
 	val edges: List<MeshElement.Edge> get() = topology.edges
 
 	/** The drawable whose mesh this is, or null for a lattice; a UV editor's geometry is always a drawable's. */
-	val drawableId: DrawableId? get() = (owner as? ElementOwner.Drawable)?.id
+	val drawableId: DrawableId? get() = owner.drawableId
 }
 
 /**
@@ -137,7 +138,8 @@ internal fun hitTestMeshes(
 }
 
 /**
- * One face's centroid on screen: the mean of its corners' projections.
+ * One face's centroid on screen: its world center ([ElementTopology.faceCenterInto]) projected - the projection is
+ * affine, so this is the mean of its corners' projections.
  *
  * @param GizmoMeshGeometry geometry The mesh's gizmo geometry.
  * @param Int faceIndex The face.
@@ -146,18 +148,10 @@ internal fun hitTestMeshes(
  * @return Offset The centroid in screen pixels.
  */
 private fun faceCentroidOnScreen(geometry: GizmoMeshGeometry, faceIndex: Int, camera: ViewportCamera, size: IntSize): Offset {
-	var sumX = 0f
-	var sumY = 0f
-	val topology = geometry.topology
+	val center = FloatArray(2)
+	geometry.topology.faceCenterInto(geometry.positions, faceIndex, center, 0)
 
-	for (cornerIndex in 0 until topology.cornersPerFace) {
-		val corner = topology.faceCorners[faceIndex * topology.cornersPerFace + cornerIndex]
-		val screen = worldToScreen(geometry.positions[corner * 2], geometry.positions[corner * 2 + 1], camera, size)
-		sumX += screen.x
-		sumY += screen.y
-	}
-
-	return Offset(sumX / topology.cornersPerFace, sumY / topology.cornersPerFace)
+	return worldToScreen(center[0], center[1], camera, size)
 }
 
 /**

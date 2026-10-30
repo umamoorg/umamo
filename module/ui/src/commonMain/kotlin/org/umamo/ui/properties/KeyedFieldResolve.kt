@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Pose
 import org.umamo.edit.keyform.channelValueAt
+import org.umamo.edit.shownPendingLatticeEdits
 import org.umamo.runtime.keyform.keyIndexAt
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
@@ -22,7 +23,6 @@ import org.umamo.ui.kit.field.KeyedFieldState
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalLiveParams
 import org.umamo.ui.model.LocalPuppet
-import org.umamo.ui.viewport.shownPendingLattices
 
 /*
  * Resolving a properties-panel row's keyed state from the session.
@@ -75,10 +75,9 @@ internal fun keyedFieldStateOf(owner: KeyformOwner, channel: FormChannel): Keyed
 internal fun keyedLatticeStateOf(warp: Deformer.Warp): KeyedFieldState {
 	val puppet = LocalPuppet.current ?: return KeyedFieldState.None
 	val session = LocalEditorSession.current ?: return KeyedFieldState.None
-	val pendingLattices by remember(session) { session.pendingLatticeEdits }.collectAsState()
-	val mode by remember(session) { session.mode }.collectAsState()
+	val shownLattices by remember(session) { session.shownPendingLatticeEdits }.collectAsState(emptyMap())
 
-	return keyedGridStateOf(puppet, warp.geometryGrid, displayPose(session), warp.id in shownPendingLattices(mode, pendingLattices))
+	return keyedGridStateOf(puppet, warp.geometryGrid, displayPose(session), warp.id in shownLattices)
 }
 
 /**
@@ -206,7 +205,7 @@ fun keyedFieldStateOf(
  * @param Boolean pending Whether an edit of it is pending.
  * @return KeyedFieldState The state to tint with.
  */
-fun keyedGridStateOf(
+internal fun keyedGridStateOf(
 	puppet: PuppetModel,
 	grid: KeyformGrid<*>?,
 	pose: Pose,

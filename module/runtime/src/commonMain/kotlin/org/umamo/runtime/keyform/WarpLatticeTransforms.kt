@@ -5,6 +5,7 @@ import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.latticeLayout
 
 /*
  * Transforms of a warp's whole lattice: every form it carries, at once.
@@ -28,7 +29,7 @@ import org.umamo.runtime.model.WarpLatticeForm
  * @return Deformer.Warp The shifted warp, or this when [delta] does not hold one pair per control point.
  */
 fun Deformer.Warp.withLatticeShifted(delta: FloatArray): Deformer.Warp {
-	if (delta.size != (rows + 1) * (columns + 1) * 2) {
+	if (delta.size != latticeLayout.pointCount * 2) {
 		return this
 	}
 
@@ -45,42 +46,13 @@ fun Deformer.Warp.withLatticeShifted(delta: FloatArray): Deformer.Warp {
 }
 
 /**
- * This warp with [affine] applied to every point of every lattice it carries: each grid cell and each
- * blend-shape form.  The render channels are untouched.
- *
- * The evaluated lattice is [affine] of the old one at every pose: an affine map commutes with the grid's
- * weighted blend (the weights sum to 1), and a blend shape's contribution, a difference of two lattices, turns
- * with the linear part.  That is what transforming the whole deformer means - its keyed motion goes with it.
- *
- * @param FloatArray affine The 2x3 row-major affine `[a, b, c, d, e, f]`: x' = a x + b y + c, y' = d x + e y + f,
- *   in the warp's parent space (the convention of the uv affines in AtlasPlacement.kt).
- * @return Deformer.Warp The transformed warp, or this when [affine] is not six values.
- */
-fun Deformer.Warp.withLatticeTransformed(affine: FloatArray): Deformer.Warp {
-	if (affine.size != 6) {
-		return this
-	}
-
-	return withEveryLatticeMapped { points ->
-		val transformed = FloatArray(points.size)
-		var componentIndex = 0
-
-		while (componentIndex + 1 < points.size) {
-			val x = points[componentIndex]
-			val y = points[componentIndex + 1]
-			transformed[componentIndex] = affine[0] * x + affine[1] * y + affine[2]
-			transformed[componentIndex + 1] = affine[3] * x + affine[4] * y + affine[5]
-			componentIndex += 2
-		}
-
-		transformed
-	}
-}
-
-/**
  * This warp with [map] applied to the control points of every grid cell and every non-null blend-shape form,
  * the forms' other fields kept: the one walk over every lattice a warp carries, for any edit that must move
  * them all alike (a shift, an affine, a resample onto a new grid, re-expressing a child in a reshaped parent).
+ *
+ * An affine map applied this way ([org.umamo.runtime.model.applyAffine]) moves the evaluated lattice by that affine at
+ * every pose: an affine map commutes with the grid's weighted blend (the weights sum to 1), and a blend shape's
+ * contribution, a difference of two lattices, turns with the linear part.
  *
  * @param Function map Maps one form's interleaved control points to new ones (a fresh array).
  * @return Deformer.Warp The mapped warp.

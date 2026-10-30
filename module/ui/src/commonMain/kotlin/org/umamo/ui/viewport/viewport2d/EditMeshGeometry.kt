@@ -7,18 +7,19 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.render.eval.ParentSpaceMapping
-import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeLayout
+import org.umamo.runtime.model.deformerId
+import org.umamo.runtime.model.drawableId
 import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.transform.captureEditModeMeshes
-import org.umamo.ui.transform.captureLatticeWorld
+import org.umamo.ui.transform.captureLatticeWorlds
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /**
@@ -99,9 +100,6 @@ internal class EditLatticeGeometry(
 ) : EditOwnerGeometry {
 	override val owner: ElementOwner get() = worldGeometry.owner
 
-	/** The warp. */
-	val deformerId: DeformerId get() = worldGeometry.deformerId
-
 	override val topology: ElementTopology = ElementTopology.ofLattice(WarpLatticeLayout(worldGeometry.lattice.rows, worldGeometry.lattice.columns))
 
 	override val worldPosed: FloatArray get() = worldGeometry.world
@@ -124,13 +122,14 @@ internal fun editOwnerGeometries(
 	owners: List<ElementOwner>,
 	stage: ElementEditStage = ElementEditStage.Rest,
 ): List<EditOwnerGeometry> {
-	val drawableIds = owners.mapNotNull { owner -> (owner as? ElementOwner.Drawable)?.id }
-	val meshById = editMeshGeometries(model, drawableIds).associateBy { geometry -> geometry.owner }
+	val meshById = editMeshGeometries(model, owners.mapNotNull { owner -> owner.drawableId }).associateBy { geometry -> geometry.owner }
+	// One bake of every session lattice's chain.
+	val latticeById = captureLatticeWorlds(model, owners.mapNotNull { owner -> owner.deformerId }, stage).associateBy { capture -> capture.owner }
 
 	return owners.mapNotNull { owner ->
 		when (owner) {
 			is ElementOwner.Drawable -> meshById[owner]
-			is ElementOwner.Deformer -> captureLatticeWorld(model, owner.id, stage)?.let { capture -> EditLatticeGeometry(capture) }
+			is ElementOwner.Deformer -> latticeById[owner]?.let { capture -> EditLatticeGeometry(capture) }
 		}
 	}
 }

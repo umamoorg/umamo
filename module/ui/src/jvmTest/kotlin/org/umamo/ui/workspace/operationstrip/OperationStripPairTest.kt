@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performMouseInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.floatValue
 import org.umamo.edit.transform.MeshBounds
@@ -127,7 +128,7 @@ class OperationStripPairTest {
 	 * @param EditorSession session The session.
 	 * @return MeshBounds The bounds.
 	 */
-	private fun boundsOf(session: EditorSession): MeshBounds = assertNotNull(drawableWorldTransform(session.model.value, emptyMap(), drawableId)).bounds
+	private fun boundsOf(session: EditorSession): MeshBounds = assertNotNull(drawableWorldTransform(session.model.value, emptyMap(), drawableId, EditorMode.Object)).bounds
 
 	/** Locked, a typed Scale X scales Scale Z by the same factor, and the drawable re-lands at both. */
 	@Test

@@ -228,9 +228,9 @@ class TransformRowsScrubTest {
 			releaseScrub()
 		}
 
-	/** Posed, the rows show the posed shape and are inert; Edit mode shows the rest shape and edits it there. */
+	/** Posed, the rows show the posed shape and are inert; Edit mode shows the rest shape and is inert too. */
 	@Test
-	fun editModeShowsAndEditsTheRestShape() =
+	fun editModeShowsTheRestShapeButOnlyObjectModeWrites() =
 		runComposeUiTest {
 			val session = sessionSelecting(drawableTarget, posed)
 			val renderSync = RecordingPuppetRenderSync()
@@ -247,10 +247,10 @@ class TransformRowsScrubTest {
 			onNodeWithText(REST_POSITION_X).assertExists()
 
 			pressAndScrub(pointOfText(REST_POSITION_X))
-			assertTrue(renderSync.previewed.isNotEmpty(), "at rest the fields scrub")
 			releaseScrub()
 
-			assertTrue(session.model.value !== before, "the edit lands rather than being refused for the held pose")
+			assertTrue(renderSync.previewed.isEmpty(), "Edit mode shapes interiors, so the rows do not write")
+			assertSame(before, session.model.value)
 			assertEquals(posed, session.pose.value, "the pinned pose is held as it is")
 		}
 
@@ -297,6 +297,33 @@ class TransformRowsScrubTest {
 			pressAndScrub(pointOfText(WARP_POSITION_X))
 			releaseScrub()
 			assertTrue(renderSync.previewed.isEmpty(), "Edit mode shapes a lattice without moving the art, so the rows do not move the warp")
+			assertSame(before, session.model.value)
+		}
+
+	/** A warp the pose does not draw has no box: one note stands for the pair of rows, not one each. */
+	@Test
+	fun aWarpThePoseHidesShowsOneNoteForBothRows() =
+		runComposeUiTest {
+			val session = sessionSelecting(warpTarget, mapOf(parameterId to 2f))
+			mountTransformRows(session, warpTarget, RecordingPuppetRenderSync())
+
+			onAllNodesWithText(UNAVAILABLE_NOTE).assertCountEquals(1)
+		}
+
+	/** Pose mode poses the warp rather than moving it, so its rows are inert there as in Edit mode. */
+	@Test
+	fun aWarpsRowsAreInertInPoseMode() =
+		runComposeUiTest {
+			val session = sessionSelecting(warpTarget)
+			runOnIdle { session.setMode(EditorMode.Pose) }
+			val renderSync = RecordingPuppetRenderSync()
+			mountTransformRows(session, warpTarget, renderSync)
+			val before = session.model.value
+
+			pressAndScrub(pointOfText(WARP_POSITION_X))
+			releaseScrub()
+
+			assertTrue(renderSync.previewed.isEmpty(), "Pose mode poses the warp, so the rows do not move it")
 			assertSame(before, session.model.value)
 		}
 
@@ -371,19 +398,18 @@ class TransformRowsScrubTest {
 			assertEquals(1, renderSync.resyncs, "and its release resyncs nothing more")
 		}
 
-	/** Leaving Edit mode on a posed rig mid-drag disables the field; its preview goes and nothing lands. */
+	/** Leaving Object mode mid-drag disables the field; its preview goes and nothing lands. */
 	@Test
-	fun leavingEditModeMidScrubOnAPosedRigDropsThePreview() =
+	fun leavingObjectModeMidScrubDropsThePreview() =
 		runComposeUiTest {
-			val session = sessionSelecting(drawableTarget, posed)
-			runOnIdle { session.setMode(EditorMode.Edit) }
+			val session = sessionSelecting(drawableTarget)
 			val renderSync = RecordingPuppetRenderSync()
 			mountTransformRows(session, drawableTarget, renderSync)
 			val before = session.model.value
 
 			pressAndScrub(pointOfText(REST_POSITION_X))
 			assertTrue(renderSync.previewed.isNotEmpty(), "precondition: the scrub previewed")
-			runOnIdle { session.setMode(EditorMode.Object) }
+			runOnIdle { session.setMode(EditorMode.Edit) }
 			waitForIdle()
 
 			assertEquals(1, renderSync.resyncs, "the disabled field's preview must go")
@@ -514,7 +540,7 @@ class TransformRowsScrubTest {
 	 * @param PuppetModel model The model.
 	 * @return MeshBounds The bounds.
 	 */
-	private fun worldBoundsOf(model: PuppetModel): MeshBounds = drawableWorldTransform(model, emptyMap(), drawableId)!!.bounds
+	private fun worldBoundsOf(model: PuppetModel): MeshBounds = drawableWorldTransform(model, emptyMap(), drawableId, EditorMode.Object)!!.bounds
 
 	/**
 	 * The rotation deformer's base angle in [model].
@@ -553,6 +579,9 @@ class TransformRowsScrubTest {
 
 		/** The warp's Position X: its lattice's center, at rest and posed alike. */
 		const val WARP_POSITION_X = "150.0"
+
+		/** The note a Transform row shows for an item with no box at the pose. */
+		const val UNAVAILABLE_NOTE = "This item has no placement to show."
 
 		/** Far enough past the drag slop to move every field by several steps. */
 		const val SCRUB_PIXELS = 90f

@@ -117,12 +117,7 @@ fun EditorSession.switchEditOwner(owner: ElementOwner) {
 
 	elementMemory.stash(meshSelection.value)
 	elementMemory.lastActiveOwner = owner
-	val target =
-		when (owner) {
-			is ElementOwner.Drawable -> SelectionTarget.Drawable(owner.id)
-			is ElementOwner.Deformer -> SelectionTarget.Deformer(owner.id)
-		}
-	val newObjectSelection = SelectionOps.replace(target)
+	val newObjectSelection = SelectionOps.replace(owner.toSelectionTarget())
 	val newMeshSelection = elementMemory.restore(MeshSelection.editing(listOf(owner)), model)
 
 	if (newObjectSelection == selection.value && newMeshSelection == meshSelection.value) {

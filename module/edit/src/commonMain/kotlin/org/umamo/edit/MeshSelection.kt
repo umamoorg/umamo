@@ -1,7 +1,10 @@
 package org.umamo.edit
 
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.deformerId
+import org.umamo.runtime.model.drawableId
 
 /**
  * The Edit-mode selection domain, mirroring Blender's vertex / edge / face select modes: which kind of
@@ -78,7 +81,7 @@ sealed interface MeshElement {
  */
 data class ActiveMeshElement(val owner: ElementOwner, val element: MeshElement) {
 	/** The drawable the element lives on, or null when it lives on a lattice. */
-	val drawableId: DrawableId? get() = (owner as? ElementOwner.Drawable)?.id
+	val drawableId: DrawableId? get() = owner.drawableId
 }
 
 /**
@@ -124,10 +127,16 @@ data class MeshSelection(
 	val size: Int get() = elementsByOwner.values.sumOf { elements -> elements.size }
 
 	/** The session's drawables, in session order: its owners that are meshes, for a surface that edits only those. */
-	val drawableIds: List<DrawableId> get() = owners.mapNotNull { owner -> (owner as? ElementOwner.Drawable)?.id }
+	val drawableIds: List<DrawableId> get() = owners.mapNotNull { owner -> owner.drawableId }
+
+	/** The session's warps, in session order: its owners that are lattices. */
+	val deformerIds: List<DeformerId> get() = owners.mapNotNull { owner -> owner.deformerId }
+
+	/** Whether the session edits lattices alone: it holds owners, and every one is a warp's lattice. */
+	val editsLattices: Boolean get() = owners.isNotEmpty() && owners.all { owner -> owner is ElementOwner.Deformer }
 
 	/** The active owner when it is a drawable, or null when the session is inert or edits lattices. */
-	val activeDrawableId: DrawableId? get() = (activeOwner as? ElementOwner.Drawable)?.id
+	val activeDrawableId: DrawableId? get() = activeOwner?.drawableId
 
 	/**
 	 * The selected elements of one owner (empty when it has no selection or is not in the session).

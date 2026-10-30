@@ -6,6 +6,7 @@ import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.TransformPivotMode
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.drawableId
 
 /**
  * How Individual Origins ([TransformPivotMode.IndividualOrigins]) partitions one mesh into pivot groups.
@@ -69,7 +70,7 @@ class ModalCaptureEntry internal constructor(
 	val groups: List<TransformPivotGroup>,
 ) {
 	/** The drawable these points belong to, or null for a lattice. */
-	val drawableId: DrawableId? get() = (owner as? ElementOwner.Drawable)?.id
+	val drawableId: DrawableId? get() = owner.drawableId
 
 	/** The proportional-editing halo: influenced unselected vertices to weight, empty when proportional is off. */
 	var influence: Map<Int, ProportionalInfluence> = emptyMap()

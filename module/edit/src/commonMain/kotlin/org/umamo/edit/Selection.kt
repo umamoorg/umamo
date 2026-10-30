@@ -8,6 +8,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.deformerChain
 
 /**
  * A selectable rig entity, addressed by its typed id. A closed taxonomy (part, drawable, or deformer)
@@ -349,7 +350,7 @@ fun eligibleTransformDrawables(selection: Selection, model: PuppetModel): List<D
 	val drawableIds = ArrayList<DrawableId>(selection.size)
 
 	for (target in selection.targets) {
-		// Parts and deformers cannot be transformed yet (see the docblock); skip them, not the gesture.
+		// Parts and deformers are not this function's items (see the docblock); skip them, not the operation.
 		val drawableTarget = target as? SelectionTarget.Drawable ?: continue
 		// A drawable that carries no source geometry has no positions to move; skip it too.
 		val drawable = model.drawables.firstOrNull { it.id == drawableTarget.id }
@@ -396,7 +397,6 @@ fun eligibleTransformTargets(selection: Selection, model: PuppetModel): Transfor
 	}
 
 	val drawableById = model.drawables.associateBy { drawable -> drawable.id }
-	val parentByDeformer = model.deformers.associate { deformer -> deformer.id to deformer.parent }
 	val drawableIds = ArrayList<DrawableId>(selection.size)
 	val warpIds = LinkedHashSet<DeformerId>()
 
@@ -418,8 +418,8 @@ fun eligibleTransformTargets(selection: Selection, model: PuppetModel): Transfor
 		}
 	}
 
-	val outerDrawables = drawableIds.filterNot { drawableId -> movesWithAncestor(drawableById[drawableId]?.parentDeformerId, warpIds, parentByDeformer) }
-	val outerWarps = warpIds.filterNot { warpId -> movesWithAncestor(parentByDeformer[warpId], warpIds, parentByDeformer) }
+	val outerDrawables = drawableIds.filterNot { drawableId -> model.movesWithAncestor(drawableById[drawableId]?.parentDeformerId, warpIds) }
+	val outerWarps = warpIds.filterNot { warpId -> model.movesWithAncestor(model.deformerById[warpId]?.parent, warpIds) }
 
 	if (outerDrawables.isEmpty() && outerWarps.isEmpty()) {
 		return null
@@ -429,25 +429,11 @@ fun eligibleTransformTargets(selection: Selection, model: PuppetModel): Transfor
 }
 
 /**
- * Whether the deformer chain from [parent] up holds one of [movingWarps], a parent the model does not hold or a
- * cycle ending the walk.
+ * Whether the deformer chain from [parent] up ([deformerChain]) holds one of [movingWarps].
  *
  * @param DeformerId? parent The first deformer up the chain, or null at the root.
  * @param Set<DeformerId> movingWarps The warps that move.
- * @param Map<DeformerId, DeformerId?> parentByDeformer Each deformer's parent.
  * @return Boolean True when an ancestor moves.
  */
-private fun movesWithAncestor(parent: DeformerId?, movingWarps: Set<DeformerId>, parentByDeformer: Map<DeformerId, DeformerId?>): Boolean {
-	var current = parent
-	val seen = HashSet<DeformerId>()
-
-	while (current != null && seen.add(current)) {
-		if (current in movingWarps) {
-			return true
-		}
-
-		current = parentByDeformer[current]
-	}
-
-	return false
-}
+private fun PuppetModel.movesWithAncestor(parent: DeformerId?, movingWarps: Set<DeformerId>): Boolean =
+	parent != null && deformerChain(parent).any { deformer -> deformer.id in movingWarps }

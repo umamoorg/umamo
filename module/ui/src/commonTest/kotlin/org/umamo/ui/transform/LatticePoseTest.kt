@@ -14,6 +14,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.ui.assertArrayNear
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -145,27 +146,6 @@ class LatticePoseTest {
 			}
 		}
 
-	/**
-	 * Asserts two position arrays agree within [tolerance].
-	 *
-	 * @param FloatArray expected The expected positions.
-	 * @param FloatArray actual The actual positions.
-	 * @param Float tolerance The allowed difference.
-	 * @param String message What is compared.
-	 */
-	private fun assertNear(
-		expected: FloatArray,
-		actual: FloatArray,
-		tolerance: Float,
-		message: String,
-	) {
-		assertEquals(expected.size, actual.size, message)
-
-		for (componentIndex in expected.indices) {
-			assertEquals(expected[componentIndex], actual[componentIndex], tolerance, "$message at $componentIndex")
-		}
-	}
-
 	@Test
 	fun movedPointsLandOnTheirTargetsAtEveryOffKeyPose() {
 		val model = model()
@@ -180,9 +160,9 @@ class LatticePoseTest {
 			val form = assertNotNull(forms[outerId])
 			val after = assertNotNull(warpLatticeAt(model, pose, outerId, forms))
 
-			assertNear(target, after.world, 1e-3f, "the posed lattice is where it was dragged at $pose")
+			assertArrayNear(target, after.world, 1e-3f, "the posed lattice is where it was dragged at $pose")
 			// The pending form is the grid's own share: the blend shape adds on top of it to give what is shown.
-			assertNear(after.local, FloatArray(form.controlPoints.size) { componentIndex -> form.controlPoints[componentIndex] + (before.local[componentIndex] - before.gridLocal[componentIndex]) }, 1e-3f, "the blend shape is taken out")
+			assertArrayNear(after.local, FloatArray(form.controlPoints.size) { componentIndex -> form.controlPoints[componentIndex] + (before.local[componentIndex] - before.gridLocal[componentIndex]) }, 1e-3f, "the blend shape is taken out")
 		}
 	}
 
@@ -196,11 +176,11 @@ class LatticePoseTest {
 		val everyOuterPoint = (0 until 4).toSet()
 
 		val followed = posedLatticeForms(model, stage, mapOf(outerId to shifted(outerBefore, everyOuterPoint, 6f, 3f), innerId to innerBefore), mapOf(outerId to everyOuterPoint, innerId to emptySet()))
-		assertNear(shifted(innerBefore, everyOuterPoint, 6f, 3f), assertNotNull(warpLatticeAt(model, pose, innerId, followed)).world, 1e-3f, "the unmoved inner warp rides its moved parent")
+		assertArrayNear(shifted(innerBefore, everyOuterPoint, 6f, 3f), assertNotNull(warpLatticeAt(model, pose, innerId, followed)).world, 1e-3f, "the unmoved inner warp rides its moved parent")
 
 		val innerTarget = shifted(shifted(innerBefore, everyOuterPoint, 6f, 3f), setOf(2), -2f, 1f)
 		val both = posedLatticeForms(model, stage, mapOf(innerId to innerTarget, outerId to shifted(outerBefore, everyOuterPoint, 6f, 3f)), mapOf(outerId to everyOuterPoint, innerId to setOf(2)))
-		assertNear(innerTarget, assertNotNull(warpLatticeAt(model, pose, innerId, both)).world, 1e-3f, "parents first: the inner point lands through the moved parent")
+		assertArrayNear(innerTarget, assertNotNull(warpLatticeAt(model, pose, innerId, both)).world, 1e-3f, "parents first: the inner point lands through the moved parent")
 	}
 
 	@Test
@@ -213,7 +193,7 @@ class LatticePoseTest {
 
 		val forms = posedLatticeForms(model, stage, mapOf(outerId to shifted(shown, setOf(2), 0f, -3f)), mapOf(outerId to setOf(2)))
 
-		assertNear(shifted(shown, setOf(2), 0f, -3f), assertNotNull(warpLatticeAt(model, pose, outerId, forms)).world, 1e-3f, "the second shape builds on the first")
+		assertArrayNear(shifted(shown, setOf(2), 0f, -3f), assertNotNull(warpLatticeAt(model, pose, outerId, forms)).world, 1e-3f, "the second shape builds on the first")
 	}
 
 	@Test

@@ -1,13 +1,11 @@
 package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.EditorSession
-import org.umamo.edit.ElementTopology
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.editsElements
 import org.umamo.edit.eligibleTransformDrawables
 import org.umamo.ui.transform.WorldExtent
 import org.umamo.ui.transform.captureDrawableWorlds
-import org.umamo.ui.transform.captureEditModeMeshes
 import org.umamo.ui.transform.coveredVerticesOf
 import org.umamo.ui.transform.coveredWorldExtent
 import org.umamo.ui.transform.elementEditStage
@@ -17,9 +15,9 @@ import org.umamo.ui.viewport.ServiceCameraController
 
 /**
  * The 2D viewport's camera controller for one viewport area.  Frame Selected frames world-space posed
- * geometry: in Edit mode the covered vertices of the session selection at the neutral pose, in Object
- * and Pose mode the selected drawables' whole posed geometry and the selected warps' lattices at the live
- * pose - matching what the viewport shows.
+ * geometry: in Edit and Pose mode the covered vertices or lattice points of the session selection, at rest in
+ * Edit mode and at the pose in Pose mode; in Object mode the selected drawables' whole posed geometry and the
+ * selected warps' lattices at the live pose - matching what the viewport shows.
  *
  * @property PuppetViewportService service The render service holding this area's camera.
  * @property EditorSession session The session whose selection / pose Frame Selected reads.

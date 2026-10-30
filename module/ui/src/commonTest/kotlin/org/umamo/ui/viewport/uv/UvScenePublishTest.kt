@@ -67,7 +67,7 @@ class UvScenePublishTest {
 			val content = publish.service.pushedUvContents.last().content as UvSceneContent.AtlasPage
 			val preview = assertNotNull(content.placement)
 			assertEquals(1, preview.crops.size, "the mover's crop rides the page")
-			assertSame(drag.previewPositionsById.getValue(UV_RIG_QUAD), assertNotNull(content.overlay).positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], "with the island moved beside it")
+			assertSame(drag.previewPositionsById.getValue(UV_RIG_QUAD), assertNotNull(content.overlay).positionsByOwner[ElementOwner.Drawable(UV_RIG_QUAD)], "with the island moved beside it")
 
 			publish.placement.value = UvPlacementScene(uvRigPlacementDrag(session.model.value, deltaTexels = 20f), null)
 			runCurrent()
@@ -103,7 +103,7 @@ class UvScenePublishTest {
 			assertEquals(0, content.pageIndex)
 			val overlay = assertNotNull(content.overlay, "the wireframe rides the page")
 			assertEquals(listOf(UV_RIG_QUAD), overlay.overlay.meshes.map { mesh -> mesh.drawableOwnerId })
-			assertSame(publish.scene.value.geometries.first().positions, overlay.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], "over the shown positions")
+			assertSame(publish.scene.value.geometries.first().positions, overlay.positionsByOwner[ElementOwner.Drawable(UV_RIG_QUAD)], "over the shown positions")
 
 			session.setMode(EditorMode.Object)
 			runCurrent()
@@ -176,7 +176,7 @@ class UvScenePublishTest {
 			val after = assertNotNull(publish.service.pushedUvContents.last().content.overlay)
 			assertEquals(2, publish.service.pushedUvContents.size)
 			assertEquals(MeshOverlaySizes(7f, 2f, 5f), after.overlay.sizes, "at the new sizes")
-			assertSame(before.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], after.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], "over the same positions")
+			assertSame(before.positionsByOwner[ElementOwner.Drawable(UV_RIG_QUAD)], after.positionsByOwner[ElementOwner.Drawable(UV_RIG_QUAD)], "over the same positions")
 		}
 
 	/**

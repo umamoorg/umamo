@@ -107,24 +107,22 @@ class LatticeLayerTest {
 	}
 
 	@Test
-	fun theLayerDrawsIdleFirstAndActiveLast() {
+	fun theLayerHoldsEachLatticeInModelOrderStyledByItsRole() {
 		val lattices = latticesAt(latticeRigModel(), emptyMap())
 		val roles = mapOf(LATTICE_RIG_OUTER to LatticeRole.Active, LATTICE_RIG_INNER to LatticeRole.Idle, LATTICE_RIG_RANGED to LatticeRole.Selected)
 
 		val layer = assertNotNull(latticeLayerOf(LatticeOverlay(roles, sizes), lattices, null))
+		val modelOrder = lattices.keys.filter { warpId -> warpId in roles }
 
 		assertEquals(MeshOverlayKind.Lattice, layer.overlay.kind)
-		assertEquals(
-			listOf(LATTICE_RIG_INNER, LATTICE_RIG_RANGED, LATTICE_RIG_OUTER).map { warpId -> ElementOwner.Deformer(warpId) },
-			layer.overlay.meshes.map { mesh -> mesh.owner },
-		)
-		assertEquals(listOf(LatticeRole.Idle, LatticeRole.Selected, LatticeRole.Active), layer.overlay.meshes.map { mesh -> mesh.latticeRole })
+		assertEquals(modelOrder.map { warpId -> ElementOwner.Deformer(warpId) }, layer.overlay.meshes.map { mesh -> mesh.owner })
+		assertEquals(modelOrder.map { warpId -> MeshStyle.Lattice(roles.getValue(warpId), pending = false) }, layer.overlay.meshes.map { mesh -> mesh.style })
 
 		for (mesh in layer.overlay.meshes) {
 			val lattice = assertNotNull(lattices[(mesh.owner as ElementOwner.Deformer).id])
-			assertSame(lattice.world, layer.positionsById[mesh.owner], "${mesh.owner} draws the lattice's own points")
+			assertSame(lattice.world, layer.positionsByOwner[mesh.owner], "${mesh.owner} draws the lattice's own points")
 			assertSame(lattice.layout.edgeEndpoints, mesh.edgeEndpoints, "${mesh.owner} draws the grid lines")
-			assertEquals(0, assertNotNull(layer.triangleIndicesById[mesh.owner]).size, "${mesh.owner} has no triangles to draw")
+			assertEquals(0, assertNotNull(layer.triangleIndicesByOwner[mesh.owner]).size, "${mesh.owner} has no triangles to draw")
 		}
 	}
 

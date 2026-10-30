@@ -10,13 +10,15 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.editsElements
-import org.umamo.render.eval.warpLatticeAt
+import org.umamo.edit.shownPendingLatticeEdits
+import org.umamo.render.eval.WarpLatticeResolver
 import org.umamo.render.puppet.DirectMeshOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ElementOwner
@@ -25,11 +27,11 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.latticeLayout
 import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.viewport.gizmo.EditCageEntries
 import org.umamo.ui.viewport.gizmo.NO_OVERLAY_FLAGS
 import org.umamo.ui.viewport.gizmo.editCageFlagsOf
 import org.umamo.ui.viewport.gizmo.overlaySelectModeOf
-import org.umamo.ui.viewport.gizmo.sameOverlayEntries
-import org.umamo.ui.viewport.shownPendingLattices
+import org.umamo.ui.viewport.gizmo.reusedOverlay
 
 /*
  * The 2D viewport's lattice cage: the cage of each warp an Edit or Pose session shapes, drawn from positions of its
@@ -63,49 +65,6 @@ internal class LatticeDragPreview(
  * Not thread-safe: one sequential derive owns it.
  */
 internal class LatticeCageProducer {
-	/**
-	 * One lattice's cage topology: its points, grid lines, and cells, the triangles its cells fill as, and the face-dot
-	 * anchors that put both triangles' dot at the cell's center.
-	 *
-	 * @property Int rows The lattice's cell count along v.
-	 * @property Int columns The lattice's cell count along u.
-	 * @property ElementTopology elements Its points, grid lines, and cells.
-	 * @property IntArray triangleIndices Two triangles per cell, cell by cell.
-	 * @property IntArray faceDotCorners Three anchors per triangle, each the cell's center vertex.
-	 */
-	private class CageTopology(
-		val rows: Int,
-		val columns: Int,
-		val elements: ElementTopology,
-		val triangleIndices: IntArray,
-		val faceDotCorners: IntArray,
-	) {
-		/** The lattice's own points, which draw vertex dots. */
-		val pointCount: Int get() = elements.vertexCount
-
-		/** The points and the appended cell centers. */
-		val vertexCount: Int get() = elements.vertexCount + elements.faceCount
-	}
-
-	/**
-	 * One lattice's last entry and what it was built from.
-	 *
-	 * @property Set<MeshElement> elements The selected set it reflects (compared by identity).
-	 * @property MeshElement? active The active element it reflects.
-	 * @property MeshSelectMode selectMode The select mode it reflects.
-	 * @property CageTopology topology The topology it was built over (compared by identity).
-	 * @property Boolean pending Whether it is marked as an unkeyed Pose-mode shape.
-	 * @property MeshOverlayMesh entry The entry.
-	 */
-	private class Entry(
-		val elements: Set<MeshElement>,
-		val active: MeshElement?,
-		val selectMode: MeshSelectMode,
-		val topology: CageTopology,
-		val pending: Boolean,
-		val entry: MeshOverlayMesh,
-	)
-
 	/**
 	 * What an evaluated lattice was read off, each compared by identity.
 	 *
@@ -141,7 +100,7 @@ internal class LatticeCageProducer {
 	)
 
 	private val topologyById = HashMap<DeformerId, CageTopology>()
-	private val entryById = HashMap<DeformerId, Entry>()
+	private val cageEntries = EditCageEntries<CageTopology>()
 	private val evaluatedById = HashMap<DeformerId, CagePositions>()
 	private val liveById = HashMap<DeformerId, CagePositions>()
 	private var lastOverlay: MeshOverlay? = null
@@ -173,7 +132,7 @@ internal class LatticeCageProducer {
 	): DirectMeshOverlay? {
 		val latticeIds =
 			if (mode.editsElements) {
-				selection.owners.mapNotNullTo(LinkedHashSet()) { owner -> (owner as? ElementOwner.Deformer)?.id }
+				selection.deformerIds.toCollection(LinkedHashSet())
 			} else {
 				emptySet()
 			}
@@ -183,7 +142,7 @@ internal class LatticeCageProducer {
 		val overrides = if (dragForms == null) pending else pending + dragForms
 
 		topologyById.keys.retainAll(latticeIds)
-		entryById.keys.retainAll(latticeIds)
+		cageEntries.retainOnly(latticeIds.mapTo(HashSet(latticeIds.size)) { deformerId -> ElementOwner.Deformer(deformerId) })
 		evaluatedById.keys.retainAll(latticeIds)
 		liveById.keys.retainAll(liveWorldById?.keys.orEmpty())
 
@@ -200,13 +159,16 @@ internal class LatticeCageProducer {
 		val trianglesById = LinkedHashMap<ElementOwner, IntArray>(latticeIds.size)
 
 		val source = EvaluationSource(model, pose, overrides)
+		// One bake of the session lattices' chains, made only when a lattice's cached positions no longer hold.
+		val resolver = lazy(LazyThreadSafetyMode.NONE) { WarpLatticeResolver(model, pose, overrides, latticeIds) }
 
 		for (deformerId in latticeIds) {
 			val warp = warpById[deformerId] ?: continue
 			val topology = topologyOf(deformerId, warp)
-			val positions = livePositionsOf(deformerId, topology, liveWorldById?.get(deformerId)) ?: evaluatedPositionsOf(deformerId, source, topology) ?: continue
+			val positions = livePositionsOf(deformerId, topology, liveWorldById?.get(deformerId)) ?: evaluatedPositionsOf(deformerId, source, resolver, topology) ?: continue
 			val owner = ElementOwner.Deformer(deformerId)
-			entries.add(entryOf(deformerId, owner, topology, selection, deformerId in pending))
+			val style = if (deformerId in pending) MeshStyle.PendingCage else MeshStyle.Plain
+			entries.add(cageEntries.entryOf(owner, topology, selection, style) { elements, active, selectMode -> cageEntryOf(owner, topology, elements, active, selectMode, style) })
 			positionsById[owner] = positions
 			trianglesById[owner] = topology.triangleIndices
 		}
@@ -239,18 +201,11 @@ internal class LatticeCageProducer {
 			return null
 		}
 
-		val previousOverlay = lastOverlay
-		val overlay =
-			if (previousOverlay != null && previousOverlay.selectMode == selectMode && previousOverlay.sizes == sizes && sameOverlayEntries(previousOverlay.meshes, entries)) {
-				previousOverlay
-			} else {
-				MeshOverlay(MeshOverlayKind.Edit, selectMode, entries, sizes)
-			}
-
+		val overlay = reusedOverlay(lastOverlay, MeshOverlayKind.Edit, selectMode, entries, sizes)
 		lastOverlay = overlay
 		val previousCage = lastCage
 
-		if (previousCage != null && previousCage.overlay === overlay && samePositions(previousCage.positionsById, positionsById)) {
+		if (previousCage != null && previousCage.overlay === overlay && samePositions(previousCage.positionsByOwner, positionsById)) {
 			return previousCage
 		}
 
@@ -274,18 +229,7 @@ internal class LatticeCageProducer {
 			return cached
 		}
 
-		val layout = warp.latticeLayout
-		val elements = ElementTopology.ofLattice(layout)
-		val faceDotCorners = IntArray(layout.cellCount * 6)
-
-		for (cellIndex in 0 until layout.cellCount) {
-			faceDotCorners.fill(layout.pointCount + cellIndex, cellIndex * 6, cellIndex * 6 + 6)
-		}
-
-		val topology = CageTopology(warp.rows, warp.columns, elements, layout.cellTriangles, faceDotCorners)
-		topologyById[deformerId] = topology
-
-		return topology
+		return cageTopologyOf(warp).also { topology -> topologyById[deformerId] = topology }
 	}
 
 	/**
@@ -322,10 +266,11 @@ internal class LatticeCageProducer {
 	 *
 	 * @param DeformerId deformerId The warp.
 	 * @param EvaluationSource source The model, pose, and lattices to read it off.
+	 * @param Lazy<WarpLatticeResolver> resolver The source's lattice resolver, baked on first use.
 	 * @param CageTopology topology Its topology.
 	 * @return FloatArray? The cage positions, or null when the pose does not draw the warp.
 	 */
-	private fun evaluatedPositionsOf(deformerId: DeformerId, source: EvaluationSource, topology: CageTopology): FloatArray? {
+	private fun evaluatedPositionsOf(deformerId: DeformerId, source: EvaluationSource, resolver: Lazy<WarpLatticeResolver>, topology: CageTopology): FloatArray? {
 		val cached = evaluatedById[deformerId]
 		val fits = cached != null && cached.cage.size == topology.vertexCount * 2
 
@@ -333,7 +278,7 @@ internal class LatticeCageProducer {
 			return cached.cage
 		}
 
-		val world = warpLatticeAt(source.model, source.pose, deformerId, source.overrides)?.world
+		val world = resolver.value.lattice(deformerId)?.world
 
 		if (world == null || world.size != topology.pointCount * 2) {
 			evaluatedById.remove(deformerId)
@@ -349,123 +294,6 @@ internal class LatticeCageProducer {
 
 		val cage = cagePositionsOf(world, topology)
 		evaluatedById[deformerId] = CagePositions(source, world, cage)
-
-		return cage
-	}
-
-	/**
-	 * A lattice's entry, kept while its selected set (by identity), active element, select mode, topology, and pending
-	 * mark are the ones it was built from.
-	 *
-	 * @param DeformerId deformerId The warp.
-	 * @param ElementOwner owner The lattice's owner.
-	 * @param CageTopology topology Its topology.
-	 * @param MeshSelection selection The selection to show.
-	 * @param Boolean pending Whether the warp holds an unkeyed Pose-mode shape.
-	 * @return MeshOverlayMesh The entry.
-	 */
-	private fun entryOf(
-		deformerId: DeformerId,
-		owner: ElementOwner,
-		topology: CageTopology,
-		selection: MeshSelection,
-		pending: Boolean,
-	): MeshOverlayMesh {
-		val elements = selection.elementsOf(owner)
-		val active = selection.activeElement?.takeIf { activeElement -> activeElement.owner == owner }?.element
-		val cached = entryById[deformerId]
-
-		if (cached != null && cached.elements === elements && cached.active == active && cached.selectMode == selection.selectMode && cached.topology === topology && cached.pending == pending) {
-			return cached.entry
-		}
-
-		val entry = buildEntry(owner, topology, elements, active, selection.selectMode, pending)
-		entryById[deformerId] = Entry(elements, active, selection.selectMode, topology, pending, entry)
-
-		return entry
-	}
-
-	/**
-	 * Builds one lattice's entry: its points' and grid lines' flags as the mesh derive lights them, the appended
-	 * centers left idle and drawing no vertex dot, and each cell's flag on both of its triangles, the active cell's
-	 * dot read through its first.
-	 *
-	 * @param ElementOwner owner The lattice's owner.
-	 * @param CageTopology topology Its topology.
-	 * @param Set<MeshElement> elements Its selected elements.
-	 * @param MeshElement? active Its active element, or null.
-	 * @param MeshSelectMode selectMode The select mode.
-	 * @param Boolean pending Whether the warp holds an unkeyed Pose-mode shape.
-	 * @return MeshOverlayMesh The entry.
-	 */
-	private fun buildEntry(
-		owner: ElementOwner,
-		topology: CageTopology,
-		elements: Set<MeshElement>,
-		active: MeshElement?,
-		selectMode: MeshSelectMode,
-		pending: Boolean,
-	): MeshOverlayMesh {
-		val edgeEndpoints = topology.elements.edgeEndpoints
-		val flags =
-			editCageFlagsOf(topology.elements, elements, active, selectMode)
-				?: return MeshOverlayMesh(
-					owner,
-					topology.vertexCount,
-					edgeEndpoints,
-					NO_OVERLAY_FLAGS,
-					NO_OVERLAY_FLAGS,
-					NO_OVERLAY_FLAGS,
-					null,
-					null,
-					null,
-					faceDotCorners = topology.faceDotCorners,
-					vertexDotCount = topology.pointCount,
-					pending = pending,
-				)
-		val triangleFlags = ByteArray(flags.faceFlags.size * 2) { triangleIndex -> flags.faceFlags[triangleIndex / 2] }
-
-		return MeshOverlayMesh(
-			owner,
-			topology.vertexCount,
-			edgeEndpoints,
-			flags.vertexFlags.copyOf(topology.vertexCount),
-			flags.edgeFlags,
-			triangleFlags,
-			flags.activeVertex,
-			flags.activeEdge,
-			flags.activeFace?.let { cellIndex -> cellIndex * 2 },
-			faceDotCorners = topology.faceDotCorners,
-			vertexDotCount = topology.pointCount,
-			pending = pending,
-		)
-	}
-
-	/**
-	 * A lattice's world points with each cell's center appended, the mean of its four corners.
-	 *
-	 * @param FloatArray world The world points, interleaved x, y.
-	 * @param CageTopology topology The lattice's topology.
-	 * @return FloatArray The cage positions.
-	 */
-	private fun cagePositionsOf(world: FloatArray, topology: CageTopology): FloatArray {
-		val cage = world.copyOf(topology.vertexCount * 2)
-		val cellCorners = topology.elements.faceCorners
-
-		for (cellIndex in 0 until topology.elements.faceCount) {
-			var sumX = 0f
-			var sumY = 0f
-
-			for (cornerSlot in 0 until 4) {
-				val pointIndex = cellCorners[cellIndex * 4 + cornerSlot]
-				sumX += world[pointIndex * 2]
-				sumY += world[pointIndex * 2 + 1]
-			}
-
-			val centerIndex = topology.pointCount + cellIndex
-			cage[centerIndex * 2] = sumX / 4f
-			cage[centerIndex * 2 + 1] = sumY / 4f
-		}
 
 		return cage
 	}
@@ -503,7 +331,7 @@ internal suspend fun publishLatticeCage(
 	shownPose: Flow<Map<ParameterId, Float>>,
 ) {
 	val producer = LatticeCageProducer()
-	val shownLattices = combine(session.mode, session.pendingLatticeEdits) { mode, pending -> shownPendingLattices(mode, pending) }
+	val shownLattices = session.shownPendingLatticeEdits
 	combine(session.mode, session.meshSelection, session.meshPreviewSelection, session.model, sizes) { mode, committed, preview, model, cageSizes ->
 		LatticeCageInputs(mode, preview ?: committed, model, cageSizes)
 	}

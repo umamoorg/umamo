@@ -37,6 +37,24 @@ internal class LiveMeshPreview {
 	 * child warp's unmoved points follow a moved parent the way the art does.
 	 */
 	var latticeFormsByDeformer: Map<DeformerId, WarpLatticeForm>? by mutableStateOf(null)
+
+	/**
+	 * Shows a drive's moved lattices: their world points for the cage, and at the pose the pending forms the cage
+	 * evaluates the posed warps through.  An empty map shows none.
+	 *
+	 * @param Map<DeformerId, FloatArray> world Each moved lattice's world points.
+	 * @param Map<DeformerId, WarpLatticeForm> forms Each moved warp's pending form at the pose; empty at rest.
+	 */
+	fun showLattices(world: Map<DeformerId, FloatArray>, forms: Map<DeformerId, WarpLatticeForm>) {
+		latticeWorldByDeformer = world.takeIf { moved -> moved.isNotEmpty() }
+		latticeFormsByDeformer = forms.takeIf { posed -> posed.isNotEmpty() }
+	}
+
+	/** Shows no previewed lattice: the cage goes back to what is committed. */
+	fun clearLattices() {
+		latticeWorldByDeformer = null
+		latticeFormsByDeformer = null
+	}
 }
 
 /** The window's live mesh preview; the shell provides one instance, and a standalone overlay has none. */

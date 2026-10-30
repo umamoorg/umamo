@@ -22,6 +22,7 @@ import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.ModelUpdateKind
 import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import org.umamo.render.puppet.PuppetRenderer
@@ -255,7 +256,7 @@ class EditGrabRenderPerfProbeTest {
 			MeshOverlay(
 				MeshOverlayKind.ObjectWireframe,
 				MeshOverlaySelectMode.Vertex,
-				edit.meshes.map { mesh -> MeshOverlayMesh(mesh.owner, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, wireframeOnly = true) },
+				edit.meshes.map { mesh -> MeshOverlayMesh(mesh.owner, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, style = MeshStyle.Wireframe) },
 				edit.sizes,
 			)
 		renderer.setMeshOverlay(overlay)
@@ -363,12 +364,12 @@ class EditGrabRenderPerfProbeTest {
 
 		// The Object-mode islands of every mesh: the first frame, a still one, and one after a selection
 		// change, which re-styles the islands over the same arrays.
-		val islandMeshes = overlay.meshes.map { mesh -> MeshOverlayMesh(mesh.owner, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, null) }
+		val islandMeshes = overlay.meshes.map { mesh -> MeshOverlayMesh(mesh.owner, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null) }
 		val islands = DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, islandMeshes, overlay.sizes), positionsById, indicesById)
 		val selectedStyle = IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Active)
 		val restyled =
 			DirectMeshOverlay(
-				MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, islandMeshes.mapIndexed { meshIndex, mesh -> if (meshIndex == 0) MeshOverlayMesh(mesh.owner, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, selectedStyle) else mesh }, overlay.sizes),
+				MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, islandMeshes.mapIndexed { meshIndex, mesh -> if (meshIndex == 0) MeshOverlayMesh(mesh.owner, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, MeshStyle.Island(selectedStyle)) else mesh }, overlay.sizes),
 				positionsById,
 				indicesById,
 			)

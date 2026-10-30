@@ -305,6 +305,26 @@ class GlRenderDevice : RenderDevice {
 		GL15.glDeleteBuffers(glStore.buffer)
 	}
 
+	/**
+	 * Binds [vertexArray] and gives it attribute 0: [indices] uploaded to a buffer of its own, [componentsPerInstance]
+	 * integer indices per instance - an overlay domain's edges (2) or triangles (3).  The array stays bound, for the
+	 * caller to add its flag attribute.
+	 *
+	 * @param Int vertexArray The vertex array to fill.
+	 * @param IntArray indices The per-instance indices.
+	 * @param Int componentsPerInstance The indices per instance.
+	 * @return Int The index buffer.
+	 */
+	private fun bindInstancedIndices(vertexArray: Int, indices: IntArray, componentsPerInstance: Int): Int {
+		GL30.glBindVertexArray(vertexArray)
+		val buffer = uploadIntArrayBuffer(indices)
+		GL20.glEnableVertexAttribArray(0)
+		GL30.glVertexAttribIPointer(0, componentsPerInstance, GL11.GL_INT, componentsPerInstance * Int.SIZE_BYTES, 0L)
+		GL33.glVertexAttribDivisor(0, 1)
+
+		return buffer
+	}
+
 	override fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers {
 		val edgeCount = spec.edgeEndpoints.size / 2
 		val faceCount = spec.faceCorners.size / 3
@@ -319,11 +339,7 @@ class GlRenderDevice : RenderDevice {
 
 		if (edgeCount > 0) {
 			edgeVao = GL30.glGenVertexArrays()
-			GL30.glBindVertexArray(edgeVao)
-			edgeVbo = uploadIntArrayBuffer(spec.edgeEndpoints)
-			GL20.glEnableVertexAttribArray(0)
-			GL30.glVertexAttribIPointer(0, 2, GL11.GL_INT, 2 * Int.SIZE_BYTES, 0L)
-			GL33.glVertexAttribDivisor(0, 1)
+			edgeVbo = bindInstancedIndices(edgeVao, spec.edgeEndpoints, 2)
 			edgeFlagVbo = uploadFlagBuffer(spec.edgeFlags)
 			bindFlagAttribute()
 		}
@@ -334,11 +350,7 @@ class GlRenderDevice : RenderDevice {
 
 		if (faceCount > 0) {
 			faceVao = GL30.glGenVertexArrays()
-			GL30.glBindVertexArray(faceVao)
-			faceVbo = uploadIntArrayBuffer(spec.faceCorners)
-			GL20.glEnableVertexAttribArray(0)
-			GL30.glVertexAttribIPointer(0, 3, GL11.GL_INT, 3 * Int.SIZE_BYTES, 0L)
-			GL33.glVertexAttribDivisor(0, 1)
+			faceVbo = bindInstancedIndices(faceVao, spec.faceCorners, 3)
 			faceFlagVbo = uploadFlagBuffer(spec.faceFlags)
 			bindFlagAttribute()
 		}
@@ -350,11 +362,7 @@ class GlRenderDevice : RenderDevice {
 		// The face dots' own corners, over the face flags already uploaded, so a flag update reaches both.
 		if (faceCount > 0 && faceDotCorners != null) {
 			faceDotVao = GL30.glGenVertexArrays()
-			GL30.glBindVertexArray(faceDotVao)
-			faceDotVbo = uploadIntArrayBuffer(faceDotCorners)
-			GL20.glEnableVertexAttribArray(0)
-			GL30.glVertexAttribIPointer(0, 3, GL11.GL_INT, 3 * Int.SIZE_BYTES, 0L)
-			GL33.glVertexAttribDivisor(0, 1)
+			faceDotVbo = bindInstancedIndices(faceDotVao, faceDotCorners, 3)
 			GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, faceFlagVbo)
 			bindFlagAttribute()
 		}

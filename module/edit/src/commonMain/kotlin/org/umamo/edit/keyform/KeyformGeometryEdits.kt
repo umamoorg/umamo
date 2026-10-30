@@ -3,6 +3,7 @@ package org.umamo.edit.keyform
 import org.umamo.edit.EditorSession
 import org.umamo.edit.KeyformChange
 import org.umamo.edit.Pose
+import org.umamo.runtime.eval.poseValueLookup
 import org.umamo.runtime.eval.warpControlPointsAt
 import org.umamo.runtime.keyform.FormInterpolator
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
@@ -143,7 +144,7 @@ fun PuppetModel.withGeometryKeyRemoved(owner: KeyformOwner, parameter: Parameter
 fun PuppetModel.warpGridLatticeAt(warpId: DeformerId, pose: Pose): WarpLatticeForm? {
 	val warp = deformers.firstOrNull { deformer -> deformer.id == warpId } as? Deformer.Warp ?: return null
 
-	return warpControlPointsAt(warp.geometryGrid, poseValueOf(pose))?.let { controlPoints -> WarpLatticeForm(controlPoints) }
+	return warpControlPointsAt(warp.geometryGrid, poseValueLookup(pose))?.let { controlPoints -> WarpLatticeForm(controlPoints) }
 }
 
 /**
@@ -170,25 +171,13 @@ fun PuppetModel.withWarpLatticeCaptured(warpId: DeformerId, parameter: Parameter
 	val bound = warp.geometryGrid.withAxisSeeded(parameter, form) ?: return this
 	// Compared against BOUND, not the warp's grid: a capture that refuses after a fresh seed must refuse the whole op,
 	// or the bare axis bind would land while the shape the user made is dropped.
-	val captured = bound.withFormCaptured(poseValueOf(pose), form, WarpLatticeInterpolator)
+	val captured = bound.withFormCaptured(poseValueLookup(pose), form, WarpLatticeInterpolator)
 
 	if (captured === bound) {
 		return this
 	}
 
 	return copy(deformers = deformers.map { deformer -> if (deformer.id == warpId) warp.copy(geometryGrid = captured) else deformer })
-}
-
-/**
- * Each parameter's value at [pose], its default for one the pose does not name.
- *
- * @param Pose pose The pose.
- * @return Function The lookup.
- */
-private fun PuppetModel.poseValueOf(pose: Pose): (ParameterId) -> Float {
-	val defaults = parameters.associate { parameter -> parameter.id to parameter.default }
-
-	return { parameterId -> pose[parameterId] ?: defaults[parameterId] ?: 0f }
 }
 
 /**

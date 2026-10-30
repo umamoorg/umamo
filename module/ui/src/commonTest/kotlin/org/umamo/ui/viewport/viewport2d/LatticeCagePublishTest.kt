@@ -47,7 +47,7 @@ class LatticeCagePublishTest {
 			runCurrent()
 			val dragged = assertNotNull(service.pushedEditDirectOverlays.last())
 			assertSame(rest.overlay, dragged.overlay, "a drag frame keeps the overlay")
-			assertEquals(5f, dragged.positionsById.getValue(owner)[0], "and moves the cage")
+			assertEquals(5f, dragged.positionsByOwner.getValue(owner)[0], "and moves the cage")
 
 			live.value = null
 			runCurrent()

@@ -103,7 +103,16 @@ fun distanceToSegment(pointX: Float, pointY: Float, startX: Float, startY: Float
 }
 
 /**
- * The vertex index under the pointer within [hitRadiusPx], or null.  Picks the nearest within the radius.
+ * The nearest of a set of screen-space candidates to the pointer.
+ *
+ * @property Int index The candidate's index: a vertex index, or an edge's ordinal.
+ * @property Float distancePx Its distance from the pointer, in screen pixels.
+ */
+class ScreenHit(val index: Int, val distancePx: Float)
+
+/**
+ * The vertex index under the pointer within [hitRadiusPx], or null.  Picks the nearest within the radius
+ * ([nearestVertex]).
  *
  * @param FloatArray positions The interleaved (x, y) world positions.
  * @param Float pointerX The pointer x in screen pixels.
@@ -122,7 +131,30 @@ fun hitTestVertex(
 	camera: ViewportCamera,
 	viewportWidth: Int,
 	viewportHeight: Int,
-): Int? {
+): Int? = nearestVertex(positions, pointerX, pointerY, hitRadiusPx, camera, viewportWidth, viewportHeight)?.index
+
+/**
+ * The vertex nearest the pointer within [hitRadiusPx], with its distance, or null: the one hit-test a vertex and a
+ * lattice control point are picked by.
+ *
+ * @param FloatArray positions The interleaved (x, y) world positions.
+ * @param Float pointerX The pointer x in screen pixels.
+ * @param Float pointerY The pointer y in screen pixels.
+ * @param Float hitRadiusPx The pick radius in screen pixels.
+ * @param ViewportCamera camera The projecting camera.
+ * @param Int viewportWidth The viewport width in pixels.
+ * @param Int viewportHeight The viewport height in pixels.
+ * @return ScreenHit? The nearest vertex and its distance, or null.
+ */
+fun nearestVertex(
+	positions: FloatArray,
+	pointerX: Float,
+	pointerY: Float,
+	hitRadiusPx: Float,
+	camera: ViewportCamera,
+	viewportWidth: Int,
+	viewportHeight: Int,
+): ScreenHit? {
 	var best = -1
 	var bestDistance = hitRadiusPx
 	val vertexCount = positions.size / 2
@@ -140,12 +172,12 @@ fun hitTestVertex(
 		}
 	}
 
-	return if (best >= 0) best else null
+	return if (best >= 0) ScreenHit(best, bestDistance) else null
 }
 
 /**
  * The edge under the pointer within [hitRadiusPx], or null.  Picks the nearest by point-to-segment
- * distance in screen space, so a click between two close edges resolves to the closer one.
+ * distance in screen space, so a click between two close edges resolves to the closer one ([nearestEdge]).
  *
  * @param FloatArray positions The interleaved (x, y) world positions.
  * @param IntArray edgeEndpoints The edges as interleaved endpoint vertex indices (two per edge).
@@ -166,7 +198,32 @@ fun hitTestEdge(
 	camera: ViewportCamera,
 	viewportWidth: Int,
 	viewportHeight: Int,
-): Int? {
+): Int? = nearestEdge(positions, edgeEndpoints, pointerX, pointerY, hitRadiusPx, camera, viewportWidth, viewportHeight)?.index
+
+/**
+ * The edge nearest the pointer within [hitRadiusPx] by point-to-segment distance, with its distance, or null: the one
+ * hit-test a mesh edge and a lattice grid line are picked by.
+ *
+ * @param FloatArray positions The interleaved (x, y) world positions.
+ * @param IntArray edgeEndpoints The edges as interleaved endpoint vertex indices (two per edge).
+ * @param Float pointerX The pointer x in screen pixels.
+ * @param Float pointerY The pointer y in screen pixels.
+ * @param Float hitRadiusPx The pick radius in screen pixels.
+ * @param ViewportCamera camera The projecting camera.
+ * @param Int viewportWidth The viewport width in pixels.
+ * @param Int viewportHeight The viewport height in pixels.
+ * @return ScreenHit? The nearest edge's ordinal and its distance, or null.
+ */
+fun nearestEdge(
+	positions: FloatArray,
+	edgeEndpoints: IntArray,
+	pointerX: Float,
+	pointerY: Float,
+	hitRadiusPx: Float,
+	camera: ViewportCamera,
+	viewportWidth: Int,
+	viewportHeight: Int,
+): ScreenHit? {
 	var best = -1
 	var bestDistance = hitRadiusPx
 	val vertexCount = positions.size / 2
@@ -192,7 +249,7 @@ fun hitTestEdge(
 		}
 	}
 
-	return if (best >= 0) best else null
+	return if (best >= 0) ScreenHit(best, bestDistance) else null
 }
 
 /**

@@ -678,7 +678,7 @@ class UvSceneRenderStructureTest {
 	private fun islandsOver(positions: Map<String, FloatArray>, styles: Map<String, IslandStyle?>): DirectMeshOverlay {
 		val meshes =
 			styles.map { (id, style) ->
-				MeshOverlayMesh(ElementOwner.Drawable(DrawableId(id)), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, style)
+				MeshOverlayMesh(ElementOwner.Drawable(DrawableId(id)), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, style?.let { colors -> MeshStyle.Island(colors) } ?: MeshStyle.Plain)
 			}
 
 		return DirectMeshOverlay(

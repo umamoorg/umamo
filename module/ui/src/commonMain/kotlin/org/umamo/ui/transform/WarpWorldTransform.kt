@@ -1,16 +1,19 @@
 package org.umamo.ui.transform
 
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.Pose
 import org.umamo.edit.mesh.commitObjectTransform
 import org.umamo.edit.transform.MeshBounds
-import org.umamo.edit.transform.isPoseNeutral
+import org.umamo.edit.transform.boundsScaleFactors
 import org.umamo.edit.transform.meshBounds
 import org.umamo.render.eval.warpLatticeAt
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.scaleAboutAffine
+import org.umamo.runtime.model.translationAffine
 
 /*
  * The Properties Transform panel's rows for a warp, in the same world space the drawable rows use
@@ -20,25 +23,19 @@ import org.umamo.runtime.model.PuppetModel
  */
 
 /**
- * The world-space box backing one warp's Transform rows, and whether it can be written back.
- *
- * @property MeshBounds bounds The lattice's axis-aligned world bounds (x horizontal, y up = the panel's Z).
- * @property Boolean editable Whether the rows may move the warp: only at the neutral pose.
- */
-internal class WarpWorldTransform(val bounds: MeshBounds, val editable: Boolean)
-
-/**
  * Resolves the world bounds of warp [id]'s lattice at [pose] - what the Transform rows show.
  *
  * @param PuppetModel model The document model.
  * @param Pose pose The shown pose (EditorMode.shownPose): the rig's pose, or the rest pose in Edit mode.
  * @param DeformerId id The warp to measure.
- * @return WarpWorldTransform? The bounds and their editability, or null when the pose does not draw the warp.
+ * @param EditorMode mode The editor mode.
+ * @return ItemWorldTransform? The bounds and their editability ([writesWholeObjects]), or null when the pose does not
+ *   draw the warp.
  */
-internal fun warpWorldTransform(model: PuppetModel, pose: Pose, id: DeformerId): WarpWorldTransform? {
+internal fun warpWorldTransform(model: PuppetModel, pose: Pose, id: DeformerId, mode: EditorMode): ItemWorldTransform? {
 	val lattice = warpLatticeAt(model, pose, id) ?: return null
 
-	return WarpWorldTransform(meshBounds(lattice.world), editable = isPoseNeutral(model, pose))
+	return ItemWorldTransform(meshBounds(lattice.world), editable = writesWholeObjects(model, pose, mode))
 }
 
 /**
@@ -51,16 +48,18 @@ private class WarpTransformPlan(val lattice: LatticeWorldGeometry, val moved: Pu
 
 /**
  * Plans moving warp [id] by the world affine [affineFor] gives for its lattice's bounds, without writing anything.
- * Refuses off the neutral pose, on a warp the rest pose does not draw, and when [affineFor] has nothing to move.
+ * Refuses where the rows may not write ([writesWholeObjects]), on a warp the rest pose does not draw, and when
+ * [affineFor] has nothing to move.
  *
  * @param PuppetModel model The document model.
  * @param Pose pose The shown pose.
+ * @param EditorMode mode The editor mode.
  * @param DeformerId id The warp.
  * @param Function affineFor The world affine for the lattice's bounds, or null for no move.
  * @return WarpTransformPlan? The plan, or null when the edit is refused or a no-op.
  */
-private fun planWarpTransform(model: PuppetModel, pose: Pose, id: DeformerId, affineFor: (MeshBounds) -> FloatArray?): WarpTransformPlan? {
-	if (!isPoseNeutral(model, pose)) {
+private fun planWarpTransform(model: PuppetModel, pose: Pose, mode: EditorMode, id: DeformerId, affineFor: (MeshBounds) -> FloatArray?): WarpTransformPlan? {
+	if (!writesWholeObjects(model, pose, mode)) {
 		return null
 	}
 
@@ -83,7 +82,7 @@ private fun centeringAffine(bounds: MeshBounds, centerX: Float, centerZ: Float):
 	val deltaX = centerX - bounds.centerX
 	val deltaZ = centerZ - bounds.centerY
 
-	return if (deltaX == 0f && deltaZ == 0f) null else floatArrayOf(1f, 0f, deltaX, 0f, 1f, deltaZ)
+	return if (deltaX == 0f && deltaZ == 0f) null else translationAffine(deltaX, deltaZ)
 }
 
 /**
@@ -96,14 +95,13 @@ private fun centeringAffine(bounds: MeshBounds, centerX: Float, centerZ: Float):
  * @return FloatArray? The scale about the box's center.
  */
 private fun resizingAffine(bounds: MeshBounds, width: Float, height: Float): FloatArray? {
-	val factorX = if (bounds.width > 0f) width / bounds.width else 1f
-	val factorZ = if (bounds.height > 0f) height / bounds.height else 1f
+	val (factorX, factorZ) = boundsScaleFactors(bounds, width, height)
 
 	if (factorX == 1f && factorZ == 1f) {
 		return null
 	}
 
-	return floatArrayOf(factorX, 0f, bounds.centerX - bounds.centerX * factorX, 0f, factorZ, bounds.centerY - bounds.centerY * factorZ)
+	return scaleAboutAffine(bounds.centerX, bounds.centerY, factorX, factorZ)
 }
 
 /**
@@ -117,7 +115,7 @@ private fun resizingAffine(bounds: MeshBounds, width: Float, height: Float): Flo
  * @return LatticeWorldGeometry? The lattice the move was planned against, or null when it was refused.
  */
 internal fun EditorSession.setWarpWorldCenter(id: DeformerId, centerX: Float, centerZ: Float): LatticeWorldGeometry? {
-	val plan = planWarpTransform(model.value, shownPose, id) { bounds -> centeringAffine(bounds, centerX, centerZ) } ?: return null
+	val plan = planWarpTransform(model.value, shownPose, mode.value, id) { bounds -> centeringAffine(bounds, centerX, centerZ) } ?: return null
 	commitObjectTransform(MeshChange.TransformObjects(emptyList(), MeshOperatorKind.Grab, listOf(id)), plan.moved)
 
 	return plan.lattice
@@ -132,7 +130,7 @@ internal fun EditorSession.setWarpWorldCenter(id: DeformerId, centerX: Float, ce
  * @return PuppetModel? The previewed model, or null when the move would record nothing.
  */
 internal fun EditorSession.previewWarpWorldCenter(id: DeformerId, centerX: Float, centerZ: Float): PuppetModel? =
-	planWarpTransform(model.value, shownPose, id) { bounds -> centeringAffine(bounds, centerX, centerZ) }?.moved
+	planWarpTransform(model.value, shownPose, mode.value, id) { bounds -> centeringAffine(bounds, centerX, centerZ) }?.moved
 
 /**
  * Scales warp [id] as a whole about its lattice's world bounds center so the extents become ([width], [height]) -
@@ -145,7 +143,7 @@ internal fun EditorSession.previewWarpWorldCenter(id: DeformerId, centerX: Float
  * @return LatticeWorldGeometry? The lattice the resize was planned against, or null when it was refused.
  */
 internal fun EditorSession.setWarpWorldSize(id: DeformerId, width: Float, height: Float): LatticeWorldGeometry? {
-	val plan = planWarpTransform(model.value, shownPose, id) { bounds -> resizingAffine(bounds, width, height) } ?: return null
+	val plan = planWarpTransform(model.value, shownPose, mode.value, id) { bounds -> resizingAffine(bounds, width, height) } ?: return null
 	// Scale, though no modal operator ran: the kind names what the transform WAS, not how it was driven.
 	commitObjectTransform(MeshChange.TransformObjects(emptyList(), MeshOperatorKind.Scale, listOf(id)), plan.moved)
 
@@ -161,4 +159,4 @@ internal fun EditorSession.setWarpWorldSize(id: DeformerId, width: Float, height
  * @return PuppetModel? The previewed model, or null when the resize would record nothing.
  */
 internal fun EditorSession.previewWarpWorldSize(id: DeformerId, width: Float, height: Float): PuppetModel? =
-	planWarpTransform(model.value, shownPose, id) { bounds -> resizingAffine(bounds, width, height) }?.moved
+	planWarpTransform(model.value, shownPose, mode.value, id) { bounds -> resizingAffine(bounds, width, height) }?.moved

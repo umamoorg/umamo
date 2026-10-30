@@ -21,7 +21,6 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
-import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -64,20 +63,7 @@ class LatticeEditEntryTest {
 	 * @param FloatArray? keys The parameter keys, or null for no grid.
 	 * @return Deformer.Warp The warp.
 	 */
-	private fun warp(id: DeformerId, points: FloatArray, keys: FloatArray?): Deformer.Warp =
-		Deformer.Warp(
-			id = id,
-			name = id.raw,
-			parent = null,
-			partId = null,
-			rows = 2,
-			columns = 2,
-			isQuadTransform = true,
-			geometryGrid =
-				keys?.let { values ->
-					KeyformGrid(listOf(KeyformAxis(parameter, values)), values.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), WarpLatticeForm(points.copyOf())) })
-				},
-		)
+	private fun warp(id: DeformerId, points: FloatArray, keys: FloatArray?): Deformer.Warp = SessionTestModels.keyedWarp(id, 2, 2, parameter, keys) { points.copyOf() }
 
 	/**
 	 * The rig: a quad of art, two keyed warps, a warp with no lattice, a warp keyed only away from the default, and
