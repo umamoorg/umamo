@@ -112,7 +112,7 @@ class StatusHintTableTest {
 	}
 
 	/**
-	 * Under the default keymap no space, in either mode, has more to suggest than the strip shows.  The
+	 * Under the default keymap no space, in any mode, has more to suggest than the strip shows.  The
 	 * cut drops the trailing suggestions without a trace, so a hint that pushes a list past the limit
 	 * fails here by name instead of quietly taking another off the bar.
 	 */

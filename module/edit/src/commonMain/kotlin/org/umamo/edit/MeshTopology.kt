@@ -5,8 +5,6 @@ package org.umamo.edit
  * source of truth for Blender's select-mode rules: [MeshSelectionOps.changeSelectMode] uses these to convert a
  * selection between domains, and the gizmo overlay uses the same derive-up functions for its cross-domain
  * display highlights - so the flush / derive semantics live (and are tested) once.
- *
- * 三角形インデックス列に対する純粋なトポロジ照会。選択モード変換と表示ハイライトの共通基盤。
  */
 object MeshTopology {
 	/**

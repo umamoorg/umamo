@@ -18,7 +18,7 @@ import kotlin.test.assertTrue
  * Pins what the renderer records for the 2D viewport's direct Edit cage, on a [RecordingRenderDevice]: a lattice's
  * cell fills as its two triangles and shows ONE face dot at its center - both triangles point their dot at the
  * appended center vertex - the center draws no vertex dot, the cage draws under the Show Overlays master, and it
- * draws over the mesh overlay and under the lattice layer.
+ * draws under the lattice layer.
  */
 class EditDirectCagePassTest {
 	private val viewportSize = 64

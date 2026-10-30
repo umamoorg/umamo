@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 
 /**
  * The shared gizmo element queries over synthetic GizmoMeshGeometry - the geometry-source-agnostic
- * record the Edit overlay (deformer-projected world shapes) and the future UV editor (raw texture
+ * record the Edit overlay (deformer-projected world shapes) and the UV editor (raw texture
  * coordinates) both feed.  Camera at origin with zoom 1 over a 200x200 area, so world (x, y) lands at
  * screen (x + 100, 100 - y).
  */

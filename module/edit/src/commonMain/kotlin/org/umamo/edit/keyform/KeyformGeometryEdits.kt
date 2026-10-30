@@ -33,7 +33,7 @@ import org.umamo.runtime.model.WarpLatticeForm
  * that distinction, and erasing it is exactly what would let a scalar track reach buildDeltaTexels.
  *
  * Most of these ops move, insert, and remove KEYS and never author a form - key positions are ordinary grid
- * algebra, and leaving them uneditable made every geometry row in the keyform sheet silently swallow every
+ * algebra, and leaving them uneditable would make every geometry row in the keyform sheet silently swallow every
  * gesture, which on a corpus rig is nearly every row on screen.  The one form they author is a warp's lattice
  * ([withWarpLatticeCaptured]): Pose mode lowers a shaped lattice through the posed parent chain before it gets
  * here, so the capture itself is plain grid algebra too.  A drawable's mesh form is still never authored here.

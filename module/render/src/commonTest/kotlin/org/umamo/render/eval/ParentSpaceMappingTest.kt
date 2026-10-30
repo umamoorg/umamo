@@ -28,9 +28,9 @@ import kotlin.test.assertTrue
  * positions exactly (same chain, same Y negation), and the inverse recovers local coordinates - in
  * closed form for rotation parents, by Newton iteration for warp parents - including for a moved
  * world target (the Edit-gizmo drag case). Degenerate transforms keep the seed instead of exploding.
- * The single-step [ParentSpaceMapping.worldToLocalLinearized] used by the transform path is exact for
- * affine parents and, unlike the Newton inverse, follows a large warp-child drag without pinning or
- * boiling.
+ * The per-vertex [ParentSpaceMapping.worldToLocalLinearized] used by the transform path is exact for
+ * affine parents and, unlike the reach-capped Newton inverse, follows a large warp-child drag without
+ * pinning or boiling.
  */
 class ParentSpaceMappingTest {
 	private val tol = 1e-3f
@@ -181,9 +181,9 @@ class ParentSpaceMappingTest {
 		val worldRest = mapping.localToWorld(local)
 		val worldTarget = worldRest.copyOf().also { it[0] += 200f }
 
-		// The linearized inverse follows the 200-unit grab to within a world unit (the residual is
-		// finite-difference Jacobian error, not the Newton reach cliff). A true inverse would be exact, but
-		// sub-unit accuracy on a 200-unit drag is visually indistinguishable and never pins.
+		// The linearized inverse follows the 200-unit grab to within a world unit: its per-vertex Newton is
+		// reach-uncapped, so it has no reach cliff to pin at, and sub-unit accuracy on a 200-unit drag is
+		// visually indistinguishable.
 		val solvedLinearized = mapping.worldToLocalLinearized(worldTarget, local, setOf(0))
 		val reprojectedLinearized = mapping.localToWorld(solvedLinearized)
 		val linearizedShortfall = abs(reprojectedLinearized[0] - worldTarget[0])

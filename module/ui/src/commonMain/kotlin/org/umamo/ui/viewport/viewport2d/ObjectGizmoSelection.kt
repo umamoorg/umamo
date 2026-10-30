@@ -233,8 +233,8 @@ internal fun viewportObjectMarquee(session: EditorSession, anchors: ObjectSelect
 /**
  * The idle click-pick / box flow over whole objects (press rubber-bands, sub-threshold release picks,
  * Alt resolves the overlap stack, Shift+RightClick places the 2D cursor), bound to this viewport's lattice
- * and raster pickers ([viewportTopmostTarget], [viewportPickStack]) and its anchor
- * snapshot; see ObjectPickController.
+ * and raster pickers ([viewportTopmostTarget], [viewportPickStack]) and its anchor snapshot; see
+ * ObjectPickController.
  *
  * @param String areaId The overlay's area (the pick target).
  * @param EditorSession session The session owning the selection and the cursor.

@@ -25,8 +25,9 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 /**
  * A render service with no renderer behind it, for tests of the viewport overlays: it records every model
  * an overlay pushes through [setModel] (a gesture's previews and the resync that ends it), every mesh
- * overlay, palette, and UV scene content published to it, and answers the picks from a table the test
- * fills.  Everything else does nothing, since no overlay under test reads it.
+ * overlay, lattice overlay, lattice preview, palette, and UV scene content published to it, and every
+ * world-rectangle fit, and answers the picks and the lattice queries from tables the test fills.
+ * Everything else does nothing, since no overlay under test reads it.
  */
 internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every model pushed through [setModel], oldest first. */
@@ -361,9 +362,9 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	}
 
 	/**
-	 * Records the lattice preview.
+	 * Records the pending lattices.
 	 *
-	 * @param Map<DeformerId, WarpLatticeForm> overrides The preview published.
+	 * @param Map<DeformerId, WarpLatticeForm> overrides The pending lattices published.
 	 */
 	override fun setLatticeOverrides(overrides: Map<DeformerId, WarpLatticeForm>) {
 		pushedLatticeOverrides.add(overrides)

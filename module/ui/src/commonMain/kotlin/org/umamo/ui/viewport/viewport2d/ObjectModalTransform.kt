@@ -31,9 +31,9 @@ import org.umamo.ui.viewport.gizmo.gestureParameters
  * the pivot groups, the anchor, the frozen operator kind, and the rotation tracker) plus the per-drawable
  * [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the rest
  * arrays.  The geometry is held in a map keyed on the drawable's owner, looked up by
- * [org.umamo.edit.ModalCaptureEntry], so nothing stays index-aligned with the capture's entry list.  A moving
- * warp is a capture entry too, with no geometry here: it moves as a whole by the gesture's affine, mapped
- * through its parent from the model as it is.
+ * [org.umamo.edit.transform.ModalCaptureEntry], so nothing stays index-aligned with the capture's entry
+ * list.  A moving warp is a capture entry too, with no geometry here: it moves as a whole by the gesture's
+ * affine, mapped through its parent from the model as it is.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, kind).
  * @property Map<ElementOwner, DrawableWorldGeometry> geometryByOwner Each captured drawable's world geometry.

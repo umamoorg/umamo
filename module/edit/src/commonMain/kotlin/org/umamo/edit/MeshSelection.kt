@@ -9,7 +9,7 @@ import org.umamo.runtime.model.drawableId
 /**
  * The Edit-mode selection domain, mirroring Blender's vertex / edge / face select modes: which kind of
  * mesh element the pointer picks and the selection stores.  Only the current mode's domain is stored in
- * [MeshSelection.elementsByDrawable]; highlights in the other domains are derived for display, and
+ * [MeshSelection.elementsByOwner]; highlights in the other domains are derived for display, and
  * switching modes converts the stored sets (see [MeshSelectionOps.changeSelectMode]).
  *
  * 編集モードの選択対象の種類。Blender の頂点・辺・面選択モードに対応する。
@@ -99,7 +99,7 @@ data class ActiveMeshElement(val owner: ElementOwner, val element: MeshElement) 
  * because both endpoints are selected in vertex mode - are derived for display via [MeshTopology], never
  * stored, which is exactly Blender's model.
  *
- * [owners] is empty when Edit mode is inert (entered without anything editable); the overlay
+ * [owners] is empty when the session is inert (a Pose mode with no warp the pose draws); the overlay
  * then draws nothing and the transform operators no-op.  [activeOwner] is Blender's active object
  * within the session - the owner a click last landed on, which anchors per-owner actions (select-mode
  * conversion display, the status bar's denominators).  [activeElement] is the element analog of
@@ -221,7 +221,7 @@ object MeshSelectionOps {
 	 * only [element] on [owner] remains, active, with its mesh becoming the session's active mesh.
 	 *
 	 * @param MeshSelection selection The selection to modify.
-	 * @param ElementOwner owner The mesh the click landed on.
+	 * @param ElementOwner owner The owner the click landed on.
 	 * @param MeshElement element The sole element to select.
 	 * @return MeshSelection A selection holding only [element], with it active.
 	 */
@@ -238,7 +238,7 @@ object MeshSelectionOps {
 	 * when removed the active element falls back to another member of the same mesh, or null.
 	 *
 	 * @param MeshSelection selection The selection to modify.
-	 * @param ElementOwner owner The mesh the click landed on.
+	 * @param ElementOwner owner The owner the click landed on.
 	 * @param MeshElement element The element to toggle.
 	 * @return MeshSelection The resulting selection.
 	 */
@@ -267,7 +267,7 @@ object MeshSelectionOps {
 	 * session's active mesh.
 	 *
 	 * @param MeshSelection selection The selection to extend.
-	 * @param ElementOwner owner The mesh the element lives in.
+	 * @param ElementOwner owner The owner the element lives on.
 	 * @param MeshElement element The element to add.
 	 * @return MeshSelection The extended selection.
 	 */
@@ -317,7 +317,7 @@ object MeshSelectionOps {
 	 * stroke passes every session mesh on every stamp.
 	 *
 	 * @param MeshSelection selection The selection to modify.
-	 * @param Map<ElementOwner, Set<MeshElement>> elementsByOwner The enclosed elements per session mesh.
+	 * @param Map<ElementOwner, Set<MeshElement>> elementsByOwner The enclosed elements per session owner.
 	 * @param Boolean additive True to union with the current sets (Shift box), false to replace them.
 	 * @return MeshSelection The resulting selection.
 	 */
@@ -353,7 +353,7 @@ object MeshSelectionOps {
 	 * keeps its set instance.
 	 *
 	 * @param MeshSelection selection The selection to shrink.
-	 * @param Map<ElementOwner, Set<MeshElement>> elementsByOwner The elements to deselect per mesh.
+	 * @param Map<ElementOwner, Set<MeshElement>> elementsByOwner The elements to deselect per owner.
 	 * @return MeshSelection The selection with those elements removed.
 	 */
 	fun remove(selection: MeshSelection, elementsByOwner: Map<ElementOwner, Set<MeshElement>>): MeshSelection {
@@ -392,9 +392,9 @@ object MeshSelectionOps {
 	 * Clears the elements of some owners only, keeping the session owners, the active owner, the
 	 * select mode, and every other mesh's elements.  The active element goes when it lies on one of them.
 	 *
-	 * @param MeshSelection    selection   The selection to clear from.
-	 * @param Set<ElementOwner>  owners The meshes whose elements to clear.
-	 * @return MeshSelection The selection without those meshes' elements.
+	 * @param MeshSelection selection The selection to clear from.
+	 * @param Set<ElementOwner> owners The owners whose elements to clear.
+	 * @return MeshSelection The selection without those owners' elements.
 	 */
 	fun clearElementsOf(selection: MeshSelection, owners: Set<ElementOwner>): MeshSelection {
 		val activeElement = selection.activeElement?.takeIf { active -> active.owner !in owners }
@@ -414,7 +414,7 @@ object MeshSelectionOps {
 	 *
 	 * @param MeshSelection selection The selection to convert.
 	 * @param MeshSelectMode newMode The target select mode.
-	 * @param Function topologyOf Resolves a session mesh's topology, or null when absent.
+	 * @param Function topologyOf Resolves a session owner's topology, or null when absent.
 	 * @return MeshSelection The selection in [newMode] with the converted element sets.
 	 */
 	fun changeSelectMode(
@@ -447,7 +447,7 @@ object MeshSelectionOps {
 	 * @param Set<MeshElement> elements The stored elements, all of [fromMode]'s domain.
 	 * @param MeshSelectMode fromMode The current domain.
 	 * @param MeshSelectMode newMode The target domain.
-	 * @param ElementTopology topology The mesh's topology.
+	 * @param ElementTopology topology The owner's topology.
 	 * @return Set<MeshElement> The converted set in [newMode]'s domain.
 	 */
 	private fun convertElements(
@@ -533,7 +533,7 @@ object MeshSelectionOps {
 	 * stays null.  A session mesh the provider cannot resolve contributes nothing.
 	 *
 	 * @param MeshSelection selection The selection to fill.
-	 * @param Function topologyOf Resolves a session mesh's topology, or null when absent.
+	 * @param Function topologyOf Resolves a session owner's topology, or null when absent.
 	 * @return MeshSelection The selection holding every element of its domain on every session mesh.
 	 */
 	fun selectAll(selection: MeshSelection, topologyOf: (ElementOwner) -> ElementTopology?): MeshSelection {
@@ -559,7 +559,7 @@ object MeshSelectionOps {
 	 * drops unless it happens to remain selected (in practice it drops - it was selected before).
 	 *
 	 * @param MeshSelection selection The selection to invert.
-	 * @param Function topologyOf Resolves a session mesh's topology, or null when absent.
+	 * @param Function topologyOf Resolves a session owner's topology, or null when absent.
 	 * @return MeshSelection The inverted selection.
 	 */
 	fun invert(selection: MeshSelection, topologyOf: (ElementOwner) -> ElementTopology?): MeshSelection {
@@ -587,9 +587,9 @@ object MeshSelectionOps {
 	 * is left untouched (still a member - the union only adds).
 	 *
 	 * @param MeshSelection selection The selection to extend.
-	 * @param ElementOwner owner The mesh the island lives in.
+	 * @param ElementOwner owner The owner the island lives on.
 	 * @param Set<Int> islandVertices The island's vertex indices (a [MeshTopology.connectedVertices] result).
-	 * @param ElementTopology topology The mesh's topology.
+	 * @param ElementTopology topology The owner's topology.
 	 * @return MeshSelection The selection with the island's elements added.
 	 */
 	fun selectLinked(
@@ -622,7 +622,7 @@ object MeshSelectionOps {
 	 * fails the check.
 	 *
 	 * @param MeshSelection selection The selection to validate.
-	 * @param Function topologyOf Resolves a session mesh's topology, or null when absent.
+	 * @param Function topologyOf Resolves a session owner's topology, or null when absent.
 	 * @return Boolean True when every element still fits its mesh.
 	 */
 	fun fitsWithinMeshes(selection: MeshSelection, topologyOf: (ElementOwner) -> ElementTopology?): Boolean {

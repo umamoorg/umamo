@@ -14,7 +14,8 @@ import org.umamo.runtime.model.latticeLayout
  * blend shapes are absolute lattices measured against the grid at the default pose.  So moving "the
  * lattice" means moving every one of those forms the same way, or the evaluated lattice and the blend-shape
  * deltas stop agreeing.  These are the two ways the editor moves it: a shift that leaves every keyed motion
- * as it was (a rest reshape), and an affine that carries the motion along (a whole-deformer transform).
+ * as it was (a rest reshape), and a map applied to every form alike, which for an affine carries the motion
+ * along (a whole-deformer transform).
  */
 
 /**

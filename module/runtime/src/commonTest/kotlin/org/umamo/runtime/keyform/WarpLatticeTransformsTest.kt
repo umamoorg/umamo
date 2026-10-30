@@ -22,8 +22,8 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the whole-lattice transforms: each reaches every grid cell and every blend-shape form and nothing else,
- * and refuses input of the wrong shape.  That the evaluated lattice follows (old + delta, affine of old) is the
- * evaluator's to show, and the render module's tests do.
+ * and the shift refuses a delta of the wrong shape.  That the evaluated lattice follows (old + delta, affine of
+ * old) is the evaluator's to show, and the render module's tests do.
  */
 class WarpLatticeTransformsTest {
 	private val angle = ParameterId("ParamAngleX")

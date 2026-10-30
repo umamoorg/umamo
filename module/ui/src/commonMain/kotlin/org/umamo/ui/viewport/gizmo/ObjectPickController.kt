@@ -113,7 +113,7 @@ internal fun selectableDeformerTargets(ids: Iterable<DeformerId>, model: PuppetM
 	ids.map { deformerId -> SelectionTarget.Deformer(deformerId) }.filter { target -> model.selectableOf(target) }
 
 /**
- * The marquee (box + circle) machinery over whole drawables, for every surface that selects objects: the
+ * The marquee (box + circle) machinery over whole objects, for every surface that selects objects: the
  * stroke is seeded from and committed to the session's object selection, the wheel resizes the session's
  * brush, and a right-click inside the circle tool leaves it.  What differs per surface passes in: how a
  * stamp paints, how a finished box applies, and the viewport's snapshot and GPU tint.  The stamp has no

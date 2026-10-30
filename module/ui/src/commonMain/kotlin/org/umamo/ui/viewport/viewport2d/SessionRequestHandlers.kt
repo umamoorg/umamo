@@ -47,7 +47,7 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
 
 /*
  * The bodies of the session-request handlers the 2D viewport's gizmo overlays collect: keymap commands
- * that carry no pointer (Alt+Q switch-mesh, Rip, the Shift+S snaps) land on the session's request
+ * that carry no pointer (Alt+Q switch-owner, Rip, the Shift+S snaps) land on the session's request
  * flows, and only the overlay knows the pointer position and the projected geometry to execute them
  * against.  Each overlay keeps a thin, area-gated collector (the Edit overlay's is EditGizmoRequests.kt);
  * the work lives here as plain functions, testable without Compose.  Select Linked serves both surfaces

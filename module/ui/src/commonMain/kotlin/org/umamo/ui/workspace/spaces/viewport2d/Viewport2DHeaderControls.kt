@@ -30,10 +30,10 @@ import org.umamo.ui.workspace.spaces.sessionProportionalSizeField
 
 /**
  * The 2D viewport's space-specific header strip (mounted via SpaceDescriptor.headerContent): the
- * Object / Edit mode dropdown, the vertex / edge / face select-mode buttons (Edit mode), the transform
- * pivot dropdown, the snap menu, and the proportional-editing chip, whose panel's size row is the
- * session's world radius (Edit mode).  With no open document the chips render disabled rather than vanishing, so the viewport
- * chrome reads the same before the first file opens.
+ * Object / Edit / Pose mode dropdown, the vertex / edge / face select-mode buttons (Edit and Pose mode), the
+ * transform pivot dropdown, the snap menu, and the proportional-editing chip, whose panel's size row is the
+ * session's world radius (Edit and Pose mode).  With no open document the chips render disabled rather
+ * than vanishing, so the viewport chrome reads the same before the first file opens.
  *
  * Every control observes the session's own flows and mutates only by dispatching registry commands,
  * per the everything-through-the-action-registry rule - a rebind or palette invocation stays

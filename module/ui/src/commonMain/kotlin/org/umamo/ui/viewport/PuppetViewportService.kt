@@ -444,8 +444,8 @@ interface PuppetViewportService {
 	fun setLatticeOverlay(overlay: LatticeOverlay?)
 
 	/**
-	 * Sets the Edit-mode cage every 2D area draws over the art from positions of its own, or null for none: the
-	 * cage of whatever Edit mode shapes without moving the art, a warp's lattice.  Drawn under the Show Overlays
+	 * Sets the lattice cage every 2D area draws over the art from positions of its own, or null for none: the
+	 * cage of each warp an Edit- or Pose-mode session shapes.  Drawn under the Show Overlays
 	 * master like the mesh overlay; a new value replaces the old by identity, and a drag frame re-uploads only the
 	 * position arrays it replaced.
 	 *
@@ -456,8 +456,8 @@ interface PuppetViewportService {
 	/**
 	 * Previews warps at new lattices in every 2D area without a model push: each entry stands in for that warp's
 	 * grid blend at the pose (its blend shapes still add on top), so the warp's art and everything nested under it
-	 * follow, and the lattice layer and the picks read the moved lattice.  An Object-mode warp drag publishes one
-	 * per frame; a model push that changes a deformer's forms re-poses the whole rig and rebuilds the picker, which
+	 * follow, and the lattice layer and the picks read the moved lattice.  An Object-mode warp drag or a Pose-mode
+	 * lattice drag publishes one per frame; a model push that changes a deformer's forms re-poses the whole rig and rebuilds the picker, which
 	 * a drag cannot afford.  An empty map clears the preview; the same instance again is a no-op.
 	 *
 	 * @param Map<DeformerId, WarpLatticeForm> overrides Each previewed warp's lattice in its parent's space, before

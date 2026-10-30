@@ -13,7 +13,7 @@ import org.umamo.runtime.model.drawableId
  *
  * The two editing contexts read the same pivot mode differently, which the mode's own docblock already
  * describes: in Edit and the UV editor a mesh's covered vertices split into connectivity islands, each
- * turning about its own centroid; in Object mode a whole drawable turns about its single centroid.  Making
+ * turning about its own centroid; in Object mode a whole object turns about its single centroid.  Making
  * that an explicit parameter of [buildModalTransformCapture] keeps the one difference visible instead of
  * hiding it in two copies of the group-derivation code.
  */
@@ -30,14 +30,14 @@ enum class IndividualOriginScope {
  *
  * The positions are frozen in whatever space the gesture runs in - world-posed for the viewport overlays,
  * texel display for the UV editor - and the covered indices are the union of vertices the mesh's selected
- * elements span (every vertex, for an Object-mode whole-drawable transform).  A source whose covered set is
+ * elements span (every vertex, for an Object-mode whole-object transform).  A source whose covered set is
  * empty contributes nothing and is dropped by the builder.
  *
  * @property ElementOwner owner The drawable or warp these points belong to (the capture's per-mesh key).
  * @property FloatArray positions The frozen interleaved positions the operator transforms and the pivots
  *   are measured in.  The builder does not copy it - the caller freezes (copies) before handing it over.
  * @property ElementTopology topology The mesh's topology, sized to [positions] (connectivity for islands and the
- *   geodesic proportional falloff).  An Object-mode whole-drawable source carries none of its faces.
+ *   geodesic proportional falloff).  An Object-mode whole-object source connects nothing.
  * @property Set<Int> coveredIndices The vertices the selection covers on this mesh.
  */
 class ModalCaptureSource(

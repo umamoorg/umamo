@@ -4,8 +4,8 @@ import org.umamo.runtime.model.PuppetModel
 
 /**
  * The editor's interaction mode, Blender-style. Object mode selects whole entities (parts, drawables,
- * deformers) and places them at rest; Edit mode dives into the active entity's interior (mesh, warp
- * lattice, or rotation pivot) at rest; Pose mode poses deformers at the current parameter values, for
+ * deformers) and places them at rest; Edit mode dives into the active entity's interior (mesh or warp
+ * lattice) at rest; Pose mode poses deformers at the current parameter values, for
  * keying.  The mode scopes hit-testing and tool behaviour.
  *
  * Posing has a mode of its own rather than living in Object mode, so a drag in Object mode always means

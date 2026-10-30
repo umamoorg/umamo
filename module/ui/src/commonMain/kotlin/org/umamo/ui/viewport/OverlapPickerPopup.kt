@@ -78,8 +78,8 @@ data class OverlapEntry(
  * @param IntOffset anchor          The cursor position to anchor the popup at, local to the popup's
  *                                  parent layout node (AtPointPositionProvider offsets from the
  *                                  parent's bounds, clamped into the window).
- * @param List entries              The candidates, front-to-back.
- * @param Int defaultIndex          The pre-highlighted row (the centrality winner).
+ * @param List entries              The candidates, in the stack's order.
+ * @param Int defaultIndex          The pre-highlighted row (what a plain click there would take).
  * @param Function onPick           Called with the chosen target.
  * @param Function onDismiss        Called to close without choosing.
  */

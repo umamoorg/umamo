@@ -34,8 +34,8 @@ class WarpLattice internal constructor(
 
 /**
  * Warp [deformerId]'s lattice at [parameters], baking the warp and its ancestors alone ([WarpLatticeResolver] over
- * that one warp), so one warp never pays for the whole rig.  Parameters resolve as the renderer resolves them, and blend shapes measure from the real
- * defaults, so the lattice is where the viewport draws it.
+ * that one warp), so one warp never pays for the whole rig.  Parameters resolve as the renderer resolves them, and
+ * blend shapes measure from the real defaults, so the lattice is where the viewport draws it.
  *
  * @param PuppetModel model The rig.
  * @param Map parameters Parameter id -> value (partial; the rest default).

@@ -331,9 +331,9 @@ internal fun ImportSection() {
 /**
  * The Colors section: the viewport selection highlights and overlay colors (the collision warning,
  * the pinned-placement highlight), the Edit-mode gizmo palette (viewport.meshEdit.*), grouped
- * element × state, and the warp lattice by role (viewport.deformer.*).  Every row is a [HexColorField] bound write-through to its settings key, so an
- * edit re-colors the viewport live as it is typed - the same auto-save model as the rest of the
- * window.
+ * element × state, and the warp lattice by role (viewport.deformer.*).  Every row is a
+ * [HexColorField] bound write-through to its settings key, so an edit re-colors the viewport live as
+ * it is typed - the same auto-save model as the rest of the window.
  */
 @Composable
 internal fun ColorsSection() {

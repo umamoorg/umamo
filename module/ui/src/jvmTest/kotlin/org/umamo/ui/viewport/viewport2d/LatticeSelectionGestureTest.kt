@@ -20,9 +20,8 @@ import kotlin.test.assertTrue
 /**
  * Pins how the 2D viewport's Object overlay selects warps by their drawn lattices: a lattice under the pointer
  * wins over the art there, a locked warp passes the click through, an Alt click lists the lattices before the
- * art, and box select encloses a warp by its lattice's center.  The stub
- * answers the lattice pick and the art pick from each area's stacks, whatever the point, and the region from
- * the centers each case places.
+ * art, and box select encloses a warp by its lattice's center.  The stub answers the lattice pick and the art pick
+ * from each area's stacks, whatever the point, and the region from the centers each case places.
  */
 @OptIn(ExperimentalTestApi::class)
 class LatticeSelectionGestureTest {

@@ -32,7 +32,7 @@ fun isPoseNeutral(model: PuppetModel, pose: Pose): Boolean {
  * and an edit to the transform is an edit to the geometry that produced them.
  *
  * Space-agnostic: this measures whatever array it is handed.  Which array that should be is the caller's
- * decision and a consequential one - see the Properties panel's DrawableWorldTransform, which measures
+ * decision and a consequential one - see the Properties panel's DrawableWorldTransform.kt, which measures
  * WORLD positions because a keyformed drawable's base array is nothing like its on-screen shape.
  *
  * @property Float centerX The bounds' center x.
@@ -103,7 +103,7 @@ fun allPointIndices(positions: FloatArray): Set<Int> = (0 until positions.size /
  * mesh rigidly by the difference, so the displayed number becomes exactly the value entered.
  *
  * Pure and space-agnostic - it moves the array it is given.  The Properties panel applies it to WORLD
- * positions and inverts the result back onto the base mesh; see DrawableWorldTransform.
+ * positions and inverts the result back onto the base mesh; see DrawableWorldTransform.kt.
  *
  * @param FloatArray positions The interleaved positions.
  * @param Float newCenterX The x the bounds center should land on.

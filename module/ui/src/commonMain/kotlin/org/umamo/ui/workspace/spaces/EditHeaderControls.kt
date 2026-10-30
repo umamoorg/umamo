@@ -50,7 +50,7 @@ import org.umamo.ui.viewport.falloffLabel
 import org.umamo.ui.workspace.commands.ProportionalConnectedRequest
 
 /*
- * The Edit-mode header controls shared by the editor surfaces that host element editing - the 2D
+ * The Edit- and Pose-mode header controls shared by the editor surfaces that host element editing - the 2D
  * viewport and the UV editor mount the same select-mode buttons, pivot panel, snap menu, and
  * proportional control, so the two headers stay one behavior (and one look) by construction.  Every control
  * mutates by dispatching registry commands, per the everything-through-the-action-registry rule; the

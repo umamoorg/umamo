@@ -26,8 +26,8 @@ import kotlin.test.assertTrue
 /**
  * Pins Object-mode G on warps through the 2D overlay itself: a warp drag shows through the renderer's lattice preview
  * and pushes no model, so its art follows without a re-pose of the whole rig; the confirm lands one "Move Objects"
- * step with the warp's art moved; a selected child moves once, with its warp; and the strip, cancel, and Shift+D
- * behave as they do for drawables.
+ * step with the warp inside it following; a selected child moves once, with its warp; art and a warp move in one
+ * step; and the strip, cancel, and Shift+D behave as they do for drawables.
  *
  * The lattice rig's body warp spans world x 0..40 and z -40..0 (point 0 at the world origin); the head warp sits
  * inside it, and a quad of art sits at the root over x 0..20.

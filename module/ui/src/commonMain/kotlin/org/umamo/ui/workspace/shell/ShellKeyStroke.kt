@@ -13,7 +13,7 @@ import org.umamo.ui.action.pressHoldsLiteralControl
 import org.umamo.ui.action.pressHoldsPrimary
 
 /**
- * One key press reduced to the five facts the shell's modal ladder and keymap dispatch actually read.
+ * One key press reduced to the six facts the shell's modal ladder and keymap dispatch actually read.
  *
  * Compose's KeyEvent is an expect class with no common constructor - it wraps the platform's native
  * event - so a function taking one cannot be exercised from commonTest at all.  Decoding to this value

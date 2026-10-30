@@ -44,9 +44,9 @@ internal fun latticeOverlaySizes(density: Density): MeshOverlaySizes =
 /**
  * The lattices the 2D viewport draws in [mode]: in Object and Pose mode, every shown warp, the active one in
  * the active role, the other selected ones selected, and the rest idle (drawn only by an area that shows every
- * deformer); in Edit mode none, since Edit mode shows the edited mesh alone.  In Pose mode the warps being posed
- * are left to the session's cage, which draws their points, so the layer carries the others alone.  A warp holding
- * an unkeyed Pose-mode shape is marked pending, whatever its role.
+ * deformer); in Edit mode none, since Edit mode shows only what it edits (a lattice through the session's cage).  In
+ * Pose mode the warps being posed are left to the session's cage, which draws their points, so the layer carries the
+ * others alone.  A warp holding an unkeyed Pose-mode shape is marked pending, whatever its role.
  *
  * @param EditorMode mode The editor mode.
  * @param Selection selection The object selection.
@@ -121,7 +121,8 @@ internal suspend fun publishLatticeOverlay(
 }
 
 /**
- * Whether two lattice overlays draw the same: the same warps, in the same roles, at the same sizes.
+ * Whether two lattice overlays draw the same: the same warps, in the same roles, with the same pending marks, at the
+ * same sizes.
  *
  * @param LatticeOverlay? previous The published value.
  * @param LatticeOverlay? next The new one.

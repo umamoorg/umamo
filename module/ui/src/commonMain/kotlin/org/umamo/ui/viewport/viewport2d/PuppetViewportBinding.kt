@@ -591,9 +591,9 @@ fun rememberPuppetViewportHost(
 							// The element gizmo of Edit and Pose mode over the puppet image: the element selection, the
 							// modal transforms, and their chrome; the mesh or cage itself is in the image (the overlays
 							// published above).  It self-gates on a mode that edits elements with something in the
-							// session, so it is inert (and passes input through) otherwise.  It projects with the DISPLAYED frame's camera,
-							// not the live one: the raster lands a few frames behind, and the frame's camera keeps
-							// the chrome glued to it during pan and zoom.
+							// session, so it is inert (and passes input through) otherwise.  It projects with the DISPLAYED
+							// frame's camera, not the live one: the raster lands a few frames behind, and the frame's
+							// camera keeps the chrome glued to it during pan and zoom.
 							ViewportEditGizmoOverlay(
 								areaId = areaId,
 								service = service,

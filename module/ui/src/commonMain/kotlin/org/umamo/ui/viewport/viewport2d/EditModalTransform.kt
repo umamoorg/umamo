@@ -40,8 +40,8 @@ import kotlin.math.pow
  * their frozen positions, pivot groups, proportional halos, and moved sets, plus the anchor, the frozen
  * operator kind, and the rotation tracker) alongside each moving owner's frozen world geometry - a mesh's, which
  * the drive loop inverts each transformed world shape back through, or a lattice's - and the stage it was captured
- * at.  The geometry is held in a map keyed on the owner, looked up by [org.umamo.edit.ModalCaptureEntry], so nothing
- * stays index-aligned.
+ * at.  The geometry is held in a map keyed on the owner, looked up by
+ * [org.umamo.edit.transform.ModalCaptureEntry], so nothing stays index-aligned.
  *
  * A mesh's geometry frozen here is a COPY of the live geometry's arrays (rest, displayed, world), so the whole
  * drag transforms a fixed snapshot even though the underlying model is immutable; a lattice's capture is the bake's
@@ -227,7 +227,7 @@ internal class EditModalTransform(
 
 	/**
 	 * Ends the gesture because the overlay is leaving composition mid-gesture: the mode changed, the area
-	 * closed, or every mesh in the edit stopped projecting (the overlay returns before it reaches this
+	 * closed, or every mesh or lattice in the edit stopped projecting (the overlay returns before it reaches this
 	 * transform).  The latch effect is cancelled with the overlay and never runs its teardown, so this does
 	 * it instead.  The latch is cleared while it is still this area's - a mode switch has cleared it
 	 * already, and a latch another area holds is not this one's to clear - so no gesture is left latched to
@@ -298,7 +298,7 @@ internal class EditModalTransform(
 	 * Confirms the in-flight gesture at the latest pointer: settles a drive the worker has not published
 	 * yet, commits what moved as ONE undo step - each moving mesh's new rest shape, or each moving lattice landed at
 	 * the stage it was captured at - registers that step on the operation settings strip, then clears the operator (its
-	 * teardown resyncs the renderer).  A null preview means no movement, so nothing is committed.  A mesh's preview
+	 * teardown resyncs the renderer).  No published drive means no movement, so nothing is committed.  A mesh's preview
 	 * already holds rest shapes (the drive inverted them via worldToRest), so they are committed directly.
 	 */
 	override fun confirm() {

@@ -59,7 +59,7 @@ class VisibilityCascadeTest {
 	}
 
 	/**
-	 * A one-key warp in [partId] under [parent].
+	 * A warp with no keyform grid in [partId] under [parent].
 	 *
 	 * @param String id The warp's id.
 	 * @param String? parent Its parent deformer's id, or null at the root.

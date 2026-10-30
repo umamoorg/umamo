@@ -182,10 +182,11 @@ internal class RotationWorld(
  * Builds every deformer's world transform top-down (parents first), composing each local
  * keyform-blended transform with its parent's world transform.
  *
- * Out-of-range (hidden) deformers, and any whose ancestor is hidden, are omitted from the result. At
- * default parameters nothing is hidden, so this only affects out-of-range poses.
+ * Hidden deformers - one with no keyform grid, or one posed outside its keyed range on any axis - and any
+ * whose ancestor is hidden, are omitted from the result.
  *
- * @param List     deformers        All deformers in the model.
+ * @param List     deformers        The deformers to build: the whole rig, or a set holding every ancestor the model
+ *                                  has of each ([ancestorChain]), since a parent outside the list counts as the root.
  * @param Function paramValue       Current value for a given parameter id.
  * @param Function defaultValue     Default value for a given parameter id (the blend-shape delta reference pose).
  * @param Map      channelOverrides Pending unkeyed channel edits, which win over a deformer's stored channel value.

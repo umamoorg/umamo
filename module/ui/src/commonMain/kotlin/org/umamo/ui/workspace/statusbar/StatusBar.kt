@@ -210,11 +210,9 @@ private fun ContextBindsZone() {
 
 /**
  * The selected-item zone: in Object mode the active target's display name (or a "%d selected" count
- * for a multi-selection); in Edit mode the selected element count over the edited drawable's domain
- * total ("3/120 vertices"). Renders nothing when nothing is selected or no document is open.
- *
- * 選択項目区画。オブジェクトモードではアクティブ対象の表示名（複数選択時は件数）、編集モードでは
- * 選択要素数／総数を表示する。
+ * for a multi-selection); in Edit and Pose mode the selected element count over the domain total of
+ * every mesh or lattice in the session ("3/120 vertices", or points, grid lines, and cells for a
+ * lattice). Renders nothing when nothing is selected or no document is open.
  */
 @Composable
 private fun SelectedItemZone() {

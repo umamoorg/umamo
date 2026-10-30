@@ -6,8 +6,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the history label every whole-gesture transform reports, across all three domains and every
- * [MeshOperatorKind].
+ * Pins the history label every object, mesh, and UV whole-gesture transform reports, across those three
+ * domains and every [MeshOperatorKind].
  *
  * Two things are being protected.  First, the domain has to be readable at a glance in the history panel -
  * an object transform, an Edit-mode mesh transform, and a UV transform must never share a label, which is

@@ -145,11 +145,10 @@ internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axi
 /**
  * Moves the covered vertices so their median's [axis] coordinate lands on [worldValue], as one undo step filed as
  * a move (a lattice's points landed at the stage they were captured at), and registers the step on the operation
- * strip in
- * [areaId] as a Grab: Move X and Move Z, then the
- * proportional rows, off for this move (the panel's move takes no falloff) but carrying the session's remembered
- * curve and Connected Only for the rigger to turn on.  A strip adjustment hands proportional editing back to the
- * session only when the rigger set one of its rows, so moving a Move row never switches proportional editing off.
+ * strip in [areaId] as a Grab: Move X and Move Z, then the proportional rows, off for this move (the panel's move
+ * takes no falloff) but carrying the session's remembered curve and Connected Only for the rigger to turn on.  A
+ * strip adjustment hands proportional editing back to the session only when the rigger set one of its rows, so
+ * moving a Move row never switches proportional editing off.
  *
  * Nothing lands while a modal transform owns the meshes (its confirm owns the next step), or when the median is
  * already there: the drive always returns fresh arrays, so an empty move would otherwise record a step.

@@ -4,15 +4,15 @@ package org.umamo.render.pick
  * Region enclosure for object-mode box / circle select.  Object selection is whole-object, so a region
  * selects a drawable by its geometry CENTROID (the mean of its posed world vertices) and a warp by its
  * lattice's center, Blender's object-mode rule: an object is selected when its anchor falls inside the box
- * or circle.  Centroid-inside is stable
- * and predictable - a full-canvas layer whose centroid sits at the canvas center is not grabbed by a region
- * that only grazes its edge, unlike an any-vertex-touching rule.
+ * or circle.  Centroid-inside is stable and predictable - a full-canvas layer whose centroid sits at the
+ * canvas center is not grabbed by a region that only grazes its edge, unlike an any-vertex-touching rule.
  *
  * These functions are pure and work in the same interleaved (x, y) world space as
  * org.umamo.render.eval.DeformedGeometry.worldPositions, which is exactly what an overlay caches at
  * gesture start and tests against each frame - so the selection math is unit-testable with no render or
- * Compose context.  Only drawables appear in worldPositions (deformers and parts have no viewport geometry),
- * and hidden / mesh-less drawables are already absent, so the enclosure naturally covers only real drawables.
+ * Compose context.  Only what the viewport draws has an anchor: a drawable through worldPositions, where hidden /
+ * mesh-less drawables are already absent, and a warp through its drawn lattice ([latticeCenters]); parts have no
+ * viewport geometry, so the enclosure naturally covers only real objects.
  */
 
 /**

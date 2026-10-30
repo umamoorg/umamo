@@ -67,8 +67,9 @@ import kotlin.test.assertTrue
 
 /**
  * The Object tab's Transform rows under real pointer input: a scrub reaches the renderer frame by frame and
- * the session once, at release; a locked Size scrub carries its partner field along; and Edit mode shows,
- * and edits, the rig at rest.
+ * the session once, at release; a locked Size scrub carries its partner field along; a warp's Position scrub
+ * moves the whole warp; and only Object mode at rest writes - posed, and in Edit and Pose mode, the rows are
+ * inert, Edit mode showing the rig at rest.
  *
  * Driven through a composition because each half lives somewhere different - the preview in the row's
  * scrub helper over the render-sync seam, the partner in the Size stack's own state, the pose and mode in

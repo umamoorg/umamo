@@ -4,16 +4,16 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 
 /**
- * The session's remembered-selection memory: which owner was last active (so entering Edit mode
+ * The session's remembered-selection memory: which owner was last active (so entering Edit or Pose mode
  * with an empty selection lands somewhere sensible - Blender's remembered selection), and each
- * owner's stashed element selection (stashed when Edit mode is left or the session switches meshes,
+ * owner's stashed element selection (stashed when Edit or Pose mode is left or the session switches owners,
  * restored per owner on re-entry when the elements still fit - Blender remembers the mesh
  * selection across mode switches per mesh).  An owner is a drawable's mesh or a warp's lattice.
  * Transient UI convenience, deliberately NOT part of [EditorSnapshot]: undo restores whatever the
  * snapshot holds, this only seeds fresh entries.
  */
 internal class MeshElementMemory {
-	/** The last owner that was active - a drawable or a warp - or null before any; Edit-mode entry falls back to it. */
+	/** The last owner that was active - a drawable or a warp - or null before any; Edit- and Pose-mode entry fall back to it. */
 	var lastActiveOwner: ElementOwner? = null
 
 	/**
@@ -33,7 +33,7 @@ internal class MeshElementMemory {
 
 	/**
 	 * Stashes each session owner's element selection into the per-owner memory, so re-entering Edit
-	 * mode - or switching back to the mesh with Alt+Q - restores it.  An emptied owner clears its slot;
+	 * or Pose mode - or switching back to the owner with Alt+Q - restores it.  An emptied owner clears its slot;
 	 * the select mode is remembered alongside.
 	 *
 	 * @param MeshSelection current The element selection to stash.

@@ -42,9 +42,9 @@ import org.umamo.ui.transform.amendLatticeLanding
  * positions under the edited proportional rows, applies the edited numbers per owner, inverts each
  * mesh's world shape back onto the rest arrays through the frozen [geometryByOwner] (a lattice's points land at
  * [stage]), lands the result over the gesture's own step from the record's base, and hands the
- * proportional state back to
- * [onProportional] so the next gesture can start from it.  The adjusted record goes with it, so a caller
- * whose rows did not start from the session's own state can write back only what the rigger set there.
+ * proportional state back to [onProportional] so the next gesture can start from it.  The adjusted record goes
+ * with it, so a caller whose rows did not start from the session's own state can write back only what the rigger
+ * set there.
  * Synchronous: an evaluation is the per-pointer-frame cost.
  *
  * @param EditorSession              session      The session the gesture committed into.

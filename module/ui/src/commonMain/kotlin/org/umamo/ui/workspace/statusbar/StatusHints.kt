@@ -28,7 +28,8 @@ internal data class StatusHint(val chords: List<KeyChord>, val label: StringReso
  * the command palette filters on.
  *
  * A command is suggested when it carries a [Command.hint], is offered over [hoveredKind] (the palette's
- * own rule, [isOfferedIn]), and its hint's suggestedWhen holds.  Commands scoped to particular spaces
+ * own rule, [isOfferedIn]), its hint's suggestedWhen holds, and its hint's suggestedOver, when set,
+ * takes in [hoveredKind] too.  Commands scoped to particular spaces
  * come first - they are what is specific to where the pointer is - followed by the ones that belong
  * everywhere, each in registration order.
  *

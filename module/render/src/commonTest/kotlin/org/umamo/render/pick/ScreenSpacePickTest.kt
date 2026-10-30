@@ -7,7 +7,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Verifies the pure screen-space geometry the gizmo overlays (and the future UV editor) pick with:
+ * Verifies the pure screen-space geometry the 2D viewport's and UV editor's gizmo overlays pick with:
  * the world-to-screen projection and its inverse, nearest-within-radius vertex and edge hit tests,
  * the centroid tie-break for overlapping faces, and the box / circle enclosure rules (vertex inside,
  * edge both-endpoints / segment-overlap, face by centroid).

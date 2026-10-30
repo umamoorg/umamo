@@ -49,7 +49,7 @@ import org.umamo.ui.workspace.SpaceScope
  * @param Function hoveredKeyable Resolves the hovered keyable property (a sheet lane or a Properties row)
  *   at dispatch time; null when the pointer is over nothing keyable.
  * @param CommandRouting routing Resolves which area the pointer means, naming the acting sheet when the
- *   last-touched surface is one.
+ *   last-touched surface is one, and the 2D viewport whose Pose-mode lattices insert / delete key.
  * @param KeyformSheetViews keyformSheets The shell's open-sheet registry the sheet commands act through.
  * @param SessionAvailability availability The shared document-scoped availability tiers.
  * @return List<Command> The commands to register.

@@ -39,8 +39,8 @@ import kotlin.test.assertTrue
  * the drawable - on a corpus model, a base 1.9 units wide for a drawable 183.8 wide - so a small typed nudge
  * became an enormous transform.  These tests assert the rows measure and write the DISPLAYED geometry
  * instead, that the write moves the canvas mesh and the base each in its own space, and that the write is
- * refused off the neutral pose (where the deformer-chain inverse is not exact).  Edit mode shows the rig at
- * rest, so there the rows measure and write the rest shape, whatever pose Object mode left.
+ * refused off the neutral pose (where the deformer-chain inverse is not exact) and outside Object mode.  Edit
+ * mode shows the rig at rest, so there the rows measure the rest shape, whatever pose Object mode left.
  */
 class DrawableWorldTransformTest {
 	private val drawableId = DrawableId("d")

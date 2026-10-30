@@ -35,7 +35,8 @@ data class OverlayColor(
 
 /**
  * The colors the mesh overlay draws with: each domain's idle, selected, and active color, the two
- * placement colors a UV area's islands outline in, and the three a warp's lattice draws in by its role.  The active face color colors the active face's DOT
+ * placement colors a UV area's islands outline in, the three a warp's lattice draws in by its role, and the
+ * one a pending lattice draws in whatever its role.  The active face color colors the active face's DOT
  * only; a fill never uses it, the active face fills as selected.  The viewport.meshEdit settings also
  * carry an off-key color per domain, which nothing draws, so it has no place here.
  *

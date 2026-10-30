@@ -937,7 +937,8 @@ sealed interface KeyformChange : Change {
 }
 
 /**
- * Changes to a drawable's art mesh (its interior geometry, edited in Edit mode).
+ * Changes to a drawable's art mesh (its interior geometry, edited in Edit mode), plus the Object-mode move of whole
+ * drawables and warps ([TransformObjects]).
  *
  * The three whole-gesture transforms ([TransformVertices], [TransformObjects], [TransformUvs]) each carry
  * the [MeshOperatorKind] they performed, so the history panel can name the operation rather than filing

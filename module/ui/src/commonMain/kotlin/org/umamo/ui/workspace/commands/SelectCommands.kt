@@ -18,10 +18,10 @@ import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
 
 /**
- * The selection commands: the Edit-mode element domains, select all / invert, the Box and Circle marquee
- * tools, and the pointer-driven Select Linked pair.
+ * The selection commands: the element domains of Edit and Pose mode, select all / invert, the Box and
+ * Circle marquee tools, and the pointer-driven Select Linked pair.
  *
- * Several of these dispatch by mode so one binding serves both - mesh elements in Edit mode, whole
+ * Several of these dispatch by mode so one binding serves both - elements in Edit and Pose mode, whole
  * entities in Object mode - and the session methods no-op in the wrong mode, so the keymap binds them
  * context-free.
  *
@@ -83,7 +83,7 @@ internal fun selectCommands(
 			}
 		},
 		// Box (Blender B) and Circle (Blender C) select tools latch on the session; the arming surface's
-		// overlay drives the gesture (both modes in the viewport; Edit mode in the UV editor, whose
+		// overlay drives the gesture (every mode in the viewport; Edit mode in the UV editor, whose
 		// overlay only composes there). The circle grow / shrink commands (numpad +/-) apply only
 		// while a Circle brush is live, so they hide from the palette otherwise.
 		// ONE Box Select that acts on whatever is under the pointer, rather than a second command fighting

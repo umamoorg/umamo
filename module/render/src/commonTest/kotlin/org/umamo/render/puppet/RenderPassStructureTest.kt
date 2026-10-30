@@ -1459,6 +1459,7 @@ class RenderPassStructureTest {
 	 * @param Int vertexCount The vertex count each entry claims; 4 pairs with a quad.
 	 * @param Int? activeVertex The active vertex on every entry, or null.
 	 * @param Int? activeEdge The active edge ordinal on every entry, or null.
+	 * @param Set<String> wireframeOnly The quads styled [MeshStyle.Wireframe]; every other entry is [MeshStyle.Plain].
 	 * @return MeshOverlay The overlay.
 	 */
 	private fun overlayOver(

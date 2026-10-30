@@ -76,13 +76,13 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  * vertices (vertex mode) or edges (edge mode) are. The mesh palette comes from the viewport.meshEdit
  * settings, so the colors follow the user's preferences live.
  *
- * Edit mode edits the neutral state of the base mesh, and only that - it is pinned to the neutral pose
- * (the render bridge feeds the renderer neutral parameters while the mode is active, and the parameter
- * panel is locked), so the session pose is never touched and blend-shape states are out of scope. The
+ * Edit mode edits the neutral state of the base mesh or the rest lattice, and only that - it is pinned to the
+ * neutral pose (the render bridge feeds the renderer neutral parameters while the mode is active, and the
+ * parameter panel is locked), so the session pose is never touched and blend-shape states are out of scope. The
  * shape shown is the rest shape as rendered - base + the neutral keyform blend, since real rigs park
  * parts elsewhere on the texture sheet and place them via those deltas - and the picks read it projected
  * to world through the composed parent-deformer chain ([drawableSpaceMapping]), so a click lands on the art
- * for warp and rotation children too. A drag commits by movement transfer, writing only the drawable's rest
+ * for warp and rotation children too. A mesh drag commits by movement transfer, writing only the drawable's rest
  * arrays: the base (DrawableMesh.localPositions) as `newBase = base + (displayed' - displayed)`, and the
  * canvas mesh (DrawableMesh.positions) by the same movement on the canvas; the neutral blend cancels out of
  * the subtraction, so no keyform cell resolution is involved, and blend-shape deltas (stored relative to the
@@ -197,7 +197,7 @@ fun ViewportEditGizmoOverlay(
 	// result publishes back on the UI thread (see ModalDriveWorker).
 	ModalDriveEffect(modalTransform.drive)
 
-	// The unmount-mid-gesture guard: leaving Edit mode, closing the area, or every mesh in the edit ceasing
+	// The unmount-mid-gesture guard: leaving Edit or Pose mode, closing the area, or every owner in the edit ceasing
 	// to project disposes this part of the overlay mid-gesture, which cancels the latch effect below WITHOUT
 	// running its teardown - the renderer would be left on the uncommitted preview, and the latch on an
 	// overlay that no longer exists.  A select gesture in flight is dropped the same way, nothing of it
@@ -271,7 +271,7 @@ fun ViewportEditGizmoOverlay(
 			modalTransform.begin(operator.kind, liveGeometry, meshSelection, stage)
 		} else {
 			// Resync the renderer only when THIS overlay owned a gesture: the effect also runs its else
-			// branch at mount (and when another area's operator latches), and an unguarded setModel from
+			// branch at mount (and when another area's operator latches), and an unguarded resync from
 			// a viewport split open mid-gesture would stomp the initiating area's live preview.
 			if (modalTransform.end()) {
 				service.resyncAfterElementGesture(session)

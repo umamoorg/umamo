@@ -19,7 +19,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
 /**
  * The render inputs the UI thread pushes and the render thread reads each frame: the selection, the
  * shown set, the model, the atlas pages, the source artwork, the grid colors, the highlight colors, the mesh
- * overlay and its palette, and the supersample policy.  Each is a volatile publish of an immutable value or a plain scalar.  A change
+ * overlay, the lattice overlay, the Edit-mode direct cage, their palette, and the supersample policy.
+ * Each is a volatile publish of an immutable value or a plain scalar.  A change
  * to a value the render reads as it draws bumps a render-version counter the loop folds into per-area
  * freshness, so a state-only change (no resize / pose / camera change) still forces exactly one redraw:
  * the puppet areas watch [puppetRenderBump]; the UV editor's flat scenes (atlas page, source layer)

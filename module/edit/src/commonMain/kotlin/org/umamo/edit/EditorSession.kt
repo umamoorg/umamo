@@ -212,7 +212,7 @@ class EditorSession private constructor(
 	 * The current transient user notice, or null when none is showing. A short message the shell surfaces
 	 * briefly (near the status bar) to explain why an action did nothing. Deliberately off the undo history and
 	 * the change bus - a notice is momentary feedback, never document state. Used today when an Object-mode
-	 * transform blocks because the selection holds a part, a deformer, or a mesh-less drawable. A StateFlow (not
+	 * transform blocks because the selection holds nothing it can move ([eligibleTransformTargets]). A StateFlow (not
 	 * a one-shot event) so the shell reads it with the standard collectAsState path and a late subscriber still
 	 * sees an in-flight notice; the [Notice.serial] lets the shell time its dismissal and re-trigger on a repeat
 	 * of the same text.
@@ -773,15 +773,17 @@ class EditorSession private constructor(
 	/**
 	 * Sets the interaction mode as its own undo step, so undo restores the mode (and the mesh selection
 	 * it seeds) together - the editor never lands in Edit mode showing a state captured in Object mode.
-	 * Entering Edit seeds the session with EVERY selected mesh-carrying drawable (multi-mesh edit; the
-	 * object selection's active drawable becomes the session's active mesh), falling back to the last
-	 * drawable that was active (Blender's remembered selection) when nothing is selected, and past that
+	 * Entering Edit seeds the session by the active item's kind ([editEntryOf]): an active warp opens on EVERY
+	 * selected warp Edit mode can shape; otherwise the session takes EVERY selected mesh-carrying drawable
+	 * (multi-mesh edit; the object selection's active drawable becomes the session's active mesh), falling back
+	 * to the last owner that was active (Blender's remembered selection) when nothing is selected, and past that
 	 * to the topmost editable drawable in Parts-panel order (so a fresh document lands on something to
-	 * edit rather than an inert session); the remembered fallback is skipped if that drawable no longer
-	 * exists in the model. When the model has nothing editable at all, entering Edit is refused - the
-	 * mode stays Object and nothing is recorded - so Edit mode always holds meshes. Leaving Edit stashes the
-	 * element selection and clears it; re-entering on the same drawable restores the stash when every
-	 * element still fits the mesh (Blender's remembered mesh selection). Leaving also ends any in-flight
+	 * edit rather than an inert session); the remembered fallback is skipped if that owner is no longer
+	 * editable. When the model has nothing editable at all, or the active item is a rotation deformer or a warp
+	 * with no rest lattice, entering Edit is refused - the mode stays as it was, a notice says why where there is
+	 * one, and nothing is recorded - so Edit mode always holds owners. Leaving Edit or Pose mode stashes the
+	 * element selection and clears it; re-entering on the same owner restores the stash when every
+	 * element still fits its topology (Blender's remembered mesh selection). Leaving also ends any in-flight
 	 * operator. Entering Pose mode is refused with a notice when the model has no deformer, since there is
 	 * nothing to pose; otherwise it seeds the session with the warps the pose draws, as Tab seeds Edit mode
 	 * ([poseSeedOf]), or with nothing when there are none.  The pending edits ride every switch untouched: a
@@ -1096,7 +1098,7 @@ class EditorSession private constructor(
 
 	/**
 	 * Restores every session flow from [snapshot] - the history mechanism behind undo, redo, and jumpTo.
-	 * Also updates the remembered active drawable and tears down all transient tool state (see the inline
+	 * Also updates the remembered active owner and tears down all transient tool state (see the inline
 	 * comment), publishes the snapshot through [publish], and republishes the derived flags.
 	 *
 	 * @param EditorSnapshot snapshot The history snapshot to restore.

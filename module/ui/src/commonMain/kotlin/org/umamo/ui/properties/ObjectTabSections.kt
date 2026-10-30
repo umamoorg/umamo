@@ -50,9 +50,10 @@ import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 /**
  * Object > Transform: the shown item's placement.  A drawable has no scalar transform - its placement IS
  * its geometry - so the rows measure its WORLD bounds and write back through the deformer chain (see
- * DrawableWorldTransform.kt for why world, and not the raw base mesh array).  A part, a warp, and a rotation
- * show where they sit too, read-only for now (ReadOnlyTransformRows.kt): a part by the drawables it holds, a
- * warp by its lattice, and a rotation by its pivot with its own angle and scale, above its editable Base Angle.
+ * DrawableWorldTransform.kt for why world, and not the raw base mesh array).  A warp's rows measure and write
+ * its lattice's world box the same way (WarpTransformRows).  A part and a rotation show where they sit too,
+ * read-only for now (ReadOnlyTransformRows.kt): a part by the drawables it holds, and a rotation by its pivot
+ * with its own angle and scale, above its editable Base Angle.
  *
  * Axes are labelled by the DISPLAYED convention (Y+ forward, Z+ up), so the vertical field is Z and maps to
  * world y, which grows upward - the same naming the G / S / R axis lock uses.

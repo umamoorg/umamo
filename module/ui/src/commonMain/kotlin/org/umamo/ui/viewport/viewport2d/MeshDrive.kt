@@ -83,11 +83,12 @@ internal class SlideMove(
 /**
  * One drive's request, resolved on the UI thread: the operator and the parameters its pointer
  * frame resolved to (resolving them advances the rotation tracker, which must see every event), the moving
- * meshes, the slide when one lands, and the model the result folds onto.
+ * meshes and lattices, the slide when one lands, the model the result folds onto, and the stage the lattices land
+ * at.
  *
  * @property MeshOperatorKind operator The operator.
  * @property TransformGestureParameters parameters The parameters every mesh applies.
- * @property List<MeshDriveJob> jobs The moving meshes, in capture order.
+ * @property List<MeshDriveJob> jobs The moving meshes and lattices, in capture order.
  * @property SlideMove? slide The Vertex Slide's landing, or null (for a slide, the pointer landed on no edge).
  * @property PuppetModel baseModel The model the new rest shapes fold onto.
  * @property ElementEditStage stage Where the moving lattices were captured, and so how they land.

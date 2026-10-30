@@ -77,8 +77,8 @@ private val PARAMETER = ParameterId("P")
 /**
  * The sidebar's Item tab and the Properties panel's Object tab show the same item by the same rule and edit
  * it through the same writes: a value typed in one shows in the other, both keep the item after a deselect,
- * and both show the active item among several selected.  A part and a deformer show their transform in
- * both, read-only, and it follows the pose.
+ * and both show the active item among several selected.  A part's box and a rotation's own transform show
+ * read-only in both and follow the pose; a warp's lattice box edits in both.
  */
 class ItemPropertiesParityTest {
 	/**

@@ -48,7 +48,7 @@ class ParentSpaceMapping internal constructor(
 ) {
 	/**
 	 * Maps interleaved (x, y) local positions to world positions: the composed parent transform (or a
-	 * pass-through for a direct drawable) followed by the renderer's Y negation - the exact composition
+	 * pass-through with no parent) followed by the renderer's Y negation - the exact composition
 	 * of `deformMeshWorldFromCorners`.
 	 *
 	 * @param FloatArray local The interleaved local positions.
@@ -121,7 +121,7 @@ class ParentSpaceMapping internal constructor(
 
 	/**
 	 * Maps world positions back to local for the given vertex [indices] with a per-vertex EXACT inverse,
-	 * leaving every other vertex at its [seedLocal] value. A direct parent inverts by pure Y un-negation and
+	 * leaving every other vertex at its [seedLocal] value. No parent inverts by pure Y un-negation and
 	 * a rotation parent by its closed-form affine inverse (both one step); a warp parent inverts each vertex
 	 * independently by a reach-uncapped Newton ([invertWarpUncapped]) seeded from its own rest UV, so every
 	 * vertex lands on its own world target - the mesh stays rigid in world space (no squish), which the
@@ -132,8 +132,7 @@ class ParentSpaceMapping internal constructor(
 	 * folded / multivalued extrapolation region the Newton keeps its best estimate near the seed rather than
 	 * flinging - so a truly unreachable vertex lags instead of boiling. Not capping the per-step reach
 	 * (unlike [invertWarp]) is what lets a large grab follow instead of pinning / ovalizing; the risk traded
-	 * back is that a strongly non-injective cage can still scatter far outside the lattice (the reason the
-	 * shared-Jacobian inverse exists).
+	 * back is that a strongly non-injective cage can still scatter far outside the lattice.
 	 *
 	 * The warp tolerance and scratch are hoisted out of the vertex loop (constant per mapping), and the
 	 * Newton early-exits the moment a vertex converges, so the whole-selection Object-mode grab (hundreds of

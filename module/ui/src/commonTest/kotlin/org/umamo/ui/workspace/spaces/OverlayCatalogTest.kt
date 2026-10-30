@@ -15,8 +15,8 @@ import kotlin.test.assertTrue
  */
 class OverlayCatalogTest {
 	/**
-	 * The 2D viewport offers every row; the UV editor every row but the axes, the selection tint, and the
-	 * wireframe, which its surface has none of.  Both offer the Opacity field, the UV editor's under a Geometry
+	 * The 2D viewport offers every row; the UV editor every row but the axes, the selection tint, the deformers,
+	 * and the wireframe, which its surface has none of.  Both offer the Opacity field, the UV editor's under a Geometry
 	 * heading with no row of its own.
 	 */
 	@Test

@@ -51,8 +51,9 @@ internal class OverlayFrame(
 /**
  * Records the mesh overlay's frame work: the capture of the overlay meshes' deformed positions into the
  * overlay store, and the overlay draws over the finished art - the 2D scene's from that captured store, a
- * UV scene's from the positions its area uploaded, and the 2D scene's lattice layer from the lattice points
- * the renderer read off the pose and uploaded.
+ * UV scene's from the positions its area uploaded, the 2D scene's lattice layer from the lattice points
+ * the renderer read off the pose and uploaded, and the 2D scene's direct Edit cage from the positions its
+ * value holds.
  *
  * The capture mirrors the glue capture: its own pass outside any render pass, once per frame whose store
  * is stale, followed by a barrier.  The draws go domain-major - every mesh's face fills, then every mesh's
@@ -181,8 +182,8 @@ internal class MeshOverlayEncoder(
 
 	/**
 	 * Records a direct overlay's draws into an open pass, from the positions its residency uploaded: a UV area's
-	 * overlay over its surface, or the 2D viewport's lattice layer over the art.  Nothing when there is no overlay
-	 * or nothing of it paired.
+	 * overlay over its surface, or the 2D viewport's lattice layer or direct Edit cage over the art.  Nothing when
+	 * there is no overlay or nothing of it paired.
 	 *
 	 * @param RenderPassEncoder pass The open pass on the target.
 	 * @param DirectOverlayResidency residency The overlay's residency, already brought to its value.

@@ -23,8 +23,9 @@ internal class DirectOverlayResident(
 
 /**
  * The device objects a direct overlay keeps between renders: the store its meshes' own positions are uploaded
- * into and one buffer set per mesh.  A UV area's scene keeps one; the 2D viewport's lattice layer keeps another.
- * Each overlay keeps its own, so two overlays showing different meshes never re-upload each other's.
+ * into and one buffer set per mesh.  A UV area's scene keeps one; the 2D viewport's lattice layer and its direct
+ * Edit cage keep one each.  Each overlay keeps its own, so two overlays showing different meshes never re-upload
+ * each other's.
  *
  * What costs what, by design: a value whose position arrays are the same instances uploads nothing; a moved
  * mesh (a new positions array) uploads its own positions alone; a selection change updates the flags of the

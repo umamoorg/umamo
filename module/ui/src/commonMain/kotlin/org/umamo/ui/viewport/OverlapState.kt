@@ -32,7 +32,7 @@ internal fun List<PickCandidate>.asObjectPickCandidates(): List<ObjectPickCandid
 
 /**
  * The overlap-picker popup's state: where to anchor it, the candidate rows, the pre-highlighted row,
- * and the requesting surface's pick action (Object and Pose mode replace the object selection; Edit mode's
+ * and the requesting surface's pick action (Object mode replaces the object selection; Edit mode's
  * Alt+Q switches the edited mesh) - the popup itself is mode-agnostic.  Hosted by whichever space
  * mounts the popup (the 2D viewport and the UV editor each own one), area-local like the anchor.
  */

@@ -41,10 +41,11 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  * The Object-mode gizmo overlay.  This file is the wiring: what the overlay collects, its guard, what it
  * holds per area and for how long, the effects in the order they launch, and the chrome it draws.  Its
  * parts:
- *   - ObjectModalTransform.kt: the commit side of the modal G / S / R over whole drawables (capture, drive,
- *     confirm, cancel, abandon) - the ModalTransformTarget the pointer loop hands a gesture's events to.
- *   - ObjectGizmoSelection.kt: the selection anchors box and circle read (today each drawable's centroid),
- *     the pure circle-stamp and box functions, and this viewport's marquee and pick controller.
+ *   - ObjectModalTransform.kt: the commit side of the modal G / S / R over whole drawables and warps (capture,
+ *     drive, confirm, cancel, abandon) - the ModalTransformTarget the pointer loop hands a gesture's events to.
+ *   - ObjectGizmoSelection.kt: the selection anchors box and circle read (each drawable's centroid and each
+ *     drawn warp lattice's center), the pure circle-stamp and box functions, the lattice-aware picks, and this
+ *     viewport's marquee and pick controller.
  *   - ObjectGizmoPointerInput.kt: the pointer loop (modal transform, circle brush, armed box, idle pick).
  *   - ObjectGizmoDraw.kt: the gesture chrome, read in the draw phase.
  *   - ObjectGizmoRequests.kt: the area-gated collector for the Shift+S snaps.
@@ -66,25 +67,26 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  *     an Alt click opens the overlap picker over lattices and stacked meshes, an unmodified click on empty
  *     canvas clears).
  *   - Box select: a primary drag rubber-bands and selects every drawable whose world centroid, and every drawn
- *     warp whose lattice center, is enclosed (Shift adds to the current selection).  Works un-armed (a drag from empty canvas, Blender's default
- *     drag) and armed (Blender's B, which skips the pick and always boxes, then disarms).  Escape or a
- *     right-click abandons an in-flight drag.
+ *     warp whose lattice center, is enclosed (Shift adds to the current selection).  Works un-armed (a drag
+ *     from empty canvas, Blender's default drag) and armed (Blender's B, which skips the pick and always boxes,
+ *     then disarms).  Escape or a right-click abandons an in-flight drag.
  *   - Circle select (Blender's C): a brush paints objects by the same anchors - a primary drag adds, a middle or
  *     Shift+primary drag erases; the stroke accumulates into a working selection committed once on release
  *     (one undo step), previewed live through the GPU tint via [SessionToolLatches.setPreviewSelection]; the wheel
  *     resizes the brush; a right-click leaves the tool keeping what was painted.
- *   - Grab / Scale / Rotate: a modal transform of every selected drawable's whole geometry about their combined
- *     centroid, previewed straight to the renderer and committed as one undo step ([MeshChange.TransformObjects]).
- *     A right-click or Escape cancels (the renderer re-syncs to the committed model); a primary click or Enter
- *     confirms.  Only drawables transform - a selection with nothing transformable blocks at the session
- *     guard ([EditorSession.beginObjectOperator]) before an operator ever latches here.
+ *   - Grab / Scale / Rotate: a modal transform of every selected drawable's whole geometry and every selected
+ *     warp's whole lattice about their combined centroid, previewed straight to the renderer and committed as one
+ *     undo step ([MeshChange.TransformObjects]).  A right-click or Escape cancels (the renderer re-syncs to the
+ *     committed model); a primary click or Enter confirms.  Only drawables and warps transform - a selection with
+ *     nothing transformable blocks at the session guard ([EditorSession.beginObjectOperator]) before an operator
+ *     ever latches here.
  *
  * The transform math ([applyOperator], [MeshTransforms], the shared world->base round trip), the cursor-wrap
  * scheme, and the screen projection ([worldToScreen] / [screenToWorld]) are shared verbatim with the Edit
- * gizmo; only the capture's per-drawable geometry and the selection domain (whole drawables) differ.
+ * gizmo; only the capture's per-drawable geometry and the selection domain (whole objects) differ.
  *
  * @param String areaId The viewport area this overlay covers.
- * @param PuppetViewportService service The render service (picking, live preview pushes, centroids).
+ * @param PuppetViewportService service The render service (picking, live preview pushes, selection anchors).
  * @param EditorSession session The session owning the model, object selection, and active tool / operator.
  * @param ViewportCamera? camera The area's camera (world<->screen affine); null hides the overlay.
  * @param Int widthPx The area width in pixels.
@@ -193,7 +195,7 @@ fun ViewportObjectGizmoOverlay(
 			modalTransform.begin(operator.kind)
 		} else {
 			// Resync the renderer only when THIS overlay owned a gesture: the effect also runs its else
-			// branch at mount (and when another area's operator latches), and an unguarded setModel from
+			// branch at mount (and when another area's operator latches), and an unguarded resync from
 			// a viewport split open mid-gesture would stomp the initiating area's live preview.
 			if (modalTransform.end()) {
 				service.resyncAfterElementGesture(session)
@@ -209,7 +211,7 @@ fun ViewportObjectGizmoOverlay(
 		}
 	}
 
-	// The geometry-dependent Shift+S snaps for Object mode over the selected drawables' centroids.
+	// The geometry-dependent Shift+S snaps for Object mode over the selected drawables' and warps' centroids.
 	// Only the pointer's own area executes: every open 2D viewport composes this collector, and an
 	// ungated request would commit once per viewport.
 	// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election;

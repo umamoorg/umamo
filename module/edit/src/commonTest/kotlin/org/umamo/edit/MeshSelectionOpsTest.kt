@@ -37,7 +37,7 @@ class MeshSelectionOpsTest {
 	private val spokeTopology = ElementTopology.ofMesh(spokeMesh)
 	private val stripTopology = ElementTopology.ofMesh(stripMesh)
 
-	// The mesh provider the whole-session ops resolve topology through.
+	// Each session owner's mesh, the source [topologyOf] builds its topology from.
 	private fun meshOf(owner: ElementOwner): DrawableMesh? =
 		when (owner) {
 			drawableD -> spokeMesh

@@ -22,8 +22,8 @@ import org.umamo.runtime.model.meshOf
  *
  * @property Selection              selection            The object selection.
  * @property ParameterSelection     parameterSelection   The parameters targeted for keyform authoring.
- * @property EditorMode             mode                 The interaction mode; Edit holds only when it can be entered.
- * @property MeshSelectMode         selectMode           The mesh select mode, meaningful in Edit mode.
+ * @property EditorMode             mode                 The interaction mode; Edit and Pose hold only when they can be entered.
+ * @property MeshSelectMode         selectMode           The element select mode, meaningful in Edit and Pose mode.
  * @property Cursor2d?              cursor2d             The 2D cursor, or null when never placed.
  * @property UvCursor?              uvCursor             The UV cursor, or null when never placed.
  * @property TransformPivotMode     pivotMode            What a modal Scale or Rotate turns about.
@@ -77,8 +77,8 @@ internal fun SessionViewState.fittedTo(model: PuppetModel): SessionViewState {
 }
 
 /**
- * The owners an Edit-mode session opens on, and which of them is active: drawables' meshes, or warps' lattices, never
- * both (Edit mode edits the active item's kind).
+ * The owners an Edit- or Pose-mode session opens on, and which of them is active: drawables' meshes, or warps'
+ * lattices, never both (Edit mode edits the active item's kind).
  *
  * @property List<ElementOwner> owners The session's owners.
  * @property ElementOwner activeOwner The active owner.

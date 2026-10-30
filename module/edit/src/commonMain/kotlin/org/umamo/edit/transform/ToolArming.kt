@@ -21,9 +21,8 @@ import org.umamo.edit.eligibleTransformTargets
 /**
  * Latches a modal mesh operator so the gizmo overlay begins the gesture. A no-op unless a mode that edits elements
  * ([editsElements]: Edit, or Pose over lattices) is active with a mesh or lattice and a non-empty selection — so the
- * bound G / S / R commands need no context
- * guard of their own and the keymap stays mode-agnostic. For an edge or face selection the gesture
- * moves the union of vertices the selected elements cover (resolved in the overlay).
+ * bound G / S / R commands need no context guard of their own and the keymap stays mode-agnostic. For an edge or
+ * face selection the gesture moves the union of vertices the selected elements cover (resolved in the overlay).
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
@@ -49,11 +48,11 @@ fun EditorSession.beginMeshOperator(kind: MeshOperatorKind, areaId: String, supp
  * whole objects - the Object-mode counterpart to [beginMeshOperator]. A no-op unless Object mode is active
  * with an eligible selection: at least one selected target must be a drawable that carries a mesh or a warp
  * with a rest lattice (see [eligibleTransformTargets]; parts, rotation deformers, and mesh-less drawables in
- * the selection are silently ignored, so a Select All that swept them in never blocks the gesture). The gesture is BLOCKED with a
- * near-cursor notice when the pose is not at parameter defaults: the object overlay captures at the live
- * pose, and writing a deformed capture back through the warp inverse corrupts the rest meshes - the
- * Blender-style guard tells the user to reset the parameters first. Clears any other latched tool /
- * operator (mutual exclusion) before latching.
+ * the selection are silently ignored, so a Select All that swept them in never blocks the gesture). The
+ * gesture is BLOCKED with a near-cursor notice when the pose is not at parameter defaults: the object
+ * overlay captures at the live pose, and writing a deformed capture back through the warp inverse corrupts
+ * the rest meshes - the Blender-style guard tells the user to reset the parameters first. Clears any other
+ * latched tool / operator (mutual exclusion) before latching.
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
@@ -64,7 +63,8 @@ fun EditorSession.beginObjectOperator(kind: MeshOperatorKind, areaId: String) {
 	}
 
 	if (eligibleTransformTargets(selection.value, model.value) == null) {
-		// Nothing transformable at all (empty, or only parts / deformers / mesh-less drawables).
+		// Nothing transformable at all (empty, or only parts / rotation deformers / mesh-less drawables / warps
+		// hidden at rest).
 		emitNotice("notice.transform.onlyDrawables", NoticePlacement.NearCursor)
 
 		return
@@ -97,7 +97,8 @@ fun EditorSession.beginObjectOperator(kind: MeshOperatorKind, areaId: String) {
  * pinned (a pin holds against a hand move too).  Which page the overlay is showing - and whether it is
  * showing a page at all rather than a source layer - is per-area state the session cannot see, so
  * the overlay that owns the latch drops it with its own notice when its surface cannot serve the
- * gesture.  Clears any other latched tool / operator (mutual exclusion) before latching.
+ * gesture.  Pose mode latches nothing: the UV editor is view-only there.  Clears any other latched tool /
+ * operator (mutual exclusion) before latching.
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating UV editor's area id (only its overlay drives the gesture).

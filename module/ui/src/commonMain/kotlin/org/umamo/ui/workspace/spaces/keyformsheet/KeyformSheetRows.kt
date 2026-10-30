@@ -305,8 +305,8 @@ private class ProjectionBuilder(
 				),
 			)
 			// A geometry row is editable: its key POSITIONS are ordinary grid algebra.  Leaving it unaddressable
-			// made the sheet silently swallow every gesture on what is, after compaction, nearly every row a corpus
-			// rig shows.
+			// would make the sheet silently swallow every gesture on what is, after compaction, nearly every row a
+			// corpus rig shows.
 			tracks[rowKey] = KeyformTrackRef.Geometry(owner)
 		}
 

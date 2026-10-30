@@ -44,10 +44,11 @@ internal object PoseLatticeTestRig {
 		}
 
 	/**
-	 * A lattice of nine points, each at [x], [y] plus its index - a shape no blend of the rig's keys produces.
+	 * A lattice of nine points, each component [x] or [y] plus its component index - a shape no blend of the rig's
+	 * keys produces.
 	 *
-	 * @param Float x The first point's x.
-	 * @param Float y The first point's y.
+	 * @param Float x The base every x component adds its index to.
+	 * @param Float y The base every y component adds its index to.
 	 * @return WarpLatticeForm The lattice.
 	 */
 	fun shaped(

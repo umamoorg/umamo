@@ -19,7 +19,7 @@ import org.umamo.runtime.model.translationAffine
  * The Properties Transform panel's rows for a warp, in the same world space the drawable rows use
  * (DrawableWorldTransform.kt has the why): the lattice's world box at the shown pose, and edits that move the warp
  * as a whole - every form it carries, its art following - exactly as an Object-mode G / S does.  Every write is
- * gated on the neutral pose, as the viewport's transform is.
+ * gated by writesWholeObjects - Object mode at the neutral pose - as the viewport's transform is.
  */
 
 /**

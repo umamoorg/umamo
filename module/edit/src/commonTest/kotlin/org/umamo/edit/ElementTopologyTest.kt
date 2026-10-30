@@ -9,8 +9,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Pins the element topology Edit mode works over: a triangle mesh keeps exactly the edges and neighbors its triangles
- * always gave, and a lattice is quads - its edges are the grid lines alone, a face is a whole cell, and the select-mode
+ * Pins the element topology Edit mode works over: a triangle mesh keeps exactly the edges and neighbors its triangle
+ * indices give, and a lattice is quads - its edges are the grid lines alone, a face is a whole cell, and the select-mode
  * rules derive cells from their four corners and four sides, never from a diagonal.
  */
 class ElementTopologyTest {

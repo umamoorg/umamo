@@ -14,7 +14,7 @@ import org.umamo.runtime.model.deformerChain
  * A selectable rig entity, addressed by its typed id. A closed taxonomy (part, drawable, or deformer)
  * so a `when` over a selection is exhaustive; adding a fourth selectable kind becomes a compile error
  * until handled everywhere. This is object-mode selection — whole entities, not their interior mesh
- * vertices or deformer control points (those belong to Edit mode, see [EditorMode]).
+ * vertices or deformer control points (those belong to Edit and Pose mode, see [EditorMode]).
  */
 sealed interface SelectionTarget {
 	/** An organizational tree part. */
@@ -340,7 +340,7 @@ fun PuppetModel.subtreeTargets(target: SelectionTarget): List<SelectionTarget> =
  *
  * @param Selection selection The object-mode selection to evaluate.
  * @param PuppetModel model The rig the targets index into.
- * @return List<DrawableId>? The transformable drawable ids, or null when nothing is transformable.
+ * @return List<DrawableId>? The selected meshed drawable ids, or null when there are none.
  */
 fun eligibleTransformDrawables(selection: Selection, model: PuppetModel): List<DrawableId>? {
 	if (selection.isEmpty) {

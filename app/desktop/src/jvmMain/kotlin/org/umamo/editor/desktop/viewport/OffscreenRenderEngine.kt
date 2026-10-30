@@ -136,7 +136,7 @@ internal class OffscreenRenderEngine(
 	// nothing unless a binding was pushed before the thread started.
 	private var appliedAtlasBinding: AtlasPageBinding = inputs.initialAtlasBinding
 
-	// The pose inputs the renderer last posed with, each compared by identity: all four are swapped
+	// The pose inputs the renderer last posed with, each compared by identity: all five are swapped
 	// wholesale on the UI thread, so a reference change is exactly "something moved".
 	private var lastParams: Map<ParameterId, Float>? = null
 	private var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
@@ -277,8 +277,8 @@ internal class OffscreenRenderEngine(
 		// the render order - when the pose, the visibility cascade, OR the render order changes. A
 		// visibility toggle or a layer reorder leaves the params untouched, so without these checks the
 		// draw list would never refresh. setShownDrawables / updateModel run first so setPose uses them.
-		// The override map is compared by identity like the params map: both are swapped wholesale on
-		// the UI thread, so a reference change is exactly "something moved".  A push that moved mesh
+		// The override and lattice maps are compared by identity like the params map: all are swapped wholesale
+		// on the UI thread, so a reference change is exactly "something moved".  A push that moved mesh
 		// positions alone - every preview push of a Grab - keeps the pose: the renderer kept its pose
 		// inputs and refreshed what reads positions, so a rebake would only redo them.
 		val overrides = liveParams.channelOverrides
@@ -444,8 +444,8 @@ internal class OffscreenRenderEngine(
 		// Read AFTER the versions above, like the selection: a publish stores its value before it bumps, so one
 		// landing after that read leaves this render stamped with the older version and the area renders again.
 		// Applying these in the hand-off instead would let an area stamp itself fresh over a frame that drew the
-		// outgoing overlay.  The puppet's overlay, lattices, and direct cage are renderer-wide state a UV render never reads (a
-		// UV area's overlay rides its content, below); the palette colors both.
+		// outgoing overlay.  The puppet's overlay, lattices, and direct cage are renderer-wide state a UV render
+		// never reads (a UV area's overlay rides its content, below); the palette colors both.
 		renderer.setMeshOverlay(inputs.meshOverlay)
 		renderer.setLatticeOverlay(inputs.latticeOverlay)
 		renderer.setEditDirectOverlay(inputs.editDirectOverlay)

@@ -41,7 +41,7 @@ class WarpResampleTest {
 		}
 
 	/**
-	 * A 2x2 warp holding [cellLattice] in both cells of a two-key grid, with a blend-shape form.
+	 * A 2x2 warp whose two-key grid holds a differently curved lattice in each cell, with a blend-shape form.
 	 *
 	 * @param Boolean quad Whether the lattice blends bilinearly.
 	 * @return Deformer.Warp The warp.

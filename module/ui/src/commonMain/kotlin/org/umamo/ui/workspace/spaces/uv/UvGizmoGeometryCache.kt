@@ -21,9 +21,10 @@ import org.umamo.ui.viewport.uv.uvToDisplay
  * inputs are the same instances, which spares the edge walk and the display mapping, and is what lets the
  * renderer upload only the moved meshes' positions, since it compares them by identity.
  *
- * What each piece is kept by: a mesh's edges by its index array; its recovered layer coordinates by its
- * stored coordinates, its layer binding, and the layer's size; its display positions by the coordinates
- * in the shown surface's frame and the surface's size; and its whole geometry by those three results.
+ * What each piece is kept by: a mesh's topology by its index array and vertex count; its recovered layer
+ * coordinates by its stored coordinates, its layer binding, and the layer's size; its display positions by
+ * the coordinates in the shown surface's frame and the surface's size; and its whole geometry by its
+ * topology and display positions.
  * Each derive drops the meshes it no longer shows.
  *
  * Not thread-safe: the area's composition owns it.  Every entry is a pure function of what it is kept by,
@@ -105,7 +106,7 @@ internal class UvGizmoGeometryCache {
 
 	/**
 	 * The shown drawables' display-space gizmo geometry (see [uvGizmoGeometries]), each mesh's the previous
-	 * instance when its indices and its mapping are the ones it was built from and the surface kept its size.
+	 * instance when its topology and its mapping are the ones it was built from and the surface kept its size.
 	 *
 	 * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
 	 * @param Map<DrawableId, FloatArray> uvsById Each drawable's mapping in the shown surface's frame.

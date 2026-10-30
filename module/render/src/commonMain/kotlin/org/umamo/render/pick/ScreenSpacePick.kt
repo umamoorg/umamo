@@ -10,7 +10,7 @@ import kotlin.math.sqrt
  * through a ViewportCamera - the geometry seam the Edit-mode gizmo overlays use for element picking,
  * box select, and the circle brush, and that a UV editor can reuse verbatim by projecting through its
  * own camera.  Everything here is pure and Compose-free: points are plain floats, sizes are plain ints,
- * and results are ORDINALS - vertex indices, edge ordinals into the caller's edge array, and triangle
+ * and results are ORDINALS - vertex indices, edge ordinals into the caller's edge array, and face
  * ordinals - so this module never depends on any UI element type.
  *
  * Edges come in as an interleaved endpoint array (two vertex indices per edge, the caller's edge order);

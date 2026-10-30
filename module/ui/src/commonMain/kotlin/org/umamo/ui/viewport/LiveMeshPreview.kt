@@ -26,8 +26,8 @@ internal class LiveMeshPreview {
 	var restByDrawable: Map<DrawableId, MeshRestPositions>? by mutableStateOf(null)
 
 	/**
-	 * The previewed world points per moving lattice, interleaved x, y, or null while no Edit-mode modal transform has
-	 * published one.
+	 * The previewed world points per moving lattice, interleaved x, y, or null while no Edit- or Pose-mode modal
+	 * transform has published one.
 	 */
 	var latticeWorldByDeformer: Map<DeformerId, FloatArray>? by mutableStateOf(null)
 

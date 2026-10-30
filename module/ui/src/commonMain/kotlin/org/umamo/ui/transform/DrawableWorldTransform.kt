@@ -33,10 +33,11 @@ import org.umamo.runtime.model.meshOf
  * So the panel works in WORLD space, the same space the viewport and the object gizmo use, and reuses the
  * gizmo's round trip: capture world, transform world, invert to local, difference back onto the base, and
  * move the canvas mesh by the same world movement.  The inverse (worldToLocalLinearized) is exact only at
- * the neutral pose, which is why every write here is gated on isPoseNeutral exactly as
- * EditorSession.beginObjectOperator is - the panel disables its fields rather than writing geometry it
- * cannot invert.  The pose is the SHOWN pose (EditorMode.shownPose), so in Edit mode, which shows the rig
- * at rest, the rows measure and edit the rest shape the viewport draws, whatever pose Object mode left.
+ * the neutral pose, which is why every write here is gated by writesWholeObjects - Object mode at the
+ * neutral pose, exactly as EditorSession.beginObjectOperator gates - and the panel disables its fields
+ * rather than writing geometry it cannot invert.  The pose is the SHOWN pose (EditorMode.shownPose), so in
+ * Edit mode, which shows the rig at rest, the rows measure the rest shape the viewport draws, whatever pose
+ * Object mode left; only Object mode writes.
  *
  * Everything here stays in world space, whose zero is the canvas's top-left corner.  The rigger reads
  * positions from the world axes instead, so the Position rows convert at the display boundary through the
