@@ -2,6 +2,7 @@ package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshSelection
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.transform.IndividualOriginScope
 import org.umamo.edit.transform.ModalCaptureSource
@@ -12,12 +13,12 @@ import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.transform.CoveredVertices
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.transform.WorldAxis
 import org.umamo.ui.transform.WorldMedian
 import org.umamo.ui.transform.coveredMedian
+import org.umamo.ui.transform.coveredVerticesOf
 
 /*
  * A typed or scrubbed Vertex / Median value as an Edit- or Pose-mode move: a Grab of every covered vertex or lattice
@@ -27,14 +28,15 @@ import org.umamo.ui.transform.coveredMedian
 
 /**
  * The covered vertices captured for a move of their median: a Grab capture over every covered vertex with no
- * proportional weights, each owner's captured geometry (a mesh's, which it inverts through, or a lattice's), and
- * the median the move measures from.
+ * proportional weights and every other owner in the edit as a bystander, each owner's captured geometry (a mesh's,
+ * which it inverts through, or a lattice's), and the median the move measures from.
  *
  * Built for one write and reused only until something commits: the operation strip keeps the capture of the step
  * it registers and re-derives its halos on adjustment, so a later write must capture afresh.
  *
  * @property ModalTransformCapture transform The Grab capture.
- * @property Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each moving owner's captured geometry.
+ * @property Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each captured owner's geometry, a bystander's
+ *   included.
  * @property WorldMedian median The covered median as captured.
  * @property ElementEditStage stage Where the geometry was captured, and so how a moved lattice lands.
  */
@@ -91,22 +93,28 @@ internal class CoveredMedianMove(
 }
 
 /**
- * Captures [covered] for a move of their median.  The pivot is the median point with no anchors: a Grab ignores
- * the pivot, and Individual Origins would only build connectivity islands for nothing.  Each source carries its
- * owner's topology, so Connected Only works if the rigger turns proportional editing on from the strip afterward.
+ * Captures the vertices [selection] covers across [edit] for a move of their median.  The pivot is the median point
+ * with no anchors: a Grab ignores the pivot, and Individual Origins would only build connectivity islands for nothing.
+ * Every owner in the edit is offered, each with its topology, the way the viewport's Grab offers them, so turning
+ * proportional editing on from the strip afterward reaches the same meshes and lattices that Grab's would - a
+ * straight-line halo into the owners with nothing covered, Connected Only along each owner's own edges.
  *
- * @param List<CoveredVertices> covered The covered vertices, as captured from the committed model.
+ * @param MeshSelection selection The mesh selection.
+ * @param List<EditOwnerGeometry> edit Every owner in the edit, as captured from the committed model.
  * @param ElementEditStage stage Where they were captured.
  * @return CoveredMedianMove? The move, or null when nothing is covered.
  */
 internal fun coveredMedianMove(
-	covered: List<CoveredVertices>,
+	selection: MeshSelection,
+	edit: List<EditOwnerGeometry>,
 	stage: ElementEditStage = ElementEditStage.Rest,
 ): CoveredMedianMove? {
+	val covered = coveredVerticesOf(selection, edit.map { geometry -> geometry.worldGeometry }, edit.associate { geometry -> geometry.owner to geometry.topology })
 	val median = coveredMedian(covered) ?: return null
+	val coveredByOwner = covered.associate { owner -> owner.geometry.owner to owner.indices }
 	val sources =
-		covered.map { mesh ->
-			ModalCaptureSource(mesh.geometry.owner, mesh.geometry.world, mesh.topology, mesh.indices)
+		edit.map { geometry ->
+			ModalCaptureSource(geometry.owner, geometry.worldGeometry.world, geometry.topology, coveredByOwner[geometry.owner].orEmpty())
 		}
 	val transform =
 		buildModalTransformCapture(
@@ -118,7 +126,7 @@ internal fun coveredMedianMove(
 			cursorAnchor = null,
 		) ?: return null
 
-	return CoveredMedianMove(transform, covered.associate { mesh -> mesh.geometry.owner to mesh.geometry }, median, stage)
+	return CoveredMedianMove(transform, edit.associate { geometry -> geometry.owner to geometry.worldGeometry }, median, stage)
 }
 
 /**

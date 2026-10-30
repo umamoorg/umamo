@@ -71,11 +71,11 @@ internal fun registerUvTransformAdjustment(
 }
 
 /**
- * Where a UV transform lands: each captured mesh's frozen display coordinates through the operator, written
- * back through [frame] onto [baseModel]'s stored coordinates for the moved vertices alone, so the untouched ones
- * stay bit-identical, and a bystander the halo does not reach is left out.  One compute for a strip adjustment's
- * rerun and for a value typed in the sidebar, so the first landing and every adjustment of it are the same
- * function.
+ * Where a UV transform lands: each drive job's frozen display coordinates through the operator, written back
+ * through [frame] onto [baseModel]'s stored coordinates for the moved vertices alone, so the untouched ones stay
+ * bit-identical.  The jobs are the gesture's own ([uvDriveJobs]), so a bystander the halo does not reach is left
+ * out here exactly as the drive leaves it out.  One compute for a strip adjustment's rerun and for a value typed in
+ * the sidebar, so the first landing and every adjustment of it are the same function.
  *
  * @param ModalTransformCapture transform The frozen capture (display-space positions).
  * @param UvEditFrame frame The space the coordinates were authored in.
@@ -89,17 +89,12 @@ internal fun uvTransformLanding(
 	parameters: TransformGestureParameters,
 	baseModel: PuppetModel,
 ): Map<DrawableId, FloatArray> {
-	val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(transform.entries.size)
+	val jobs = uvDriveJobs(transform)
+	val newUvsByDrawable = LinkedHashMap<DrawableId, FloatArray>(jobs.size)
 
-	for (entry in transform.entries) {
-		val drawableId = entry.drawableId ?: continue
-
-		if (entry.movedIndices.isEmpty()) {
-			continue
-		}
-
-		val display = applyOperator(transform.operatorKind, entry.positions, entry.groups, parameters, entry.influence)
-		newUvsByDrawable[drawableId] = storedUvsForCommit(baseModel, drawableId, entry.movedIndices, display, frame)
+	for (job in jobs) {
+		val display = applyOperator(transform.operatorKind, job.positions, job.groups, parameters, job.influence)
+		newUvsByDrawable[job.drawableId] = storedUvsForCommit(baseModel, job.drawableId, job.movedIndices, display, frame)
 	}
 
 	return newUvsByDrawable

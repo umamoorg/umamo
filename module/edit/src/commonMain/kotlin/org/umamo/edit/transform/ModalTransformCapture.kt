@@ -30,13 +30,13 @@ enum class IndividualOriginScope {
  *
  * The positions are frozen in whatever space the gesture runs in - world-posed for the viewport overlays,
  * texel display for the UV editor - and the covered indices are the union of vertices the mesh's selected
- * elements span (every vertex, for an Object-mode whole-object transform).  Among the builder's sources one
- * whose covered set is empty contributes nothing and is dropped; offered as a bystander, its covered set
- * goes unread.
+ * elements span (every vertex, for an Object-mode whole-object transform).  A source whose covered set is
+ * empty is a bystander: a mesh in the edit with nothing selected, which only a halo can move.
  *
  * @property ElementOwner owner The drawable or warp these points belong to (the capture's per-mesh key).
  * @property FloatArray positions The frozen interleaved positions the operator transforms and the pivots
- *   are measured in.  The builder does not copy it - the caller freezes (copies) before handing it over.
+ *   are measured in.  The builder does not copy it - the caller freezes (copies) it before handing it over, or
+ *   hands over an array nothing writes into.
  * @property ElementTopology topology The mesh's topology, sized to [positions] (connectivity for islands and the
  *   geodesic proportional falloff).  An Object-mode whole-object source connects nothing.
  * @property Set<Int> coveredIndices The vertices the selection covers on this mesh.
@@ -109,8 +109,8 @@ class ModalCaptureEntry internal constructor(
  * deformer-chain mapping, the UV editor's page dimensions) hold it in a map keyed on
  * [ModalCaptureEntry.owner] rather than a second index-aligned list.
  *
- * @property List<ModalCaptureEntry> entries The meshes the gesture can move: one per source that had covered
- *   vertices, then one per bystander, all with positions in one shared space.
+ * @property List<ModalCaptureEntry> entries The meshes the gesture can move: one per source with covered
+ *   vertices, then one per bystander, each in source order, all with positions in one shared space.
  * @property Pair<Float, Float> anchor The point in the gesture's space that factors and angles measure
  *   against (and the shared-pivot modes turn about); the HUD's pivot marker draws here.
  * @property MeshOperatorKind operatorKind The operator that latched, frozen so the commit names the
@@ -169,7 +169,11 @@ class ModalTransformCapture internal constructor(
  * pre-resolved: [activeAnchor] (each overlay finds its active element / drawable differently) and
  * [cursorAnchor] (each reads a different cursor, in a different space).
  *
- * @param List<ModalCaptureSource> sources The meshes offered; those with no covered vertices are dropped.
+ * The caller offers every mesh in the edit, so the split between moving meshes and bystanders is made here,
+ * once, for every overlay: a source with covered vertices gets its pivot groups, and one with none joins after
+ * them with no groups, so only a straight-line proportional halo reaching it from the selection moves it.
+ *
+ * @param List<ModalCaptureSource> sources The meshes offered, their positions in one shared space.
  * @param TransformPivotMode pivotMode The active pivot mode (which anchor, and single vs per-island groups).
  * @param IndividualOriginScope individualOriginScope How Individual Origins partitions a mesh.
  * @param MeshOperatorKind operatorKind The operator that latched (frozen onto the capture).
@@ -177,9 +181,6 @@ class ModalTransformCapture internal constructor(
  *   back to the median.
  * @param Pair<Float, Float>? cursorAnchor The Cursor anchor the caller resolved, or null to fall back to
  *   the median.
- * @param List<ModalCaptureSource> bystanders The meshes in the edit with nothing selected, their positions in
- *   the space of [sources]: each joins after them with no covered vertices and no pivot groups, so only a
- *   straight-line proportional halo reaching it from the selection moves it.  Their covered sets go unread.
  * @return ModalTransformCapture? The capture, or null when no source had covered vertices (no gesture runs).
  */
 fun buildModalTransformCapture(
@@ -189,9 +190,8 @@ fun buildModalTransformCapture(
 	operatorKind: MeshOperatorKind,
 	activeAnchor: Pair<Float, Float>?,
 	cursorAnchor: Pair<Float, Float>?,
-	bystanders: List<ModalCaptureSource> = emptyList(),
 ): ModalTransformCapture? {
-	val moving = sources.filter { source -> source.coveredIndices.isNotEmpty() }
+	val (moving, bystanders) = sources.partition { source -> source.coveredIndices.isNotEmpty() }
 
 	if (moving.isEmpty()) {
 		return null

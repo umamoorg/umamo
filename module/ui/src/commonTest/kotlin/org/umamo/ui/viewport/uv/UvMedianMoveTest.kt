@@ -47,7 +47,7 @@ class UvMedianMoveTest {
 	private fun moveOf(session: EditorSession): UvMedianMove {
 		val geometries = uvRigGeometries(session.model.value, uvRigPageFrame(), shown = listOf(UV_RIG_QUAD))
 
-		return assertNotNull(uvMedianMove(uvCoveredVertices(session.meshSelection.value, geometries), uvRigPageFrame(), radiusState))
+		return assertNotNull(uvMedianMove(session.meshSelection.value, geometries, uvRigPageFrame(), radiusState))
 	}
 
 	/**
@@ -169,6 +169,31 @@ class UvMedianMoveTest {
 		assertEquals(ProportionalFalloff.Sharp, state.falloff)
 		assertTrue(state.connectedOnly)
 		assertEquals(345f, state.radiusWorld, "the 2D radius is not reset to the default")
+	}
+
+	/**
+	 * Turning proportional editing on from the strip after a typed move pulls the nearby mesh in the edit that has
+	 * nothing selected, as the UV editor's own Grab does, and leaves the corner outside the radius where it was.
+	 */
+	@Test
+	fun turningProportionalOnFromTheStripReachesAnotherMeshInTheEdit() {
+		// Quad vertex 1 at (120, 100) alone is covered.  The triangle's (140, 100) corner lies twenty texels away,
+		// inside the page's thirty-two, and its (160, 100) corner forty, outside.
+		val session = uvEditSession(editing = listOf(UV_RIG_QUAD, UV_RIG_OTHER), elements = listOf(MeshElement.Vertex(1)))
+		session.setProportionalFalloff(ProportionalFalloff.Linear)
+		val geometries = uvRigGeometries(session.model.value, uvRigPageFrame(), shown = listOf(UV_RIG_QUAD, UV_RIG_OTHER))
+		val move = assertNotNull(uvMedianMove(session.meshSelection.value, geometries, uvRigPageFrame(), radiusState))
+		val otherBefore = uvRigUvsOf(session, UV_RIG_OTHER)
+
+		session.moveUvMedianAdjustable(move, TexelAxis.X, 130f, STRIP_AREA)
+		assertEquals(otherBefore, uvRigUvsOf(session, UV_RIG_OTHER), "the typed move takes no falloff")
+		val record = assertNotNull(session.adjustableOperation.value)
+		val toggle = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.PROPORTIONAL } as OperatorParameter.BooleanParameter
+		session.adjustLastOperation(record.parameters.withParameter(TransformParameterKeys.PROPORTIONAL, toggle.copy(value = true)), adjustedKey = TransformParameterKeys.PROPORTIONAL)
+
+		val otherAfter = uvRigUvsOf(session, UV_RIG_OTHER)
+		assertEquals(otherBefore[0] + 10f * (1f - 20f / 32f) / UV_RIG_PAGE_SIDE, otherAfter[0], 1e-5f, "the near corner takes three eighths of the move")
+		assertEquals(otherBefore.subList(2, 4), otherAfter.subList(2, 4), "the corner outside the radius stays")
 	}
 
 	/** The UV write-back keeps the session's remembered world radius even while proportional editing is off. */

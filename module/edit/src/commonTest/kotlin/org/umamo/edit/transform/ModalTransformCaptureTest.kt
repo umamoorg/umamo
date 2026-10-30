@@ -48,9 +48,16 @@ class ModalTransformCaptureTest {
 		scope: IndividualOriginScope = IndividualOriginScope.ConnectivityIsland,
 		activeAnchor: Pair<Float, Float>? = null,
 		cursorAnchor: Pair<Float, Float>? = null,
-		bystanders: List<ModalCaptureSource> = emptyList(),
 	): ModalTransformCapture? =
-		buildModalTransformCapture(sources, pivotMode, scope, MeshOperatorKind.Grab, activeAnchor, cursorAnchor, bystanders)
+		buildModalTransformCapture(sources, pivotMode, scope, MeshOperatorKind.Grab, activeAnchor, cursorAnchor)
+
+	/**
+	 * [source] with nothing selected: the same mesh offered as a bystander.
+	 *
+	 * @param ModalCaptureSource source The mesh.
+	 * @return ModalCaptureSource The mesh with an empty covered set.
+	 */
+	private fun uncovered(source: ModalCaptureSource): ModalCaptureSource = ModalCaptureSource(source.owner, source.positions, source.topology, emptySet())
 
 	/** The median anchor is the covered-vertex mean pooled across every moving mesh, not a per-mesh average. */
 	@Test
@@ -132,13 +139,12 @@ class ModalTransformCaptureTest {
 		assertEquals(setOf(setOf(0, 1, 2), setOf(3, 4, 5)), groups.map { it.vertexIndices }.toSet())
 	}
 
-	/** A source with no covered vertices is dropped; an all-empty source list returns null (no gesture). */
+	/** An all-uncovered source list returns null (no gesture), and so does an empty one. */
 	@Test
-	fun emptyCoveredSourcesAreDroppedAndAllEmptyReturnsNull() {
+	fun allUncoveredSourcesBuildNothing() {
 		val empty = ModalCaptureSource(meshB, floatArrayOf(5f, 5f), trianglesOf(intArrayOf()), emptySet())
-		val capture = build(listOf(square(meshA), empty))!!
-		assertEquals(listOf(meshA), capture.owners, "the empty source does not become an entry")
 		assertNull(build(listOf(empty)), "no covered vertices anywhere -> no capture")
+		assertNull(build(listOf(uncovered(square(meshA)), empty)), "bystanders alone are nothing to move")
 		assertNull(build(emptyList()))
 	}
 
@@ -193,16 +199,15 @@ class ModalTransformCaptureTest {
 		assertTrue(influenced.all { it in setOf(1, 2) }, "geodesic halo stays on the connected island: $influenced")
 	}
 
-	/** A bystander joins after the moving meshes with nothing covered, and alone it starts no gesture. */
+	/** An uncovered source becomes a bystander after the covered ones, with no groups, whatever order it was offered in. */
 	@Test
-	fun aBystanderJoinsWithNothingCoveredAndCannotStartAGesture() {
-		val bystander = square(meshB, offsetX = 3f)
-		val capture = assertNotNull(build(listOf(square(meshA)), bystanders = listOf(bystander)))
-		assertEquals(listOf(meshA, meshB), capture.owners, "the bystander follows the moving mesh")
+	fun anUncoveredSourceBecomesABystanderAfterTheCoveredOnes() {
+		val meshC: ElementOwner = ElementOwner.Drawable(DrawableId("c"))
+		val capture = assertNotNull(build(listOf(uncovered(square(meshB, offsetX = 3f)), square(meshA), square(meshC, offsetX = 9f))))
+		assertEquals(listOf(meshA, meshC, meshB), capture.owners, "the bystander follows every moving mesh")
 		val entry = capture.entries.last()
 		assertTrue(entry.coveredIndices.isEmpty() && entry.groups.isEmpty() && entry.movedIndices.isEmpty(), "a bystander moves nothing of its own")
-
-		assertNull(build(emptyList(), bystanders = listOf(bystander)), "a bystander alone is nothing to move")
+		assertEquals((1f + 10f) / 2f to 1f, capture.anchor, "and it takes no part in the median")
 	}
 
 	/** A straight-line halo reaches a nearby bystander; Connected Only never leaves the selected mesh. */
@@ -210,7 +215,7 @@ class ModalTransformCaptureTest {
 	fun aStraightLineHaloReachesABystanderAndConnectedOnlyDoesNot() {
 		// Vertex 1 of mesh A at (2,0) is selected; the bystander's (3,0) corner is 1 away, its (5,2) corner past 3.
 		val selected = square(meshA).let { source -> ModalCaptureSource(source.owner, source.positions, source.topology, setOf(1)) }
-		val capture = assertNotNull(build(listOf(selected), bystanders = listOf(square(meshB, offsetX = 3f))))
+		val capture = assertNotNull(build(listOf(selected, uncovered(square(meshB, offsetX = 3f)))))
 		val bystander = capture.entries.last()
 
 		capture.applyProportional(ProportionalEditState(ProportionalFalloff.Linear, radiusWorld = 3f), 3f)
@@ -226,7 +231,7 @@ class ModalTransformCaptureTest {
 	/** Under Individual Origins a bystander's halo turns about the island that reached it, in the other mesh. */
 	@Test
 	fun aBystandersHaloTakesTheReachingIslandsPivot() {
-		val capture = assertNotNull(build(listOf(square(meshA)), pivotMode = TransformPivotMode.IndividualOrigins, bystanders = listOf(square(meshB, offsetX = 3f))))
+		val capture = assertNotNull(build(listOf(square(meshA), uncovered(square(meshB, offsetX = 3f))), pivotMode = TransformPivotMode.IndividualOrigins))
 		capture.applyProportional(ProportionalEditState(ProportionalFalloff.Linear, radiusWorld = 2f), 2f)
 		val influence = assertNotNull(capture.entries.last().influence[0], "the bystander's (3,0) corner is 1 from mesh A")
 		assertEquals(1f to 1f, influence.pivotX to influence.pivotY, "it turns about mesh A's island centroid, not its own")

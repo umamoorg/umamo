@@ -14,7 +14,6 @@ import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.mesh.commitMeshUvs
 import org.umamo.edit.mesh.withMeshUvs
 import org.umamo.edit.transform.IndividualOriginScope
-import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.buildModalTransformCapture
@@ -135,28 +134,13 @@ internal class UvEditModalTransform(
 	 * @param UvEditFrame frame The shown surface's frame, which the gesture freezes.
 	 */
 	fun begin(kind: MeshOperatorKind, geometries: List<GizmoMeshGeometry>, selection: MeshSelection, frame: UvEditFrame) {
-		// Offer each shown mesh to the shared capture builder, its frozen display-space coordinates as the
-		// positions (no deformer mapping in UV space): as a source when it has covered vertices, else as a
-		// bystander when it is in the edit.
-		val sources = ArrayList<ModalCaptureSource>()
-		val bystanders = ArrayList<ModalCaptureSource>()
-
-		for (geometry in geometries) {
-			val elements = selection.elementsOf(geometry.owner)
-			val coveredIndices = if (elements.isEmpty()) emptySet() else MeshTopology.coveredVertexIndices(elements, geometry.topology)
-
-			if (coveredIndices.isEmpty() && geometry.owner !in selection.owners) {
-				continue
+		// Offer each shown mesh in the edit to the shared capture builder, its frozen display-space coordinates as
+		// the positions (no deformer mapping in UV space); one with nothing covered joins as a bystander.
+		val sources =
+			uvCaptureSources(selection, geometries) { geometry ->
+				val elements = selection.elementsOf(geometry.owner)
+				if (elements.isEmpty()) emptySet() else MeshTopology.coveredVertexIndices(elements, geometry.topology)
 			}
-
-			val source = ModalCaptureSource(geometry.owner, geometry.positions.copyOf(), geometry.topology, coveredIndices)
-
-			if (coveredIndices.isEmpty()) {
-				bystanders.add(source)
-			} else {
-				sources.add(source)
-			}
-		}
 
 		// The two per-area anchors the shared builder cannot resolve itself, in display space: the active
 		// element's own covered median and the UV cursor.  Null falls back to the shared median.
@@ -169,7 +153,6 @@ internal class UvEditModalTransform(
 				operatorKind = kind,
 				activeAnchor = activeElementMedian(selection, geometries),
 				cursorAnchor = uvCursorDisplay(session, frame),
-				bystanders = bystanders,
 			)
 
 		if (transform == null) {

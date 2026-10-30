@@ -50,7 +50,8 @@ import org.umamo.ui.transform.amendLatticeLanding
  * @param EditorSession              session      The session the gesture committed into.
  * @param String                     areaId       The viewport the gesture ran in (where the strip shows).
  * @param ModalTransformCapture      transform    The frozen capture.
- * @param Map                        geometryByOwner Each moving owner's frozen world geometry.
+ * @param Map                        geometryByOwner Each captured owner's world geometry, a bystander's
+ *   included.
  * @param ElementEditStage           stage        Where the geometry was captured.
  * @param TransformGestureParameters parameters   The numbers the gesture landed with.
  * @param ProportionalRows?          proportional The proportional rows, or null when the gesture took no weights.
@@ -112,7 +113,7 @@ private fun EditorSession.amendDrive(
  * @param EditorSession         session         The session the gesture committed into.
  * @param String                areaId          The viewport the gesture ran in.
  * @param ModalTransformCapture transform       The frozen capture.
- * @param Map                   geometryByOwner Each moving owner's frozen world geometry.
+ * @param Map                   geometryByOwner Each captured owner's world geometry, a bystander's included.
  * @param ElementEditStage      stage           Where the geometry was captured.
  * @param ElementOwner          owner           The mesh or lattice the sliding vertex lives in.
  * @param Int                   vertexIndex     The sliding vertex.

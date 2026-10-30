@@ -43,12 +43,13 @@ import kotlin.math.pow
  * at.  The geometry is held in a map keyed on the owner, looked up by
  * [org.umamo.edit.transform.ModalCaptureEntry], so nothing stays index-aligned.
  *
- * A mesh's geometry frozen here is a COPY of the live geometry's arrays (rest, displayed, world), so the whole
+ * A moving mesh's geometry frozen here is a COPY of the live geometry's arrays (rest, displayed, world), so the whole
  * drag transforms a fixed snapshot even though the underlying model is immutable; a lattice's capture is the bake's
- * own copy already.
+ * own copy already.  A bystander's is held as the overlay composed it, a bake nothing writes into.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).
- * @property Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each captured owner's frozen world geometry, a bystander's included.
+ * @property Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each captured owner's world geometry, a bystander's
+ *   included.
  * @property SlideContext? slide A Vertex Slide's candidates; null for every other operator.
  * @property ElementEditStage stage Where the geometry was captured, and so how a moved lattice lands.
  */
@@ -127,13 +128,13 @@ internal class EditModalTransform(
 
 	/**
 	 * Starts the gesture as an operator latches in this area.  The capture moves the session owners with
-	 * covered vertices (an edge or face selection moves the union of vertices its elements cover).  When the
-	 * gesture can take proportional weights, every other owner in the edit joins as a bystander, so a
-	 * straight-line halo reaches nearby geometry with nothing selected the way Blender's multi-object
-	 * proportional editing does - joining even while proportional editing is off, since O mid-gesture and
-	 * the strip's rows can still turn it on over this capture.  Otherwise an owner with nothing selected does
-	 * not move.  The shared pivot is the median of every covered vertex across the session, so all meshes or
-	 * lattices scale / rotate about one point together.
+	 * covered vertices (an edge or face selection moves the union of vertices its elements cover), and every
+	 * other owner in the edit joins as a bystander, so a straight-line halo reaches nearby geometry with nothing
+	 * selected the way Blender's multi-object proportional editing does - joining even while proportional
+	 * editing is off, since O mid-gesture and the strip's rows can still turn it on over this capture.  A
+	 * gesture that takes no weights leaves every bystander where it is.  The shared pivot is the median of
+	 * every covered vertex across the session, so all meshes or lattices scale / rotate about one point
+	 * together.
 	 *
 	 * @param MeshOperatorKind kind The latched operator.
 	 * @param List<EditOwnerGeometry> geometries The session owners' live geometry, as the overlay composed it.
@@ -147,32 +148,20 @@ internal class EditModalTransform(
 		selection: MeshSelection,
 		stage: ElementEditStage,
 	) {
-		// Freeze each captured owner's world geometry so the whole drag transforms a fixed snapshot - a COPY of a
-		// mesh's (rest / displayed / world), a lattice's bake as it is - and offer it to the shared capture
-		// builder: as a source when it has covered vertices, else as a bystander when a halo could move it.
-		val takesProportional = session.meshOperatorTakesProportional(kind)
-		val frozenByOwner = LinkedHashMap<ElementOwner, OwnerWorldGeometry>()
-		val sources = ArrayList<ModalCaptureSource>()
-		val bystanders = ArrayList<ModalCaptureSource>()
-
-		for (geometry in geometries) {
-			val elements = selection.elementsOf(geometry.owner)
-			val coveredIndices = if (elements.isEmpty()) emptySet() else MeshTopology.coveredVertexIndices(elements, geometry.topology)
-
-			if (coveredIndices.isEmpty() && !takesProportional) {
-				continue
+		// Offer every owner in the edit to the shared capture builder, which keeps one with nothing covered as a
+		// bystander.  A moving owner's world geometry is frozen so the whole drag transforms a fixed snapshot - a
+		// COPY of a mesh's (rest / displayed / world), a lattice's bake as it is.  A bystander's is taken as the
+		// overlay composed it: that capture is a fresh bake over the immutable model, nothing writes into its
+		// arrays, and most bystanders never move, so copying every mesh in the edit per latch would buy nothing.
+		val geometryByOwner = LinkedHashMap<ElementOwner, OwnerWorldGeometry>()
+		val sources =
+			geometries.map { geometry ->
+				val elements = selection.elementsOf(geometry.owner)
+				val coveredIndices = if (elements.isEmpty()) emptySet() else MeshTopology.coveredVertexIndices(elements, geometry.topology)
+				val captured = if (coveredIndices.isEmpty()) geometry.worldGeometry else geometry.worldGeometry.frozen()
+				geometryByOwner[geometry.owner] = captured
+				ModalCaptureSource(geometry.owner, captured.world, geometry.topology, coveredIndices)
 			}
-
-			val frozen = geometry.worldGeometry.frozen()
-			frozenByOwner[geometry.owner] = frozen
-			val source = ModalCaptureSource(geometry.owner, frozen.world, geometry.topology, coveredIndices)
-
-			if (coveredIndices.isEmpty()) {
-				bystanders.add(source)
-			} else {
-				sources.add(source)
-			}
-		}
 
 		// The Active-Element anchor the builder cannot resolve itself: the active element's own covered
 		// median.  Null falls back to the shared covered median inside the builder.
@@ -187,7 +176,6 @@ internal class EditModalTransform(
 				operatorKind = kind,
 				activeAnchor = activeAnchor,
 				cursorAnchor = cursorAnchor,
-				bystanders = bystanders,
 			)
 
 		if (transform == null) {
@@ -201,7 +189,7 @@ internal class EditModalTransform(
 		// positions-only single-vertex math, so it never takes weights - and a suppressed latch (the
 		// duplicate / rip auto-grab) opts out the same way.
 		val proportionalState =
-			if (takesProportional) {
+			if (session.meshOperatorTakesProportional(kind)) {
 				session.proportionalEdit.value
 			} else {
 				null
@@ -214,7 +202,7 @@ internal class EditModalTransform(
 		// operator drops, AFTER the gesture begins, so the teardown resyncs the renderer as for any gesture.
 		val slide = if (kind == MeshOperatorKind.VertexSlide) slideContextFor(selection, geometries) else null
 
-		gesture.begin(EditGesture(transform, frozenByOwner, slide, stage), gesture.lastPointer)
+		gesture.begin(EditGesture(transform, geometryByOwner, slide, stage), gesture.lastPointer)
 		slideLanding = null
 		publishedRequest = null
 		publishedResult = null

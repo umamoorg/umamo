@@ -300,7 +300,8 @@ class EditGrabPerfProbeTest {
 			return
 		}
 
-		report("capture: entries=${capture.transform.entries.size} groups=${capture.transform.entries.sumOf { entry -> entry.groups.size }} pivotMode=${session.pivotMode.value}")
+		val bystanderCount = capture.transform.entries.count { entry -> entry.coveredIndices.isEmpty() }
+		report("capture: entries=${capture.transform.entries.size} bystanders=$bystanderCount groups=${capture.transform.entries.sumOf { entry -> entry.groups.size }} pivotMode=${session.pivotMode.value}")
 
 		val firstPreview = pushed.size
 		timed("C1 drivePreview, no worker (inline; also a confirm's settle)") { round -> modalTransform.drivePreview(pointerFor(round), camera, size) }
@@ -326,12 +327,13 @@ class EditGrabPerfProbeTest {
 	}
 
 	/**
-	 * The stages of one drive, each timed on its own: the operator over the frozen world shapes, the
-	 * inverse back onto the rest arrays, and the fold of the new rest arrays into a preview model (one
-	 * drawable at a time, and as the drive's one batch).
+	 * The stages of one drive, each timed on its own over the drive's own jobs (a bystander the halo does not
+	 * reach has none): the operator over the frozen world shapes, the inverse back onto the rest arrays, and the
+	 * fold of the new rest arrays into a preview model (one drawable at a time, and as the drive's one batch).
 	 *
 	 * @param ModalTransformCapture transform The gesture's shared capture.
-	 * @param Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each moving mesh's frozen geometry.
+	 * @param Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each captured mesh's world geometry, a bystander's
+	 *   included.
 	 * @param PuppetModel model The committed model the fold starts from.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
@@ -345,31 +347,32 @@ class EditGrabPerfProbeTest {
 	) {
 		val frame = TransformGestureFrame(transform.anchor, Offset.Zero, Offset(40f, 20f), null, camera, size)
 		val parameters = gestureParameters(MeshOperatorKind.Grab, frame, transform.rotationTracker)
+		val jobs = meshDriveJobs(transform, geometryByOwner, wholeMeshes = false)
 		val transformedById = HashMap<DrawableId, FloatArray>()
-		timed("C1a   applyOperator (translate + weighted pass) over every entry") {
-			for (entry in transform.entries) {
-				transformedById[checkNotNull(entry.drawableId)] = applyOperator(MeshOperatorKind.Grab, entry.positions, entry.groups, parameters, entry.influence)
+		timed("C1a   applyOperator (translate + weighted pass) over every job") {
+			for (job in jobs) {
+				transformedById[checkNotNull(job.drawableId)] = applyOperator(MeshOperatorKind.Grab, job.positions, job.groups, parameters, job.influence)
 			}
 		}
 		val newBaseById = HashMap<DrawableId, MeshRestPositions>()
-		timed("C1b   worldToRest (deformer inverse + movementOnto + canvas move) over every entry") {
-			for (entry in transform.entries) {
-				val drawableId = checkNotNull(entry.drawableId)
-				val geometry = geometryByOwner.getValue(entry.owner) as DrawableWorldGeometry
-				newBaseById[drawableId] = geometry.worldToRest(transformedById.getValue(drawableId), entry.movedIndices)
+		timed("C1b   worldToRest (deformer inverse + movementOnto + canvas move) over every job") {
+			for (job in jobs) {
+				val drawableId = checkNotNull(job.drawableId)
+				val geometry = job.geometry as DrawableWorldGeometry
+				newBaseById[drawableId] = geometry.worldToRest(transformedById.getValue(drawableId), job.movedIndices)
 			}
 		}
-		timed("C1c   withMeshPositions fold over every entry, one drawable at a time") {
+		timed("C1c   withMeshPositions fold over every job, one drawable at a time") {
 			var working = model
 
-			for (entry in transform.entries) {
-				val drawableId = checkNotNull(entry.drawableId)
+			for (job in jobs) {
+				val drawableId = checkNotNull(job.drawableId)
 				working = working.withMeshPositions(drawableId, newBaseById.getValue(drawableId))
 			}
 
 			working
 		}
-		timed("C1c'  withMeshPositions batch fold over every entry (the drive's fold)") { model.withMeshPositions(newBaseById) }
+		timed("C1c'  withMeshPositions batch fold over every job (the drive's fold)") { model.withMeshPositions(newBaseById) }
 	}
 
 	/**

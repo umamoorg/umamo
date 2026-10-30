@@ -2,6 +2,7 @@ package org.umamo.edit.transform
 
 import org.umamo.edit.ElementTopology
 import org.umamo.edit.ProportionalFalloff
+import kotlin.math.floor
 import kotlin.math.sqrt
 
 /* Proportional editing (Blender's O): a modal transform also pulls the UNSELECTED vertices within an
@@ -114,9 +115,10 @@ class ProportionalMesh(
  * ([proportionalInfluencesConnected]).  Covered vertices (they move at full strength through their pivot
  * groups) and vertices outside the radius are absent.
  *
- * The nearest-covered scan is O(covered x candidates), the candidates being the vertices inside the covered
- * set's bounds grown by the radius - fine at rigging mesh sizes; an acceleration structure can slot in here
- * later without changing the contract.  A tie goes to the covered vertex listed first.
+ * Only a vertex inside the covered set's bounds grown by the radius is a candidate, and a candidate's nearest
+ * covered vertex is found through a uniform grid of the covered vertices ([CoveredVertexGrid]), so each one
+ * measures against the covered vertices near it rather than every one of every mesh.  A tie goes to the covered
+ * vertex listed first.
  *
  * @param List<ProportionalMesh> meshes The meshes, their positions in one shared space.
  * @param Float radiusWorld The influence radius, in the positions' units.
@@ -166,6 +168,7 @@ fun proportionalInfluences(
 	}
 
 	val radiusSquared = radiusWorld * radiusWorld
+	val grid = CoveredVertexGrid(coveredX, coveredY, radiusWorld)
 
 	return meshes.map { mesh ->
 		val vertexCount = mesh.positions.size / 2
@@ -187,19 +190,8 @@ fun proportionalInfluences(
 				continue
 			}
 
-			var nearestSquared = Float.MAX_VALUE
-			var nearestSlot = -1
-
-			for (candidateSlot in 0 until coveredCount) {
-				val deltaX = coveredX[candidateSlot] - vertexX
-				val deltaY = coveredY[candidateSlot] - vertexY
-				val distanceSquared = deltaX * deltaX + deltaY * deltaY
-
-				if (distanceSquared < nearestSquared) {
-					nearestSquared = distanceSquared
-					nearestSlot = candidateSlot
-				}
-			}
+			val nearestSlot = grid.nearestSlot(vertexX, vertexY)
+			val nearestSquared = grid.foundDistanceSquared
 
 			if (nearestSlot >= 0 && nearestSquared < radiusSquared) {
 				val weight = proportionalWeight(falloff, sqrt(nearestSquared) / radiusWorld, vertexIndex)
@@ -215,24 +207,169 @@ fun proportionalInfluences(
 }
 
 /**
- * One mesh's proportional weight map, measured against its own covered vertices alone - [proportionalInfluences]
- * reduced to the weights, for callers that need no pivot.
+ * The covered vertices of a straight-line halo bucketed into a uniform grid, so a vertex's nearest covered vertex is
+ * found among the cells within the radius of it rather than among every covered vertex of every mesh.
  *
- * @param FloatArray positions The interleaved vertex positions the distances are measured in.
- * @param Set<Int> coveredIndices The vertices the selection covers (excluded from the map).
- * @param Float radiusWorld The influence radius, in the positions' units.
- * @param ProportionalFalloff falloff The falloff curve shaping the weights.
- * @return Map<Int, Float> Vertex index to weight, for every influenced unselected vertex.
+ * The answer is exactly the one a scan over every covered slot in order gives - the least squared distance, measured
+ * by the same float expression, with a tie to the lowest slot - whenever that distance is inside the radius, which
+ * is the only case the halo reads.  A query scans every cell its point reaches past the radius by a margin
+ * ([CoveredVertexGrid.REACH_MARGIN]) far wider than the rounding of a squared-distance test, and each cell's
+ * column and row come from one monotone mapping, so no covered vertex the radius test could accept lies outside
+ * the scanned cells.  A cell is at least the reach wide, and the grid is capped at [CoveredVertexGrid.MAX_AXIS_CELLS]
+ * cells along each axis, so a small radius over a wide selection widens the cells rather than allocating a huge grid.
+ *
+ * @param FloatArray coveredX The covered vertices' x, by slot.
+ * @param FloatArray coveredY The covered vertices' y, by slot.
+ * @param Float radius The halo's radius, greater than zero.
  */
-fun proportionalWeights(
-	positions: FloatArray,
-	coveredIndices: Set<Int>,
-	radiusWorld: Float,
-	falloff: ProportionalFalloff,
-): Map<Int, Float> =
-	proportionalInfluences(listOf(ProportionalMesh(positions, TransformPivots.sharedGroup(coveredIndices, 0f, 0f))), radiusWorld, falloff)
-		.single()
-		.mapValues { entry -> entry.value.weight }
+private class CoveredVertexGrid(
+	private val coveredX: FloatArray,
+	private val coveredY: FloatArray,
+	radius: Float,
+) {
+	private val reach = radius * REACH_MARGIN
+	private val originX: Float
+	private val originY: Float
+	private val cellWidth: Float
+	private val cellHeight: Float
+	private val columns: Int
+	private val rows: Int
+
+	// Each cell's slots, ascending, as one list: cell `cellIndex` holds cellSlots[cellStart[cellIndex] until
+	// cellStart[cellIndex + 1]].
+	private val cellStart: IntArray
+	private val cellSlots: IntArray
+
+	/** The squared distance of the last [nearestSlot] answer, Float.MAX_VALUE when it found none. */
+	var foundDistanceSquared = Float.MAX_VALUE
+		private set
+
+	init {
+		var minX = Float.MAX_VALUE
+		var minY = Float.MAX_VALUE
+		var maxX = -Float.MAX_VALUE
+		var maxY = -Float.MAX_VALUE
+
+		for (slot in coveredX.indices) {
+			val x = coveredX[slot]
+			val y = coveredY[slot]
+
+			if (x < minX) {
+				minX = x
+			}
+
+			if (x > maxX) {
+				maxX = x
+			}
+
+			if (y < minY) {
+				minY = y
+			}
+
+			if (y > maxY) {
+				maxY = y
+			}
+		}
+
+		// A covered set with no finite coordinate leaves the bounds inverted: one cell holds every slot, and a query
+		// scans them all.
+		originX = if (minX <= maxX) minX else 0f
+		originY = if (minY <= maxY) minY else 0f
+		val extentX = if (minX <= maxX) maxX - minX else 0f
+		val extentY = if (minY <= maxY) maxY - minY else 0f
+		cellWidth = maxOf(reach, extentX / MAX_AXIS_CELLS)
+		cellHeight = maxOf(reach, extentY / MAX_AXIS_CELLS)
+		columns = ((extentX / cellWidth).toInt() + 1).coerceIn(1, MAX_AXIS_CELLS + 1)
+		rows = ((extentY / cellHeight).toInt() + 1).coerceIn(1, MAX_AXIS_CELLS + 1)
+
+		val cellOfSlot = IntArray(coveredX.size) { slot -> rowOf(coveredY[slot]) * columns + columnOf(coveredX[slot]) }
+		cellStart = IntArray(columns * rows + 1)
+
+		for (cellIndex in cellOfSlot) {
+			cellStart[cellIndex + 1]++
+		}
+
+		for (cellIndex in 0 until columns * rows) {
+			cellStart[cellIndex + 1] += cellStart[cellIndex]
+		}
+
+		// Filled in slot order, so each cell lists its slots ascending.
+		val fill = cellStart.copyOf()
+		cellSlots = IntArray(coveredX.size)
+
+		for (slot in coveredX.indices) {
+			val cellIndex = cellOfSlot[slot]
+			cellSlots[fill[cellIndex]] = slot
+			fill[cellIndex]++
+		}
+	}
+
+	/**
+	 * The covered slot nearest ([x], [y]), measured among the cells within the reach of it; its squared distance is
+	 * left in [foundDistanceSquared].
+	 *
+	 * @param Float x The vertex's x.
+	 * @param Float y The vertex's y.
+	 * @return Int The nearest slot, or -1 when the scanned cells hold none at a finite distance.
+	 */
+	fun nearestSlot(x: Float, y: Float): Int {
+		val firstColumn = columnOf(x - reach)
+		val lastColumn = columnOf(x + reach)
+		val firstRow = rowOf(y - reach)
+		val lastRow = rowOf(y + reach)
+		var nearestSquared = Float.MAX_VALUE
+		var nearest = -1
+
+		for (rowIndex in firstRow..lastRow) {
+			for (columnIndex in firstColumn..lastColumn) {
+				val cellIndex = rowIndex * columns + columnIndex
+
+				for (listIndex in cellStart[cellIndex] until cellStart[cellIndex + 1]) {
+					val slot = cellSlots[listIndex]
+					val deltaX = coveredX[slot] - x
+					val deltaY = coveredY[slot] - y
+					val distanceSquared = deltaX * deltaX + deltaY * deltaY
+
+					// Cells are visited out of slot order, so an equal distance goes to the lower slot, as a scan in
+					// slot order keeps the first it meets.
+					if (distanceSquared < nearestSquared || (distanceSquared == nearestSquared && slot < nearest)) {
+						nearestSquared = distanceSquared
+						nearest = slot
+					}
+				}
+			}
+		}
+
+		foundDistanceSquared = nearestSquared
+
+		return nearest
+	}
+
+	/**
+	 * The grid column holding [x], clamped onto the grid.  Monotone in [x], which is what lets a query's range of
+	 * columns cover every covered vertex between its ends.
+	 *
+	 * @param Float x The x.
+	 * @return Int The column.
+	 */
+	private fun columnOf(x: Float): Int = floor((x - originX) / cellWidth).toInt().coerceIn(0, columns - 1)
+
+	/**
+	 * The grid row holding [y], clamped onto the grid; monotone in [y] like [columnOf].
+	 *
+	 * @param Float y The y.
+	 * @return Int The row.
+	 */
+	private fun rowOf(y: Float): Int = floor((y - originY) / cellHeight).toInt().coerceIn(0, rows - 1)
+
+	private companion object {
+		/** How far past the radius a query scans: a squared-distance test rounds by far less than one percent. */
+		const val REACH_MARGIN = 1.01f
+
+		/** The most cells the grid takes along either axis. */
+		const val MAX_AXIS_CELLS = 128
+	}
+}
 
 /**
  * The CONNECTED-ONLY proportional influence map for one mesh: like [proportionalInfluences], but
