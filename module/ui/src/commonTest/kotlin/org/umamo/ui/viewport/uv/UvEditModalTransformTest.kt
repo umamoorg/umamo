@@ -324,6 +324,32 @@ class UvEditModalTransformTest {
 		assertTrue(entry.influence.isNotEmpty(), "vertex 1 lies twenty texels away, inside the page's thirty-two")
 	}
 
+	/** A straight-line halo pulls the nearby mesh in the edit that has nothing selected; Connected Only leaves it be. */
+	@Test
+	fun aStraightLineHaloPullsAnotherMeshInTheEdit() {
+		for (connectedOnly in listOf(false, true)) {
+			// Quad vertex 1 at (120, 100) is selected.  The triangle's (140, 100) corner lies twenty texels away,
+			// inside the page's thirty-two, and its (160, 100) corner forty, outside.
+			val session = uvEditSession(editing = listOf(UV_RIG_QUAD, UV_RIG_OTHER), elements = listOf(MeshElement.Vertex(1)))
+			session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f, connectedOnly))
+			val otherBefore = uvRigUvsOf(session, UV_RIG_OTHER)
+			val rig = rigOver(session)
+			rig.latch(MeshOperatorKind.Grab)
+
+			assertTrue(rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT))
+			rig.transform.confirm()
+
+			val otherAfter = uvRigUvsOf(session, UV_RIG_OTHER)
+
+			if (connectedOnly) {
+				assertEquals(otherBefore, otherAfter, "Connected Only never leaves the selected mesh")
+			} else {
+				assertEquals(otherBefore[0] + 10f * (1f - 20f / 32f) / UV_RIG_PAGE_SIDE, otherAfter[0], 1e-5f, "the near corner takes three eighths of the move")
+				assertEquals(otherBefore.subList(2, 4), otherAfter.subList(2, 4), "the corner outside the radius stays")
+			}
+		}
+	}
+
 	/** Another area's latch drives nothing here. */
 	@Test
 	fun anotherAreasLatchDrivesNothing() {

@@ -123,9 +123,11 @@ internal class UvEditModalTransform(
 		)
 
 	/**
-	 * Starts the gesture as an operator latches in this area.  The capture covers only the shown meshes
-	 * with covered vertices; the anchor follows the pivot mode in display space.  Drops the operator when
-	 * nothing on the shown surface is movable.
+	 * Starts the gesture as an operator latches in this area.  The capture moves the shown meshes with
+	 * covered vertices, and every other shown mesh in the edit joins as a bystander, so a straight-line
+	 * proportional halo reaches nearby coordinates with nothing selected (the Edit overlay's rule, in display
+	 * space).  The anchor follows the pivot mode in display space.  Drops the operator when nothing on the
+	 * shown surface is movable.
 	 *
 	 * @param MeshOperatorKind kind The latched operator.
 	 * @param List<GizmoMeshGeometry> geometries The shown meshes' display geometry.
@@ -133,24 +135,27 @@ internal class UvEditModalTransform(
 	 * @param UvEditFrame frame The shown surface's frame, which the gesture freezes.
 	 */
 	fun begin(kind: MeshOperatorKind, geometries: List<GizmoMeshGeometry>, selection: MeshSelection, frame: UvEditFrame) {
-		// Offer each shown mesh with covered vertices to the shared capture builder, its frozen display-space
-		// coordinates as the source positions (no deformer mapping in UV space).
+		// Offer each shown mesh to the shared capture builder, its frozen display-space coordinates as the
+		// positions (no deformer mapping in UV space): as a source when it has covered vertices, else as a
+		// bystander when it is in the edit.
 		val sources = ArrayList<ModalCaptureSource>()
+		val bystanders = ArrayList<ModalCaptureSource>()
 
 		for (geometry in geometries) {
 			val elements = selection.elementsOf(geometry.owner)
+			val coveredIndices = if (elements.isEmpty()) emptySet() else MeshTopology.coveredVertexIndices(elements, geometry.topology)
 
-			if (elements.isEmpty()) {
+			if (coveredIndices.isEmpty() && geometry.owner !in selection.owners) {
 				continue
 			}
 
-			val coveredIndices = MeshTopology.coveredVertexIndices(elements, geometry.topology)
+			val source = ModalCaptureSource(geometry.owner, geometry.positions.copyOf(), geometry.topology, coveredIndices)
 
 			if (coveredIndices.isEmpty()) {
-				continue
+				bystanders.add(source)
+			} else {
+				sources.add(source)
 			}
-
-			sources.add(ModalCaptureSource(geometry.owner, geometry.positions.copyOf(), geometry.topology, coveredIndices))
 		}
 
 		// The two per-area anchors the shared builder cannot resolve itself, in display space: the active
@@ -164,6 +169,7 @@ internal class UvEditModalTransform(
 				operatorKind = kind,
 				activeAnchor = activeElementMedian(selection, geometries),
 				cursorAnchor = uvCursorDisplay(session, frame),
+				bystanders = bystanders,
 			)
 
 		if (transform == null) {

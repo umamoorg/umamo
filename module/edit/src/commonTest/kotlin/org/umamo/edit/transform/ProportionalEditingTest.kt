@@ -8,7 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-// Tests for the proportional-editing math: the falloff curves and the per-mesh weight map.
+// Tests for the proportional-editing math: the falloff curves and the influence maps.
 
 class ProportionalEditingTest {
 	private val allFalloffs = ProportionalFalloff.entries
@@ -97,13 +97,43 @@ class ProportionalEditingTest {
 	}
 
 	@Test
-	fun influencesCarryTheNearestCoveredVertexIdentity() {
-		// The identity is the Individual Origins ownership key: vertex 1 belongs with covered end 0,
-		// vertex 3 with covered end 4 (each measured to its NEARER end).
-		val influences = proportionalInfluences(stripPositions, setOf(0, 4), radiusWorld = 25f, falloff = ProportionalFalloff.Linear)
-		assertEquals(0, influences.getValue(1).nearestCoveredIndex, "vertex 1's nearest covered vertex is 0")
-		assertEquals(4, influences.getValue(3).nearestCoveredIndex, "vertex 3's nearest covered vertex is 4")
+	fun influencesCarryTheOwningGroupsPivot() {
+		// Two single-vertex groups at the strip's ends: vertex 1 belongs with end 0, vertex 3 with end 4 (each
+		// measured to its NEARER end), and vertex 2, as far from both, with the group listed first.
+		val groups =
+			listOf(
+				TransformPivotGroup(setOf(0), pivotX = 0f, pivotY = 0f),
+				TransformPivotGroup(setOf(4), pivotX = 40f, pivotY = 0f),
+			)
+		val influences = proportionalInfluences(listOf(ProportionalMesh(stripPositions, groups)), radiusWorld = 25f, falloff = ProportionalFalloff.Linear).single()
+		assertEquals(0f, influences.getValue(1).pivotX, "vertex 1 turns about the first group's pivot")
+		assertEquals(0f, influences.getValue(2).pivotX, "the tie goes to the group listed first")
+		assertEquals(40f, influences.getValue(3).pivotX, "vertex 3 turns about the second group's pivot")
 		assertEquals(1f - 10f / 25f, influences.getValue(1).weight, 1e-6f, "the weight rides along unchanged")
+	}
+
+	@Test
+	fun straightLineInfluenceReachesAcrossMeshes() {
+		// The strip covers vertex 0; a second mesh covers a vertex at (40, 0) and a third has nothing selected.
+		val strip = ProportionalMesh(stripPositions, TransformPivots.sharedGroup(setOf(0), 1f, 2f))
+		val other = ProportionalMesh(floatArrayOf(40f, 0f, 70f, 0f), TransformPivots.sharedGroup(setOf(0), 3f, 4f))
+		val bystander = ProportionalMesh(floatArrayOf(5f, 3f, 100f, 0f), emptyList())
+		val (inStrip, inOther, inBystander) = proportionalInfluences(listOf(strip, other, bystander), radiusWorld = 25f, falloff = ProportionalFalloff.Linear)
+
+		assertEquals(setOf(1, 2, 3, 4), inStrip.keys, "every uncovered strip vertex lies within the radius of a covered one")
+		assertEquals(1f - 10f / 25f, inStrip.getValue(3).weight, 1e-6f, "vertex 3 measures to the other mesh's covered vertex, 10 away")
+		assertEquals(3f to 4f, inStrip.getValue(3).pivotX to inStrip.getValue(3).pivotY, "and takes that mesh's pivot")
+		assertEquals(1f, inStrip.getValue(4).weight, "the strip's far end sits on the other mesh's covered vertex, so it moves fully")
+		assertEquals(1f to 2f, inStrip.getValue(1).pivotX to inStrip.getValue(1).pivotY, "vertex 1 keeps its own mesh's pivot")
+		assertTrue(inOther.isEmpty(), "the other mesh's far vertex is 30 from the nearest covered vertex, past the radius")
+		assertEquals(setOf(0), inBystander.keys, "a mesh with nothing selected is reached within the radius, and only there")
+		assertEquals(1f to 2f, inBystander.getValue(0).pivotX to inBystander.getValue(0).pivotY, "it turns about the reaching group's pivot")
+	}
+
+	@Test
+	fun straightLineInfluenceIsEmptyWithNothingCoveredAnywhere() {
+		val halos = proportionalInfluences(listOf(ProportionalMesh(stripPositions, emptyList()), ProportionalMesh(stripPositions, emptyList())), 25f, ProportionalFalloff.Smooth)
+		assertEquals(listOf(emptyMap<Int, ProportionalInfluence>(), emptyMap()), halos, "one empty halo per mesh")
 	}
 
 	@Test
@@ -112,35 +142,40 @@ class ProportionalEditingTest {
 		// 5 from vertex 0 straight-line but 7 along edges (0-1-3 or 0-2-3; there is no 0-3 edge).
 		val positions = floatArrayOf(0f, 0f, 0f, 4f, 3f, 0f, 3f, 4f)
 		val indices = intArrayOf(0, 1, 2, 1, 2, 3)
-		val straight = proportionalInfluences(positions, setOf(0), radiusWorld = 6f, falloff = ProportionalFalloff.Linear)
-		val connected = proportionalInfluencesConnected(positions, setOf(0), radiusWorld = 6f, falloff = ProportionalFalloff.Linear, topology = ElementTopology.ofTriangles(4, indices))
+		val groups = TransformPivots.sharedGroup(setOf(0), 9f, 8f)
+		val straight = proportionalInfluences(listOf(ProportionalMesh(positions, groups)), radiusWorld = 6f, falloff = ProportionalFalloff.Linear).single()
+		val connected = proportionalInfluencesConnected(positions, groups, radiusWorld = 6f, falloff = ProportionalFalloff.Linear, topology = ElementTopology.ofTriangles(4, indices))
 		assertTrue(3 in straight, "straight-line influence reaches vertex 3 (distance 5, radius 6)")
 		assertFalse(3 in connected, "along edges vertex 3 is 7 away - outside the radius")
 		assertEquals(1f - 4f / 6f, connected.getValue(1).weight, 1e-6f, "a direct edge matches the straight-line distance")
-		assertEquals(0, connected.getValue(1).nearestCoveredIndex, "the geodesic source rides along")
+		assertEquals(9f to 8f, connected.getValue(1).pivotX to connected.getValue(1).pivotY, "the source group's pivot rides along")
 
 		// A nearby-but-unconnected island takes no weight at ANY radius (the feature's point).
 		val twoIslands = floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f, 5f, 0f, 7f, 0f, 5f, 2f)
 		val islandIndices = intArrayOf(0, 1, 2, 3, 4, 5)
+		val islandTopology = ElementTopology.ofTriangles(6, islandIndices)
 		val islandConnected =
-			proportionalInfluencesConnected(twoIslands, setOf(0), radiusWorld = 100f, falloff = ProportionalFalloff.Constant, topology = ElementTopology.ofTriangles(6, islandIndices))
+			proportionalInfluencesConnected(twoIslands, TransformPivots.sharedGroup(setOf(0), 0f, 0f), radiusWorld = 100f, falloff = ProportionalFalloff.Constant, topology = islandTopology)
 		assertEquals(setOf(1, 2), islandConnected.keys, "influence never leaps to the unconnected island")
+		assertTrue(
+			proportionalInfluencesConnected(twoIslands, emptyList(), radiusWorld = 100f, falloff = ProportionalFalloff.Constant, topology = islandTopology).isEmpty(),
+			"a mesh with nothing selected has no geodesic source",
+		)
 	}
 
 	@Test
-	fun influencesPartitionByTheOwningPivotGroup() {
-		// Two single-vertex "islands" at the strip's ends: each influenced vertex must follow the group
-		// owning its nearest covered vertex, so the halos turn about their own island pivots.
-		val influences = proportionalInfluences(stripPositions, setOf(0, 4), radiusWorld = 25f, falloff = ProportionalFalloff.Linear)
+	fun connectedOnlyTakesThePivotOfTheIslandItsPathStartedFrom() {
+		// Two islands in one mesh, each covered at one corner and grouped about its own pivot.
+		val twoIslands = floatArrayOf(0f, 0f, 2f, 0f, 0f, 2f, 5f, 0f, 7f, 0f, 5f, 2f)
 		val groups =
 			listOf(
-				TransformPivotGroup(setOf(0), pivotX = 0f, pivotY = 0f),
-				TransformPivotGroup(setOf(4), pivotX = 40f, pivotY = 0f),
+				TransformPivotGroup(setOf(0), pivotX = -1f, pivotY = 0f),
+				TransformPivotGroup(setOf(3), pivotX = 6f, pivotY = 1f),
 			)
-		val partitions = TransformPivots.partitionInfluencesByGroup(influences, groups)
-		assertEquals(setOf(1, 2), partitions[0].keys, "vertices nearest end 0 follow the first island (2 ties to 0, iterated first)")
-		assertEquals(setOf(3), partitions[1].keys, "vertex 3 follows the second island")
-		assertEquals(influences.getValue(3).weight, partitions[1].getValue(3), "weights carry into the partitions")
+		val connected = proportionalInfluencesConnected(twoIslands, groups, radiusWorld = 100f, falloff = ProportionalFalloff.Constant, topology = ElementTopology.ofTriangles(6, intArrayOf(0, 1, 2, 3, 4, 5)))
+		assertEquals(setOf(1, 2, 4, 5), connected.keys)
+		assertEquals(-1f, connected.getValue(2).pivotX, "the first island's halo turns about its pivot")
+		assertEquals(6f, connected.getValue(4).pivotX, "the second island's halo turns about its own")
 	}
 
 	private companion object {

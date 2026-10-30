@@ -73,14 +73,15 @@ internal fun registerUvTransformAdjustment(
 /**
  * Where a UV transform lands: each captured mesh's frozen display coordinates through the operator, written
  * back through [frame] onto [baseModel]'s stored coordinates for the moved vertices alone, so the untouched ones
- * stay bit-identical.  One compute for a strip adjustment's rerun and for a value typed in the sidebar, so the
- * first landing and every adjustment of it are the same function.
+ * stay bit-identical, and a bystander the halo does not reach is left out.  One compute for a strip adjustment's
+ * rerun and for a value typed in the sidebar, so the first landing and every adjustment of it are the same
+ * function.
  *
  * @param ModalTransformCapture transform The frozen capture (display-space positions).
  * @param UvEditFrame frame The space the coordinates were authored in.
  * @param TransformGestureParameters parameters The transform's numbers, in texels.
  * @param PuppetModel baseModel The model whose stored coordinates the moved vertices are written onto.
- * @return Map<DrawableId, FloatArray> Each captured mesh's new stored coordinates.
+ * @return Map<DrawableId, FloatArray> Each moved mesh's new stored coordinates.
  */
 internal fun uvTransformLanding(
 	transform: ModalTransformCapture,
@@ -92,6 +93,11 @@ internal fun uvTransformLanding(
 
 	for (entry in transform.entries) {
 		val drawableId = entry.drawableId ?: continue
+
+		if (entry.movedIndices.isEmpty()) {
+			continue
+		}
+
 		val display = applyOperator(transform.operatorKind, entry.positions, entry.groups, parameters, entry.influence)
 		newUvsByDrawable[drawableId] = storedUvsForCommit(baseModel, drawableId, entry.movedIndices, display, frame)
 	}

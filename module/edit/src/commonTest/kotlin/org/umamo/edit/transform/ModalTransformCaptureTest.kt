@@ -9,6 +9,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -47,8 +48,9 @@ class ModalTransformCaptureTest {
 		scope: IndividualOriginScope = IndividualOriginScope.ConnectivityIsland,
 		activeAnchor: Pair<Float, Float>? = null,
 		cursorAnchor: Pair<Float, Float>? = null,
+		bystanders: List<ModalCaptureSource> = emptyList(),
 	): ModalTransformCapture? =
-		buildModalTransformCapture(sources, pivotMode, scope, MeshOperatorKind.Grab, activeAnchor, cursorAnchor)
+		buildModalTransformCapture(sources, pivotMode, scope, MeshOperatorKind.Grab, activeAnchor, cursorAnchor, bystanders)
 
 	/** The median anchor is the covered-vertex mean pooled across every moving mesh, not a per-mesh average. */
 	@Test
@@ -189,6 +191,45 @@ class ModalTransformCaptureTest {
 		capture.applyProportional(ProportionalEditState(ProportionalFalloff.Linear, radiusWorld = 100f, connectedOnly = true), 100f)
 		val influenced = capture.entries.single().influence.keys
 		assertTrue(influenced.all { it in setOf(1, 2) }, "geodesic halo stays on the connected island: $influenced")
+	}
+
+	/** A bystander joins after the moving meshes with nothing covered, and alone it starts no gesture. */
+	@Test
+	fun aBystanderJoinsWithNothingCoveredAndCannotStartAGesture() {
+		val bystander = square(meshB, offsetX = 3f)
+		val capture = assertNotNull(build(listOf(square(meshA)), bystanders = listOf(bystander)))
+		assertEquals(listOf(meshA, meshB), capture.owners, "the bystander follows the moving mesh")
+		val entry = capture.entries.last()
+		assertTrue(entry.coveredIndices.isEmpty() && entry.groups.isEmpty() && entry.movedIndices.isEmpty(), "a bystander moves nothing of its own")
+
+		assertNull(build(emptyList(), bystanders = listOf(bystander)), "a bystander alone is nothing to move")
+	}
+
+	/** A straight-line halo reaches a nearby bystander; Connected Only never leaves the selected mesh. */
+	@Test
+	fun aStraightLineHaloReachesABystanderAndConnectedOnlyDoesNot() {
+		// Vertex 1 of mesh A at (2,0) is selected; the bystander's (3,0) corner is 1 away, its (5,2) corner past 3.
+		val selected = square(meshA).let { source -> ModalCaptureSource(source.owner, source.positions, source.topology, setOf(1)) }
+		val capture = assertNotNull(build(listOf(selected), bystanders = listOf(square(meshB, offsetX = 3f))))
+		val bystander = capture.entries.last()
+
+		capture.applyProportional(ProportionalEditState(ProportionalFalloff.Linear, radiusWorld = 3f), 3f)
+		assertEquals(setOf(0, 3), bystander.influence.keys, "the bystander's corners within 3 of (2,0) take weight")
+		assertEquals(1f - 1f / 3f, assertNotNull(bystander.influence[0]).weight, 1e-6f, "its nearest corner is 1 away")
+		assertEquals(bystander.influence.keys, bystander.movedIndices, "the halo is all a bystander moves")
+
+		capture.applyProportional(ProportionalEditState(ProportionalFalloff.Linear, radiusWorld = 3f, connectedOnly = true), 3f)
+		assertTrue(bystander.influence.isEmpty() && bystander.movedIndices.isEmpty(), "Connected Only leaves the bystander where it is")
+		assertTrue(capture.entries.first().influence.isNotEmpty(), "while the selected mesh keeps its own halo")
+	}
+
+	/** Under Individual Origins a bystander's halo turns about the island that reached it, in the other mesh. */
+	@Test
+	fun aBystandersHaloTakesTheReachingIslandsPivot() {
+		val capture = assertNotNull(build(listOf(square(meshA)), pivotMode = TransformPivotMode.IndividualOrigins, bystanders = listOf(square(meshB, offsetX = 3f))))
+		capture.applyProportional(ProportionalEditState(ProportionalFalloff.Linear, radiusWorld = 2f), 2f)
+		val influence = assertNotNull(capture.entries.last().influence[0], "the bystander's (3,0) corner is 1 from mesh A")
+		assertEquals(1f to 1f, influence.pivotX to influence.pivotY, "it turns about mesh A's island centroid, not its own")
 	}
 
 	/**

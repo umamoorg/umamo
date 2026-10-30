@@ -38,7 +38,7 @@ import kotlin.math.pow
 /**
  * The captured state of an in-flight Edit- or Pose-mode transform: the shared [ModalTransformCapture] (entries with
  * their frozen positions, pivot groups, proportional halos, and moved sets, plus the anchor, the frozen
- * operator kind, and the rotation tracker) alongside each moving owner's frozen world geometry - a mesh's, which
+ * operator kind, and the rotation tracker) alongside each captured owner's frozen world geometry - a mesh's, which
  * the drive loop inverts each transformed world shape back through, or a lattice's - and the stage it was captured
  * at.  The geometry is held in a map keyed on the owner, looked up by
  * [org.umamo.edit.transform.ModalCaptureEntry], so nothing stays index-aligned.
@@ -48,7 +48,7 @@ import kotlin.math.pow
  * own copy already.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).
- * @property Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each moving owner's frozen world geometry.
+ * @property Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each captured owner's frozen world geometry, a bystander's included.
  * @property SlideContext? slide A Vertex Slide's candidates; null for every other operator.
  * @property ElementEditStage stage Where the geometry was captured, and so how a moved lattice lands.
  */
@@ -126,10 +126,14 @@ internal class EditModalTransform(
 		)
 
 	/**
-	 * Starts the gesture as an operator latches in this area.  The capture covers only the session owners
-	 * with covered vertices (an edge or face selection moves the union of vertices its elements cover); an
-	 * owner with nothing selected does not move.  The shared pivot is the median of every covered vertex
-	 * across the session, so all meshes or lattices scale / rotate about one point together.
+	 * Starts the gesture as an operator latches in this area.  The capture moves the session owners with
+	 * covered vertices (an edge or face selection moves the union of vertices its elements cover).  When the
+	 * gesture can take proportional weights, every other owner in the edit joins as a bystander, so a
+	 * straight-line halo reaches nearby geometry with nothing selected the way Blender's multi-object
+	 * proportional editing does - joining even while proportional editing is off, since O mid-gesture and
+	 * the strip's rows can still turn it on over this capture.  Otherwise an owner with nothing selected does
+	 * not move.  The shared pivot is the median of every covered vertex across the session, so all meshes or
+	 * lattices scale / rotate about one point together.
 	 *
 	 * @param MeshOperatorKind kind The latched operator.
 	 * @param List<EditOwnerGeometry> geometries The session owners' live geometry, as the overlay composed it.
@@ -143,28 +147,31 @@ internal class EditModalTransform(
 		selection: MeshSelection,
 		stage: ElementEditStage,
 	) {
-		// Freeze each moving owner's world geometry so the whole drag transforms a fixed snapshot - a COPY of a
+		// Freeze each captured owner's world geometry so the whole drag transforms a fixed snapshot - a COPY of a
 		// mesh's (rest / displayed / world), a lattice's bake as it is - and offer it to the shared capture
-		// builder as a source.  An owner with nothing selected does not move.
+		// builder: as a source when it has covered vertices, else as a bystander when a halo could move it.
+		val takesProportional = session.meshOperatorTakesProportional(kind)
 		val frozenByOwner = LinkedHashMap<ElementOwner, OwnerWorldGeometry>()
 		val sources = ArrayList<ModalCaptureSource>()
+		val bystanders = ArrayList<ModalCaptureSource>()
 
 		for (geometry in geometries) {
 			val elements = selection.elementsOf(geometry.owner)
+			val coveredIndices = if (elements.isEmpty()) emptySet() else MeshTopology.coveredVertexIndices(elements, geometry.topology)
 
-			if (elements.isEmpty()) {
-				continue
-			}
-
-			val coveredIndices = MeshTopology.coveredVertexIndices(elements, geometry.topology)
-
-			if (coveredIndices.isEmpty()) {
+			if (coveredIndices.isEmpty() && !takesProportional) {
 				continue
 			}
 
 			val frozen = geometry.worldGeometry.frozen()
 			frozenByOwner[geometry.owner] = frozen
-			sources.add(ModalCaptureSource(geometry.owner, frozen.world, geometry.topology, coveredIndices))
+			val source = ModalCaptureSource(geometry.owner, frozen.world, geometry.topology, coveredIndices)
+
+			if (coveredIndices.isEmpty()) {
+				bystanders.add(source)
+			} else {
+				sources.add(source)
+			}
 		}
 
 		// The Active-Element anchor the builder cannot resolve itself: the active element's own covered
@@ -180,6 +187,7 @@ internal class EditModalTransform(
 				operatorKind = kind,
 				activeAnchor = activeAnchor,
 				cursorAnchor = cursorAnchor,
+				bystanders = bystanders,
 			)
 
 		if (transform == null) {
@@ -193,7 +201,7 @@ internal class EditModalTransform(
 		// positions-only single-vertex math, so it never takes weights - and a suppressed latch (the
 		// duplicate / rip auto-grab) opts out the same way.
 		val proportionalState =
-			if (session.meshOperatorTakesProportional(kind)) {
+			if (takesProportional) {
 				session.proportionalEdit.value
 			} else {
 				null
