@@ -140,6 +140,28 @@ class SessionViewStateTest {
 		assertEquals(EditorMode.Edit, session.mode.value, "and undo returns to the mode the document opened in")
 	}
 
+	/** The select mode is saved and opened in Object mode too, so the next Edit entry selects in it. */
+	@Test
+	fun theSelectModeHoldsInObjectMode() {
+		val editing = EditorSession(meshedModel)
+		editing.setSelection(Selection(setOf(SelectionTarget.Drawable(DrawableId("b"))), SelectionTarget.Drawable(DrawableId("b"))))
+		editing.setMode(EditorMode.Edit)
+		editing.setMeshSelectMode(MeshSelectMode.Edge)
+		editing.setMode(EditorMode.Object)
+		assertEquals(MeshSelectMode.Edge, editing.viewState().selectMode, "a save made in Object mode keeps it")
+
+		val saved =
+			SessionViewState(
+				selection = Selection(setOf(SelectionTarget.Drawable(DrawableId("b"))), SelectionTarget.Drawable(DrawableId("b"))),
+				selectMode = MeshSelectMode.Face,
+			)
+		val opened = EditorSession(meshedModel, initialViewState = saved)
+		assertEquals(EditorMode.Object, opened.mode.value)
+
+		opened.setMode(EditorMode.Edit)
+		assertEquals(MeshSelectMode.Face, opened.meshSelection.value.selectMode)
+	}
+
 	/** A saved Edit mode the model cannot satisfy opens in Object, the refusal setMode makes. */
 	@Test
 	fun anEditModeWithNothingEditableOpensInObject() {

@@ -23,7 +23,8 @@ import org.umamo.runtime.model.meshOf
  * @property Selection              selection            The object selection.
  * @property ParameterSelection     parameterSelection   The parameters targeted for keyform authoring.
  * @property EditorMode             mode                 The interaction mode; Edit and Pose hold only when they can be entered.
- * @property MeshSelectMode         selectMode           The element select mode, meaningful in Edit and Pose mode.
+ * @property MeshSelectMode         selectMode           The element select mode; kept in every mode, and Edit and Pose
+ *   mode select with it.
  * @property Cursor2d?              cursor2d             The 2D cursor, or null when never placed.
  * @property UvCursor?              uvCursor             The UV cursor, or null when never placed.
  * @property TransformPivotMode     pivotMode            What a modal Scale or Rotate turns about.
@@ -311,7 +312,8 @@ internal fun openingSnapshotOf(model: PuppetModel, pose: Pose, viewState: Sessio
 		model = model,
 		selection = viewState.selection,
 		pose = pose,
-		meshSelection = sessionSeed?.session?.copy(selectMode = viewState.selectMode) ?: MeshSelection(),
+		// The select mode holds in Object mode too, so the next Edit or Pose entry selects in it.
+		meshSelection = (sessionSeed?.session ?: MeshSelection()).copy(selectMode = viewState.selectMode),
 		mode = mode,
 		parameterSelection = viewState.parameterSelection,
 	)

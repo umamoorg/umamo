@@ -96,7 +96,8 @@ fun EditorSession.invertObjectSelection() {
 
 /**
  * Re-seeds the session onto one owner (Alt+Q's switch), as ONE undo step covering both selections: the session's
- * owners become just [owner] (with its remembered elements restored where they still fit), and the OBJECT selection
+ * owners become just [owner] (with its remembered elements restored where they still fit, in the select mode the
+ * session keeps), and the OBJECT selection
  * moves onto the same item - so leaving the mode keeps the switched item instead of reviving the selection the mode
  * was entered with.  The outgoing owners' element selections stash into the per-owner memory first, and the
  * remembered-owner memory follows.  A no-op unless the mode edits elements and [owner] can join a session there
@@ -118,7 +119,7 @@ fun EditorSession.switchEditOwner(owner: ElementOwner) {
 	elementMemory.stash(meshSelection.value)
 	elementMemory.lastActiveOwner = owner
 	val newObjectSelection = SelectionOps.replace(owner.toSelectionTarget())
-	val newMeshSelection = elementMemory.restore(MeshSelection.editing(listOf(owner)), model)
+	val newMeshSelection = elementMemory.restore(MeshSelection.editing(listOf(owner)).copy(selectMode = meshSelection.value.selectMode), model)
 
 	if (newObjectSelection == selection.value && newMeshSelection == meshSelection.value) {
 		return

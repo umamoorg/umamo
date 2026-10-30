@@ -146,4 +146,34 @@ class PoseSessionTest {
 		assertEquals(EditorMode.Pose, session.mode.value, "Tab returns to the mode Edit was entered from")
 		assertFalse(session.meshSelection.value.isEmpty)
 	}
+
+	@Test
+	fun theSelectModeRidesATabBetweenEditAndPose() {
+		val session = EditorSession(model())
+		session.setSelection(Selection(setOf(SelectionTarget.Deformer(cage)), SelectionTarget.Deformer(cage)))
+		session.setMode(EditorMode.Edit)
+		session.setMeshSelectMode(MeshSelectMode.Edge)
+
+		session.setMode(EditorMode.Pose)
+		assertEquals(MeshSelectMode.Edge, session.meshSelection.value.selectMode)
+
+		session.toggleEditMode()
+		assertEquals(EditorMode.Edit, session.mode.value)
+		assertEquals(MeshSelectMode.Edge, session.meshSelection.value.selectMode)
+	}
+
+	@Test
+	fun anEmptyPoseSessionKeepsTheSelectMode() {
+		val session = EditorSession(model(withWarps = false))
+		session.setSelection(Selection(setOf(SelectionTarget.Drawable(art)), SelectionTarget.Drawable(art)))
+		session.setMode(EditorMode.Edit)
+		session.setMeshSelectMode(MeshSelectMode.Face)
+
+		session.setMode(EditorMode.Pose)
+		assertTrue(session.meshSelection.value.owners.isEmpty())
+		assertEquals(MeshSelectMode.Face, session.meshSelection.value.selectMode)
+
+		session.toggleEditMode()
+		assertEquals(MeshSelectMode.Face, session.meshSelection.value.selectMode)
+	}
 }
