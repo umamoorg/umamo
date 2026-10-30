@@ -35,6 +35,7 @@ import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.screenToWorld
 import org.umamo.ui.viewport.gizmo.selectToolKind
 import org.umamo.ui.viewport.gizmo.worldToScreen
+import org.umamo.ui.viewport.resyncAfterElementGesture
 
 /*
  * The Object-mode gizmo overlay.  This file is the wiring: what the overlay collects, its guard, what it
@@ -154,7 +155,7 @@ fun ViewportObjectGizmoOverlay(
 	DisposableEffect(modalTransform) {
 		onDispose {
 			if (modalTransform.abandon()) {
-				modalTransform.resyncRenderer()
+				service.resyncAfterElementGesture(session)
 			}
 
 			marquee.discard()
@@ -195,7 +196,7 @@ fun ViewportObjectGizmoOverlay(
 			// branch at mount (and when another area's operator latches), and an unguarded setModel from
 			// a viewport split open mid-gesture would stomp the initiating area's live preview.
 			if (modalTransform.end()) {
-				modalTransform.resyncRenderer()
+				service.resyncAfterElementGesture(session)
 			}
 		}
 	}

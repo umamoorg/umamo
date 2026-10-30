@@ -140,7 +140,7 @@ fun EditorSession.moveTrackKey(
  * selected key lands on - and it has to do so before the insert records its step, since the selection rides
  * that snapshot.
  *
- * Clamps [position] exactly as [insertTrackKeyAt] does, so the query cannot answer for a destination the
+ * Clamps [position] exactly as [insertTrackKeysAt] does, so the query cannot answer for a destination the
  * insert would never use.
  *
  * @param KeyformTrackRef track The track to insert into.
@@ -179,21 +179,10 @@ fun PuppetModel.trackKeyIndexAfterMove(
 		?: keyIndex
 
 /**
- * Inserts a shape-preserving key at [position] on [track], as one undo step.
- *
- * Shape-preserving means the new key holds whatever the track already evaluates to there, so the insert is
- * a handle to edit from rather than an edit in itself.
- *
- * @param KeyformTrackRef track The track to edit.
- * @param Parameter parameter The parameter whose axis to insert on.
- * @param Float position The new key's parameter value.
- */
-fun EditorSession.insertTrackKeyAt(track: KeyformTrackRef, parameter: Parameter, position: Float) {
-	insertTrackKeysAt(listOf(track), parameter, position)
-}
-
-/**
  * Inserts a shape-preserving key at [position] on every track in [tracks], as ONE undo step.
+ *
+ * Shape-preserving means each new key holds whatever its track already evaluates to there, so the insert is
+ * a handle to edit from rather than an edit in itself.
  *
  * @param List<KeyformTrackRef> tracks The tracks to edit.
  * @param Parameter parameter The parameter whose axis to insert on.

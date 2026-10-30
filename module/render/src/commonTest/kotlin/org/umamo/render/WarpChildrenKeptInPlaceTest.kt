@@ -6,7 +6,6 @@ import org.umamo.render.eval.RotationWorld
 import org.umamo.render.eval.buildDeformerWorlds
 import org.umamo.render.eval.warpLatticeAt
 import org.umamo.runtime.keyform.withEveryLatticeMapped
-import org.umamo.runtime.keyform.withLatticeTransformed
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -22,6 +21,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.applyAffine
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
@@ -181,7 +181,7 @@ class WarpChildrenKeptInPlaceTest {
 	@Test
 	fun anEnlargedCageMovesNoChildAtRestOrInMotion() {
 		val before = model()
-		val kept = warpChildrenKeptInPlace(before, reshaped(before) { warp -> warp.withLatticeTransformed(floatArrayOf(2f, 0f, -30f, 0f, 2f, 10f)) }, warpId)
+		val kept = warpChildrenKeptInPlace(before, reshaped(before) { warp -> warp.withEveryLatticeMapped { points -> applyAffine(points, floatArrayOf(2f, 0f, -30f, 0f, 2f, 10f)) } }, warpId)
 		val after = kept.model
 
 		assertEquals(listOf(hiddenId), kept.unconvertedDrawables, "only the drawable the defaults hide is left")
@@ -201,7 +201,7 @@ class WarpChildrenKeptInPlaceTest {
 		val before = model()
 		val angle = 0.5f
 		val turn = floatArrayOf(cos(angle), -sin(angle), 0f, sin(angle), cos(angle), 0f)
-		val after = warpChildrenKeptInPlace(before, reshaped(before) { warp -> warp.withLatticeTransformed(turn) }, warpId).model
+		val after = warpChildrenKeptInPlace(before, reshaped(before) { warp -> warp.withEveryLatticeMapped { points -> applyAffine(points, turn) } }, warpId).model
 
 		for (pose in listOf(emptyMap(), swayed)) {
 			assertClose(throughPivot(before, pose), throughPivot(after, pose), 1e-2f, "pivot at $pose")

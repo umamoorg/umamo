@@ -9,7 +9,6 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
-import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.OrgChild
@@ -82,19 +81,20 @@ fun PuppetModel.withDrawableDuplicated(id: DrawableId): Pair<PuppetModel, Drawab
 }
 
 /**
- * The first free ".NNN"-suffixed id derived from [id] (d -> d.001, d.002, ...), so repeated duplicates
- * never collide.
+ * The first free ".NNN"-suffixed form of [base] (d -> d.001, d.002, ...), so repeated duplicates never collide: the
+ * one Blender-style naming rule every duplicated id and display name takes.
  *
- * @param DrawableId id The source id.
- * @return DrawableId The unique copy id.
+ * @param String base The source id or name.
+ * @param Function taken Whether a candidate is already in use.
+ * @return String The first free candidate.
  */
-private fun PuppetModel.uniqueDuplicateId(id: DrawableId): DrawableId {
+private fun firstFreeSuffixed(base: String, taken: (String) -> Boolean): String {
 	var counter = 1
 
 	while (true) {
-		val candidate = DrawableId("${id.raw}.${counter.toString().padStart(3, '0')}")
+		val candidate = "$base.${counter.toString().padStart(3, '0')}"
 
-		if (drawables.none { drawable -> drawable.id == candidate }) {
+		if (!taken(candidate)) {
 			return candidate
 		}
 
@@ -103,24 +103,38 @@ private fun PuppetModel.uniqueDuplicateId(id: DrawableId): DrawableId {
 }
 
 /**
- * The first free ".NNN"-suffixed display name derived from [name], mirroring [uniqueDuplicateId].
+ * The first free ".NNN"-suffixed drawable id derived from [id] ([firstFreeSuffixed]).
+ *
+ * @param DrawableId id The source id.
+ * @return DrawableId The unique copy id.
+ */
+private fun PuppetModel.uniqueDuplicateId(id: DrawableId): DrawableId =
+	DrawableId(firstFreeSuffixed(id.raw) { candidate -> drawables.any { drawable -> drawable.id.raw == candidate } })
+
+/**
+ * The first free ".NNN"-suffixed drawable name derived from [name] ([firstFreeSuffixed]).
  *
  * @param String name The source display name.
  * @return String The unique copy name.
  */
-private fun PuppetModel.uniqueDuplicateName(name: String): String {
-	var counter = 1
+private fun PuppetModel.uniqueDuplicateName(name: String): String = firstFreeSuffixed(name) { candidate -> drawables.any { drawable -> drawable.name == candidate } }
 
-	while (true) {
-		val candidate = "$name.${counter.toString().padStart(3, '0')}"
+/**
+ * The first free ".NNN"-suffixed deformer id derived from [id] ([firstFreeSuffixed]).
+ *
+ * @param DeformerId id The source id.
+ * @return DeformerId The unique copy id.
+ */
+private fun PuppetModel.uniqueDuplicateDeformerId(id: DeformerId): DeformerId =
+	DeformerId(firstFreeSuffixed(id.raw) { candidate -> deformers.any { deformer -> deformer.id.raw == candidate } })
 
-		if (drawables.none { drawable -> drawable.name == candidate }) {
-			return candidate
-		}
-
-		counter++
-	}
-}
+/**
+ * The first free ".NNN"-suffixed deformer name derived from [name] ([firstFreeSuffixed]).
+ *
+ * @param String name The source display name.
+ * @return String The unique copy name.
+ */
+private fun PuppetModel.uniqueDuplicateDeformerName(name: String): String = firstFreeSuffixed(name) { candidate -> deformers.any { deformer -> deformer.name == candidate } }
 
 /**
  * Duplicates one warp (Object-mode Shift+D): the copy takes a Blender-style ".001"-suffixed unique id and name and
@@ -146,46 +160,6 @@ fun PuppetModel.withDeformerDuplicated(id: DeformerId): Pair<PuppetModel, Deform
 		)
 
 	return copy(deformers = deformers.toMutableList().apply { add(sourceIndex + 1, copy) }) to copyId
-}
-
-/**
- * The first free ".NNN"-suffixed deformer id derived from [id], as [uniqueDuplicateId] does for drawables.
- *
- * @param DeformerId id The source id.
- * @return DeformerId The unique copy id.
- */
-private fun PuppetModel.uniqueDuplicateDeformerId(id: DeformerId): DeformerId {
-	var counter = 1
-
-	while (true) {
-		val candidate = DeformerId("${id.raw}.${counter.toString().padStart(3, '0')}")
-
-		if (deformers.none { deformer -> deformer.id == candidate }) {
-			return candidate
-		}
-
-		counter++
-	}
-}
-
-/**
- * The first free ".NNN"-suffixed deformer name derived from [name], mirroring [uniqueDuplicateDeformerId].
- *
- * @param String name The source display name.
- * @return String The unique copy name.
- */
-private fun PuppetModel.uniqueDuplicateDeformerName(name: String): String {
-	var counter = 1
-
-	while (true) {
-		val candidate = "$name.${counter.toString().padStart(3, '0')}"
-
-		if (deformers.none { deformer -> deformer.name == candidate }) {
-			return candidate
-		}
-
-		counter++
-	}
 }
 
 /**
@@ -246,23 +220,7 @@ fun EditorSession.duplicateSelectedObjects(): List<SelectionTarget> {
 		return emptyList()
 	}
 
-	// The hierarchy among the copies: a copy under a copied parent moves under that parent's copy.
-	val drawableCopyIds = drawableCopies.values.toSet()
-	val warpCopyIds = warpCopies.values.toSet()
-	newModel =
-		newModel.copy(
-			drawables =
-				newModel.drawables.map { drawable ->
-					val parentCopy = drawable.parentDeformerId?.let { parentId -> warpCopies[parentId] }
-					if (drawable.id in drawableCopyIds && parentCopy != null) drawable.copy(parentDeformerId = parentCopy) else drawable
-				},
-			deformers =
-				newModel.deformers.map { deformer ->
-					val parentCopy = deformer.parent?.let { parentId -> warpCopies[parentId] }
-					if (deformer.id in warpCopyIds && deformer is Deformer.Warp && parentCopy != null) deformer.copy(parent = parentCopy) else deformer
-				},
-		)
-
+	newModel = newModel.withCopiesReparented(drawableCopies.values.toSet(), warpCopies)
 	val copies =
 		drawableCopies.values.map { copyId -> SelectionTarget.Drawable(copyId) } +
 			warpCopies.values.map { copyId -> SelectionTarget.Deformer(copyId) }
@@ -273,14 +231,33 @@ fun EditorSession.duplicateSelectedObjects(): List<SelectionTarget> {
 			else -> null
 		} ?: copies.last()
 	val newSelection = Selection(copies.toSet(), activeCopy)
-	// The remembered owner tracks whatever is shown active (the rule setSelection and restore keep).
-	elementMemory.lastActiveOwner =
-		when (activeCopy) {
-			is SelectionTarget.Drawable -> ElementOwner.Drawable(activeCopy.id)
-			is SelectionTarget.Deformer -> ElementOwner.Deformer(activeCopy.id)
-			is SelectionTarget.Part -> elementMemory.lastActiveOwner
-		}
+	elementMemory.rememberActiveOwnerOf(newSelection)
 	commitStep(DrawableChange.Duplicate(drawableCopies.values.toList(), warpCopies.values.toList()), model = newModel, selection = newSelection)
 
 	return copies
+}
+
+/**
+ * This model with the hierarchy among a duplicate's copies kept: a copy whose source's parent warp was copied too
+ * moves under that parent's copy, and every other copy keeps its source's parent.
+ *
+ * @param Set<DrawableId> drawableCopyIds The drawable copies.
+ * @param Map<DeformerId, DeformerId> warpCopies Each copied warp's copy, by source.
+ * @return PuppetModel The model with the copies re-parented.
+ */
+private fun PuppetModel.withCopiesReparented(drawableCopyIds: Set<DrawableId>, warpCopies: Map<DeformerId, DeformerId>): PuppetModel {
+	val warpCopyIds = warpCopies.values.toSet()
+
+	return copy(
+		drawables =
+			drawables.map { drawable ->
+				val parentCopy = drawable.parentDeformerId?.let { parentId -> warpCopies[parentId] }
+				if (drawable.id in drawableCopyIds && parentCopy != null) drawable.copy(parentDeformerId = parentCopy) else drawable
+			},
+		deformers =
+			deformers.map { deformer ->
+				val parentCopy = deformer.parent?.let { parentId -> warpCopies[parentId] }
+				if (deformer.id in warpCopyIds && deformer is Deformer.Warp && parentCopy != null) deformer.copy(parent = parentCopy) else deformer
+			},
+	)
 }

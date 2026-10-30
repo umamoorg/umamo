@@ -42,11 +42,11 @@ class LatticeOverlay(
 
 /**
  * One warp's lattice as the current pose draws it: its layout and its control points in world space, x right
- * and y up, the space the 2D viewport projects and picks in.  Immutable; a pose that leaves a lattice where it
+ * and z up, the space the 2D viewport projects and picks in.  Immutable; a pose that leaves a lattice where it
  * was keeps the same instance, so whatever compares it by identity (the GPU upload) does nothing.
  *
  * @property WarpLatticeLayout layout The lattice's points, grid lines, and cells.
- * @property FloatArray world The control points, interleaved x, y, in the layout's point order.
+ * @property FloatArray world The control points, interleaved x, z, in the layout's point order.
  */
 class LatticePoints(
 	val layout: WarpLatticeLayout,
@@ -58,7 +58,7 @@ private val NO_TRIANGLES = IntArray(0)
 
 /**
  * Every warp's lattice the pose built, in the model's deformer order, from the pose's baked worlds: each warp's
- * world control points with y negated into world space.  A warp the pose hides is absent, as it is from the bake.
+ * world control points ([WarpWorld.worldControlPoints]).  A warp the pose hides is absent, as it is from the bake.
  *
  * Arrays carry over from [previous] wherever they still hold: a lattice whose points did not move keeps its
  * instance, and one whose size did not change keeps its layout, so the GPU upload and buffers that compare them by
@@ -91,15 +91,7 @@ internal fun latticePointsOf(
 			continue
 		}
 
-		val world = FloatArray(warpWorld.cp.size)
-		var componentIndex = 0
-
-		// The cascade's y grows downward; world space's grows upward.
-		while (componentIndex < world.size) {
-			world[componentIndex] = warpWorld.cp[componentIndex]
-			world[componentIndex + 1] = -warpWorld.cp[componentIndex + 1]
-			componentIndex += 2
-		}
+		val world = warpWorld.worldControlPoints()
 
 		val unmoved = earlier != null && earlier.layout === layout && earlier.world.contentEquals(world)
 		lattices[deformer.id] = if (unmoved) earlier else LatticePoints(layout, world)
@@ -110,8 +102,9 @@ internal fun latticePointsOf(
 
 /**
  * The lattice layer the renderer draws: a direct overlay of kind [MeshOverlayKind.Lattice] holding each warp
- * [overlay] lists that [lattices] holds, idle lattices first and the active one last, each in its model order
- * within its role, with its grid lines as edges and no triangles.  Null when none of them is drawn.
+ * [overlay] lists that [lattices] holds, in model order, each styled with its role ([MeshStyle.Lattice]), with its
+ * grid lines as edges and no triangles.  The encoder draws them role by role, so a stronger role lands over a weaker
+ * one.  Null when none of them is drawn.
  *
  * [previous] is handed back whole when nothing in it changed, and each mesh value in it is reused while its role
  * and layout hold, so a frame over an unchanged pose and selection uploads nothing.
@@ -131,37 +124,31 @@ internal fun latticeLayerOf(
 	val positionsByOwner = HashMap<ElementOwner, FloatArray>()
 	val trianglesByOwner = HashMap<ElementOwner, IntArray>()
 
-	for (role in LatticeRole.entries) {
-		for ((deformerId, lattice) in lattices) {
-			if (overlay.roles[deformerId] != role) {
-				continue
+	for ((deformerId, lattice) in lattices) {
+		val role = overlay.roles[deformerId] ?: continue
+		val owner = ElementOwner.Deformer(deformerId)
+		val held = previousByOwner[owner]
+		val style = MeshStyle.Lattice(role, deformerId in overlay.pendingIds)
+		val mesh =
+			if (held != null && held.style == style && held.edgeEndpoints === lattice.layout.edgeEndpoints) {
+				held
+			} else {
+				MeshOverlayMesh(
+					owner = owner,
+					vertexCount = lattice.layout.pointCount,
+					edgeEndpoints = lattice.layout.edgeEndpoints,
+					vertexFlags = ByteArray(0),
+					edgeFlags = ByteArray(0),
+					faceFlags = ByteArray(0),
+					activeVertex = null,
+					activeEdge = null,
+					activeFace = null,
+					style = style,
+				)
 			}
-
-			val owner = ElementOwner.Deformer(deformerId)
-			val held = previousByOwner[owner]
-			val pending = deformerId in overlay.pendingIds
-			val mesh =
-				if (held != null && held.latticeRole == role && held.pending == pending && held.edgeEndpoints === lattice.layout.edgeEndpoints) {
-					held
-				} else {
-					MeshOverlayMesh(
-						owner = owner,
-						vertexCount = lattice.layout.pointCount,
-						edgeEndpoints = lattice.layout.edgeEndpoints,
-						vertexFlags = ByteArray(0),
-						edgeFlags = ByteArray(0),
-						faceFlags = ByteArray(0),
-						activeVertex = null,
-						activeEdge = null,
-						activeFace = null,
-						latticeRole = role,
-						pending = pending,
-					)
-				}
-			meshes.add(mesh)
-			positionsByOwner[owner] = lattice.world
-			trianglesByOwner[owner] = NO_TRIANGLES
-		}
+		meshes.add(mesh)
+		positionsByOwner[owner] = lattice.world
+		trianglesByOwner[owner] = NO_TRIANGLES
 	}
 
 	if (meshes.isEmpty()) {
@@ -197,7 +184,7 @@ private fun sameLayer(previous: DirectMeshOverlay, meshes: List<MeshOverlayMesh>
 	for (meshIndex in meshes.indices) {
 		val mesh = meshes[meshIndex]
 
-		if (previousMeshes[meshIndex] !== mesh || previous.positionsById[mesh.owner] !== positionsByOwner[mesh.owner]) {
+		if (previousMeshes[meshIndex] !== mesh || previous.positionsByOwner[mesh.owner] !== positionsByOwner[mesh.owner]) {
 			return false
 		}
 	}
@@ -205,11 +192,31 @@ private fun sameLayer(previous: DirectMeshOverlay, meshes: List<MeshOverlayMesh>
 	return true
 }
 
+/** Every lattice role, what a frame showing every deformer draws. */
+internal val EVERY_LATTICE_ROLE: Set<LatticeRole> = LatticeRole.entries.toSet()
+
+/** The roles a frame that shows only the picked deformers draws. */
+private val PICKED_LATTICE_ROLES: Set<LatticeRole> = setOf(LatticeRole.Selected, LatticeRole.Active)
+
 /**
- * The lattices a frame drawing with [overlays] shows of [lattices], by the rule the renderer draws them by: none
- * when the frame hides the mesh overlay or nothing is listed; each listed warp in its role otherwise, an idle one
- * only when the frame shows every deformer.  What a click in that frame can pick, so a pick never lands on a
- * lattice the area does not draw.
+ * The lattice roles a frame drawing with [overlays] draws: none when the frame hides the mesh overlay, every role
+ * when it shows every deformer, and only the selected and active ones otherwise.  The one rule both the renderer's
+ * lattice draws and the picks over them ([latticesDrawnIn]) read, so a pick never lands on a lattice the area does
+ * not draw.
+ *
+ * @param FrameOverlays overlays The frame's overlay options.
+ * @return Set<LatticeRole> The drawn roles.
+ */
+fun latticeRolesDrawnIn(overlays: FrameOverlays): Set<LatticeRole> =
+	when {
+		!overlays.meshOverlay -> emptySet()
+		overlays.allLattices -> EVERY_LATTICE_ROLE
+		else -> PICKED_LATTICE_ROLES
+	}
+
+/**
+ * The lattices a frame drawing with [overlays] shows of [lattices]: each listed warp whose role the frame draws
+ * ([latticeRolesDrawnIn]).  What a click in that frame can pick.
  *
  * @param LatticeOverlay? overlay The lattices the renderer holds, or null.
  * @param Map<DeformerId, LatticePoints> lattices The current pose's lattices, in model order.
@@ -221,13 +228,11 @@ fun latticesDrawnIn(
 	lattices: Map<DeformerId, LatticePoints>,
 	overlays: FrameOverlays,
 ): Map<DeformerId, LatticePoints> {
-	if (overlay == null || !overlays.meshOverlay) {
+	val roles = latticeRolesDrawnIn(overlays)
+
+	if (overlay == null || roles.isEmpty()) {
 		return emptyMap()
 	}
 
-	return lattices.filter { (deformerId, _) ->
-		val role = overlay.roles[deformerId]
-
-		role != null && (role != LatticeRole.Idle || overlays.allLattices)
-	}
+	return lattices.filter { (deformerId, _) -> overlay.roles[deformerId] in roles }
 }

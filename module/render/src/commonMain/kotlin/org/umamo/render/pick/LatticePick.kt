@@ -3,7 +3,6 @@ package org.umamo.render.pick
 import org.umamo.render.ViewportCamera
 import org.umamo.render.puppet.LatticePoints
 import org.umamo.runtime.model.DeformerId
-import kotlin.math.sqrt
 
 /*
  * Picking a warp by its drawn lattice, in screen space through the area's camera, so the hit radii are
@@ -41,16 +40,13 @@ fun latticeHitsAt(
 	var modelIndex = 0
 
 	for ((deformerId, lattice) in lattices) {
-		val screen = projectToScreen(lattice.world, camera, viewportWidth, viewportHeight)
-		val pointDistance = nearestPointDistance(screen, pointerX, pointerY)
+		val pointHit = nearestVertex(lattice.world, pointerX, pointerY, pointRadiusPx, camera, viewportWidth, viewportHeight)
 
-		if (pointDistance <= pointRadiusPx) {
-			hits.add(LatticeHit(deformerId, POINT_TIER, pointDistance, modelIndex))
+		if (pointHit != null) {
+			hits.add(LatticeHit(deformerId, POINT_TIER, pointHit.distancePx, modelIndex))
 		} else {
-			val edgeDistance = nearestEdgeDistance(screen, lattice.layout.edgeEndpoints, pointerX, pointerY)
-
-			if (edgeDistance <= lineRadiusPx) {
-				hits.add(LatticeHit(deformerId, EDGE_TIER, edgeDistance, modelIndex))
+			nearestEdge(lattice.world, lattice.layout.edgeEndpoints, pointerX, pointerY, lineRadiusPx, camera, viewportWidth, viewportHeight)?.let { edgeHit ->
+				hits.add(LatticeHit(deformerId, EDGE_TIER, edgeHit.distancePx, modelIndex))
 			}
 		}
 
@@ -69,30 +65,7 @@ fun latticeHitsAt(
  * @param Map<DeformerId, LatticePoints> lattices The lattices.
  * @return Map<DeformerId, FloatArray> A two-element [x, y] center per lattice, in the same order.
  */
-fun latticeCenters(lattices: Map<DeformerId, LatticePoints>): Map<DeformerId, FloatArray> {
-	val centers = LinkedHashMap<DeformerId, FloatArray>(lattices.size)
-
-	for ((deformerId, lattice) in lattices) {
-		val world = lattice.world
-		val pointCount = world.size / 2
-
-		if (pointCount == 0) {
-			continue
-		}
-
-		var sumX = 0f
-		var sumY = 0f
-
-		for (pointIndex in 0 until pointCount) {
-			sumX += world[pointIndex * 2]
-			sumY += world[pointIndex * 2 + 1]
-		}
-
-		centers[deformerId] = floatArrayOf(sumX / pointCount, sumY / pointCount)
-	}
-
-	return centers
-}
+fun latticeCenters(lattices: Map<DeformerId, LatticePoints>): Map<DeformerId, FloatArray> = centroidsOf(lattices.mapValues { (_, lattice) -> lattice.world })
 
 /** The rank of a hit on a control point, ahead of one on a grid line. */
 private const val POINT_TIER = 0
@@ -114,74 +87,3 @@ private class LatticeHit(
 	val distancePx: Float,
 	val modelIndex: Int,
 )
-
-/**
- * Projects interleaved world points to interleaved screen pixels.
- *
- * @param FloatArray world The world points, x then z (up) per point.
- * @param ViewportCamera camera The projecting camera.
- * @param Int viewportWidth The viewport width in pixels.
- * @param Int viewportHeight The viewport height in pixels.
- * @return FloatArray The screen points, x then y (down) per point.
- */
-private fun projectToScreen(world: FloatArray, camera: ViewportCamera, viewportWidth: Int, viewportHeight: Int): FloatArray {
-	val screen = FloatArray(world.size)
-	val pointCount = world.size / 2
-
-	for (pointIndex in 0 until pointCount) {
-		screen[pointIndex * 2] = worldToScreenX(world[pointIndex * 2], camera, viewportWidth)
-		screen[pointIndex * 2 + 1] = worldToScreenY(world[pointIndex * 2 + 1], camera, viewportHeight)
-	}
-
-	return screen
-}
-
-/**
- * The pointer's distance to the nearest point, in screen pixels; infinite when there is none.
- *
- * @param FloatArray screen The points in screen pixels, interleaved.
- * @param Float pointerX The pointer x.
- * @param Float pointerY The pointer y.
- * @return Float The distance.
- */
-private fun nearestPointDistance(screen: FloatArray, pointerX: Float, pointerY: Float): Float {
-	var nearest = Float.POSITIVE_INFINITY
-	val pointCount = screen.size / 2
-
-	for (pointIndex in 0 until pointCount) {
-		val deltaX = screen[pointIndex * 2] - pointerX
-		val deltaY = screen[pointIndex * 2 + 1] - pointerY
-		nearest = minOf(nearest, sqrt(deltaX * deltaX + deltaY * deltaY))
-	}
-
-	return nearest
-}
-
-/**
- * The pointer's distance to the nearest grid line, in screen pixels; infinite when there is none.
- *
- * @param FloatArray screen The points in screen pixels, interleaved.
- * @param IntArray edgeEndpoints Two point indices per grid line.
- * @param Float pointerX The pointer x.
- * @param Float pointerY The pointer y.
- * @return Float The distance.
- */
-private fun nearestEdgeDistance(screen: FloatArray, edgeEndpoints: IntArray, pointerX: Float, pointerY: Float): Float {
-	var nearest = Float.POSITIVE_INFINITY
-	val pointCount = screen.size / 2
-	val edgeCount = edgeEndpoints.size / 2
-
-	for (edgeOrdinal in 0 until edgeCount) {
-		val endpointA = edgeEndpoints[edgeOrdinal * 2]
-		val endpointB = edgeEndpoints[edgeOrdinal * 2 + 1]
-
-		if (endpointA >= pointCount || endpointB >= pointCount) {
-			continue
-		}
-
-		val distance = distanceToSegment(pointerX, pointerY, screen[endpointA * 2], screen[endpointA * 2 + 1], screen[endpointB * 2], screen[endpointB * 2 + 1])
-		nearest = minOf(nearest, distance)
-	}
-
-	return nearest
-}

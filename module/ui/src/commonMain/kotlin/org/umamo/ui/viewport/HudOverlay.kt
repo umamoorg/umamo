@@ -24,8 +24,9 @@ import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.editsElements
+import org.umamo.edit.toSelectionTarget
 import org.umamo.render.ViewportCamera
-import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.ui.kit.Text
 import org.umamo.ui.resources.*
@@ -65,21 +66,8 @@ internal fun ActiveMeshInfoLabel(
 	// resolution null-gates, so a selection change that toggles the chip never recomputes them.
 	val partNameOfDrawable = remember(model) { model.partNameByDrawable() }
 	val partNameById = remember(model) { model.parts.associate { part -> part.id to part.name } }
-	val deformerById = remember(model) { model.deformers.associateBy { deformer -> deformer.id } }
-	val activeTarget =
-		when (editorMode) {
-			EditorMode.Edit, EditorMode.Pose -> {
-				when (val owner = meshSelection.activeOwner) {
-					is ElementOwner.Drawable -> SelectionTarget.Drawable(owner.id)
-					is ElementOwner.Deformer -> SelectionTarget.Deformer(owner.id)
-					null -> null
-				}
-			}
-
-			EditorMode.Object -> {
-				objectSelection.active
-			}
-		} ?: return
+	val deformerById = model.deformerById
+	val activeTarget = (if (editorMode.editsElements) meshSelection.activeOwner?.toSelectionTarget() else objectSelection.active) ?: return
 	val (nameRow, deformerName) =
 		when (activeTarget) {
 			is SelectionTarget.Drawable -> {

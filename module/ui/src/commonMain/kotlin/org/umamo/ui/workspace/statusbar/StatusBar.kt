@@ -30,7 +30,6 @@ import org.umamo.edit.editTopologyOf
 import org.umamo.edit.editsElements
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
-import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
@@ -238,7 +237,7 @@ private fun SelectedItemZone() {
 			remember(puppet, meshSelection.owners) {
 				meshSelection.owners.mapNotNull { owner -> puppet.editTopologyOf(owner) }
 			}
-		val latticeSession = meshSelection.owners.isNotEmpty() && meshSelection.owners.all { owner -> owner is ElementOwner.Deformer }
+		val latticeSession = meshSelection.editsLattices
 		text =
 			if (sessionTopologies.isEmpty() || meshSelection.isEmpty) {
 				null

@@ -11,6 +11,7 @@ import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
@@ -226,7 +227,7 @@ class EditMeshOverlayProducerTest {
 
 		assertEquals(MeshOverlayKind.Edit, overlay.kind)
 		assertEquals(listOf(RIG_OTHER, RIG_HIDDEN, RIG_QUAD), overlay.meshes.map { mesh -> mesh.drawableOwnerId })
-		assertEquals(listOf(true, true, false), overlay.meshes.map { mesh -> mesh.wireframeOnly })
+		assertEquals(listOf(true, true, false), overlay.meshes.map { mesh -> mesh.style == MeshStyle.Wireframe })
 		val other = overlay.meshes.first()
 		assertTrue(other.vertexFlags.isEmpty() && other.edgeFlags.isEmpty() && other.faceFlags.isEmpty(), "a wireframe entry carries no flags")
 		assertEquals(3, other.edgeCount, "and the triangle's three edges")
@@ -244,7 +245,7 @@ class EditMeshOverlayProducerTest {
 
 		assertEquals(MeshOverlayKind.ObjectWireframe, overlay.kind)
 		assertEquals(listOf(RIG_QUAD, RIG_OTHER, RIG_HIDDEN), overlay.meshes.map { mesh -> mesh.drawableOwnerId })
-		assertTrue(overlay.meshes.all { mesh -> mesh.wireframeOnly && mesh.vertexFlags.isEmpty() })
+		assertTrue(overlay.meshes.all { mesh -> mesh.style == MeshStyle.Wireframe && mesh.vertexFlags.isEmpty() })
 		assertNull(producer.produce(EditorMode.Object, selection, gizmoRigModel(), sizes, wireframeOver = setOf(DrawableId("absent"))), "a set naming nothing meshed gives nothing")
 	}
 

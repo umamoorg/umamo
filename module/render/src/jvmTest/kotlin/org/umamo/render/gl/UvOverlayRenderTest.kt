@@ -19,6 +19,7 @@ import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.puppet.PlacementCropQuad
 import org.umamo.render.puppet.PlacementPreview
@@ -274,7 +275,7 @@ class UvOverlayRenderTest {
 	private fun islands(vararg islands: Pair<FloatArray, IslandStyle>): DirectMeshOverlay {
 		val meshes =
 			islands.mapIndexed { islandIndex, island ->
-				MeshOverlayMesh(ElementOwner.Drawable(DrawableId("island$islandIndex")), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, island.second)
+				MeshOverlayMesh(ElementOwner.Drawable(DrawableId("island$islandIndex")), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, MeshStyle.Island(island.second))
 			}
 
 		return DirectMeshOverlay(

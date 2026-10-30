@@ -67,21 +67,7 @@ internal object PoseLatticeTestRig {
 		id: DeformerId,
 		originX: Float,
 		keys: FloatArray,
-	): Deformer.Warp =
-		Deformer.Warp(
-			id = id,
-			name = id.raw,
-			parent = null,
-			partId = null,
-			rows = 2,
-			columns = 2,
-			isQuadTransform = true,
-			geometryGrid =
-				KeyformGrid(
-					listOf(KeyformAxis(parameterP, keys)),
-					keys.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), WarpLatticeForm(square(originX + keys[keyIndex] * 5f))) },
-				),
-		)
+	): Deformer.Warp = SessionTestModels.keyedWarp(id, 2, 2, parameterP, keys) { keyIndex -> square(originX + keys[keyIndex] * 5f) }
 
 	/**
 	 * The rig.

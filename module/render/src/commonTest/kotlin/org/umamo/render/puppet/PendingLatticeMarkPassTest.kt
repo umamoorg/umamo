@@ -96,7 +96,7 @@ class PendingLatticeMarkPassTest {
 					activeFace = null,
 					faceDotCorners = intArrayOf(4, 4, 4, 4, 4, 4),
 					vertexDotCount = 4,
-					pending = pending,
+					style = if (pending) MeshStyle.PendingCage else MeshStyle.Plain,
 				)
 			renderer.setEditDirectOverlay(DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf(mesh), sizes), mapOf(owner to positions), mapOf(owner to intArrayOf(0, 1, 3, 0, 3, 2))))
 			device.clearLog()

@@ -1,17 +1,15 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.KeyformAim
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.keyform.captureKeyOnTrack
 import org.umamo.edit.keyform.captureKeysOnTracks
+import org.umamo.edit.keyform.posedLatticeTracks
 import org.umamo.edit.keyform.removeKeyOnTrack
 import org.umamo.edit.keyform.removeKeysOnTracks
 import org.umamo.edit.keyform.removeTrackKeys
 import org.umamo.edit.keyform.removingKeys
-import org.umamo.runtime.model.ElementOwner
-import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandHint
@@ -82,16 +80,10 @@ internal fun keyformCommands(
 			hint = CommandHint(Res.string.status_bind_insert_key, suggestedOver = SpaceScope.of(SpaceKind.KeyformSheet, SpaceKind.Properties)),
 		) {
 			editorSession?.let { session ->
-				val posed = posedLatticeTracks(session, routing)
-
-				if (posed != null) {
-					session.captureKeysOnTracks(posed, null, KeyformAim.Pose)
-				} else {
-					aimedKeyable(session, hoveredKeyable())?.let { hover ->
-						// The hovered row goes with it, so the insert shifts the sheet's key selection past the key
-						// it adds instead of handing that key the selected mark's ordinal.
-						session.captureKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
-					}
+				keyAtPointer(session, routing, hoveredKeyable, { tracks -> session.captureKeysOnTracks(tracks, null, KeyformAim.Pose) }) { hover ->
+					// The hovered row goes with it, so the insert shifts the sheet's key selection past the key it
+					// adds instead of handing that key the selected mark's ordinal.
+					session.captureKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
 				}
 			}
 		},
@@ -103,16 +95,10 @@ internal fun keyformCommands(
 			hint = CommandHint(Res.string.status_bind_delete_key, suggestedOver = SpaceScope.of(SpaceKind.KeyformSheet, SpaceKind.Properties)),
 		) {
 			editorSession?.let { session ->
-				val posed = posedLatticeTracks(session, routing)
-
-				if (posed != null) {
-					session.removeKeysOnTracks(posed, null, KeyformAim.Pose)
-				} else {
-					aimedKeyable(session, hoveredKeyable())?.let { hover ->
-						// The hovered row goes with it, so the removal re-points the sheet's key selection at what
-						// survives instead of leaving it on the ordinal the removal frees - the neighbouring key.
-						session.removeKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
-					}
+				keyAtPointer(session, routing, hoveredKeyable, { tracks -> session.removeKeysOnTracks(tracks, null, KeyformAim.Pose) }) { hover ->
+					// The hovered row goes with it, so the removal re-points the sheet's key selection at what survives
+					// instead of leaving it on the ordinal the removal frees - the neighbouring key.
+					session.removeKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
 				}
 			}
 		},
@@ -142,27 +128,30 @@ internal fun keyformCommands(
 }
 
 /**
- * The lattice tracks a key over a Pose-mode 2D viewport writes on - every warp the session poses, which D9's "the
- * selected deformers" is in Pose mode - or null when the pointer is not over a 2D viewport in Pose mode, so the
- * command falls back to the hovered keyable.  An empty session refuses with a notice and answers an empty list, so
- * the command does nothing more.
+ * Resolves what an Insert or Delete Key at the pointer acts on and hands it to the matching action: over a 2D
+ * viewport, the session's posed lattices ([posedLatticeTracks]) when Pose mode has them; otherwise the hovered keyable
+ * ([aimedKeyable]), refusing with a notice when there is none.
  *
  * @param EditorSession session The session.
  * @param CommandRouting routing Resolves the hovered surface.
- * @return List<KeyformTrackRef>? The tracks, or null when the viewport rule does not apply.
+ * @param Function hoveredKeyable The hovered keyable, or null.
+ * @param Function onPosed Acts on the posed lattice tracks.
+ * @param Function onHovered Acts on the hovered keyable.
  */
-private fun posedLatticeTracks(session: EditorSession, routing: CommandRouting): List<KeyformTrackRef>? {
-	if (session.mode.value != EditorMode.Pose || routing.viewportArea() == null) {
-		return null
+private fun keyAtPointer(
+	session: EditorSession,
+	routing: CommandRouting,
+	hoveredKeyable: () -> KeyformHover?,
+	onPosed: (List<KeyformTrackRef>) -> Unit,
+	onHovered: (KeyformHover) -> Unit,
+) {
+	val posed = if (routing.viewportArea() != null) session.posedLatticeTracks() else null
+
+	if (posed != null) {
+		onPosed(posed)
+	} else {
+		aimedKeyable(session, hoveredKeyable())?.let(onHovered)
 	}
-
-	val tracks = session.meshSelection.value.owners.mapNotNull { owner -> (owner as? ElementOwner.Deformer)?.let { warp -> KeyformTrackRef.Geometry(KeyformOwner.Deformer(warp.id)) } }
-
-	if (tracks.isEmpty()) {
-		session.emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
-	}
-
-	return tracks
 }
 
 /**

@@ -1,5 +1,9 @@
 package org.umamo.ui.transform
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Pose
@@ -63,3 +67,19 @@ internal fun elementEditStageOf(
  * @return ElementEditStage The stage.
  */
 internal fun EditorSession.elementEditStage(): ElementEditStage = elementEditStageOf(mode.value, pose.value, pendingLatticeEdits.value)
+
+/**
+ * The stage [session] edits at ([elementEditStageOf]), collected so a change of its mode, pose, or pending lattices
+ * recomposes the caller, and remembered so every reader in one composition agrees on the same instance.
+ *
+ * @param EditorSession session The session.
+ * @return ElementEditStage The stage.
+ */
+@Composable
+internal fun rememberElementEditStage(session: EditorSession): ElementEditStage {
+	val mode by session.mode.collectAsState()
+	val pose by session.pose.collectAsState()
+	val pendingLattices by session.pendingLatticeEdits.collectAsState()
+
+	return remember(mode, pose, pendingLattices) { elementEditStageOf(mode, pose, pendingLattices) }
+}

@@ -1,12 +1,25 @@
 package org.umamo.ui.transform
 
+import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshChange
+import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.SelectionTarget
+import org.umamo.edit.editOwnerOf
+import org.umamo.edit.mesh.MeshRestPositions
+import org.umamo.edit.mesh.commitObjectPositions
+import org.umamo.edit.mesh.commitObjectTransform
+import org.umamo.edit.mesh.withMeshPositions
+import org.umamo.edit.transform.MeshTransforms
+import org.umamo.edit.transform.allPointIndices
 import org.umamo.render.eval.ParentSpaceMapping
 import org.umamo.render.eval.warpLatticeAt
 import org.umamo.runtime.keyform.withEveryLatticeMapped
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.applyAffine
 
 /*
  * Whole warps moved as objects, lowered onto the model.  Object mode moves a warp the way it moves a drawable: as
@@ -84,16 +97,43 @@ internal fun warpPreviewOf(model: PuppetModel, landed: Deformer.Warp): WarpLatti
  */
 private fun movedThroughParent(points: FloatArray, mapping: ParentSpaceMapping, worldAffine: FloatArray): FloatArray {
 	val world = mapping.localToWorld(points)
-	val moved = FloatArray(world.size)
-	var componentIndex = 0
 
-	while (componentIndex + 1 < world.size) {
-		val x = world[componentIndex]
-		val z = world[componentIndex + 1]
-		moved[componentIndex] = worldAffine[0] * x + worldAffine[1] * z + worldAffine[2]
-		moved[componentIndex + 1] = worldAffine[3] * x + worldAffine[4] * z + worldAffine[5]
-		componentIndex += 2
+	return mapping.worldToLocalLinearized(applyAffine(world, worldAffine), points, allPointIndices(points))
+}
+
+/**
+ * The centroid of [active]'s own geometry among [geometries]: what an Object-mode transform's Active Element pivot and
+ * a Snap to Active read.  Null when nothing is active or the active item is not among them.
+ *
+ * @param SelectionTarget? active The object selection's active item.
+ * @param List<OwnerWorldGeometry> geometries The captured drawables and lattices.
+ * @return Pair<Float, Float>? The centroid, x and z, or null.
+ */
+internal fun activeObjectCentroid(active: SelectionTarget?, geometries: List<OwnerWorldGeometry>): Pair<Float, Float>? {
+	val activeOwner = editOwnerOf(active) ?: return null
+
+	return geometries.firstOrNull { geometry -> geometry.owner == activeOwner }?.let { geometry -> MeshTransforms.medianPivot(geometry.world, geometry.allIndices) }
+}
+
+/**
+ * Commits an Object-mode move as one undo step: each drawable's new rest shape, and each warp moved whole by its world
+ * affine with its art following ([withWarpsTransformed]).  What a confirmed G / R / S and a selection snap land through.
+ *
+ * @param List<DrawableId> drawableIds The drawables the move named.
+ * @param Map<DrawableId, MeshRestPositions> restByDrawable Their new rest shapes.
+ * @param Map<DeformerId, FloatArray> warpAffines Each moved warp's world affine.
+ * @param MeshOperatorKind kind The operator the move ran as.
+ */
+internal fun EditorSession.commitObjectMove(
+	drawableIds: List<DrawableId>,
+	restByDrawable: Map<DrawableId, MeshRestPositions>,
+	warpAffines: Map<DeformerId, FloatArray>,
+	kind: MeshOperatorKind,
+) {
+	if (warpAffines.isNotEmpty()) {
+		val landed = model.value.withMeshPositions(restByDrawable).withWarpsTransformed(warpAffines)
+		commitObjectTransform(MeshChange.TransformObjects(drawableIds, kind, warpAffines.keys.toList()), landed)
+	} else if (restByDrawable.isNotEmpty()) {
+		commitObjectPositions(MeshChange.TransformObjects(drawableIds, kind), restByDrawable)
 	}
-
-	return mapping.worldToLocalLinearized(moved, points, world, (0 until points.size / 2).toSet())
 }

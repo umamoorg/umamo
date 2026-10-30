@@ -2,10 +2,9 @@ package org.umamo.ui.viewport
 
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
-import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
-import org.umamo.edit.pinsPose
+import org.umamo.edit.shownPending
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyableTarget
@@ -72,27 +71,14 @@ class LiveParams(
 }
 
 /**
- * The pending Pose-mode lattices [mode] shows: none while it pins the pose (Edit mode shows the rest it edits), every
- * one otherwise.  The one rule the viewport binding and a lattice gesture's end both publish by.
- *
- * @param EditorMode mode The editor mode.
- * @param Map<DeformerId, WarpLatticeForm> pending The session's pending lattices.
- * @return Map<DeformerId, WarpLatticeForm> The lattices to pose with.
- */
-fun shownPendingLattices(
-	mode: EditorMode,
-	pending: Map<DeformerId, WarpLatticeForm>,
-): Map<DeformerId, WarpLatticeForm> = if (mode.pinsPose) emptyMap() else pending
-
-/**
  * Writes the session's pending lattices, as [mode][EditorSession.mode] shows them, to [service] now - what a lattice
  * gesture's end does before it clears its preview, so the frame after already shows what the gesture committed rather
  * than waiting for the viewport binding to catch up.
  *
  * @param EditorSession session The session.
  */
-fun PuppetViewportService.publishPendingLattices(session: EditorSession) {
-	setLatticeOverrides(shownPendingLattices(session.mode.value, session.pendingLatticeEdits.value))
+private fun PuppetViewportService.publishPendingLattices(session: EditorSession) {
+	setLatticeOverrides(session.mode.value.shownPending(session.pendingLatticeEdits.value))
 }
 
 /**

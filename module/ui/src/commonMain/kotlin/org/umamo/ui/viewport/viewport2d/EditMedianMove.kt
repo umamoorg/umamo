@@ -1,10 +1,8 @@
 package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.transform.IndividualOriginScope
 import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
@@ -12,7 +10,6 @@ import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.buildModalTransformCapture
-import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.CoveredVertices
@@ -20,7 +17,6 @@ import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.transform.WorldAxis
 import org.umamo.ui.transform.WorldMedian
-import org.umamo.ui.transform.commitLatticeLanding
 import org.umamo.ui.transform.coveredMedian
 
 /*
@@ -170,26 +166,9 @@ internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, 
 
 	val parameters = move.parametersFor(axis, worldValue) ?: return
 	val result = move.drive(parameters, model.value)
-	val modelBefore = model.value
-	val landing = result.latticeLanding(move.stage)
-	val recorded: Boolean
-
-	if (landing != null) {
-		recorded = commitLatticeLanding(landing, MeshOperatorKind.Grab)
-	} else {
-		val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(move.transform.entries.size)
-
-		for (entry in move.transform.entries) {
-			val drawableId = entry.drawableId ?: continue
-
-			if (drawableId in result.preview) {
-				movedIndicesByDrawable[drawableId] = entry.movedIndices.toList()
-			}
-		}
-
-		commitMeshPositions(MeshChange.TransformVertices(movedIndicesByDrawable, MeshOperatorKind.Grab), result.preview)
-		recorded = model.value !== modelBefore
-	}
+	val movedIndicesByDrawable =
+		move.transform.entries.mapNotNull { entry -> entry.drawableId?.takeIf { drawableId -> drawableId in result.preview }?.let { drawableId -> drawableId to entry.movedIndices.toList() } }.toMap()
+	val recorded = commitDrive(result, move.stage, MeshOperatorKind.Grab, movedIndicesByDrawable)
 
 	// A commit that recorded nothing has no step of its own for the strip to amend.
 	if (!recorded) {

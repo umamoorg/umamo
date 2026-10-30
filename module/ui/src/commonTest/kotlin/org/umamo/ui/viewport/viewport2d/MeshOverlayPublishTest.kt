@@ -20,6 +20,7 @@ import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
@@ -150,7 +151,7 @@ class MeshOverlayPublishTest {
 			val wireframe = assertNotNull(service.pushedOverlays.last(), "an area asking publishes the wireframe")
 			assertEquals(MeshOverlayKind.ObjectWireframe, wireframe.kind)
 			assertEquals(listOf(RIG_QUAD, RIG_OTHER, RIG_HIDDEN), wireframe.meshes.map { mesh -> mesh.drawableOwnerId }, "over every shown drawable, in the model's order")
-			assertTrue(wireframe.meshes.all { mesh -> mesh.wireframeOnly && mesh.vertexFlags.isEmpty() }, "each a plain wireframe")
+			assertTrue(wireframe.meshes.all { mesh -> mesh.style == MeshStyle.Wireframe && mesh.vertexFlags.isEmpty() }, "each a plain wireframe")
 
 			wanted.value = false
 			runCurrent()
@@ -172,7 +173,7 @@ class MeshOverlayPublishTest {
 			val edit = assertNotNull(service.pushedOverlays.last())
 			assertEquals(MeshOverlayKind.Edit, edit.kind, "entering Edit publishes the cage")
 			assertEquals(listOf(RIG_OTHER, RIG_HIDDEN, RIG_QUAD), edit.meshes.map { mesh -> mesh.drawableOwnerId }, "with the wireframe of what is outside the edit ahead of it")
-			assertEquals(listOf(true, true, false), edit.meshes.map { mesh -> mesh.wireframeOnly }, "the cage alone carries flags")
+			assertEquals(listOf(true, true, false), edit.meshes.map { mesh -> mesh.style == MeshStyle.Wireframe }, "the cage alone carries flags")
 
 			wanted.value = false
 			runCurrent()

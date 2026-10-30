@@ -16,6 +16,16 @@ internal class MeshElementMemory {
 	/** The last owner that was active - a drawable or a warp - or null before any; Edit-mode entry falls back to it. */
 	var lastActiveOwner: ElementOwner? = null
 
+	/**
+	 * Remembers [selection]'s active item as the last active owner when it is one (a drawable or a warp); a part, or
+	 * no active item, leaves the memory as it was.  The one rule every path that shows a selection keeps.
+	 *
+	 * @param Selection selection The selection now shown.
+	 */
+	fun rememberActiveOwnerOf(selection: Selection) {
+		editOwnerOf(selection.active)?.let { owner -> lastActiveOwner = owner }
+	}
+
 	// Per-owner element-selection memory, plus the select mode remembered alongside.
 	private val rememberedElementsByOwner = HashMap<ElementOwner, Set<MeshElement>>()
 	private val rememberedActiveElementByOwner = HashMap<ElementOwner, MeshElement>()

@@ -20,7 +20,7 @@ import org.umamo.ui.transform.CoveredVertices
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.coveredMedian
 import org.umamo.ui.transform.coveredVerticesOf
-import org.umamo.ui.transform.elementEditStageOf
+import org.umamo.ui.transform.rememberElementEditStage
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.viewport2d.CoveredMedianMove
@@ -74,8 +74,7 @@ private class LatticeScrubPreview(
 	fun preview(result: MeshDriveResult) {
 		val preview = livePreview ?: return
 		previewing = true
-		preview.latticeWorldByDeformer = result.latticeWorld
-		preview.latticeFormsByDeformer = result.latticeForms.takeIf { forms -> forms.isNotEmpty() }
+		preview.showLattices(result.latticeWorld, result.latticeForms)
 
 		if (result.latticeForms.isNotEmpty()) {
 			posed = true
@@ -90,8 +89,7 @@ private class LatticeScrubPreview(
 		}
 
 		previewing = false
-		livePreview?.latticeWorldByDeformer = null
-		livePreview?.latticeFormsByDeformer = null
+		livePreview?.clearLattices()
 
 		if (posed) {
 			posed = false
@@ -115,10 +113,7 @@ internal fun EditMedianPanel(context: SidebarContext) {
 	val session = context.session ?: return
 	val puppet = context.puppet
 	val selection = context.meshSelection
-	val mode by session.mode.collectAsState()
-	val pose by session.pose.collectAsState()
-	val pendingLattices by session.pendingLatticeEdits.collectAsState()
-	val stage = remember(mode, pose, pendingLattices) { elementEditStageOf(mode, pose, pendingLattices) }
+	val stage = rememberElementEditStage(session)
 	val capture = remember(puppet, selection.owners, stage) { editOwnerGeometries(puppet, selection.owners, stage) }
 	val covered =
 		remember(capture, selection) {

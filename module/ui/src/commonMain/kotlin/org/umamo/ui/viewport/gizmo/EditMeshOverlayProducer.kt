@@ -12,6 +12,7 @@ import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.OVERLAY_FLAG_ACTIVE
 import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import org.umamo.runtime.model.DrawableId
@@ -80,23 +81,6 @@ internal class EditMeshOverlayProducer {
 	}
 
 	/**
-	 * One mesh's last entry and what it was built from.
-	 *
-	 * @property Set<MeshElement> elements The selected set it reflects (compared by identity).
-	 * @property MeshElement? active The active element it reflects.
-	 * @property MeshSelectMode selectMode The select mode it reflects.
-	 * @property Topology topology The topology it was built over (compared by identity).
-	 * @property MeshOverlayMesh entry The entry.
-	 */
-	private class Entry(
-		val elements: Set<MeshElement>,
-		val active: MeshElement?,
-		val selectMode: MeshSelectMode,
-		val topology: Topology,
-		val entry: MeshOverlayMesh,
-	)
-
-	/**
 	 * One drawable's plain-wireframe entry and the topology it was built over.
 	 *
 	 * @property Topology topology The topology (compared by identity).
@@ -108,7 +92,7 @@ internal class EditMeshOverlayProducer {
 	)
 
 	private val topologyById = HashMap<DrawableId, Topology>()
-	private val entryById = HashMap<DrawableId, Entry>()
+	private val cageEntries = EditCageEntries<Topology>()
 	private val wireframeEntryById = HashMap<DrawableId, WireframeEntry>()
 	private var lastOverlay: MeshOverlay? = null
 
@@ -177,7 +161,7 @@ internal class EditMeshOverlayProducer {
 			return overlayOf(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, wireframeEntries, sizes)
 		}
 
-		entryById.keys.retainAll(sessionIds)
+		cageEntries.retainOnly(sessionIds.mapTo(HashSet(sessionIds.size)) { drawableId -> ElementOwner.Drawable(drawableId) })
 		val entries = ArrayList<MeshOverlayMesh>(wireframeEntries.size + selection.drawableIds.size)
 		entries.addAll(wireframeEntries)
 
@@ -212,16 +196,7 @@ internal class EditMeshOverlayProducer {
 			return null
 		}
 
-		val previous = lastOverlay
-
-		if (previous != null && previous.kind == kind && previous.selectMode == selectMode && previous.sizes == sizes && sameOverlayEntries(previous.meshes, entries)) {
-			return previous
-		}
-
-		val overlay = MeshOverlay(kind, selectMode, entries, sizes)
-		lastOverlay = overlay
-
-		return overlay
+		return reusedOverlay(lastOverlay, kind, selectMode, entries, sizes).also { overlay -> lastOverlay = overlay }
 	}
 
 	/**
@@ -240,7 +215,7 @@ internal class EditMeshOverlayProducer {
 			return cached.entry
 		}
 
-		val entry = MeshOverlayMesh(ElementOwner.Drawable(drawableId), topology.vertexCount, topology.edgeEndpoints, NO_OVERLAY_FLAGS, NO_OVERLAY_FLAGS, NO_OVERLAY_FLAGS, null, null, null, wireframeOnly = true)
+		val entry = MeshOverlayMesh(ElementOwner.Drawable(drawableId), topology.vertexCount, topology.edgeEndpoints, NO_OVERLAY_FLAGS, NO_OVERLAY_FLAGS, NO_OVERLAY_FLAGS, null, null, null, style = MeshStyle.Wireframe)
 		wireframeEntryById[drawableId] = WireframeEntry(topology, entry)
 
 		return entry
@@ -278,20 +253,10 @@ internal class EditMeshOverlayProducer {
 	 * @param MeshSelection selection The selection to show.
 	 * @return MeshOverlayMesh The entry.
 	 */
-	private fun entryOf(drawableId: DrawableId, topology: Topology, selection: MeshSelection): MeshOverlayMesh {
-		val elements = selection.elementsOf(drawableId)
-		val active = selection.activeElement?.takeIf { activeElement -> activeElement.drawableId == drawableId }?.element
-		val cached = entryById[drawableId]
-
-		if (cached != null && cached.elements === elements && cached.active == active && cached.selectMode == selection.selectMode && cached.topology === topology) {
-			return cached.entry
+	private fun entryOf(drawableId: DrawableId, topology: Topology, selection: MeshSelection): MeshOverlayMesh =
+		cageEntries.entryOf(ElementOwner.Drawable(drawableId), topology, selection, MeshStyle.Plain) { elements, active, selectMode ->
+			buildEntry(drawableId, topology, elements, active, selectMode)
 		}
-
-		val entry = buildEntry(drawableId, topology, elements, active, selection.selectMode)
-		entryById[drawableId] = Entry(elements, active, selection.selectMode, topology, entry)
-
-		return entry
-	}
 
 	/**
 	 * Builds one mesh's entry over the flags its selection lights ([editCageFlagsOf]).
@@ -451,4 +416,98 @@ internal fun overlaySelectModeOf(selectMode: MeshSelectMode): MeshOverlaySelectM
 		MeshSelectMode.Vertex -> MeshOverlaySelectMode.Vertex
 		MeshSelectMode.Edge -> MeshOverlaySelectMode.Edge
 		MeshSelectMode.Face -> MeshOverlaySelectMode.Face
+	}
+
+/**
+ * Each Edit-cage owner's overlay entry, kept between derives and rebuilt only when its selected set (by identity),
+ * active element, select mode, topology (by identity), or style changes: the one reuse rule a mesh's cage and a
+ * lattice's share, so a selection change re-flags only the owners whose selection changed.
+ *
+ * Not thread-safe: one sequential derive owns it.
+ */
+internal class EditCageEntries<Topology : Any> {
+	/**
+	 * One owner's last entry and what it was built from.
+	 *
+	 * @property Set<MeshElement> elements The selected set it reflects (compared by identity).
+	 * @property MeshElement? active The active element it reflects.
+	 * @property MeshSelectMode selectMode The select mode it reflects.
+	 * @property Topology topology The topology it was built over (compared by identity).
+	 * @property MeshStyle style The style it was built with.
+	 * @property MeshOverlayMesh entry The entry.
+	 */
+	private class Cached<Topology : Any>(
+		val elements: Set<MeshElement>,
+		val active: MeshElement?,
+		val selectMode: MeshSelectMode,
+		val topology: Topology,
+		val style: MeshStyle,
+		val entry: MeshOverlayMesh,
+	)
+
+	private val byOwner = HashMap<ElementOwner, Cached<Topology>>()
+
+	/**
+	 * Drops every entry whose owner is not in [owners].
+	 *
+	 * @param Set<ElementOwner> owners The owners to keep.
+	 */
+	fun retainOnly(owners: Set<ElementOwner>) {
+		byOwner.keys.retainAll(owners)
+	}
+
+	/**
+	 * [owner]'s entry under [selection]: the kept one while what it reflects holds, else a fresh one from [build].
+	 *
+	 * @param ElementOwner owner The mesh or lattice.
+	 * @param Topology topology Its topology.
+	 * @param MeshSelection selection The selection to show.
+	 * @param MeshStyle style Its style.
+	 * @param Function build Builds the entry from the owner's selected elements, active element, and select mode.
+	 * @return MeshOverlayMesh The entry.
+	 */
+	fun entryOf(
+		owner: ElementOwner,
+		topology: Topology,
+		selection: MeshSelection,
+		style: MeshStyle,
+		build: (Set<MeshElement>, MeshElement?, MeshSelectMode) -> MeshOverlayMesh,
+	): MeshOverlayMesh {
+		val elements = selection.elementsOf(owner)
+		val active = selection.activeElement?.takeIf { activeElement -> activeElement.owner == owner }?.element
+		val cached = byOwner[owner]
+
+		if (cached != null && cached.elements === elements && cached.active == active && cached.selectMode == selection.selectMode && cached.topology === topology && cached.style == style) {
+			return cached.entry
+		}
+
+		val entry = build(elements, active, selection.selectMode)
+		byOwner[owner] = Cached(elements, active, selection.selectMode, topology, style, entry)
+
+		return entry
+	}
+}
+
+/**
+ * The overlay over [entries]: [previous] itself when its kind, select mode, sizes, and entries are the same, so the
+ * renderer re-uploads nothing, else a new value.  The one overlay reuse rule every cage producer keeps.
+ *
+ * @param MeshOverlay? previous The overlay the producer last handed out, or null.
+ * @param MeshOverlayKind kind The overlay kind.
+ * @param MeshOverlaySelectMode selectMode The select mode.
+ * @param List<MeshOverlayMesh> entries The entries, in layout order.
+ * @param MeshOverlaySizes sizes The overlay sizes.
+ * @return MeshOverlay The overlay.
+ */
+internal fun reusedOverlay(
+	previous: MeshOverlay?,
+	kind: MeshOverlayKind,
+	selectMode: MeshOverlaySelectMode,
+	entries: List<MeshOverlayMesh>,
+	sizes: MeshOverlaySizes,
+): MeshOverlay =
+	if (previous != null && previous.kind == kind && previous.selectMode == selectMode && previous.sizes == sizes && sameOverlayEntries(previous.meshes, entries)) {
+		previous
+	} else {
+		MeshOverlay(kind, selectMode, entries, sizes)
 	}

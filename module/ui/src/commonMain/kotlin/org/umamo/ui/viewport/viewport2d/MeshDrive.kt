@@ -1,7 +1,10 @@
 package org.umamo.ui.viewport.viewport2d
 
+import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.mesh.MeshRestPositions
+import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.ProportionalInfluence
@@ -12,11 +15,14 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.deformerId
+import org.umamo.runtime.model.drawableId
 import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeLanding
 import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.OwnerWorldGeometry
+import org.umamo.ui.transform.commitLatticeLanding
 import org.umamo.ui.transform.latticeReshapeOf
 import org.umamo.ui.transform.posedLatticeForms
 import org.umamo.ui.viewport.gizmo.DRIVE_MIN_CHUNK_WEIGHT
@@ -57,7 +63,7 @@ internal class MeshDriveJob(
 	val geometry: OwnerWorldGeometry,
 ) {
 	/** The drawable a mesh job moves, or null for a lattice. */
-	val drawableId: DrawableId? get() = (owner as? ElementOwner.Drawable)?.id
+	val drawableId: DrawableId? get() = owner.drawableId
 }
 
 /**
@@ -113,7 +119,46 @@ internal class MeshDriveResult(
 	val folded: PuppetModel,
 	val latticeMoved: Map<DeformerId, Set<Int>> = emptyMap(),
 	val latticeForms: Map<DeformerId, WarpLatticeForm> = emptyMap(),
-)
+) {
+	/**
+	 * This result with its meshes folded onto [model] instead of the request's base: what a confirm lands over the
+	 * model as it is when the gesture ends.
+	 *
+	 * @param PuppetModel model The model to fold onto.
+	 * @return MeshDriveResult The refolded result.
+	 */
+	fun foldedOnto(model: PuppetModel): MeshDriveResult = MeshDriveResult(preview, latticeWorld, model.withMeshPositions(preview), latticeMoved, latticeForms)
+}
+
+/**
+ * Commits a drive as one undo step: its lattices landed at [stage] when it moved any ([latticeLanding]), else its
+ * meshes' new rest shapes, naming every vertex the drive moved.  The commit twin of the strip's amend, so a confirm,
+ * a typed median, and a snap land a drive alike.
+ *
+ * @param MeshDriveResult result The drive.
+ * @param ElementEditStage stage Where the moved geometry was captured.
+ * @param MeshOperatorKind kind The operator the drive ran as.
+ * @param Map<DrawableId, List<Int>> movedIndicesByDrawable Each moving mesh's moved vertices - the moved set, not just
+ *   the covered one, since proportional editing moves weighted unselected vertices too.
+ * @return Boolean True when a step was recorded; a drive that lands where it started records none, and so has no step
+ *   for the operation strip to amend.
+ */
+internal fun EditorSession.commitDrive(
+	result: MeshDriveResult,
+	stage: ElementEditStage,
+	kind: MeshOperatorKind,
+	movedIndicesByDrawable: Map<DrawableId, List<Int>>,
+): Boolean {
+	result.latticeLanding(stage)?.let { landing -> return commitLatticeLanding(landing, kind) }
+
+	val modelBefore = model.value
+
+	if (result.preview.isNotEmpty()) {
+		commitMeshPositions(MeshChange.TransformVertices(movedIndicesByDrawable, kind), result.preview)
+	}
+
+	return model.value !== modelBefore
+}
 
 /**
  * One job's share of a drive's result: a mesh's new rest shape, or a lattice's moved world points.
@@ -183,11 +228,23 @@ internal fun meshJobOutcome(job: MeshDriveJob, request: MeshDriveRequest): MeshJ
 			applyOperator(request.operator, job.positions, job.groups, request.parameters, job.influence)
 		}
 
-	return when (val geometry = job.geometry) {
-		is DrawableWorldGeometry -> MeshJobOutcome.Rest(geometry.drawableId, geometry.worldToRest(transformedWorld, job.movedIndices))
-		is LatticeWorldGeometry -> MeshJobOutcome.Lattice(geometry.deformerId, transformedWorld)
-	}
+	return job.geometry.outcomeOf(transformedWorld, job.movedIndices)
 }
+
+/**
+ * What a moved world shape of this owner comes to: a mesh's shape inverted back onto its rest arrays over its moved
+ * vertices, a lattice's points left in world space for its landing.  The one switch over the owner kinds a drive and
+ * a snap read.
+ *
+ * @param FloatArray transformedWorld The moved world shape.
+ * @param Set<Int> moved The vertices that moved.
+ * @return MeshJobOutcome The outcome.
+ */
+internal fun OwnerWorldGeometry.outcomeOf(transformedWorld: FloatArray, moved: Set<Int>): MeshJobOutcome =
+	when (this) {
+		is DrawableWorldGeometry -> MeshJobOutcome.Rest(drawableId, worldToRest(transformedWorld, moved))
+		is LatticeWorldGeometry -> MeshJobOutcome.Lattice(deformerId, transformedWorld)
+	}
 
 /**
  * The drive, one mesh after another: what a confirm settles with, and what a transform with no worker runs.
@@ -212,15 +269,33 @@ internal suspend fun computeMeshDriveParallel(request: MeshDriveRequest, minChun
 }
 
 /**
- * Gathers each job's outcome and folds the meshes' new rest shapes onto the request's model in one pass; at the pose,
- * the moved lattices are lowered to their pending forms too, so the frame can preview them.
+ * Gathers each job's outcome and folds them onto the request's model ([foldDrive]).
  *
  * @param MeshDriveRequest request The request.
  * @param List<MeshJobOutcome> outcomes Each job's outcome, in job order.
  * @return MeshDriveResult The result.
  */
-private fun foldMeshDrive(request: MeshDriveRequest, outcomes: List<MeshJobOutcome>): MeshDriveResult {
-	val preview = LinkedHashMap<DrawableId, MeshRestPositions>(request.jobs.size)
+private fun foldMeshDrive(request: MeshDriveRequest, outcomes: List<MeshJobOutcome>): MeshDriveResult =
+	foldDrive(request.baseModel, outcomes, request.jobs.mapNotNull { job -> job.owner.deformerId?.let { deformerId -> deformerId to job.movedIndices } }.toMap(), request.stage)
+
+/**
+ * Folds a drive's outcomes onto [baseModel] in one pass: the meshes' new rest shapes into the model, the lattices'
+ * moved points kept in world space - and at the pose lowered to their pending forms too, so the frame can preview
+ * them.  What a drive and a snap both land through.
+ *
+ * @param PuppetModel baseModel The model the new rest shapes fold onto.
+ * @param List<MeshJobOutcome> outcomes Each moved owner's outcome, in order.
+ * @param Map<DeformerId, Set<Int>> latticeMoved Each moved lattice's moved points.
+ * @param ElementEditStage stage Where the moved geometry was captured.
+ * @return MeshDriveResult The result.
+ */
+internal fun foldDrive(
+	baseModel: PuppetModel,
+	outcomes: List<MeshJobOutcome>,
+	latticeMoved: Map<DeformerId, Set<Int>>,
+	stage: ElementEditStage,
+): MeshDriveResult {
+	val preview = LinkedHashMap<DrawableId, MeshRestPositions>(outcomes.size)
 	val latticeWorld = LinkedHashMap<DeformerId, FloatArray>()
 
 	for (outcome in outcomes) {
@@ -230,21 +305,20 @@ private fun foldMeshDrive(request: MeshDriveRequest, outcomes: List<MeshJobOutco
 		}
 	}
 
-	val latticeMoved = request.jobs.filter { job -> job.owner is ElementOwner.Deformer }.associate { job -> (job.owner as ElementOwner.Deformer).id to job.movedIndices }
 	val latticeForms =
-		when (val stage = request.stage) {
+		when (stage) {
 			ElementEditStage.Rest -> emptyMap()
-			is ElementEditStage.Posed -> posedLatticeForms(request.baseModel, stage, latticeWorld, latticeMoved)
+			is ElementEditStage.Posed -> posedLatticeForms(baseModel, stage, latticeWorld, latticeMoved)
 		}
 
-	return MeshDriveResult(preview, latticeWorld, request.baseModel.withMeshPositions(preview), latticeMoved, latticeForms)
+	return MeshDriveResult(preview, latticeWorld, baseModel.withMeshPositions(preview), latticeMoved, latticeForms)
 }
 
 /**
  * Where a drive's lattices land at [stage], or null when it moved none: at rest, a reshape of every form of each warp
  * over the folded meshes with its children kept in place ([latticeReshapeOf]); at the pose, the pending forms the drive
- * lowered them to (lowered here when it did not, as a snap's hand-built result does not).  What a confirm commits and an
- * operation strip rerun amends with, so the two cannot drift apart.
+ * lowered them to ([foldDrive]).  What a confirm commits and an operation strip rerun amends with, so the two cannot
+ * drift apart.
  *
  * @param ElementEditStage stage Where the lattices were captured.
  * @return LatticeLanding? The landing, or null when no lattice moved.
@@ -256,6 +330,6 @@ internal fun MeshDriveResult.latticeLanding(stage: ElementEditStage): LatticeLan
 
 	return when (stage) {
 		ElementEditStage.Rest -> LatticeLanding.Reshape(latticeWorld.keys.toList(), latticeReshapeOf(folded, latticeWorld))
-		is ElementEditStage.Posed -> LatticeLanding.Posed(latticeForms.ifEmpty { posedLatticeForms(folded, stage, latticeWorld, latticeMoved) })
+		is ElementEditStage.Posed -> LatticeLanding.Posed(latticeForms)
 	}
 }

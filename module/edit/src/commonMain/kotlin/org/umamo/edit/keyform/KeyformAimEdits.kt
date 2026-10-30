@@ -1,6 +1,7 @@
 package org.umamo.edit.keyform
 
 import org.umamo.edit.Change
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.KeyformAction
 import org.umamo.edit.KeyformAim
@@ -9,6 +10,7 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.ParameterChoiceRequest
 import org.umamo.edit.Pose
 import org.umamo.edit.TrackKeyRef
+import org.umamo.edit.shownPending
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.KeyableTarget
@@ -215,7 +217,7 @@ private fun EditorSession.captureAtPose(
 			val warpId = (track.owner as? KeyformOwner.Deformer)?.id?.takeIf { deformerId -> model.deformers.any { deformer -> deformer.id == deformerId && deformer is Deformer.Warp } }
 
 			if (warpId != null) {
-				val form = pendingLatticeEdits.value[warpId]?.takeUnless { posePinned } ?: model.warpGridLatticeAt(warpId, pose) ?: return null
+				val form = mode.value.shownPending(pendingLatticeEdits.value)[warpId] ?: model.warpGridLatticeAt(warpId, pose) ?: return null
 
 				{ current -> current.withWarpLatticeCaptured(warpId, parameter, pose, form) }
 			} else {
@@ -439,4 +441,25 @@ private fun EditorSession.targetedParameter(): Parameter? {
 	}
 
 	return parameter
+}
+
+/**
+ * The lattice tracks a Pose-mode key writes on: every warp the session poses, which is what "the selected deformers"
+ * means in Pose mode; null outside Pose mode, where keying falls to whatever the caller aims at.  An empty session
+ * refuses with a notice and answers an empty list, so the caller does nothing more.
+ *
+ * @return List<KeyformTrackRef>? The tracks, or null outside Pose mode.
+ */
+fun EditorSession.posedLatticeTracks(): List<KeyformTrackRef>? {
+	if (mode.value != EditorMode.Pose) {
+		return null
+	}
+
+	val tracks = meshSelection.value.deformerIds.map { warpId -> KeyformTrackRef.Geometry(KeyformOwner.Deformer(warpId)) }
+
+	if (tracks.isEmpty()) {
+		emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
+	}
+
+	return tracks
 }

@@ -30,7 +30,7 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.ui.model.PuppetRenderSync
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.worldToScreen
@@ -402,7 +402,7 @@ internal fun uvRigPlacementDrag(model: PuppetModel = uvRigPlacedModel(), selecte
 		)
 	val preview =
 		gesture.frozenPositionsByDrawable.mapValues { (drawableId, frozen) ->
-			applyUvAffine(frozen, result.displayAffineByTile.getValue(gesture.tileByDrawable.getValue(drawableId)))
+			applyAffine(frozen, result.displayAffineByTile.getValue(gesture.tileByDrawable.getValue(drawableId)))
 		}
 
 	return PlacementDragView(gesture, result, preview)

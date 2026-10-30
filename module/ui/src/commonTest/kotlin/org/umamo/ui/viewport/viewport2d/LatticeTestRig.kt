@@ -1,14 +1,19 @@
 package org.umamo.ui.viewport.viewport2d
 
+import androidx.compose.ui.geometry.Offset
+import org.umamo.edit.ActiveMeshElement
 import org.umamo.edit.EditorSession
+import org.umamo.edit.MeshElement
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.render.eval.warpLatticeAt
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -20,6 +25,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
+import kotlin.test.assertNotNull
 
 /*
  * The rig the lattice tests share: two warps in a Body part, one in a Guide part, a rotation, and a quad of art.
@@ -140,4 +146,40 @@ internal fun latticeRigSession(selected: List<SelectionTarget> = emptyList()): E
 	session.setSelection(Selection(selected.toSet(), selected.lastOrNull()))
 
 	return session
+}
+
+/** Where the pointer rests before a gesture latches in a rig viewport: the gesture measures from here. */
+internal val LATTICE_RIG_GESTURE_START = Offset(200f, 150f)
+
+/** Forty pixels right of [LATTICE_RIG_GESTURE_START]: ten world units at the rig's zoom. */
+internal val LATTICE_RIG_TEN_UNITS_RIGHT = Offset(240f, 150f)
+
+/**
+ * A warp's rest lattice in world space.
+ *
+ * @param EditorSession session The session.
+ * @param DeformerId deformerId The warp.
+ * @return FloatArray The world points.
+ */
+internal fun latticeRigRestWorld(session: EditorSession, deformerId: DeformerId): FloatArray = assertNotNull(warpLatticeAt(session.model.value, emptyMap(), deformerId)).world
+
+/**
+ * Selects [points] of [owner]'s lattice in the session's element selection, [active] the active one; no points leaves
+ * the selection as it is.
+ *
+ * @param ElementOwner owner The lattice.
+ * @param Set<Int> points The points to select.
+ * @param Int? active The active point, or null.
+ */
+internal fun EditorSession.selectLatticePoints(owner: ElementOwner, points: Set<Int>, active: Int?) {
+	if (points.isEmpty()) {
+		return
+	}
+
+	setMeshSelection(
+		meshSelection.value.copy(
+			elementsByOwner = mapOf(owner to points.map { pointIndex -> MeshElement.Vertex(pointIndex) }.toSet()),
+			activeElement = active?.let { pointIndex -> ActiveMeshElement(owner, MeshElement.Vertex(pointIndex)) },
+		),
+	)
 }

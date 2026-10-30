@@ -41,6 +41,8 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.pinsPose
+import org.umamo.edit.shownPendingChannelEdits
+import org.umamo.edit.shownPendingLatticeEdits
 import org.umamo.edit.switchEditOwner
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
@@ -84,7 +86,6 @@ import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.parseSelectionHighlightColor
 import org.umamo.ui.viewport.rememberViewportOverlayColors
 import org.umamo.ui.viewport.resyncAfterElementGesture
-import org.umamo.ui.viewport.shownPendingLattices
 import org.umamo.ui.viewport.toMeshOverlayPalette
 import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.workspace.ViewportHost
@@ -226,9 +227,7 @@ internal fun selectionTintOf(selection: Selection, mode: EditorMode, previewSele
 		// Otherwise the committed selection's drawables tint, its active (last-selected) drawable apart.  A part or
 		// deformer active target yields no active, so every selected drawable tints plain.
 		else -> {
-			val selectedDrawableIds = selection.targets.filterIsInstance<SelectionTarget.Drawable>().map { target -> target.id }.toSet()
-			val activeDrawableId = (selection.active as? SelectionTarget.Drawable)?.id
-			selectedDrawableIds to activeDrawableId
+			selection.selectedDrawableIds() to (selection.active as? SelectionTarget.Drawable)?.id
 		}
 	}
 
@@ -430,15 +429,12 @@ fun rememberPuppetViewportHost(
 	// Publishing them into the same volatile hand-off is what makes a typed-but-unkeyed value show in the
 	// viewport at all - it is session state, so it can never reach the renderer inside the model.
 	LaunchedEffect(service, session) {
-		combine(session.pendingChannelEdits, session.mode) { pending, mode ->
-			if (mode.pinsPose) emptyMap() else pending
-		}.collect { effectiveOverrides -> liveParams.channelOverrides = effectiveOverrides }
+		session.shownPendingChannelEdits.collect { effectiveOverrides -> liveParams.channelOverrides = effectiveOverrides }
 	}
 	// Pending Pose-mode lattices reach the renderer the same way and are suppressed in Edit mode for the same
 	// reason: each stands in for its warp's grid blend at the pose, so the art follows the shape a key would capture.
 	LaunchedEffect(service, session) {
-		combine(session.pendingLatticeEdits, session.mode) { pending, mode -> shownPendingLattices(mode, pending) }
-			.collect { shown -> service.setLatticeOverrides(shown) }
+		session.shownPendingLatticeEdits.collect { shown -> service.setLatticeOverrides(shown) }
 	}
 	// Feed the zoom-increment settings into the service and keep them live as settings change; the keys,
 	// defaults, and highlight parser are shared with the preferences window via ViewportSettings.

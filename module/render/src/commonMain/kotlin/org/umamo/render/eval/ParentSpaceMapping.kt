@@ -87,6 +87,7 @@ class ParentSpaceMapping internal constructor(
 	fun worldToLocal(world: FloatArray, seedLocal: FloatArray, indices: Set<Int>): FloatArray {
 		val local = seedLocal.copyOf()
 		val scratch = FloatArray(2)
+		val jacobian = FloatArray(4)
 
 		for (vertexIndex in indices) {
 			val coordIndex = vertexIndex * 2
@@ -110,7 +111,7 @@ class ParentSpaceMapping internal constructor(
 				}
 
 				is WarpWorld -> {
-					invertWarp(parentWorld, targetX, targetY, local, coordIndex, scratch)
+					invertWarp(parentWorld, targetX, targetY, local, coordIndex, scratch, jacobian)
 				}
 			}
 		}
@@ -141,12 +142,10 @@ class ParentSpaceMapping internal constructor(
 	 *
 	 * @param FloatArray world The interleaved transformed world targets to invert.
 	 * @param FloatArray seedLocal The rest local coords (per-vertex Newton seed; kept for untouched vertices).
-	 * @param FloatArray worldRest The frozen pre-transform world positions (unused here; kept for the shared
-	 *   caller signature and the linearized-inverse contract).
 	 * @param Set<Int> indices The vertex indices to solve.
 	 * @return FloatArray The interleaved local positions (a new array).
 	 */
-	fun worldToLocalLinearized(world: FloatArray, seedLocal: FloatArray, worldRest: FloatArray, indices: Set<Int>): FloatArray {
+	fun worldToLocalLinearized(world: FloatArray, seedLocal: FloatArray, indices: Set<Int>): FloatArray {
 		val local = seedLocal.copyOf()
 
 		when (parentWorld) {
@@ -180,6 +179,7 @@ class ParentSpaceMapping internal constructor(
 				// Constant per mapping, so it's computed once here rather than per vertex.
 				val toleranceSquared = warpInverseToleranceSquared(parentWorld.cp)
 				val scratch = FloatArray(2)
+				val jacobian = FloatArray(4)
 
 				for (vertexIndex in indices) {
 					val coordIndex = vertexIndex * 2
@@ -188,7 +188,7 @@ class ParentSpaceMapping internal constructor(
 						continue
 					}
 
-					invertWarpUncapped(parentWorld, world[coordIndex], -world[coordIndex + 1], local, coordIndex, toleranceSquared, scratch)
+					invertWarpUncapped(parentWorld, world[coordIndex], -world[coordIndex + 1], local, coordIndex, toleranceSquared, scratch, jacobian)
 				}
 			}
 		}
@@ -212,8 +212,18 @@ class ParentSpaceMapping internal constructor(
 	 * @param Int coordIndex Index of the u slot in [local].
 	 * @param Float toleranceSquared The squared convergence tolerance for this lattice.
 	 * @param FloatArray scratch A reusable 2-slot scratch for forward evaluations.
+	 * @param FloatArray jacobian A reusable 4-slot scratch for the Jacobian.
 	 */
-	private fun invertWarpUncapped(warp: WarpWorld, targetX: Float, targetY: Float, local: FloatArray, coordIndex: Int, toleranceSquared: Float, scratch: FloatArray) {
+	private fun invertWarpUncapped(
+		warp: WarpWorld,
+		targetX: Float,
+		targetY: Float,
+		local: FloatArray,
+		coordIndex: Int,
+		toleranceSquared: Float,
+		scratch: FloatArray,
+		jacobian: FloatArray,
+	) {
 		var currentU = local[coordIndex]
 		var currentV = local[coordIndex + 1]
 		var bestU = currentU
@@ -236,15 +246,14 @@ class ParentSpaceMapping internal constructor(
 				break
 			}
 
-			warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, currentU + WARP_INVERSE_JACOBIAN_STEP, currentV, scratch, 0)
-			val dxDu = (scratch[0] - (residualX + targetX)) / WARP_INVERSE_JACOBIAN_STEP
-			val dyDu = (scratch[1] - (residualY + targetY)) / WARP_INVERSE_JACOBIAN_STEP
-			warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, currentU, currentV + WARP_INVERSE_JACOBIAN_STEP, scratch, 0)
-			val dxDv = (scratch[0] - (residualX + targetX)) / WARP_INVERSE_JACOBIAN_STEP
-			val dyDv = (scratch[1] - (residualY + targetY)) / WARP_INVERSE_JACOBIAN_STEP
+			warpDifferenceJacobian(warp, currentU, currentV, residualX + targetX, residualY + targetY, WARP_INVERSE_JACOBIAN_STEP, scratch, jacobian)
+			val dxDu = jacobian[0]
+			val dxDv = jacobian[1]
+			val dyDu = jacobian[2]
+			val dyDv = jacobian[3]
 			val determinant = dxDu * dyDv - dxDv * dyDu
 
-			if (abs(determinant) < 1e-12f) {
+			if (abs(determinant) < SINGULAR_DETERMINANT) {
 				break
 			}
 
@@ -352,7 +361,7 @@ private fun invertRotation(rotation: RotationWorld, targetX: Float, targetY: Flo
 	val xform = rotation.xform
 	val determinant = xform.c12 * xform.c13 - xform.c15 * xform.c14
 
-	if (abs(determinant) < 1e-12f) {
+	if (abs(determinant) < SINGULAR_DETERMINANT) {
 		return
 	}
 
@@ -374,8 +383,9 @@ private fun invertRotation(rotation: RotationWorld, targetX: Float, targetY: Flo
  * @param FloatArray local The output array, seeded with the starting UV.
  * @param Int coordIndex Index of the u slot in [local].
  * @param FloatArray scratch A reusable 2-slot scratch for forward evaluations.
+ * @param FloatArray jacobian A reusable 4-slot scratch for the Jacobian.
  */
-private fun invertWarp(warp: WarpWorld, targetX: Float, targetY: Float, local: FloatArray, coordIndex: Int, scratch: FloatArray) {
+private fun invertWarp(warp: WarpWorld, targetX: Float, targetY: Float, local: FloatArray, coordIndex: Int, scratch: FloatArray, jacobian: FloatArray) {
 	val toleranceSquared = warpInverseToleranceSquared(warp.cp)
 	var currentU = local[coordIndex]
 	var currentV = local[coordIndex + 1]
@@ -399,15 +409,14 @@ private fun invertWarp(warp: WarpWorld, targetX: Float, targetY: Float, local: F
 			break
 		}
 
-		warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, currentU + WARP_INVERSE_JACOBIAN_STEP, currentV, scratch, 0)
-		val dxDu = (scratch[0] - (residualX + targetX)) / WARP_INVERSE_JACOBIAN_STEP
-		val dyDu = (scratch[1] - (residualY + targetY)) / WARP_INVERSE_JACOBIAN_STEP
-		warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, currentU, currentV + WARP_INVERSE_JACOBIAN_STEP, scratch, 0)
-		val dxDv = (scratch[0] - (residualX + targetX)) / WARP_INVERSE_JACOBIAN_STEP
-		val dyDv = (scratch[1] - (residualY + targetY)) / WARP_INVERSE_JACOBIAN_STEP
+		warpDifferenceJacobian(warp, currentU, currentV, residualX + targetX, residualY + targetY, WARP_INVERSE_JACOBIAN_STEP, scratch, jacobian)
+		val dxDu = jacobian[0]
+		val dxDv = jacobian[1]
+		val dyDu = jacobian[2]
+		val dyDv = jacobian[3]
 		val determinant = dxDu * dyDv - dxDv * dyDu
 
-		if (abs(determinant) < 1e-12f) {
+		if (abs(determinant) < SINGULAR_DETERMINANT) {
 			break
 		}
 

@@ -388,7 +388,7 @@ private fun rederiveTopologyResult(
  * @return Boolean True when the command must stop here.
  */
 fun EditorSession.refusesLatticeTopology(selection: MeshSelection): Boolean {
-	if (selection.activeOwner !is ElementOwner.Deformer) {
+	if (!selection.editsLattices) {
 		return false
 	}
 

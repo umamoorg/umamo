@@ -22,8 +22,8 @@ import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.applyAffine
+import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.layerUvAffineOf
 import kotlin.math.abs
 import kotlin.test.Test
@@ -68,7 +68,7 @@ class AtlasPlacementEditsTest {
 		val binding = DrawableLayerBinding(tileId.raw, placed, page.width, page.height)
 		val storedToArt = assertNotNull(layerUvAffineOf(binding, 16, 16))
 
-		return applyUvAffine(artUvs, assertNotNull(invertUvAffine(storedToArt)))
+		return applyAffine(artUvs, assertNotNull(invertAffine(storedToArt)))
 	}
 
 	private fun assertUvsClose(expected: FloatArray, actual: FloatArray, message: String) {

@@ -7,6 +7,7 @@ import org.umamo.render.puppet.IslandFillRole
 import org.umamo.render.puppet.IslandStyle
 import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
@@ -45,8 +46,8 @@ class UvObjectOverlayProducerTest {
 
 		assertEquals(MeshOverlayKind.Islands, islands.overlay.kind)
 		assertEquals(listOf(UV_RIG_OTHER, UV_RIG_QUAD), islands.overlay.meshes.map { mesh -> mesh.drawableOwnerId }, "the nearer island draws last")
-		assertEquals(IslandStyle(IslandFillRole.Idle, IslandEdgeRole.Idle), islands.overlay.meshes[0].islandStyle)
-		assertEquals(IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Active), islands.overlay.meshes[1].islandStyle, "the active island fills selected and outlines active")
+		assertEquals(MeshStyle.Island(IslandStyle(IslandFillRole.Idle, IslandEdgeRole.Idle)), islands.overlay.meshes[0].style)
+		assertEquals(MeshStyle.Island(IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Active)), islands.overlay.meshes[1].style, "the active island fills selected and outlines active")
 		val ties = assertNotNull(produce(model, selecting(UV_RIG_QUAD), frontRank = emptyMap()).islands)
 		assertEquals(listOf(UV_RIG_QUAD, UV_RIG_OTHER), ties.overlay.meshes.map { mesh -> mesh.drawableOwnerId }, "equal ranks keep the shown order")
 	}
@@ -72,8 +73,8 @@ class UvObjectOverlayProducerTest {
 
 		val islands = assertNotNull(produce(model, selecting(UV_RIG_QUAD), UvPlacementScene(drag, null), geometries = geometries).islands)
 
-		assertSame(drag.previewPositionsById.getValue(UV_RIG_QUAD), islands.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], "the mover draws where the drive puts it")
-		assertSame(geometries.first { geometry -> geometry.drawableId == UV_RIG_OTHER }.positions, islands.positionsById[ElementOwner.Drawable(UV_RIG_OTHER)], "a bystander where it is")
+		assertSame(drag.previewPositionsById.getValue(UV_RIG_QUAD), islands.positionsByOwner[ElementOwner.Drawable(UV_RIG_QUAD)], "the mover draws where the drive puts it")
+		assertSame(geometries.first { geometry -> geometry.drawableId == UV_RIG_OTHER }.positions, islands.positionsByOwner[ElementOwner.Drawable(UV_RIG_OTHER)], "a bystander where it is")
 	}
 
 	@Test
@@ -85,7 +86,7 @@ class UvObjectOverlayProducerTest {
 
 		val islands = assertNotNull(produce(model, selecting(UV_RIG_QUAD), UvPlacementScene(drag, null)).islands)
 
-		assertTrue(islands.overlay.meshes.filter { mesh -> mesh.drawableOwnerId == UV_RIG_QUAD }.all { mesh -> mesh.islandStyle?.edge == IslandEdgeRole.Warning })
+		assertTrue(islands.overlay.meshes.filter { mesh -> mesh.drawableOwnerId == UV_RIG_QUAD }.all { mesh -> (mesh.style as? MeshStyle.Island)?.colors?.edge == IslandEdgeRole.Warning })
 	}
 
 	@Test
@@ -103,8 +104,8 @@ class UvObjectOverlayProducerTest {
 		for (mesh in second.overlay.meshes) {
 			val before = first.overlay.meshes.first { previous -> previous.drawableOwnerId == mesh.drawableOwnerId }
 			assertSame(before.edgeEndpoints, mesh.edgeEndpoints, "${mesh.drawableOwnerId} keeps its edges")
-			assertSame(first.positionsById[ElementOwner.Drawable(mesh.drawableOwnerId)], second.positionsById[ElementOwner.Drawable(mesh.drawableOwnerId)], "and its positions")
-			assertSame(first.triangleIndicesById[ElementOwner.Drawable(mesh.drawableOwnerId)], second.triangleIndicesById[ElementOwner.Drawable(mesh.drawableOwnerId)], "and its indices")
+			assertSame(first.positionsByOwner[ElementOwner.Drawable(mesh.drawableOwnerId)], second.positionsByOwner[ElementOwner.Drawable(mesh.drawableOwnerId)], "and its positions")
+			assertSame(first.triangleIndicesByOwner[ElementOwner.Drawable(mesh.drawableOwnerId)], second.triangleIndicesByOwner[ElementOwner.Drawable(mesh.drawableOwnerId)], "and its indices")
 		}
 	}
 

@@ -2,7 +2,6 @@ package org.umamo.render.puppet
 
 import org.umamo.render.device.DeformedPositionStore
 import org.umamo.render.device.OverlayMeshBuffers
-import org.umamo.render.device.OverlayMeshSpec
 import org.umamo.render.device.RenderDevice
 import org.umamo.runtime.model.ElementOwner
 
@@ -39,11 +38,10 @@ internal class DirectOverlayResident(
 internal class DirectOverlayResidency(
 	private val device: RenderDevice,
 ) {
-	/** The overlay's position store, or null before its first overlay. */
-	var store: DeformedPositionStore? = null
-		private set
+	private val positionStore = GrowingPositionStore(device)
 
-	private var storeCapacity = 0
+	/** The overlay's position store, or null before its first overlay. */
+	val store: DeformedPositionStore? get() = positionStore.store
 
 	/** The value the device objects reflect, or null when there is no overlay. */
 	var applied: DirectMeshOverlay? = null
@@ -74,14 +72,7 @@ internal class DirectOverlayResidency(
 		}
 
 		val layout = planDirectOverlayLayout(direct)
-		var storeReplaced = false
-
-		if (layout.totalVertexCount > storeCapacity) {
-			store?.let { outgrown -> device.destroyDeformedPositionStore(outgrown) }
-			store = device.createDeformedPositionStore(layout.totalVertexCount)
-			storeCapacity = layout.totalVertexCount
-			storeReplaced = true
-		}
+		val storeReplaced = positionStore.ensureCapacity(layout.totalVertexCount)
 
 		val previousByOwner = residents.associateBy { resident -> resident.mesh.owner }
 		val placedOwners = HashSet<ElementOwner>(layout.placed.size)
@@ -90,7 +81,7 @@ internal class DirectOverlayResidency(
 		for (placement in layout.placed) {
 			val mesh = placement.mesh
 			val previous = previousByOwner[mesh.owner]
-			val buffers = buffersFor(mesh, placement.triangleIndices, previous)
+			val buffers = device.overlayBuffersFor(mesh, placement.triangleIndices, previous?.mesh, previous?.entry?.buffers, sameSource = previous?.triangleIndices === placement.triangleIndices)
 			val positionsMoved = previous == null || previous.positions !== placement.positions || previous.entry.baseOffset != placement.baseOffset
 
 			if (storeReplaced || positionsMoved) {
@@ -110,47 +101,8 @@ internal class DirectOverlayResidency(
 	fun dispose() {
 		freeBuffers(residents)
 		residents = emptyList()
-		store?.let { live -> device.destroyDeformedPositionStore(live) }
-		store = null
-		storeCapacity = 0
+		positionStore.dispose()
 		applied = null
-	}
-
-	/**
-	 * One mesh's buffers: the previous set when its edge, index, and face-dot arrays are the same instances and its
-	 * dotted vertices as many (flags updated in place when they changed by identity), else a fresh set, freeing the
-	 * previous one.
-	 *
-	 * @param MeshOverlayMesh mesh The mesh's overlay value.
-	 * @param IntArray triangleIndices Its triangle indices.
-	 * @param DirectOverlayResident? previous The mesh as the last value placed it, or null.
-	 * @return OverlayMeshBuffers The buffers.
-	 */
-	private fun buffersFor(mesh: MeshOverlayMesh, triangleIndices: IntArray, previous: DirectOverlayResident?): OverlayMeshBuffers {
-		val vertexFlags = overlayFlagsOrZeros(mesh.vertexFlags, mesh.vertexCount)
-		val edgeFlags = overlayFlagsOrZeros(mesh.edgeFlags, mesh.edgeCount)
-		val faceFlags = overlayFlagsOrZeros(mesh.faceFlags, triangleIndices.size / 3)
-
-		if (
-			previous != null &&
-			previous.mesh.edgeEndpoints === mesh.edgeEndpoints &&
-			previous.triangleIndices === triangleIndices &&
-			previous.mesh.faceDotCorners === mesh.faceDotCorners &&
-			previous.mesh.vertexDotCount == mesh.vertexDotCount
-		) {
-			if (overlayFlagsDiffer(previous.mesh.vertexFlags, mesh.vertexFlags) ||
-				overlayFlagsDiffer(previous.mesh.edgeFlags, mesh.edgeFlags) ||
-				overlayFlagsDiffer(previous.mesh.faceFlags, mesh.faceFlags)
-			) {
-				device.updateOverlayMeshFlags(previous.entry.buffers, vertexFlags, edgeFlags, faceFlags)
-			}
-
-			return previous.entry.buffers
-		}
-
-		previous?.let { stale -> device.destroyOverlayMeshBuffers(stale.entry.buffers) }
-
-		return device.createOverlayMeshBuffers(OverlayMeshSpec(mesh.edgeEndpoints, triangleIndices, vertexFlags, edgeFlags, faceFlags, mesh.faceDotCorners, mesh.vertexDotCount))
 	}
 
 	/**

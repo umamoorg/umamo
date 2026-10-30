@@ -4,14 +4,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.DEFAULT_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.mesh.MeshRestPositions
-import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.IndividualOriginScope
 import org.umamo.edit.transform.ModalCaptureSource
@@ -20,7 +18,6 @@ import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DeformerId
-import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
@@ -29,7 +26,6 @@ import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeLanding
 import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.OwnerWorldGeometry
-import org.umamo.ui.transform.commitLatticeLanding
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.ModalGestureState
@@ -113,8 +109,8 @@ internal class EditModalTransform(
 	// or falloff change since may have changed on the capture itself.
 	private var publishedRequest: MeshDriveRequest? = null
 
-	// The published drive's lattices - their world points, moved sets, and posed forms - which the confirm lands.
-	private var publishedLattices: MeshDriveResult? = null
+	// The published drive - its meshes, lattices, moved sets, and posed forms - which the confirm lands.
+	private var publishedResult: MeshDriveResult? = null
 
 	/**
 	 * The drive: requests resolved per pointer event, the meshes computed off the UI thread in parallel, the
@@ -166,11 +162,7 @@ internal class EditModalTransform(
 				continue
 			}
 
-			val frozen =
-				when (val world = geometry.worldGeometry) {
-					is DrawableWorldGeometry -> world.frozenCopy()
-					is LatticeWorldGeometry -> world
-				}
+			val frozen = geometry.worldGeometry.frozen()
 			frozenByOwner[geometry.owner] = frozen
 			sources.add(ModalCaptureSource(geometry.owner, frozen.world, geometry.topology, coveredIndices))
 		}
@@ -217,7 +209,7 @@ internal class EditModalTransform(
 		gesture.begin(EditGesture(transform, frozenByOwner, slide, stage), gesture.lastPointer)
 		slideLanding = null
 		publishedRequest = null
-		publishedLattices = null
+		publishedResult = null
 
 		if (kind == MeshOperatorKind.VertexSlide && slide == null) {
 			session.clearMeshOperator()
@@ -264,8 +256,7 @@ internal class EditModalTransform(
 
 		if (owned) {
 			livePreview.restByDrawable = null
-			livePreview.latticeWorldByDeformer = null
-			livePreview.latticeFormsByDeformer = null
+			livePreview.clearLattices()
 		}
 
 		return owned
@@ -313,18 +304,15 @@ internal class EditModalTransform(
 	override fun confirm() {
 		drive.settle()
 
-		val committed = gesture.preview
+		val result = publishedResult
 		val gestureData = gesture.capture
 		val request = publishedRequest
-		val lattices = publishedLattices
 
-		if (committed != null && gestureData != null && request != null) {
-			// The lattices land over the meshes the same drive moved, folded onto the model as it is now, as one step.
-			val landing =
-				lattices?.let { published ->
-					MeshDriveResult(committed, published.latticeWorld, session.model.value.withMeshPositions(committed), published.latticeMoved, published.latticeForms).latticeLanding(gestureData.stage)
-				}
-			val recorded = if (landing != null) session.commitLatticeLanding(landing, gestureData.transform.operatorKind) else commitMeshes(committed, gestureData, request)
+		if (result != null && gestureData != null && request != null) {
+			// The drive lands folded onto the model as it is now, as one step.
+			val movedIndicesByDrawable =
+				request.jobs.mapNotNull { job -> job.drawableId?.takeIf { drawableId -> drawableId in result.preview }?.let { drawableId -> drawableId to job.movedIndices.toList() } }.toMap()
+			val recorded = session.commitDrive(result.foldedOnto(session.model.value), gestureData.stage, gestureData.transform.operatorKind, movedIndicesByDrawable)
 
 			// The strip's rows for the step just pushed, over the RETAINED capture so an adjustment
 			// replays the same frozen geometry - registered before the operator clears, since the
@@ -336,37 +324,6 @@ internal class EditModalTransform(
 		}
 
 		session.clearMeshOperator()
-	}
-
-	/**
-	 * Commits each moving mesh's new rest shape, naming every vertex the drive moved.
-	 *
-	 * @param Map<DrawableId, MeshRestPositions> committed The published preview.
-	 * @param EditGesture gestureData The gesture.
-	 * @param MeshDriveRequest request The request the preview answers.
-	 * @return Boolean True when a step was recorded.
-	 */
-	private fun commitMeshes(committed: Map<DrawableId, MeshRestPositions>, gestureData: EditGesture, request: MeshDriveRequest): Boolean {
-		val modelBefore = session.model.value
-
-		val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(request.jobs.size)
-		val vertexIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(request.jobs.size)
-
-		for (job in request.jobs) {
-			val drawableId = job.drawableId ?: continue
-			val transformed = committed[drawableId] ?: continue
-			restByDrawable[drawableId] = transformed
-			// The moved set, not just the covered set: proportional editing moves weighted
-			// unselected vertices too, and the change metadata must name every vertex the edit touched,
-			// as the drive that computed these positions moved them.
-			vertexIndicesByDrawable[drawableId] = job.movedIndices.toList()
-		}
-
-		if (restByDrawable.isNotEmpty()) {
-			session.commitMeshPositions(MeshChange.TransformVertices(vertexIndicesByDrawable, gestureData.transform.operatorKind), restByDrawable)
-		}
-
-		return session.model.value !== modelBefore
 	}
 
 	/**
@@ -483,11 +440,10 @@ internal class EditModalTransform(
 		gesture.lastParameters = request.parameters
 		request.slide?.let { move -> slideLanding = move.landing }
 		publishedRequest = request
-		publishedLattices = result.takeIf { published -> published.latticeWorld.isNotEmpty() }
+		publishedResult = result
 		gesture.preview = result.preview
 		livePreview.restByDrawable = result.preview
-		livePreview.latticeWorldByDeformer = result.latticeWorld.takeIf { latticeWorld -> latticeWorld.isNotEmpty() }
-		livePreview.latticeFormsByDeformer = result.latticeForms.takeIf { forms -> forms.isNotEmpty() }
+		livePreview.showLattices(result.latticeWorld, result.latticeForms)
 
 		if (result.latticeForms.isNotEmpty()) {
 			pushLatticePreview(result.latticeForms)

@@ -18,6 +18,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.ui.assertArrayNear
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -161,22 +162,6 @@ class WarpObjectTransformTest {
 			if (componentIndex % 2 == 0) affine[0] * x + affine[1] * z + affine[2] else affine[3] * x + affine[4] * z + affine[5]
 		}
 
-	/**
-	 * Asserts two arrays agree within [limit].
-	 *
-	 * @param FloatArray expected The expected values.
-	 * @param FloatArray actual The actual values.
-	 * @param Float limit The largest difference allowed.
-	 * @param String message What is compared.
-	 */
-	private fun assertClose(expected: FloatArray, actual: FloatArray, limit: Float, message: String) {
-		assertEquals(expected.size, actual.size, message)
-
-		for (componentIndex in expected.indices) {
-			assertTrue(abs(expected[componentIndex] - actual[componentIndex]) <= limit, "$message at $componentIndex: ${expected[componentIndex]} vs ${actual[componentIndex]}")
-		}
-	}
-
 	/** Every pose the exactness checks sweep: the angle across and off its keys, with and without the blend shape. */
 	private val poses: List<Map<ParameterId, Float>> =
 		listOf(-1f, -0.4f, 0f, 0.7f, 1f).flatMap { angleValue -> listOf(0f, 0.5f, 1f).map { blendValue -> mapOf(angle to angleValue, blend to blendValue) } }
@@ -188,11 +173,11 @@ class WarpObjectTransformTest {
 
 		for (pose in poses) {
 			val lattice = assertNotNull(warpLatticeAt(before, pose, root)).world
-			assertClose(moved(lattice, turn), assertNotNull(warpLatticeAt(after, pose, root)).world, tolerance, "the lattice at $pose")
+			assertArrayNear(moved(lattice, turn), assertNotNull(warpLatticeAt(after, pose, root)).world, tolerance, "the lattice at $pose")
 			val art = captureDrawableWorlds(before, pose, listOf(inner)).single().world
-			assertClose(moved(art, turn), captureDrawableWorlds(after, pose, listOf(inner)).single().world, tolerance, "the art inside at $pose")
+			assertArrayNear(moved(art, turn), captureDrawableWorlds(after, pose, listOf(inner)).single().world, tolerance, "the art inside at $pose")
 			val child = assertNotNull(warpLatticeAt(before, pose, nested)).world
-			assertClose(moved(child, turn), assertNotNull(warpLatticeAt(after, pose, nested)).world, tolerance, "the warp inside at $pose")
+			assertArrayNear(moved(child, turn), assertNotNull(warpLatticeAt(after, pose, nested)).world, tolerance, "the warp inside at $pose")
 		}
 	}
 
@@ -206,13 +191,13 @@ class WarpObjectTransformTest {
 		val before = model()
 		val after = before.withWarpsTransformed(mapOf(spun to turn))
 		val rest = assertNotNull(warpLatticeAt(before, emptyMap(), spun))
-		assertClose(moved(rest.world, turn), assertNotNull(warpLatticeAt(after, emptyMap(), spun)).world, tolerance, "the rest lattice lands on the affine")
+		assertArrayNear(moved(rest.world, turn), assertNotNull(warpLatticeAt(after, emptyMap(), spun)).world, tolerance, "the rest lattice lands on the affine")
 
 		for (pose in poses) {
 			val local = assertNotNull(warpLatticeAt(before, pose, spun)).local
 			val world = rest.parentMapping.localToWorld(local)
-			val expected = rest.parentMapping.worldToLocalLinearized(moved(world, turn), local, world, (0 until local.size / 2).toSet())
-			assertClose(expected, assertNotNull(warpLatticeAt(after, pose, spun)).local, tolerance, "the lattice in its parent's space at $pose")
+			val expected = rest.parentMapping.worldToLocalLinearized(moved(world, turn), local, (0 until local.size / 2).toSet())
+			assertArrayNear(expected, assertNotNull(warpLatticeAt(after, pose, spun)).local, tolerance, "the lattice in its parent's space at $pose")
 		}
 	}
 
@@ -222,8 +207,8 @@ class WarpObjectTransformTest {
 		val after = before.withWarpsTransformed(mapOf(nested to turn))
 
 		val rest = assertNotNull(warpLatticeAt(before, emptyMap(), nested)).world
-		assertClose(moved(rest, turn), assertNotNull(warpLatticeAt(after, emptyMap(), nested)).world, 1e-2f, "the rest lattice")
-		assertClose(assertNotNull(warpLatticeAt(before, emptyMap(), root)).world, assertNotNull(warpLatticeAt(after, emptyMap(), root)).world, 0f, "its parent stays put")
+		assertArrayNear(moved(rest, turn), assertNotNull(warpLatticeAt(after, emptyMap(), nested)).world, 1e-2f, "the rest lattice")
+		assertArrayNear(assertNotNull(warpLatticeAt(before, emptyMap(), root)).world, assertNotNull(warpLatticeAt(after, emptyMap(), root)).world, 0f, "its parent stays put")
 	}
 
 	@Test
@@ -235,7 +220,7 @@ class WarpObjectTransformTest {
 			val preview = assertNotNull(warpPreviewOf(before, landed))
 			val previewed = assertNotNull(warpLatticeAt(before, emptyMap(), warpId, latticeOverrides = mapOf(warpId to preview))).world
 			val committed = assertNotNull(warpLatticeAt(before.withWarpsReplaced(mapOf(warpId to landed)), emptyMap(), warpId)).world
-			assertClose(committed, previewed, 0f, "$warpId: the override draws the landed lattice")
+			assertArrayNear(committed, previewed, 0f, "$warpId: the override draws the landed lattice")
 		}
 	}
 }

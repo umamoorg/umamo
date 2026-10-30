@@ -4,8 +4,8 @@ import org.umamo.edit.transform.UvFrame
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.identityUvAffine
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.identityAffine
+import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.layerUvAffineOf
 import org.umamo.runtime.model.meshOf
 
@@ -254,11 +254,11 @@ fun atlasPageEditFrame(pageWidth: Int, pageHeight: Int): UvEditFrame =
  */
 fun sourceLayerEditFrame(binding: DrawableLayerBinding, layerWidth: Int, layerHeight: Int): UvEditFrame? {
 	val frameFromStored = layerUvAffineOf(binding, layerWidth, layerHeight) ?: return null
-	val storedFromFrame = invertUvAffine(frameFromStored) ?: return null
+	val storedFromFrame = invertAffine(frameFromStored) ?: return null
 
 	// An unpacked drawable's art IS its stored frame, so it takes the page view's own null-conversion
 	// path rather than carrying a pair of identity matrices through every commit.
-	if (frameFromStored.contentEquals(identityUvAffine())) {
+	if (frameFromStored.contentEquals(identityAffine())) {
 		return atlasPageEditFrame(layerWidth, layerHeight)
 	}
 

@@ -1,10 +1,8 @@
 package org.umamo.ui.viewport.viewport2d
 
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.v2.runComposeUiTest
-import org.umamo.edit.ActiveMeshElement
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.KeyformAim
@@ -54,10 +52,10 @@ class PoseLatticeGestureTest {
 	private val body: ElementOwner = ElementOwner.Deformer(LATTICE_RIG_BODY)
 
 	/** Where the pointer rests before a gesture latches: the gesture measures from here. */
-	private val gestureStart = Offset(200f, 150f)
+	private val gestureStart = LATTICE_RIG_GESTURE_START
 
 	/** Forty pixels right of [gestureStart]: ten world units at the rig's zoom. */
-	private val tenUnitsRight = Offset(240f, 150f)
+	private val tenUnitsRight = LATTICE_RIG_TEN_UNITS_RIGHT
 
 	/** The pose the cases shape at: between the rig's two keys. */
 	private val pose = mapOf(LATTICE_RIG_PARAMETER to 0.5f)
@@ -81,14 +79,7 @@ class PoseLatticeGestureTest {
 		assertEquals(EditorMode.Pose, session.mode.value)
 		assertEquals(listOf(body), session.meshSelection.value.owners, "Ctrl+Tab on the warp poses its lattice")
 
-		if (points.isNotEmpty()) {
-			session.setMeshSelection(
-				session.meshSelection.value.copy(
-					elementsByOwner = mapOf(body to points.map { pointIndex -> MeshElement.Vertex(pointIndex) }.toSet()),
-					activeElement = active?.let { pointIndex -> ActiveMeshElement(body, MeshElement.Vertex(pointIndex)) },
-				),
-			)
-		}
+		session.selectLatticePoints(body, points, active)
 
 		return session
 	}

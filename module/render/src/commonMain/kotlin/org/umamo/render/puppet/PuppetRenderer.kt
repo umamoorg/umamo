@@ -22,6 +22,7 @@ import org.umamo.render.eval.PartRenderState
 import org.umamo.render.eval.PoseDeformInputs
 import org.umamo.render.eval.RenderPlanNode
 import org.umamo.render.eval.applyCpuDeform
+import org.umamo.render.eval.listedPointsExtent
 import org.umamo.render.eval.preparePose
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.DeformerId
@@ -605,6 +606,18 @@ class PuppetRenderer(
 	}
 
 	/**
+	 * The world-space extent of the given warps' lattices as the current pose draws them ([latticeWorldPoints]):
+	 * what Frame Selected frames a warp by.
+	 *
+	 * @param Set<DeformerId> ids The warps.
+	 * @return ContentBounds? The extent, or null when none of them is drawn at this pose.
+	 */
+	fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? =
+		listedPointsExtent(latticeWorldPoints().mapValues { (_, lattice) -> lattice.world }, ids)?.let { extent ->
+			ContentBounds(extent.minX, extent.minY, extent.maxX - extent.minX, extent.maxY - extent.minY)
+		}
+
+	/**
 	 * Every warp lattice the current pose draws, in the model's deformer order, in world space: the points the
 	 * lattice layer draws and every lattice pick reads, so a click lands on what is on screen.  A warp the pose
 	 * hides is absent.  Pure CPU with no device calls, so it is safe from the UI thread; empty before the first
@@ -721,7 +734,7 @@ class PuppetRenderer(
 			drawn,
 			overlays,
 			cullsWireframe,
-			drawLattices = latticeLayer != null && overlays.meshOverlay,
+			drawLattices = latticeLayer != null && latticeRolesDrawnIn(overlays).isNotEmpty(),
 			drawEditDirect = editDirect != null && overlays.meshOverlay,
 		)
 	}
@@ -845,7 +858,7 @@ class PuppetRenderer(
 
 			// Over the mesh overlay: a lattice is what a click in Object or Pose mode takes first.
 			if (drawLattices) {
-				overlayEncoder.encodeLatticeDraws(pass, latticeResidency, inputs, overlays.allLattices)
+				overlayEncoder.encodeLatticeDraws(pass, latticeResidency, inputs, latticeRolesDrawnIn(overlays))
 			}
 		}
 

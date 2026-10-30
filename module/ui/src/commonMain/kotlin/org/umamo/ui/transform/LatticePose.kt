@@ -1,6 +1,7 @@
 package org.umamo.ui.transform
 
-import org.umamo.render.eval.warpLatticeAt
+import org.umamo.edit.transform.allPointIndices
+import org.umamo.render.eval.WarpLatticeResolver
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
@@ -37,26 +38,23 @@ internal fun posedLatticeForms(
 	targetWorldById: Map<DeformerId, FloatArray>,
 	movedById: Map<DeformerId, Set<Int>>,
 ): Map<DeformerId, WarpLatticeForm> {
-	val parentById = model.deformers.associate { deformer -> deformer.id to deformer.parent }
-	val ordered = targetWorldById.keys.sortedBy { deformerId -> ancestorDepth(deformerId, parentById) }
 	val forms = LinkedHashMap<DeformerId, WarpLatticeForm>()
 	var overrides = stage.latticeOverrides
 
-	for (deformerId in ordered) {
+	forEachWarpParentsFirst(model, targetWorldById.keys, { level -> WarpLatticeResolver(model, stage.pose, overrides, level) }) { deformerId, lattice ->
 		val target = targetWorldById.getValue(deformerId)
-		val lattice = warpLatticeAt(model, stage.pose, deformerId, overrides) ?: continue
 
 		if (target.size != lattice.world.size) {
-			continue
+			return@forEachWarpParentsFirst
 		}
 
-		val moved = movedById[deformerId] ?: (0 until target.size / 2).toSet()
-		val newLocal = lattice.parentMapping.worldToLocalLinearized(target, lattice.local, lattice.world, moved)
+		val moved = movedById[deformerId] ?: allPointIndices(target)
+		val newLocal = lattice.parentMapping.worldToLocalLinearized(target, lattice.local, moved)
 		val gridLocal = lattice.gridLocal
 		val form = WarpLatticeForm(FloatArray(newLocal.size) { componentIndex -> gridLocal[componentIndex] + (newLocal[componentIndex] - lattice.local[componentIndex]) })
 
 		if (form.controlPoints.any { component -> !component.isFinite() }) {
-			continue
+			return@forEachWarpParentsFirst
 		}
 
 		forms[deformerId] = form
