@@ -32,9 +32,6 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * grid axis references a parameter by id (KeyformAxis.parameterId). Dropping an axis collapses that grid
  * one dimension, keeping the slice at the parameter's default value (the neutral pose) and discarding the
  * off-axis motion. The live pose entry is dropped in the session wrapper (pose lives on EditorSession).
- *
- * パラメータの作成・改名・削除。削除は各オブジェクトのキーフォーム格子から該当軸を取り除き、既定値の
- * スライスへ畳み込む。
  */
 
 /**
