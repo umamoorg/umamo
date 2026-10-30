@@ -5,9 +5,9 @@ import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
-import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.deformerId
 import org.umamo.ui.transform.landedWarp
 import org.umamo.ui.transform.warpPreviewOf
 import org.umamo.ui.transform.withWarpsReplaced
@@ -61,7 +61,7 @@ internal fun warpAffinesOf(transform: ModalTransformCapture, operator: MeshOpera
 	val affines = LinkedHashMap<DeformerId, FloatArray>()
 
 	for (entry in transform.entries) {
-		val deformerId = (entry.owner as? ElementOwner.Deformer)?.id ?: continue
+		val deformerId = entry.owner.deformerId ?: continue
 		val group = entry.groups.firstOrNull() ?: continue
 		affines[deformerId] = gestureAffine(operator, parameters, group)
 	}

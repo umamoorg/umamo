@@ -14,6 +14,7 @@ import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.PlacementCropQuad
 import org.umamo.render.puppet.PlacementPreview
 import org.umamo.runtime.model.AtlasPlacement
@@ -330,11 +331,11 @@ internal class UvObjectOverlayProducer {
 	private fun meshOf(drawableId: DrawableId, endpoints: IntArray, vertexCount: Int, style: IslandStyle): MeshOverlayMesh {
 		val cached = meshById[drawableId]
 
-		if (cached != null && cached.edgeEndpoints === endpoints && cached.vertexCount == vertexCount && cached.islandStyle == style) {
+		if (cached != null && cached.edgeEndpoints === endpoints && cached.vertexCount == vertexCount && cached.style == MeshStyle.Island(style)) {
 			return cached
 		}
 
-		val mesh = MeshOverlayMesh(ElementOwner.Drawable(drawableId), vertexCount, endpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null, style)
+		val mesh = MeshOverlayMesh(ElementOwner.Drawable(drawableId), vertexCount, endpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null, MeshStyle.Island(style))
 		meshById[drawableId] = mesh
 
 		return mesh
@@ -365,8 +366,8 @@ internal class UvObjectOverlayProducer {
 			val mesh = meshes[meshIndex]
 
 			if (previousMeshes[meshIndex] !== mesh ||
-				previous.positionsById[mesh.owner] !== positionsByOwner[mesh.owner] ||
-				previous.triangleIndicesById[mesh.owner] !== indicesByOwner[mesh.owner]
+				previous.positionsByOwner[mesh.owner] !== positionsByOwner[mesh.owner] ||
+				previous.triangleIndicesByOwner[mesh.owner] !== indicesByOwner[mesh.owner]
 			) {
 				return false
 			}

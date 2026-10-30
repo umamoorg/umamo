@@ -2,33 +2,41 @@ package org.umamo.edit.keyform
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.KeyformChange
+import org.umamo.edit.Pose
+import org.umamo.runtime.eval.poseValueLookup
+import org.umamo.runtime.eval.warpControlPointsAt
 import org.umamo.runtime.keyform.FormInterpolator
 import org.umamo.runtime.keyform.MeshDeltaInterpolator
 import org.umamo.runtime.keyform.RotationPivotInterpolator
 import org.umamo.runtime.keyform.WarpLatticeInterpolator
 import org.umamo.runtime.keyform.axisIndexOf
+import org.umamo.runtime.keyform.withAxisSeeded
+import org.umamo.runtime.keyform.withFormCaptured
 import org.umamo.runtime.keyform.withKeyInserted
 import org.umamo.runtime.keyform.withKeyMoved
 import org.umamo.runtime.keyform.withKeyRemoved
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 
 /*
- * Editing the key POSITIONS of a geometry track.
+ * Editing the key POSITIONS of a geometry track, and capturing a warp's lattice.
  *
  * Deliberately separate from KeyformChannelEdits: a channel is addressed by (owner, channel) and its cells
  * hold a ChannelValue, while geometry is a privileged per-owner field whose cell type differs by owner
  * (MeshDeltaForm / WarpLatticeForm / RotationPivotForm).  One generic op cannot span both without erasing
  * that distinction, and erasing it is exactly what would let a scalar track reach buildDeltaTexels.
  *
- * These ops move, insert, and remove KEYS; they never author a form.  Authoring geometry needs the posed
- * deformer-chain inverse and stays deferred - but key positions are ordinary grid algebra, and leaving
- * them uneditable made every geometry row in the keyform sheet silently swallow every gesture, which on a
- * corpus rig is nearly every row on screen.
+ * Most of these ops move, insert, and remove KEYS and never author a form - key positions are ordinary grid
+ * algebra, and leaving them uneditable made every geometry row in the keyform sheet silently swallow every
+ * gesture, which on a corpus rig is nearly every row on screen.  The one form they author is a warp's lattice
+ * ([withWarpLatticeCaptured]): Pose mode lowers a shaped lattice through the posed parent chain before it gets
+ * here, so the capture itself is plain grid algebra too.  A drawable's mesh form is still never authored here.
  */
 
 /**
@@ -124,6 +132,53 @@ fun PuppetModel.withGeometryKeyRemoved(owner: KeyformOwner, parameter: Parameter
 		val reduced = grid.withKeyRemoved(parameter.id, keyIndex)
 		if (reduced == null && owner is KeyformOwner.Deformer) grid else reduced
 	}
+
+/**
+ * The lattice warp [warpId]'s keyform grid blends to at [pose]: the parent-space shape before any blend shape adds
+ * to it, which is what a capture with nothing pending pins.
+ *
+ * @param DeformerId warpId The warp.
+ * @param Pose pose The pose, by parameter id; a parameter it does not name sits at its default.
+ * @return WarpLatticeForm? The lattice, or null when the model holds no such warp or its grid does not bracket the pose.
+ */
+fun PuppetModel.warpGridLatticeAt(warpId: DeformerId, pose: Pose): WarpLatticeForm? {
+	val warp = deformers.firstOrNull { deformer -> deformer.id == warpId } as? Deformer.Warp ?: return null
+
+	return warpControlPointsAt(warp.geometryGrid, poseValueLookup(pose))?.let { controlPoints -> WarpLatticeForm(controlPoints) }
+}
+
+/**
+ * This model with [form] captured as warp [warpId]'s lattice at [pose], keyed on [parameter] - the lattice
+ * counterpart of [withChannelKeyCaptured], and where a Pose-mode shape lands when it is keyed:
+ *
+ *  - A warp whose grid does not key [parameter] gains it as an axis first, every cell replicated across it, so
+ *    binding alone changes nothing on screen.  A warp with no grid at all is seeded with [form] at every key.
+ *  - The capture then inserts a key on every axis whose pose value sits off a key (each insert filling its slice
+ *    by interpolation, so every other pose is unchanged) and writes [form] into the cell the pose lands on.
+ *
+ * [form] is the grid's own lattice at the pose - the parent-space shape with any blend-shape contribution taken
+ * out - which is what a pending Pose-mode lattice holds and what [warpGridLatticeAt] reads.
+ *
+ * @param DeformerId warpId The warp.
+ * @param Parameter parameter The parameter to key on.
+ * @param Pose pose The pose the capture lands at.
+ * @param WarpLatticeForm form The lattice to store.
+ * @return PuppetModel The model with the lattice captured, or this when the model holds no such warp or the grid
+ *   algebra refused (a degenerate parameter range, a sparse grid, or a pose too close to a key to tell apart).
+ */
+fun PuppetModel.withWarpLatticeCaptured(warpId: DeformerId, parameter: Parameter, pose: Pose, form: WarpLatticeForm): PuppetModel {
+	val warp = deformers.firstOrNull { deformer -> deformer.id == warpId } as? Deformer.Warp ?: return this
+	val bound = warp.geometryGrid.withAxisSeeded(parameter, form) ?: return this
+	// Compared against BOUND, not the warp's grid: a capture that refuses after a fresh seed must refuse the whole op,
+	// or the bare axis bind would land while the shape the user made is dropped.
+	val captured = bound.withFormCaptured(poseValueLookup(pose), form, WarpLatticeInterpolator)
+
+	if (captured === bound) {
+		return this
+	}
+
+	return copy(deformers = deformers.map { deformer -> if (deformer.id == warpId) warp.copy(geometryGrid = captured) else deformer })
+}
 
 /**
  * Applies a same-shaped rewrite to whichever geometry grid [owner] has, keeping the form type.

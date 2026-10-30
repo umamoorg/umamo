@@ -11,9 +11,11 @@ import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
 import org.umamo.edit.transform.TransformPivots
 import org.umamo.render.ViewportCamera
+import org.umamo.runtime.model.identityAffine
+import org.umamo.runtime.model.rotationAboutAffine
+import org.umamo.runtime.model.scaleAboutAffine
+import org.umamo.runtime.model.translationAffine
 import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
  * One modal gesture's pointer frame: everything the operator math needs to convert the screen-space
@@ -274,30 +276,8 @@ internal fun applyOperator(
  */
 internal fun gestureAffine(operator: MeshOperatorKind, parameters: TransformGestureParameters, group: TransformPivotGroup): FloatArray =
 	when (operator) {
-		MeshOperatorKind.Grab -> {
-			floatArrayOf(1f, 0f, parameters.deltaX, 0f, 1f, parameters.deltaY)
-		}
-
-		MeshOperatorKind.Scale -> {
-			val factorX = parameters.factorX
-			val factorY = parameters.factorY
-			floatArrayOf(factorX, 0f, group.pivotX - group.pivotX * factorX, 0f, factorY, group.pivotY - group.pivotY * factorY)
-		}
-
-		MeshOperatorKind.Rotate -> {
-			val cosAngle = cos(parameters.rotationRadians)
-			val sinAngle = sin(parameters.rotationRadians)
-			floatArrayOf(
-				cosAngle,
-				-sinAngle,
-				group.pivotX - group.pivotX * cosAngle + group.pivotY * sinAngle,
-				sinAngle,
-				cosAngle,
-				group.pivotY - group.pivotX * sinAngle - group.pivotY * cosAngle,
-			)
-		}
-
-		MeshOperatorKind.VertexSlide -> {
-			floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
-		}
+		MeshOperatorKind.Grab -> translationAffine(parameters.deltaX, parameters.deltaY)
+		MeshOperatorKind.Scale -> scaleAboutAffine(group.pivotX, group.pivotY, parameters.factorX, parameters.factorY)
+		MeshOperatorKind.Rotate -> rotationAboutAffine(group.pivotX, group.pivotY, parameters.rotationRadians)
+		MeshOperatorKind.VertexSlide -> identityAffine()
 	}

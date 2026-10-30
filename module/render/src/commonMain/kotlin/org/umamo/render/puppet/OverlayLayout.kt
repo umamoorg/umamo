@@ -6,10 +6,12 @@ import org.umamo.runtime.model.DrawableId
  * One overlay mesh's place in the overlay position store.
  *
  * @property MeshOverlayMesh mesh The mesh.
+ * @property DrawableId drawableId The resident drawable it pairs with.
  * @property Int baseOffset Its first vertex's index in the store.
  */
 internal class OverlayPlacement(
 	val mesh: MeshOverlayMesh,
+	val drawableId: DrawableId,
 	val baseOffset: Int,
 )
 
@@ -64,7 +66,7 @@ internal fun planOverlayLayout(
 			}
 		}
 
-		placed.add(OverlayPlacement(mesh, totalVertexCount))
+		placed.add(OverlayPlacement(mesh, drawableId, totalVertexCount))
 		totalVertexCount += mesh.vertexCount
 	}
 
@@ -113,8 +115,8 @@ internal fun planDirectOverlayLayout(direct: DirectMeshOverlay): DirectOverlayLa
 	var totalVertexCount = 0
 
 	for (mesh in direct.overlay.meshes) {
-		val positions = direct.positionsById[mesh.owner] ?: continue
-		val triangleIndices = direct.triangleIndicesById[mesh.owner] ?: continue
+		val positions = direct.positionsByOwner[mesh.owner] ?: continue
+		val triangleIndices = direct.triangleIndicesByOwner[mesh.owner] ?: continue
 
 		if (positions.size != mesh.vertexCount * 2 || triangleIndices.size % 3 != 0) {
 			continue

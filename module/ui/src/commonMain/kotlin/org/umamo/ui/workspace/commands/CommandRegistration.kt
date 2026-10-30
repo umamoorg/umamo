@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.commands
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.editsElements
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
@@ -53,8 +54,14 @@ internal class SessionAvailability(session: EditorSession?) {
 	/** Applies whenever a document is open - the tier most session commands sit in. */
 	val hasDocument = CommandAvailability { session != null }
 
-	/** Applies only in Edit mode, where there is a mesh-element domain to act on. */
+	/** Applies only in Edit mode, where the rest geometry - topology, UVs - is the domain. */
 	val inEditMode = CommandAvailability { session?.mode?.value == EditorMode.Edit }
+
+	/**
+	 * Applies in the modes that edit elements (Edit and Pose), where the session's vertices or lattice points are the
+	 * domain.
+	 */
+	val inElementMode = CommandAvailability { session?.mode?.value?.editsElements == true }
 
 	/** Applies only in Object mode, where whole drawables - and the art placements under them - are the domain. */
 	val inObjectMode = CommandAvailability { session?.mode?.value == EditorMode.Object }

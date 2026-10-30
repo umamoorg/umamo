@@ -1,7 +1,6 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.Deformer
-import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
@@ -42,8 +41,29 @@ class ElementTopology(
 	val edgeEndpoints: IntArray by lazy(LazyThreadSafetyMode.PUBLICATION) { ringEdgeEndpoints(faceCorners, cornersPerFace) }
 
 	/** The unique edges, in the order of [edgeEndpoints], so an edge's ordinal means the same in both. */
-	val edges: List<MeshElement.Edge> by lazy(LazyThreadSafetyMode.PUBLICATION) {
-		List(edgeEndpoints.size / 2) { edgeOrdinal -> MeshElement.Edge(edgeEndpoints[edgeOrdinal * 2], edgeEndpoints[edgeOrdinal * 2 + 1]) }
+	val edges: List<MeshElement.Edge> by lazy(LazyThreadSafetyMode.PUBLICATION) { edgesOf(edgeEndpoints) }
+
+	/**
+	 * Writes face [faceIndex]'s center over [positions] - the mean of its corners - into [out] at [outIndex]: where a
+	 * face's dot sits and what a face pick measures to.
+	 *
+	 * @param FloatArray positions The interleaved (x, y) positions the corners index into.
+	 * @param Int faceIndex The face.
+	 * @param FloatArray out Where the center goes.
+	 * @param Int outIndex The x slot in [out]; y follows it.
+	 */
+	fun faceCenterInto(positions: FloatArray, faceIndex: Int, out: FloatArray, outIndex: Int) {
+		var sumX = 0f
+		var sumY = 0f
+
+		for (cornerSlot in 0 until cornersPerFace) {
+			val corner = faceCorners[faceIndex * cornersPerFace + cornerSlot]
+			sumX += positions[corner * 2]
+			sumY += positions[corner * 2 + 1]
+		}
+
+		out[outIndex] = sumX / cornersPerFace
+		out[outIndex + 1] = sumY / cornersPerFace
 	}
 
 	/**
@@ -137,6 +157,15 @@ class ElementTopology(
 		fun ofLattice(layout: WarpLatticeLayout): ElementTopology = ElementTopology(layout.pointCount, layout.cellCorners, 4)
 
 		/**
+		 * Flat endpoint pairs as boxed edges, in their order, so an edge's ordinal means the same in both.
+		 *
+		 * @param IntArray edgeEndpoints Two endpoints per edge, low endpoint first.
+		 * @return List<MeshElement.Edge> The edges.
+		 */
+		internal fun edgesOf(edgeEndpoints: IntArray): List<MeshElement.Edge> =
+			List(edgeEndpoints.size / 2) { edgeOrdinal -> MeshElement.Edge(edgeEndpoints[edgeOrdinal * 2], edgeEndpoints[edgeOrdinal * 2 + 1]) }
+
+		/**
 		 * The unique edges of a set of face rings as endpoint pairs, low endpoint first, in first-encounter order.
 		 *
 		 * @param IntArray faceCorners The faces' corners, around each face.
@@ -186,15 +215,6 @@ class ElementTopology(
 }
 
 /**
- * A drawable's Edit topology: its mesh's triangles, or null when the model holds no such drawable or it carries no
- * mesh.
- *
- * @param DrawableId drawableId The drawable.
- * @return ElementTopology? Its topology, or null.
- */
-fun PuppetModel.meshTopologyOf(drawableId: DrawableId): ElementTopology? = meshOf(drawableId)?.let { mesh -> ElementTopology.ofMesh(mesh) }
-
-/**
  * An Edit owner's topology: a drawable's mesh triangles, or a warp's lattice cells.  Null when the model holds no such
  * owner, a drawable carries no mesh, or a deformer is not a warp with a lattice (one keyed at all) - nothing Edit
  * mode could select on.
@@ -205,7 +225,7 @@ fun PuppetModel.meshTopologyOf(drawableId: DrawableId): ElementTopology? = meshO
 fun PuppetModel.editTopologyOf(owner: ElementOwner): ElementTopology? =
 	when (owner) {
 		is ElementOwner.Drawable -> {
-			meshTopologyOf(owner.id)
+			meshOf(owner.id)?.let { mesh -> ElementTopology.ofMesh(mesh) }
 		}
 
 		is ElementOwner.Deformer -> {

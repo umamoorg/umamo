@@ -24,6 +24,7 @@ import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.transform.ElementEditStage
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -69,7 +70,7 @@ class EditModalTransformTest {
 		session.beginMeshOperator(kind, LEFT_AREA_ID, suppressProportional)
 		assertEquals(kind, session.activeMeshOperator.value?.kind, "the session latched the operator")
 		transform.gesture.lastPointer = pointer
-		transform.begin(kind, geometriesOf(session), session.meshSelection.value)
+		transform.begin(kind, geometriesOf(session), session.meshSelection.value, ElementEditStage.Rest)
 	}
 
 	/**
@@ -95,7 +96,7 @@ class EditModalTransformTest {
 		val rig = rigOver(gizmoEditSession(elements = listOf(MeshElement.Vertex(0))))
 		rig.session.beginMeshOperator(MeshOperatorKind.Grab, LEFT_AREA_ID)
 
-		rig.transform.begin(MeshOperatorKind.Grab, geometriesOf(rig.session), MeshSelectionOps.clear(rig.session.meshSelection.value))
+		rig.transform.begin(MeshOperatorKind.Grab, geometriesOf(rig.session), MeshSelectionOps.clear(rig.session.meshSelection.value), ElementEditStage.Rest)
 
 		assertNull(rig.session.activeMeshOperator.value)
 		assertNull(rig.transform.gesture.capture)

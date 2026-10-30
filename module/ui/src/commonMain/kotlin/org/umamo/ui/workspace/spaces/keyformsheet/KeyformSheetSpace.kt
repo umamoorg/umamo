@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.TrackKeyRef
+import org.umamo.edit.shownPendingLatticeEdits
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.kit.SCROLLBAR_THICKNESS
@@ -107,6 +108,14 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	val selectedKeys by remember(session) {
 		session?.keySelection ?: MutableStateFlow(emptySet())
 	}.collectAsState()
+	// The warps holding an unkeyed Pose-mode lattice the viewport shows, and the pose it was shaped at: their geometry
+	// rows ring the pose so a rigger sees that keying there would store something new.
+	val shownPendingLattices by remember(session) {
+		session?.shownPendingLatticeEdits ?: MutableStateFlow(emptyMap())
+	}.collectAsState(emptyMap())
+	val sessionPose by remember(session) {
+		session?.pose ?: MutableStateFlow(emptyMap())
+	}.collectAsState()
 	// Recording a selection as its own undo step, versus folding it into the step a following commit is
 	// about to record.  See EditorSession.stageKeySelection for which is correct where.
 	val setSelectedKeys: (Set<TrackKeyRef>) -> Unit = { keys -> session?.setKeySelection(keys) }
@@ -173,10 +182,11 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				remember(viewState.showGeometry, viewState.showChannels, viewState.showBlendShapes) {
 					KeyformTrackFilter(viewState.showGeometry, viewState.showChannels, viewState.showBlendShapes)
 				}
+			val pendingWarpIds = shownPendingLattices.keys
 			val projections =
-				remember(puppet, targetedParameters, labels, filter) {
+				remember(puppet, targetedParameters, labels, filter, pendingWarpIds, sessionPose) {
 					targetedParameters.map { parameter ->
-						parameter to keyformSheetRows(puppet, parameter.id, labels, filter)
+						parameter to keyformSheetRows(puppet, parameter.id, labels, filter, pendingWarpIds, sessionPose[parameter.id] ?: parameter.default)
 					}
 				}
 

@@ -20,9 +20,9 @@ import org.umamo.runtime.model.visibleDeformerIds
 import org.umamo.ui.viewport.PuppetViewportService
 
 /*
- * The 2D viewport's warp lattices: which warps the renderer draws a lattice over, and in which role, published
- * to the render service.  The renderer reads each lattice's points off the pose it draws, so the value carries
- * no positions and a pose change publishes nothing.
+ * The 2D viewport's warp lattices: which warps the renderer draws a lattice over, in which role, and which of them
+ * hold an unkeyed Pose-mode shape, published to the render service.  The renderer reads each lattice's points off the
+ * pose it draws, so the value carries no positions and a pose change publishes nothing.
  */
 
 /**
@@ -44,13 +44,17 @@ internal fun latticeOverlaySizes(density: Density): MeshOverlaySizes =
 /**
  * The lattices the 2D viewport draws in [mode]: in Object and Pose mode, every shown warp, the active one in
  * the active role, the other selected ones selected, and the rest idle (drawn only by an area that shows every
- * deformer); in Edit mode none, since Edit mode shows the edited mesh alone.
+ * deformer); in Edit mode none, since Edit mode shows the edited mesh alone.  In Pose mode the warps being posed
+ * are left to the session's cage, which draws their points, so the layer carries the others alone.  A warp holding
+ * an unkeyed Pose-mode shape is marked pending, whatever its role.
  *
  * @param EditorMode mode The editor mode.
  * @param Selection selection The object selection.
  * @param PuppetModel model The model.
  * @param Set<DeformerId> shownDeformers The deformers shown after the visibility cascade ([visibleDeformerIds]).
  * @param MeshOverlaySizes sizes The dot and line sizes.
+ * @param Set<DeformerId> posedIds The warps the Pose-mode session shapes, which its cage draws.
+ * @param Set<DeformerId> pendingIds The warps holding an unkeyed Pose-mode shape.
  * @return LatticeOverlay? The lattices, or null when there is none to draw.
  */
 internal fun latticeOverlayOf(
@@ -59,6 +63,8 @@ internal fun latticeOverlayOf(
 	model: PuppetModel,
 	shownDeformers: Set<DeformerId>,
 	sizes: MeshOverlaySizes,
+	posedIds: Set<DeformerId> = emptySet(),
+	pendingIds: Set<DeformerId> = emptySet(),
 ): LatticeOverlay? {
 	if (mode == EditorMode.Edit) {
 		return null
@@ -67,7 +73,7 @@ internal fun latticeOverlayOf(
 	val roles = LinkedHashMap<DeformerId, LatticeRole>()
 
 	for (deformer in model.deformers) {
-		if (deformer !is Deformer.Warp || deformer.id !in shownDeformers) {
+		if (deformer !is Deformer.Warp || deformer.id !in shownDeformers || (mode == EditorMode.Pose && deformer.id in posedIds)) {
 			continue
 		}
 
@@ -84,14 +90,14 @@ internal fun latticeOverlayOf(
 		return null
 	}
 
-	return LatticeOverlay(roles, sizes)
+	return LatticeOverlay(roles, sizes, pendingIds.filterTo(HashSet()) { deformerId -> deformerId in roles })
 }
 
 /**
  * Publishes the lattice overlay to [service] for as long as it runs: derived from the mode, the object
- * selection, the model, and the sizes, and published only when the warps it lists, their roles, or the sizes
- * change - an edit that moves art, or a pose change, publishes nothing.  The shown deformers are walked once
- * per model.
+ * selection, the model, the posed and pending warps, and the sizes, and published only when the warps it lists,
+ * their roles, their pending marks, or the sizes change - an edit that moves art, or a pose change, publishes
+ * nothing.  The shown deformers are walked once per model.
  *
  * @param PuppetViewportService service The render service to publish to.
  * @param EditorSession session The session to derive from.
@@ -103,8 +109,12 @@ internal suspend fun publishLatticeOverlay(
 	sizes: Flow<MeshOverlaySizes>,
 ) {
 	val shownModels = session.model.map { model -> model to model.visibleDeformerIds() }
-	combine(session.mode, session.selection, shownModels, sizes) { mode, selection, (model, shownDeformers), latticeSizes ->
-		latticeOverlayOf(mode, selection, model, shownDeformers, latticeSizes)
+	val posedAndPending =
+		combine(session.meshSelection, session.pendingLatticeEdits) { meshSelection, pending ->
+			meshSelection.deformerIds.toHashSet() to pending.keys
+		}
+	combine(session.mode, session.selection, shownModels, sizes, posedAndPending) { mode, selection, (model, shownDeformers), latticeSizes, (posedIds, pendingIds) ->
+		latticeOverlayOf(mode, selection, model, shownDeformers, latticeSizes, posedIds, pendingIds)
 	}
 		.distinctUntilChanged { previous, next -> sameLatticeOverlay(previous, next) }
 		.collect { overlay -> service.setLatticeOverlay(overlay) }
@@ -122,5 +132,5 @@ private fun sameLatticeOverlay(previous: LatticeOverlay?, next: LatticeOverlay?)
 		return previous == null && next == null
 	}
 
-	return previous.roles == next.roles && previous.sizes == next.sizes
+	return previous.roles == next.roles && previous.sizes == next.sizes && previous.pendingIds == next.pendingIds
 }

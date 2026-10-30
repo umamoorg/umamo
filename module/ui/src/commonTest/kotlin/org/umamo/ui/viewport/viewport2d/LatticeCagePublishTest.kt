@@ -1,6 +1,7 @@
 package org.umamo.ui.viewport.viewport2d
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -33,7 +34,7 @@ class LatticeCagePublishTest {
 			val session = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
 			val live = MutableStateFlow<Map<DeformerId, FloatArray>?>(null)
 			val service = StubPuppetViewportService()
-			backgroundScope.launch { publishLatticeCage(service, session, MutableStateFlow(sizes), live) }
+			backgroundScope.launch { publishLatticeCage(service, session, MutableStateFlow(sizes), live.map { world -> LatticeDragPreview(world, null) }, MutableStateFlow(emptyMap())) }
 			runCurrent()
 			assertEquals(listOf<DirectMeshOverlay?>(null), service.pushedEditDirectOverlays, "Object mode publishes no cage")
 
@@ -46,7 +47,7 @@ class LatticeCagePublishTest {
 			runCurrent()
 			val dragged = assertNotNull(service.pushedEditDirectOverlays.last())
 			assertSame(rest.overlay, dragged.overlay, "a drag frame keeps the overlay")
-			assertEquals(5f, dragged.positionsById.getValue(owner)[0], "and moves the cage")
+			assertEquals(5f, dragged.positionsByOwner.getValue(owner)[0], "and moves the cage")
 
 			live.value = null
 			runCurrent()

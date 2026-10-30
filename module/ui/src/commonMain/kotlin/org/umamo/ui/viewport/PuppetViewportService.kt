@@ -466,6 +466,17 @@ interface PuppetViewportService {
 	fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>)
 
 	/**
+	 * Poses warps at the session's pending Pose-mode lattices in every 2D area, each standing in for that warp's grid
+	 * blend at the pose; a [setLatticePreview] entry for the same warp wins while a gesture runs.  The viewport binding
+	 * keeps it in step with the session, and a lattice gesture's end writes it first, so the frame after the preview
+	 * clears already shows what was committed.  An empty map clears it; the same instance again is a no-op.
+	 *
+	 * @param Map<DeformerId, WarpLatticeForm> overrides Each pending warp's lattice in its parent's space, before
+	 *   blend shapes.
+	 */
+	fun setLatticeOverrides(overrides: Map<DeformerId, WarpLatticeForm>)
+
+	/**
 	 * The warps whose drawn lattice lies under the cursor in [areaId], best first: a control point within
 	 * [pointRadiusPx] ahead of a grid line within [lineRadiusPx], nearer first, and a tie to the warp later in the
 	 * model.  Only the lattices the area draws can be hit: none while it hides its overlays, and the idle ones only

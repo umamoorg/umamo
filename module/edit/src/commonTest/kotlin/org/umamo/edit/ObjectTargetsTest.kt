@@ -18,7 +18,6 @@ import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
-import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -49,23 +48,11 @@ class ObjectTargetsTest {
 	 * @param Boolean keyed Whether it carries a lattice.
 	 * @return Deformer.Warp The warp.
 	 */
-	private fun warp(id: DeformerId, parent: DeformerId?, keyed: Boolean = true): Deformer.Warp =
-		Deformer.Warp(
-			id = id,
-			name = id.raw,
-			parent = parent,
-			partId = part,
-			rows = 1,
-			columns = 1,
-			isQuadTransform = true,
-			geometryGrid =
-				if (keyed) {
-					val points = floatArrayOf(0f, 0f, 40f, 0f, 0f, 40f, 40f, 40f)
-					KeyformGrid(listOf(KeyformAxis(parameter, floatArrayOf(-1f, 1f))), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(points)), KeyformCell(intArrayOf(1), WarpLatticeForm(points))))
-				} else {
-					null
-				},
-		)
+	private fun warp(id: DeformerId, parent: DeformerId?, keyed: Boolean = true): Deformer.Warp {
+		val points = floatArrayOf(0f, 0f, 40f, 0f, 0f, 40f, 40f, 40f)
+
+		return SessionTestModels.keyedWarp(id, 1, 1, parameter, if (keyed) floatArrayOf(-1f, 1f) else null, parent, part) { points }
+	}
 
 	/**
 	 * A quad of art under [parent].

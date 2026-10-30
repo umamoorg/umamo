@@ -7,8 +7,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 
 /**
  * The single mutable owner of one open document: the live [model], the ephemeral editor state
@@ -160,6 +163,20 @@ class EditorSession private constructor(
 	 */
 	val pendingChannelEdits: StateFlow<Map<KeyableTarget, ChannelValue>> = mutablePendingChannelEdits.asStateFlow()
 
+	private val mutablePendingLatticeEdits = MutableStateFlow<Map<DeformerId, WarpLatticeForm>>(emptyMap())
+
+	/**
+	 * Warp lattices shaped in Pose mode but NOT yet keyed, each standing in for its warp's grid blend at the pose -
+	 * the lattice counterpart of [pendingChannelEdits], under the same rules: never in the document, one undo step
+	 * per finished gesture ([commitPendingLatticeEdits]), discarded whenever the pose moves, and restored with the
+	 * pose by a history jump.  A commit that rewrites a warp's lattice forms or its parent also drops that warp's
+	 * entry, since the shape was taken against the forms it replaced.
+	 *
+	 * The renderer poses with them, the lattice draws in the "modified, unkeyed" color while one is pending, and a
+	 * keyform insert on the warp consumes it.
+	 */
+	val pendingLatticeEdits: StateFlow<Map<DeformerId, WarpLatticeForm>> = mutablePendingLatticeEdits.asStateFlow()
+
 	private val mutableKeySelection = MutableStateFlow<Set<TrackKeyRef>>(emptySet())
 
 	/**
@@ -280,9 +297,11 @@ class EditorSession private constructor(
 	 * through here.
 	 *
 	 * Every field defaults to the LIVE value, never to an empty one: a field added later is then carried
-	 * unchanged by every existing caller instead of silently recorded empty.  The one default that is not
-	 * the live value is [pendingChannelEdits]: a pose that differs from the live pose discards them, because
-	 * every pending value was chosen FOR the pose being left - the rule lives here and nowhere else.
+	 * unchanged by every existing caller instead of silently recorded empty.  The defaults that are not the live
+	 * value are the pending edits: a pose that differs from the live pose discards them, because every pending
+	 * value was chosen FOR the pose being left, and [pendingLatticeEdits] also drops the warps whose lattice forms or
+	 * parent [model] rewrites ([pendingLatticesCarried]) - the rules live here and nowhere else.  A pose move that
+	 * drops pending lattices says so near the cursor, with the count.
 	 *
 	 * @param Change change The descriptor of this step (for the bus and the history-panel label).
 	 * @param PuppetModel model The document model after the step.
@@ -293,6 +312,7 @@ class EditorSession private constructor(
 	 * @param ParameterSelection parameterSelection The keyform-authoring target after the step.
 	 * @param Map<KeyableTarget, ChannelValue> pendingChannelEdits The unkeyed channel edits after the step.
 	 * @param Set<TrackKeyRef> keySelection The keyform-sheet key selection after the step.
+	 * @param Map<DeformerId, WarpLatticeForm> pendingLatticeEdits The unkeyed Pose-mode lattices after the step.
 	 */
 	internal fun commitStep(
 		change: Change,
@@ -304,12 +324,26 @@ class EditorSession private constructor(
 		parameterSelection: ParameterSelection = mutableParameterSelection.value,
 		pendingChannelEdits: Map<KeyableTarget, ChannelValue> = if (pose == mutablePose.value) mutablePendingChannelEdits.value else emptyMap(),
 		keySelection: Set<TrackKeyRef> = mutableKeySelection.value,
+		pendingLatticeEdits: Map<DeformerId, WarpLatticeForm> = if (pose == mutablePose.value) pendingLatticesCarried(mutablePendingLatticeEdits.value, mutableModel.value, model) else emptyMap(),
 	) {
-		val snapshot = EditorSnapshot(model, selection, pose, meshSelection, mode, parameterSelection, pendingChannelEdits, keySelection)
+		val discardedLattices = if (pose != mutablePose.value) mutablePendingLatticeEdits.value.size else 0
+		val snapshot = EditorSnapshot(model, selection, pose, meshSelection, mode, parameterSelection, pendingChannelEdits, keySelection, pendingLatticeEdits)
 		pushStep(snapshot, change)
 		publish(snapshot)
 		refreshFlags()
 		mutableChanges.tryEmit(change)
+		reportDiscardedLattices(discardedLattices)
+	}
+
+	/**
+	 * Says near the cursor that a pose move discarded [count] pending lattices; nothing for none.
+	 *
+	 * @param Int count How many were discarded.
+	 */
+	private fun reportDiscardedLattices(count: Int) {
+		if (count > 0) {
+			notices.emit("notice.pose.latticeEditsDiscarded", NoticePlacement.NearCursor, listOf(count.toString()))
+		}
 	}
 
 	/**
@@ -326,6 +360,7 @@ class EditorSession private constructor(
 		mutableMeshSelection.value = snapshot.meshSelection
 		mutableParameterSelection.value = snapshot.parameterSelection
 		mutablePendingChannelEdits.value = snapshot.pendingChannelEdits
+		mutablePendingLatticeEdits.value = snapshot.pendingLatticeEdits
 		mutableKeySelection.value = snapshot.keySelection
 		mutableMode.value = snapshot.mode
 	}
@@ -391,12 +426,7 @@ class EditorSession private constructor(
 	 * @return AdjustableOperation? The revised record, or null when [operation] is no longer the live one.
 	 */
 	fun reviseAdjustableParameters(operation: AdjustableOperation, parameters: List<OperatorParameter>): AdjustableOperation? {
-		val current = mutableAdjustableOperation.value
-
-		if (current == null || current.identity !== operation.identity) {
-			return null
-		}
-
+		val current = liveRecordOf(operation) ?: return null
 		val revised = current.withParameters(parameters)
 		mutableAdjustableOperation.value = revised
 
@@ -416,18 +446,50 @@ class EditorSession private constructor(
 	 * @param PuppetModel model The recomputed document model.
 	 * @return Boolean True when the step was replaced and published.
 	 */
-	fun amendLastCommit(operation: AdjustableOperation, model: PuppetModel): Boolean {
-		val current = mutableAdjustableOperation.value
+	fun amendLastCommit(operation: AdjustableOperation, model: PuppetModel): Boolean = amendLiveStep(operation, { snapshot(model = model) }) { mutableModel.value = model }
 
-		if (current == null || current.identity !== operation.identity) {
+	/**
+	 * Lands an adjustment of a pending-lattice step - [amendLastCommit]'s counterpart for an operation that changed no
+	 * model: the step is rewritten in place with [forms] laid over the pending lattices it started from, and published.
+	 *
+	 * Refuses as [amendLastCommit] does: when [operation] is not the live record, or the stack refuses the amend.
+	 *
+	 * @param AdjustableOperation operation The record the rerun was given.
+	 * @param Map<DeformerId, WarpLatticeForm> forms The recomputed lattices of the warps the operation shaped.
+	 * @return Boolean True when the step was replaced and published.
+	 */
+	fun amendLastPendingLatticeEdits(operation: AdjustableOperation, forms: Map<DeformerId, WarpLatticeForm>): Boolean {
+		val pending = operation.baseSnapshot.pendingLatticeEdits + forms
+
+		return amendLiveStep(operation, { snapshot(pendingLatticeEdits = pending) }) { mutablePendingLatticeEdits.value = pending }
+	}
+
+	/**
+	 * The live adjustable record [operation] names, or null when it is no longer live: another push, an undo, or a
+	 * document swap cleared it while a rerun was in flight.
+	 *
+	 * @param AdjustableOperation operation The record a rerun was given.
+	 * @return AdjustableOperation? The live record (possibly a revised instance of it), or null.
+	 */
+	private fun liveRecordOf(operation: AdjustableOperation): AdjustableOperation? = mutableAdjustableOperation.value?.takeIf { current -> current.identity === operation.identity }
+
+	/**
+	 * Rewrites live [operation]'s own step in place with the snapshot [amended] builds ([History.amendTop]), then
+	 * applies it to the live state through [publish] and announces it, keeping the record live for the next
+	 * adjustment.  The one amend both [amendLastCommit] and [amendLastPendingLatticeEdits] land through.
+	 *
+	 * @param AdjustableOperation operation The record the rerun was given.
+	 * @param Function amended Builds the step's new snapshot.
+	 * @param Function publish Writes the amended state to its flow.
+	 * @return Boolean True when the step was replaced and published; false when the record is not live or the stack
+	 *   refuses the amend.
+	 */
+	private fun amendLiveStep(operation: AdjustableOperation, amended: () -> EditorSnapshot, publish: () -> Unit): Boolean {
+		if (liveRecordOf(operation) == null || !history.amendTop(amended(), operation.change)) {
 			return false
 		}
 
-		if (!history.amendTop(snapshot(model = model), operation.change)) {
-			return false
-		}
-
-		mutableModel.value = model
+		publish()
 		refreshFlags()
 		mutableChanges.tryEmit(operation.change)
 
@@ -482,6 +544,7 @@ class EditorSession private constructor(
 		parameterSelection: ParameterSelection = mutableParameterSelection.value,
 		pendingChannelEdits: Map<KeyableTarget, ChannelValue> = mutablePendingChannelEdits.value,
 		keySelection: Set<TrackKeyRef> = mutableKeySelection.value,
+		pendingLatticeEdits: Map<DeformerId, WarpLatticeForm> = mutablePendingLatticeEdits.value,
 	): EditorSnapshot =
 		EditorSnapshot(
 			model,
@@ -492,6 +555,7 @@ class EditorSession private constructor(
 			parameterSelection,
 			pendingChannelEdits,
 			keySelection,
+			pendingLatticeEdits,
 		)
 
 	/** Whether the current mode pins the pose (see [pinsPose]), which refuses every pose move asked of the session. */
@@ -598,6 +662,41 @@ class EditorSession private constructor(
 	}
 
 	/**
+	 * Discards every pending edit because a pose PREVIEW moved: the unkeyed channel values ([clearPendingChannelEdits])
+	 * and the unkeyed Pose-mode lattices, saying near the cursor how many lattices went.  The preview path's form of
+	 * the rule [commitStep] applies to a recorded pose move; undo brings them back with the step they were made in.
+	 */
+	fun discardPendingEditsForPose() {
+		clearPendingChannelEdits()
+		val discardedLattices = mutablePendingLatticeEdits.value.size
+
+		if (discardedLattices > 0) {
+			mutablePendingLatticeEdits.value = emptyMap()
+			reportDiscardedLattices(discardedLattices)
+		}
+	}
+
+	/**
+	 * Records [forms] as Pose-mode lattices shaped but not keyed, laid over the pending lattices already held, as ONE
+	 * undo step described by [change] - what a finished Pose-mode G / R / S, slide, or snap over lattice points
+	 * commits.  The model is untouched, so this is not a document edit and leaves dirty alone; the renderer poses with
+	 * the lattices until the pose moves or a key consumes them.  A step that would change nothing records nothing.
+	 *
+	 * @param Change change The descriptor of this edit (a [DeformerChange.PoseLattice]).
+	 * @param Map<DeformerId, WarpLatticeForm> forms Each shaped warp's lattice in its parent's space, standing in for
+	 *   its grid blend at the pose.
+	 */
+	fun commitPendingLatticeEdits(change: Change, forms: Map<DeformerId, WarpLatticeForm>) {
+		val pending = mutablePendingLatticeEdits.value + forms
+
+		if (forms.isEmpty() || pending == mutablePendingLatticeEdits.value) {
+			return
+		}
+
+		commitStep(change, pendingLatticeEdits = pending)
+	}
+
+	/**
 	 * Discards the pending unkeyed edit of [target] alone.
 	 *
 	 * The keyform-insert path: the capture consumed this one value, and the pose did not move, so every
@@ -649,9 +748,7 @@ class EditorSession private constructor(
 			return
 		}
 
-		editOwnerOf(selection.active)?.let { activeOwner ->
-			elementMemory.lastActiveOwner = activeOwner
-		}
+		elementMemory.rememberActiveOwnerOf(selection)
 		commitStep(EditorStateChange.SelectionChanged, selection = selection)
 	}
 
@@ -686,8 +783,10 @@ class EditorSession private constructor(
 	 * element selection and clears it; re-entering on the same drawable restores the stash when every
 	 * element still fits the mesh (Blender's remembered mesh selection). Leaving also ends any in-flight
 	 * operator. Entering Pose mode is refused with a notice when the model has no deformer, since there is
-	 * nothing to pose. The mode is editor state, not document content, so it does not dirty the document. A
-	 * no-op (already in [mode]) records nothing.
+	 * nothing to pose; otherwise it seeds the session with the warps the pose draws, as Tab seeds Edit mode
+	 * ([poseSeedOf]), or with nothing when there are none.  The pending edits ride every switch untouched: a
+	 * switch never moves the pose they were made for.  The mode is editor state, not document content, so it
+	 * does not dirty the document. A no-op (already in [mode]) records nothing.
 	 *
 	 * @param EditorMode mode The new mode.
 	 */
@@ -716,43 +815,59 @@ class EditorSession private constructor(
 								return
 							}
 						}
-					val seedOwners = editSeed.owners
-					val seedActiveOwner = editSeed.activeOwner
 					// The mode Edit was entered from is where its toggle returns to.
 					editReturnMode = mutableMode.value
-
-					if (!editSeed.activeSelected) {
-						// Seeded from the remembered owner or the topmost fallback: remember it so the next
-						// entry is stable. The object selection is left untouched - a soft seed, not a
-						// re-selection, matching the remembered-drawable behavior.
-						elementMemory.lastActiveOwner = seedActiveOwner
-					}
-
-					// Clear the transient tool state on entry too: the select tool is shared with Object mode, so
-					// an object tool armed before the switch must not leak in and drive the Edit overlay.
-					latches.clearTransient(clearViewportGesture = true)
-					// Restore each seeded owner's remembered elements where they still fit its topology;
-					// the rest start empty, and entering on a different set of owners keeps every other owner's memory.
-					elementMemory.restore(MeshSelection.editing(seedOwners, seedActiveOwner), model)
+					openSeededSession(editSeed, model)
 				}
 
-				EditorMode.Object, EditorMode.Pose -> {
-					// Pose mode poses deformers, so a model with none has nothing to pose: refuse with a notice
-					// rather than open a mode that can do nothing, as Edit refuses a model with nothing editable.
-					if (mode == EditorMode.Pose && mutableModel.value.deformers.isEmpty()) {
+				EditorMode.Pose -> {
+					val model = mutableModel.value
+
+					// Refuse with a notice rather than open a mode that can do nothing, as Edit refuses a model with
+					// nothing editable.
+					if (!model.canPose) {
 						notices.emit("notice.mode.poseNeedsDeformer", NoticePlacement.NearCursor, emptyList())
 
 						return
 					}
 
-					// Stash each mesh's element selection so re-entering Edit mode restores it per mesh (a no-op
-					// when the mode being left is not Edit, whose element selection is empty).
+					// Pose mode works on lattice points as Edit mode does, over the warps the pose draws (seeded like
+					// Tab), and an empty session when there are none - it still scrubs and keys.
+					openSeededSession(poseSeedOf(model, mutableSelection.value, elementMemory.lastActiveOwner, mutablePose.value), model)
+				}
+
+				EditorMode.Object -> {
+					// Stash each owner's element selection so re-entering Edit or Pose mode restores it per owner.
 					elementMemory.stash(mutableMeshSelection.value)
 					latches.clearTransient(clearViewportGesture = true)
 					MeshSelection()
 				}
 			}
 		commitStep(EditorStateChange.ModeChanged(mode), meshSelection = newMeshSelection, mode = mode)
+	}
+
+	/**
+	 * The element session an Edit or Pose mode entry opens on [seed] over [model], or an empty one for no seed.  A seed
+	 * whose active owner is not the object selection's own (the remembered owner, or a fallback) is remembered, so the
+	 * next entry is stable - a soft seed, not a re-selection, so the object selection is left alone.  The transient tool
+	 * state clears, since the select tool is shared with Object mode and a tool armed before the switch must not drive
+	 * the element overlay.  The session being left is stashed (nothing, from Object mode), then each seeded owner's
+	 * remembered elements are restored where they still fit its topology; the rest start empty, and entering on other
+	 * owners keeps every other owner's memory.
+	 *
+	 * @param EditSeed? seed The owners to open on, or null for none.
+	 * @param PuppetModel model The model the owners' topologies come from.
+	 * @return MeshSelection The new element session.
+	 */
+	private fun openSeededSession(seed: EditSeed?, model: PuppetModel): MeshSelection {
+		if (seed != null && !seed.activeSelected) {
+			elementMemory.lastActiveOwner = seed.activeOwner
+		}
+
+		latches.clearTransient(clearViewportGesture = true)
+		elementMemory.stash(mutableMeshSelection.value)
+
+		return seed?.let { opened -> elementMemory.restore(opened.session, model) } ?: MeshSelection()
 	}
 
 	/**
@@ -764,7 +879,7 @@ class EditorSession private constructor(
 			// A return to Pose mode the model can no longer hold (its last deformer was deleted during the edit)
 			// lands in Object mode instead, so the toggle can never strand the session in Edit mode.
 			val returnMode =
-				if (editReturnMode == EditorMode.Pose && mutableModel.value.deformers.isEmpty()) {
+				if (editReturnMode == EditorMode.Pose && !mutableModel.value.canPose) {
 					EditorMode.Object
 				} else {
 					editReturnMode
@@ -992,9 +1107,7 @@ class EditorSession private constructor(
 		mutableAdjustableOperation.value = null
 		lastBaseSnapshot = null
 		// The remembered owner tracks whatever was most recently shown active, undo/redo included.
-		editOwnerOf(snapshot.selection.active)?.let { activeOwner ->
-			elementMemory.lastActiveOwner = activeOwner
-		}
+		elementMemory.rememberActiveOwnerOf(snapshot.selection)
 		// An undo / redo ends any in-flight gesture or armed tool, regardless of the restored mode: the select
 		// tool and its overlays are shared across modes, so a tool armed in one mode must not survive a restore
 		// into a snapshot of the other and drive the wrong overlay.  Cleared BEFORE the flows publish, so the

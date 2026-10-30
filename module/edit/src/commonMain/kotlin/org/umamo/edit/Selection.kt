@@ -8,6 +8,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.deformerChain
 
 /**
  * A selectable rig entity, addressed by its typed id. A closed taxonomy (part, drawable, or deformer)
@@ -198,37 +199,31 @@ object SelectionOps {
 	}
 
 	/**
-	 * Selects every selectable entity of [domain] in the model (Blender's Select All in object mode, or in pose
-	 * mode over deformers alone), leaving the selected targets outside the domain as they are.  Keeps the current
-	 * active target when it is still selected; otherwise the last enumerated domain target becomes active.
+	 * Selects every selectable entity in the model (Blender's Select All in object mode).  Keeps the current
+	 * active target (it is necessarily still selected); with none, the last enumerated target becomes active.
 	 *
 	 * @param Selection selection The current selection (its active target is preserved when possible).
 	 * @param PuppetModel model The rig whose entities to select.
-	 * @param Function domain Which targets the operation covers; every target by default.
-	 * @return Selection The selection holding every selectable target of the domain.
+	 * @return Selection The selection holding every selectable target.
 	 */
-	fun selectAll(selection: Selection, model: PuppetModel, domain: (SelectionTarget) -> Boolean = { true }): Selection {
-		val domainTargets = allSelectableTargets(model).filterTo(LinkedHashSet()) { target -> domain(target) }
-		val targets = selection.targets.filterTo(LinkedHashSet()) { target -> !domain(target) } + domainTargets
-		val active = selection.active?.takeIf { target -> target in targets } ?: domainTargets.lastOrNull()
+	fun selectAll(selection: Selection, model: PuppetModel): Selection {
+		val allTargets = allSelectableTargets(model)
+		val active = selection.active?.takeIf { target -> target in allTargets } ?: allTargets.lastOrNull()
 
-		return Selection(targets, active)
+		return Selection(allTargets, active)
 	}
 
 	/**
-	 * Inverts the object selection within [domain] (Blender's Ctrl+I): every selectable entity of the domain not
-	 * currently selected becomes selected and vice versa, and the selected targets outside the domain stay as they
-	 * are.  The active target is kept only when it survives the inversion, which for a domain target in practice
-	 * drops it (a selected active target is deselected by the inversion).
+	 * Inverts the object selection (Blender's Ctrl+I): every selectable entity not currently selected
+	 * becomes selected and vice versa.  The active target is kept only when it survives the inversion, which
+	 * in practice drops it (a selected active target is deselected by the inversion).
 	 *
 	 * @param Selection selection The selection to invert.
 	 * @param PuppetModel model The rig whose entities define the domain.
-	 * @param Function domain Which targets the operation covers; every target by default.
 	 * @return Selection The inverted selection.
 	 */
-	fun invert(selection: Selection, model: PuppetModel, domain: (SelectionTarget) -> Boolean = { true }): Selection {
-		val domainTargets = allSelectableTargets(model).filterTo(LinkedHashSet()) { target -> domain(target) }
-		val inverted = selection.targets.filterTo(LinkedHashSet()) { target -> !domain(target) } + (domainTargets - selection.targets)
+	fun invert(selection: Selection, model: PuppetModel): Selection {
+		val inverted = allSelectableTargets(model) - selection.targets
 
 		return Selection(inverted, selection.active?.takeIf { target -> target in inverted })
 	}
@@ -355,7 +350,7 @@ fun eligibleTransformDrawables(selection: Selection, model: PuppetModel): List<D
 	val drawableIds = ArrayList<DrawableId>(selection.size)
 
 	for (target in selection.targets) {
-		// Parts and deformers cannot be transformed yet (see the docblock); skip them, not the gesture.
+		// Parts and deformers are not this function's items (see the docblock); skip them, not the operation.
 		val drawableTarget = target as? SelectionTarget.Drawable ?: continue
 		// A drawable that carries no source geometry has no positions to move; skip it too.
 		val drawable = model.drawables.firstOrNull { it.id == drawableTarget.id }
@@ -402,7 +397,6 @@ fun eligibleTransformTargets(selection: Selection, model: PuppetModel): Transfor
 	}
 
 	val drawableById = model.drawables.associateBy { drawable -> drawable.id }
-	val parentByDeformer = model.deformers.associate { deformer -> deformer.id to deformer.parent }
 	val drawableIds = ArrayList<DrawableId>(selection.size)
 	val warpIds = LinkedHashSet<DeformerId>()
 
@@ -424,8 +418,8 @@ fun eligibleTransformTargets(selection: Selection, model: PuppetModel): Transfor
 		}
 	}
 
-	val outerDrawables = drawableIds.filterNot { drawableId -> movesWithAncestor(drawableById[drawableId]?.parentDeformerId, warpIds, parentByDeformer) }
-	val outerWarps = warpIds.filterNot { warpId -> movesWithAncestor(parentByDeformer[warpId], warpIds, parentByDeformer) }
+	val outerDrawables = drawableIds.filterNot { drawableId -> model.movesWithAncestor(drawableById[drawableId]?.parentDeformerId, warpIds) }
+	val outerWarps = warpIds.filterNot { warpId -> model.movesWithAncestor(model.deformerById[warpId]?.parent, warpIds) }
 
 	if (outerDrawables.isEmpty() && outerWarps.isEmpty()) {
 		return null
@@ -435,25 +429,11 @@ fun eligibleTransformTargets(selection: Selection, model: PuppetModel): Transfor
 }
 
 /**
- * Whether the deformer chain from [parent] up holds one of [movingWarps], a parent the model does not hold or a
- * cycle ending the walk.
+ * Whether the deformer chain from [parent] up ([deformerChain]) holds one of [movingWarps].
  *
  * @param DeformerId? parent The first deformer up the chain, or null at the root.
  * @param Set<DeformerId> movingWarps The warps that move.
- * @param Map<DeformerId, DeformerId?> parentByDeformer Each deformer's parent.
  * @return Boolean True when an ancestor moves.
  */
-private fun movesWithAncestor(parent: DeformerId?, movingWarps: Set<DeformerId>, parentByDeformer: Map<DeformerId, DeformerId?>): Boolean {
-	var current = parent
-	val seen = HashSet<DeformerId>()
-
-	while (current != null && seen.add(current)) {
-		if (current in movingWarps) {
-			return true
-		}
-
-		current = parentByDeformer[current]
-	}
-
-	return false
-}
+private fun PuppetModel.movesWithAncestor(parent: DeformerId?, movingWarps: Set<DeformerId>): Boolean =
+	parent != null && deformerChain(parent).any { deformer -> deformer.id in movingWarps }

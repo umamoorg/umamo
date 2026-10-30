@@ -1,10 +1,13 @@
 package org.umamo.ui.viewport.viewport2d
 
+import org.umamo.edit.DeformerChange
+import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
 import org.umamo.render.eval.warpLatticeAt
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -61,6 +64,20 @@ class ObjectWarpSnapTest {
 
 		val cursor = assertNotNull(session.cursor2d.value)
 		assertEquals(20f, cursor.worldX, 1e-3f)
+		assertEquals(-20f, cursor.worldZ, 1e-3f)
+	}
+
+	/** Object mode draws a warp's pending lattice, so the cursor snaps read the lattice as drawn, not as keyed. */
+	@Test
+	fun theCursorSnapsReadAPendingLatticeAsTheViewportDrawsIt() {
+		val session = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+		val shifted = WarpLatticeForm(floatArrayOf(10f, 0f, 50f, 0f, 10f, 40f, 50f, 40f))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(LATTICE_RIG_BODY), MeshOperatorKind.Grab), mapOf(LATTICE_RIG_BODY to shifted))
+
+		handleObjectSnapRequest(session, SnapKind.CursorToSelected, 1f)
+
+		val cursor = assertNotNull(session.cursor2d.value)
+		assertEquals(30f, cursor.worldX, 1e-3f, "the pending lattice sits 10 to the right of the keyed one")
 		assertEquals(-20f, cursor.worldZ, 1e-3f)
 	}
 }

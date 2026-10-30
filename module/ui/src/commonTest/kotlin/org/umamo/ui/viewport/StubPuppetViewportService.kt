@@ -44,6 +44,9 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every lattice preview published through [setLatticePreview], oldest first, empty maps included. */
 	val pushedLatticePreviews = ArrayList<Map<DeformerId, WarpLatticeForm>>()
 
+	/** Every pending-lattice map published through [setLatticeOverrides], oldest first, empty maps included. */
+	val pushedLatticeOverrides = ArrayList<Map<DeformerId, WarpLatticeForm>>()
+
 	/** What [latticePicksAt] answers per area, best first; an area with no entry answers nothing. */
 	val latticeStackByArea = HashMap<String, List<DeformerId>>()
 
@@ -362,6 +365,10 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	 *
 	 * @param Map<DeformerId, WarpLatticeForm> overrides The preview published.
 	 */
+	override fun setLatticeOverrides(overrides: Map<DeformerId, WarpLatticeForm>) {
+		pushedLatticeOverrides.add(overrides)
+	}
+
 	override fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>) {
 		pushedLatticePreviews.add(overrides)
 	}

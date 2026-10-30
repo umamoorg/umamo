@@ -6,7 +6,7 @@ import org.umamo.render.FrameOverlays
 import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
-import org.umamo.render.pick.drawableCentroids
+import org.umamo.render.pick.centroidsOf
 import org.umamo.render.pick.latticeCenters
 import org.umamo.render.pick.latticeHitsAt
 import org.umamo.render.pick.pickAllDrawables
@@ -191,7 +191,7 @@ internal class ViewportPicker(
 	fun drawableWorldCentroids(): Map<DrawableId, FloatArray> {
 		val geometry = renderer.pickGeometry() ?: return emptyMap()
 
-		return drawableCentroids(geometry.worldPositions)
+		return centroidsOf(geometry.worldPositions)
 	}
 
 	/**
@@ -241,33 +241,7 @@ internal class ViewportPicker(
 	 * @param Set<DeformerId> ids The warps.
 	 * @return ContentBounds? The extent, or null when none of them is drawn at this pose.
 	 */
-	fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? {
-		var minX = Float.POSITIVE_INFINITY
-		var minZ = Float.POSITIVE_INFINITY
-		var maxX = Float.NEGATIVE_INFINITY
-		var maxZ = Float.NEGATIVE_INFINITY
-
-		for ((deformerId, lattice) in renderer.latticeWorldPoints()) {
-			if (deformerId !in ids) {
-				continue
-			}
-
-			val world = lattice.world
-
-			for (pointIndex in 0 until world.size / 2) {
-				minX = minOf(minX, world[pointIndex * 2])
-				maxX = maxOf(maxX, world[pointIndex * 2])
-				minZ = minOf(minZ, world[pointIndex * 2 + 1])
-				maxZ = maxOf(maxZ, world[pointIndex * 2 + 1])
-			}
-		}
-
-		if (minX > maxX) {
-			return null
-		}
-
-		return ContentBounds(minX, minZ, maxX - minX, maxZ - minZ)
-	}
+	fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? = renderer.latticeWorldExtent(ids)
 
 	/**
 	 * A small preview of a drawable's art for the overlap-picker popup, delegated to the shared thumbnailer

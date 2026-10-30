@@ -2,6 +2,7 @@ package org.umamo.edit.parameter
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
+import org.umamo.runtime.eval.defaultValueLookup
 import org.umamo.runtime.keyform.CollapsedChannels
 import org.umamo.runtime.keyform.colorOr
 import org.umamo.runtime.keyform.flagOr

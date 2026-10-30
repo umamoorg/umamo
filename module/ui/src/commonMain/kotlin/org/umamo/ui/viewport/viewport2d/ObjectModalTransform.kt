@@ -3,18 +3,11 @@ package org.umamo.ui.viewport.viewport2d
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorSession
-import org.umamo.edit.ElementTopology
-import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.SelectionTarget
 import org.umamo.edit.eligibleTransformTargets
 import org.umamo.edit.mesh.MeshRestPositions
-import org.umamo.edit.mesh.commitObjectPositions
-import org.umamo.edit.mesh.commitObjectTransform
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.IndividualOriginScope
-import org.umamo.edit.transform.MeshTransforms
-import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.render.ViewportCamera
@@ -23,9 +16,10 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.activeObjectCentroid
 import org.umamo.ui.transform.captureDrawableWorlds
-import org.umamo.ui.transform.captureLatticeWorld
-import org.umamo.ui.transform.withWarpsTransformed
+import org.umamo.ui.transform.captureLatticeWorlds
+import org.umamo.ui.transform.commitObjectMove
 import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.ModalGestureState
 import org.umamo.ui.viewport.gizmo.ModalTransformTarget
@@ -80,9 +74,6 @@ internal class ObjectModalTransform(
 	 */
 	val gesture = ModalGestureState<ObjectGesture, MeshRestPositions>()
 
-	// Whether this gesture has published a lattice preview, so the teardown clears exactly the preview it left.
-	private var latticePreviewed = false
-
 	/**
 	 * The drive: requests resolved per pointer event, the drawables computed off the UI thread in parallel and
 	 * the warps moved beside them, the result published back on it.  The overlay runs it (ModalDriveEffect); with
@@ -113,39 +104,14 @@ internal class ObjectModalTransform(
 		// the whole gesture (the others still transform).  One batch: the deformer chain bakes once per latch.
 		val geometries = captureDrawableWorlds(model, pose, targets?.drawableIds.orEmpty())
 		val geometryByOwner = geometries.associateBy { geometry -> geometry.owner }
-		val lattices = targets?.warpIds.orEmpty().mapNotNull { warpId -> captureLatticeWorld(model, warpId) }
-
-		// Object mode moves every vertex of each drawable and every point of each lattice, so the covered set is
-		// the whole of each.  Connectivity is unused here (WholeMesh pivots, no proportional editing), so a
-		// topology that connects nothing serves.
-		val sources =
-			geometries.map { geometry ->
-				ModalCaptureSource(geometry.owner, geometry.world, ElementTopology.unconnected(geometry.world.size / 2), geometry.allIndices)
-			} +
-				lattices.map { lattice ->
-					val pointCount = lattice.world.size / 2
-					ModalCaptureSource(lattice.owner, lattice.world, ElementTopology.unconnected(pointCount), (0 until pointCount).toSet())
-				}
-
+		val lattices = captureLatticeWorlds(model, targets?.warpIds.orEmpty())
+		val owners = geometries + lattices
+		// Object mode moves every vertex of each drawable and every point of each lattice.
+		val sources = owners.map { geometry -> geometry.wholeObjectSource() }
 		// The two per-area anchors the shared builder cannot resolve itself: the active item's own centroid and
 		// the 2D cursor.  The builder falls back to the combined median when nothing is active; an unplaced cursor
 		// resolves to the world origin, like the snap commands.
-		val activeAnchor =
-			when (val active = session.selection.value.active) {
-				is SelectionTarget.Drawable -> {
-					geometryByOwner[ElementOwner.Drawable(active.id)]?.let { geometry -> MeshTransforms.medianPivot(geometry.world, geometry.allIndices) }
-				}
-
-				is SelectionTarget.Deformer -> {
-					lattices.firstOrNull { lattice -> lattice.deformerId == active.id }?.let { lattice ->
-						MeshTransforms.medianPivot(lattice.world, (0 until lattice.world.size / 2).toSet())
-					}
-				}
-
-				else -> {
-					null
-				}
-			}
+		val activeAnchor = activeObjectCentroid(session.selection.value.active, owners)
 		val cursorAnchor = session.cursor2dOrWorldOrigin().let { cursor -> cursor.worldX to cursor.worldZ }
 		val transform =
 			buildModalTransformCapture(
@@ -163,20 +129,6 @@ internal class ObjectModalTransform(
 			session.clearObjectOperator()
 		} else {
 			gesture.begin(ObjectGesture(transform, geometryByOwner), gesture.lastPointer)
-		}
-	}
-
-	/**
-	 * Hands the renderer back the committed model after a gesture this area owned: the model first, then the lattice
-	 * preview cleared.  In that order a frame drawn between the two shows the committed warps under a preview of the
-	 * same lattices, so nothing flickers back to where the warps started.
-	 */
-	fun resyncRenderer() {
-		pushPreview(session.model.value)
-
-		if (latticePreviewed) {
-			latticePreviewed = false
-			pushLatticePreview(emptyMap())
 		}
 	}
 
@@ -239,15 +191,7 @@ internal class ObjectModalTransform(
 		if (committed != null && gestureData != null && parameters != null) {
 			val transform = gestureData.transform
 			val modelBefore = session.model.value
-			val drawableIds = transform.entries.mapNotNull { entry -> entry.drawableId }
-			val warpAffines = warpAffinesOf(transform, transform.operatorKind, parameters)
-
-			if (warpAffines.isEmpty()) {
-				session.commitObjectPositions(MeshChange.TransformObjects(drawableIds, transform.operatorKind), committed)
-			} else {
-				val landed = modelBefore.withMeshPositions(committed).withWarpsTransformed(warpAffines)
-				session.commitObjectTransform(MeshChange.TransformObjects(drawableIds, transform.operatorKind, warpAffines.keys.toList()), landed)
-			}
+			session.commitObjectMove(transform.entries.mapNotNull { entry -> entry.drawableId }, committed, warpAffinesOf(transform, transform.operatorKind, parameters), transform.operatorKind)
 
 			// A commit that recorded nothing (everything landed where it started) has no step of its own to
 			// amend, so it registers nothing.
@@ -310,7 +254,6 @@ internal class ObjectModalTransform(
 		}
 
 		if (request.warpAffines.isNotEmpty()) {
-			latticePreviewed = true
 			pushLatticePreview(result.previews)
 		}
 	}

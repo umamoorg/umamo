@@ -17,7 +17,6 @@ import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.resources.*
-import org.umamo.ui.transform.WorldExtent
 import org.umamo.ui.transform.partWorldBounds
 
 /*

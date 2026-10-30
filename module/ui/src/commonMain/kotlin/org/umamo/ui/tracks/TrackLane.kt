@@ -144,7 +144,7 @@ internal fun TrackLane(
 			// Read HERE rather than in composition: a group drag changes its offset, and a mark drag its
 			// feedback, every pointer frame; a draw scope read redraws the lane without recomposing the
 			// sheet above it.
-			drawTrackLane(marks, axis, playhead, markRadiusPx, colors, drag.mark, drag.value, selectedMarkDragDelta())
+			drawTrackLane(marks, axis, playhead, markRadiusPx, colors, drag.mark, drag.value, selectedMarkDragDelta(), row.pendingAt)
 		}
 
 		if (laneMenuItems != null && menuOpen && laneWidth > 0) {

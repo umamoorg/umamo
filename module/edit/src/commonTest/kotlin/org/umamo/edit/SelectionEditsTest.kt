@@ -5,6 +5,7 @@ import org.umamo.edit.SessionTestModels.model
 import org.umamo.edit.SessionTestModels.twoMeshModel
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import kotlin.test.Test
@@ -22,14 +23,14 @@ class SelectionEditsTest {
 	 * per-mesh element memory restores each mesh's selection when the session returns to it.
 	 */
 	@Test
-	fun switchEditDrawableSyncsObjectSelectionAndRemembersElementsPerMesh() {
+	fun switchEditOwnerSyncsObjectSelectionAndRemembersElementsPerMesh() {
 		val session = EditorSession(twoMeshModel())
 		session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("a"))))
 		session.setMode(EditorMode.Edit)
 		session.setMeshSelection(MeshSelectionOps.add(session.meshSelection.value, DrawableId("a"), MeshElement.Vertex(1)))
 
 		val stepsBefore = session.historyView.value.steps.size
-		session.switchEditDrawable(DrawableId("b"))
+		session.switchEditOwner(ElementOwner.Drawable(DrawableId("b")))
 		assertEquals(stepsBefore + 1, session.historyView.value.steps.size, "the switch is one undo step")
 		assertEquals(listOf(DrawableId("b")), session.meshSelection.value.drawableIds, "the edit session moved to b")
 		assertEquals(
@@ -39,7 +40,7 @@ class SelectionEditsTest {
 		)
 
 		// Switching back restores a's remembered element selection (the per-mesh memory).
-		session.switchEditDrawable(DrawableId("a"))
+		session.switchEditOwner(ElementOwner.Drawable(DrawableId("a")))
 		assertEquals(setOf<MeshElement>(MeshElement.Vertex(1)), session.meshSelection.value.elementsOf(DrawableId("a")), "a's elements return")
 
 		// One undo rewinds the whole switch - BOTH selections together, never torn across two steps.
@@ -84,9 +85,9 @@ class SelectionEditsTest {
 		assertEquals(setOf<MeshElement>(MeshElement.Edge(0, 1)), session.meshSelection.value.elementsOf(DrawableId("d")))
 	}
 
-	/** switchEditDrawable re-seeds the Edit session onto one mesh as an undoable selection step. */
+	/** switchEditOwner re-seeds the Edit session onto one mesh as an undoable selection step. */
 	@Test
-	fun switchEditDrawableReseedsTheSession() {
+	fun switchEditOwnerReseedsTheSession() {
 		val model =
 			meshModel().let { base ->
 				base.copy(drawables = base.drawables + base.drawables.first().copy(id = DrawableId("d2"), name = "d2"))
@@ -96,7 +97,7 @@ class SelectionEditsTest {
 		session.setMode(EditorMode.Edit)
 		assertEquals(listOf(DrawableId("d")), session.meshSelection.value.drawableIds)
 
-		session.switchEditDrawable(DrawableId("d2"))
+		session.switchEditOwner(ElementOwner.Drawable(DrawableId("d2")))
 		assertEquals(listOf(DrawableId("d2")), session.meshSelection.value.drawableIds, "the session re-seeds onto the target")
 		assertEquals(DrawableId("d2"), session.meshSelection.value.activeDrawableId)
 
@@ -104,7 +105,7 @@ class SelectionEditsTest {
 		assertEquals(listOf(DrawableId("d")), session.meshSelection.value.drawableIds, "the switch is one undoable step")
 
 		// A mesh-less or unknown drawable refuses the switch.
-		session.switchEditDrawable(DrawableId("missing"))
+		session.switchEditOwner(ElementOwner.Drawable(DrawableId("missing")))
 		assertEquals(listOf(DrawableId("d")), session.meshSelection.value.drawableIds)
 	}
 

@@ -18,9 +18,14 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.tracks.TrackRow
+import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_BODY
+import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_HEAD
+import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_PARAMETER
+import org.umamo.ui.viewport.viewport2d.latticeRigModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -250,5 +255,15 @@ class KeyformSheetRowsTest {
 		val blendMarks = blendRows.flatMap { row -> row.marks }
 		assertTrue(blendMarks.isNotEmpty(), "the blend row carries its key marks")
 		assertTrue(blendMarks.none { mark -> mark.editable }, "no blend mark may accept a drag or a selection")
+	}
+
+	/** A warp holding an unkeyed Pose-mode lattice rings its geometry row at the pose; the others carry no ring. */
+	@Test
+	fun aPendingLatticeRingsItsGeometryRowAtThePose() {
+		val rows = allRows(keyformSheetRows(latticeRigModel(), LATTICE_RIG_PARAMETER, labels(), pendingWarpIds = setOf(LATTICE_RIG_BODY), poseValue = 0.5f).rows)
+
+		assertEquals(0.5f, rows.single { row -> row.key == "deformer:${LATTICE_RIG_BODY.raw}/geometry" }.pendingAt)
+		assertNull(rows.single { row -> row.key == "deformer:${LATTICE_RIG_HEAD.raw}/geometry" }.pendingAt)
+		assertTrue(rows.filter { row -> !row.key.endsWith("/geometry") }.all { row -> row.pendingAt == null }, "only geometry rows ring")
 	}
 }

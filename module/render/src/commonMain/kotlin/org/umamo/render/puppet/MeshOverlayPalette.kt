@@ -54,6 +54,8 @@ data class OverlayColor(
  *   lines and its control-point dots.
  * @property OverlayColor latticeSelected A selected warp's lattice.
  * @property OverlayColor latticeActive The active warp's lattice.
+ * @property OverlayColor latticePending A warp lattice shaped in Pose mode and not yet keyed, whatever its role: its
+ *   grid lines and dots in the lattice layer, and its unselected grid lines in the Edit cage.
  */
 data class MeshOverlayPalette(
 	val vertexIdle: OverlayColor,
@@ -70,6 +72,7 @@ data class MeshOverlayPalette(
 	val latticeIdle: OverlayColor = OverlayColor.fromArgb(0xB3404040L),
 	val latticeSelected: OverlayColor = OverlayColor.fromArgb(0xFF338CFFL),
 	val latticeActive: OverlayColor = OverlayColor.fromArgb(0xFF7DE400L),
+	val latticePending: OverlayColor = OverlayColor.fromArgb(0xFFDF8431L),
 ) {
 	companion object {
 		/** The settings defaults, so a renderer draws something sensible before the UI pushes a palette. */

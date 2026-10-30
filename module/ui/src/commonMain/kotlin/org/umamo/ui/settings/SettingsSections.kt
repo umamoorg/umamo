@@ -52,6 +52,7 @@ import org.umamo.ui.resources.settings_colors_role_active
 import org.umamo.ui.resources.settings_colors_role_idle
 import org.umamo.ui.resources.settings_colors_role_offkey
 import org.umamo.ui.resources.settings_colors_role_selected
+import org.umamo.ui.resources.settings_colors_role_unkeyed
 import org.umamo.ui.resources.settings_colors_selection_highlight
 import org.umamo.ui.resources.settings_colors_viewport
 import org.umamo.ui.resources.settings_colors_warning
@@ -388,6 +389,7 @@ internal fun ColorsSection() {
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.LATTICE_IDLE_KEY, ViewportColorSettings.LATTICE_IDLE_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.LATTICE_SELECTED_KEY, ViewportColorSettings.LATTICE_SELECTED_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_unkeyed), ViewportColorSettings.LATTICE_PENDING_KEY, ViewportColorSettings.LATTICE_PENDING_DEFAULT)
 		}
 		VerticalScrollbarOverlay(scrollState)
 	}

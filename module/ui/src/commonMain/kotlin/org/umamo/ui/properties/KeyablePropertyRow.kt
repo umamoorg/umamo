@@ -4,13 +4,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
 import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.kit.menu.MenuItem
 import org.umamo.ui.resources.*
-import org.umamo.ui.workspace.keyableTarget
+import org.umamo.ui.workspace.keyableTrack
 
 /*
  * The keyable-property row wrapper: hover targeting plus the Insert / Remove Keyframe context menu.
@@ -39,6 +40,23 @@ internal fun KeyablePropertyRow(
 	modifier: Modifier = Modifier,
 	content: @Composable () -> Unit,
 ) {
+	KeyablePropertyRow(KeyformTrackRef.Channel(target), modifier, content)
+}
+
+/**
+ * Wraps [content] as a keyable row over any keyform [track] - a channel, or a geometry track such as a warp's
+ * lattice: it publishes the track on hover and carries the keyframe context menu, as the channel form does.
+ *
+ * @param KeyformTrackRef track The track this row keys.
+ * @param Modifier modifier The layout modifier for the row.
+ * @param Function content The row itself.
+ */
+@Composable
+internal fun KeyablePropertyRow(
+	track: KeyformTrackRef,
+	modifier: Modifier = Modifier,
+	content: @Composable () -> Unit,
+) {
 	val commands = LocalCommands.current
 	val keymap = LocalKeymap.current
 	val items =
@@ -54,7 +72,7 @@ internal fun KeyablePropertyRow(
 				shortcut = keymap.chordFor("keyform.delete")?.let { chord -> formatAccelerator(chord) },
 			),
 		)
-	ContextMenuArea(items = items, modifier = modifier.keyableTarget(target)) {
+	ContextMenuArea(items = items, modifier = modifier.keyableTrack(track)) {
 		content()
 	}
 }

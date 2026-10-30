@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
-import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
@@ -13,6 +12,7 @@ import org.umamo.edit.structure.selectableOf
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.anchorsInBox
 import org.umamo.render.pick.anchorsInCircle
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.viewport.ObjectPickCandidate
@@ -54,25 +54,22 @@ internal class ObjectSelectionAnchors(
 }
 
 /**
- * The anchors box and circle select test in [areaId] in [mode]: the centers of the warp lattices the area
- * draws, and in Object mode each drawable's world centroid too; Pose mode selects deformers alone.
+ * The anchors box and circle select test in [areaId]: the centers of the warp lattices the area draws, and each
+ * drawable's world centroid.
  *
  * @param PuppetViewportService service The render service.
  * @param String areaId The area.
- * @param EditorMode mode The editor mode.
  * @return Map<SelectionTarget, FloatArray> The anchors, the warps first.
  */
-internal fun viewportSelectionAnchors(service: PuppetViewportService, areaId: String, mode: EditorMode): Map<SelectionTarget, FloatArray> {
+internal fun viewportSelectionAnchors(service: PuppetViewportService, areaId: String): Map<SelectionTarget, FloatArray> {
 	val anchors = LinkedHashMap<SelectionTarget, FloatArray>()
 
 	for ((deformerId, center) in service.latticeWorldCenters(areaId)) {
 		anchors[SelectionTarget.Deformer(deformerId)] = center
 	}
 
-	if (mode == EditorMode.Object) {
-		for ((drawableId, centroid) in service.drawableWorldCentroids()) {
-			anchors[SelectionTarget.Drawable(drawableId)] = centroid
-		}
+	for ((drawableId, centroid) in service.drawableWorldCentroids()) {
+		anchors[SelectionTarget.Drawable(drawableId)] = centroid
 	}
 
 	return anchors
@@ -82,51 +79,49 @@ internal fun viewportSelectionAnchors(service: PuppetViewportService, areaId: St
  * How near a lattice's grid line a click must land to take its warp, in screen pixels: narrower than a control
  * point's [HIT_RADIUS_PX], so the art between a dense lattice's lines stays clickable.
  */
-private const val LATTICE_LINE_HIT_RADIUS_PX = 4f
+internal const val LATTICE_LINE_HIT_RADIUS_PX = 4f
 
 /**
- * What a plain click at [position] in [areaId] takes in [mode]: the first selectable warp whose drawn lattice is
- * under it (a control point within [HIT_RADIUS_PX], else a grid line within [LATTICE_LINE_HIT_RADIUS_PX]), and
- * failing that, in Object mode, the front-most drawable's art.  A locked warp is passed over, so the click reaches
- * what is under its lattice.
+ * What a plain click at [position] in [areaId] takes: the first selectable warp whose drawn lattice is under it (a
+ * control point within [HIT_RADIUS_PX], else a grid line within [LATTICE_LINE_HIT_RADIUS_PX]), and failing that, the
+ * front-most drawable's art.  A locked warp is passed over, so the click reaches what is under its lattice.
  *
  * @param PuppetViewportService service The render service (the lattice and raster picks).
  * @param String areaId The clicked area.
  * @param Offset position The click in area-local pixels.
- * @param EditorMode mode The editor mode.
  * @param PuppetModel model The model the selectable flags live in.
  * @return SelectionTarget? The target, or null on empty canvas.
  */
-internal fun viewportTopmostTarget(service: PuppetViewportService, areaId: String, position: Offset, mode: EditorMode, model: PuppetModel): SelectionTarget? {
-	val lattices = service.latticePicksAt(areaId, position.x, position.y, HIT_RADIUS_PX, LATTICE_LINE_HIT_RADIUS_PX)
-	val lattice = selectableDeformerTargets(lattices, model).firstOrNull()
+internal fun viewportTopmostTarget(service: PuppetViewportService, areaId: String, position: Offset, model: PuppetModel): SelectionTarget? {
+	val lattices = latticesUnder(service, areaId, position)
 
-	if (lattice != null || mode != EditorMode.Object) {
-		return lattice
-	}
-
-	return service.pickAt(areaId, position.x, position.y)?.let { drawableId -> SelectionTarget.Drawable(drawableId) }
+	return selectableDeformerTargets(lattices, model).firstOrNull() ?: service.pickAt(areaId, position.x, position.y)?.let { drawableId -> SelectionTarget.Drawable(drawableId) }
 }
 
 /**
- * Everything an Alt click at [position] in [areaId] lists in [mode]: the warps whose drawn lattice is under it,
- * best first, then - in Object mode - every drawable whose art is, front to back.
+ * The warps whose drawn lattice lies under [position] in [areaId], best first, at the viewport's pick radii: a control
+ * point within [HIT_RADIUS_PX], else a grid line within [LATTICE_LINE_HIT_RADIUS_PX].  Every click that can land on a
+ * lattice reads these radii here.
+ *
+ * @param PuppetViewportService service The render service.
+ * @param String areaId The area.
+ * @param Offset position The pointer in area-local pixels.
+ * @return List<DeformerId> The warps, best first.
+ */
+internal fun latticesUnder(service: PuppetViewportService, areaId: String, position: Offset): List<DeformerId> =
+	service.latticePicksAt(areaId, position.x, position.y, HIT_RADIUS_PX, LATTICE_LINE_HIT_RADIUS_PX)
+
+/**
+ * Everything an Alt click at [position] in [areaId] lists: the warps whose drawn lattice is under it, best first,
+ * then every drawable whose art is, front to back.
  *
  * @param PuppetViewportService service The render service.
  * @param String areaId The clicked area.
  * @param Offset position The click in area-local pixels.
- * @param EditorMode mode The editor mode.
  * @return List<ObjectPickCandidate> The stack, unfiltered.
  */
-internal fun viewportPickStack(service: PuppetViewportService, areaId: String, position: Offset, mode: EditorMode): List<ObjectPickCandidate> {
-	val lattices =
-		service.latticePicksAt(areaId, position.x, position.y, HIT_RADIUS_PX, LATTICE_LINE_HIT_RADIUS_PX).map { deformerId ->
-			ObjectPickCandidate(SelectionTarget.Deformer(deformerId))
-		}
-
-	if (mode != EditorMode.Object) {
-		return lattices
-	}
+internal fun viewportPickStack(service: PuppetViewportService, areaId: String, position: Offset): List<ObjectPickCandidate> {
+	val lattices = latticesUnder(service, areaId, position).map { deformerId -> ObjectPickCandidate(SelectionTarget.Deformer(deformerId)) }
 
 	return lattices + service.pickAllAt(areaId, position.x, position.y).asObjectPickCandidates()
 }
@@ -136,7 +131,7 @@ internal fun viewportPickStack(service: PuppetViewportService, areaId: String, p
  *
  * @return Set<DrawableId> The selected drawables.
  */
-internal fun Selection.selectedDrawableIds(): Set<DrawableId> = targets.mapNotNull { (it as? SelectionTarget.Drawable)?.id }.toSet()
+internal fun Selection.selectedDrawableIds(): Set<DrawableId> = targets.mapNotNull { target -> (target as? SelectionTarget.Drawable)?.id }.toSet()
 
 /**
  * One Circle-select brush stamp: encloses the objects whose world anchor is within the brush, filters
@@ -238,7 +233,7 @@ internal fun viewportObjectMarquee(session: EditorSession, anchors: ObjectSelect
 /**
  * The idle click-pick / box flow over whole objects (press rubber-bands, sub-threshold release picks,
  * Alt resolves the overlap stack, Shift+RightClick places the 2D cursor), bound to this viewport's lattice
- * and raster pickers in the session's mode ([viewportTopmostTarget], [viewportPickStack]) and its anchor
+ * and raster pickers ([viewportTopmostTarget], [viewportPickStack]) and its anchor
  * snapshot; see ObjectPickController.
  *
  * @param String areaId The overlay's area (the pick target).
@@ -260,8 +255,8 @@ internal fun viewportObjectPick(
 	ObjectPickController(
 		session = session,
 		marquee = marquee,
-		pickTopmost = { position -> viewportTopmostTarget(service, areaId, position, session.mode.value, session.model.value) },
-		pickStack = { position -> viewportPickStack(service, areaId, position, session.mode.value) },
+		pickTopmost = { position -> viewportTopmostTarget(service, areaId, position, session.model.value) },
+		pickStack = { position -> viewportPickStack(service, areaId, position) },
 		onOverlapRequest = onOverlapRequest,
 		placeCursor = session::setCursor2d,
 		onBoxBegin = { anchors.refresh() },

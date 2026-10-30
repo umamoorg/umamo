@@ -33,6 +33,18 @@ enum class EditorMode {
 val EditorMode.pinsPose: Boolean get() = this == EditorMode.Edit
 
 /**
+ * Whether this mode works on the session's elements - mesh vertices, edges, and faces, or lattice points, grid
+ * lines, and cells - rather than on whole objects.
+ *
+ * Edit and Pose mode share one way of working: the viewport picks the elements of the session's owners, the select
+ * modes switch the element domain, and G / R / S move what the elements cover.  What tells them apart is where the
+ * edit lands, which [pinsPose] decides: Edit mode shapes the rest state, Pose mode shapes the pose and holds the result
+ * pending until it is keyed.  A check that means "points rather than objects" reads this rule; a check that means "at
+ * rest" (topology, UVs, mesh generation) stays on Edit mode itself.
+ */
+val EditorMode.editsElements: Boolean get() = this != EditorMode.Object
+
+/**
  * The pose this mode shows, and so the pose every view and every edit aimed at "the pose" evaluates at:
  * the rig's pose, and while the mode pins it, every parameter at its default.
  *

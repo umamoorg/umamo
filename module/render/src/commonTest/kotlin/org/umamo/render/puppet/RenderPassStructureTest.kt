@@ -1486,7 +1486,7 @@ class RenderPassStructureTest {
 					edgeFlags[activeEdge] = OVERLAY_FLAG_ACTIVE
 				}
 
-				MeshOverlayMesh(ElementOwner.Drawable(DrawableId(id)), vertexCount, quadEdges, vertexFlags, edgeFlags, ByteArray(2), activeVertex, activeEdge, null, wireframeOnly = id in wireframeOnly)
+				MeshOverlayMesh(ElementOwner.Drawable(DrawableId(id)), vertexCount, quadEdges, vertexFlags, edgeFlags, ByteArray(2), activeVertex, activeEdge, null, style = if (id in wireframeOnly) MeshStyle.Wireframe else MeshStyle.Plain)
 			},
 			MeshOverlaySizes(3.5f, 1f, 2.5f),
 		)

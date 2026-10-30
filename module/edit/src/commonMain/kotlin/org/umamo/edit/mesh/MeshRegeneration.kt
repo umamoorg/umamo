@@ -11,8 +11,8 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.applyAffine
+import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 
 /*
@@ -300,7 +300,7 @@ private fun PuppetModel.prepareSource(drawableId: DrawableId): SourcePreparation
 	}
 
 	val storedToArt = atlas.storedToArtAffineForTile(tileId) ?: return SourcePreparation.Unusable(RegenerationRefusal.NoArtFrame)
-	val artToStored = invertUvAffine(storedToArt) ?: return SourcePreparation.Unusable(RegenerationRefusal.NoArtFrame)
+	val artToStored = invertAffine(storedToArt) ?: return SourcePreparation.Unusable(RegenerationRefusal.NoArtFrame)
 
 	if (!isWellFormed(mesh)) {
 		return SourcePreparation.Unusable(RegenerationRefusal.DegenerateOldMesh)
@@ -408,7 +408,7 @@ private fun isWellFormed(mesh: DrawableMesh): Boolean {
  * @return FloatArray The points, x0, y0, ...
  */
 private fun rasterPointsOf(mesh: DrawableMesh, storedToArt: FloatArray, tileWidth: Int, tileHeight: Int): FloatArray {
-	val artUvs = applyUvAffine(mesh.uvs, storedToArt)
+	val artUvs = applyAffine(mesh.uvs, storedToArt)
 
 	return FloatArray(artUvs.size) { component ->
 		val size = if (component % 2 == 0) tileWidth else tileHeight
@@ -790,7 +790,7 @@ private fun newUvsOf(generated: PlanarTriangleMesh, source: SourcePreparation.Pr
 				0f
 			}
 		}
-	val storedUvs = applyUvAffine(artUvs, source.artToStored)
+	val storedUvs = applyAffine(artUvs, source.artToStored)
 
 	for (vertex in copiedUvFrom.indices) {
 		if (copiedUvFrom[vertex] >= 0) {

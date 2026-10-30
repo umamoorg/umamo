@@ -20,6 +20,7 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.transform.onlyDrawables" -> stringResource(Res.string.notice_transform_only_drawables)
 		"notice.transform.deformed" -> stringResource(Res.string.notice_transform_deformed)
 		"notice.mode.poseNeedsDeformer" -> stringResource(Res.string.notice_mode_pose_needs_deformer)
+		"notice.pose.latticeEditsDiscarded" -> stringResource(Res.string.notice_pose_lattice_edits_discarded, *countArguments(arguments, 1))
 		"notice.keyform.noTarget" -> stringResource(Res.string.notice_keyform_no_target)
 		"notice.keyform.noParameter" -> stringResource(Res.string.notice_keyform_no_parameter)
 		"notice.parameter.deleteChangedRest" -> stringResource(Res.string.notice_parameter_delete_changed_rest, *countArguments(arguments, 1))
