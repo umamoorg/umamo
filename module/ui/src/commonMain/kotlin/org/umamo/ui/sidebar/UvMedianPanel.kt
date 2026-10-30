@@ -66,7 +66,7 @@ internal fun UvMedianPanel(context: SidebarContext) {
 	val writes =
 		remember(context.puppet, selection, frame) {
 			UvMedianWrites {
-				uvMedianMove(uvCoveredVertices(selection, liveSurface.value.geometries), frame, liveSurface.value.radiusState)
+				uvMedianMove(selection, liveSurface.value.geometries, frame, liveSurface.value.radiusState)
 			}
 		}
 	val scrub = rememberFieldScrubPreview(enabled = true)

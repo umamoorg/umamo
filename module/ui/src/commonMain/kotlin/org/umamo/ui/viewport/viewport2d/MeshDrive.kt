@@ -183,10 +183,12 @@ internal sealed interface MeshJobOutcome {
 }
 
 /**
- * The drive's jobs over a capture: one per entry with frozen geometry, its halo and moved set read now.
+ * The drive's jobs over a capture: one per entry with captured geometry that moves, its halo and moved set read now.
+ * An entry with nothing to move - a bystander the halo does not reach - gets no job, so nothing of it is folded or
+ * committed.
  *
  * @param ModalTransformCapture transform The capture.
- * @param Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each moving owner's frozen geometry.
+ * @param Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each captured owner's world geometry.
  * @param Boolean wholeMeshes True for an Object-mode capture: whole drawables, no halo, every covered vertex.
  * @return List<MeshDriveJob> The jobs, in capture order.
  */
@@ -197,12 +199,10 @@ internal fun meshDriveJobs(
 ): List<MeshDriveJob> =
 	transform.entries.mapNotNull { entry ->
 		val geometry = geometryByOwner[entry.owner] ?: return@mapNotNull null
+		val influence = if (wholeMeshes) emptyMap() else entry.influence
+		val moved = if (wholeMeshes) entry.coveredIndices else entry.movedIndices
 
-		if (wholeMeshes) {
-			MeshDriveJob(entry.owner, entry.positions, entry.groups, emptyMap(), entry.coveredIndices, geometry)
-		} else {
-			MeshDriveJob(entry.owner, entry.positions, entry.groups, entry.influence, entry.movedIndices, geometry)
-		}
+		if (moved.isEmpty()) null else MeshDriveJob(entry.owner, entry.positions, entry.groups, influence, moved, geometry)
 	}
 
 /**

@@ -4,11 +4,11 @@ import androidx.compose.runtime.MutableState
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshSelection
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.mesh.commitMeshUvs
 import org.umamo.edit.mesh.withMeshUvs
 import org.umamo.edit.transform.IndividualOriginScope
-import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.TransformGestureParameters
@@ -16,6 +16,7 @@ import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /*
  * A typed or scrubbed UV Vertex / Median value as an Edit-mode move: a Grab of every covered texture coordinate on
@@ -25,8 +26,8 @@ import org.umamo.runtime.model.PuppetModel
 
 /**
  * The covered texture coordinates captured for a move of their median: a Grab capture over every covered vertex
- * with no proportional weights, the frame the coordinates were authored in, the surface's radius, and the median
- * the move measures from.  All frozen when the move is built, as a viewport gesture freezes them, so a page switch
+ * with no proportional weights and every other shown mesh in the edit as a bystander, the frame the coordinates were
+ * authored in, the surface's radius, and the median the move measures from.  All frozen when the move is built, as a viewport gesture freezes them, so a page switch
  * between the first frame of a scrub and its release cannot move the target.
  *
  * Built from the committed coordinates at a write's first frame and reused only until something commits: the
@@ -80,21 +81,24 @@ internal class UvMedianMove(
 }
 
 /**
- * Captures [covered] for a move of their median.  The pivot is the median point with no anchors: a Grab ignores
- * the pivot, and Individual Origins would only build connectivity islands for nothing.  Each source carries its
- * mesh's triangles, so Connected Only works if the rigger turns proportional editing on from the strip afterward.
+ * Captures the coordinates [selection] covers across the shown meshes for a move of their median.  The pivot is the
+ * median point with no anchors: a Grab ignores the pivot, and Individual Origins would only build connectivity islands
+ * for nothing.  Every shown mesh in the edit is offered, each with its triangles, the way the UV editor's own Grab
+ * offers them ([uvCaptureSources]), so turning proportional editing on from the strip afterward reaches the same
+ * meshes that Grab's would - a straight-line halo into the meshes with nothing covered, Connected Only along each
+ * mesh's own edges.
  *
- * @param List<UvCoveredVertices> covered The covered vertices, read from the COMMITTED coordinates.
+ * @param MeshSelection selection The mesh selection.
+ * @param List<GizmoMeshGeometry> geometries The shown meshes' display geometry, read from the COMMITTED coordinates.
  * @param UvEditFrame frame The surface's authoring frame.
  * @param MutableState<Float?> radiusState The surface's proportional radius.
  * @return UvMedianMove? The move, or null when nothing is covered.
  */
-internal fun uvMedianMove(covered: List<UvCoveredVertices>, frame: UvEditFrame, radiusState: MutableState<Float?>): UvMedianMove? {
+internal fun uvMedianMove(selection: MeshSelection, geometries: List<GizmoMeshGeometry>, frame: UvEditFrame, radiusState: MutableState<Float?>): UvMedianMove? {
+	val covered = uvCoveredVertices(selection, geometries)
 	val median = uvCoveredMedian(covered) ?: return null
-	val sources =
-		covered.map { mesh ->
-			ModalCaptureSource(mesh.geometry.owner, mesh.geometry.positions.copyOf(), mesh.geometry.topology, mesh.indices)
-		}
+	val coveredByOwner = covered.associate { mesh -> mesh.geometry.owner to mesh.indices }
+	val sources = uvCaptureSources(selection, geometries) { geometry -> coveredByOwner[geometry.owner].orEmpty() }
 	val transform =
 		buildModalTransformCapture(
 			sources = sources,

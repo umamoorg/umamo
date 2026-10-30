@@ -71,6 +71,7 @@
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
 * 3D rotation gizmo: A new tool available from the toolbar.(Requires the toolbar to be fleshed out first to give it a home.)  This will be available for drawables and warp deformers.  Rotation around Y will just be a regular R rotate.  Rotation around X and Z will calculate the rotated positions in the X and Z planes without actually moving the vertices in the Y plane.  This will mostly be useful for the warp deformer mode where modellers will want a 3D rotation effect quickly without having to manually move all the vertices to do so.  To build this we can add the functionality to R rotate activated by pressing the X/Z axis lock.  Then the functionality can easily be accessed by the gizmo tool.
+	* Ability to push rotation origin along the Y axis to affect the rotation calculation.  This would allow much quick creation of head rotation movements.  It would need a visual that pops up in the lower right showing the pushing motion as a grid with a distance.(Think like those vaporwave wireframe going into the distance, but like Blender's grid.)
 
 ## Overlay Toggles
 * Improvements

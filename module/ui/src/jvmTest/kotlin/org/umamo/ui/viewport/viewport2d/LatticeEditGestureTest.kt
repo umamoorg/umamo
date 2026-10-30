@@ -18,7 +18,6 @@ import org.umamo.edit.withParameter
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.assertArrayNear
 import org.umamo.ui.transform.WorldAxis
-import org.umamo.ui.transform.coveredVerticesOf
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.clickIn
 import org.umamo.ui.viewport.gizmo.dragIn
@@ -198,8 +197,7 @@ class LatticeEditGestureTest {
 			assertEquals("change.lattice.move", session.historyView.value.steps.last().labelKey)
 
 			val owners = editOwnerGeometries(session.model.value, session.meshSelection.value.owners)
-			val covered = coveredVerticesOf(session.meshSelection.value, owners.map { geometry -> geometry.worldGeometry }, owners.associate { geometry -> geometry.owner to geometry.topology })
-			val move = assertNotNull(coveredMedianMove(covered))
+			val move = assertNotNull(coveredMedianMove(session.meshSelection.value, owners))
 			val preview = assertNotNull(session.previewCoveredMedianMove(move, WorldAxis.X, 10f))
 			assertSame(session.model.value, preview.folded, "a lattice scrub folds nothing into the model")
 			assertEquals(10f, assertNotNull(preview.latticeWorld[LATTICE_RIG_BODY])[6], 1e-3f, "it moves the cage")

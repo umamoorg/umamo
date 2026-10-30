@@ -9,7 +9,6 @@ import org.umamo.edit.transform.ProportionalInfluence
 import org.umamo.edit.transform.RotationAngleTracker
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
-import org.umamo.edit.transform.TransformPivots
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.identityAffine
 import org.umamo.runtime.model.rotationAboutAffine
@@ -195,18 +194,19 @@ internal fun slideVertexByFactor(
  *
  * Proportional editing adds [proportionalInfluences]: after the selected vertices transform at full
  * strength through their pivot groups, each influenced unselected vertex takes the SAME gesture scaled
- * by its falloff weight, anchored on the pivot of the group OWNING its nearest covered vertex - so
- * with Individual Origins the halo turns with its island, while the shared-pivot modes keep anchoring
- * on the gesture anchor (the single group's pivot).  Factors and angles are still MEASURED against
- * the frame anchor (Blender measures against the transform center even with Individual Origins).
+ * by its falloff weight, anchored on the pivot its influence carries (the pivot of the group OWNING its
+ * nearest covered vertex, in this mesh or another) - so with Individual Origins the halo turns with its
+ * island, while the shared-pivot modes keep anchoring on the gesture anchor.  A bystander mesh has no
+ * groups and moves by its halo alone.  Factors and angles are still MEASURED against the frame anchor
+ * (Blender measures against the transform center even with Individual Origins).
  *
  * @param MeshOperatorKind operator The active operator.
  * @param FloatArray originalWorld The world posed positions captured at gesture start.
  * @param List<TransformPivotGroup> groups The pivot groups covering the selected vertices.
  * @param TransformGestureParameters parameters The delta / factors / angle to apply - shared by every
  *   mesh in the capture.
- * @param Map<Int, ProportionalInfluence> proportionalInfluences The influenced unselected vertices
- *   (empty when proportional editing is off).
+ * @param Map<Int, ProportionalInfluence> proportionalInfluences The influenced unselected vertices, each
+ *   with the pivot it anchors on (empty when proportional editing is off).
  * @return FloatArray The transformed world positions.
  */
 internal fun applyOperator(
@@ -224,8 +224,7 @@ internal fun applyOperator(
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.translateVertices(positions, group.vertexIndices, deltaX, deltaY)
 				}
-			// A translation has no pivot, so the halo needs no per-group partition - one weighted pass.
-			MeshTransforms.translateVerticesWeighted(moved, proportionalInfluences.mapValues { entry -> entry.value.weight }, deltaX, deltaY)
+			MeshTransforms.translateVerticesWeighted(moved, proportionalInfluences, deltaX, deltaY)
 		}
 
 		MeshOperatorKind.Scale -> {
@@ -237,10 +236,7 @@ internal fun applyOperator(
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.scaleVerticesAxis(positions, group.vertexIndices, factorX, factorY, group.pivotX, group.pivotY)
 				}
-			val partitions = TransformPivots.partitionInfluencesByGroup(proportionalInfluences, groups)
-			groups.foldIndexed(moved) { groupIndex, positions, group ->
-				MeshTransforms.scaleVerticesWeighted(positions, partitions[groupIndex], factorX, factorY, group.pivotX, group.pivotY)
-			}
+			MeshTransforms.scaleVerticesWeighted(moved, proportionalInfluences, factorX, factorY)
 		}
 
 		MeshOperatorKind.Rotate -> {
@@ -251,10 +247,7 @@ internal fun applyOperator(
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.rotateVertices(positions, group.vertexIndices, rotation, group.pivotX, group.pivotY)
 				}
-			val partitions = TransformPivots.partitionInfluencesByGroup(proportionalInfluences, groups)
-			groups.foldIndexed(moved) { groupIndex, positions, group ->
-				MeshTransforms.rotateVerticesWeighted(positions, partitions[groupIndex], rotation, group.pivotX, group.pivotY)
-			}
+			MeshTransforms.rotateVerticesWeighted(moved, proportionalInfluences, rotation)
 		}
 
 		// Vertex Slide never reaches here: the drive loop handles it with its own edge projection.

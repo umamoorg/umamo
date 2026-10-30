@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.MeshSelection
 import org.umamo.ui.kit.Text
 import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.model.PuppetRenderSync
@@ -16,7 +17,6 @@ import org.umamo.ui.properties.rememberFieldScrubPreview
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
-import org.umamo.ui.transform.CoveredVertices
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.coveredMedian
 import org.umamo.ui.transform.coveredVerticesOf
@@ -24,6 +24,7 @@ import org.umamo.ui.transform.rememberElementEditStage
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.viewport2d.CoveredMedianMove
+import org.umamo.ui.viewport.viewport2d.EditOwnerGeometry
 import org.umamo.ui.viewport.viewport2d.MeshDriveResult
 import org.umamo.ui.viewport.viewport2d.coveredMedianMove
 import org.umamo.ui.viewport.viewport2d.editOwnerGeometries
@@ -31,14 +32,16 @@ import org.umamo.ui.viewport.viewport2d.moveCoveredMedianAdjustable
 import org.umamo.ui.viewport.viewport2d.previewCoveredMedianMove
 
 /**
- * The move the panel's writes drive, captured at the first write and kept for the covered set it was built from:
- * every frame of a scrub drives the same capture, and a commit changes the model, which brings a fresh set.
+ * The move the panel's writes drive, captured at the first write and kept for the selection and geometry it was built
+ * from: every frame of a scrub drives the same capture, and a commit changes the model, which brings a fresh one.
  *
- * @param List<CoveredVertices> covered The covered vertices the move captures.
+ * @param MeshSelection selection The mesh selection whose covered vertices the move captures.
+ * @param List<EditOwnerGeometry> edit Every owner in the edit, as the panel captured it.
  * @param ElementEditStage stage Where they were captured.
  */
 private class MedianWrites(
-	private val covered: List<CoveredVertices>,
+	private val selection: MeshSelection,
+	private val edit: List<EditOwnerGeometry>,
 	private val stage: ElementEditStage,
 ) {
 	private var captured: CoveredMedianMove? = null
@@ -48,7 +51,7 @@ private class MedianWrites(
 	 *
 	 * @return CoveredMedianMove? The move, or null when nothing is covered.
 	 */
-	fun move(): CoveredMedianMove? = captured ?: coveredMedianMove(covered, stage).also { move -> captured = move }
+	fun move(): CoveredMedianMove? = captured ?: coveredMedianMove(selection, edit, stage).also { move -> captured = move }
 }
 
 /**
@@ -142,7 +145,7 @@ internal fun EditMedianPanel(context: SidebarContext) {
 		return
 	}
 
-	val writes = remember(covered, stage) { MedianWrites(covered, stage) }
+	val writes = remember(capture, selection, stage) { MedianWrites(selection, capture, stage) }
 	val scrub = rememberFieldScrubPreview(enabled = true)
 	val areaId = context.areaId
 	Text(

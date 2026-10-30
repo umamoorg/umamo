@@ -725,7 +725,7 @@
 	<string name="notice_uv_placement_off_page">Placement extends past the page edge.  The overhang is cropped.</string>
 	<string name="notice_uv_placement_pinned">Selected tile is pinned.  Unpin it to transform it.</string>
 	<string name="notice_edit_no_editable_geometry">Nothing to edit, every selected drawable is hidden by a parent.</string>
-	<string name="notice_edit_rotation_not_editable">A rotation deformer has no points to edit.  Move or turn it in Object mode.</string>
+	<string name="notice_edit_rotation_not_editable">Rotation deformer editing is not yet built.</string>
 	<string name="notice_edit_warp_has_no_lattice">This warp deformer has no lattice to edit.</string>
 	<string name="notice_edit_warp_hidden_at_rest">This warp deformer is not drawn at the default pose, so its lattice cannot be edited.</string>
 	<string name="notice_edit_lattice_topology_fixed">Lattice topology can be reshaped, but it can not be destructively changed.</string>

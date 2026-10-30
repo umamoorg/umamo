@@ -667,7 +667,7 @@
 	<string name="notice_uv_placement_off_page">配置がページの端を超えています。はみ出した部分は切り取られます。</string>
 	<string name="notice_uv_placement_pinned">選択したタイルはピン留めされています。トランスフォームするにはピン留めを解除してください。</string>
 	<string name="notice_edit_no_editable_geometry">編集できるものがありません。選択中のドローアブルはすべて親によって非表示です。</string>
-	<string name="notice_edit_rotation_not_editable">回転デフォーマには編集できる点がありません。オブジェクトモードで移動・回転してください。</string>
+	<string name="notice_edit_rotation_not_editable">回転デフォーマの編集はまだ実装されていません。</string>
 	<string name="notice_edit_warp_has_no_lattice">このワープデフォーマには編集できる格子がありません。</string>
 	<string name="notice_edit_warp_hidden_at_rest">このワープデフォーマはデフォルトのポーズで描画されないため、格子を編集できません。</string>
 	<string name="notice_edit_lattice_topology_fixed">格子のグリッドは変えられません。点の移動はできますが、追加・マージ・リップ・連結はできません。</string>

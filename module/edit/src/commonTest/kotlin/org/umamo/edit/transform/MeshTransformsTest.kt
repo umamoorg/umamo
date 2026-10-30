@@ -119,7 +119,7 @@ class MeshTransformsTest {
 	@Test
 	fun weightedTranslateScalesTheDeltaPerVertex() {
 		val input = square()
-		val result = MeshTransforms.translateVerticesWeighted(input, mapOf(1 to 0.5f, 2 to 1f), deltaX = 4f, deltaY = -2f)
+		val result = MeshTransforms.translateVerticesWeighted(input, mapOf(1 to ProportionalInfluence(0.5f, 0f, 0f), 2 to ProportionalInfluence(1f, 0f, 0f)), deltaX = 4f, deltaY = -2f)
 
 		assertClose(4f, result[2], "half-weight vertex 1 x moved by +2")
 		assertClose(-1f, result[3], "half-weight vertex 1 y moved by -1")
@@ -133,7 +133,7 @@ class MeshTransformsTest {
 	@Test
 	fun weightedScaleLerpsTowardTheScaledPosition() {
 		val input = square()
-		val result = MeshTransforms.scaleVerticesWeighted(input, mapOf(0 to 0.5f), factorX = 3f, factorY = 3f, pivotX = 1f, pivotY = 1f)
+		val result = MeshTransforms.scaleVerticesWeighted(input, mapOf(0 to ProportionalInfluence(0.5f, pivotX = 1f, pivotY = 1f)), factorX = 3f, factorY = 3f)
 
 		// (0,0) fully scaled about (1,1) by 3 lands on (-2,-2); half weight stops halfway at (-1,-1)
 		// (the effective factor is 1 + (3-1) x 0.5 = 2).
@@ -146,7 +146,7 @@ class MeshTransformsTest {
 	@Test
 	fun weightedRotateScalesTheAngleNotTheChord() {
 		val input = square()
-		val result = MeshTransforms.rotateVerticesWeighted(input, mapOf(1 to 0.5f), radians = (PI / 2).toFloat(), pivotX = 0f, pivotY = 0f)
+		val result = MeshTransforms.rotateVerticesWeighted(input, mapOf(1 to ProportionalInfluence(0.5f, pivotX = 0f, pivotY = 0f)), radians = (PI / 2).toFloat())
 
 		// (2,0) with half the 90 degree turn lands at 45 degrees: (sqrt(2), sqrt(2)) - still 2 from the
 		// pivot, which a positional lerp (the chord midpoint (1,1)) would not be.
@@ -155,5 +155,25 @@ class MeshTransformsTest {
 		assertClose(expected, result[3], "half-weight vertex 1 y at 45 degrees")
 		assertClose(2f, sqrt(result[2] * result[2] + result[3] * result[3]), "distance from the pivot preserved")
 		assertEquals(0f, result[0], "unweighted vertex 0 untouched")
+	}
+
+	/** Each influenced vertex scales and turns about its own influence's pivot, not one shared for the map. */
+	@Test
+	fun weightedScaleAndRotateUseEachInfluencesOwnPivot() {
+		val input = square()
+		val influences = mapOf(0 to ProportionalInfluence(1f, pivotX = 1f, pivotY = 1f), 2 to ProportionalInfluence(1f, pivotX = 2f, pivotY = 0f))
+		val scaled = MeshTransforms.scaleVerticesWeighted(input, influences, factorX = 2f, factorY = 2f)
+
+		assertClose(-1f, scaled[0], "vertex 0 doubles away from (1, 1)")
+		assertClose(-1f, scaled[1], "vertex 0 y doubles away from (1, 1)")
+		assertClose(-2f, scaled[4], "vertex 2 x doubles away from (2, 0)")
+		assertClose(4f, scaled[5], "vertex 2 y doubles away from (2, 0)")
+
+		val rotated = MeshTransforms.rotateVerticesWeighted(input, influences, radians = PI.toFloat())
+
+		assertClose(2f, rotated[0], "vertex 0 turns half way round (1, 1)")
+		assertClose(2f, rotated[1], "vertex 0 y turns half way round (1, 1)")
+		assertClose(4f, rotated[4], "vertex 2 x turns half way round (2, 0)")
+		assertClose(-2f, rotated[5], "vertex 2 y turns half way round (2, 0)")
 	}
 }
