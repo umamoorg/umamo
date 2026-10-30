@@ -13,8 +13,6 @@ package org.umamo.render.pick
  * gesture start and tests against each frame - so the selection math is unit-testable with no render or
  * Compose context.  Only drawables appear in worldPositions (deformers and parts have no viewport geometry),
  * and hidden / mesh-less drawables are already absent, so the enclosure naturally covers only real drawables.
- *
- * オブジェクトモードのボックス / サークル選択の領域判定。描画メッシュの重心が領域内にあるとき選択する。
  */
 
 /**
