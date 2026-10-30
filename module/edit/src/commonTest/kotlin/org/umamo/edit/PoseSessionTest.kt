@@ -47,10 +47,25 @@ class PoseSessionTest {
 		remembered.setSelection(Selection())
 		remembered.setMode(EditorMode.Pose)
 		assertEquals(listOf<ElementOwner>(ElementOwner.Deformer(second)), remembered.meshSelection.value.owners)
-		assertTrue(remembered.selection.value.isEmpty, "a soft seed, not a re-selection")
+		assertEquals(SelectionOps.replace(SelectionTarget.Deformer(second)), remembered.selection.value, "the fallback becomes the selection")
 
 		val fresh = posing(listOf(SelectionTarget.Drawable(art)))
 		assertEquals(listOf<ElementOwner>(ElementOwner.Deformer(cage)), fresh.meshSelection.value.owners, "the first warp the pose draws")
+		assertEquals(SelectionOps.replace(SelectionTarget.Deformer(cage)), fresh.selection.value, "replacing the art Pose mode cannot open")
+	}
+
+	@Test
+	fun aTabFromAFallbackPoseOpensEditOnTheSameWarp() {
+		val session = posing(listOf(SelectionTarget.Drawable(art)))
+
+		session.toggleEditMode()
+		assertEquals(EditorMode.Edit, session.mode.value)
+		assertEquals(listOf<ElementOwner>(ElementOwner.Deformer(cage)), session.meshSelection.value.owners, "the warp Pose mode opened, not the art selected before it")
+
+		session.undo()
+		session.undo()
+		assertEquals(EditorMode.Object, session.mode.value)
+		assertEquals(SelectionOps.replace(SelectionTarget.Drawable(art)), session.selection.value, "undoing the entry returns the art with the mode")
 	}
 
 	@Test

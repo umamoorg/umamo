@@ -771,7 +771,7 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Sets the interaction mode as its own undo step, so undo restores the mode (and the mesh selection
+	 * Sets the interaction mode as its own undo step, so undo restores the mode (and the selections
 	 * it seeds) together - the editor never lands in Edit mode showing a state captured in Object mode.
 	 * Entering Edit seeds the session by the active item's kind ([editEntryOf]): an active warp opens on EVERY
 	 * selected warp Edit mode can shape; otherwise the session takes EVERY selected mesh-carrying drawable
@@ -779,15 +779,16 @@ class EditorSession private constructor(
 	 * to the last owner that was active (Blender's remembered selection) when nothing is selected, and past that
 	 * to the topmost editable drawable in Parts-panel order (so a fresh document lands on something to
 	 * edit rather than an inert session); the remembered fallback is skipped if that owner is no longer
-	 * editable. When the model has nothing editable at all, or the active item is a rotation deformer or a warp
+	 * editable, and a fallback owner becomes the object selection in the same step. When the model has nothing
+	 * editable at all, or the active item is a rotation deformer or a warp
 	 * with no rest lattice, entering Edit is refused - the mode stays as it was, a notice says why where there is
 	 * one, and nothing is recorded - so Edit mode always holds owners. Leaving Edit or Pose mode stashes the
 	 * element selection and clears it; re-entering on the same owner restores the stash when every
 	 * element still fits its topology (Blender's remembered mesh selection). Leaving also ends any in-flight
 	 * operator. Entering Pose mode is refused with a notice when the model has no deformer, since there is
 	 * nothing to pose; otherwise it seeds the session with the warps the pose draws, as Tab seeds Edit mode
-	 * ([poseSeedOf]), or with nothing when there are none.  The select mode rides every switch, Object mode included
-	 * (Blender's select mode is a tool setting, not part of the selection).  The pending edits ride every switch
+	 * ([poseSeedOf]) and selecting a fallback warp the same way, or with nothing when there are none.  The select
+	 * mode rides every switch, Object mode included (Blender's select mode is a tool setting, not part of the selection).  The pending edits ride every switch
 	 * untouched: a switch never moves the pose they were made for.  The mode is editor state, not document content, so it
 	 * does not dirty the document. A no-op (already in [mode]) records nothing.
 	 *
@@ -798,72 +799,72 @@ class EditorSession private constructor(
 			return
 		}
 
-		val newMeshSelection =
-			when (mode) {
-				EditorMode.Edit -> {
-					val model = mutableModel.value
-					// The session spans EVERY selected owner of the active item's kind (multi-mesh edit, needed for
-					// glue work; several lattices at once); the object selection's active item becomes the session's
-					// active owner.  Nothing editable refuses Edit rather than opening an inert session (Blender needs
-					// an active object too): stay in the current mode, record nothing, and say why when there is a why.
-					val editSeed =
-						when (val entry = editEntryOf(model, mutableSelection.value, elementMemory.lastActiveOwner)) {
-							is EditEntry.Opens -> {
-								entry.seed
-							}
-
-							is EditEntry.Refused -> {
-								entry.noticeKey?.let { key -> notices.emit(key, NoticePlacement.NearCursor, emptyList()) }
-
-								return
-							}
+		when (mode) {
+			EditorMode.Edit -> {
+				val model = mutableModel.value
+				// The session spans EVERY selected owner of the active item's kind (multi-mesh edit, needed for
+				// glue work; several lattices at once); the object selection's active item becomes the session's
+				// active owner.  Nothing editable refuses Edit rather than opening an inert session (Blender needs
+				// an active object too): stay in the current mode, record nothing, and say why when there is a why.
+				val editSeed =
+					when (val entry = editEntryOf(model, mutableSelection.value, elementMemory.lastActiveOwner)) {
+						is EditEntry.Opens -> {
+							entry.seed
 						}
-					// The mode Edit was entered from is where its toggle returns to.
-					editReturnMode = mutableMode.value
-					openSeededSession(editSeed, model)
-				}
 
-				EditorMode.Pose -> {
-					val model = mutableModel.value
+						is EditEntry.Refused -> {
+							entry.noticeKey?.let { key -> notices.emit(key, NoticePlacement.NearCursor, emptyList()) }
 
-					// Refuse with a notice rather than open a mode that can do nothing, as Edit refuses a model with
-					// nothing editable.
-					if (!model.canPose) {
-						notices.emit("notice.mode.poseNeedsDeformer", NoticePlacement.NearCursor, emptyList())
-
-						return
+							return
+						}
 					}
-
-					// Pose mode works on lattice points as Edit mode does, over the warps the pose draws (seeded like
-					// Tab), and an empty session when there are none - it still scrubs and keys.
-					openSeededSession(poseSeedOf(model, mutableSelection.value, elementMemory.lastActiveOwner, mutablePose.value), model)
-				}
-
-				EditorMode.Object -> {
-					// Stash each owner's element selection so re-entering Edit or Pose mode restores it per owner; the
-					// empty session keeps the select mode, so the next entry selects in it.
-					elementMemory.stash(mutableMeshSelection.value)
-					latches.clearTransient(clearViewportGesture = true)
-					MeshSelection(selectMode = mutableMeshSelection.value.selectMode)
-				}
+				// The mode Edit was entered from is where its toggle returns to.
+				editReturnMode = mutableMode.value
+				openSeededSession(mode, editSeed, model)
 			}
-		commitStep(EditorStateChange.ModeChanged(mode), meshSelection = newMeshSelection, mode = mode)
+
+			EditorMode.Pose -> {
+				val model = mutableModel.value
+
+				// Refuse with a notice rather than open a mode that can do nothing, as Edit refuses a model with
+				// nothing editable.
+				if (!model.canPose) {
+					notices.emit("notice.mode.poseNeedsDeformer", NoticePlacement.NearCursor, emptyList())
+
+					return
+				}
+
+				// Pose mode works on lattice points as Edit mode does, over the warps the pose draws (seeded like
+				// Tab), and an empty session when there are none - it still scrubs and keys.
+				openSeededSession(mode, poseSeedOf(model, mutableSelection.value, elementMemory.lastActiveOwner, mutablePose.value), model)
+			}
+
+			EditorMode.Object -> {
+				// Stash each owner's element selection so re-entering Edit or Pose mode restores it per owner; the
+				// empty session keeps the select mode, so the next entry selects in it.
+				elementMemory.stash(mutableMeshSelection.value)
+				latches.clearTransient(clearViewportGesture = true)
+				commitStep(EditorStateChange.ModeChanged(mode), meshSelection = MeshSelection(selectMode = mutableMeshSelection.value.selectMode), mode = mode)
+			}
+		}
 	}
 
 	/**
-	 * The element session an Edit or Pose mode entry opens on [seed] over [model], or an empty one for no seed.  A seed
-	 * whose active owner is not the object selection's own (the remembered owner, or a fallback) is remembered, so the
-	 * next entry is stable - a soft seed, not a re-selection, so the object selection is left alone.  The transient tool
-	 * state clears, since the select tool is shared with Object mode and a tool armed before the switch must not drive
-	 * the element overlay.  The session being left is stashed (nothing, from Object mode), then each seeded owner's
-	 * remembered elements are restored where they still fit its topology, converted into the select mode the session
-	 * carries; the rest start empty, and entering on other owners keeps every other owner's memory.
+	 * Enters [mode], Edit or Pose, on the element session [seed] opens over [model], or an empty one for no seed, as ONE
+	 * undo step with the object selection the seed lands on ([EditSeed.selectionOver]): a fallback owner replaces the
+	 * object selection, as Alt+Q's switch selects the owner it moves to, so the panels show what the session edits and
+	 * the next mode switch seeds from it.  A seed whose active owner is not the object selection's own active item is
+	 * remembered, so the next entry is stable.  The transient tool state clears, since the select tool is shared with
+	 * Object mode and a tool armed before the switch must not drive the element overlay.  The session being left is
+	 * stashed (nothing, from Object mode), then each seeded owner's remembered elements are restored where they still
+	 * fit its topology, converted into the select mode the session carries; the rest start empty, and entering on other
+	 * owners keeps every other owner's memory.
 	 *
+	 * @param EditorMode mode The mode entered, Edit or Pose.
 	 * @param EditSeed? seed The owners to open on, or null for none.
 	 * @param PuppetModel model The model the owners' topologies come from.
-	 * @return MeshSelection The new element session.
 	 */
-	private fun openSeededSession(seed: EditSeed?, model: PuppetModel): MeshSelection {
+	private fun openSeededSession(mode: EditorMode, seed: EditSeed?, model: PuppetModel) {
 		if (seed != null && !seed.activeSelected) {
 			elementMemory.lastActiveOwner = seed.activeOwner
 		}
@@ -871,8 +872,9 @@ class EditorSession private constructor(
 		latches.clearTransient(clearViewportGesture = true)
 		val selectMode = mutableMeshSelection.value.selectMode
 		elementMemory.stash(mutableMeshSelection.value)
-
-		return seed?.let { opened -> elementMemory.restore(opened.session.copy(selectMode = selectMode), model) } ?: MeshSelection(selectMode = selectMode)
+		val newSelection = seed?.selectionOver(mutableSelection.value) ?: mutableSelection.value
+		val newMeshSelection = seed?.let { opened -> elementMemory.restore(opened.session.copy(selectMode = selectMode), model) } ?: MeshSelection(selectMode = selectMode)
+		commitStep(EditorStateChange.ModeChanged(mode), selection = newSelection, meshSelection = newMeshSelection, mode = mode)
 	}
 
 	/**
