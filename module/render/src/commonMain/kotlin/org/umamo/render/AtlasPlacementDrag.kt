@@ -8,7 +8,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.inversePlacementAffine
 import org.umamo.runtime.model.placementAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
@@ -108,7 +108,7 @@ private fun widenByMeshReach(model: PuppetModel, drawable: Drawable, bounds: Flo
 	}
 
 	val storedToArt = model.atlas.storedToArtAffineForTile(tileId) ?: return
-	val artUvs = applyUvAffine(uvs, storedToArt)
+	val artUvs = applyAffine(uvs, storedToArt)
 	var componentIndex = 0
 
 	while (componentIndex + 1 < artUvs.size) {
@@ -666,7 +666,7 @@ private fun addArtTriangles(mesh: DrawableMesh, storedToArt: FloatArray, tileWid
 		return
 	}
 
-	val artUvs = applyUvAffine(mesh.uvs, storedToArt)
+	val artUvs = applyAffine(mesh.uvs, storedToArt)
 	val vertexCount = artUvs.size / 2
 	var indexOffset = 0
 

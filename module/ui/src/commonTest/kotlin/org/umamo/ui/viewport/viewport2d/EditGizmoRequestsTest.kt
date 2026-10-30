@@ -12,6 +12,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
 import org.umamo.edit.SnapKind
 import org.umamo.render.pick.PickCandidate
+import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.viewport.StubPuppetViewportService
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -53,6 +54,7 @@ class EditGizmoRequestsTest {
 					session = session,
 					service = service,
 					geometries = geometries,
+					stage = mutableStateOf(ElementEditStage.Rest),
 					camera = mutableStateOf(RIG_CAMERA),
 					size = mutableStateOf(RIG_AREA_SIZE),
 					areaPointer = mutableStateOf(pointer),

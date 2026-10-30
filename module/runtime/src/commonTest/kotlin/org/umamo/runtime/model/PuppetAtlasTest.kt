@@ -78,7 +78,7 @@ class PuppetAtlasTest {
 		val binding = assertNotNull(model.atlasBindingFor(model.drawables.single()))
 		assertNull(binding.placement, "art that was never packed is sampled where it lies")
 		assertTrue(
-			layerUvAffineOf(binding, 8, 16).contentEquals(identityUvAffine()),
+			layerUvAffineOf(binding, 8, 16).contentEquals(identityAffine()),
 			"so its stored coordinates already address it and the mapping is the identity",
 		)
 	}

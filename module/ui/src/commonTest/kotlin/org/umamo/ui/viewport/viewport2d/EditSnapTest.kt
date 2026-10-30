@@ -3,6 +3,7 @@ package org.umamo.ui.viewport.viewport2d
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
 import org.umamo.edit.SnapKind
+import org.umamo.ui.transform.ElementEditStage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -22,7 +23,7 @@ class EditSnapTest {
 	 * @param Float gridStep The area's grid step a grid snap rounds to.
 	 */
 	private fun snap(session: EditorSession, kind: SnapKind, gridStep: Float = 10f) {
-		handleEditSnapRequest(session, editMeshGeometries(session.model.value, session.meshSelection.value.drawableIds), kind, gridStep)
+		handleEditSnapRequest(session, editMeshGeometries(session.model.value, session.meshSelection.value.drawableIds), ElementEditStage.Rest, kind, gridStep)
 	}
 
 	/** Selection to Grid rounds each covered vertex to the area's step; the rest of the mesh stays. */

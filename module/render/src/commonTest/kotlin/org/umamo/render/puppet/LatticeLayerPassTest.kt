@@ -126,6 +126,31 @@ class LatticeLayerPassTest {
 	}
 
 	@Test
+	fun aFrameDrawsExactlyTheLatticesAClickInItCanPick() {
+		val device = RecordingRenderDevice()
+		val renderer = latticeRenderer(device)
+		val target = mainTarget(device)
+		val roleColors =
+			mapOf(
+				LatticeRole.Idle to components(palette.latticeIdle),
+				LatticeRole.Selected to components(palette.latticeSelected),
+				LatticeRole.Active to components(palette.latticeActive),
+			)
+
+		for (overlays in listOf(FrameOverlays(), FrameOverlays(allLattices = false), FrameOverlays(meshOverlay = false))) {
+			device.clearLog()
+			renderer.render(target, viewportSize, viewportSize, overlays = overlays)
+
+			val pickable = latticesDrawnIn(LatticeOverlay(roles, sizes), renderer.latticeWorldPoints(), overlays).keys
+			assertEquals(
+				pickable.mapTo(HashSet()) { deformerId -> roleColors.getValue(roles.getValue(deformerId)) },
+				device.overlayDraws().mapTo(HashSet()) { draw -> draw.idleColor },
+				"the drawn roles are the pickable ones under $overlays",
+			)
+		}
+	}
+
+	@Test
 	fun theShowOverlaysMasterHidesTheLayerButKeepsItWarm() {
 		val device = RecordingRenderDevice()
 		val renderer = latticeRenderer(device)

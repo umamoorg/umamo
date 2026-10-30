@@ -313,17 +313,6 @@ internal fun Part.partFormScaler(defaultOf: (ParameterId) -> Float): (PartForm, 
 }
 
 /**
- * The default value per parameter id of this model, 0 for an id it lacks (as the evaluator reads one).
- *
- * @return Function The lookup.
- */
-internal fun PuppetModel.defaultValueLookup(): (ParameterId) -> Float {
-	val defaultById = parameters.associate { parameter -> parameter.id to parameter.default }
-
-	return { parameterId -> defaultById[parameterId] ?: 0f }
-}
-
-/**
  * Whether collapsing [parameterId]'s axis out of [grid] at [keepValue] changes the grid's value at the default
  * pose.  It does when the default sits on none of the axis's keys - the collapse keeps the nearest key's slice
  * rather than the look at the default - and, for a sole-axis grid whose kept key has no cell (a sparse grid, as

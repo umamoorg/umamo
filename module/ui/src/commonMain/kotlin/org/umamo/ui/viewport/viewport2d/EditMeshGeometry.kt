@@ -7,22 +7,24 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.render.eval.ParentSpaceMapping
-import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeLayout
+import org.umamo.runtime.model.deformerId
+import org.umamo.runtime.model.drawableId
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.transform.captureEditModeMeshes
-import org.umamo.ui.transform.captureLatticeWorld
+import org.umamo.ui.transform.captureLatticeWorlds
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /**
- * One owner an Edit session shapes, as the 2D overlay picks and transforms it at the rest pose Edit mode is pinned
- * to: a drawable's mesh ([EditMeshGeometry]) or a warp's lattice ([EditLatticeGeometry]).
+ * One owner an Edit or Pose session shapes, as the 2D overlay picks and transforms it at the stage it edits at: a
+ * drawable's mesh ([EditMeshGeometry]) at rest, or a warp's lattice ([EditLatticeGeometry]) at rest or at the pose.
  */
 internal sealed interface EditOwnerGeometry {
 	/** The owner: the drawable or the warp. */
@@ -34,7 +36,7 @@ internal sealed interface EditOwnerGeometry {
 	/** Its vertices, edges, and faces: a mesh's triangles, or a lattice's points, grid lines, and cells. */
 	val topology: ElementTopology
 
-	/** Its vertices in world space at the rest pose, interleaved x, y. */
+	/** Its vertices in world space at the stage's pose, interleaved x, y. */
 	val worldPosed: FloatArray
 
 	/** The geometry-source-agnostic view the shared element queries take. */
@@ -88,18 +90,15 @@ internal class EditMeshGeometry(
 }
 
 /**
- * One session lattice's geometry at the rest pose: the warp's lattice as the default pose draws it, with its points,
- * grid lines, and cells.
+ * One session lattice's geometry at its stage: the warp's lattice as that pose draws it, with its points, grid lines,
+ * and cells.
  *
- * @property LatticeWorldGeometry worldGeometry The lattice's capture at the default pose.
+ * @property LatticeWorldGeometry worldGeometry The lattice's capture.
  */
 internal class EditLatticeGeometry(
 	override val worldGeometry: LatticeWorldGeometry,
 ) : EditOwnerGeometry {
 	override val owner: ElementOwner get() = worldGeometry.owner
-
-	/** The warp. */
-	val deformerId: DeformerId get() = worldGeometry.deformerId
 
 	override val topology: ElementTopology = ElementTopology.ofLattice(WarpLatticeLayout(worldGeometry.lattice.rows, worldGeometry.lattice.columns))
 
@@ -109,22 +108,28 @@ internal class EditLatticeGeometry(
 }
 
 /**
- * Each session owner's geometry at the rest pose Edit mode is pinned to, in the session's order: a drawable's
- * through [editMeshGeometries], a warp's lattice as the default pose draws it.  An owner that cannot be drawn there
- * (a hidden ancestor, a lattice the defaults leave unkeyed) is skipped, so an empty result is a real state.
+ * Each session owner's geometry at [stage], in the session's order: a drawable's through [editMeshGeometries] (a mesh
+ * session is always at rest), a warp's lattice as the stage's pose draws it.  An owner that cannot be drawn there (a
+ * hidden ancestor, a lattice the pose leaves unkeyed) is skipped, so an empty result is a real state.
  *
  * @param PuppetModel model The model to project.
  * @param List<ElementOwner> owners The session's owners.
+ * @param ElementEditStage stage Where the session edits.
  * @return List<EditOwnerGeometry> The per-owner geometry, skipping what cannot be projected.
  */
-internal fun editOwnerGeometries(model: PuppetModel, owners: List<ElementOwner>): List<EditOwnerGeometry> {
-	val drawableIds = owners.mapNotNull { owner -> (owner as? ElementOwner.Drawable)?.id }
-	val meshById = editMeshGeometries(model, drawableIds).associateBy { geometry -> geometry.owner }
+internal fun editOwnerGeometries(
+	model: PuppetModel,
+	owners: List<ElementOwner>,
+	stage: ElementEditStage = ElementEditStage.Rest,
+): List<EditOwnerGeometry> {
+	val meshById = editMeshGeometries(model, owners.mapNotNull { owner -> owner.drawableId }).associateBy { geometry -> geometry.owner }
+	// One bake of every session lattice's chain.
+	val latticeById = captureLatticeWorlds(model, owners.mapNotNull { owner -> owner.deformerId }, stage).associateBy { capture -> capture.owner }
 
 	return owners.mapNotNull { owner ->
 		when (owner) {
 			is ElementOwner.Drawable -> meshById[owner]
-			is ElementOwner.Deformer -> captureLatticeWorld(model, owner.id)?.let { capture -> EditLatticeGeometry(capture) }
+			is ElementOwner.Deformer -> latticeById[owner]?.let { capture -> EditLatticeGeometry(capture) }
 		}
 	}
 }

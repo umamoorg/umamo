@@ -82,7 +82,7 @@ class MeshDriveParallelTest {
 		val session = EditorSession(manyMeshModel(48))
 		val targets = session.model.value.drawables.map { drawable -> SelectionTarget.Drawable(drawable.id) }
 		session.setSelection(Selection(targets.toSet(), targets.first()))
-		val transform = ObjectModalTransform(AREA_ID, session) { }
+		val transform = ObjectModalTransform(AREA_ID, session, pushPreview = { })
 		session.beginObjectOperator(MeshOperatorKind.Rotate, AREA_ID)
 		transform.begin(MeshOperatorKind.Rotate)
 		val gestureData = assertNotNull(transform.gesture.capture)

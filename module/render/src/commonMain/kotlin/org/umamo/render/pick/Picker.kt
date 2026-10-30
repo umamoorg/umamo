@@ -19,8 +19,6 @@ private const val CENTRALITY_STEP_TEXELS = 2f
  * One opaque candidate under the cursor: the drawable, its front-rank (higher = drawn more in front),
  * and its centrality (0..1, higher = the click is deeper inside the opaque art). Used to build the
  * overlap-picker popup.
- *
- * カーソル下の不透明候補。前面ランクと中心度を持つ。
  */
 data class PickCandidate(val id: DrawableId, val frontRank: Float, val centrality: Float)
 
@@ -28,8 +26,6 @@ data class PickCandidate(val id: DrawableId, val frontRank: Float, val centralit
  * Reports whether a point lies inside (or on an edge of) a triangle, using the sign of the three edge
  * cross products. Works for either winding order; a point exactly on an edge counts as inside. A
  * degenerate (zero-area) triangle accepts only points lying on its collapsed span.
- *
- * 点が三角形の内部（辺上を含む）にあるかを、3辺の外積の符号で判定する。巻き方向に依存しない。
  *
  * @param Float pointX  The test point X.
  * @param Float pointY  The test point Y.
@@ -66,8 +62,6 @@ fun pointInTriangle(
  * side, negative on the other, zero on the line. The sign, not the magnitude, is what
  * [pointInTriangle] consumes.
  *
- * 点と有向辺の符号付き面積項。
- *
  * @param Float pointX The test point X.
  * @param Float pointY The test point Y.
  * @param Float startX Edge start X.
@@ -89,8 +83,6 @@ private fun edgeSide(
  * The barycentric weights (w0, w1, w2) of a point relative to a triangle, used to interpolate
  * per-vertex attributes (the UV) at a hit point. Weights sum to 1; a degenerate (zero-area) triangle
  * returns equal thirds rather than dividing by zero.
- *
- * 三角形に対する点の重心座標。頂点属性（UV）の補間に使う。退化三角形は 1/3 ずつを返す。
  *
  * @param Float pointX The point X.
  * @param Float pointY The point Y.
@@ -133,9 +125,6 @@ fun barycentricWeights(
  * [sampleAlpha]d; a texel below [alphaThreshold] is rejected (the transparent overhang). Among the
  * opaque hits, the highest [frontRank] wins — the renderer's resolved paint order, which is correct
  * where the raw draw-order scalar (ignoring the group hierarchy) is not.
- *
- * 変形メッシュが点を含み、かつその位置のテクセルが不透明な最前面のドロウアブルを返す。前面ランクは
- * レンダラの解決済み描画順に基づく（生のドローオーダー値ではない）。
  *
  * @param Float worldX                               The point X in post-deform world space.
  * @param Float worldZ                               The point Z (up) in post-deform world space.
@@ -184,8 +173,6 @@ fun pickDrawable(
  * same hit + alpha gate as [pickDrawable]; built for the overlap-picker popup. Centrality (how deep the
  * hit is inside the opaque art) is computed per survivor from its atlas size via [atlasSizeOf]; an
  * untextured drawable (null size) scores full centrality.
- *
- * 点の下の不透明候補すべてを前面順に返す（各々の中心度付き）。重なり選択ポップアップ用。
  *
  * @param Float worldX                               The point X in post-deform world space.
  * @param Float worldZ                               The point Z (up) in post-deform world space.
@@ -244,9 +231,6 @@ fun pickAllDrawables(
  * large opaque region scores high; a hit near a transparent boundary scores low. Approximate
  * (ray-sampled, not an exact distance transform), and it cannot tell apart adjacently-packed atlas art.
  *
- * UV ヒット位置が不透明領域のどれだけ奥かを近似する（0..1）。テクスチャ空間で放射状にレイを飛ばし、
- * 最も近い透明テクセルまでの距離を上限で正規化する。
- *
  * @param DrawableId id          The drawable being scored.
  * @param Float u                The hit U (full-atlas).
  * @param Float v                The hit V (full-atlas).
@@ -300,8 +284,6 @@ fun centralityAt(
  * The barycentric-interpolated (u, v) at the first triangle of a drawable's mesh that contains the point,
  * or null when no triangle does. Index triples address vertices in the interleaved [positions] and [uvs]
  * arrays (vertex n at index 2n, 2n+1). Shared by [pickDrawable] and [pickAllDrawables].
- *
- * 点を含む最初の三角形での補間 UV を返す（無ければ null）。
  *
  * @param Float worldX             The point X.
  * @param Float worldZ             The point Z (up).

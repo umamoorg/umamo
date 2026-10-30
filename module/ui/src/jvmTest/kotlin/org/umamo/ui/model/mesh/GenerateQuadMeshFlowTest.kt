@@ -28,7 +28,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.isUntouchedBirthQuad
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.ui.document.ArtDocument
@@ -106,7 +106,7 @@ class GenerateQuadMeshFlowTest {
 				assertEquals(expected[component] + if (component % 2 == 0) ORIGIN_X else ORIGIN_Y, mesh.positions[component], 1e-3f, "corner component $component")
 			}
 
-			val artUvs = applyUvAffine(mesh.uvs, assertNotNull(session.model.value.atlas.storedToArtAffineForTile(tileA)))
+			val artUvs = applyAffine(mesh.uvs, assertNotNull(session.model.value.atlas.storedToArtAffineForTile(tileA)))
 			assertTrue(mesh.isUntouchedBirthQuad(artUvs, 64, 64, ORIGIN_X, ORIGIN_Y), "a reload takes it for the import's own quad")
 			assertEquals(stepsBefore + 1, session.historyView.value.steps.size)
 			assertEquals("change.mesh.generateQuad", session.historyView.value.steps.last().labelKey)

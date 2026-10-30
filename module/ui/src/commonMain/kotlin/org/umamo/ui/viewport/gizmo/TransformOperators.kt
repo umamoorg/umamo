@@ -11,6 +11,10 @@ import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
 import org.umamo.edit.transform.TransformPivots
 import org.umamo.render.ViewportCamera
+import org.umamo.runtime.model.identityAffine
+import org.umamo.runtime.model.rotationAboutAffine
+import org.umamo.runtime.model.scaleAboutAffine
+import org.umamo.runtime.model.translationAffine
 import kotlin.math.atan2
 
 /**
@@ -257,4 +261,23 @@ internal fun applyOperator(
 		MeshOperatorKind.VertexSlide -> {
 			originalWorld
 		}
+	}
+
+/**
+ * The world transform [applyOperator] applies to a whole object in pivot group [group], as a 2x3 row-major affine
+ * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f): Grab translates, Scale scales about the group's
+ * pivot, and Rotate turns about it.  An object moved whole takes no proportional halo, so the affine is the
+ * operator exactly - what a warp moved as an object maps every one of its forms through.
+ *
+ * @param MeshOperatorKind operator The active operator.
+ * @param TransformGestureParameters parameters The delta / factors / angle to apply.
+ * @param TransformPivotGroup group The pivot group the object turns and scales about.
+ * @return FloatArray The affine; the identity for a Vertex Slide, which never moves a whole object.
+ */
+internal fun gestureAffine(operator: MeshOperatorKind, parameters: TransformGestureParameters, group: TransformPivotGroup): FloatArray =
+	when (operator) {
+		MeshOperatorKind.Grab -> translationAffine(parameters.deltaX, parameters.deltaY)
+		MeshOperatorKind.Scale -> scaleAboutAffine(group.pivotX, group.pivotY, parameters.factorX, parameters.factorY)
+		MeshOperatorKind.Rotate -> rotationAboutAffine(group.pivotX, group.pivotY, parameters.rotationRadians)
+		MeshOperatorKind.VertexSlide -> identityAffine()
 	}

@@ -2,7 +2,7 @@ package org.umamo.ui.viewport.uv
 
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 
 /*
  * The placement drive's compute: the frozen gesture evaluated into a placement per mover and a display
@@ -62,7 +62,7 @@ internal fun computePlacementDrive(request: PlacementDriveRequest): PlacementDri
 	for ((drawableId, frozen) in gestureData.frozenPositionsByDrawable) {
 		val tileId = gestureData.tileByDrawable[drawableId] ?: continue
 		val affine = evaluation.displayAffineByTile[tileId] ?: continue
-		preview[drawableId] = applyUvAffine(frozen, affine)
+		preview[drawableId] = applyAffine(frozen, affine)
 	}
 
 	return PlacementDriveResult(evaluation, preview)

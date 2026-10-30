@@ -22,6 +22,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.captureDrawableWorld
 import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.slideVertexByFactor
@@ -97,7 +98,7 @@ class TransformAdjustRegistrationTest {
 		var writeBacks = 0
 		val record =
 			assertNotNull(
-				registerMeshTransformAdjustment(session, "area-1", transform, mapOf(geometry.owner to geometry), landed, ProportionalRows.of(null, 200f)) { _, state ->
+				registerMeshTransformAdjustment(session, "area-1", transform, mapOf(geometry.owner to geometry), ElementEditStage.Rest, landed, ProportionalRows.of(null, 200f)) { _, state ->
 					writtenBack = state
 					writeBacks++
 				},

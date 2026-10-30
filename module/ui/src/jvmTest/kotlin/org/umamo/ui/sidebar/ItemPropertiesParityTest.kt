@@ -295,17 +295,20 @@ class ItemPropertiesParityTest {
 			assertReadOnly("550.0", index = 1)
 		}
 
-	/** A warp shows its lattice's box in both panels, read-only. */
+	/** A warp shows its lattice's box in both panels, and a Size typed in one resizes the whole warp in both. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test
-	fun aWarpShowsItsLatticeReadOnlyInBoth() =
+	fun aWarpsLatticeBoxShowsAndEditsInBoth() =
 		runComposeUiTest {
 			mountShowing(WARP_W)
 			onAllNodesWithText("120.0").assertCountEquals(2)
 			onAllNodesWithText("-230.0").assertCountEquals(2)
 			onAllNodesWithText("40.0").assertCountEquals(2)
 			onAllNodesWithText("60.0").assertCountEquals(2)
-			assertReadOnly("40.0", index = 0)
+
+			typeInto("40.0", index = 0, typed = "80")
+			onAllNodesWithText("80.0").assertCountEquals(2)
+			onAllNodesWithText("120.0").assertCountEquals(2)
 		}
 
 	/**

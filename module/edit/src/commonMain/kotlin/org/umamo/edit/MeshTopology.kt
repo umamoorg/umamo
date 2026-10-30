@@ -16,11 +16,7 @@ object MeshTopology {
 	 * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).
 	 * @return List<MeshElement.Edge> The unique edges, in first-encounter order.
 	 */
-	fun uniqueEdges(triangleIndices: IntArray): List<MeshElement.Edge> {
-		val endpoints = uniqueEdgeEndpoints(triangleIndices)
-
-		return List(endpoints.size / 2) { edgeOrdinal -> MeshElement.Edge(endpoints[edgeOrdinal * 2], endpoints[edgeOrdinal * 2 + 1]) }
-	}
+	fun uniqueEdges(triangleIndices: IntArray): List<MeshElement.Edge> = ElementTopology.edgesOf(uniqueEdgeEndpoints(triangleIndices))
 
 	/**
 	 * The unique undirected edges of a triangle index list as flat endpoint pairs: exactly [uniqueEdges]'

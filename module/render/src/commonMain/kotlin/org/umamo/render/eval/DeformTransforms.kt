@@ -6,6 +6,72 @@ import kotlin.math.sin
 // The float pi the Umamo C++ Runtime uses (matches its sincosf bit-for-bit)
 internal const val PI_F = 3.1415927f
 
+/** Below this a 2x2 map's determinant counts as singular: the map folds or collapses there, and no inverse holds. */
+internal const val SINGULAR_DETERMINANT = 1e-12f
+
+/**
+ * [angle] wrapped into [-pi, pi], so a difference of two wrapped angles never turns the long way round.
+ *
+ * @param Float angle The angle in radians.
+ * @return Float The wrapped angle.
+ */
+internal fun wrapRadians(angle: Float): Float {
+	var turned = angle
+
+	while (turned > PI_F) {
+		turned -= 2f * PI_F
+	}
+
+	while (turned < -PI_F) {
+		turned += 2f * PI_F
+	}
+
+	return turned
+}
+
+/**
+ * The Jacobian of [warp]'s map at (u, v) by forward differences of [step], from the map's value there
+ * ([originX], [originY]), written row-major into [jacobian]: d(x)/du, d(x)/dv, d(y)/du, d(y)/dv.  What the
+ * inverses and the extrapolation take where no closed form holds ([latticeJacobianAt] is the exact one inside the
+ * lattice).
+ *
+ * @param WarpWorld warp The baked warp.
+ * @param Float u The horizontal coordinate.
+ * @param Float v The vertical coordinate.
+ * @param Float originX The map's x at (u, v).
+ * @param Float originY The map's y at (u, v).
+ * @param Float step The difference step, in normalized lattice coordinates.
+ * @param FloatArray stepped Two scratch slots for the stepped evaluations.
+ * @param FloatArray jacobian Four slots for the Jacobian.
+ */
+internal fun warpDifferenceJacobian(
+	warp: WarpWorld,
+	u: Float,
+	v: Float,
+	originX: Float,
+	originY: Float,
+	step: Float,
+	stepped: FloatArray,
+	jacobian: FloatArray,
+) {
+	warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, u + step, v, stepped, 0)
+	jacobian[0] = (stepped[0] - originX) / step
+	jacobian[2] = (stepped[1] - originY) / step
+	warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, u, v + step, stepped, 0)
+	jacobian[1] = (stepped[0] - originX) / step
+	jacobian[3] = (stepped[1] - originY) / step
+}
+
+/**
+ * The cell ordinal along one lattice axis that grid coordinate [grid] falls in: its whole part, a far edge belonging
+ * to the last cell.  The one border rule every lattice lookup by cell reads.
+ *
+ * @param Float grid The coordinate in cells along the axis.
+ * @param Int cellCount The axis's cell count.
+ * @return Int The cell's ordinal along the axis.
+ */
+internal fun cellOrdinal(grid: Float, cellCount: Int): Int = grid.toInt().coerceAtMost(cellCount - 1)
+
 /**
  * In-grid warp transform: maps a child point `(u, v)` inside the lattice `[0,1)²` to world via the
  * deformed control points [cp] - `(cols+1)×(rows+1)` points, interleaved x,y. [bilinear] true does the
@@ -74,8 +140,8 @@ internal fun latticePointAt(
 ) {
 	val gridU = cols * u.coerceIn(0f, 1f)
 	val gridV = rows * v.coerceIn(0f, 1f)
-	val cellColumn = gridU.toInt().coerceAtMost(cols - 1)
-	val cellRow = gridV.toInt().coerceAtMost(rows - 1)
+	val cellColumn = cellOrdinal(gridU, cols)
+	val cellRow = cellOrdinal(gridV, rows)
 	latticeCellPoint(cp, cols + 1, bilinear, cellRow * (cols + 1) + cellColumn, gridU - cellColumn, gridV - cellRow, out, outIndex)
 }
 
@@ -110,8 +176,8 @@ internal fun latticeJacobianAt(
 	val pointsPerRow = cols + 1
 	val gridU = cols * u
 	val gridV = rows * v
-	val cellColumn = gridU.toInt().coerceAtMost(cols - 1)
-	val cellRow = gridV.toInt().coerceAtMost(rows - 1)
+	val cellColumn = cellOrdinal(gridU, cols)
+	val cellRow = cellOrdinal(gridV, rows)
 	val cellU = gridU - cellColumn
 	val cellV = gridV - cellRow
 	val cellIndex = cellRow * pointsPerRow + cellColumn

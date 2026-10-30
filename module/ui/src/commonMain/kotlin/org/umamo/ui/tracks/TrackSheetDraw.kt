@@ -50,7 +50,8 @@ private fun DrawScope.drawMark(shape: TrackKeyShape, center: Offset, radius: Flo
 }
 
 /**
- * One lane's draw pass: the hairline baseline, the playhead, and the marks at their drawn positions.
+ * One lane's draw pass: the hairline baseline, the playhead, the marks at their drawn positions, and the pending
+ * edit's hollow mark over them.
  *
  * Called inside the lane's Canvas lambda, which is where [draggedMark], [draggedValue], and [groupDelta]
  * were read: all three change every pointer frame of a drag, and a draw-phase read redraws the lane
@@ -64,6 +65,7 @@ private fun DrawScope.drawMark(shape: TrackKeyShape, center: Offset, radius: Flo
  * @param TrackKeyMark? draggedMark The mark under the hand, or null when no mark drag is in flight.
  * @param Float draggedValue Where the dragged mark is drawn, in domain units.
  * @param Float? groupDelta The in-flight group-drag offset on every selected mark, or null for none.
+ * @param Float? pendingAt Where the row holds an edit not yet keyed, or null for none.
  */
 internal fun DrawScope.drawTrackLane(
 	marks: List<TrackKeyMark>,
@@ -74,6 +76,7 @@ internal fun DrawScope.drawTrackLane(
 	draggedMark: TrackKeyMark?,
 	draggedValue: Float,
 	groupDelta: Float?,
+	pendingAt: Float? = null,
 ) {
 	// A hairline baseline makes an empty track legible as a track rather than as blank panel.
 	drawLine(
@@ -106,4 +109,16 @@ internal fun DrawScope.drawTrackLane(
 			}
 		drawMark(mark.shape, Offset(x, size.height * 0.5f), markRadiusPx, fill, colors.panelBackground)
 	}
+
+	// Over the marks and hollow, so a key already at the same place shows through the ring.
+	pendingAt?.let { value ->
+		val center = Offset(laneX(axis.fractionOf(value), size.width, markRadiusPx), size.height * 0.5f)
+		drawCircle(colors.keyedModified, markRadiusPx + PENDING_RING_GROWTH_PX, center, style = Stroke(width = PENDING_RING_WIDTH_PX))
+	}
 }
+
+/** How much wider than a mark the pending ring is drawn, in pixels, so it rings a key at the same place. */
+private const val PENDING_RING_GROWTH_PX = 1.5f
+
+/** The pending ring's stroke width, in pixels. */
+private const val PENDING_RING_WIDTH_PX = 1.5f

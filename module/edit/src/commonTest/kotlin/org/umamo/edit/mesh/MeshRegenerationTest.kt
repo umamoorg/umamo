@@ -17,7 +17,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -51,7 +51,7 @@ class MeshRegenerationTest {
 			val oldDrawable = RegenerationFixtures.riggedDrawable(RegenerationFixtures.meshOver(atlas, jittered, gridIndices))
 			val model = RegenerationFixtures.modelOf(listOf(oldDrawable, RegenerationFixtures.partnerDrawable()), listOf(RegenerationFixtures.partnerGlue()), atlas)
 			val oldMesh = oldDrawable.mesh!!
-			val artUvs = applyUvAffine(oldMesh.uvs, atlas.storedToArtAffineForTile(RegenerationFixtures.tileId)!!)
+			val artUvs = applyAffine(oldMesh.uvs, atlas.storedToArtAffineForTile(RegenerationFixtures.tileId)!!)
 			val rasterPoints = FloatArray(artUvs.size) { component -> (artUvs[component].toDouble() * TILE_SIZE).toFloat() }
 			val built = RegenerationFixtures.built(model, PlanarTriangleMesh(rasterPoints, gridIndices.copyOf(), gluedVertices.copyOf()))
 			val edited = model.withMeshTopologyEdit(drawableId, built.edit)
@@ -200,7 +200,7 @@ class MeshRegenerationTest {
 		val pins = RegenerationFixtures.readyInput(model).pinPoints
 		val generated = RegenerationFixtures.generated(doubleArrayOf(10.0, 7.0, 40.0, 20.0, -6.0, 30.0), pins)
 		val newMesh = RegenerationFixtures.built(model, generated).edit.newMesh
-		val artUvs = applyUvAffine(newMesh.uvs, atlas.storedToArtAffineForTile(RegenerationFixtures.tileId)!!)
+		val artUvs = applyAffine(newMesh.uvs, atlas.storedToArtAffineForTile(RegenerationFixtures.tileId)!!)
 
 		for (vertex in 0 until generated.vertexCount) {
 			assertEquals(generated.positions[2 * vertex] / TILE_SIZE, artUvs[2 * vertex], 1e-5f, "vertex $vertex u")

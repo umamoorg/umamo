@@ -13,15 +13,18 @@ import org.umamo.render.gl.GlRenderDevice
 import org.umamo.render.puppet.ModelUpdateKind
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.UvSceneContent
+import org.umamo.ui.viewport.posedLattices
 
 /*
  * The desktop render engine.  This file is the GL-owning wiring: the thread, the context, the renderer
@@ -133,10 +136,12 @@ internal class OffscreenRenderEngine(
 	// nothing unless a binding was pushed before the thread started.
 	private var appliedAtlasBinding: AtlasPageBinding = inputs.initialAtlasBinding
 
-	// The pose inputs the renderer last posed with, each compared by identity: all three are swapped
+	// The pose inputs the renderer last posed with, each compared by identity: all four are swapped
 	// wholesale on the UI thread, so a reference change is exactly "something moved".
 	private var lastParams: Map<ParameterId, Float>? = null
 	private var lastOverrides: Map<KeyableTarget, ChannelValue>? = null
+	private var lastLatticeOverrides: Map<DeformerId, WarpLatticeForm>? = null
+	private var lastLatticePreview: Map<DeformerId, WarpLatticeForm>? = null
 	private var lastShown: Set<DrawableId>? = null
 
 	// The model the renderer was last pointed at, and the artwork mapping it was last handed.
@@ -277,8 +282,11 @@ internal class OffscreenRenderEngine(
 		// positions alone - every preview push of a Grab - keeps the pose: the renderer kept its pose
 		// inputs and refreshed what reads positions, so a rebake would only redo them.
 		val overrides = liveParams.channelOverrides
+		val latticeOverrides = liveParams.latticeOverrides
+		val latticePreview = liveParams.latticePreview
 		val modelChanged = orderModel !== lastModel
-		val poseInputsChanged = params !== lastParams || overrides !== lastOverrides || shown !== lastShown
+		val latticesChanged = latticeOverrides !== lastLatticeOverrides || latticePreview !== lastLatticePreview
+		val poseInputsChanged = params !== lastParams || overrides !== lastOverrides || latticesChanged || shown !== lastShown
 
 		if (poseInputsChanged || modelChanged) {
 			renderer.setShownDrawables(shown)
@@ -292,11 +300,13 @@ internal class OffscreenRenderEngine(
 			}
 
 			if (poseFollowsHandoff(poseInputsChanged, modelUpdate)) {
-				renderer.setPose(params, overrides)
+				renderer.setPose(params, overrides, posedLattices(latticeOverrides, latticePreview))
 			}
 
 			lastParams = params
 			lastOverrides = overrides
+			lastLatticeOverrides = latticeOverrides
+			lastLatticePreview = latticePreview
 			lastShown = shown
 			paramsVersion++
 		}

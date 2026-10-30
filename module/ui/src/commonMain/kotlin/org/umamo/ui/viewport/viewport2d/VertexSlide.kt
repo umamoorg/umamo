@@ -49,7 +49,7 @@ internal class SlideLanding(
 internal fun slideContextFor(selection: MeshSelection, geometries: List<EditOwnerGeometry>): SlideContext? {
 	val active = selection.activeElement
 	val activeVertex = (active?.element as? MeshElement.Vertex)?.index
-	val activeGeometry = active?.let { candidate -> geometries.firstOrNull { it.owner == candidate.owner } }
+	val activeGeometry = active?.let { candidate -> geometries.firstOrNull { geometry -> geometry.owner == candidate.owner } }
 
 	return if (activeVertex != null && activeGeometry != null) {
 		val neighbors = activeGeometry.topology.adjacency.getOrElse(activeVertex) { IntArray(0) }

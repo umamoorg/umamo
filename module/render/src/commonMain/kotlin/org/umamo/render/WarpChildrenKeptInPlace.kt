@@ -3,6 +3,7 @@ package org.umamo.render
 import org.umamo.render.eval.PI_F
 import org.umamo.render.eval.ParentSpaceMapping
 import org.umamo.render.eval.PoseParameters
+import org.umamo.render.eval.SINGULAR_DETERMINANT
 import org.umamo.render.eval.WarpWorld
 import org.umamo.render.eval.addWarpBlendDeltas
 import org.umamo.render.eval.ancestorChain
@@ -12,7 +13,9 @@ import org.umamo.render.eval.latticeJacobianAt
 import org.umamo.render.eval.localPosedOver
 import org.umamo.render.eval.rotationBlendDeltas
 import org.umamo.render.eval.warpApply
+import org.umamo.render.eval.warpDifferenceJacobian
 import org.umamo.render.eval.warpGridLattice
+import org.umamo.render.eval.wrapRadians
 import org.umamo.runtime.eval.rotationFormAt
 import org.umamo.runtime.keyform.withEveryLatticeMapped
 import org.umamo.runtime.model.Deformer
@@ -48,9 +51,6 @@ import kotlin.math.abs
  * coarse enough that a float difference of the extrapolation keeps its precision there.
  */
 private const val EXTRAPOLATION_JACOBIAN_STEP = 1e-3f
-
-/** Below this a Jacobian's determinant counts as singular: the reshaped lattice is folded or collapsed there. */
-private const val SINGULAR_DETERMINANT = 1e-12f
 
 /**
  * A model whose reshaped warp's children have been re-expressed so they rest where they rested, with the children
@@ -140,6 +140,7 @@ fun warpChildrenKeptInPlace(before: PuppetModel, after: PuppetModel, warpId: Def
  * @property WarpWorld newWarp The warp's baked world after it.
  */
 private class LatticeReshape(private val oldWarp: WarpWorld, private val newWarp: WarpWorld) {
+	private val oldMapping = ParentSpaceMapping(oldWarp)
 	private val newMapping = ParentSpaceMapping(newWarp)
 
 	/**
@@ -226,7 +227,7 @@ private class LatticeReshape(private val oldWarp: WarpWorld, private val newWarp
 
 		// The child's world angle is its own angle minus what the lattice turns it by at its origin, so the base
 		// angle takes up the change for the world angle to hold.
-		return rotation.copy(baseAngle = rotation.baseAngle + wrapped(turn) * 180f / PI_F, geometryGrid = grid, blendShapes = blendShapes)
+		return rotation.copy(baseAngle = rotation.baseAngle + wrapRadians(turn) * 180f / PI_F, geometryGrid = grid, blendShapes = blendShapes)
 	}
 
 	/**
@@ -239,25 +240,15 @@ private class LatticeReshape(private val oldWarp: WarpWorld, private val newWarp
 	 */
 	private fun movesOf(restPoints: FloatArray): PointMoves? {
 		val pointCount = restPoints.size / 2
-		val worldUp = FloatArray(restPoints.size)
-		val scratch = FloatArray(2)
-
-		for (pointIndex in 0 until pointCount) {
-			warpApply(oldWarp.cp, oldWarp.cols, oldWarp.rows, oldWarp.bilinear, restPoints[pointIndex * 2], restPoints[pointIndex * 2 + 1], scratch, 0)
-			// The mapping's world space has y up; the cascade's grows downward.
-			worldUp[pointIndex * 2] = scratch[0]
-			worldUp[pointIndex * 2 + 1] = -scratch[1]
-		}
-
-		val moved = newMapping.worldToLocalLinearized(worldUp, restPoints, worldUp, (0 until pointCount).toSet())
+		val world = oldMapping.localToWorld(restPoints)
+		val moved = newMapping.worldToLocalLinearized(world, restPoints, (0 until pointCount).toSet())
+		val landed = newMapping.localToWorld(moved)
 		val linear = FloatArray(pointCount * 4)
 		val oldJacobian = FloatArray(4)
 		val newJacobian = FloatArray(4)
 
 		for (pointIndex in 0 until pointCount) {
-			warpApply(newWarp.cp, newWarp.cols, newWarp.rows, newWarp.bilinear, moved[pointIndex * 2], moved[pointIndex * 2 + 1], scratch, 0)
-
-			if (abs(scratch[0] - worldUp[pointIndex * 2]) > LANDING_TOLERANCE_PX || abs(-scratch[1] - worldUp[pointIndex * 2 + 1]) > LANDING_TOLERANCE_PX) {
+			if (abs(landed[pointIndex * 2] - world[pointIndex * 2]) > LANDING_TOLERANCE_PX || abs(landed[pointIndex * 2 + 1] - world[pointIndex * 2 + 1]) > LANDING_TOLERANCE_PX) {
 				return null
 			}
 
@@ -343,14 +334,8 @@ private fun jacobianOf(warp: WarpWorld, u: Float, v: Float, out: FloatArray) {
 	}
 
 	val origin = FloatArray(2)
-	val stepped = FloatArray(2)
 	warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, u, v, origin, 0)
-	warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, u + EXTRAPOLATION_JACOBIAN_STEP, v, stepped, 0)
-	out[0] = (stepped[0] - origin[0]) / EXTRAPOLATION_JACOBIAN_STEP
-	out[2] = (stepped[1] - origin[1]) / EXTRAPOLATION_JACOBIAN_STEP
-	warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, u, v + EXTRAPOLATION_JACOBIAN_STEP, stepped, 0)
-	out[1] = (stepped[0] - origin[0]) / EXTRAPOLATION_JACOBIAN_STEP
-	out[3] = (stepped[1] - origin[1]) / EXTRAPOLATION_JACOBIAN_STEP
+	warpDifferenceJacobian(warp, u, v, origin[0], origin[1], EXTRAPOLATION_JACOBIAN_STEP, FloatArray(2), out)
 }
 
 /**
@@ -365,24 +350,4 @@ private fun inheritedAt(warp: WarpWorld, origin: FloatArray): Float {
 	warp.apply(origin[0], origin[1], scratch, 0)
 
 	return inheritedAngleRadians(warp, origin[0], origin[1], scratch[0], scratch[1], scratch)
-}
-
-/**
- * [angle] wrapped into [-pi, pi], so a difference of two wrapped angles never turns the long way round.
- *
- * @param Float angle The angle in radians.
- * @return Float The wrapped angle.
- */
-private fun wrapped(angle: Float): Float {
-	var turned = angle
-
-	while (turned > PI_F) {
-		turned -= 2f * PI_F
-	}
-
-	while (turned < -PI_F) {
-		turned += 2f * PI_F
-	}
-
-	return turned
 }

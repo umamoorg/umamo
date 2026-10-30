@@ -45,8 +45,8 @@ class UvEditOverlayProducerTest {
 		assertEquals(listOf(UV_RIG_QUAD, UV_RIG_OTHER), direct.overlay.meshes.map { mesh -> mesh.drawableOwnerId }, "the session meshes, in the session's order")
 
 		for (geometry in geometries) {
-			assertSame(geometry.positions, direct.positionsById[geometry.owner], "${geometry.owner} draws the shown positions themselves")
-			assertSame(geometry.topology.faceCorners, direct.triangleIndicesById[geometry.owner], "${geometry.owner} fills over the shown indices")
+			assertSame(geometry.positions, direct.positionsByOwner[geometry.owner], "${geometry.owner} draws the shown positions themselves")
+			assertSame(geometry.topology.faceCorners, direct.triangleIndicesByOwner[geometry.owner], "${geometry.owner} fills over the shown indices")
 		}
 	}
 
@@ -58,7 +58,7 @@ class UvEditOverlayProducerTest {
 		val direct = assertNotNull(UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editingDrawables(listOf(UV_RIG_QUAD, UV_RIG_OTHER)), sceneOf(model, quadOnly), sizes))
 
 		assertEquals(listOf(UV_RIG_QUAD), direct.overlay.meshes.map { mesh -> mesh.drawableOwnerId })
-		assertEquals(setOf<ElementOwner>(ElementOwner.Drawable(UV_RIG_QUAD)), direct.positionsById.keys)
+		assertEquals(setOf<ElementOwner>(ElementOwner.Drawable(UV_RIG_QUAD)), direct.positionsByOwner.keys)
 		assertNull(
 			UvEditOverlayProducer().produce(EditorMode.Edit, MeshSelection.editingDrawables(listOf(UV_RIG_OTHER)), sceneOf(model, quadOnly), sizes),
 			"a scene showing none of the session's meshes shows no overlay",
@@ -108,8 +108,8 @@ class UvEditOverlayProducerTest {
 
 		assertNotSame(before, after, "a moved mesh is a new value")
 		assertSame(before.overlay, after.overlay, "with the same edges and flags")
-		assertSame(movedPositions, after.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], "the moved mesh takes its new positions")
-		assertSame(before.positionsById[ElementOwner.Drawable(UV_RIG_OTHER)], after.positionsById[ElementOwner.Drawable(UV_RIG_OTHER)], "the other keeps its array")
+		assertSame(movedPositions, after.positionsByOwner[ElementOwner.Drawable(UV_RIG_QUAD)], "the moved mesh takes its new positions")
+		assertSame(before.positionsByOwner[ElementOwner.Drawable(UV_RIG_OTHER)], after.positionsByOwner[ElementOwner.Drawable(UV_RIG_OTHER)], "the other keeps its array")
 	}
 
 	@Test
@@ -124,7 +124,7 @@ class UvEditOverlayProducerTest {
 		val after = assertNotNull(producer.produce(EditorMode.Edit, selected, sceneOf(model, geometries), sizes))
 
 		assertNotSame(before.overlay, after.overlay, "the flags changed")
-		assertSame(before.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], after.positionsById[ElementOwner.Drawable(UV_RIG_QUAD)], "the positions did not")
+		assertSame(before.positionsByOwner[ElementOwner.Drawable(UV_RIG_QUAD)], after.positionsByOwner[ElementOwner.Drawable(UV_RIG_QUAD)], "the positions did not")
 	}
 
 	/**

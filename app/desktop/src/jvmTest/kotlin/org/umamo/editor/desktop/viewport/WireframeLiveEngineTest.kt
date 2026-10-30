@@ -13,6 +13,7 @@ import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.BlendMode
@@ -235,7 +236,7 @@ class WireframeLiveEngineTest {
 					activeVertex = null,
 					activeEdge = null,
 					activeFace = null,
-					wireframeOnly = true,
+					style = MeshStyle.Wireframe,
 				)
 			},
 			MeshOverlaySizes(3.5f, 6f, 2.5f),

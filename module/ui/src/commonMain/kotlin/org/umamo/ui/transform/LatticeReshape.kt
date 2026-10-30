@@ -1,12 +1,15 @@
 package org.umamo.ui.transform
 
-import org.umamo.render.eval.warpLatticeAt
+import org.umamo.edit.transform.allPointIndices
+import org.umamo.render.eval.WarpLattice
+import org.umamo.render.eval.WarpLatticeResolver
 import org.umamo.render.warpChildrenKeptInPlace
 import org.umamo.runtime.keyform.withLatticeShifted
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.deformerChain
 
 /*
  * An Edit-mode reshape of warp lattices, lowered onto the model.  Edit mode shapes a cage to the art without moving
@@ -48,27 +51,23 @@ internal class LatticeReshape(
  * @return LatticeReshape The reshaped model and the children it could not keep in place.
  */
 internal fun latticeReshapeOf(model: PuppetModel, targetWorldById: Map<DeformerId, FloatArray>): LatticeReshape {
-	val parentById = model.deformers.associate { deformer -> deformer.id to deformer.parent }
-	val ordered = targetWorldById.keys.sortedBy { deformerId -> ancestorDepth(deformerId, parentById) }
 	val unconvertedDrawables = ArrayList<DrawableId>()
 	val unconvertedDeformers = ArrayList<DeformerId>()
 	var current = model
 
-	for (deformerId in ordered) {
+	forEachWarpParentsFirst(model, targetWorldById.keys, { level -> WarpLatticeResolver(current, emptyMap(), warpIds = level) }) { deformerId, lattice ->
 		val target = targetWorldById.getValue(deformerId)
-		val warp = current.deformers.firstOrNull { deformer -> deformer.id == deformerId } as? Deformer.Warp ?: continue
-		val lattice = warpLatticeAt(current, emptyMap(), deformerId) ?: continue
+		val warp = current.deformerById[deformerId] as? Deformer.Warp ?: return@forEachWarpParentsFirst
 
 		if (target.size != lattice.world.size) {
-			continue
+			return@forEachWarpParentsFirst
 		}
 
-		val allIndices = (0 until target.size / 2).toSet()
-		val targetLocal = lattice.parentMapping.worldToLocalLinearized(target, lattice.local, lattice.world, allIndices)
+		val targetLocal = lattice.parentMapping.worldToLocalLinearized(target, lattice.local, allPointIndices(target))
 		val delta = FloatArray(target.size) { componentIndex -> targetLocal[componentIndex] - lattice.local[componentIndex] }
 
 		if (delta.all { component -> component == 0f } || delta.any { component -> !component.isFinite() }) {
-			continue
+			return@forEachWarpParentsFirst
 		}
 
 		val shifted = warp.withLatticeShifted(delta)
@@ -83,21 +82,30 @@ internal fun latticeReshapeOf(model: PuppetModel, targetWorldById: Map<DeformerI
 }
 
 /**
- * How many ancestors a deformer has, a parent the model does not hold ending the chain.
+ * Visits each warp of [deformerIds] parents first, one depth level at a time, with its lattice from the resolver
+ * [resolverFor] makes for that level: a level bakes its warps' chains once, and the resolver is re-made after the
+ * level lands, so a child reads its parents as they landed.  Warps of one level are never each other's ancestors, so
+ * one level's landings cannot move another warp of the same level.  A warp the resolver does not draw is skipped.
  *
- * @param DeformerId deformerId The deformer.
- * @param Map<DeformerId, DeformerId?> parentById Each deformer's parent.
- * @return Int The ancestor count.
+ * @param PuppetModel model The model whose hierarchy orders the warps.
+ * @param Collection<DeformerId> deformerIds The warps, in the order a level visits them.
+ * @param Function resolverFor Makes the resolver for one level's warps, over whatever the earlier levels landed.
+ * @param Function visit Called with each drawn warp and its lattice.
  */
-private fun ancestorDepth(deformerId: DeformerId, parentById: Map<DeformerId, DeformerId?>): Int {
-	var depth = 0
-	var parent = parentById[deformerId]
-	val seen = HashSet<DeformerId>()
+internal fun forEachWarpParentsFirst(
+	model: PuppetModel,
+	deformerIds: Collection<DeformerId>,
+	resolverFor: (List<DeformerId>) -> WarpLatticeResolver,
+	visit: (DeformerId, WarpLattice) -> Unit,
+) {
+	val levels = deformerIds.groupBy { deformerId -> model.deformerChain(deformerId).size }
 
-	while (parent != null && seen.add(parent) && parent in parentById) {
-		depth += 1
-		parent = parentById[parent]
+	for (depth in levels.keys.sorted()) {
+		val level = levels.getValue(depth)
+		val resolver = resolverFor(level)
+
+		for (deformerId in level) {
+			resolver.lattice(deformerId)?.let { lattice -> visit(deformerId, lattice) }
+		}
 	}
-
-	return depth
 }

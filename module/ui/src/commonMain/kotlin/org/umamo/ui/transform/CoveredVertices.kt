@@ -105,19 +105,13 @@ internal fun coveredMedian(
 				}
 			}
 
-		if (packed == null) {
-			for (vertexIndex in owner.indices) {
-				sumX += owner.geometry.world[vertexIndex * 2]
-				sumZ += owner.geometry.world[vertexIndex * 2 + 1]
-			}
-		} else {
-			var slotIndex = 0
+		val points = packed ?: packedWorld(owner.geometry.world, owner.indices)
+		var slotIndex = 0
 
-			while (slotIndex + 1 < packed.size) {
-				sumX += packed[slotIndex]
-				sumZ += packed[slotIndex + 1]
-				slotIndex += 2
-			}
+		while (slotIndex + 1 < points.size) {
+			sumX += points[slotIndex]
+			sumZ += points[slotIndex + 1]
+			slotIndex += 2
 		}
 
 		count += owner.indices.size

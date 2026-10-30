@@ -1,7 +1,7 @@
 package org.umamo.render.eval
 
+import org.umamo.runtime.keyform.withEveryLatticeMapped
 import org.umamo.runtime.keyform.withLatticeShifted
-import org.umamo.runtime.keyform.withLatticeTransformed
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -14,6 +14,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.applyAffine
 import kotlin.math.abs
 import kotlin.random.Random
 import kotlin.test.Test
@@ -198,7 +199,7 @@ class WarpLatticeTest {
 	fun anAffineTransformsTheLatticeEverywhere() {
 		val model = model()
 		val turnScaleAndMove = floatArrayOf(0f, -1.5f, 7f, 1.5f, 0f, -3f)
-		val transformed = withWarp(model) { warp -> warp.withLatticeTransformed(turnScaleAndMove) }
+		val transformed = withWarp(model) { warp -> warp.withEveryLatticeMapped { points -> applyAffine(points, turnScaleAndMove) } }
 
 		for (pose in poses()) {
 			val before = assertNotNull(warpLatticeAt(model, pose, warpId))

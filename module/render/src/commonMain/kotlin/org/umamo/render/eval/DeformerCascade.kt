@@ -17,6 +17,7 @@ import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.runtime.model.latticeLayout
 import kotlin.math.atan2
 
 /**
@@ -141,6 +142,14 @@ internal class WarpWorld(
 	override fun apply(x: Float, y: Float, out: FloatArray, outIndex: Int) {
 		warpApply(cp, cols, rows, bilinear, x, y, out, outIndex)
 	}
+
+	/**
+	 * The baked control points in world space, x right and z up: the cascade's y grows downward, so it is negated.
+	 * What the viewport draws and picks a lattice by.
+	 *
+	 * @return FloatArray The points, interleaved x, z (a fresh array).
+	 */
+	internal fun worldControlPoints(): FloatArray = FloatArray(cp.size) { componentIndex -> if (componentIndex % 2 == 0) cp[componentIndex] else -cp[componentIndex] }
 }
 
 /** A rotation deformer's world transform: a baked affine. [xform] is `internal` so the GPU renderer can
@@ -271,8 +280,7 @@ private fun buildDeformerWorld(
 internal fun warpGridLattice(warp: Deformer.Warp, paramValue: (ParameterId) -> Float, override: WarpLatticeForm?): FloatArray? {
 	val grid = warp.geometryGrid ?: return null
 	val corners = gridCorners(grid, paramValue) ?: return null
-	val pointCount = (warp.rows + 1) * (warp.columns + 1)
-	val cp = FloatArray(pointCount * 2)
+	val cp = FloatArray(warp.latticeLayout.pointCount * 2)
 
 	if (override != null) {
 		override.controlPoints.copyInto(cp, endIndex = minOf(cp.size, override.controlPoints.size))
@@ -335,7 +343,7 @@ private fun buildWarpWorld(
 ): DeformerWorld? {
 	val cp = warpGridLattice(warp, paramValue, latticeOverride) ?: return null
 	addWarpBlendDeltas(warp, paramValue, defaultValue, cp)
-	val pointCount = (warp.rows + 1) * (warp.columns + 1)
+	val pointCount = cp.size / 2
 	// The render channels are blended, never snapped to the nearest key, or they step instead of fading
 	// at mid-parameter values. Each track resolves its own corners; pre-compaction those are the same
 	// corners in the same order as the control points', so the sums are unchanged.
@@ -571,17 +579,7 @@ internal fun inheritedAngleRadians(
 		iteration++
 	}
 
-	var inherited = atan2(disp.toDouble(), 0.0).toFloat() - atan2(dy.toDouble(), dx.toDouble()).toFloat()
-
-	while (inherited > PI_F) {
-		inherited -= 2f * PI_F
-	}
-
-	while (inherited < -PI_F) {
-		inherited += 2f * PI_F
-	}
-
-	return inherited
+	return wrapRadians(atan2(disp.toDouble(), 0.0).toFloat() - atan2(dy.toDouble(), dx.toDouble()).toFloat())
 }
 
 /**
