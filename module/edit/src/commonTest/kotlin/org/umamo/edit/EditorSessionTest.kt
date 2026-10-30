@@ -426,6 +426,30 @@ class EditorSessionTest {
 
 		session.setMode(EditorMode.Edit)
 		assertEquals(DrawableId("d"), session.meshSelection.value.activeDrawableId, "remembered drawable seeds Edit mode")
+		assertEquals(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("d"))), session.selection.value, "and becomes the selection")
+
+		session.undo()
+		assertEquals(EditorMode.Object, session.mode.value)
+		assertTrue(session.selection.value.isEmpty, "undoing the entry returns the empty selection with the mode")
+	}
+
+	/**
+	 * Selected meshes with a part active open Edit on those meshes without touching the object selection: the seed
+	 * came from the selection, so only a fallback re-selects.
+	 */
+	@Test
+	fun editModeOverSelectedMeshesLeavesTheSelectionAlone() {
+		val session = EditorSession(twoMeshModel().let { base -> base.copy(parts = listOf(partA), rootChildren = base.rootChildren + OrgChild.Part(partA.id)) })
+		val selected =
+			Selection(
+				setOf(SelectionTarget.Drawable(DrawableId("a")), SelectionTarget.Drawable(DrawableId("b")), SelectionTarget.Part(partA.id)),
+				SelectionTarget.Part(partA.id),
+			)
+		session.setSelection(selected)
+
+		session.setMode(EditorMode.Edit)
+		assertEquals(EditorMode.Edit, session.mode.value)
+		assertEquals(selected, session.selection.value)
 	}
 
 	/** A currently-active drawable always wins over the remembered one when Edit mode seeds. */
@@ -493,6 +517,7 @@ class EditorSessionTest {
 
 		session.setMode(EditorMode.Edit)
 		assertEquals(DrawableId("top"), session.meshSelection.value.activeDrawableId, "front-most editable drawable seeds Edit")
+		assertEquals(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("top"))), session.selection.value, "and becomes the selection")
 	}
 
 	/** A model whose only drawables carry no mesh has nothing to edit, so Edit is refused. */

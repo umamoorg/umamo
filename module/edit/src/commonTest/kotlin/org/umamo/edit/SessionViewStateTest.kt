@@ -181,6 +181,29 @@ class SessionViewStateTest {
 		assertFalse(session.canUndo.value, "the opening mode is where the history starts")
 	}
 
+	/** A saved Pose mode whose selection holds no warp opens on the first warp the pose draws, selected as entry selects it. */
+	@Test
+	fun aSavedPoseModeSelectsTheWarpItFallsBackTo() {
+		val saved = SessionViewState(selection = SelectionOps.replace(SelectionTarget.Drawable(PoseLatticeTestRig.art)), mode = EditorMode.Pose)
+
+		val session = EditorSession(PoseLatticeTestRig.model(), initialViewState = saved)
+
+		assertEquals(EditorMode.Pose, session.mode.value)
+		assertEquals(SelectionOps.replace(SelectionTarget.Deformer(PoseLatticeTestRig.cage)), session.selection.value)
+		assertFalse(session.canUndo.value, "the opening selection is where the history starts")
+	}
+
+	/** A saved Edit mode whose selection holds no mesh opens on the topmost one, selected as entry selects it. */
+	@Test
+	fun aSavedEditModeSelectsTheDrawableItFallsBackTo() {
+		val saved = SessionViewState(selection = SelectionOps.replace(SelectionTarget.Part(PartId("face"))), mode = EditorMode.Edit)
+
+		val session = EditorSession(meshedModel, initialViewState = saved)
+
+		assertEquals(EditorMode.Edit, session.mode.value)
+		assertEquals(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("a"))), session.selection.value)
+	}
+
 	/** A saved Pose mode the model cannot satisfy - nothing to pose - opens in Object, the refusal setMode makes. */
 	@Test
 	fun aPoseModeWithNoDeformerOpensInObject() {

@@ -171,6 +171,7 @@ class LatticeEditEntryTest {
 		session.setMode(EditorMode.Edit)
 
 		assertEquals(listOf(owner), session.meshSelection.value.owners, "the remembered lattice, not the topmost drawable")
+		assertEquals(SelectionOps.replace(SelectionTarget.Deformer(cage)), session.selection.value, "selected again")
 		assertEquals(setOf<MeshElement>(MeshElement.Vertex(4)), session.meshSelection.value.elementsOf(owner), "with its points")
 	}
 

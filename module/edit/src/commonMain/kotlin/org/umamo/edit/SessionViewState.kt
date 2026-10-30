@@ -83,16 +83,39 @@ internal fun SessionViewState.fittedTo(model: PuppetModel): SessionViewState {
  *
  * @property List<ElementOwner> owners The session's owners.
  * @property ElementOwner activeOwner The active owner.
- * @property Boolean activeSelected Whether [activeOwner] is the object selection's own active item, as opposed to a
- *   fallback the entry chose.
+ * @property Boolean activeSelected Whether [activeOwner] is the object selection's own active item, as opposed to
+ *   another selected owner or a fallback the entry chose.
+ * @property Boolean fallback Whether the entry fell back to an owner the object selection does not hold (the
+ *   remembered owner, or the first one there is), which the entry then selects.
  */
 internal class EditSeed(
 	val owners: List<ElementOwner>,
 	val activeOwner: ElementOwner,
 	val activeSelected: Boolean,
+	val fallback: Boolean = false,
 ) {
 	/** The fresh element session the seed opens: its owners, the active one active, nothing selected yet. */
 	val session: MeshSelection get() = MeshSelection.editing(owners, activeOwner)
+
+	/**
+	 * The object selection the entry lands on: a fallback's owner alone, as Alt+Q's switch selects the owner it moves
+	 * to, so every panel shows what the session edits and the next mode switch seeds from it; else [current], whose
+	 * owners the seed came from.
+	 *
+	 * @param Selection current The object selection the entry starts from.
+	 * @return Selection The object selection the entry leaves.
+	 */
+	fun selectionOver(current: Selection): Selection = if (fallback) SelectionOps.replace(activeOwner.toSelectionTarget()) else current
+
+	companion object {
+		/**
+		 * The seed of an entry that fell back to [owner]: a one-owner session the entry selects.
+		 *
+		 * @param ElementOwner owner The owner fallen back to.
+		 * @return EditSeed The seed.
+		 */
+		fun fallbackOn(owner: ElementOwner): EditSeed = EditSeed(listOf(owner), owner, activeSelected = false, fallback = true)
+	}
 }
 
 /**
@@ -126,7 +149,8 @@ internal sealed interface EditEntry {
  * [hasRestLattice]); an active warp it cannot shape, or an active rotation deformer, refuses with a notice naming
  * why.  Otherwise the session opens on every selected mesh-carrying drawable (multi-mesh edit, the object
  * selection's active drawable becoming the active mesh), else the remembered owner when it is still editable, else
- * the topmost editable drawable in Parts-panel order - or nothing, which refuses the entry silently.
+ * the topmost editable drawable in Parts-panel order - a fallback the entry selects ([EditSeed.fallback]) - or
+ * nothing, which refuses the entry silently.
  *
  * @param PuppetModel model The session's model.
  * @param Selection selection The object selection.
@@ -168,16 +192,17 @@ internal fun editEntryOf(model: PuppetModel, selection: Selection, rememberedOwn
 		return EditEntry.Opens(EditSeed(owners, activeOwner, activeSelected = activeSelectedId != null))
 	}
 
-	val fallback = rememberedOwner?.takeIf { owner -> isEditableOwner(model, owner) } ?: model.firstEditableDrawableInPanelOrder()?.let { drawableId -> ElementOwner.Drawable(drawableId) }
+	val fallbackOwner = rememberedOwner?.takeIf { owner -> isEditableOwner(model, owner) } ?: model.firstEditableDrawableInPanelOrder()?.let { drawableId -> ElementOwner.Drawable(drawableId) }
 
-	return if (fallback != null) EditEntry.Opens(EditSeed(listOf(fallback), fallback, activeSelected = false)) else EditEntry.Refused(null)
+	return if (fallbackOwner != null) EditEntry.Opens(EditSeed.fallbackOn(fallbackOwner)) else EditEntry.Refused(null)
 }
 
 /**
  * What entering Pose mode opens on: Edit mode's seed narrowed to warps, since Pose mode shapes lattices and nothing
  * else - every selected warp the pose draws, the object selection's active warp active when it is one of them; else
- * the remembered warp when the pose draws it; else the first warp the pose draws.  Null with none of those: Pose mode
- * still scrubs and keys, so it opens on an empty session rather than refusing.
+ * the remembered warp when the pose draws it; else the first warp the pose draws, either of them a fallback the entry
+ * selects ([EditSeed.fallback]).  Null with none of those: Pose mode still scrubs and keys, so it opens on an empty
+ * session rather than refusing.
  *
  * @param PuppetModel model The session's model.
  * @param Selection selection The object selection.
@@ -195,11 +220,11 @@ internal fun poseSeedOf(model: PuppetModel, selection: Selection, rememberedOwne
 		return EditSeed(warps, activeWarp ?: warps.first(), activeSelected = activeWarp != null)
 	}
 
-	val fallback =
+	val fallbackOwner =
 		(rememberedOwner as? ElementOwner.Deformer)?.takeIf { owner -> model.warpDrawnAt(owner.id, valueOf) }
 			?: model.deformers.firstOrNull { deformer -> deformer.isVisible && model.warpDrawnAt(deformer.id, valueOf) }?.let { warp -> ElementOwner.Deformer(warp.id) }
 
-	return fallback?.let { owner -> EditSeed(listOf(owner), owner, activeSelected = false) }
+	return fallbackOwner?.let { owner -> EditSeed.fallbackOn(owner) }
 }
 
 /**
@@ -286,7 +311,8 @@ fun ElementOwner.toSelectionTarget(): SelectionTarget =
  *
  * A saved Edit mode holds only when it can be entered over the restored selection, and a saved Pose mode only
  * when the model has a deformer; otherwise the session opens in Object mode, the same refusals
- * [EditorSession.setMode] makes.  Either mode opens its session seeded as entering it seeds one.
+ * [EditorSession.setMode] makes.  Either mode opens its session seeded as entering it seeds one, a fallback owner
+ * becoming the selection as it does on entry.
  *
  * @param PuppetModel        model     The document model at open.
  * @param Pose               pose      The pose at open.
@@ -310,7 +336,7 @@ internal fun openingSnapshotOf(model: PuppetModel, pose: Pose, viewState: Sessio
 
 	return EditorSnapshot(
 		model = model,
-		selection = viewState.selection,
+		selection = sessionSeed?.selectionOver(viewState.selection) ?: viewState.selection,
 		pose = pose,
 		// The select mode holds in Object mode too, so the next Edit or Pose entry selects in it.
 		meshSelection = (sessionSeed?.session ?: MeshSelection()).copy(selectMode = viewState.selectMode),
