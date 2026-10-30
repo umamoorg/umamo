@@ -786,8 +786,9 @@ class EditorSession private constructor(
 	 * element still fits its topology (Blender's remembered mesh selection). Leaving also ends any in-flight
 	 * operator. Entering Pose mode is refused with a notice when the model has no deformer, since there is
 	 * nothing to pose; otherwise it seeds the session with the warps the pose draws, as Tab seeds Edit mode
-	 * ([poseSeedOf]), or with nothing when there are none.  The pending edits ride every switch untouched: a
-	 * switch never moves the pose they were made for.  The mode is editor state, not document content, so it
+	 * ([poseSeedOf]), or with nothing when there are none.  The select mode rides every switch, Object mode included
+	 * (Blender's select mode is a tool setting, not part of the selection).  The pending edits ride every switch
+	 * untouched: a switch never moves the pose they were made for.  The mode is editor state, not document content, so it
 	 * does not dirty the document. A no-op (already in [mode]) records nothing.
 	 *
 	 * @param EditorMode mode The new mode.
@@ -839,10 +840,11 @@ class EditorSession private constructor(
 				}
 
 				EditorMode.Object -> {
-					// Stash each owner's element selection so re-entering Edit or Pose mode restores it per owner.
+					// Stash each owner's element selection so re-entering Edit or Pose mode restores it per owner; the
+					// empty session keeps the select mode, so the next entry selects in it.
 					elementMemory.stash(mutableMeshSelection.value)
 					latches.clearTransient(clearViewportGesture = true)
-					MeshSelection()
+					MeshSelection(selectMode = mutableMeshSelection.value.selectMode)
 				}
 			}
 		commitStep(EditorStateChange.ModeChanged(mode), meshSelection = newMeshSelection, mode = mode)
@@ -854,8 +856,8 @@ class EditorSession private constructor(
 	 * next entry is stable - a soft seed, not a re-selection, so the object selection is left alone.  The transient tool
 	 * state clears, since the select tool is shared with Object mode and a tool armed before the switch must not drive
 	 * the element overlay.  The session being left is stashed (nothing, from Object mode), then each seeded owner's
-	 * remembered elements are restored where they still fit its topology; the rest start empty, and entering on other
-	 * owners keeps every other owner's memory.
+	 * remembered elements are restored where they still fit its topology, converted into the select mode the session
+	 * carries; the rest start empty, and entering on other owners keeps every other owner's memory.
 	 *
 	 * @param EditSeed? seed The owners to open on, or null for none.
 	 * @param PuppetModel model The model the owners' topologies come from.
@@ -867,9 +869,10 @@ class EditorSession private constructor(
 		}
 
 		latches.clearTransient(clearViewportGesture = true)
+		val selectMode = mutableMeshSelection.value.selectMode
 		elementMemory.stash(mutableMeshSelection.value)
 
-		return seed?.let { opened -> elementMemory.restore(opened.session, model) } ?: MeshSelection()
+		return seed?.let { opened -> elementMemory.restore(opened.session.copy(selectMode = selectMode), model) } ?: MeshSelection(selectMode = selectMode)
 	}
 
 	/**

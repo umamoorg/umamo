@@ -9,6 +9,8 @@ import org.umamo.runtime.model.PuppetModel
  * owner's stashed element selection (stashed when Edit or Pose mode is left or the session switches owners,
  * restored per owner on re-entry when the elements still fit - Blender remembers the mesh
  * selection across mode switches per mesh).  An owner is a drawable's mesh or a warp's lattice.
+ * The select mode is not remembered here: the session carries it through every switch, and each owner's
+ * elements keep the domain they were stashed in so a restore converts them into whatever mode is current.
  * Transient UI convenience, deliberately NOT part of [EditorSnapshot]: undo restores whatever the
  * snapshot holds, this only seeds fresh entries.
  */
@@ -26,25 +28,29 @@ internal class MeshElementMemory {
 		editOwnerOf(selection.active)?.let { owner -> lastActiveOwner = owner }
 	}
 
-	// Per-owner element-selection memory, plus the select mode remembered alongside.
-	private val rememberedElementsByOwner = HashMap<ElementOwner, Set<MeshElement>>()
+	/**
+	 * One owner's stashed elements and the select mode they belong to.
+	 *
+	 * @property MeshSelectMode selectMode The domain [elements] are in.
+	 * @property Set<MeshElement> elements The stashed elements.
+	 */
+	private class RememberedElements(
+		val selectMode: MeshSelectMode,
+		val elements: Set<MeshElement>,
+	)
+
+	// Per-owner element-selection memory, each set kept in the domain it was stashed in.
+	private val rememberedElementsByOwner = HashMap<ElementOwner, RememberedElements>()
 	private val rememberedActiveElementByOwner = HashMap<ElementOwner, MeshElement>()
-	private var rememberedSelectMode: MeshSelectMode? = null
 
 	/**
 	 * Stashes each session owner's element selection into the per-owner memory, so re-entering Edit
 	 * or Pose mode - or switching back to the owner with Alt+Q - restores it.  An emptied owner clears its slot;
-	 * the select mode is remembered alongside.
+	 * each set keeps the select mode it was made in.
 	 *
 	 * @param MeshSelection current The element selection to stash.
 	 */
 	fun stash(current: MeshSelection) {
-		if (current.owners.isEmpty()) {
-			return
-		}
-
-		rememberedSelectMode = current.selectMode
-
 		for (owner in current.owners) {
 			val elements = current.elementsOf(owner)
 
@@ -52,7 +58,7 @@ internal class MeshElementMemory {
 				rememberedElementsByOwner.remove(owner)
 				rememberedActiveElementByOwner.remove(owner)
 			} else {
-				rememberedElementsByOwner[owner] = elements
+				rememberedElementsByOwner[owner] = RememberedElements(current.selectMode, elements)
 			}
 		}
 
@@ -62,8 +68,7 @@ internal class MeshElementMemory {
 	/**
 	 * Forgets the remembered elements of owners whose vertices were all replaced.  A restore checks only
 	 * that the remembered indices exist, so after a regenerated mesh a stale memory would select
-	 * different vertices under the same numbers.  The remembered select mode and the last active
-	 * owner stay.
+	 * different vertices under the same numbers.  The last active owner stays.
 	 *
 	 * @param Collection<ElementOwner> owners The owners to forget.
 	 */
@@ -75,28 +80,39 @@ internal class MeshElementMemory {
 	}
 
 	/**
-	 * Restores the per-owner remembered elements into [seeded]: each seeded owner whose stored
-	 * elements still fit its current topology gets them back (validated per owner, so one stale owner
-	 * never discards the others' memory); the remembered select mode returns when anything restored.
+	 * Restores the per-owner remembered elements into [seeded], in [seeded]'s select mode: each seeded owner whose
+	 * stored elements still fit its current topology gets them back (validated per owner, so one stale owner never
+	 * discards the others' memory), converted from the domain they were stashed in with Blender's select-mode rules
+	 * ([MeshSelectionOps.changeSelectMode]).  The select mode itself is never changed.
 	 *
-	 * @param MeshSelection seeded The freshly seeded session selection.
+	 * @param MeshSelection seeded The freshly seeded session selection, in the session's select mode.
 	 * @param PuppetModel model The current model (element fit is validated against its meshes and lattices).
 	 * @return MeshSelection The seeded selection with the remembered elements folded in.
 	 */
 	fun restore(seeded: MeshSelection, model: PuppetModel): MeshSelection {
+		val topologyOf = { candidate: ElementOwner -> model.editTopologyOf(candidate) }
 		val restored =
 			seeded.owners.mapNotNull { owner ->
-				val stored = rememberedElementsByOwner[owner]?.takeIf { elements -> elements.isNotEmpty() } ?: return@mapNotNull null
-				val probe = seeded.copy(selectMode = rememberedSelectMode ?: seeded.selectMode, elementsByOwner = mapOf(owner to stored))
-				val fits = MeshSelectionOps.fitsWithinMeshes(probe) { candidate -> model.editTopologyOf(candidate) }
-				if (fits) owner to stored else null
+				val stored = rememberedElementsByOwner[owner]?.takeIf { remembered -> remembered.elements.isNotEmpty() } ?: return@mapNotNull null
+				// Fit is checked in the stored domain before converting, since the conversion reads the topology by index.
+				val probe = MeshSelection(owners = listOf(owner), activeOwner = owner, selectMode = stored.selectMode, elementsByOwner = mapOf(owner to stored.elements))
+
+				if (!MeshSelectionOps.fitsWithinMeshes(probe, topologyOf)) {
+					return@mapNotNull null
+				}
+
+				MeshSelectionOps.changeSelectMode(probe, seeded.selectMode, topologyOf)
+					.elementsOf(owner)
+					.takeIf { elements -> elements.isNotEmpty() }
+					?.let { elements -> owner to elements }
 			}.toMap()
 
 		if (restored.isEmpty()) {
 			return seeded
 		}
 
-		// The active owner's remembered active element returns with it (when it is still selected there).
+		// The active owner's remembered active element returns with it (when it is still selected there, which an
+		// element of another domain never is).
 		val restoredActive =
 			seeded.activeOwner?.let { activeOwner ->
 				rememberedActiveElementByOwner[activeOwner]
@@ -105,7 +121,6 @@ internal class MeshElementMemory {
 			}
 
 		return seeded.copy(
-			selectMode = rememberedSelectMode ?: seeded.selectMode,
 			elementsByOwner = restored,
 			activeElement = restoredActive,
 		)

@@ -108,7 +108,9 @@ data class ActiveMeshElement(val owner: ElementOwner, val element: MeshElement) 
  *
  * @property List<ElementOwner> owners The owners in the edit session, in selection order.
  * @property ElementOwner? activeOwner The session's active owner, or null when the session is inert.
- * @property MeshSelectMode selectMode The element domain clicks select (vertex / edge / face).
+ * @property MeshSelectMode selectMode The element domain clicks select (vertex / edge / face).  Session-wide: it is
+ *   carried across owner switches and mode switches, and held by the empty session of Object mode so the next Edit or
+ *   Pose entry selects in it.
  * @property Map<ElementOwner, Set<MeshElement>> elementsByOwner The selected elements per owner, all of
  *   the current mode's domain; an owner with no selection may be absent.
  * @property ActiveMeshElement? activeElement The primary element (last touched), or null when none.

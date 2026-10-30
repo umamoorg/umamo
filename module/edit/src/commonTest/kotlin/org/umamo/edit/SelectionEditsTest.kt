@@ -85,6 +85,70 @@ class SelectionEditsTest {
 		assertEquals(setOf<MeshElement>(MeshElement.Edge(0, 1)), session.meshSelection.value.elementsOf(DrawableId("d")))
 	}
 
+	/**
+	 * The select mode is session-wide: a Tab out to Object mode and back keeps it with nothing selected, and undoing
+	 * the switch to Object mode returns to Edit mode in it.
+	 */
+	@Test
+	fun selectModeSurvivesARoundTripThroughObjectMode() {
+		val session = EditorSession(twoMeshModel())
+		session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("a"))))
+		session.setMode(EditorMode.Edit)
+		session.setMeshSelectMode(MeshSelectMode.Edge)
+
+		session.toggleEditMode()
+		assertEquals(EditorMode.Object, session.mode.value)
+		assertEquals(MeshSelectMode.Edge, session.meshSelection.value.selectMode, "Object mode's empty session holds it")
+
+		session.toggleEditMode()
+		assertEquals(EditorMode.Edit, session.mode.value)
+		assertEquals(MeshSelectMode.Edge, session.meshSelection.value.selectMode, "re-entering Edit selects in it")
+
+		session.undo()
+		session.undo()
+		assertEquals(EditorMode.Edit, session.mode.value)
+		assertEquals(MeshSelectMode.Edge, session.meshSelection.value.selectMode, "undoing the switch to Object keeps it")
+	}
+
+	/** Alt+Q onto a mesh that has never been edited keeps the select mode rather than falling back to vertices. */
+	@Test
+	fun switchEditOwnerKeepsTheSelectModeOnAnUnvisitedMesh() {
+		val session = EditorSession(twoMeshModel())
+		session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("a"))))
+		session.setMode(EditorMode.Edit)
+		session.setMeshSelectMode(MeshSelectMode.Face)
+
+		session.switchEditOwner(ElementOwner.Drawable(DrawableId("b")))
+
+		assertEquals(listOf(DrawableId("b")), session.meshSelection.value.drawableIds)
+		assertEquals(MeshSelectMode.Face, session.meshSelection.value.selectMode)
+	}
+
+	/**
+	 * A mesh's remembered elements return in the select mode current at the switch, converted from the mode they were
+	 * stashed in, so the selection never mixes domains.
+	 */
+	@Test
+	fun switchEditOwnerConvertsRememberedElementsIntoTheCurrentMode() {
+		val session = EditorSession(twoMeshModel())
+		session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("a"))))
+		session.setMode(EditorMode.Edit)
+		var selected = session.meshSelection.value
+
+		for (vertexIndex in 0..2) {
+			selected = MeshSelectionOps.add(selected, DrawableId("a"), MeshElement.Vertex(vertexIndex))
+		}
+
+		session.setMeshSelection(selected)
+		session.switchEditOwner(ElementOwner.Drawable(DrawableId("b")))
+		session.setMeshSelectMode(MeshSelectMode.Face)
+
+		session.switchEditOwner(ElementOwner.Drawable(DrawableId("a")))
+
+		assertEquals(MeshSelectMode.Face, session.meshSelection.value.selectMode)
+		assertEquals(setOf<MeshElement>(MeshElement.Face(0)), session.meshSelection.value.elementsOf(DrawableId("a")), "the vertices derive their face")
+	}
+
 	/** switchEditOwner re-seeds the Edit session onto one mesh as an undoable selection step. */
 	@Test
 	fun switchEditOwnerReseedsTheSession() {
