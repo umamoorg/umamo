@@ -733,7 +733,7 @@
 	<string name="notice_edit_warp_has_no_lattice">This warp deformer has no lattice to edit.</string>
 	<string name="notice_edit_warp_hidden_at_rest">This warp deformer is not drawn at the default pose, so its lattice cannot be edited.</string>
 	<string name="notice_edit_lattice_topology_fixed">Lattice topology can be reshaped, but it can not be destructively changed.</string>
-	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds over %1$d of its children, so their art moved.</string>
+	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds over %1$d of its children.  Drawables may have moved.</string>
 	<string name="notice_lattice_resampled">The lattice was resampled approximately.  Motion may differ slightly and require adjustment.</string>
 	<string name="notice_lattice_resampled_children_moved">The lattice was resampled approximately.  %1$d children were affected and their drawables may have moved.</string>
 
@@ -1075,7 +1075,7 @@
 	<string name="properties_field_opacity_deformer_description">Scales the opacity of everything this deformer moves, nested deformers included, from 0 (invisible) to 1 (unchanged).</string>
 	<string name="properties_field_multiply_color_deformer_description">Multiplies the colors of everything this deformer moves by this color.  White leaves them unchanged.</string>
 	<string name="properties_field_screen_color_deformer_description">Screens this color over everything this deformer moves.  Black leaves it unchanged.</string>
-	<string name="properties_field_quad_transform_description">Bends each lattice cell smoothly between its four corners instead of as two triangles, so the art does not fold along the cell's diagonal.  This is the new warp deformer method, which older runtimes cannot play.  Switching it keeps the art where it rests.</string>
+	<string name="properties_field_quad_transform_description">Bends each lattice cell smoothly between its four corners instead of as a fan of two triangles.</string>
 	<string name="properties_field_flip_x_description">Mirrors everything this deformer moves left to right, about its pivot.</string>
 	<string name="properties_field_flip_y_description">Mirrors everything this deformer moves top to bottom, about its pivot.</string>
 	<string name="properties_field_sketch_description">Marks this part as a guide image, such as a reference sketch.  It shows in the editor, but a MOC3 export leaves it and everything in it out.</string>
