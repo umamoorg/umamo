@@ -94,6 +94,9 @@ internal fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Uni
  * @param Function onDragSelectedKeys Previews (commit = false) or applies (commit = true) a drag of the
  *   WHOLE selection by a fraction of each key's parameter range.  Only the sheet can do this - the
  *   selection spans sections and a section sees only its own projection.
+ * @param Boolean keysEditable Whether the mode lets keys change (EditorMode.editsKeys).  When it does not, a mark
+ *   only selects - the lane gets no drag handlers, so it leaves its marks in place - and the lane menu's rows
+ *   are greyed out.
  * @param Function selectedMarkDragDelta The in-flight group drag in THIS section's domain units, drawn on
  *   its selected marks so they travel with the one under the hand.  A lambda so the per-frame read lands in
  *   the lane's draw scope rather than recomposing the sheet.
@@ -112,6 +115,7 @@ internal fun KeyformSheetSection(
 	onSelectedKeysChange: (Set<TrackKeyRef>) -> Unit,
 	onStageSelectedKeys: (Set<TrackKeyRef>) -> Unit,
 	onDragSelectedKeys: (Float, Boolean) -> Unit,
+	keysEditable: Boolean,
 	selectedMarkDragDelta: () -> Float?,
 	onLaneBounds: (TrackRow, Rect) -> Unit,
 ) {
@@ -222,43 +226,53 @@ internal fun KeyformSheetSection(
 		// selection and the move as one step.  The whole selection then follows the mark under the hand
 		// rather than snapping to it on release, which is what makes a group drag read as moving keys
 		// instead of as a deferred command.  The model is untouched until the release; only what is DRAWN
-		// moves.
-		onMarkDrag = { row, mark, at ->
-			val draggedKeys = projection.keysOfMark(parameter.id, row.key, mark.keyIndex)
-			val selection = selectionDraggedWith(selectedKeys, draggedKeys)
+		// moves.  Edit mode changes no key, so there the lane gets no drag handlers and a mark only selects.
+		onMarkDrag =
+			if (keysEditable) {
+				{ row, mark, at ->
+					val draggedKeys = projection.keysOfMark(parameter.id, row.key, mark.keyIndex)
+					val selection = selectionDraggedWith(selectedKeys, draggedKeys)
 
-			if (selection != selectedKeys) {
-				onStageSelectedKeys(selection)
-			}
+					if (selection != selectedKeys) {
+						onStageSelectedKeys(selection)
+					}
 
-			groupDragFraction(parameter, selection, draggedKeys, row.key in projection.groupRowKeys, mark, at)?.let { fraction ->
-				onDragSelectedKeys(fraction, false)
-			}
-		},
-		selectedMarkDragDelta = selectedMarkDragDelta,
-		onMarkDragEnd = { row, mark, releasedAt ->
-			val draggedKeys = projection.keysOfMark(parameter.id, row.key, mark.keyIndex)
-			val summary = row.key in projection.groupRowKeys
-			val track = projection.tracksByRowKey[row.key]
-
-			if (session != null) {
-				val selection = selectionDraggedWith(selectedKeys, draggedKeys)
-				val groupFraction = groupDragFraction(parameter, selection, draggedKeys, summary, mark, releasedAt)
-
-				if (groupFraction != null) {
-					// Commits the LIVE selection, which is the one the drag's start staged: the lane reports a
-					// drag's first move before it can report its release.
-					onDragSelectedKeys(groupFraction, true)
-				} else if (!summary && track != null) {
-					// The dragged key ends up selected at the ordinal it lands on.
-					session.moveTrackKeySelectingIt(draggedKeys.single(), track, parameter, releasedAt, selection)
-				} else {
-					// Nothing moves (a parameter with no range), but the selection the drag's start staged
-					// still has to be CONFIRMED, or it would reach no history at all.
-					session.setKeySelection(session.keySelection.value)
+					groupDragFraction(parameter, selection, draggedKeys, row.key in projection.groupRowKeys, mark, at)?.let { fraction ->
+						onDragSelectedKeys(fraction, false)
+					}
 				}
-			}
-		},
+			} else {
+				null
+			},
+		selectedMarkDragDelta = selectedMarkDragDelta,
+		onMarkDragEnd =
+			if (keysEditable) {
+				{ row, mark, releasedAt ->
+					val draggedKeys = projection.keysOfMark(parameter.id, row.key, mark.keyIndex)
+					val summary = row.key in projection.groupRowKeys
+					val track = projection.tracksByRowKey[row.key]
+
+					if (session != null) {
+						val selection = selectionDraggedWith(selectedKeys, draggedKeys)
+						val groupFraction = groupDragFraction(parameter, selection, draggedKeys, summary, mark, releasedAt)
+
+						if (groupFraction != null) {
+							// Commits the LIVE selection, which is the one the drag's start staged: the lane reports a
+							// drag's first move before it can report its release.
+							onDragSelectedKeys(groupFraction, true)
+						} else if (!summary && track != null) {
+							// The dragged key ends up selected at the ordinal it lands on.
+							session.moveTrackKeySelectingIt(draggedKeys.single(), track, parameter, releasedAt, selection)
+						} else {
+							// Nothing moves (a parameter with no range), but the selection the drag's start staged
+							// still has to be CONFIRMED, or it would reach no history at all.
+							session.setKeySelection(session.keySelection.value)
+						}
+					}
+				}
+			} else {
+				null
+			},
 		// Publishing the hovered row is what lets `I` / `Alt+I` aim at a track the way they already aim at a
 		// Properties row: point at it and press.  The projection maps the row back to what it edits; a row
 		// with no track ref (a group header, a blend-shape binding) publishes nothing, so the shortcut
@@ -275,7 +289,7 @@ internal fun KeyformSheetSection(
 			}
 		},
 		labelMenuItems = { row -> labelMenuItemsFor(row, projection, session, labels) },
-		laneMenuItems = { hit -> laneMenuItemsFor(hit, parameter, projection, session, keyableHover, commands, keymap, labels) },
+		laneMenuItems = { hit -> laneMenuItemsFor(hit, parameter, projection, session, keysEditable, keyableHover, commands, keymap, labels) },
 	)
 }
 

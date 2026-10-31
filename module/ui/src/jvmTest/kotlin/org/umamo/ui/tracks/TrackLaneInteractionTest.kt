@@ -288,6 +288,40 @@ class TrackLaneInteractionTest {
 			assertTrue(assertNotNull(releasedAt) > 0f, "releasing to the right must report a larger domain value")
 		}
 
+	/**
+	 * A lane with no drag-release handler leaves its marks in place: a press on one that travels past the slop is
+	 * still a click on that mark, rather than a drag drawn at the pointer that can land nowhere.
+	 */
+	@OptIn(ExperimentalTestApi::class)
+	@Test
+	fun withNoDragHandlerAMarkPressIsAClickHoweverFarItTravels() =
+		runComposeUiTest {
+			var clicked: TrackKeyMark? = null
+			setContent {
+				Box(modifier = Modifier.size(width = 600.dp, height = 200.dp).testTag("sheet")) {
+					TrackSheet(
+						rows = rows,
+						axis = axis,
+						playhead = null,
+						modifier = Modifier.fillMaxSize(),
+						expandedKeys = setOf("owner"),
+						onMarkClick = { _, mark, _ -> clicked = mark },
+					)
+				}
+			}
+			onNodeWithTag("sheet").performMouseInput {
+				val laneCenterX = (width + labelColumnEdge()) / 2f
+				val rowY = childRowCenterY()
+				moveTo(Offset(laneCenterX, rowY))
+				press()
+				moveTo(Offset(laneCenterX + 60f, rowY))
+				moveTo(Offset(laneCenterX + 120f, rowY))
+				release()
+			}
+			waitForIdle()
+			assertEquals(0f, assertNotNull(clicked).position, "the press clicks the mark under it")
+		}
+
 	/** A secondary click over a mark resolves to THAT mark, so the menu can offer to remove it. */
 	@OptIn(ExperimentalTestApi::class)
 	@Test

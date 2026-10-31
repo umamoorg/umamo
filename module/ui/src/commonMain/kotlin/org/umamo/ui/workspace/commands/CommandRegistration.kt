@@ -4,6 +4,7 @@ import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.editsElements
+import org.umamo.edit.editsKeys
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
@@ -65,6 +66,9 @@ internal class SessionAvailability(session: EditorSession?) {
 
 	/** Applies only in Object mode, where whole objects - and the art placements under drawables - are the domain. */
 	val inObjectMode = CommandAvailability { session?.mode?.value == EditorMode.Object }
+
+	/** Applies outside Edit mode, which edits the rest state alone: every command that inserts, removes, or moves a key. */
+	val canEditKeys = CommandAvailability { session?.mode?.value?.editsKeys == true }
 
 	/** Applies only while a Circle-select brush is live, since the radius steps have nothing to resize otherwise. */
 	val circleToolLive = CommandAvailability { session?.activeSelectTool?.value is ActiveSelectTool.Circle }

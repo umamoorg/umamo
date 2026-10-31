@@ -122,6 +122,29 @@ class CommandDispatchTest {
 	}
 
 	/**
+	 * Edit mode changes no key, so every keyform command that inserts, removes, or moves one is off there and on in
+	 * Object and Pose mode: I / Alt+I over any surface and the sheet's Delete and nudges fall through rather than
+	 * reaching a key.  Framing the sheet changes nothing, so it stays on in every mode.
+	 */
+	@Test
+	fun noKeyformCommandChangesAKeyInEditMode() {
+		val keyChanging = listOf("keyform.insert", "keyform.delete", "keyform.deleteSelectedKeys", "keyform.nudgeKeyLeft", "keyform.nudgeKeyRight")
+
+		for (mode in EditorMode.entries) {
+			val session = session(mode)
+			assertEquals(mode, session.mode.value, "the session must really be in $mode mode")
+			val commands = keyformCommands(session, { null }, routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)), KeyformSheetViews(), SessionAvailability(session))
+			val availableById = commands.associate { command -> command.id to command.availability.isAvailable() }
+
+			for (id in keyChanging) {
+				assertEquals(mode != EditorMode.Edit, availableById.getValue(id), "$id in $mode mode")
+			}
+
+			assertTrue(availableById.getValue("keyform.frameAll"), "keyform.frameAll in $mode mode")
+		}
+	}
+
+	/**
 	 * G over a UV editor in Object mode latches NOTHING.  The UV operator refuses outside Edit mode and
 	 * the routing deliberately offers no viewport fallback, so the press is a no-op - grabbing the
 	 * pointer's last viewport instead would move geometry the user is not looking at.

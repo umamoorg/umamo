@@ -33,11 +33,15 @@ import org.umamo.ui.workspace.SpaceScope
  * registration - the same rule the viewport commands follow, and what lets `I` work with no prior
  * selection: point at Opacity and press it.  Over a 2D viewport in Pose mode the target is the posed warps'
  * lattices on the selected parameter (posedLatticeTracks), what Pose mode shapes.
+ *
+ * Every command that inserts, removes, or moves a key applies outside Edit mode only (EditorMode.editsKeys):
+ * Edit mode edits the rest state alone, so there its chords fall through rather than reaching a key.
  */
 
 /**
  * The keyform-authoring commands: insert / delete a key on the hovered keyable (or the posed warps' lattices over a
- * Pose-mode 2D viewport), and the keyform sheet's delete-selected / nudge / frame-all.
+ * Pose-mode 2D viewport), and the keyform sheet's delete-selected / nudge / frame-all.  All but frame-all change keys,
+ * so they apply outside Edit mode only.
  *
  * The sheet commands are registered ONCE here rather than per sheet area: CommandRegistry is
  * last-write-wins per id, so per-area registration made two open sheets clobber each other's handlers and
@@ -74,7 +78,7 @@ internal fun keyformCommands(
 		Command(
 			"keyform.insert",
 			title = Res.string.cmd_keyform_insert,
-			availability = availability.hasDocument,
+			availability = availability.canEditKeys,
 			spaces = SpaceScope.KeyableSurfaces,
 			// Suggested over the sheet and Properties alone: over a 2D viewport it keys only in Pose mode.
 			hint = CommandHint(Res.string.status_bind_insert_key, suggestedOver = SpaceScope.of(SpaceKind.KeyformSheet, SpaceKind.Properties)),
@@ -90,7 +94,7 @@ internal fun keyformCommands(
 		Command(
 			"keyform.delete",
 			title = Res.string.cmd_keyform_delete,
-			availability = availability.hasDocument,
+			availability = availability.canEditKeys,
 			spaces = SpaceScope.KeyableSurfaces,
 			hint = CommandHint(Res.string.status_bind_delete_key, suggestedOver = SpaceScope.of(SpaceKind.KeyformSheet, SpaceKind.Properties)),
 		) {
@@ -102,7 +106,7 @@ internal fun keyformCommands(
 				}
 			}
 		},
-		Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys, availability = availability.hasDocument) {
+		Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys, availability = availability.canEditKeys) {
 			val sheet = keyformSheets.resolveForSelection(hoveredSheetArea())
 			val removals = sheet?.selectedTracks().orEmpty()
 
@@ -115,10 +119,10 @@ internal fun keyformCommands(
 				}
 			}
 		},
-		Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left, availability = availability.hasDocument) {
+		Command("keyform.nudgeKeyLeft", title = Res.string.cmd_keyform_nudge_left, availability = availability.canEditKeys) {
 			keyformSheets.resolveForSelection(hoveredSheetArea())?.nudgeSelection(-KEYFORM_NUDGE_FRACTION)
 		},
-		Command("keyform.nudgeKeyRight", title = Res.string.cmd_keyform_nudge_right, availability = availability.hasDocument) {
+		Command("keyform.nudgeKeyRight", title = Res.string.cmd_keyform_nudge_right, availability = availability.canEditKeys) {
 			keyformSheets.resolveForSelection(hoveredSheetArea())?.nudgeSelection(KEYFORM_NUDGE_FRACTION)
 		},
 		Command("keyform.frameAll", title = Res.string.cmd_keyform_frame_all, availability = availability.hasDocument) {
