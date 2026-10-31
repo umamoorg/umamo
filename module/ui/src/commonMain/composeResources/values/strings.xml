@@ -433,6 +433,8 @@
 	<string name="history_lattice_scale">Scale Lattice Points</string>
 	<string name="history_lattice_rotate">Rotate Lattice Points</string>
 	<string name="history_lattice_slide">Slide Lattice Point</string>
+	<string name="history_lattice_resize">Lattice Resolution</string>
+	<string name="history_lattice_subdivide">Subdivide Lattice</string>
 	<string name="history_pose_move">Pose: Move Lattice Points</string>
 	<string name="history_pose_scale">Pose: Scale Lattice Points</string>
 	<string name="history_pose_rotate">Pose: Rotate Lattice Points</string>
@@ -636,6 +638,7 @@
 	<string name="cmd_mesh_merge">Merge Vertices</string>
 	<string name="cmd_mesh_generate_from_art">Generate Mesh from Art</string>
 	<string name="cmd_mesh_generate_quad">Generate Quad Mesh</string>
+	<string name="cmd_lattice_subdivide">Subdivide Lattice</string>
 	<string name="cmd_mesh_merge_at_center">Merge at Center</string>
 	<string name="cmd_mesh_merge_at_first">Merge at First</string>
 	<string name="cmd_mesh_merge_at_last">Merge at Last</string>
@@ -730,7 +733,9 @@
 	<string name="notice_edit_warp_has_no_lattice">This warp deformer has no lattice to edit.</string>
 	<string name="notice_edit_warp_hidden_at_rest">This warp deformer is not drawn at the default pose, so its lattice cannot be edited.</string>
 	<string name="notice_edit_lattice_topology_fixed">Lattice topology can be reshaped, but it can not be destructively changed.</string>
-	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds over %1$d of its children, so their art moved.  Undo to put it back.</string>
+	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds over %1$d of its children, so their art moved.</string>
+	<string name="notice_lattice_resampled">The lattice was resampled approximately.  Motion may differ slightly and require adjustment.</string>
+	<string name="notice_lattice_resampled_children_moved">The lattice was resampled approximately.  %1$d children were affected and their drawables may have moved.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
 	<string name="cmd_mesh_proportional_toggle">Toggle Proportional Editing</string>
@@ -866,7 +871,6 @@
 	<string name="properties_mask_count">Masks: %1$d</string>
 	<string name="properties_mesh">Mesh: %1$d verts, %2$d tris</string>
 	<string name="properties_no_mesh">No mesh</string>
-	<string name="properties_warp_grid">Grid: %1$d × %2$d</string>
 	<string name="properties_warp_lattice">Lattice</string>
 	<string name="properties_warp_lattice_description">The parameters the lattice's shape is keyed on.  The tint shows whether the pose sits on a key, between keys, or holds a shape made in Pose mode and not yet keyed; point here and insert a key to key the lattice at the pose.</string>
 	<string name="properties_warp_lattice_keyed_on">Keyed on %1$s</string>
@@ -892,6 +896,12 @@
 	<string name="properties_section_texture">Texture</string>
 	<string name="properties_section_blend">Blend</string>
 	<string name="properties_section_deformer">Deformer</string>
+	<string name="properties_section_blend_shapes">Blend Shapes</string>
+	<string name="properties_blend_shape_binding">%1$s: %2$d keys</string>
+	<string name="properties_field_lattice_rows">Rows</string>
+	<string name="properties_field_lattice_rows_description">How many cells the lattice has from top to bottom.  Changing it resamples every keyed shape and keeps the art where it rests.</string>
+	<string name="properties_field_lattice_columns">Columns</string>
+	<string name="properties_field_lattice_columns_description">How many cells the lattice has from left to right.  Changing it resamples every keyed shape and keeps the art where it rests.</string>
 	<string name="properties_section_part">Part</string>
 	<string name="properties_canvas_none">No canvas</string>
 	<string name="properties_field_runtime_target">Target</string>
@@ -980,6 +990,10 @@
 	<string name="transform_options_slide_factor">Factor</string>
 	<!-- The Merge row of the operation settings strip and its choices. -->
 	<string name="merge_options_target">Merge At</string>
+	<string name="lattice_options_rows">Rows</string>
+	<string name="lattice_options_columns">Columns</string>
+	<string name="lattice_options_row_splits">Row Splits</string>
+	<string name="lattice_options_column_splits">Column Splits</string>
 	<string name="merge_target_center">Center</string>
 	<string name="merge_target_first">First</string>
 	<string name="merge_target_last">Last</string>
@@ -1061,7 +1075,7 @@
 	<string name="properties_field_opacity_deformer_description">Scales the opacity of everything this deformer moves, nested deformers included, from 0 (invisible) to 1 (unchanged).</string>
 	<string name="properties_field_multiply_color_deformer_description">Multiplies the colors of everything this deformer moves by this color.  White leaves them unchanged.</string>
 	<string name="properties_field_screen_color_deformer_description">Screens this color over everything this deformer moves.  Black leaves it unchanged.</string>
-	<string name="properties_field_quad_transform_description">Bends each lattice cell smoothly between its four corners instead of as two triangles, so the art does not fold along the cell's diagonal.  This is the new warp deformer method, which older runtimes cannot play.</string>
+	<string name="properties_field_quad_transform_description">Bends each lattice cell smoothly between its four corners instead of as two triangles, so the art does not fold along the cell's diagonal.  This is the new warp deformer method, which older runtimes cannot play.  Switching it keeps the art where it rests.</string>
 	<string name="properties_field_flip_x_description">Mirrors everything this deformer moves left to right, about its pivot.</string>
 	<string name="properties_field_flip_y_description">Mirrors everything this deformer moves top to bottom, about its pivot.</string>
 	<string name="properties_field_sketch_description">Marks this part as a guide image, such as a reference sketch.  It shows in the editor, but a MOC3 export leaves it and everything in it out.</string>
@@ -1107,6 +1121,10 @@
 	<string name="transform_options_connected_description">Limits the proportional influence to vertices joined to the selection by mesh edges, measuring distance along those edges.</string>
 	<string name="transform_options_slide_factor_description">Where along its edge the vertex landed: 0 is where it started, and 1 is the neighboring vertex.</string>
 	<string name="merge_options_target_description">Where the merged vertices come together: at their center, or on the first or last vertex selected.</string>
+	<string name="lattice_options_rows_description">The lattice's new cell count from top to bottom.</string>
+	<string name="lattice_options_columns_description">The lattice's new cell count from left to right.</string>
+	<string name="lattice_options_row_splits_description">How many cells each row of cells is split into, top to bottom.</string>
+	<string name="lattice_options_column_splits_description">How many cells each column of cells is split into, left to right.</string>
 	<string name="mesh_options_preset_description">Fills in the spacings, margins, outline points, minimum angle, and strand width from preset values.</string>
 	<string name="mesh_options_alpha_threshold_description">How opaque a pixel must be, up to 255, to be counted as part of the art.</string>
 	<string name="mesh_options_outline_spacing_description">The distance the mesher aims for between vertices along the outline, in pixels.</string>

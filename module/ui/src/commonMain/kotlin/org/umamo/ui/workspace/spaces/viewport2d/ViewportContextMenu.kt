@@ -47,7 +47,7 @@ private sealed interface ViewportMenuRow {
 	data object Separator : ViewportMenuRow
 }
 
-/** Object mode's rows: whole-object operations, the snaps, and the art meshes. */
+/** Object mode's rows: whole-object operations, the snaps, the art meshes, and the lattice resolution. */
 private val OBJECT_ROWS =
 	listOf(
 		ViewportMenuRow.Single("mesh.duplicate"),
@@ -57,10 +57,11 @@ private val OBJECT_ROWS =
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Single("mesh.generateFromArt"),
 		ViewportMenuRow.Single("mesh.generateQuad"),
+		ViewportMenuRow.Single("lattice.subdivide"),
 		ViewportMenuRow.Single("view.frameSelected"),
 	)
 
-/** Edit mode's rows: the topology operations, the element selection, the snaps, and the art meshes. */
+/** Edit mode's rows: the topology operations, the element selection, the snaps, the art meshes, and the lattice resolution. */
 private val EDIT_ROWS =
 	listOf(
 		ViewportMenuRow.Choices("mesh.merge", PieMenuKind.MergeTarget),
@@ -75,6 +76,7 @@ private val EDIT_ROWS =
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Single("mesh.generateFromArt"),
 		ViewportMenuRow.Single("mesh.generateQuad"),
+		ViewportMenuRow.Single("lattice.subdivide"),
 	)
 
 /** Pose mode's rows: keying the posed warps, clearing what is held, the element selection, and the snaps. */

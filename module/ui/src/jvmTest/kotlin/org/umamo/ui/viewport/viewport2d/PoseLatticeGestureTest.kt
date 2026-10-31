@@ -25,11 +25,16 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.KeyformTrackRef
+import org.umamo.ui.transform.WorldAxis
+import org.umamo.ui.transform.elementEditStageOf
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.clickIn
 import org.umamo.ui.viewport.gizmo.moveIn
+import org.umamo.ui.workspace.commands.CommandRouting
+import org.umamo.ui.workspace.commands.SessionAvailability
+import org.umamo.ui.workspace.commands.topologyCommands
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -178,6 +183,47 @@ class PoseLatticeGestureTest {
 
 			session.undo()
 			assertTrue(session.pendingLatticeEdits.value.isEmpty(), "undo takes the shape back")
+		}
+
+	@Test
+	fun shiftVSlidesAPointAndHoldsItAtThePose() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(poseSession(points = setOf(0), active = 0))
+			val session = fixture.session
+			val modelBefore = session.model.value
+			val slide = topologyCommands(session, CommandRouting { null }, SessionAvailability(session)).single { command -> command.id == "mesh.vertexSlide" }
+			assertTrue(slide.availability.isAvailable(), "Shift+V applies wherever points are edited, Pose mode included")
+			moveIn(LEFT_AREA, listOf(rigScreenOf(0f, 0f)))
+
+			session.beginMeshOperator(MeshOperatorKind.VertexSlide, LEFT_AREA)
+			waitForIdle()
+			assertNotNull(session.activeMeshOperator.value, "a posed point has grid-line neighbors to slide toward")
+			moveIn(LEFT_AREA, listOf(rigScreenOf(20f, 0f)))
+			clickIn(LEFT_AREA, rigScreenOf(20f, 0f))
+
+			assertEquals("change.pose.slide", session.historyView.value.steps.last().labelKey)
+			assertSame(modelBefore, session.model.value, "the document is untouched")
+			val landed = posedWorld(session, LATTICE_RIG_BODY)
+			assertTrue(landed[0] > 1f && landed[0] < 40f, "the point slid along the top line: x ${landed[0]}")
+			assertEquals(0f, landed[1], 1e-3f, "and stayed on it")
+		}
+
+	@Test
+	fun aTypedMedianHoldsThePointsPending() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(poseSession(points = setOf(3), active = 3))
+			val session = fixture.session
+			val modelBefore = session.model.value
+			val stage = elementEditStageOf(session.mode.value, session.pose.value, session.pendingLatticeEdits.value)
+			val owners = editOwnerGeometries(session.model.value, session.meshSelection.value.owners, stage)
+			val move = assertNotNull(coveredMedianMove(session.meshSelection.value, owners, stage))
+
+			session.moveCoveredMedianAdjustable(move, WorldAxis.X, 50f, LEFT_AREA)
+
+			assertEquals("change.pose.move", session.historyView.value.steps.last().labelKey)
+			assertSame(modelBefore, session.model.value, "a posed median holds pending rather than writing the document")
+			assertEquals(50f, posedWorld(session, LATTICE_RIG_BODY)[6], 1e-3f, "the point is held where it was typed")
+			assertNotNull(session.adjustableOperation.value, "and the strip can adjust it")
 		}
 
 	@Test

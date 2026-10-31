@@ -152,6 +152,8 @@ class ViewportContextMenuTest {
 			assertEquals(1, rowsReading("Toggle Visibility"))
 			assertEquals(1, rowsReading("Snap"))
 			assertEquals(1, rowsReading("Frame Selected"))
+			assertEquals(1, rowsReading("Subdivide Lattice"))
+			assertEquals(0, rowsReading("Subdivide Lattice", pickable = true), "no warp is selected")
 			assertEquals(0, rowsReading("Insert Keyframe"), "keying is Pose mode's")
 			assertEquals(0, rowsReading("Close Area"), "the area menu stays on the header")
 			assertEquals(1, host.presses, "the surface still saw the press")
@@ -167,6 +169,7 @@ class ViewportContextMenuTest {
 			assertEquals(1, rowsReading("Merge Vertices"))
 			assertEquals(1, rowsReading("Connect Vertices"))
 			assertEquals(1, rowsReading("Select Linked"))
+			assertEquals(1, rowsReading("Subdivide Lattice"))
 			assertEquals(0, rowsReading("Toggle Visibility"))
 		}
 
@@ -182,6 +185,7 @@ class ViewportContextMenuTest {
 			assertEquals(1, rowsReading("Insert Key by Type"))
 			assertEquals(1, rowsReading("Clear Pose Edits"))
 			assertEquals(0, rowsReading("Clear Pose Edits", pickable = true), "nothing is held to clear")
+			assertEquals(0, rowsReading("Subdivide Lattice"), "Pose mode rewrites no lattice")
 		}
 
 	@Test

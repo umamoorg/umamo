@@ -442,7 +442,6 @@
 	<string name="properties_mask_count">마스크: %1$d</string>
 	<string name="properties_mesh">메쉬: 정점 %1$d개, 삼각면 %2$d개</string>
 	<string name="properties_no_mesh">메쉬 없음</string>
-	<string name="properties_warp_grid">그리드: %1$d × %2$d</string>
 	<string name="status_multi_selected">%1$d 선택됨</string>
 	<string name="properties_no_matches">일치하는 속성이 없습니다.</string>
 	<string name="properties_tab_document">문서</string>
