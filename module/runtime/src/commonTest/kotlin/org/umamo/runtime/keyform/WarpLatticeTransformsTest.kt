@@ -89,7 +89,7 @@ class WarpLatticeTransformsTest {
 			}
 		}
 		assertContentEquals(expected(square(0f)), transformed.geometryGrid!!.cells[0].form.controlPoints)
-		assertContentEquals(expected(square(10f)), transformed.geometryGrid!!.cells[1].form.controlPoints)
+		assertContentEquals(expected(square(10f)), transformed.geometryGrid.cells[1].form.controlPoints)
 		assertContentEquals(expected(square(20f)), transformed.blendShapes.single().forms[1]!!.controlPoints)
 	}
 

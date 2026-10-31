@@ -56,6 +56,8 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.edit.warpHiddenAtRest" -> stringResource(Res.string.notice_edit_warp_hidden_at_rest)
 		"notice.edit.latticeTopologyFixed" -> stringResource(Res.string.notice_edit_lattice_topology_fixed)
 		"notice.edit.latticeChildrenMoved" -> stringResource(Res.string.notice_edit_lattice_children_moved, *countArguments(arguments, 1))
+		"notice.lattice.resampled" -> stringResource(Res.string.notice_lattice_resampled)
+		"notice.lattice.resampledChildrenMoved" -> stringResource(Res.string.notice_lattice_resampled_children_moved, *countArguments(arguments, 1))
 		"notice.display.partialSourceArtwork" -> stringResource(Res.string.notice_display_partial_source_artwork)
 		"notice.display.sourceArtworkUnavailable" -> stringResource(Res.string.notice_display_source_artwork_unavailable)
 		"notice.atlas.repacked" -> stringResource(Res.string.notice_atlas_repacked)

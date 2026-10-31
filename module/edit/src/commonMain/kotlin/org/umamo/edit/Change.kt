@@ -408,6 +408,29 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
+	 * Gives warps a new lattice resolution typed as rows and columns: every grid cell and blend-shape form of each warp
+	 * is resampled onto the new grid, and the children are re-expressed so they rest where they rested whenever the
+	 * resample cannot keep the old map exactly.
+	 *
+	 * @property List<DeformerId> deformerIds The resized warps.
+	 */
+	data class ResizeLattice(val deformerIds: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.lattice.resize"
+	}
+
+	/**
+	 * Splits every cell of warps' lattices by whole factors along rows and columns - [ResizeLattice] by multiples, which
+	 * keeps a quad-mode warp's map exactly.
+	 *
+	 * @property List<DeformerId> deformerIds The subdivided warps.
+	 */
+	data class SubdivideLattice(val deformerIds: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.lattice.subdivide"
+	}
+
+	/**
 	 * Shapes one or more warps' lattices at the pose without keying them (a finished Pose-mode G / S / R, Vertex
 	 * Slide, or snap over lattice points): the shaped lattices are held pending until a key consumes them or the
 	 * pose moves, and the model is untouched.  Labelled by the operator, like a mesh transform.
@@ -523,8 +546,9 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
-	 * Sets a warp deformer's FFD interpolation mode (true = bilinear / quad, false = triangle split).
-	 * A no-op on a rotation deformer (it has no lattice), so the transform short-circuits.
+	 * Sets a warp deformer's FFD interpolation mode (true = bilinear / quad, false = triangle split), with its
+	 * children re-expressed so they rest where they rested under the new mapping.  A no-op on a rotation deformer (it
+	 * has no lattice), so the transform short-circuits.
 	 *
 	 * @property DeformerId id The warp deformer whose interpolation mode changed.
 	 * @property Boolean quad The new quad-transform state.

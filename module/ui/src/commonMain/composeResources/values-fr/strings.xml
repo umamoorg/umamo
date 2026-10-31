@@ -684,7 +684,6 @@
 	<string name="properties_mask_count">Masques: %1$d</string>
 	<string name="properties_mesh">Mesh: %1$d vertices, %2$d triangles</string>
 	<string name="properties_no_mesh">Pas de mesh</string>
-	<string name="properties_warp_grid">Grille: %1$d × %2$d</string>
 	<string name="status_multi_selected">%1$d sélectionnés</string>
 
 	<!--

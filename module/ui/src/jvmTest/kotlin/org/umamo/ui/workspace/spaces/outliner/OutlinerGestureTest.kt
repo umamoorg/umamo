@@ -2,7 +2,7 @@ package org.umamo.ui.workspace.spaces.outliner
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.ui.workspace.PickKind

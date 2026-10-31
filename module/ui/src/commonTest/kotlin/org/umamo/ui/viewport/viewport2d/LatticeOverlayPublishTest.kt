@@ -1,5 +1,6 @@
 package org.umamo.ui.viewport.viewport2d
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -27,6 +28,7 @@ import kotlin.test.assertNull
  * rotation or a warp in a hidden part; and a publish only when that answer changes, so an edit that leaves the
  * roles as they were publishes nothing.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class LatticeOverlayPublishTest {
 	private val sizes = MeshOverlaySizes(2.5f, 1f, 0f)
 

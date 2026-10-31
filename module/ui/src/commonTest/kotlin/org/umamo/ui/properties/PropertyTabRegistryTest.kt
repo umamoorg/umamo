@@ -61,10 +61,10 @@ class PropertyTabRegistryTest {
 	@Test
 	fun dataTabSectionsResolvePerType() {
 		assertEquals(
-			listOf(MeshSection.id, TextureSection.id, BlendSection.id),
+			listOf(MeshSection.id, TextureSection.id, BlendSection.id, BlendShapesSection.id),
 			dataTabSections(contextFor(SelectionTarget.Drawable(DrawableId("d1")))).map { it.id },
 		)
-		assertEquals(listOf(DeformerSection.id), dataTabSections(contextFor(SelectionTarget.Deformer(DeformerId("w1")))).map { it.id })
+		assertEquals(listOf(DeformerSection.id, BlendShapesSection.id), dataTabSections(contextFor(SelectionTarget.Deformer(DeformerId("w1")))).map { it.id })
 		assertEquals(listOf(PartSection.id), dataTabSections(contextFor(SelectionTarget.Part(PartId("p1")))).map { it.id })
 	}
 

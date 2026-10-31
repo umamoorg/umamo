@@ -6,6 +6,7 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.PieMenuKind
+import org.umamo.edit.editsElements
 import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.connectSelectedVertices
 import org.umamo.edit.mesh.duplicateSelectedElements
@@ -90,7 +91,7 @@ internal fun topologyCommands(
 			title = Res.string.cmd_mesh_vertex_slide,
 			availability =
 				CommandAvailability {
-					editorSession?.mode?.value == EditorMode.Edit &&
+					editorSession?.mode?.value?.editsElements == true &&
 						editorSession.meshSelection.value.activeElement?.element is MeshElement.Vertex
 				},
 			spaces = SpaceScope.Viewport2D,

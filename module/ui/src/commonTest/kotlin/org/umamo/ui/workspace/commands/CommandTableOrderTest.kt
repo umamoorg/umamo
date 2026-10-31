@@ -165,6 +165,7 @@ class CommandTableOrderTest {
 				uvCommands(null, routing, availability) +
 				topologyCommands(null, routing, availability) +
 				meshGenerationCommands(availability, routing, null, null) +
+				latticeCommands(null, routing, availability) +
 				proportionalCommands(null, availability) +
 				displayCommands(null, availability) +
 				atlasCommands(availability, routing, null)
@@ -229,6 +230,7 @@ class CommandTableOrderTest {
 				"mesh.vertexSlide",
 				"mesh.generateFromArt",
 				"mesh.generateQuad",
+				"lattice.subdivide",
 				"mesh.proportional.toggle",
 				"mesh.proportional.connectedToggle",
 				"mesh.proportional.falloff.smooth",

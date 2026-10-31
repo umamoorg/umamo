@@ -1,5 +1,6 @@
 package org.umamo.ui.viewport.viewport2d
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -24,6 +25,7 @@ import kotlin.test.assertSame
  * moved points publish a cage over the same overlay with new positions, an edit that leaves the lattice where it
  * was publishes nothing, and leaving Edit mode takes the cage down.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class LatticeCagePublishTest {
 	private val sizes = MeshOverlaySizes(3f, 1f, 2f)
 	private val owner: ElementOwner = ElementOwner.Deformer(LATTICE_RIG_BODY)

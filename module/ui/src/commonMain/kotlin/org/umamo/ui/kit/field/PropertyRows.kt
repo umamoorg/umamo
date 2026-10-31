@@ -94,6 +94,7 @@ fun PropertyFieldRow(
  * @param String label The checkbox's own label (drawn to the right of the box).
  * @param String description What the toggle does, as the checkbox's tooltip; blank attaches none.
  * @param KeyedFieldState keyState The keyform state to tint the box's border with.
+ * @param Boolean enabled When false the state still shows but dimmed, and a click does nothing.
  */
 @Composable
 fun PropertyCheckboxRow(
@@ -102,12 +103,13 @@ fun PropertyCheckboxRow(
 	label: String,
 	description: String = "",
 	keyState: KeyedFieldState = KeyedFieldState.None,
+	enabled: Boolean = true,
 ) {
 	Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
 		Spacer(modifier = Modifier.weight(1f))
 		Box(modifier = Modifier.weight(1f)) {
 			Tooltip(text = description) {
-				Checkbox(checked = checked, onCheckedChange = onCheckedChange, label = label, keyState = keyState)
+				Checkbox(checked = checked, onCheckedChange = onCheckedChange, label = label, keyState = keyState, enabled = enabled)
 			}
 		}
 	}

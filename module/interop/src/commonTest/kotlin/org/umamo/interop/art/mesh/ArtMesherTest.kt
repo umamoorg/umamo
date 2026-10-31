@@ -219,7 +219,7 @@ class ArtMesherTest {
 		val innerRingRows = verticesWhere(mesh) { x, y -> x in 50.0..250.0 && (abs(y - 29.0) < 2.0 || abs(y - 51.0) < 2.0) }
 
 		assertEquals(0, presetResult.statistics!!.strandCount)
-		assertTrue(presetResult.statistics!!.innerRingCount >= 1)
+		assertTrue(presetResult.statistics.innerRingCount >= 1)
 		assertEquals(1, statistics.strandCount)
 		assertTrue(statistics.strandCenterCount >= 3, "${statistics.strandCenterCount}")
 		assertTrue(innerRingRows.isEmpty(), "the rungs take the inner ring's place: $innerRingRows")
@@ -440,7 +440,7 @@ class ArtMesherTest {
 
 		assertEquals(standard.outlineSpacing, statistics.outlineSpacing, "the outline keeps the spacing asked for")
 		assertTrue(statistics.interiorSpacing!! > standard.interiorSpacing, "the interior thinned")
-		assertTrue(statistics.interiorSpacing!! <= standard.interiorThinningLimit * standard.outlineSpacing, "within its limit")
+		assertTrue(statistics.interiorSpacing <= standard.interiorThinningLimit * standard.outlineSpacing, "within its limit")
 		assertTrue(result.notices.contains(ArtMeshNotice.SpacingCoarsened(statistics.outlineSpacing, statistics.interiorSpacing)), "${result.notices}")
 		assertTrue(placedCountOf(result).second <= budget - reserveOf(budget), "a coarsened mesh leaves refinement its share")
 	}
@@ -469,7 +469,7 @@ class ArtMesherTest {
 		val limited = generateArtMesh(raster, standard.copy(vertexBudget = outline - 4)).statistics!!
 
 		assertTrue(statistics.outlineSpacing < limited.outlineSpacing, "the outline gave way later: ${statistics.outlineSpacing} against ${limited.outlineSpacing}")
-		assertTrue(statistics.interiorSpacing == null || statistics.interiorSpacing!! > limited.interiorSpacing!!, "and the interior thinned further first")
+		assertTrue(statistics.interiorSpacing == null || statistics.interiorSpacing > limited.interiorSpacing!!, "and the interior thinned further first")
 	}
 
 	@Test
@@ -481,7 +481,7 @@ class ArtMesherTest {
 		val settings = sparse.copy(vertexBudget = outline - 4)
 		val statistics = generateArtMesh(raster, settings).statistics!!
 
-		assertTrue(statistics.interiorSpacing == null || statistics.interiorSpacing!! >= 8.0 * statistics.outlineSpacing - 1e-9, "${statistics.outlineSpacing} / ${statistics.interiorSpacing}")
+		assertTrue(statistics.interiorSpacing == null || statistics.interiorSpacing >= 8.0 * statistics.outlineSpacing - 1e-9, "${statistics.outlineSpacing} / ${statistics.interiorSpacing}")
 	}
 
 	@Test

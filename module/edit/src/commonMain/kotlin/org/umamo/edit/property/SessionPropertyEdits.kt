@@ -220,17 +220,6 @@ fun EditorSession.previewDeformerBaseAngle(id: DeformerId, angle: Float): Puppet
 }
 
 /**
- * Sets warp deformer [id]'s FFD interpolation mode as one undo step. A no-op on a rotation deformer (it
- * has no lattice), so the commit short-circuits.
- *
- * @param DeformerId id The deformer to retarget.
- * @param Boolean quad The new quad-transform state.
- */
-fun EditorSession.setDeformerQuadTransform(id: DeformerId, quad: Boolean) {
-	mutate(DeformerChange.SetQuadTransform(id, quad)) { model -> model.withDeformerQuadTransform(id, quad) }
-}
-
-/**
  * Sets part [id]'s guide-image (sketch) flag as one undo step.
  *
  * @param PartId id The part to retarget.
