@@ -825,9 +825,9 @@
 	<string name="properties_section_blend_shapes">ブレンドシェイプ</string>
 	<string name="properties_blend_shape_binding">%1$s: キー %2$d 個</string>
 	<string name="properties_field_lattice_rows">行数</string>
-	<string name="properties_field_lattice_rows_description">格子の縦方向のセル数。変更するとキーのある形をすべて再サンプリングし、アートは静止位置に保たれます。</string>
+	<string name="properties_field_lattice_rows_description">格子の縦方向のセル数。変更するとメッシュのキーフォームが再サンプリングされます。</string>
 	<string name="properties_field_lattice_columns">列数</string>
-	<string name="properties_field_lattice_columns_description">格子の横方向のセル数。変更するとキーのある形をすべて再サンプリングし、アートは静止位置に保たれます。</string>
+	<string name="properties_field_lattice_columns_description">格子の横方向のセル数。変更するとメッシュのキーフォームが再サンプリングされます。</string>
 	<string name="properties_section_part">パーツ</string>
 	<string name="properties_canvas_none">キャンバスなし</string>
 	<!-- ドキュメント > ランタイム: ターゲット選択と制限機能リスト。製品名（Cubism / Ayagami）は原文のまま。 -->
