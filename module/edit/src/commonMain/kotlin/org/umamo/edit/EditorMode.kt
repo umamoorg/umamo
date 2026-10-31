@@ -45,6 +45,15 @@ val EditorMode.pinsPose: Boolean get() = this == EditorMode.Edit
 val EditorMode.editsElements: Boolean get() = this != EditorMode.Object
 
 /**
+ * Whether keys may be inserted, removed, or moved in this mode.
+ *
+ * Edit mode edits the rest state alone, so it changes no key: the keyform sheet still shows the keys and selects
+ * them, and inserting, removing, or moving one waits for Object or Pose mode.  The one rule every key-changing
+ * command, menu row, and sheet gesture reads.
+ */
+val EditorMode.editsKeys: Boolean get() = this != EditorMode.Edit
+
+/**
  * The pose this mode shows, and so the pose every view and every edit aimed at "the pose" evaluates at:
  * the rig's pose, and while the mode pins it, every parameter at its default.
  *

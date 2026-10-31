@@ -79,6 +79,61 @@ class KeyformSheetMenuTest {
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 
+	/** In Edit mode, which changes no key, the lane menu's Insert is still offered but greyed out: choosing it adds nothing. */
+	@Test
+	fun inEditModeTheLaneMenusInsertAddsNoKey() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.bodyX))
+			runOnIdle { harness.enterEditMode() }
+			waitForIdle()
+			val cursorBefore = harness.historyCursor
+
+			secondaryClickAt(lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, 2.5f))
+			assertTrue(popupShows(harness.text.keyformInsert), "the entry is still offered")
+			clickMenuEntry(harness.text.keyformInsert)
+
+			assertEquals(listOf(-5f, 0f, 5f), geometryKeysOf(harness, PanelIds.drawable, PanelIds.bodyX))
+			assertEquals(cursorBefore, harness.historyCursor)
+		}
+
+	/** In Edit mode the lane menu's Delete on a mark is greyed out the same way: choosing it removes nothing. */
+	@Test
+	fun inEditModeTheLaneMenusDeleteRemovesNoKey() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.bodyX))
+			runOnIdle { harness.enterEditMode() }
+			waitForIdle()
+			val cursorBefore = harness.historyCursor
+
+			secondaryClickAt(lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, 0f))
+			assertTrue(popupShows(harness.text.keyformDelete), "the entry is still offered")
+			clickMenuEntry(harness.text.keyformDelete)
+
+			assertEquals(listOf(-5f, 0f, 5f), geometryKeysOf(harness, PanelIds.drawable, PanelIds.bodyX))
+			assertEquals(cursorBefore, harness.historyCursor)
+		}
+
+	/**
+	 * In Edit mode a summary mark's Delete removes nothing either.  It calls the session rather than a command, so
+	 * no command availability guards it and the greyed entry is the whole of the gate.
+	 */
+	@Test
+	fun inEditModeASummaryMenusDeleteRemovesNoKey() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.bodyX))
+			clickAt(chevronPoint(harness, SheetRows.DRAWABLE))
+			runOnIdle { harness.enterEditMode() }
+			waitForIdle()
+			val cursorBefore = harness.historyCursor
+
+			secondaryClickAt(lanePoint(harness, SheetRows.DRAWABLE, PanelIds.bodyX, 0f))
+			assertTrue(popupShows(harness.text.keyformDelete), "the entry is still offered")
+			clickMenuEntry(harness.text.keyformDelete)
+
+			assertEquals(listOf(-5f, 0f, 5f), geometryKeysOf(harness, PanelIds.drawable, PanelIds.bodyX))
+			assertEquals(cursorBefore, harness.historyCursor)
+		}
+
 	/** A group row's label offers to select what it names: a drawable. */
 	@Test
 	fun aDrawableGroupsLabelSelectsTheDrawable() =

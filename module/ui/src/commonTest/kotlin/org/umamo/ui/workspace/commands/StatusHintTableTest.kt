@@ -74,8 +74,8 @@ class StatusHintTableTest {
 				"mesh.selectMode.edge" to inElementModes,
 				"mesh.selectMode.face" to inElementModes,
 				"uv.pinPlacement" to inObjectModeOnly,
-				"keyform.insert" to withADocument,
-				"keyform.delete" to withADocument,
+				"keyform.insert" to outsideEditMode,
+				"keyform.delete" to outsideEditMode,
 			)
 		val noDocument = suggestedById(null)
 		val objectMode = suggestedById(commandFixtureSession(EditorMode.Object))
