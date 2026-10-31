@@ -500,6 +500,12 @@ class CommandTableOrderTest {
 			listOf(
 				"keyform.insert",
 				"keyform.delete",
+				"keyform.insertPie",
+				"keyform.insert.lattice",
+				"keyform.insert.opacity",
+				"keyform.insert.colors",
+				"keyform.insert.all",
+				"keyform.clearPoseEdits",
 				"keyform.deleteSelectedKeys",
 				"keyform.nudgeKeyLeft",
 				"keyform.nudgeKeyRight",

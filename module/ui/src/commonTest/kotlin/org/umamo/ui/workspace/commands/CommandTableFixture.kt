@@ -13,6 +13,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
 import org.umamo.ui.action.Command
@@ -47,9 +48,13 @@ import kotlin.test.assertEquals
  * nothing to edit, and Pose mode with nothing to pose.
  *
  * @param EditorMode mode The mode to leave the session in.
+ * @param RuntimeTarget runtimeTarget The document's runtime target, unrestricted unless a case varies it.
  * @return EditorSession The session, verified to be in [mode].
  */
-internal fun commandFixtureSession(mode: EditorMode): EditorSession {
+internal fun commandFixtureSession(
+	mode: EditorMode,
+	runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
+): EditorSession {
 	val drawable =
 		Drawable(
 			id = DrawableId("a"),
@@ -81,6 +86,7 @@ internal fun commandFixtureSession(mode: EditorMode): EditorSession {
 				drawables = listOf(drawable),
 				rootChildren = emptyList(),
 				rootPartId = null,
+				runtimeTarget = runtimeTarget,
 			),
 		)
 	val target = SelectionTarget.Drawable(DrawableId("a"))

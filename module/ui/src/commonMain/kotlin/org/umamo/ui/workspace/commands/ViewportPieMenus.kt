@@ -1,21 +1,38 @@
-package org.umamo.ui.workspace.shell
+package org.umamo.ui.workspace.commands
 
 import org.jetbrains.compose.resources.StringResource
 import org.umamo.edit.PieMenuKind
+import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.kit.menu.PieMenuEntry
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 
 /**
- * The entry ring for one pie kind, in Blender slot order (W, E, S, N, then the diagonals).  Shared
- * by the shell-level pie host's rendering (ShellCursorOverlays.kt) and the shell's 1..N digit
- * shortcuts, so the picked ordinal always matches the drawn number.  Icons are authored per entry;
- * a null icon renders the placeholder square.
+ * The entry ring for one pie kind, in Blender slot order (W, E, S, N, then the diagonals), each entry enabled exactly
+ * when its command is registered and available.  Shared by the shell-level pie host's rendering
+ * (ShellCursorOverlays.kt), the shell's 1..N digit shortcuts, and the 2D viewport's context menu, so the picked
+ * ordinal always matches the drawn number and a greyed chip is a greyed row.  Icons are authored per entry; a null
+ * icon renders the placeholder square.
  *
  * @param PieMenuKind kind The open pie.
+ * @param CommandRegistry commands The registry the entries dispatch through, which says which are available.
  * @return List<PieMenuEntry> The pie's entries.
  */
-fun pieMenuEntriesFor(kind: PieMenuKind): List<PieMenuEntry> =
+fun pieMenuEntriesFor(
+	kind: PieMenuKind,
+	commands: CommandRegistry,
+): List<PieMenuEntry> =
+	authoredEntriesFor(kind).map { entry ->
+		entry.copy(enabled = entry.enabled && commands[entry.commandId]?.availability?.isAvailable() == true)
+	}
+
+/**
+ * The entry ring one pie kind is authored with, before availability greys any of it.
+ *
+ * @param PieMenuKind kind The pie.
+ * @return List<PieMenuEntry> The authored entries.
+ */
+private fun authoredEntriesFor(kind: PieMenuKind): List<PieMenuEntry> =
 	when (kind) {
 		PieMenuKind.PivotMode -> {
 			listOf(
@@ -58,6 +75,15 @@ fun pieMenuEntriesFor(kind: PieMenuKind): List<PieMenuEntry> =
 				PieMenuEntry("mesh.merge.atLast", Res.string.cmd_mesh_merge_at_last),
 			)
 		}
+
+		PieMenuKind.InsertKey -> {
+			listOf(
+				PieMenuEntry("keyform.insert.lattice", Res.string.pie_insert_key_lattice),
+				PieMenuEntry("keyform.insert.opacity", Res.string.pie_insert_key_opacity),
+				PieMenuEntry("keyform.insert.colors", Res.string.pie_insert_key_colors),
+				PieMenuEntry("keyform.insert.all", Res.string.pie_insert_key_all),
+			)
+		}
 	}
 
 /**
@@ -72,4 +98,5 @@ fun pieMenuTitleFor(kind: PieMenuKind): StringResource =
 		PieMenuKind.Snap -> Res.string.pie_title_snap
 		PieMenuKind.UvSnap -> Res.string.pie_title_uv_snap
 		PieMenuKind.MergeTarget -> Res.string.pie_title_merge
+		PieMenuKind.InsertKey -> Res.string.pie_title_insert_key
 	}

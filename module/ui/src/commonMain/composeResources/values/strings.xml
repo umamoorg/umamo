@@ -437,6 +437,7 @@
 	<string name="history_pose_scale">Pose: Scale Lattice Points</string>
 	<string name="history_pose_rotate">Pose: Rotate Lattice Points</string>
 	<string name="history_pose_slide">Pose: Slide Lattice Point</string>
+	<string name="history_pose_clear_edits">Clear Pose Edits</string>
 	<string name="history_uv_move">Move UVs</string>
 	<string name="history_uv_scale">Scale UVs</string>
 	<string name="history_uv_rotate">Rotate UVs</string>
@@ -626,7 +627,7 @@
 	<string name="cmd_mesh_select_linked_cursor">Select Linked under Cursor</string>
 	<string name="cmd_mesh_select_linked">Select Linked</string>
 	<string name="cmd_view_frame_selected">Frame Selected</string>
-	<string name="cmd_switch_object_under_cursor">Switch Edited Mesh</string>
+	<string name="cmd_switch_object_under_cursor">Switch Editing Object</string>
 	<string name="cmd_outliner_select_hierarchy">Select Hierarchy</string>
 	<string name="outliner_menu_select_hierarchy">Select Hierarchy</string>
 
@@ -813,6 +814,11 @@
 	<string name="pie_title_snap">Snap</string>
 	<string name="pie_title_uv_snap">UV Snap</string>
 	<string name="pie_title_merge">Merge</string>
+	<string name="pie_title_insert_key">Insert Key</string>
+	<string name="pie_insert_key_lattice">Lattice</string>
+	<string name="pie_insert_key_opacity">Opacity</string>
+	<string name="pie_insert_key_colors">Colors</string>
+	<string name="pie_insert_key_all">All</string>
 
 	<!-- Viewport chrome: the left tool toolbar and the right sidebar drawer. -->
 	<string name="cmd_view_toggle_toolbar">Toggle Toolbar</string>
@@ -1286,6 +1292,12 @@
 	<string name="cmd_keyform_nudge_right">Nudge Keyframe Right</string>
 	<string name="cmd_keyform_delete_keys">Delete Selected Keys</string>
 	<string name="cmd_keyform_delete">Delete Keyframe</string>
+	<string name="cmd_keyform_insert_pie">Insert Key by Type</string>
+	<string name="cmd_keyform_insert_lattice">Insert Lattice Key</string>
+	<string name="cmd_keyform_insert_opacity">Insert Opacity Key</string>
+	<string name="cmd_keyform_insert_colors">Insert Color Keys</string>
+	<string name="cmd_keyform_insert_all">Insert All Keys</string>
+	<string name="cmd_keyform_clear_pose_edits">Clear Pose Edits</string>
 	<string name="notice_keyform_no_target">Point at a keyable property to insert a keyframe.</string>
 	<string name="notice_keyform_no_parameter">Select a parameter to key on.</string>
 	<string name="notice_parameter_delete_changed_rest">Parameter deleted.  %1$d object(s) now look different at the default pose.</string>

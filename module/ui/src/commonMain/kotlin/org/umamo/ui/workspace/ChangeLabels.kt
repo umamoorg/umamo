@@ -58,6 +58,7 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.pose.scale" -> stringResource(Res.string.history_pose_scale)
 		"change.pose.rotate" -> stringResource(Res.string.history_pose_rotate)
 		"change.pose.slide" -> stringResource(Res.string.history_pose_slide)
+		"change.pose.clearEdits" -> stringResource(Res.string.history_pose_clear_edits)
 		"change.uv.move" -> stringResource(Res.string.history_uv_move)
 		"change.uv.scale" -> stringResource(Res.string.history_uv_scale)
 		"change.uv.rotate" -> stringResource(Res.string.history_uv_rotate)

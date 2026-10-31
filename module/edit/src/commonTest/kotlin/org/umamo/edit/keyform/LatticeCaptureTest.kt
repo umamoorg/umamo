@@ -137,6 +137,28 @@ class LatticeCaptureTest {
 	}
 
 	@Test
+	fun aLaneAimedAtAWarpHoldingAShapeKeysItAtThePose() {
+		val form = shaped(1f, 2f)
+		val session = session(mapOf(parameterP to 0.5f), mapOf(cage to form))
+
+		session.captureKeyOnTrack(track(cage), parameterP, KeyformAim.Position(-0.5f, keyIndex = null))
+
+		assertEquals(listOf(-1f, 0.5f, 1f), keysOf(session, cage, parameterP), "at the pose, not where the lane was aimed")
+		assertContentEquals(form.controlPoints, assertNotNull(session.model.value.warpGridLatticeAt(cage, session.pose.value)).controlPoints)
+		assertTrue(session.pendingLatticeEdits.value.isEmpty(), "the key consumed it")
+	}
+
+	@Test
+	fun aLaneAimedAtAWarpHoldingNothingInsertsWhereAimed() {
+		val session = session(mapOf(parameterP to 0.5f), mapOf(second to shaped(3f, 4f)))
+
+		session.captureKeyOnTrack(track(cage), parameterP, KeyformAim.Position(-0.5f, keyIndex = null))
+
+		assertEquals(listOf(-1f, -0.5f, 1f), keysOf(session, cage, parameterP))
+		assertEquals(setOf(second), session.pendingLatticeEdits.value.keys, "another warp's shape stays held")
+	}
+
+	@Test
 	fun severalWarpsKeyInOneStep() {
 		val cageForm = shaped(1f, 2f)
 		val secondForm = shaped(3f, 4f)

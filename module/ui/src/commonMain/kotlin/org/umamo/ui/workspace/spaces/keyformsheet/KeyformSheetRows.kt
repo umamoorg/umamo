@@ -3,7 +3,6 @@ package org.umamo.ui.workspace.spaces.keyformsheet
 import org.umamo.edit.TrackKeyRef
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.Deformer
-import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
@@ -150,9 +149,9 @@ data class KeyformSheetProjection(
  * @param ParameterId parameterId The parameter whose tracks to list.
  * @param KeyformTrackLabels labels The localized chrome labels.
  * @param KeyformTrackFilter filter Which kinds of track to list.
- * @param Set<DeformerId> pendingWarpIds The warps holding an unkeyed Pose-mode lattice the viewport shows, whose
- *   geometry rows mark it at [poseValue].
- * @param Float? poseValue The pose's value on [parameterId], where a pending lattice would be keyed.
+ * @param Set<KeyformTrackRef> heldTracks The tracks holding an edit not yet keyed, as the viewport shows them
+ *   (org.umamo.edit.heldTracks); each one's row marks it at [poseValue], where a key on that row would store it.
+ * @param Float? poseValue The pose's value on [parameterId].
  * @return KeyformSheetProjection The rows and their model bindings; empty when nothing keys on it.
  */
 fun keyformSheetRows(
@@ -160,10 +159,10 @@ fun keyformSheetRows(
 	parameterId: ParameterId,
 	labels: KeyformTrackLabels,
 	filter: KeyformTrackFilter = KeyformTrackFilter.All,
-	pendingWarpIds: Set<DeformerId> = emptySet(),
+	heldTracks: Set<KeyformTrackRef> = emptySet(),
 	poseValue: Float? = null,
 ): KeyformSheetProjection {
-	val builder = ProjectionBuilder(labels, parameterId, filter)
+	val builder = ProjectionBuilder(labels, parameterId, filter, heldTracks, poseValue)
 
 	for (part in puppet.parts) {
 		builder.addOwner(
@@ -202,7 +201,6 @@ fun keyformSheetRows(
 			channelGrids = deformer.channelGrids,
 			blendShapeMarks = blendShapeMarksOf(blendShapes.map { it.parameterId to it.keys }, parameterId),
 			parameterId = parameterId,
-			geometryPendingAt = poseValue?.takeIf { deformer.id in pendingWarpIds },
 		)
 	}
 
@@ -249,11 +247,15 @@ fun keyformSheetRows(
  * @property KeyformTrackLabels labels The localized chrome labels.
  * @property ParameterId parameterId The parameter being listed, which is part of a key ref's identity.
  * @property KeyformTrackFilter filter Which kinds of track to list.
+ * @property Set<KeyformTrackRef> heldTracks The tracks holding an edit not yet keyed.
+ * @property Float? poseValue Where a held track's row marks its edit.
  */
 private class ProjectionBuilder(
 	private val labels: KeyformTrackLabels,
 	private val parameterId: ParameterId,
 	private val filter: KeyformTrackFilter,
+	private val heldTracks: Set<KeyformTrackRef>,
+	private val poseValue: Float?,
 ) {
 	private val rows = ArrayList<TrackRow>()
 	private val tracks = HashMap<String, KeyformTrackRef>()
@@ -272,7 +274,6 @@ private class ProjectionBuilder(
 	 * @param ChannelGrids channelGrids Its channel tracks.
 	 * @param List blendShapeMarks Its blend-shape tracks' marks, one list per binding.
 	 * @param ParameterId parameterId The parameter being listed.
-	 * @param Float? geometryPendingAt Where its geometry row marks an edit not yet keyed, or null for none.
 	 */
 	fun addOwner(
 		ownerKey: String,
@@ -283,7 +284,6 @@ private class ProjectionBuilder(
 		channelGrids: ChannelGrids,
 		blendShapeMarks: List<List<TrackKeyMark>>,
 		parameterId: ParameterId,
-		geometryPendingAt: Float? = null,
 	) {
 		val children = ArrayList<TrackRow>()
 
@@ -295,19 +295,20 @@ private class ProjectionBuilder(
 
 		if (geometryMarks != null && filter.geometry) {
 			val rowKey = "$ownerKey/geometry"
+			val track = KeyformTrackRef.Geometry(owner)
 			children.add(
 				TrackRow(
 					key = rowKey,
 					label = labels.geometry,
 					tone = TrackRowTone.Primary,
 					marks = geometryMarks,
-					pendingAt = geometryPendingAt,
+					pendingAt = pendingAtOf(track),
 				),
 			)
 			// A geometry row is editable: its key POSITIONS are ordinary grid algebra.  Leaving it unaddressable
 			// would make the sheet silently swallow every gesture on what is, after compaction, nearly every row a
 			// corpus rig shows.
-			tracks[rowKey] = KeyformTrackRef.Geometry(owner)
+			tracks[rowKey] = track
 		}
 
 		for ((channel, track) in channelGrids.gridsByChannel) {
@@ -320,15 +321,17 @@ private class ProjectionBuilder(
 			}
 
 			val rowKey = "$ownerKey/${channel.name}"
+			val channelTrack = KeyformTrackRef.Channel(KeyableTarget(owner, channel))
 			children.add(
 				TrackRow(
 					key = rowKey,
 					label = labels.channelName(channel),
 					tone = TrackRowTone.Secondary,
 					marks = marks,
+					pendingAt = pendingAtOf(channelTrack),
 				),
 			)
-			tracks[rowKey] = KeyformTrackRef.Channel(KeyableTarget(owner, channel))
+			tracks[rowKey] = channelTrack
 		}
 
 		// A blend-shape binding is not a keyform grid, so it gets a row but no track ref: the sheet's ops
@@ -364,6 +367,15 @@ private class ProjectionBuilder(
 		ownerKinds[ownerKey] = ownerKind
 		owners[ownerKey] = owner
 	}
+
+	/**
+	 * Where [track]'s row marks an edit it holds - the pose, since a key on that row stores the edit there - or null
+	 * when it holds none.
+	 *
+	 * @param KeyformTrackRef track The row's track.
+	 * @return Float? The mark's position, or null.
+	 */
+	private fun pendingAtOf(track: KeyformTrackRef): Float? = poseValue?.takeIf { track in heldTracks }
 
 	/**
 	 * The keys each group row's summary marks stand for.

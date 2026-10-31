@@ -80,6 +80,7 @@ class CommandSpacesTableTest {
 				"mesh.vertexSlide" to viewport,
 				"keyform.insert" to keyableSurfaces,
 				"keyform.delete" to keyableSurfaces,
+				"keyform.insertPie" to viewport,
 			)
 		val actual =
 			everyCommandTable()

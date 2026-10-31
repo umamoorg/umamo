@@ -310,6 +310,7 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"primary+KeyI" to "select.invert",
 		"KeyI" to "keyform.insert",
 		"alt+KeyI" to "keyform.delete",
+		"KeyK" to "keyform.insertPie",
 		"Delete" to "keyform.deleteSelectedKeys",
 		"ArrowLeft" to "keyform.nudgeKeyLeft",
 		"ArrowRight" to "keyform.nudgeKeyRight",
@@ -374,6 +375,10 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 		"KeyP" to "uv.pinPlacement",
 		"alt+KeyP" to "uv.unpinPlacement",
 		"primary+KeyY" to "edit.redo",
+		// Keying keeps the default preset's keys: Insert, Delete, and the key-type pie.
+		"KeyI" to "keyform.insert",
+		"alt+KeyI" to "keyform.delete",
+		"KeyK" to "keyform.insertPie",
 		"primary+Comma" to "edit.preferences",
 		"primary+Digit0" to "view.fit",
 		// Frame Selected joins the Ctrl+0 fit family (Cubism has no numpad-framing convention).
@@ -422,6 +427,7 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"primary+KeyI" to "select.invert",
 		"KeyI" to "keyform.insert",
 		"alt+KeyI" to "keyform.delete",
+		"KeyK" to "keyform.insertPie",
 		"Delete" to "keyform.deleteSelectedKeys",
 		"ArrowLeft" to "keyform.nudgeKeyLeft",
 		"ArrowRight" to "keyform.nudgeKeyRight",

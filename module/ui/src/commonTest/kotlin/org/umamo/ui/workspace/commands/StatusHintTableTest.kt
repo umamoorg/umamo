@@ -6,6 +6,7 @@ import org.umamo.ui.action.defaultKeymap
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.status_bind_edit_mode
 import org.umamo.ui.resources.status_bind_grab
+import org.umamo.ui.resources.status_bind_insert_key
 import org.umamo.ui.resources.status_bind_rotate
 import org.umamo.ui.resources.status_bind_scale
 import org.umamo.ui.resources.status_bind_visibility
@@ -62,6 +63,7 @@ class StatusHintTableTest {
 		val inObjectModeOnly = SuggestedIn(noDocument = false, objectMode = true, editMode = false, poseMode = false)
 		val inElementModes = SuggestedIn(noDocument = false, objectMode = false, editMode = true, poseMode = true)
 		val outsideEditMode = SuggestedIn(noDocument = false, objectMode = true, editMode = false, poseMode = true)
+		val inPoseModeOnly = SuggestedIn(noDocument = false, objectMode = false, editMode = false, poseMode = true)
 		val withADocument = SuggestedIn(noDocument = false, objectMode = true, editMode = true, poseMode = true)
 		val expected =
 			mapOf(
@@ -76,6 +78,7 @@ class StatusHintTableTest {
 				"uv.pinPlacement" to inObjectModeOnly,
 				"keyform.insert" to outsideEditMode,
 				"keyform.delete" to outsideEditMode,
+				"keyform.insertPie" to inPoseModeOnly,
 			)
 		val noDocument = suggestedById(null)
 		val objectMode = suggestedById(commandFixtureSession(EditorMode.Object))
@@ -97,7 +100,8 @@ class StatusHintTableTest {
 	/**
 	 * Over a viewport under the default keymap, each mode reads as its own short list: the way into Edit mode and
 	 * the visibility toggle from Object mode, the element domains from Edit mode, and from Pose mode, which works on
-	 * the posed lattices' elements, the way into Edit mode and the element domains.
+	 * the posed lattices' elements and keys them, Insert Key (I and the K pie as one entry), the way into Edit mode,
+	 * and the element domains.
 	 */
 	@Test
 	fun eachModeSuggestsItsOwnListOverAViewport() {
@@ -108,7 +112,8 @@ class StatusHintTableTest {
 
 		assertEquals(transforms + Res.string.status_bind_edit_mode + Res.string.status_bind_visibility, objectHints.map { hint -> hint.label })
 		assertEquals(transforms + Res.string.status_select_mode, editHints.map { hint -> hint.label })
-		assertEquals(transforms + Res.string.status_bind_edit_mode + Res.string.status_select_mode, poseHints.map { hint -> hint.label })
+		assertEquals(transforms + Res.string.status_bind_insert_key + Res.string.status_bind_edit_mode + Res.string.status_select_mode, poseHints.map { hint -> hint.label })
+		assertEquals(2, poseHints.single { hint -> hint.label == Res.string.status_bind_insert_key }.chords.size, "I and K, one entry")
 	}
 
 	/**
