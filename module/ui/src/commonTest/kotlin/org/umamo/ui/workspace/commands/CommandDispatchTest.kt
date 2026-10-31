@@ -16,6 +16,8 @@ import org.umamo.edit.SnapRequest
 import org.umamo.edit.UvMirrorRequest
 import org.umamo.edit.selectAllMeshElements
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -80,7 +82,8 @@ class CommandDispatchTest {
 				PuppetModel(
 					parameters = emptyList(),
 					parts = emptyList(),
-					deformers = emptyList(),
+					// One deformer, so the session can enter Pose mode (refused with nothing to pose).
+					deformers = listOf(Deformer.Warp(DeformerId("w"), "w", parent = null, partId = null, rows = 1, columns = 1, isQuadTransform = true, geometryGrid = null)),
 					drawables = listOf(meshDrawable("a")),
 					rootChildren = emptyList(),
 					rootPartId = null,
@@ -116,6 +119,36 @@ class CommandDispatchTest {
 				disarmBoxSelect = { armed = false },
 				nudgeSelection = {},
 			)
+	}
+
+	/**
+	 * Edit mode changes no key, so every keyform command that inserts, removes, or moves one is off there and on in
+	 * Object and Pose mode: I / Alt+I over any surface and the sheet's Delete and nudges fall through rather than
+	 * reaching a key.  The key-type pie and its choices key the posed warps, so they are on in Pose mode alone, and
+	 * Clear Pose Edits is off with nothing held.  Framing the sheet changes nothing, so it stays on in every mode.
+	 */
+	@Test
+	fun noKeyformCommandChangesAKeyInEditMode() {
+		val keyChanging = listOf("keyform.insert", "keyform.delete", "keyform.deleteSelectedKeys", "keyform.nudgeKeyLeft", "keyform.nudgeKeyRight")
+		val poseKeying = listOf("keyform.insertPie", "keyform.insert.lattice", "keyform.insert.opacity", "keyform.insert.colors", "keyform.insert.all")
+
+		for (mode in EditorMode.entries) {
+			val session = session(mode)
+			assertEquals(mode, session.mode.value, "the session must really be in $mode mode")
+			val commands = keyformCommands(session, { null }, routing(HoveredSurface(sheetArea, SpaceKind.KeyformSheet)), KeyformSheetViews(), SessionAvailability(session))
+			val availableById = commands.associate { command -> command.id to command.availability.isAvailable() }
+
+			for (id in keyChanging) {
+				assertEquals(mode != EditorMode.Edit, availableById.getValue(id), "$id in $mode mode")
+			}
+
+			for (id in poseKeying) {
+				assertEquals(mode == EditorMode.Pose, availableById.getValue(id), "$id in $mode mode")
+			}
+
+			assertFalse(availableById.getValue("keyform.clearPoseEdits"), "keyform.clearPoseEdits with nothing held in $mode mode")
+			assertTrue(availableById.getValue("keyform.frameAll"), "keyform.frameAll in $mode mode")
+		}
 	}
 
 	/**
@@ -389,17 +422,19 @@ class CommandDispatchTest {
 	}
 
 	/**
-	 * Shift+S over a UV editor opens the UV snap pie in either mode - its snaps move texture coordinates in Edit
-	 * mode and placed art tiles in Object mode - and over a 2D viewport the world snap pie.
+	 * Shift+S over a UV editor opens the UV snap pie in Object and Edit mode - its snaps move texture coordinates
+	 * in Edit mode and placed art tiles in Object mode - and no pie in Pose mode, where the UV editor is view-only.
+	 * Over a 2D viewport it opens the world snap pie in every mode.
 	 */
 	@Test
-	fun theSnapPieOverAUvEditorIsTheUvPieInEitherMode() {
+	fun theSnapPieOverAUvEditorIsTheUvPieOutsidePoseMode() {
 		for (mode in EditorMode.entries) {
 			val session = session(mode)
 			assertEquals(mode, session.mode.value, "the case must really be in $mode")
 
 			snapCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session), AreaOverlayHub()).run("snap.pie")
-			assertEquals(PieMenuKind.UvSnap, session.activePieMenu.value, "over a UV editor in $mode")
+			val expectedOverUv = if (mode == EditorMode.Pose) null else PieMenuKind.UvSnap
+			assertEquals(expectedOverUv, session.activePieMenu.value, "over a UV editor in $mode")
 			session.closePieMenu()
 			snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), AreaOverlayHub()).run("snap.pie")
 			assertEquals(PieMenuKind.Snap, session.activePieMenu.value, "over a viewport in $mode")

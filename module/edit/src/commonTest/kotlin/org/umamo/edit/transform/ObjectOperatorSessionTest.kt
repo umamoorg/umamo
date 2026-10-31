@@ -147,7 +147,7 @@ class ObjectOperatorSessionTest {
 		assertFalse(session.canUndo.value)
 
 		val moved = floatArrayOf(10f, 10f, 11f, 10f, 10f, 11f)
-		session.commitObjectPositions(MeshChange.TransformDrawables(listOf(DrawableId("a")), MeshOperatorKind.Grab), mapOf(DrawableId("a") to MeshRestPositions.shared(moved)))
+		session.commitObjectPositions(MeshChange.TransformObjects(listOf(DrawableId("a")), MeshOperatorKind.Grab), mapOf(DrawableId("a") to MeshRestPositions.shared(moved)))
 
 		assertTrue(session.canUndo.value, "the commit is undoable")
 		assertTrue(session.dirty.value, "a rest-geometry edit dirties the document")
@@ -165,7 +165,7 @@ class ObjectOperatorSessionTest {
 		val session = session()
 		val current = session.model.value.drawables.first { it.id == DrawableId("a") }.mesh!!.positions
 
-		session.commitObjectPositions(MeshChange.TransformDrawables(listOf(DrawableId("a")), MeshOperatorKind.Grab), mapOf(DrawableId("a") to MeshRestPositions.shared(current)))
+		session.commitObjectPositions(MeshChange.TransformObjects(listOf(DrawableId("a")), MeshOperatorKind.Grab), mapOf(DrawableId("a") to MeshRestPositions.shared(current)))
 		assertFalse(session.canUndo.value, "committing the same positions records nothing")
 	}
 
@@ -187,7 +187,7 @@ class ObjectOperatorSessionTest {
 	fun undoClearsArmedObjectTool() {
 		val session = session()
 		// A committed step so there is something to undo.
-		session.commitObjectPositions(MeshChange.TransformDrawables(listOf(DrawableId("a")), MeshOperatorKind.Grab), mapOf(DrawableId("a") to MeshRestPositions.shared(floatArrayOf(9f, 9f, 9f, 9f, 9f, 9f))))
+		session.commitObjectPositions(MeshChange.TransformObjects(listOf(DrawableId("a")), MeshOperatorKind.Grab), mapOf(DrawableId("a") to MeshRestPositions.shared(floatArrayOf(9f, 9f, 9f, 9f, 9f, 9f))))
 		session.beginBoxSelect("area-test")
 		assertTrue(session.activeSelectTool.value is ActiveSelectTool.BoxArmed)
 

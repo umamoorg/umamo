@@ -22,12 +22,15 @@ import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.ModelUpdateKind
 import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import org.umamo.render.puppet.PuppetRenderer
+import org.umamo.render.puppet.drawableOwnerId
 import org.umamo.render.puppet.resolvePose
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
 import java.io.File
@@ -253,7 +256,7 @@ class EditGrabRenderPerfProbeTest {
 			MeshOverlay(
 				MeshOverlayKind.ObjectWireframe,
 				MeshOverlaySelectMode.Vertex,
-				edit.meshes.map { mesh -> MeshOverlayMesh(mesh.drawableId, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, wireframeOnly = true) },
+				edit.meshes.map { mesh -> MeshOverlayMesh(mesh.owner, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, style = MeshStyle.Wireframe) },
 				edit.sizes,
 			)
 		renderer.setMeshOverlay(overlay)
@@ -315,11 +318,11 @@ class EditGrabRenderPerfProbeTest {
 		renderer.setCamera(ViewportCamera.fit(ContentBounds(0f, 0f, side.toFloat(), side.toFloat()), viewportWidth, viewportHeight))
 		val overlay = selectAllOverlay(model)
 		val meshById = model.drawables.associate { drawable -> drawable.id to drawable.mesh }
-		val positionsById = overlay.meshes.associate { mesh -> mesh.drawableId to displayPositionsOf(meshById.getValue(mesh.drawableId)!!.uvs, side, 0f) }
-		val movedById = overlay.meshes.associate { mesh -> mesh.drawableId to displayPositionsOf(meshById.getValue(mesh.drawableId)!!.uvs, side, 2f) }
-		val indicesById = overlay.meshes.associate { mesh -> mesh.drawableId to meshById.getValue(mesh.drawableId)!!.indices }
+		val positionsById = overlay.meshes.associate { mesh -> mesh.owner to displayPositionsOf(meshById.getValue(mesh.drawableOwnerId)!!.uvs, side, 0f) }
+		val movedById = overlay.meshes.associate { mesh -> mesh.owner to displayPositionsOf(meshById.getValue(mesh.drawableOwnerId)!!.uvs, side, 2f) }
+		val indicesById = overlay.meshes.associate { mesh -> mesh.owner to meshById.getValue(mesh.drawableOwnerId)!!.indices }
 		val still = DirectMeshOverlay(overlay, positionsById, indicesById)
-		val firstId = overlay.meshes.first().drawableId
+		val firstId = overlay.meshes.first().owner
 		val oneMoved = DirectMeshOverlay(overlay, positionsById + (firstId to movedById.getValue(firstId)), indicesById)
 		val allMoved = DirectMeshOverlay(overlay, movedById, indicesById)
 		report("UV overlay: ${overlay.meshes.size} meshes over a ${side}x$side surface")
@@ -361,12 +364,12 @@ class EditGrabRenderPerfProbeTest {
 
 		// The Object-mode islands of every mesh: the first frame, a still one, and one after a selection
 		// change, which re-styles the islands over the same arrays.
-		val islandMeshes = overlay.meshes.map { mesh -> MeshOverlayMesh(mesh.drawableId, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, null) }
+		val islandMeshes = overlay.meshes.map { mesh -> MeshOverlayMesh(mesh.owner, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null) }
 		val islands = DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, islandMeshes, overlay.sizes), positionsById, indicesById)
 		val selectedStyle = IslandStyle(IslandFillRole.Selected, IslandEdgeRole.Active)
 		val restyled =
 			DirectMeshOverlay(
-				MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, islandMeshes.mapIndexed { meshIndex, mesh -> if (meshIndex == 0) MeshOverlayMesh(mesh.drawableId, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, selectedStyle) else mesh }, overlay.sizes),
+				MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, islandMeshes.mapIndexed { meshIndex, mesh -> if (meshIndex == 0) MeshOverlayMesh(mesh.owner, mesh.vertexCount, mesh.edgeEndpoints, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, MeshStyle.Island(selectedStyle)) else mesh }, overlay.sizes),
 				positionsById,
 				indicesById,
 			)
@@ -438,7 +441,7 @@ class EditGrabRenderPerfProbeTest {
 				val vertexCount = mesh.positions.size / 2
 				val edges = uniqueEdgesOf(mesh.indices)
 				MeshOverlayMesh(
-					drawableId = drawable.id,
+					owner = ElementOwner.Drawable(drawable.id),
 					vertexCount = vertexCount,
 					edgeEndpoints = edges,
 					vertexFlags = ByteArray(vertexCount) { OVERLAY_FLAG_SELECTED },

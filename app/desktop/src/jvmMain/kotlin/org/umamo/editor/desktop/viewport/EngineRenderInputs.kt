@@ -4,6 +4,8 @@ import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
+import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.ModelUpdateKind
@@ -17,7 +19,8 @@ import java.util.concurrent.ConcurrentLinkedQueue
 /**
  * The render inputs the UI thread pushes and the render thread reads each frame: the selection, the
  * shown set, the model, the atlas pages, the source artwork, the grid colors, the highlight colors, the mesh
- * overlay and its palette, and the supersample policy.  Each is a volatile publish of an immutable value or a plain scalar.  A change
+ * overlay, the lattice overlay, the Edit-mode direct cage, their palette, and the supersample policy.
+ * Each is a volatile publish of an immutable value or a plain scalar.  A change
  * to a value the render reads as it draws bumps a render-version counter the loop folds into per-area
  * freshness, so a state-only change (no resize / pose / camera change) still forces exactly one redraw:
  * the puppet areas watch [puppetRenderBump]; the UV editor's flat scenes (atlas page, source layer)
@@ -78,7 +81,17 @@ internal class EngineRenderInputs(
 	@Volatile
 	private var meshOverlayBacking: MeshOverlay? = null
 
-	// The eleven overlay colors, from settings; Classic until the host pushes the user's.
+	// The warps whose lattices the puppet areas draw, and in which role, or null for none.  Published whole and
+	// compared by identity, like the mesh overlay: the publisher hands over a new value only when a role changes.
+	@Volatile
+	private var latticeOverlayBacking: LatticeOverlay? = null
+
+	// The Edit-mode cage the puppet areas draw from positions of its own, or null for none.  Published whole and
+	// compared by identity; a drag publishes a new value per frame, sharing every position array it did not move.
+	@Volatile
+	private var editDirectOverlayBacking: DirectMeshOverlay? = null
+
+	// The overlay colors, from settings; Classic until the host pushes the user's.
 	@Volatile
 	private var meshOverlayPaletteBacking: MeshOverlayPalette = MeshOverlayPalette.Classic
 
@@ -182,6 +195,14 @@ internal class EngineRenderInputs(
 	/** The mesh overlay as last pushed, or null when none is shown. */
 	val meshOverlay: MeshOverlay?
 		get() = meshOverlayBacking
+
+	/** The lattice overlay as last pushed, or null when none is shown. */
+	val latticeOverlay: LatticeOverlay?
+		get() = latticeOverlayBacking
+
+	/** The Edit-mode direct cage as last pushed, or null when none is shown. */
+	val editDirectOverlay: DirectMeshOverlay?
+		get() = editDirectOverlayBacking
 
 	/** The mesh overlay's colors as last pushed. */
 	val meshOverlayPalette: MeshOverlayPalette
@@ -364,6 +385,33 @@ internal class EngineRenderInputs(
 	fun setMeshOverlay(overlay: MeshOverlay?) {
 		if (overlay !== meshOverlayBacking) {
 			meshOverlayBacking = overlay
+			doPuppetRenderBump()
+		}
+	}
+
+	/**
+	 * Sets the warp lattices the puppet areas draw.  A new instance bumps the puppet render version after the
+	 * value is stored, as [setMeshOverlay] does; the same instance again is a no-op.  The value holds no
+	 * positions, so a pose change never re-publishes it: the pose re-renders the areas on its own.
+	 *
+	 * @param LatticeOverlay? overlay The lattices, or null for none.
+	 */
+	fun setLatticeOverlay(overlay: LatticeOverlay?) {
+		if (overlay !== latticeOverlayBacking) {
+			latticeOverlayBacking = overlay
+			doPuppetRenderBump()
+		}
+	}
+
+	/**
+	 * Sets the Edit-mode cage the puppet areas draw from positions of its own.  A new instance bumps the puppet
+	 * render version after the value is stored, as [setMeshOverlay] does; the same instance again is a no-op.
+	 *
+	 * @param DirectMeshOverlay? overlay The cage, or null for none.
+	 */
+	fun setEditDirectOverlay(overlay: DirectMeshOverlay?) {
+		if (overlay !== editDirectOverlayBacking) {
+			editDirectOverlayBacking = overlay
 			doPuppetRenderBump()
 		}
 	}

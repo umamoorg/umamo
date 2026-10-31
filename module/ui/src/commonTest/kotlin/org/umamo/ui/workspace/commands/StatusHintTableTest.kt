@@ -6,6 +6,7 @@ import org.umamo.ui.action.defaultKeymap
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.status_bind_edit_mode
 import org.umamo.ui.resources.status_bind_grab
+import org.umamo.ui.resources.status_bind_insert_key
 import org.umamo.ui.resources.status_bind_rotate
 import org.umamo.ui.resources.status_bind_scale
 import org.umamo.ui.resources.status_bind_visibility
@@ -34,13 +35,14 @@ import kotlin.test.assertTrue
  */
 class StatusHintTableTest {
 	/**
-	 * When a hinted command is suggested, across the three states the status bar recomputes on.
+	 * When a hinted command is suggested, across the four states the status bar recomputes on.
 	 *
 	 * @property Boolean noDocument Whether it is suggested with no document open.
 	 * @property Boolean objectMode Whether it is suggested in Object mode.
 	 * @property Boolean editMode Whether it is suggested in Edit mode.
+	 * @property Boolean poseMode Whether it is suggested in Pose mode.
 	 */
-	private data class SuggestedIn(val noDocument: Boolean, val objectMode: Boolean, val editMode: Boolean)
+	private data class SuggestedIn(val noDocument: Boolean, val objectMode: Boolean, val editMode: Boolean, val poseMode: Boolean)
 
 	/**
 	 * Whether each hinted command is suggested over [session], by id: available, and its hint worth
@@ -58,50 +60,64 @@ class StatusHintTableTest {
 	/** The hinted commands, each with the states it is suggested in; every other command carries no hint. */
 	@Test
 	fun theHintedCommandsAreExactlyThese() {
-		val inObjectModeOnly = SuggestedIn(noDocument = false, objectMode = true, editMode = false)
-		val inEditModeOnly = SuggestedIn(noDocument = false, objectMode = false, editMode = true)
-		val withADocument = SuggestedIn(noDocument = false, objectMode = true, editMode = true)
+		val inObjectModeOnly = SuggestedIn(noDocument = false, objectMode = true, editMode = false, poseMode = false)
+		val inElementModes = SuggestedIn(noDocument = false, objectMode = false, editMode = true, poseMode = true)
+		val outsideEditMode = SuggestedIn(noDocument = false, objectMode = true, editMode = false, poseMode = true)
+		val inPoseModeOnly = SuggestedIn(noDocument = false, objectMode = false, editMode = false, poseMode = true)
+		val withADocument = SuggestedIn(noDocument = false, objectMode = true, editMode = true, poseMode = true)
 		val expected =
 			mapOf(
-				"mode.toggleEdit" to inObjectModeOnly,
+				"mode.toggleEdit" to outsideEditMode,
 				"object.toggleVisibility" to inObjectModeOnly,
 				"mesh.grab" to withADocument,
 				"mesh.scale" to withADocument,
 				"mesh.rotate" to withADocument,
-				"mesh.selectMode.vertex" to inEditModeOnly,
-				"mesh.selectMode.edge" to inEditModeOnly,
-				"mesh.selectMode.face" to inEditModeOnly,
+				"mesh.selectMode.vertex" to inElementModes,
+				"mesh.selectMode.edge" to inElementModes,
+				"mesh.selectMode.face" to inElementModes,
 				"uv.pinPlacement" to inObjectModeOnly,
-				"keyform.insert" to withADocument,
-				"keyform.delete" to withADocument,
+				"keyform.insert" to outsideEditMode,
+				"keyform.delete" to outsideEditMode,
+				"keyform.insertPie" to inPoseModeOnly,
 			)
 		val noDocument = suggestedById(null)
 		val objectMode = suggestedById(commandFixtureSession(EditorMode.Object))
 		val editMode = suggestedById(commandFixtureSession(EditorMode.Edit))
+		val poseMode = suggestedById(commandFixtureSession(EditorMode.Pose))
 		val actual =
 			noDocument.keys.associateWith { id ->
-				SuggestedIn(noDocument = noDocument.getValue(id), objectMode = objectMode.getValue(id), editMode = editMode.getValue(id))
+				SuggestedIn(
+					noDocument = noDocument.getValue(id),
+					objectMode = objectMode.getValue(id),
+					editMode = editMode.getValue(id),
+					poseMode = poseMode.getValue(id),
+				)
 			}
 
 		assertEquals(expected, actual)
 	}
 
 	/**
-	 * Over a viewport under the default keymap, each mode reads as its own short list: the way into Edit
-	 * mode and the visibility toggle from Object mode, the element domains from Edit mode.
+	 * Over a viewport under the default keymap, each mode reads as its own short list: the way into Edit mode and
+	 * the visibility toggle from Object mode, the element domains from Edit mode, and from Pose mode, which works on
+	 * the posed lattices' elements and keys them, Insert Key (I and the K pie as one entry), the way into Edit mode,
+	 * and the element domains.
 	 */
 	@Test
 	fun eachModeSuggestsItsOwnListOverAViewport() {
 		val transforms = listOf(Res.string.status_bind_grab, Res.string.status_bind_scale, Res.string.status_bind_rotate)
 		val objectHints = statusHintsFor(everyCommandTable(commandFixtureSession(EditorMode.Object)), defaultKeymap(), SpaceKind.Viewport2D)
 		val editHints = statusHintsFor(everyCommandTable(commandFixtureSession(EditorMode.Edit)), defaultKeymap(), SpaceKind.Viewport2D)
+		val poseHints = statusHintsFor(everyCommandTable(commandFixtureSession(EditorMode.Pose)), defaultKeymap(), SpaceKind.Viewport2D)
 
 		assertEquals(transforms + Res.string.status_bind_edit_mode + Res.string.status_bind_visibility, objectHints.map { hint -> hint.label })
 		assertEquals(transforms + Res.string.status_select_mode, editHints.map { hint -> hint.label })
+		assertEquals(transforms + Res.string.status_bind_insert_key + Res.string.status_bind_edit_mode + Res.string.status_select_mode, poseHints.map { hint -> hint.label })
+		assertEquals(2, poseHints.single { hint -> hint.label == Res.string.status_bind_insert_key }.chords.size, "I and K, one entry")
 	}
 
 	/**
-	 * Under the default keymap no space, in either mode, has more to suggest than the strip shows.  The
+	 * Under the default keymap no space, in any mode, has more to suggest than the strip shows.  The
 	 * cut drops the trailing suggestions without a trace, so a hint that pushes a list past the limit
 	 * fails here by name instead of quietly taking another off the bar.
 	 */

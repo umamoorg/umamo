@@ -22,7 +22,7 @@ class CommandSpacesTableTest {
 		val uvEditor = setOf(SpaceKind.UvEditor)
 		val workSurfaces = setOf(SpaceKind.Viewport2D, SpaceKind.UvEditor)
 		val workSurfacesAndSheet = setOf(SpaceKind.Viewport2D, SpaceKind.UvEditor, SpaceKind.KeyformSheet)
-		val keyableSurfaces = setOf(SpaceKind.KeyformSheet, SpaceKind.Properties)
+		val keyableSurfaces = setOf(SpaceKind.KeyformSheet, SpaceKind.Properties, SpaceKind.Viewport2D)
 		val expected =
 			mapOf(
 				"view.fit" to workSurfaces,
@@ -43,6 +43,7 @@ class CommandSpacesTableTest {
 				"view.overlay.cursor" to workSurfaces,
 				"view.overlay.info" to workSurfaces,
 				"view.overlay.selectionTint" to viewport,
+				"view.overlay.deformers" to viewport,
 				"view.overlay.wireframe" to viewport,
 				"view.overlay.wireframeCulling" to viewport,
 				"frame.all" to workSurfacesAndSheet,
@@ -79,6 +80,7 @@ class CommandSpacesTableTest {
 				"mesh.vertexSlide" to viewport,
 				"keyform.insert" to keyableSurfaces,
 				"keyform.delete" to keyableSurfaces,
+				"keyform.insertPie" to viewport,
 			)
 		val actual =
 			everyCommandTable()

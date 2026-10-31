@@ -16,7 +16,7 @@ import org.umamo.render.derivedTileTrim
 import org.umamo.render.encodeAtlasPng
 import org.umamo.render.placementFootprint
 import org.umamo.runtime.model.AtlasPlacement
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.repack.AtlasRepackHost
@@ -119,7 +119,7 @@ class LivePlacementMoveGateTest {
 			val turnedPlacement = assertNotNull(turner.placement).copy(rotationDegrees = 30f, scaleX = 0.75f, scaleY = 0.75f)
 			val moverDrawable = repacked.drawables.first { drawable -> drawable.atlasTileId == mover.id && (drawable.mesh?.uvs?.size ?: 0) >= 2 }
 			val artUvsBefore =
-				applyUvAffine(assertNotNull(moverDrawable.mesh).uvs, assertNotNull(repacked.atlas.storedToArtAffineForTile(mover.id)))
+				applyAffine(assertNotNull(moverDrawable.mesh).uvs, assertNotNull(repacked.atlas.storedToArtAffineForTile(mover.id)))
 
 			session.setAtlasPlacements(mapOf(mover.id to movedPlacement, turner.id to turnedPlacement))
 
@@ -128,7 +128,7 @@ class LivePlacementMoveGateTest {
 			assertEquals(movedPlacement, moved.atlas.tileById.getValue(mover.id).placement)
 			assertEquals(turnedPlacement, moved.atlas.tileById.getValue(turner.id).placement)
 			val artUvsAfter =
-				applyUvAffine(
+				applyAffine(
 					assertNotNull(moved.drawables.first { drawable -> drawable.id == moverDrawable.id }.mesh).uvs,
 					assertNotNull(moved.atlas.storedToArtAffineForTile(mover.id)),
 				)

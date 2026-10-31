@@ -22,7 +22,7 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the Object overlay's modal transform ([ObjectModalTransform]) over a real session, without
- * Compose: a Grab previews the whole drawable and commits it as one registered TransformDrawables step,
+ * Compose: a Grab previews the whole drawable and commits it as one registered TransformObjects step,
  * a selection with nothing projectable drops the latch, and a cancel commits nothing.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -66,7 +66,7 @@ class ObjectModalTransformTest {
 		assertEquals(stepsBefore + 1, session.historyView.value.steps.size)
 		val record = assertNotNull(session.adjustableOperation.value)
 		assertEquals(LEFT_AREA_ID, record.areaId)
-		assertIs<MeshChange.TransformDrawables>(record.change)
+		assertIs<MeshChange.TransformObjects>(record.change)
 		assertNull(session.activeObjectOperator.value)
 		assertTrue(rig.transform.end())
 	}

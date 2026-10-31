@@ -60,6 +60,13 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	var showSelectionTint by mutableStateOf(true)
 
 	/**
+	 * Every warp deformer's lattice, not only the selected ones' (the 2D viewport only), each where a click can
+	 * select it; off by default, so the art stays clear until the rigger asks for its deformers.  The selected
+	 * warps' lattices draw in Object and Pose mode either way.
+	 */
+	var showDeformers by mutableStateOf(false)
+
+	/**
 	 * Whether the wireframe leaves out its wires under art drawn in front of their own drawable (the 2D viewport
 	 * only), so a posed model shows which mesh parts are covered; on by default.  The Edit cage is never culled.
 	 */
@@ -117,6 +124,10 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	val effectiveSelectionTint: Boolean
 		get() = showOverlays && showSelectionTint
 
+	/** Whether every warp's lattice draws: the flag under the master. */
+	val effectiveDeformers: Boolean
+		get() = showOverlays && showDeformers
+
 	/** Whether the wireframe culls: the flag under the master, like the wireframe it qualifies. */
 	val effectiveCullHiddenWireframe: Boolean
 		get() = showOverlays && cullHiddenWireframe
@@ -126,7 +137,9 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	 * shows, and what a save writes as nothing.
 	 */
 	val isAtDefaults: Boolean
-		get() = showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && cullHiddenWireframe && wireframeOpacity == 1f && gridGeometry == null
+		get() =
+			showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && !showDeformers && cullHiddenWireframe &&
+				wireframeOpacity == 1f && gridGeometry == null
 
 	/**
 	 * The grid this area draws and snaps to over a given application grid: its own, else the application's,
@@ -148,6 +161,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 		showInfo = true
 		showWireframe = false
 		showSelectionTint = true
+		showDeformers = false
 		cullHiddenWireframe = true
 		wireframeOpacity = 1f
 		gridGeometry = null

@@ -14,11 +14,15 @@ import org.umamo.render.PuppetTextures
 import org.umamo.render.ViewportCamera
 import org.umamo.render.capturedOver
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.ModelUpdateKind
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AreaOverlays
@@ -39,7 +43,8 @@ import org.umamo.ui.viewport.UvSceneContent
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
  *   - [EngineRenderInputs] - the render inputs the UI thread publishes (selection / shown / model / atlas
- *     pages / source artwork / grid colors / highlight colors / mesh overlay and palette / supersample policy),
+ *     pages / source artwork / grid colors / highlight colors / mesh overlay, lattice overlay, direct cage, and
+ *     palette / supersample policy),
  *     each a volatile swap that bumps the engine's freshness.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
  *     async read-back, and reads those inputs each frame.
@@ -58,7 +63,7 @@ import org.umamo.ui.viewport.UvSceneContent
 class OffscreenPuppetService(
 	puppet: PuppetModel,
 	textures: PuppetTextures,
-	liveParams: LiveParams,
+	private val liveParams: LiveParams,
 ) : PuppetViewportService {
 	private val registry = ViewportAreaRegistry()
 	private val inputs = EngineRenderInputs(puppet, textures)
@@ -182,6 +187,33 @@ class OffscreenPuppetService(
 	override fun setMeshOverlay(overlay: MeshOverlay?) = inputs.setMeshOverlay(overlay)
 
 	override fun setMeshOverlayPalette(palette: MeshOverlayPalette) = inputs.setMeshOverlayPalette(palette)
+
+	override fun setLatticeOverlay(overlay: LatticeOverlay?) = inputs.setLatticeOverlay(overlay)
+
+	override fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>) {
+		liveParams.latticePreview = overrides
+	}
+
+	override fun setLatticeOverrides(overrides: Map<DeformerId, WarpLatticeForm>) {
+		liveParams.latticeOverrides = overrides
+	}
+
+	override fun setEditDirectOverlay(overlay: DirectMeshOverlay?) = inputs.setEditDirectOverlay(overlay)
+
+	override fun latticePicksAt(areaId: String, cursorXpx: Float, cursorYpx: Float, pointRadiusPx: Float, lineRadiusPx: Float): List<DeformerId> {
+		val view = registry.viewFor(areaId) ?: return emptyList()
+		val overlays = registry.areaOverlays(areaId) ?: return emptyList()
+
+		return picker.latticePicksAt(inputs.latticeOverlay, overlays.frame, view.camera, view.width, view.height, cursorXpx, cursorYpx, pointRadiusPx, lineRadiusPx)
+	}
+
+	override fun latticeWorldCenters(areaId: String): Map<DeformerId, FloatArray> {
+		val overlays = registry.areaOverlays(areaId) ?: return emptyMap()
+
+		return picker.latticeWorldCenters(inputs.latticeOverlay, overlays.frame)
+	}
+
+	override fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? = picker.latticeWorldExtent(ids)
 
 	override fun pickAt(areaId: String, cursorXpx: Float, cursorYpx: Float): DrawableId? {
 		val view = registry.viewFor(areaId) ?: return null

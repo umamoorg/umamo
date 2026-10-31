@@ -67,6 +67,25 @@ class ViewportOverlayColorsTest {
 		assertEquals(OverlayColor(colors.pinnedPlacement.red, colors.pinnedPlacement.green, colors.pinnedPlacement.blue, colors.pinnedPlacement.alpha), palette.pinnedPlacement)
 	}
 
+	/** The lattice colors reach the palette, each in its own role, and the unkeyed color beside them. */
+	@Test
+	fun thePaletteCarriesTheLatticeColors() {
+		val colors =
+			defaultColors().copy(
+				latticeIdle = Color(0.1f, 0.2f, 0.3f, 0.4f),
+				latticeSelected = Color(0.5f, 0.6f, 0.7f, 1f),
+				latticeActive = Color(0.8f, 0.9f, 0f, 1f),
+				latticePending = Color(0.9f, 0.5f, 0.2f, 1f),
+			)
+
+		val palette = colors.toMeshOverlayPalette()
+
+		assertEquals(OverlayColor(colors.latticeIdle.red, colors.latticeIdle.green, colors.latticeIdle.blue, colors.latticeIdle.alpha), palette.latticeIdle)
+		assertEquals(OverlayColor(colors.latticeSelected.red, colors.latticeSelected.green, colors.latticeSelected.blue, 1f), palette.latticeSelected)
+		assertEquals(OverlayColor(colors.latticeActive.red, colors.latticeActive.green, colors.latticeActive.blue, 1f), palette.latticeActive)
+		assertEquals(OverlayColor(colors.latticePending.red, colors.latticePending.green, colors.latticePending.blue, 1f), palette.latticePending)
+	}
+
 	/**
 	 * The bundled default colors.
 	 *
@@ -90,5 +109,9 @@ class ViewportOverlayColorsTest {
 			pinnedPlacement = parseHexColor(ViewportColorSettings.PINNED_PLACEMENT_COLOR_DEFAULT)!!,
 			selectionHighlight = parseHexColor(ViewportColorSettings.SELECTION_HIGHLIGHT_DEFAULT)!!,
 			activeSelectionHighlight = parseHexColor(ViewportColorSettings.ACTIVE_SELECTION_HIGHLIGHT_DEFAULT)!!,
+			latticeIdle = parseHexColor(ViewportColorSettings.LATTICE_IDLE_DEFAULT)!!,
+			latticeSelected = parseHexColor(ViewportColorSettings.LATTICE_SELECTED_DEFAULT)!!,
+			latticeActive = parseHexColor(ViewportColorSettings.LATTICE_ACTIVE_DEFAULT)!!,
+			latticePending = parseHexColor(ViewportColorSettings.LATTICE_PENDING_DEFAULT)!!,
 		)
 }

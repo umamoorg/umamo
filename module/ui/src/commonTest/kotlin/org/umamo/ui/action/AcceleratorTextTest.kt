@@ -50,6 +50,15 @@ class AcceleratorTextTest {
 	}
 
 	/**
+	 * A literal Control (macOS only) reads as the Control glyph, ahead of the primary modifier.
+	 */
+	@Test
+	fun formatsLiteralControlAsTheControlGlyphFirst() {
+		assertEquals("⌃+Tab", formatAccelerator(KeyChord(keyName = "Tab", controlKey = true), "⌘"))
+		assertEquals("⌃+⌘+Shift+K", formatAccelerator(KeyChord(keyName = "KeyK", primaryModifier = true, shift = true, controlKey = true), "⌘"))
+	}
+
+	/**
 	 * A bare key with no modifiers formats as just its glyph.
 	 */
 	@Test

@@ -3,19 +3,21 @@ package org.umamo.ui.viewport.gizmo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorMode
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelection
-import org.umamo.edit.MeshTopology
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.OVERLAY_FLAG_ACTIVE
 import org.umamo.render.puppet.OVERLAY_FLAG_SELECTED
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 
 /*
@@ -29,7 +31,7 @@ import org.umamo.runtime.model.PuppetModel
  */
 
 /** The flags of a mesh with nothing selected and no active element: the renderer reads empty as all idle. */
-private val NO_FLAGS = ByteArray(0)
+internal val NO_OVERLAY_FLAGS = ByteArray(0)
 
 /**
  * The overlay's sizes for a screen density: a 3.5 dp vertex dot radius, a 1 dp edge (full width; the
@@ -63,34 +65,20 @@ internal class EditMeshOverlayProducer {
 	 * One mesh's topology as the overlay ships it.
 	 *
 	 * @property IntArray indices The triangle indices it was built from (compared by identity).
-	 * @property Int vertexCount The vertex count it was built against.
-	 * @property IntArray edgeEndpoints The unique edges, in uniqueEdges' order.
+	 * @property ElementTopology elements Its vertices, edges, and faces.
+	 * @property IntArray edgeEndpoints The unique edges, in the topology's order; empty when not well formed.
 	 * @property Boolean wellFormed Whether every index names one of the mesh's vertices in whole triangles;
 	 *   a mesh that does not is left out of the overlay rather than handed to the renderer.
 	 */
 	private class Topology(
 		val indices: IntArray,
-		val vertexCount: Int,
+		val elements: ElementTopology,
 		val edgeEndpoints: IntArray,
 		val wellFormed: Boolean,
-	)
-
-	/**
-	 * One mesh's last entry and what it was built from.
-	 *
-	 * @property Set<MeshElement> elements The selected set it reflects (compared by identity).
-	 * @property MeshElement? active The active element it reflects.
-	 * @property MeshSelectMode selectMode The select mode it reflects.
-	 * @property Topology topology The topology it was built over (compared by identity).
-	 * @property MeshOverlayMesh entry The entry.
-	 */
-	private class Entry(
-		val elements: Set<MeshElement>,
-		val active: MeshElement?,
-		val selectMode: MeshSelectMode,
-		val topology: Topology,
-		val entry: MeshOverlayMesh,
-	)
+	) {
+		/** The vertex count it was built against. */
+		val vertexCount: Int get() = elements.vertexCount
+	}
 
 	/**
 	 * One drawable's plain-wireframe entry and the topology it was built over.
@@ -104,7 +92,7 @@ internal class EditMeshOverlayProducer {
 	)
 
 	private val topologyById = HashMap<DrawableId, Topology>()
-	private val entryById = HashMap<DrawableId, Entry>()
+	private val cageEntries = EditCageEntries<Topology>()
 	private val wireframeEntryById = HashMap<DrawableId, WireframeEntry>()
 	private var lastOverlay: MeshOverlay? = null
 
@@ -117,7 +105,8 @@ internal class EditMeshOverlayProducer {
 	 * then the cage - every session mesh with a mesh, in the session's order - or null when neither lists
 	 * anything.  Outside Edit mode: the object wireframe of every drawable in [wireframeOver], or null when
 	 * none is given or none can be shown.  A session mesh the renderer cannot pose (a hidden ancestor) is
-	 * still listed; the renderer skips it per frame.  A surface that shows only some of the session's meshes
+	 * still listed; the renderer skips it per frame.  A session's lattices are not listed: their cage carries
+	 * positions of its own (viewport2d/LatticeCagePublish.kt).  A surface that shows only some of the session's meshes
 	 * (a UV area shows those mapped onto its page or layer) narrows the cage with [shownIds].
 	 *
 	 * @param EditorMode mode The editor mode.
@@ -172,7 +161,7 @@ internal class EditMeshOverlayProducer {
 			return overlayOf(MeshOverlayKind.ObjectWireframe, MeshOverlaySelectMode.Vertex, wireframeEntries, sizes)
 		}
 
-		entryById.keys.retainAll(sessionIds)
+		cageEntries.retainOnly(sessionIds.mapTo(HashSet(sessionIds.size)) { drawableId -> ElementOwner.Drawable(drawableId) })
 		val entries = ArrayList<MeshOverlayMesh>(wireframeEntries.size + selection.drawableIds.size)
 		entries.addAll(wireframeEntries)
 
@@ -207,16 +196,7 @@ internal class EditMeshOverlayProducer {
 			return null
 		}
 
-		val previous = lastOverlay
-
-		if (previous != null && previous.kind == kind && previous.selectMode == selectMode && previous.sizes == sizes && sameEntries(previous.meshes, entries)) {
-			return previous
-		}
-
-		val overlay = MeshOverlay(kind, selectMode, entries, sizes)
-		lastOverlay = overlay
-
-		return overlay
+		return reusedOverlay(lastOverlay, kind, selectMode, entries, sizes).also { overlay -> lastOverlay = overlay }
 	}
 
 	/**
@@ -235,7 +215,7 @@ internal class EditMeshOverlayProducer {
 			return cached.entry
 		}
 
-		val entry = MeshOverlayMesh(drawableId, topology.vertexCount, topology.edgeEndpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null, wireframeOnly = true)
+		val entry = MeshOverlayMesh(ElementOwner.Drawable(drawableId), topology.vertexCount, topology.edgeEndpoints, NO_OVERLAY_FLAGS, NO_OVERLAY_FLAGS, NO_OVERLAY_FLAGS, null, null, null, style = MeshStyle.Wireframe)
 		wireframeEntryById[drawableId] = WireframeEntry(topology, entry)
 
 		return entry
@@ -257,8 +237,8 @@ internal class EditMeshOverlayProducer {
 
 		val vertexCount = mesh.vertexCount
 		val wellFormed = mesh.indices.size % 3 == 0 && mesh.indices.all { index -> index in 0 until vertexCount }
-		val edgeEndpoints = if (wellFormed) MeshTopology.uniqueEdgeEndpoints(mesh.indices) else IntArray(0)
-		val topology = Topology(mesh.indices, vertexCount, edgeEndpoints, wellFormed)
+		val elements = ElementTopology.ofTriangles(vertexCount, if (wellFormed) mesh.indices else IntArray(0))
+		val topology = Topology(mesh.indices, elements, elements.edgeEndpoints, wellFormed)
 		topologyById[drawableId] = topology
 
 		return topology
@@ -273,25 +253,13 @@ internal class EditMeshOverlayProducer {
 	 * @param MeshSelection selection The selection to show.
 	 * @return MeshOverlayMesh The entry.
 	 */
-	private fun entryOf(drawableId: DrawableId, topology: Topology, selection: MeshSelection): MeshOverlayMesh {
-		val elements = selection.elementsOf(drawableId)
-		val active = selection.activeElement?.takeIf { activeElement -> activeElement.drawableId == drawableId }?.element
-		val cached = entryById[drawableId]
-
-		if (cached != null && cached.elements === elements && cached.active == active && cached.selectMode == selection.selectMode && cached.topology === topology) {
-			return cached.entry
+	private fun entryOf(drawableId: DrawableId, topology: Topology, selection: MeshSelection): MeshOverlayMesh =
+		cageEntries.entryOf(ElementOwner.Drawable(drawableId), topology, selection, MeshStyle.Plain) { elements, active, selectMode ->
+			buildEntry(drawableId, topology, elements, active, selectMode)
 		}
 
-		val entry = buildEntry(drawableId, topology, elements, active, selection.selectMode)
-		entryById[drawableId] = Entry(elements, active, selection.selectMode, topology, entry)
-
-		return entry
-	}
-
 	/**
-	 * Builds one mesh's entry: the highlight sets of its selection as flag bytes, elements outside the mesh
-	 * dropped, and flag 2 at exactly the active element's ordinal (an active element outside the mesh is no
-	 * active element), since the renderer draws a flag-2 primitive only through the active ordinal.
+	 * Builds one mesh's entry over the flags its selection lights ([editCageFlagsOf]).
 	 *
 	 * @param DrawableId drawableId The mesh's drawable.
 	 * @param Topology topology Its topology.
@@ -307,104 +275,239 @@ internal class EditMeshOverlayProducer {
 		active: MeshElement?,
 		selectMode: MeshSelectMode,
 	): MeshOverlayMesh {
-		val vertexCount = topology.vertexCount
-		val edgeEndpoints = topology.edgeEndpoints
+		val owner = ElementOwner.Drawable(drawableId)
+		val flags =
+			editCageFlagsOf(topology.elements, elements, active, selectMode)
+				?: return MeshOverlayMesh(owner, topology.vertexCount, topology.edgeEndpoints, NO_OVERLAY_FLAGS, NO_OVERLAY_FLAGS, NO_OVERLAY_FLAGS, null, null, null)
 
-		if (elements.isEmpty() && active == null) {
-			return MeshOverlayMesh(drawableId, vertexCount, edgeEndpoints, NO_FLAGS, NO_FLAGS, NO_FLAGS, null, null, null)
-		}
+		return MeshOverlayMesh(owner, topology.vertexCount, topology.edgeEndpoints, flags.vertexFlags, flags.edgeFlags, flags.faceFlags, flags.activeVertex, flags.activeEdge, flags.activeFace)
+	}
+}
 
-		val triangleCount = topology.indices.size / 3
-		// A selection can name elements of an older shape of this mesh (the selection and the model reach the
-		// derive from different commits for a moment), and the highlight derive indexes the triangle list
-		// directly, so only the elements this mesh has go in.
-		val inMesh = { element: MeshElement -> elementInMesh(element, vertexCount, triangleCount) }
-		val meshElements = if (elements.all(inMesh)) elements else elements.filterTo(HashSet(), inMesh)
-		val meshActive = active?.takeIf(inMesh)
-		val highlight = buildHighlightSets(meshElements, meshActive, selectMode, topology.indices)
+/**
+ * One owner's Edit-cage flags as the renderer reads them: one byte per vertex, per edge (in the topology's edge
+ * order), and per face (in its face order), with the active element's ordinal beside its flag.
+ *
+ * @property ByteArray vertexFlags One flag per vertex.
+ * @property ByteArray edgeFlags One flag per edge.
+ * @property ByteArray faceFlags One flag per face.
+ * @property Int? activeVertex The active vertex, or null.
+ * @property Int? activeEdge The active edge's ordinal, or null.
+ * @property Int? activeFace The active face's ordinal, or null.
+ */
+internal class EditCageFlags(
+	val vertexFlags: ByteArray,
+	val edgeFlags: ByteArray,
+	val faceFlags: ByteArray,
+	val activeVertex: Int?,
+	val activeEdge: Int?,
+	val activeFace: Int?,
+)
 
-		val vertexFlags = ByteArray(vertexCount)
+/**
+ * The flags an owner's selection lights in its Edit cage: the highlight sets of its selection as flag bytes,
+ * elements outside the topology dropped, and flag 2 at exactly the active element's ordinal (an active element
+ * outside the topology is no active element), since the renderer draws a flag-2 primitive only through the active
+ * ordinal.  A face is the topology's own: a triangle of a mesh, a cell of a lattice.
+ *
+ * @param ElementTopology topology The owner's topology.
+ * @param Set<MeshElement> elements Its selected elements.
+ * @param MeshElement? active Its active element, or null.
+ * @param MeshSelectMode selectMode The select mode.
+ * @return EditCageFlags? The flags, or null when nothing is selected or active (the renderer reads no flags as
+ *   all idle).
+ */
+internal fun editCageFlagsOf(topology: ElementTopology, elements: Set<MeshElement>, active: MeshElement?, selectMode: MeshSelectMode): EditCageFlags? {
+	if (elements.isEmpty() && active == null) {
+		return null
+	}
 
-		for (vertexIndex in highlight.selectedVertexIndices) {
-			vertexFlags[vertexIndex] = OVERLAY_FLAG_SELECTED
-		}
+	val vertexCount = topology.vertexCount
+	val faceCount = topology.faceCount
+	val edgeEndpoints = topology.edgeEndpoints
+	// A selection can name elements of an older shape of this owner (the selection and the model reach the
+	// derive from different commits for a moment), and the highlight derive indexes the face list directly, so
+	// only the elements this owner has go in.
+	val inTopology = { element: MeshElement -> elementInTopology(element, vertexCount, faceCount) }
+	val ownElements = if (elements.all(inTopology)) elements else elements.filterTo(HashSet(), inTopology)
+	val ownActive = active?.takeIf(inTopology)
+	val highlight = buildHighlightSets(ownElements, ownActive, selectMode, topology)
 
-		val activeVertex = highlight.activeVertexIndex
+	val vertexFlags = ByteArray(vertexCount)
 
-		if (activeVertex != null) {
-			vertexFlags[activeVertex] = OVERLAY_FLAG_ACTIVE
-		}
+	for (vertexIndex in highlight.selectedVertexIndices) {
+		vertexFlags[vertexIndex] = OVERLAY_FLAG_SELECTED
+	}
 
-		val edgeCount = edgeEndpoints.size / 2
-		val edgeFlags = ByteArray(edgeCount)
-		val selectedEdges = highlight.selectedEdges
-		val activeEdgeElement = highlight.activeEdge
-		var activeEdge: Int? = null
+	val activeVertex = highlight.activeVertexIndex
 
-		if (selectedEdges.isNotEmpty() || activeEdgeElement != null) {
-			for (edgeOrdinal in 0 until edgeCount) {
-				val edge = MeshElement.Edge(edgeEndpoints[edgeOrdinal * 2], edgeEndpoints[edgeOrdinal * 2 + 1])
+	if (activeVertex != null) {
+		vertexFlags[activeVertex] = OVERLAY_FLAG_ACTIVE
+	}
 
-				if (edge == activeEdgeElement) {
-					edgeFlags[edgeOrdinal] = OVERLAY_FLAG_ACTIVE
-					activeEdge = edgeOrdinal
-				} else if (edge in selectedEdges) {
-					edgeFlags[edgeOrdinal] = OVERLAY_FLAG_SELECTED
-				}
+	val edgeCount = edgeEndpoints.size / 2
+	val edgeFlags = ByteArray(edgeCount)
+	val selectedEdges = highlight.selectedEdges
+	val activeEdgeElement = highlight.activeEdge
+	var activeEdge: Int? = null
+
+	if (selectedEdges.isNotEmpty() || activeEdgeElement != null) {
+		for (edgeOrdinal in 0 until edgeCount) {
+			val edge = MeshElement.Edge(edgeEndpoints[edgeOrdinal * 2], edgeEndpoints[edgeOrdinal * 2 + 1])
+
+			if (edge == activeEdgeElement) {
+				edgeFlags[edgeOrdinal] = OVERLAY_FLAG_ACTIVE
+				activeEdge = edgeOrdinal
+			} else if (edge in selectedEdges) {
+				edgeFlags[edgeOrdinal] = OVERLAY_FLAG_SELECTED
 			}
 		}
+	}
 
-		val faceFlags = ByteArray(triangleCount)
+	val faceFlags = ByteArray(faceCount)
 
-		for (faceIndex in highlight.selectedFaceIndices) {
-			faceFlags[faceIndex] = OVERLAY_FLAG_SELECTED
-		}
+	for (faceIndex in highlight.selectedFaceIndices) {
+		faceFlags[faceIndex] = OVERLAY_FLAG_SELECTED
+	}
 
-		val activeFace = highlight.activeFaceIndex
+	val activeFace = highlight.activeFaceIndex
 
-		if (activeFace != null) {
-			faceFlags[activeFace] = OVERLAY_FLAG_ACTIVE
-		}
+	if (activeFace != null) {
+		faceFlags[activeFace] = OVERLAY_FLAG_ACTIVE
+	}
 
-		return MeshOverlayMesh(drawableId, vertexCount, edgeEndpoints, vertexFlags, edgeFlags, faceFlags, activeVertex, activeEdge, activeFace)
+	return EditCageFlags(vertexFlags, edgeFlags, faceFlags, activeVertex, activeEdge, activeFace)
+}
+
+/**
+ * Whether an element is one of a topology's own: a vertex it has, an edge between two of its vertices, or a face
+ * it has.
+ *
+ * @param MeshElement element The element.
+ * @param Int vertexCount The topology's vertex count.
+ * @param Int faceCount The topology's face count.
+ * @return Boolean True when the topology has it.
+ */
+private fun elementInTopology(element: MeshElement, vertexCount: Int, faceCount: Int): Boolean =
+	when (element) {
+		is MeshElement.Vertex -> element.index in 0 until vertexCount
+		is MeshElement.Edge -> element.endpointLow in 0 until vertexCount && element.endpointHigh in 0 until vertexCount
+		is MeshElement.Face -> element.index in 0 until faceCount
+	}
+
+/**
+ * Whether two entry lists hold the same entries, by identity and in order.
+ *
+ * @param List<MeshOverlayMesh> previous The previous overlay's entries.
+ * @param List<MeshOverlayMesh> next This call's entries.
+ * @return Boolean True when every entry is the same instance.
+ */
+internal fun sameOverlayEntries(previous: List<MeshOverlayMesh>, next: List<MeshOverlayMesh>): Boolean =
+	previous.size == next.size && previous.indices.all { entryIndex -> previous[entryIndex] === next[entryIndex] }
+
+/**
+ * The renderer's select mode for the session's.
+ *
+ * @param MeshSelectMode selectMode The session's select mode.
+ * @return MeshOverlaySelectMode The overlay's.
+ */
+internal fun overlaySelectModeOf(selectMode: MeshSelectMode): MeshOverlaySelectMode =
+	when (selectMode) {
+		MeshSelectMode.Vertex -> MeshOverlaySelectMode.Vertex
+		MeshSelectMode.Edge -> MeshOverlaySelectMode.Edge
+		MeshSelectMode.Face -> MeshOverlaySelectMode.Face
+	}
+
+/**
+ * Each Edit-cage owner's overlay entry, kept between derives and rebuilt only when its selected set (by identity),
+ * active element, select mode, topology (by identity), or style changes: the one reuse rule a mesh's cage and a
+ * lattice's share, so a selection change re-flags only the owners whose selection changed.
+ *
+ * Not thread-safe: one sequential derive owns it.
+ */
+internal class EditCageEntries<Topology : Any> {
+	/**
+	 * One owner's last entry and what it was built from.
+	 *
+	 * @property Set<MeshElement> elements The selected set it reflects (compared by identity).
+	 * @property MeshElement? active The active element it reflects.
+	 * @property MeshSelectMode selectMode The select mode it reflects.
+	 * @property Topology topology The topology it was built over (compared by identity).
+	 * @property MeshStyle style The style it was built with.
+	 * @property MeshOverlayMesh entry The entry.
+	 */
+	private class Cached<Topology : Any>(
+		val elements: Set<MeshElement>,
+		val active: MeshElement?,
+		val selectMode: MeshSelectMode,
+		val topology: Topology,
+		val style: MeshStyle,
+		val entry: MeshOverlayMesh,
+	)
+
+	private val byOwner = HashMap<ElementOwner, Cached<Topology>>()
+
+	/**
+	 * Drops every entry whose owner is not in [owners].
+	 *
+	 * @param Set<ElementOwner> owners The owners to keep.
+	 */
+	fun retainOnly(owners: Set<ElementOwner>) {
+		byOwner.keys.retainAll(owners)
 	}
 
 	/**
-	 * Whether an element is one of the mesh's own: a vertex it has, an edge between two of its vertices,
-	 * or a triangle it has.
+	 * [owner]'s entry under [selection]: the kept one while what it reflects holds, else a fresh one from [build].
 	 *
-	 * @param MeshElement element The element.
-	 * @param Int vertexCount The mesh's vertex count.
-	 * @param Int triangleCount The mesh's triangle count.
-	 * @return Boolean True when the mesh has it.
+	 * @param ElementOwner owner The mesh or lattice.
+	 * @param Topology topology Its topology.
+	 * @param MeshSelection selection The selection to show.
+	 * @param MeshStyle style Its style.
+	 * @param Function build Builds the entry from the owner's selected elements, active element, and select mode.
+	 * @return MeshOverlayMesh The entry.
 	 */
-	private fun elementInMesh(element: MeshElement, vertexCount: Int, triangleCount: Int): Boolean =
-		when (element) {
-			is MeshElement.Vertex -> element.index in 0 until vertexCount
-			is MeshElement.Edge -> element.endpointLow in 0 until vertexCount && element.endpointHigh in 0 until vertexCount
-			is MeshElement.Face -> element.triangleIndex in 0 until triangleCount
+	fun entryOf(
+		owner: ElementOwner,
+		topology: Topology,
+		selection: MeshSelection,
+		style: MeshStyle,
+		build: (Set<MeshElement>, MeshElement?, MeshSelectMode) -> MeshOverlayMesh,
+	): MeshOverlayMesh {
+		val elements = selection.elementsOf(owner)
+		val active = selection.activeElement?.takeIf { activeElement -> activeElement.owner == owner }?.element
+		val cached = byOwner[owner]
+
+		if (cached != null && cached.elements === elements && cached.active == active && cached.selectMode == selection.selectMode && cached.topology === topology && cached.style == style) {
+			return cached.entry
 		}
 
-	/**
-	 * Whether two entry lists hold the same entries, by identity and in order.
-	 *
-	 * @param List<MeshOverlayMesh> previous The previous overlay's entries.
-	 * @param List<MeshOverlayMesh> next This call's entries.
-	 * @return Boolean True when every entry is the same instance.
-	 */
-	private fun sameEntries(previous: List<MeshOverlayMesh>, next: List<MeshOverlayMesh>): Boolean =
-		previous.size == next.size && previous.indices.all { entryIndex -> previous[entryIndex] === next[entryIndex] }
+		val entry = build(elements, active, selection.selectMode)
+		byOwner[owner] = Cached(elements, active, selection.selectMode, topology, style, entry)
 
-	/**
-	 * The renderer's select mode for the session's.
-	 *
-	 * @param MeshSelectMode selectMode The session's select mode.
-	 * @return MeshOverlaySelectMode The overlay's.
-	 */
-	private fun overlaySelectModeOf(selectMode: MeshSelectMode): MeshOverlaySelectMode =
-		when (selectMode) {
-			MeshSelectMode.Vertex -> MeshOverlaySelectMode.Vertex
-			MeshSelectMode.Edge -> MeshOverlaySelectMode.Edge
-			MeshSelectMode.Face -> MeshOverlaySelectMode.Face
-		}
+		return entry
+	}
 }
+
+/**
+ * The overlay over [entries]: [previous] itself when its kind, select mode, sizes, and entries are the same, so the
+ * renderer re-uploads nothing, else a new value.  The one overlay reuse rule every cage producer keeps.
+ *
+ * @param MeshOverlay? previous The overlay the producer last handed out, or null.
+ * @param MeshOverlayKind kind The overlay kind.
+ * @param MeshOverlaySelectMode selectMode The select mode.
+ * @param List<MeshOverlayMesh> entries The entries, in layout order.
+ * @param MeshOverlaySizes sizes The overlay sizes.
+ * @return MeshOverlay The overlay.
+ */
+internal fun reusedOverlay(
+	previous: MeshOverlay?,
+	kind: MeshOverlayKind,
+	selectMode: MeshOverlaySelectMode,
+	entries: List<MeshOverlayMesh>,
+	sizes: MeshOverlaySizes,
+): MeshOverlay =
+	if (previous != null && previous.kind == kind && previous.selectMode == selectMode && previous.sizes == sizes && sameOverlayEntries(previous.meshes, entries)) {
+		previous
+	} else {
+		MeshOverlay(kind, selectMode, entries, sizes)
+	}

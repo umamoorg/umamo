@@ -5,9 +5,12 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.ParameterUnit
 import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.mesh.LatticeResizeParameterKeys
 import org.umamo.edit.mesh.MergeParameterKeys
 import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.parameterKey
+import org.umamo.edit.structure.RehomeParameterKeys
+import org.umamo.edit.structure.WarpCreationParameterKeys
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.choiceKey
 import org.umamo.interop.art.ArtworkAnchor
@@ -101,6 +104,24 @@ internal fun operatorParameterLabel(labelKey: String): String =
 
 		MergeParameterKeys.TARGET -> stringResource(Res.string.merge_options_target)
 
+		LatticeResizeParameterKeys.ROWS -> stringResource(Res.string.lattice_options_rows)
+
+		RehomeParameterKeys.KEEP_IN_PLACE -> stringResource(Res.string.rehome_options_keep_in_place)
+
+		WarpCreationParameterKeys.ROWS -> stringResource(Res.string.lattice_options_rows)
+
+		WarpCreationParameterKeys.COLUMNS -> stringResource(Res.string.lattice_options_columns)
+
+		WarpCreationParameterKeys.MARGIN -> stringResource(Res.string.create_warp_options_margin)
+
+		WarpCreationParameterKeys.QUAD -> stringResource(Res.string.properties_field_quad_transform)
+
+		LatticeResizeParameterKeys.COLUMNS -> stringResource(Res.string.lattice_options_columns)
+
+		LatticeResizeParameterKeys.ROW_SPLITS -> stringResource(Res.string.lattice_options_row_splits)
+
+		LatticeResizeParameterKeys.COLUMN_SPLITS -> stringResource(Res.string.lattice_options_column_splits)
+
 		MeshGenerationParameterKeys.PRESET -> stringResource(Res.string.mesh_options_preset)
 
 		MeshGenerationParameterKeys.ALPHA_THRESHOLD -> stringResource(Res.string.mesh_options_alpha_threshold)
@@ -183,6 +204,15 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 		TransformParameterKeys.CONNECTED_ONLY -> Res.string.transform_options_connected_description
 		TransformParameterKeys.SLIDE_FACTOR -> Res.string.transform_options_slide_factor_description
 		MergeParameterKeys.TARGET -> Res.string.merge_options_target_description
+		LatticeResizeParameterKeys.ROWS -> Res.string.lattice_options_rows_description
+		RehomeParameterKeys.KEEP_IN_PLACE -> Res.string.rehome_options_keep_in_place_description
+		WarpCreationParameterKeys.ROWS -> Res.string.create_warp_options_rows_description
+		WarpCreationParameterKeys.COLUMNS -> Res.string.create_warp_options_columns_description
+		WarpCreationParameterKeys.MARGIN -> Res.string.create_warp_options_margin_description
+		WarpCreationParameterKeys.QUAD -> Res.string.create_warp_options_quad_description
+		LatticeResizeParameterKeys.COLUMNS -> Res.string.lattice_options_columns_description
+		LatticeResizeParameterKeys.ROW_SPLITS -> Res.string.lattice_options_row_splits_description
+		LatticeResizeParameterKeys.COLUMN_SPLITS -> Res.string.lattice_options_column_splits_description
 		MeshGenerationParameterKeys.PRESET -> Res.string.mesh_options_preset_description
 		MeshGenerationParameterKeys.ALPHA_THRESHOLD -> Res.string.mesh_options_alpha_threshold_description
 		MeshGenerationParameterKeys.OUTLINE_SPACING -> Res.string.mesh_options_outline_spacing_description

@@ -46,4 +46,21 @@ class AspectLockFieldPairTest {
 		assertEquals(100f, aspectLockedPartner(editedValue = 100f, editedCurrent = 1f, partnerCurrent = 2f, locked = true, range = scaleRange))
 		assertEquals(0.01f, aspectLockedPartner(editedValue = 0.01f, editedCurrent = 1f, partnerCurrent = 0.5f, locked = true, range = scaleRange))
 	}
+
+	/**
+	 * A whole-number pair (a lattice's rows and columns) rounds the locked partner to the nearest whole number and
+	 * holds it inside the range: 6 x 4 locked with the rows edited to 9 becomes 9 x 6, 7 x 4 to 9 rounds 5.14 to 5,
+	 * and a partner that would fall below 1 holds at 1.
+	 */
+	@Test
+	fun aWholeNumberPartnerRoundsAndClamps() {
+		val divisions = 1..100
+		val floatRange = 1f..100f
+
+		assertEquals(6, wholeValueOf(aspectLockedPartner(editedValue = 9f, editedCurrent = 6f, partnerCurrent = 4f, locked = true, range = floatRange), divisions))
+		assertEquals(5, wholeValueOf(aspectLockedPartner(editedValue = 9f, editedCurrent = 7f, partnerCurrent = 4f, locked = true, range = floatRange), divisions))
+		assertEquals(1, wholeValueOf(aspectLockedPartner(editedValue = 1f, editedCurrent = 8f, partnerCurrent = 2f, locked = true, range = floatRange), divisions))
+		assertEquals(100, wholeValueOf(140f, divisions))
+		assertEquals(4, wholeValueOf(aspectLockedPartner(editedValue = 9f, editedCurrent = 6f, partnerCurrent = 4f, locked = false, range = floatRange), divisions), "unlocked, the partner holds")
+	}
 }

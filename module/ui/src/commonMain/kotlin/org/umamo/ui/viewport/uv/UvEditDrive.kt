@@ -70,14 +70,17 @@ internal class UvDriveResult(
 )
 
 /**
- * The drive's jobs over a capture, each mesh's halo and moved set read now.
+ * The drive's jobs over a capture, each mesh's halo and moved set read now.  A bystander the halo does not reach
+ * moves nothing, so it gets no job.
  *
  * @param ModalTransformCapture transform The capture.
  * @return List<UvDriveJob> The jobs, in capture order.
  */
 internal fun uvDriveJobs(transform: ModalTransformCapture): List<UvDriveJob> =
-	transform.entries.map { entry ->
-		UvDriveJob(entry.drawableId, entry.positions, entry.groups, entry.influence, entry.movedIndices)
+	transform.entries.mapNotNull { entry ->
+		entry.drawableId
+			?.takeIf { entry.movedIndices.isNotEmpty() }
+			?.let { drawableId -> UvDriveJob(drawableId, entry.positions, entry.groups, entry.influence, entry.movedIndices) }
 	}
 
 /**

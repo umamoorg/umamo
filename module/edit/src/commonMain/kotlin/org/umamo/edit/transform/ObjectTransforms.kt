@@ -32,7 +32,7 @@ fun isPoseNeutral(model: PuppetModel, pose: Pose): Boolean {
  * and an edit to the transform is an edit to the geometry that produced them.
  *
  * Space-agnostic: this measures whatever array it is handed.  Which array that should be is the caller's
- * decision and a consequential one - see the Properties panel's DrawableWorldTransform, which measures
+ * decision and a consequential one - see the Properties panel's DrawableWorldTransform.kt, which measures
  * WORLD positions because a keyformed drawable's base array is nothing like its on-screen shape.
  *
  * @property Float centerX The bounds' center x.
@@ -88,8 +88,14 @@ fun meshBounds(positions: FloatArray): MeshBounds {
 	return MeshBounds((minX + maxX) / 2f, (minY + maxY) / 2f, maxX - minX, maxY - minY)
 }
 
-/** Every vertex index of an interleaved position array - the whole-mesh index set the object edits move. */
-private fun allVertexIndices(positions: FloatArray): Set<Int> = (0 until positions.size / 2).toSet()
+/**
+ * Every point index of an interleaved (x, y) array - the whole set a transform of a whole mesh, lattice, or island
+ * moves.
+ *
+ * @param FloatArray positions The interleaved positions.
+ * @return Set<Int> The indices 0 until the point count.
+ */
+fun allPointIndices(positions: FloatArray): Set<Int> = (0 until positions.size / 2).toSet()
 
 /**
  * Translates a whole mesh so its bounds center lands on ([newCenterX], [newCenterY]).  This is the write
@@ -97,7 +103,7 @@ private fun allVertexIndices(positions: FloatArray): Set<Int> = (0 until positio
  * mesh rigidly by the difference, so the displayed number becomes exactly the value entered.
  *
  * Pure and space-agnostic - it moves the array it is given.  The Properties panel applies it to WORLD
- * positions and inverts the result back onto the base mesh; see DrawableWorldTransform.
+ * positions and inverts the result back onto the base mesh; see DrawableWorldTransform.kt.
  *
  * @param FloatArray positions The interleaved positions.
  * @param Float newCenterX The x the bounds center should land on.
@@ -117,7 +123,7 @@ fun movedToBoundsCenter(positions: FloatArray, newCenterX: Float, newCenterY: Fl
 		return positions
 	}
 
-	return MeshTransforms.translateVertices(positions, allVertexIndices(positions), deltaX, deltaY)
+	return MeshTransforms.translateVertices(positions, allPointIndices(positions), deltaX, deltaY)
 }
 
 /**
@@ -143,8 +149,7 @@ fun resizedAboutBoundsCenter(positions: FloatArray, newWidth: Float, newHeight: 
 	}
 
 	val bounds = meshBounds(positions)
-	val factorX = if (bounds.width > 0f) newWidth / bounds.width else 1f
-	val factorY = if (bounds.height > 0f) newHeight / bounds.height else 1f
+	val (factorX, factorY) = boundsScaleFactors(bounds, newWidth, newHeight)
 
 	if (factorX == 1f && factorY == 1f) {
 		return positions
@@ -152,10 +157,24 @@ fun resizedAboutBoundsCenter(positions: FloatArray, newWidth: Float, newHeight: 
 
 	return MeshTransforms.scaleVerticesAxis(
 		positions,
-		allVertexIndices(positions),
+		allPointIndices(positions),
 		factorX,
 		factorY,
 		bounds.centerX,
 		bounds.centerY,
 	)
 }
+
+/**
+ * The per-axis factors that scale [bounds] to ([newWidth], [newHeight]).  An axis whose current extent is zero has
+ * no defined factor - nothing on it can be given an extent - so its factor is 1 rather than infinity.  The one rule
+ * every bounds resize reads: the Size rows' write, the factors they register on the operation strip, and a warp
+ * resized as a whole.
+ *
+ * @param MeshBounds bounds The current bounds.
+ * @param Float newWidth The target x extent.
+ * @param Float newHeight The target y extent.
+ * @return Pair<Float, Float> The x and y factors.
+ */
+fun boundsScaleFactors(bounds: MeshBounds, newWidth: Float, newHeight: Float): Pair<Float, Float> =
+	(if (bounds.width > 0f) newWidth / bounds.width else 1f) to (if (bounds.height > 0f) newHeight / bounds.height else 1f)

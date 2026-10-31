@@ -1,11 +1,13 @@
 package org.umamo.ui.viewport.uv
 
 import androidx.compose.ui.unit.IntSize
+import org.umamo.edit.ElementTopology
 import org.umamo.render.DecodedImage
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
@@ -213,8 +215,8 @@ class UvIslandPickControllerTest {
 	fun boxEnclosesIslandsByAnyVertex() {
 		val camera = ViewportCamera(centerX = 0f, centerY = 0f, zoom = 1f)
 		val size = IntSize(200, 200)
-		val nearIsland = GizmoMeshGeometry(DrawableId("near"), intArrayOf(0, 1, 2), emptyList(), floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f))
-		val farIsland = GizmoMeshGeometry(DrawableId("far"), intArrayOf(0, 1, 2), emptyList(), floatArrayOf(80f, 80f, 90f, 80f, 80f, 90f))
+		val nearIsland = GizmoMeshGeometry(ElementOwner.Drawable(DrawableId("near")), ElementTopology.ofTriangles(3, intArrayOf(0, 1, 2)), floatArrayOf(0f, 0f, 10f, 0f, 0f, 10f))
+		val farIsland = GizmoMeshGeometry(ElementOwner.Drawable(DrawableId("far")), ElementTopology.ofTriangles(3, intArrayOf(0, 1, 2)), floatArrayOf(80f, 80f, 90f, 80f, 80f, 90f))
 		// A box around the near island's (0, 10) vertex alone: one enclosed vertex takes the island.
 		val cornerA = worldToScreen(-1f, 11f, camera, size)
 		val cornerB = worldToScreen(1f, 9f, camera, size)
@@ -243,8 +245,8 @@ class UvIslandPickControllerTest {
 	fun builderGatesOnWhicheverImageIsShown() {
 		val geometries =
 			listOf(
-				GizmoMeshGeometry(frontId, intArrayOf(0, 1, 2), emptyList(), displayTriangle),
-				GizmoMeshGeometry(backId, intArrayOf(0, 1, 2), emptyList(), displayTriangle),
+				GizmoMeshGeometry(ElementOwner.Drawable(frontId), ElementTopology.ofTriangles(3, intArrayOf(0, 1, 2)), displayTriangle),
+				GizmoMeshGeometry(ElementOwner.Drawable(backId), ElementTopology.ofTriangles(3, intArrayOf(0, 1, 2)), displayTriangle),
 			)
 		val frontRank = mapOf(frontId to 1f, backId to 0f)
 

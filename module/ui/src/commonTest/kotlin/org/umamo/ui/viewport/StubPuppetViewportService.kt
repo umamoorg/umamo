@@ -11,18 +11,23 @@ import org.umamo.render.LayerDrawPlan
 import org.umamo.render.LayerRasterBatch
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.render.puppet.DirectMeshOverlay
+import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayPalette
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.model.DrawableThumbnailProvider
 
 /**
  * A render service with no renderer behind it, for tests of the viewport overlays: it records every model
  * an overlay pushes through [setModel] (a gesture's previews and the resync that ends it), every mesh
- * overlay, palette, and UV scene content published to it, and answers the picks from a table the test
- * fills.  Everything else does nothing, since no overlay under test reads it.
+ * overlay, lattice overlay, lattice preview, palette, and UV scene content published to it, and every
+ * world-rectangle fit, and answers the picks and the lattice queries from tables the test fills.
+ * Everything else does nothing, since no overlay under test reads it.
  */
 internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every model pushed through [setModel], oldest first. */
@@ -30,6 +35,30 @@ internal class StubPuppetViewportService : PuppetViewportService {
 
 	/** Every mesh overlay published through [setMeshOverlay], oldest first, nulls included. */
 	val pushedOverlays = ArrayList<MeshOverlay?>()
+
+	/** Every lattice overlay published through [setLatticeOverlay], oldest first, nulls included. */
+	val pushedLatticeOverlays = ArrayList<LatticeOverlay?>()
+
+	/** Every direct Edit cage published through [setEditDirectOverlay], oldest first, nulls included. */
+	val pushedEditDirectOverlays = ArrayList<DirectMeshOverlay?>()
+
+	/** Every lattice preview published through [setLatticePreview], oldest first, empty maps included. */
+	val pushedLatticePreviews = ArrayList<Map<DeformerId, WarpLatticeForm>>()
+
+	/** Every pending-lattice map published through [setLatticeOverrides], oldest first, empty maps included. */
+	val pushedLatticeOverrides = ArrayList<Map<DeformerId, WarpLatticeForm>>()
+
+	/** What [latticePicksAt] answers per area, best first; an area with no entry answers nothing. */
+	val latticeStackByArea = HashMap<String, List<DeformerId>>()
+
+	/** Every lattice pick request, as the area and the point and line radii it asked with. */
+	val latticePickRequests = ArrayList<Pair<String, Pair<Float, Float>>>()
+
+	/** What [latticeWorldCenters] answers per area: each drawn warp's world center, set by the case. */
+	val latticeCentersByArea = HashMap<String, Map<DeformerId, FloatArray>>()
+
+	/** What [latticeWorldExtent] answers per warp; the answer is the union over the warps asked about. */
+	val latticeExtents = HashMap<DeformerId, ContentBounds>()
 
 	/** Every palette published through [setMeshOverlayPalette], oldest first. */
 	val pushedPalettes = ArrayList<MeshOverlayPalette>()
@@ -55,6 +84,9 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	/** How many times an overlay asked for the centroids (one snapshot per select gesture). */
 	var centroidSnapshots = 0
 		private set
+
+	/** Every world-rectangle fit asked for, as the area and its min x, min z, max x, and max z. */
+	val fitWorldRequests = ArrayList<Pair<String, List<Float>>>()
 
 	/** Every Zoom Region request, as the area and its left, top, right, and bottom edges in pixels. */
 	val zoomRegionRequests = ArrayList<Pair<String, List<Float>>>()
@@ -221,7 +253,7 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	override fun fit(areaId: String) {}
 
 	/**
-	 * Does nothing.
+	 * Records the fit.
 	 *
 	 * @param String areaId The area.
 	 * @param Float minX The left edge.
@@ -229,7 +261,9 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	 * @param Float maxX The right edge.
 	 * @param Float maxZ The top edge.
 	 */
-	override fun fitWorldRect(areaId: String, minX: Float, minZ: Float, maxX: Float, maxZ: Float) {}
+	override fun fitWorldRect(areaId: String, minX: Float, minZ: Float, maxX: Float, maxZ: Float) {
+		fitWorldRequests.add(areaId to listOf(minX, minZ, maxX, maxZ))
+	}
 
 	/**
 	 * Does nothing.
@@ -307,6 +341,82 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	 */
 	override fun setMeshOverlay(overlay: MeshOverlay?) {
 		pushedOverlays.add(overlay)
+	}
+
+	/**
+	 * Records the lattice overlay.
+	 *
+	 * @param LatticeOverlay? overlay The overlay published.
+	 */
+	override fun setLatticeOverlay(overlay: LatticeOverlay?) {
+		pushedLatticeOverlays.add(overlay)
+	}
+
+	/**
+	 * Records the direct Edit cage.
+	 *
+	 * @param DirectMeshOverlay? overlay The cage published.
+	 */
+	override fun setEditDirectOverlay(overlay: DirectMeshOverlay?) {
+		pushedEditDirectOverlays.add(overlay)
+	}
+
+	/**
+	 * Records the pending lattices.
+	 *
+	 * @param Map<DeformerId, WarpLatticeForm> overrides The pending lattices published.
+	 */
+	override fun setLatticeOverrides(overrides: Map<DeformerId, WarpLatticeForm>) {
+		pushedLatticeOverrides.add(overrides)
+	}
+
+	override fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>) {
+		pushedLatticePreviews.add(overrides)
+	}
+
+	/**
+	 * Answers from [latticeStackByArea], recording the request.
+	 *
+	 * @param String areaId The clicked area.
+	 * @param Float cursorXpx Unused.
+	 * @param Float cursorYpx Unused.
+	 * @param Float pointRadiusPx The control-point radius asked with.
+	 * @param Float lineRadiusPx The grid-line radius asked with.
+	 * @return List<DeformerId> The area's hit warps, best first.
+	 */
+	override fun latticePicksAt(areaId: String, cursorXpx: Float, cursorYpx: Float, pointRadiusPx: Float, lineRadiusPx: Float): List<DeformerId> {
+		latticePickRequests.add(areaId to (pointRadiusPx to lineRadiusPx))
+
+		return latticeStackByArea[areaId].orEmpty()
+	}
+
+	/**
+	 * Answers from [latticeCentersByArea].
+	 *
+	 * @param String areaId The area.
+	 * @return Map<DeformerId, FloatArray> The area's drawn warps' centers.
+	 */
+	override fun latticeWorldCenters(areaId: String): Map<DeformerId, FloatArray> = latticeCentersByArea[areaId].orEmpty()
+
+	/**
+	 * The union of [latticeExtents] over [ids], or null when none of them has one.
+	 *
+	 * @param Set<DeformerId> ids The warps.
+	 * @return ContentBounds? The extent.
+	 */
+	override fun latticeWorldExtent(ids: Set<DeformerId>): ContentBounds? {
+		val extents = ids.mapNotNull { deformerId -> latticeExtents[deformerId] }
+
+		if (extents.isEmpty()) {
+			return null
+		}
+
+		val minX = extents.minOf { extent -> extent.minX }
+		val minY = extents.minOf { extent -> extent.minY }
+		val maxX = extents.maxOf { extent -> extent.minX + extent.width }
+		val maxY = extents.maxOf { extent -> extent.minY + extent.height }
+
+		return ContentBounds(minX, minY, maxX - minX, maxY - minY)
 	}
 
 	/**

@@ -7,12 +7,16 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.Glue
+import org.umamo.runtime.model.KeyformAxis
+import org.umamo.runtime.model.KeyformCell
+import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /**
@@ -22,6 +26,44 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * class, so a test file imports exactly the fixtures it uses and keeps its own fixtures free of clashes.
  */
 internal object SessionTestModels {
+	/**
+	 * A quad-mode warp keyed on [parameter] at [keys], each key's lattice from [formAt]; null keys leave it without a
+	 * lattice.  The one warp builder the lattice tests share.
+	 *
+	 * @param DeformerId id The warp, which is also its name.
+	 * @param Int rows Its cell count along v.
+	 * @param Int columns Its cell count along u.
+	 * @param ParameterId parameter The parameter it is keyed on.
+	 * @param FloatArray? keys The keys, or null for no lattice.
+	 * @param DeformerId? parent Its parent deformer, or null at the root.
+	 * @param PartId? partId Its part, or null.
+	 * @param Function formAt Each key's control points, by key index.
+	 * @return Deformer.Warp The warp.
+	 */
+	fun keyedWarp(
+		id: DeformerId,
+		rows: Int,
+		columns: Int,
+		parameter: ParameterId,
+		keys: FloatArray?,
+		parent: DeformerId? = null,
+		partId: PartId? = null,
+		formAt: (Int) -> FloatArray,
+	): Deformer.Warp =
+		Deformer.Warp(
+			id = id,
+			name = id.raw,
+			parent = parent,
+			partId = partId,
+			rows = rows,
+			columns = columns,
+			isQuadTransform = true,
+			geometryGrid =
+				keys?.let { values ->
+					KeyformGrid(listOf(KeyformAxis(parameter, values)), values.indices.map { keyIndex -> KeyformCell(intArrayOf(keyIndex), WarpLatticeForm(formAt(keyIndex))) })
+				},
+		)
+
 	/** Part a: holds the drawable in [model]. */
 	val partA = Part(PartId("a"), "A", children = emptyList())
 

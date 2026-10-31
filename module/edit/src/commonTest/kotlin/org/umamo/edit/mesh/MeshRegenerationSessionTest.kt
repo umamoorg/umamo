@@ -9,6 +9,7 @@ import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.mesh.RegenerationFixtures.drawableId
 import org.umamo.edit.mesh.RegenerationFixtures.partnerId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -47,7 +48,7 @@ class MeshRegenerationSessionTest {
 		selection = MeshSelectionOps.add(selection, drawableId, MeshElement.Vertex(0))
 		session.setMeshSelection(selection)
 		val before = session.meshSelection.value
-		assertEquals(ActiveMeshElement(drawableId, MeshElement.Vertex(0)), before.activeElement)
+		assertEquals(ActiveMeshElement(ElementOwner.Drawable(drawableId), MeshElement.Vertex(0)), before.activeElement)
 
 		session.commitMeshRegenerate(mapOf(drawableId to regeneratedEdit(model)))
 

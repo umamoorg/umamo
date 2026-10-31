@@ -9,9 +9,8 @@ import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.withParameter
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.transform.WorldAxis
-import org.umamo.ui.transform.captureDrawableWorlds
-import org.umamo.ui.transform.coveredVerticesOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -38,10 +37,10 @@ class EditMedianMoveTest {
 		val session = gizmoEditSession(editing = listOf(RIG_QUAD, RIG_OTHER))
 		session.setMeshSelection(
 			session.meshSelection.value.copy(
-				elementsByDrawable =
+				elementsByOwner =
 					mapOf(
-						RIG_QUAD to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1)),
-						RIG_OTHER to setOf(MeshElement.Vertex(0)),
+						ElementOwner.Drawable(RIG_QUAD) to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1)),
+						ElementOwner.Drawable(RIG_OTHER) to setOf(MeshElement.Vertex(0)),
 					),
 			),
 		)
@@ -56,16 +55,9 @@ class EditMedianMoveTest {
 	 * @return CoveredMedianMove The move.
 	 */
 	private fun moveOf(session: EditorSession): CoveredMedianMove {
-		val model = session.model.value
 		val selection = session.meshSelection.value
-		val covered =
-			coveredVerticesOf(
-				selection,
-				captureDrawableWorlds(model, emptyMap(), selection.drawableIds),
-				model.drawables.associate { drawable -> drawable.id to drawable.mesh!!.indices },
-			)
 
-		return assertNotNull(coveredMedianMove(covered))
+		return assertNotNull(coveredMedianMove(selection, editOwnerGeometries(session.model.value, selection.owners)))
 	}
 
 	/**
@@ -193,6 +185,29 @@ class EditMedianMoveTest {
 		assertTrue(state.connectedOnly)
 	}
 
+	/**
+	 * Turning proportional editing on from the strip after a typed move pulls the nearby mesh in the edit that has
+	 * nothing selected, as the viewport Grab's strip does, and leaves the corner outside the radius where it was.
+	 */
+	@Test
+	fun turningProportionalOnFromTheStripReachesAnotherMeshInTheEdit() {
+		// Quad vertex 1 at (20, 0) alone is covered, so the median is (20, 0).  The triangle's (40, 0) corner lies 20
+		// away, inside the radius of 30, and its (60, 0) corner 40 away, outside.
+		val session = gizmoEditSession(editing = listOf(RIG_QUAD, RIG_OTHER), elements = listOf(MeshElement.Vertex(1)))
+		session.setProportionalFalloff(ProportionalFalloff.Linear)
+		session.setProportionalRadius(30f)
+
+		session.moveCoveredMedianAdjustable(moveOf(session), WorldAxis.X, 30f, STRIP_AREA)
+		assertEquals(listOf(40f, 0f, 60f, 0f, 40f, 20f), rigPositionsOf(session, RIG_OTHER), "the typed move takes no falloff")
+		val record = assertNotNull(session.adjustableOperation.value)
+		val toggle = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.PROPORTIONAL } as OperatorParameter.BooleanParameter
+		session.adjustLastOperation(record.parameters.withParameter(TransformParameterKeys.PROPORTIONAL, toggle.copy(value = true)), adjustedKey = TransformParameterKeys.PROPORTIONAL)
+
+		val other = rigPositionsOf(session, RIG_OTHER)
+		assertEquals(40f + 10f * (1f - 20f / 30f), other[0], 1e-4f, "the near corner takes a third of the move")
+		assertEquals(listOf(60f, 0f), other.subList(2, 4), "the corner outside the radius stays")
+	}
+
 	/** A preview shows the moved model without committing anything. */
 	@Test
 	fun aPreviewCommitsNothing() {
@@ -200,7 +215,7 @@ class EditMedianMoveTest {
 		val before = session.model.value
 		val stepsBefore = session.historyView.value.steps.size
 
-		val preview = assertNotNull(session.previewCoveredMedianMove(moveOf(session), WorldAxis.X, 50f))
+		val preview = assertNotNull(session.previewCoveredMedianMove(moveOf(session), WorldAxis.X, 50f)).folded
 
 		assertEquals(30f, preview.drawables.first { drawable -> drawable.id == RIG_QUAD }.mesh!!.positions[0])
 		assertSame(before, session.model.value)

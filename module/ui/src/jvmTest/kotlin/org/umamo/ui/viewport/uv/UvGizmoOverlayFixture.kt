@@ -22,12 +22,13 @@ import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
 import org.umamo.render.ViewportCamera
-import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.settings.Settings
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.theme.UmamoTheme
+import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.StubPuppetViewportService
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.gizmo.HeldDriveDispatcher
@@ -95,7 +96,7 @@ internal class UvGizmoOverlayFixture(
 	val driveDispatcher = HeldDriveDispatcher()
 
 	/** Every overlap picker an overlay asked for, as the area, the anchor, and the candidates. */
-	val overlapRequests = ArrayList<Triple<String, Offset, List<PickCandidate>>>()
+	val overlapRequests = ArrayList<Triple<String, Offset, List<ObjectPickCandidate>>>()
 
 	/**
 	 * The areas whose overlays are mounted.  Taking an area out unmounts its overlays mid-gesture the way
@@ -202,9 +203,10 @@ internal fun ComposeUiTest.mountUvGizmoOverlays(session: EditorSession, placemen
 								val islandPick =
 									remember(model, geometries) {
 										val uvsById =
-											geometries.associate { geometry ->
-												geometry.drawableId to displayToUv(geometry.positions, frame.displayWidth, frame.displayHeight)
-											}
+											geometries
+												.mapNotNull { geometry ->
+													geometry.drawableId?.let { drawableId -> drawableId to displayToUv(geometry.positions, frame.displayWidth, frame.displayHeight) }
+												}.toMap()
 										uvIslandPick(geometries = geometries, frontRank = restFrontRank(model), uvsById = uvsById, image = null)
 									}
 								val camera = if (surface.cameraLost) null else fixture.cameraOf(surface)

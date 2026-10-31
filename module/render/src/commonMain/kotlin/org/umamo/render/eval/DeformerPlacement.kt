@@ -4,6 +4,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.deformerChain
 
 /**
  * Where a deformer sits in world space at one pose: what the Properties panel shows as its transform.
@@ -64,29 +65,14 @@ fun deformerPlacement(model: PuppetModel, parameters: Map<ParameterId, Float>, d
 }
 
 /**
- * The deformer and every ancestor the model holds, root first, stopping at a parent the model does not hold
- * (which the full bake treats as the root too) or at a cycle (which the full bake never builds, so the
- * shortened chain does not build either).
+ * The deformer and every ancestor the model holds ([deformerChain]), root first - the order the bake builds them in.
+ * A chain cut short by a cycle is one the full bake never builds, so the shortened bake does not build it either.
  *
  * @param PuppetModel model The rig.
  * @param DeformerId deformerId The deformer the chain ends at.
  * @return List<Deformer> The chain, root first; empty when the model does not hold the deformer.
  */
-private fun ancestorChain(model: PuppetModel, deformerId: DeformerId): List<Deformer> {
-	val deformerById = model.deformers.associateBy { deformer -> deformer.id }
-	val chain = ArrayList<Deformer>()
-	val visited = HashSet<DeformerId>()
-	var current = deformerById[deformerId]
-
-	while (current != null && visited.add(current.id)) {
-		chain.add(current)
-		current = current.parent?.let { parentId -> deformerById[parentId] }
-	}
-
-	chain.reverse()
-
-	return chain
-}
+internal fun ancestorChain(model: PuppetModel, deformerId: DeformerId): List<Deformer> = model.deformerChain(deformerId).reversed()
 
 /**
  * A warp's lattice bounds from its baked world control points.

@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -22,9 +23,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.TrackKeyRef
+import org.umamo.edit.editsKeys
+import org.umamo.edit.shownHeldTracks
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.ui.kit.SCROLLBAR_THICKNESS
@@ -83,7 +87,8 @@ import org.umamo.ui.workspace.LocalKeyformSheetViews
  * group's summary mark stands for every key stacked under it (a key may cross its neighbours, and stops only
  * at the parameter's range); Delete removes the selection as one undo step; right-clicking a lane inserts a
  * key there or removes the one under the pointer; Box Select (B) arms a marquee that adds the keys it
- * encloses to the selection.
+ * encloses to the selection.  Edit mode changes no key (EditorMode.editsKeys): there a mark only selects, and
+ * the lane menu's rows are greyed out.
  *
  * This composable is the wiring: it derives the sections, holds the scroll and the drag cursor, registers
  * the area's command surface, and hands each section to [KeyformSheetSection].
@@ -107,6 +112,27 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 	val selectedKeys by remember(session) {
 		session?.keySelection ?: MutableStateFlow(emptySet())
 	}.collectAsState()
+	// The tracks holding an edit not yet keyed (a typed value, a Pose-mode lattice) as the viewport shows them: their
+	// rows ring the pose, where a key on that row stores the edit wherever the pointer is on the lane.
+	val heldTracks by remember(session) {
+		session?.shownHeldTracks ?: MutableStateFlow(emptySet())
+	}.collectAsState(emptySet())
+	val sessionPose by remember(session) {
+		session?.pose ?: MutableStateFlow(emptyMap())
+	}.collectAsState()
+	val mode by remember(session) {
+		session?.mode ?: MutableStateFlow(EditorMode.Object)
+	}.collectAsState()
+	val keysEditable = session != null && mode.editsKeys
+
+	// A mark drag that a switch into Edit mode interrupts loses its release handler, so nothing would clear its group
+	// preview and the selected marks would stay drawn off their keys.
+	LaunchedEffect(keysEditable) {
+		if (!keysEditable) {
+			viewState.dragPreviewFraction = null
+		}
+	}
+
 	// Recording a selection as its own undo step, versus folding it into the step a following commit is
 	// about to record.  See EditorSession.stageKeySelection for which is correct where.
 	val setSelectedKeys: (Set<TrackKeyRef>) -> Unit = { keys -> session?.setKeySelection(keys) }
@@ -174,9 +200,9 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 					KeyformTrackFilter(viewState.showGeometry, viewState.showChannels, viewState.showBlendShapes)
 				}
 			val projections =
-				remember(puppet, targetedParameters, labels, filter) {
+				remember(puppet, targetedParameters, labels, filter, heldTracks, sessionPose) {
 					targetedParameters.map { parameter ->
-						parameter to keyformSheetRows(puppet, parameter.id, labels, filter)
+						parameter to keyformSheetRows(puppet, parameter.id, labels, filter, heldTracks, sessionPose[parameter.id] ?: parameter.default)
 					}
 				}
 
@@ -263,6 +289,7 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 								onSelectedKeysChange = setSelectedKeys,
 								onStageSelectedKeys = stageSelectedKeys,
 								onDragSelectedKeys = dragSelectedKeys,
+								keysEditable = keysEditable,
 								// The preview fraction is of the parameter's RANGE; a lane draws in its own domain units, so
 								// each section converts with its own span - which is what keeps a linked pad's two axes moving
 								// together on screen despite unrelated ranges.

@@ -3,6 +3,8 @@ package org.umamo.ui.workspace.commands
 import org.umamo.edit.ActiveSelectTool
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.editsElements
+import org.umamo.edit.editsKeys
 import org.umamo.ui.action.Command
 import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandRegistry
@@ -53,11 +55,23 @@ internal class SessionAvailability(session: EditorSession?) {
 	/** Applies whenever a document is open - the tier most session commands sit in. */
 	val hasDocument = CommandAvailability { session != null }
 
-	/** Applies only in Edit mode, where there is a mesh-element domain to act on. */
+	/** Applies only in Edit mode, where the rest geometry - topology, UVs - is the domain. */
 	val inEditMode = CommandAvailability { session?.mode?.value == EditorMode.Edit }
 
-	/** Applies only in Object mode, where whole drawables - and the art placements under them - are the domain. */
+	/**
+	 * Applies in the modes that edit elements (Edit and Pose), where the session's vertices or lattice points are the
+	 * domain.
+	 */
+	val inElementMode = CommandAvailability { session?.mode?.value?.editsElements == true }
+
+	/** Applies only in Object mode, where whole objects - and the art placements under drawables - are the domain. */
 	val inObjectMode = CommandAvailability { session?.mode?.value == EditorMode.Object }
+
+	/** Applies outside Edit mode, which edits the rest state alone: every command that inserts, removes, or moves a key. */
+	val canEditKeys = CommandAvailability { session?.mode?.value?.editsKeys == true }
+
+	/** Applies only in Pose mode, where the posed warps are what a key writes on. */
+	val inPoseMode = CommandAvailability { session?.mode?.value == EditorMode.Pose }
 
 	/** Applies only while a Circle-select brush is live, since the radius steps have nothing to resize otherwise. */
 	val circleToolLive = CommandAvailability { session?.activeSelectTool?.value is ActiveSelectTool.Circle }
@@ -75,11 +89,15 @@ internal class SessionAvailability(session: EditorSession?) {
 		}
 
 	/**
-	 * Applies when the document has art tiles to mesh from.  A MOC3-origin document has none (its
-	 * drawables sample packed pages, where cutting one drawable's art out would pick up its neighbours'),
-	 * so the command stays off there.
+	 * Applies when the document has art tiles to mesh from, outside Pose mode.  A MOC3-origin document has none
+	 * (its drawables sample packed pages, where cutting one drawable's art out would pick up its neighbours'),
+	 * so the command stays off there.  A generated mesh is a rest edit of drawables, which Pose mode - acting
+	 * on deformers at a pose - never makes.
 	 */
-	val canGenerateMeshFromArt = CommandAvailability { session?.model?.value?.atlas?.tiles?.isNotEmpty() == true }
+	val canGenerateMeshFromArt =
+		CommandAvailability {
+			session != null && session.mode.value != EditorMode.Pose && session.model.value.atlas.tiles.isNotEmpty()
+		}
 
 	/** Applies while an operation may still be adjusted - the strip's F9 has something to open. */
 	val hasAdjustableOperation = CommandAvailability { session?.adjustableOperation?.value != null }

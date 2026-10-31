@@ -13,7 +13,7 @@
 
 ## 0.5.0 Goals
 0.) Merge in the existing language translations.(Some were merged.)
-1.) Work on the 2D Viewport sidebar that is empty.
+~~1.) Work on the 2D Viewport sidebar that is empty.~~
 2.) Warp Deformer Gizmos and Editing(Rotation deformer is deferred.)
 3.) Glue Gizmos and Editing(Deferred)
 
@@ -40,12 +40,14 @@
 * From @thesillydarku on Twitter: "I had to manually add the "-Xmx4g" flag otherwise got java memory heap errors when trying to export to CMO3"
 	* https://fixupx.com/thesillydarku/status/2102974212952707294
 
+## Deformers
+* Generation
+	* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
+* Deformer overlay shows partially transparent with only the outline.
+
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 * Automatic visual matching of imported artwork layers to layers cut from a texture atlas after a MOC3 to CMO3 conversion.
-
-## Automatic Meshing
-* Automatic repack or expand texture atlases when generated meshes won't fit.  Birth quads on LimeBirb prevent most mesh generation operations.
 
 ## Puppet Model, CMO3, MOC3
 * Parameter Repeat
@@ -70,6 +72,8 @@
 * New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
+* 3D rotation gizmo: A new tool available from the toolbar.(Requires the toolbar to be fleshed out first to give it a home.)  This will be available for drawables and warp deformers.  Rotation around Y will just be a regular R rotate.  Rotation around X and Z will calculate the rotated positions in the X and Z planes without actually moving the vertices in the Y plane.  This will mostly be useful for the warp deformer mode where modellers will want a 3D rotation effect quickly without having to manually move all the vertices to do so.  To build this we can add the functionality to R rotate activated by pressing the X/Z axis lock.  Then the functionality can easily be accessed by the gizmo tool.
+	* Ability to push rotation origin along the Y axis to affect the rotation calculation.  This would allow much quick creation of head rotation movements.  It would need a visual that pops up in the lower right showing the pushing motion as a grid with a distance.(Think like those vaporwave wireframe going into the distance, but like Blender's grid.)
 
 ## Overlay Toggles
 * Improvements
@@ -81,12 +85,8 @@
 	* Mirror along X/Z axis, mirror with 2D cursor as the axis.  Note: This is a small divergence to Blender's style.  In Blender there is an origin for each object that can be moved to different places.  Umamo still has the centroid origin calculated, but no way to move it or even if it was moved, a way to store it.
 	* Extrude(E) - Extrude an edge creates triangle cut quad automatically.
 
-## Long Running Task Indicator
-* Atlas Repack, Import, Export, Save, Open
-* Place it right aligned of the workspace tabs.
-* Right now the status bar notice can get nuked when clicking around or potentially be cut off.
-* It's a third notice area essentially.
-* Before building, research if it would be better to have blocking notices in the status bar.
+## Progress Bar
+* CMO3 and MOC3 export need to show the progress bar.
 
 ## Texture Authoring/UV Editor
 * Follow Selection Header Control - Split it into options and images.
@@ -150,6 +150,10 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 ## Keymap
 * Keymappings will need to become area contextual.  For example: P is pin in the UV editor area.  Once the Separate operation(Into multiple drawables) exist, if we want to match Blender's P shortcut for that then it has to become contextual per area.
 
+## Selection
+* Select All of Type
+* Invert Selection of Type
+
 ## Format
 
 ### File
@@ -184,6 +188,9 @@ See format planning document: docs/plan/uma-format.md
 	* Edit
 		* Cut/Copy/Paste
 
+## Pie/Context Menu
+* Rework pie and context menus to inherit base sets of actions.  For example, right now using the K pie menu on a combined axis results in it going from the pie menu to a context mennu.  If both the pie and context menus use the same lists of commands they can programmatically open the correct kind of menu.  So an invoked pie menu will cascade into another pie menu.
+
 ## Theme Colors
 * Ability to edit ALL the theme colors (the UmamoColors palette) for a custom look through preferences.  For example, in Blender I make my vertex colors as ff00ec(unselected), ff7a00(selected), and 7de400(active selection) since it is easier for me to see.
 	* The color-blind-assist first pass — vertex/edge/face gizmo colors plus the selection highlight — already exists in Settings > Colors.
@@ -193,6 +200,7 @@ See format planning document: docs/plan/uma-format.md
 	* For Example: properties_field_base_angle - "base_angle" -> Expanded out to `properties_field_base_angle` and `properties_field_base_angle_description`.
 	* There are plenty of places in the code base that are passing the values around like this at the moment.  Difficulty: .* import level maybe?  I need to read up on the Kotlin compiler optimization to determine if this will be an issue.
 	* operatorParameterDescriptionRes also is the start of something of what I am thinking, but hardcoded.
+* Remove default parameter colors on MeshOverlayPalette.  They are not needed.
 
 ## Settings
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
@@ -200,6 +208,7 @@ See format planning document: docs/plan/uma-format.md
 * Quick Setup
 	* Versioned Settings
 	* Import from Previous
+	* Auto Key Enable/Disable - This is for migrators from Cubism since Cubism automatically keys.
 * The settings UI needs a design pass since it is basically just squares and whatever thrown together right now.
 * New Settings
 	* Setting to make Left Click, instead of ALT+Left Click, the default to activate the popup overlap picker.

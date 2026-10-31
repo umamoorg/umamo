@@ -2,12 +2,14 @@ package org.umamo.ui.viewport.uv
 
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
+import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /*
  * The texture coordinates an Edit-mode selection covers on a UV surface and where their median sits: what the UV
  * editor's Shift+S snaps from and what the sidebar's UV Vertex / Median panel shows and moves, so the two cannot
- * disagree.  Display space throughout: texels of the shown surface, y up.
+ * disagree, and the meshes a UV transform's capture is offered.  Display space throughout: texels of the shown
+ * surface, y up.
  */
 
 /**
@@ -37,13 +39,13 @@ internal class UvDisplayMedian(val displayX: Float, val displayY: Float, val ver
  */
 internal fun uvCoveredVertices(selection: MeshSelection, geometries: List<GizmoMeshGeometry>): List<UvCoveredVertices> =
 	geometries.mapNotNull { geometry ->
-		val elements = selection.elementsOf(geometry.drawableId)
+		val elements = selection.elementsOf(geometry.owner)
 
 		if (elements.isEmpty()) {
 			return@mapNotNull null
 		}
 
-		val covered = MeshTopology.coveredVertexIndicesWithin(elements, geometry.indices, geometry.positions.size / 2)
+		val covered = MeshTopology.coveredVertexIndicesWithin(elements, geometry.topology, geometry.positions.size / 2)
 
 		if (covered.isEmpty()) null else UvCoveredVertices(geometry, covered)
 	}
@@ -75,3 +77,25 @@ internal fun uvCoveredMedian(covered: List<UvCoveredVertices>): UvDisplayMedian?
 
 	return UvDisplayMedian(sumX / count, sumY / count, count)
 }
+
+/**
+ * Every shown mesh in the edit as a UV transform's capture source, its display coordinates copied: one with the
+ * vertices [coveredIndicesOf] names as covered, or with none as a bystander, which only a straight-line proportional
+ * halo can move.  The UV editor's own G / S / R and a typed median move both offer their meshes through here, so a
+ * strip adjustment of either reaches the same meshes.
+ *
+ * @param MeshSelection selection The mesh selection, whose owners are the edit.
+ * @param List<GizmoMeshGeometry> geometries The shown meshes' display-space geometry.
+ * @param Function coveredIndicesOf The covered vertices of one shown mesh, empty for none.
+ * @return List<ModalCaptureSource> The sources, in [geometries] order.
+ */
+internal fun uvCaptureSources(
+	selection: MeshSelection,
+	geometries: List<GizmoMeshGeometry>,
+	coveredIndicesOf: (GizmoMeshGeometry) -> Set<Int>,
+): List<ModalCaptureSource> =
+	geometries.mapNotNull { geometry ->
+		val coveredIndices = coveredIndicesOf(geometry)
+
+		if (coveredIndices.isEmpty() && geometry.owner !in selection.owners) null else ModalCaptureSource(geometry.owner, geometry.positions.copyOf(), geometry.topology, coveredIndices)
+	}

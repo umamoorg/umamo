@@ -41,8 +41,10 @@ import org.umamo.ui.resources.mesh_preset_fine
 import org.umamo.ui.resources.mesh_preset_standard
 import org.umamo.ui.resources.settings_check_for_updates
 import org.umamo.ui.resources.settings_colors_active_selection_highlight
+import org.umamo.ui.resources.settings_colors_deformers
 import org.umamo.ui.resources.settings_colors_group_edge
 import org.umamo.ui.resources.settings_colors_group_face
+import org.umamo.ui.resources.settings_colors_group_lattice
 import org.umamo.ui.resources.settings_colors_group_vertex
 import org.umamo.ui.resources.settings_colors_mesh_edit
 import org.umamo.ui.resources.settings_colors_pinned_placement
@@ -50,6 +52,7 @@ import org.umamo.ui.resources.settings_colors_role_active
 import org.umamo.ui.resources.settings_colors_role_idle
 import org.umamo.ui.resources.settings_colors_role_offkey
 import org.umamo.ui.resources.settings_colors_role_selected
+import org.umamo.ui.resources.settings_colors_role_unkeyed
 import org.umamo.ui.resources.settings_colors_selection_highlight
 import org.umamo.ui.resources.settings_colors_viewport
 import org.umamo.ui.resources.settings_colors_warning
@@ -327,10 +330,10 @@ internal fun ImportSection() {
 
 /**
  * The Colors section: the viewport selection highlights and overlay colors (the collision warning,
- * the pinned-placement highlight) plus the Edit-mode gizmo palette (viewport.meshEdit.*), grouped
- * element × state.  Every row is a [HexColorField] bound write-through to its settings key, so an
- * edit re-colors the viewport live as it is typed - the same auto-save model as the rest of the
- * window.
+ * the pinned-placement highlight), the Edit-mode gizmo palette (viewport.meshEdit.*), grouped
+ * element × state, and the warp lattice by role (viewport.deformer.*).  Every row is a
+ * [HexColorField] bound write-through to its settings key, so an edit re-colors the viewport live as
+ * it is typed - the same auto-save model as the rest of the window.
  */
 @Composable
 internal fun ColorsSection() {
@@ -379,6 +382,14 @@ internal fun ColorsSection() {
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.FACE_SELECTED_KEY, ViewportColorSettings.FACE_SELECTED_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.FACE_ACTIVE_KEY, ViewportColorSettings.FACE_ACTIVE_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_offkey), ViewportColorSettings.FACE_OFFKEY_KEY, ViewportColorSettings.FACE_OFFKEY_DEFAULT)
+
+			Text(text = stringResource(Res.string.settings_colors_deformers), style = typography.titleSmall)
+
+			ColorGroupHeading(stringResource(Res.string.settings_colors_group_lattice))
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_idle), ViewportColorSettings.LATTICE_IDLE_KEY, ViewportColorSettings.LATTICE_IDLE_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.LATTICE_SELECTED_KEY, ViewportColorSettings.LATTICE_SELECTED_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_unkeyed), ViewportColorSettings.LATTICE_PENDING_KEY, ViewportColorSettings.LATTICE_PENDING_DEFAULT)
 		}
 		VerticalScrollbarOverlay(scrollState)
 	}

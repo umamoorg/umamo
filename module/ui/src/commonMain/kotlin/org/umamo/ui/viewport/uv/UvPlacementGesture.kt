@@ -9,14 +9,12 @@ import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.atlas.composedWith
 import org.umamo.edit.atlas.localAxisScaleAboutAffine
 import org.umamo.edit.atlas.placementDragTileIds
-import org.umamo.edit.atlas.rotationAboutAffine
-import org.umamo.edit.atlas.scaleAboutAffine
-import org.umamo.edit.atlas.translationAffine
 import org.umamo.edit.transform.IndividualOriginScope
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.RotationAngleTracker
+import org.umamo.edit.transform.allPointIndices
 import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.format.art.AlphaContour
 import org.umamo.format.art.LayerBounds
@@ -40,6 +38,9 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.placementAffine
+import org.umamo.runtime.model.rotationAboutAffine
+import org.umamo.runtime.model.scaleAboutAffine
+import org.umamo.runtime.model.translationAffine
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.gestureRotationRadians
@@ -639,12 +640,12 @@ internal fun buildPlacementGesture(
 	val movingGeometries = shownGeometries.filter { geometry -> tileByDrawable[geometry.drawableId] in moverIds }
 	val sources =
 		movingGeometries.map { geometry ->
-			ModalCaptureSource(geometry.drawableId, geometry.positions.copyOf(), geometry.indices, allVertexIndices(geometry.positions))
+			ModalCaptureSource(geometry.owner, geometry.positions.copyOf(), geometry.topology, allPointIndices(geometry.positions))
 		}
 	val activeAnchor =
 		activeDrawableId
 			?.let { activeId -> movingGeometries.firstOrNull { geometry -> geometry.drawableId == activeId } }
-			?.let { geometry -> MeshTransforms.medianPivot(geometry.positions, allVertexIndices(geometry.positions)) }
+			?.let { geometry -> MeshTransforms.medianPivot(geometry.positions, allPointIndices(geometry.positions)) }
 	val transform =
 		buildModalTransformCapture(
 			sources = sources,
@@ -671,8 +672,8 @@ internal fun buildPlacementGesture(
 			movers = pivoted,
 			bystanders = bystanders,
 			occupancy = occupancy,
-			tileByDrawable = movingGeometries.associate { geometry -> geometry.drawableId to tileByDrawable.getValue(geometry.drawableId) },
-			frozenPositionsByDrawable = movingGeometries.associate { geometry -> geometry.drawableId to geometry.positions.copyOf() },
+			tileByDrawable = movingGeometries.mapNotNull { geometry -> geometry.drawableId?.let { drawableId -> drawableId to tileByDrawable.getValue(drawableId) } }.toMap(),
+			frozenPositionsByDrawable = movingGeometries.mapNotNull { geometry -> geometry.drawableId?.let { drawableId -> drawableId to geometry.positions.copyOf() } }.toMap(),
 			pageWidth = surface.pageWidth,
 			pageHeight = surface.pageHeight,
 			extrude = extrude,
@@ -731,14 +732,6 @@ internal fun placementFootprintCenters(model: PuppetModel, surface: UvPlacementS
 
 	return centers
 }
-
-/**
- * Every vertex index of an interleaved positions array.
- *
- * @param FloatArray positions The interleaved (x, y) positions.
- * @return Set<Int> The indices 0 until the vertex count.
- */
-private fun allVertexIndices(positions: FloatArray): Set<Int> = (0 until positions.size / 2).toSet()
 
 /**
  * The trim's pixels of a decoded tile, straight alpha preserved, top row first: the crop the scene uploads

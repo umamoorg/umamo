@@ -2,14 +2,18 @@ package org.umamo.ui.properties
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.Change
 import org.umamo.edit.DeformerChange
 import org.umamo.edit.DrawableChange
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.PartChange
 import org.umamo.edit.SelectionTarget
@@ -17,11 +21,11 @@ import org.umamo.edit.atlas.setAtlasPins
 import org.umamo.edit.keyform.cancelChannelPreview
 import org.umamo.edit.keyform.editKeyedChannel
 import org.umamo.edit.keyform.previewChannelEdit
+import org.umamo.edit.mesh.LATTICE_DIVISION_MAX
 import org.umamo.edit.property.setDeformerFlipX
 import org.umamo.edit.property.setDeformerFlipY
 import org.umamo.edit.property.setDeformerMultiplyColor
 import org.umamo.edit.property.setDeformerOpacity
-import org.umamo.edit.property.setDeformerQuadTransform
 import org.umamo.edit.property.setDeformerScreenColor
 import org.umamo.edit.property.setDrawableAlphaBlendMode
 import org.umamo.edit.property.setDrawableBlendMode
@@ -43,7 +47,9 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Part
+import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.displayMultiplyColor
@@ -56,16 +62,24 @@ import org.umamo.ui.graphics.formatHexColor
 import org.umamo.ui.graphics.parseHexColor
 import org.umamo.ui.graphics.toColorRgb
 import org.umamo.ui.graphics.toComposeColor
+import org.umamo.ui.kit.Text
 import org.umamo.ui.kit.button.Button
+import org.umamo.ui.kit.field.AspectLockFieldPair
 import org.umamo.ui.kit.field.HexColorField
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyCheckboxRow
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.kit.field.PropertyLine
 import org.umamo.ui.kit.field.SelectField
+import org.umamo.ui.kit.field.tint
 import org.umamo.ui.resources.*
+import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoIcons
+import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.theme.UmamoIcon
+import org.umamo.ui.transform.setLatticeSizeAdjustable
+import org.umamo.ui.transform.setWarpQuadTransform
+import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 import kotlin.math.roundToInt
 
 /*
@@ -306,7 +320,38 @@ internal val BlendSection =
 		},
 	)
 
-/** Data (deformer): opacity and tint colors, plus the warp lattice / quad-transform flag or the rotation base angle and flip flags. */
+/**
+ * The active drawable's or deformer's blend shapes, read-only: one line per binding naming the parameter that drives
+ * it and how many keys it has.  Editing blend shapes belongs to their own workflow; this lists what the rig carries.
+ * Hidden for an item with none.
+ */
+internal val BlendShapesSection =
+	PropertySection(
+		id = "data.blendShapes",
+		title = Res.string.properties_section_blend_shapes,
+		rows = { context ->
+			val bindings =
+				context.activeDrawable()?.blendShapes?.map { binding -> binding.parameterId to binding.keys.size }
+					?: when (val deformer = context.activeDeformer()) {
+						is Deformer.Warp -> deformer.blendShapes.map { binding -> binding.parameterId to binding.keys.size }
+						is Deformer.Rotation -> deformer.blendShapes.map { binding -> binding.parameterId to binding.keys.size }
+						null -> emptyList()
+					}
+
+			bindings.map { (parameterId, keyCount) ->
+				PropertyRow(terms = listOf(Res.string.properties_section_blend_shapes)) { rowContext ->
+					// The parameter's name is the rig's own data, shown as authored.
+					val parameterName = rowContext.puppet.parameters.firstOrNull { parameter -> parameter.id == parameterId }?.name ?: parameterId.raw
+					PropertyLine(stringResource(Res.string.properties_blend_shape_binding, parameterName, keyCount))
+				}
+			}
+		},
+	)
+
+/**
+ * Data (deformer): opacity and tint colors, plus the warp's lattice key state, its Rows / Columns, and its
+ * quad-transform flag, or the rotation's base angle and flip flags.
+ */
 internal val DeformerSection =
 	PropertySection(
 		id = "data.deformer",
@@ -319,20 +364,23 @@ internal val DeformerSection =
 				is Deformer.Warp -> {
 					deformerRenderChannelRows(deformer, session, target) +
 						listOfNotNull(
-							PropertyRow(terms = listOf(Res.string.properties_warp_grid)) { _ ->
-								// The lattice dimensions resize the control grid + every keyform, so they stay read-only here.
-								PropertyLine(stringResource(Res.string.properties_warp_grid, deformer.rows, deformer.columns))
+							PropertyRow(terms = listOf(Res.string.properties_warp_lattice)) { rowContext ->
+								WarpLatticeKeyRow(deformer, rowContext.puppet)
+							},
+							PropertyRow(terms = listOf(Res.string.properties_field_lattice_rows, Res.string.properties_field_lattice_columns)) { rowContext ->
+								WarpLatticeSizeRows(deformer, rowContext)
 							},
 							// The bilinear mode is the official dialog's "new warp deformer method" (3.3+).
 							if (!target.supports(RuntimeFeature.WarpQuadTransform)) {
 								null
 							} else {
-								PropertyRow(terms = listOf(Res.string.properties_field_quad_transform)) { _ ->
+								PropertyRow(terms = listOf(Res.string.properties_field_quad_transform)) { rowContext ->
 									PropertyCheckboxRow(
 										checked = deformer.isQuadTransform,
-										onCheckedChange = { quad -> session?.setDeformerQuadTransform(deformer.id, quad) },
+										onCheckedChange = { quad -> session?.setWarpQuadTransform(deformer.id, quad) },
 										label = stringResource(Res.string.properties_field_quad_transform),
 										description = stringResource(Res.string.properties_field_quad_transform_description),
+										enabled = context.session?.mode?.collectAsState()?.value == EditorMode.Edit,
 									)
 								}
 							},
@@ -588,8 +636,8 @@ internal val PartSection =
  */
 internal fun dataTabSections(context: PropertyContext): List<PropertySection> =
 	when (context.activeTarget) {
-		is SelectionTarget.Drawable -> listOf(MeshSection, TextureSection, BlendSection)
-		is SelectionTarget.Deformer -> listOf(DeformerSection)
+		is SelectionTarget.Drawable -> listOf(MeshSection, TextureSection, BlendSection, BlendShapesSection)
+		is SelectionTarget.Deformer -> listOf(DeformerSection, BlendShapesSection)
 		is SelectionTarget.Part -> listOf(PartSection)
 		null -> emptyList()
 	}
@@ -712,6 +760,70 @@ private fun KeyableFlagChannelRow(
 			label = label,
 			description = description,
 		)
+	}
+}
+
+/**
+ * A warp's lattice resolution as an aspect-lockable Rows / Columns pair.  A commit resizes the lattice with its art
+ * kept in place and registers the resize on the operation strip; the pair is inert in Pose mode, which shapes the
+ * lattice at a pose rather than rewriting every form.
+ *
+ * @param Deformer.Warp warp The warp the rows describe.
+ * @param PropertyContext context The current context.
+ */
+@Composable
+private fun WarpLatticeSizeRows(warp: Deformer.Warp, context: PropertyContext) {
+	val session = context.session
+	// Read here, called in the commit: the answer is the pointer's state as the release lands.
+	val stripArea = LocalOperationStripArea.current
+	AspectLockFieldPair(
+		firstLabel = stringResource(Res.string.properties_field_lattice_rows),
+		firstDescription = stringResource(Res.string.properties_field_lattice_rows_description),
+		firstValue = warp.rows,
+		secondLabel = stringResource(Res.string.properties_field_lattice_columns),
+		secondDescription = stringResource(Res.string.properties_field_lattice_columns_description),
+		secondValue = warp.columns,
+		range = 1..LATTICE_DIVISION_MAX,
+		enabled = session != null && session.mode.collectAsState().value == EditorMode.Edit,
+		onCommit = { rows, columns -> session?.setLatticeSizeAdjustable(warp.id, rows, columns, stripArea()) },
+	)
+}
+
+/**
+ * A warp's lattice as a keyable row: the parameters its geometry grid is keyed on, tinted by its keyed state at the
+ * displayed pose (on a key, between keys, or holding an unkeyed Pose-mode shape).  The row publishes the warp's
+ * geometry track on hover and carries the keyframe menu, so insert and delete over it key the lattice at the pose -
+ * the pending shape when there is one - as they do over the keyform sheet's geometry row.
+ *
+ * @param Deformer.Warp warp The warp the row describes.
+ * @param PuppetModel puppet The rig, whose parameters name the axes.
+ */
+@Composable
+private fun WarpLatticeKeyRow(
+	warp: Deformer.Warp,
+	puppet: PuppetModel,
+) {
+	val state = keyedLatticeStateOf(warp)
+	val colors = LocalUmamoColors.current
+	val parameterNameById = remember(puppet) { puppet.parameters.associate { parameter -> parameter.id to parameter.name } }
+	val keyedOn = warp.geometryGrid?.axes?.map { axis -> parameterNameById[axis.parameterId] ?: axis.parameterId.raw }.orEmpty()
+	val separator = stringResource(Res.string.properties_warp_lattice_separator)
+	val summary =
+		if (keyedOn.isEmpty()) {
+			stringResource(Res.string.properties_warp_lattice_unkeyed)
+		} else {
+			stringResource(Res.string.properties_warp_lattice_keyed_on, keyedOn.joinToString(separator))
+		}
+	KeyablePropertyRow(track = KeyformTrackRef.Geometry(KeyformOwner.Deformer(warp.id))) {
+		PropertyFieldRow(stringResource(Res.string.properties_warp_lattice), description = stringResource(Res.string.properties_warp_lattice_description)) {
+			Text(
+				text = summary,
+				style = LocalUmamoTypography.current.bodySmall,
+				color = state.tint(colors) ?: colors.text,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+			)
+		}
 	}
 }
 

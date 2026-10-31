@@ -1,6 +1,8 @@
 package org.umamo.render.puppet
 
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.drawableId
 
 /** The flag of a primitive nobody selected: drawn in the domain's idle color. */
 const val OVERLAY_FLAG_IDLE: Byte = 0
@@ -14,13 +16,16 @@ const val OVERLAY_FLAG_ACTIVE: Byte = 2
 /**
  * What a mesh overlay is for, which decides what it draws: the Edit-mode wireframe with its per-element
  * flags; the plain object wireframe of every listed mesh's edges in the idle color, with no fills and no
- * dots; or a UV area's Object-mode islands, each mesh filled and outlined whole in the colors of its own
- * [IslandStyle], island by island in the overlay's order (back to front), with no dots.
+ * dots; a UV area's Object-mode islands, each mesh filled and outlined whole in the colors of its own
+ * [IslandStyle], island by island in the overlay's order (back to front), with no dots; or the 2D viewport's
+ * warp lattices, each lattice's grid lines and control-point dots in the color of its own [LatticeRole], with
+ * no fills.
  */
 enum class MeshOverlayKind {
 	Edit,
 	ObjectWireframe,
 	Islands,
+	Lattice,
 }
 
 /**
@@ -29,11 +34,11 @@ enum class MeshOverlayKind {
  * wireframe, and an Edit overlay's plain meshes outside the edit.  The Edit cage never does; the UV
  * islands fade on a path of their own and never cull.
  *
- * @param Boolean wireframeOnly The mesh's [MeshOverlayMesh.wireframeOnly] flag, read for an Edit overlay alone.
+ * @param MeshStyle style The mesh's style, read for an Edit overlay alone.
  * @return Boolean True when the mesh draws as the wireframe.
  */
-internal fun MeshOverlayKind.drawsAsWireframe(wireframeOnly: Boolean): Boolean =
-	this == MeshOverlayKind.ObjectWireframe || (this == MeshOverlayKind.Edit && wireframeOnly)
+internal fun MeshOverlayKind.drawsAsWireframe(style: MeshStyle): Boolean =
+	this == MeshOverlayKind.ObjectWireframe || (this == MeshOverlayKind.Edit && style == MeshStyle.Wireframe)
 
 /** Which face color an island fills with: the idle fill, or the selected fill (a selected or active island). */
 enum class IslandFillRole {
@@ -64,6 +69,40 @@ data class IslandStyle(
 	val fill: IslandFillRole,
 	val edge: IslandEdgeRole,
 )
+
+/**
+ * How one overlay mesh draws beyond what its flags say: the one per-mesh choice each overlay kind reads, so no mesh
+ * carries a field another kind ignores.
+ */
+sealed interface MeshStyle {
+	/** Drawn by its flags alone: an Edit overlay's cage, an object wireframe's mesh, an island with no colors of its own. */
+	data object Plain : MeshStyle
+
+	/**
+	 * An Edit overlay's mesh outside the edit, drawn as a plain wireframe: its edges in the idle color, no fills and no
+	 * dots, ahead of the cage's edges so the cage stays on top, and only in a frame whose wireframe flag is on.
+	 */
+	data object Wireframe : MeshStyle
+
+	/** An Edit overlay's cage of a warp's lattice shaped in Pose mode and not yet keyed: its idle edges draw in the palette's lattice pending color. */
+	data object PendingCage : MeshStyle
+
+	/**
+	 * An island in an [MeshOverlayKind.Islands] overlay, in its colors.
+	 *
+	 * @property IslandStyle colors The island's fill and outline roles.
+	 */
+	data class Island(val colors: IslandStyle) : MeshStyle
+
+	/**
+	 * A warp's lattice in a [MeshOverlayKind.Lattice] overlay: its grid lines and dots in its role's color, or in the
+	 * palette's lattice pending color when it is shaped in Pose mode and not yet keyed.
+	 *
+	 * @property LatticeRole role The lattice's role.
+	 * @property Boolean pending Whether it is an unkeyed Pose-mode lattice.
+	 */
+	data class Lattice(val role: LatticeRole, val pending: Boolean) : MeshStyle
+}
 
 /**
  * The Edit-mode select mode the overlay mirrors, which decides the dot kind and the fill rule: vertex
@@ -106,7 +145,8 @@ data class MeshOverlaySizes(
  * So a seam vertex's dot sits up to its weld displacement from the art's seam, most of all on a vertex the
  * weld pulls fully onto its partner.
  *
- * @property DrawableId drawableId The mesh's drawable.
+ * @property ElementOwner owner The mesh's owner: a drawable, whose resident a 2D overlay pairs with, or - in a
+ *   direct overlay alone - a deformer's lattice.
  * @property Int vertexCount The vertex count the data was built against.
  * @property IntArray edgeEndpoints Two local vertex indices per unique edge, low index first, in the
  *   edit module's first-encounter order.
@@ -117,14 +157,16 @@ data class MeshOverlaySizes(
  * @property Int? activeVertex The active vertex, or null; also flagged active in [vertexFlags].
  * @property Int? activeEdge The active edge's ordinal in [edgeEndpoints], or null.
  * @property Int? activeFace The active triangle's ordinal, or null.
- * @property IslandStyle? islandStyle The island's colors in an [MeshOverlayKind.Islands] overlay; null
- *   there reads as idle, and every other kind ignores it.
- * @property Boolean wireframeOnly In an [MeshOverlayKind.Edit] overlay, a mesh outside the edit drawn as a
- *   plain wireframe: its edges in the idle color, no fills and no dots, ahead of the cage's edges so the
- *   cage stays on top, and only in a frame whose wireframe flag is on.  The other kinds ignore it.
+ * @property MeshStyle style How the mesh draws beyond its flags, as its overlay's kind reads it.
+ * @property IntArray? faceDotCorners Three vertex indices per triangle whose centroid is where that triangle's face
+ *   dot draws, parallel to the mesh's triangle list, in a direct overlay; null draws each dot at its own triangle's
+ *   centroid.  A lattice's Edit cage points both triangles of a cell at the cell's appended center vertex, so the
+ *   cell, a quad, shows one dot where its center is.
+ * @property Int vertexDotCount How many of the vertices, from the first, are the mesh's own and draw a vertex dot;
+ *   the vertices after them are face-dot anchors only.  Every vertex by default.
  */
 class MeshOverlayMesh(
-	val drawableId: DrawableId,
+	val owner: ElementOwner,
 	val vertexCount: Int,
 	val edgeEndpoints: IntArray,
 	val vertexFlags: ByteArray,
@@ -133,31 +175,41 @@ class MeshOverlayMesh(
 	val activeVertex: Int?,
 	val activeEdge: Int?,
 	val activeFace: Int?,
-	val islandStyle: IslandStyle? = null,
-	val wireframeOnly: Boolean = false,
+	val style: MeshStyle = MeshStyle.Plain,
+	val faceDotCorners: IntArray? = null,
+	val vertexDotCount: Int = vertexCount,
 ) {
 	/** How many unique edges the mesh carries. */
 	val edgeCount: Int get() = edgeEndpoints.size / 2
 
 	init {
-		require(edgeEndpoints.size % 2 == 0) { "edge endpoints come in pairs, got ${edgeEndpoints.size} for $drawableId" }
+		require(edgeEndpoints.size % 2 == 0) { "edge endpoints come in pairs, got ${edgeEndpoints.size} for $owner" }
 
 		for (endpoint in edgeEndpoints) {
-			require(endpoint in 0 until vertexCount) { "edge endpoint $endpoint is outside the $vertexCount vertices of $drawableId" }
+			require(endpoint in 0 until vertexCount) { "edge endpoint $endpoint is outside the $vertexCount vertices of $owner" }
 		}
 
-		require(vertexFlags.isEmpty() || vertexFlags.size == vertexCount) { "vertex flags must be empty or one per vertex for $drawableId" }
-		require(edgeFlags.isEmpty() || edgeFlags.size == edgeCount) { "edge flags must be empty or one per edge for $drawableId" }
-		require(activeVertex == null || activeVertex in 0 until vertexCount) { "active vertex $activeVertex is outside $drawableId" }
-		require(activeEdge == null || activeEdge in 0 until edgeCount) { "active edge $activeEdge is outside $drawableId" }
-		require(activeFace == null || activeFace in faceFlags.indices) { "active face $activeFace is outside the flagged faces of $drawableId" }
+		require(vertexFlags.isEmpty() || vertexFlags.size == vertexCount) { "vertex flags must be empty or one per vertex for $owner" }
+		require(edgeFlags.isEmpty() || edgeFlags.size == edgeCount) { "edge flags must be empty or one per edge for $owner" }
+		require(activeVertex == null || activeVertex in 0 until vertexCount) { "active vertex $activeVertex is outside $owner" }
+		require(activeEdge == null || activeEdge in 0 until edgeCount) { "active edge $activeEdge is outside $owner" }
+		require(activeFace == null || activeFace in faceFlags.indices) { "active face $activeFace is outside the flagged faces of $owner" }
+		require(vertexDotCount in 0..vertexCount) { "$vertexDotCount vertex dots are more than the $vertexCount vertices of $owner" }
+		require(faceDotCorners == null || faceDotCorners.all { corner -> corner in 0 until vertexCount }) { "a face dot corner is outside the vertices of $owner" }
 	}
 }
 
 /**
+ * The drawable an overlay mesh pairs with when the 2D overlay reads its positions from a resident drawable, or null
+ * for a lattice, which has no resident and so only a direct overlay (its own positions) can carry.
+ */
+internal val MeshOverlayMesh.pairedDrawableId: DrawableId? get() = owner.drawableId
+
+/**
  * The mesh overlay the renderer draws over the art: the Edit-mode wireframe, dots, and face fills (with
  * the plain wireframe of the meshes outside the edit, when the producer lists them), the object wireframe,
- * or a UV area's Object-mode islands.  Immutable; the producer builds a new value when the selection, the
+ * a UV area's Object-mode islands, or the 2D viewport's warp lattices (a layer the renderer builds itself,
+ * from a [LatticeOverlay]).  Immutable; the producer builds a new value when the selection, the
  * mode, the shown meshes, or the session's meshes change, never when a preview push moves positions.
  *
  * The mesh ORDER defines the overlay's position-store layout, the way the glue layout's walk order does.
@@ -174,5 +226,5 @@ class MeshOverlay(
 	val sizes: MeshOverlaySizes,
 ) {
 	/** Whether any of the meshes draws as the wireframe ([drawsAsWireframe]), decided once per overlay. */
-	internal val carriesWireframe: Boolean = meshes.any { mesh -> kind.drawsAsWireframe(mesh.wireframeOnly) }
+	internal val carriesWireframe: Boolean = meshes.any { mesh -> kind.drawsAsWireframe(mesh.style) }
 }

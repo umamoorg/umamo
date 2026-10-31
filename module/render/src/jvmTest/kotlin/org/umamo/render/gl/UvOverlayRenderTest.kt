@@ -19,11 +19,13 @@ import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.puppet.PlacementCropQuad
 import org.umamo.render.puppet.PlacementPreview
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -273,13 +275,13 @@ class UvOverlayRenderTest {
 	private fun islands(vararg islands: Pair<FloatArray, IslandStyle>): DirectMeshOverlay {
 		val meshes =
 			islands.mapIndexed { islandIndex, island ->
-				MeshOverlayMesh(DrawableId("island$islandIndex"), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, island.second)
+				MeshOverlayMesh(ElementOwner.Drawable(DrawableId("island$islandIndex")), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, MeshStyle.Island(island.second))
 			}
 
 		return DirectMeshOverlay(
 			MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, meshes, sizes),
-			meshes.withIndex().associate { (islandIndex, mesh) -> mesh.drawableId to islands[islandIndex].first },
-			meshes.associate { mesh -> mesh.drawableId to quadIndices },
+			meshes.withIndex().associate { (islandIndex, mesh) -> mesh.owner to islands[islandIndex].first },
+			meshes.associate { mesh -> mesh.owner to quadIndices },
 		)
 	}
 
@@ -346,9 +348,9 @@ class UvOverlayRenderTest {
 		activeVertex: Int? = null,
 	): DirectMeshOverlay {
 		val id = DrawableId("quad")
-		val mesh = MeshOverlayMesh(id, 4, quadEdges, vertexFlags, ByteArray(quadEdges.size / 2), faceFlags, activeVertex, null, null)
+		val mesh = MeshOverlayMesh(ElementOwner.Drawable(id), 4, quadEdges, vertexFlags, ByteArray(quadEdges.size / 2), faceFlags, activeVertex, null, null)
 
-		return DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf(mesh), sizes), mapOf(id to positions), mapOf(id to quadIndices))
+		return DirectMeshOverlay(MeshOverlay(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, listOf(mesh), sizes), mapOf(ElementOwner.Drawable(id) to positions), mapOf(ElementOwner.Drawable(id) to quadIndices))
 	}
 
 	/**

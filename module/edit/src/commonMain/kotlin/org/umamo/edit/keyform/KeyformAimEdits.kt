@@ -1,17 +1,28 @@
 package org.umamo.edit.keyform
 
 import org.umamo.edit.Change
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.KeyformAction
 import org.umamo.edit.KeyformAim
+import org.umamo.edit.KeyformChange
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.ParameterChoiceRequest
+import org.umamo.edit.Pose
 import org.umamo.edit.TrackKeyRef
+import org.umamo.edit.heldTracks
+import org.umamo.edit.shownPending
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RuntimeFeature
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.channelGridsOf
 
 /*
@@ -69,29 +80,14 @@ fun EditorSession.resolveParameterChoice(parameterId: ParameterId) {
 	cancelParameterChoice()
 
 	when (request.action) {
-		KeyformAction.Capture -> captureKeyOnTrack(request.track, parameterId, request.aim, request.rowKey)
-		KeyformAction.Remove -> removeKeyOnTrack(request.track, parameterId, request.aim, request.rowKey)
+		KeyformAction.Capture -> captureKeysOnTracks(request.tracks, parameterId, request.aim, request.rowKey)
+		KeyformAction.Remove -> removeKeysOnTracks(request.tracks, parameterId, request.aim, request.rowKey)
 	}
 }
 
 /**
- * Captures a key on [track] at [aim], keyed on the parameter the edit writes on.
- *
- * An aimed capture inserts a shape-preserving key at that position, so it holds whatever the track already
- * evaluates to there.  A capture at the pose stores the PENDING unkeyed edit when there is one, else the
- * channel's current evaluated value - so an insert after typing stores what was typed, and an insert with
- * nothing edited pins what is already on screen (Blender's behaviour, and how a rigger anchors a pose before
- * moving on).
- *
- * Refuses with a notice rather than silently doing nothing when no parameter resolves, since that is a thing
- * the user can fix.
- *
- * When no parameter is named and more than one is targeted (a linked pad), the edit parks as a
- * [ParameterChoiceRequest] instead of writing on whichever axis happens to be active.
- *
- * Reconciles the keyform sheet's key selection when [rowKey] names the row the aim came from, exactly as
- * [removeKeyOnTrack] does: the new key renumbers every key at or above where it lands, so a selection on
- * one of those keys must shift up by one to keep naming the same key.
+ * Captures a key on [track] at [aim], keyed on the parameter the edit writes on - [captureKeysOnTracks] over the
+ * one track a hover names.
  *
  * @param KeyformTrackRef track The track to key.
  * @param ParameterId? parameterId The axis to key on, or null to use the session's targeted parameter.
@@ -104,53 +100,150 @@ fun EditorSession.captureKeyOnTrack(
 	aim: KeyformAim,
 	rowKey: String? = null,
 ) {
+	captureKeysOnTracks(listOf(track), parameterId, aim, rowKey)
+}
+
+/**
+ * Captures a key on every track in [tracks] at [aim], keyed on the parameter the edit writes on, as ONE undo step.
+ *
+ * An aimed capture inserts a shape-preserving key at that position, so it holds whatever the track already
+ * evaluates to there - unless its one track holds an edit the mode shows (a typed channel value, or a warp's
+ * Pose-mode lattice): that edit was made for the pose, so it is keyed at the pose wherever the aim pointed, rather
+ * than left held beside a key that ignores it.  A capture at the pose stores the PENDING unkeyed edit when there is
+ * one, else what the track shows there - so an insert after typing or shaping stores what was made, and an insert
+ * with nothing edited pins what is already on screen (Blender's behaviour, and how a rigger anchors a pose before
+ * moving on):
+ *
+ *  - A channel stores its pending value, else its evaluated value.
+ *  - A warp's lattice stores its pending Pose-mode shape, else the lattice its grid blends to at the pose, and a
+ *    warp not yet keyed on the parameter gains the axis ([withWarpLatticeCaptured]).  A pending shape is taken only
+ *    while the pose is free: it was made for the rig's pose, which a pinned mode does not show.
+ *  - Any other geometry inserts a key at the pose holding the shape already there.
+ *
+ * Refuses with a notice rather than silently doing nothing when no parameter resolves, since that is a thing
+ * the user can fix.
+ *
+ * When no parameter is named and more than one is targeted (a linked pad), the edit parks as a
+ * [ParameterChoiceRequest] instead of writing on whichever axis happens to be active.
+ *
+ * Reconciles the keyform sheet's key selection when [rowKey] names the row the aim came from, exactly as
+ * [removeKeysOnTracks] does: the new key renumbers every key at or above where it lands, so a selection on
+ * one of those keys must shift up by one to keep naming the same key.
+ *
+ * @param List<KeyformTrackRef> tracks The tracks to key.
+ * @param ParameterId? parameterId The axis to key on, or null to use the session's targeted parameter.
+ * @param KeyformAim aim Where the key lands.
+ * @param String? rowKey The sheet row the aim came from (with a single track), or null when it came from somewhere
+ *   without one.
+ */
+fun EditorSession.captureKeysOnTracks(
+	tracks: List<KeyformTrackRef>,
+	parameterId: ParameterId?,
+	aim: KeyformAim,
+	rowKey: String? = null,
+) {
+	if (tracks.isEmpty()) {
+		return
+	}
+
 	parameterChoiceFor(parameterId)?.let { candidates ->
-		requestParameterChoice(ParameterChoiceRequest(track, aim, KeyformAction.Capture, candidates, rowKey))
+		requestParameterChoice(ParameterChoiceRequest(tracks, aim, KeyformAction.Capture, candidates, rowKey))
 
 		return
 	}
 	val parameter = keyformParameterFor(parameterId) ?: return
+	val placed = if (aim is KeyformAim.Position && tracks.singleOrNull()?.let { track -> holdsShownEdit(track) } == true) KeyformAim.Pose else aim
 	// An aimed capture keys where it was pointed; every other kind keys at the pose.  Resolved once, because
 	// it is both where the key goes and what the ordinal query has to be asked about.
 	val keyPosition =
-		when (aim) {
-			is KeyformAim.Position -> aim.position
+		when (placed) {
+			is KeyformAim.Position -> placed.position
 			is KeyformAim.Pose -> shownPose[parameter.id] ?: parameter.default
 		}
-	val inserted = insertedKeyRef(track, parameter, keyPosition, rowKey)
+	val inserted = tracks.singleOrNull()?.let { track -> insertedKeyRef(track, parameter, keyPosition, rowKey) }
 
-	if (aim is KeyformAim.Position) {
-		insertingKey(inserted) { insertTrackKeyAt(track, parameter, aim.position) }
+	if (placed is KeyformAim.Position) {
+		insertingKey(inserted) { insertTrackKeysAt(tracks, parameter, placed.position) }
 
 		return
 	}
 
-	when (track) {
-		is KeyformTrackRef.Channel -> {
-			val target = track.target
-			// Resolved before the wrap, because a channel with no value to capture must leave the selection
-			// alone rather than reconcile it around an edit that never happens.
-			val value = pendingChannelEdits.value[target] ?: model.value.channelValueAt(target, shownPose) ?: return
-			insertingKey(inserted) {
-				// Retired BEFORE the capture records its step, exactly as the unkeyed branch of editKeyedChannel
-				// does below and for the same reason: a snapshot defaults every field to live state, so clearing
-				// afterwards leaves the consumed value inside the step that consumed it - and redo then re-shows
-				// the uncommitted-edit warning over the very key that now stores the value.
-				//
-				// Only THIS target's pending edit is consumed; the pose did not move, so any other target's typed
-				// value is still the value its user chose and must survive for its own capture.
-				clearPendingChannelEdit(target)
-				captureChannelKey(target, parameter, value)
+	// Resolved before the wrap, because a track with nothing to capture must leave the selection alone rather than
+	// reconcile it around an edit that never happens.
+	val pose = shownPose
+	val captures = tracks.mapNotNull { track -> captureAtPose(track, parameter, pose, keyPosition) }
+
+	if (captures.isEmpty()) {
+		return
+	}
+
+	insertingKey(inserted) {
+		// Retired BEFORE the capture records its step, exactly as the unkeyed branch of editKeyedChannel does
+		// below and for the same reason: a snapshot defaults every field to live state, so clearing afterwards
+		// leaves the consumed value inside the step that consumed it - and redo then re-shows the uncommitted-edit
+		// warning over the very key that now stores the value.  Only the captured targets' pending values are
+		// consumed; the pose did not move, so any other target's typed value is still the value its user chose.
+		// A captured warp's pending lattice needs no retiring: the capture rewrites its forms, which drops it.
+		for (track in tracks) {
+			if (track is KeyformTrackRef.Channel) {
+				clearPendingChannelEdit(track.target)
 			}
 		}
 
-		// Geometry holds no value the user can have typed, so there is nothing to capture - the key goes in
-		// at the pose and holds the shape already there.
-		is KeyformTrackRef.Geometry -> {
-			insertingKey(inserted) { insertTrackKeyAt(track, parameter, keyPosition) }
+		mutate(KeyformChange.InsertKey((tracks.singleOrNull() as? KeyformTrackRef.Channel)?.target?.channel)) { model ->
+			captures.fold(model) { current, capture -> capture(current) }
 		}
 	}
 }
+
+/**
+ * What a capture at the pose writes on [track], as a model rewrite, or null when there is nothing to capture.
+ *
+ * @param KeyformTrackRef track The track.
+ * @param Parameter parameter The parameter the key goes on.
+ * @param Pose pose The pose the editor shows.
+ * @param Float keyPosition The pose's value on [parameter].
+ * @return Function? The rewrite, or null.
+ */
+private fun EditorSession.captureAtPose(
+	track: KeyformTrackRef,
+	parameter: Parameter,
+	pose: Pose,
+	keyPosition: Float,
+): ((PuppetModel) -> PuppetModel)? {
+	val model = model.value
+
+	return when (track) {
+		is KeyformTrackRef.Channel -> {
+			val target = track.target
+			val value = mode.value.shownPending(pendingChannelEdits.value)[target] ?: model.channelValueAt(target, pose) ?: return null
+
+			{ current -> current.withChannelKeyCaptured(target, parameter, pose, value) }
+		}
+
+		is KeyformTrackRef.Geometry -> {
+			val warpId = (track.owner as? KeyformOwner.Deformer)?.id?.takeIf { deformerId -> model.deformers.any { deformer -> deformer.id == deformerId && deformer is Deformer.Warp } }
+
+			if (warpId != null) {
+				val form = mode.value.shownPending(pendingLatticeEdits.value)[warpId] ?: model.warpGridLatticeAt(warpId, pose) ?: return null
+
+				{ current -> current.withWarpLatticeCaptured(warpId, parameter, pose, form) }
+			} else {
+				{ current -> current.withTrackKeyInserted(track, parameter, keyPosition, pose) }
+			}
+		}
+	}
+}
+
+/**
+ * Whether [track] holds an unkeyed edit the mode shows ([heldTracks]): a typed channel value, or a warp's Pose-mode
+ * lattice.
+ *
+ * @param KeyformTrackRef track The track.
+ * @return Boolean True when it holds one.
+ */
+private fun EditorSession.holdsShownEdit(track: KeyformTrackRef): Boolean =
+	track in heldTracks(mode.value.shownPending(pendingChannelEdits.value), mode.value.shownPending(pendingLatticeEdits.value))
 
 /**
  * The [TrackKeyRef] a key inserted at [position] would take, or null when nothing new is added.
@@ -180,18 +273,8 @@ private fun EditorSession.insertedKeyRef(
 }
 
 /**
- * Removes the key [aim] names from [track], on the parameter the edit writes on.
- *
- * Either way the key is an ORDINAL, and either way aiming at nothing removes nothing: picking "the nearest
- * key" would be a guess at which one the user meant, and a wrong guess silently destroys authored work.
- *
- * Parks as a [ParameterChoiceRequest] on an ambiguous target, exactly as [captureKeyOnTrack] does - a
- * removal aimed at the wrong axis destroys authored work, so it is the LAST thing to guess at.
- *
- * Reconciles the keyform sheet's key selection when [rowKey] names the row the aim came from - the removal
- * renumbers the keys above it, so a selection left alone would end up naming the neighbour.  Done HERE
- * rather than at each caller because this is where the ordinal is finally resolved, and the aim may not
- * carry one at all (a pose aim resolves it against the track).
+ * Removes the key [aim] names from [track], on the parameter the edit writes on - [removeKeysOnTracks] over the one
+ * track a hover names.
  *
  * @param KeyformTrackRef track The track to unkey.
  * @param ParameterId? parameterId The axis to remove from, or null to use the session's targeted parameter.
@@ -204,26 +287,65 @@ fun EditorSession.removeKeyOnTrack(
 	aim: KeyformAim,
 	rowKey: String? = null,
 ) {
+	removeKeysOnTracks(listOf(track), parameterId, aim, rowKey)
+}
+
+/**
+ * Removes the key [aim] names from every track in [tracks], on the parameter the edit writes on, as ONE undo step.
+ *
+ * Either way the key is an ORDINAL, and either way aiming at nothing removes nothing: picking "the nearest
+ * key" would be a guess at which one the user meant, and a wrong guess silently destroys authored work.  A track
+ * with no key there is left alone, and a removal that would collapse a deformer's last axis is refused
+ * ([withGeometryKeyRemoved]).
+ *
+ * Parks as a [ParameterChoiceRequest] on an ambiguous target, exactly as [captureKeysOnTracks] does - a
+ * removal aimed at the wrong axis destroys authored work, so it is the LAST thing to guess at.
+ *
+ * Reconciles the keyform sheet's key selection when [rowKey] names the row the aim came from - the removal
+ * renumbers the keys above it, so a selection left alone would end up naming the neighbour.  Done HERE
+ * rather than at each caller because this is where the ordinal is finally resolved, and the aim may not
+ * carry one at all (a pose aim resolves it against the track).
+ *
+ * @param List<KeyformTrackRef> tracks The tracks to unkey.
+ * @param ParameterId? parameterId The axis to remove from, or null to use the session's targeted parameter.
+ * @param KeyformAim aim The key pointed at, or [KeyformAim.Pose] to take the key the pose stands on.
+ * @param String? rowKey The sheet row the aim came from (with a single track), or null when it came from somewhere
+ *   without one.
+ */
+fun EditorSession.removeKeysOnTracks(
+	tracks: List<KeyformTrackRef>,
+	parameterId: ParameterId?,
+	aim: KeyformAim,
+	rowKey: String? = null,
+) {
+	if (tracks.isEmpty()) {
+		return
+	}
+
 	parameterChoiceFor(parameterId)?.let { candidates ->
-		requestParameterChoice(ParameterChoiceRequest(track, aim, KeyformAction.Remove, candidates, rowKey))
+		requestParameterChoice(ParameterChoiceRequest(tracks, aim, KeyformAction.Remove, candidates, rowKey))
 
 		return
 	}
 	val parameter = keyformParameterFor(parameterId) ?: return
-	val keyIndex =
-		when (aim) {
-			is KeyformAim.Position -> aim.keyIndex ?: -1
-			is KeyformAim.Pose -> model.value.trackKeyIndexAtPose(track, parameter, shownPose)
+	val keys =
+		tracks.mapNotNull { track ->
+			val keyIndex =
+				when (aim) {
+					is KeyformAim.Position -> aim.keyIndex ?: -1
+					is KeyformAim.Pose -> model.value.trackKeyIndexAtPose(track, parameter, shownPose)
+				}
+			if (keyIndex < 0) null else Triple(track, parameter, keyIndex)
 		}
 
-	if (keyIndex < 0) {
+	if (keys.isEmpty()) {
 		return
 	}
 
 	// An empty set when the caller has no row to name, which leaves the selection untouched.
-	val removed = rowKey?.let { row -> setOf(TrackKeyRef(parameter.id, row, keyIndex)) }.orEmpty()
+	val removed = rowKey?.let { row -> keys.singleOrNull()?.let { (_, _, keyIndex) -> setOf(TrackKeyRef(parameter.id, row, keyIndex)) } }.orEmpty()
 	removingKeys(removed) {
-		removeTrackKeys(listOf(Triple(track, parameter, keyIndex)))
+		removeTrackKeys(keys)
 	}
 }
 
@@ -337,4 +459,79 @@ private fun EditorSession.targetedParameter(): Parameter? {
 	}
 
 	return parameter
+}
+
+/**
+ * Which of the posed warps' tracks a Pose-mode key writes on ([posedKeyTracks]): what plain `I` takes, and each
+ * choice the key-type pie offers.
+ */
+enum class PoseKeyKind {
+	/** The lattice, plus every channel value held unkeyed on the same warp - what plain `I` keys, so nothing typed is left held. */
+	Held,
+
+	/** The lattice alone. */
+	Lattice,
+
+	/** The opacity alone. */
+	Opacity,
+
+	/** The multiply and screen colors, each one the document's runtime target supports ([keyableColorChannels]). */
+	Colors,
+
+	/** The lattice, the opacity, and the colors. */
+	All,
+}
+
+/**
+ * The color channels a key may write under this target: multiply and screen, each when the target supports it.
+ *
+ * @return List<FormChannel> The channels, multiply first.
+ */
+fun RuntimeTarget.keyableColorChannels(): List<FormChannel> =
+	listOfNotNull(
+		FormChannel.MULTIPLY_COLOR.takeIf { supports(RuntimeFeature.MultiplyColor) },
+		FormChannel.SCREEN_COLOR.takeIf { supports(RuntimeFeature.ScreenColor) },
+	)
+
+/**
+ * The tracks a Pose-mode key of [kind] writes on, over every warp the session poses, which is what "the selected
+ * deformers" means in Pose mode; null outside Pose mode, where keying falls to whatever the caller aims at.  An empty
+ * session refuses with a notice and answers an empty list, so the caller does nothing more.
+ *
+ * Built per posed deformer as its geometry track plus its channel tracks, so a deformer kind that comes to be posed
+ * keys through the same kinds.
+ *
+ * @param PoseKeyKind kind Which of each warp's tracks to take.
+ * @return List<KeyformTrackRef>? The tracks, warp by warp, or null outside Pose mode.
+ */
+fun EditorSession.posedKeyTracks(kind: PoseKeyKind): List<KeyformTrackRef>? {
+	if (mode.value != EditorMode.Pose) {
+		return null
+	}
+
+	val warpIds = meshSelection.value.deformerIds
+
+	if (warpIds.isEmpty()) {
+		emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
+
+		return emptyList()
+	}
+
+	val colors = model.value.runtimeTarget.keyableColorChannels()
+	val held = pendingChannelEdits.value.keys
+
+	return warpIds.flatMap { warpId ->
+		val owner = KeyformOwner.Deformer(warpId)
+		val lattice = KeyformTrackRef.Geometry(owner)
+		val opacity = KeyformTrackRef.Channel(KeyableTarget(owner, FormChannel.OPACITY))
+		val colorTracks = colors.map { channel -> KeyformTrackRef.Channel(KeyableTarget(owner, channel)) }
+
+		when (kind) {
+			PoseKeyKind.Held -> listOf(lattice) + held.filter { target -> target.owner == owner }.map { target -> KeyformTrackRef.Channel(target) }
+			PoseKeyKind.Lattice -> listOf(lattice)
+			PoseKeyKind.Opacity -> listOf(opacity)
+			PoseKeyKind.Colors -> colorTracks
+			PoseKeyKind.All -> listOf(lattice, opacity) + colorTracks
+		}
+	}
 }

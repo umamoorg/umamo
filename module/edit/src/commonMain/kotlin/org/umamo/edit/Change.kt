@@ -211,14 +211,16 @@ sealed interface DrawableChange : Change {
 	}
 
 	/**
-	 * Duplicates whole drawables (Object-mode Shift+D): each copy gets a fresh id and name, sits after
-	 * its source in the org tree, and carries no glue membership.
+	 * Duplicates whole objects (Object-mode Shift+D): each copied drawable gets a fresh id and name, sits after
+	 * its source in the org tree, and carries no glue membership; each copied warp gets a fresh id and name and
+	 * the same forms.  A copy whose source's parent was copied too sits under that parent's copy.
 	 *
-	 * @property List<DrawableId> ids The created copies.
+	 * @property List<DrawableId> ids The created drawable copies.
+	 * @property List<DeformerId> deformerIds The created warp copies.
 	 */
-	data class Duplicate(val ids: List<DrawableId>) : DrawableChange {
+	data class Duplicate(val ids: List<DrawableId>, val deformerIds: List<DeformerId> = emptyList()) : DrawableChange {
 		override val undoability: Undoability = Undoability.Undoable
-		override val labelKey: String = "change.drawable.duplicate"
+		override val labelKey: String = if (deformerIds.isEmpty()) "change.drawable.duplicate" else "change.object.duplicate"
 	}
 
 	/**
@@ -387,6 +389,80 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
+	 * Reshapes one or more warps' lattices at rest (a finished Edit-mode G / S / R or Vertex Slide over lattice
+	 * points): every form of each warp shifts by the same parent-space offset, and the warps' children are
+	 * re-expressed so they rest where they rested.  Labelled by the operator, like a mesh transform.
+	 *
+	 * @property List<DeformerId> deformerIds The reshaped warps.
+	 * @property MeshOperatorKind kind The operator that reshaped them.
+	 */
+	data class ReshapeLattice(val deformerIds: List<DeformerId>, val kind: MeshOperatorKind) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String =
+			when (kind) {
+				MeshOperatorKind.Grab -> "change.lattice.move"
+				MeshOperatorKind.Scale -> "change.lattice.scale"
+				MeshOperatorKind.Rotate -> "change.lattice.rotate"
+				MeshOperatorKind.VertexSlide -> "change.lattice.slide"
+			}
+	}
+
+	/**
+	 * Creates a warp around the selection (Create Warp Deformer): the warp is born with one keyform holding a lattice
+	 * over the selection's bounds plus a margin, and the wrapped items are re-parented under it, kept where they rest.
+	 *
+	 * @property DeformerId id The new warp.
+	 * @property List<DrawableId> wrappedDrawables The drawables re-parented under it.
+	 * @property List<DeformerId> wrappedDeformers The deformers re-parented under it.
+	 */
+	data class Create(val id: DeformerId, val wrappedDrawables: List<DrawableId>, val wrappedDeformers: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.create"
+	}
+
+	/**
+	 * Gives warps a new lattice resolution typed as rows and columns: every grid cell and blend-shape form of each warp
+	 * is resampled onto the new grid, and the children are re-expressed so they rest where they rested whenever the
+	 * resample cannot keep the old map exactly.
+	 *
+	 * @property List<DeformerId> deformerIds The resized warps.
+	 */
+	data class ResizeLattice(val deformerIds: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.lattice.resize"
+	}
+
+	/**
+	 * Splits every cell of warps' lattices by whole factors along rows and columns - [ResizeLattice] by multiples, which
+	 * keeps a quad-mode warp's map exactly.
+	 *
+	 * @property List<DeformerId> deformerIds The subdivided warps.
+	 */
+	data class SubdivideLattice(val deformerIds: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.lattice.subdivide"
+	}
+
+	/**
+	 * Shapes one or more warps' lattices at the pose without keying them (a finished Pose-mode G / S / R, Vertex
+	 * Slide, or snap over lattice points): the shaped lattices are held pending until a key consumes them or the
+	 * pose moves, and the model is untouched.  Labelled by the operator, like a mesh transform.
+	 *
+	 * @property List<DeformerId> deformerIds The shaped warps.
+	 * @property MeshOperatorKind kind The operator that shaped them.
+	 */
+	data class PoseLattice(val deformerIds: List<DeformerId>, val kind: MeshOperatorKind) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String =
+			when (kind) {
+				MeshOperatorKind.Grab -> "change.pose.move"
+				MeshOperatorKind.Scale -> "change.pose.scale"
+				MeshOperatorKind.Rotate -> "change.pose.rotate"
+				MeshOperatorKind.VertexSlide -> "change.pose.slide"
+			}
+	}
+
+	/**
 	 * Sets a deformer's static opacity - the value its opacity channel falls back to when unkeyed.
 	 *
 	 * A deformer's render channels CASCADE: this multiplies onto every drawable beneath it, so it is not
@@ -483,8 +559,9 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
-	 * Sets a warp deformer's FFD interpolation mode (true = bilinear / quad, false = triangle split).
-	 * A no-op on a rotation deformer (it has no lattice), so the transform short-circuits.
+	 * Sets a warp deformer's FFD interpolation mode (true = bilinear / quad, false = triangle split), with its
+	 * children re-expressed so they rest where they rested under the new mapping.  A no-op on a rotation deformer (it
+	 * has no lattice), so the transform short-circuits.
 	 *
 	 * @property DeformerId id The warp deformer whose interpolation mode changed.
 	 * @property Boolean quad The new quad-transform state.
@@ -897,9 +974,10 @@ sealed interface KeyformChange : Change {
 }
 
 /**
- * Changes to a drawable's art mesh (its interior geometry, edited in Edit mode).
+ * Changes to a drawable's art mesh (its interior geometry, edited in Edit mode), plus the Object-mode move of whole
+ * drawables and warps ([TransformObjects]).
  *
- * The three whole-gesture transforms ([TransformVertices], [TransformDrawables], [TransformUvs]) each carry
+ * The three whole-gesture transforms ([TransformVertices], [TransformObjects], [TransformUvs]) each carry
  * the [MeshOperatorKind] they performed, so the history panel can name the operation rather than filing
  * every Grab, Scale, and Rotate under one "Move" label.  The kind names WHAT the transform was, not how it
  * was driven: the Properties panel's typed Size row records Scale with no modal operator ever latching.
@@ -969,15 +1047,21 @@ sealed interface MeshChange : Change {
 	}
 
 	/**
-	 * Transforms every vertex of one or more whole drawables to new rest positions - an Object-mode Grab /
-	 * Scale / Rotate of the selected drawables, or the Properties panel's typed Position / Size rows.
-	 * Recorded as one undo step for the whole gesture even though several drawables move.  The pose is
-	 * unaffected; this edits rest geometry, which is document content.
+	 * Transforms whole objects - an Object-mode Grab / Scale / Rotate of the selected drawables and warps, a
+	 * Shift+S selection snap, or the Properties panel's typed Position / Size rows.  A drawable's every vertex
+	 * moves to new rest positions; a warp's every grid cell and blend-shape form moves, its art following.
+	 * Recorded as one undo step for the whole gesture even though several objects move.  The pose is
+	 * unaffected; this edits rest geometry and lattice forms, which are document content.
 	 *
 	 * @property List<DrawableId> drawableIds The drawables this gesture moved (for the history-panel detail).
 	 * @property MeshOperatorKind kind The operator this gesture ran, which selects the history label.
+	 * @property List<DeformerId> deformerIds The warps this gesture moved.
 	 */
-	data class TransformDrawables(val drawableIds: List<DrawableId>, val kind: MeshOperatorKind) : MeshChange {
+	data class TransformObjects(
+		val drawableIds: List<DrawableId>,
+		val kind: MeshOperatorKind,
+		val deformerIds: List<DeformerId> = emptyList(),
+	) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String =
 			when (kind) {
@@ -1095,5 +1179,14 @@ sealed interface EditorStateChange : Change {
 	data class ModeChanged(val mode: EditorMode) : EditorStateChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.mode"
+	}
+
+	/**
+	 * Every unkeyed edit held at the pose discarded at once - the channel values and the Pose-mode lattices - with
+	 * the pose and the model untouched.  Its own undo step, so undoing it brings the edits back.
+	 */
+	object PoseEditsCleared : EditorStateChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.pose.clearEdits"
 	}
 }

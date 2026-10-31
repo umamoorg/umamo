@@ -101,6 +101,7 @@ internal fun handleUvSnapRequest(
 
 			for (coveredMesh in coveredByMesh) {
 				val geometry = coveredMesh.geometry
+				val drawableId = geometry.drawableId ?: continue
 				val covered = coveredMesh.indices
 				val display = geometry.positions
 				val transformedDisplay =
@@ -142,9 +143,9 @@ internal fun handleUvSnapRequest(
 					}
 				// Only the covered vertices are written; untouched ones keep their exact stored values
 				// (see storedUvsWithMoved).
-				val currentUvs = model.meshOf(geometry.drawableId)?.uvs ?: continue
-				newUvsByDrawable[geometry.drawableId] = storedUvsWithMoved(currentUvs, covered, transformedDisplay, frame)
-				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
+				val currentUvs = model.meshOf(drawableId)?.uvs ?: continue
+				newUvsByDrawable[drawableId] = storedUvsWithMoved(currentUvs, covered, transformedDisplay, frame)
+				movedIndicesByDrawable[drawableId] = covered.toList()
 			}
 
 			if (newUvsByDrawable.isNotEmpty()) {
@@ -268,7 +269,7 @@ internal suspend fun handleUvObjectSnapRequest(
 		return
 	}
 
-	val shownDrawableIds = geometries.mapTo(HashSet()) { geometry -> geometry.drawableId }
+	val shownDrawableIds = geometries.mapNotNullTo(HashSet()) { geometry -> geometry.drawableId }
 	val shownTileIds = model.drawables.mapNotNullTo(HashSet()) { drawable -> drawable.atlasTileId?.takeIf { drawable.id in shownDrawableIds } }
 	val candidateTileIds = subjectTileIds.filter { tileId -> tileId in shownTileIds }
 	val origins = if (candidateTileIds.isEmpty()) emptyMap() else withContext(computeDispatcher) { placementFootprintCenters(model, surface, candidateTileIds) }

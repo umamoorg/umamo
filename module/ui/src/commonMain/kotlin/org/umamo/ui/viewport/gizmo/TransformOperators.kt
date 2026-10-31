@@ -9,8 +9,11 @@ import org.umamo.edit.transform.ProportionalInfluence
 import org.umamo.edit.transform.RotationAngleTracker
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
-import org.umamo.edit.transform.TransformPivots
 import org.umamo.render.ViewportCamera
+import org.umamo.runtime.model.identityAffine
+import org.umamo.runtime.model.rotationAboutAffine
+import org.umamo.runtime.model.scaleAboutAffine
+import org.umamo.runtime.model.translationAffine
 import kotlin.math.atan2
 
 /**
@@ -191,18 +194,19 @@ internal fun slideVertexByFactor(
  *
  * Proportional editing adds [proportionalInfluences]: after the selected vertices transform at full
  * strength through their pivot groups, each influenced unselected vertex takes the SAME gesture scaled
- * by its falloff weight, anchored on the pivot of the group OWNING its nearest covered vertex - so
- * with Individual Origins the halo turns with its island, while the shared-pivot modes keep anchoring
- * on the gesture anchor (the single group's pivot).  Factors and angles are still MEASURED against
- * the frame anchor (Blender measures against the transform center even with Individual Origins).
+ * by its falloff weight, anchored on the pivot its influence carries (the pivot of the group OWNING its
+ * nearest covered vertex, in this mesh or another) - so with Individual Origins the halo turns with its
+ * island, while the shared-pivot modes keep anchoring on the gesture anchor.  A bystander mesh has no
+ * groups and moves by its halo alone.  Factors and angles are still MEASURED against the frame anchor
+ * (Blender measures against the transform center even with Individual Origins).
  *
  * @param MeshOperatorKind operator The active operator.
  * @param FloatArray originalWorld The world posed positions captured at gesture start.
  * @param List<TransformPivotGroup> groups The pivot groups covering the selected vertices.
  * @param TransformGestureParameters parameters The delta / factors / angle to apply - shared by every
  *   mesh in the capture.
- * @param Map<Int, ProportionalInfluence> proportionalInfluences The influenced unselected vertices
- *   (empty when proportional editing is off).
+ * @param Map<Int, ProportionalInfluence> proportionalInfluences The influenced unselected vertices, each
+ *   with the pivot it anchors on (empty when proportional editing is off).
  * @return FloatArray The transformed world positions.
  */
 internal fun applyOperator(
@@ -220,8 +224,7 @@ internal fun applyOperator(
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.translateVertices(positions, group.vertexIndices, deltaX, deltaY)
 				}
-			// A translation has no pivot, so the halo needs no per-group partition - one weighted pass.
-			MeshTransforms.translateVerticesWeighted(moved, proportionalInfluences.mapValues { entry -> entry.value.weight }, deltaX, deltaY)
+			MeshTransforms.translateVerticesWeighted(moved, proportionalInfluences, deltaX, deltaY)
 		}
 
 		MeshOperatorKind.Scale -> {
@@ -233,10 +236,7 @@ internal fun applyOperator(
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.scaleVerticesAxis(positions, group.vertexIndices, factorX, factorY, group.pivotX, group.pivotY)
 				}
-			val partitions = TransformPivots.partitionInfluencesByGroup(proportionalInfluences, groups)
-			groups.foldIndexed(moved) { groupIndex, positions, group ->
-				MeshTransforms.scaleVerticesWeighted(positions, partitions[groupIndex], factorX, factorY, group.pivotX, group.pivotY)
-			}
+			MeshTransforms.scaleVerticesWeighted(moved, proportionalInfluences, factorX, factorY)
 		}
 
 		MeshOperatorKind.Rotate -> {
@@ -247,14 +247,30 @@ internal fun applyOperator(
 				groups.fold(originalWorld) { positions, group ->
 					MeshTransforms.rotateVertices(positions, group.vertexIndices, rotation, group.pivotX, group.pivotY)
 				}
-			val partitions = TransformPivots.partitionInfluencesByGroup(proportionalInfluences, groups)
-			groups.foldIndexed(moved) { groupIndex, positions, group ->
-				MeshTransforms.rotateVerticesWeighted(positions, partitions[groupIndex], rotation, group.pivotX, group.pivotY)
-			}
+			MeshTransforms.rotateVerticesWeighted(moved, proportionalInfluences, rotation)
 		}
 
 		// Vertex Slide never reaches here: the drive loop handles it with its own edge projection.
 		MeshOperatorKind.VertexSlide -> {
 			originalWorld
 		}
+	}
+
+/**
+ * The world transform [applyOperator] applies to a whole object in pivot group [group], as a 2x3 row-major affine
+ * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f): Grab translates, Scale scales about the group's
+ * pivot, and Rotate turns about it.  An object moved whole takes no proportional halo, so the affine is the
+ * operator exactly - what a warp moved as an object maps every one of its forms through.
+ *
+ * @param MeshOperatorKind operator The active operator.
+ * @param TransformGestureParameters parameters The delta / factors / angle to apply.
+ * @param TransformPivotGroup group The pivot group the object turns and scales about.
+ * @return FloatArray The affine; the identity for a Vertex Slide, which never moves a whole object.
+ */
+internal fun gestureAffine(operator: MeshOperatorKind, parameters: TransformGestureParameters, group: TransformPivotGroup): FloatArray =
+	when (operator) {
+		MeshOperatorKind.Grab -> translationAffine(parameters.deltaX, parameters.deltaY)
+		MeshOperatorKind.Scale -> scaleAboutAffine(group.pivotX, group.pivotY, parameters.factorX, parameters.factorY)
+		MeshOperatorKind.Rotate -> rotationAboutAffine(group.pivotX, group.pivotY, parameters.rotationRadians)
+		MeshOperatorKind.VertexSlide -> identityAffine()
 	}

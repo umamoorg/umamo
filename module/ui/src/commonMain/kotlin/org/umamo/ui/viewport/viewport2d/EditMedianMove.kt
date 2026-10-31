@@ -1,10 +1,9 @@
 package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.MeshSelection
 import org.umamo.edit.TransformPivotMode
-import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.transform.IndividualOriginScope
 import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
@@ -12,35 +11,40 @@ import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.buildModalTransformCapture
-import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.transform.CoveredVertices
-import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.OwnerWorldGeometry
 import org.umamo.ui.transform.WorldAxis
 import org.umamo.ui.transform.WorldMedian
 import org.umamo.ui.transform.coveredMedian
+import org.umamo.ui.transform.coveredVerticesOf
 
 /*
- * A typed or scrubbed Vertex / Median value as an Edit-mode move: a Grab of every covered vertex, captured,
- * driven, committed, and registered on the operation settings strip exactly as a viewport Grab is, so the step,
- * its label, and every later strip adjustment are the viewport's own.
+ * A typed or scrubbed Vertex / Median value as an Edit- or Pose-mode move: a Grab of every covered vertex or lattice
+ * point, captured, driven, committed, and registered on the operation settings strip exactly as a viewport Grab is,
+ * so the step, its label, and every later strip adjustment are the viewport's own.
  */
 
 /**
  * The covered vertices captured for a move of their median: a Grab capture over every covered vertex with no
- * proportional weights, the geometry each mesh inverts through, and the median the move measures from.
+ * proportional weights and every other owner in the edit as a bystander, each owner's captured geometry (a mesh's,
+ * which it inverts through, or a lattice's), and the median the move measures from.
  *
  * Built for one write and reused only until something commits: the operation strip keeps the capture of the step
  * it registers and re-derives its halos on adjustment, so a later write must capture afresh.
  *
  * @property ModalTransformCapture transform The Grab capture.
- * @property Map<DrawableId, DrawableWorldGeometry> geometryById Each moving mesh's captured geometry.
+ * @property Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each captured owner's geometry, a bystander's
+ *   included.
  * @property WorldMedian median The covered median as captured.
+ * @property ElementEditStage stage Where the geometry was captured, and so how a moved lattice lands.
  */
 internal class CoveredMedianMove(
 	val transform: ModalTransformCapture,
-	val geometryById: Map<DrawableId, DrawableWorldGeometry>,
+	val geometryByOwner: Map<ElementOwner, OwnerWorldGeometry>,
 	val median: WorldMedian,
+	val stage: ElementEditStage,
 ) {
 	/**
 	 * The Grab that puts the median's [axis] coordinate on [worldValue]: the difference on that axis, and exactly
@@ -72,33 +76,45 @@ internal class CoveredMedianMove(
 	 *
 	 * @param TransformGestureParameters parameters The Grab.
 	 * @param PuppetModel baseModel The model the moved rest shapes fold onto.
-	 * @return MeshDriveResult Each moved mesh's new rest shape and the folded model.
+	 * @return MeshDriveResult Each moved mesh's new rest shape and each moved lattice's points (with their pending forms
+	 *   at the pose), with the folded model.
 	 */
 	fun drive(parameters: TransformGestureParameters, baseModel: PuppetModel): MeshDriveResult =
 		computeMeshDrive(
 			MeshDriveRequest(
 				MeshOperatorKind.Grab,
 				parameters,
-				meshDriveJobs(transform, geometryById, wholeMeshes = false),
+				meshDriveJobs(transform, geometryByOwner, wholeMeshes = false),
 				null,
 				baseModel,
+				stage,
 			),
 		)
 }
 
 /**
- * Captures [covered] for a move of their median.  The pivot is the median point with no anchors: a Grab ignores
- * the pivot, and Individual Origins would only build connectivity islands for nothing.  Each source carries its
- * mesh's triangles, so Connected Only works if the rigger turns proportional editing on from the strip afterward.
+ * Captures the vertices [selection] covers across [edit] for a move of their median.  The pivot is the median point
+ * with no anchors: a Grab ignores the pivot, and Individual Origins would only build connectivity islands for nothing.
+ * Every owner in the edit is offered, each with its topology, the way the viewport's Grab offers them, so turning
+ * proportional editing on from the strip afterward reaches the same meshes and lattices that Grab's would - a
+ * straight-line halo into the owners with nothing covered, Connected Only along each owner's own edges.
  *
- * @param List<CoveredVertices> covered The covered vertices, as captured from the committed model.
+ * @param MeshSelection selection The mesh selection.
+ * @param List<EditOwnerGeometry> edit Every owner in the edit, as captured from the committed model.
+ * @param ElementEditStage stage Where they were captured.
  * @return CoveredMedianMove? The move, or null when nothing is covered.
  */
-internal fun coveredMedianMove(covered: List<CoveredVertices>): CoveredMedianMove? {
+internal fun coveredMedianMove(
+	selection: MeshSelection,
+	edit: List<EditOwnerGeometry>,
+	stage: ElementEditStage = ElementEditStage.Rest,
+): CoveredMedianMove? {
+	val covered = coveredVerticesOf(selection, edit.map { geometry -> geometry.worldGeometry }, edit.associate { geometry -> geometry.owner to geometry.topology })
 	val median = coveredMedian(covered) ?: return null
+	val coveredByOwner = covered.associate { owner -> owner.geometry.owner to owner.indices }
 	val sources =
-		covered.map { mesh ->
-			ModalCaptureSource(mesh.geometry.drawableId, mesh.geometry.world, mesh.triangleIndices, mesh.indices)
+		edit.map { geometry ->
+			ModalCaptureSource(geometry.owner, geometry.worldGeometry.world, geometry.topology, coveredByOwner[geometry.owner].orEmpty())
 		}
 	val transform =
 		buildModalTransformCapture(
@@ -110,34 +126,37 @@ internal fun coveredMedianMove(covered: List<CoveredVertices>): CoveredMedianMov
 			cursorAnchor = null,
 		) ?: return null
 
-	return CoveredMedianMove(transform, covered.associate { mesh -> mesh.geometry.drawableId to mesh.geometry }, median)
+	return CoveredMedianMove(transform, edit.associate { geometry -> geometry.owner to geometry.worldGeometry }, median, stage)
 }
 
 /**
- * The model a scrub of the median shows for one frame, without committing anything.
+ * What a scrub of the median shows for one frame, without committing anything: the meshes folded into the model,
+ * and the lattices' moved points - which the 2D viewport's cage draws while the art stays put at rest - with their
+ * pending forms at the pose, which the art follows.
  *
  * @param CoveredMedianMove move The captured move.
  * @param WorldAxis axis The axis scrubbed.
  * @param Float worldValue The world coordinate the median would land on.
- * @return PuppetModel? The previewed model, or null when it would change nothing or a modal transform owns the
+ * @return MeshDriveResult? The previewed drive, or null when it would change nothing or a modal transform owns the
  *   meshes.
  */
-internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axis: WorldAxis, worldValue: Float): PuppetModel? {
+internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axis: WorldAxis, worldValue: Float): MeshDriveResult? {
 	if (activeMeshOperator.value != null) {
 		return null
 	}
 
 	val parameters = move.parametersFor(axis, worldValue) ?: return null
 
-	return move.drive(parameters, model.value).folded
+	return move.drive(parameters, model.value)
 }
 
 /**
  * Moves the covered vertices so their median's [axis] coordinate lands on [worldValue], as one undo step filed as
- * a move, and registers the step on the operation strip in [areaId] as a Grab: Move X and Move Z, then the
- * proportional rows, off for this move (the panel's move takes no falloff) but carrying the session's remembered
- * curve and Connected Only for the rigger to turn on.  A strip adjustment hands proportional editing back to the
- * session only when the rigger set one of its rows, so moving a Move row never switches proportional editing off.
+ * a move (a lattice's points landed at the stage they were captured at), and registers the step on the operation
+ * strip in [areaId] as a Grab: Move X and Move Z, then the proportional rows, off for this move (the panel's move
+ * takes no falloff) but carrying the session's remembered curve and Connected Only for the rigger to turn on.  A
+ * strip adjustment hands proportional editing back to the session only when the rigger set one of its rows, so
+ * moving a Move row never switches proportional editing off.
  *
  * Nothing lands while a modal transform owns the meshes (its confirm owns the next step), or when the median is
  * already there: the drive always returns fresh arrays, so an empty move would otherwise record a step.
@@ -154,25 +173,18 @@ internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, 
 
 	val parameters = move.parametersFor(axis, worldValue) ?: return
 	val result = move.drive(parameters, model.value)
-	val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(move.transform.entries.size)
-
-	for (entry in move.transform.entries) {
-		if (entry.drawableId in result.preview) {
-			movedIndicesByDrawable[entry.drawableId] = entry.movedIndices.toList()
-		}
-	}
-
-	val modelBefore = model.value
-	commitMeshPositions(MeshChange.TransformVertices(movedIndicesByDrawable, MeshOperatorKind.Grab), result.preview)
+	val movedIndicesByDrawable =
+		move.transform.entries.mapNotNull { entry -> entry.drawableId?.takeIf { drawableId -> drawableId in result.preview }?.let { drawableId -> drawableId to entry.movedIndices.toList() } }.toMap()
+	val recorded = commitDrive(result, move.stage, MeshOperatorKind.Grab, movedIndicesByDrawable)
 
 	// A commit that recorded nothing has no step of its own for the strip to amend.
-	if (model.value === modelBefore) {
+	if (!recorded) {
 		return
 	}
 
 	val settings = proportionalSettings.value
 	val proportional = ProportionalRows(false, settings.falloff, settings.radiusWorld, settings.connectedOnly)
-	registerMeshTransformAdjustment(this, areaId, move.transform, move.geometryById, parameters, proportional) { record, state ->
+	registerMeshTransformAdjustment(this, areaId, move.transform, move.geometryByOwner, move.stage, parameters, proportional) { record, state ->
 		if (record.adjustedKey in TransformParameterKeys.PROPORTIONAL_ROWS) {
 			setProportionalEdit(state)
 		}

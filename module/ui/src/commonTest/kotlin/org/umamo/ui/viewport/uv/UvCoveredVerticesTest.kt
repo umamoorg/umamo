@@ -1,6 +1,7 @@
 package org.umamo.ui.viewport.uv
 
 import org.umamo.edit.MeshElement
+import org.umamo.runtime.model.ElementOwner
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -17,10 +18,10 @@ class UvCoveredVerticesTest {
 		val session = uvEditSession(editing = listOf(UV_RIG_QUAD, UV_RIG_OTHER))
 		session.setMeshSelection(
 			session.meshSelection.value.copy(
-				elementsByDrawable =
+				elementsByOwner =
 					mapOf(
-						UV_RIG_QUAD to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1)),
-						UV_RIG_OTHER to setOf(MeshElement.Vertex(0)),
+						ElementOwner.Drawable(UV_RIG_QUAD) to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1)),
+						ElementOwner.Drawable(UV_RIG_OTHER) to setOf(MeshElement.Vertex(0)),
 					),
 			),
 		)

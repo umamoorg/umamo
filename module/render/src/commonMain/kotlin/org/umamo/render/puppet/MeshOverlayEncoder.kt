@@ -10,6 +10,7 @@ import org.umamo.render.device.RenderPassEncoder
 import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.WorldToNdc
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.drawableId
 
 /**
  * What an overlay draw needs from the frame it lands in, whichever scene that is.
@@ -29,6 +30,8 @@ import org.umamo.runtime.model.DrawableId
  *   edges cull by, or null when nothing culls (a UV scene, a frame with culling off).
  * @property Map<DrawableId, Int> drawOrderOf Each drawn drawable's back-to-front index, as the order pass
  *   wrote it; a wireframe entry absent from it draws unculled.
+ * @property Set<LatticeRole> latticeRoles The lattice roles a lattice overlay draws in this frame
+ *   ([latticeRolesDrawnIn]).
  */
 internal class OverlayFrame(
 	val affine: WorldToNdc,
@@ -42,12 +45,15 @@ internal class OverlayFrame(
 	val wireframeOpacity: Float,
 	val orderTexture: GpuTexture? = null,
 	val drawOrderOf: Map<DrawableId, Int> = emptyMap(),
+	val latticeRoles: Set<LatticeRole> = EVERY_LATTICE_ROLE,
 )
 
 /**
  * Records the mesh overlay's frame work: the capture of the overlay meshes' deformed positions into the
  * overlay store, and the overlay draws over the finished art - the 2D scene's from that captured store, a
- * UV scene's from the positions its area uploaded.
+ * UV scene's from the positions its area uploaded, the 2D scene's lattice layer from the lattice points
+ * the renderer read off the pose and uploaded, and the 2D scene's direct Edit cage from the positions its
+ * value holds.
  *
  * The capture mirrors the glue capture: its own pass outside any render pass, once per frame whose store
  * is stale, followed by a barrier.  The draws go domain-major - every mesh's face fills, then every mesh's
@@ -57,6 +63,7 @@ internal class OverlayFrame(
  * outside the edit) join the edge domain alone, and only in a frame that draws the wireframe; they sit ahead
  * of the cage in the overlay's order, so the cage's edges land on top.  An islands overlay goes island-major
  * instead (see [drawIslands]): its stacking is the point, so each island's fill covers the islands behind it.
+ * A lattice overlay goes role-major (see [drawLattices]), so a stronger role lands over a weaker one.
  *
  * @param DrawPipelines pipelines The capture and overlay pipelines.
  * @param SideTargetPool sideTargets The side targets, whose capacity names the screen-space divisor.
@@ -120,32 +127,69 @@ internal class MeshOverlayEncoder(
 		val overlay = inputs.overlay ?: return
 		val store = overlayResidency.store ?: return
 		val entries = overlayResidency.entries.filter { resident -> resident.gpuDrawable.visible }.map { resident -> resident.entry }
-		val frame =
-			OverlayFrame(
-				inputs.affine,
-				inputs.viewportWidth,
-				inputs.viewportHeight,
-				inputs.pixelScale,
-				inputs.overlayPalette,
-				sideTargets.capacityWidth,
-				sideTargets.capacityHeight,
-				inputs.drawWireframe,
-				inputs.wireframeOpacity,
-				inputs.drawOrderTarget?.sampledTexture,
-				inputs.drawOrderOf,
-			)
-		drawEntries(pass, overlay, entries, store, frame)
+		drawEntries(pass, overlay, entries, store, overlayFrameOf(inputs))
 	}
 
 	/**
-	 * Records a UV scene's overlay draws into its open pass over the surface, from the positions its area's
-	 * residency uploaded; nothing when the area shows no overlay or nothing of it paired.
+	 * Records the 2D viewport's lattice layer into the open pass over the finished art and the mesh overlay, from
+	 * the positions its residency uploaded; nothing when the layer holds nothing.
 	 *
-	 * @param RenderPassEncoder pass The open pass on the area's target.
-	 * @param UvSceneResidency residency The area's residency, already brought to its overlay.
+	 * @param RenderPassEncoder pass The open, unscissored pass on the frame's target.
+	 * @param DirectOverlayResidency residency The lattice layer's residency, already brought to the layer.
+	 * @param FrameInputs inputs The frame's inputs.
+	 * @param Set<LatticeRole> roles The roles the frame draws ([latticeRolesDrawnIn]).
+	 */
+	fun encodeLatticeDraws(pass: RenderPassEncoder, residency: DirectOverlayResidency, inputs: FrameInputs, roles: Set<LatticeRole>) {
+		encodeDirectDraws(pass, residency, overlayFrameOf(inputs, roles))
+	}
+
+	/**
+	 * Records the 2D viewport's direct Edit cage into the open pass over the finished art and the mesh overlay - the
+	 * cage of whatever carries its own positions, a lattice's - from the positions its residency uploaded; nothing
+	 * when it holds nothing.
+	 *
+	 * @param RenderPassEncoder pass The open, unscissored pass on the frame's target.
+	 * @param DirectOverlayResidency residency The cage's residency, already brought to its value.
+	 * @param FrameInputs inputs The frame's inputs.
+	 */
+	fun encodeEditDirectDraws(pass: RenderPassEncoder, residency: DirectOverlayResidency, inputs: FrameInputs) {
+		encodeDirectDraws(pass, residency, overlayFrameOf(inputs))
+	}
+
+	/**
+	 * The overlay frame a 2D frame's overlay draws land in: its camera, viewport, scale, palette, and wireframe and
+	 * culling state.
+	 *
+	 * @param FrameInputs inputs The frame's inputs.
+	 * @param Set<LatticeRole> latticeRoles The roles a lattice layer draws.
+	 * @return OverlayFrame The frame.
+	 */
+	private fun overlayFrameOf(inputs: FrameInputs, latticeRoles: Set<LatticeRole> = EVERY_LATTICE_ROLE): OverlayFrame =
+		OverlayFrame(
+			inputs.affine,
+			inputs.viewportWidth,
+			inputs.viewportHeight,
+			inputs.pixelScale,
+			inputs.overlayPalette,
+			sideTargets.capacityWidth,
+			sideTargets.capacityHeight,
+			inputs.drawWireframe,
+			inputs.wireframeOpacity,
+			inputs.drawOrderTarget?.sampledTexture,
+			inputs.drawOrderOf,
+			latticeRoles,
+		)
+
+	/**
+	 * Records a direct overlay's draws into an open pass, from the positions its residency uploaded: a UV area's
+	 * overlay over its surface, or the 2D viewport's lattice layer or direct Edit cage over the art.  Nothing when
+	 * there is no overlay or nothing of it paired.
+	 *
+	 * @param RenderPassEncoder pass The open pass on the target.
+	 * @param DirectOverlayResidency residency The overlay's residency, already brought to its value.
 	 * @param OverlayFrame frame The pass's camera, viewport, scale, and palette.
 	 */
-	fun encodeDirectDraws(pass: RenderPassEncoder, residency: UvSceneResidency, frame: OverlayFrame) {
+	fun encodeDirectDraws(pass: RenderPassEncoder, residency: DirectOverlayResidency, frame: OverlayFrame) {
 		val direct = residency.applied ?: return
 		val store = residency.store ?: return
 		drawEntries(pass, direct.overlay, residency.residents.map { resident -> resident.entry }, store, frame)
@@ -172,6 +216,12 @@ internal class MeshOverlayEncoder(
 
 		if (overlay.kind == MeshOverlayKind.Islands) {
 			drawIslands(pass, overlay, entries, store, frame)
+
+			return
+		}
+
+		if (overlay.kind == MeshOverlayKind.Lattice) {
+			drawLattices(pass, overlay, entries, store, frame)
 
 			return
 		}
@@ -209,15 +259,15 @@ internal class MeshOverlayEncoder(
 		val orderTexture = frame.orderTexture
 
 		for (entry in entries) {
-			val faded = overlay.kind.drawsAsWireframe(entry.wireframeOnly)
+			val faded = overlay.kind.drawsAsWireframe(entry.style)
 
 			if (faded && wireframeHidden) {
 				continue
 			}
 
-			setColors(palette.edgeIdle, palette.edgeSelected, palette.edgeActive, opaque = false, alphaScale = if (faded) frame.wireframeOpacity else 1f)
+			setColors(idleEdgeColorOf(entry, palette), palette.edgeSelected, palette.edgeActive, opaque = false, alphaScale = if (faded) frame.wireframeOpacity else 1f)
 			batch(entry)
-			val cullOrder = if (faded && orderTexture != null) frame.drawOrderOf[entry.drawableId] ?: -1 else -1
+			val cullOrder = if (faded && orderTexture != null) entry.owner.drawableId?.let { drawableId -> frame.drawOrderOf[drawableId] } ?: -1 else -1
 			uniformsScratch.cullOrder = cullOrder
 			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch, if (cullOrder >= 0) orderTexture else null)
 		}
@@ -277,7 +327,7 @@ internal class MeshOverlayEncoder(
 	 */
 	private inline fun forEachCageEntry(entries: List<OverlayDrawEntry>, draw: (OverlayDrawEntry) -> Unit) {
 		for (entry in entries) {
-			if (!entry.wireframeOnly) {
+			if (entry.style != MeshStyle.Wireframe) {
 				draw(entry)
 			}
 		}
@@ -312,7 +362,7 @@ internal class MeshOverlayEncoder(
 		uniformsScratch.fillIdle = true
 
 		for (entry in entries) {
-			val style = entry.islandStyle
+			val style = (entry.style as? MeshStyle.Island)?.colors
 			val fill =
 				when (style?.fill ?: IslandFillRole.Idle) {
 					IslandFillRole.Idle -> palette.faceIdle
@@ -337,6 +387,70 @@ internal class MeshOverlayEncoder(
 			batch(entry)
 			uniformsScratch.cullOrder = -1
 			pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
+		}
+	}
+
+	/**
+	 * Records a lattice overlay role-major: the idle lattices (when the frame draws them), then the selected, then
+	 * the active, so a lattice in a stronger role lands over a weaker one wherever they cross.  Within a role every
+	 * lattice's grid lines draw, then every lattice's control-point dots, all in the role's color at its palette
+	 * alpha: no fills, no triangles, and no per-element selection, since a lattice is picked whole here.
+	 *
+	 * @param RenderPassEncoder pass The open pass.
+	 * @param MeshOverlay overlay The lattice overlay (its sizes).
+	 * @param List<OverlayDrawEntry> entries The lattices, in store order.
+	 * @param DeformedPositionStore store The store the lattices' positions are in.
+	 * @param OverlayFrame frame The pass's camera, viewport, scale, palette, and drawn lattice roles.
+	 */
+	private fun drawLattices(pass: RenderPassEncoder, overlay: MeshOverlay, entries: List<OverlayDrawEntry>, store: DeformedPositionStore, frame: OverlayFrame) {
+		val palette = frame.palette
+		uniformsScratch.viewportWidth = frame.viewportWidth.toFloat()
+		uniformsScratch.viewportHeight = frame.viewportHeight.toFloat()
+		uniformsScratch.fillIdle = true
+		uniformsScratch.cullOrder = -1
+
+		for (role in LatticeRole.entries) {
+			if (role !in frame.latticeRoles) {
+				continue
+			}
+
+			if (entries.none { entry -> (entry.style as? MeshStyle.Lattice)?.role == role }) {
+				continue
+			}
+
+			val roleColor =
+				when (role) {
+					LatticeRole.Idle -> palette.latticeIdle
+					LatticeRole.Selected -> palette.latticeSelected
+					LatticeRole.Active -> palette.latticeActive
+				}
+			bind(pass, pipelines.overlayEdge, frame)
+			uniformsScratch.sizePx = overlay.sizes.edgeWidthPx * frame.pixelScale / 2f
+
+			for (entry in entries) {
+				val lattice = entry.style as? MeshStyle.Lattice ?: continue
+
+				if (lattice.role == role) {
+					val color = if (lattice.pending) palette.latticePending else roleColor
+					setColors(color, color, color, opaque = false)
+					batch(entry)
+					pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
+				}
+			}
+
+			bind(pass, pipelines.overlayVertexDot, frame)
+			uniformsScratch.sizePx = overlay.sizes.vertexDotRadiusPx * frame.pixelScale
+
+			for (entry in entries) {
+				val lattice = entry.style as? MeshStyle.Lattice ?: continue
+
+				if (lattice.role == role) {
+					val color = if (lattice.pending) palette.latticePending else roleColor
+					setColors(color, color, color, opaque = false)
+					batch(entry)
+					pass.drawOverlayVertexDots(entry.buffers, store, uniformsScratch)
+				}
+			}
 		}
 	}
 
@@ -380,6 +494,16 @@ internal class MeshOverlayEncoder(
 		uniformsScratch.activeIndexB = indexB
 		uniformsScratch.activeIndexC = indexC
 	}
+
+	/**
+	 * The color an Edit overlay entry's unselected edges draw in: an unkeyed Pose-mode lattice's pending color, so the
+	 * cage shows what a key would capture, and every other entry's idle edge color.
+	 *
+	 * @param OverlayDrawEntry entry The entry.
+	 * @param MeshOverlayPalette palette The palette.
+	 * @return OverlayColor The color.
+	 */
+	private fun idleEdgeColorOf(entry: OverlayDrawEntry, palette: MeshOverlayPalette): OverlayColor = if (entry.style == MeshStyle.PendingCage) palette.latticePending else palette.edgeIdle
 
 	/**
 	 * Writes one domain's three colors into the scratch uniforms.

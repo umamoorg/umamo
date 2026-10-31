@@ -35,8 +35,8 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.applyAffine
+import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.ui.document.blendedAt
 import org.umamo.ui.model.mesh.GenerateMeshFlowFixtures.ORIGIN_X
@@ -323,7 +323,7 @@ class GenerateMeshFlowTest {
 			// The birth quad's canvas is its art moved by the origin, so every vertex must still map back to
 			// its own art point through the NEW placement.
 			val mesh = meshOf(after, drawableA)
-			val artUvs = applyUvAffine(mesh.uvs, after.atlas.storedToArtAffineForTile(tileA)!!)
+			val artUvs = applyAffine(mesh.uvs, after.atlas.storedToArtAffineForTile(tileA)!!)
 
 			for (vertex in 0 until mesh.vertexCount) {
 				assertEquals(mesh.positions[2 * vertex] - ORIGIN_X, artUvs[2 * vertex] * 64f, 1e-2f, "vertex $vertex x")

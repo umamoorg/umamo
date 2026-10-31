@@ -89,6 +89,29 @@ class KeyformSheetGestureTest {
 		}
 
 	/**
+	 * In Edit mode, which changes no key, a dragged mark stays where it is: the press is a click on it, which selects
+	 * its key and moves nothing.
+	 */
+	@Test
+	fun inEditModeADraggedMarkStaysAndIsSelected() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.bodyX))
+			runOnIdle { harness.enterEditMode() }
+			waitForIdle()
+
+			drag(
+				lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, -5f),
+				listOf(
+					lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, -2.5f),
+					lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, 2.5f),
+				),
+			)
+
+			assertEquals(listOf(-5f, 0f, 5f), geometryKeysOf(harness, PanelIds.drawable, PanelIds.bodyX), "no key moved")
+			assertEquals(setOf(geometryKey0), harness.session.keySelection.value, "the press selected the key under it")
+		}
+
+	/**
 	 * An unselected key dragged while other keys are selected replaces the selection as the drag starts, as a
 	 * click on it would, and moves alone, in one step that one undo reverses whole.
 	 */

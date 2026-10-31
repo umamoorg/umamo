@@ -2,37 +2,52 @@ package org.umamo.ui.viewport.viewport2d
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
-import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
+import org.umamo.edit.eligibleTransformTargets
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.edit.mesh.MeshTopologyOps
-import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.edit.mesh.commitMeshTopology
-import org.umamo.edit.mesh.commitObjectPositions
 import org.umamo.edit.structure.selectableOf
-import org.umamo.edit.switchEditDrawable
+import org.umamo.edit.switchEditOwner
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.isPoseNeutral
 import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.runtime.eval.poseValueLookup
+import org.umamo.runtime.eval.warpDrawnAt
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
+import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.deformerChain
+import org.umamo.runtime.model.translationAffine
+import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.LatticeWorldGeometry
+import org.umamo.ui.transform.activeObjectCentroid
 import org.umamo.ui.transform.captureDrawableWorlds
+import org.umamo.ui.transform.captureLatticeWorlds
+import org.umamo.ui.transform.commitObjectMove
 import org.umamo.ui.transform.coveredMedian
 import org.umamo.ui.transform.coveredVerticesOf
+import org.umamo.ui.transform.elementEditStage
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.activeElementMedian
+import org.umamo.ui.viewport.gizmo.selectableDeformerTargets
 import org.umamo.ui.viewport.gizmo.worldToScreen
 
 /*
  * The bodies of the session-request handlers the 2D viewport's gizmo overlays collect: keymap commands
- * that carry no pointer (Alt+Q switch-mesh, Rip, the Shift+S snaps) land on the session's request
+ * that carry no pointer (Alt+Q switch-owner, Rip, the Shift+S snaps) land on the session's request
  * flows, and only the overlay knows the pointer position and the projected geometry to execute them
  * against.  Each overlay keeps a thin, area-gated collector (the Edit overlay's is EditGizmoRequests.kt);
  * the work lives here as plain functions, testable without Compose.  Select Linked serves both surfaces
@@ -41,9 +56,10 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  */
 
 /**
- * Alt+Q: switch the edited mesh to the drawable under the pointer.  One candidate switches directly;
- * a stack opens the overlap-picker popup (the same picker Object mode's Alt-click uses), so the
- * rigger chooses by name and thumbnail instead of blind-cycling through the layers.
+ * Alt+Q: switch the session to the owner under the pointer.  In Edit mode that is the drawable whose art is there:
+ * one candidate switches directly, and a stack opens the overlap-picker popup (the same picker Object mode's Alt-click
+ * uses), so the rigger chooses by name and thumbnail instead of blind-cycling through the layers.  In Pose mode it is
+ * the warp to pose ([poseWarpUnder]).
  *
  * @param EditorSession session The session owning the mesh selection.
  * @param PuppetViewportService service The render service (the GPU pick).
@@ -51,13 +67,19 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  * @param Offset pointer The pointer in area-local pixels.
  * @param Function onOverlapRequest Opens the overlap-picker popup for 2+ stacked candidates.
  */
-internal fun handleSwitchEditDrawableRequest(
+internal fun handleSwitchEditOwnerRequest(
 	session: EditorSession,
 	service: PuppetViewportService,
 	areaId: String,
 	pointer: Offset,
 	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
 ) {
+	if (session.mode.value == EditorMode.Pose) {
+		poseWarpUnder(session, service, areaId, pointer)?.let { warpId -> session.switchEditOwner(ElementOwner.Deformer(warpId)) }
+
+		return
+	}
+
 	val model = session.model.value
 	val candidates =
 		service.pickAllAt(areaId, pointer.x, pointer.y)
@@ -73,10 +95,38 @@ internal fun handleSwitchEditDrawableRequest(
 		// would wipe the element selection for nothing.
 		candidates.size == 1 && candidates.single().id == session.meshSelection.value.activeDrawableId -> return
 
-		candidates.size == 1 -> session.switchEditDrawable(candidates.single().id)
+		candidates.size == 1 -> session.switchEditOwner(ElementOwner.Drawable(candidates.single().id))
 
 		else -> onOverlapRequest(pointer, candidates)
 	}
+}
+
+/**
+ * The warp Alt+Q poses at [pointer] in Pose mode: the first selectable warp whose drawn lattice is under it (the
+ * posed warps draw as the session's cage, so these are the others), else the nearest warp up the deformer chain of
+ * the front-most art there that the pose draws - so pointing at art poses the lattice that moves it.
+ *
+ * @param EditorSession session The session.
+ * @param PuppetViewportService service The render service (the lattice and art picks).
+ * @param String areaId The requesting area.
+ * @param Offset pointer The pointer in area-local pixels.
+ * @return DeformerId? The warp, or null when there is none.
+ */
+private fun poseWarpUnder(
+	session: EditorSession,
+	service: PuppetViewportService,
+	areaId: String,
+	pointer: Offset,
+): DeformerId? {
+	val model = session.model.value
+	selectableDeformerTargets(latticesUnder(service, areaId, pointer), model).firstOrNull()?.let { lattice -> return lattice.id }
+
+	val drawableId = service.pickAt(areaId, pointer.x, pointer.y) ?: return null
+	val parentId = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.parentDeformerId ?: return null
+	// The same rule the session accepts a Pose-mode owner by, so the warp chosen here is one it opens on.
+	val valueOf = model.poseValueLookup(session.pose.value)
+
+	return model.deformerChain(parentId).firstOrNull { deformer -> deformer is Deformer.Warp && model.warpDrawnAt(deformer.id, valueOf) }?.id
 }
 
 /**
@@ -103,7 +153,7 @@ internal fun handleRipRequest(
 	val selection = session.meshSelection.value
 	val ripDrawableId = selection.activeDrawableId ?: return
 	val geometry = geometries.firstOrNull { candidate -> candidate.drawableId == ripDrawableId } ?: return
-	val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(ripDrawableId), geometry.mesh.indices)
+	val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(ripDrawableId), geometry.topology)
 
 	if (covered.isEmpty()) {
 		return
@@ -145,19 +195,22 @@ internal fun handleRipRequest(
 }
 
 /**
- * Executes the geometry-dependent Shift+S snaps for Edit mode: the cursor moves read the covered
- * world median, and the selection moves ride the same movement-transfer pipeline as a finished Grab
- * (one undo step).  An unplaced cursor snaps from the world origin, its conceptual resting place.  The
- * grid snap rounds to the executing area's own grid, the lines that area draws.
+ * Executes the geometry-dependent Shift+S snaps for Edit and Pose mode: the cursor moves read the covered
+ * world median, and the selection moves ride the same pipeline as a finished Grab (one undo step) - the
+ * movement transfer for a mesh, the lattice's landing at [stage] for a lattice.  An unplaced cursor snaps from the
+ * world origin, its conceptual resting place.  The grid snap rounds to the executing area's own grid, the lines that
+ * area draws.
  *
  * @param EditorSession session The session owning the selection, cursor, and commits.
- * @param List<EditMeshGeometry> geometries The session meshes' live geometry.
+ * @param List<EditOwnerGeometry> geometries The session owners' live geometry.
+ * @param ElementEditStage stage Where [geometries] were captured.
  * @param SnapKind kind The requested snap.
  * @param Float gridStep The executing area's grid snap increment in world units.
  */
 internal fun handleEditSnapRequest(
 	session: EditorSession,
-	geometries: List<EditMeshGeometry>,
+	geometries: List<EditOwnerGeometry>,
+	stage: ElementEditStage,
 	kind: SnapKind,
 	gridStep: Float,
 ) {
@@ -167,7 +220,7 @@ internal fun handleEditSnapRequest(
 		coveredVerticesOf(
 			selection,
 			geometries.map { geometry -> geometry.worldGeometry },
-			geometries.associate { geometry -> geometry.drawableId to geometry.mesh.indices },
+			geometries.associate { geometry -> geometry.owner to geometry.topology },
 		)
 	val median = coveredMedian(coveredByMesh) ?: return
 	val medianX = median.worldX
@@ -195,70 +248,92 @@ internal fun handleEditSnapRequest(
 				return
 			}
 
-			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(coveredByMesh.size)
+			val outcomes = ArrayList<MeshJobOutcome>(coveredByMesh.size)
 			val movedIndicesByDrawable = LinkedHashMap<DrawableId, List<Int>>(coveredByMesh.size)
+			val latticeMoved = LinkedHashMap<DeformerId, Set<Int>>()
 
 			for (coveredMesh in coveredByMesh) {
 				val geometry = coveredMesh.geometry
 				val covered = coveredMesh.indices
-				val world = geometry.world
-				val transformedWorld =
-					when (kind) {
-						// Every covered vertex lands ON the cursor (Blender's pile-up semantics).
-						SnapKind.SelectionToCursor -> {
-							MeshTransforms.collapseVertices(world, covered, cursor.worldX, cursor.worldZ)
-						}
+				outcomes.add(geometry.outcomeOf(snappedElementsWorld(kind, geometry.world, covered, cursor.worldX to cursor.worldZ, medianX to medianY, activeMedian, model, gridStep), covered))
 
-						// A rigid translate: the covered median lands on the cursor, offsets kept.
-						SnapKind.SelectionToCursorOffset -> {
-							MeshTransforms.translateVertices(world, covered, cursor.worldX - medianX, cursor.worldZ - medianY)
-						}
-
-						// Each covered vertex rounds to its own nearest grid point (the finest subdivision).
-						SnapKind.SelectionToGrid -> {
-							world.copyOf().also { positions ->
-								for (vertexIndex in covered) {
-									val (snappedX, snappedZ) = model.snapToWorldGrid(positions[vertexIndex * 2], positions[vertexIndex * 2 + 1], gridStep)
-									positions[vertexIndex * 2] = snappedX
-									positions[vertexIndex * 2 + 1] = snappedZ
-								}
-							}
-						}
-
-						// Every covered vertex lands ON the active element's median - the same
-						// pile-up as Selection to Cursor, not a rigid translate (Blender parity).
-						SnapKind.SelectionToActive -> {
-							if (activeMedian != null) {
-								MeshTransforms.collapseVertices(world, covered, activeMedian.first, activeMedian.second)
-							} else {
-								world
-							}
-						}
-
-						// The cursor moves were handled above; nothing else reaches here.
-						SnapKind.CursorToSelected, SnapKind.CursorToActive -> {
-							world
-						}
-					}
-				restByDrawable[geometry.drawableId] = geometry.worldToRest(transformedWorld, covered)
-				movedIndicesByDrawable[geometry.drawableId] = covered.toList()
+				when (geometry) {
+					is DrawableWorldGeometry -> movedIndicesByDrawable[geometry.drawableId] = covered.toList()
+					is LatticeWorldGeometry -> latticeMoved[geometry.deformerId] = covered
+				}
 			}
 
-			// A snap relocates geometry without scaling or turning it, so it files under the move label.
-			session.commitMeshPositions(
-				MeshChange.TransformVertices(movedIndicesByDrawable, MeshOperatorKind.Grab),
-				restByDrawable,
-			)
+			// A snap relocates geometry without scaling or turning it, so it files under the move label; its lattices
+			// land at the stage they were captured at, as a finished Grab's do.
+			session.commitDrive(foldDrive(model, outcomes, latticeMoved, stage), stage, MeshOperatorKind.Grab, movedIndicesByDrawable)
 		}
 	}
 }
 
 /**
- * Executes the geometry-dependent Shift+S snaps for Object mode over the selected drawables'
- * centroids: the cursor moves read them, the selection moves translate whole drawables through the
- * movement-transfer pipeline (one undo step).  The same pose-neutral guard as a transform applies to
- * the selection moves - writing a deformed capture back through the warp inverse corrupts rest meshes.
- * The grid snap rounds to the executing area's own grid, the lines that area draws.
+ * One owner's world shape after an Edit or Pose-mode selection snap moves its covered vertices.
+ *
+ * @param SnapKind kind The requested selection snap.
+ * @param FloatArray world The owner's world shape.
+ * @param Set<Int> covered The vertices the snap moves.
+ * @param Pair<Float, Float> cursor The 2D cursor, x and z.
+ * @param Pair<Float, Float> median The whole selection's median, x and z.
+ * @param Pair<Float, Float>? activeMedian The active element's median, or null with nothing active.
+ * @param PuppetModel model The model, whose grid a grid snap rounds to.
+ * @param Float gridStep The executing area's grid snap increment in world units.
+ * @return FloatArray The snapped shape (the same array when nothing moves).
+ */
+private fun snappedElementsWorld(
+	kind: SnapKind,
+	world: FloatArray,
+	covered: Set<Int>,
+	cursor: Pair<Float, Float>,
+	median: Pair<Float, Float>,
+	activeMedian: Pair<Float, Float>?,
+	model: PuppetModel,
+	gridStep: Float,
+): FloatArray =
+	when (kind) {
+		// Every covered vertex lands ON the cursor (Blender's pile-up semantics).
+		SnapKind.SelectionToCursor -> {
+			MeshTransforms.collapseVertices(world, covered, cursor.first, cursor.second)
+		}
+
+		// A rigid translate: the covered median lands on the cursor, offsets kept.
+		SnapKind.SelectionToCursorOffset -> {
+			MeshTransforms.translateVertices(world, covered, cursor.first - median.first, cursor.second - median.second)
+		}
+
+		// Each covered vertex rounds to its own nearest grid point (the finest subdivision).
+		SnapKind.SelectionToGrid -> {
+			world.copyOf().also { positions ->
+				for (vertexIndex in covered) {
+					val (snappedX, snappedZ) = model.snapToWorldGrid(positions[vertexIndex * 2], positions[vertexIndex * 2 + 1], gridStep)
+					positions[vertexIndex * 2] = snappedX
+					positions[vertexIndex * 2 + 1] = snappedZ
+				}
+			}
+		}
+
+		// Every covered vertex lands ON the active element's median - the same pile-up as Selection to Cursor, not a
+		// rigid translate (Blender parity).
+		SnapKind.SelectionToActive -> {
+			activeMedian?.let { target -> MeshTransforms.collapseVertices(world, covered, target.first, target.second) } ?: world
+		}
+
+		// The cursor moves never reach here.
+		SnapKind.CursorToSelected, SnapKind.CursorToActive -> {
+			world
+		}
+	}
+
+/**
+ * Executes the geometry-dependent Shift+S snaps for Object mode over the centroids of the items an Object-mode
+ * transform moves ([eligibleTransformTargets]): a drawable's vertex mean, a warp's lattice point mean.  The cursor
+ * moves read them; the selection moves translate whole drawables through the movement-transfer pipeline and whole
+ * warps as objects, their art following (one undo step).  The same pose-neutral guard as a transform applies to the
+ * selection moves - writing a deformed capture back through the warp inverse corrupts rest meshes.  The grid snap
+ * rounds to the executing area's own grid, the lines that area draws.
  *
  * @param EditorSession session The session owning the selection, cursor, and commits.
  * @param SnapKind kind The requested snap.
@@ -267,26 +342,20 @@ internal fun handleEditSnapRequest(
 internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind, gridStep: Float) {
 	val model = session.model.value
 	val pose = session.pose.value
-	val eligibleIds = org.umamo.edit.eligibleTransformDrawables(session.selection.value, model) ?: return
-	// Per-drawable posed geometry, the same batched capture a transform freezes.
-	// A drawable with a hidden ancestor is dropped by the batch - the rest still snap.
-	val geometries = captureDrawableWorlds(model, pose, eligibleIds)
+	val targets = eligibleTransformTargets(session.selection.value, model) ?: return
+	// Per-drawable posed geometry, the same batched capture a transform freezes, and each warp's lattice as the
+	// viewport draws it: at the pose, with the pending lattices in place.  An item with a hidden ancestor is
+	// dropped - the rest still snap.
+	val geometries = captureDrawableWorlds(model, pose, targets.drawableIds)
+	val lattices = captureLatticeWorlds(model, targets.warpIds, session.elementEditStage())
+	val owners = geometries + lattices
 
-	if (geometries.isEmpty()) {
+	if (owners.isEmpty()) {
 		return
 	}
 
-	val ids = geometries.map { geometry -> geometry.drawableId }
-	val worldList = geometries.map { geometry -> geometry.world }
-	val combined = MeshTransforms.combinedCentroid(worldList)
-	val activeId = (session.selection.value.active as? SelectionTarget.Drawable)?.id
-	val activeIndex = activeId?.let { candidate -> ids.indexOf(candidate) } ?: -1
-	val activeCentroid =
-		if (activeIndex >= 0) {
-			MeshTransforms.medianPivot(worldList[activeIndex], (0 until worldList[activeIndex].size / 2).toSet())
-		} else {
-			combined
-		}
+	val combined = MeshTransforms.combinedCentroid(owners.map { geometry -> geometry.world })
+	val activeCentroid = activeObjectCentroid(session.selection.value.active, owners) ?: combined
 	val cursor = session.cursor2dOrWorldOrigin()
 
 	when (kind) {
@@ -305,39 +374,13 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind, gri
 				return
 			}
 
-			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(ids.size)
+			val snap = ObjectSnap(kind, model, gridStep, cursor.worldX to cursor.worldZ, activeCentroid, combined)
+			val restByDrawable = LinkedHashMap<DrawableId, MeshRestPositions>(geometries.size)
 
 			for (geometry in geometries) {
 				val world = geometry.world
 				val allIndices = geometry.allIndices
-				val ownCentroid = MeshTransforms.medianPivot(world, allIndices)
-				val (deltaX, deltaY) =
-					when (kind) {
-						// Each drawable's centroid lands ON the target (Blender's pile-up semantics)...
-						SnapKind.SelectionToCursor -> {
-							(cursor.worldX - ownCentroid.first) to (cursor.worldZ - ownCentroid.second)
-						}
-
-						SnapKind.SelectionToActive -> {
-							(activeCentroid.first - ownCentroid.first) to (activeCentroid.second - ownCentroid.second)
-						}
-
-						SnapKind.SelectionToGrid -> {
-							model.snapToWorldGrid(ownCentroid.first, ownCentroid.second, gridStep).let { (snappedX, snappedZ) ->
-								(snappedX - ownCentroid.first) to (snappedZ - ownCentroid.second)
-							}
-						}
-
-						// ...while Keep Offset translates the whole selection rigidly by one shared delta.
-						SnapKind.SelectionToCursorOffset -> {
-							(cursor.worldX - combined.first) to (cursor.worldZ - combined.second)
-						}
-
-						// The cursor moves were handled above; nothing else reaches here.
-						SnapKind.CursorToSelected, SnapKind.CursorToActive -> {
-							0f to 0f
-						}
-					}
+				val (deltaX, deltaY) = snap.deltaFrom(MeshTransforms.medianPivot(world, allIndices))
 
 				if (deltaX == 0f && deltaY == 0f) {
 					continue
@@ -347,12 +390,70 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind, gri
 				restByDrawable[geometry.drawableId] = geometry.worldToRest(transformedWorld, allIndices)
 			}
 
-			if (restByDrawable.isNotEmpty()) {
-				session.commitObjectPositions(
-					MeshChange.TransformDrawables(restByDrawable.keys.toList(), MeshOperatorKind.Grab),
-					restByDrawable,
-				)
+			val warpAffines = LinkedHashMap<DeformerId, FloatArray>(lattices.size)
+
+			for (lattice in lattices) {
+				val (deltaX, deltaY) = snap.deltaFrom(MeshTransforms.medianPivot(lattice.world, lattice.allIndices))
+
+				if (deltaX != 0f || deltaY != 0f) {
+					warpAffines[lattice.deformerId] = translationAffine(deltaX, deltaY)
+				}
 			}
+
+			session.commitObjectMove(restByDrawable.keys.toList(), restByDrawable, warpAffines, MeshOperatorKind.Grab)
 		}
 	}
+}
+
+/**
+ * One Object-mode selection snap's targets, which every item's translation is measured to.
+ *
+ * @property SnapKind kind The requested selection snap.
+ * @property PuppetModel model The model, whose grid a grid snap rounds to.
+ * @property Float gridStep The executing area's grid snap increment in world units.
+ * @property Pair<Float, Float> cursor The 2D cursor in world space.
+ * @property Pair<Float, Float> activeCentroid The active item's centroid, or the combined one with nothing active.
+ * @property Pair<Float, Float> combined The selection's combined centroid.
+ */
+private class ObjectSnap(
+	val kind: SnapKind,
+	val model: PuppetModel,
+	val gridStep: Float,
+	val cursor: Pair<Float, Float>,
+	val activeCentroid: Pair<Float, Float>,
+	val combined: Pair<Float, Float>,
+) {
+	/**
+	 * The translation the snap moves one item by, from its own centroid.
+	 *
+	 * @param Pair<Float, Float> ownCentroid The item's centroid.
+	 * @return Pair<Float, Float> The x and z move.
+	 */
+	fun deltaFrom(ownCentroid: Pair<Float, Float>): Pair<Float, Float> =
+		when (kind) {
+			// Each item's centroid lands ON the target (Blender's pile-up semantics)...
+			SnapKind.SelectionToCursor -> {
+				(cursor.first - ownCentroid.first) to (cursor.second - ownCentroid.second)
+			}
+
+			SnapKind.SelectionToActive -> {
+				(activeCentroid.first - ownCentroid.first) to (activeCentroid.second - ownCentroid.second)
+			}
+
+			SnapKind.SelectionToGrid -> {
+				model.snapToWorldGrid(ownCentroid.first, ownCentroid.second, gridStep).let { (snappedX, snappedZ) ->
+					(snappedX - ownCentroid.first) to (snappedZ - ownCentroid.second)
+				}
+			}
+
+			// ...while Keep Offset translates the whole selection rigidly by one shared delta.
+			SnapKind.SelectionToCursorOffset -> {
+				(cursor.first - combined.first) to (cursor.second - combined.second)
+			}
+
+			// The cursor moves never reach a selection snap.
+			SnapKind.CursorToSelected, SnapKind.CursorToActive -> {
+				0f to 0f
+			}
+		}
 }

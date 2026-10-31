@@ -455,9 +455,9 @@ class Cmo3ImageChainBuilderTest {
 		val binding = chain.bindingByDrawableId.getValue("PatchDrawable")
 		assertTrue(binding.modelImageGuid != null, "drawable gets its own model image")
 		assertEquals(2f, binding.inputImageLocalToCanvasTransform!!.m00, 1e-4f, "fitted x scale")
-		assertEquals(-1f, binding.inputImageLocalToCanvasTransform!!.m11, 1e-4f, "fitted y scale (flip)")
-		assertEquals(3f, binding.inputImageLocalToCanvasTransform!!.m02, 1e-3f, "fitted x offset")
-		assertEquals(10f, binding.inputImageLocalToCanvasTransform!!.m12, 1e-3f, "fitted y offset")
+		assertEquals(-1f, binding.inputImageLocalToCanvasTransform.m11, 1e-4f, "fitted y scale (flip)")
+		assertEquals(3f, binding.inputImageLocalToCanvasTransform.m02, 1e-3f, "fitted x offset")
+		assertEquals(10f, binding.inputImageLocalToCanvasTransform.m12, 1e-3f, "fitted y offset")
 
 		// The atlas entry carries the patch origin and the same fitted placement.
 		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager

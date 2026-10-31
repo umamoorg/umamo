@@ -15,6 +15,12 @@ private const val WARP_INVERSE_MAX_ITERATIONS = 20
 /** Finite-difference step (in the lattice's normalized UV units) for the warp inverse's Jacobian. */
 private const val WARP_INVERSE_JACOBIAN_STEP = 1e-4f
 
+/**
+ * The step, in normalized lattice coordinates, of the forward differences a Jacobian outside the lattice is taken by:
+ * coarse enough that a float difference of the extrapolation keeps its precision there.
+ */
+private const val EXTRAPOLATION_JACOBIAN_STEP = 1e-3f
+
 /** Damping clamp on one Newton step (UV units), so an extrapolation seam cannot fling the estimate. */
 private const val WARP_INVERSE_MAX_STEP = 0.5f
 
@@ -27,29 +33,28 @@ private const val WARP_INVERSE_MAX_STEP = 0.5f
 private const val RIGID_INVERSE_MAX_ITERATIONS = 24
 
 /**
- * Maps between a drawable's local mesh space and the evaluator's world space at one fixed pose - the
+ * Maps between a parent deformer's local space and the evaluator's world space at one fixed pose - the
  * `DeformedGeometry.worldPositions` space the viewport camera and picker use.  Local space is the space
- * the drawable's keyforms and `DrawableMesh.localPositions` live in: model space for a direct
- * (deformer-less) drawable, the parent's normalized lattice UV for a warp child, the parent's affine frame
- * for a rotation child.  `DrawableMesh.positions` is the canvas editable mesh and is never local, not even
- * for a drawable with no keyforms.  The parent transform here is the FULLY COMPOSED chain
- * (`buildDeformerWorlds` bakes every ancestor in), so both directions are a single transform, never a
- * chain walk.
+ * whatever lives under that parent is stored in: model space with no parent, the parent's normalized lattice
+ * UV under a warp, the parent's affine frame under a rotation.  A drawable's keyforms and
+ * `DrawableMesh.localPositions` live there, and so do a child deformer's control points or pivot.
+ * `DrawableMesh.positions` is the canvas editable mesh and is never local, not even for a drawable with no
+ * keyforms.  The parent transform here is the FULLY COMPOSED chain (`buildDeformerWorlds` bakes every
+ * ancestor in), so both directions are a single transform, never a chain walk.
  *
- * The Edit-mode gizmo is the intended caller: it projects the active drawable's local shape to world
- * for drawing and hit-testing (forward), and converts a world-space drag back into local vertex
- * positions to write into the model (inverse).
+ * The gizmos are the intended callers: they project a local shape to world for drawing and hit-testing
+ * (forward), and convert a world-space drag back into local positions to write into the model (inverse).
  *
- * @property DeformerWorld? parentWorld The baked parent world this mapping composes, or null for a
- *   direct drawable.  Internal so a test can pin that drawables resolved together by one
- *   [DrawableSpaceResolver] share one instance; nothing outside the evaluator reads it.
+ * @property DeformerWorld? parentWorld The baked parent world this mapping composes, or null with no parent.
+ *   Internal so a test can pin that drawables resolved together by one [DrawableSpaceResolver] share one
+ *   instance; nothing outside the evaluator reads it.
  */
-class DrawableSpaceMapping internal constructor(
+class ParentSpaceMapping internal constructor(
 	internal val parentWorld: DeformerWorld?,
 ) {
 	/**
 	 * Maps interleaved (x, y) local positions to world positions: the composed parent transform (or a
-	 * pass-through for a direct drawable) followed by the renderer's Y negation - the exact composition
+	 * pass-through with no parent) followed by the renderer's Y negation - the exact composition
 	 * of `deformMeshWorldFromCorners`.
 	 *
 	 * @param FloatArray local The interleaved local positions.
@@ -88,6 +93,7 @@ class DrawableSpaceMapping internal constructor(
 	fun worldToLocal(world: FloatArray, seedLocal: FloatArray, indices: Set<Int>): FloatArray {
 		val local = seedLocal.copyOf()
 		val scratch = FloatArray(2)
+		val jacobian = FloatArray(4)
 
 		for (vertexIndex in indices) {
 			val coordIndex = vertexIndex * 2
@@ -111,7 +117,7 @@ class DrawableSpaceMapping internal constructor(
 				}
 
 				is WarpWorld -> {
-					invertWarp(parentWorld, targetX, targetY, local, coordIndex, scratch)
+					invertWarp(parentWorld, targetX, targetY, local, coordIndex, scratch, jacobian)
 				}
 			}
 		}
@@ -121,7 +127,7 @@ class DrawableSpaceMapping internal constructor(
 
 	/**
 	 * Maps world positions back to local for the given vertex [indices] with a per-vertex EXACT inverse,
-	 * leaving every other vertex at its [seedLocal] value. A direct parent inverts by pure Y un-negation and
+	 * leaving every other vertex at its [seedLocal] value. No parent inverts by pure Y un-negation and
 	 * a rotation parent by its closed-form affine inverse (both one step); a warp parent inverts each vertex
 	 * independently by a reach-uncapped Newton ([invertWarpUncapped]) seeded from its own rest UV, so every
 	 * vertex lands on its own world target - the mesh stays rigid in world space (no squish), which the
@@ -132,8 +138,7 @@ class DrawableSpaceMapping internal constructor(
 	 * folded / multivalued extrapolation region the Newton keeps its best estimate near the seed rather than
 	 * flinging - so a truly unreachable vertex lags instead of boiling. Not capping the per-step reach
 	 * (unlike [invertWarp]) is what lets a large grab follow instead of pinning / ovalizing; the risk traded
-	 * back is that a strongly non-injective cage can still scatter far outside the lattice (the reason the
-	 * shared-Jacobian inverse exists).
+	 * back is that a strongly non-injective cage can still scatter far outside the lattice.
 	 *
 	 * The warp tolerance and scratch are hoisted out of the vertex loop (constant per mapping), and the
 	 * Newton early-exits the moment a vertex converges, so the whole-selection Object-mode grab (hundreds of
@@ -142,12 +147,10 @@ class DrawableSpaceMapping internal constructor(
 	 *
 	 * @param FloatArray world The interleaved transformed world targets to invert.
 	 * @param FloatArray seedLocal The rest local coords (per-vertex Newton seed; kept for untouched vertices).
-	 * @param FloatArray worldRest The frozen pre-transform world positions (unused here; kept for the shared
-	 *   caller signature and the linearized-inverse contract).
 	 * @param Set<Int> indices The vertex indices to solve.
 	 * @return FloatArray The interleaved local positions (a new array).
 	 */
-	fun worldToLocalLinearized(world: FloatArray, seedLocal: FloatArray, worldRest: FloatArray, indices: Set<Int>): FloatArray {
+	fun worldToLocalLinearized(world: FloatArray, seedLocal: FloatArray, indices: Set<Int>): FloatArray {
 		val local = seedLocal.copyOf()
 
 		when (parentWorld) {
@@ -181,6 +184,7 @@ class DrawableSpaceMapping internal constructor(
 				// Constant per mapping, so it's computed once here rather than per vertex.
 				val toleranceSquared = warpInverseToleranceSquared(parentWorld.cp)
 				val scratch = FloatArray(2)
+				val jacobian = FloatArray(4)
 
 				for (vertexIndex in indices) {
 					val coordIndex = vertexIndex * 2
@@ -189,12 +193,76 @@ class DrawableSpaceMapping internal constructor(
 						continue
 					}
 
-					invertWarpUncapped(parentWorld, world[coordIndex], -world[coordIndex + 1], local, coordIndex, toleranceSquared, scratch)
+					invertWarpUncapped(parentWorld, world[coordIndex], -world[coordIndex + 1], local, coordIndex, toleranceSquared, scratch, jacobian)
 				}
 			}
 		}
 
 		return local
+	}
+
+	/**
+	 * Whether this space is a warp's normalized lattice coordinates.
+	 */
+	val isLattice: Boolean get() = parentWorld is WarpWorld
+
+	/**
+	 * The Y scale this space hands a child rotation's world scale (`DeformerWorld.accY`): 1 with no parent, the
+	 * parent's own through a warp, a rotation's world scale under it.
+	 */
+	internal val inheritedScale: Float get() = parentWorld?.accY ?: 1f
+
+	/**
+	 * The Jacobian of this space's map to the parent transform's output at local ([x], [y]), before the renderer's Y
+	 * negation, written row-major into [out]: d(x)/dx, d(x)/dy, d(y)/dx, d(y)/dy.  The identity with no parent, the
+	 * affine's linear part under a rotation, and under a warp the lattice's exact Jacobian inside it or a forward
+	 * difference of the extrapolation outside.  The negation is left out because the ratio of two such Jacobians is
+	 * what a conversion between spaces reads, and it cancels there.
+	 *
+	 * @param Float x The local x.
+	 * @param Float y The local y.
+	 * @param FloatArray out Four slots for the Jacobian.
+	 */
+	internal fun jacobianAt(x: Float, y: Float, out: FloatArray) {
+		when (val world = parentWorld) {
+			null -> {
+				out[0] = 1f
+				out[1] = 0f
+				out[2] = 0f
+				out[3] = 1f
+			}
+
+			is RotationWorld -> {
+				out[0] = world.xform.c12
+				out[1] = world.xform.c15
+				out[2] = world.xform.c14
+				out[3] = world.xform.c13
+			}
+
+			is WarpWorld -> {
+				if (!latticeJacobianAt(world.cp, world.cols, world.rows, world.bilinear, x, y, out)) {
+					val origin = FloatArray(2)
+					warpApply(world.cp, world.cols, world.rows, world.bilinear, x, y, origin, 0)
+					warpDifferenceJacobian(world, x, y, origin[0], origin[1], EXTRAPOLATION_JACOBIAN_STEP, FloatArray(2), out)
+				}
+			}
+		}
+	}
+
+	/**
+	 * The turn this space gives a child rotation whose origin sits at local ([x], [y]), in radians, by the probe the
+	 * rotation's own world build uses; nothing with no parent.
+	 *
+	 * @param Float x The origin's local x.
+	 * @param Float y The origin's local y.
+	 * @return Float The inherited angle in radians.
+	 */
+	internal fun inheritedAngleAt(x: Float, y: Float): Float {
+		val world = parentWorld ?: return 0f
+		val scratch = FloatArray(2)
+		world.apply(x, y, scratch, 0)
+
+		return inheritedAngleRadians(world, x, y, scratch[0], scratch[1], scratch)
 	}
 
 	/**
@@ -213,8 +281,18 @@ class DrawableSpaceMapping internal constructor(
 	 * @param Int coordIndex Index of the u slot in [local].
 	 * @param Float toleranceSquared The squared convergence tolerance for this lattice.
 	 * @param FloatArray scratch A reusable 2-slot scratch for forward evaluations.
+	 * @param FloatArray jacobian A reusable 4-slot scratch for the Jacobian.
 	 */
-	private fun invertWarpUncapped(warp: WarpWorld, targetX: Float, targetY: Float, local: FloatArray, coordIndex: Int, toleranceSquared: Float, scratch: FloatArray) {
+	private fun invertWarpUncapped(
+		warp: WarpWorld,
+		targetX: Float,
+		targetY: Float,
+		local: FloatArray,
+		coordIndex: Int,
+		toleranceSquared: Float,
+		scratch: FloatArray,
+		jacobian: FloatArray,
+	) {
 		var currentU = local[coordIndex]
 		var currentV = local[coordIndex + 1]
 		var bestU = currentU
@@ -237,15 +315,14 @@ class DrawableSpaceMapping internal constructor(
 				break
 			}
 
-			warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, currentU + WARP_INVERSE_JACOBIAN_STEP, currentV, scratch, 0)
-			val dxDu = (scratch[0] - (residualX + targetX)) / WARP_INVERSE_JACOBIAN_STEP
-			val dyDu = (scratch[1] - (residualY + targetY)) / WARP_INVERSE_JACOBIAN_STEP
-			warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, currentU, currentV + WARP_INVERSE_JACOBIAN_STEP, scratch, 0)
-			val dxDv = (scratch[0] - (residualX + targetX)) / WARP_INVERSE_JACOBIAN_STEP
-			val dyDv = (scratch[1] - (residualY + targetY)) / WARP_INVERSE_JACOBIAN_STEP
+			warpDifferenceJacobian(warp, currentU, currentV, residualX + targetX, residualY + targetY, WARP_INVERSE_JACOBIAN_STEP, scratch, jacobian)
+			val dxDu = jacobian[0]
+			val dxDv = jacobian[1]
+			val dyDu = jacobian[2]
+			val dyDv = jacobian[3]
 			val determinant = dxDu * dyDv - dxDv * dyDu
 
-			if (abs(determinant) < 1e-12f) {
+			if (abs(determinant) < SINGULAR_DETERMINANT) {
 				break
 			}
 
@@ -256,6 +333,29 @@ class DrawableSpaceMapping internal constructor(
 		local[coordIndex] = bestU
 		local[coordIndex + 1] = bestV
 	}
+}
+
+/**
+ * The space whatever lives under deformer [parentId] is stored in, at the pose [parameters] names (the defaults for
+ * the rest): model space for null, the deformer's normalized lattice or affine frame otherwise.  Null when the
+ * deformer is missing or the pose hides it or an ancestor, so it has no world to map through.
+ *
+ * @param PuppetModel model The rig.
+ * @param DeformerId? parentId The parent deformer, or null for the root.
+ * @param Map parameters Parameter id -> value (partial; the rest default).
+ * @return ParentSpaceMapping? The mapping, or null when unmappable.
+ */
+fun parentSpaceAt(model: PuppetModel, parentId: DeformerId?, parameters: Map<ParameterId, Float> = emptyMap()): ParentSpaceMapping? {
+	val deformerId = parentId ?: return ParentSpaceMapping(null)
+
+	if (model.deformerById[deformerId] == null) {
+		return null
+	}
+
+	val pose = PoseParameters(model, parameters)
+	val world = buildDeformerWorlds(ancestorChain(model, deformerId), pose.paramValue, pose.defaultValue)[deformerId] ?: return null
+
+	return ParentSpaceMapping(world)
 }
 
 /**
@@ -270,9 +370,9 @@ class DrawableSpaceMapping internal constructor(
  * @param PuppetModel model The rig.
  * @param Map parameters Parameter id -> value (partial; the rest default).
  * @param DrawableId drawableId The drawable to map.
- * @return DrawableSpaceMapping? The mapping, or null when unmappable.
+ * @return ParentSpaceMapping? The mapping, or null when unmappable.
  */
-fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): DrawableSpaceMapping? {
+fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>, drawableId: DrawableId): ParentSpaceMapping? {
 	val drawable = model.drawables.firstOrNull { it.id == drawableId } ?: return null
 
 	// The defaults and the bake are built only when a parent asks for a world, so a direct drawable
@@ -291,19 +391,19 @@ fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>
  *
  * @param Drawable drawable The drawable to map.
  * @param Function parentWorldOf Resolves a deformer's baked world at the pose, or null when it has none.
- * @return DrawableSpaceMapping? The mapping, or null when unmappable.
+ * @return ParentSpaceMapping? The mapping, or null when unmappable.
  */
-internal fun mappingOver(drawable: Drawable, parentWorldOf: (DeformerId) -> DeformerWorld?): DrawableSpaceMapping? {
-	val parentDeformerId = drawable.parentDeformerId ?: return DrawableSpaceMapping(null)
+internal fun mappingOver(drawable: Drawable, parentWorldOf: (DeformerId) -> DeformerWorld?): ParentSpaceMapping? {
+	val parentDeformerId = drawable.parentDeformerId ?: return ParentSpaceMapping(null)
 	val parentWorld = parentWorldOf(parentDeformerId) ?: return null
 
-	return DrawableSpaceMapping(parentWorld)
+	return ParentSpaceMapping(parentWorld)
 }
 
 /**
  * The drawable's blended LOCAL posed positions at the given pose - base plus the multilinear keyform
  * blend, before any parent deformer. This is the local shape the renderer feeds the deformer chain, so
- * a display that projects it through [DrawableSpaceMapping.localToWorld] lands exactly on the rendered
+ * a display that projects it through [ParentSpaceMapping.localToWorld] lands exactly on the rendered
  * art at ANY pose (including between keys, where a single cell's deltas would not).
  *
  * @param PuppetModel model The rig.
@@ -353,7 +453,7 @@ private fun invertRotation(rotation: RotationWorld, targetX: Float, targetY: Flo
 	val xform = rotation.xform
 	val determinant = xform.c12 * xform.c13 - xform.c15 * xform.c14
 
-	if (abs(determinant) < 1e-12f) {
+	if (abs(determinant) < SINGULAR_DETERMINANT) {
 		return
 	}
 
@@ -375,8 +475,9 @@ private fun invertRotation(rotation: RotationWorld, targetX: Float, targetY: Flo
  * @param FloatArray local The output array, seeded with the starting UV.
  * @param Int coordIndex Index of the u slot in [local].
  * @param FloatArray scratch A reusable 2-slot scratch for forward evaluations.
+ * @param FloatArray jacobian A reusable 4-slot scratch for the Jacobian.
  */
-private fun invertWarp(warp: WarpWorld, targetX: Float, targetY: Float, local: FloatArray, coordIndex: Int, scratch: FloatArray) {
+private fun invertWarp(warp: WarpWorld, targetX: Float, targetY: Float, local: FloatArray, coordIndex: Int, scratch: FloatArray, jacobian: FloatArray) {
 	val toleranceSquared = warpInverseToleranceSquared(warp.cp)
 	var currentU = local[coordIndex]
 	var currentV = local[coordIndex + 1]
@@ -400,15 +501,14 @@ private fun invertWarp(warp: WarpWorld, targetX: Float, targetY: Float, local: F
 			break
 		}
 
-		warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, currentU + WARP_INVERSE_JACOBIAN_STEP, currentV, scratch, 0)
-		val dxDu = (scratch[0] - (residualX + targetX)) / WARP_INVERSE_JACOBIAN_STEP
-		val dyDu = (scratch[1] - (residualY + targetY)) / WARP_INVERSE_JACOBIAN_STEP
-		warpApply(warp.cp, warp.cols, warp.rows, warp.bilinear, currentU, currentV + WARP_INVERSE_JACOBIAN_STEP, scratch, 0)
-		val dxDv = (scratch[0] - (residualX + targetX)) / WARP_INVERSE_JACOBIAN_STEP
-		val dyDv = (scratch[1] - (residualY + targetY)) / WARP_INVERSE_JACOBIAN_STEP
+		warpDifferenceJacobian(warp, currentU, currentV, residualX + targetX, residualY + targetY, WARP_INVERSE_JACOBIAN_STEP, scratch, jacobian)
+		val dxDu = jacobian[0]
+		val dxDv = jacobian[1]
+		val dyDu = jacobian[2]
+		val dyDv = jacobian[3]
 		val determinant = dxDu * dyDv - dxDv * dyDu
 
-		if (abs(determinant) < 1e-12f) {
+		if (abs(determinant) < SINGULAR_DETERMINANT) {
 			break
 		}
 

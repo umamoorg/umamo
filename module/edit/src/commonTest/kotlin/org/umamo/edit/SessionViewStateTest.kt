@@ -1,6 +1,8 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -138,6 +140,28 @@ class SessionViewStateTest {
 		assertEquals(EditorMode.Edit, session.mode.value, "and undo returns to the mode the document opened in")
 	}
 
+	/** The select mode is saved and opened in Object mode too, so the next Edit entry selects in it. */
+	@Test
+	fun theSelectModeHoldsInObjectMode() {
+		val editing = EditorSession(meshedModel)
+		editing.setSelection(Selection(setOf(SelectionTarget.Drawable(DrawableId("b"))), SelectionTarget.Drawable(DrawableId("b"))))
+		editing.setMode(EditorMode.Edit)
+		editing.setMeshSelectMode(MeshSelectMode.Edge)
+		editing.setMode(EditorMode.Object)
+		assertEquals(MeshSelectMode.Edge, editing.viewState().selectMode, "a save made in Object mode keeps it")
+
+		val saved =
+			SessionViewState(
+				selection = Selection(setOf(SelectionTarget.Drawable(DrawableId("b"))), SelectionTarget.Drawable(DrawableId("b"))),
+				selectMode = MeshSelectMode.Face,
+			)
+		val opened = EditorSession(meshedModel, initialViewState = saved)
+		assertEquals(EditorMode.Object, opened.mode.value)
+
+		opened.setMode(EditorMode.Edit)
+		assertEquals(MeshSelectMode.Face, opened.meshSelection.value.selectMode)
+	}
+
 	/** A saved Edit mode the model cannot satisfy opens in Object, the refusal setMode makes. */
 	@Test
 	fun anEditModeWithNothingEditableOpensInObject() {
@@ -145,6 +169,47 @@ class SessionViewStateTest {
 
 		assertEquals(EditorMode.Object, session.mode.value)
 		assertTrue(session.meshSelection.value.drawableIds.isEmpty())
+	}
+
+	/** A saved Pose mode opens in Pose over a model with a deformer, and undo has no step to take back. */
+	@Test
+	fun aSavedPoseModeOpensInPose() {
+		val warp = Deformer.Warp(DeformerId("w"), "W", parent = null, partId = null, rows = 1, columns = 1, isQuadTransform = true, geometryGrid = null)
+		val session = EditorSession(meshedModel.copy(deformers = listOf(warp)), initialViewState = SessionViewState(mode = EditorMode.Pose))
+
+		assertEquals(EditorMode.Pose, session.mode.value)
+		assertFalse(session.canUndo.value, "the opening mode is where the history starts")
+	}
+
+	/** A saved Pose mode whose selection holds no warp opens on the first warp the pose draws, selected as entry selects it. */
+	@Test
+	fun aSavedPoseModeSelectsTheWarpItFallsBackTo() {
+		val saved = SessionViewState(selection = SelectionOps.replace(SelectionTarget.Drawable(PoseLatticeTestRig.art)), mode = EditorMode.Pose)
+
+		val session = EditorSession(PoseLatticeTestRig.model(), initialViewState = saved)
+
+		assertEquals(EditorMode.Pose, session.mode.value)
+		assertEquals(SelectionOps.replace(SelectionTarget.Deformer(PoseLatticeTestRig.cage)), session.selection.value)
+		assertFalse(session.canUndo.value, "the opening selection is where the history starts")
+	}
+
+	/** A saved Edit mode whose selection holds no mesh opens on the topmost one, selected as entry selects it. */
+	@Test
+	fun aSavedEditModeSelectsTheDrawableItFallsBackTo() {
+		val saved = SessionViewState(selection = SelectionOps.replace(SelectionTarget.Part(PartId("face"))), mode = EditorMode.Edit)
+
+		val session = EditorSession(meshedModel, initialViewState = saved)
+
+		assertEquals(EditorMode.Edit, session.mode.value)
+		assertEquals(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("a"))), session.selection.value)
+	}
+
+	/** A saved Pose mode the model cannot satisfy - nothing to pose - opens in Object, the refusal setMode makes. */
+	@Test
+	fun aPoseModeWithNoDeformerOpensInObject() {
+		val session = EditorSession(meshedModel, initialViewState = SessionViewState(mode = EditorMode.Pose))
+
+		assertEquals(EditorMode.Object, session.mode.value)
 	}
 
 	/** A plain open is untouched: no saved state means the defaults the session always had. */

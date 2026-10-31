@@ -1,6 +1,6 @@
 package org.umamo.render.puppet
 
-import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 
 /**
  * A mesh overlay over DIRECT positions: the value a UV area's scene draws, where nothing deforms and every
@@ -14,12 +14,12 @@ import org.umamo.runtime.model.DrawableId
  * array that is the same instance as last time uploads nothing.
  *
  * @property MeshOverlay overlay The overlay's edges, flags, actives, and sizes.
- * @property Map<DrawableId, FloatArray> positionsById Each listed mesh's positions, x then y per vertex.
- * @property Map<DrawableId, IntArray> triangleIndicesById Each listed mesh's triangle indices, three per
+ * @property Map<ElementOwner, FloatArray> positionsByOwner Each listed mesh's positions, x then y per vertex.
+ * @property Map<ElementOwner, IntArray> triangleIndicesByOwner Each listed mesh's triangle indices, three per
  *   triangle, which the face fills and the face dots read.
  */
 class DirectMeshOverlay(
 	val overlay: MeshOverlay,
-	val positionsById: Map<DrawableId, FloatArray>,
-	val triangleIndicesById: Map<DrawableId, IntArray>,
+	val positionsByOwner: Map<ElementOwner, FloatArray>,
+	val triangleIndicesByOwner: Map<ElementOwner, IntArray>,
 )

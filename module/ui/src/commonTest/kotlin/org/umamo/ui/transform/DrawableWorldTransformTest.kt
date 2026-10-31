@@ -39,8 +39,8 @@ import kotlin.test.assertTrue
  * the drawable - on a corpus model, a base 1.9 units wide for a drawable 183.8 wide - so a small typed nudge
  * became an enormous transform.  These tests assert the rows measure and write the DISPLAYED geometry
  * instead, that the write moves the canvas mesh and the base each in its own space, and that the write is
- * refused off the neutral pose (where the deformer-chain inverse is not exact).  Edit mode shows the rig at
- * rest, so there the rows measure and write the rest shape, whatever pose Object mode left.
+ * refused off the neutral pose (where the deformer-chain inverse is not exact) and outside Object mode.  Edit
+ * mode shows the rig at rest, so there the rows measure the rest shape, whatever pose Object mode left.
  */
 class DrawableWorldTransformTest {
 	private val drawableId = DrawableId("d")
@@ -194,7 +194,7 @@ class DrawableWorldTransformTest {
 		val canvas = floatArrayOf(120f, 120f, 160f, 120f, 160f, 160f, 120f, 160f)
 		val local = floatArrayOf(0.1f, 0.1f, 0.3f, 0.1f, 0.3f, 0.3f, 0.1f, 0.3f)
 		val session = EditorSession(warpChildModel(canvas, local))
-		val before = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!.bounds
+		val before = drawableWorldTransform(session.model.value, session.pose.value, drawableId, EditorMode.Object)!!.bounds
 		assertEquals(140f, before.centerX, 1e-3f, "precondition: the lattice puts the base where the canvas mesh is")
 
 		// 20 right and 10 up in world, which is 10 DOWN the canvas's y.
@@ -228,7 +228,7 @@ class DrawableWorldTransformTest {
 		val baseBounds = meshBounds(puppet.drawables.first().mesh!!.positions)
 		assertEquals(10f, baseBounds.width, "precondition: the base array is small")
 
-		val transform = drawableWorldTransform(puppet, neutral, drawableId)!!
+		val transform = drawableWorldTransform(puppet, neutral, drawableId, EditorMode.Object)!!
 		assertEquals(100f, transform.bounds.width, "the row shows the displayed size, not the base size")
 		assertEquals(100f, transform.bounds.height)
 		assertTrue(transform.editable, "a neutral pose is editable")
@@ -239,7 +239,7 @@ class DrawableWorldTransformTest {
 		val puppet = model()
 		val posed = mapOf(parameterId to 1f)
 
-		val transform = drawableWorldTransform(puppet, posed, drawableId)!!
+		val transform = drawableWorldTransform(puppet, posed, drawableId, EditorMode.Object)!!
 		assertFalse(transform.editable, "the deformer-chain inverse is only exact at the neutral pose")
 
 		// And the write path refuses too, so a stale enabled flag still cannot corrupt the mesh.
@@ -256,14 +256,14 @@ class DrawableWorldTransformTest {
 
 		session.setDrawableWorldCenter(drawableId, 0f, 0f)
 
-		val moved = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!
+		val moved = drawableWorldTransform(session.model.value, session.pose.value, drawableId, EditorMode.Object)!!
 		assertEquals(0f, moved.bounds.centerX, "what you type is what the readout becomes")
 		assertEquals(0f, moved.bounds.centerY)
 		assertEquals(100f, moved.bounds.width, "a move does not resize")
 		assertTrue(session.canUndo.value, "one undo step")
 
 		session.undo()
-		val restored = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!
+		val restored = drawableWorldTransform(session.model.value, session.pose.value, drawableId, EditorMode.Object)!!
 		assertEquals(500f, restored.bounds.centerX)
 	}
 
@@ -273,7 +273,7 @@ class DrawableWorldTransformTest {
 
 		session.setDrawableWorldSize(drawableId, 50f, 25f)
 
-		val resized = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!
+		val resized = drawableWorldTransform(session.model.value, session.pose.value, drawableId, EditorMode.Object)!!
 		assertEquals(50f, resized.bounds.width)
 		assertEquals(25f, resized.bounds.height)
 		// The bounds center is the pivot, so the Position row does not move when Size is edited.  Z is
@@ -288,14 +288,14 @@ class DrawableWorldTransformTest {
 		// A 1000 canvas puts the origin at world (500, -500) - exactly where the displayed square is centered.
 		val session = EditorSession(model(canvasSize = 1000f))
 		val puppet = session.model.value
-		val centered = drawableWorldTransform(puppet, session.pose.value, drawableId)!!
+		val centered = drawableWorldTransform(puppet, session.pose.value, drawableId, EditorMode.Object)!!
 		assertEquals(0f, puppet.originRelativeX(centered.bounds.centerX), "a mesh centered on the axes reads X 0")
 		assertEquals(0f, puppet.originRelativeZ(centered.bounds.centerY), "and Z 0, not the -500 world y")
 
 		// Typing (10, 20) goes through the same conversions the Position rows use, one axis at a time.
 		session.setDrawableWorldCenter(drawableId, puppet.worldXFromOriginRelative(10f), puppet.worldZFromOriginRelative(20f))
 
-		val moved = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!
+		val moved = drawableWorldTransform(session.model.value, session.pose.value, drawableId, EditorMode.Object)!!
 		assertEquals(10f, session.model.value.originRelativeX(moved.bounds.centerX), "what you type is what the readout becomes")
 		assertEquals(20f, session.model.value.originRelativeZ(moved.bounds.centerY), "Z counts up from the red line")
 		assertEquals(510f, moved.bounds.centerX, "the world position is the typed value plus the origin")
@@ -306,7 +306,7 @@ class DrawableWorldTransformTest {
 	@Test
 	fun aNoOpEditRecordsNothing() {
 		val session = EditorSession(model())
-		val current = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!
+		val current = drawableWorldTransform(session.model.value, session.pose.value, drawableId, EditorMode.Object)!!
 
 		session.setDrawableWorldCenter(drawableId, current.bounds.centerX, current.bounds.centerY)
 		session.setDrawableWorldSize(drawableId, current.bounds.width, current.bounds.height)
@@ -315,28 +315,40 @@ class DrawableWorldTransformTest {
 		assertFalse(session.dirty.value)
 	}
 
-	/** In Edit mode the rows measure the rig at rest - what the viewport draws there - and stay editable. */
+	/** In Edit mode the rows measure the rig at rest - what the viewport draws there - but only Object mode writes. */
 	@Test
-	fun inEditModeTheRowsMeasureAndEditTheRestShape() {
+	fun inEditModeTheRowsMeasureTheRestShapeAndAreInert() {
 		val posed = mapOf(parameterId to 1f)
 		val session = EditorSession(model(posedShiftX = 100f), initialPose = posed)
-		val objectShown = drawableWorldTransform(session.model.value, session.shownPose, drawableId)!!
+		val objectShown = drawableWorldTransform(session.model.value, session.shownPose, drawableId, session.mode.value)!!
 		assertEquals(600f, objectShown.bounds.centerX, "precondition: posed, the square sits 100 right of rest")
 		assertFalse(objectShown.editable, "precondition: posed, the inverse is not exact")
 
 		enterEditMode(session)
-		val editShown = drawableWorldTransform(session.model.value, session.shownPose, drawableId)!!
+		val editShown = drawableWorldTransform(session.model.value, session.shownPose, drawableId, session.mode.value)!!
 		assertEquals(500f, editShown.bounds.centerX, "Edit mode shows the rest shape")
-		assertTrue(editShown.editable, "and the rest shape is where the inverse is exact")
+		assertFalse(editShown.editable, "but Edit mode shapes interiors, so the rows do not write")
 
 		val modelBefore = session.model.value
 		session.setDrawableWorldCenter(drawableId, 0f, 0f)
 
-		assertTrue(session.model.value !== modelBefore, "the edit lands rather than being refused for the held pose")
-		val moved = drawableWorldTransform(session.model.value, session.shownPose, drawableId)!!
-		assertEquals(0f, moved.bounds.centerX, 1e-3f, "the edit lands where the rigger is looking")
-		assertEquals(0f, moved.bounds.centerY, 1e-3f)
+		assertSame(modelBefore, session.model.value, "and the setter refuses as the rows do")
 		assertEquals(posed, session.pose.value, "the pinned pose is held as it is")
+	}
+
+	/** Pose mode poses deformers, so a drawable's rows do not write there either. */
+	@Test
+	fun inPoseModeTheRowsAreInert() {
+		val canvas = floatArrayOf(120f, 120f, 160f, 120f, 160f, 160f, 120f, 160f)
+		val local = floatArrayOf(0.1f, 0.1f, 0.3f, 0.1f, 0.3f, 0.3f, 0.1f, 0.3f)
+		val session = EditorSession(warpChildModel(canvas, local))
+		session.setMode(EditorMode.Pose)
+		assertEquals(EditorMode.Pose, session.mode.value, "precondition: the fixture has a deformer to pose")
+
+		assertFalse(drawableWorldTransform(session.model.value, session.shownPose, drawableId, session.mode.value)!!.editable)
+		val modelBefore = session.model.value
+		session.setDrawableWorldCenter(drawableId, 0f, 0f)
+		assertSame(modelBefore, session.model.value)
 	}
 
 	/** A scrub frame's preview is the model its release commits, and building one records nothing. */
@@ -365,7 +377,7 @@ class DrawableWorldTransformTest {
 		assertNull(posedSession.previewDrawableWorldSize(drawableId, 1f, 1f))
 
 		val session = EditorSession(model())
-		val current = drawableWorldTransform(session.model.value, session.pose.value, drawableId)!!.bounds
+		val current = drawableWorldTransform(session.model.value, session.pose.value, drawableId, EditorMode.Object)!!.bounds
 		assertNull(session.previewDrawableWorldCenter(drawableId, current.centerX, current.centerY))
 		assertNull(session.previewDrawableWorldSize(drawableId, current.width, current.height))
 	}

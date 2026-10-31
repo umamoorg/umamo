@@ -6,8 +6,10 @@ import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.umamo.edit.EditorSession
+import org.umamo.edit.mesh.refusesLatticeTopology
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.PickCandidate
+import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.ViewportOverlayState
@@ -28,7 +30,8 @@ import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
  * @param String areaId The overlay's area.
  * @param EditorSession session The session whose request flows to collect.
  * @param PuppetViewportService service The render service (the Alt+Q pick).
- * @param State<List<EditMeshGeometry>> geometries The session meshes' live geometry.
+ * @param State<List<EditOwnerGeometry>> geometries The session owners' live geometry.
+ * @param State<ElementEditStage> stage The stage [geometries] were captured at.
  * @param State<ViewportCamera> camera The area camera.
  * @param State<IntSize> size The area size in pixels.
  * @param State<Offset> areaPointer Where the pointer last was in the area, tracked by the host.
@@ -40,7 +43,8 @@ internal suspend fun collectEditGizmoRequests(
 	areaId: String,
 	session: EditorSession,
 	service: PuppetViewportService,
-	geometries: State<List<EditMeshGeometry>>,
+	geometries: State<List<EditOwnerGeometry>>,
+	stage: State<ElementEditStage>,
 	camera: State<ViewportCamera>,
 	size: State<IntSize>,
 	areaPointer: State<Offset>,
@@ -66,16 +70,16 @@ internal suspend fun collectEditGizmoRequests(
 				)
 			}
 		}
-		// Alt+Q: switch the edited mesh to the drawable under the pointer (or the overlap picker for a
-		// stack).  Needs no geometry and no camera, only the pointer, so it still works in the very state
-		// the others have to decline.
+		// Alt+Q: switch the session to the drawable under the pointer (or the overlap picker for a stack), or in
+		// Pose mode to the warp to pose there.  Needs no geometry and no camera, only the pointer, so it still works
+		// in the very state the others have to decline.
 		launch {
 			session.switchObjectRequests.collect { requestedAreaId ->
 				if (requestedAreaId != areaId) {
 					return@collect
 				}
 
-				handleSwitchEditDrawableRequest(session, service, areaId, areaPointer.value, onOverlapRequest)
+				handleSwitchEditOwnerRequest(session, service, areaId, areaPointer.value, onOverlapRequest)
 			}
 		}
 		// Rip (Blender's V): duplicate the covered vertices, re-point the pointer-side triangles, auto-grab.
@@ -85,11 +89,16 @@ internal suspend fun collectEditGizmoRequests(
 					return@collect
 				}
 
+				// A lattice's points are fixed in number: rip refuses before it looks for anything to rip.
+				if (session.refusesLatticeTopology(session.meshSelection.value)) {
+					return@collect
+				}
+
 				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
-				handleRipRequest(session, editable, areaId, areaPointer.value, camera.value, size.value)
+				handleRipRequest(session, editable.filterIsInstance<EditMeshGeometry>(), areaId, areaPointer.value, camera.value, size.value)
 			}
 		}
-		// The geometry-dependent Shift+S snaps for Edit mode.  Only the pointer's own area executes: every
+		// The geometry-dependent Shift+S snaps for Edit and Pose mode.  Only the pointer's own area executes: every
 		// open 2D viewport composes this collector, and an ungated request would commit once per viewport.
 		// The handler ignores the area - a snap acts on the model - so the payload's id is purely the election.
 		launch {
@@ -99,7 +108,7 @@ internal suspend fun collectEditGizmoRequests(
 				}
 
 				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
-				handleEditSnapRequest(session, editable, request.kind, (overlays?.grid ?: GridConfig()).snapStep)
+				handleEditSnapRequest(session, editable, stage.value, request.kind, (overlays?.grid ?: GridConfig()).snapStep)
 			}
 		}
 	}

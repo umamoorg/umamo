@@ -32,6 +32,7 @@ import org.umamo.edit.UvCursor
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.kit.field.LocalScrubCancel
@@ -251,7 +252,7 @@ class UvSidebarPanelsTest {
 			runOnIdle {
 				session.setMeshSelection(
 					session.meshSelection.value.copy(
-						elementsByDrawable = mapOf(UV_RIG_QUAD to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1))),
+						elementsByOwner = mapOf(ElementOwner.Drawable(UV_RIG_QUAD) to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1))),
 						activeElement = null,
 					),
 				)
@@ -261,7 +262,7 @@ class UvSidebarPanelsTest {
 			onNodeWithText("110.0").assertExists()
 			onNodeWithText("156.0").assertExists()
 
-			runOnIdle { session.setMeshSelection(session.meshSelection.value.copy(elementsByDrawable = emptyMap(), activeElement = null)) }
+			runOnIdle { session.setMeshSelection(session.meshSelection.value.copy(elementsByOwner = emptyMap(), activeElement = null)) }
 			waitForIdle()
 			onNodeWithText("Nothing selected.").assertExists()
 		}

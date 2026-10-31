@@ -15,8 +15,8 @@ import org.umamo.ui.viewport.ViewportOverlayState
  */
 
 /**
- * A section of the overlays popover, in display order.  Objects holds the chrome drawn over the art's objects;
- * a Deformers row (the deformer overlays) joins it once a deformer overlay exists to toggle.
+ * A section of the overlays popover, in display order.  Objects holds the chrome drawn over the art's objects
+ * and the deformers that move them.
  *
  * @property StringResource label The section heading.
  * @property StringResource description What the section's rows have in common, the heading's tooltip.
@@ -48,6 +48,7 @@ internal enum class OverlayToggle(
 	Cursor(OverlaySection.Guides, OverlaySurface.entries.toSet(), Res.string.overlay_row_cursor, Res.string.overlay_row_cursor_description),
 	Info(OverlaySection.Text, OverlaySurface.entries.toSet(), Res.string.overlay_row_info, Res.string.overlay_row_info_description),
 	SelectionTint(OverlaySection.Objects, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_selection_tint, Res.string.overlay_row_selection_tint_description),
+	Deformers(OverlaySection.Objects, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_deformers, Res.string.overlay_row_deformers_description),
 	Wireframe(OverlaySection.Geometry, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_wireframe, Res.string.overlay_row_wireframe_description),
 	CullHidden(OverlaySection.Geometry, setOf(OverlaySurface.Viewport2D), Res.string.overlay_row_cull_hidden, Res.string.overlay_row_cull_hidden_description),
 	;
@@ -66,6 +67,7 @@ internal enum class OverlayToggle(
 			Cursor -> state.showCursor
 			Info -> state.showInfo
 			SelectionTint -> state.showSelectionTint
+			Deformers -> state.showDeformers
 			Wireframe -> state.showWireframe
 			CullHidden -> state.cullHiddenWireframe
 		}
@@ -83,6 +85,7 @@ internal enum class OverlayToggle(
 			Cursor -> state.showCursor = on
 			Info -> state.showInfo = on
 			SelectionTint -> state.showSelectionTint = on
+			Deformers -> state.showDeformers = on
 			Wireframe -> state.showWireframe = on
 			CullHidden -> state.cullHiddenWireframe = on
 		}

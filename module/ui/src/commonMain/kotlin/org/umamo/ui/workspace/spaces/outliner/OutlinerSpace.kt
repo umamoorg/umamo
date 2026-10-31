@@ -33,6 +33,7 @@ import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalRelationPick
 import org.umamo.ui.workspace.PickClickOutcome
+import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 import org.umamo.ui.workspace.rowdrag.RowDragController
 import org.umamo.ui.workspace.rowdrag.RowDragLabel
 import org.umamo.ui.workspace.rowdrag.parkCancelOnSeam
@@ -197,8 +198,9 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	// release, like the rows: a handler holding the model itself would be a new handler after every edit,
 	// for every row.
 	val currentPuppet = rememberUpdatedState(puppet)
+	val stripArea = LocalOperationStripArea.current
 	val onDrop = {
-		performOutlinerDrop(dragController, currentRows.value, currentPuppet.value, editorSession) { nodeId -> viewState.open(nodeId) }
+		performOutlinerDrop(dragController, currentRows.value, currentPuppet.value, editorSession, stripArea) { nodeId -> viewState.open(nodeId) }
 	}
 
 	Column(modifier = modifier.fillMaxSize().trackRowHoverPointer(hoverPreview, enabled = thumbnails != null)) {

@@ -116,7 +116,8 @@ data class TrackLaneHit(
  * @param Function? onTrackScrubEnd Invoked when such a drag is released, to commit the value it landed on.
  * @param Function? onMarkDrag Invoked with the row, the dragged mark, and its live domain position on every
  *   move of a mark drag - what lets an owner preview a whole SELECTION following the one being dragged.
- * @param Function? onMarkDragEnd Invoked with the row, the dragged mark, and its released domain position.
+ * @param Function? onMarkDragEnd Invoked with the row, the dragged mark, and its released domain position.  Null
+ *   leaves the marks in place: a press on one is then a click however far the pointer travels.
  * @param Function selectedMarkDragDelta A domain offset drawn on every SELECTED mark while a group drag is
  *   in flight, so the rest of the selection travels with the one under the hand instead of jumping on
  *   release.  In this axis's own units; the owner converts, since only it knows what the group is being

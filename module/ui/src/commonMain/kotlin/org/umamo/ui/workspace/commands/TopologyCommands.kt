@@ -6,11 +6,12 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.PieMenuKind
+import org.umamo.edit.editsElements
 import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.connectSelectedVertices
 import org.umamo.edit.mesh.duplicateSelectedElements
 import org.umamo.edit.mesh.mergeSelectedVertices
-import org.umamo.edit.structure.duplicateSelectedDrawables
+import org.umamo.edit.structure.duplicateSelectedObjects
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.ui.action.Command
@@ -50,7 +51,7 @@ internal fun topologyCommands(
 					routing.viewportArea()?.let { areaId ->
 						live.beginMeshOperator(MeshOperatorKind.Grab, areaId, suppressProportional = true)
 					}
-				} else if (live.duplicateSelectedDrawables().isNotEmpty()) {
+				} else if (live.duplicateSelectedObjects().isNotEmpty()) {
 					routing.viewportArea()?.let { areaId -> live.beginObjectOperator(MeshOperatorKind.Grab, areaId) }
 				}
 			}
@@ -90,7 +91,7 @@ internal fun topologyCommands(
 			title = Res.string.cmd_mesh_vertex_slide,
 			availability =
 				CommandAvailability {
-					editorSession?.mode?.value == EditorMode.Edit &&
+					editorSession?.mode?.value?.editsElements == true &&
 						editorSession.meshSelection.value.activeElement?.element is MeshElement.Vertex
 				},
 			spaces = SpaceScope.Viewport2D,

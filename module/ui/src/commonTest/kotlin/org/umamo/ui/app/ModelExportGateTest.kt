@@ -2,6 +2,7 @@ package org.umamo.ui.app
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -17,6 +18,7 @@ import kotlin.test.assertTrue
  * document or quit waits for the running export however it ends - two exports at once, or an export under a
  * document that is already loading its successor, is how a large model runs out of memory.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ModelExportGateTest {
 	@Test
 	fun aSecondExportIsRefusedUntilTheFirstEnds() =

@@ -19,6 +19,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -106,7 +107,7 @@ class MeshOverlayLiveEngineTest {
 			MeshOverlaySelectMode.Edge,
 			listOf(
 				MeshOverlayMesh(
-					drawableId = probeId,
+					owner = ElementOwner.Drawable(probeId),
 					vertexCount = 4,
 					edgeEndpoints = intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3),
 					vertexFlags = ByteArray(0),

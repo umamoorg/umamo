@@ -14,7 +14,6 @@ import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.mesh.commitMeshUvs
 import org.umamo.edit.mesh.withMeshUvs
 import org.umamo.edit.transform.IndividualOriginScope
-import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.buildModalTransformCapture
@@ -123,9 +122,11 @@ internal class UvEditModalTransform(
 		)
 
 	/**
-	 * Starts the gesture as an operator latches in this area.  The capture covers only the shown meshes
-	 * with covered vertices; the anchor follows the pivot mode in display space.  Drops the operator when
-	 * nothing on the shown surface is movable.
+	 * Starts the gesture as an operator latches in this area.  The capture moves the shown meshes with
+	 * covered vertices, and every other shown mesh in the edit joins as a bystander, so a straight-line
+	 * proportional halo reaches nearby coordinates with nothing selected (the Edit overlay's rule, in display
+	 * space).  The anchor follows the pivot mode in display space.  Drops the operator when nothing on the
+	 * shown surface is movable.
 	 *
 	 * @param MeshOperatorKind kind The latched operator.
 	 * @param List<GizmoMeshGeometry> geometries The shown meshes' display geometry.
@@ -133,25 +134,13 @@ internal class UvEditModalTransform(
 	 * @param UvEditFrame frame The shown surface's frame, which the gesture freezes.
 	 */
 	fun begin(kind: MeshOperatorKind, geometries: List<GizmoMeshGeometry>, selection: MeshSelection, frame: UvEditFrame) {
-		// Offer each shown mesh with covered vertices to the shared capture builder, its frozen display-space
-		// coordinates as the source positions (no deformer mapping in UV space).
-		val sources = ArrayList<ModalCaptureSource>()
-
-		for (geometry in geometries) {
-			val elements = selection.elementsOf(geometry.drawableId)
-
-			if (elements.isEmpty()) {
-				continue
+		// Offer each shown mesh in the edit to the shared capture builder, its frozen display-space coordinates as
+		// the positions (no deformer mapping in UV space); one with nothing covered joins as a bystander.
+		val sources =
+			uvCaptureSources(selection, geometries) { geometry ->
+				val elements = selection.elementsOf(geometry.owner)
+				if (elements.isEmpty()) emptySet() else MeshTopology.coveredVertexIndices(elements, geometry.topology)
 			}
-
-			val coveredIndices = MeshTopology.coveredVertexIndices(elements, geometry.indices)
-
-			if (coveredIndices.isEmpty()) {
-				continue
-			}
-
-			sources.add(ModalCaptureSource(geometry.drawableId, geometry.positions.copyOf(), geometry.indices, coveredIndices))
-		}
 
 		// The two per-area anchors the shared builder cannot resolve itself, in display space: the active
 		// element's own covered median and the UV cursor.  Null falls back to the shared median.

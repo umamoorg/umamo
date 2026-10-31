@@ -15,14 +15,23 @@ import kotlin.test.assertTrue
  */
 class OverlayCatalogTest {
 	/**
-	 * The 2D viewport offers every row; the UV editor every row but the axes, the selection tint, and the
-	 * wireframe, which its surface has none of.  Both offer the Opacity field, the UV editor's under a Geometry
+	 * The 2D viewport offers every row; the UV editor every row but the axes, the selection tint, the deformers,
+	 * and the wireframe, which its surface has none of.  Both offer the Opacity field, the UV editor's under a Geometry
 	 * heading with no row of its own.
 	 */
 	@Test
 	fun eachSurfaceOffersItsRowsAndFieldsInSectionOrder() {
 		assertEquals(
-			listOf(OverlayToggle.Grid, OverlayToggle.Axes, OverlayToggle.Cursor, OverlayToggle.Info, OverlayToggle.SelectionTint, OverlayToggle.Wireframe, OverlayToggle.CullHidden),
+			listOf(
+				OverlayToggle.Grid,
+				OverlayToggle.Axes,
+				OverlayToggle.Cursor,
+				OverlayToggle.Info,
+				OverlayToggle.SelectionTint,
+				OverlayToggle.Deformers,
+				OverlayToggle.Wireframe,
+				OverlayToggle.CullHidden,
+			),
 			overlayRowsFor(OverlaySurface.Viewport2D),
 		)
 		assertEquals(listOf(OverlayToggle.Grid, OverlayToggle.Cursor, OverlayToggle.Info), overlayRowsFor(OverlaySurface.UvEditor))
@@ -31,6 +40,7 @@ class OverlayCatalogTest {
 		assertEquals(OverlaySection.Guides, OverlayToggle.Cursor.section)
 		assertEquals(OverlaySection.Text, OverlayToggle.Info.section)
 		assertEquals(OverlaySection.Objects, OverlayToggle.SelectionTint.section)
+		assertEquals(OverlaySection.Objects, OverlayToggle.Deformers.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.Wireframe.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.CullHidden.section)
 		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Objects, OverlaySection.Geometry), OverlaySection.entries)
@@ -56,6 +66,23 @@ class OverlayCatalogTest {
 		OverlayToggle.CullHidden.set(state, false)
 		assertFalse(state.cullHiddenWireframe)
 		assertFalse(state.showWireframe, "and flips nothing else")
+	}
+
+	/** The deformers row starts off and reads and writes its flag and no other. */
+	@Test
+	fun theDeformersRowReadsAndWritesItsFlag() {
+		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
+		assertFalse(OverlayToggle.Deformers.isOn(state), "every deformer starts hidden")
+
+		OverlayToggle.Deformers.set(state, true)
+
+		assertTrue(state.showDeformers && OverlayToggle.Deformers.isOn(state))
+		assertTrue(state.effectiveDeformers)
+		assertFalse(state.showWireframe, "and flips nothing else")
+		assertTrue(state.showSelectionTint)
+		state.showOverlays = false
+		assertFalse(state.effectiveDeformers, "the master hides it")
+		assertTrue(state.showDeformers, "and keeps its flag")
 	}
 
 	/** The grid, axis, and wireframe rows read and write their own flags. */
@@ -107,7 +134,7 @@ class OverlayCatalogTest {
 		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe && state.effectiveSelectionTint && state.effectiveCullHiddenWireframe)
 	}
 
-	/** Everything is on by default but the wireframe, the opacity is whole, and a reset returns there. */
+	/** Everything is on by default but the wireframe and the deformers, the opacity is whole, and a reset returns there. */
 	@Test
 	fun defaultsAreEverythingOnButTheWireframe() {
 		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
@@ -130,6 +157,12 @@ class OverlayCatalogTest {
 		assertTrue(state.isAtDefaults, "a reset returns the opacity, the tint, and the culling too")
 		assertEquals(1f, state.wireframeOpacity)
 		assertTrue(state.showSelectionTint && state.cullHiddenWireframe)
+
+		assertFalse(state.showDeformers, "every deformer is hidden by default")
+		state.showDeformers = true
+		assertFalse(state.isAtDefaults, "showing every deformer is a deviation")
+		state.reset()
+		assertFalse(state.showDeformers, "which a reset returns")
 	}
 
 	/** The area's grid is its own over the application's, whole on both surfaces, each surface seeded with its own default. */

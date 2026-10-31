@@ -30,6 +30,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -642,7 +643,7 @@ class UvSceneRenderStructureTest {
 	 * @return MeshOverlayMesh The entry.
 	 */
 	private fun overlayMesh(id: String, vertexFlags: ByteArray = ByteArray(4)): MeshOverlayMesh =
-		MeshOverlayMesh(DrawableId(id), 4, quadEdges, vertexFlags, ByteArray(quadEdges.size / 2), ByteArray(2), null, null, null)
+		MeshOverlayMesh(ElementOwner.Drawable(DrawableId(id)), 4, quadEdges, vertexFlags, ByteArray(quadEdges.size / 2), ByteArray(2), null, null, null)
 
 	/**
 	 * An Edit overlay over direct positions, every mesh triangulated as the quad.
@@ -654,8 +655,8 @@ class UvSceneRenderStructureTest {
 	private fun direct(meshes: List<MeshOverlayMesh>, positions: Map<String, FloatArray>): DirectMeshOverlay =
 		DirectMeshOverlay(
 			MeshOverlay(MeshOverlayKind.Edit, MeshOverlaySelectMode.Vertex, meshes, sizes),
-			positions.mapKeys { (id, _) -> DrawableId(id) },
-			meshes.associate { mesh -> mesh.drawableId to quadIndices },
+			positions.mapKeys { (id, _) -> ElementOwner.Drawable(DrawableId(id)) },
+			meshes.associate { mesh -> mesh.owner to quadIndices },
 		)
 
 	/**
@@ -677,13 +678,13 @@ class UvSceneRenderStructureTest {
 	private fun islandsOver(positions: Map<String, FloatArray>, styles: Map<String, IslandStyle?>): DirectMeshOverlay {
 		val meshes =
 			styles.map { (id, style) ->
-				MeshOverlayMesh(DrawableId(id), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, style)
+				MeshOverlayMesh(ElementOwner.Drawable(DrawableId(id)), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, style?.let { colors -> MeshStyle.Island(colors) } ?: MeshStyle.Plain)
 			}
 
 		return DirectMeshOverlay(
 			MeshOverlay(MeshOverlayKind.Islands, MeshOverlaySelectMode.Vertex, meshes, sizes),
-			positions.mapKeys { (id, _) -> DrawableId(id) },
-			meshes.associate { mesh -> mesh.drawableId to quadIndices },
+			positions.mapKeys { (id, _) -> ElementOwner.Drawable(DrawableId(id)) },
+			meshes.associate { mesh -> mesh.owner to quadIndices },
 		)
 	}
 

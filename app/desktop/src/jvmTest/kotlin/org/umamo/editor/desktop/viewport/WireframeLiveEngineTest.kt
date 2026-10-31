@@ -13,12 +13,14 @@ import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -225,7 +227,7 @@ class WireframeLiveEngineTest {
 			MeshOverlaySelectMode.Vertex,
 			ids.map { id ->
 				MeshOverlayMesh(
-					drawableId = id,
+					owner = ElementOwner.Drawable(id),
 					vertexCount = 4,
 					edgeEndpoints = intArrayOf(0, 1, 1, 2, 0, 2, 1, 3, 2, 3),
 					vertexFlags = ByteArray(0),
@@ -234,7 +236,7 @@ class WireframeLiveEngineTest {
 					activeVertex = null,
 					activeEdge = null,
 					activeFace = null,
-					wireframeOnly = true,
+					style = MeshStyle.Wireframe,
 				)
 			},
 			MeshOverlaySizes(3.5f, 6f, 2.5f),

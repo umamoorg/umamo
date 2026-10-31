@@ -23,6 +23,7 @@ import org.umamo.edit.MIN_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformPivotMode
+import org.umamo.edit.editsElements
 import org.umamo.edit.transform.choiceKey
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.BelowAnchorPositionProvider
@@ -49,7 +50,7 @@ import org.umamo.ui.viewport.falloffLabel
 import org.umamo.ui.workspace.commands.ProportionalConnectedRequest
 
 /*
- * The Edit-mode header controls shared by the editor surfaces that host element editing - the 2D
+ * The Edit- and Pose-mode header controls shared by the editor surfaces that host element editing - the 2D
  * viewport and the UV editor mount the same select-mode buttons, pivot panel, snap menu, and
  * proportional control, so the two headers stay one behavior (and one look) by construction.  Every control
  * mutates by dispatching registry commands, per the everything-through-the-action-registry rule; the
@@ -72,18 +73,21 @@ private const val PROPORTIONAL_SIZE_DECIMALS = 2
 /**
  * The vertex / edge / face select-mode buttons: a three-segment radio ButtonGroup whose lit segment is
  * the selection's current mode.  Each segment dispatches its mesh.selectMode command; the session
- * no-ops a same-mode set, so re-clicking the lit segment records nothing.  Renders nothing outside Edit
- * mode, so the commands' outside-Edit self-guard is belt-and-braces here but load-bearing for the bare
- * 1 / 2 / 3 key bindings.
+ * no-ops a same-mode set, so re-clicking the lit segment records nothing.  Renders nothing outside the modes
+ * [shownIn] accepts, so the commands' Object-mode self-guard is belt-and-braces here but load-bearing for the
+ * bare 1 / 2 / 3 key bindings.
+ *
+ * @param Function shownIn Whether a mode shows the buttons: the modes that edit elements by default; a surface that
+ *   edits in fewer passes its own.
  */
 @Composable
-internal fun MeshSelectModeButtons() {
+internal fun MeshSelectModeButtons(shownIn: (EditorMode) -> Boolean = { mode -> mode.editsElements }) {
 	val commands = LocalCommands.current
 	val session = LocalEditorSession.current ?: return
 	val editorMode by session.mode.collectAsState()
 	val meshSelection by session.meshSelection.collectAsState()
 
-	if (editorMode != EditorMode.Edit) {
+	if (!shownIn(editorMode)) {
 		return
 	}
 
@@ -294,7 +298,7 @@ internal fun sessionProportionalSizeField(): ProportionalSizeField? {
 }
 
 /**
- * The proportional-editing header control (Edit mode), Blender's two-part proportional control as ONE
+ * The proportional-editing header control (Edit and Pose mode), Blender's two-part proportional control as ONE
  * [PopupChip]: the glyph half toggles proportional editing (dispatching mesh.proportional.toggle, the
  * command O binds to) and wears Blender's state glyph - off, on, or on with Connected Only - and the
  * chevron half, with the active falloff's curve beside the chevron, opens the settings panel.
@@ -305,12 +309,17 @@ internal fun sessionProportionalSizeField(): ProportionalSizeField? {
  * off; the glyph dims and the panel dims with it, yet every row stays live, and a change made while off
  * waits for the next toggle (Blender's rule - a setting never switches the tool on).  The checkbox and the
  * curves dispatch their registry commands, the checkbox with the flag it sets so the change stays silent (the
- * box is its own confirmation); the size goes through [size].  Renders nothing outside Edit mode.
+ * box is its own confirmation); the size goes through [size].  Renders nothing outside the modes [shownIn] accepts.
  *
  * @param ProportionalSizeField? size The surface's Proportional Size row, or null to leave the row out.
+ * @param Function shownIn Whether a mode shows the control: the modes that edit elements by default; a surface that
+ *   edits in fewer passes its own.
  */
 @Composable
-internal fun ProportionalEditControls(size: ProportionalSizeField?) {
+internal fun ProportionalEditControls(
+	size: ProportionalSizeField?,
+	shownIn: (EditorMode) -> Boolean = { mode -> mode.editsElements },
+) {
 	val commands = LocalCommands.current
 	val colors = LocalUmamoColors.current
 	val session = LocalEditorSession.current ?: return
@@ -318,7 +327,7 @@ internal fun ProportionalEditControls(size: ProportionalSizeField?) {
 	val proportionalEdit by session.proportionalEdit.collectAsState()
 	val settings by session.proportionalSettings.collectAsState()
 
-	if (editorMode != EditorMode.Edit) {
+	if (!shownIn(editorMode)) {
 		return
 	}
 

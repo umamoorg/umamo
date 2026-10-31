@@ -28,7 +28,8 @@ internal data class StatusHint(val chords: List<KeyChord>, val label: StringReso
  * the command palette filters on.
  *
  * A command is suggested when it carries a [Command.hint], is offered over [hoveredKind] (the palette's
- * own rule, [isOfferedIn]), and its hint's suggestedWhen holds.  Commands scoped to particular spaces
+ * own rule, [isOfferedIn]), its hint's suggestedWhen holds, and the spaces its hint's suggestedOver names
+ * right now, when it names any, take in [hoveredKind] too.  Commands scoped to particular spaces
  * come first - they are what is specific to where the pointer is - followed by the ones that belong
  * everywhere, each in registration order.
  *
@@ -64,7 +65,7 @@ internal fun everyStatusHintFor(commands: List<Command>, keymap: Keymap, hovered
 	val suggested =
 		commands.mapNotNull { command ->
 			command.hint
-				?.takeIf { hint -> command.isOfferedIn(hoveredKind) && hint.suggestedWhen.isAvailable() }
+				?.takeIf { hint -> command.isOfferedIn(hoveredKind) && hint.suggestedWhen.isAvailable() && hint.suggestedOver()?.appliesIn(hoveredKind) != false }
 				?.let { hint -> hint.label to command }
 		}
 	// A stable sort, so each tier keeps registration order.

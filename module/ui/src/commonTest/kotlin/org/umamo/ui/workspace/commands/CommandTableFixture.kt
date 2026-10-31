@@ -7,10 +7,13 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.settings.Settings
 import org.umamo.storage.OkioAppStorage
 import org.umamo.ui.action.Command
@@ -41,12 +44,17 @@ import kotlin.test.assertEquals
  */
 
 /**
- * A session in [mode] with one mesh drawable selected - Edit mode is refused with nothing to edit.
+ * A session in [mode] with one mesh drawable selected and one warp in the model - Edit mode is refused with
+ * nothing to edit, and Pose mode with nothing to pose.
  *
  * @param EditorMode mode The mode to leave the session in.
+ * @param RuntimeTarget runtimeTarget The document's runtime target, unrestricted unless a case varies it.
  * @return EditorSession The session, verified to be in [mode].
  */
-internal fun commandFixtureSession(mode: EditorMode): EditorSession {
+internal fun commandFixtureSession(
+	mode: EditorMode,
+	runtimeTarget: RuntimeTarget = RuntimeTarget.NoTarget,
+): EditorSession {
 	val drawable =
 		Drawable(
 			id = DrawableId("a"),
@@ -57,15 +65,28 @@ internal fun commandFixtureSession(mode: EditorMode): EditorSession {
 			mesh = DrawableMesh.withLocalEqualToCanvas(floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f), intArrayOf(0, 1, 2)),
 			geometryGrid = null,
 		)
+	// One deformer, because Pose mode is refused on a model with nothing to pose.
+	val warp =
+		Deformer.Warp(
+			id = DeformerId("w"),
+			name = "w",
+			parent = null,
+			partId = null,
+			rows = 1,
+			columns = 1,
+			isQuadTransform = true,
+			geometryGrid = null,
+		)
 	val session =
 		EditorSession(
 			PuppetModel(
 				parameters = emptyList(),
 				parts = emptyList(),
-				deformers = emptyList(),
+				deformers = listOf(warp),
 				drawables = listOf(drawable),
 				rootChildren = emptyList(),
 				rootPartId = null,
+				runtimeTarget = runtimeTarget,
 			),
 		)
 	val target = SelectionTarget.Drawable(DrawableId("a"))
@@ -105,6 +126,20 @@ private class SessionHandles(private val session: EditorSession) : SelectionHand
 	 */
 	override fun set(mode: EditorMode) {
 		session.setMode(mode)
+	}
+
+	/**
+	 * Routes the Edit toggle to the session.
+	 */
+	override fun toggleEdit() {
+		session.toggleEditMode()
+	}
+
+	/**
+	 * Routes the Pose toggle to the session.
+	 */
+	override fun togglePose() {
+		session.togglePoseMode()
 	}
 }
 
@@ -171,6 +206,7 @@ internal fun shellCommandTables(session: EditorSession? = null): List<Command> {
 		uvCommands(session, routing, availability) +
 		topologyCommands(session, routing, availability) +
 		meshGenerationCommands(availability, routing, null, null) +
+		latticeCommands(session, routing, availability) +
 		proportionalCommands(session, availability) +
 		displayCommands(session, availability) +
 		atlasCommands(availability, routing, null) +
