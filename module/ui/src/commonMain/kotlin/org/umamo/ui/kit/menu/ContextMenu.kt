@@ -27,8 +27,6 @@ import kotlin.math.roundToInt
  * While [suppressed], a request is still taken - it reaches no enclosing area's menu - but opens nothing: a surface
  * whose right press means something else while a gesture runs elsewhere says so here.
  *
- * 二次クリック（デスクトップ）または長押し（タッチ）で、ポインタ位置に items をメニューとして開く。
- *
  * @param List items The menu entries (built in composition, so labels can be localized).
  * @param Modifier modifier The layout modifier for the wrapping box.
  * @param Boolean suppressed Whether a request is swallowed without opening the menu.
@@ -86,8 +84,6 @@ internal val LocalContextMenuItems = compositionLocalOf { emptyList<MenuItem>() 
  * Reports a context-menu request with the pointer position in the modified element's local space.  The
  * trigger is platform-specific - a secondary (right) click on desktop, a long press on a touch screen -
  * because pointer-button state is a desktop-only (skiko) detail, so the detector is provided per platform.
- *
- * コンテキストメニュー要求を局所座標で通知する。トリガーはプラットフォーム依存（右クリック / 長押し）。
  *
  * @param Function onContextMenu Called with the request point in local coordinates.
  * @return Modifier The modifier with the platform's gesture detector attached.
