@@ -627,7 +627,7 @@
 	<string name="cmd_mesh_select_linked_cursor">Select Linked under Cursor</string>
 	<string name="cmd_mesh_select_linked">Select Linked</string>
 	<string name="cmd_view_frame_selected">Frame Selected</string>
-	<string name="cmd_switch_object_under_cursor">Switch Edited Object</string>
+	<string name="cmd_switch_object_under_cursor">Switch Editing Object</string>
 	<string name="cmd_outliner_select_hierarchy">Select Hierarchy</string>
 	<string name="outliner_menu_select_hierarchy">Select Hierarchy</string>
 

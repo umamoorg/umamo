@@ -6,6 +6,8 @@ import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 
@@ -31,6 +33,23 @@ val EditorSession.shownPendingLatticeEdits: Flow<Map<DeformerId, WarpLatticeForm
 /** The session's pending channel edits as its mode shows them ([shownPending]), live. */
 val EditorSession.shownPendingChannelEdits: Flow<Map<KeyableTarget, ChannelValue>>
 	get() = combine(mode, pendingChannelEdits) { editorMode, pending -> editorMode.shownPending(pending) }
+
+/**
+ * The tracks holding an edit a key at the pose would store: each typed channel value's track and each Pose-mode
+ * lattice's geometry track.  The one rule for "this track holds an edit" - a key aimed anywhere on such a track keys
+ * the edit at the pose, and the keyform sheet marks it there, so the mark and the key always agree.
+ *
+ * @param Map<KeyableTarget, ChannelValue> channels The pending channel values.
+ * @param Map<DeformerId, WarpLatticeForm> lattices The pending Pose-mode lattices.
+ * @return Set<KeyformTrackRef> The tracks holding them.
+ */
+fun heldTracks(channels: Map<KeyableTarget, ChannelValue>, lattices: Map<DeformerId, WarpLatticeForm>): Set<KeyformTrackRef> =
+	channels.keys.mapTo(LinkedHashSet()) { target -> KeyformTrackRef.Channel(target) } +
+		lattices.keys.map { deformerId -> KeyformTrackRef.Geometry(KeyformOwner.Deformer(deformerId)) }
+
+/** The tracks holding an edit as the session's mode shows them ([heldTracks] over [shownPending]), live. */
+val EditorSession.shownHeldTracks: Flow<Set<KeyformTrackRef>>
+	get() = combine(shownPendingChannelEdits, shownPendingLatticeEdits) { channels, lattices -> heldTracks(channels, lattices) }
 
 /**
  * The entries of [pending] a step from [before] to [after] at an unmoved pose keeps: each whose warp [after] still

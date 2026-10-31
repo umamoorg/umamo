@@ -8,10 +8,12 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
+import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.Parameter
@@ -69,6 +71,24 @@ class KeyformSheetRowsTest {
 			rootChildren = emptyList(),
 			rootPartId = null,
 			glues = glues,
+		)
+
+	/**
+	 * A meshless drawable keying its opacity and its draw order on angleX.
+	 *
+	 * @param String id The drawable's id, also its name.
+	 * @return Drawable The drawable.
+	 */
+	private fun channelKeyedDrawable(id: String): Drawable =
+		Drawable(
+			id = DrawableId(id),
+			name = id,
+			parentDeformerId = null,
+			blendMode = BlendMode.Normal,
+			maskedBy = emptyList(),
+			mesh = null,
+			geometryGrid = null,
+			channelGrids = ChannelGrids(mapOf(FormChannel.OPACITY to intensityTrack(), FormChannel.DRAW_ORDER to intensityTrack())),
 		)
 
 	/** Every row in the tree, flattened. */
@@ -260,10 +280,26 @@ class KeyformSheetRowsTest {
 	/** A warp holding an unkeyed Pose-mode lattice rings its geometry row at the pose; the others carry no ring. */
 	@Test
 	fun aPendingLatticeRingsItsGeometryRowAtThePose() {
-		val rows = allRows(keyformSheetRows(latticeRigModel(), LATTICE_RIG_PARAMETER, labels(), pendingWarpIds = setOf(LATTICE_RIG_BODY), poseValue = 0.5f).rows)
+		val held = setOf<KeyformTrackRef>(KeyformTrackRef.Geometry(KeyformOwner.Deformer(LATTICE_RIG_BODY)))
+		val rows = allRows(keyformSheetRows(latticeRigModel(), LATTICE_RIG_PARAMETER, labels(), heldTracks = held, poseValue = 0.5f).rows)
 
 		assertEquals(0.5f, rows.single { row -> row.key == "deformer:${LATTICE_RIG_BODY.raw}/geometry" }.pendingAt)
 		assertNull(rows.single { row -> row.key == "deformer:${LATTICE_RIG_HEAD.raw}/geometry" }.pendingAt)
-		assertTrue(rows.filter { row -> !row.key.endsWith("/geometry") }.all { row -> row.pendingAt == null }, "only geometry rows ring")
+		assertTrue(rows.filter { row -> row.key != "deformer:${LATTICE_RIG_BODY.raw}/geometry" }.all { row -> row.pendingAt == null }, "a row holding nothing carries no ring")
+	}
+
+	/**
+	 * A channel holding a typed value rings its own row at the pose - a key on that row stores the value there, wherever
+	 * the pointer is on the lane - while the owner's other channels and another owner's same channel carry no ring.
+	 */
+	@Test
+	fun aHeldValueRingsItsChannelRowAtThePose() {
+		val held = setOf<KeyformTrackRef>(KeyformTrackRef.Channel(KeyableTarget(KeyformOwner.Drawable(DrawableId("a")), FormChannel.OPACITY)))
+		val rows = allRows(keyformSheetRows(model(drawables = listOf(channelKeyedDrawable("a"), channelKeyedDrawable("b"))), angleX, labels(), heldTracks = held, poseValue = 0.25f).rows)
+
+		assertEquals(0.25f, rows.single { row -> row.key == "drawable:a/OPACITY" }.pendingAt)
+		assertNull(rows.single { row -> row.key == "drawable:a/DRAW_ORDER" }.pendingAt, "the owner's other channel")
+		assertNull(rows.single { row -> row.key == "drawable:b/OPACITY" }.pendingAt, "another owner's same channel")
+		assertNull(rows.single { row -> row.key == "drawable:a" }.pendingAt, "group rows carry no ring")
 	}
 }

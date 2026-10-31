@@ -10,6 +10,7 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.ParameterChoiceRequest
 import org.umamo.edit.Pose
 import org.umamo.edit.TrackKeyRef
+import org.umamo.edit.heldTracks
 import org.umamo.edit.shownPending
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
@@ -235,23 +236,14 @@ private fun EditorSession.captureAtPose(
 }
 
 /**
- * Whether [track] holds an unkeyed edit the mode shows: a typed channel value, or a warp's Pose-mode lattice.
+ * Whether [track] holds an unkeyed edit the mode shows ([heldTracks]): a typed channel value, or a warp's Pose-mode
+ * lattice.
  *
  * @param KeyformTrackRef track The track.
  * @return Boolean True when it holds one.
  */
 private fun EditorSession.holdsShownEdit(track: KeyformTrackRef): Boolean =
-	when (track) {
-		is KeyformTrackRef.Channel -> {
-			track.target in mode.value.shownPending(pendingChannelEdits.value)
-		}
-
-		is KeyformTrackRef.Geometry -> {
-			val warpId = (track.owner as? KeyformOwner.Deformer)?.id
-
-			warpId != null && warpId in mode.value.shownPending(pendingLatticeEdits.value)
-		}
-	}
+	track in heldTracks(mode.value.shownPending(pendingChannelEdits.value), mode.value.shownPending(pendingLatticeEdits.value))
 
 /**
  * The [TrackKeyRef] a key inserted at [position] would take, or null when nothing new is added.
