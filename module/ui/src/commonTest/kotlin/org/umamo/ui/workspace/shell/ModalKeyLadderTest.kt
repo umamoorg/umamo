@@ -50,6 +50,7 @@ import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.area.AreaCorner
 import org.umamo.ui.workspace.area.AreaDragController
 import org.umamo.ui.workspace.area.SplitterDragCancelController
+import org.umamo.ui.workspace.commands.pieMenuEntriesFor
 import org.umamo.ui.workspace.export.ExportOptionsRequest
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 import kotlin.test.Test
@@ -891,7 +892,7 @@ class ModalKeyLadderTest {
 	fun aPieMenuDigitPicksItsEntryAndClosesTheRing() {
 		val session = session(EditorMode.Object)
 		session.openPieMenu(PieMenuKind.PivotMode)
-		val first = pieMenuEntriesFor(PieMenuKind.PivotMode).first()
+		val first = pieMenuEntriesFor(PieMenuKind.PivotMode, CommandRegistry()).first()
 		val registry = RecordingRegistry(first.commandId)
 		val state = ShellModalState(editorSession = session, commandRegistry = registry.registry)
 

@@ -8,6 +8,7 @@ import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.keyName
+import org.umamo.ui.workspace.commands.pieMenuEntriesFor
 
 /*
  * The shell's modal key ladder: the ordered Escape/Enter (and modal-only key) precedence that runs in
@@ -206,7 +207,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 							Key.Eight, Key.NumPad8 -> 8
 							else -> 0
 						}
-					val entry = if (digit > 0) pieMenuEntriesFor(openPie).getOrNull(digit - 1) else null
+					val entry = if (digit > 0) pieMenuEntriesFor(openPie, commandRegistry).getOrNull(digit - 1) else null
 
 					if (entry != null && entry.enabled) {
 						// Invoke-then-close, matching the pointer pick's order.

@@ -71,6 +71,7 @@ enum class PieMenuKind {
 	Snap,
 	UvSnap,
 	MergeTarget,
+	InsertKey,
 }
 
 /**

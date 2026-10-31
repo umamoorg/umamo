@@ -118,13 +118,15 @@ internal object PoseLatticeTestRig {
 	 *
 	 * @param List<SelectionTarget> selected The targets to select.
 	 * @param Pose pose The pose to scrub to before entering.
+	 * @param PuppetModel rig The rig to open, the plain one unless a test varies it.
 	 * @return EditorSession The session.
 	 */
 	fun posing(
 		selected: List<SelectionTarget>,
 		pose: Pose = emptyMap(),
+		rig: PuppetModel = model(),
 	): EditorSession {
-		val session = EditorSession(model())
+		val session = EditorSession(rig)
 
 		if (pose.isNotEmpty()) {
 			session.commitPose(ParameterChange.SetValue(pose.keys.toList()), session.pose.value + pose)

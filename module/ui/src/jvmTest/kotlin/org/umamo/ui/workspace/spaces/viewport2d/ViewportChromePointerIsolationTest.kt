@@ -184,6 +184,7 @@ class ViewportChromePointerIsolationTest {
 					LocalDensity provides Density(1f),
 					LocalSettings provides settings,
 					LocalCommands provides commands,
+					LocalKeymap provides defaultKeymap(),
 					LocalEditorSession provides session,
 					LocalPuppet provides session.model.value,
 					LocalSidebarRegistry provides sidebarRegistry,

@@ -70,6 +70,9 @@ internal class SessionAvailability(session: EditorSession?) {
 	/** Applies outside Edit mode, which edits the rest state alone: every command that inserts, removes, or moves a key. */
 	val canEditKeys = CommandAvailability { session?.mode?.value?.editsKeys == true }
 
+	/** Applies only in Pose mode, where the posed warps are what a key writes on. */
+	val inPoseMode = CommandAvailability { session?.mode?.value == EditorMode.Pose }
+
 	/** Applies only while a Circle-select brush is live, since the radius steps have nothing to resize otherwise. */
 	val circleToolLive = CommandAvailability { session?.activeSelectTool?.value is ActiveSelectTool.Circle }
 

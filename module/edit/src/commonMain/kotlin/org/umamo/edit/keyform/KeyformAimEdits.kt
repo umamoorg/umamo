@@ -13,12 +13,15 @@ import org.umamo.edit.TrackKeyRef
 import org.umamo.edit.shownPending
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RuntimeFeature
+import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.channelGridsOf
 
 /*
@@ -103,9 +106,12 @@ fun EditorSession.captureKeyOnTrack(
  * Captures a key on every track in [tracks] at [aim], keyed on the parameter the edit writes on, as ONE undo step.
  *
  * An aimed capture inserts a shape-preserving key at that position, so it holds whatever the track already
- * evaluates to there.  A capture at the pose stores the PENDING unkeyed edit when there is one, else what the
- * track shows there - so an insert after typing or shaping stores what was made, and an insert with nothing edited
- * pins what is already on screen (Blender's behaviour, and how a rigger anchors a pose before moving on):
+ * evaluates to there - unless its one track holds an edit the mode shows (a typed channel value, or a warp's
+ * Pose-mode lattice): that edit was made for the pose, so it is keyed at the pose wherever the aim pointed, rather
+ * than left held beside a key that ignores it.  A capture at the pose stores the PENDING unkeyed edit when there is
+ * one, else what the track shows there - so an insert after typing or shaping stores what was made, and an insert
+ * with nothing edited pins what is already on screen (Blender's behaviour, and how a rigger anchors a pose before
+ * moving on):
  *
  *  - A channel stores its pending value, else its evaluated value.
  *  - A warp's lattice stores its pending Pose-mode shape, else the lattice its grid blends to at the pose, and a
@@ -145,17 +151,18 @@ fun EditorSession.captureKeysOnTracks(
 		return
 	}
 	val parameter = keyformParameterFor(parameterId) ?: return
+	val placed = if (aim is KeyformAim.Position && tracks.singleOrNull()?.let { track -> holdsShownEdit(track) } == true) KeyformAim.Pose else aim
 	// An aimed capture keys where it was pointed; every other kind keys at the pose.  Resolved once, because
 	// it is both where the key goes and what the ordinal query has to be asked about.
 	val keyPosition =
-		when (aim) {
-			is KeyformAim.Position -> aim.position
+		when (placed) {
+			is KeyformAim.Position -> placed.position
 			is KeyformAim.Pose -> shownPose[parameter.id] ?: parameter.default
 		}
 	val inserted = tracks.singleOrNull()?.let { track -> insertedKeyRef(track, parameter, keyPosition, rowKey) }
 
-	if (aim is KeyformAim.Position) {
-		insertingKey(inserted) { insertTrackKeysAt(tracks, parameter, aim.position) }
+	if (placed is KeyformAim.Position) {
+		insertingKey(inserted) { insertTrackKeysAt(tracks, parameter, placed.position) }
 
 		return
 	}
@@ -208,7 +215,7 @@ private fun EditorSession.captureAtPose(
 	return when (track) {
 		is KeyformTrackRef.Channel -> {
 			val target = track.target
-			val value = pendingChannelEdits.value[target] ?: model.channelValueAt(target, pose) ?: return null
+			val value = mode.value.shownPending(pendingChannelEdits.value)[target] ?: model.channelValueAt(target, pose) ?: return null
 
 			{ current -> current.withChannelKeyCaptured(target, parameter, pose, value) }
 		}
@@ -226,6 +233,25 @@ private fun EditorSession.captureAtPose(
 		}
 	}
 }
+
+/**
+ * Whether [track] holds an unkeyed edit the mode shows: a typed channel value, or a warp's Pose-mode lattice.
+ *
+ * @param KeyformTrackRef track The track.
+ * @return Boolean True when it holds one.
+ */
+private fun EditorSession.holdsShownEdit(track: KeyformTrackRef): Boolean =
+	when (track) {
+		is KeyformTrackRef.Channel -> {
+			track.target in mode.value.shownPending(pendingChannelEdits.value)
+		}
+
+		is KeyformTrackRef.Geometry -> {
+			val warpId = (track.owner as? KeyformOwner.Deformer)?.id
+
+			warpId != null && warpId in mode.value.shownPending(pendingLatticeEdits.value)
+		}
+	}
 
 /**
  * The [TrackKeyRef] a key inserted at [position] would take, or null when nothing new is added.
@@ -444,22 +470,76 @@ private fun EditorSession.targetedParameter(): Parameter? {
 }
 
 /**
- * The lattice tracks a Pose-mode key writes on: every warp the session poses, which is what "the selected deformers"
- * means in Pose mode; null outside Pose mode, where keying falls to whatever the caller aims at.  An empty session
- * refuses with a notice and answers an empty list, so the caller does nothing more.
- *
- * @return List<KeyformTrackRef>? The tracks, or null outside Pose mode.
+ * Which of the posed warps' tracks a Pose-mode key writes on ([posedKeyTracks]): what plain `I` takes, and each
+ * choice the key-type pie offers.
  */
-fun EditorSession.posedLatticeTracks(): List<KeyformTrackRef>? {
+enum class PoseKeyKind {
+	/** The lattice, plus every channel value held unkeyed on the same warp - what plain `I` keys, so nothing typed is left held. */
+	Held,
+
+	/** The lattice alone. */
+	Lattice,
+
+	/** The opacity alone. */
+	Opacity,
+
+	/** The multiply and screen colors, each one the document's runtime target supports ([keyableColorChannels]). */
+	Colors,
+
+	/** The lattice, the opacity, and the colors. */
+	All,
+}
+
+/**
+ * The color channels a key may write under this target: multiply and screen, each when the target supports it.
+ *
+ * @return List<FormChannel> The channels, multiply first.
+ */
+fun RuntimeTarget.keyableColorChannels(): List<FormChannel> =
+	listOfNotNull(
+		FormChannel.MULTIPLY_COLOR.takeIf { supports(RuntimeFeature.MultiplyColor) },
+		FormChannel.SCREEN_COLOR.takeIf { supports(RuntimeFeature.ScreenColor) },
+	)
+
+/**
+ * The tracks a Pose-mode key of [kind] writes on, over every warp the session poses, which is what "the selected
+ * deformers" means in Pose mode; null outside Pose mode, where keying falls to whatever the caller aims at.  An empty
+ * session refuses with a notice and answers an empty list, so the caller does nothing more.
+ *
+ * Built per posed deformer as its geometry track plus its channel tracks, so a deformer kind that comes to be posed
+ * keys through the same kinds.
+ *
+ * @param PoseKeyKind kind Which of each warp's tracks to take.
+ * @return List<KeyformTrackRef>? The tracks, warp by warp, or null outside Pose mode.
+ */
+fun EditorSession.posedKeyTracks(kind: PoseKeyKind): List<KeyformTrackRef>? {
 	if (mode.value != EditorMode.Pose) {
 		return null
 	}
 
-	val tracks = meshSelection.value.deformerIds.map { warpId -> KeyformTrackRef.Geometry(KeyformOwner.Deformer(warpId)) }
+	val warpIds = meshSelection.value.deformerIds
 
-	if (tracks.isEmpty()) {
+	if (warpIds.isEmpty()) {
 		emitNotice("notice.keyform.noTarget", NoticePlacement.NearCursor)
+
+		return emptyList()
 	}
 
-	return tracks
+	val colors = model.value.runtimeTarget.keyableColorChannels()
+	val held = pendingChannelEdits.value.keys
+
+	return warpIds.flatMap { warpId ->
+		val owner = KeyformOwner.Deformer(warpId)
+		val lattice = KeyformTrackRef.Geometry(owner)
+		val opacity = KeyformTrackRef.Channel(KeyableTarget(owner, FormChannel.OPACITY))
+		val colorTracks = colors.map { channel -> KeyformTrackRef.Channel(KeyableTarget(owner, channel)) }
+
+		when (kind) {
+			PoseKeyKind.Held -> listOf(lattice) + held.filter { target -> target.owner == owner }.map { target -> KeyformTrackRef.Channel(target) }
+			PoseKeyKind.Lattice -> listOf(lattice)
+			PoseKeyKind.Opacity -> listOf(opacity)
+			PoseKeyKind.Colors -> colorTracks
+			PoseKeyKind.All -> listOf(lattice, opacity) + colorTracks
+		}
+	}
 }

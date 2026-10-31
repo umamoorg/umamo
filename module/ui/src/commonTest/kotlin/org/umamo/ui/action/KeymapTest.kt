@@ -260,6 +260,26 @@ class KeymapTest {
 		assertNull(cubism.commandFor(chord))
 	}
 
+	/**
+	 * Keying reads the same in every preset: I inserts, Alt+I deletes, and K opens the key-type pie, the cubism preset
+	 * included.  Clear Pose Edits ships unbound in all three.
+	 */
+	@Test
+	fun keyingBindsTheSameInEveryPreset() {
+		val bindings = mapOf(KeyChord(keyName = "KeyI") to "keyform.insert", KeyChord(keyName = "KeyI", alt = true) to "keyform.delete", KeyChord(keyName = "KeyK") to "keyform.insertPie")
+
+		for (presetId in listOf("default", "cubism", "blender")) {
+			val keymap = Keymap.fromSpecs(keymapPresetSpecs(presetId))
+
+			for ((chord, commandId) in bindings) {
+				assertEquals(commandId, keymap.commandFor(chord), "$chord in $presetId")
+				assertEquals(chord, keymap.chordFor(commandId), "the chord reads back in $presetId")
+			}
+
+			assertNull(keymap.chordFor("keyform.clearPoseEdits"), "Clear Pose Edits unbound in $presetId")
+		}
+	}
+
 	/** Generate Quad Mesh ships unbound in every preset; a rigger binds it in Preferences. */
 	@Test
 	fun generateQuadMeshShipsUnbound() {

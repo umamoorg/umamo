@@ -389,6 +389,7 @@
 	<string name="history_pose_scale">ポーズ：格子の点を拡縮</string>
 	<string name="history_pose_rotate">ポーズ：格子の点を回転</string>
 	<string name="history_pose_slide">ポーズ：格子の点をスライド</string>
+	<string name="history_pose_clear_edits">ポーズの編集をクリア</string>
 	<string name="history_uv_move">UV を移動</string>
 	<string name="history_uv_scale">UV を拡縮</string>
 	<string name="history_uv_rotate">UV を回転</string>
@@ -570,7 +571,7 @@
 	<string name="cmd_mesh_select_linked_cursor">リンク選択（カーソル下）</string>
 	<string name="cmd_mesh_select_linked">リンク選択</string>
 	<string name="cmd_view_frame_selected">選択部分を画面に収める</string>
-	<string name="cmd_switch_object_under_cursor">編集メッシュを切り替え</string>
+	<string name="cmd_switch_object_under_cursor">編集対象を切り替え</string>
 	<string name="cmd_outliner_select_hierarchy">階層を選択</string>
 	<string name="outliner_menu_select_hierarchy">階層を選択</string>
 
@@ -746,6 +747,11 @@
 	<string name="pie_title_snap">スナップ</string>
 	<string name="pie_title_uv_snap">UV スナップ</string>
 	<string name="pie_title_merge">マージ</string>
+	<string name="pie_title_insert_key">キー挿入</string>
+	<string name="pie_insert_key_lattice">格子</string>
+	<string name="pie_insert_key_opacity">不透明度</string>
+	<string name="pie_insert_key_colors">カラー</string>
+	<string name="pie_insert_key_all">すべて</string>
 
 	<string name="cmd_view_toggle_toolbar">ツールバーの切り替え</string>
 	<string name="cmd_view_toggle_sidebar">サイドバーの切り替え</string>
@@ -1200,6 +1206,12 @@
 	<string name="cmd_keyform_nudge_right">キーフレームを右へ微調整</string>
 	<string name="cmd_keyform_delete_keys">選択したキーを削除</string>
 	<string name="cmd_keyform_delete">キーフレーム削除</string>
+	<string name="cmd_keyform_insert_pie">種類を選んでキーフレーム挿入</string>
+	<string name="cmd_keyform_insert_lattice">格子のキーフレームを挿入</string>
+	<string name="cmd_keyform_insert_opacity">不透明度のキーフレームを挿入</string>
+	<string name="cmd_keyform_insert_colors">カラーのキーフレームを挿入</string>
+	<string name="cmd_keyform_insert_all">すべてのキーフレームを挿入</string>
+	<string name="cmd_keyform_clear_pose_edits">ポーズの編集をクリア</string>
 	<string name="notice_keyform_no_target">キーフレームを挿入するには、キー可能なプロパティを指してください。</string>
 	<string name="notice_keyform_no_parameter">キーを打つパラメータを選択してください。</string>
 	<string name="notice_parameter_delete_changed_rest">パラメータを削除しました。%1$d 個のオブジェクトの既定値での見た目が変わりました。</string>

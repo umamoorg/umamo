@@ -7,6 +7,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -23,21 +24,34 @@ import kotlin.math.roundToInt
  * a @Composable call that can only run during composition, not on the pointer event that opens the menu.
  * The list is cheap to rebuild each recomposition and is therefore always current.
  *
+ * While [suppressed], a request is still taken - it reaches no enclosing area's menu - but opens nothing: a surface
+ * whose right press means something else while a gesture runs elsewhere says so here.
+ *
  * 二次クリック（デスクトップ）または長押し（タッチ）で、ポインタ位置に items をメニューとして開く。
  *
  * @param List items The menu entries (built in composition, so labels can be localized).
  * @param Modifier modifier The layout modifier for the wrapping box.
+ * @param Boolean suppressed Whether a request is swallowed without opening the menu.
  * @param Function content The content the context menu is attached to.
  */
 @Composable
-fun ContextMenuArea(items: List<MenuItem>, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun ContextMenuArea(
+	items: List<MenuItem>,
+	modifier: Modifier = Modifier,
+	suppressed: Boolean = false,
+	content: @Composable () -> Unit,
+) {
 	var open by remember { mutableStateOf(false) }
 	var anchorOffset by remember { mutableStateOf(IntOffset.Zero) }
+	// Read through updated state: the gesture detector keeps the handler it started with.
+	val swallowRequests by rememberUpdatedState(suppressed)
 	Box(
 		modifier =
 			modifier.contextMenuGesture { localOffset ->
-				anchorOffset = localOffset
-				open = true
+				if (!swallowRequests) {
+					anchorOffset = localOffset
+					open = true
+				}
 			},
 	) {
 		CompositionLocalProvider(LocalContextMenuItems provides items) {

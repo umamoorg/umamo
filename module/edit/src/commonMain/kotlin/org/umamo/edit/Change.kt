@@ -1143,4 +1143,13 @@ sealed interface EditorStateChange : Change {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.mode"
 	}
+
+	/**
+	 * Every unkeyed edit held at the pose discarded at once - the channel values and the Pose-mode lattices - with
+	 * the pose and the model untouched.  Its own undo step, so undoing it brings the edits back.
+	 */
+	object PoseEditsCleared : EditorStateChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.pose.clearEdits"
+	}
 }

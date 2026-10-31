@@ -677,6 +677,21 @@ class EditorSession private constructor(
 	}
 
 	/**
+	 * Discards every unkeyed edit held at the pose - the channel values and the Pose-mode lattices - as ONE undo step,
+	 * so undo brings them back.  The model and the pose are untouched, so this is not a document edit.  Nothing to
+	 * discard records nothing, and neither does a mode that pins the pose: it shows none of them.
+	 */
+	fun clearPoseEdits() {
+		val nothingHeld = mutablePendingChannelEdits.value.isEmpty() && mutablePendingLatticeEdits.value.isEmpty()
+
+		if (nothingHeld || posePinned) {
+			return
+		}
+
+		commitStep(EditorStateChange.PoseEditsCleared, pendingChannelEdits = emptyMap(), pendingLatticeEdits = emptyMap())
+	}
+
+	/**
 	 * Records [forms] as Pose-mode lattices shaped but not keyed, laid over the pending lattices already held, as ONE
 	 * undo step described by [change] - what a finished Pose-mode G / R / S, slide, or snap over lattice points
 	 * commits.  The model is untouched, so this is not a document edit and leaves dirty alone; the renderer poses with

@@ -1,17 +1,23 @@
 package org.umamo.ui.workspace.commands
 
+import org.jetbrains.compose.resources.StringResource
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.KeyformAim
 import org.umamo.edit.NoticePlacement
+import org.umamo.edit.PieMenuKind
+import org.umamo.edit.keyform.PoseKeyKind
 import org.umamo.edit.keyform.captureKeyOnTrack
 import org.umamo.edit.keyform.captureKeysOnTracks
-import org.umamo.edit.keyform.posedLatticeTracks
+import org.umamo.edit.keyform.keyableColorChannels
+import org.umamo.edit.keyform.posedKeyTracks
 import org.umamo.edit.keyform.removeKeyOnTrack
 import org.umamo.edit.keyform.removeKeysOnTracks
 import org.umamo.edit.keyform.removeTrackKeys
 import org.umamo.edit.keyform.removingKeys
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.ui.action.Command
+import org.umamo.ui.action.CommandAvailability
 import org.umamo.ui.action.CommandHint
 import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.KeyformHover
@@ -21,7 +27,8 @@ import org.umamo.ui.workspace.SpaceScope
 
 /*
  * The keyform-authoring command table: insert / delete on the hovered keyable property or, over a Pose-mode 2D
- * viewport, on the warps it poses, and the keyform sheet's own selection and view operations.
+ * viewport, on the warps it poses; the key-type pie and its choices; Clear Pose Edits; and the keyform sheet's own
+ * selection and view operations.
  *
  * What is here is POINTER bookkeeping, not authoring rules.  A command resolves what the pointer is over,
  * refuses when that is nothing, and hands the plain description of it - track, parameter, aim - to the
@@ -31,17 +38,18 @@ import org.umamo.ui.workspace.SpaceScope
  *
  * Every target resolves at DISPATCH time (the hovered keyable, the hovered sheet), never latched at
  * registration - the same rule the viewport commands follow, and what lets `I` work with no prior
- * selection: point at Opacity and press it.  Over a 2D viewport in Pose mode the target is the posed warps'
- * lattices on the selected parameter (posedLatticeTracks), what Pose mode shapes.
+ * selection: point at Opacity and press it.  Over a 2D viewport in Pose mode the target is the posed warps on the
+ * selected parameter (posedKeyTracks): their lattices and the values held on them for plain I, one kind of track for
+ * each choice of the K pie.
  *
  * Every command that inserts, removes, or moves a key applies outside Edit mode only (EditorMode.editsKeys):
  * Edit mode edits the rest state alone, so there its chords fall through rather than reaching a key.
  */
 
 /**
- * The keyform-authoring commands: insert / delete a key on the hovered keyable (or the posed warps' lattices over a
- * Pose-mode 2D viewport), and the keyform sheet's delete-selected / nudge / frame-all.  All but frame-all change keys,
- * so they apply outside Edit mode only.
+ * The keyform-authoring commands: insert / delete a key on the hovered keyable (or the posed warps over a Pose-mode 2D
+ * viewport), the key-type pie and its four choices, Clear Pose Edits, and the keyform sheet's delete-selected / nudge /
+ * frame-all.  Every command that changes keys applies outside Edit mode only.
  *
  * The sheet commands are registered ONCE here rather than per sheet area: CommandRegistry is
  * last-write-wins per id, so per-area registration made two open sheets clobber each other's handlers and
@@ -74,14 +82,37 @@ internal fun keyformCommands(
 	 */
 	fun hoveredSheetArea(): String? = routing.areaOf(SpaceKind.KeyformSheet)
 
+	/**
+	 * One choice of the key-type pie: keys the posed warps' tracks of [kind] at the pose, then closes the pie, so a
+	 * pick from the pie, its digit, the palette, or the viewport's context menu all key alike.
+	 *
+	 * @param String id The command id.
+	 * @param StringResource title The palette title.
+	 * @param PoseKeyKind kind Which of each posed warp's tracks to key.
+	 * @param CommandAvailability available When the choice applies.
+	 * @return Command The command.
+	 */
+	fun poseKeyCommand(
+		id: String,
+		title: StringResource,
+		kind: PoseKeyKind,
+		available: CommandAvailability,
+	): Command =
+		Command(id, title = title, availability = available) {
+			editorSession?.let { session ->
+				session.posedKeyTracks(kind)?.let { tracks -> session.captureKeysOnTracks(tracks, null, KeyformAim.Pose) }
+				session.closePieMenu()
+			}
+		}
+
 	return listOf(
 		Command(
 			"keyform.insert",
 			title = Res.string.cmd_keyform_insert,
 			availability = availability.canEditKeys,
 			spaces = SpaceScope.KeyableSurfaces,
-			// Suggested over the sheet and Properties alone: over a 2D viewport it keys only in Pose mode.
-			hint = CommandHint(Res.string.status_bind_insert_key, suggestedOver = SpaceScope.of(SpaceKind.KeyformSheet, SpaceKind.Properties)),
+			// Suggested over a 2D viewport in Pose mode alone, the one mode it keys there in.
+			hint = CommandHint(Res.string.status_bind_insert_key, suggestedOver = { if (editorSession?.mode?.value == EditorMode.Pose) SpaceScope.KeyableSurfaces else KEYED_PANELS }),
 		) {
 			editorSession?.let { session ->
 				keyAtPointer(session, routing, hoveredKeyable, { tracks -> session.captureKeysOnTracks(tracks, null, KeyformAim.Pose) }) { hover ->
@@ -96,7 +127,7 @@ internal fun keyformCommands(
 			title = Res.string.cmd_keyform_delete,
 			availability = availability.canEditKeys,
 			spaces = SpaceScope.KeyableSurfaces,
-			hint = CommandHint(Res.string.status_bind_delete_key, suggestedOver = SpaceScope.of(SpaceKind.KeyformSheet, SpaceKind.Properties)),
+			hint = CommandHint(Res.string.status_bind_delete_key, suggestedOver = { KEYED_PANELS }),
 		) {
 			editorSession?.let { session ->
 				keyAtPointer(session, routing, hoveredKeyable, { tracks -> session.removeKeysOnTracks(tracks, null, KeyformAim.Pose) }) { hover ->
@@ -106,6 +137,40 @@ internal fun keyformCommands(
 				}
 			}
 		},
+		Command(
+			"keyform.insertPie",
+			title = Res.string.cmd_keyform_insert_pie,
+			availability = availability.inPoseMode,
+			spaces = SpaceScope.Viewport2D,
+			// Read under Insert Key beside I, so a Pose-mode viewport's strip suggests the two as one entry.
+			hint = CommandHint(Res.string.status_bind_insert_key),
+		) {
+			// Opened over a viewport alone: the posed warps it keys are what that viewport shows.
+			if (routing.viewportArea() != null) {
+				editorSession?.openPieMenu(PieMenuKind.InsertKey)
+			}
+		},
+		poseKeyCommand("keyform.insert.lattice", Res.string.cmd_keyform_insert_lattice, PoseKeyKind.Lattice, availability.inPoseMode),
+		poseKeyCommand("keyform.insert.opacity", Res.string.cmd_keyform_insert_opacity, PoseKeyKind.Opacity, availability.inPoseMode),
+		poseKeyCommand(
+			"keyform.insert.colors",
+			Res.string.cmd_keyform_insert_colors,
+			PoseKeyKind.Colors,
+			CommandAvailability {
+				editorSession?.mode?.value == EditorMode.Pose && editorSession.model.value.runtimeTarget.keyableColorChannels().isNotEmpty()
+			},
+		),
+		poseKeyCommand("keyform.insert.all", Res.string.cmd_keyform_insert_all, PoseKeyKind.All, availability.inPoseMode),
+		Command(
+			"keyform.clearPoseEdits",
+			title = Res.string.cmd_keyform_clear_pose_edits,
+			availability =
+				CommandAvailability {
+					editorSession != null &&
+						!editorSession.posePinned &&
+						(editorSession.pendingChannelEdits.value.isNotEmpty() || editorSession.pendingLatticeEdits.value.isNotEmpty())
+				},
+		) { editorSession?.clearPoseEdits() },
 		Command("keyform.deleteSelectedKeys", title = Res.string.cmd_keyform_delete_keys, availability = availability.canEditKeys) {
 			val sheet = keyformSheets.resolveForSelection(hoveredSheetArea())
 			val removals = sheet?.selectedTracks().orEmpty()
@@ -133,8 +198,8 @@ internal fun keyformCommands(
 
 /**
  * Resolves what an Insert or Delete Key at the pointer acts on and hands it to the matching action: over a 2D
- * viewport, the session's posed lattices ([posedLatticeTracks]) when Pose mode has them; otherwise the hovered keyable
- * ([aimedKeyable]), refusing with a notice when there is none.
+ * viewport, the session's posed warps' lattices and held values ([posedKeyTracks]) when Pose mode has them; otherwise
+ * the hovered keyable ([aimedKeyable]), refusing with a notice when there is none.
  *
  * @param EditorSession session The session.
  * @param CommandRouting routing Resolves the hovered surface.
@@ -149,7 +214,7 @@ private fun keyAtPointer(
 	onPosed: (List<KeyformTrackRef>) -> Unit,
 	onHovered: (KeyformHover) -> Unit,
 ) {
-	val posed = if (routing.viewportArea() != null) session.posedLatticeTracks() else null
+	val posed = if (routing.viewportArea() != null) session.posedKeyTracks(PoseKeyKind.Held) else null
 
 	if (posed != null) {
 		onPosed(posed)
@@ -175,6 +240,9 @@ private fun aimedKeyable(session: EditorSession, hover: KeyformHover?): KeyformH
 
 	return hover
 }
+
+/** The panels a hover key acts in whatever the mode: the keyform sheet and Properties. */
+private val KEYED_PANELS = SpaceScope.of(SpaceKind.KeyformSheet, SpaceKind.Properties)
 
 /**
  * How far one arrow-key press moves a sheet key, as a fraction of its parameter's range.
