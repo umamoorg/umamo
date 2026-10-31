@@ -408,6 +408,19 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
+	 * Creates a warp around the selection (Create Warp Deformer): the warp is born with one keyform holding a lattice
+	 * over the selection's bounds plus a margin, and the wrapped items are re-parented under it, kept where they rest.
+	 *
+	 * @property DeformerId id The new warp.
+	 * @property List<DrawableId> wrappedDrawables The drawables re-parented under it.
+	 * @property List<DeformerId> wrappedDeformers The deformers re-parented under it.
+	 */
+	data class Create(val id: DeformerId, val wrappedDrawables: List<DrawableId>, val wrappedDeformers: List<DeformerId>) : DeformerChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.deformer.create"
+	}
+
+	/**
 	 * Gives warps a new lattice resolution typed as rows and columns: every grid cell and blend-shape form of each warp
 	 * is resampled onto the new grid, and the children are re-expressed so they rest where they rested whenever the
 	 * resample cannot keep the old map exactly.

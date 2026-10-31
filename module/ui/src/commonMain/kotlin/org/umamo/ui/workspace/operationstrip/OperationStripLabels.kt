@@ -9,6 +9,8 @@ import org.umamo.edit.mesh.LatticeResizeParameterKeys
 import org.umamo.edit.mesh.MergeParameterKeys
 import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.parameterKey
+import org.umamo.edit.structure.RehomeParameterKeys
+import org.umamo.edit.structure.WarpCreationParameterKeys
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.choiceKey
 import org.umamo.interop.art.ArtworkAnchor
@@ -104,6 +106,16 @@ internal fun operatorParameterLabel(labelKey: String): String =
 
 		LatticeResizeParameterKeys.ROWS -> stringResource(Res.string.lattice_options_rows)
 
+		RehomeParameterKeys.KEEP_IN_PLACE -> stringResource(Res.string.rehome_options_keep_in_place)
+
+		WarpCreationParameterKeys.ROWS -> stringResource(Res.string.lattice_options_rows)
+
+		WarpCreationParameterKeys.COLUMNS -> stringResource(Res.string.lattice_options_columns)
+
+		WarpCreationParameterKeys.MARGIN -> stringResource(Res.string.create_warp_options_margin)
+
+		WarpCreationParameterKeys.QUAD -> stringResource(Res.string.properties_field_quad_transform)
+
 		LatticeResizeParameterKeys.COLUMNS -> stringResource(Res.string.lattice_options_columns)
 
 		LatticeResizeParameterKeys.ROW_SPLITS -> stringResource(Res.string.lattice_options_row_splits)
@@ -193,6 +205,11 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 		TransformParameterKeys.SLIDE_FACTOR -> Res.string.transform_options_slide_factor_description
 		MergeParameterKeys.TARGET -> Res.string.merge_options_target_description
 		LatticeResizeParameterKeys.ROWS -> Res.string.lattice_options_rows_description
+		RehomeParameterKeys.KEEP_IN_PLACE -> Res.string.rehome_options_keep_in_place_description
+		WarpCreationParameterKeys.ROWS -> Res.string.create_warp_options_rows_description
+		WarpCreationParameterKeys.COLUMNS -> Res.string.create_warp_options_columns_description
+		WarpCreationParameterKeys.MARGIN -> Res.string.create_warp_options_margin_description
+		WarpCreationParameterKeys.QUAD -> Res.string.create_warp_options_quad_description
 		LatticeResizeParameterKeys.COLUMNS -> Res.string.lattice_options_columns_description
 		LatticeResizeParameterKeys.ROW_SPLITS -> Res.string.lattice_options_row_splits_description
 		LatticeResizeParameterKeys.COLUMN_SPLITS -> Res.string.lattice_options_column_splits_description

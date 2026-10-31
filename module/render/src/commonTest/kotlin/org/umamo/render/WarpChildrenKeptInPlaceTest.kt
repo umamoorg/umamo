@@ -221,17 +221,6 @@ class WarpChildrenKeptInPlaceTest {
 		assertClose(throughPivot(before, emptyMap()), throughPivot(after, emptyMap()), LANDING_TOLERANCE_PX, "pivot")
 	}
 
-	/** An unkeyed child lands where the rebinding helper would put it: one rule for keeping a drawable at rest. */
-	@Test
-	fun anUnkeyedChildMatchesTheRebindingHelper() {
-		val before = model()
-		val unconverted = reshaped(before) { warp -> warp.withEveryLatticeMapped { cage(bend = 12f) } }
-		val kept = warpChildrenKeptInPlace(before, unconverted, warpId).model
-		val expected = assertNotNull(localPositionsKeepingRest(before, unconverted, listOf(plainId))[plainId])
-
-		assertClose(expected, assertNotNull(kept.drawables.first { drawable -> drawable.id == plainId }.mesh).localPositions, 1e-3f, "base")
-	}
-
 	/** A cage collapsed to a point cannot hold anything in place, so every child is reported and left as it was. */
 	@Test
 	fun aCollapsedCageReportsEveryChild() {

@@ -70,17 +70,17 @@ internal fun TextEditContextMenuArea(
 	Box(modifier = modifier) {
 		// The field must NOT inherit the ambient items a second time through some nested area of its own:
 		// they are already the head of this menu, and a doubled list reads as a bug rather than as emphasis.
-		CompositionLocalProvider(LocalContextMenuItems provides emptyList()) {
+		CompositionLocalProvider(LocalContextMenuItems provides { emptyList() }) {
 			content(gesture)
 		}
 
 		if (open) {
 			// Built only while the menu is up.  Every kit text field mounts one of these, the entries depend
-			// on the CLIPBOARD (a cross-process read on desktop), and LocalContextMenuItems hands down a list
-			// rebuilt by its area every recomposition - so building them unconditionally read the system
+			// on the CLIPBOARD (a cross-process read on desktop), and LocalContextMenuItems hands down entries
+			// its area rebuilds every recomposition - so building them unconditionally read the system
 			// clipboard once per field per frame of any neighbouring scrub.  Reading the ambient items here
 			// is still correct: this sits outside the provider that blanks them for `content`.
-			val surroundingItems = LocalContextMenuItems.current
+			val surroundingItems = LocalContextMenuItems.current()
 			val clipboardItems = textEditMenuItems(value, onValueChange, readOnly)
 			Menu(
 				items =

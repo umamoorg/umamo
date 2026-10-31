@@ -7,6 +7,8 @@ import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.latticeSizeParameters
 import org.umamo.edit.mesh.latticeSplitParameters
 import org.umamo.edit.mesh.mergeParameters
+import org.umamo.edit.structure.rehomeParameters
+import org.umamo.edit.structure.warpCreationParameters
 import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformRowSpace
@@ -40,7 +42,8 @@ class OperationStripLabelsTest {
 	/**
 	 * Every row every adjustable operation registers: the repack, the three placement gestures, adding and
 	 * matching artwork, each modal transform in both of its spaces with the proportional rows on, the
-	 * vertex slide, the merge, the lattice resize and subdivision, Generate Mesh from Art, and Generate Quad Mesh.
+	 * vertex slide, the merge, the lattice resize and subdivision, a re-parent's Keep in Place, Generate Mesh from Art, and
+	 * Generate Quad Mesh.
 	 */
 	private val everyRow: List<OperatorParameter> =
 		buildList {
@@ -60,6 +63,8 @@ class OperationStripLabelsTest {
 			addAll(mergeParameters(MergeTarget.AtCenter))
 			addAll(latticeSizeParameters(4, 4))
 			addAll(latticeSplitParameters(2, 2))
+			addAll(rehomeParameters(keepInPlace = true))
+			addAll(warpCreationParameters(5, 5, 10f, quad = true))
 			addAll(meshGenerationParameters(MeshGenerationOptions.of(ArtMeshPreset.Standard), minimumAlphaThreshold = 1))
 			addAll(QuadMeshOptions().rows(minimumAlphaThreshold = 1))
 		}

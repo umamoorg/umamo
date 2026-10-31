@@ -392,7 +392,7 @@ class EditorSessionTest {
 		val session = EditorSession(meshModel())
 		session.setMode(EditorMode.Pose)
 		session.toggleEditMode()
-		session.deleteDeformer(SessionTestModels.warp.id) { emptyMap() }
+		session.deleteDeformer(SessionTestModels.warp.id) { unwrapped -> unwrapped }
 
 		session.toggleEditMode()
 

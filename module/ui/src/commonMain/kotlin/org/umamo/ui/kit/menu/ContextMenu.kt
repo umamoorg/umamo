@@ -22,7 +22,8 @@ import kotlin.math.roundToInt
  *
  * The items are a pre-built value, not a lambda, because their labels are localized via stringResource -
  * a @Composable call that can only run during composition, not on the pointer event that opens the menu.
- * The list is cheap to rebuild each recomposition and is therefore always current.
+ * The list is cheap to rebuild each recomposition and is therefore current wherever the caller recomposes
+ * on the state it reads; a caller that does not (an outliner row) builds its entries on open instead.
  *
  * While [suppressed], a request is still taken - it reaches no enclosing area's menu - but opens nothing: a surface
  * whose right press means something else while a gesture runs elsewhere says so here.
@@ -35,6 +36,28 @@ import kotlin.math.roundToInt
 @Composable
 fun ContextMenuArea(
 	items: List<MenuItem>,
+	modifier: Modifier = Modifier,
+	suppressed: Boolean = false,
+	content: @Composable () -> Unit,
+) {
+	ContextMenuArea(itemsOnOpen = { items }, modifier = modifier, suppressed = suppressed, content = content)
+}
+
+/**
+ * [ContextMenuArea] whose entries are built each time the menu opens, for a caller that does not recompose on
+ * the state its entries read - a row that only recomposes when its own inputs change would otherwise show
+ * whatever enabled state it had last time it composed.  [itemsOnOpen] is plain code, so localized labels are
+ * resolved in composition beforehand and captured.
+ *
+ * @param Function itemsOnOpen Builds the menu entries; called as the menu opens, and by a nested text field's
+ *   menu as it opens (see [LocalContextMenuItems]).
+ * @param Modifier modifier The layout modifier for the wrapping box.
+ * @param Boolean suppressed Whether a request is swallowed without opening the menu.
+ * @param Function content The content the context menu is attached to.
+ */
+@Composable
+fun ContextMenuArea(
+	itemsOnOpen: () -> List<MenuItem>,
 	modifier: Modifier = Modifier,
 	suppressed: Boolean = false,
 	content: @Composable () -> Unit,
@@ -52,11 +75,13 @@ fun ContextMenuArea(
 				}
 			},
 	) {
-		CompositionLocalProvider(LocalContextMenuItems provides items) {
+		CompositionLocalProvider(LocalContextMenuItems provides itemsOnOpen) {
 			content()
 		}
 
 		if (open) {
+			// The branch leaves the composition when the menu closes, so each opening builds the entries afresh.
+			val items = remember { itemsOnOpen() }
 			Menu(
 				items = items,
 				onDismissRequest = { open = false },
@@ -76,9 +101,10 @@ fun ContextMenuArea(
  * field picks up whatever menu it happens to be nested in - the keyframe menu on a Properties row, the area
  * menu in a panel header - with no call site changed.
  *
+ * A builder, called as the nested menu opens, so the field's menu shows the area's entries as they are then.
  * Empty outside any area, which reads as "no items to prepend" rather than as an error.
  */
-internal val LocalContextMenuItems = compositionLocalOf { emptyList<MenuItem>() }
+internal val LocalContextMenuItems = compositionLocalOf<() -> List<MenuItem>> { { emptyList() } }
 
 /**
  * Reports a context-menu request with the pointer position in the modified element's local space.  The

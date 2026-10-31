@@ -387,6 +387,7 @@
 	<string name="history_lattice_slide">格子の点をスライド</string>
 	<string name="history_lattice_resize">格子の分割数</string>
 	<string name="history_lattice_subdivide">格子を細分化</string>
+	<string name="history_deformer_create">ワープデフォーマを作成</string>
 	<string name="history_pose_move">ポーズ：格子の点を移動</string>
 	<string name="history_pose_scale">ポーズ：格子の点を拡縮</string>
 	<string name="history_pose_rotate">ポーズ：格子の点を回転</string>
@@ -582,6 +583,7 @@
 	<string name="cmd_mesh_generate_from_art">アートからメッシュを生成</string>
 	<string name="cmd_mesh_generate_quad">四角形メッシュを生成</string>
 	<string name="cmd_lattice_subdivide">格子を細分化</string>
+	<string name="cmd_deformer_create_warp">ワープデフォーマを作成</string>
 	<string name="cmd_mesh_merge_at_center">中心にマージ</string>
 	<string name="cmd_mesh_merge_at_first">最初の頂点にマージ</string>
 	<string name="cmd_mesh_merge_at_last">最後の頂点にマージ</string>
@@ -916,6 +918,8 @@
 	<!-- The Merge row of the operation settings strip and its choices. -->
 	<string name="merge_options_target">マージ位置</string>
 	<string name="lattice_options_rows">行数</string>
+	<string name="rehome_options_keep_in_place">その場に保つ</string>
+	<string name="create_warp_options_margin">余白</string>
 	<string name="lattice_options_columns">列数</string>
 	<string name="lattice_options_row_splits">行の分割</string>
 	<string name="lattice_options_column_splits">列の分割</string>
@@ -1043,6 +1047,11 @@
 	<string name="transform_options_slide_factor_description">頂点が辺上のどこに移動したか。0 は元の位置、1 は隣の頂点の位置です。</string>
 	<string name="merge_options_target_description">マージした頂点を集める位置。中心、または最初か最後に選択した頂点の位置です。</string>
 	<string name="lattice_options_rows_description">格子の新しい縦方向のセル数。</string>
+	<string name="create_warp_options_rows_description">新しいワープの縦方向のセル数。</string>
+	<string name="create_warp_options_columns_description">新しいワープの横方向のセル数。</string>
+	<string name="create_warp_options_margin_description">選択範囲と新しいワープの端との間の余白。選択範囲の長い辺に対する割合です。</string>
+	<string name="create_warp_options_quad_description">新しいワープの各セルを2つの三角形としてではなく、4つの角の間でなめらかに変形するかどうか。</string>
+	<string name="rehome_options_keep_in_place_description">移動した項目を、キーのある動きも含めて新しい親の下で静止位置に保ちます。オフにすると数値をそのまま保ち、新しい親に追従します。</string>
 	<string name="lattice_options_columns_description">格子の新しい横方向のセル数。</string>
 	<string name="lattice_options_row_splits_description">各行のセルを縦方向にいくつに分割するか。</string>
 	<string name="lattice_options_column_splits_description">各列のセルを横方向にいくつに分割するか。</string>

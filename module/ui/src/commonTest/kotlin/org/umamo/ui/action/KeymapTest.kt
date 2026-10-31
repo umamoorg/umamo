@@ -287,4 +287,12 @@ class KeymapTest {
 			assertNull(Keymap.fromSpecs(keymapPresetSpecs(presetId)).chordFor("mesh.generateQuad"), "unbound in $presetId")
 		}
 	}
+
+	/** Create Warp Deformer ships unbound in every preset; it lives on the context menus and the palette. */
+	@Test
+	fun createWarpDeformerShipsUnbound() {
+		for (presetId in listOf("default", "blender", "cubism")) {
+			assertNull(Keymap.fromSpecs(keymapPresetSpecs(presetId)).chordFor("deformer.createWarp"), "unbound in $presetId")
+		}
+	}
 }
