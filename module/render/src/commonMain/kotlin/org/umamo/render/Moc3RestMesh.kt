@@ -123,9 +123,8 @@ private fun defaultPoseFallbackFor(model: PuppetModel, defaultPose: DeformedGeom
  * through the clamped second-chance pose instead, so it is inverted through that same clamped pose;
  * using the raw default for it would undo a transform that was never applied.
  *
- * A drawable the chain cannot map (a deformer with no lattice anywhere) returns null, which
- * [localPositionsKeepingRest] leaves out of its result for the caller to report, rather than a silently
- * mis-scaled mesh.
+ * A drawable the chain cannot map (a deformer with no lattice anywhere) returns null, for the caller to
+ * report, rather than a silently mis-scaled mesh.
  *
  * @param PuppetModel puppet The rig.
  * @return Function2 The seam: drawable id plus interleaved canvas-space positions to parent-space

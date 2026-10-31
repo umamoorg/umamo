@@ -14,7 +14,6 @@ import org.umamo.edit.property.previewDeformerBaseAngle
 import org.umamo.edit.property.setDeformerBaseAngle
 import org.umamo.edit.property.setDeformerPart
 import org.umamo.edit.shownPose
-import org.umamo.edit.structure.moveDeformer
 import org.umamo.edit.structure.moveOrgChild
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
@@ -33,12 +32,13 @@ import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.resources.*
 import org.umamo.ui.transform.ItemWorldTransform
 import org.umamo.ui.transform.drawableWorldTransform
+import org.umamo.ui.transform.moveDeformerKeepingRest
 import org.umamo.ui.transform.moved
 import org.umamo.ui.transform.previewDrawableWorldCenter
 import org.umamo.ui.transform.previewDrawableWorldSize
 import org.umamo.ui.transform.previewWarpWorldCenter
 import org.umamo.ui.transform.previewWarpWorldSize
-import org.umamo.ui.transform.setDrawableParentDeformerKeepingRest
+import org.umamo.ui.transform.setDrawableParentKeepingRest
 import org.umamo.ui.transform.warpWorldTransform
 import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 
@@ -416,13 +416,15 @@ internal val RelationsSection =
 						) { partId -> session?.moveOrgChild(OrgChild.Drawable(drawable.id), partId, null) }
 					},
 					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
+						// Read here, called in the commit: the answer is the pointer's state as the pick lands.
+						val stripArea = LocalOperationStripArea.current
 						DeformerRelationRow(
 							labelRes = Res.string.properties_parent_deformer,
 							descriptionRes = Res.string.properties_parent_deformer_description,
 							context = context,
 							selectedDeformerId = drawable.parentDeformerId,
 							owner = "drawable.parentDeformer:${drawable.id.raw}",
-						) { deformerId -> session?.setDrawableParentDeformerKeepingRest(drawable.id, deformerId) }
+						) { deformerId -> session?.setDrawableParentKeepingRest(drawable.id, deformerId, stripArea()) }
 					},
 				)
 			} else if (deformer != null) {
@@ -439,6 +441,7 @@ internal val RelationsSection =
 						) { partId -> session?.setDeformerPart(deformer.id, partId) }
 					},
 					PropertyRow(terms = listOf(Res.string.properties_parent_deformer)) { _ ->
+						val stripArea = LocalOperationStripArea.current
 						DeformerRelationRow(
 							labelRes = Res.string.properties_parent_deformer,
 							descriptionRes = Res.string.properties_parent_deformer_description,
@@ -449,7 +452,7 @@ internal val RelationsSection =
 							// withDeformerMoved.  Same query the move guard uses, so the two cannot disagree.
 							excluding = { candidate -> candidate.id in cyclicParents },
 							owner = "deformer.parent:${deformer.id.raw}",
-						) { parentId -> session?.moveDeformer(deformer.id, parentId, null) }
+						) { parentId -> session?.moveDeformerKeepingRest(deformer.id, parentId, null, stripArea()) }
 					},
 				)
 			} else if (part != null) {

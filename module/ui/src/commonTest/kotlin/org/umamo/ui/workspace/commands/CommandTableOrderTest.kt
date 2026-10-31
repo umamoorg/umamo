@@ -231,6 +231,7 @@ class CommandTableOrderTest {
 				"mesh.generateFromArt",
 				"mesh.generateQuad",
 				"lattice.subdivide",
+				"deformer.createWarp",
 				"mesh.proportional.toggle",
 				"mesh.proportional.connectedToggle",
 				"mesh.proportional.falloff.smooth",

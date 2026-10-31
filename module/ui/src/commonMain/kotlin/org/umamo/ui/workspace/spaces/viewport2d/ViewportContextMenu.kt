@@ -47,7 +47,7 @@ private sealed interface ViewportMenuRow {
 	data object Separator : ViewportMenuRow
 }
 
-/** Object mode's rows: whole-object operations, the snaps, the art meshes, and the lattice resolution. */
+/** Object mode's rows: whole-object operations, the snaps, the art meshes, and wrapping the selection in a warp. */
 private val OBJECT_ROWS =
 	listOf(
 		ViewportMenuRow.Single("mesh.duplicate"),
@@ -57,6 +57,7 @@ private val OBJECT_ROWS =
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Single("mesh.generateFromArt"),
 		ViewportMenuRow.Single("mesh.generateQuad"),
+		ViewportMenuRow.Single("deformer.createWarp"),
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Single("view.frameSelected"),
 	)

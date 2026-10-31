@@ -15,6 +15,12 @@ private const val WARP_INVERSE_MAX_ITERATIONS = 20
 /** Finite-difference step (in the lattice's normalized UV units) for the warp inverse's Jacobian. */
 private const val WARP_INVERSE_JACOBIAN_STEP = 1e-4f
 
+/**
+ * The step, in normalized lattice coordinates, of the forward differences a Jacobian outside the lattice is taken by:
+ * coarse enough that a float difference of the extrapolation keeps its precision there.
+ */
+private const val EXTRAPOLATION_JACOBIAN_STEP = 1e-3f
+
 /** Damping clamp on one Newton step (UV units), so an extrapolation seam cannot fling the estimate. */
 private const val WARP_INVERSE_MAX_STEP = 0.5f
 
@@ -196,6 +202,70 @@ class ParentSpaceMapping internal constructor(
 	}
 
 	/**
+	 * Whether this space is a warp's normalized lattice coordinates.
+	 */
+	val isLattice: Boolean get() = parentWorld is WarpWorld
+
+	/**
+	 * The Y scale this space hands a child rotation's world scale (`DeformerWorld.accY`): 1 with no parent, the
+	 * parent's own through a warp, a rotation's world scale under it.
+	 */
+	internal val inheritedScale: Float get() = parentWorld?.accY ?: 1f
+
+	/**
+	 * The Jacobian of this space's map to the parent transform's output at local ([x], [y]), before the renderer's Y
+	 * negation, written row-major into [out]: d(x)/dx, d(x)/dy, d(y)/dx, d(y)/dy.  The identity with no parent, the
+	 * affine's linear part under a rotation, and under a warp the lattice's exact Jacobian inside it or a forward
+	 * difference of the extrapolation outside.  The negation is left out because the ratio of two such Jacobians is
+	 * what a conversion between spaces reads, and it cancels there.
+	 *
+	 * @param Float x The local x.
+	 * @param Float y The local y.
+	 * @param FloatArray out Four slots for the Jacobian.
+	 */
+	internal fun jacobianAt(x: Float, y: Float, out: FloatArray) {
+		when (val world = parentWorld) {
+			null -> {
+				out[0] = 1f
+				out[1] = 0f
+				out[2] = 0f
+				out[3] = 1f
+			}
+
+			is RotationWorld -> {
+				out[0] = world.xform.c12
+				out[1] = world.xform.c15
+				out[2] = world.xform.c14
+				out[3] = world.xform.c13
+			}
+
+			is WarpWorld -> {
+				if (!latticeJacobianAt(world.cp, world.cols, world.rows, world.bilinear, x, y, out)) {
+					val origin = FloatArray(2)
+					warpApply(world.cp, world.cols, world.rows, world.bilinear, x, y, origin, 0)
+					warpDifferenceJacobian(world, x, y, origin[0], origin[1], EXTRAPOLATION_JACOBIAN_STEP, FloatArray(2), out)
+				}
+			}
+		}
+	}
+
+	/**
+	 * The turn this space gives a child rotation whose origin sits at local ([x], [y]), in radians, by the probe the
+	 * rotation's own world build uses; nothing with no parent.
+	 *
+	 * @param Float x The origin's local x.
+	 * @param Float y The origin's local y.
+	 * @return Float The inherited angle in radians.
+	 */
+	internal fun inheritedAngleAt(x: Float, y: Float): Float {
+		val world = parentWorld ?: return 0f
+		val scratch = FloatArray(2)
+		world.apply(x, y, scratch, 0)
+
+		return inheritedAngleRadians(world, x, y, scratch[0], scratch[1], scratch)
+	}
+
+	/**
 	 * Reach-uncapped world-rigid inverse of the warp lattice: solves `warpApply(u, v) = (targetX, targetY)`
 	 * from the seed already in `local[coordIndex]`,`local[coordIndex+1]`, writing the best estimate back.
 	 * Identical to [invertWarp] except it has no per-step damping clamp, so a full Newton step reaches a
@@ -263,6 +333,29 @@ class ParentSpaceMapping internal constructor(
 		local[coordIndex] = bestU
 		local[coordIndex + 1] = bestV
 	}
+}
+
+/**
+ * The space whatever lives under deformer [parentId] is stored in, at the pose [parameters] names (the defaults for
+ * the rest): model space for null, the deformer's normalized lattice or affine frame otherwise.  Null when the
+ * deformer is missing or the pose hides it or an ancestor, so it has no world to map through.
+ *
+ * @param PuppetModel model The rig.
+ * @param DeformerId? parentId The parent deformer, or null for the root.
+ * @param Map parameters Parameter id -> value (partial; the rest default).
+ * @return ParentSpaceMapping? The mapping, or null when unmappable.
+ */
+fun parentSpaceAt(model: PuppetModel, parentId: DeformerId?, parameters: Map<ParameterId, Float> = emptyMap()): ParentSpaceMapping? {
+	val deformerId = parentId ?: return ParentSpaceMapping(null)
+
+	if (model.deformerById[deformerId] == null) {
+		return null
+	}
+
+	val pose = PoseParameters(model, parameters)
+	val world = buildDeformerWorlds(ancestorChain(model, deformerId), pose.paramValue, pose.defaultValue)[deformerId] ?: return null
+
+	return ParentSpaceMapping(world)
 }
 
 /**

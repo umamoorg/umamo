@@ -435,6 +435,7 @@
 	<string name="history_lattice_slide">Slide Lattice Point</string>
 	<string name="history_lattice_resize">Lattice Resolution</string>
 	<string name="history_lattice_subdivide">Subdivide Lattice</string>
+	<string name="history_deformer_create">Create Warp Deformer</string>
 	<string name="history_pose_move">Pose: Move Lattice Points</string>
 	<string name="history_pose_scale">Pose: Scale Lattice Points</string>
 	<string name="history_pose_rotate">Pose: Rotate Lattice Points</string>
@@ -639,6 +640,7 @@
 	<string name="cmd_mesh_generate_from_art">Generate Mesh from Art</string>
 	<string name="cmd_mesh_generate_quad">Generate Quad Mesh</string>
 	<string name="cmd_lattice_subdivide">Subdivide Lattice</string>
+	<string name="cmd_deformer_create_warp">Create Warp Deformer</string>
 	<string name="cmd_mesh_merge_at_center">Merge at Center</string>
 	<string name="cmd_mesh_merge_at_first">Merge at First</string>
 	<string name="cmd_mesh_merge_at_last">Merge at Last</string>
@@ -991,6 +993,8 @@
 	<!-- The Merge row of the operation settings strip and its choices. -->
 	<string name="merge_options_target">Merge At</string>
 	<string name="lattice_options_rows">Rows</string>
+	<string name="rehome_options_keep_in_place">Keep in Place</string>
+	<string name="create_warp_options_margin">Margin</string>
 	<string name="lattice_options_columns">Columns</string>
 	<string name="lattice_options_row_splits">Row Splits</string>
 	<string name="lattice_options_column_splits">Column Splits</string>
@@ -1122,6 +1126,11 @@
 	<string name="transform_options_slide_factor_description">Where along its edge the vertex landed: 0 is where it started, and 1 is the neighboring vertex.</string>
 	<string name="merge_options_target_description">Where the merged vertices come together: at their center, or on the first or last vertex selected.</string>
 	<string name="lattice_options_rows_description">The lattice's new cell count from top to bottom.</string>
+	<string name="create_warp_options_rows_description">How many cells the new warp has from top to bottom.</string>
+	<string name="create_warp_options_columns_description">How many cells the new warp has from left to right.</string>
+	<string name="create_warp_options_margin_description">The room between the selection and the new warp's edges, in percent of the selection's larger side.</string>
+	<string name="create_warp_options_quad_description">Whether the new warp bends each cell smoothly between its four corners rather than as two triangles.</string>
+	<string name="rehome_options_keep_in_place_description">Keeps the moved item where it rests under its new parent, its keyed motion included.  Unchecked, it keeps its numbers and follows the new parent.</string>
 	<string name="lattice_options_columns_description">The lattice's new cell count from left to right.</string>
 	<string name="lattice_options_row_splits_description">How many cells each row of cells is split into, top to bottom.</string>
 	<string name="lattice_options_column_splits_description">How many cells each column of cells is split into, left to right.</string>

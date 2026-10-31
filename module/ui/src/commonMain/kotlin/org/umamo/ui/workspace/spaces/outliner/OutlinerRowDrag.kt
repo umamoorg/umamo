@@ -8,10 +8,12 @@ import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.structure.OutlinerDrop
 import org.umamo.edit.structure.RowDropBand
 import org.umamo.edit.structure.applyOutlinerDrop
 import org.umamo.edit.structure.resolveOutlinerDrop
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.transform.moveDeformerKeepingRest
 import org.umamo.ui.workspace.rowdrag.RowDragController
 
 /**
@@ -62,6 +64,7 @@ internal fun Modifier.outlinerDropLine(band: RowDropBand?, depth: Int, accentCol
  * @param List rows The visible rows, to resolve a node id to its selection target.
  * @param PuppetModel puppet The model, to resolve the target's parent and siblings.
  * @param EditorSession? session The session the move is dispatched through (null = no document, no-op).
+ * @param Function stripArea Names the area a deformer move's operation strip shows in, or null for nowhere.
  * @param Function expand Opens the given node id (the destination is expanded on a nest-inside drop so the
  *   user sees the moved item land, rather than fearing it vanished into a collapsed branch).
  */
@@ -70,6 +73,7 @@ internal fun performOutlinerDrop(
 	rows: List<OutlinerRow>,
 	puppet: PuppetModel,
 	session: EditorSession?,
+	stripArea: () -> String?,
 	expand: (String) -> Unit,
 ) {
 	val targetId = controller.dropTargetKey
@@ -84,7 +88,12 @@ internal fun performOutlinerDrop(
 	val targetNode = rows.firstOrNull { row -> row.node.id == targetId }?.node ?: return
 	val target = targetNode.target ?: return
 	val drop = puppet.resolveOutlinerDrop(dragged, target, fraction) ?: return
-	session.applyOutlinerDrop(drop)
+
+	// A deformer moved to another parent keeps its art in place; an org-tree move changes no space.
+	when (drop) {
+		is OutlinerDrop.MoveDeformer -> session.moveDeformerKeepingRest(drop.id, drop.newParentId, drop.beforeId, stripArea())
+		is OutlinerDrop.MoveOrgChild -> session.applyOutlinerDrop(drop)
+	}
 
 	if (drop.expandTarget) {
 		expand(targetNode.id)

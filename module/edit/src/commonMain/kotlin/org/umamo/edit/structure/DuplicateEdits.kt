@@ -81,28 +81,6 @@ fun PuppetModel.withDrawableDuplicated(id: DrawableId): Pair<PuppetModel, Drawab
 }
 
 /**
- * The first free ".NNN"-suffixed form of [base] (d -> d.001, d.002, ...), so repeated duplicates never collide: the
- * one Blender-style naming rule every duplicated id and display name takes.
- *
- * @param String base The source id or name.
- * @param Function taken Whether a candidate is already in use.
- * @return String The first free candidate.
- */
-private fun firstFreeSuffixed(base: String, taken: (String) -> Boolean): String {
-	var counter = 1
-
-	while (true) {
-		val candidate = "$base.${counter.toString().padStart(3, '0')}"
-
-		if (!taken(candidate)) {
-			return candidate
-		}
-
-		counter++
-	}
-}
-
-/**
  * The first free ".NNN"-suffixed drawable id derived from [id] ([firstFreeSuffixed]).
  *
  * @param DrawableId id The source id.
