@@ -230,7 +230,7 @@ internal fun RegisterShellCommands(
 					uvCommands(editorSession, routing, availability) +
 					topologyCommands(editorSession, routing, availability) +
 					meshGenerationCommands(availability, routing, generateMesh, generateQuadMesh) +
-					latticeCommands(editorSession, routing) +
+					latticeCommands(editorSession, routing, availability) +
 					proportionalCommands(editorSession, availability) +
 					displayCommands(editorSession, availability) +
 					atlasCommands(availability, routing, repackAtlas) +

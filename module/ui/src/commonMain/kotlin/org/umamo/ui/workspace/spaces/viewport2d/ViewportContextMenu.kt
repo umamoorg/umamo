@@ -57,7 +57,7 @@ private val OBJECT_ROWS =
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Single("mesh.generateFromArt"),
 		ViewportMenuRow.Single("mesh.generateQuad"),
-		ViewportMenuRow.Single("lattice.subdivide"),
+		ViewportMenuRow.Separator,
 		ViewportMenuRow.Single("view.frameSelected"),
 	)
 
@@ -77,6 +77,8 @@ private val EDIT_ROWS =
 		ViewportMenuRow.Single("mesh.generateFromArt"),
 		ViewportMenuRow.Single("mesh.generateQuad"),
 		ViewportMenuRow.Single("lattice.subdivide"),
+		ViewportMenuRow.Separator,
+		ViewportMenuRow.Single("view.frameSelected"),
 	)
 
 /** Pose mode's rows: keying the posed warps, clearing what is held, the element selection, and the snaps. */
@@ -91,6 +93,8 @@ private val POSE_ROWS =
 		ViewportMenuRow.Single("select.invert"),
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Choices("snap.pie", PieMenuKind.Snap),
+		ViewportMenuRow.Separator,
+		ViewportMenuRow.Single("view.frameSelected"),
 	)
 
 /**

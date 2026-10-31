@@ -14,17 +14,19 @@ import org.umamo.ui.transform.subdivisionTargets
  *
  * @param EditorSession? editorSession The open document's session, or null (the command then no-ops).
  * @param CommandRouting routing The hovered-area resolver, read at dispatch.
+ * @param SessionAvailability availability The shared document-scoped availability tiers.
  * @return List<Command> The commands to register.
  */
 internal fun latticeCommands(
 	editorSession: EditorSession?,
 	routing: CommandRouting,
+	availability: SessionAvailability,
 ): List<Command> =
 	listOf(
 		Command(
 			"lattice.subdivide",
 			title = Res.string.cmd_lattice_subdivide,
-			availability = CommandAvailability { editorSession?.mode?.value == EditorMode.Edit && editorSession.subdivisionTargets().isNotEmpty() },
+			availability = availability.inEditMode,
 		) {
 			editorSession?.let { session -> session.subdivideLatticesAdjustable(session.subdivisionTargets(), routing.operationStripArea()) }
 		},

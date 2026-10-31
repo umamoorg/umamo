@@ -206,7 +206,7 @@ internal fun shellCommandTables(session: EditorSession? = null): List<Command> {
 		uvCommands(session, routing, availability) +
 		topologyCommands(session, routing, availability) +
 		meshGenerationCommands(availability, routing, null, null) +
-		latticeCommands(session, routing) +
+		latticeCommands(session, routing, availability) +
 		proportionalCommands(session, availability) +
 		displayCommands(session, availability) +
 		atlasCommands(availability, routing, null) +

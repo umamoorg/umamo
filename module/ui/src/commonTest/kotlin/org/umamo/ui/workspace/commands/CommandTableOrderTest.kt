@@ -165,7 +165,7 @@ class CommandTableOrderTest {
 				uvCommands(null, routing, availability) +
 				topologyCommands(null, routing, availability) +
 				meshGenerationCommands(availability, routing, null, null) +
-				latticeCommands(null, routing) +
+				latticeCommands(null, routing, availability) +
 				proportionalCommands(null, availability) +
 				displayCommands(null, availability) +
 				atlasCommands(availability, routing, null)
