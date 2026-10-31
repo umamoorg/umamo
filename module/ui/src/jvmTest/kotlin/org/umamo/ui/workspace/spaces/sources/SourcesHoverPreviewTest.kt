@@ -1,7 +1,7 @@
 package org.umamo.ui.workspace.spaces.sources
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.ui.workspace.spaces.keyformsheet.anyPopupOpen
 import org.umamo.ui.workspace.spaces.outliner.StubThumbnails
 import org.umamo.ui.workspace.spaces.parameters.popupShows

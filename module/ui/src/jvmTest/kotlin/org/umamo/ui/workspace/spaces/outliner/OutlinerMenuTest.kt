@@ -1,7 +1,7 @@
 package org.umamo.ui.workspace.spaces.outliner
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.OrgChild
 import org.umamo.ui.workspace.spaces.keyformsheet.anyPopupOpen

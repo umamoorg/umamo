@@ -899,9 +899,9 @@
 	<string name="properties_section_blend_shapes">Blend Shapes</string>
 	<string name="properties_blend_shape_binding">%1$s: %2$d keys</string>
 	<string name="properties_field_lattice_rows">Rows</string>
-	<string name="properties_field_lattice_rows_description">How many cells the lattice has from top to bottom.  Changing it resamples every keyed shape and keeps the art where it rests.</string>
+	<string name="properties_field_lattice_rows_description">How many cells the lattice has from top to bottom.  Changing the value will resample the mesh key forms.</string>
 	<string name="properties_field_lattice_columns">Columns</string>
-	<string name="properties_field_lattice_columns_description">How many cells the lattice has from left to right.  Changing it resamples every keyed shape and keeps the art where it rests.</string>
+	<string name="properties_field_lattice_columns_description">How many cells the lattice has from left to right.  Changing the value will resample the mesh key forms.</string>
 	<string name="properties_section_part">Part</string>
 	<string name="properties_canvas_none">No canvas</string>
 	<string name="properties_field_runtime_target">Target</string>

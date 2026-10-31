@@ -9,10 +9,8 @@ import org.umamo.ui.transform.subdivideLatticesAdjustable
 import org.umamo.ui.transform.subdivisionTargets
 
 /**
- * The commands that rewrite a warp's lattice at rest: Subdivide Lattice, which splits every cell of the selected
- * warps (Object mode) or the open lattices (Edit mode) in two along both axes, keeping a quad-mode warp's map exactly.
- * Unavailable in Pose mode, which shapes a lattice at a pose rather than rewriting its every form.  The strip it
- * registers shows in the area routing.operationStripArea names, so it runs from the palette or a context menu alike.
+ * The commands that rewrite a warp's lattice at rest: Subdivide Lattice, which splits every cell in two along both axes,
+ * keeping a quad-mode warp's map exactly.
  *
  * @param EditorSession? editorSession The open document's session, or null (the command then no-ops).
  * @param CommandRouting routing The hovered-area resolver, read at dispatch.
@@ -26,7 +24,7 @@ internal fun latticeCommands(
 		Command(
 			"lattice.subdivide",
 			title = Res.string.cmd_lattice_subdivide,
-			availability = CommandAvailability { editorSession?.mode?.value != EditorMode.Pose && editorSession?.subdivisionTargets()?.isNotEmpty() == true },
+			availability = CommandAvailability { editorSession?.mode?.value == EditorMode.Edit && editorSession.subdivisionTargets().isNotEmpty() },
 		) {
 			editorSession?.let { session -> session.subdivideLatticesAdjustable(session.subdivisionTargets(), routing.operationStripArea()) }
 		},

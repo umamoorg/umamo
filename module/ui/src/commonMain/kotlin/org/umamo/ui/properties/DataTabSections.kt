@@ -380,7 +380,7 @@ internal val DeformerSection =
 										onCheckedChange = { quad -> session?.setWarpQuadTransform(deformer.id, quad) },
 										label = stringResource(Res.string.properties_field_quad_transform),
 										description = stringResource(Res.string.properties_field_quad_transform_description),
-										enabled = rewritesLattices(rowContext),
+										enabled = context.session?.mode?.collectAsState()?.value == EditorMode.Edit,
 									)
 								}
 							},
@@ -784,20 +784,10 @@ private fun WarpLatticeSizeRows(warp: Deformer.Warp, context: PropertyContext) {
 		secondDescription = stringResource(Res.string.properties_field_lattice_columns_description),
 		secondValue = warp.columns,
 		range = 1..LATTICE_DIVISION_MAX,
-		enabled = session != null && rewritesLattices(context),
+		enabled = session != null && session.mode.collectAsState().value == EditorMode.Edit,
 		onCommit = { rows, columns -> session?.setLatticeSizeAdjustable(warp.id, rows, columns, stripArea()) },
 	)
 }
-
-/**
- * Whether the session's mode may rewrite a lattice's every form - resize it or switch its mapping: Object and Edit
- * mode, which edit the rest state, and not Pose mode, which shapes at a pose.
- *
- * @param PropertyContext context The current context.
- * @return Boolean True outside Pose mode.
- */
-@Composable
-private fun rewritesLattices(context: PropertyContext): Boolean = (context.session?.mode?.collectAsState()?.value ?: EditorMode.Object) != EditorMode.Pose
 
 /**
  * A warp's lattice as a keyable row: the parameters its geometry grid is keyed on, tinted by its keyed state at the

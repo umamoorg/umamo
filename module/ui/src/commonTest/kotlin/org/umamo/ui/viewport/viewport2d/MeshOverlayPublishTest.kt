@@ -1,5 +1,6 @@
 package org.umamo.ui.viewport.viewport2d
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -42,6 +43,7 @@ import kotlin.test.assertTrue
  * the areas' demand - over every shown drawable in Object mode, over those outside the edit under the cage
  * in Edit mode, and not at all while no area asks.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class MeshOverlayPublishTest {
 	private val sizes = MeshOverlaySizes(3.5f, 1f, 2.5f)
 

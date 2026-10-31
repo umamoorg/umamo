@@ -63,7 +63,7 @@ private val PARAMETER = ParameterId("P")
 
 /**
  * The Data tab's warp rows: the lattice's Rows / Columns edit its resolution, the aspect lock carries the other count,
- * both and the Quad transform are inert in Pose mode, and the Blend Shapes section lists an item's bindings and hides
+ * both and the Quad transform are inert outside Edit mode, and the Blend Shapes section lists an item's bindings and hides
  * for an item with none.
  */
 @OptIn(ExperimentalTestApi::class)
@@ -175,10 +175,31 @@ class WarpDataRowsTest {
 	 */
 	private fun warpOf(session: EditorSession): Deformer.Warp = session.model.value.deformerById[WARP_W.id] as Deformer.Warp
 
+	/**
+	 * Clicks the Rows field and the Quad toggle over [session] in [mode] and asserts neither took.
+	 *
+	 * @param EditorSession session The session, showing warp w.
+	 * @param EditorMode mode The mode the rows are inert in.
+	 */
+	private fun ComposeUiTest.assertRowsInertIn(session: EditorSession, mode: EditorMode) {
+		runOnIdle { session.setMode(mode) }
+		runOnIdle { assertEquals(mode, session.mode.value, "the fixture reached the mode it tests") }
+		mountData(session)
+
+		onAllNodesWithText("2")[0].performMouseInput { click() }
+		waitForIdle()
+		onAllNodes(hasSetTextAction() and isFocused()).assertCountEquals(0)
+		onNodeWithText("Bilinear (Quad)").performMouseInput { click() }
+		waitForIdle()
+		runOnIdle { assertTrue(warpOf(session).isQuadTransform, "the toggle did nothing") }
+	}
+
 	@Test
 	fun rowsResizeTheLatticeAndTheLockCarriesColumns() =
 		runComposeUiTest {
 			val session = showing(WARP_W)
+			runOnIdle { session.setMode(EditorMode.Edit) }
+			runOnIdle { assertEquals(EditorMode.Edit, session.mode.value, "the selected warp opens its lattice") }
 			mountData(session)
 			onNodeWithText("Rows").assertExists()
 			onNodeWithText("Columns").assertExists()
@@ -193,18 +214,15 @@ class WarpDataRowsTest {
 		}
 
 	@Test
+	fun objectModeLeavesTheRowsAndTheQuadToggleInert() =
+		runComposeUiTest {
+			assertRowsInertIn(showing(WARP_W), EditorMode.Object)
+		}
+
+	@Test
 	fun poseModeLeavesTheRowsAndTheQuadToggleInert() =
 		runComposeUiTest {
-			val session = showing(WARP_W)
-			runOnIdle { session.setMode(EditorMode.Pose) }
-			mountData(session)
-
-			onAllNodesWithText("2")[0].performMouseInput { click() }
-			waitForIdle()
-			onAllNodes(hasSetTextAction() and isFocused()).assertCountEquals(0)
-			onNodeWithText("Bilinear (Quad)").performMouseInput { click() }
-			waitForIdle()
-			runOnIdle { assertTrue(warpOf(session).isQuadTransform, "the toggle did nothing") }
+			assertRowsInertIn(showing(WARP_W), EditorMode.Pose)
 		}
 
 	@Test

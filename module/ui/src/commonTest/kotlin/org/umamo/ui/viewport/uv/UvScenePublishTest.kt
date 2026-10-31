@@ -1,5 +1,6 @@
 package org.umamo.ui.viewport.uv
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -33,6 +34,7 @@ import kotlin.test.assertTrue
  * before it commits, its commit settling without another publish; a density change republishing the same
  * meshes; and the placement drag's preview riding the page in Object mode only.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class UvScenePublishTest {
 	private val sizes = MeshOverlaySizes(3.5f, 1f, 2.5f)
 	private val extent = ContentBounds(100f, 100f, 60f, 20f)
