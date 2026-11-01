@@ -26,7 +26,6 @@ import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.StubPuppetViewportService
 import org.umamo.ui.viewport.ViewportRegionOverlay
-import org.umamo.ui.viewport.asObjectPickCandidates
 import org.umamo.ui.viewport.gizmo.HeldDriveDispatcher
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.LocalModalDriveDispatcher
@@ -115,7 +114,7 @@ internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession, beside: (@
 											widthPx = RIG_AREA_WIDTH,
 											heightPx = RIG_AREA_HEIGHT,
 											areaPointer = areaPointer,
-											onOverlapRequest = { anchor, candidates -> fixture.overlapRequests.add(Triple(areaId, anchor, candidates.asObjectPickCandidates())) },
+											onOverlapRequest = { anchor, candidates -> fixture.overlapRequests.add(Triple(areaId, anchor, candidates)) },
 										)
 										ViewportObjectGizmoOverlay(
 											areaId = areaId,

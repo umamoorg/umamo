@@ -286,6 +286,7 @@ class KeyformSheetRowsTest {
 		assertEquals(0.5f, rows.single { row -> row.key == "deformer:${LATTICE_RIG_BODY.raw}/geometry" }.pendingAt)
 		assertNull(rows.single { row -> row.key == "deformer:${LATTICE_RIG_HEAD.raw}/geometry" }.pendingAt)
 		assertTrue(rows.filter { row -> row.key != "deformer:${LATTICE_RIG_BODY.raw}/geometry" }.all { row -> row.pendingAt == null }, "a row holding nothing carries no ring")
+		assertEquals(setOf("deformer:${LATTICE_RIG_BODY.raw}"), keyformSheetRows(latticeRigModel(), LATTICE_RIG_PARAMETER, labels(), heldTracks = held, poseValue = 0.5f).heldGroupRowKeys)
 	}
 
 	/**
@@ -301,5 +302,59 @@ class KeyformSheetRowsTest {
 		assertNull(rows.single { row -> row.key == "drawable:a/DRAW_ORDER" }.pendingAt, "the owner's other channel")
 		assertNull(rows.single { row -> row.key == "drawable:b/OPACITY" }.pendingAt, "another owner's same channel")
 		assertNull(rows.single { row -> row.key == "drawable:a" }.pendingAt, "group rows carry no ring")
+	}
+
+	/**
+	 * A warp holding a lattice lists its geometry row with the ring even on a parameter it does not key yet - a key on
+	 * that row seeds the axis - while a warp holding nothing there stays unlisted.
+	 */
+	@Test
+	fun aHeldLatticeListsBeforeItKeysOnTheParameter() {
+		val held = setOf<KeyformTrackRef>(KeyformTrackRef.Geometry(KeyformOwner.Deformer(LATTICE_RIG_BODY)))
+		val projection = keyformSheetRows(latticeRigModel(), ParameterId("ParamOther"), labels(), heldTracks = held, poseValue = 0.5f)
+		val groupKey = "deformer:${LATTICE_RIG_BODY.raw}"
+		val rowKey = "$groupKey/geometry"
+
+		assertEquals(listOf(groupKey), projection.rows.map { row -> row.key }, "only the held warp lists")
+		val geometryRow = projection.rows.single().children.single()
+		assertEquals(rowKey, geometryRow.key)
+		assertTrue(geometryRow.marks.isEmpty(), "no keys on this parameter yet")
+		assertEquals(0.5f, geometryRow.pendingAt)
+		assertEquals(KeyformTrackRef.Geometry(KeyformOwner.Deformer(LATTICE_RIG_BODY)), projection.tracksByRowKey[rowKey], "the row aims I at the warp")
+		assertEquals(setOf(groupKey), projection.heldGroupRowKeys)
+	}
+
+	/**
+	 * A held value lists its channel row with the ring when its owner keys that channel only on another parameter, and
+	 * when it keys the channel nowhere at all (a value being scrubbed in); the owner's other channels stay unlisted.
+	 */
+	@Test
+	fun aHeldValueListsBeforeItKeysOnTheParameter() {
+		val held =
+			setOf<KeyformTrackRef>(
+				KeyformTrackRef.Channel(KeyableTarget(KeyformOwner.Drawable(DrawableId("keyedElsewhere")), FormChannel.OPACITY)),
+				KeyformTrackRef.Channel(KeyableTarget(KeyformOwner.Drawable(DrawableId("unkeyed")), FormChannel.OPACITY)),
+			)
+		val drawables = listOf(channelKeyedDrawable("keyedElsewhere"), channelKeyedDrawable("unkeyed").copy(channelGrids = ChannelGrids(emptyMap())))
+		val projection = keyformSheetRows(model(drawables = drawables), ParameterId("ParamOther"), labels(), heldTracks = held, poseValue = 0.25f)
+		val rows = allRows(projection.rows)
+
+		assertEquals(
+			listOf("drawable:keyedElsewhere", "drawable:keyedElsewhere/OPACITY", "drawable:unkeyed", "drawable:unkeyed/OPACITY"),
+			rows.map { row -> row.key },
+		)
+		assertTrue(rows.filter { row -> row.key.endsWith("/OPACITY") }.all { row -> row.marks.isEmpty() && row.pendingAt == 0.25f })
+		assertEquals(setOf("drawable:keyedElsewhere", "drawable:unkeyed"), projection.heldGroupRowKeys)
+	}
+
+	/** The kind filter hides a held row as it hides any other, and says it did. */
+	@Test
+	fun theKindFilterHidesAHeldRowToo() {
+		val held = setOf<KeyformTrackRef>(KeyformTrackRef.Geometry(KeyformOwner.Deformer(LATTICE_RIG_BODY)))
+		val projection = keyformSheetRows(latticeRigModel(), ParameterId("ParamOther"), labels(), KeyformTrackFilter(geometry = false), held, 0.5f)
+
+		assertTrue(projection.rows.isEmpty())
+		assertTrue(projection.hiddenByFilter)
+		assertTrue(projection.heldGroupRowKeys.isEmpty())
 	}
 }

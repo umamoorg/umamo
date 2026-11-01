@@ -205,6 +205,19 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
 				}
 			}
 
+			// A group that comes to hold an edit opens so its row's ring shows (a group row carries none).  Only a
+			// newly held group opens: one the rigger folds while it holds stays folded.
+			val heldGroupKeys = projections.flatMap { (_, projection) -> projection.heldGroupRowKeys }.toSet()
+			var openedHeldGroups by remember(viewState) { mutableStateOf(emptySet<String>()) }
+			LaunchedEffect(heldGroupKeys) {
+				val newlyHeld = heldGroupKeys - openedHeldGroups
+				openedHeldGroups = heldGroupKeys
+
+				if (newlyHeld.isNotEmpty()) {
+					viewState.expandedKeys = viewState.expandedKeys + newlyHeld
+				}
+			}
+
 			if (projections.all { (_, projection) -> projection.rows.isEmpty() }) {
 				val everythingFiltered = projections.any { (_, projection) -> projection.hiddenByFilter }
 				EmptySheetNotice(emptySheetMessage(everythingFiltered), Modifier.fillMaxSize())

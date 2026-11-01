@@ -100,15 +100,15 @@ interface SessionRequests {
 	fun requestUvPage(request: UvPageRequest)
 
 	/**
-	 * Fires "switch the edited mesh to the drawable under the cursor" (Alt+Q) for the Edit overlay to
-	 * execute - the pointer position and the pick live there (the same division as
-	 * [selectLinkedRequests]).  The payload IS the dispatch-time resolved area, so the collector gates on
-	 * its own id rather than re-reading a pointer-side volatile at collect time.
+	 * Fires "switch to the owner under the cursor" (Alt+Q) - the drawable to edit in Edit mode, the warp to
+	 * pose in Pose mode - for the element overlay to execute: the pointer position and the pick live there
+	 * (the same division as [selectLinkedRequests]).  The payload IS the dispatch-time resolved area, so the
+	 * collector gates on its own id rather than re-reading a pointer-side volatile at collect time.
 	 */
 	val switchObjectRequests: SharedFlow<String?>
 
 	/**
-	 * Requests an Alt+Q edited-mesh switch (see [switchObjectRequests]).
+	 * Requests an Alt+Q switch of the edited or posed owner (see [switchObjectRequests]).
 	 *
 	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
 	 */

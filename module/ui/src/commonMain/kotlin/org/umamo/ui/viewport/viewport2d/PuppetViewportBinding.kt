@@ -40,6 +40,7 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.editOwnerOf
 import org.umamo.edit.pinsPose
 import org.umamo.edit.shownPendingChannelEdits
 import org.umamo.edit.shownPendingLatticeEdits
@@ -54,7 +55,6 @@ import org.umamo.render.buildLayerDrawPlan
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
-import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.visibleDrawableIds
@@ -79,7 +79,6 @@ import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.ViewportSettings
-import org.umamo.ui.viewport.asObjectPickCandidates
 import org.umamo.ui.viewport.gestureOwnsAreaPointer
 import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
@@ -601,11 +600,11 @@ fun rememberPuppetViewportHost(
 								heightPx = heightPx,
 								areaPointer = areaPointer,
 								onOverlapRequest = { position, candidates ->
-									// Edit mode's Alt+Q over a stack: picking a row switches the edited mesh
+									// Alt+Q over a stack: picking a row switches the edited mesh or the posed warp
 									// (never the object selection - that follows inside switchEditOwner).
 									overlap =
-										overlapStateFrom(service, session.model.value, position, candidates.asObjectPickCandidates()) { target ->
-											(target as? SelectionTarget.Drawable)?.let { picked -> session.switchEditOwner(ElementOwner.Drawable(picked.id)) }
+										overlapStateFrom(service, session.model.value, position, candidates) { target ->
+											editOwnerOf(target)?.let(session::switchEditOwner)
 										}
 								},
 							)

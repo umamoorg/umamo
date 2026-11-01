@@ -105,6 +105,8 @@ class KeyformTrackLabels(
  * @property Boolean hiddenByFilter Whether the filter dropped at least one row that would otherwise be
  *   listed - what lets an empty sheet say "hidden by filters" instead of "nothing is keyed here", which
  *   are opposite diagnoses and only one of them is the user's own doing.
+ * @property Set heldGroupRowKeys The group rows with a track holding an edit, so the sheet can open them and show
+ *   the ring (a group row carries none of its own).
  *
  * Equal by value: a projection is built again from every model an edit publishes, and a section handed
  * one equal to the last skips.  Nothing may change a list or a map of it once it is built.
@@ -117,6 +119,7 @@ data class KeyformSheetProjection(
 	val groupRowKeys: Set<String>,
 	val summaryMembersByRowKey: Map<String, List<List<TrackKeyRef>>>,
 	val hiddenByFilter: Boolean = false,
+	val heldGroupRowKeys: Set<String> = emptySet(),
 ) {
 	/**
 	 * The child keys a summary mark stands for, or null when the row is not a collapsed group's.
@@ -146,9 +149,10 @@ data class KeyformSheetProjection(
  * @param KeyformTrackLabels labels The localized chrome labels.
  * @param KeyformTrackFilter filter Which kinds of track to list.
  * @param Set<KeyformTrackRef> heldTracks The tracks holding an edit not yet keyed, as the viewport shows them
- *   (org.umamo.edit.heldTracks); each one's row marks it at [poseValue], where a key on that row would store it.
+ *   (org.umamo.edit.heldTracks); each one's row marks it at [poseValue], where a key on that row would store it,
+ *   and is listed even before its owner keys on [parameterId].
  * @param Float? poseValue The pose's value on [parameterId].
- * @return KeyformSheetProjection The rows and their model bindings; empty when nothing keys on it.
+ * @return KeyformSheetProjection The rows and their model bindings; empty when nothing keys on it or holds an edit.
  */
 fun keyformSheetRows(
 	puppet: PuppetModel,
@@ -260,7 +264,8 @@ private class ProjectionBuilder(
 	private var hiddenByFilter = false
 
 	/**
-	 * Adds one owner's group row and its tracks, or nothing at all when it keys nothing on the parameter.
+	 * Adds one owner's group row and its tracks, or nothing at all when it keys nothing on the parameter and
+	 * holds no edit.
 	 *
 	 * @param String ownerKey The owner's stable row-key prefix.
 	 * @param String ownerName The owner's display name (user data - never translated).
@@ -282,14 +287,17 @@ private class ProjectionBuilder(
 		parameterId: ParameterId,
 	) {
 		val children = ArrayList<TrackRow>()
+		// A track holding an edit lists before it keys on this parameter, so its ring shows where the sheet's I
+		// stores the edit; that key seeds the axis.
+		val shownGeometryMarks = geometryMarks ?: emptyList<TrackKeyMark>().takeIf { KeyformTrackRef.Geometry(owner) in heldTracks }
 
 		// Recorded per DROPPED row rather than per enabled flag: a flag that is off but hides nothing on this
 		// rig must not make an empty sheet blame the filter for a rig that simply keys nothing here.
-		if (geometryMarks != null && !filter.geometry) {
+		if (shownGeometryMarks != null && !filter.geometry) {
 			hiddenByFilter = true
 		}
 
-		if (geometryMarks != null && filter.geometry) {
+		if (shownGeometryMarks != null && filter.geometry) {
 			val rowKey = "$ownerKey/geometry"
 			val track = KeyformTrackRef.Geometry(owner)
 			children.add(
@@ -297,7 +305,7 @@ private class ProjectionBuilder(
 					key = rowKey,
 					label = labels.geometry,
 					tone = TrackRowTone.Primary,
-					marks = geometryMarks,
+					marks = shownGeometryMarks,
 					pendingAt = pendingAtOf(track),
 				),
 			)
@@ -307,8 +315,16 @@ private class ProjectionBuilder(
 			tracks[rowKey] = track
 		}
 
-		for ((channel, track) in channelGrids.gridsByChannel) {
-			val marks = marksOf(track, parameterId, TrackKeyShape.Circle) ?: continue
+		// A held channel this owner keys nowhere yet (a value being scrubbed in) follows the keyed ones.
+		val heldOnlyChannels =
+			heldTracks
+				.mapNotNull { held -> (held as? KeyformTrackRef.Channel)?.target?.takeIf { target -> target.owner == owner }?.channel }
+				.filter { channel -> channelGrids[channel] == null }
+				.sortedBy { channel -> channel.ordinal }
+
+		for (channel in channelGrids.gridsByChannel.keys + heldOnlyChannels) {
+			val channelTrack = KeyformTrackRef.Channel(KeyableTarget(owner, channel))
+			val marks = marksOf(channelGrids[channel], parameterId, TrackKeyShape.Circle) ?: emptyList<TrackKeyMark>().takeIf { channelTrack in heldTracks } ?: continue
 
 			if (!filter.channels) {
 				hiddenByFilter = true
@@ -317,7 +333,6 @@ private class ProjectionBuilder(
 			}
 
 			val rowKey = "$ownerKey/${channel.name}"
-			val channelTrack = KeyformTrackRef.Channel(KeyableTarget(owner, channel))
 			children.add(
 				TrackRow(
 					key = rowKey,
@@ -407,6 +422,7 @@ private class ProjectionBuilder(
 			groupRowKeys = rows.map { row -> row.key }.toSet(),
 			summaryMembersByRowKey = rows.associate { row -> row.key to summaryMembersOf(row) },
 			hiddenByFilter = hiddenByFilter,
+			heldGroupRowKeys = rows.filter { row -> row.children.any { child -> child.pendingAt != null } }.map { row -> row.key }.toSet(),
 		)
 }
 

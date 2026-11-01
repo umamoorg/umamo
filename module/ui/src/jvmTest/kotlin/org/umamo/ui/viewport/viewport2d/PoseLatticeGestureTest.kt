@@ -298,6 +298,25 @@ class PoseLatticeGestureTest {
 			assertEquals(listOf<ElementOwner>(ElementOwner.Deformer(LATTICE_RIG_GUIDE)), session.meshSelection.value.owners, "art no warp moves switches nothing")
 		}
 
+	/** Two drawn lattices under the pointer open the picker in the asking area, best first, and switch nothing yet. */
+	@Test
+	fun altQOverTwoLatticesAsksForThePicker() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(poseSession())
+			val session = fixture.session
+			val ownersBefore = session.meshSelection.value.owners
+			moveIn(LEFT_AREA, listOf(rigScreenOf(70f, -10f)))
+
+			fixture.service.latticeStackByArea[LEFT_AREA] = listOf(LATTICE_RIG_GUIDE, LATTICE_RIG_HEAD)
+			session.requestSwitchObjectUnderCursor(LEFT_AREA)
+			waitForIdle()
+
+			val (areaId, _, candidates) = fixture.overlapRequests.single()
+			assertEquals(LEFT_AREA, areaId)
+			assertEquals(listOf(SelectionTarget.Deformer(LATTICE_RIG_GUIDE), SelectionTarget.Deformer(LATTICE_RIG_HEAD)), candidates.map { candidate -> candidate.target })
+			assertEquals(ownersBefore, session.meshSelection.value.owners)
+		}
+
 	@Test
 	fun theObjectOverlayStaysOutOfPoseMode() =
 		runComposeUiTest {
