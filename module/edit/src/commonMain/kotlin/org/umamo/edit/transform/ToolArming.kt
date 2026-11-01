@@ -39,7 +39,7 @@ fun EditorSession.beginMeshOperator(kind: MeshOperatorKind, areaId: String, supp
 		return
 	}
 
-	latches.latchMeshOperator(kind, areaId, suppressProportional)
+	latches.latchMeshOperator(kind, areaId, suppressProportional, turnsInDepth = mode.value == EditorMode.Pose)
 }
 
 /**

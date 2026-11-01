@@ -200,10 +200,12 @@ internal fun ModalOperatorBadge(
 ) {
 	val hudColors = LocalUmamoColors.current
 	val operatorLabel = stringResource(operatorKind.labelResource())
+	// A locked Rotate turns about its axis in depth; a locked Grab or Scale runs along it.
+	val turnsAbout = operatorKind == MeshOperatorKind.Rotate
 	val axisSuffix =
 		when (axisConstraint) {
-			TransformAxisConstraint.AxisX -> "  ${stringResource(Res.string.hud_along_x)}"
-			TransformAxisConstraint.AxisZ -> "  ${stringResource(Res.string.hud_along_z)}"
+			TransformAxisConstraint.AxisX -> "  ${stringResource(if (turnsAbout) Res.string.hud_about_x else Res.string.hud_along_x)}"
+			TransformAxisConstraint.AxisZ -> "  ${stringResource(if (turnsAbout) Res.string.hud_about_z else Res.string.hud_along_z)}"
 			null -> ""
 		}
 	val proportionalSuffix =

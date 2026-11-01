@@ -8,6 +8,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.ActiveMeshInfoLabel
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.ModalOperatorBadge
 import org.umamo.ui.viewport.ViewportZoomBadge
@@ -58,6 +59,21 @@ fun ViewportHudOverlay(
 			proportionalRadius = if (showProportional) proportionalState.radiusWorld.roundToInt() else null,
 			modifier = modifier,
 		)
+	}
+
+	// The depth turn's inset (bottom right): the initiating area's Rotate turning in depth about a locked axis.  The
+	// latch publishes its depth flag before the operator, so composing on the operator reads it settled, and only a
+	// shown inset collects the depth.
+	val liveMeshOperator = meshOperator
+
+	if (
+		liveMeshOperator != null &&
+		liveMeshOperator.areaId == areaId &&
+		axisConstraint != null &&
+		session.meshOperatorTurnsInDepth(liveMeshOperator.kind)
+	) {
+		val pivotDepth by session.pivotDepth.collectAsState()
+		PivotDepthInset(pivotDepth = pivotDepth, gridScale = LocalAreaOverlays.current?.grid?.scale ?: GridConfig().scale, modifier = modifier)
 	}
 
 	// The area-wide info chips: the top-left active-mesh label and the bottom-left zoom readout.  The

@@ -1,5 +1,6 @@
 package org.umamo.edit
 
+import org.umamo.edit.transform.DepthSurface
 import org.umamo.runtime.eval.defaultValueLookup
 import org.umamo.runtime.eval.poseValueLookup
 import org.umamo.runtime.eval.warpDrawnAt
@@ -28,6 +29,8 @@ import org.umamo.runtime.model.meshOf
  * @property Cursor2d?              cursor2d             The 2D cursor, or null when never placed.
  * @property UvCursor?              uvCursor             The UV cursor, or null when never placed.
  * @property TransformPivotMode     pivotMode            What a modal Scale or Rotate turns about.
+ * @property Float                  pivotDepth           How far a depth turn's pivot is pushed along world Y, in world px.
+ * @property DepthSurface           depthSurface         How deep the points sit before a depth turn.
  * @property Boolean                proportionalEnabled  Whether proportional editing is on.
  * @property ProportionalEditState? proportionalSettings The proportional falloff, radius, and connected flag - kept
  *   while proportional editing is off, since a toggle brings them back - or null for the defaults.
@@ -40,6 +43,8 @@ data class SessionViewState(
 	val cursor2d: Cursor2d? = null,
 	val uvCursor: UvCursor? = null,
 	val pivotMode: TransformPivotMode = TransformPivotMode.MedianPoint,
+	val pivotDepth: Float = 0f,
+	val depthSurface: DepthSurface = DepthSurface.Flat,
 	val proportionalEnabled: Boolean = false,
 	val proportionalSettings: ProportionalEditState? = null,
 )

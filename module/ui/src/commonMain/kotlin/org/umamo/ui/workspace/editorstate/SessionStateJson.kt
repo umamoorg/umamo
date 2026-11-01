@@ -19,6 +19,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SessionViewState
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.UvCursor
+import org.umamo.edit.transform.DepthSurface
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
@@ -93,6 +94,18 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 				}
 			} ?: JsonNull,
 		)
+		// UMA §7.4: `depthTurn` - the depth turn's pivot depth and surface, left out at the defaults.
+		put(
+			"depthTurn",
+			if (viewState.pivotDepth == 0f && viewState.depthSurface == DepthSurface.Flat) {
+				JsonNull
+			} else {
+				buildJsonObject {
+					put("depth", if (viewState.pivotDepth == 0f) JsonNull else JsonPrimitive(viewState.pivotDepth))
+					put("surface", if (viewState.depthSurface == DepthSurface.Flat) JsonNull else JsonPrimitive(depthSurfaceWireName(viewState.depthSurface)))
+				}
+			},
+		)
 	}
 
 /**
@@ -111,6 +124,7 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 	val parameterSelection = tree["parameterSelection"] as? JsonObject
 	val parameterIds = parameterSelection?.let { block -> stringListOf(block, "ids") }.orEmpty().mapTo(LinkedHashSet(), ::ParameterId)
 	val proportional = tree["proportional"] as? JsonObject
+	val depthTurn = tree["depthTurn"] as? JsonObject
 
 	return SessionViewState(
 		selection = Selection(targets, selection?.let { block -> stringOf(block, "active") }?.let(::selectionTargetOf)),
@@ -120,6 +134,10 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 		cursor2d = floatListOf(tree, "cursor2d", 2)?.let { (worldX, worldZ) -> Cursor2d(worldX, worldZ) },
 		uvCursor = floatListOf(tree, "uvCursor", 2)?.let { (u, v) -> UvCursor(u, v) },
 		pivotMode = stringOf(tree, "pivot")?.let { wireName -> TransformPivotMode.entries.firstOrNull { mode -> pivotWireName(mode) == wireName } } ?: TransformPivotMode.MedianPoint,
+		pivotDepth = depthTurn?.let { block -> finiteFloatOf(block["depth"]) } ?: 0f,
+		depthSurface =
+			depthTurn?.let { block -> stringOf(block, "surface") }?.let { wireName -> DepthSurface.entries.firstOrNull { surface -> depthSurfaceWireName(surface) == wireName } }
+				?: DepthSurface.Flat,
 		proportionalEnabled = proportional?.let { block -> booleanOf(block, "enabled") } ?: false,
 		proportionalSettings =
 			proportional?.let { block ->
@@ -253,4 +271,17 @@ private fun falloffWireName(falloff: ProportionalFalloff): String =
 		ProportionalFalloff.Linear -> "linear"
 		ProportionalFalloff.Constant -> "constant"
 		ProportionalFalloff.Random -> "random"
+	}
+
+/**
+ * A depth surface's name in the editor entry.
+ *
+ * @param DepthSurface surface The surface.
+ * @return String The wire name.
+ */
+private fun depthSurfaceWireName(surface: DepthSurface): String =
+	// UMA §7.4: `depthTurn.surface`.
+	when (surface) {
+		DepthSurface.Flat -> "flat"
+		DepthSurface.Rounded -> "rounded"
 	}

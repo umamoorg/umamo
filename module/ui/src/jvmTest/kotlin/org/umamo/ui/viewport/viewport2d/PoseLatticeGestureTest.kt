@@ -1,7 +1,11 @@
 package org.umamo.ui.viewport.viewport2d
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
@@ -13,10 +17,15 @@ import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.keyform.captureKeysOnTracks
 import org.umamo.edit.setMeshSelectMode
+import org.umamo.edit.transform.DepthSurface
+import org.umamo.edit.transform.RotationAxis
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.beginMeshOperator
+import org.umamo.edit.transform.choiceKey
+import org.umamo.edit.transform.depthOffsetOf
 import org.umamo.edit.withParameter
 import org.umamo.render.eval.warpLatticeAt
 import org.umamo.render.pick.PickCandidate
@@ -31,10 +40,15 @@ import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.clickIn
+import org.umamo.ui.viewport.gizmo.gizmoAreaTag
 import org.umamo.ui.viewport.gizmo.moveIn
+import org.umamo.ui.viewport.gizmo.scrollIn
 import org.umamo.ui.workspace.commands.CommandRouting
 import org.umamo.ui.workspace.commands.SessionAvailability
 import org.umamo.ui.workspace.commands.topologyCommands
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -100,6 +114,70 @@ class PoseLatticeGestureTest {
 		session: EditorSession,
 		deformerId: DeformerId,
 	): FloatArray = assertNotNull(warpLatticeAt(session.model.value, session.pose.value, deformerId, session.pendingLatticeEdits.value)).world
+
+	@Test
+	fun aZLockedRotateTurnsTheLatticeInDepthAndTheStripRoundsIt() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(poseSession(points = setOf(0, 1, 2, 3), active = 3))
+			val session = fixture.session
+			val before = posedWorld(session, LATTICE_RIG_BODY)
+			val pivotX = (before[0] + before[2] + before[4] + before[6]) / 4f
+			val pivotZ = (before[1] + before[3] + before[5] + before[7]) / 4f
+			session.setPivotDepth(10f)
+			moveIn(LEFT_AREA, listOf(gestureStart))
+
+			session.beginMeshOperator(MeshOperatorKind.Rotate, LEFT_AREA)
+			waitForIdle()
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+			assertEquals(TransformAxisConstraint.AxisZ, session.axisConstraint.value, "a Pose Rotate locks the axis it turns about")
+
+			// The primary-modifier wheel pushes the pivot away (wheel up), a fixed screen distance per step at the zoom.
+			onNodeWithTag(gizmoAreaTag(LEFT_AREA)).performKeyInput { keyDown(Key.CtrlLeft) }
+			scrollIn(LEFT_AREA, -1f)
+			onNodeWithTag(gizmoAreaTag(LEFT_AREA)).performKeyInput { keyUp(Key.CtrlLeft) }
+			val pushedDepth = session.pivotDepth.value
+			assertTrue(pushedDepth > 10f, "the wheel pushed the pivot into the screen, to $pushedDepth")
+			val radiusBefore = session.proportionalSettings.value.radiusWorld
+			scrollIn(LEFT_AREA, -1f)
+			assertEquals(pushedDepth, session.pivotDepth.value, "the plain wheel leaves the depth alone")
+			assertEquals(radiusBefore, session.proportionalSettings.value.radiusWorld, "and resizes no halo while proportional editing is off")
+
+			// The test input's first move after a scroll arrives as an Enter, which drives nothing, so step through a
+			// point first.
+			moveIn(LEFT_AREA, listOf(gestureStart + Offset(1f, 0f), tenUnitsRight))
+			clickIn(LEFT_AREA, tenUnitsRight)
+
+			val record = assertNotNull(session.adjustableOperation.value)
+			val angle = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.ANGLE } as OperatorParameter.FloatParameter
+			val radians = angle.value * PI.toFloat() / 180f
+			assertEquals(40f * PI.toFloat() / RIG_AREA_HEIGHT, radians, 1e-3f, "forty pixels across a 300 px shorter side")
+			assertEquals(RotationAxis.Z.choiceKey, (record.parameters.first { parameter -> parameter.key == TransformParameterKeys.AXIS } as OperatorParameter.ChoiceParameter).value)
+			val landed = posedWorld(session, LATTICE_RIG_BODY)
+
+			for (pointIndex in 0 until 4) {
+				val expectedX = pivotX + (before[pointIndex * 2] - pivotX) * cos(radians) + pushedDepth * sin(radians)
+				assertEquals(expectedX, landed[pointIndex * 2], 1e-2f, "point $pointIndex squashes and slides")
+				assertEquals(before[pointIndex * 2 + 1], landed[pointIndex * 2 + 1], 1e-3f, "and keeps its height")
+			}
+
+			assertEquals(pivotZ, (landed[1] + landed[3] + landed[5] + landed[7]) / 4f, 1e-3f)
+
+			// Rounded on the strip reruns from the base and sticks for the next turn; so does a typed depth.
+			val surface = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.DEPTH_SURFACE } as OperatorParameter.ChoiceParameter
+			session.adjustLastOperation(
+				record.parameters.withParameter(TransformParameterKeys.DEPTH_SURFACE, surface.copy(value = DepthSurface.Rounded.choiceKey)),
+				adjustedKey = TransformParameterKeys.DEPTH_SURFACE,
+			)
+			assertEquals(DepthSurface.Rounded, session.depthSurface.value, "the Surface row writes back")
+			val rounded = posedWorld(session, LATTICE_RIG_BODY)
+			val cornerDepth = depthOffsetOf(before[0] - pivotX, before[1] - pivotZ, pushedDepth, DepthSurface.Rounded)
+			assertEquals(pivotX + (before[0] - pivotX) * cos(radians) - cornerDepth * sin(radians), rounded[0], 1e-2f, "the corner sits on the sphere")
+
+			val adjusted = assertNotNull(session.adjustableOperation.value)
+			val depthRow = adjusted.parameters.first { parameter -> parameter.key == TransformParameterKeys.PIVOT_DEPTH } as OperatorParameter.FloatParameter
+			session.adjustLastOperation(adjusted.parameters.withParameter(TransformParameterKeys.PIVOT_DEPTH, depthRow.copy(value = 75f)), adjustedKey = TransformParameterKeys.PIVOT_DEPTH)
+			assertEquals(75f, session.pivotDepth.value, "the Depth row writes back")
+		}
 
 	@Test
 	fun theSelectModesPickPointsGridLinesAndCells() =

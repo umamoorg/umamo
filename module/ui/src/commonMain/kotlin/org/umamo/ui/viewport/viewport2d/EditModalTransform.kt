@@ -35,6 +35,9 @@ import org.umamo.ui.viewport.gizmo.activeElementMedian
 import org.umamo.ui.viewport.gizmo.gestureParameters
 import kotlin.math.pow
 
+// How far one wheel step pushes a depth turn's pivot along Y, in screen px at the current zoom.
+private const val PIVOT_DEPTH_STEP_PX = 16f
+
 /**
  * The captured state of an in-flight Edit- or Pose-mode transform: the shared [ModalTransformCapture] alongside
  * each captured owner's frozen world geometry and the stage it was captured at.  The geometry is keyed on the owner,
@@ -324,7 +327,16 @@ internal class EditModalTransform(
 				} else {
 					null
 				}
-			registerMeshTransformAdjustment(session, areaId, transform, gestureData.geometryByOwner, gestureData.stage, parameters, proportional) { _, state ->
+			registerMeshTransformAdjustment(
+				session,
+				areaId,
+				transform,
+				gestureData.geometryByOwner,
+				gestureData.stage,
+				parameters,
+				proportional,
+				turnsInDepth = session.meshOperatorTurnsInDepth(transform.operatorKind),
+			) { _, state ->
 				session.setProportionalEdit(state)
 			}
 		}
@@ -338,16 +350,28 @@ internal class EditModalTransform(
 	/**
 	 * The wheel resizes the proportional influence radius mid-gesture (Blender's behavior): geometric
 	 * steps and weights re-derived from the frozen originals at once, on the UI thread, and a drive
-	 * submitted so the mesh responds without a pointer move.
+	 * submitted so the mesh responds without a pointer move.  With the primary modifier held during a Rotate
+	 * turning in depth about a locked axis, it pushes the pivot along Y instead - wheel up away from the viewer,
+	 * a fixed screen distance per step at the current zoom - and re-drives the same way.
 	 *
 	 * @param Float steps The scroll in wheel steps; negative (wheel up) grows the radius.
+	 * @param Boolean primaryHeld True while the primary modifier is held.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
 	 */
-	override fun onScroll(steps: Float, camera: ViewportCamera, size: IntSize) {
+	override fun onScroll(steps: Float, primaryHeld: Boolean, camera: ViewportCamera, size: IntSize) {
 		val operator = session.activeMeshOperator.value?.takeIf { it.areaId == areaId } ?: return
 		val proportional = session.proportionalEdit.value
 		val gestureData = gesture.capture
+
+		if (primaryHeld && session.meshOperatorTurnsInDepth(operator.kind) && session.axisConstraint.value != null) {
+			if (steps != 0f && gestureData != null && camera.zoom > 0f) {
+				session.setPivotDepth(session.pivotDepth.value - steps * PIVOT_DEPTH_STEP_PX / camera.zoom)
+				submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
+			}
+
+			return
+		}
 
 		if (steps != 0f && proportional != null && gestureData != null && session.meshOperatorTakesProportional(operator.kind)) {
 			session.setProportionalRadius(proportional.radiusWorld * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
@@ -372,7 +396,17 @@ internal class EditModalTransform(
 		val start = gesture.gestureStart ?: return false
 		val gestureData = gesture.capture ?: return false
 		val transform = gestureData.transform
-		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
+		val frame =
+			TransformGestureFrame(
+				transform.anchor,
+				start,
+				virtualPointer,
+				session.axisConstraint.value,
+				activeCamera,
+				size,
+				session.pivotDepth.value,
+				session.depthSurface.value,
+			)
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
 		// Vertex Slide projects the pointer onto its edge: the best edge is re-picked from the live pointer
 		// every move, and a pointer landing on no edge leaves the vertex where it was.

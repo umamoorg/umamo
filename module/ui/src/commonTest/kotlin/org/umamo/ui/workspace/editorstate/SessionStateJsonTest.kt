@@ -19,6 +19,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SessionViewState
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.UvCursor
+import org.umamo.edit.transform.DepthSurface
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.Parameter
@@ -74,6 +75,8 @@ class SessionStateJsonTest {
 				cursor2d = Cursor2d(12.5f, -8f),
 				uvCursor = UvCursor(0.25f, 0.75f),
 				pivotMode = TransformPivotMode.IndividualOrigins,
+				pivotDepth = 125.5f,
+				depthSurface = DepthSurface.Rounded,
 				proportionalEnabled = true,
 				proportionalSettings = ProportionalEditState(ProportionalFalloff.Linear, 64f, connectedOnly = true),
 			)
@@ -81,6 +84,20 @@ class SessionStateJsonTest {
 		val reopened = sessionViewStateOf(sessionStateJson(saved, defaultPose, model))
 
 		assertEquals(saved, reopened)
+	}
+
+	/** The depth turn's block names each member away from its default, and a pulled pivot reads back negative. */
+	@Test
+	fun theDepthTurnBlockWritesOnlyItsDeviations() {
+		val depthOnly = sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)["depthTurn"] as JsonObject
+
+		assertEquals(-40f, depthOnly["depth"]?.jsonPrimitive?.content?.toFloat())
+		assertTrue(depthOnly["surface"] is JsonNull, "a Flat surface writes nothing")
+		assertEquals(SessionViewState(pivotDepth = -40f), sessionViewStateOf(sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)))
+
+		val surfaceOnly = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Rounded), defaultPose, model)["depthTurn"] as JsonObject
+		assertEquals("rounded", surfaceOnly["surface"]?.jsonPrimitive?.content)
+		assertTrue(surfaceOnly["depth"] is JsonNull, "a depth of 0 writes nothing")
 	}
 
 	/** An id holding a colon survives: the reference splits on its FIRST colon only. */

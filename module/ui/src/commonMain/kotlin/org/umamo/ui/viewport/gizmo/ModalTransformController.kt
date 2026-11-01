@@ -4,11 +4,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerKeyboardModifiers
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
+import org.umamo.ui.action.controlIsDistinctFromPrimary
 
 /**
  * The commit-side seam of a modal G / S / R gesture: what differs between the Edit overlay (per-mesh
@@ -41,14 +45,16 @@ internal interface ModalTransformTarget {
 	fun cancel()
 
 	/**
-	 * Handles a modal wheel scroll.  The Edit overlay resizes the proportional influence radius here;
-	 * targets without a scroll behavior take the default no-op.
+	 * Handles a modal wheel scroll.  The Edit overlay resizes the proportional influence radius here, and with the
+	 * primary modifier held pushes a depth turn's pivot along Y; targets without a scroll behavior take the default
+	 * no-op.
 	 *
 	 * @param Float steps The scroll delta in wheel steps (negative is wheel-up).
+	 * @param Boolean primaryHeld True while the primary modifier (Ctrl; Command on macOS) is held.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
 	 */
-	fun onScroll(steps: Float, camera: ViewportCamera, size: IntSize) {}
+	fun onScroll(steps: Float, primaryHeld: Boolean, camera: ViewportCamera, size: IntSize) {}
 }
 
 /**
@@ -121,7 +127,7 @@ internal class ModalTransformController(
 			}
 
 			PointerEventType.Scroll -> {
-				target.onScroll(change.scrollDelta.y, camera, size)
+				target.onScroll(change.scrollDelta.y, event.keyboardModifiers.holdsPrimary(), camera, size)
 			}
 
 			else -> {}
@@ -132,6 +138,14 @@ internal class ModalTransformController(
 		return pointer
 	}
 }
+
+/**
+ * Whether these pointer-event modifiers hold the logical primary modifier: Command where Control is a modifier of its
+ * own (macOS), Control everywhere else - the keymap's primary, read off a pointer event.
+ *
+ * @return Boolean True when the primary modifier is held.
+ */
+private fun PointerKeyboardModifiers.holdsPrimary(): Boolean = if (controlIsDistinctFromPrimary()) isMetaPressed else isCtrlPressed
 
 /**
  * Collects the session's Enter-confirm requests for one overlay instance and confirms its gesture.

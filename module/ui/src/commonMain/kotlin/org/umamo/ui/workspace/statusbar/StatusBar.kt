@@ -33,6 +33,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
+import org.umamo.ui.action.primaryModifierLabel
 import org.umamo.ui.kit.Text
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppet
@@ -171,7 +172,10 @@ private fun ContextBindsZone() {
 	val meshOperator = session?.activeMeshOperator?.collectAsState()?.value
 	val objectOperator = session?.activeObjectOperator?.collectAsState()?.value
 	val uvOperator = session?.activeUvOperator?.collectAsState()?.value
+	val axisConstraint = session?.axisConstraint?.collectAsState()?.value
 	val operatorActive = meshOperator != null || objectOperator != null || uvOperator != null
+	// The latch publishes its depth flag before the operator, so composing on the operator reads it settled.
+	val turnsInDepth = session != null && meshOperator != null && session.meshOperatorTurnsInDepth(meshOperator.kind)
 	// The table is a plain map, so the revision is what re-reads it: a document swap lands its commands
 	// from effects AFTER the composition the swap caused, and only the bump brings this zone back.
 	val registered = remember(commands.revision) { commands.all() }
@@ -181,7 +185,18 @@ private fun ContextBindsZone() {
 	val hints = remember(registered, keymap, hoveredKind, editorMode) { statusHintsFor(registered, keymap, hoveredKind) }
 	val entries =
 		if (operatorActive) {
-			listOf(stringResource(Res.string.status_bind_confirm), stringResource(Res.string.status_bind_cancel))
+			buildList {
+				add(stringResource(Res.string.status_bind_confirm))
+				add(stringResource(Res.string.status_bind_cancel))
+
+				if (turnsInDepth) {
+					add(stringResource(Res.string.status_bind_depth_turn))
+				}
+
+				if (turnsInDepth && axisConstraint != null) {
+					add(stringResource(Res.string.status_bind_depth_push, primaryModifierLabel()))
+				}
+			}
 		} else {
 			hints.map { hint ->
 				val chordRun = hint.chords.joinToString(separator = "/") { chord -> formatAccelerator(chord) }

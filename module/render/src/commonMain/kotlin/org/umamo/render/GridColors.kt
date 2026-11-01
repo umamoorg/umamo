@@ -83,10 +83,11 @@ data class GridColors(
 }
 
 /**
- * The two world-axis line colors, as 0..1 linear RGB triples - the red X axis and the blue Z axis
- * drawn through the world origin behind the puppet (the project's display convention is Y+ forward,
- * Z+ up, so the vertical world axis is presented as Z).  Plain floats for the same reason as
- * [GridColors]: :render stays free of any UI dependency.
+ * The world-axis colors, as 0..1 linear RGB triples - the red X axis and the blue Z axis drawn through
+ * the world origin behind the puppet (the project's display convention is Y+ forward, Z+ up, so the
+ * vertical world axis is presented as Z), and the green Y axis, the depth no axis line shows, which only
+ * the depth turn's chrome draws.  Plain floats for the same reason as [GridColors]: :render stays free of
+ * any UI dependency.
  *
  * ワールド軸線の 2 色（0..1 の RGB）。横が赤い X 軸、縦が青い Z 軸（表示規約は Y+ 前、Z+ 上）。
  *
@@ -96,6 +97,9 @@ data class GridColors(
  * @property Float zRed   Red of the vertical Z axis line.
  * @property Float zGreen Green of the vertical Z axis line.
  * @property Float zBlue  Blue of the vertical Z axis line.
+ * @property Float yRed   Red of the Y (depth) axis.
+ * @property Float yGreen Green of the Y (depth) axis.
+ * @property Float yBlue  Blue of the Y (depth) axis.
  */
 data class WorldAxisColors(
 	val xRed: Float,
@@ -104,9 +108,12 @@ data class WorldAxisColors(
 	val zRed: Float,
 	val zGreen: Float,
 	val zBlue: Float,
+	val yRed: Float,
+	val yGreen: Float,
+	val yBlue: Float,
 ) {
 	companion object {
-		/** Blender-like axis colors: a muted red X and a muted blue Z. */
-		val Classic: WorldAxisColors = WorldAxisColors(0.84f, 0.31f, 0.36f, 0.31f, 0.44f, 0.85f)
+		/** Blender-like axis colors: a muted red X, a muted blue Z, and a muted green Y. */
+		val Classic: WorldAxisColors = WorldAxisColors(0.84f, 0.31f, 0.36f, 0.31f, 0.44f, 0.85f, 0.47f, 0.71f, 0.27f)
 	}
 }

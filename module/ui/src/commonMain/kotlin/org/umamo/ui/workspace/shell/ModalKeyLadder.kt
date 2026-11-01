@@ -219,10 +219,11 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
-			// X / Z during a modal Grab / Scale toggle the axis lock (Blender's axis constraint).
-			// This has to live in the ladder: the modal operator swallows pointer input in the
-			// overlay and every other key here, so the keymap never sees these presses.  The
-			// session no-ops for Rotate (one 2D rotation axis - nothing to lock).
+			// X / Z during a modal Grab / Scale toggle the axis lock (Blender's axis constraint), and
+			// during a Pose-mode Rotate the axis it turns about in depth.  This has to live in the
+			// ladder: the modal operator swallows pointer input in the overlay and every other key
+			// here, so the keymap never sees these presses.  The session no-ops for any other Rotate
+			// (only the view axis - nothing to lock).
 			stroke.isDown && stroke.key == Key.X && editorSession?.activeOperator != null -> {
 				editorSession.toggleAxisConstraint(TransformAxisConstraint.AxisX)
 				true
