@@ -2,21 +2,24 @@ package org.umamo.render.pick
 
 import org.umamo.render.ViewportCamera
 import org.umamo.render.puppet.LatticePoints
+import org.umamo.render.puppet.LatticeShape
 import org.umamo.runtime.model.DeformerId
 
 /*
  * Picking a warp by its drawn lattice, in screen space through the area's camera, so the hit radii are
  * on-screen pixels at every zoom, centered on the points and lines as they are drawn: a click lands on a
- * lattice exactly where its dots and grid lines are, and every control point is a target, not only the corners.
+ * lattice exactly where its dots and lines are, and nowhere else.  A full grid's every control point and grid line
+ * is a target; a slim lattice's are its four corners and its outer edges, so the art inside it stays clickable.
  */
 
 /**
- * The warps whose lattice lies under the pointer, best first: a lattice with a control point within
- * [pointRadiusPx] of the pointer ranks above one with only a grid line within [lineRadiusPx], each tier nearer
+ * The warps whose drawn lattice lies under the pointer, best first: a lattice with a dotted point within
+ * [pointRadiusPx] of the pointer ranks above one with only a drawn line within [lineRadiusPx], each tier nearer
  * first, and a tie goes to the warp later in [lattices]' order - in the model's order, the child drawn over its
  * parent.  A line takes a narrower band than a point so the art between a dense lattice's lines stays clickable.
  *
- * @param Map<DeformerId, LatticePoints> lattices The lattices that can be picked, in the model's deformer order.
+ * @param Map<DeformerId, LatticeShape> lattices The drawn lattice shapes that can be picked, in the model's deformer
+ *   order ([org.umamo.render.puppet.latticeShapesDrawnIn]).
  * @param Float pointerX The pointer x in screen pixels.
  * @param Float pointerY The pointer y in screen pixels.
  * @param Float pointRadiusPx How near a control point must be, in screen pixels.
@@ -27,7 +30,7 @@ import org.umamo.runtime.model.DeformerId
  * @return List<DeformerId> The hit warps, best first; empty when none is near.
  */
 fun latticeHitsAt(
-	lattices: Map<DeformerId, LatticePoints>,
+	lattices: Map<DeformerId, LatticeShape>,
 	pointerX: Float,
 	pointerY: Float,
 	pointRadiusPx: Float,
@@ -39,13 +42,13 @@ fun latticeHitsAt(
 	val hits = ArrayList<LatticeHit>()
 	var modelIndex = 0
 
-	for ((deformerId, lattice) in lattices) {
-		val pointHit = nearestVertex(lattice.world, pointerX, pointerY, pointRadiusPx, camera, viewportWidth, viewportHeight)
+	for ((deformerId, shape) in lattices) {
+		val pointHit = nearestVertex(shape.positions, pointerX, pointerY, pointRadiusPx, camera, viewportWidth, viewportHeight, shape.dotCount)
 
 		if (pointHit != null) {
 			hits.add(LatticeHit(deformerId, POINT_TIER, pointHit.distancePx, modelIndex))
 		} else {
-			nearestEdge(lattice.world, lattice.layout.edgeEndpoints, pointerX, pointerY, lineRadiusPx, camera, viewportWidth, viewportHeight)?.let { edgeHit ->
+			nearestEdge(shape.positions, shape.edgeEndpoints, pointerX, pointerY, lineRadiusPx, camera, viewportWidth, viewportHeight)?.let { edgeHit ->
 				hits.add(LatticeHit(deformerId, EDGE_TIER, edgeHit.distancePx, modelIndex))
 			}
 		}

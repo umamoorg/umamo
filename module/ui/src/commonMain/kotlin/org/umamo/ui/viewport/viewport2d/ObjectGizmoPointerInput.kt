@@ -13,10 +13,10 @@ import org.umamo.ui.viewport.gizmo.ObjectPickController
 /**
  * The Object overlay's pointer loop.  Every event records the pointer, then goes to exactly one branch: the
  * modal transform while an operator is latched here, the circle brush while it is armed here, and
- * otherwise the click pick and the box select, armed or not.  While another area owns a gesture (or a UV
- * operator runs, which never belongs to a viewport), or Zoom Region is armed here, the loop takes nothing.
- * Whatever takes the area over mid-drag - another area, a transform, the circle tool, Zoom Region -
- * abandons an in-flight box first.
+ * otherwise the click pick and the box select, armed or not, with the lattice hover beside them; every other
+ * branch clears the hover.  While another area owns a gesture (or a UV operator runs, which never belongs to a
+ * viewport), or Zoom Region is armed here, the loop takes nothing.  Whatever takes the area over mid-drag -
+ * another area, a transform, the circle tool, Zoom Region - abandons an in-flight box first.
  *
  * It runs for the life of its pointerInput, keyed on the area, and keeps the arguments it started with:
  * each is fixed for the area's life or a State holder read per event.
@@ -26,6 +26,7 @@ import org.umamo.ui.viewport.gizmo.ObjectPickController
  * @param ObjectModalTransform modalTransform The area's modal transform (its gesture state and commit side).
  * @param MarqueeSelectController<Selection> marquee The area's box / circle machinery.
  * @param ObjectPickController objectPick The area's click pick and box flows.
+ * @param LatticeHover latticeHover The area's lattice hover, which follows the idle pointer.
  * @param State<ViewportCamera> liveCamera The area camera.
  * @param State<IntSize> liveSize The area size in pixels.
  */
@@ -35,6 +36,7 @@ internal suspend fun PointerInputScope.objectGizmoPointerLoop(
 	modalTransform: ObjectModalTransform,
 	marquee: MarqueeSelectController<Selection>,
 	objectPick: ObjectPickController,
+	latticeHover: LatticeHover,
 	liveCamera: State<ViewportCamera>,
 	liveSize: State<IntSize>,
 ) {
@@ -56,6 +58,7 @@ internal suspend fun PointerInputScope.objectGizmoPointerLoop(
 				session.activeUvOperator.value != null
 			) {
 				objectPick.cancel()
+				latticeHover.clear()
 
 				continue
 			}
@@ -70,6 +73,7 @@ internal suspend fun PointerInputScope.objectGizmoPointerLoop(
 			// in flight is abandoned rather than landed.
 			if (session.zoomRegionArmedArea.value == areaId) {
 				objectPick.cancel()
+				latticeHover.clear()
 
 				continue
 			}
@@ -78,6 +82,7 @@ internal suspend fun PointerInputScope.objectGizmoPointerLoop(
 			// state under the drag is handled by the box flow itself).
 			if (operator != null || tool is ActiveSelectTool.Circle) {
 				objectPick.cancel()
+				latticeHover.clear()
 			}
 
 			if (operator != null) {
@@ -95,7 +100,9 @@ internal suspend fun PointerInputScope.objectGizmoPointerLoop(
 				// overlay and the UV editor - a drag boxes (Shift adds), a sub-threshold release is the
 				// click pick (replace / toggle / Alt overlap) or, armed, just disarms, and
 				// Shift+RightClick places the 2D cursor.  Only primary-driven events and right-clicks are
-				// consumed, so middle-drag pan and wheel zoom fall through to the navigation layer.
+				// consumed, so middle-drag pan and wheel zoom fall through to the navigation layer.  The lattice
+				// hover follows the same events first, so the lattice a click would take lights up before it.
+				latticeHover.track(event, change)
 				objectPick.handleEvent(event, change, tool is ActiveSelectTool.BoxArmed, activeCamera, size)
 			}
 		}

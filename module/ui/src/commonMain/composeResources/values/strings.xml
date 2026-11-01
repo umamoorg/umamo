@@ -792,6 +792,7 @@
 	<string name="overlay_row_deformers">Deformers</string>
 	<string name="overlay_row_cull_hidden">Cull Hidden</string>
 	<string name="overlay_wireframe_opacity">Opacity</string>
+	<string name="overlay_deformer_opacity">Opacity</string>
 	<!-- The popover's descriptions, each heading's, row's, and field's hover tooltip; named after its label key like
 	     the Properties row descriptions below. -->
 	<string name="overlay_section_guides_description">The visual helpers for placement and alignment.</string>
@@ -806,9 +807,10 @@
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
 	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so that they stand out in the art.</string>
-	<string name="overlay_row_deformers_description">Show the lattice of every warp deformer, not only the selected ones, so that any of them can be selected.</string>
+	<string name="overlay_row_deformers_description">Show the lattice of every warp deformer, not only the selected ones, so that any of them can be selected in the viewport.</string>
 	<string name="overlay_row_cull_hidden_description">Hide parts of the wireframe that are covered by other drawables.</string>
-	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe, or of the UV editor's islands, as a percentage.</string>
+	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe drawn in the viewport.</string>
+	<string name="overlay_deformer_opacity_description">The opacity of the warp lattices drawn in the viewport.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
 	<string name="hud_placement">Placement</string>
@@ -1305,6 +1307,7 @@
 	<string name="settings_colors_role_active">Active</string>
 	<string name="settings_colors_role_offkey">Off-key</string>
 	<string name="settings_colors_role_unkeyed">Unkeyed</string>
+	<string name="settings_colors_role_hovered">Hovered</string>
 	<!-- Relation pick (a Properties eyedropper): the near-cursor badge naming what a click would bind. -->
 	<string name="pick_hover_drawable">Drawable: %1$s</string>
 	<string name="pick_hover_part">Part: %1$s</string>

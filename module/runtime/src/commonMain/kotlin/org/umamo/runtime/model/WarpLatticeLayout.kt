@@ -52,6 +52,87 @@ class WarpLatticeLayout(val rows: Int, val columns: Int) {
 	}
 
 	/**
+	 * The lattice's outline as its own compact point list: the `2 * (rows + columns)` border points, as indices into
+	 * the lattice's points.  The four corners come first, as (0, 0), (0, columns), (rows, columns), (rows, 0), so a
+	 * draw that dots only the first four dots the corners alone; the other border points follow in ring order.
+	 */
+	val outlinePointIndices: IntArray by lazy(LazyThreadSafetyMode.PUBLICATION) {
+		val ring = outlineRing
+		val indices = IntArray(ring.size)
+
+		for (ringPosition in ring.indices) {
+			indices[outlineSlotOfRing[ringPosition]] = ring[ringPosition]
+		}
+
+		indices
+	}
+
+	/**
+	 * The outline's closed border ring as index pairs into [outlinePointIndices] (not into the lattice's points): one
+	 * edge per border segment, each joining two neighbors around the ring - the grid lines along the lattice's four
+	 * sides, and nothing inside.
+	 */
+	val outlineEdgeEndpoints: IntArray by lazy(LazyThreadSafetyMode.PUBLICATION) {
+		val slots = outlineSlotOfRing
+		val endpoints = IntArray(slots.size * 2)
+
+		for (ringPosition in slots.indices) {
+			endpoints[ringPosition * 2] = slots[ringPosition]
+			endpoints[ringPosition * 2 + 1] = slots[(ringPosition + 1) % slots.size]
+		}
+
+		endpoints
+	}
+
+	/**
+	 * The border points in ring order: along row 0, down the last column, back along the last row, and up column 0,
+	 * each corner once.
+	 */
+	private val outlineRing: IntArray by lazy(LazyThreadSafetyMode.PUBLICATION) {
+		val ring = IntArray(2 * (rows + columns))
+		var slot = 0
+
+		for (column in 0 until columns) {
+			ring[slot++] = pointIndex(0, column)
+		}
+
+		for (row in 0 until rows) {
+			ring[slot++] = pointIndex(row, columns)
+		}
+
+		for (column in columns downTo 1) {
+			ring[slot++] = pointIndex(rows, column)
+		}
+
+		for (row in rows downTo 1) {
+			ring[slot++] = pointIndex(row, 0)
+		}
+
+		ring
+	}
+
+	/** Each ring position's slot in the compact outline: the four corners take slots 0 to 3, the rest follow in ring order. */
+	private val outlineSlotOfRing: IntArray by lazy(LazyThreadSafetyMode.PUBLICATION) {
+		val ringSize = 2 * (rows + columns)
+		val cornerPositions = intArrayOf(0, columns, columns + rows, 2 * columns + rows)
+		val slots = IntArray(ringSize) { -1 }
+
+		for (cornerSlot in cornerPositions.indices) {
+			slots[cornerPositions[cornerSlot]] = cornerSlot
+		}
+
+		var nextSlot = cornerPositions.size
+
+		for (ringPosition in 0 until ringSize) {
+			if (slots[ringPosition] < 0) {
+				slots[ringPosition] = nextSlot++
+			}
+		}
+
+		slots
+	}
+
+	/**
 	 * The cells as four point indices each, around the cell: (row, column), (row, column + 1),
 	 * (row + 1, column + 1), (row + 1, column).  Cell `row * columns + column` is the cell's ordinal.
 	 */

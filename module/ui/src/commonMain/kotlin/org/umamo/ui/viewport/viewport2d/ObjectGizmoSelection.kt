@@ -82,9 +82,9 @@ internal fun viewportSelectionAnchors(service: PuppetViewportService, areaId: St
 internal const val LATTICE_LINE_HIT_RADIUS_PX = 4f
 
 /**
- * What a plain click at [position] in [areaId] takes: the first selectable warp whose drawn lattice is under it (a
- * control point within [HIT_RADIUS_PX], else a grid line within [LATTICE_LINE_HIT_RADIUS_PX]), and failing that, the
- * front-most drawable's art.  A locked warp is passed over, so the click reaches what is under its lattice.
+ * What a plain click at [position] in [areaId] takes: the first selectable warp whose drawn lattice is under it
+ * ([selectableLatticeUnder]), and failing that, the front-most drawable's art.  A locked warp is passed over, so the
+ * click reaches what is under its lattice.
  *
  * @param PuppetViewportService service The render service (the lattice and raster picks).
  * @param String areaId The clicked area.
@@ -93,15 +93,30 @@ internal const val LATTICE_LINE_HIT_RADIUS_PX = 4f
  * @return SelectionTarget? The target, or null on empty canvas.
  */
 internal fun viewportTopmostTarget(service: PuppetViewportService, areaId: String, position: Offset, model: PuppetModel): SelectionTarget? {
-	val lattices = latticesUnder(service, areaId, position)
+	val lattice = selectableLatticeUnder(service, areaId, position, model)
 
-	return selectableDeformerTargets(lattices, model).firstOrNull() ?: service.pickAt(areaId, position.x, position.y)?.let { drawableId -> SelectionTarget.Drawable(drawableId) }
+	return lattice?.let { deformerId -> SelectionTarget.Deformer(deformerId) } ?: service.pickAt(areaId, position.x, position.y)?.let { drawableId -> SelectionTarget.Drawable(drawableId) }
 }
 
 /**
- * The warps whose drawn lattice lies under [position] in [areaId], best first, at the viewport's pick radii: a control
- * point within [HIT_RADIUS_PX], else a grid line within [LATTICE_LINE_HIT_RADIUS_PX].  Every click that can land on a
- * lattice reads these radii here.
+ * The warp a pointer at [position] in [areaId] takes by its drawn lattice: the first selectable one [latticesUnder]
+ * finds, so a locked warp is passed over and what is under it is reached.  The one rule a click, Pose mode's Alt+Q,
+ * and the hover ([LatticeHover]) read, so the lattice that lights up is the one a click there takes.
+ *
+ * @param PuppetViewportService service The render service.
+ * @param String areaId The area.
+ * @param Offset position The pointer in area-local pixels.
+ * @param PuppetModel model The model the selectable flags live in.
+ * @return DeformerId? The warp, or null when no selectable lattice is under the pointer.
+ */
+internal fun selectableLatticeUnder(service: PuppetViewportService, areaId: String, position: Offset, model: PuppetModel): DeformerId? =
+	selectableDeformerTargets(latticesUnder(service, areaId, position), model).firstOrNull()?.id
+
+/**
+ * The warps whose drawn lattice lies under [position] in [areaId], best first, at the viewport's pick radii: a drawn
+ * dot within [HIT_RADIUS_PX], else a drawn line within [LATTICE_LINE_HIT_RADIUS_PX] - an idle lattice's corners and
+ * outer edges, any other's every control point and grid line.  Every click and hover that can land on a lattice
+ * reads these radii here.
  *
  * @param PuppetViewportService service The render service.
  * @param String areaId The area.

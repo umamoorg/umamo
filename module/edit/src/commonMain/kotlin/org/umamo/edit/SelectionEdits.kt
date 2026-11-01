@@ -97,11 +97,11 @@ fun EditorSession.invertObjectSelection() {
 /**
  * Re-seeds the session onto one owner (Alt+Q's switch), as ONE undo step covering both selections: the session's
  * owners become just [owner] (with its remembered elements restored where they still fit, in the select mode the
- * session keeps), and the OBJECT selection
- * moves onto the same item - so leaving the mode keeps the switched item instead of reviving the selection the mode
- * was entered with.  The outgoing owners' element selections stash into the per-owner memory first, and the
- * remembered-owner memory follows.  A no-op unless the mode edits elements and [owner] can join a session there
- * ([isSessionOwner]: in Edit mode a meshed drawable or a warp with a rest lattice, in Pose mode a warp the pose draws).
+ * session keeps), and the OBJECT selection moves onto the same item - so leaving the mode keeps the switched item
+ * instead of reviving the selection the mode was entered with.  The outgoing owners' element selections stash into
+ * the per-owner memory first, and the remembered-owner memory follows.  A no-op unless the mode edits elements and
+ * [owner] can join a session there ([isSessionOwner]: in Edit mode a meshed drawable or a warp with a rest lattice,
+ * in Pose mode a warp the pose draws).
  *
  * Built as one combined snapshot push (never chained setSelection + setMeshSelection - each of
  * those snapshots the OTHER selection's pre-change value, which would tear the pair across two

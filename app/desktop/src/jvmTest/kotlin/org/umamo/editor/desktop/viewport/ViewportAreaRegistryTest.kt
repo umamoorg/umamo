@@ -4,15 +4,18 @@ import org.umamo.render.ContentBounds
 import org.umamo.render.DecodedImage
 import org.umamo.render.FrameOverlays
 import org.umamo.render.ViewportCamera
+import org.umamo.runtime.model.DeformerId
 import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.CameraSurface
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.UvSceneContent
+import org.umamo.ui.viewport.withHoveredLattice
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
@@ -375,5 +378,34 @@ class ViewportAreaRegistryTest {
 		registry.setAreaOverlays("puppet", options)
 		assertEquals(options, registry.areas.getValue("puppet").overlays, "the options land on the slot")
 		assertEquals(options, registry.areaOverlays("puppet"), "and read back")
+	}
+
+	/**
+	 * An area's lattice hover rides its overlays, so freshness sees it by value: it lands on that area alone, the same
+	 * warp again stores nothing new, and a later push of the area's options keeps it until the hover changes.
+	 */
+	@Test
+	fun theLatticeHoverRidesTheAreasOverlaysAndOutlivesAPush() {
+		val registry = ViewportAreaRegistry()
+		val warp = DeformerId("warp")
+		registry.register("left")
+		registry.register("right")
+
+		registry.setLatticeHover("left", warp)
+		val hovered = registry.areas.getValue("left").overlays
+		assertEquals(warp, hovered.frame.hoveredLattice, "the hover lands on the pointer's area")
+		assertNull(registry.areas.getValue("right").overlays.frame.hoveredLattice, "and not on the other")
+
+		registry.setLatticeHover("left", warp)
+		assertSame(hovered, registry.areas.getValue("left").overlays, "the same warp again stores nothing new")
+
+		val options = AreaOverlays(GridConfig(50f, 4), FrameOverlays(gridLines = false, axes = true, meshOverlay = true))
+		registry.setAreaOverlays("left", options)
+		assertEquals(options.withHoveredLattice(warp), registry.areas.getValue("left").overlays, "a push of the area's options keeps the hover")
+
+		registry.setLatticeHover("left", null)
+		assertEquals(options, registry.areas.getValue("left").overlays, "until it clears")
+		registry.setLatticeHover("missing", warp)
+		assertNull(registry.areaOverlays("missing"), "an unregistered area takes none")
 	}
 }

@@ -46,6 +46,9 @@ class AreaOverlaysTest {
 		state.wireframeOpacity = 1f
 		state.cullHiddenWireframe = false
 		assertEquals(viewportDefaults.copy(wireframeCulling = false), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
+		state.cullHiddenWireframe = true
+		state.deformerOpacity = 0.4f
+		assertEquals(viewportDefaults.copy(latticeOpacity = 0.4f), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
 	}
 
 	/** An area with a grid of its own asks for that grid, whatever the application's is. */
@@ -78,8 +81,8 @@ class AreaOverlaysTest {
 	}
 
 	/**
-	 * A UV editor never asks for the world axes, the wireframe, every deformer, or the tint off, whatever its flags
-	 * say; its opacity rides along.
+	 * A UV editor never asks for the world axes, the wireframe, every deformer, the tint off, or the lattices faded,
+	 * whatever its flags say; its wireframe opacity rides along.
 	 */
 	@Test
 	fun aUvEditorNeverAsksForAxesOrTheWireframe() {
@@ -89,9 +92,11 @@ class AreaOverlaysTest {
 		state.showDeformers = true
 		state.cullHiddenWireframe = false
 		state.wireframeOpacity = 0.3f
+		state.deformerOpacity = 0.4f
 		assertEquals(
 			FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, selectionTint = true, wireframeOpacity = 0.3f, wireframeCulling = true, allLattices = false),
 			areaOverlaysFor(state, applicationGrid).frame,
+			"its own opacity rides along, while the lattices it never draws stay whole",
 		)
 	}
 

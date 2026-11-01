@@ -32,7 +32,7 @@ class Cmo3GlueTopologyExportTest {
 		val written = Cmo3Import.fromModelSource(target.root as CModelSource)
 		val edited =
 			written.copy(
-				drawables = written.drawables.map { drawable -> drawable.copy(mesh = centredFanOf(drawable.mesh!!)) },
+				drawables = written.drawables.map { drawable -> drawable.copy(mesh = centeredFanOf(drawable.mesh!!)) },
 				glues = written.glues.map { glue -> glue.copy(pairs = glue.pairs.map { pair -> GluePair(pair.indexA + 1, pair.indexB + 1, pair.weightA, pair.weightB) }) },
 			)
 
@@ -92,7 +92,7 @@ class Cmo3GlueTopologyExportTest {
 	 * @param DrawableMesh mesh The old mesh.
 	 * @return DrawableMesh The fan.
 	 */
-	private fun centredFanOf(mesh: DrawableMesh): DrawableMesh {
+	private fun centeredFanOf(mesh: DrawableMesh): DrawableMesh {
 		val vertexCount = mesh.vertexCount
 		val positions = FloatArray(2 * (vertexCount + 1))
 		val uvs = FloatArray(2 * (vertexCount + 1))

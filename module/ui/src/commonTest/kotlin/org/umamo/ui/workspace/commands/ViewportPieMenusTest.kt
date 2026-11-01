@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the pies' entries: the key-type pie offers Lattice, Opacity, Colors, and All in slot order, and every pie's
- * chip is enabled exactly when its command is registered and available - so Colors greys out on a target without the
+ * chip is enabled exactly when its command is registered and available - so Colors grays out on a target without the
  * colors, and a pie whose commands no registry carries cannot be picked.
  */
 class ViewportPieMenusTest {

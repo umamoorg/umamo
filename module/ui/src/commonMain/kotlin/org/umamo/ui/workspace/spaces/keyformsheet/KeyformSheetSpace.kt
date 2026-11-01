@@ -84,11 +84,11 @@ import org.umamo.ui.workspace.LocalKeyformSheetViews
  *
  * Clicking a mark scrubs the parameter onto it and selects it; dragging a mark that is not selected selects
  * it in place of the selection as the drag starts, and a drag then moves the whole selection - a folded
- * group's summary mark stands for every key stacked under it (a key may cross its neighbours, and stops only
+ * group's summary mark stands for every key stacked under it (a key may cross its neighbors, and stops only
  * at the parameter's range); Delete removes the selection as one undo step; right-clicking a lane inserts a
  * key there or removes the one under the pointer; Box Select (B) arms a marquee that adds the keys it
  * encloses to the selection.  Edit mode changes no key (EditorMode.editsKeys): there a mark only selects, and
- * the lane menu's rows are greyed out.
+ * the lane menu's rows are grayed out.
  *
  * This composable is the wiring: it derives the sections, holds the scroll and the drag cursor, registers
  * the area's command surface, and hands each section to [KeyformSheetSection].

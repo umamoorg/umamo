@@ -19,10 +19,10 @@ import org.umamo.ui.workspace.commands.pieMenuEntriesFor
  * The 2D viewport's context menu: what an idle right-click over the surface offers in each mode, as rows of existing
  * commands.  A context menu is contextual, so it holds the mode's operations and nothing of the area's (those stay on
  * the header, as in the UV editor).  Every row dispatches its command through the registry, reads its label from the
- * command's title and its accelerator from the keymap, and greys out when its command is unavailable - the row is
+ * command's title and its accelerator from the keymap, and grays out when its command is unavailable - the row is
  * built from the command id alone, so it can never run one command and advertise another's chord.  A pie's choices
  * come in as a submenu under the title of the command that opens the pie, built from the same entry table the pie
- * draws, so a greyed chip is a greyed row.  Operations driven by the pointer's position (Rip, Vertex Slide, the
+ * draws, so a grayed chip is a grayed row.  Operations driven by the pointer's position (Rip, Vertex Slide, the
  * object switch) stay off it: from a menu, the pointer is on the menu.
  */
 
@@ -113,7 +113,7 @@ private fun rowsFor(mode: EditorMode): List<ViewportMenuRow> =
 
 /**
  * The viewport's context menu items for the session's mode, rebuilt whenever the mode or anything its commands'
- * availability reads changes (the model, both selections, and the held edits), so a row's greyed state is current
+ * availability reads changes (the model, both selections, and the held edits), so a row's grayed state is current
  * when the menu opens.  Empty with no session.
  *
  * @param EditorSession? session The open document's session, or null.

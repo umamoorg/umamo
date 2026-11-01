@@ -50,6 +50,66 @@ class WarpLatticeLayoutTest {
 		assertContentEquals(intArrayOf(0, 1, 2, 1, 3, 2), layout.cellTriangles)
 	}
 
+	/** The outline lists every border point once, the four corners first and in ring order around the lattice. */
+	@Test
+	fun theOutlineListsTheBorderPointsCornersFirst() {
+		for ((rows, columns) in listOf(1 to 1, 2 to 3, 5 to 5, 1 to 4)) {
+			val layout = WarpLatticeLayout(rows, columns)
+			val outline = layout.outlinePointIndices
+			val border =
+				(0 until layout.pointCount).filter { pointIndex ->
+					val row = pointIndex / layout.pointsPerRow
+					val column = pointIndex % layout.pointsPerRow
+					row == 0 || row == rows || column == 0 || column == columns
+				}
+
+			assertEquals(2 * (rows + columns), outline.size, "$rows x $columns")
+			assertEquals(border.toSet(), outline.toSet(), "every border point once in $rows x $columns")
+			assertEquals(outline.size, outline.toSet().size, "no point twice in $rows x $columns")
+			assertContentEquals(
+				intArrayOf(layout.pointIndex(0, 0), layout.pointIndex(0, columns), layout.pointIndex(rows, columns), layout.pointIndex(rows, 0)),
+				outline.copyOfRange(0, 4),
+				"corners first in $rows x $columns",
+			)
+		}
+	}
+
+	/** The outline's edges close one ring around the border: each joins two grid neighbors on a side, and none is inside. */
+	@Test
+	fun theOutlineEdgesRingTheBorder() {
+		for ((rows, columns) in listOf(1 to 1, 2 to 3, 5 to 5, 1 to 4)) {
+			val layout = WarpLatticeLayout(rows, columns)
+			val outline = layout.outlinePointIndices
+			val edges = layout.outlineEdgeEndpoints.toList().chunked(2)
+			val gridLines = layout.edgeEndpoints.toList().chunked(2).map { (low, high) -> setOf(low, high) }.toSet()
+
+			assertEquals(outline.size, edges.size, "$rows x $columns")
+
+			for ((slotA, slotB) in edges) {
+				assertTrue(setOf(outline[slotA], outline[slotB]) in gridLines, "edge $slotA-$slotB is a grid line in $rows x $columns")
+			}
+
+			// Each slot is an endpoint of exactly two edges: one closed ring, no branch and no gap.
+			val degrees = IntArray(outline.size)
+
+			for ((slotA, slotB) in edges) {
+				degrees[slotA]++
+				degrees[slotB]++
+			}
+
+			assertTrue(degrees.all { degree -> degree == 2 }, "one closed ring in $rows x $columns")
+		}
+	}
+
+	/** A 1x1 lattice's outline is its four corners and the four sides between them. */
+	@Test
+	fun aSingleCellOutlineIsItsFourSides() {
+		val layout = WarpLatticeLayout(rows = 1, columns = 1)
+
+		assertContentEquals(intArrayOf(0, 1, 3, 2), layout.outlinePointIndices)
+		assertContentEquals(intArrayOf(0, 1, 1, 2, 2, 3, 3, 0), layout.outlineEdgeEndpoints)
+	}
+
 	/** Cells and triangles come in cell order, one quad and two triangles per cell. */
 	@Test
 	fun cellsAndTrianglesCoverTheLattice() {

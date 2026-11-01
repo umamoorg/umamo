@@ -15,6 +15,7 @@ import org.umamo.render.pick.screenToWorldX
 import org.umamo.render.pick.screenToWorldZ
 import org.umamo.render.puppet.LatticeOverlay
 import org.umamo.render.puppet.PuppetRenderer
+import org.umamo.render.puppet.latticeShapesDrawnIn
 import org.umamo.render.puppet.latticesDrawnIn
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
@@ -196,7 +197,8 @@ internal class ViewportPicker(
 
 	/**
 	 * The warps whose lattice a frame drawing with [overlays] shows under the cursor, best first, over the same
-	 * lattice points the renderer draws ([PuppetRenderer.latticeWorldPoints]).
+	 * lattice points the renderer draws ([PuppetRenderer.latticeWorldPoints]) in the shapes it draws them
+	 * ([latticeShapesDrawnIn]): a slim lattice by its corners and outer edges, any other by its whole grid.
 	 *
 	 * @param LatticeOverlay? overlay The lattices the renderer holds, or null.
 	 * @param FrameOverlays overlays The area's frame options, which decide which lattices it draws.
@@ -220,7 +222,7 @@ internal class ViewportPicker(
 		pointRadiusPx: Float,
 		lineRadiusPx: Float,
 	): List<DeformerId> {
-		val drawn = latticesDrawnIn(overlay, renderer.latticeWorldPoints(), overlays)
+		val drawn = latticeShapesDrawnIn(overlay, renderer.latticeWorldPoints(), overlays)
 
 		return latticeHitsAt(drawn, cursorXpx, cursorYpx, pointRadiusPx, lineRadiusPx, camera, width, height)
 	}

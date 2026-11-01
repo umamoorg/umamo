@@ -765,8 +765,9 @@ private fun KeyableFlagChannelRow(
 
 /**
  * A warp's lattice resolution as an aspect-lockable Rows / Columns pair.  A commit resizes the lattice with its art
- * kept in place and registers the resize on the operation strip; the pair is inert in Pose mode, which shapes the
- * lattice at a pose rather than rewriting every form.
+ * kept in place and registers the resize on the operation strip.  The pair is live only in Edit mode, which edits the
+ * lattice at rest; it is inert in Object mode, and in Pose mode, which shapes the lattice at a pose rather than
+ * rewriting every form.
  *
  * @param Deformer.Warp warp The warp the rows describe.
  * @param PropertyContext context The current context.

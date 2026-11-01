@@ -1,5 +1,7 @@
 package org.umamo.render
 
+import org.umamo.runtime.model.DeformerId
+
 /**
  * What one frame draws over and around the scene beyond its [FrameBackdrop]: the grid lines, the
  * world-origin axes, and the mesh overlay and warp lattices the renderer holds.  A value per frame rather than renderer
@@ -34,6 +36,13 @@ package org.umamo.render
  *   lattice overlay lists beyond the selected and active ones, which draw whenever [meshOverlay] does.  The
  *   2D viewport's Deformers toggle.  True by default, as [meshOverlay] is: a headless render draws what the
  *   renderer holds, and the editor's areas say otherwise.
+ * @property DeformerId? hoveredLattice The warp whose lattice the pointer is over in this frame's area, which draws
+ *   in the palette's hover color whatever its role, over the other lattices of its role, so the area shows what a
+ *   click there takes.  Null for none, as in every headless render.  Transient view state: the area's pointer sets
+ *   it, and nothing saves it.
+ * @property Float latticeOpacity The alpha scale, 0 to 1, of the warp lattices drawn over the art, each at its role's
+ *   palette alpha times this: the 2D viewport's deformer Opacity.  The hovered lattice keeps its hover color whole,
+ *   and the Edit cage keeps the palette.  At 0 no lattice draws, and so none picks ([org.umamo.render.puppet.latticeRolesDrawnIn]).
  */
 data class FrameOverlays(
 	val gridLines: Boolean = true,
@@ -44,4 +53,6 @@ data class FrameOverlays(
 	val wireframeOpacity: Float = 1f,
 	val wireframeCulling: Boolean = true,
 	val allLattices: Boolean = true,
+	val hoveredLattice: DeformerId? = null,
+	val latticeOpacity: Float = 1f,
 )
