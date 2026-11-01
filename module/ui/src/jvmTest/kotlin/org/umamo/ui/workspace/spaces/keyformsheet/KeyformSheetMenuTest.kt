@@ -79,7 +79,7 @@ class KeyformSheetMenuTest {
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 
-	/** In Edit mode, which changes no key, the lane menu's Insert is still offered but greyed out: choosing it adds nothing. */
+	/** In Edit mode, which changes no key, the lane menu's Insert is still offered but grayed out: choosing it adds nothing. */
 	@Test
 	fun inEditModeTheLaneMenusInsertAddsNoKey() =
 		runComposeUiTest {
@@ -96,7 +96,7 @@ class KeyformSheetMenuTest {
 			assertEquals(cursorBefore, harness.historyCursor)
 		}
 
-	/** In Edit mode the lane menu's Delete on a mark is greyed out the same way: choosing it removes nothing. */
+	/** In Edit mode the lane menu's Delete on a mark is grayed out the same way: choosing it removes nothing. */
 	@Test
 	fun inEditModeTheLaneMenusDeleteRemovesNoKey() =
 		runComposeUiTest {
@@ -115,7 +115,7 @@ class KeyformSheetMenuTest {
 
 	/**
 	 * In Edit mode a summary mark's Delete removes nothing either.  It calls the session rather than a command, so
-	 * no command availability guards it and the greyed entry is the whole of the gate.
+	 * no command availability guards it and the grayed entry is the whole of the gate.
 	 */
 	@Test
 	fun inEditModeASummaryMenusDeleteRemovesNoKey() =

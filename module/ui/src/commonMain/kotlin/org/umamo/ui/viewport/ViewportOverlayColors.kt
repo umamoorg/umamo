@@ -20,11 +20,12 @@ import org.umamo.ui.rememberStringSetting
 /**
  * The settings keys and bundled defaults for the viewport overlay colors, one #AARRGGBB hex string
  * each: the Edit-mode element palette (vertex / edge / face by idle / selected / active / off-key),
- * the placement state colors, the selection highlights, and the warp lattice by role and while unkeyed.  The lattice's
- * selected and active defaults are the selection highlights', so a selected warp reads as selected art does.  The defaults here are kept in lockstep
- * with defaultSettings.json (the merged-settings baseline); these constants are the Kotlin-side
- * fallback for a missing or unparseable value, shared by the overlays, the GL viewport binding, and
- * the preferences window so none of them duplicates a key literal.
+ * the placement state colors, the selection highlights, and the warp lattice by role, while unkeyed, and
+ * under the pointer.  The lattice's selected and active defaults are the selection highlights', so a
+ * selected warp reads as selected art does.  The defaults here are kept in lockstep with
+ * defaultSettings.json (the merged-settings baseline); these constants are the Kotlin-side fallback
+ * for a missing or unparseable value, shared by the overlays, the GL viewport binding, and the
+ * preferences window so none of them duplicates a key literal.
  */
 internal object ViewportColorSettings {
 	const val VERTEX_IDLE_KEY = "viewport.meshEdit.vertexIdle"

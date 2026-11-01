@@ -800,10 +800,10 @@
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
 	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so that they stand out in the art.</string>
-	<string name="overlay_row_deformers_description">Show the lattice of every warp deformer, not only the selected ones, so that any of them can be selected.</string>
+	<string name="overlay_row_deformers_description">Show the lattice of every warp deformer, not only the selected ones, so that any of them can be selected in the viewport.</string>
 	<string name="overlay_row_cull_hidden_description">Hide parts of the wireframe that are covered by other drawables.</string>
-	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe, or of the UV editor's islands, as a percentage.</string>
-	<string name="overlay_deformer_opacity_description">The opacity of the warp lattices drawn over the art, as a percentage.  The hovered lattice keeps its hover color.</string>
+	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe drawn in the viewport.</string>
+	<string name="overlay_deformer_opacity_description">The opacity of the warp lattices drawn in the viewport.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
 	<string name="hud_connected">Connected</string>
 	<string name="hud_placement">Placement</string>

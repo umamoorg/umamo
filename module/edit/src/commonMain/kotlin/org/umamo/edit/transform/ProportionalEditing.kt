@@ -9,8 +9,8 @@ import kotlin.math.sqrt
  * influence radius, each weighted by a falloff curve over its distance to the nearest selected vertex,
  * so mesh edits feel like sculpting instead of vertex-by-vertex CAD.  This file holds the pure math
  * (a falloff's weight over a distance and the influence maps); the state types live in
- * ProportionalEditState.kt, the session carries the on/off state, and the gizmo overlay feeds the weights
- * into the weighted MeshTransforms variants. */
+ * ProportionalEditState.kt, the session carries the on/off state, the modal capture derives each mesh's
+ * influences, and the gizmo's transform operators feed them into the weighted MeshTransforms variants. */
 
 /**
  * The falloff weight at a normalized distance: 1 at the selection (distance 0), 0 at and beyond the

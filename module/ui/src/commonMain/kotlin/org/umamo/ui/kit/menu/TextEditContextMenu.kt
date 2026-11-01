@@ -77,8 +77,8 @@ internal fun TextEditContextMenuArea(
 		if (open) {
 			// Built only while the menu is up.  Every kit text field mounts one of these, the entries depend
 			// on the CLIPBOARD (a cross-process read on desktop), and LocalContextMenuItems hands down entries
-			// its area rebuilds every recomposition - so building them unconditionally read the system
-			// clipboard once per field per frame of any neighbouring scrub.  Reading the ambient items here
+			// its area rebuilds every recomposition - so building them unconditionally would read the system
+			// clipboard once per field per frame of any neighboring scrub.  Reading the ambient items here
 			// is still correct: this sits outside the provider that blanks them for `content`.
 			val surroundingItems = LocalContextMenuItems.current()
 			val clipboardItems = textEditMenuItems(value, onValueChange, readOnly)

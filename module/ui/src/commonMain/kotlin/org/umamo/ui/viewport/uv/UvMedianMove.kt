@@ -27,8 +27,9 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 /**
  * The covered texture coordinates captured for a move of their median: a Grab capture over every covered vertex
  * with no proportional weights and every other shown mesh in the edit as a bystander, the frame the coordinates were
- * authored in, the surface's radius, and the median the move measures from.  All frozen when the move is built, as a viewport gesture freezes them, so a page switch
- * between the first frame of a scrub and its release cannot move the target.
+ * authored in, the surface's radius, and the median the move measures from.  All frozen when the move is built, as a
+ * viewport gesture freezes them, so a page switch between the first frame of a scrub and its release cannot move the
+ * target.
  *
  * Built from the committed coordinates at a write's first frame and reused only until something commits: the
  * operation strip keeps the capture of the step it registers and re-derives its halos on adjustment.

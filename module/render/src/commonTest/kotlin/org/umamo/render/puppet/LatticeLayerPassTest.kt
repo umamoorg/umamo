@@ -21,11 +21,10 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * Pins what the renderer records for its lattice layer, on a [RecordingRenderDevice]: each role's grid lines then
- * its dots in the role's color at the frame's lattice opacity, idle first and active last, the hovered lattice in the
- * hover color after the rest of its role;
- * idle lattices only in a frame that shows every deformer; nothing under the Show Overlays master or in a capture;
- * and an upload only for a lattice the pose moved.
+ * Pins what the renderer records for its lattice layer, on a [RecordingRenderDevice]: each role's lines then its
+ * dots in the role's color at the frame's lattice opacity, idle first and active last, the hovered lattice in the
+ * hover color after the rest of its role; idle lattices only in a frame that shows every deformer; nothing under the
+ * Show Overlays master or in a capture; and an upload only for a lattice the pose moved.
  */
 class LatticeLayerPassTest {
 	private val viewportSize = 64

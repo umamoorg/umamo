@@ -16,8 +16,9 @@ import kotlin.test.assertTrue
 class OverlayCatalogTest {
 	/**
 	 * The 2D viewport offers every row; the UV editor every row but the axes, the selection tint, the deformers,
-	 * and the wireframe, which its surface has none of.  Both offer the Opacity field, the UV editor's under a Geometry
-	 * heading with no row of its own.
+	 * and the wireframe, which its surface has none of.  Both offer the wireframe's Opacity field, the UV editor's
+	 * under a Geometry heading with no row of its own; the deformers' Opacity sits under the 2D viewport's Objects
+	 * rows alone.
 	 */
 	@Test
 	fun eachSurfaceOffersItsRowsAndFieldsInSectionOrder() {
@@ -135,7 +136,7 @@ class OverlayCatalogTest {
 		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe && state.effectiveSelectionTint && state.effectiveCullHiddenWireframe)
 	}
 
-	/** Everything is on by default but the wireframe and the deformers, the opacity is whole, and a reset returns there. */
+	/** Everything is on by default but the wireframe and the deformers, both opacities are whole, and a reset returns there. */
 	@Test
 	fun defaultsAreEverythingOnButTheWireframe() {
 		val state = ViewportOverlayState(OverlaySurface.Viewport2D)

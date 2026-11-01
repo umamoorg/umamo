@@ -11,7 +11,7 @@ import org.umamo.ui.theme.LocalUmamoIcons
  * The entry ring for one pie kind, in Blender slot order (W, E, S, N, then the diagonals), each entry enabled exactly
  * when its command is registered and available.  Shared by the shell-level pie host's rendering
  * (ShellCursorOverlays.kt), the shell's 1..N digit shortcuts, and the 2D viewport's context menu, so the picked
- * ordinal always matches the drawn number and a greyed chip is a greyed row.  Icons are authored per entry; a null
+ * ordinal always matches the drawn number and a grayed chip is a grayed row.  Icons are authored per entry; a null
  * icon renders the placeholder square.
  *
  * @param PieMenuKind kind The open pie.
@@ -27,7 +27,7 @@ fun pieMenuEntriesFor(
 	}
 
 /**
- * The entry ring one pie kind is authored with, before availability greys any of it.
+ * The entry ring one pie kind is authored with, before availability grays any of it.
  *
  * @param PieMenuKind kind The pie.
  * @return List<PieMenuEntry> The authored entries.

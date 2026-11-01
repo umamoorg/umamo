@@ -75,7 +75,7 @@ class ModalCaptureEntry internal constructor(
 	/** The drawable these points belong to, or null for a lattice. */
 	val drawableId: DrawableId? get() = owner.drawableId
 
-	/** The proportional-editing halo: influenced unselected vertices to weight, empty when proportional is off. */
+	/** The proportional-editing halo: influenced unselected vertices to weight and pivot, empty when proportional is off. */
 	var influence: Map<Int, ProportionalInfluence> = emptyMap()
 		private set
 

@@ -37,11 +37,12 @@ import kotlin.test.assertTrue
 /**
  * Structural warp edits over a real rig, through to the CMO3 the official editor opens, the UMA the editor saves, and
  * the MOC3 a runtime loads: a warp is created around keyed drawables and a child warp under the same warp, a second
- * warp is re-nested under a third, and a fourth warp with warps and keyed drawables under it is deleted - each on its
- * own subtree, each keeping the art it touches where it rested.  The export reopens with the created, re-nested, and
- * re-homed lattices and their art where the session has them at rest and at every parameter's extremes; the UMA round
- * trip carries the same; and the MOC3 carries the created warp's single keyform and rests its art where the session
- * does.  The CMO3 is written to build/warp-create for Cmo3ShapeGateTest and the official editor.
+ * warp is re-nested under a third (or the root, when no warp encloses it), and a fourth warp with warps and keyed
+ * drawables under it is deleted - each on its own subtree, each keeping the art it touches where it rested.  The
+ * export reopens with the created, re-nested, and re-homed lattices and their art where the session has them at rest
+ * and at every parameter's extremes; the UMA round trip carries the same; and the MOC3 carries the created warp's
+ * single keyform and rests its art where the session does.  The CMO3 is written to build/warp-create for
+ * Cmo3ShapeGateTest and the official editor.
  *
  * Skips without the corpus sample.
  */

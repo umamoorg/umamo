@@ -96,7 +96,7 @@ fun ContextMenuArea(
  * The items of the innermost enclosing [ContextMenuArea], for content that has to build its OWN menu.
  *
  * A text field is the case this exists for: it cannot simply sit inside a [ContextMenuArea] and inherit the
- * behaviour, because it needs its own clipboard entries appended and its own gesture to beat the one the
+ * behavior, because it needs its own clipboard entries appended and its own gesture to beat the one the
  * text-field primitive installs.  Reading the enclosing items here rather than passing them down means a
  * field picks up whatever menu it happens to be nested in - the keyframe menu on a Properties row, the area
  * menu in a panel header - with no call site changed.
