@@ -8,9 +8,9 @@ import kotlinx.coroutines.launch
 import org.umamo.edit.EditorSession
 import org.umamo.edit.mesh.refusesLatticeTopology
 import org.umamo.render.ViewportCamera
-import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.viewport.GridConfig
+import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.ViewportOverlayState
 import org.umamo.ui.viewport.gizmo.editableGeometryOrNotice
@@ -45,7 +45,7 @@ internal suspend fun collectEditGizmoRequests(
 	camera: State<ViewportCamera>,
 	size: State<IntSize>,
 	areaPointer: State<Offset>,
-	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
+	onOverlapRequest: (Offset, List<ObjectPickCandidate>) -> Unit,
 	overlays: ViewportOverlayState?,
 ) {
 	coroutineScope {

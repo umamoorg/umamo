@@ -20,7 +20,6 @@ import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.isPoseNeutral
 import org.umamo.edit.transform.snapToWorldGrid
 import org.umamo.render.ViewportCamera
-import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.eval.poseValueLookup
 import org.umamo.runtime.eval.warpDrawnAt
 import org.umamo.runtime.model.Deformer
@@ -40,8 +39,11 @@ import org.umamo.ui.transform.commitObjectMove
 import org.umamo.ui.transform.coveredMedian
 import org.umamo.ui.transform.coveredVerticesOf
 import org.umamo.ui.transform.elementEditStage
+import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
+import org.umamo.ui.viewport.asObjectPickCandidates
 import org.umamo.ui.viewport.gizmo.activeElementMedian
+import org.umamo.ui.viewport.gizmo.selectableDeformerTargets
 import org.umamo.ui.viewport.gizmo.worldToScreen
 
 /*
@@ -55,10 +57,9 @@ import org.umamo.ui.viewport.gizmo.worldToScreen
  */
 
 /**
- * Alt+Q: switch the session to the owner under the pointer.  In Edit mode that is the drawable whose art is there:
- * one candidate switches directly, and a stack opens the overlap-picker popup (the same picker Object mode's Alt-click
- * uses), so the rigger chooses by name and thumbnail instead of blind-cycling through the layers.  In Pose mode it is
- * the warp to pose ([poseWarpUnder]).
+ * Alt+Q: switch the session to the owner under the pointer.  In Edit mode that is the drawable whose art is there,
+ * and in Pose mode the warp to pose: one candidate switches directly, and a stack opens the overlap-picker popup (the
+ * same picker Object mode's Alt-click uses), so the rigger chooses by name and thumbnail instead of blind-cycling.
  *
  * @param EditorSession session The session owning the mesh selection.
  * @param PuppetViewportService service The render service (the GPU pick).
@@ -71,15 +72,23 @@ internal fun handleSwitchEditOwnerRequest(
 	service: PuppetViewportService,
 	areaId: String,
 	pointer: Offset,
-	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
+	onOverlapRequest: (Offset, List<ObjectPickCandidate>) -> Unit,
 ) {
+	val model = session.model.value
+
 	if (session.mode.value == EditorMode.Pose) {
-		poseWarpUnder(session, service, areaId, pointer)?.let { warpId -> session.switchEditOwner(ElementOwner.Deformer(warpId)) }
+		// Best lattice first, the one a lone Alt+Q takes, so the picker's default row is the same warp.
+		val lattices = selectableDeformerTargets(latticesUnder(service, areaId, pointer), model)
+
+		if (lattices.size >= 2) {
+			onOverlapRequest(pointer, lattices.map { target -> ObjectPickCandidate(target) })
+		} else {
+			poseWarpUnder(session, service, areaId, pointer)?.let { warpId -> session.switchEditOwner(ElementOwner.Deformer(warpId)) }
+		}
 
 		return
 	}
 
-	val model = session.model.value
 	val candidates =
 		service.pickAllAt(areaId, pointer.x, pointer.y)
 			.filter { candidate ->
@@ -96,7 +105,7 @@ internal fun handleSwitchEditOwnerRequest(
 
 		candidates.size == 1 -> session.switchEditOwner(ElementOwner.Drawable(candidates.single().id))
 
-		else -> onOverlapRequest(pointer, candidates)
+		else -> onOverlapRequest(pointer, candidates.asObjectPickCandidates())
 	}
 }
 

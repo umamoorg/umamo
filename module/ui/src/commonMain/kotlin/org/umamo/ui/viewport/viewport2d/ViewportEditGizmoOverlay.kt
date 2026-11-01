@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorSession
 import org.umamo.edit.editsElements
 import org.umamo.render.ViewportCamera
-import org.umamo.render.pick.PickCandidate
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
 import org.umamo.ui.theme.selectionOverlayStyle
@@ -31,6 +30,7 @@ import org.umamo.ui.transform.elementEditStageOf
 import org.umamo.ui.transform.rememberElementEditStage
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.LocalLiveMeshPreview
+import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
@@ -80,7 +80,8 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  * @param State areaPointer Where the pointer last was in this area, tracked by the HOST so the
  *        pointer-addressed commands still resolve while this overlay is unmounted.
  * @param Function onOverlapRequest Opens the overlap-picker popup for an Alt+Q over 2+ stacked
- *        candidates (the pick switches the edited mesh).
+ *        candidates: the drawables under the pointer in Edit mode, the lattices in Pose mode (the pick
+ *        switches the edited or posed owner).
  * @param Modifier modifier The layout modifier.
  */
 @Composable
@@ -92,7 +93,7 @@ fun ViewportEditGizmoOverlay(
 	widthPx: Int,
 	heightPx: Int,
 	areaPointer: State<Offset>,
-	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
+	onOverlapRequest: (Offset, List<ObjectPickCandidate>) -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val mode by session.mode.collectAsState()

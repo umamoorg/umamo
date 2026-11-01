@@ -4,6 +4,11 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.TrackKeyRef
+import org.umamo.edit.keyform.previewChannelEdit
+import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.KeyableTarget
+import org.umamo.runtime.model.KeyformOwner
 import org.umamo.ui.workspace.spaces.parameters.PanelIds
 import org.umamo.ui.workspace.spaces.parameters.PanelNames
 import org.umamo.ui.workspace.spaces.parameters.assertNear
@@ -345,6 +350,28 @@ class KeyformSheetGestureTest {
 			assertEquals(setOf(SheetRows.PART), harness.sheetViewState.expandedKeys)
 			assertEquals(0, sheetCountOfText(harness.text.trackGeometry), "the drawable's tracks are folded away")
 			assertEquals(1, sheetCountOfText("a"), "its group row stays")
+		}
+
+	/**
+	 * A value held on a channel the section's parameter does not key lists its owner, opened so the row's ring shows;
+	 * folded again while it still holds, the group stays folded.
+	 */
+	@Test
+	fun aHeldValueListsItsRowOpened() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.angleX))
+			assertNull(harness.sheetViewState.laneBounds[SheetRows.OPACITY], "drawable a keys nothing on Angle X")
+
+			runOnIdle { harness.session.previewChannelEdit(KeyableTarget(KeyformOwner.Drawable(PanelIds.drawable), FormChannel.OPACITY), ChannelValue.Scalar(0.5f)) }
+			waitForIdle()
+
+			assertTrue(SheetRows.DRAWABLE in harness.sheetViewState.expandedKeys, "the newly held group opens")
+			assertNotNull(harness.sheetViewState.laneBounds[SheetRows.OPACITY], "its held row is on screen")
+
+			clickAt(chevronPoint(harness, SheetRows.DRAWABLE))
+			waitForIdle()
+
+			assertTrue(SheetRows.DRAWABLE !in harness.sheetViewState.expandedKeys, "folding it again holds")
 		}
 
 	/** The sheet lists one section per targeted parameter, in the model's order, and follows the target. */
