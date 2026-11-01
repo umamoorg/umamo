@@ -146,10 +146,8 @@ internal fun warpBlendShapesOf(
 
 /**
  * Maps [records] onto [rotation] as affine blend bindings: origin/angle/scale delta rows plus
- * the grid-at-default reference.  The scale delta carries the same px→model seam factor as
- * the grid keyforms; flips are not blendable, so the FLIP tracks' value at the default pose
- * fills the form.  The deformer's own opacity/color rows get the same reference treatment as
- * the geometry and CASCADE onto every drawable underneath (see `DeformerCascade`).
+ * the grid-at-default reference, and the same treatment for the deformer's own render channels,
+ * which CASCADE onto every drawable underneath.
  *
  * @param Moc3ImportContext   context     The import's derived state.
  * @param Deformer.Rotation   rotation    The constructed runtime rotation (reference source).

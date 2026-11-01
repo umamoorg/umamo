@@ -27,7 +27,7 @@ import org.umamo.runtime.model.RenderGroup
  *     drawable permanently visible, which is a change to someone's rig, not a change in precision.  It
  *     would also move the delta texture's column layout for no benefit.
  *   - EXACT ONLY.  A key is dropped only when the stored value is bit-equal to the blend of its
- *     neighbours; see KeyformGridCompaction.  A near-miss is a value the rigger chose.
+ *     neighbors; see KeyformGridCompaction.  A near-miss is a value the rigger chose.
  *
  * Run as a separate model pass rather than inside the importers so it is independently testable and can be
  * switched off wholesale when a result needs bisecting against the un-compacted import.
@@ -35,7 +35,7 @@ import org.umamo.runtime.model.RenderGroup
  * DEFERRED: three importer special cases are now redundant in principle - Cmo3Import's
  * `takeIf { it.axes.isNotEmpty() }` on part tracks, its PartComposite seed from the first form, and
  * Moc3Import's deliberate zero-axis single-cell grid.  They are left in place because removing them is a
- * BEHAVIOUR change, not a cleanup: each decides whether a static part's authored composite or its baked
+ * BEHAVIOR change, not a cleanup: each decides whether a static part's authored composite or its baked
  * keyform wins, and the compaction-on/off equivalence test cannot see the difference (both sides carry the
  * special case).  Only the corpus parity and C-core oracles would catch a mistake, so they should come out
  * one at a time under those gates rather than as a batch.
@@ -119,13 +119,8 @@ private fun liftedDrawOrder(
 }
 
 /**
- * This model with every channel track compacted and every collapsed track lifted into its owner's static.
- *
- * Geometry grids are untouched (see the file note).  Evaluation is unchanged to within the tolerance the
- * fidelity contract already allows for geometry, and is EXACT wherever a track collapsed to a constant -
- * a field read cannot drift the way a weighted sum over corners can.  An axis whose keys do not bracket
- * its parameter's range is left alone entirely: out-of-span poses fall back to the owner's static, and a
- * lift would overwrite exactly the static they fall back to.
+ * This model with every channel track compacted and every collapsed track lifted into its owner's static,
+ * geometry grids untouched (see the file note).
  *
  * @return PuppetModel The compacted model.
  */
@@ -180,7 +175,12 @@ fun PuppetModel.withChannelsCompacted(): PuppetModel {
 	)
 }
 
-/** This deformer with its channel tracks compacted and any constants lifted into its statics. */
+/**
+ * This deformer with its channel tracks compacted and any constants lifted into its statics.
+ *
+ * @param Function axisSpansRange Whether an axis's keys bracket its parameter's whole range.
+ * @return Deformer The compacted deformer, or this one when nothing changed.
+ */
 private fun Deformer.withChannelsCompacted(axisSpansRange: (KeyformAxis) -> Boolean): Deformer {
 	val compacted = channelGrids.compactedTracks(axisSpansRange)
 
@@ -212,11 +212,11 @@ private fun Deformer.withChannelsCompacted(axisSpansRange: (KeyformAxis) -> Bool
 }
 
 /**
- * This part with its channel tracks compacted, constants lifted into [Part.drawOrder] and the composite.
+ * This part with its channel tracks compacted, constants lifted into [Part.drawOrder] and the composite
+ * (a fractional draw order stays a track; see [liftedDrawOrder]).
  *
- * A collapsed DRAW_ORDER is lifted only when its value is exactly an integer: the part's static slot is an
- * Int, so a fractional constant would have to round, and rounding could reorder two parts that the track
- * kept distinct.  Such a track keeps its (reduced) grid instead - correct, just not free.
+ * @param Function axisSpansRange Whether an axis's keys bracket its parameter's whole range.
+ * @return Part The compacted part, or this one when nothing changed.
  */
 private fun Part.withChannelsCompacted(axisSpansRange: (KeyformAxis) -> Boolean): Part {
 	val compacted = channelGrids.compactedTracks(axisSpansRange)
@@ -245,6 +245,9 @@ private fun Part.withChannelsCompacted(axisSpansRange: (KeyformAxis) -> Boolean)
  * The render tree carries its own copy of each part's tracks, and for a MOC3 import it is the baked
  * authority rather than something derived from the parts - so it is compacted in place instead of being
  * re-derived, which would discard the baked order.
+ *
+ * @param Function axisSpansRange Whether an axis's keys bracket its parameter's whole range.
+ * @return RenderGroup The compacted group.
  */
 private fun RenderGroup.withChannelsCompacted(axisSpansRange: (KeyformAxis) -> Boolean): RenderGroup {
 	val compacted = channelGrids.compactedTracks(axisSpansRange)

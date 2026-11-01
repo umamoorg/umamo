@@ -12,25 +12,11 @@ import org.umamo.ui.tracks.laneMarkOffsetX
 /**
  * Every key the window-space [region] encloses, across every section.
  *
- * Resolved against the lanes' own reported bounds rather than computed from row heights: sections fold,
- * groups collapse, and the sheet scrolls, so the only reliable answer to "where is this row" is the one
- * the row gave during layout.  A mark counts when its lane overlaps the region vertically AND its drawn
- * position falls inside it horizontally.
- *
- * Two things have to match what is ON SCREEN rather than what is in the model, or the marquee selects keys
- * the user cannot see:
- *
- *   - The rows walked are the FLATTENED, currently-visible ones ([flattenTrackRows] with the sheet's own
- *     expand state, skipping folded sections), not the whole tree.  laneBounds is never pruned - a lane
- *     that leaves composition simply stops reporting - so a collapsed group's children keep their last
- *     rectangles forever, and walking the tree blind would keep hitting them.
- *   - The axis is the WINDOWED one, so a zoomed sheet maps a mark to the pixel it is actually drawn at.
- *     The full-range axis put every mark at the wrong x the moment the sheet was not framed to the whole
- *     domain.
- *
- * Internal rather than private so the resolution can be tested without a composition: it is pure over plain
- * data, and a wrong answer here - an un-windowed axis, or a walk that reaches collapsed rows - is a
- * silently wrong selection, not a crash, so a direct test is the only way to catch it.
+ * Resolved against the lanes' own reported bounds rather than computed from row heights, since sections
+ * fold, groups collapse, and the sheet scrolls.  It matches what is on screen rather than what is in the
+ * model: only the flattened, currently-visible rows are walked, because laneBounds is never pruned and a
+ * collapsed group's children keep their last rectangles, and the axis is the windowed one, so a zoomed
+ * sheet maps a mark to the pixel it is drawn at.
  *
  * @param Rect region The marquee, in window coordinates.
  * @param List projections Each targeted parameter and its tracks.

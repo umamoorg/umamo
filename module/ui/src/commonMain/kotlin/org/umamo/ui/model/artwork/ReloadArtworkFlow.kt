@@ -428,14 +428,13 @@ private inline fun packReloaded(
 
 /**
  * Reloads the document's artwork files as ONE undo step and registers it on the operation settings
- * strip (Match Threshold - the bar a lost layer's re-creation must reach to be rebound in the step -
- * then Alpha Threshold and Birth Mesh Margin, the rows every re-born quad and added layer take).
+ * strip, whose Match Threshold row is the bar a lost layer's re-creation must reach to be rebound in
+ * the step.
  *
  * Runs on the UI thread; the planning and the pack hop to the default dispatcher.  The delta is
- * planned against the model current at the start, so any edit landing meanwhile supersedes it.  The
- * new rasters join the store only once the commit is certain.  A reload that lands publishes the
- * proposals its matcher left under the bar (scored before it minted anything, so a lost row can still
- * offer the layer the reload minted a fresh drawable for); one that lands nothing publishes nothing.
+ * planned against the model current at the start, so any edit landing meanwhile supersedes it.  A
+ * reload that lands publishes the proposals its matcher left under the bar, scored before it minted
+ * anything so a lost row can still offer the layer the reload minted a fresh drawable for.
  *
  * @param AtlasRepackHost      host    The session, art, resolver, scope, and shell callbacks.
  * @param ReloadArtworkRequest request The files as read.
@@ -494,7 +493,7 @@ suspend fun runReloadArtwork(host: AtlasRepackHost, request: ReloadArtworkReques
 			else -> "notice.reload.done"
 		},
 		NoticePlacement.StatusBar,
-		// "Updated" counts the tiles that took new art and the drawables that had their visibility changed..
+		// "Updated" counts the tiles that took new art and the drawables that had their visibility changed.
 		listOf((change.replacedCount + change.visibilityCount).toString(), change.addedCount.toString(), change.matchedCount.toString(), change.missingCount.toString()),
 	)
 	session.registerAdjustableOperation(committed, areaId, matchArtworkParameters(request.matchThreshold, request.options)) { record ->
@@ -672,7 +671,7 @@ private fun planRelinkOf(base: PuppetModel, request: RelinkArtworkRequest, optio
 private fun describeTiles(tileIds: List<AtlasTileId>): String = tileIds.singleOrNull()?.let { tileId -> "'${tileId.raw}'" } ?: "${tileIds.size} tiles"
 
 /**
- * Applies a relink plan to [base] and packs its one new tile.
+ * Applies a relink plan to [base] and packs the tiles it minted.
  *
  * @param PuppetModel          base               The model the relink applies to.
  * @param ReloadPlan           plan               The planner's delta for the tile.
@@ -705,8 +704,7 @@ private fun relinkOutcome(
 }
 
 /**
- * Lands a relink outcome: the supersede check, the rasters into the store, the commit, the pre-warm,
- * the log, and the notice.
+ * Lands a relink outcome as its step, unless a later edit superseded it.
  *
  * @param AtlasRepackHost      host         The session, art, resolver, and shell callbacks.
  * @param RelinkArtworkRequest request      The request, for the log and the notice.

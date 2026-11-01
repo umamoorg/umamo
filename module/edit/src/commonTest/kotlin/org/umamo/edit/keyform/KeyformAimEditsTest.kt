@@ -31,9 +31,8 @@ import kotlin.test.assertTrue
  * Pins the keyform AIM semantics - which parameter an edit writes on, and whether it acts where the user
  * pointed or where the pose stands.
  *
- * These rules used to live in the UI module taking a Compose hover type, where nothing could exercise them
- * without a composition; both of the bugs they encode (an aimed edit landing on the targeted axis instead of
- * the pointed-at one, and an aim at empty track space falling back to the pose) shipped because of that.
+ * The failures they guard against: an aimed edit landing on the targeted axis instead of the pointed-at one,
+ * and an aim at empty track space falling back to the pose.
  */
 class KeyformAimEditsTest {
 	private val angleX = ParameterId("ParamAngleX")
@@ -128,8 +127,8 @@ class KeyformAimEditsTest {
 	 * The capture's own history step records the pending edit as CONSUMED, so redo does not resurrect it.
 	 *
 	 * A snapshot defaults every field to live state, so clearing the pending edit after the capture pushed
-	 * left the consumed value inside the step that consumed it: redoing the capture re-showed the
-	 * uncommitted-edit warning over the very key that now stores the value, and left the session's live map
+	 * would leave the consumed value inside the step that consumed it: redoing the capture would re-show the
+	 * uncommitted-edit warning over the very key that now stores the value, and leave the session's live map
 	 * disagreeing with its own history about what was still pending.
 	 */
 	@Test

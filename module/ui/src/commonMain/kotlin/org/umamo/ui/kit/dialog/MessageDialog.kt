@@ -30,11 +30,8 @@ import org.umamo.ui.theme.LocalUmamoTypography
 
 /**
  * A minimal modal message dialog: a scrim over the whole shell with a small centered card carrying the
- * [message] and an OK button - [ConfirmDialog]'s sibling for alerts that only inform
- * (a failed file open, a rejected import).  Presentation-only and shell-agnostic: the caller owns the
- * visible state and supplies [onDismiss].  Clicking the scrim, like OK, dismisses; the card swallows
- * clicks so a press inside it does not count as a scrim dismissal.  An [alternative] ("Don't Show Again")
- * sits apart at the left, as a confirmation's does, and OK stays the primary button.  The message is
+ * [message] and an OK button - [ConfirmDialog]'s sibling for alerts that only inform.  Presentation-only
+ * and shell-agnostic: the caller owns the visible state and supplies [onDismiss].  The message is
  * [SelectableText], so a command or an error in it can be copied out.
  *
  * @param String        message     The already-localized message shown in the card.

@@ -18,11 +18,8 @@ import org.umamo.ui.workspace.rowdrag.RowDragController
 
 /**
  * Draws the drop insertion line for a drop-target row: along the top edge for a Before drop, the bottom
- * edge for After.  An Into drop (a part's middle band) shows the whole-row fill instead, drawn by the row
- * itself, so a null band or an Into draws nothing here.  The line starts at the row's indent level, so
- * it reads as landing at the target's nesting (the dropped sibling's level).
- *
- * Drawn behind the row's content, which is text over a transparent fill, so the line shows through it.
+ * edge for After, starting at the row's indent so it reads as landing at the target's nesting.  An Into
+ * drop draws nothing here; the row itself shows the whole-row fill instead.
  *
  * @param RowDropBand? band The row's current drop band, or null when it is not the target.
  * @param Int depth The row's depth, which sets where the line starts.
@@ -54,19 +51,15 @@ internal fun Modifier.outlinerDropLine(band: RowDropBand?, depth: Int, accentCol
 	}
 
 /**
- * Applies the drop at the end of a drag: reads the drag state, resolves the move through :edit's
- * [resolveOutlinerDrop] (the same band rules the row indicator drew, so what the user saw is what
- * happens), dispatches it as one undo step, and expands the destination on a nest-inside drop so the
- * user sees the moved item land.  Drops with no valid target, onto itself, or across the org /
- * armature boundary do nothing; cycles are refused inside the move.
+ * Applies the drop at the end of a drag as one undo step, resolved through :edit's [resolveOutlinerDrop]:
+ * the same band rules the row indicator drew, so what the user saw is what happens.
  *
  * @param RowDragController<SelectionTarget> controller The drag state (read for the dragged + target + band, then ended).
  * @param List rows The visible rows, to resolve a node id to its selection target.
  * @param PuppetModel puppet The model, to resolve the target's parent and siblings.
  * @param EditorSession? session The session the move is dispatched through (null = no document, no-op).
  * @param Function stripArea Names the area a deformer move's operation strip shows in, or null for nowhere.
- * @param Function expand Opens the given node id (the destination is expanded on a nest-inside drop so the
- *   user sees the moved item land, rather than fearing it vanished into a collapsed branch).
+ * @param Function expand Opens the given node id, so a nest-inside drop's destination shows the moved item land.
  */
 internal fun performOutlinerDrop(
 	controller: RowDragController<SelectionTarget>,

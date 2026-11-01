@@ -11,8 +11,8 @@ import org.umamo.format.raster.ReadOnlyRasterCodec
  * straight-alpha RGBA8888 top-first [RasterImage] - VP8L pixels are natively RGBA, so no
  * conversion is needed.  Lossy VP8, animation, and VP8L encode are out of scope and rejected with
  * a clear message.  Ported from TwelveMonkeys imageio-webp's lossless decoder over a ByteArray, so
- * it decodes identically on desktop and Android (no javax.imageio).  Stays read-only for now (a
- * VP8L writer would make it a read+write codec, taking the bare name WebP like Cmo3 / Moc3).
+ * it decodes identically on desktop and Android (no javax.imageio).  Read-only, hence the Reader
+ * suffix: a read+write codec takes the bare format name, like Cmo3 / Moc3.
  */
 public object WebPReader : ReadOnlyRasterCodec {
 	override val kind: FileKind = FileKind.WebP

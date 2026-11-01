@@ -424,12 +424,10 @@ internal fun soleLayerInputOf(modelImage: CModelImage): SoleLayerInput? {
 }
 
 /**
- * The source-layer binding of a model image, when exactly one artwork layer composites into it -
- * which is every model image across the corpus - else null.
- *
- * The binding is the one the inventory walk minted for that layer (looked up by the layer entry's
- * guid), so it names an inventory row by construction.  A layer the walk never listed - one outside
- * its image's root tree - falls back to an unstable name key rather than losing the binding.
+ * The source-layer binding of a model image with a sole layer input ([soleLayerInputOf]), else null:
+ * the one the inventory walk minted for that layer, so it names an inventory row by construction.  A
+ * layer the walk never listed (one outside its image's root tree) falls back to an unstable name key
+ * rather than losing the binding.
  *
  * @param CModelImage modelImage             The model image to resolve.
  * @param Map         refByLayerGuidBySource Each listed layered image's per-layer bindings, keyed by

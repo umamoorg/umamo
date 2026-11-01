@@ -25,8 +25,7 @@ import org.umamo.runtime.model.RotationPivotForm
  *  - A binding's weight is a LINEAR interpolation between the two keys bracketing the driving
  *    parameter's value; the neutral key (at the parameter default) contributes zero.
  *  - Out-of-range driving values SATURATE - the end key's full delta is held (Umamo C++ Runtime
- *    verdict, Model A's ParamEyeSize matrix; a competing hide-on-out-of-range hypothesis was
- *    overruled).
+ *    verdict, Model A's ParamEyeSize matrix).
  *  - The bracket has NO epsilon, unlike the grid path's EPS_KEY snapping - mirrored from the
  *    reference runtime for ULP parity.
  *  - The weight is multiplied by the MINIMUM over the binding's limit curves (end-clamped
@@ -98,9 +97,7 @@ internal fun activeBlendKeys(
 }
 
 /**
- * The binding's blend-weight limit multiplier at the current pose: the MINIMUM over its limit
- * curves, each an end-clamped piecewise-linear (value, weight) map over another parameter.
- * 1 when the binding has no limits.
+ * The binding's blend-weight limit multiplier at the current pose.
  *
  * @param List     limits     The binding's limit curves.
  * @param Function paramValue Current value per parameter id.
@@ -233,8 +230,8 @@ internal class RotationBlendDeltas(
 
 /**
  * The summed weighted affine deltas of [rotation]'s blend bindings at the current pose, or null
- * when nothing contributes. Deltas are relative to the rotation's grid form at the DEFAULT pose
- * (E5); RotationForm fields are absolute, so the reference is subtracted here.
+ * when nothing contributes. Deltas are relative to the rotation's grid form at the DEFAULT pose;
+ * RotationForm fields are absolute, so the reference is subtracted here.
  *
  * @param Deformer.Rotation rotation     The rotation deformer.
  * @param Function          paramValue   Current value per parameter id.
@@ -310,6 +307,7 @@ internal class DeformerBlendChannelDeltas(
  * @param ColorRgb     staticScreen The deformer's static screen color.
  * @param Function     paramValue   Current value per parameter id.
  * @param Function     defaultValue Default value per parameter id (the neutral pose).
+ * @param Function     channelsOf   Reads a form's channel triple.
  * @return DeformerBlendChannelDeltas? The summed offsets, or null when nothing contributes.
  */
 internal fun <F : Any> deformerBlendChannelDeltas(

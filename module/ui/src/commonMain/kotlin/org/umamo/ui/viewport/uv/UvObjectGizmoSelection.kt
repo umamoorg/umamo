@@ -18,11 +18,9 @@ import org.umamo.ui.viewport.gizmo.screenToWorld
 import org.umamo.ui.viewport.gizmo.selectableDrawableTargets
 
 /**
- * The UV Object overlay's marquee over whole islands: a box encloses every island with a vertex inside it
- * (see uvIslandsInBox), tested against the shown geometry as the box lands.  The circle callbacks are
- * dormant - a select tool cannot arm over a UV area in Object mode (CommandRouting.selectToolArea keeps
- * B / C Edit-only there) - so they stay sanely wired only so an unforeseen arming degrades to a no-op
- * stroke.  The overlay holds one per area.
+ * The UV Object overlay's marquee over whole islands (see uvIslandsInBox).  The circle stamp is a no-op on
+ * purpose: a select tool cannot arm over a UV area in Object mode (CommandRouting.selectToolArea keeps
+ * B / C Edit-only there), so an unforeseen arming degrades to an empty stroke.
  *
  * @param EditorSession session The session owning the object selection.
  * @param State<List<GizmoMeshGeometry>> geometries The shown islands' display geometry.
@@ -39,11 +37,8 @@ internal fun uvObjectMarquee(session: EditorSession, geometries: State<List<Gizm
 	)
 
 /**
- * The idle click-pick / un-armed box flow bound to the island domain (see ObjectPickController): the pick
- * seams unproject the click into display space and run the CPU island picker, and Shift+RightClick places
- * the UV cursor through the shown surface's frame.  No onBoxBegin - there is no centroid cache to snapshot,
- * the box tests the live display geometry directly.  The overlay holds one per area, so the picker, the
- * frame, and the camera are read when a click lands.
+ * The idle click-pick / un-armed box flow bound to the island domain (see ObjectPickController).  It needs
+ * no onBoxBegin, since the box tests the live display geometry directly rather than a snapshot.
  *
  * @param EditorSession session The session owning the object selection and the UV cursor.
  * @param MarqueeSelectController<Selection> marquee The area's marquee.

@@ -65,11 +65,9 @@ internal fun identityByStringKey(key: String): UmaListRule = UmaListRule.ByIdent
  * value it replaces, followed by [retained]'s unknown keys in their original order.
  *
  * A map merges value by value under the same key.  Arrays of objects merge element by element through
- * [identities]: the output follows [updated]'s order,
- * each element merged with the retained element of the same identity, and a retained element with no
- * counterpart - a deleted object - leaves with its unknown keys.  Arrays of values are replaced whole.  A
- * known key [updated] omits, because its value is the default, is omitted from the output too - unless it
- * holds an object that carries unknown keys, which keeps just those.
+ * [identities]: the output follows [updated]'s order, each element merged with the retained element of the
+ * same identity, and a retained element with no counterpart - a deleted object - leaves with its unknown
+ * keys.  Arrays of values are replaced whole.
  *
  * @param JsonElement?     retained   The tree as read, or null for an object new to the file.
  * @param JsonElement      updated    The freshly encoded tree.
@@ -287,13 +285,9 @@ private fun mergeMap(retained: JsonObject?, updated: JsonElement, valueDescripto
  * tree as read (docs/format/UMA.md §7.5).
  *
  * The editor entry is a dynamic tree with no schema descriptor to say which keys a writer knows, so it cannot go
- * through [mergeRetainedTree].  The patch says it instead: a member it names is set, a member it names `null` is
- * removed, and a member it does not name survives - which is what keeps a newer writer's members in the file.
- * Objects merge member by member; any other value replaces whole.  An object the merge leaves with no members is
- * removed in turn, so a deviation that returns to its default does not leave an empty block behind.
- *
- * Members keep the order [target] had them in, and new ones follow in [patch]'s order, so the same state always
- * writes the same bytes.
+ * through [mergeRetainedTree]; a member the patch does not name survives, which is what keeps a newer writer's
+ * members in the file.  Members keep the order [target] had them in, and new ones follow in [patch]'s order, so the
+ * same state always writes the same bytes.
  *
  * @param JsonObject target The tree as read.
  * @param JsonObject patch  The members to set, and the ones to remove as nulls.
@@ -312,6 +306,8 @@ internal fun applyMergePatch(target: JsonObject, patch: JsonObject): JsonObject 
 			is JsonObject -> {
 				val mergedChild = applyMergePatch(merged[memberName] as? JsonObject ?: JsonObject(emptyMap()), patchValue)
 
+				// An object left with no members goes too, so a deviation that returns to its default leaves no
+				// empty block behind.
 				if (mergedChild.isEmpty()) {
 					merged.remove(memberName)
 				} else {

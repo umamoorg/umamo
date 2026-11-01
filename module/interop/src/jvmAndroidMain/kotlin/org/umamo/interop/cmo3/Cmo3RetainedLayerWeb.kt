@@ -498,13 +498,8 @@ internal class Cmo3RetainedLayerWeb(
 	/**
 	 * Brings every drawable shown from a rewritten model image onto its new raster: the reduced cache copy
 	 * the editor made of the old art no longer shows the art, and a texture over the raster must carry the
-	 * new size's cache scale.
-	 *
-	 * Each texture over the image (its raster, or its copy as the graph was read) samples the raster with
-	 * the scale and mip level the editor writes for one, shared textures once.  A drawable whose stored
-	 * coordinates now mean something else - it moved off a copy, or it stores the cache frame and the scale
-	 * changed - stores the edited model's coordinates afresh; every other drawable's are left to the
-	 * property pass.  A copy nothing samples any more has its pixels removed, and the pool prune drops it.
+	 * new size's cache scale.  Only a drawable whose stored coordinates now mean something else has them
+	 * rewritten here; every other drawable's are left to the property pass.
 	 *
 	 * @param CModelImage    modelImage The rewritten model image.
 	 * @param CImageResource raster     Its raster, holding the new art.

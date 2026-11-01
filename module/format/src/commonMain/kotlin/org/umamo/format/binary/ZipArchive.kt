@@ -77,9 +77,6 @@ internal class ZipArchive private constructor(
 	/**
 	 * The entry's uncompressed bytes, verified against the sizes and CRC-32 the archive declares.
 	 *
-	 * The inflate is bounded one byte past the declared size, so an entry that would inflate further
-	 * stops there and fails rather than allocating what it claims not to hold.
-	 *
 	 * @param ZipEntry entry An entry of this archive.
 	 * @return ByteArray The uncompressed bytes.
 	 * @throws ZipFormatException When the entry is encrypted, uses a method other than stored or DEFLATE,

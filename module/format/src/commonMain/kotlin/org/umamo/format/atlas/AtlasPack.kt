@@ -307,24 +307,17 @@ private class FixedFootprint(
 /**
  * Packs tiles into atlas pages and composes the page pixels.
  *
- * Each tile is trimmed to its opaque bounds (lossless at the default threshold - no antialiased edge
- * pixel is cut), reserved with a gutter on every side, placed by the MaxRects packer, blitted, and
- * its edge color bled into its gutter at zero alpha.  Pages are packed against [AtlasPackOptions.maxPageSize] and then cropped
- * to what was used, so a document that needs a 512 page gets one rather than a mostly-empty 4096.
+ * Pages are packed against [AtlasPackOptions.maxPageSize] and then cropped to what was used, so a
+ * document that needs a 512 page gets one rather than a mostly-empty 4096.
  *
  * The result is DETERMINISTIC: tiles are ordered by descending max side, then descending area, then
  * key, so the caller's input order cannot change the packing.  Repacking an unchanged set therefore
  * reproduces it exactly, which is what makes a repack a safe operation rather than a churn source.
  *
- * A tile with an [AtlasPackItem.fixed] placement is not packed at all: its footprint (trim, reserve,
- * and gutter, through its affine) seeds its page before any free tile is placed, so the free tiles
- * pack around it, and it is painted through its own affine after them.  Its page index is kept as
- * given, so every page up to it exists even if nothing else lands there (an empty page crops to its
- * used extent like any other).  A fixed tile whose art does not fit inside [AtlasPackOptions.maxPageSize]
- * is reported as [AtlasPackSkipReason.FixedOutsidePage] rather than moved - the caller decided to
- * keep it, so the packer never second-guesses where; reserve and gutter that spill past the edge are
- * clamped to it, not refused.  A fixed tile with nothing opaque is kept as well: it paints nothing, and
- * its reserve (or, with none, its whole raster) seeds its page all the same.
+ * A tile with an [AtlasPackItem.fixed] placement is not packed: it stays exactly where it is, on its
+ * given page index (every page up to it exists even if nothing else lands there), and the free tiles
+ * pack around it.  One whose art does not fit inside [AtlasPackOptions.maxPageSize] is reported as
+ * [AtlasPackSkipReason.FixedOutsidePage] rather than moved, because the caller decided to keep it.
  *
  * @param List             items   The tiles to pack; keys must be unique.
  * @param AtlasPackOptions options The packing policy.
@@ -548,9 +541,8 @@ public fun packAtlas(
 /**
  * Builds pack items from this document's layers, one per layer, keyed by its stable layer id.
  *
- * Layer kind, visibility, and sliver policy are deliberately the caller's: alpha-shape analysis never
- * drops a real art layer and leaves the consumer to decide what to ingest, and the same rule applies
- * here.  Pass [include] to apply a policy; the default packs every layer.
+ * Layer kind, visibility, and sliver policy are the caller's to apply through [include], as with
+ * alpha analysis; the default packs every layer.
  *
  * A duplicate layer id (possible from the PSD name-and-order fallback, where no lyid is written) is
  * disambiguated with the layer's draw order rather than rejected, since the collision is an artifact
@@ -583,12 +575,8 @@ public fun SourceArt.atlasPackItems(include: (SourceLayer) -> Boolean = { true }
  * roughly fills instead makes it stack, and the page count is the thing worth protecting: a smaller
  * page that costs an extra texture bind is a worse trade than a slightly emptier one.
  *
- * Only the rectangle geometry runs here - no pixels are touched - so the handful of trial packs is
- * cheap next to a single page composition.
- *
- * The seeds bound the side from below: a trial smaller than a seed's far edge could not keep it, so
- * the first trial is already large enough for every seed, and each trial seeds the same footprints
- * the final pack will.
+ * The trials touch no pixels, so they are cheap next to one page composition.  Each seeds the same
+ * fixed footprints the final pack will, and the first is already large enough to keep every seed.
  *
  * @param List             requests The footprints to be packed.
  * @param List             seeds    The fixed footprints every trial must keep.

@@ -50,10 +50,10 @@ const val UNTITLED_DOCUMENT_NAME = "Untitled"
  * A document the editor shell runs a full puppet session over - the shared face of every format that
  * imports to a [PuppetModel].  The session, viewport, and panels consume only this surface, so a new
  * puppet-producing format plugs in by adding a subtype; format-specific state (the CMO3 model kept for
- * export reconcile, the MOC3 container kept for a future re-bake) stays on the concrete type.
+ * export reconcile, the MOC3 manifest and sidecars a MOC3 export re-emits) stays on the concrete type.
  *
- * Each subtype lives with its loader rather than here - `Cmo3Document` in Cmo3DocumentLoader.kt,
- * `Moc3Document` in Moc3DocumentLoader.kt - so this file holds only what every format shares.
+ * Each subtype lives with its loader rather than here (`Cmo3Document` in Cmo3DocumentLoader.kt,
+ * `Moc3Document` in Moc3DocumentLoader.kt, and so on), so this file holds only what every format shares.
  */
 sealed interface PuppetDocument : Document {
 	/** The imported runtime puppet the session edits and the viewport renders. */
@@ -64,15 +64,13 @@ sealed interface PuppetDocument : Document {
 
 	/**
 	 * The source artwork's pixels the puppet was authored against, keyed by atlas tile.  Each
-	 * drawable's link to its source tile lives in the model now (`PuppetModel.atlas`), not here - this
+	 * drawable's link to its source tile lives in the model (`PuppetModel.atlas`), not here - this
 	 * is only the lazy byte supplier.
 	 *
-	 * A document that retains no source art still supplies a store of its own, empty to begin with: a
-	 * CMO3 keeps every layer's pixels in its graph, a MOC3 is the packed endpoint of that pipeline and
-	 * has none, and artwork brought into either afterwards decodes into whichever store it was handed.
-	 * That is why there is no shared empty instance to fall back on - one document's added art would
-	 * read back out of the next document's store.  A surface that shows source art therefore checks for
-	 * emptiness rather than assuming.
+	 * A document that retains no source art (a MOC3) still supplies a store of its own, empty to begin
+	 * with, because artwork brought in afterwards decodes into it: a shared empty instance would let one
+	 * document's added art read back out of the next document's store.  A surface that shows source art
+	 * therefore checks for emptiness rather than assuming.
 	 */
 	val artRasters: SourceArtRasters
 
@@ -85,8 +83,7 @@ sealed interface PuppetDocument : Document {
  * to this document, else the document's own unedited puppet.
  *
  * A session left over from a previously opened document would export the WRONG puppet if trusted
- * blindly, so a mismatch is logged as an error and the document's own unedited puppet is exported
- * instead - giving logged proof if a desync like that ever recurs.
+ * blindly, so a mismatch is also logged as an error.
  *
  * @param PuppetDocument  document The document being exported.
  * @param EditorSession?  session  The shell's current session, if any.
@@ -116,11 +113,10 @@ sealed interface DocumentLoad {
 }
 
 /**
- * Loads a picked/stored file into a [Document] via [loadDocument]'s byte core, reading through
- * FileKit's common API so desktop paths and Android SAF URIs take the same route.  A `.moc3` is the
- * one format routed to the sidecar-discovering loader instead: its manifest, display info, and atlas
- * pages live in sibling files, so it can only open from a file with a resolvable directory - which is
- * also why the byte-level overload keeps reporting it NotOpenable.
+ * Loads a picked or stored file into a [Document], reading through FileKit's common API so desktop
+ * paths and Android SAF URIs take the same route.  A `.moc3` routes to the sidecar-discovering loader
+ * instead, since its manifest, display info, and atlas pages live in sibling files - which is also why
+ * the byte-level overload reports it NotOpenable.
  *
  * @param PlatformFile           file          The picked or reconstructed file handle.
  * @param SourceArtImportOptions importOptions What an artwork import seeds and trims with; ignored by
@@ -155,12 +151,9 @@ suspend fun loadDocument(file: PlatformFile, importOptions: SourceArtImportOptio
 }
 
 /**
- * Loads [bytes] into a [Document] by detecting the format from the contents - magic bytes via
- * [FormatRegistry], with a file-extension fallback on [name] - then building the matching document:
- * a `.cmo3` imports as the puppet it holds, a layered artwork file (PSD / CLIP / KRA) or a flat
- * raster (PNG / BMP / JPEG / WebP / TIFF) becomes a fresh rig through the artwork import, packed at
- * open.  Returns a [DocumentLoad.Failed] if the content is unrecognized, not openable in the editor
- * shell, or fails to parse - failures are logged, never thrown, so the UI keeps the document it had.
+ * Loads [bytes] into a [Document], detecting the format from the contents via [FormatRegistry] with a
+ * file-extension fallback on [name].  Failures are logged and returned, never thrown, so the UI keeps
+ * the document it had.
  *
  * @param ByteArray              bytes         The file contents.
  * @param String                 name          The file name (the extension fallback for detection; the failure display name).

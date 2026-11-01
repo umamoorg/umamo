@@ -54,22 +54,11 @@ private const val OPACITY_PERCENT_STEP = 5
 
 /**
  * The overlays control both work-surface headers mount at their trailing end, Blender's two-part Viewport
- * Overlays control as ONE chip: the glyph half is the Show Overlays toggle (lit while the area's overlays
- * show) and the chevron half opens the popover of per-overlay rows under their section headings - the kit
- * [PopupChip] with a [ChipToggle] on its glyph.  Both halves write the area's [ViewportOverlayState]
- * directly - a per-area view choice, not a session operation, so no registry dispatch (the view.overlay.*
- * commands are the separate, hovered-area-routed path onto the same state).
- *
- * The rows are the editor's property rows, the Properties area's two-column grid: a toggle sits in the
- * right half beside its box, a field's label is right-aligned in the left half, and every heading, toggle,
- * and field carries its description as a hover tooltip.  Under the Grid row sit the area's grid fields: an
- * edit gives the area a grid of its own, and the reset beside them, shown only then, returns it to
- * following the application's grid - no checkbox to flip, the edit is the choice.  A section's value fields
- * follow its rows: the wireframe's Opacity field under the Geometry rows on a 2D viewport, alone under the
- * Geometry heading on a UV editor, where it fades the islands; and the deformers' Opacity field under the
- * Deformers row on a 2D viewport, where it fades the warp lattices.  The rows and the fields stay enabled while
- * the master is off: each row's flag is what comes back when the master returns, so the rigger can set up the
- * set they want before switching it on.  A section with no row and no field for this surface is left out.
+ * Overlays control as one chip: the glyph half is the Show Overlays toggle and the chevron half opens the
+ * popover of per-overlay rows and fields under their section headings.  Both halves write the area's
+ * [ViewportOverlayState] directly - a per-area view choice, not a session operation, so no registry dispatch
+ * (the view.overlay.* commands are the separate, hovered-area-routed path onto the same state).  The rows stay
+ * enabled while the master is off, so the rigger can set up the overlays they want before switching it on.
  *
  * @param ViewportOverlayState state The area's overlay state.
  * @param Boolean enabled Whether the control takes input (false renders it disabled, the 2D header's no-document look).

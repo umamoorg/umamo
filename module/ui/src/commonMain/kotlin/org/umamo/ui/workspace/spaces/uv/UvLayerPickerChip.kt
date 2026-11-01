@@ -30,8 +30,7 @@ private val LAYER_PICKER_WIDTH = 320.dp
  *
  * This is navigation, not a second selection.  The layer view follows the active drawable, so pointing
  * it at a particular piece of art means selecting the object that uses that art - which is exactly what
- * a row does, writing the ONE session selection.  Naming a layer here would otherwise be a second
- * pointer to keep in sync with the first.
+ * a row does, writing the ONE session selection.
  *
  * Ranked with the command palette's own matcher, so "eye" finds the eye layers by the same rules that
  * find the eye commands.  Rows name the layer, its pixel size, and how many drawables share it -

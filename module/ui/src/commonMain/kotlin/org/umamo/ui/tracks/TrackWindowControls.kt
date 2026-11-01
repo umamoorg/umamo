@@ -44,15 +44,14 @@ private const val ZOOM_STEP: Float = 0.85f
 private const val PAN_STEP: Float = 0.15f
 
 /**
- * The zoom / pan gestures for a whole track sheet: Ctrl+wheel zooms about the pointer, Shift+wheel pans,
- * and a tertiary (middle) drag pans.
+ * The zoom / pan gestures for a whole track sheet: Ctrl+wheel zooms about the pointer, Shift+wheel or a
+ * horizontal wheel pans, and a tertiary (middle) drag pans.
  *
  * Attached by the sheet's owner across its whole scrolling region, not per lane, because the window is
  * shared by every track and section - the zoom belongs to the view, not to a row.
  *
  * PLAIN wheel is deliberately left alone: the sheet scrolls vertically through hundreds of tracks, and
- * taking the unmodified wheel for zoom would cost the more common gesture to serve the rarer one.  This
- * matches every NLE that has real vertical overflow.
+ * taking the unmodified wheel for zoom would cost the more common gesture to serve the rarer one.
  *
  * @param TrackWindow window The current window.
  * @param Function onWindowChange Receives the new window.

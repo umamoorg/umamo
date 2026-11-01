@@ -28,7 +28,7 @@ import kotlin.math.abs
  * texture's column layout) untouched, while an insert in the middle renumbers all of them.
  *
  * Sparse grids - which Cmo3Import can produce when a cell's form guid does not resolve - are refused
- * rather than repaired: every op below returns its receiver unchanged instead of inventing cells.
+ * rather than repaired: no op below invents cells.
  */
 
 /** What [withKeyInserted] does with a key that falls outside the axis's existing key span. */
@@ -46,32 +46,22 @@ enum class OutOfSpanKeyPolicy {
 /**
  * This grid with a new axis for [parameter] appended, every existing cell replicated across its keys.
  *
- * Binding an entity to a parameter for the first time.  A null receiver seeds a brand new grid holding
- * [currentForm] at every key; an existing grid is replicated once per new key, so the entity looks exactly
- * as it did before at every pose - binding alone never changes the render, only the capture that follows
- * does.
- *
- * Returns the receiver unchanged when the grid already keys [parameter] (the bind is already true), and
- * NULL on a refusal - a sparse receiver, or a parameter whose range cannot support two distinct keys (a
- * min == max parameter is not animatable, and a one-key axis would hide the entity).  Null rather than
- * the receiver, so a caller's `?: return` refusal guard fires for a non-null receiver too - returning the
- * receiver here once let a capture proceed and write onto the channel's OTHER axes.
- *
- * The seeded keys are the parameter's minimum, default, and maximum, deduplicated - what Cubism seeds, and
- * the only layout that both spans the range and puts a key at the neutral pose.  A fourth key at the
- * current scrub was tried and dropped: the capture that follows a bind lands at the scrub anyway, so the
- * extra key changed nothing except to author one the rigger never asked for.
+ * Binding alone never changes the render; only the capture that follows does.  The seeded keys are the
+ * parameter's minimum, default, and maximum, deduplicated - what Cubism seeds, and the only layout that
+ * both spans the range and puts a key at the neutral pose.
  *
  * @param Parameter parameter The parameter to bind to; its min / default / max define the seeded keys.
  * @param TForm currentForm The form to hold at every seeded key (the entity's present look).
  * @return KeyformGrid The grid with the axis appended, the receiver when it already keys [parameter], or
- *   null when nothing could be seeded.
+ *   null on a refusal (a sparse receiver, or a range too narrow for two distinct keys).
  */
 fun <TForm> KeyformGrid<TForm>?.withAxisSeeded(parameter: Parameter, currentForm: TForm): KeyformGrid<TForm>? {
 	if (this != null && axisIndexOf(parameter.id) >= 0) {
 		return this
 	}
 
+	// Null rather than the receiver, so a caller's `?: return` refusal guard fires for a non-null receiver
+	// too instead of letting a capture write onto the channel's other axes.
 	if (this != null && !isDense) {
 		return null
 	}
@@ -106,18 +96,12 @@ fun <TForm> KeyformGrid<TForm>?.withAxisSeeded(parameter: Parameter, currentForm
 /**
  * This grid with a new key at [keyValue] on [parameterId]'s axis, filling the whole new slice.
  *
- * Inserting a key adds an entire hyperplane of cells, not one cell: on a grid keyed over two parameters,
- * a new key on the first axis needs one new cell for every key of the second.  Only the interior cells can
- * be derived, by blending the two neighbouring slices with [interpolator] - which is exactly the operation
- * the export refinement performs, so the two share this code rather than growing a second copy.
- *
- * Returns the receiver unchanged when the axis is absent, the grid is sparse, [keyValue] is within EPS_KEY
- * of an existing key, the insertion would leave a span below EPS_SPAN (a span that narrow evaluates as a
- * step rather than a blend), or the key falls outside the span under [OutOfSpanKeyPolicy.Reject].
+ * A key adds a whole hyperplane of cells, each blended from the two neighboring slices with [interpolator]
+ * (the same insert the export refinement runs), or copied from the nearest end slice when extending.
  *
  * @param ParameterId parameterId The axis to insert into.
  * @param Float keyValue The parameter value of the new key.
- * @param FormInterpolator interpolator Blends the neighbouring slices into the new one.
+ * @param FormInterpolator interpolator Blends the neighboring slices into the new one.
  * @param OutOfSpanKeyPolicy outOfSpan How to treat a key beyond the axis's current ends.
  * @return KeyformGrid The grid with the key inserted, or the receiver when the insert was refused.
  */
@@ -218,11 +202,8 @@ fun <TForm> KeyformGrid<TForm>.withKeyInserted(
  * The position key [keyIndex] would actually land on if moved toward [newValue] on [parameterId]'s axis.
  *
  * Almost always [newValue] itself.  It is nudged only to keep every span RESOLVABLE: two keys closer than
- * EPS_SPAN make the evaluator read fraction 0 across the gap, so the nearer one becomes unreachable and
- * the blend degenerates into a step.  That is a correctness floor, not a spacing preference - keys may sit
- * as close as the evaluator can still tell apart, and no closer.
- *
- * Returns null when the axis is absent, the grid is sparse, or the index is out of range.
+ * EPS_SPAN make the evaluator read fraction 0 across the gap, so the nearer one becomes unreachable.  That
+ * is a correctness floor, not a spacing preference.
  *
  * @param ParameterId parameterId The axis the key sits on.
  * @param Int keyIndex The key being moved.
@@ -288,12 +269,8 @@ fun KeyformGrid<*>.keyDestinationFor(parameterId: ParameterId, keyIndex: Int, ne
 /**
  * Whether [value] lands unresolvably close to a key OTHER than [keyIndex] and [nudgedOffIndex].
  *
- * Both exclusions are necessary and neither is slack.  A key cannot collide with itself, and the key the
- * nudge was measured off is EPS_SPAN away BY CONSTRUCTION - but `nearest ± EPS_SPAN` is computed in float32
- * and rounds, so testing it would reject the very destination just derived.  Every other key is a real
- * collision: the nudge only ever consults the NEAREST key, so on a crowded axis it can land right on top of
- * the next one along, and two keys closer than EPS_SPAN is the unresolvable span this all exists to
- * prevent (bindBracket gives such a span fraction 0, making the upper key unreachable).
+ * The nudged-off key is EPS_SPAN away by construction, but `nearest ± EPS_SPAN` rounds in float32, so
+ * testing it would reject the very destination just derived.
  *
  * @param FloatArray keys The axis's keys.
  * @param Int keyIndex The key being moved.
@@ -337,15 +314,11 @@ private fun axisMidpointExcluding(keys: FloatArray, keyIndex: Int): Float {
 /**
  * The ordinal a key inserted at [keyValue] would take on [parameterId]'s axis, or -1 when no key is added.
  *
- * The [keyIndexAfterMove] counterpart, and public for the same reason: an insert renumbers every key at or
- * above it, so a caller holding ordinals - the keyform sheet's key selection - has to correct them, and it
- * has to do so BEFORE the insert records its step.  Counting the keys below the new value is exactly how
- * [withKeyInserted] places it, so the two cannot disagree about where it lands.
- *
- * -1 covers every case that adds nothing: a missing axis, a sparse or empty grid, and a value already
- * within the snap tolerance of an existing key.  An insert refused for a reason only [withKeyInserted]
- * knows (a span below EPS_SPAN, or an out-of-span key under [OutOfSpanKeyPolicy.Reject]) still reports the
- * position it would have taken, so a caller that acts on this must confirm against the edit's own outcome.
+ * The [keyIndexAfterMove] counterpart: an insert renumbers every key at or above it, so a caller holding
+ * ordinals (the keyform sheet's key selection) corrects them with this BEFORE the insert records its step.
+ * An insert [withKeyInserted] refuses for its own reasons (a span below EPS_SPAN, or an out-of-span key
+ * under [OutOfSpanKeyPolicy.Reject]) still reports a position, so a caller must confirm against the edit's
+ * own outcome.
  *
  * @param ParameterId parameterId The axis to insert into.
  * @param Float keyValue The parameter value of the new key.
@@ -405,22 +378,11 @@ fun KeyformGrid<*>.keyIndexAfterMove(parameterId: ParameterId, keyIndex: Int, ne
 /**
  * This grid with key [keyIndex] on [parameterId]'s axis moved to [newValue], carrying its cells with it.
  *
- * A move changes only WHERE a key sits, never what it holds - which is what makes it a distinct operation
- * rather than a remove plus an insert.  Re-inserting would rebuild the moved slice by interpolating its
- * neighbours, silently discarding whatever the rigger authored there.
- *
- * A key MAY cross its neighbours, and doing so re-sorts the axis and PERMUTES the cells to match.  That
- * permutation is the whole cost of allowing it: a cell's coordinate on an axis is a key ORDINAL, and the
- * evaluator requires an axis to be ascending - `bindBracket` reads keys[0] / keys[last] as the span ends,
- * scans monotonically, and assumes keys[hi] - keys[hi - 1] is positive, while `gridCorners` assumes ordinal
- * i + 1 is the next key by VALUE.  Re-sorting the keys without moving the cells to match would satisfy
- * `isDense` and corrupt silently: forms would apply at the wrong positions and poses inside the real span
- * would resolve to nothing, which for a geometry grid hides its entity outright.
- *
- * The destination is nudged only to keep spans resolvable - see [keyDestinationFor].
- *
- * Returns the receiver unchanged when the axis is absent, the index is out of range, the grid is sparse, or
- * the destination is where the key already sits.
+ * A move changes only WHERE a key sits, never what it holds; a remove plus an insert would instead rebuild
+ * the slice by interpolating its neighbors, discarding what the rigger authored there.  A key MAY cross its
+ * neighbors, which re-sorts the axis and PERMUTES the cells to match, since a cell's coordinate is a key
+ * ORDINAL and the evaluator requires every axis ascending.  The destination is nudged only to keep spans
+ * resolvable - see [keyDestinationFor].
  *
  * @param ParameterId parameterId The axis the key sits on.
  * @param Int keyIndex The key to move.
@@ -565,18 +527,14 @@ fun <TForm> KeyformGrid<TForm>.withCellWritten(coordinate: IntArray, form: TForm
 /**
  * This grid with [form] captured at [pose] - the keyform-insertion operation behind Blender-style `I`.
  *
- * Inserts a key on every axis whose pose value does not already land on one (each insert filling its whole
- * slice by interpolation, so the entity's look is unchanged everywhere else), then writes [form] into the
- * single cell the pose now sits exactly on.  Because the capture always lands on a key, the write is a
- * plain assignment - there is never a blend to invert.
- *
- * Returns the receiver when the grid is sparse, or when an axis's pose value cannot be turned into a key
- * (out of span under a rejecting policy, or too close to an existing key to be distinguishable).
+ * A key is first inserted on every axis whose pose value sits between keys, so the capture always lands
+ * exactly on one cell and is a plain write - there is never a blend to invert.
  *
  * @param Function pose The current value per parameter id.
  * @param TForm form The form to capture.
  * @param FormInterpolator interpolator Fills each newly inserted slice.
- * @return KeyformGrid The grid with the capture written.
+ * @return KeyformGrid The grid with the capture written, or the receiver when the grid is sparse or a pose
+ *   value cannot be keyed.
  */
 fun <TForm> KeyformGrid<TForm>.withFormCaptured(
 	pose: (ParameterId) -> Float,
@@ -592,8 +550,8 @@ fun <TForm> KeyformGrid<TForm>.withFormCaptured(
 	for (axis in axes) {
 		val poseValue = pose(axis.parameterId)
 
-		// keyIndexAt is the one definition of the on-a-key snap; inlining the epsilon here once let the
-		// capture and the sheet UI disagree about whether the pose sits on a key.
+		// keyIndexAt is the one definition of the on-a-key snap, so the capture and the sheet UI agree on
+		// whether the pose sits on a key.
 		if (working.keyIndexAt(axis.parameterId, poseValue) >= 0) {
 			continue
 		}
@@ -609,7 +567,7 @@ fun <TForm> KeyformGrid<TForm>.withFormCaptured(
 		val keyIndex = working.keyIndexAt(axis.parameterId, poseValue)
 
 		if (keyIndex < 0) {
-			// An axis refused its key (a degenerate span, say); writing a neighbouring cell would silently
+			// An axis refused its key (a degenerate span, say); writing a neighboring cell would silently
 			// retarget the capture, so leave the grid untouched instead.
 			return this
 		}
@@ -623,15 +581,13 @@ fun <TForm> KeyformGrid<TForm>.withFormCaptured(
 /**
  * This grid refined onto a wider key set, for lowering a rig to a format that shares key positions.
  *
- * SPAN-CLAMPED on purpose.  For an axis this grid already has, only union keys strictly inside its own
- * first..last span are inserted; the span itself is never widened.  Widening it would resurrect a drawable
- * that its author deliberately keyed to vanish outside a narrow range - the toggle-part pattern - which is
- * a rig-altering change, not a rounding one.  For a parameter this grid does NOT key, a new axis is
- * appended spanning the union plus the parameter's own min and max, with the whole grid replicated across
- * it: the channel is constant along that axis, so the widening carries no motion and cannot mislead.
+ * SPAN-CLAMPED on purpose: on an axis this grid already has, only union keys strictly inside its own span
+ * are inserted, since widening the span would resurrect a drawable its author keyed to vanish outside a
+ * narrow range (the toggle-part pattern).  A parameter this grid does NOT key gets an appended axis over
+ * the union plus the parameter's range, the grid constant along it.
  *
  * Refining is the exact inverse of compaction: both go through [interpolator], so a key dropped because it
- * was bit-equal to its interpolated neighbours is restored bit-equal here.
+ * was bit-equal to its interpolated neighbors is restored bit-equal here.
  *
  * @param Map unionKeysByParameter The key positions to refine onto, per parameter.
  * @param Map parameterRanges Each parameter's min..max, used only when appending an axis this grid lacks.
@@ -723,7 +679,7 @@ private fun distinctSortedKeys(candidates: FloatArray): FloatArray {
  * @param FloatArray existingKeys The axis's current keys, ascending.
  * @param Float keyValue The candidate key value.
  * @param Int insertPosition The index the key would take in the new array.
- * @return Boolean True when both neighbouring spans stay at or above EPS_SPAN.
+ * @return Boolean True when both neighboring spans stay at or above EPS_SPAN.
  */
 private fun spansStayResolvable(existingKeys: FloatArray, keyValue: Float, insertPosition: Int): Boolean {
 	if (insertPosition > 0 && keyValue - existingKeys[insertPosition - 1] < EPS_SPAN) {

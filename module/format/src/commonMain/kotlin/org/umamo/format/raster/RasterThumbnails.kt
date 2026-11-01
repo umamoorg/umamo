@@ -17,11 +17,8 @@ import kotlin.math.roundToInt
  * [size] x [size] square, the aspect preserved.
  *
  * Each destination pixel is the area average of the source rectangle it covers, computed in
- * premultiplied space and converted back: averaging straight RGB across an alpha edge drags the
- * matte color into the visible pixels and darkens the fringe, the same reason the atlas composer
- * samples premultiplied.  A raster smaller than the square is scaled up by the same rule (a
- * destination pixel then covers part of one source pixel and takes it whole).  An empty raster
- * yields the blank square.
+ * premultiplied space: averaging straight RGB across an alpha edge would drag the matte color into
+ * the visible pixels and darken the fringe.
  *
  * @param Int size The square's edge in pixels, at least 1.
  * @return RasterImage The fitted square, straight alpha, top row first.

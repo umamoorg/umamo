@@ -49,13 +49,9 @@ internal fun SourcesActionsChip(contentDescription: String, items: () -> List<Me
 }
 
 /**
- * A review row's chip: the matcher's proposal to accept (the candidate's name and confidence, and
- * whether a fresh drawable over the candidate goes with it), a relink by hand through the same list a
- * tile row's chip shows, or leave the binding as it is.  Accepting is one relink of every tile bound to
- * the lost key, so the art is pulled exactly as a manual relink pulls it and the tiles move together as
- * one step, naming the tiles the proposal retires; the planner re-checks those for rig work before any
- * leaves.  A relink by hand names none.  Either way the binding is typed by the one rule
- * ([relinkTargetRef]): the proposed layer's own tile says how strong its key is.
+ * A review row's chip: accept the matcher's proposal, relink by hand through the same list a tile row's
+ * chip shows, or leave the binding as it is.  Accepting relinks every tile bound to the lost key as one
+ * step, so the tiles move together and the art is pulled exactly as a manual relink pulls it.
  *
  * The open chip reads the open document only while it shows, so the row is handed no model.
  *

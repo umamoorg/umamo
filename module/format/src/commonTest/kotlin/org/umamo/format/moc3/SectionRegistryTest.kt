@@ -11,10 +11,9 @@ import kotlin.test.assertTrue
  * Structural invariants of the [Section] registry itself, independent of any corpus file.
  *
  * The registry is the single source of truth for what a `.moc3` contains: one entry per section
- * index, carrying its element type, sizing rule, and per-version slot.  A second untyped registry of
- * bare index constants used to sit beside it, and the sections named only there were invisible to
- * both the typed decode and the lossless gate - so "is this index modeled?" had two answers.  These
- * tests keep it to one.
+ * index, carrying its element type, sizing rule, and per-version slot.  A section named anywhere else
+ * (a bare index constant, say) would be invisible to both the typed decode and the lossless gate, so
+ * "is this index modeled?" would have two answers.  These tests keep it to one.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §section map</a>
  */

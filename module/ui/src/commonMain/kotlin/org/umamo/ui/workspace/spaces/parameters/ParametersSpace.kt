@@ -60,24 +60,11 @@ import org.umamo.ui.workspace.rowdrag.parkCancelOnSeam
 
 /**
  * The parameter cockpit: one control per animatable parameter, organized into the model's collapsible
- * groups (Cubism's CParameterGroup tree). A LINKED ("combined") pair renders as one 2D pad; every other
- * animatable parameter is a slider. Each parameter sits in its own rounded island (the visual
- * separation); group headers render as recessed rounded rails between them. Each row carries a numeric
- * entry field and, when its value is off its default, a reset glyph; a "Reset All" button returns the
- * whole rig to its neutral pose.
+ * groups, a linked pair rendering as one 2D pad and every other parameter as a slider.
  *
- * Scrubbing is undoable: a slider / pad drag streams transient preview frames straight to the renderer
- * (via [LocalLiveParams]) and commits one undo step on release, so a whole gesture is a single Ctrl+Z and
- * an undo re-poses the viewport (the session's pose drives both the renderer and these sliders). Clicking
- * a parameter's name (or its leading chevron) opens the range editor inside that island - minimum /
- * default / maximum, the document-level edit, distinct from scrubbing the live value - and any number of
- * islands can be open at once. The open set lives on the hosting [AreaScope], so it survives switching
- * the space away and back. Models without groups fall back to a flat list.  The header's search field
- * filters the list by parameter name or id, opening every group for as long as it has text in it.
- *
- * This composable is the wiring: it derives the rows, holds the list and the drag state, and hands each
- * row to [ParameterRowView].  The pose comes from [rememberParameterPoseState], the chrome from
- * [parameterLabels], and the menu entries from [createParameterMenuItems] and its siblings.
+ * Scrubbing is undoable: a drag streams preview frames to the renderer through [LocalLiveParams] and commits
+ * one undo step on release.  This composable is the wiring: it derives the rows, holds the list and the drag
+ * state, and hands each row to [ParameterRowView].
  *
  * @param AreaScope scope The hosting area's scope carrying the panel's view state.
  * @param Modifier modifier The layout modifier.

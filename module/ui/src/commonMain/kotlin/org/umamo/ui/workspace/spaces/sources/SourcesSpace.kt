@@ -72,19 +72,12 @@ import org.umamo.ui.workspace.spaces.zebraFill
  */
 
 /**
- * The Sources space: the linking table between the document's artwork files and its art.  File ->
- * layer -> tile -> drawables, each with a status; a layer row dragged onto a tile row (or the reverse)
- * rebinds the tile, a tile row's chip picks a layer or unbinds, a row that needs review carries the
- * matcher's proposal to accept or a relink by hand, an unbound layer row's chip (or its context menu)
- * ignores the layer so a reload never mints it, and a file row's chip (or its context menu) replaces
- * or reloads that one file.  Drawable rows select, so the table is also a way into the rig by the art
- * it came from.  Reads the open document's puppet from [LocalPuppet] (an empty table when nothing is
- * loaded).  The AREA header carries the import, the name search, match, reload, and the filter
- * (sourcesHeaderControls, sharing this body's SourcesViewState through [scope]).
+ * The Sources space: the linking table between the document's artwork files and its art, file -> layer ->
+ * tile -> drawables, each row with its status.  Drawable rows select, so the table is also a way into the
+ * rig by the art it came from.
  *
  * This composable is the wiring: it derives the visible rows from the tree, holds the list, the drag
- * state, and the hover preview, and hands each row to [SourcesRowView].  The chrome comes from
- * [sourcesLabels], the tree from [rememberSourcesTree], and a drop lands through [performSourcesDrop].
+ * state, and the hover preview, and hands each row to [SourcesRowView].
  *
  * @param AreaScope scope    The hosting area's scope (view state, per-area state).
  * @param Modifier  modifier The layout modifier.
@@ -210,13 +203,10 @@ fun SourcesSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 /**
  * The Sources tree as the body derives it from the open document: every file's presence as the app's
  * probe last answered, the proposals for the bindings the files no longer resolve, and the tree built from
- * both.  Each step is remembered on what it reads, so a recomposition that changes none of it builds
- * nothing.
+ * both.
  *
- * The probe is asked from an effect, never while composing: asking is a look at the disk.  The tree is
- * built from the answers in hand, and built again when a round of answers lands.
- *
- * Returns a value, so it is no restart scope of its own: what it reads invalidates the space that calls it.
+ * The probe is asked from an effect, never while composing: asking is a look at the disk.  Returns a value,
+ * so it is no restart scope of its own: what it reads invalidates the space that calls it.
  *
  * @param PuppetModel      puppet            The rig to list.
  * @param SourcesViewState viewState         The area's view state, for the refresh serial.

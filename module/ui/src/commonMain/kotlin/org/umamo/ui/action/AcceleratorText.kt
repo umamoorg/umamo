@@ -13,13 +13,9 @@ package org.umamo.ui.action
 fun formatAccelerator(chord: KeyChord): String = formatAccelerator(chord, primaryModifierLabel())
 
 /**
- * The pure core of [formatAccelerator]: assembles the modifier labels (literal Control, primary, Alt, Shift)
- * and the key glyph into a "+"-joined hint, taking the platform-specific [primaryLabel] as a parameter so it
- * can be unit-tested deterministically (the public overload supplies the host's label).  Modifiers are
- * ordered Control, primary, Alt, Shift to match the common platform convention.
- *
- * A literal Control only ever appears on macOS, where Control is not the primary modifier, so it always
- * reads as the Control glyph "⌃".
+ * The pure core of [formatAccelerator], taking the platform's [primaryLabel] as a parameter so it can be
+ * unit-tested deterministically.  Modifiers are ordered Control, primary, Alt, Shift to match the common
+ * platform convention.
  *
  * @param KeyChord chord The chord to format.
  * @param String primaryLabel The platform label for the primary modifier ("Ctrl" or "⌘").
@@ -28,6 +24,7 @@ fun formatAccelerator(chord: KeyChord): String = formatAccelerator(chord, primar
 internal fun formatAccelerator(chord: KeyChord, primaryLabel: String): String {
 	val parts =
 		buildList {
+			// A literal Control only appears on macOS, where Control is not the primary modifier.
 			if (chord.controlKey) {
 				add("⌃")
 			}
@@ -127,9 +124,7 @@ internal fun keyGlyph(keyName: String): String =
 /**
  * The platform's label for the primary accelerator modifier: "⌘" on macOS, "Ctrl" elsewhere.  This is
  * the one platform-dependent piece of accelerator formatting (the key glyph and modifier order are
- * shared).  Localizing the modifier labels is a deferred follow-up.
- *
- * 主修飾キーのプラットフォーム別ラベル。macOS は "⌘"、それ以外は "Ctrl"。
+ * shared).  The modifier labels are not localized.
  *
  * @return String The primary modifier label.
  */

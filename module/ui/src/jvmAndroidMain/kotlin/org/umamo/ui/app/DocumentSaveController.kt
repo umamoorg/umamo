@@ -194,17 +194,13 @@ internal class DocumentSaveController(
 	}
 
 	/**
-	 * Runs [action] once no save or model export is being written.  Either one still in flight settles before
-	 * anything that would end the process or replace the document: the write runs on a thread the process does
-	 * not wait for, so a quit that went ahead mid-write would kill it - and a clean document (an import never
-	 * edited) has nothing unsaved to stop the quit with.  A replace that went ahead mid-export would also keep
-	 * the old document resident under the export while the new one loads beside it.  Waiting also keeps the
-	 * unsaved-changes prompt from appearing over a running save, where its Save button could only answer that
-	 * one is in progress.
+	 * Runs [action] once no save or model export is being written.  The write runs on a thread the process does
+	 * not wait for, so a quit that went ahead mid-write would kill it, and a clean document has nothing unsaved
+	 * to stop the quit with; a replace mid-export would keep the old document resident while the new one loads;
+	 * and a prompt over a running save could only answer that one is in progress.
 	 *
-	 * This is the early wait, before the prompt.  An export started after it - while the prompt is up, a save is
-	 * written, or a document loads - is waited for again where the exit or the swap actually happens
-	 * ([EditorAppServices.afterRunningExport]).
+	 * This is the early wait, before the prompt.  An export started after it is waited for again where the exit
+	 * or the swap actually happens ([EditorAppServices.afterRunningExport]).
 	 *
 	 * @param Function action What to do once nothing is being written.
 	 */
@@ -259,11 +255,9 @@ internal class DocumentSaveController(
 	}
 
 	/**
-	 * Runs [exit], asking first when the document is dirty (document.confirmExit): quitting discards the
-	 * session the same way a replace does.  File > Exit calls this directly; the host's window close, OS
-	 * quit, and back gesture reach it through the exit guard.  Whichever way the exit comes - at once, after
-	 * Don't Save, or after a save lands - it waits for a model export started meanwhile, so the process never
-	 * ends with an export half written.
+	 * Runs [exit], asking first when the document is dirty: quitting discards the session the same way a
+	 * replace does.  Whichever way the exit comes - at once, after Don't Save, or after a save lands - it waits
+	 * for a model export started meanwhile, so the process never ends with an export half written.
 	 *
 	 * @param Function exit Closes the application.
 	 */

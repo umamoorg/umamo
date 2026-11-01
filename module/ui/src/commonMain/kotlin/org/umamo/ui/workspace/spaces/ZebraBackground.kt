@@ -11,12 +11,9 @@ import androidx.compose.ui.unit.Dp
 import kotlin.math.floor
 
 /**
- * Paints an alternating "zebra" stripe pattern across the whole drawing area, filling it top to bottom
- * regardless of how many list rows are present, so a short or empty list still reads as a prepared panel
- * rather than a list that runs out partway down.  The stripe grid is anchored to the first visible row
- * (read from [listState]) and steps in [rowHeight] bands, so the painted stripes stay locked to the rows
- * as the list scrolls; odd-indexed bands take [stripeColor] and even bands are left clear.  Rows draw only
- * their selection / hover / match overlays on top - the base stripe lives here, behind them.
+ * Paints an alternating "zebra" stripe pattern across the whole drawing area, locked to the list's rows as
+ * it scrolls, so a short or empty list still reads as a prepared panel rather than a list that runs out
+ * partway down.  Rows draw only their selection / hover / match overlays on top of it.
  *
  * The caller must draw the list flush at the area's top edge with no leading vertical inset (row index 0
  * at y = 0) and rows of uniform [rowHeight]; otherwise the bands and rows drift apart.
@@ -45,7 +42,7 @@ internal fun Modifier.zebraFill(listState: LazyListState, rowHeight: Dp, stripeC
 		var bandTop = anchorTop + (bandIndex - anchorIndex) * rowHeightPx
 		// Clip to the drawing area: drawBehind does not clip, and the first / last bands overhang the top and
 		// bottom edges (the top band belongs to the partially scrolled-off first row) - unclipped they would
-		// paint over the neighbouring chrome, e.g. the area header sitting directly above this body.
+		// paint over the neighboring chrome, e.g. the area header sitting directly above this body.
 		clipRect(left = 0f, top = 0f, right = size.width, bottom = size.height) {
 			while (bandTop < size.height) {
 				// mod (not %) so the parity stays correct even if a band index ever goes negative.

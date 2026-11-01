@@ -56,8 +56,7 @@ internal fun ExportOptionsDialog(
  * The shared dialog chrome: scrim, centered card, title, the format's rows, and the Cancel / Export
  * footer.
  *
- * The same scrim-and-card recipe as ConfirmDialog, one size up: the scrim click cancels, the card
- * swallows clicks so a press inside it is not read as a dismissal.
+ * The same scrim-and-card recipe as ConfirmDialog, one size up.
  *
  * @param String   title         The already-localized dialog title.
  * @param Function onCancel      Called on Cancel, the scrim, or Escape's dismissal path.

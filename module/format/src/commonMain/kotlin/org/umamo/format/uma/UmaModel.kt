@@ -302,9 +302,8 @@ public class UmaModel internal constructor(
 	 * this writer does not own survives (UMA §5.8), or added when the document has no textures entry.
 	 *
 	 * The pixel entries are laid out in the same step (UMA §5.7): a tile the file holds keeps its entry byte for
-	 * byte and [pixels] is not asked for it, a new tile's PNG is written at a minted path, the render pages follow
-	 * [pixels]'s mode, the thumbnail is written when given, and every pixel entry the index no longer names leaves
-	 * the file (UMA §5.7).  The paths and render pages [textures] carries are ignored.
+	 * byte without asking [pixels] for it, and every pixel entry the index no longer names leaves the file.  The
+	 * paths and render pages [textures] carries are ignored.
 	 *
 	 * @param UmaTextures    textures The index.
 	 * @param UmaPixelSource pixels   The pixels the save writes.

@@ -2,16 +2,8 @@ package org.umamo.runtime.model
 
 /**
  * The restricted features this document ACTUALLY USES under [target] - the decision aid the
- * Properties Document tab marks its per-target restricted list with.  A feature the target supports
- * is never reported, and neither is a restricted feature the document does not use.  A MOC3
- * export's own "was removed" notices come from the version-downgrade pass, not from here.
- *
- * [RuntimeFeature.MotionSync] and [RuntimeFeature.ArtPath] are never reported: they are not
- * representable in [PuppetModel] (motion-sync is a sidecar family, an art path survives only as CMO3
- * round-trip payload), so an export dialog cannot warn about them from the model alone.
- *
- * Latent state does not count as use: a non-isolated part's stored [Part.composite] is invisible
- * to both renderer and runtime, so only isolated parts' composites are scanned.
+ * Properties Document tab marks its per-target restricted list with.  A MOC3 export's own "was removed"
+ * notices come from the version-downgrade pass, not from here.
  *
  * @param RuntimeTarget target The target to diff against.
  * @return Set The restricted features in use; empty when the document fits the target.
@@ -23,6 +15,7 @@ fun PuppetModel.unsupportedFeaturesInUse(target: RuntimeTarget): Set<RuntimeFeat
 		return emptySet()
 	}
 
+	// Only isolated parts' composites count: a latent composite is invisible to both renderer and runtime.
 	// Materialized once for the whole scan rather than inside every feature branch.
 	val activeComposites = parts.mapNotNull { part -> part.activeComposite }
 
@@ -80,6 +73,8 @@ private fun PuppetModel.usesFeature(feature: RuntimeFeature, activeComposites: L
 			parameters.any { parameter -> parameter.repeat }
 		}
 
+		// Not representable in PuppetModel (motion-sync is a sidecar family, an art path survives only as
+		// CMO3 round-trip payload), so the model alone cannot show their use.
 		RuntimeFeature.MotionSync,
 		RuntimeFeature.ArtPath,
 		-> {

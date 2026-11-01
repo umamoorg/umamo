@@ -310,11 +310,8 @@ internal class LatticeCageProducer {
 }
 
 /**
- * Publishes the lattice cage to [service] for as long as it runs: derived from the mode, the brush stroke's preview
- * or else the committed mesh selection, the model, the sizes, the shown pose and pending lattices, and a drag's
- * preview, and published whenever the derived value changes by identity - a drag frame or a scrub publishes a value
- * whose moved lattices carry new position arrays, and a commit that leaves every lattice where it was publishes
- * nothing.
+ * Publishes the lattice cage to [service] for as long as it runs, whenever the derived value changes by identity,
+ * so a commit that leaves every lattice where it was publishes nothing.
  *
  * @param PuppetViewportService service The render service to publish to.
  * @param EditorSession session The session to derive from.

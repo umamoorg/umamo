@@ -19,13 +19,8 @@ import org.umamo.ui.theme.UmamoIcon
 
 /**
  * A single-choice form dropdown: the current selection's (optional) icon and label shown in a [DropdownChip]
- * styled as a field, opening a [Menu] of the options beneath it.  The one reusable select control for forms
- * - settings rows and the Properties panel share it; the header chips are the same [DropdownChip] in its
- * [DropdownChipStyle.Header] role, so there is one chip anatomy, not two.
- *
- * The popup is forced to at least the chip's own width (measured via [onSizeChanged]) so the option list
- * never opens narrower than the field - a value picked near the field's trailing edge stays under the
- * pointer instead of requiring an awkward reach.  The menu owns its outside-click / Escape dismissal.
+ * styled as a field, opening a [Menu] of the options beneath it.  The menu opens at least as wide as the
+ * field, so a value picked near the field's trailing edge stays under the pointer.
  *
  * @param T          selected The currently selected option.
  * @param List       options  The options to choose from, in display order.

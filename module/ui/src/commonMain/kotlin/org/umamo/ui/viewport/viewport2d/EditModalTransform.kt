@@ -36,16 +36,9 @@ import org.umamo.ui.viewport.gizmo.gestureParameters
 import kotlin.math.pow
 
 /**
- * The captured state of an in-flight Edit- or Pose-mode transform: the shared [ModalTransformCapture] (entries with
- * their frozen positions, pivot groups, proportional halos, and moved sets, plus the anchor, the frozen
- * operator kind, and the rotation tracker) alongside each captured owner's frozen world geometry - a mesh's, which
- * the drive loop inverts each transformed world shape back through, or a lattice's - and the stage it was captured
- * at.  The geometry is held in a map keyed on the owner, looked up by
- * [org.umamo.edit.transform.ModalCaptureEntry], so nothing stays index-aligned.
- *
- * A moving mesh's geometry frozen here is a COPY of the live geometry's arrays (rest, displayed, world), so the whole
- * drag transforms a fixed snapshot even though the underlying model is immutable; a lattice's capture is the bake's
- * own copy already.  A bystander's is held as the overlay composed it, a bake nothing writes into.
+ * The captured state of an in-flight Edit- or Pose-mode transform: the shared [ModalTransformCapture] alongside
+ * each captured owner's frozen world geometry and the stage it was captured at.  The geometry is keyed on the owner,
+ * looked up by [org.umamo.edit.transform.ModalCaptureEntry], so nothing stays index-aligned.
  *
  * @property ModalTransformCapture transform The shared gesture capture (entries, groups, anchor, halos, kind).
  * @property Map<ElementOwner, OwnerWorldGeometry> geometryByOwner Each captured owner's world geometry, a bystander's
@@ -62,14 +55,9 @@ internal class EditGesture(
 
 /**
  * The commit side of the Edit overlay's modal G / S / R and Vertex Slide, in Edit and Pose mode: it captures the
- * moving meshes or lattices when an operator latches in its area, drives per-mesh previews through the deformer
- * inverse (a rest lattice's preview is its moved points, which the 2D viewport's cage draws while the art stays put; a
- * posed lattice's is its pending forms, which the art and the cage both follow), confirms via the movement transfer or
- * the lattice's landing ([LatticeLanding]), cancels through the session's operator clear, and resizes the
- * proportional influence radius on scroll.  The drive runs through [drive]: each pointer event resolves a request here,
- * on the UI thread, and the meshes' inverses run off it, in parallel, publishing back here.
- * The pointer-side mechanics (stale discard, virtual pointer, wrap, button semantics) live in
- * [org.umamo.ui.viewport.gizmo.ModalTransformController], which is handed this as its target.
+ * moving meshes or lattices when an operator latches in its area, drives their previews through [drive], and lands
+ * the step (a mesh by movement transfer, a lattice by its [LatticeLanding]) or cancels it.  The pointer-side mechanics live in [org.umamo.ui.viewport.gizmo.ModalTransformController],
+ * which is handed this as its target.
  *
  * One instance per area, created with `remember(areaId)`: the pointer loop and the session collectors are
  * long-running and keep the instance they started with, so it holds nothing that may change under them.
@@ -127,14 +115,9 @@ internal class EditModalTransform(
 		)
 
 	/**
-	 * Starts the gesture as an operator latches in this area.  The capture moves the session owners with
-	 * covered vertices (an edge or face selection moves the union of vertices its elements cover), and every
-	 * other owner in the edit joins as a bystander, so a straight-line halo reaches nearby geometry with nothing
-	 * selected the way Blender's multi-object proportional editing does - joining even while proportional
-	 * editing is off, since O mid-gesture and the strip's rows can still turn it on over this capture.  A
-	 * gesture that takes no weights leaves every bystander where it is.  The shared pivot is the median of
-	 * every covered vertex across the session, so all meshes or lattices scale / rotate about one point
-	 * together.
+	 * Starts the gesture as an operator latches in this area, capturing the owners with covered vertices as movers
+	 * and every other owner in the edit as a bystander a proportional halo can reach.  Bystanders join even while
+	 * proportional editing is off, since O mid-gesture and the strip's rows can still turn it on over this capture.
 	 *
 	 * @param MeshOperatorKind kind The latched operator.
 	 * @param List<EditOwnerGeometry> geometries The session owners' live geometry, as the overlay composed it.
@@ -222,13 +205,9 @@ internal class EditModalTransform(
 	fun end(): Boolean = endGesture()
 
 	/**
-	 * Ends the gesture because the overlay is leaving composition mid-gesture: the mode changed, the area
-	 * closed, or every mesh or lattice in the edit stopped projecting (the overlay returns before it reaches this
-	 * transform).  The latch effect is cancelled with the overlay and never runs its teardown, so this does
-	 * it instead.  The latch is cleared while it is still this area's - a mode switch has cleared it
-	 * already, and a latch another area holds is not this one's to clear - so no gesture is left latched to
-	 * an overlay that cannot drive it, and none restarts from a fresh gesture state when the overlay comes
-	 * back.
+	 * Ends the gesture because the overlay is leaving composition mid-gesture, standing in for the teardown its
+	 * cancelled latch effect never runs.  A latch still this area's is cleared, so no gesture is left latched to an
+	 * overlay that cannot drive it.
 	 *
 	 * @return Boolean True when a gesture was in flight, so the caller resyncs the renderer to the
 	 *   committed model rather than leave it on the uncommitted preview.
@@ -260,9 +239,7 @@ internal class EditModalTransform(
 
 	/**
 	 * Re-derives the capture's weights after a proportional toggle or falloff change MID-GESTURE (O falls
-	 * through the shell ladder to the keymap while an operator runs - Blender allows the same); the next
-	 * pointer move applies them.  The scroll path recomputes inline, since it must re-drive the preview
-	 * without pointer motion.  Vertex Slide never takes weights (the latch passed null and it stays null).
+	 * through the shell ladder to the keymap while an operator runs); the next pointer move applies them.
 	 *
 	 * @param ProportionalEditState? state The proportional state now in effect, or null for off.
 	 */
@@ -291,11 +268,8 @@ internal class EditModalTransform(
 	}
 
 	/**
-	 * Confirms the in-flight gesture at the latest pointer: settles a drive the worker has not published
-	 * yet, commits what moved as ONE undo step - each moving mesh's new rest shape, or each moving lattice landed at
-	 * the stage it was captured at - registers that step on the operation settings strip, then clears the operator (its
-	 * teardown resyncs the renderer).  No published drive means no movement, so nothing is committed.  A mesh's preview
-	 * already holds rest shapes (the drive inverted them via worldToRest), so they are committed directly.
+	 * Confirms the in-flight gesture at the latest pointer, committing what moved as ONE undo step registered on the
+	 * operation settings strip, then clears the operator (its teardown resyncs the renderer).
 	 */
 	override fun confirm() {
 		drive.settle()
@@ -384,11 +358,9 @@ internal class EditModalTransform(
 	}
 
 	/**
-	 * Resolves and submits a drive for one virtual-pointer position, on the UI thread: the pointer frame
-	 * into the parameters every mesh applies (once per event: the Rotate branch advances the accumulator,
-	 * which must see every step), the Vertex Slide's landing, each mesh's halo as it is now, and the model
-	 * to fold onto.  Shared by Move (pointer motion) and Scroll (a proportional radius change
-	 * re-drives from the same frozen originals without waiting for the next pointer move).
+	 * Resolves and submits a drive for one virtual-pointer position, on the UI thread, for pointer motion and for a
+	 * radius scroll alike.  The parameters resolve once per event because the Rotate branch advances its
+	 * accumulator, which must see every step.
 	 *
 	 * @param MeshOperatorKind operator The latched operator.
 	 * @param Offset virtualPointer The wrap-continuous pointer.
@@ -422,12 +394,9 @@ internal class EditModalTransform(
 	}
 
 	/**
-	 * Lands one drive on the UI thread: the parameters and the slide landing the confirm reads, the preview,
-	 * and the folded model pushed to the renderer - folded again onto the session's model when a commit
-	 * replaced the one the request folded onto (a snap mid-drag), so the preview always shows the current
-	 * model.  Moved lattices go to the live preview, which the 2D viewport's cage draws from; at rest that is all
-	 * (a drive that moved no mesh pushes no model, so the art holds still), and at the pose their pending forms go to
-	 * the renderer too, so the art follows without a model push.
+	 * Lands one drive on the UI thread: the state the confirm reads, the live preview, and the folded model pushed
+	 * to the renderer - folded again onto the session's model when a commit replaced the one the request folded onto
+	 * (a snap mid-drag), so the preview always shows the current model.
 	 *
 	 * @param MeshDriveRequest request The request.
 	 * @param MeshDriveResult result Its result.

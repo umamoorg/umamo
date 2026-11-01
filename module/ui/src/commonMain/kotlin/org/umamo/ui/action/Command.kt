@@ -45,7 +45,7 @@ fun interface CommandAvailability {
  * (split an area, open a file, fit the view) is one of these, addressed by a stable dotted [id]
  * ("area.split.leftRight", "file.open"). Menus, the area header, the command palette, and key
  * bindings all resolve to a Command and run its [handler]; nothing hardcodes a handler, so rebinding
- * a key or relabelling a menu changes one place.
+ * a key or relabeling a menu changes one place.
  *
  * @property String id The stable dotted identifier used to look the command up and to bind keys to it.
  * @property StringResource? title The localized menu/palette label, or null for commands never shown in UI (e.g. test-only).

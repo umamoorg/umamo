@@ -23,11 +23,9 @@ public object MocLowering {
 	/**
 	 * Lowers [doc] to every section it can produce, keyed by section-table index.
 	 *
-	 * The producers are merged STRICTLY: two of them claiming the same index fails here rather than
-	 * resolving by merge order.  That is not defensive - a `+` fold would resolve a double claim by
-	 * silently keeping the later producer, leaving the shadowed copy editable with no effect on any
-	 * output and no test to notice.  Every index has exactly one owner, and this is what keeps it
-	 * that way.
+	 * The producers are merged STRICTLY: two of them claiming the same index fails here, because a
+	 * `+` fold would silently keep the later producer and leave the shadowed copy editable with no
+	 * effect on any output and no test to notice.
 	 *
 	 * @param MocDocument doc The semantic model.
 	 * @return Map Section index → element-region bytes (no trailing padding).

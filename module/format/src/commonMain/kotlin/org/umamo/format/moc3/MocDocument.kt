@@ -14,7 +14,7 @@ import org.umamo.format.moc3.model.RenderOrderGroup
 
 /**
  * The fully decoded semantic model of a `.moc3` - the agnostic intermediate for editor
- * reconstruction and (later) the bake.
+ * reconstruction and the bake.
  *
  * Objects reference each other and parameters by index (their position in these lists). Each
  * deformable object names a `keyformBindingIndex`; look the binding up with [keyformBinding] to

@@ -340,10 +340,10 @@ internal class SharedRef(val id: String, val index: Int, val tag: String)
  * One child slot of a reflective object, captured on read so the exact child sequence can be replayed
  * on write. This makes typed classes tolerant of format evolution (added, removed, or reordered
  * fields) across schema versions while staying byte-identical: a known field is re-serialized from the
- * typed value, an unrecognised one is re-emitted verbatim, and the superclass keeps its position.
+ * typed value, an unrecognized one is re-emitted verbatim, and the superclass keeps its position.
  */
 internal sealed interface ChildSlot {
-	/** A field the serializer recognised, replayed from the typed property [propertyName]. */
+	/** A field the serializer recognized, replayed from the typed property [propertyName]. */
 	class KnownField(val propertyName: String) : ChildSlot
 
 	/** A child newer than (or unknown to) our schema, replayed verbatim. */
@@ -373,11 +373,11 @@ private fun nextFreshRefId(preassigned: IdentityHashMap<Any, SharedRef>?): Int {
  * Mutable write-side state: object-identity tracking and the shared pool (written-object map,
  * shared list, ref-id and write-index counters).
  *
- * EN: In reconcile mode ([preassignedShared] != null) objects that were shared on read are emitted
- *     as xs.ref using their preserved id - so a round-trip stays byte-identical even when only some
- *     classes are typed. Any other object referenced more than once - fresh or newly-shared, in or
- *     out of reconcile mode - goes through the same hoist-on-second-use path, with fresh ids
- *     continuing past the preserved maximum so they never collide with one.
+ * In reconcile mode ([preassignedShared] != null) objects that were shared on read are emitted as
+ * xs.ref using their preserved id, so a round-trip stays byte-identical even through verbatim content.
+ * Any other object referenced more than once - fresh or newly-shared, in or out of reconcile mode -
+ * goes through the same hoist-on-second-use path, with fresh ids continuing past the preserved
+ * maximum so they never collide with one.
  */
 internal class WriteContext(
 	private val registry: SerializerRegistry,
@@ -479,7 +479,7 @@ internal class ReadContext(
 	private fun slots(owner: Any, tag: String) =
 		childOrder.getOrPut(owner) { HashMap() }.getOrPut(tag) { ArrayList() }
 
-	/** Records, in document order, a recognised child field of [owner] at the [tag] level. */
+	/** Records, in document order, a recognized child field of [owner] at the [tag] level. */
 	fun recordKnownChild(owner: Any, tag: String, propertyName: String) =
 		slots(owner, tag).add(ChildSlot.KnownField(propertyName))
 
@@ -496,7 +496,7 @@ internal class ReadContext(
 	}
 
 	/**
-	 * Materialises the value for [element]: null marker, a resolved xs.ref, or a freshly
+	 * Materializes the value for [element]: null marker, a resolved xs.ref, or a freshly
 	 * created+populated value via the tag's serializer.
 	 *
 	 * @param Element element The source element.
@@ -535,7 +535,7 @@ internal class ReadContext(
  * object, the shared pool in document order (with preserved xs.id/xs.idx), the processing
  * instructions, and the `<root>` attributes.
  *
- * EN: [root] (and the shared objects) are typed where a serializer is registered, else [VerbatimNode].
+ * [root] (and the shared objects) are typed where a serializer is registered, else [VerbatimNode].
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Payload: main.xml</a>
  */
@@ -552,11 +552,10 @@ public class ModelGraph internal constructor(
 	/**
 	 * Ensures the replayed child order for [owner] at the [tag] level contains a KnownField slot for
 	 * [propertyName], so a field assigned after read reaches the re-emitted document even when the
-	 * source carried no such element (the writer replays recorded slots and would otherwise drop the
-	 * assignment silently).  Amends only an EXISTING recorded order: an owner without one already
-	 * emits every declared field, and creating an order here would collapse its output to this
-	 * single slot.  The new slot lands immediately before [beforePropertyName]'s slot when that
-	 * anchor exists (matching where the editor writes the field), else at the end.
+	 * source carried no such element.
+	 *
+	 * Amends only an EXISTING recorded order: an owner without one already emits every declared field,
+	 * and creating an order here would collapse its output to this single slot.
 	 *
 	 * @param Any     owner              The object whose child order is amended.
 	 * @param String  tag                The serializer tag level the order was recorded under.
@@ -586,12 +585,10 @@ public class ModelGraph internal constructor(
 
 	/**
 	 * Ensures the @SerialAttribute property [propertyName] of [owner] (at the [tag] level) is emitted
-	 * on write even when the source document omitted the attribute.  The writer emits exactly the
-	 * attributes recorded as present at read time, so an attribute assigned after read would otherwise
-	 * be dropped silently.  Amends only an EXISTING record: an owner with no recorded attributes at
-	 * [tag] already falls back to emitting every non-default attribute value, and a fresh object never
-	 * has a record.  Attributes emit in declaration order regardless of record order, so no anchor is
-	 * needed.
+	 * on write even when the source document omitted the attribute.
+	 *
+	 * Amends only an EXISTING record: an owner with no recorded attributes at [tag] already emits every
+	 * non-default attribute value.  Attributes emit in declaration order, so no anchor is needed.
 	 *
 	 * @param Any    owner        The object whose attribute record is amended.
 	 * @param String tag          The serializer tag level the record was captured under.
@@ -747,9 +744,7 @@ public class SerializeEngine internal constructor(
 
 	/**
 	 * Re-emits a [ModelGraph] to a document, reusing the preserved shared ids/order and PIs so an
-	 * unedited graph round-trips byte-identical. Known-shared objects become xs.ref by identity.
-	 * Fresh objects (added after read) referenced more than once are hoisted into the shared pool
-	 * after the preserved entries, with ids and indexes continuing past the preserved maxima.
+	 * unedited graph round-trips byte-identical.
 	 *
 	 * @param ModelGraph graph The graph to serialize.
 	 * @return Document The reconstructed model document.

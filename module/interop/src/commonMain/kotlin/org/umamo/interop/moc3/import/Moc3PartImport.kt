@@ -35,15 +35,10 @@ internal class Moc3ImportedParts(
  * Imports the parts list and the org tree's root children.
  *
  * Runs AFTER [importRenderRoot] and the panel-index reconstruction it feeds, because MOC3 stores parent
- * indices but no interleaved panel order: each parent's sub-parts and drawables are sorted by the panel
- * index recovered from the render tree, a part taking the minimum over its descendants, with ties
- * keeping file order.  Handed an empty [panelIndexByDrawable] this still succeeds and simply produces a
- * different, plausible ordering - which is why `Moc3ImportOrderTest` pins the sequence rather than
- * leaving it to be noticed.
- *
- * Malformed parent links are normalized so nothing is dropped from the outliner: an out-of-range parent
- * index goes to the root, and every member of a parent cycle is re-parented to the root (breaking the
- * cycle's edges keeps the forest acyclic and every part reachable).
+ * indices but no interleaved panel order, so each parent's children are sorted by the panel index
+ * recovered from the render tree.  Handed an empty [panelIndexByDrawable] this still succeeds and simply
+ * produces a different, plausible ordering - which is why `Moc3ImportOrderTest` pins the sequence rather
+ * than leaving it to be noticed.
  *
  * @param Moc3ImportContext context              The import's derived state.
  * @param Map               panelIndexByDrawable Reconstructed panel index per drawable.

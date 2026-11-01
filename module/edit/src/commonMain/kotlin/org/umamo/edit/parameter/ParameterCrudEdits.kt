@@ -61,12 +61,9 @@ fun PuppetModel.freshParameterId(): ParameterId {
 
 /**
  * A copy of this model with a new animatable parameter [newId] named [name] of [kind] appended to the axis
- * list and its leaf prepended at the root top of the panel tree (so it lands on-screen for the immediate
- * inline rename, like a new group). The default -1..1 / 0 range makes it animatable (min < max) so it
- * renders as a slider; it is a neutral starting point the user retargets in the range editor. A
- * BLEND_SHAPE kind renders with square knob / key marks (it carries no keys until authoring captures
- * them). Materializes a flat tree first for a group-less model, so the existing rows keep their order
- * beneath the new parameter. Refuses (returns this same instance) a colliding id.
+ * list and its leaf prepended at the root top of the panel tree, so it lands on-screen for the immediate
+ * inline rename.  The -1..1 range with default 0 is a neutral starting point that renders as a slider.
+ * Refuses (returns this same instance) a colliding id.
  *
  * @param ParameterId newId The minted id of the new parameter.
  * @param String name The initial display name.
@@ -126,21 +123,9 @@ fun PuppetModel.withParameterRenamed(id: ParameterId, newName: String): PuppetMo
 }
 
 /**
- * A copy of this model with parameter [id] removed everywhere: the axis list, every panel-tree leaf, any
- * link it belongs to (its partner reverts to a plain slider), every keyform grid in the rig - drawables,
- * both deformer kinds, parts, and glue intensities - and every blend shape that names it. Dropping the
- * deleted axis collapses each grid to the slice at the parameter's default value (the neutral look),
- * discarding that axis's motion. A channel track left with no axes is dropped, and the value of its kept
- * slice is lifted into the owner's static so the neutral look survives the drop; a fractional part draw
- * order stays behind as a constant track because the Int static slot cannot hold it without rounding. A
- * geometry grid left with no axes keeps its kept slice as a one-cell grid with no axes: a deformer's
- * lattice or pivot lives only in its cells, and a drawable keeps the look it had rather than snapping back
- * to its base mesh (the base mesh is authored, never baked from a slice). A blend binding the parameter
- * drives is dropped, and a weight limit over it is dropped or baked into its binding's forms
- * ([blendBindingScrubOf]), so no id the model lacks survives; [ParameterDeletion.restChangedOwners] names the
- * owners where that, or a default between two keys, moves the rest pose. The render root is re-derived at
- * the end so its per-group copies of the part tracks lose the deleted axis too. The live pose entry is
- * dropped by the session wrapper. A no-op (no such parameter) returns this same instance.
+ * A copy of this model with parameter [id] removed everywhere it is referenced, each keyform grid collapsing
+ * to its slice at the parameter's default value so the rig keeps its neutral look and loses only that axis's
+ * motion.
  *
  * @param ParameterId id The parameter to delete.
  * @return PuppetModel The model with the parameter removed, or this if it was absent.
@@ -354,6 +339,7 @@ fun PuppetModel.parameterDeletionOf(id: ParameterId): ParameterDeletion? {
 		}
 	}
 
+	// The render root is re-derived so its per-group copies of the part tracks lose the deleted axis too.
 	val model =
 		copy(
 			parameters = parameters.filterNot { parameter -> parameter.id == id },
@@ -427,13 +413,11 @@ fun EditorSession.renameParameter(id: ParameterId, newName: String) {
 }
 
 /**
- * Deletes parameter [id] everywhere - the axis list, the panel tree, any link, every object's keyform
- * grid (its axis collapses to the default slice), and the live pose - as one undo step. A model edit,
- * so it marks the document dirty; dropping the pose entry rides the same step so undo restores both.
- * Goes through [EditorSession.commitStep] rather than [EditorSession.mutate] because it commits a new
- * model, a new pose, and the pruned target together, like [setParameterRange]. A no-op (no such parameter) records nothing. When the delete moves the rest pose
- * of any object - a default between two keys, a sparse sole-axis track or deformer grid, or a blend shape
- * its scrub cannot keep exact ([ParameterDeletion.restChangedOwners]) - a notice says how many.
+ * Deletes parameter [id] everywhere ([parameterDeletionOf]) and from the live pose as one undo step; when the
+ * delete moves any object's rest pose ([ParameterDeletion.restChangedOwners]), a notice says how many.
+ *
+ * Goes through [EditorSession.commitStep] rather than [EditorSession.mutate] because the new model, the new
+ * pose, and the pruned target land together, so undo restores all three.
  *
  * @param ParameterId id The parameter to delete.
  */

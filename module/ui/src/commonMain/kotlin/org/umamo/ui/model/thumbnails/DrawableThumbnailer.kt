@@ -20,8 +20,8 @@ import kotlin.math.roundToInt
 /**
  * Longest edge (in texels) of a single art-mesh crop. The drawable's atlas crop is nearest-downsampled to
  * fit within this box so the cache stays small even for large atlas pages; the consumer then scales the
- * result to its display slot. 96px is comfortably above the slots that show it (the overlap picker's
- * ~44dp, the Outliner and Sources hovers' ~120dp) at any reasonable display density, so the preview stays crisp.
+ * result to its display slot. 96px is comfortably above the overlap picker's ~44dp slot; the Outliner and
+ * Sources hovers (~120dp) scale it up.
  */
 private const val CROP_MAX_DIMENSION = 96
 
@@ -33,18 +33,10 @@ private const val PART_COMPOSITE_MAX_DIMENSION = 128
 
 /**
  * Crops small art-mesh previews from the loaded model's atlas pages, the shared source for the viewport's
- * overlap picker and the Outliner's and Sources space's hover previews (per-drawable [thumbnailFor] and combined
- * [partThumbnailFor]), and for the model icon a CMO3 export writes ([modelRasterFor]). Pure CPU over the
- * immutable decoded atlas bytes ([PuppetTextures.atlases]) and the drawables' mesh data - no GL, no
- * render-thread hand-off - so it is safe to call straight from the Compose UI thread. Results are memoized;
- * [updateModel] refreshes the model-derived inputs after every committed
- * edit and evicts exactly the entries the edit staled, and [setTextures] swaps the page pixels when the
- * session repacks, evicting every pixel-derived entry wholesale.
- *
- * Rasterises to a Compose [ImageBitmap] through the rgbaToImageBitmap platform seam (Skiko on desktop,
- * android.graphics.Bitmap on Android), so one implementation serves both apps. The per-drawable crop
- * covers every drawable carrying mesh UVs (not just the currently visible ones), so a hidden layer
- * previews too.
+ * overlap picker, the Outliner's and Sources space's hover previews, and the model icon a CMO3 export writes.
+ * Pure CPU over the immutable decoded atlas bytes ([PuppetTextures.atlases]) and the drawables' mesh data - no
+ * GL, no render-thread hand-off - so it is safe to call straight from the Compose UI thread.  The per-drawable
+ * crop covers every drawable carrying mesh UVs, not just the visible ones, so a hidden layer previews too.
  *
  * @property PuppetModel puppet The rig whose drawables are previewed.
  * @property PuppetTextures textures The decoded atlas page(s) + per-drawable page index.
@@ -79,7 +71,7 @@ class DrawableThumbnailer(
 	private var currentPartChildren: Map<PartId, List<PartId>> =
 		puppet.parts.associate { part -> part.id to part.children.filterIsInstance<OrgChild.Part>().map { it.id } }
 
-	// Drawable -> owning part, derived from the org tree (membership lives only there now).
+	// Drawable -> owning part, derived from the org tree (membership lives only there).
 	private var currentDrawableOwner: Map<DrawableId, PartId?> = puppet.partByDrawable()
 
 	// Memoized derivations. The per-drawable caches are keyed by immutable geometry / UV data; [updateModel]
@@ -110,12 +102,9 @@ class DrawableThumbnailer(
 	}
 
 	/**
-	 * Refreshes every model-derived input after an edit and evicts exactly the caches the edit staled:
-	 * the part composites always (membership / order may have changed), and the geometry-keyed
-	 * per-drawable entries only where the mesh data was actually copy-on-write replaced (a remesh swaps
-	 * uvs, a vertex move swaps positions) or the drawable was removed (a later redo may recreate the id
-	 * with different geometry).  A session-added drawable - a duplicate's fresh ".001" id - needs no
-	 * eviction; its entries fill lazily on first request now that the lookups see it.
+	 * Refreshes every model-derived input after an edit and evicts exactly the caches the edit staled: every
+	 * part composite, and the per-drawable entries whose mesh data was replaced or whose drawable was removed
+	 * (a later redo may recreate the id with different geometry).
 	 *
 	 * @param PuppetModel model The current model.
 	 */
@@ -172,10 +161,8 @@ class DrawableThumbnailer(
 	override fun thumbnailFor(id: DrawableId): ImageBitmap? = thumbnailCache.getOrPut(id) { croppedFor(id)?.let(::rawToImage) }
 
 	/**
-	 * A combined preview of every art mesh under [id] (its own drawables and its sub-parts'), placed by each
-	 * drawable's rest-pose model bounds and composited back-to-front, or null when the part holds no textured
-	 * drawable. Reuses the cached per-drawable crops; only the bounding-box placement and the alpha-over blit
-	 * are new work, so it stays cheap. Memoized.
+	 * A combined preview of every art mesh under [id] (its own drawables and its sub-parts'), built by
+	 * [partRasterFor] over the cached per-drawable crops.  Memoized.
 	 *
 	 * @param PartId id The part to preview.
 	 * @return ImageBitmap? The composited preview, or null when the part has no previewable art.
@@ -396,10 +383,9 @@ class DrawableThumbnailer(
 
 	/**
 	 * Composites [members], each a cached crop with its rest-pose model bounds in the model's
-	 * back-to-front order (the [PuppetModel.drawables] base order, so a later entry paints in front):
-	 * unions the bounds and blits each crop into its mapped rectangle with straight-alpha
-	 * over-compositing.  Only members with both a crop and bounds belong here, so untextured or
-	 * mesh-less layers neither inflate the union nor leave a gap.
+	 * back-to-front order (the [PuppetModel.drawables] base order), into one crop spanning their union.
+	 * Only members with both a crop and bounds belong here, so untextured or mesh-less layers neither
+	 * inflate the union nor leave a gap.
 	 *
 	 * @param List members The crops to place, back to front.
 	 * @return RawCrop? The composite, or null when there are no members or their union is degenerate.

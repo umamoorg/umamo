@@ -576,11 +576,8 @@ object Cmo3Import {
 
 	/**
 	 * Builds the parameter-panel group tree from the CMO3 root CParameterGroup, returning the root's
-	 * children in panel order.  Walks each group's `_childGuids`, resolving every entry to either a leaf
-	 * parameter (uuid in [paramIdByUuid]) or a nested group (uuid in [groupByUuid]), recursing into the
-	 * latter.  A `visited` set guards against a malformed cyclic group reference, mirroring the parts-tree
-	 * walk.  Returns an empty list when there is no root group (a group-less model), so callers fall back
-	 * to the flat parameter list.
+	 * children in panel order, or an empty list for a group-less model so callers fall back to the flat
+	 * parameter list.
 	 *
 	 * @param CParameterGroup? rootGroup     The hidden top group (CModelSource.rootParameterGroup), or null.
 	 * @param Map              groupByUuid   uuid → CParameterGroup, for resolving nested-group references.
@@ -612,6 +609,7 @@ object Cmo3Import {
 
 					val childGroup = groupByUuid[uuid] ?: continue
 
+					// A malformed file can reference a group cyclically.
 					if (!visited.add(uuid)) {
 						continue
 					}
@@ -695,7 +693,7 @@ object Cmo3Import {
 	 * Flattens a CMO3 collection field (a `CArrayList`/`ArrayList`, or a `CHashMap`) to a plain list.
 	 *
 	 * @param Any? collection The raw `_sources`/`_childGuids`/etc. field, held as `Any?`.
-	 * @return List<Any?> The contained elements, or empty when the field is null/unrecognised.
+	 * @return List<Any?> The contained elements, or empty when the field is null/unrecognized.
 	 */
 	internal fun elementsOf(collection: Any?): List<Any?> =
 		when (collection) {
@@ -795,11 +793,8 @@ object Cmo3Import {
 	/**
 	 * Reads an art mesh's canvas geometry. CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`
 	 * (interleaved x,y), `indices` is an `int-array` (3 per triangle).  The positions are the canvas editable
-	 * mesh; the returned mesh shares them as its base until the caller sets the keyforms' own.
-	 *
-	 * The stored `uvs` reach the model through [Cmo3TextureFrames.modelUvsOf]: coordinates on an atlas page
-	 * stay as they are, anything else is brought into its model image's raster frame (out of the editor's
-	 * cache frame when unpacked or over a reduced copy), and a placed tile's then go on onto its page.
+	 * mesh; the returned mesh shares them as its base until the caller sets the keyforms' own.  The stored
+	 * `uvs` reach the model through [Cmo3TextureFrames.modelUvsOf].
 	 *
 	 * @param CArtMeshSource    source        The art-mesh source.
 	 * @param Cmo3TextureFrames textureFrames The document's texture frames.
@@ -817,10 +812,8 @@ object Cmo3Import {
 	/**
 	 * Whether a drawable carries a `CTextureInput_TextureAtlasRegion` in its texture-input extension - i.e.
 	 * it was packed into a texture atlas at some point.  Packing rewrites a mesh's `uvs` into the frame of the
-	 * image it samples, and they stay there even when the model is toggled back to combined-layer display; a
-	 * never-packed drawable keeps its `uvs` in the editor's cache frame.  A model with no atlas at all
-	 * (MultiplyScreenColors) has only model-image inputs, so every drawable returns false.  Which frame a
-	 * drawable's coordinates are in is [Cmo3TextureFrames.storedFrameOf]'s call, of which this is one part.
+	 * image it samples, and they stay there even when the model is toggled back to combined-layer display, so
+	 * this is one part of [Cmo3TextureFrames.storedFrameOf]'s call on which frame a drawable's coordinates are in.
 	 *
 	 * CMO3: CArtMeshSource _extensions -> CTextureInputExtension._textureInputs holds a
 	 * CTextureInput_ModelImage and, once packed, a CTextureInput_TextureAtlasRegion.  See docs/format/CMO3.md §4.

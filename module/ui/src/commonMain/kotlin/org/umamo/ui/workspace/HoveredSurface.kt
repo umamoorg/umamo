@@ -31,29 +31,21 @@ internal data class HoveredSurface(val areaId: String, val kind: SpaceKind)
  *
  * It means "the last area touched that still exists": moving off an area deliberately does NOT clear it
  * (otherwise every shortcut would die whenever the pointer rested on the menu bar, the tab strip, or the
- * status bar), but an area that is closed or joined away releases it via [releaseArea] - the same
- * eviction-on-dispose the other per-area registries do.  An area switched to another space keeps its
- * stamp under its new kind through [restampKind]: the area still exists and the pointer has not moved,
- * so it goes on being the answer, and a header-dropdown switch sends no pointer event over the leaf to
- * wait for.  Its strip-host and viewport claims assert the OLD kind, so the leaf drops them first through
- * [releaseKindClaims] and the re-stamp claims each again only when the new kind makes it.
+ * status bar), but an area that is closed or joined away releases it via [releaseArea], and an area
+ * switched to another space is re-stamped under its new kind ([restampKind]).
  *
  * Stamped by [stampsHoveredSurface], installed once on every workspace leaf, so coverage is a property
  * of the area tree rather than something each space has to remember to opt into.
  *
  * [lastTouchedStripHost] and [lastTouchedViewport] are the two deliberate reach-backs, and neither routes
- * an action.  The operation settings strip exists only in a work surface (hostsOperationStrip), so a
- * document-wide operation fired over a panel needs the work surface the pointer touched LAST, however long
- * ago, to place its strip; it places a panel for an operation that already ran.  It must never name an area
- * that no longer hosts a strip: the area's host refuses a record naming a non-hosting kind, and the strip
- * would show nowhere.  [lastTouchedViewport] is the 2D viewport the pointer touched last, which Export
- * Image READS to frame what that viewport shows - reached through the File menu, which sits over another
- * area in every default workspace, so the hovered surface is almost never the viewport meant.
+ * an action.  A document-wide operation fired over a panel places its operation strip in the strip host
+ * the pointer touched LAST, however long ago, and Export Image, reached through the File menu over another
+ * area, frames what the last-touched viewport shows.
  *
  * [observedKind] is the one read composition MAY make, and it exposes the kind alone on purpose.  The
  * status bar suggests shortcuts for the space under the pointer, which needs a reactive read; an area
- * id read reactively is what let an overlay gate itself onto "the active area" and paint in two
- * viewports at once.  A kind cannot do that: two viewports share one, so it names no area to gate on.
+ * id read reactively would let an overlay gate itself onto "the active area" and paint in two viewports
+ * at once.  A kind cannot do that: two viewports share one, so it names no area to gate on.
  */
 internal class HoveredSurfaceTracker {
 	/** The surface the pointer last touched, or null before any was touched (or after that area died). */

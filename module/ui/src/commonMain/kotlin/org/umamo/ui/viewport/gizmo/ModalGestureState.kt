@@ -8,19 +8,14 @@ import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.runtime.model.DrawableId
 
 /**
- * The per-area modal-gesture bookkeeping every gizmo overlay carries: the last pointer position, the frozen
- * capture and its live preview, the gesture-start anchor, the area's screen origin (for cursor wrap), and
- * the wrap / pointer-controller pair.  Bundled rather than held as seven separate
- * `remember(areaId) { mutableStateOf(...) }` locals per overlay, so the begin / end lifecycle and its reset
- * live in one place and out of each overlay.
- *
- * State-backed fields stay observable (the draw pass and the HUD read [capture] / [preview] / [lastPointer]
- * live), so the whole object is created once per area with `remember(areaId) { ModalGestureState() }` - the
- * same pattern [MarqueeSelectController] uses.
+ * The per-area modal-gesture bookkeeping every gizmo overlay carries, bundled so the begin / end lifecycle
+ * and its reset live in one place rather than in each overlay.  It is created once per area with
+ * `remember(areaId) { ModalGestureState() }`, and its state-backed fields stay observable to the draw pass
+ * and the HUD.
  *
  * [TCapture] is the overlay's own capture type (each overlay holds extra per-mesh data the shared
- * [org.umamo.edit.ModalTransformCapture] does not), and [TPreview] what its preview holds per drawable: a
- * viewport gesture's rest shape, a UV gesture's coordinates.
+ * [org.umamo.edit.transform.ModalTransformCapture] does not), and [TPreview] what its preview holds per
+ * drawable: a viewport gesture's rest shape, a UV gesture's coordinates.
  */
 internal class ModalGestureState<TCapture, TPreview> {
 	/** The most recent pointer position in area-local pixels, tracked for the geometry-dependent effects. */
@@ -80,10 +75,9 @@ internal class ModalGestureState<TCapture, TPreview> {
 	}
 
 	/**
-	 * Tears the gesture down: ends its epoch (so no drive in flight publishes after this), clears the capture,
-	 * preview, and origin, and resets the cursor wrap.  The boolean return IS the resync gate every overlay's
-	 * teardown repeats - true only when a gesture was actually in flight, so a bystander teardown (mount,
-	 * another area latching) does not stomp a live preview.
+	 * Tears the gesture down, ending its epoch so no drive in flight publishes after this.  The return is
+	 * the resync gate every overlay's teardown repeats, so a bystander teardown (mount, another area
+	 * latching) does not stomp a live preview.
 	 *
 	 * @return Boolean True when a gesture was in flight (the caller resyncs the renderer).
 	 */

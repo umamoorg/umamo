@@ -15,12 +15,9 @@ import org.umamo.edit.MeshTopology
 import org.umamo.render.ViewportCamera
 
 /**
- * The idle-state select-tool kind of an area-owned select tool, as a stable key for the
- * recomposition-gated cancel backstop each overlay runs (`LaunchedEffect(selectToolKind) { marquee.cancel() }`).
- *
- * Keyed on the tool KIND, not the whole tool value: resizing a circle brush makes a new Circle(radius),
- * which must NOT re-fire and wipe the in-flight stroke mid-paint.  Derived here once for the three
- * overlays that run the backstop, so they cannot come to key on different things.
+ * The kind of an area-owned select tool, the key of the cancel backstop each overlay runs
+ * (`LaunchedEffect(selectToolKind) { marquee.cancel() }`).  It is the kind, not the whole tool value,
+ * because resizing a circle brush makes a new Circle that must not wipe the in-flight stroke.
  *
  * @param ActiveSelectTool? ownedSelectTool The select tool this area owns, or null.
  * @return Int A kind ordinal: 0 none, 1 armed box, 2 circle.
@@ -71,15 +68,9 @@ internal fun meshMarquee(
 
 /**
  * The mesh-element surfaces' pointer flow, shared by the 2D viewport's Edit and Pose mode and the UV editor's: the
- * box select (un-armed and armed, one flow - see BoxSelectFlow) with the element domain's press and click.
- * An un-armed primary press on an element selects it per the select mode (Shift / Ctrl toggles, plain
- * replaces) instead of starting a box, and an un-armed sub-threshold click on empty canvas clears the
- * selection.
- *
- * The seams are the geometry and the cursor: the 2D viewport passes its world-posed shapes and places its
- * world 2D cursor, the UV editor its display-mapped texture coordinates and its UV cursor.  Object mode is
- * NOT a user - it selects whole drawables and warps with its own click pick ([ObjectPickController]) over the
- * same box flow.
+ * box select (un-armed and armed, one flow - see BoxSelectFlow) with the element domain's press pick and
+ * empty-click clear.  The surfaces differ only in the geometry and the cursor they pass; Object mode picks
+ * whole drawables and warps with its own [ObjectPickController] instead.
  *
  * @param EditorSession session The session owning the mesh selection, the armed tool, and the gesture flag.
  * @param MarqueeSelectController<MeshSelection> marquee The box machinery the flow rubber-bands through.
@@ -165,11 +156,10 @@ internal class MeshPickController(
 }
 
 /**
- * Select Linked (Blender's L / Ctrl+L): flood the mesh connectivity from the element under the
- * pointer (or from every selected element) and union the islands into the selection in the current
- * domain, as one undo step.  Takes the geometry-source-agnostic gizmo records, so the Edit overlay
- * (world-posed shapes) and the UV editor (display-mapped texture coordinates) share the flood - UV
- * islands ARE topology islands, since UVs share the vertex index space.
+ * Select Linked (Blender's L / Ctrl+L): unions the mesh islands reached from the element under the
+ * pointer, or from every selected element, into the selection as one undo step.  The 2D viewport and
+ * the UV editor share the flood because UV islands are topology islands: UVs share the vertex index
+ * space.
  *
  * @param EditorSession session The session owning the selection.
  * @param List<GizmoMeshGeometry> geometries The shown meshes' gizmo geometry.

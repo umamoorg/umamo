@@ -103,11 +103,8 @@ private fun displayPose(session: EditorSession): Pose {
  * The value a keyable row should DISPLAY: the pending unkeyed edit, else the track's value at the current
  * pose, else the owner's static.
  *
- * The same resolution order the renderer uses, which is the point.  Showing the static alone would be
- * wrong twice over: on a keyed channel the static is shadowed by the track, so the field would disagree
- * with the viewport at every pose; and a pending edit lives outside the model entirely, so typing a new
- * value on a keyed channel would appear to be rejected - the field would snap straight back to the shadowed
- * static.
+ * The same resolution order the renderer uses, so the field agrees with the viewport at every pose and a
+ * value typed on a keyed channel does not snap back to the static the track shadows.
  *
  * @param KeyformOwner owner The entity the row edits.
  * @param FormChannel channel The channel the row edits.
@@ -161,24 +158,7 @@ internal fun displayedChannelColor(owner: KeyformOwner, channel: FormChannel, st
 	(displayedChannelValue(owner, channel, ChannelValue.Color(stored)) as? ChannelValue.Color)?.color ?: stored
 
 /**
- * The keyed state of [target] at [pose].
- *
- * The TRACK gates everything: a channel with no track stores an edit in its owner's static, which is a
- * plain undoable write with nothing uncommitted about it, so such a field is never tinted.  It reads the
- * pending map on every channel while a field is being scrubbed (see previewChannelEdit), so testing that
- * map before the track gate would paint the orange uncommitted warning across every ordinary drag.
- *
- * Past that gate ModifiedUnkeyed wins over the others: a pending edit is the most recent thing the user
- * did, and it is the state that carries a warning.
- *
- * On-key is resolved against the track's OWN axes rather than against whatever parameter is targeted, and
- * that distinction is the whole difference between the tint answering "is the value under this field
- * stored" and answering "is it stored on the axis you happen to have clicked".  Only the first is what a
- * rigger reads it as; the second would paint a keyed opacity as unstored whenever the target was the other
- * half of a linked pad - or nothing at all.  A multi-axis track is on-key only when the pose sits on a key
- * of EVERY axis, because that is exactly when a capture overwrites a cell instead of inserting one.  The
- * comparison uses the evaluator's own EPS_KEY snap tolerance rather than an exact compare, so the tint
- * agrees with the key the pose actually resolved to instead of flickering a hair either side of one.
+ * The keyed state of [target] at [pose], read off the target's channel track by [keyedGridStateOf].
  *
  * @param PuppetModel puppet The rig.
  * @param KeyableTarget target The entity and channel the field edits.
@@ -194,10 +174,8 @@ fun keyedFieldStateOf(
 ): KeyedFieldState = keyedGridStateOf(puppet, puppet.channelGridsOf(target.owner)?.get(target.channel), pose, target in pendingEdits)
 
 /**
- * The keyed state of a track [grid] at [pose], by the rules [keyedFieldStateOf] spells out: no grid is
- * [KeyedFieldState.None], a pending edit is [KeyedFieldState.ModifiedUnkeyed], and otherwise the pose sits on a key
- * of every axis or between keys.  Shared by a channel's field and a warp lattice's row, so the two cannot read one
- * situation differently.
+ * The keyed state of a track [grid] at [pose].  Shared by a channel's field and a warp lattice's row, so the two
+ * cannot read one situation differently.
  *
  * @param PuppetModel puppet The rig, for the parameters' defaults.
  * @param KeyformGrid? grid The track's grid, or null when the property carries none.
@@ -211,6 +189,8 @@ internal fun keyedGridStateOf(
 	pose: Pose,
 	pending: Boolean,
 ): KeyedFieldState {
+	// The track gates the pending check: an untracked channel's edit is a plain undoable write to its static, but a
+	// scrub of any channel, tracked or not, writes the pending map, so testing that map first would tint every drag.
 	val track = grid ?: return KeyedFieldState.None
 
 	if (pending) {
@@ -223,6 +203,8 @@ internal fun keyedGridStateOf(
 		return KeyedFieldState.BetweenKeys
 	}
 
+	// On-key is read on the track's own axes, never the targeted parameter, so the tint says whether the value under
+	// the field is stored; a multi-axis track is on-key only where a capture overwrites a cell rather than inserting one.
 	val onEveryAxis =
 		track.axes.all { axis ->
 			// A direct lookup, not a defaults map over every parameter: this runs per keyable row per

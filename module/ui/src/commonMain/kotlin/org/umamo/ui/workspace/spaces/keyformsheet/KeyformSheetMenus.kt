@@ -28,11 +28,6 @@ import org.umamo.ui.workspace.KeyformHover
  * The entries of a row label's menu: Select, for a group row whose owner can be selected, and nothing for
  * any other row.
  *
- * The LABEL half of a row answers a different question from the lane: the lane is about a key at a
- * position, the label is about the thing the row names.  Only a GROUP row names a rig entity, and only a
- * selectable one - a glue has no SelectionTarget - so every other row gets an empty list and no gesture at
- * all.
- *
  * @param TrackRow row The row whose label was right-clicked.
  * @param KeyformSheetProjection projection The section's projection, which maps the row back to its owner.
  * @param EditorSession? session The editing session, or null with none, which offers nothing.
@@ -64,14 +59,9 @@ internal fun labelMenuItemsFor(
  * The entries of a lane's menu: Delete on a mark (every key a summary mark stands for), Insert on empty
  * track, and nothing on a row with no track ref.
  *
- * A group row names the owner rather than a track, and a blend-shape row is not a keyform grid - neither has
- * a track ref, so both get an empty menu rather than actions that silently do nothing.  Each single-key
- * item dispatches THROUGH the registry rather than calling the session, so the menu can never drift from
- * the shortcut it advertises.  The popup owns the pointer by the time an item fires and the live lane hover
- * is gone, so the clicked spot is re-published for the command's dispatch-time read and cleared right after.
- * Every entry changes keys, so all of them are grayed out where the mode changes none (EditorMode.editsKeys) -
- * the summary Delete included, which calls the session rather than a command and so has no availability of
- * its own.
+ * Each single-key item dispatches through the registry rather than calling the session, so the menu can
+ * never drift from the shortcut it advertises.  The popup owns the pointer by the time an item fires, so the
+ * clicked spot is re-published as the hover for the command's dispatch-time read and cleared right after.
  *
  * @param TrackLaneHit hit Where on the lane the menu was opened.
  * @param Parameter parameter The section's parameter.
@@ -108,8 +98,8 @@ internal fun laneMenuItemsFor(
 				MenuItem.Action(
 					label = labels.deleteKey,
 					onSelect = {
-						// Reconciled rather than blanket-cleared: dropping the whole selection here deselected
-						// the user's marks for deleting an unrelated one.
+						// Reconciled rather than blanket-cleared, so deleting these keys never deselects the
+						// user's unrelated marks.
 						val removed =
 							summaryMembers
 								.map { member -> TrackKeyRef(parameter.id, member.rowKey, member.keyIndex) }
@@ -134,7 +124,7 @@ internal fun laneMenuItemsFor(
 					onSelect = {
 						// The row key rides the hover, so the removal reconciles the key selection itself - see
 						// EditorSession.removeKeyOnTrack.  Without it, deleting a selected mark would leave its
-						// ref on the ordinal the removal freed, which is the neighbour: the mark to the right
+						// ref on the ordinal the removal freed, which is the neighbor: the mark to the right
 						// would light up as selected and the next Delete would take it.
 						keyableHover?.enter(
 							KeyformHover(track, hit.value, hitMark.keyIndex, parameter.id, hit.row.key),
@@ -178,7 +168,7 @@ internal fun laneMenuItemsFor(
  *
  * Glue is the null case, and deliberately so: it has no SelectionTarget, no outliner entry, and is
  * addressed by a mesh pair rather than an id, so there is nothing for a "select this" to put in the
- * selection.  See TODO.md's Claude Note on glue having no editable home.
+ * selection.
  *
  * @param KeyformOwner owner The row's owner.
  * @return SelectionTarget? What to select, or null.

@@ -35,10 +35,10 @@ public class Cmo3Model internal constructor(
 
 	/**
 	 * Sets the model's authored SDK target version so it survives a re-emit even when the source
-	 * document carried no targetVersionNo element.  The writer replays the child slots recorded at
-	 * read time, so a bare field assignment on such a document would be dropped silently; this also
-	 * records the missing slot, positioned where the editor writes the field (immediately before
-	 * latestVersionOfLastModelerNo).
+	 * document carried no targetVersionNo element.
+	 *
+	 * The writer replays the child slots recorded at read time, so a bare field assignment on such a
+	 * document would be dropped silently; this also records the missing slot where the editor writes it.
 	 *
 	 * @param Int versionNo The raw targetVersionNo value to persist.
 	 */
@@ -153,10 +153,6 @@ public class Cmo3Model internal constructor(
 	 * Embeds a NEW PNG for [resource], whose `imageFileBuf` must already name an archive path no
 	 * existing entry uses (mint one with [nextImageFileBufPath]).
 	 *
-	 * The entry takes the corpus conventions for pixel data - an empty tag, stored raw (a PNG is
-	 * already compressed), and obfuscated like every corpus entry - and is inserted BEFORE the
-	 * `main_xml` entry, which every corpus file keeps last in the table.
-	 *
 	 * @param CImageResource resource The image resource naming the new entry's path.
 	 * @param ByteArray      png      The PNG bytes to embed.
 	 */
@@ -202,12 +198,8 @@ public class Cmo3Model internal constructor(
 	}
 
 	/**
-	 * Mints the next unused `imageFileBuf` archive path, continuing past the retained archive's
-	 * highest suffix.
-	 *
-	 * The editor's convention is `imageFileBuf.png`, then `imageFileBuf_0.png` onward; resolution is
-	 * by exact name, so continuing past the maximum is what keeps a minted page from colliding with
-	 * any retained blob.
+	 * Mints the next unused `imageFileBuf` archive path (`imageFileBuf.png`, then `imageFileBuf_0.png`
+	 * onward), continuing past the retained archive's highest suffix.
 	 *
 	 * @return String The unused archive path.
 	 */
@@ -259,11 +251,10 @@ public class Cmo3Model internal constructor(
 /**
  * Reads and writes Live2D Cubism `.cmo3` files (the CAFF container + the typed model graph).
  *
- * EN: `read` parses the container and deserializes main.xml into the typed model; `write` re-emits
- *     the model into main.xml and repacks the container. An unedited file's decompressed main.xml
- *     round-trips byte for byte; the whole file does not, since each compressed entry carries the
- *     write's own timestamp (CMO3.md §1). Implements [FormatCodec] for `.cmo3`; the `File`-taking overloads are JVM-only
- *     conveniences on top of the byte-array contract. JVM/Android only (uses reflection + JDOM).
+ * An unedited file's decompressed main.xml round-trips byte for byte; the whole file does not, since
+ * each compressed entry carries the write's own timestamp (CMO3.md §1).  The `File`-taking overloads
+ * are JVM-only conveniences on top of the byte-array [FormatCodec] contract.  JVM/Android only (uses
+ * reflection + JDOM).
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md</a>
  */
@@ -354,13 +345,10 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 	 * Parses a `.cmo3` whose container is already decoded: the archive's `main_xml` entry deserialized
 	 * into the typed model graph.
 	 *
-	 * The model holds [archive] itself, not a copy.  A [CaffArchive] is never changed once built: its
-	 * entry list is read-only, nothing writes into an entry's content array, and every edit of a model's
-	 * pixels ([Cmo3Model.replacePng], [Cmo3Model.addPng], [Cmo3Model.removeLayerPng]) swaps in a new
-	 * archive through [CaffArchive.withEntries].  A model's `main_xml` entry therefore stays as it was
-	 * read, because [write] re-emits the graph into a copy of the archive, so reading a model's archive
-	 * again returns the graph as that model was read - a private graph with its own identity-keyed
-	 * serializer metadata, which an edit can mutate while the first model stays untouched.
+	 * The model holds [archive] itself, not a copy: a [CaffArchive] is never changed once built (every
+	 * pixel edit swaps in a new archive through [CaffArchive.withEntries], and [write] re-emits the graph
+	 * into a copy), so reading a model's archive again returns a private graph as that model was read,
+	 * which an edit can mutate while the first model stays untouched.
 	 *
 	 * @param CaffArchive archive The decoded container.
 	 * @return Cmo3Model The loaded model.

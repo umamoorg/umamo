@@ -20,14 +20,10 @@ import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
 /**
  * Collects the keymap commands the UV Edit overlay executes for its area: Mirror U / V, Select Linked, and
- * the Shift+S snaps (in Object mode the Object overlay runs the snaps - see collectUvObjectGizmoRequests).  Each request carries the area its command resolved at dispatch, and only that area's
- * overlay runs it - every open UV editor collects the same flows, and an ungated request would run once per
- * editor.  The area check comes BEFORE the empty-surface notice, so a request over a surface holding none of
- * the edit's meshes answers once, from the asking area, rather than acting on coordinates nobody can see.
- * Every request acts on the shown meshes alone, the same set a modal transform captures; the two cursor
- * snaps that read no mesh still run over an empty surface.  The bodies are the plain handlers
- * (UvSessionRequestHandlers.kt, gizmo/GizmoSelectionInput.kt, and the session's mirror); this is only the
- * routing.
+ * the Shift+S snaps (in Object mode the Object overlay runs the snaps - see collectUvObjectGizmoRequests).
+ * Only the area a request resolved at dispatch runs it, since every open UV editor collects the same flows;
+ * that check comes before the empty-surface notice, so a request over a surface holding none of the edit's
+ * meshes answers once, from the asking area.
  *
  * Runs until its caller's effect is cancelled.  Everything that changes while it runs is read through a
  * State holder at request time, never captured by value.
@@ -119,11 +115,9 @@ private fun UvSnapKind.readsShownMeshes(): Boolean =
 
 /**
  * Drops a UV operator latched in [areaId], or a select tool armed there, while the area's surface holds none
- * of the edit's meshes, with the notice the requests answer with.  The overlay parts that would begin, drive,
- * and resolve either are not mounted over such a surface, so left in place an operator would turn the area's
- * pan and zoom off until Escape, and begin from a fresh gesture state once the area showed the meshes again;
- * an armed tool would hold navigation off the same way, with no crosshair to show it.  A latch or tool
- * another area holds is left alone, and so is everything outside Edit mode, where this overlay has no say.
+ * of the edit's meshes, with the notice the requests answer with.  The overlay parts that would resolve either
+ * are not mounted over such a surface, so left in place they would hold the area's pan and zoom off until
+ * Escape.
  *
  * @param String areaId The overlay's area.
  * @param EditorSession session The session owning the latches.

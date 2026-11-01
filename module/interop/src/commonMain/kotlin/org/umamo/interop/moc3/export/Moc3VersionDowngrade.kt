@@ -41,8 +41,6 @@ import org.umamo.runtime.model.screenColor
  * mask at Cubism 4.0 and the parameter repeat at Cubism 5.3 even though both are carried by every MOC3 version back
  * to v1.  Stripping on the editor's ladder would make a v5 file that uses either one round-trip
  * LOSSILY through a v5 export - LimeBirb's repeating parameters are exactly that case in the corpus.
- * RuntimeTarget's own docblock anticipates this and says so: edit gating is editor parity, the
- * section-level nuances belong to export lowering.
  *
  * The consequence is that a pre-export confirmation built on
  * [org.umamo.runtime.model.unsupportedFeaturesInUse] can name a feature this does not strip.  That is
@@ -182,7 +180,13 @@ object Moc3VersionDowngrade {
 			RuntimeFeature.MotionSync, RuntimeFeature.ArtPath -> true
 		}
 
-	/** The quad-transform flag (Cubism 3.3's warp method) cleared on every warp that set it. */
+	/**
+	 * The quad-transform flag (Cubism 3.3's warp method) cleared on every warp that set it.
+	 *
+	 * @param PuppetModel puppet The rig being stripped.
+	 * @param Reporter    report Receives the warps that lost the flag.
+	 * @return PuppetModel The stripped rig, or [puppet] when no warp set the flag.
+	 */
 	private fun stripQuadTransform(puppet: PuppetModel, report: Reporter): PuppetModel {
 		val affected = ArrayList<String>()
 		val deformers =
@@ -199,7 +203,13 @@ object Moc3VersionDowngrade {
 		return if (affected.isEmpty()) puppet else puppet.copy(deformers = deformers)
 	}
 
-	/** Every mesh and warp blend-shape binding dropped (moc 4.2 introduced them). */
+	/**
+	 * Every mesh and warp blend-shape binding dropped (moc 4.2 introduced them).
+	 *
+	 * @param PuppetModel puppet The rig being stripped.
+	 * @param Reporter    report Receives the drawables and warps that lost bindings.
+	 * @return PuppetModel The stripped rig, or [puppet] when nothing carried one.
+	 */
 	private fun stripMeshWarpBlendShapes(puppet: PuppetModel, report: Reporter): PuppetModel {
 		val affected = ArrayList<String>()
 		val drawables =
@@ -225,7 +235,13 @@ object Moc3VersionDowngrade {
 		return if (affected.isEmpty()) puppet else puppet.copy(drawables = drawables, deformers = deformers)
 	}
 
-	/** Rotation- and part-target blend records dropped (moc 5.0 introduced those two targets). */
+	/**
+	 * Rotation- and part-target blend records dropped (moc 5.0 introduced those two targets).
+	 *
+	 * @param PuppetModel puppet The rig being stripped.
+	 * @param Reporter    report Receives the rotations and parts that lost records.
+	 * @return PuppetModel The stripped rig, or [puppet] when nothing carried one.
+	 */
 	private fun stripExtendedBlendShapes(puppet: PuppetModel, report: Reporter): PuppetModel {
 		val affected = ArrayList<String>()
 		val deformers =
@@ -251,7 +267,13 @@ object Moc3VersionDowngrade {
 		return if (affected.isEmpty()) puppet else puppet.copy(deformers = deformers, parts = parts)
 	}
 
-	/** Blend-shape parameters demoted to normal axes; their records are already gone by this point. */
+	/**
+	 * Blend-shape parameters demoted to normal axes; their records are already gone by this point.
+	 *
+	 * @param PuppetModel puppet The rig being stripped.
+	 * @param Reporter    report Receives the demoted parameter ids.
+	 * @return PuppetModel The stripped rig, or [puppet] when no parameter was a blend-shape one.
+	 */
 	private fun stripBlendShapeParameters(puppet: PuppetModel, report: Reporter): PuppetModel {
 		val affected = ArrayList<String>()
 		val parameters =
@@ -268,7 +290,15 @@ object Moc3VersionDowngrade {
 		return if (affected.isEmpty()) puppet else puppet.copy(parameters = parameters)
 	}
 
-	/** One color channel reset to its identity everywhere - statics and tracks alike. */
+	/**
+	 * One color channel reset to its identity everywhere - statics and tracks alike.
+	 *
+	 * @param PuppetModel puppet   The rig being stripped.
+	 * @param FormChannel channel  The color channel to remove.
+	 * @param ColorRgb    identity The channel's no-tint value.
+	 * @param Reporter    report   Receives the owners that tinted through the channel.
+	 * @return PuppetModel The stripped rig, or [puppet] when nothing tinted through it.
+	 */
 	private fun stripColorChannel(
 		puppet: PuppetModel,
 		channel: FormChannel,
@@ -358,7 +388,13 @@ object Moc3VersionDowngrade {
 		}
 	}
 
-	/** The 5.3 blend surface degraded to its nearest pre-5.3 ancestor, alpha back to Over. */
+	/**
+	 * The 5.3 blend surface degraded to its nearest pre-5.3 ancestor, alpha back to Over.
+	 *
+	 * @param PuppetModel puppet The rig being stripped.
+	 * @param Reporter    report Receives the drawables and parts that were degraded.
+	 * @return PuppetModel The stripped rig, or [puppet] when every blend was already legacy.
+	 */
 	private fun stripExtendedBlendModes(puppet: PuppetModel, report: Reporter): PuppetModel {
 		val affected = ArrayList<String>()
 		val drawables =
@@ -399,6 +435,10 @@ object Moc3VersionDowngrade {
 	 * Isolated parts demoted to grouped: the subtree keeps its single stacking slot but stops being
 	 * composited as its own layer.  The composite settings stay on the part - they are latent by
 	 * design, and this strip runs on an export copy the rigger never sees.
+	 *
+	 * @param PuppetModel puppet The rig being stripped.
+	 * @param Reporter    report Receives the parts that were demoted.
+	 * @return PuppetModel The stripped rig, or [puppet] when no part was isolated.
 	 */
 	private fun stripPartComposites(puppet: PuppetModel, report: Reporter): PuppetModel {
 		val affected = ArrayList<String>()

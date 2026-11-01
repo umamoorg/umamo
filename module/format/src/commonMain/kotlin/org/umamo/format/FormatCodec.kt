@@ -3,11 +3,11 @@ package org.umamo.format
 /**
  * The shared read/write contract for one binary container format in the Cubism/Umamo file family.
  *
- * EN: Every format Umamo can both parse and emit as a self-contained byte stream (today `.cmo3` and
- *     `.moc3`; later `.uma`) exposes the same members, so callers and the [FormatRegistry]
+ * EN: Every format Umamo can both parse and emit as a self-contained byte stream (`.uma`, `.cmo3`,
+ *     and `.moc3`) exposes the same members, so callers and the [FormatRegistry]
  *     dispatcher treat formats uniformly instead of hardcoding one facade's method names. The
  *     in-memory model type differs per format ([org.umamo.format.cmo3.Cmo3Model] vs
- *     [org.umamo.format.moc3.moc.MocModel]) and the two share no supertype - hence the generic
+ *     [org.umamo.format.moc3.MocDocument]) and the models share no supertype - hence the generic
  *     [TModel]; a heterogeneous registry holds `FormatCodec<*>` and callers branch on [kind]. The
  *     dependency runs codec → [FileKind] (a codec names its kind), never the reverse, so [FileKind]
  *     stays pure metadata. Text sidecars (`model3.json` and friends) are `String`-shaped, not

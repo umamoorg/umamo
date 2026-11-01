@@ -212,9 +212,8 @@ private fun settingColor(key: String, defaultHex: String): Color {
  * sRGB components, falling back to the built-in highlight color when the string is absent or
  * malformed.  Both digit counts are accepted because a hand-typed or older user setting may hold
  * #RRGGBB while the preferences HexColorField commits canonical #AARRGGBB; the alpha byte is
- * ignored - the GL highlight mix has no alpha term.  The components match what the highlight shader
- * mixes (Compose-style 0..1 sRGB), so the parse divides each byte by 255.  Not a Composable, because
- * the viewport binding reads the setting outside composition.
+ * ignored - the GL highlight mix has no alpha term.  Not a Composable, because the viewport binding
+ * reads the setting outside composition.
  *
  * @param String? hex The configured hex color, or null when unset.
  * @return Triple The (red, green, blue) components, each 0..1.

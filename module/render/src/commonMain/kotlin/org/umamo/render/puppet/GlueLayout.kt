@@ -69,9 +69,9 @@ internal class GlueLayout(
  * @param PuppetModel model The rig.
  * @return GlueLayout The addressing plan; empty throughout when the model has no glue.
  * @note A glue pair whose vertex index is outside its mesh throws here, whereas the CPU weld
- *   (`applyGluesResolved`) silently skips it.  That divergence predates this extraction and is preserved
- *   rather than quietly papered over - a malformed pair should be dealt with deliberately, not by two
- *   different behaviours in two backends.
+ *   (`applyGluesResolved`) silently skips it.  The divergence is left visible rather than quietly papered
+ *   over - a malformed pair should be dealt with deliberately, not by two different behaviors in two
+ *   backends.
  */
 internal fun planGlueLayout(model: PuppetModel): GlueLayout {
 	val glueMeshIds = HashSet<DrawableId>()
@@ -138,13 +138,8 @@ internal fun planGlueLayout(model: PuppetModel): GlueLayout {
 /**
  * Whether [layout] is still the plan for [next], so an edit moved no weld and nothing need be re-planned.
  *
- * The plan depends on three things alone, and this compares exactly those: each glue's two meshes and
- * pair list in list order (a pair list compares by instance, since a [org.umamo.runtime.model.GluePair]
- * is immutable and every edit that moves a pair builds a new list); the glue meshes' order in
- * [PuppetModel.drawables] and their vertex counts, which fix every region; and which named meshes the
- * model carries.  An intensity or channel edit, a moved mesh of the same size, or an added unglued
- * drawable therefore fits; a re-paired, removed, or reordered glue, or a glue mesh that changed size or
- * place, does not.
+ * A pair list compares by instance, since a [org.umamo.runtime.model.GluePair] is immutable and every
+ * edit that moves a pair builds a new list.
  *
  * @param GlueLayout layout The plan in use.
  * @param PuppetModel next The edited model.

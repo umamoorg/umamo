@@ -54,18 +54,12 @@ import kotlin.math.roundToInt
 
 /**
  * A compact hex color entry: a live swatch beside a text field accepting "#AARRGGBB" (or "#RRGGBB",
- * treated as opaque).  Every keystroke that parses is committed immediately through [onValueChange] in
- * canonical form - the auto-save model the settings window uses, so the swatch and any live consumer (the
- * viewport gizmo) follow the typing with no confirm step.  Text that does not parse stays local to the
- * field (the swatch holds the last good color) and is discarded on focus loss, which re-seeds the field
- * from the persisted [value].  Enter confirms by clearing focus.
- *
- * Clicking the swatch opens an RGB-slider popover for graphical picking; a slider drag commits once at its
- * end (one write per gesture, not per frame), while the text field stays the path for exact entry.
+ * treated as opaque), the swatch opening an RGB-slider popover.  Every keystroke that parses commits
+ * immediately through [onValueChange] in canonical form, so any live consumer follows the typing with no
+ * confirm step; text that does not parse stays local to the field until focus loss re-seeds it.
  *
  * Like [NumberField], it lends its cancel hook to [LocalInlineEditController] while focused, so the editor
- * shell's root key handler yields keystrokes to the field (hex digits are also bare-digit shortcuts) and
- * routes Escape here (clearing focus) instead.
+ * shell's root key handler yields keystrokes to the field (hex digits are also bare-digit shortcuts).
  *
  * @param String   value         The persisted color as canonical "#AARRGGBB" text.
  * @param Function onValueChange Called with the canonical hex of each parseable edit.
@@ -95,9 +89,9 @@ fun HexColorField(
 
 	// Mirror the external value - and do it EVEN WHILE FOCUSED, because this field is not the only writer
 	// of what it shows.  The swatch's own picker, a parameter scrub moving a keyed channel, and undo all
-	// change the value underneath it; skipping the mirror while focused pinned the field to whatever it
-	// last held, and since nothing takes focus back off it, a keyed color stayed frozen on its first key
-	// forever while the viewport went on blending.
+	// change the value underneath it; skipping the mirror while focused would pin the field to whatever it
+	// last held, and since nothing takes focus back off it, a keyed color would stay frozen on its first key
+	// while the viewport went on blending.
 	//
 	// The compare is on the PARSED color, not the text, and that is what keeps this from fighting the
 	// typist: the user's own keystroke round-trips out through onValueChange and comes back equal, so it
@@ -207,16 +201,8 @@ fun HexColorField(
 }
 
 /**
- * Applies one hex-field edit: shows it, and persists it when the TEXT changed and parses.
- *
- * Shared by the field and its context menu so a pasted color takes effect exactly like a typed one - the
- * menu writing only the local text would have shown a color the document never received.
- *
- * Selection-only changes are shown and not persisted.  BasicTextField's TextFieldValue overload reports a
- * caret or selection move through the same callback as an edit, so persisting unconditionally re-committed
- * the stored value for merely clicking into the field, dragging a selection across it, or picking Select
- * All - and on a keyed channel that is an undo step plus an uncommitted-edit tint for a value that never
- * changed.
+ * Applies one hex-field edit: shows it, and persists it when the TEXT changed and parses.  Shared by the
+ * field and its context menu so a pasted color takes effect exactly like a typed one.
  *
  * @param TextFieldValue edited The value the field or menu produced.
  * @param TextFieldValue previous The value it replaces, for telling an edit from a selection move.
@@ -231,6 +217,8 @@ private fun commitHexEdit(
 ) {
 	show(edited)
 
+	// A caret or selection move arrives through the same callback as an edit; persisting it would make an
+	// undo step on a keyed channel for a value that never changed.
 	if (edited.text == previous.text) {
 		return
 	}
@@ -240,10 +228,8 @@ private fun commitHexEdit(
 
 /**
  * The RGB-slider popover a [HexColorField] swatch opens: a preview strip over three channel sliders.  The
- * sliders drive a local draft so the preview follows every frame, but the outer [onColorChange] fires only
- * when a slider gesture ends - so a whole drag is one commit (and one undo step), not one per frame.  The
- * draft re-seeds whenever the committed [color] changes externally (e.g. the text field is typed while the
- * popover is open).  A slider edits only its channel, so the color's alpha (if any) is preserved.
+ * sliders drive a local draft so the preview follows every frame, but [onColorChange] fires only when a
+ * slider gesture ends, so a whole drag is one commit (and one undo step).
  *
  * @param Color color The current committed color the sliders start from.
  * @param Function onColorChange Commits a picked color (fired at each slider gesture's end).

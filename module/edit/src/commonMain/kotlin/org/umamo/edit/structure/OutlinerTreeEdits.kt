@@ -49,10 +49,7 @@ sealed interface OutlinerDrop {
 /**
  * The single source of truth for what a drag will do, given what is dragged, the row under the pointer,
  * and the pointer's vertical band within that row - used by BOTH the drop dispatch and the row's indicator,
- * so the line / fill the user sees always matches the move that happens.  A drawable nests INTO a part
- * (always, regardless of band) and relayers before / after another drawable; a part nests into or reorders
- * before / after another part (a wider middle band for "into").  Incompatible pairings (a drawable onto the
- * armature, a part onto a drawable) return null - no drop.
+ * so the line / fill the user sees always matches the move that happens.
  *
  * @param SelectionTarget dragged The entity being dragged.
  * @param SelectionTarget target The entity under the pointer.
@@ -128,14 +125,8 @@ private fun PuppetModel.deformerSiblingAfter(id: DeformerId): DeformerId? {
 
 /**
  * Resolves a drop of [dragged] onto [target] at [fraction] into the concrete move it performs, routed
- * by the pointer's vertical band within the target row (the same [outlinerDropBandFor] the indicator
- * drew):
- *  - before / after a sibling: re-home the dragged item next to the target in its parent (parts and
- *    drawables interleave, so a drawable can land between two parts) - which changes the panel order,
- *    hence the draw order, so the viewport follows;
- *  - into a part (or a deformer): nest the dragged item inside it, expanding the target.
- * Drops with no valid band or across the org / armature boundary resolve to null - no move.  Cycles
- * are refused inside the move transforms themselves.
+ * by the same [outlinerDropBandFor] band the indicator drew.  Cycles are refused inside the move
+ * transforms themselves.
  *
  * @param SelectionTarget dragged The entity being dragged.
  * @param SelectionTarget target The entity under the pointer.

@@ -11,17 +11,10 @@ package org.umamo.geometry.triangulation
 internal class RegionClassification(val inside: BooleanArray, val consistent: Boolean)
 
 /**
- * Labels every triangle inside or outside the boundary rings with the even-odd rule: start from the
- * ghost triangles (outside the hull, so outside every ring) and spread across edges breadth-first,
- * where crossing an edge flips the parity once per boundary ring running along it.  Parity is decided
- * per EDGE crossing, never at a vertex, so rings that touch at a corner (the alpha tracer's saddle
- * corners) classify correctly, and two rings sharing an edge cancel there - the union of two adjacent
- * squares is inside, as even-odd says.
- *
- * Every triangle checks all three neighbors, visited ones included, so a ring left open by a rejected
- * edge - the one way the labelling can disagree with itself - is detected rather than guessed at.
- * The output then keeps the parity each triangle was first reached with, in ascending slot order, so
- * it stays deterministic.
+ * Labels every triangle inside or outside the boundary rings with the even-odd rule, spreading
+ * breadth-first from the ghost triangles, which lie outside every ring.  Parity is decided per EDGE
+ * crossing, never at a vertex, so rings that touch at a corner (the alpha tracer's saddle corners)
+ * classify correctly and two rings sharing an edge cancel there.
  *
  * @param HalfEdgeTriangulation triangulation The constrained triangulation, boundary counts set.
  * @return RegionClassification The inside flags and whether they are consistent.
@@ -58,6 +51,8 @@ internal fun classifyRegions(triangulation: HalfEdgeTriangulation): RegionClassi
 				queue[tail] = neighbor
 				tail++
 			} else if (parity[neighbor] != neighborParity) {
+				// Visited neighbors are rechecked so a ring left open by a rejected edge is detected; the
+				// first parity reached stays, keeping the labelling deterministic.
 				consistent = false
 			}
 		}

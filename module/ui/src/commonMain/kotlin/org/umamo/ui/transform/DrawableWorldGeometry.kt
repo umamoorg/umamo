@@ -49,14 +49,8 @@ internal class DrawableWorldGeometry(
 
 	/**
 	 * Inverts a transformed WORLD shape back onto the rest arrays - the write-back every whole-drawable
-	 * transform ends with.
-	 *
-	 * The base takes two steps, and both matter.  The world shape is mapped back to local through the
-	 * deformer chain (exact only at the neutral pose, which is why callers gate on isPoseNeutral), and the
-	 * result is then DIFFERENCED against the captured displayed shape rather than written directly - see
-	 * [movementOnto] for why that is what leaves the keyform grid untouched.  The canvas mesh moves by the
-	 * world movement itself, the space it is drawn in, with the y flip undone; for a mesh that shares one
-	 * array the two are the same move, and the result shares one array again.
+	 * transform ends with.  The inverse through the deformer chain is exact only at the neutral pose, which
+	 * is why callers gate on isPoseNeutral.
 	 *
 	 * @param FloatArray transformedWorld The reshaped world positions.
 	 * @param Set<Int> indices The vertices the transform touched (the whole mesh for an object transform).
@@ -72,6 +66,7 @@ internal class DrawableWorldGeometry(
 
 		val newCanvas = canvas.copyOf()
 
+		// The canvas mesh moves by the world movement itself, the space it is drawn in, with the y flip undone.
 		for (vertexIndex in indices) {
 			val xIndex = vertexIndex * 2
 
@@ -119,11 +114,8 @@ internal fun captureDrawableWorld(model: PuppetModel, pose: Pose, drawableId: Dr
 
 /**
  * Captures every drawable of [drawableIds] in every space at [pose] through ONE resolver, so the
- * deformer worlds bake once for the batch rather than once per drawable (a loop over
- * [captureDrawableWorld] rebakes every world per call: 1330 x 623 on modelF, seconds per Edit-mode
- * commit or Object-mode latch).  Per drawable the answer is exactly [captureDrawableWorld]'s, including
- * the null for a mesh-less drawable or a hidden ancestor, which is dropped so a sweep over a selection
- * skips the hidden rather than aborting.  The result follows the request order.
+ * deformer worlds bake once for the batch rather than once per drawable as a loop over
+ * [captureDrawableWorld] would.  Each capture is [captureDrawableWorld]'s answer for that drawable.
  *
  * @param PuppetModel model The document model.
  * @param Pose pose The parameter values to capture at.
@@ -159,9 +151,6 @@ private fun captureThrough(resolver: DrawableSpaceResolver, drawableId: Drawable
  * moved rest shape re-renders exactly at `after` while only the base is written - no keyform cell is
  * touched, and blend-shape deltas (relative to the base) follow the edit.  For a grid-less drawable
  * `before` equals the base, so this degenerates to `newBase = after`.
- *
- * The one caller is [DrawableWorldGeometry.worldToRest], which owns the second half of every whole-drawable
- * write-back; the overlays and the Properties panel all reach it through that method rather than directly.
  *
  * @param FloatArray base The base captured at gesture start.
  * @param FloatArray after The transformed displayed shape.

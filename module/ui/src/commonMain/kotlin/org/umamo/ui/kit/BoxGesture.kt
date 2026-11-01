@@ -101,9 +101,9 @@ internal interface BoxGestureSurface<Frame> {
  *   - Mid-drag, any right-click - Shift included - abandons the box, and disarms an armed one.
  *   - With no box in flight, an armed right-click (Shift included) disarms; an un-armed Shift+RightClick
  *     reaches the surface ([BoxGestureSurface.idleShiftSecondary]).
- *   - A cancelled release abandons the box, nothing landing: Compose answers a density or view
- *     configuration change under a pressed pointer with a synthetic release that arrives already
- *     consumed, where a real release reaching a surface never is.
+ *   - A cancelled release abandons the box, nothing landing: Compose answers a pointer loop leaving
+ *     composition under a pressed pointer with a synthetic release that arrives already consumed, where
+ *     a real release reaching a surface never is.
  *   - A box whose armed state changes under it (the tool armed or cleared mid-drag) is abandoned; a
  *     surface abandons it too, through [cancel], when something else takes the pointer over mid-drag.
  *

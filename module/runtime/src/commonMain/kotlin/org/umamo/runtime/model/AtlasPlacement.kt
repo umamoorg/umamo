@@ -175,9 +175,7 @@ fun layerPixelOf(placement: AtlasPlacement, atlasX: Float, atlasY: Float): Float
  *
  * The per-vertex chain is uv times the page size, through the placement inverse, divided by the layer's
  * size - all affine, so it folds into a single matrix that any consumer can apply in either direction
- * (see [invertAffine]).  A drawable sampling its art directly has stored uvs that already address the
- * tile image, so its mapping is the identity rather than a placement inverse; applying a placement
- * there would be a double transform.
+ * (see [invertAffine]).  A binding with no placement maps by the identity (see [DrawableLayerBinding]).
  *
  * @param DrawableLayerBinding binding The drawable's binding.
  * @param Int layerWidth The source tile's width in pixels.

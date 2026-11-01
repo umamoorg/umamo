@@ -336,7 +336,7 @@ class Cmo3LayerWebProbeTest {
 					.filterIsInstance<CTextureAtlas>()
 					.mapNotNull { atlas -> atlas.cachedAtlasImage as? CImageResource }
 					.toHashSet()
-			// Per model image, the distinct samplesAtlasPage answers its drawables give.
+			// Per model image, the distinct samples-an-atlas-page answers its drawables give.
 			val answersByModelImage = HashMap<String, MutableSet<Boolean>>()
 
 			for (mesh in artMeshes(root)) {

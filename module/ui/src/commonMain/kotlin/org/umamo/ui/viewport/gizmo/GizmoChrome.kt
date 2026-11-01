@@ -65,11 +65,9 @@ internal fun DrawScope.drawAxisConstraintLine(constraint: TransformAxisConstrain
 }
 
 /**
- * Draws the modal transform HUD for the gesture this area owns: the pivot projects through the area
- * camera, and the pointers come from the gesture state (the virtual one past a cursor wrap).  The caller
- * evaluates [owned] and [pivotWorld] inside its Canvas draw lambda, where it always has; nothing else is
- * read unless both hold, so the axis constraint and the ring radius stay reads of an owned gesture only
- * and a change to either while no gesture runs redraws nothing.
+ * Draws the modal transform HUD for the gesture this area owns, its pivot projected through the area
+ * camera.  Nothing past [owned] and [pivotWorld] is read unless both hold, so a change to the axis
+ * constraint or the ring radius while no gesture runs redraws nothing.
  *
  * @param Boolean owned Whether the caller's gate says this area draws the HUD.
  * @param Pair<Float, Float>? pivotWorld The capture's pivot, or null when no capture has landed.
@@ -108,12 +106,9 @@ internal fun DrawScope.drawOwnedModalTransformHud(
 }
 
 /**
- * Draws the modal transform HUD (Blender's transform gizmo) shared by the gizmo overlays: the
- * axis-lock guide, an optional proportional-influence ring around the pivot, a dashed line from the
- * pivot to the virtual pointer (raw + every cursor wrap, so its direction tracks where the continuous
- * cursor has travelled - off-screen and all), and a custom double-arrow at the real pointer (the OS
- * cursor is hidden while modal).  The line naturally stays pointing the way the wrap went and only
- * swings round the pivot when the drag reverses, giving a sense of direction the bare wrap lacks.
+ * Draws the modal transform HUD (Blender's transform gizmo) shared by the gizmo overlays.  The dashed
+ * line ends at the virtual pointer rather than the real one, so it keeps pointing the way a cursor wrap
+ * went and swings round the pivot only when the drag reverses.
  *
  * @param TransformAxisConstraint? axisConstraint The active axis lock, or null.
  * @param Offset pivotScreen The gesture anchor in screen pixels (the dashed line's origin).
@@ -152,10 +147,8 @@ internal fun DrawScope.drawModalTransformHud(
 }
 
 /**
- * Draws the armed select-tool affordances (Blender B / C) shared by the gizmo overlays: while
- * Box-select is armed and not yet dragging, the full-viewport crosshair guides plus a crosshair
- * cursor; while Circle-select is live, the brush circle plus a crosshair cursor.  The OS cursor is
- * hidden while a select tool is armed, so the drawn one is it.  Draws nothing with no tool armed.
+ * Draws the armed select-tool affordances (Blender B / C) shared by the gizmo overlays, including the
+ * drawn crosshair that stands in for the OS cursor hidden while a select tool is armed.
  *
  * @param ActiveSelectTool? tool The armed select tool, or null.
  * @param Offset pointer The pointer position in area-local pixels.

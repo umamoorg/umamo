@@ -126,10 +126,7 @@ sealed interface MeshRegeneration {
 
 /**
  * What generating a drawable's mesh from its art needs, or why it cannot be done - asked before any
- * art is meshed.  The pins are every old vertex a glue pair names on this drawable's side (both sides
- * of a glue with itself) that some triangle uses, at their art-pixel positions, with the old triangles
- * around them; a glued vertex no triangle uses lies off the drawable's surface, often off its art, and
- * is carried instead.  A drawable whose surface glue holds more than half of is refused.
+ * art is meshed.
  *
  * @param DrawableId drawableId The drawable.
  * @return RegenerationInput The input, or the refusal.
@@ -167,10 +164,8 @@ fun PuppetModel.meshRegeneration(input: RegenerationInput.Ready, generated: Plan
 }
 
 /**
- * Replaces several drawables' meshes with generated ones as ONE undo step.  The element selection of
- * every replaced mesh is cleared - its vertex numbers now name different vertices - while the session's
- * meshes, active drawable, select mode, and every other mesh's elements stay, and the remembered
- * elements of the replaced meshes are forgotten for the same reason.
+ * Replaces several drawables' meshes with generated ones as ONE undo step, clearing each replaced mesh's
+ * element selection since its vertex numbers now name different vertices.
  *
  * @param Map<DrawableId, MeshTopologyEdit> edits The edit for each drawable, from [meshRegeneration].
  * @return Boolean True when a step was recorded; false for no edits or an edit that does not apply.

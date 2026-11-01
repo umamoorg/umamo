@@ -50,8 +50,8 @@ const val DEFAULT_REPACK_PAGE_SIZE: Int = 4096
 
 /**
  * The page size an artwork import retries at when a layer's trimmed art does not fit the default page
- * - the largest page the official editor's own atlas settings offer, and what desktop GL 3.3 and GLES
- * 3.0 both guarantee.  Art that does not fit even this stays unpacked and is named in the import notes.
+ * - the largest page the official editor's own atlas settings offer.  Art that does not fit even this
+ * stays unpacked and is named in the import notes.
  */
 const val MAX_IMPORT_PAGE_SIZE: Int = 8192
 
@@ -267,10 +267,8 @@ internal fun repackRefusals(
 }
 
 /**
- * Everything a repack needs from the shell besides its options: the session to commit into, the art
- * to pack, the page resolver to pre-warm, the texture convention, the scope an adjustment re-runs on,
- * and the two shell callbacks - the refusal report and the sticky-options record.  Built once per
- * document by the shell and handed to [runAtlasRepack]; the adjustment closure keeps it.
+ * Everything a repack needs from the shell besides its options.  Built once per document by the shell
+ * and handed to [runAtlasRepack]; the adjustment closure keeps it.
  *
  * @property EditorSession      session            The session to commit into.
  * @property SourceArtRasters   artRasters         The source-art pixels to pack.
@@ -411,35 +409,20 @@ internal fun logPack(packResult: AtlasPackResult, lowered: LoweredPack, options:
 }
 
 /**
- * Repacks the document's atlas: decodes every bound tile's art, runs the shared deterministic packer
- * under [options], and commits the new pages + placements + re-derived coordinates as ONE undo step,
- * pre-warming the session's page resolver with the pages the pack already composed so nothing
- * composes twice.  The viewport and every UV editor follow the MODEL - the resolver publishes the
- * pages and the engine swaps them - so this function ends at the commit and the registration.
- *
- * The commit registers itself as the session's adjustable operation (the operation settings strip):
- * its rows are the pack options, and editing one re-packs the SAME decoded input from the model the
- * repack ran on and lands over the repack's own history step ([EditorSession.amendLastCommit]) - one
- * pack per adjustment, no decode, nothing replayed.  See [adjustAtlasRepack].
+ * Repacks the document's atlas as ONE undo step, registered on the operation settings strip so an
+ * adjustment re-packs the same decoded input over the repack's own step ([adjustAtlasRepack]).
  *
  * All or nothing: any bound tile the pack cannot carry aborts the whole repack into the host's
- * report (the modal report surface - a lost tile must not be a four-second toast).  Unbound tiles
- * are packed out (placement null) with a log line; art nobody samples does not spend page space.
+ * report, a modal surface because a lost tile must not be a passing toast.  Unbound tiles are packed
+ * out instead, since art nobody samples does not spend page space.
  *
- * Pinned tiles stay exactly where they are while [keepPinned] (the packer seeds their footprints
- * and paints them through their own placements), and pack like any other tile when it is off - the
- * pin itself survives either way, so the next repack honors it again.
- *
- * Runs on the UI thread; the decode + pack hop to the default dispatcher.  The commit applies to the
- * model CURRENT at completion, so non-mesh edits made while packing survive.  Two things abort as
- * superseded rather than applying a stale pack: the atlas itself changing (an undo across a repack,
- * say), and a mesh or coordinate edit that changes a tile's reach - the pack was spaced by the
- * reserves it started with, so it no longer proves the current meshes disjoint.
+ * Runs on the UI thread; the decode and pack hop to the default dispatcher.  The commit applies to the
+ * model current at completion, so non-mesh edits made while packing survive.
  *
  * @param AtlasRepackHost  host       The session, art, resolver, scope, and shell callbacks.
  * @param AtlasPackOptions options    The options to pack with (the strip's rows start from them).
  * @param String?          areaId     The area the command was dispatched over, or null - where the strip shows.
- * @param Boolean          keepPinned Whether pinned tiles stay where they are.
+ * @param Boolean          keepPinned Whether pinned tiles stay where they are; the pin itself survives either way.
  */
 suspend fun runAtlasRepack(
 	host: AtlasRepackHost,
@@ -574,11 +557,9 @@ internal fun atlasRepackLauncher(
 }
 
 /**
- * Re-packs for an adjustment of the strip: the record's parameters become the options, the SAME
- * decoded [packInput] packs again off-thread, and the result lands over the repack's own step from
- * the record's base model.  A refusal reports like the first run's and leaves the previous result
- * standing; a record cleared while the pack ran (any other edit, an undo, a document swap) makes
- * [EditorSession.amendLastCommit] drop the result rather than commit over what the rigger did.
+ * Re-packs for an adjustment of the strip: the SAME decoded [packInput] packs again under the record's
+ * parameters, and the result lands over the repack's own step unless the record was cleared while the
+ * pack ran ([EditorSession.amendLastCommit]).
  *
  * @param AtlasRepackHost     host      The session, resolver, and shell callbacks the first run had.
  * @param AdjustableOperation record    The record with the adjusted parameters.
@@ -649,13 +630,11 @@ class PackedAtOpen(
 /**
  * Packs an UNPACKED model's atlas as an artwork import opens it: every tile unplaced, every drawable's
  * coordinates addressing its own art, which is exactly the state the repack's re-derivation moves onto
- * pages through the identity mapping.  Packs at [DEFAULT_REPACK_PAGE_SIZE] first and once more at
- * [MAX_IMPORT_PAGE_SIZE] if any tile did not fit, then commits through [withAtlasRepack] under the
- * packer's default composition.
+ * pages through the identity mapping.
  *
- * Unlike the repack command, a refusal is NOT fatal: a document is still worth opening with one layer
- * unpacked, so a tile the pack cannot carry stays unplaced (its coordinates keep addressing the art,
- * which the source-layer display still draws) and is reported, never dropped.
+ * Unlike the repack command, a refusal is not fatal: a document is still worth opening with one layer
+ * unpacked, so a tile the pack cannot carry stays unplaced (the source-layer display still draws it) and
+ * is reported, never dropped.
  *
  * @param PuppetModel model        The unpacked model.
  * @param Function    decodeRaster Yields a tile's decoded pixels, or null.

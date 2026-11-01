@@ -64,11 +64,8 @@ internal suspend fun readListedArtworkAt(source: ArtSource, path: String): ReadA
 
 /**
  * One listed file's art the way every operation over it reads it: from disk when the file is there and
- * reads, placed by the record's offset; else, for a document open from a CMO3, from the layer PNGs the
- * official editor decomposed into it at import; else from the art the document holds - each layer a tile
- * binds read as that tile, a layer no tile binds with no pixels.  Null only when the document holds nothing
- * for the file either.  The fallbacks already sit on the document canvas, so neither is placed again.  Each
- * step is logged, so a relink or a match says which file it could not reach, why, and what it read instead.
+ * reads, else from what the document holds for it - a CMO3's decomposed layer PNGs, then the document's
+ * own tiles.  The fallbacks already sit on the document canvas, so neither is placed again.
  *
  * @param PuppetDocument     puppetDocument The open document the file is listed on, for its CMO3 and its pixels.
  * @param PuppetModel        model          The session's model as it stands, for the tiles the file's layers bind.

@@ -4,15 +4,13 @@ package org.umamo.interop.moc3
  * What a MOC3 export includes, chosen at export time rather than stored on the document.
  *
  * The defaults here are the API's compatibility contract, not the export dialog's: an options-less
- * call behaves exactly as the lowering always has - hidden objects carried with their flag clear,
- * guide subtrees dropped, every sidecar emitted, and the canvas scale resolved by
- * [org.umamo.interop.moc3.export.Moc3Export.mocPixelsPerUnitFor].  The dialog seeds its own
- * first-launch defaults in the UI layer, and those match the official editor's bake instead
- * (hidden objects dropped), so the two default sets are deliberately not the same thing.
+ * call carries hidden objects with their flag clear, drops guide subtrees, emits every sidecar, and
+ * resolves the canvas scale by [org.umamo.interop.moc3.export.Moc3Export.mocPixelsPerUnitFor].  The
+ * dialog seeds its own first-launch defaults in the UI layer, and those match the official editor's
+ * bake instead (hidden objects dropped), so the two default sets are deliberately not the same thing.
  *
  * One class carries both the lowering's flags and the bundle's sidecar toggles, so an export
- * handler threads a single value end to end.  A future texture-resolution scale is one more
- * defaulted property here.
+ * handler threads a single value end to end.
  *
  * @property Boolean exportHiddenParts     Write hidden part subtrees, flag clear, instead of
  *                                         dropping them the way the official bake does.
@@ -36,7 +34,7 @@ data class Moc3ExportOptions(
 	val pixelsPerUnitOverride: Float? = null,
 ) {
 	companion object {
-		/** The options-less behavior: exactly what the lowering did before options existed. */
+		/** The options-less behavior: the API's compatibility defaults. */
 		val Default: Moc3ExportOptions = Moc3ExportOptions()
 	}
 }

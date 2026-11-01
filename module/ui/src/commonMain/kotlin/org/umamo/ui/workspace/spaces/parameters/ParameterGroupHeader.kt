@@ -26,11 +26,8 @@ import org.umamo.ui.workspace.rowdrag.rowDropHighlight
 private val GROUP_HEADER_HEIGHT = 22.dp
 
 /**
- * A parameter group's header rail: a recessed rounded row with a disclosure chevron and the group name.
- * A single tap toggles the group; a double tap opens inline rename. Both go through [singleOrDoubleClick],
- * whose raw pointerInput - unlike a clickable - never requests focus (keeping keyboard dispatch on the
- * shell root) and, unlike detectTapGestures, fires the toggle immediately instead of waiting out the
- * double-tap window. A nest-into drop tints and outlines it.
+ * A parameter group's header rail: a recessed rounded row with a disclosure chevron and the group name, where
+ * a single tap toggles the group and a double tap opens inline rename.  A nest-into drop tints and outlines it.
  *
  * @param String name The group's display name.
  * @param Boolean expanded Whether the group is open (chevron points down).

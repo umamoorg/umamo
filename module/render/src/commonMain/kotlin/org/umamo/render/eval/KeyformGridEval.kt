@@ -40,7 +40,7 @@ internal fun sampleMeshLocal(
 /**
  * Blends a mesh's local positions from precomputed corners: `base + Σ wᵢ·Δᵢ`. Splitting corner selection
  * out of [sampleMeshLocal] lets `preparePose` compute the weights once - backend-neutrally - and feed both
- * the CPU apply path and (later) the GPU shader the same corner set.
+ * the CPU apply path and the GPU shader the same corner set.
  *
  * A null [grid] is an UNKEYED drawable, not an error: it contributes no deltas, so the result is the rest
  * mesh.  An unkeyed drawable is a normal state - a freshly created one, or one whose last keyform axis was

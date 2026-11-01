@@ -44,11 +44,9 @@ enum class ProportionalFalloff {
 
 /**
  * The proportional-editing configuration while it is enabled: the falloff curve, the influence
- * radius, and whether influence spreads only through CONNECTED geometry (Blender's Connected Only -
- * distances measured along mesh edges instead of straight-line, so the halo never leaps a gap to
- * nearby-but-unconnected geometry).  Transient session state like the tool latches (deliberately NOT
- * part of EditorSnapshot); the last configuration is remembered across off/on toggles, the
- * circle-select radius pattern.
+ * radius, and whether influence spreads only through CONNECTED geometry (Blender's Connected Only, so
+ * the halo never leaps a gap to nearby-but-unconnected geometry).  Transient session state, never part
+ * of [EditorSnapshot]; the last configuration is remembered across off/on toggles.
  *
  * @property ProportionalFalloff falloff The falloff curve.
  * @property Float radiusWorld The influence radius, in world units (canvas px).

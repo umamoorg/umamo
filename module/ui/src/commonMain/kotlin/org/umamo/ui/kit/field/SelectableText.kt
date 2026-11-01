@@ -20,11 +20,9 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * Text a user can select and copy, drawn like the kit's [org.umamo.ui.kit.Text]: an alert's message, where a command to paste
  * into a terminal or an error to paste into a bug report is exactly what someone wants out of it.
  *
- * A read-only text field rather than Compose's SelectionContainer, because the field's selection is state this
- * composable holds, which is what lets the kit's own text menu ([TextEditContextMenuArea], read-only: Copy and
- * Select All) act on it instead of Compose's built-in one.  The platform copy chord is the field's own; a caller
- * inside the shell's modal key ladder has to let that chord through, as the alert rungs do.  It never takes
- * part in text entry: no caret, and no [org.umamo.ui.kit.textentry.LocalInlineEditController] claim, since nothing here is typed into.
+ * A read-only text field rather than Compose's SelectionContainer, so the selection is state this composable
+ * holds and the kit's own read-only text menu ([TextEditContextMenuArea]) can act on it.  The platform copy
+ * chord is the field's own; a caller inside the shell's modal key ladder has to let that chord through.
  *
  * @param String    text     The text to show.
  * @param Modifier  modifier Layout modifier.

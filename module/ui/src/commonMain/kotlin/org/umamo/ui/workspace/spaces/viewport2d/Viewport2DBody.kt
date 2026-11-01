@@ -44,21 +44,13 @@ import org.umamo.ui.workspace.sidebar.SidebarDrawer
  * The 2D viewport body: the injected [LocalViewportHost]'s rendered surface, with the floating chrome (the
  * left tool toolbar and the right sidebar drawer) overlaid.
  *
- * The grid, the axes, and the canvas are the renderer's, drawn through its camera, for an empty document
- * as for a full one - the editor always has a document, so there is no state in which this would stand
- * in for them with a drawing of its own.  The one case with no host is a platform that has no puppet
- * renderer yet (Android until its GLES service lands); there the area is the plain viewport backdrop
- * color and nothing else, because a painted grid that cannot pan or zoom would promise a work surface
- * that is not there.
+ * The grid, the axes, and the canvas are the renderer's.  With no host (a platform with no puppet renderer
+ * yet) the area is the plain backdrop color and nothing else, because a painted grid that cannot pan or
+ * zoom would promise a work surface that is not there.
  *
- * The area's overlay visibility reaches the host's cursor and HUD overlays through LocalAreaOverlays,
- * provided here: the host seam takes only the area id, and this body is where the state the header's
- * overlays control edits is in hand.
- *
- * An idle right-click over the surface opens the mode's context menu (ViewportContextMenu.kt).  It wraps the surface
- * alone, so the floating chrome's right-click still reaches the area menu, and every gesture inside the surface takes
- * its own right press first (a modal's cancel, a box's abandon, the cursor's Shift placement); while a gesture is live
- * anywhere the menu stays shut, so the right press never opens a menu beside it.
+ * The mode's context menu wraps the surface alone, so the floating chrome's right-click still reaches the
+ * area menu, and stays shut while any gesture is live, so a gesture's own right press never opens a menu
+ * beside it.
  *
  * @param AreaScope scope The hosting area context (its id keys the host's GL surface).
  */
@@ -109,6 +101,8 @@ internal fun Viewport2DBody(scope: AreaScope) {
 	val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, scope.areaId)
 	val contextItems = rememberViewportContextItems(session)
 	val anyGestureLive = rememberAnyGestureLive(session)
+	// The host seam takes only the area id, so the area's overlay visibility reaches its cursor and HUD overlays
+	// through the local.
 	CompositionLocalProvider(LocalAreaOverlays provides viewState.overlays) {
 		Box(modifier = Modifier.fillMaxSize()) {
 			ContextMenuArea(items = contextItems, modifier = Modifier.fillMaxSize(), suppressed = anyGestureLive || contextItems.isEmpty()) {

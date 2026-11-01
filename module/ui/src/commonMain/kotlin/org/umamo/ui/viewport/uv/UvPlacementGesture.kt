@@ -338,18 +338,10 @@ internal fun placementGestureParameters(
  * Evaluates one pointer frame: each mover's placement under the gesture, the display affine its
  * islands follow, and the collisions the HUD and the chrome warn about.
  *
- * Grab snaps to whole page pixels (an integer placement keeps the packer's exact blit).  Rotate and a
- * uniform Scale turn about each mover's pivot as similarities, which every placement can express.  A
- * non-uniform Scale - what an axis lock produces, and what the strip's two factor rows can ask for -
- * runs along the tile's OWN axes (the only expressible form for a rotated tile; the page's axes for
- * an unrotated one), so its display affine is derived from the placement it produced rather than
- * assumed.  A product no placement can hold leaves that tile where it is.
- *
- * A collision is a mesh sampling paint, exact on both sides: a mover's triangles against the page's
- * paint (with the movers' old spots read as empty) and against the other movers' masks, and every
- * bystander's triangles against each mover's mask, the composer's extrusion band counted as paint.  A
- * painted pixel the page reports is attributed to the bystanders whose paint can reach it.  Off-page
- * is the mover's opaque bounds leaving the page; a mesh reaching past the page over transparent
+ * Grab snaps to whole page pixels, so an integer placement keeps the packer's exact blit.  A non-uniform
+ * Scale (an axis lock, or the strip's two factor rows) runs along the tile's OWN axes, the only form a
+ * rotated tile's placement can express, and a product no placement can hold leaves that tile where it is.
+ * Off-page is the mover's opaque bounds leaving the page; a mesh reaching past the page over transparent
  * pixels is not a warning.
  *
  * @param MeshOperatorKind operatorKind The running operator.
@@ -514,15 +506,13 @@ private fun vacatedRect(mover: PlacementMover, extrude: Int): PixelRect {
 }
 
 /**
- * Builds the gesture a placement operator latched over: the tiles the selection moves that sit on
- * the shown page, their crops, masks, and sampled regions, the page's bystanders and its paint, and
- * the shared capture over the moving islands.
+ * Builds the gesture a placement operator latched over, from the tiles the selection moves that sit on
+ * the shown page.
  *
- * Only the MOVERS' art is decoded (their crops, masks, and contours need it); the bystanders' paint is
- * the shown page itself, whose composed alpha is what is painted there, and every tile's sampled
- * region comes from the model's own meshes, so no other tile is decoded.  A mover whose art will not
- * decode or disagrees with its tile refuses the gesture; a bystander in that state surfaces at the
- * commit as the resolver's own fault log.
+ * Only the MOVERS' art is decoded: the bystanders' paint is the shown page's own composed alpha, and every
+ * tile's sampled region comes from the model's meshes.  A mover whose art will not decode or disagrees
+ * with its tile refuses the gesture; a bystander in that state surfaces at the commit as the resolver's
+ * own fault log.
  *
  * Decodes rasters, cuts crops, and scans the page, so callers run it off the UI thread.
  *
@@ -695,9 +685,8 @@ internal fun footprintCenterDisplay(footprint: PlacementFootprint, pageHeight: I
 
 /**
  * The display-space origins (footprint centers) of placed tiles on the shown page, decoded the way a
- * placement gesture decodes its movers, so a snap and a drag agree on where each tile's origin is.  A tile
- * with nothing opaque has nothing on the page and is left out, as the drag leaves it out; so is a tile with
- * no placement or one on another page.
+ * placement gesture decodes its movers, so a snap and a drag agree on where each tile's origin is; a tile
+ * with nothing opaque is left out, as the drag leaves it out.
  *
  * Decodes rasters, so callers run it off the UI thread.
  *

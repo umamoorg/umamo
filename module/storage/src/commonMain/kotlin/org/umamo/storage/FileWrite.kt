@@ -8,21 +8,13 @@ import kotlin.random.Random
 /**
  * Writes [bytes] over [target] without ever leaving a half-written file at [target].
  *
- * The bytes go to a temporary sibling in the target's directory first, and only a complete temporary is
- * moved over the target - one rename, which the file system makes atomic.  If anything fails before the
- * move, the target is untouched and the temporary is removed; if the move itself fails, the target is
- * still whatever it was.  A sibling rather than a system temp directory because a rename is atomic only
- * within one file system.
+ * The bytes go to a temporary sibling first, and only a complete temporary is moved over the target -
+ * one rename, atomic only within one file system, hence a sibling rather than a system temp directory.
+ * A process killed mid-write leaves its temporary behind; the next save of the same file sweeps any
+ * such leftover, and the prefix is this function's own, so nothing else is ever touched.
  *
- * A process killed mid-write (a crash, a power cut, a forced quit) cannot run that cleanup, and a
- * document-sized temporary is left beside the target.  The next save of the same file sweeps any such
- * leftover before writing its own, so it costs one save at most; the prefix is this function's own, so
- * nothing else is ever touched.
- *
- * The file system is a parameter so the rule tests against okio's in-memory file system; the platform
- * seam hands it the real one.
- *
- * @param FileSystem fileSystem The file system holding [target].
+ * @param FileSystem fileSystem The file system holding [target]; a parameter so tests can run against
+ *                              okio's in-memory one.
  * @param Path       target     The file to replace, or create.
  * @param ByteArray  bytes      The complete contents to write.
  * @throws IOException When the temporary cannot be written or the move fails.

@@ -26,11 +26,9 @@ import org.umamo.runtime.model.PuppetModel
  */
 
 /**
- * The set of parameter ids that effectively drive [selection] in [puppet]: for each selected target, the
- * union of the object's own keyform-grid axes and, following the deformer chain, its ancestor deformers'
- * axes. A selected part contributes its own channel-track axes (draw order and, while isolated, its
- * composite opacity / color tracks) plus the effective set of every drawable it contains. Empty when the
- * selection is empty.
+ * The set of parameter ids that effectively drive [selection] in [puppet]: for each selected target, its own
+ * keyform axes unioned with its ancestor deformers', and for a part, the effective set of every drawable it
+ * contains as well.
  *
  * @param PuppetModel puppet The loaded rig.
  * @param Selection selection The current selection (drawables / deformers / parts).
@@ -100,7 +98,11 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 	return result
 }
 
-/** Every glue keyed by the meshes it welds, so a drawable's welds resolve without a per-drawable scan. */
+/**
+ * Every glue keyed by the meshes it welds, so a drawable's welds resolve without a per-drawable scan.
+ *
+ * @return Map<DrawableId, List<Glue>> The glues welding each drawable.
+ */
 private fun PuppetModel.gluesByMesh(): Map<DrawableId, List<Glue>> {
 	val byMesh = HashMap<DrawableId, MutableList<Glue>>()
 
@@ -127,10 +129,8 @@ internal data class ParameterKeyMarks(
 
 /**
  * The per-parameter key marks for this rig: for each parameter id keyed by any object, the sorted,
- * deduplicated union of the parameter values it is keyed at, split into keyform-grid keys and
- * blend-shape keys. One pass over every drawable, deformer, and part (the same objects
- * [effectiveParameterIds] walks); a parameter absent from the result has no keys yet. Compose-free so
- * the panel can compute it once per model and unit-test it.
+ * deduplicated parameter values it is keyed at, split into keyform-grid keys and blend-shape keys.  A
+ * parameter absent from the result has no keys yet.
  *
  * @return Map<ParameterId, ParameterKeyMarks> Each keyed parameter's grid + blend key marks.
  */
@@ -185,6 +185,8 @@ internal fun PuppetModel.parameterKeyMarks(): Map<ParameterId, ParameterKeyMarks
  * Unions the geometry grid's axes with every channel track's, so a deformer keyed only on opacity still
  * reports the parameter that drives it - otherwise an opacity-only track would be invisible to the
  * parameter panel and the keyform sheet.
+ *
+ * @return List<KeyformAxis> The geometry and channel axes.
  */
 private fun Deformer.keyformAxes(): List<KeyformAxis> {
 	val geometryAxes =
@@ -196,7 +198,11 @@ private fun Deformer.keyformAxes(): List<KeyformAxis> {
 	return geometryAxes + channelGrids.allAxes()
 }
 
-/** This deformer's blend-shape bindings as (driving parameter, key values) pairs (empty when none). */
+/**
+ * This deformer's blend-shape bindings as (driving parameter, key values) pairs (empty when none).
+ *
+ * @return List<Pair<ParameterId, FloatArray>> Each binding's parameter and key values.
+ */
 private fun Deformer.blendShapeBindingKeys(): List<Pair<ParameterId, FloatArray>> =
 	when (this) {
 		is Deformer.Warp -> blendShapes.map { binding -> binding.parameterId to binding.keys }
@@ -207,6 +213,8 @@ private fun Deformer.blendShapeBindingKeys(): List<Pair<ParameterId, FloatArray>
  * The parameters driving this deformer's blend-shape bindings (empty when it has none). Limit-curve
  * constraint parameters deliberately do NOT count as edges - a limit gates a binding's weight but
  * does not key the object itself.
+ *
+ * @return List<ParameterId> The driving parameters.
  */
 private fun Deformer.blendShapeDrivers(): List<ParameterId> =
 	when (this) {
@@ -214,7 +222,13 @@ private fun Deformer.blendShapeDrivers(): List<ParameterId> =
 		is Deformer.Rotation -> blendShapes.map { binding -> binding.parameterId }
 	}
 
-/** Every drawable id under [part]'s organizational subtree, descending into sub-parts. */
+/**
+ * Every drawable id under [part]'s organizational subtree, descending into sub-parts.
+ *
+ * @param Part part The part whose subtree to walk.
+ * @param Map<PartId, Part> partById Every part by id, to resolve sub-parts.
+ * @return List<DrawableId> The drawables, in org-tree order.
+ */
 private fun collectPartDrawables(part: Part, partById: Map<PartId, Part>): List<DrawableId> {
 	val result = ArrayList<DrawableId>()
 

@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
  * upgrade code, and a package manager by its package name; move either, or the folder the files go to, and the next
  * release installs BESIDE the old one instead of over it - two Umamos, and an uninstall that removes the wrong one.
  * The release workflow's upgrade test cannot catch that, since the older installer it upgrades from is built by the
- * same script.  These values change only on purpose, together with docs/plan/distribution.md's identities.
+ * same script.  These values change only on purpose.
  */
 class InstallerIdentityTest {
 	/** Gradle runs a module's tests from the module directory, which is what these paths are relative to. */

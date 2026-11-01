@@ -42,11 +42,10 @@ import kotlin.test.assertEquals
  * proven shape, not a join result.  Parts: no twin keeps a hidden part, so s7 and s8 are both
  * all-1 and nothing distinguishes which is `visible_artmeshes` and which is `visible_deformers`.
  *
- * NOTE for the export: the drop-on-bake behavior above is the official editor's default, NOT the
- * one Umamo adopts.  We have no "omit hidden objects" option, and deleting something the user can
- * still see in the outliner would be a silent destructive edit, so an Umamo export writes a hidden
- * art mesh, part, or deformer out with its first flag set to 0 rather than omitting it.  TODO: when
- * an export-options surface exists, add an "omit hidden objects" toggle there, defaulting to OFF.
+ * NOTE for the export: the drop-on-bake behavior above is the official editor's default, and an
+ * Umamo export makes it a choice (Moc3ExportOptions' exportHiddenParts / exportHiddenDrawables in
+ * :interop).  A hidden art mesh or part the export keeps, and every hidden deformer, is written out
+ * with its first flag set to 0 rather than omitted.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */

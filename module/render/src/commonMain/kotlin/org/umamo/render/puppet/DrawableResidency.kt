@@ -123,15 +123,8 @@ internal class DrawableResidency(
 	}
 
 	/**
-	 * Reconciles residency with the current model after an edit, via a backend-neutral [diffModel] whose
-	 * four tiers are applied here as device calls: a reorder / reparent needs no buffer work; a base-mesh
-	 * move re-uploads positions; a UV edit re-uploads UVs; a structural change frees and re-uploads whole.
-	 *
-	 * The glue layout follows the model: an edit that moves a weld (a re-paired, added, removed, or
-	 * reordered glue, or a glue mesh that changed size or place) re-plans it, re-uploads every resident
-	 * whose weld attributes or store region moved, and fits the store to it, freeing the store once no
-	 * glue is left; every upload takes its entry in the current layout.  An intensity, channel, move, or
-	 * key edit re-plans nothing.  So after any reconcile the residents' glue state is what [uploadAll]
+	 * Reconciles residency with the current model after an edit, applying a backend-neutral [diffModel]'s
+	 * tiers as device calls.  After any reconcile the residents, glue state included, are what [uploadAll]
 	 * of [newModel] would produce.
 	 *
 	 * @param PuppetModel residentModel  The model the residents currently reflect.  Blend-shape deltas

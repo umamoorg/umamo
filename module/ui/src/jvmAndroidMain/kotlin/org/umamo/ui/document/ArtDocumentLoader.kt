@@ -60,11 +60,7 @@ class ArtDocument(
 /**
  * The options an artwork import runs with under [template], [anchor], and [birthMesh].  The bridge
  * takes the resolved parameter list and knows nothing about templates, so the template-to-parameters
- * step happens once here for every caller: the shell resolves the preferences into it, and the loaders
- * default through it so a caller with no setting to read still seeds the configured defaults.  The
- * anchor only matters to an import into a rig that already has art; a reload or a relink reads the
- * options for their threshold, margin, and birth mesh alone.  The birth mesh defaults to the quad, so a
- * caller with no setting to read keeps the import as it always was; the shell passes the preference.
+ * step happens once here for every caller.
  *
  * @param ParameterTemplate template  The parameter set to seed.
  * @param ArtworkAnchor     anchor    Where a later file is anchored on the rig's canvas.
@@ -202,14 +198,8 @@ internal fun artworkOf(codec: FormatCodec<*>, bytes: ByteArray, name: String): S
 	}
 
 /**
- * Assembles an [ArtDocument] from parsed source art: the bridge builds the unpacked model, the birth
- * meshes the options name are made one after another (an open from the app makes them in parallel,
- * through [buildArtDocumentConcurrently]), the pack at open moves it onto pages, and the rasters the
- * reader decoded become the document's pixel store.
- *
- * Every raster is wrapped into ONE decoded image up front, so the store's cached and uncached reads
- * hand out the same instance for a tile - the identity the renderer's texture cache and the
- * viewport's freshness test compare by.
+ * Assembles an [ArtDocument] from parsed source art, making the birth meshes one after another
+ * ([buildArtDocumentConcurrently] is the parallel form an open from the app runs).
  *
  * Throws nothing of its own - the byte-level [loadDocument] wraps this call, so a reader result that
  * trips the bridge or the pack surfaces as ParseFailed there.
@@ -289,6 +279,9 @@ private fun finishArtDocument(imported: SourceArtImportResult, name: String, pat
 		return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.NoArtLayers, name))
 	}
 
+	// Every raster is wrapped into ONE decoded image up front, so the store's cached and uncached reads hand
+	// out the same instance for a tile - the identity the renderer's texture cache and the viewport's freshness
+	// test compare by.
 	val decodedByTile = imported.rasterByTile.mapValues { (_, raster) -> DecodedImage(raster.rgba, raster.width, raster.height) }
 	val decodeRaster: (org.umamo.runtime.model.AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] }
 	progress?.stage(ProgressLabels.ATLAS_PACKING)

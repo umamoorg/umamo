@@ -100,14 +100,8 @@ private val SIDEBAR_GRIP_OUTSET = SIDEBAR_RESIZE_GRIP_WIDTH / 2
  * regions do: while open, a stack of collapsible panel cards beside a column of vertical tabs, with no
  * background of their own, and while closed, a pull tab at the top of the edge.  The tabs and panels come from
  * the window's [LocalSidebarRegistry] for this area's surface; whether it is open, how wide it is, which tab
- * shows, and which panels are folded is the area's own [state].
- *
- * The pull tab dispatches view.toggleSidebar (N), which toggles this area's sidebar, open by the
- * [LocalViewportChrome] default until the rigger chooses.  The grip on the cards' inner edge drags the stack's
- * width, fitted to what the area leaves, and dragging it far enough past the narrowest closes the sidebar.  An
- * area too narrow for even the narrowest stack shows only the pull tab, and the sidebar stays open for when the
- * area grows.  The cards and the tabs keep the pointer from reaching the surface beneath them, except while a
- * gesture of this area owns the pointer; everywhere around them the pointer is the surface's.
+ * shows, and which panels are folded is the area's own [state].  An area too narrow for even the narrowest stack
+ * shows only the pull tab, and the sidebar stays open for when the area grows.
  *
  * @param String areaId The area the sidebar belongs to.
  * @param SpaceKind space The work surface the area shows, which decides the panels it gets.
@@ -253,11 +247,8 @@ private fun SidebarPanels(
 }
 
 /**
- * The grip straddling the cards' inner edge, half over the stack's gutter and half over the cards' border:
- * dragging it left widens the stack, between the narrowest it may be and the widest the area leaves.  Each step
- * starts from the width on screen, so a stored width the area clamped never leaves a dead zone.  Dragged right
- * far enough past the narrowest, it closes the sidebar and puts back the width the drag began from, so the
- * sidebar reopens as it was.
+ * The grip straddling the cards' inner edge that drags the stack's width.  Dragged far enough past the
+ * narrowest, it closes the sidebar and puts back the width the drag began from, so the sidebar reopens as it was.
  *
  * @param SidebarState state The area's sidebar state, whose width and visibility the drag sets.
  * @param Dp widestStack The widest the area lets the stack be.

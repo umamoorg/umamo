@@ -50,9 +50,8 @@ internal fun relinkGroups(sources: List<ArtSource>, query: String): List<RelinkG
  * a pick from the relink list, an accepted proposal, and the layer's own row all go by, so a row and the
  * binding it hands out never disagree.
  *
- * A layer some tile already binds says how strong its key is, because the reader that minted the key said
- * so on that tile: the key is stable when any tile bound to the layer carries it as stable, which is what
- * the row's status reads.  For a layer no tile binds the key's shape is all there is to go by.
+ * A tile already bound to the layer carries the strength the reader that minted the key gave it, which is
+ * what the row's status reads; only for a layer no tile binds is the key's shape all there is to go by.
  *
  * @param List<AtlasTile> tiles    The tiles whose bindings are asked; the document's, or the ones bound to the layer.
  * @param ArtSourceId     sourceId The file the layer belongs to.

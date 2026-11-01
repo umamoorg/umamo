@@ -163,11 +163,10 @@ data class UvSnapRequest(val kind: UvSnapKind, val areaId: String?)
 /**
  * One mirror request: which axis, and which UV editor area's overlay executes it.
  *
- * Mirror is the one texture-coordinate operation expressed purely in normalized coordinates, so
- * unlike the geometry-dependent snaps it could once run without knowing which editor it meant.  It
- * cannot any more: the axis it reflects about depends on the surface being authored over, and only
- * the overlay knows which that is.  So it takes the same route the snaps do - the area resolved ONCE
- * at command dispatch, carried here, and the overlay supplying the frame when it executes.
+ * Mirror is expressed in normalized coordinates, but the axis it reflects about depends on the surface
+ * being authored over, and only the overlay knows which that is.  So it takes the same route the snaps
+ * do - the area resolved ONCE at command dispatch, carried here, and the overlay supplying the frame
+ * when it executes.
  *
  * @property Boolean mirrorU True to mirror horizontally, false vertically.
  * @property String? areaId The UV editor area whose overlay executes, or null when the hovered surface
@@ -222,7 +221,6 @@ data class SnapRequest(val kind: SnapKind, val areaId: String?)
  * carries the request and the active mode's overlay performs it.  The purely arithmetical snaps
  * (cursor to world origin / to grid) are handled directly by their command handlers and never appear
  * here.
- *
  */
 enum class SnapKind {
 	CursorToSelected,
@@ -234,17 +232,14 @@ enum class SnapKind {
 }
 
 /**
- * The UV editor's snap operations (its own Shift+S pie), the texture-space sibling of [SnapKind].
- * Every one edits or reads in the UV editor's texel display space, so the UV overlay - which owns the
- * shown page's dimensions and display geometry - executes them, the same request-through-overlay split
- * as [SnapKind].  The op set differs from the world snaps by design: UV has pixel-corner snaps (a
- * texel boundary is a natural target for artwork-edge accuracy) and no Active-element snaps, while the
- * world grid has no meaning here (the UV grid subdivides the atlas page instead - see the UV editor's
- * display mapping).
+ * The UV editor's snap operations (its own Shift+S pie), the texture-space sibling of [SnapKind], executed
+ * by the UV overlay that owns the shown page's dimensions and display geometry.  The op set differs from the
+ * world snaps by design: UV has pixel-corner snaps (a texel boundary is a natural target for artwork-edge
+ * accuracy) and no Active-element snaps, and its grid is the UV grid over the atlas page.
  *
  * Each runs in both modes, read in each mode's unit of motion: Edit mode snaps the selected vertices' texture
  * coordinates, Object mode the selected placed art tiles on the shown page (each moved by its origin, its
- * footprint's center).  The cursor-only snaps read no selection and behave the same in both.
+ * footprint's center).
  */
 enum class UvSnapKind {
 	SelectionToPixels,

@@ -219,15 +219,10 @@ internal fun OutlinerRowView(
 }
 
 /**
- * Renders one tree row: indent, a disclosure chevron (only when the node has children), a type icon,
- * the single-line label (or its inline rename editor while [renaming]), and - for parts / drawables - a
- * clickable visibility eye pinned to the right.  Every row is fixed to [rowWidth] so the selection /
- * hover / search-match backgrounds span the full width and the horizontal scroll range stays put; a name
- * longer than the viewport grows [rowWidth] and is reached by scrolling rather than wrapping.  A single
- * click selects a real node or toggles a synthetic one; a double-click on a real node opens its inline
- * rename ([onStartRename]); the chevron and the eye consume their own press (only toggling expansion /
- * visibility).  A part folder whose subtree holds the selection is tinted ([ancestorOfSelection]); a
- * search hit is tinted too, so found rows stand out along the path the filter kept.
+ * Renders one tree row: indent, a disclosure chevron, a type icon, the single-line label (or its inline
+ * rename editor while [renaming]), and the trailing restriction slots.  Every row is fixed to [rowWidth] so
+ * the selection / hover / search-match backgrounds span the full width; a name longer than the viewport
+ * grows [rowWidth] and is reached by scrolling rather than wrapping.
  *
  * @param OutlinerRow row The node and its depth.
  * @param Function rowIndex The row's place among the visible rows, read while drawing: the ancestry guides'

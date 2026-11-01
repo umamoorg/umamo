@@ -15,11 +15,8 @@ internal const val WRAP_INSET_PX = 4f
 
 /**
  * The area-local point the cursor should teleport to when a modal gesture reaches a viewport edge, or null
- * when [local] is not within [margin] px of (or beyond) any edge.  A triggered axis wraps to the opposite
- * side inset by [inset] px; the other axis is kept clamped in bounds so the target is a valid interior
- * point.  Because [inset] is greater than [margin] (and an axis only wraps when the viewport is wider than
- * `inset + margin`), the teleport always lands clear of the trigger zone, so it cannot immediately re-wrap.
- * Pure and side-effect free so the wrap geometry is unit-testable without Compose input.
+ * when [local] is not within [margin] px of (or beyond) any edge.  Pure, so the wrap geometry is
+ * unit-testable without Compose input.
  *
  * @param Offset local The current pointer position in area-local pixels.
  * @param IntSize size The area size in pixels.
@@ -88,9 +85,8 @@ internal class CursorWrapState(
 	private var pendingWarpLanding: Offset? = null
 
 	/**
-	 * The wrap-continuous ("virtual") pointer for [rawPosition]: the raw position plus every wrap so
-	 * far, so the transform keeps tracking as if the cursor had never teleported.  This is what makes
-	 * Scale and Rotate unbounded - the virtual pointer travels past the viewport edge freely.
+	 * The wrap-continuous ("virtual") pointer for [rawPosition], which travels past the viewport edge
+	 * freely so Scale and Rotate stay unbounded.
 	 *
 	 * @param Offset rawPosition The physical pointer position in area-local pixels.
 	 * @return Offset The virtual pointer position.
@@ -98,12 +94,10 @@ internal class CursorWrapState(
 	fun virtualPointer(rawPosition: Offset): Offset = rawPosition + wrapOffset
 
 	/**
-	 * Filters one arriving Move / Exit position against a pending warp.  Move events generated BEFORE
-	 * a warp but delivered after it still carry old-edge positions; interpreting them against the
-	 * post-warp [wrapOffset] spikes the transform and re-triggers the wrap (double-counting - the
-	 * pointer-vs-HUD desync).  The real post-warp event lands near the warp landing; anything half a
-	 * viewport away is stale - the caller freezes its pointer at the returned landing and consumes
-	 * the event.  A fresh arrival clears the pending landing and returns null.
+	 * Filters one arriving Move / Exit position against a pending warp.  Events generated before a warp
+	 * but delivered after it still carry old-edge positions, and reading them against the post-warp
+	 * [wrapOffset] would spike the transform and re-trigger the wrap; one more than half a viewport from
+	 * the warp landing is stale.
 	 *
 	 * @param Offset position The arriving pointer position in area-local pixels.
 	 * @param IntSize size The area size in pixels.
@@ -123,14 +117,9 @@ internal class CursorWrapState(
 	}
 
 	/**
-	 * Wraps the cursor at a viewport edge (Blender-style, all operators): when [position] reaches an
-	 * edge, teleport it to the opposite side and fold the jump into [wrapOffset] so the virtual
-	 * pointer stays continuous.  The ACTUAL landed position (read back from the OS) is folded - not
-	 * the requested target - because mouseMove rounds, clamps, and can be platform-rescaled, and any
-	 * request-vs-landing difference otherwise accumulates as drift across wraps.  On a no-op platform
-	 * (Android, or a Robot-less desktop) nothing folds, so the cursor just freezes at the edge rather
-	 * than desyncing the transform.  Opposite-edge (not toward-pivot) is deliberate: it is what lets
-	 * a shrink fire wraps and reach the pivot again.
+	 * Teleports the cursor to the opposite edge when [position] reaches a viewport edge (Blender-style),
+	 * folding the jump into [wrapOffset] so the virtual pointer stays continuous.  Opposite-edge rather
+	 * than toward-pivot is what lets a shrink fire wraps and reach the pivot again.
 	 *
 	 * @param Offset position The current pointer position in area-local pixels.
 	 * @param IntSize size The area size in pixels.
@@ -144,6 +133,8 @@ internal class CursorWrapState(
 		val origin = areaScreenOrigin ?: return null
 		val landedScreen = warpCursor(origin.x + wrapTarget.x, origin.y + wrapTarget.y) ?: return null
 		val landed = Offset(landedScreen.x - origin.x, landedScreen.y - origin.y)
+		// Fold where the OS says the cursor landed, not the requested target: the warp rounds, clamps, and
+		// can rescale, and a request-vs-landing difference would accumulate as drift across wraps.
 		wrapOffset += position - landed
 		pendingWarpLanding = landed
 

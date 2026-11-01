@@ -47,15 +47,12 @@ import org.umamo.ui.workspace.SpaceScope
  */
 
 /**
- * The keyform-authoring commands: insert / delete a key on the hovered keyable (or the posed warps over a Pose-mode 2D
- * viewport), the key-type pie and its four choices, Clear Pose Edits, and the keyform sheet's delete-selected / nudge /
- * frame-all.  Every command that changes keys applies outside Edit mode only.
+ * The keyform-authoring commands.  Every command that changes keys applies outside Edit mode only.
  *
  * The sheet commands are registered ONCE here rather than per sheet area: CommandRegistry is
- * last-write-wins per id, so per-area registration made two open sheets clobber each other's handlers and
- * closing either area unregistered the shared ids out from under the survivor.  The acting sheet resolves
- * through [keyformSheets] at dispatch time - the hovered sheet, else the only open one, else (for the
- * selection ops) the unique one with keys selected.
+ * last-write-wins per id, so per-area registration would let two open sheets clobber each other's handlers,
+ * and closing either area would unregister the shared ids out from under the survivor.  The acting sheet
+ * resolves through [keyformSheets] at dispatch time.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param Function hoveredKeyable Resolves the hovered keyable property (a sheet lane or a Properties row)
@@ -132,7 +129,7 @@ internal fun keyformCommands(
 			editorSession?.let { session ->
 				keyAtPointer(session, routing, hoveredKeyable, { tracks -> session.removeKeysOnTracks(tracks, null, KeyformAim.Pose) }) { hover ->
 					// The hovered row goes with it, so the removal re-points the sheet's key selection at what survives
-					// instead of leaving it on the ordinal the removal frees - the neighbouring key.
+					// instead of leaving it on the ordinal the removal frees - the neighboring key.
 					session.removeKeyOnTrack(hover.track, hover.parameterId, hover.aim, hover.rowKey)
 				}
 			}

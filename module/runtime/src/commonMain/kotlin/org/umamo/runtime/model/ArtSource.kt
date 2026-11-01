@@ -207,12 +207,8 @@ data class ReplacedTile(
 )
 
 /**
- * What re-reading one artwork file changes in a model: the file's record with its NEW inventory, the
- * tiles whose art changed (each superseded by a fresh, unplaced tile), the meshes the drawables over
- * them take (an untouched birth quad re-born over the new art, an edited mesh carried with its
- * coordinates remapped so every vertex samples the same canvas pixel as before), the layers the file
- * gained, the drawables whose edited mesh the new opaque art now reaches past, and the drawables whose
- * visibility follows the file's eye toggle.
+ * What re-reading one artwork file changes in a model: the file's record with its NEW inventory, and
+ * what that implies for the tiles, meshes, drawables, and visibility bound to it.
  *
  * A delta rather than a model, like [ArtworkAdditions]: the same plan applies to the live model and
  * to the operation strip's rerun over its base.  Pixels travel beside it to the raster store.  A layer
@@ -222,9 +218,10 @@ data class ReplacedTile(
  *
  * @property ArtSource         source          The file's record, carrying the inventory as just read.
  * @property List              replacedTiles   The tiles whose art changed, each with its replacement.
- * @property Map               drawableMeshes  The mesh each affected drawable takes, keyed by drawable;
- *   texture coordinates in the ART frame of the drawable's new tile, which the pack that follows
- *   converts exactly as it does an import's.
+ * @property Map               drawableMeshes  The mesh each affected drawable takes, keyed by drawable: an
+ *   untouched birth quad re-born over the new art, or an edited mesh remapped so every vertex samples the
+ *   same canvas pixel as before.  Texture coordinates are in the ART frame of the drawable's new tile,
+ *   which the pack that follows converts exactly as it does an import's.
  * @property ArtworkAdditions? additions       The layers the file gained, minted under [source], or null.
  * @property List<DrawableId>  outgrown        Drawables whose kept mesh cuts off art the new pixels added - art it already left out does not count.
  * @property List<AtlasTileId> retiredTiles    Tiles a rebinding made redundant: a lost layer's rig work took
@@ -246,11 +243,11 @@ data class ArtworkReload(
 
 /**
  * Whether a layer key reads as format-minted: the PSD and CMO3 name fallbacks (a `name:` prefix or a `#`
- * order suffix) read as weak, everything else (a lyid, a CLIP or Krita uuid) as surviving a rename.  A
- * guess from the key's shape alone, and one with a known miss: a flat raster's one layer is keyed by its
- * file name, which its reader marks unstable but this reads as stable.  Used only to type a binding to a
- * layer no tile is bound to - a bound layer's tiles say what its key is - and it decides only a binding no
- * read backs, since a relink that reads the file types the binding by the reader's own flag.
+ * order suffix) read as weak, everything else (a lyid, a CLIP or Krita uuid) as surviving a rename.
+ *
+ * A guess from the key's shape alone, with a known miss: a flat raster's one layer is keyed by its file
+ * name, which its reader marks unstable but this reads as stable.  It types only a binding that neither a
+ * bound tile nor a read of the file backs; wherever the reader's own flag is at hand, that flag wins.
  *
  * @param String key The reader's layer key.
  * @return Boolean True when the key looks stable.

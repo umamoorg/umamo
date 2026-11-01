@@ -60,11 +60,9 @@ object MeshTopology {
 	}
 
 	/**
-	 * The vertices [elements] cover that a mesh of [vertexCount] vertices has: [coveredVertexIndices], less any index
-	 * at or past the count.  A reader that holds a selection and a mesh it captured separately needs this, since the
-	 * two can arrive a moment apart (a duplicate or a rip grows the selection before the reader sees the larger mesh).
-	 * A set that needs no such drop is returned as [coveredVertexIndices] built it, so a sum over it runs in the
-	 * order a modal transform's capture sums the same vertices in.
+	 * The vertices [elements] cover that a mesh of [vertexCount] vertices has - for a reader holding a selection and a
+	 * mesh it captured separately, which can arrive a moment apart (a duplicate or a rip grows the selection before the
+	 * reader sees the larger mesh).
 	 *
 	 * @param Set<MeshElement> elements The selected elements (any mix of domains).
 	 * @param ElementTopology topology The owner's topology.
@@ -74,6 +72,7 @@ object MeshTopology {
 	fun coveredVertexIndicesWithin(elements: Set<MeshElement>, topology: ElementTopology, vertexCount: Int): Set<Int> {
 		val covered = coveredVertexIndices(elements, topology)
 
+		// Returned as built when nothing drops, so a sum over it runs in the order a modal transform's capture sums it in.
 		if (covered.all { vertexIndex -> vertexIndex < vertexCount }) {
 			return covered
 		}

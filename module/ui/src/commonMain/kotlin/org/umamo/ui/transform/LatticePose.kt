@@ -16,14 +16,8 @@ import org.umamo.runtime.model.WarpLatticeForm
 
 /**
  * The pending lattices a Pose-mode shape lowers to: each warp in [targetWorldById] with its moved points on their
- * world targets at [stage]'s pose.
- *
- * Warps are taken parents first, each evaluated with the lattices its ancestors just landed standing in for theirs,
- * so a nested warp's moved points invert through the parent as it now is and its unmoved points ride along.  A moved
- * point's target is inverted through the warp's posed parent mapping; the result is the lattice the pose shows moved
- * by the same parent-space offset, minus nothing else - the blend shapes' contribution is taken out by subtracting the
- * lattice as shown and adding back the grid's own, `gridLocal + (newLocal - local)`.  A warp the pose does not draw,
- * or a target of another point count, is left out.
+ * world targets at [stage]'s pose.  Warps are taken parents first, each evaluated with the lattices its ancestors
+ * just landed standing in for theirs, so a nested warp's moved points invert through the parent as it now is.
  *
  * @param PuppetModel model The model the lattices are shaped over.
  * @param ElementEditStage stage The pose and the pending lattices in place there.
@@ -51,6 +45,8 @@ internal fun posedLatticeForms(
 		val moved = movedById[deformerId] ?: allPointIndices(target)
 		val newLocal = lattice.parentMapping.worldToLocalLinearized(target, lattice.local, moved)
 		val gridLocal = lattice.gridLocal
+		// The offset lands on the grid's own share of the lattice, not the lattice as shown, so the blend shapes still
+		// add on top.
 		val form = WarpLatticeForm(FloatArray(newLocal.size) { componentIndex -> gridLocal[componentIndex] + (newLocal[componentIndex] - lattice.local[componentIndex]) })
 
 		if (form.controlPoints.any { component -> !component.isFinite() }) {

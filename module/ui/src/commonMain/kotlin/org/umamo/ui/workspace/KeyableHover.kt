@@ -49,8 +49,8 @@ data class KeyformHover(
 	 *
 	 * A keyform-sheet lane belongs to one SECTION's parameter, which is not necessarily the selection's
 	 * active member - a linked pad targets both of its axes at once.  Without this, an insert aimed at the
-	 * other section landed its position on the active axis, and a removal applied the hovered ordinal to
-	 * the wrong axis's keys.
+	 * other section would land its position on the active axis, and a removal would apply the hovered ordinal
+	 * to the wrong axis's keys.
 	 */
 	val parameterId: ParameterId? = null,
 	/**

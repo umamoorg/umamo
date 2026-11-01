@@ -3,12 +3,8 @@ package org.umamo.ui.action
 import androidx.compose.ui.input.key.Key
 
 /**
- * Normalizes a key event's [Key] before name lookup.  Desktop Compose builds its located numpad
- * constants from different AWT codes than AWT actually delivers (Key.NumPadDot is Key(VK_PERIOD,
- * NUMPAD) while the physical key arrives as VK_DECIMAL), so without normalization the numpad decimal
- * - and with it the NumpadDecimal binding - can never match.  The desktop actual remaps those codes
- * (and defensively re-locates the numpad-only ones); Android keys carry no location and match their
- * constants directly, so its actual is the identity.
+ * Normalizes a key event's [Key] before name lookup, so a physical key whose event code differs from the
+ * Compose constant named for it (the desktop numpad decimal) still matches its binding.
  *
  * @param Key key The key from a key event.
  * @return Key The key to match the named constants against.

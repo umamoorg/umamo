@@ -96,15 +96,9 @@ internal fun wrappableTargets(model: PuppetModel, targets: Collection<SelectionT
 
 /**
  * Lowers Create Warp Deformer onto [model]: a warp around the outermost wrappable items of [targets] ([wrappableTargets])
- * with those items re-parented under it, kept where they rest.
- *
- *  - Its parent is the nearest deformer every wrapped item sits under (their common ancestor), or the root.
- *  - Its lattice is the world box of everything the items carry at rest - drawables' meshes, warps' lattices, and a
- *    rotation's art (its pivot when it carries none) - grown by [WarpBirth.marginPercent] of the box's larger side on
- *    every edge, laid out as a (rows + 1) x (columns + 1) grid with row 0 on top, and mapped point by point into the
- *    parent's space: exact for the root and a rotation, a curved lattice under a warp.
- *  - It is born with one keyform (a grid with no axis) holding that lattice, named "Warp" (suffixed when taken), in
- *    the part of [active] (or of the first wrapped item), just before the first wrapped deformer in the list.
+ * with those items re-parented under it, kept where they rest.  The warp sits under the items' common ancestor and is
+ * born with one keyform holding a margin-grown box around everything they carry at rest, mapped into that parent's
+ * space.
  *
  * @param PuppetModel model The model.
  * @param Collection<SelectionTarget> targets The selection.
@@ -167,11 +161,8 @@ internal fun warpCreationOf(model: PuppetModel, targets: Collection<SelectionTar
 }
 
 /**
- * Creates a warp around the session's selection as one undo step ([warpCreationOf]) - born with
- * [WARP_BIRTH_DIVISIONS] cells each way, a [WARP_BIRTH_MARGIN_PERCENT] margin, and bilinear mapping when the runtime
- * target supports it - selects it, and registers it on the operation strip in [areaId] with its Rows, Columns,
- * Margin, and (when the target allows a choice) Bilinear.  A rerun creates the warp again from the step's base and
- * selection.  Refused outside Object mode, or with nothing to wrap.
+ * Creates a warp around the session's selection as one undo step ([warpCreationOf]), selects it, and registers it on
+ * the operation strip in [areaId] so a rerun can rebuild it from the step's base with adjusted birth settings.
  *
  * @param String? areaId The area the strip should show in, or null for nowhere.
  */

@@ -83,12 +83,8 @@ fun rememberEditorSessionFor(document: Document?): EditorSession? =
 fun rememberDocumentFileFor(document: Document?): DocumentFile? = remember(document) { document?.let { DocumentFile(it) } }
 
 /**
- * The shared editor shell: a custom in-window menu bar (File / Edit / Workspace / Help, drawn with the
- * kit menu system) over the document viewport. The Import/Export dialogs come from FileKit; [document] is
- * owned by the caller (so host chrome like the window title tracks it); [onOpen] swaps it; [onExit]
- * closes. Both apps mount this one composable - desktop supplies the GL [viewportServiceFactory],
- * Android passes null until its GLES renderer lands (viewport areas show placeholders, everything else
- * is identical).
+ * The shared editor shell both apps mount: a custom in-window menu bar over the document viewport.
+ * [document] is owned by the caller, so host chrome like the window title tracks it, and [onOpen] swaps it.
  *
  * The menu bar is drawn in-window (not a host-OS menu strip) so it looks and behaves identically on
  * every platform and can sit on the workspace tab row to save vertical space - the Blender-style

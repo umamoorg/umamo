@@ -19,18 +19,13 @@ import org.umamo.ui.viewport.gizmo.drawCursorMarker
 import org.umamo.ui.viewport.gizmo.worldToScreen
 
 /**
- * The world-space 2D cursor marker: the authored dashed-ring crosshair (LocalUmamoIcons.cursor2d,
- * axis-colored arm tips) at its world position, in both modes (it anchors pivots and snaps regardless
- * of mode), projected through the frame camera and drawn at a screen-constant size.
+ * The world-space 2D cursor marker, drawn at a screen-constant size in every mode because it anchors
+ * pivots and snaps regardless of mode.
  *
- * The cursor is a control, not HUD chrome - the mode gizmos place it (Shift+RightClick) and the
- * transform pivot and snap commands consume it - so it draws in this overlay of its own, mounted
- * above the gizmo chrome and below the informational HUD.  The layer itself is draw-only (no pointer
- * input), and it projects through the DISPLAYED frame's camera (like every world-anchored overlay
- * drawing) so it never swims against the raster.
- *
- * The area's overlays control (its 2D Cursor row, or the Show Overlays master) hides the marker through
- * LocalAreaOverlays; the cursor stays placed, and the pivot and snap commands keep reading it.
+ * The cursor is a control, not HUD chrome, so it draws in this draw-only overlay of its own, above the
+ * gizmo chrome and below the informational HUD.  It projects through the DISPLAYED frame's camera so it
+ * never swims against the raster.  Hiding it through the area's overlays leaves the cursor placed, and
+ * the pivot and snap commands keep reading it.
  *
  * @param EditorSession session The session whose 2D cursor this overlay draws.
  * @param ViewportCamera? camera The displayed frame's camera (world<->screen); null skips drawing.

@@ -42,38 +42,15 @@ public class Cmo3DrawableTextureBinding(
 }
 
 /**
- * Fits a drawable's atlas-page-to-canvas placement transform: the affine mapping page pixel
- * coordinates (uv times page size) onto the drawable's base mesh positions.
+ * Fits a drawable's atlas-page-to-canvas placement transform: the least-squares affine mapping page
+ * pixel coordinates (uv times page size) onto the drawable's base mesh positions.
  *
  * CMO3: CTextureInput_TextureAtlasRegion field inputImageLocalToCanvasTransform - the editor
  * inverts this to place the mesh over its texture patch in the atlas and mesh-edit views, so an
- * identity here draws every mesh at its assembled canvas position instead.  Cubism-authored
- * mappings are exact per-drawable affines (the layer's canvas translation composed with the
- * packer's scale, rotation, and translate), so a least-squares fit recovers them to float
- * precision; a degenerate mesh falls back to a single-axis regression, then to a pure centroid
- * translation.
- *
- * The moments are accumulated about the point cloud's MEAN, not about the page origin, and that is
- * load-bearing rather than a tidiness preference.  A patch sits thousands of pixels out on a
- * 16384-square page while spanning only a few hundred, so origin-referenced moments are dominated
- * by the offset: the system's conditioning picks up the squared offset-to-spread ratio, the
- * informative pivot falls far below any offset-scaled singularity tolerance, and a perfectly
- * determined fit is rejected as degenerate.  What it degrades to - a per-axis regression - cannot
- * express an off-diagonal term at all, so a drawable the packer rotated comes back squashed onto
- * the wrong axis.  Centering drops the offset term outright: the solve sees only the cloud's own
- * shape, and the translation comes back from the means.
- *
- * A packing that rotates or mirrors the patch is therefore carried faithfully.  The crop the image
- * chain slices out is still the axis-aligned uv bounding box, which for a rotated patch encloses
- * the art plus its surrounding page pixels - that is a property of reconstructing source art from a
- * baked page, and real source art removes it along with the fit itself.
- *
- * This fit exists only because a MOC3-origin export has to RECONSTRUCT the placement a CMO3 would
- * have read straight off its source art - see [Cmo3ImageChainBuilder]'s header for why that whole
- * reconstruction is a stopgap.  A residual survives it by construction for any drawable under a
- * warp deformer: the exported base mesh is the rest pose pushed through the warp's lattice, whose
- * bilinear map is not affine, so no CAffine reproduces it exactly.  The fit is the closest affine,
- * which is what the atlas view needs.
+ * identity here draws every mesh at its assembled canvas position instead.  The fit exists only
+ * because a MOC3-origin export has to RECONSTRUCT the placement a CMO3 would have read straight off
+ * its source art.  A drawable under a warp deformer keeps a residual by construction, since the
+ * warp lattice's bilinear map is not affine; the closest affine is what the atlas view needs.
  *
  * @param FloatArray uvs        Interleaved atlas-frame texture coordinates (u then v per vertex).
  * @param FloatArray positions  Interleaved base canvas positions (x then y per vertex).
@@ -108,7 +85,9 @@ internal fun fitAtlasPageToCanvasTransform(uvs: FloatArray, positions: FloatArra
 	meanCanvas[1] /= pointCount
 	// Centered second moments: the page cloud's own covariance plus its cross-covariance with each
 	// canvas axis.  These are the normal equations of `canvas = a*pageX + b*pageY + t` with t
-	// eliminated, which is exactly what centering buys.
+	// eliminated, which is exactly what centering buys: moments about the page origin, for a patch a
+	// few hundred pixels wide sitting thousands out on a large page, would be dominated by the offset
+	// and fail the degeneracy test below, squashing a rotated packing onto one axis.
 	var pageXX = 0.0
 	var pageXY = 0.0
 	var pageYY = 0.0

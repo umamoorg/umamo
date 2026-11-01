@@ -53,13 +53,10 @@ private val QUICK_SETUP_MAX_WIDTH = 560.dp
 
 /**
  * The Quick Setup modal a first run opens with (and Help > Quick Setup... reopens): a banner over the few
- * choices worth making before anything else - the UI language, the shortcut preset, and the theme.  It is
- * in the same scrim-plus-card family as the preferences window, and like it every change writes through to
- * settings at once, so the app re-localizes and re-themes live behind the scrim and there is nothing to
- * commit: Continue, Escape (routed here by the shell), and a scrim click all only close it.
- *
- * The rows are the preferences window's own, so both offer the same options under the same labels.  A first
- * run opens with the language already matched from the operating system (see seedFirstRunSettings).
+ * choices worth making before anything else, in the preferences window's own rows.  Like that window, every
+ * change writes through to settings at once, so the app re-localizes and re-themes live behind the scrim and
+ * every way out only closes it.  A first run opens with the language already matched from the operating
+ * system (see seedFirstRunSettings).
  *
  * @param Function onDismiss Closes the modal.
  */
@@ -108,10 +105,9 @@ fun QuickSetupDialog(onDismiss: () -> Unit) {
 				}
 				Row(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
 					// Importing the settings of a previous version belongs at the start of this row, where Blender
-					// puts its "Load 3.3 Settings" button.  Deferred: no installers ship yet, so there is no
-					// previous version to import from, and every build reads and writes the one unversioned
-					// <config>/umamo/settings.json (see desktopAppStorage), so a new build already starts on the old
-					// file.  It becomes meaningful once installed versions keep their settings side by side.
+					// puts its "Load 3.3 Settings" button.  It has nothing to do while every build reads and writes
+					// the one unversioned <config>/umamo/settings.json (see desktopAppStorage), so a new build already
+					// starts on the old file; it becomes meaningful once versions keep their settings side by side.
 					Spacer(modifier = Modifier.weight(1f))
 					Button(label = stringResource(Res.string.quick_setup_continue), onClick = onDismiss, primary = true)
 				}
@@ -121,15 +117,13 @@ fun QuickSetupDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * The splash's banner: the splash artwork, with the app's name and icon in the bottom-left corner, the
- * version in the top-right, and the artist credit in the bottom-right.
+ * The splash's banner: the splash artwork, with the app's name and icon, the version, and the artist credit
+ * overlaid in three of its corners, so a version bump never means new art.
  *
  * The art is drawable/splash_banner.png: 2:1 at 1680x840 pixels, three times the banner's largest size
- * ([QUICK_SETUP_MAX_WIDTH] wide) so it stays sharp on high-density screens.  It is cropped to fill the
- * banner, so art at any other ratio loses its edges rather than stretching.  The name, the version, and the
- * artist credit are overlays rather than part of the art, so a version bump never means new art; the art keeps
- * those three corners free of detail.  They sit on the viewport's badge pill, the palette's pair for text over
- * content the theme does not color, so they read on any art in either theme.
+ * ([QUICK_SETUP_MAX_WIDTH] wide) so it stays sharp on high-density screens, cropped to fill the banner.  The
+ * overlays sit on the viewport's badge pill, the palette's pair for text over content the theme does not
+ * color, so they read on any art in either theme.
  */
 @Composable
 private fun SplashBanner() {

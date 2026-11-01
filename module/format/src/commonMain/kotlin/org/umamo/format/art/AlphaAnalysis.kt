@@ -81,16 +81,12 @@ public class AlphaContour(
  * Analyzes the opaque region of an RGBA8888 straight-alpha raster (top row first): pixel-tight
  * trimmed bounds, opaque pixel count, and the traced boundary contours, optionally simplified.
  *
- * Despite the file's "alpha analysis" theme this is NOT an Edelsbrunner alpha shape (no
- * Delaunay parameter); it is a threshold mask description: a scan for bounds and count, a
- * marching-squares style boundary trace on the pixel-corner lattice, and Douglas-Peucker
- * simplification.  Output is fully deterministic for a given input, which downstream repacking
- * relies on.
+ * This is a threshold-mask description, not an Edelsbrunner alpha shape.  Output is fully
+ * deterministic for a given input, which downstream repacking relies on.
  *
- * Returns null if and only if no pixel meets [alphaThreshold] — including the 0x0 raster and
- * the 1x1 transparent placeholders the CLIP/KRA readers emit for empty layers.  Slivers with
- * real opaque pixels (1 px wide or tall) are reported with their true bounds; excluding them
- * is consumer policy, so a genuine hairline art layer is never dropped here.
+ * Returns null if and only if no pixel meets [alphaThreshold], including the 1x1 transparent
+ * placeholders the CLIP/KRA readers emit for empty layers.  A 1 px sliver keeps its true bounds:
+ * excluding it is consumer policy, so a genuine hairline art layer is never dropped here.
  *
  * @param Int width Raster width in pixels; may be 0.
  * @param Int height Raster height in pixels; may be 0.

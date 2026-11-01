@@ -26,8 +26,9 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 
 /**
  * Creates (and starts) the platform render service for one open document. Desktop supplies the
- * offscreen GLFW/LWJGL engine; Android supplies its GLES sibling. Injected into
- * rememberPuppetViewportHost so the whole viewport composable stack stays common.
+ * offscreen GLFW/LWJGL engine; Android has no GLES sibling yet and passes no factory, so its viewport
+ * areas render placeholders. Injected into rememberPuppetViewportHost so the whole viewport composable
+ * stack stays common.
  */
 typealias PuppetViewportServiceFactory = (PuppetModel, PuppetTextures, LiveParams) -> PuppetViewportService
 
@@ -200,10 +201,9 @@ interface PuppetViewportService {
 	fun setUvSceneContent(areaId: String, content: UvSceneContent, islandExtent: ContentBounds?)
 
 	/**
-	 * Sets what [areaId] draws beyond its scene: its grid geometry, and whether its frames draw the grid lines,
-	 * the world axes, the mesh overlay, and the wireframe.  Compared by value when the area's freshness is judged, so a
-	 * changed value re-renders that area alone and an equal one renders nothing.  A no-op for an unregistered
-	 * area.
+	 * Sets what [areaId] draws beyond its scene: its grid geometry and its frame overlays.  Compared by value
+	 * when the area's freshness is judged, so a changed value re-renders that area alone and an equal one renders
+	 * nothing.  A no-op for an unregistered area.
 	 *
 	 * @param String       areaId   The area.
 	 * @param AreaOverlays overlays The area's render options.
@@ -350,7 +350,7 @@ interface PuppetViewportService {
 	 * the packed atlas.
 	 *
 	 * The mapping is published whole and takes effect at once; the PIXELS follow separately and
-	 * progressively, through [sourceLayerRequests] and [deliverSourceLayerRasters].  That split is
+	 * progressively, through [deliverSourceLayerRasters].  That split is
 	 * deliberate: a document can reference hundreds of layers, and decoding them all to switch display
 	 * mode is what would stall the switch - or exhaust memory before it finished.
 	 *
@@ -386,11 +386,10 @@ interface PuppetViewportService {
 	/**
 	 * Pushes the atlas page set the current model's placements render from.
 	 *
-	 * The session owns the effective pages now - a repack composes new ones and undo brings the old
-	 * ones back - so the pages arrive through a seam like the model does, instead of being fixed at
-	 * construction.  The engine swaps GPU pages and re-stamps every resident's binding as one
-	 * operation, and applies an atlas-CHANGING model only together with the binding composed for it
-	 * (see [AtlasPageBinding]).
+	 * The session owns the effective pages - a repack composes new ones and undo brings the old ones
+	 * back - so the pages arrive through a seam like the model does.  The engine swaps GPU pages and
+	 * re-stamps every resident's binding as one operation, and applies an atlas-CHANGING model only
+	 * together with the binding composed for it (see [AtlasPageBinding]).
 	 *
 	 * @param AtlasPageBinding binding The pages plus the atlas value they belong to.
 	 */
@@ -457,9 +456,9 @@ interface PuppetViewportService {
 
 	/**
 	 * Sets the lattice cage every 2D area draws over the art from positions of its own, or null for none: the
-	 * cage of each warp an Edit- or Pose-mode session shapes.  Drawn under the Show Overlays
-	 * master like the mesh overlay; a new value replaces the old by identity, and a drag frame re-uploads only the
-	 * position arrays it replaced.
+	 * cage of each warp an Edit- or Pose-mode session shapes.  Drawn under the Show Overlays master like the
+	 * mesh overlay; a new value replaces the old by identity, and a drag frame re-uploads only the position
+	 * arrays it replaced.
 	 *
 	 * @param DirectMeshOverlay? overlay The cage, or null.
 	 */
@@ -469,8 +468,9 @@ interface PuppetViewportService {
 	 * Previews warps at new lattices in every 2D area without a model push: each entry stands in for that warp's
 	 * grid blend at the pose (its blend shapes still add on top), so the warp's art and everything nested under it
 	 * follow, and the lattice layer and the picks read the moved lattice.  An Object-mode warp drag or a Pose-mode
-	 * lattice drag publishes one per frame; a model push that changes a deformer's forms re-poses the whole rig and rebuilds the picker, which
-	 * a drag cannot afford.  An empty map clears the preview; the same instance again is a no-op.
+	 * lattice drag publishes one per frame; a model push that changes a deformer's forms re-poses the whole rig
+	 * and rebuilds the picker, which a drag cannot afford.  An empty map clears the preview; the same instance
+	 * again is a no-op.
 	 *
 	 * @param Map<DeformerId, WarpLatticeForm> overrides Each previewed warp's lattice in its parent's space, before
 	 *   blend shapes.

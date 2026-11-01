@@ -81,14 +81,7 @@ private fun commandRow(
 /**
  * Builds the File menu shared by every platform's menu bar.  Open, Save, and Save As mean the native
  * `.uma` document; artwork, CMO3, and MOC3 come in through the Import submenu (artwork first: it is the
- * headline workflow's entry), and CMO3 / MOC3 are interop boundaries that leave through Export.  Every
- * row dispatches its file.* command, so the menu, the keyboard, and the palette share one path.  Both
- * Save rows are gated on [canSave] (a puppet document that did not open read-only), the CMO3 and MOC3
- * Export rows on [canExport] (a puppet document is open; the CMO3 export reconciles onto a CMO3-origin
- * document's retained graph and synthesizes a fresh one otherwise), and Export Image on [canExportImage]
- * (a puppet document is open on a platform with a puppet renderer to draw it); Open Recent labels each stored path via
- * fileDisplayName, disables itself when the list is empty, and hands the path to file.openPath, which
- * opens or imports by what the file is.
+ * headline workflow's entry), and CMO3 / MOC3 are interop boundaries that leave through Export.
  *
  * @param Keymap       keymap      The keymap the accelerator hints are resolved against.
  * @param List         recentFiles The recent file paths for the Open Recent submenu, most-recent first.
@@ -147,9 +140,7 @@ fun fileMenu(
 
 /**
  * Builds the Edit menu shared by every platform's menu bar, so desktop and the keyboardless tablet reach
- * the same entries from one source (the "one shared interface" guardrail).  Undo and Redo dispatch
- * edit.undo / edit.redo and are enabled per [canUndo] / [canRedo]; Preferences dispatches
- * edit.preferences, whose overlay the shell owns.
+ * the same entries from one source (the "one shared interface" guardrail).
  *
  * @param Keymap       keymap   The keymap the accelerator hints are resolved against.
  * @param Boolean      canUndo  Whether an undo step is available (gates the Undo row).
@@ -176,10 +167,8 @@ fun editMenu(
 	)
 
 /**
- * Builds the Workspace menu shared by every platform's menu bar: Previous / Next (the same tab shift the
- * strip's context menu and primary+PageUp / PageDown reach), then New (the same create path as the tab
- * strip's "+"), Reset (the shell confirms first), and the layout's trips to and from a file.  Every row
- * dispatches its workspace.* command.
+ * Builds the Workspace menu shared by every platform's menu bar: tab navigation, New and Reset, and the
+ * layout's trips to and from a file.
  *
  * @param Keymap       keymap   The keymap the accelerator hints are resolved against.
  * @param MenuDispatch dispatch Runs a command by id.
@@ -207,10 +196,8 @@ fun workspaceMenu(
 	)
 
 /**
- * Builds the Help menu shared by every platform's menu bar: the project links, then Quick Setup, and where the host
- * supports them Check for Updates and Open Log Folder, then Credits and About.  Every row dispatches its help.*
- * command - the links open through the shell's handler, the update check and the log folder through the host's, and
- * the three dialogs through the overlay state the shell owns - so the palette reaches every one of them as well.
+ * Builds the Help menu shared by every platform's menu bar; the host-dependent rows appear only where the
+ * host registered their commands.
  *
  * @param Keymap       keymap             The keymap the accelerator hints are resolved against.
  * @param MenuDispatch dispatch           Runs a command by id.

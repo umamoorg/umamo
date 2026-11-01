@@ -20,8 +20,8 @@ public const val DEFAULT_MAXIMUM_GRID_SIDE: Int = 2048
  * grid's coarseness.
  *
  * Coordinates are raster px, y down.  The grid covers the opaque pixels and any seeds (points or
- * triangles) with a padding of whole cells on every side, aligned to multiples of [cellSize] - so it may reach past the raster
- * into negative coordinates, where everything is transparent.
+ * triangles) with a padding of whole cells on every side, aligned to multiples of [cellSize] - so
+ * it may reach past the raster into negative coordinates, where everything is transparent.
  *
  * A plain class: it holds arrays.
  *
@@ -125,15 +125,10 @@ public class AlphaField internal constructor(
 	 * This field over the art's silhouette at a level: the art with every hole its contours at that
 	 * level enclose filled in, for placing points across the holes as if the art were solid.
 	 *
-	 * A cell is outside when the grid's border reaches it through cells at or above the level, joined
-	 * the way the contours join them.  The silhouette is every opaque cell plus every enclosed cell at
-	 * least the level (and half a cell) away from the outside: what the outer contours enclose, drawn
-	 * back in by the level, which closes the holes and any inlet narrower than twice the level.  On
-	 * the art's outer side the silhouette is the art itself, so the field there barely moves.  The
-	 * result is the silhouette's signed distance on the same grid, never above this field anywhere.
-	 *
-	 * Only the field changes: the exact checks ([segmentClears], [containsOpaquePixelCenter],
-	 * [isOpaquePixel]) still answer for the art's own pixels.
+	 * Filling also closes any inlet narrower than twice the level; on the art's outer side the
+	 * silhouette is the art itself, and the result is never above this field anywhere.  Only the
+	 * field changes: the exact checks ([segmentClears], [containsOpaquePixelCenter], [isOpaquePixel])
+	 * still answer for the art's own pixels.
 	 *
 	 * @param Double level The level whose holes to fill, raster px (positive).
 	 * @return AlphaField The filled field, or this field when nothing is filled.
@@ -199,14 +194,10 @@ public fun LayerRaster.alphaField(
 /**
  * Builds this alpha channel's signed distance field for meshing.
  *
- * The grid covers every pixel at or above the threshold plus every seed point, padded by
- * [paddingCells] cells on each side.  [cellSize] is a minimum: when the padded grid would exceed
- * [maximumGridSide] cells along either side, the cell grows until it fits (read the field's
- * [AlphaField.cellSize]).  Seeds are points that must count as opaque (a mesh's pinned vertices):
- * the pixel under each is marked opaque in both the mask and the grid.  Seed triangles are areas that
- * must count as opaque (the old surface around those vertices, so one lying off the art stays joined
- * to it): every pixel whose center a triangle holds and every pixel its edges cross is marked, so even
- * a sliver too thin to hold a center joins its corners.  Neither alone makes a field.
+ * [cellSize] is a minimum: when the padded grid would exceed [maximumGridSide] cells along either
+ * side, the cell grows until it fits (read the field's [AlphaField.cellSize]).  Seeds are points that
+ * must count as opaque (a mesh's pinned vertices), and seed triangles are areas that must (the old
+ * surface around those vertices, so one lying off the art stays joined to it).
  *
  * @param Int         alphaThreshold  The minimum alpha byte counted as opaque (1..255).
  * @param Int         cellSize        The smallest working cell side, pixels (at least 1).

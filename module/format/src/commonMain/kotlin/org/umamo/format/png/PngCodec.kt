@@ -16,7 +16,7 @@ import org.umamo.format.raster.RasterImage
  * Encodes 8-bit RGBA (color type 6, non-interlaced) - the form the atlas / thumbnail pipeline
  * needs.  DEFLATE is the codec's only platform dependency, reached through the zlib bridge in
  * org.umamo.format.binary, so it decodes byte-identically on every target (no javax.imageio /
- * BitmapFactory, which is exactly what this replaces).
+ * BitmapFactory).
  *
  * Decoding streams: the IDAT data is inflated one scanline at a time straight out of the file
  * bytes, so a decode holds the file and the output image and little else.  Neither the compressed

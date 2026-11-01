@@ -44,9 +44,7 @@ class DialogChoice(
 /**
  * A minimal modal confirm dialog: a scrim over the whole shell with a small centered card carrying the
  * [message] and its buttons.  Presentation-only and shell-agnostic so it is reusable for any destructive
- * action - the caller owns the pending-request state and supplies the actions (the kit has no dialog of its
- * own otherwise).  Clicking the scrim, like Cancel, dismisses without confirming; the card swallows clicks so
- * a press inside it does not count as a scrim dismissal.
+ * action: the caller owns the pending-request state and supplies the actions.
  *
  * The confirm button is the primary one - the dialog's default, which Enter activates wherever the caller
  * routes its keys.  An [alternative] sits apart at the left, so a three-way choice reads as the action, the

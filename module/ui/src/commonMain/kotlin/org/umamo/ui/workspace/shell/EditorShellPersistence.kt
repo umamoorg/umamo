@@ -47,11 +47,8 @@ import org.umamo.ui.workspace.layout.saveLayout
 private const val PERSIST_DEBOUNCE_MS = 400L
 
 /**
- * The settings-backed [EditorShell]: loads the persisted layout at startup (seeding defaults on first
- * run), drives the UI language from the localization.locale setting (reacting to changes), and
- * debounce-persists layout edits back to settings.  Splitter drags are paced separately through a
- * [LayoutSavePacer]: no write happens while the drag is held (even across a mid-drag pause longer
- * than the debounce), and the release commits exactly one write.
+ * The settings-backed [EditorShell]: loads the persisted layout at startup, drives the UI language and
+ * keymap from settings, and persists layout edits back to settings.
  *
  * Kept separate from [EditorShell] so the shell itself stays Settings-free and unit-testable; this is
  * the thin wrapper apps mount.

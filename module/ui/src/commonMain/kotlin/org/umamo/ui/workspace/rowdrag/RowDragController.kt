@@ -37,10 +37,10 @@ data class RowDropTarget(val key: String, val fraction: Float)
  * A panel's row drag-and-drop state, shared by every row so the rows stay thin: each reports its
  * window bounds and its drag gestures here, and the space reads the current drag / drop target to
  * dispatch the move on release, while each row reads its own part in the drag ([roleOf]) to draw
- * its indicator.  Window coordinates throughout, so a
- * pointer that has left the dragged row still hit-tests against every visible row.  Rows are
- * identified by a stable string key (the outliner's node id, the parameters panel's rowKey); what a
- * drag relocates is the panel-specific [Payload] (its kind decides the legal drop bands).
+ * its indicator.  Window coordinates throughout, so a pointer that has left the dragged row still
+ * hit-tests against every visible row.  Rows are identified by a stable string key (the outliner's
+ * node id, the parameters panel's rowKey); what a drag relocates is the panel-specific [Payload] (its
+ * kind decides the legal drop bands).
  *
  * Holds only transient interaction state (never document state), so it is remembered per panel
  * instance and discarded with it.
@@ -128,10 +128,8 @@ class RowDragController<Payload : Any> {
 
 	/**
 	 * Aborts the in-flight drag without dropping.  Compose's drag gestures cannot be aborted from
-	 * outside mid-stream, so cancelling resets the controller state instead: with [draggingKey] null
-	 * the remaining onDrag updates and the release's drop dispatch become no-ops ([dropTargetKey]
-	 * returns null, so the drop application early-returns), and the floating drag label and drop
-	 * indicators - all keyed off [isDragging] - disappear at once.
+	 * outside mid-stream, so cancelling resets the controller state instead, which leaves the gesture's
+	 * remaining moves and its release with no drag to act on.
 	 */
 	fun cancel() {
 		end()

@@ -24,13 +24,9 @@ import org.umamo.ui.model.thumbnails.DrawableThumbnailer
  */
 
 /**
- * Lowers [edited] into a CMO3 for [document], by whichever route the document's origin allows.
- *
- * A CMO3-origin document reconciles onto a fresh read of the graph it retained from import, which is
- * what keeps its real layered art and its byte-identity gates intact while the document's own graph is
- * never written.  A MOC3-origin or artwork-origin document has no retained graph, so a fresh one is
- * synthesized from the blank skeleton plus its atlas pages and then reconciled onto in exactly the same
- * way.  Either way the returned model is the export's own, and nothing else reads it.
+ * Lowers [edited] into a CMO3 for [document], reconciling onto the graph a CMO3-origin document retained
+ * from import, or onto one synthesized fresh for any other origin.  The returned model is the export's own,
+ * and nothing else reads it.
  *
  * The clock and the container key are PARAMETERS, not calls: [Cmo3Conversion.freshCmo3] is
  * deterministic given them, and that determinism is only reachable if the seam extends to the app
@@ -115,10 +111,9 @@ fun prepareCmo3Export(
 		}
 
 		// A UMA document has no retained graph either, since a `.uma` never carries one: a fresh graph is
-		// synthesized as for an artwork document, with the file's stored render pages as the image chain while
-		// the atlas is at the document's baseline (the same identity gate as the CMO3 branch), put into the
-		// model's page order, and a re-encode of the effective pages otherwise.  The document's own rasters
-		// ride along so every tile writes its real layer.
+		// synthesized as for an artwork document, over the pages conversionPagesFor picks (the file's stored
+		// render pages behind the same identity gate as the CMO3 branch).  The document's own rasters ride
+		// along so every tile writes its real layer.
 		is UmaDocument -> {
 			val conversion = conversionPagesFor(document, edited, effectiveTextures)
 			val result =
@@ -161,8 +156,7 @@ fun prepareCmo3Export(
 class RenderedCmo3Export(val bytes: ByteArray, val report: ExportReport)
 
 /**
- * Renders [edited] into the bytes of a CMO3: the model icons' thumbnail, the lowering ([prepareCmo3Export]),
- * and the serialization, in one call that hands back only the bytes and the report.
+ * Renders [edited] into the bytes of a CMO3 and the report of its lowering ([prepareCmo3Export]).
  *
  * One call so that nothing else outlives it: the lowered model graph with every PNG entry it carries is
  * unreachable by the time the caller writes the bytes anywhere, rather than held across the write.  Reads only
@@ -228,10 +222,8 @@ internal class ConversionPages(
  * in the render numbering, where a CMO3 import lists every image a drawable samples in the order its loader
  * met them, an unpacked drawable's raster among them (docs/format/UMA.md §5.5).  Handed over as they are,
  * each raster would become an atlas of its own and a placed tile's entry would land on whatever page shares
- * its index.  So a document whose model has atlas pages takes them in the MODEL's order ([modelOrderPages]):
- * each model page is the render page its placed drawables sample, else the page the tiles compose, else a
- * transparent page of the recorded size.  A document with no model pages (a MOC3's) keeps its render pages,
- * which are its texture order; a derived page set is in the model's order by construction.
+ * its index, so they are put into the MODEL's page order ([modelOrderPages]).  A derived page set is in the
+ * model's order by construction.
  *
  * @param UmaDocument    document          The document being exported.
  * @param PuppetModel    edited            The model being written.

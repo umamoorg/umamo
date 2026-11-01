@@ -59,16 +59,12 @@ private const val BUSY_MILLIS = 1L
 
 /**
  * The render engine: a dedicated daemon thread owns the GL context, the [PuppetRenderer], the supersample
- * framebuffers, and the async read-back pool, and runs the render loop.  Each tick it collects the
- * read-backs that finished, hands the renderer what the UI thread published through [inputs] since the
- * last tick (pages and model as one pair, the artwork mapping and its pixels, the pose), serves the image
- * captures, and renders each registered area whose pose / size / camera / scene content / render options
- * changed, publishing finished frames to the area's slot.
+ * framebuffers, and the async read-back pool, and runs the render loop ([renderLoop]), publishing finished
+ * frames to each area's slot.
  *
  * The read-back is asynchronous (PBO + fence) so the thread never blocks on the GPU while a slider drags.
  * Every 2D area of one document shows the same puppet at the same pose (the shared [liveParams]), so those
- * areas differ only by size, camera, and render options; re-renders happen only when the pose or an area's
- * size / camera / scene content / render options change.
+ * areas differ only by size, camera, and render options.
  *
  * Everything from [renderLoop] down runs on the render thread: the hand-off state is plain fields of
  * this class, and the collaborators holding GL objects or render-thread bookkeeping are never touched
@@ -222,11 +218,8 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
-	 * Hands the renderer what the UI thread published since the last tick: the atlas pages and the model
-	 * as one consistent pair, the artwork mapping and the decoded pixels that arrived for it, and the pose
-	 * when any of its inputs moved.  Each hand-off that changes what the puppet areas show bumps
-	 * [paramsVersion].  The model this tick renders is the published one, or the previous one while the
-	 * pages for the published one's atlas are still in flight.
+	 * Hands the renderer what the UI thread published since the last tick, bumping [paramsVersion] for each
+	 * hand-off that changes what the puppet areas show.
 	 */
 	private fun applyHandoffs() {
 		val params = liveParams.values
@@ -327,9 +320,7 @@ internal class OffscreenRenderEngine(
 
 	/**
 	 * Walks the registered areas and renders each one whose last frame no longer covers what it shows,
-	 * at the scale its size's motion allows.  An area with a read-back in flight is skipped (one per
-	 * area, which coalesces a flurry of slider moves), as is one whose only staleness is a size still
-	 * being dragged inside the throttle window.
+	 * at the scale its size's motion allows.
 	 *
 	 * @return Boolean True when a read-back is in flight or was just issued, so the loop keeps its short
 	 *   poll; false lets it idle.

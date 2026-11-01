@@ -15,7 +15,7 @@ import org.umamo.format.cmo3.serialize.VerbatimNode
  * assignments: recording missing slots/attributes, distinguishing read objects from fresh ones,
  * and dropping shared-pool entries orphaned by structural deletes.
  *
- * @see Cmo3Model.setTargetVersionNo The original single-field precedent this generalizes.
+ * @see Cmo3Model.setTargetVersionNo A single-field use of the same slot bookkeeping.
  */
 public class Cmo3GraphEditor internal constructor(private val graph: ModelGraph) {
 	/**
@@ -62,9 +62,8 @@ public class Cmo3GraphEditor internal constructor(private val graph: ModelGraph)
 	/**
 	 * Drops shared-pool entries no longer reachable from the model root, after structural deletes
 	 * removed the objects that referenced them.  Survivors keep their preserved xs.id and xs.idx
-	 * (the reader keys the pool by id, so index gaps are tolerated).  Reachability follows typed
-	 * fields, collections, and xs.ref attributes inside verbatim subtrees, so partially-typed
-	 * documents never lose a pool entry their untyped content still references.
+	 * (the reader keys the pool by id, so index gaps are tolerated), and an entry that only untyped
+	 * verbatim content still references stays live.
 	 */
 	public fun pruneUnreachableShared() {
 		val sharedById = HashMap<String, Any>()

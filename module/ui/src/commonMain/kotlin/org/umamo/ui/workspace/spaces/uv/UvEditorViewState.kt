@@ -133,12 +133,9 @@ internal data class UvEditorPage(
 )
 
 /**
- * Resolves which atlas page the UV editor shows.  A pinned page the textures can satisfy wins
- * outright - page-first, with no meshed-drawable requirement, so an empty page is still reviewable.
- * Otherwise (following the selection, or a pin the current document cannot satisfy) the page follows
- * the session's active drawable (Edit-mode active mesh first, then the object selection's active
- * drawable), falling back to the first meshed drawable so the space is never blank.  Null when no
- * meshed drawable resolves in follow mode (the space shows its placeholder).
+ * Resolves which atlas page the UV editor shows: a pinned page the textures can satisfy, even an empty
+ * one, else the page of the drawable the session is working on, so the space is never blank over a
+ * document with meshed art.
  *
  * Untextured fallback: a 1x1 "page" turns the display mapping into the flipped unit square, so the
  * wireframe still shows (over the grid) for a drawable with no atlas entry.  Must equal the
@@ -207,12 +204,8 @@ internal data class UvEditorLayer(
 )
 
 /**
- * Resolves which source layer the UV editor shows: the one the active drawable was authored against,
- * following the same precedence the page chain uses (Edit-mode active mesh, then the object
- * selection's active drawable, then the first meshed drawable).
- *
- * Null when nothing resolves a layer - an empty atlas, no active drawable, or a drawable with no
- * tile of its own.  The space falls back to its page view then, so choosing the layer mode never
+ * Resolves which source layer the UV editor shows: the tile of the drawable the view follows
+ * ([activeUvDrawable]).  With none the space falls back to its page view, so choosing the layer mode never
  * blanks the editor.
  *
  * @param PuppetModel model The session's committed model.
@@ -260,12 +253,8 @@ private fun activeUvDrawable(model: PuppetModel, meshSelection: MeshSelection, o
 }
 
 /**
- * The meshes drawn over a shown source layer, under the same Edit / Object rule the page view uses:
- * the session's edited meshes while editing, every visible mesh while selecting.
- *
- * Duplicated art shares a layer, so several drawables can draw over one image at once - which is why
- * Object mode shows them all (they are the click targets) and Edit mode does not (only the meshes the
- * session is editing can actually be moved).
+ * The meshes drawn over a shown source layer, under the same Edit / Object rule the page view uses
+ * ([shownSurfaceDrawables]).  Duplicated art shares a layer, so several drawables can draw over one image.
  *
  * @param PuppetModel model The session's committed model.
  * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.
@@ -282,16 +271,13 @@ internal fun shownLayerDrawables(
 	shownSurfaceDrawables(model, mode, meshSelection) { drawable -> drawable.atlasTileId?.raw == layerKey }
 
 /**
- * Each shown drawable's mapping IN THE SHOWN SURFACE'S OWN FRAME - the coordinates that address the
- * image the editor is drawing over.
+ * Each shown drawable's mapping IN THE SHOWN SURFACE'S OWN FRAME: the stored coordinates over a page, the
+ * stored ones recovered through the drawable's placement over a source layer, and absent rather than mapped
+ * to a wrong place where that recovery is degenerate.  One map feeds both the overlays' display projection
+ * and the island pick's alpha gate, so the two never disagree about where a mesh is.
  *
- * Over a page those are the stored coordinates verbatim; over a source layer they are the stored ones
- * recovered through the drawable's placement.  One map serves both of the things that need them: the
- * display projection the overlays draw, and the alpha gate the island pick samples the shown image
- * with.  Deriving them once is what keeps those two from disagreeing about where a mesh is.
- *
- * A drawable whose recovery is degenerate is absent rather than mapped to a wrong place.  This is the
- * one-shot form; an area keeps a [UvGizmoGeometryCache], which computes the same per mesh and keeps it.
+ * This is the one-shot form; an area keeps a [UvGizmoGeometryCache], which computes the same per mesh and
+ * keeps it.
  *
  * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
  * @param PuppetModel    model The puppet, for the atlas the layer mapping derives from.
@@ -306,10 +292,8 @@ internal fun shownSurfaceUvs(
 
 /**
  * The texture-selection transition for one page-switch request: cycling pins the page adjacent to
- * the EFFECTIVE page (what the area is actually showing, pin or follow) with wrap-around, and
- * FollowSelection clears the pin.  From the untextured fallback (a null effective page) NextPage
- * pins the first page and PreviousPage the last, so cycling always lands somewhere real.  With no
- * pages at all there is nothing to pin and cycling keeps the selection unchanged.
+ * the EFFECTIVE page (what the area is actually showing, pin or follow) with wrap-around, so it always
+ * lands on a real page, and FollowSelection clears the pin.
  *
  * @param UvPageKind kind The requested page operation.
  * @param UvTextureSelection currentSelection The area's stored texture selection.
@@ -346,13 +330,8 @@ internal fun uvPageSelectionAfter(
 	}
 
 /**
- * The meshes drawn over the shown page: in Edit mode every session mesh sampling this page (the
- * active one is emphasized via the highlight sets), in Object mode EVERY visible meshed drawable
- * mapped to the page, in model (parts-tree) order - the islands are the click targets, so all of
- * them show, selection styling the difference.  Visibility follows the Parts-panel eyeball cascade
- * (visibleDrawableIds), matching what the viewport can render and therefore pick; a hidden island
- * neither draws nor picks.  Meshes without an editable UV array (empty or malformed) and meshes
- * mapped to another page are excluded everywhere.
+ * The meshes drawn over the shown page, under the Edit / Object rule of [shownSurfaceDrawables], in model
+ * (parts-tree) order.
  *
  * @param PuppetModel model The session's committed model.
  * @param EditorMode mode The session mode selecting the Edit / Object candidate rule.

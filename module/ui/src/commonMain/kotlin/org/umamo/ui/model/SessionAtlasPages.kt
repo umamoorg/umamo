@@ -19,26 +19,23 @@ import org.umamo.ui.viewport.AtlasPageBinding
  * The session's effective atlas pages: which pixels the model's current atlas value denotes.
  *
  * Pages are DERIVED state, not history state - a snapshot must never hold pixels - so this follows
- * the session's model and resolves each atlas value to a page set: the document's imported baseline
- * short-circuits to its own decoded pages (byte-exact originals, nothing composed on open), and a
- * generated value (a repack's) composes through deriveAtlasTextures.  Undo and redo therefore swap
- * pages with no help from anyone: restoring the model IS the trigger.
+ * the session's model and resolves each atlas value to a page set.  Undo and redo therefore swap pages
+ * with no help from anyone: restoring the model IS the trigger.
  *
  * Resolution is memoized by ATLAS IDENTITY, which the model's copy-on-write discipline makes exact:
  * every non-atlas edit passes `atlas` through by reference, and undo restores the very instance the
  * snapshot holds.  The cache is the baseline plus ONE derived entry - a page set is hundreds of
  * megabytes at full size, so holding generations would be ruinous; the single slot gives redo its
  * free round trip, and an older generation re-derives off-thread while the current pages keep
- * rendering.  The repack pre-warms the slot with the pages it already composed, so the commit that
- * publishes its model cache-hits instead of composing twice.
+ * rendering.
  *
  * UI-thread confined (the binding is Compose state); only the derivation itself runs on the default
  * dispatcher.
  *
- * @property EditorSession    session    The session whose model drives the resolution.
+ * @property EditorSession    session          The session whose model drives the resolution.
  * @property PuppetAtlas      baselineAtlas    The imported document's atlas value.
  * @property PuppetTextures   baselineTextures The imported document's decoded pages.
- * @property SourceArtRasters artRasters The source-art pixels a generated value composes from.
+ * @property SourceArtRasters artRasters       The source-art pixels a generated value composes from.
  */
 class SessionAtlasPages(
 	private val session: EditorSession,

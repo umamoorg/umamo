@@ -86,15 +86,8 @@ data class ButtonGroupItem(
  * A Blender-style run of butted toggles: the segments sit flush against each other separated by a
  * hairline seam, with the group's outer corners rounded and every shared edge square - one pill-shaped
  * control rather than a run of isolated chips.  Each segment carries its own selected state, so the
- * group serves both independent toggles (the outliner's restriction columns) and radio-style sets (the
- * viewport's mesh select modes, the proportional falloff curves) - the caller decides the semantics in
- * its onClick handlers.
- *
- * A horizontal group is a row of segments, each as wide as its face.  A vertical group is a column - an
- * expanded option list, Blender's enum laid out in a panel - whose segments all take the group's width:
- * the widest segment's, or the caller's when it gives the group a width.  Segments are icon-only (a
- * fixed glyph face) or labeled (the glyph and the label, centered in a row and start-aligned in a
- * column).
+ * group serves both independent toggles and radio-style sets - the caller decides the semantics in its
+ * onClick handlers.  A vertical group is an expanded option list, Blender's enum laid out in a panel.
  *
  * @param List items The segments, in display order.
  * @param Modifier modifier The layout modifier.
@@ -142,9 +135,7 @@ fun ButtonGroup(items: List<ButtonGroupItem>, modifier: Modifier = Modifier, axi
 }
 
 /**
- * Shapes one segment by its position in the group, delegating to the shared [stackedShape] helper that
- * the vertical numeric-field stack also uses: outer corners take the group's rounding, corners shared
- * with a neighbor are squared.
+ * Shapes one segment by its position in the group through the shared [stackedShape].
  *
  * @param CornerBasedShape groupShape The rounding applied to the group's outer corners.
  * @param Int segmentIndex This segment's position.
@@ -156,11 +147,9 @@ private fun segmentShape(groupShape: CornerBasedShape, segmentIndex: Int, segmen
 	stackedShape(groupShape, stackPositionOf(segmentIndex, segmentCount), axis)
 
 /**
- * One rendered segment: a full-bleed fill (accent while selected, neutral control fill otherwise, both
- * brightening on hover) under the glyph, and the label beside it when the segment has one.  Flat like the
- * rest of the kit - the default indication is suppressed and the fill carries the hover feedback.  The
- * fill and the content share [accentControlFill] / [accentControlGlyph] with the filled [IconButton], so
- * header controls and segments read as one family.
+ * One rendered segment: a full-bleed fill under the glyph, and the label beside it when the segment has
+ * one.  The fill and the content share [accentControlFill] / [accentControlGlyph] with the filled
+ * [IconButton], so header controls and segments read as one family.
  *
  * @param ButtonGroupItem item The segment to draw.
  * @param Shape shape The position-dependent corner shape from [segmentShape].

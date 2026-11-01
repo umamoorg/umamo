@@ -135,15 +135,11 @@ data class KeyformSheetProjection(
 /**
  * The per-(item, channel) tracks keyed on [parameterId], in outliner order, grouped under their owner.
  *
- * One row per channel rather than one per item, because that is what the split made possible: an item can
- * key opacity on a parameter its geometry never touches, and collapsing those into one row would hide
- * exactly the thing the sheet exists to show.  An item contributes a GEOMETRY track when its geometry grid
- * keys on the parameter, one track per channel grid that does, and one per blend-shape binding driven by
- * it (drawn with square marks, matching the parameter slider's own key marks).
- *
- * Those tracks hang under a per-owner group row so a rig with hundreds of deformers can be folded down to
- * the handful being worked on.  A collapsed group still shows its subtree's key positions - see
- * `summarizedMarks` - so folding hides the detail, never the fact that keys are there.
+ * One row per channel rather than one per item, because an item can key opacity on a parameter its geometry
+ * never touches, and collapsing those into one row would hide exactly the thing the sheet exists to show.
+ * The tracks hang under a per-owner group row so a rig with hundreds of deformers can be folded down to the
+ * handful being worked on; a collapsed group still shows its subtree's key positions, so folding hides the
+ * detail, never the fact that keys are there.
  *
  * @param PuppetModel puppet The rig.
  * @param ParameterId parameterId The parameter whose tracks to list.
@@ -242,7 +238,7 @@ fun keyformSheetRows(
  * Accumulates one owner at a time into the group rows, targets, and kind map that make up a projection.
  *
  * A builder rather than three separate passes because the row key is the join between all three maps, and
- * deriving it twice in two places is exactly how they drifted apart before.
+ * deriving it in more than one place would let them drift apart.
  *
  * @property KeyformTrackLabels labels The localized chrome labels.
  * @property ParameterId parameterId The parameter being listed, which is part of a key ref's identity.
@@ -397,7 +393,11 @@ private class ProjectionBuilder(
 			}
 		}
 
-	/** The accumulated projection. */
+	/**
+	 * The accumulated projection.
+	 *
+	 * @return KeyformSheetProjection The rows and their model bindings.
+	 */
 	fun build(): KeyformSheetProjection =
 		KeyformSheetProjection(
 			rows = rows,

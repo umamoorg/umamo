@@ -37,18 +37,10 @@ fun PropertyLine(text: String) {
 
 /**
  * A labelled property field row, Blender-style: the right-aligned label takes the left half and the control
- * fills the right half, so a column of rows aligns and every field spans a consistent width.  The control
- * should [Modifier.fillMaxWidth] so it fills its half.
+ * fills the right half.  The control should [Modifier.fillMaxWidth] so it fills its half.
  *
- * [description] is what the field does, shown as a tooltip over the LABEL HALF only.  The control keeps its
- * own hover: nested tooltip areas all fire at once, so one wrapping the whole row would stack a second card
- * over the icon buttons a relation or color field tooltips itself, and it would pop over a field mid-scrub.
- *
- * [trailingGutter] reserves space at the RIGHT EDGE OF THE CONTROL for an adornment that sits outside the
- * row (an [AspectLockFieldPair]'s lock).  It shrinks the control only - the label column keeps its half of the
- * full row width, so a row with a gutter still lines up with the plain rows above and below it.  Reserving
- * the space here rather than wrapping the whole row in a narrower box is the difference between the field
- * shrinking and the entire two-column grid shifting.
+ * [trailingGutter] shrinks the control only, so a row reserving room for an out-of-row adornment (an
+ * [AspectLockFieldPair]'s lock) still lines up with the plain rows above and below it.
  *
  * @param String label The localized field label.
  * @param String description What the field does, as the label's tooltip; blank attaches none.
@@ -84,10 +76,7 @@ fun PropertyFieldRow(
 /**
  * A property checkbox row: the checkbox (box plus its own label) sits in the right half like every other
  * field, with the left label column left empty - matching Blender, where a lone toggle occupies the field
- * column.  A group of related toggles can carry a left-column heading later.
- *
- * The checkbox's label is the row's label, so [description] tooltips the checkbox itself; it has no hover
- * of its own to collide with.
+ * column.
  *
  * @param Boolean checked The current state.
  * @param Function onCheckedChange The toggle callback.

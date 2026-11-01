@@ -294,11 +294,7 @@ internal class GuideInsertion(
 	}
 
 	/**
-	 * One step toward holding a guide edge as a chain of constraints through store vertices along it:
-	 * its ends first; then, from each end in the domain toward one outside it, the constraints the edge
-	 * crosses until it leaves the domain, each split where the edge crosses it; then each piece of the
-	 * chain as a constraint, splitting any constraint in its way.  When the chain is whole and the edge
-	 * still strays, or no chain can start, a vertex goes in at its worst crossing.
+	 * One step toward holding a guide edge as a chain of constraints through store vertices along it.
 	 *
 	 * @param Int edge The edge's position in [guideEdges].
 	 * @return Boolean True when the store changed.
@@ -993,11 +989,9 @@ internal class GuideInsertion(
 
 	/**
 	 * Walks the current line from where it stands - a store vertex on it, or a triangle it lies in, entered
-	 * through a half-edge or from inside - through the domain's triangles.  The line leaves a triangle
-	 * through an edge whose origin lies right of it and destination left, or through a corner on it;
-	 * from a vertex, it leaves along a spoke or into the one triangle around the vertex it splits.  A
-	 * trace folds the error at every edge it crosses; an obstacle walk stops at the first constrained
-	 * edge or vertex on the line it meets.
+	 * through a half-edge or from inside - through the domain's triangles.  A trace folds the error at
+	 * every edge it crosses; an obstacle walk stops at the first constrained edge or vertex on the line it
+	 * meets.
 	 *
 	 * @param Int     startVertex   The vertex it stands on, or [SteinerInsertion.NO_VERTEX].
 	 * @param Int     startTriangle The triangle it stands in, when not on a vertex.

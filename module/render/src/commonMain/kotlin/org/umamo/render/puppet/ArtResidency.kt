@@ -52,12 +52,12 @@ internal class ArtResidency(
 	private var layerPlan: LayerDrawPlan = LayerDrawPlan.EMPTY
 
 	// The uploaded artwork, keyed by LAYER (duplicated art is shared, so this is the count of distinct
-	// images, not of drawables).  Only applySourceLayerDisplay adds to or removes from it, because
-	// freeing a texture is only safe together with the re-stamp that stops drawables pointing at it.
+	// images, not of drawables).  Only applySourceLayerDisplay frees from it while the renderer lives,
+	// because freeing a texture is only safe together with the re-stamp that stops drawables pointing at it.
 	private val layerTextures = HashMap<String, GpuTexture>()
 
-	// Layers the document references but whose pixels would not decode.  Held so the ask stops repeating
-	// them; cleared with the plan, because a new document may well decode them.
+	// Layers the document references but whose pixels would not decode.  Held so the mode can engage
+	// without waiting on them; cleared with the plan, because a new document may well decode them.
 	private val undecodableLayerKeys = HashSet<String>()
 
 	// Whether the puppet is actually displaying from artwork.  False until every mapped layer has landed,
@@ -161,25 +161,14 @@ internal class ArtResidency(
 	}
 
 	/**
-	 * Frees artwork the current plan does not want, re-points every resident, and republishes the ask.
+	 * Frees artwork the current plan does not want and re-points every resident, and is also run after a
+	 * reconcile, since a rebuilt resident comes back on its atlas page.
 	 *
-	 * THE ONLY MUTATOR of [layerTextures]: freeing a texture while a drawable still points at it leaves a
-	 * dangling handle that draws garbage, so freeing and the re-stamp are one operation rather than two a
-	 * caller must remember to pair.
-	 *
-	 * Display is ALL OR NOTHING.  Source-artwork display is an inspection mode - the rigger is looking at
-	 * the art to judge it - so a puppet showing artwork for some drawables and atlas pages for the rest
-	 * is not a partial success, it is a view that cannot be trusted, because nothing on screen
-	 * distinguishes the two.  Until every layer the plan maps has either landed or proved undecodable,
-	 * the whole puppet stays on its atlas.
-	 *
-	 * The one permitted mix is artwork that does not EXIST: a drawable the document retains no art for,
-	 * or art that will not decode, keeps its atlas page and is counted and reported to the rigger.  That
-	 * is honest - the mode cannot show what is not there - and it is bounded and named, where a
-	 * memory-driven mix would be silent and arbitrary.
-	 *
-	 * Also run after a reconcile: a rebuilt resident comes back on its atlas page, so the whole set is
-	 * re-pointed at the artwork the document displays from.
+	 * Display is ALL OR NOTHING.  Source-artwork display is an inspection mode, and nothing on screen
+	 * would distinguish a drawable showing artwork from one showing its atlas page, so until every layer
+	 * the plan maps has either landed or proved undecodable, the whole puppet stays on its atlas.  The one
+	 * permitted mix is artwork that does not EXIST (no retained art, or art that will not decode), which
+	 * keeps its atlas page and is reported to the rigger.
 	 */
 	fun applySourceLayerDisplay() {
 		val wanted = layerPlan.layerByteCostByKey.keys - undecodableLayerKeys
@@ -269,10 +258,6 @@ internal class ArtResidency(
 	 * Applied to EVERY resident, not just the drawn ones: a mask source is posed and drawn into the
 	 * coverage pass while sitting outside the shown set, and a mask sampling one frame while the art it
 	 * clips samples the other cuts the silhouette to garbage.
-	 *
-	 * Nothing points at artwork until the mode is READY - every mapped layer landed - so the puppet is
-	 * never caught half in one frame and half in the other.  After that, the only drawables left on the
-	 * atlas are the ones whose artwork does not exist, which are counted and reported.
 	 *
 	 * @param GpuDrawable gpuDrawable The resident to stamp.
 	 * @param DrawableId  drawableId  Its id, keying into the current plan.

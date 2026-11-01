@@ -89,9 +89,10 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 
 	/**
 	 * The area's own grid geometry, or null while the area follows the application's grid for its surface (the
-	 * viewport.grid.* setting on a 2D viewport, viewport.uvGrid.* on a UV editor).  The first edit of a grid field in the overlays popover gives the area its own; the reset beside the fields
-	 * takes it back.  Saved as the `gridGeometry` key on both surfaces: the scale is world units on a 2D viewport
-	 * and texels on a UV editor, one grid model read in each surface's unit.
+	 * viewport.grid.* setting on a 2D viewport, viewport.uvGrid.* on a UV editor).  The first edit of a grid field
+	 * in the overlays popover gives the area its own; the reset beside the fields takes it back.  Saved as the
+	 * `gridGeometry` key on both surfaces: the scale is world units on a 2D viewport and texels on a UV editor, one
+	 * grid model read in each surface's unit.
 	 */
 	var gridGeometry by mutableStateOf<GridConfig?>(null)
 
@@ -199,7 +200,7 @@ fun rememberApplicationGrid(surface: OverlaySurface): GridConfig {
  * readers that resolve its grid through [ViewportOverlayState.grid]: the popover's fields, the snap commands,
  * and the gizmo overlays' snap handlers.  Mounted by the space body that owns the state, with or without a
  * renderer behind the area, so a platform with no render host resolves the setting too and never the
- * built-in default.  Written after composition and only on a change, so an unchanged setting writes nothing.
+ * built-in default.
  *
  * @param ViewportOverlayState state The area's overlay state.
  */

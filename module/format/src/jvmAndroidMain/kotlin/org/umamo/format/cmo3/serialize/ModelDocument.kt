@@ -9,15 +9,9 @@ import org.umamo.format.cmo3.xml.XmlCodec
  * The parsed model document (main.xml): the `<root>` graph plus its `<?version?>`/`<?import?>`
  * processing instructions, with navigable views over the shared pool and the main root.
  *
- * EN: This is the backbone the reflective serializer plugs into. It wraps the live JDOM
- *     [document], so [write] re-emits byte-identically (verbatim fallback) even before any class
- *     is typed; the parsed accessors (versions/imports/shared/main) drive the typed layer.
- *     The serializer model: `<root>` holds a
- *     `<shared>` pool of referenceable objects (each `xs.id`/`xs.idx`) and a `<main>` root; uses
- *     reference each def via `xs.ref`. To keep byte-identity while only some classes are typed, the
- *     writer must REUSE the `xs.id`/`xs.idx` and `<shared>` ordering captured here rather than
- *     recompute the editor's global refId/writtenIndex counters.
- * JA: main.xml を表すモデル文書。JDOM をそのまま保持するため、未対応クラスでも write はバイト一致する。
+ * It wraps the live JDOM [document], so [write] re-emits it byte-identically while unmodified.  The
+ * serializer model: `<root>` holds a `<shared>` pool of referenceable objects (each `xs.id`/`xs.idx`)
+ * and a `<main>` root; uses reference each def via `xs.ref`.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Payload: main.xml</a>
  */
@@ -105,8 +99,3 @@ public class ModelDocument private constructor(
 		public fun parse(bytes: ByteArray): ModelDocument = ModelDocument(XmlCodec.parse(bytes))
 	}
 }
-
-// TODO(diagnostics): when the reflective serializer materialises typed objects, route any element
-// whose tag has no registered typed serializer through the verbatim fallback AND emit a diagnostic
-// (configurable sink) naming the unimplemented tag + its stack path - so new Live2D format additions
-// are visible rather than silently passed through.

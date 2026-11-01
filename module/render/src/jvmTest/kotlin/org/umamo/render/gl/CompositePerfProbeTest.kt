@@ -17,12 +17,11 @@ import kotlin.test.Test
 
 /**
  * Print-only compositing perf probe on Model A: frame times with the composites live vs the same
- * model with every isolated group demoted to Grouped, at a supersampled-ish viewport.  With the
- * bounds-scissor + identity-flatten + empty-layer-skip optimizations in place the composite path
- * runs BELOW the all-grouped baseline (faded / off-viewport groups are skipped, and the surviving
- * composites are scissored to their subtree bounds), so the delta is now negative.  Pins nothing -
- * see docs/plan/offscreen-support.md for the numbers and the mechanisms.  Skips without a GL
- * context or the corpus.
+ * model with every isolated group demoted to Grouped, at a supersampled-ish viewport.  The composite
+ * path runs BELOW the all-grouped baseline, so the printed delta is negative: faded and off-viewport
+ * groups are skipped, identity composites are flattened, empty layers are skipped, and the surviving
+ * composites are scissored to their subtree bounds.  Pins nothing.  Skips without a GL context or the
+ * corpus.
  */
 class CompositePerfProbeTest {
 	private val viewportWidth = 1200

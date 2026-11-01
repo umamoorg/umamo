@@ -38,10 +38,9 @@ import org.umamo.ui.workspace.spaces.zebraFill
 
 /**
  * The history space: the session's undo stack as a clickable list, oldest at the top and the live step
- * highlighted (Blender's Undo History / Photoshop's History panel). Clicking a row jumps the session
- * straight to that step — undoing or redoing several levels at once — and the steps ahead of the cursor
- * (the redo branch) are dimmed. A trailing dot marks the last-saved step. The whole list is a projection
- * the session republishes ([org.umamo.edit.EditorSession.historyView]), so it tracks edits made anywhere.
+ * highlighted (Blender's Undo History).  Clicking a row jumps the session straight to that step, undoing or
+ * redoing several levels at once.  The list is a projection the session republishes
+ * ([org.umamo.edit.EditorSession.historyView]), so it tracks edits made anywhere.
  *
  * @param Modifier modifier The layout modifier.
  */

@@ -8,10 +8,10 @@ import java.lang.management.ManagementFactory
 import kotlin.system.exitProcess
 
 /*
- * A jar started with too little memory starts itself again with enough (docs/plan/distribution.md D13).
+ * A jar started with too little memory starts itself again with enough.
  *
  * `java -jar` gets a quarter of the machine's memory, which a large export can run out of, and a jar cannot
- * carry a heap option the way the installed launcher does.  Intel Macs run the jar for good (D12), and a
+ * carry a heap option the way the installed launcher does.  Intel Macs run the jar for good, and a
  * double-clicked jar cannot be given a flag at all, so rather than only telling the rigger what to type, the
  * jar re-executes the same Java with JAR_HEAP_OPTION and waits for that child.  It is the first thing main does
  * after the self-check branch (SelfCheck.kt): before anything touches AWT (a second Dock icon on macOS) or opens
@@ -193,9 +193,7 @@ internal fun gatherJarLaunchFacts(): JarLaunchFacts? {
 
 /**
  * Relaunches a jar started with too little heap, and does not return when it does: this process waits for
- * the child and exits with its code, so a terminal launch behaves as before.  The child's environment drops
- * the option variables, because their options already reach it through the input arguments and would
- * otherwise apply twice.  A shutdown hook takes the child down with this process.
+ * the child and exits with its code, so a terminal launch reports the child's outcome as its own.
  *
  * @param JarLaunchFacts? jarLaunch        What the launch knows about itself ([gatherJarLaunchFacts]), or null
  *   when it is not a jar launch, which never relaunches.
@@ -211,6 +209,7 @@ internal fun relaunchForHeapIfDue(jarLaunch: JarLaunchFacts?, programArguments: 
 	}
 
 	val builder = ProcessBuilder(decision.command).inheritIO()
+	// The option variables' options already reach the child through the input arguments and would otherwise apply twice.
 	builder.environment().keys.removeAll(OPTION_ENVIRONMENT_VARIABLES)
 	val child =
 		try {

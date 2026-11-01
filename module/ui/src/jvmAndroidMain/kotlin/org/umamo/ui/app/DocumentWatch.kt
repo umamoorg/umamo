@@ -58,10 +58,8 @@ internal class DocumentWatch(
  * the document goes, following the model's source list and landing its events on the session.
  *
  * The watcher runs over the CALLER's scope rather than one of its own, because that scope's dispatcher
- * is what confines the coordinator's state.  The watch mode is read live from settings at every
- * decision, so the Import setting applies at once.  A due reload goes THROUGH the command registry, so
- * the operation strip shows in the last work surface exactly as a pressed Reload does; the rest are
- * notices.  Real file-system paths only: a platform uri has nothing to poll.
+ * is what confines the coordinator's state.  A due reload goes THROUGH the command registry, so the
+ * operation strip shows in the last work surface exactly as a pressed Reload does.
  *
  * @param Document?       document        The open document, or null.
  * @param EditorSession?  session         The open document's session, or null.

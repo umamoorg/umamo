@@ -152,10 +152,12 @@ internal class WarpWorld(
 	internal fun worldControlPoints(): FloatArray = FloatArray(cp.size) { componentIndex -> if (componentIndex % 2 == 0) cp[componentIndex] else -cp[componentIndex] }
 }
 
-/** A rotation deformer's world transform: a baked affine. [xform] is `internal` so the GPU renderer can
- *  upload its 6 coefficients as shader uniforms (the same affine the CPU `apply` evaluates).
- *  [ownAngleDegrees] and [ownScale] are the deformer's own blended angle (base angle included) and scale,
- *  before any ancestor composes onto them: the values a rigger keys, which [deformerPlacement] reports. */
+/**
+ * A rotation deformer's world transform: a baked affine.  [xform] is `internal` so the GPU renderer can
+ * upload its 6 coefficients as shader uniforms (the same affine the CPU `apply` evaluates).
+ * [ownAngleDegrees] and [ownScale] are the deformer's own blended angle (base angle included) and scale,
+ * before any ancestor composes onto them: the values a rigger keys, which [deformerPlacement] reports.
+ */
 internal class RotationWorld(
 	internal val xform: RotationXform,
 	override val accY: Float,
@@ -529,9 +531,8 @@ private fun buildRotationWorld(
 }
 
 /**
- * The rotation a parent transform imposes at a child rotation's origin, in radians: the parent is probed by
- * displacing along -Y from the origin and reading the direction the displacement comes out in.  The step is
- * -10 under a rotation parent and -0.1 under a warp, shrunk by tenths while it lands on the same point.
+ * The rotation a parent transform imposes at a child rotation's origin, in radians, probed by displacing along
+ * -Y from the origin and reading the direction the displacement comes out in.
  *
  * The one definition both the rotation's world build and any edit that must hold a rotation's world angle
  * read, so the two cannot disagree about what the parent contributes.
@@ -663,8 +664,8 @@ internal fun deformMeshWorldFromCorners(
  * Applies a deformer's blend-shape channel offsets onto its grid-blended channels.
  *
  * Additive like every other blend contribution, clamped to 0..1 only AFTER the sum so a record whose
- * neighbours pull the other way is not biased.  Returns [local] untouched when nothing contributes,
- * which keeps the blend-free path allocation-identical to before.
+ * neighbors pull the other way is not biased.  Returns [local] untouched when nothing contributes, so
+ * the blend-free path allocates nothing.
  *
  * @param DeformerChannels            local  The deformer's own grid-blended channels.
  * @param DeformerBlendChannelDeltas? deltas The summed blend offsets, or null when none apply.

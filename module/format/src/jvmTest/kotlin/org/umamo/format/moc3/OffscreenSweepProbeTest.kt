@@ -10,9 +10,8 @@ import kotlin.test.Test
 /**
  * Print-only probe over the baked ModelWithOffscreen family: pairs each file's MOC3 offscreen
  * scalar sections (152-163) with the CMO3-authored enum sweep to derive the blend-mode int
- * mapping, and dumps the sections the lowering currently misses on these mesh-less models
- * (83-85 render-order aggregates, CountInfo, color-table presence).  Feeds
- * docs/plan/offscreen-support.md; pins nothing.
+ * mapping, and dumps the real and lowered values of the sections these mesh-less models stress
+ * (83-85 render-order aggregates, CountInfo) plus color-table presence.  Pins nothing.
  */
 class OffscreenSweepProbeTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
@@ -73,7 +72,7 @@ class OffscreenSweepProbeTest {
 				)
 			}
 
-			// Raw v6 offscreen scalar sections, incl. the carried unknowns 153/154/160.
+			// Raw v6 offscreen scalar sections.
 			for (sectionIndex in 152..163) {
 				val raw = intsOf(model.section(sectionIndex))
 
@@ -82,7 +81,7 @@ class OffscreenSweepProbeTest {
 				}
 			}
 
-			// The lowering mismatches: real vs synthesized 83/84/85 and CountInfo.
+			// Real vs synthesized 83/84/85 and CountInfo.
 			val lowered = MocLowering.lower(doc)
 
 			for (sectionIndex in 83..85) {

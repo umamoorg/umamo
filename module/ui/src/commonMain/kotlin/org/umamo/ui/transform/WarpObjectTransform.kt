@@ -30,10 +30,9 @@ import org.umamo.runtime.model.applyAffine
 
 /**
  * Warp [warpId] moved as a whole by [worldAffine]: every point of every form it carries is taken through its parent
- * at rest into world space, moved, and brought back.  Under a root or rotation parent that is the parent-space form
- * of the affine itself, so at every pose the evaluated lattice in the parent's space is that affine of the old one -
- * its keyed motion goes with it, and a posed parent carries it as it did before (at rest it lands on [worldAffine]
- * exactly).  Under a warp parent it is a per-point inverse through the parent's rest lattice.
+ * at rest into world space, moved, and brought back.  Under a root or rotation parent that is the affine itself in
+ * the parent's space, so the keyed motion goes with it at every pose; under a warp parent it is a per-point inverse
+ * through the parent's rest lattice.
  *
  * @param PuppetModel model The model.
  * @param DeformerId warpId The warp.

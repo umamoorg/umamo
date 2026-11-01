@@ -45,9 +45,9 @@ internal class KeyformSheetSurface(
  * The shell-wide registry of open keyform-sheet areas, keyed by area id.
  *
  * The sheet's commands (delete/nudge selected keys, frame all) are registered ONCE at shell level and
- * resolve the acting sheet through this at dispatch time.  Registering them per area looked simpler but
- * was wrong twice over: CommandRegistry is last-write-wins per id, so a second sheet area clobbered the
- * first's handlers, and disposing either area unregistered the shared ids out from under the survivor.
+ * resolve the acting sheet through this at dispatch time.  Registering them per area would be wrong twice
+ * over: CommandRegistry is last-write-wins per id, so a second sheet area would clobber the first's
+ * handlers, and disposing either area would unregister the shared ids out from under the survivor.
  */
 internal class KeyformSheetViews {
 	private val surfacesByAreaId = LinkedHashMap<String, KeyformSheetSurface>()

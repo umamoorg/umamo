@@ -104,11 +104,9 @@ internal fun ChevronSlot(visible: Boolean, expanded: Boolean, labels: OutlinerLa
 }
 
 /**
- * The type-icon slot: a fixed-width box drawing the themed vector icon for [OutlinerIcon] (from the
- * shared UmamoIcons set), distinct enough to tell the kinds apart at a glance.  Each node family carries
- * a signature palette tint ([UmamoColors.outlinerObjectTint] / [UmamoColors.outlinerDeformTint], after
- * Blender's armature object / data colors) - only this function maps an [OutlinerIcon] to its art, so
- * the row layout never changes when an icon does.
+ * The type-icon slot: a fixed-width box drawing the themed icon for [OutlinerIcon], tinted by node family
+ * ([UmamoColors.outlinerObjectTint] / [UmamoColors.outlinerDeformTint]).  Only this function maps an
+ * [OutlinerIcon] to its art, so the row layout never changes when an icon does.
  *
  * @param OutlinerIcon icon The icon kind.
  * @param Boolean dimmed Whether the row is muted (the glyph fades to match).
@@ -141,10 +139,8 @@ internal fun OutlinerIconSlot(icon: OutlinerIcon, dimmed: Boolean) {
 }
 
 /**
- * The clickable visibility eye: open while the row's entity is shown, struck-through while hidden.
- * Clicking flips the entity's visibility; with Shift held it flips the whole subtree to one uniform value
- * (Blender parity).  The slot consumes its own press so the whole-row selection handler skips it,
- * mirroring the chevron.
+ * The clickable visibility eye: open while the row's entity is shown, struck-through while hidden.  The slot
+ * consumes its own press so the whole-row selection handler skips it.
  *
  * Unlike the chevron this one does take a tooltip: the eye is genuinely icon-only, and nothing else in the
  * row says what it does.  It reuses the context menu's own label so the two routes to the same edit read
@@ -168,13 +164,9 @@ internal fun VisibilityIndicator(hidden: Boolean, label: String, tint: Color, on
 }
 
 /**
- * The trailing selectable toggle: a small pointer the user clicks to flip whether the row's entity can be
- * picked in the viewport; with Shift held it flips the whole subtree to one uniform value (Blender
- * parity).  An unselectable entity shows the struck-through pointer; a selectable one the plain pointer.
- * The slot consumes its own press so the whole-row selection handler skips it, mirroring the chevron and
- * the eye.
- *
- * Labelled and tooltipped from the context menu's own string, for the reason [VisibilityIndicator] is.
+ * The trailing selectable toggle: a small pointer that flips whether the row's entity can be picked in the
+ * viewport.  Like [VisibilityIndicator], it consumes its own press and is labeled from the context menu's
+ * own string.
  *
  * @param Boolean selectable Whether the entity is viewport-selectable (plain vs struck-through pointer).
  * @param String label The accessible name and tooltip: the menu's selectability entry.

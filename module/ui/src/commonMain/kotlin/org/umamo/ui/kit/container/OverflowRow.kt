@@ -152,14 +152,13 @@ private class OverflowRowCollector : OverflowRowScope {
  * is left, so a narrowing strip squeezes its controls to nothing in place; this measures every control
  * at its natural width and simply stops placing the ones that do not fit, handing them to the chip.
  *
- * Each item is measured with an unbounded width and the strip's own height, so an item must be
- * intrinsically sized - Modifier.fillMaxWidth at an item root resolves to zero against an infinite
- * maximum and the item is dropped.  An item that renders nothing costs nothing: it measures zero and is
- * skipped, spacing and all, which is how a mode-gated control disappears cleanly.
+ * Each item's width is read as its max intrinsic width at the strip's height, so an item must be
+ * intrinsically sized.  An item that renders nothing costs nothing: it measures zero and is skipped,
+ * spacing and all, which is how a mode-gated control disappears cleanly.
  *
- * Note for future adopters: this is a SubcomposeLayout, whose intrinsic measurements are expensive and
- * lossy.  It is fine under a fixed height (an area header), but do not drop it into a parent that asks
- * for intrinsics - Modifier.height(IntrinsicSize.Min), say - without checking first.
+ * This is a SubcomposeLayout, whose own intrinsic measurements are expensive and lossy.  It is fine under
+ * a fixed height (an area header), but do not drop it into a parent that asks for intrinsics -
+ * Modifier.height(IntrinsicSize.Min), say - without checking first.
  *
  * @param Modifier          modifier                   The layout modifier.
  * @param Dp                horizontalSpacing          The gap between adjacent controls.

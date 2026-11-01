@@ -17,15 +17,10 @@ import org.umamo.render.ViewportCamera
 
 /**
  * The marquee (box + circle) selection machinery shared by the gizmo overlays, generic over the
- * stroke selection type: MeshSelection for the Edit overlay (and the future UV editor), the object
- * Selection for the Object overlay.  Owns the gesture state shared across the overlays - the
- * in-flight circle stroke (with its erase flag) and the box rubber-band corners - plus
- * the full circle event branch, the box band's begin / drag / land steps (the box RULES are kit's
- * BoxGestureFlow, which BoxSelectFlow runs over this controller), and the cancel semantics
- * (Blender-style: a circle stroke KEEPS what it painted and commits; a box rubber-band is abandoned
- * with no selection change).  The domain differences pass in as constructor callbacks.
- *
- * State is snapshot-backed so the overlay's draw pass observes the stroke and rubber-band live.
+ * stroke selection type: MeshSelection for the mesh-element surfaces, the object Selection for the
+ * Object overlay.  It owns the in-flight circle stroke and the drawn box band, snapshot-backed so the
+ * overlay's draw pass observes them live; the box rules are kit's BoxGestureFlow, which BoxSelectFlow
+ * runs over this controller, and the domain differences pass in as constructor callbacks.
  *
  * @param Function seedStroke The committed selection a fresh stroke starts from.
  * @param Function stampStroke Applies one brush stamp (working, erasing, center, radiusPx, camera,
@@ -71,12 +66,8 @@ internal class MarqueeSelectController<StrokeSelection>(
 		private set
 
 	/**
-	 * Handles one pointer event of the live Circle-select tool: a primary drag paints (adds), a middle
-	 * or Shift+primary drag erases, the stroke accumulates into the working selection committed once on
-	 * release, the wheel resizes the brush, and a right-click leaves the tool keeping what was painted
-	 * (Blender parity).  A cancelled release - Compose's synthetic, already-consumed release when the
-	 * pointer input is torn down - drops the stroke uncommitted.  Every event is consumed so the tool owns
-	 * the pointer.
+	 * Handles one pointer event of the live Circle-select tool, whose stroke commits once on release as
+	 * one undo step.  Every event is consumed so the tool owns the pointer.
 	 *
 	 * @param PointerEvent event The full pointer event (buttons and modifiers).
 	 * @param PointerInputChange change The event's first change (position and consumption).
@@ -110,6 +101,8 @@ internal class MarqueeSelectController<StrokeSelection>(
 			}
 
 			PointerEventType.Release -> {
+				// A consumed release is Compose's synthetic one as the pointer input is torn down, so the
+				// stroke drops uncommitted.
 				if (change.isConsumed) {
 					discard()
 				} else {
@@ -177,11 +170,8 @@ internal class MarqueeSelectController<StrokeSelection>(
 
 	/**
 	 * Resolves any in-flight gesture on an exit (Escape, right-click, a tool switch, or leaving the
-	 * mode).  The two gestures exit DIFFERENTLY, Blender-style: a circle stroke KEEPS what it painted
-	 * (its accumulated working selection commits as one undo step - the commit callback no-ops on an
-	 * unchanged selection, so a stroke that painted nothing adds no undo step), while a box rubber-band
-	 * is abandoned with no selection change.  Only one of the two is ever live at once, so resolving
-	 * both arms is safe.
+	 * mode), Blender-style: a circle stroke keeps what it painted and commits, while a box rubber-band
+	 * is abandoned with no selection change.
 	 */
 	fun cancel() {
 		endStroke()
@@ -190,8 +180,7 @@ internal class MarqueeSelectController<StrokeSelection>(
 	}
 
 	/**
-	 * Begins (or continues) a stroke with one stamp: snapshots via [onStrokeBegin], records the erase
-	 * flag, stamps from the in-flight stroke or a fresh seed, and publishes the preview.
+	 * Begins (or continues) a stroke with one stamp.
 	 *
 	 * @param Boolean erasing True when this stroke removes elements.
 	 * @param Offset center The brush center in area-local pixels.

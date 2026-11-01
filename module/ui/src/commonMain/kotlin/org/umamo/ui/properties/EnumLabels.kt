@@ -170,10 +170,9 @@ fun blendModeLabels(): Map<BlendMode, String> = BlendMode.entries.associateWith 
 
 /**
  * The blend modes in dropdown display order: the 5.3 modes first, in their canonical MOC3 colorMode
- * order, then the "(Legacy)" pre-5.3 premultiplied modes (AdditivePremultiplied and
- * MultiplyPremultiplied - exactly the two that ignore the alpha blend setting) sunk to the bottom so
- * they stay out of the way for new work.  [BlendMode.entries] - the enum/format order backing the
- * packed-int mapping - is NOT reordered; only the picker's presentation changes.
+ * order, then the "(Legacy)" pre-5.3 premultiplied modes sunk to the bottom so they stay out of the way
+ * for new work.  Only the picker's presentation changes; [BlendMode.entries] keeps the format order the
+ * packed-int mapping relies on.
  *
  * @return List The blend modes in the order the picker should present them.
  */

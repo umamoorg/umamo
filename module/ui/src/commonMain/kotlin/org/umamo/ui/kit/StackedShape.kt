@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Shape
 
 /**
  * A control's position within a butted run of stacked controls, driving which corners it rounds and which
- * it squares against a neighbour.  [Single] is a standalone control (all corners rounded).
+ * it squares against a neighbor.  [Single] is a standalone control (all corners rounded).
  */
 enum class StackPosition {
 	Single,
@@ -40,10 +40,9 @@ fun stackPositionOf(index: Int, count: Int): StackPosition =
 
 /**
  * Shapes one control in a butted run so the run reads as a single control with hairline seams: the run's
- * outer corners keep [groupShape]'s rounding while the corners shared with a neighbour are squared.  A
- * horizontal run (ButtonGroup) squares the leading / trailing edges; a vertical run (a stacked numeric
- * field group) squares the top / bottom edges.  RoundedCornerShape's start / end corners already mirror
- * under RTL, so the first item stays the visual leading end either way.
+ * outer corners keep [groupShape]'s rounding while the corners shared with a neighbor are squared.
+ * RoundedCornerShape's start / end corners already mirror under RTL, so the first item stays the visual
+ * leading end either way.
  *
  * @param CornerBasedShape groupShape The rounding applied to the run's outer corners.
  * @param StackPosition position The item's position role in the run.

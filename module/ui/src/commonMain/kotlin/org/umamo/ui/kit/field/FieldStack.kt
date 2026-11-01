@@ -19,11 +19,9 @@ val FIELD_STACK_SEAM = 1.dp
 
 /**
  * Lays out a vertical run of butted fields as one joined group, Blender-style: the fields sit flush with a
- * [FIELD_STACK_SEAM] hairline between them, and only the run's outer corners round.  Mirrors [org.umamo.ui.kit.button.ButtonGroup]
- * for the vertical axis - the container owns the seams and hands each row its [StackPosition] (via
- * [stackPositionOf]), so a caller stacks fields without hand-threading First / Middle / Last and can never
- * get an end wrong.  Each row is a composable taking the position it should pass to its field's
- * stackPosition (so the row's own label / control layout stays the caller's concern).
+ * [FIELD_STACK_SEAM] hairline between them, and only the run's outer corners round.  The vertical
+ * [org.umamo.ui.kit.button.ButtonGroup]: the container hands each row the [StackPosition] to pass to its
+ * field, so a caller never hand-threads First / Middle / Last.
  *
  * @param List rows The stacked rows in top-to-bottom order; each is given its position in the run.
  * @param Modifier modifier The layout modifier for the enclosing column.

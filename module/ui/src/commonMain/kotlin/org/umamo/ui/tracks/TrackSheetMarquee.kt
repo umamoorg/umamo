@@ -35,23 +35,15 @@ import org.umamo.ui.theme.selectionOverlayStyle
  * ARMED rather than always-on, because an unmodified drag on a lane already means something (drag a key,
  * or scrub the playhead), and a marquee that pre-empted those would cost the common gesture to serve the
  * rarer one.  Arming through a command means the same `B` and the same registry route the viewport's box
- * select uses, so the muscle memory carries.
- *
- * The gesture itself is kit's BoxGestureFlow, the rules every box select in the editor answers to: a drag
- * past the click threshold lands the band, with Shift at the release adding; a release under it is a
- * click, which only disarms; a right-click mid-drag abandons the band and disarms; and a release that
- * arrives already consumed abandons it too - what Compose sends the loop when the overlay leaves
- * composition under the pressed pointer, as a disarm from the keyboard does - so nothing lands that the
- * hand never let go of.  [onDismiss] follows every end, landed or abandoned.
+ * select uses, so the muscle memory carries.  The gesture itself is kit's BoxGestureFlow, the rules every
+ * box select in the editor answers to.
  *
  * Reports WINDOW coordinates - the same space the lanes report their bounds in - so the owner can resolve
  * the region against rows that live inside a scroll it knows nothing about.
  *
- * While armed and before the drag begins it shows the same affordance the viewport's armed box select does:
- * full-width / full-height marching-ants guides through the pointer, and the drawn crosshair standing in
- * for a hidden OS cursor.  Without it nothing on screen said the mode was active at all.  The chrome comes
- * from the theme kit ([drawCrosshairGuides] / [drawRubberBand]), shared with the viewport rather than
- * reimplemented here - this package stays domain-free, but drawing primitives are not domain.
+ * While armed and before the drag begins it shows the same affordance the viewport's armed box select
+ * does, marching-ants guides through the pointer and a drawn crosshair standing in for the hidden OS
+ * cursor, so the armed mode is visible on screen.
  *
  * @param Boolean armed Whether a marquee is awaiting its drag.
  * @param Function onSelect Receives the enclosed region and whether the gesture was additive (Shift).

@@ -39,15 +39,7 @@ internal class Moc3ExportEligibility(
  *
  * Runs BEFORE the index plan, because the plan's indices are the file's addressing scheme: a drawable
  * dropped after the plan was built would leave every later index - and every mask reference into them -
- * naming the wrong object.
- *
- * Must also run AFTER the version strip, on the stripped rig.  No strip currently touches the
- * predicates below, so passing the un-stripped rig would be invisible today - which is exactly why the
- * order is stated rather than left to be rediscovered.
- *
- * Structural drops (sketch subtree, no mesh, a mesh past the 16-bit index range) are decided before the
- * option-driven hidden drops, so the mask exemption below can never resurrect a drawable the file has no
- * way to write.
+ * naming the wrong object.  Runs AFTER the version strip, on the stripped rig.
  *
  * @param PuppetModel puppet The rig to export, already stripped to the target version.
  * @param Moc3ExportOptions options What the rigger chose to include; the default is the
@@ -94,6 +86,8 @@ internal fun resolveExportEligibility(
 
 	val dropped = LinkedHashMap<DrawableId, ExportNoticeReason>()
 
+	// Structural drops come before the option-driven hidden drops, so the mask exemption below can never
+	// resurrect a drawable the file has no way to write.
 	for (drawable in puppet.drawables) {
 		val vertexCount = drawable.mesh?.vertexCount ?: 0
 

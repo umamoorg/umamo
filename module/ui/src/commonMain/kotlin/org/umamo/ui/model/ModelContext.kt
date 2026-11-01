@@ -29,17 +29,12 @@ import org.umamo.ui.viewport.PuppetViewportService
  */
 
 /**
- * The open document's runtime [PuppetModel] for the composition, or null when nothing is open. Panels
- * (Outliner, Properties, Parameters) read `LocalPuppet.current` to display parts/parameters; the host
- * app provides it. Kept in `:ui` commonMain (PuppetModel is in `:runtime`, a shared dependency) so the
- * panels stay common and Android-sharable while only the GL viewport is platform code.
+ * The open document's runtime [PuppetModel] for the composition, or null when nothing is open.
  *
  * A tracked local, unlike its neighbors: its value is a new model after every committed edit and every
- * undo, and a tracked local's change runs the scopes that READ it and no others.  So a commit reaches
- * each space that shows the model, and each space decides what of itself the commit changed: a row handed
- * what it was handed before skips.  Read it where the model is used, as low as that is; a composable that
- * reads it only to pass it down runs on every commit for nothing.  Asking whether a document is open at
- * all is [documentIsOpen]'s business.
+ * undo, and a tracked local's change runs the scopes that READ it and no others.  Read it where the model
+ * is used, as low as that is; a composable that reads it only to pass it down runs on every commit for
+ * nothing.  Asking whether a document is open at all is [documentIsOpen]'s business.
  *
  * Compared by reference.  The session publishes a model only when it differs from the last, and two rigs
  * compared by value are walked whole.
@@ -47,11 +42,9 @@ import org.umamo.ui.viewport.PuppetViewportService
 val LocalPuppet = compositionLocalOf<PuppetModel?>(referentialEqualityPolicy()) { null }
 
 /**
- * The open document's [EditorSession] for the composition, or null when nothing is open. The session is
- * the single mutable owner of the document model, the editor state (selection, mode), and the undo
- * history; mutation sites (a visibility toggle, a future rename / reparent) resolve it and call its
- * mutation API, while [LocalPuppet] is the read-only model projection panels display. The host provides
- * both from the same session, so a mutation republishes the model, and whatever reads the model runs.
+ * The open document's [EditorSession] for the composition, or null when nothing is open.  The session is
+ * the single mutable owner of the document model, the editor state, and the undo history; mutation sites
+ * call its API, while [LocalPuppet] is the read-only model projection panels display.
  *
  * One session for as long as the document is open, so this local changes when a document opens, closes,
  * or gives way to another, and at no edit.
@@ -59,12 +52,8 @@ val LocalPuppet = compositionLocalOf<PuppetModel?>(referentialEqualityPolicy()) 
 val LocalEditorSession = staticCompositionLocalOf<EditorSession?> { null }
 
 /**
- * Whether a document is open.  What a control asks when all it needs of the document is that there is
- * one: a header control that shows only with a document open.
- *
- * Asked of the session, which is the document's for as long as it is open, and not of [LocalPuppet],
- * whose value is a new model after every edit: a control that read the model to ask this would run
- * again on each edit, to learn what it knew.  The host provides the two together, so they agree.
+ * Whether a document is open, asked of the session rather than of [LocalPuppet] so a control that needs
+ * only this does not run again on every edit.
  *
  * @return Boolean True when a document is open.
  */
@@ -75,17 +64,12 @@ internal fun documentIsOpen(): Boolean = LocalEditorSession.current != null
 /**
  * A thin, platform-neutral handle for streaming transient preview models to the puppet renderer,
  * mirroring [LiveParamsHandle]'s preview / commit split for model-shaped edits: [previewModel] pushes
- * an uncommitted model straight to the render thread every pointer frame (no undo step, no session
- * write), and the gesture boundary commits through the session as usual - whose model bridge then
- * republishes the committed model.  [resync] restores the renderer to the session's committed model
- * after a cancelled or torn-down gesture.  The UV editor drives its modal G / S / R previews through
- * this; the viewport's own overlays reach the service directly and do not need it.
+ * an uncommitted model to the render thread every pointer frame, the gesture boundary commits through
+ * the session as usual, and [resync] restores the committed model after a cancelled or torn-down gesture.
  *
- * The preview is published to the COMPOSITION as well as to the render thread, through [preview].  It
- * has to be: a gesture's own area draws from its local preview and the 2D viewport follows the pushes,
- * but every other read-only surface derives from [LocalPuppet] and would otherwise sit on the committed
- * model until the gesture confirmed - a second UV area showing the atlas page must move with the mesh
- * the viewport beside it is moving.
+ * The preview is published to the COMPOSITION as well as to the render thread, through [preview], so a
+ * read-only surface that derives from the model moves with the gesture - a second UV area showing the
+ * atlas page must move with the mesh the viewport beside it is moving.
  */
 interface PuppetRenderSync {
 	/**
@@ -128,20 +112,15 @@ val LocalPuppetRenderSync = staticCompositionLocalOf<PuppetRenderSync?> { null }
 
 /**
  * The platform render service for the composition, or null when no puppet renderer is present (no
- * document, or a platform without the offscreen GL engine - Android until the GLES sibling lands).  The
- * UV editor requires it: it registers a UV scene - an atlas page or a source layer - to render its
- * underlay through the same engine the 2D viewport uses, and owns its camera through it; with no service
- * the UV editor shows the grid placeholder, exactly like the 2D viewport's body.
+ * document, or a platform without the offscreen engine).  The UV editor renders its underlay and owns
+ * its camera through it, and shows the grid placeholder without one.
  */
 val LocalPuppetViewportService = staticCompositionLocalOf<PuppetViewportService?> { null }
 
 /**
- * The open document's decoded texture atlas pages for the composition, or null when nothing is open.
- * The UV editor reads the full page a drawable samples to draw under its wireframe; the thumbnail
- * provider below serves the cropped-preview case.  Provided by the host from the SESSION's effective
- * page set ([SessionAtlasPages]), which is what the renderer shows - so the value changes when a
- * repack (or its undo) swaps the pages, and the whole subtree recomposes onto the new set.  A repack
- * is rare, so the static local's wholesale recomposition is the right price for its simplicity.
+ * The open document's decoded texture atlas pages for the composition, or null when nothing is open:
+ * the SESSION's effective page set ([SessionAtlasPages]), which is what the renderer shows.  A repack (or
+ * its undo) changes the value and recomposes the whole subtree, the right price for so rare an event.
  */
 val LocalPuppetTextures = staticCompositionLocalOf<PuppetTextures?> { null }
 
@@ -166,11 +145,9 @@ val LocalSessionAtlasPages = staticCompositionLocalOf<SessionAtlasPages?> { null
 val LocalSourceArtRasters = staticCompositionLocalOf<SourceArtRasters?> { null }
 
 /**
- * A platform-neutral source of small art-mesh previews, mirroring [SelectionHandle] / [LiveParamsHandle].
- * The Outliner and the Sources space ask for a drawable's thumbnail on hover; the host backs it with the same crop-and-downsample
- * machinery the viewport's overlap picker uses (the atlas region under the mesh UV bounds). Kept an interface
- * in `:ui` commonMain so the panels stay common - the desktop wraps its Skiko rasteriser, Android will wrap
- * its own. A null provider (or a null result) means no preview, so callers simply show nothing.
+ * A platform-neutral source of small art-mesh previews, mirroring [SelectionHandle] / [LiveParamsHandle],
+ * for the Outliner's and the Sources space's hover cards.  A null provider (or a null result) means no
+ * preview, so callers simply show nothing.
  */
 interface DrawableThumbnailProvider {
 	/**
@@ -184,8 +161,7 @@ interface DrawableThumbnailProvider {
 	/**
 	 * A combined preview of every art mesh under a part (its own drawables and those of its sub-parts),
 	 * assembled in rest-pose model space so it reads like the part's art, or null when the part holds no
-	 * textured drawable. Built by placing each drawable's cached crop at its model-space bounding box and
-	 * compositing back-to-front, so it reuses the per-drawable previews rather than re-rendering geometry.
+	 * textured drawable.
 	 *
 	 * @param PartId id The part to preview.
 	 * @return ImageBitmap? The composited preview, or null when the part has no previewable art.
@@ -201,12 +177,9 @@ val LocalDrawableThumbnails = staticCompositionLocalOf<DrawableThumbnailProvider
 
 /**
  * A thin, platform-neutral handle for reading and writing live parameter values (the pose) from common
- * UI (the Parameters sliders) without `:ui` knowing how the value reaches the GL render thread or how it
- * is recorded for undo. Scrubbing is a two-phase gesture: [preview] streams the in-progress value
- * straight to the renderer every frame (transient — no undo step, no recompose churn), and [commit]
- * records one undo step at the gesture boundary (drag release, a typed value, a reset). So a whole slider
- * drag is a single undo step. The desktop implementation writes its volatile LiveParams hand-off on
- * preview and routes commit through the EditorSession; Android will wrap its own.
+ * UI (the Parameters sliders) without `:ui` knowing how the value reaches the render thread or how it is
+ * recorded for undo.  Scrubbing is a two-phase gesture: [preview] streams the in-progress value to the
+ * renderer every frame with no undo step, and [commit] records one undo step at the gesture boundary.
  *
  * Both writes are refused while Edit mode pins the pose, so a control that scrubs needs no lock of its
  * own to be safe.  A control that also SHOWS the value it writes still has to know, or it would show a
@@ -252,9 +225,8 @@ val LocalLiveParams = staticCompositionLocalOf<LiveParamsHandle?> { null }
 
 /**
  * A thin, platform-neutral handle for reading and writing the current object-mode [Selection] from
- * common UI, mirroring [LiveParamsHandle]. The Outliner and viewport write gestures through it; the
- * Properties panel and the highlight bridge read it. The desktop implementation backs it with Compose state
- * so panels recompose on change; Android will wrap its own.
+ * common UI, mirroring [LiveParamsHandle].  The Outliner and viewport write gestures through it; the
+ * Properties panel and the highlight bridge read it.  [SessionEditorState] backs it with the session.
  */
 interface SelectionHandle {
 	/** The current selection. */
@@ -285,8 +257,8 @@ val LocalSelection = staticCompositionLocalOf<SelectionHandle?> { null }
 
 /**
  * A platform-neutral handle for reading and setting the current [EditorMode], mirroring
- * [SelectionHandle]. The mode-toggle command and, later, the radial menu write it; the viewport pick
- * router and the Properties panel read it.
+ * [SelectionHandle].  The mode commands write it; the viewport pick router and the Properties panel read
+ * it.
  */
 interface EditorModeHandle {
 	/** The current editor mode. */

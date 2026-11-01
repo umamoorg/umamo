@@ -11,10 +11,9 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /**
  * Collects the keymap commands the UV Object overlay executes for its area: the Shift+S snaps, which move
- * placed art tiles in this mode (handleUvObjectSnapRequest).  Each request carries the area its command
- * resolved at dispatch, and only that area's overlay runs it - every open UV editor collects the same flow,
- * and an ungated request would run once per editor.  A request made in Edit mode is the Edit overlay's
- * (collectUvEditGizmoRequests), so the two never both run one.
+ * placed art tiles in this mode (handleUvObjectSnapRequest).  Only the area a request resolved at dispatch
+ * runs it, since every open UV editor collects the same flow; a request made in Edit mode is the Edit
+ * overlay's (collectUvEditGizmoRequests).
  *
  * Runs until its caller's effect is cancelled.  Everything that changes while it runs is read through a State
  * holder at request time, never captured by value.  A snap that decodes art suspends the collection until it

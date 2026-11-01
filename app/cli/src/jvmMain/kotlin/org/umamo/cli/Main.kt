@@ -6,9 +6,8 @@ import kotlin.system.exitProcess
  * The Umamo diagnostic CLI: dump / extract / atlas / mesh / convert / diff over cmo3, moc3, and
  * source artwork files.
  *
- * Replaces the diagnostic-tests-in-disguise workflow (Cmo3ResaveDumpTest's -Dcmo3.resave, ad-hoc
- * probe printlns) with a proper operator tool.  Data goes to stdout, diagnostics to stderr; exit 0
- * on success, 1 on a command failure, 2 on a usage error.
+ * Data goes to stdout, diagnostics to stderr; exit 0 on success, 1 on a command failure, 2 on a
+ * usage error.
  */
 
 private const val USAGE = """Umamo diagnostic CLI

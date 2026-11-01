@@ -6,13 +6,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 
 /**
- * Picks the row up on a long press and drags it: the press point is converted into window
- * coordinates through [holder] and seeds the drag there, so the initial target is the row itself
- * (i.e. none) and never a stale target left over from the previous drag; every move is converted
- * the same way; a release runs [onDrop] (the space reads the controller's target and applies the
- * move); a cancelled gesture ends the drag without dropping.  The long press keeps the gesture
- * distinct from a tap-to-select handler on the same row, so a press still selects first and only a
- * hold begins the drag.
+ * Picks the row up on a long press and drags it, in window coordinates converted through [holder].
+ * The drag is seeded at the press point, so the initial target is the row itself (i.e. none) and never
+ * a stale target left over from the previous drag.  The long press keeps the gesture distinct from a
+ * tap-to-select handler on the same row, so a press still selects first and only a hold begins the drag.
  *
  * @param RowDragController    controller The space's drag state.
  * @param String               rowKey     The row's stable key.

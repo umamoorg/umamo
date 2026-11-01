@@ -24,9 +24,9 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * This model with one tile's source binding replaced - rebound to another layer of a listed artwork
  * file, or unbound when [source] is null.
  *
- * Refused (returns [this]) for an unknown tile or a ref naming a source the document does not list:
- * a binding that points at nothing would be worse than no binding.  Nothing else moves - the
- * binding says which layer a re-import reads for this art, never where the art sits.
+ * Refused (returns [this]) for a ref naming a source the document does not list, since a binding that
+ * points at nothing would be worse than no binding.  Nothing else moves - the binding says which layer
+ * a re-import reads for this art, never where the art sits.
  *
  * @param AtlasTileId     tileId The tile to rebind.
  * @param SourceLayerRef? source The new binding, or null to unbind.
@@ -223,23 +223,18 @@ private fun List<OrgChild>.withInserted(child: OrgChild, slot: OrgSlot): List<Or
 }
 
 /**
- * This model with one artwork file re-read into it: the file's record replaced by [reload]'s (the
- * inventory as just read), every superseded tile removed and its replacement appended unplaced, the
- * drawables over a superseded tile moved onto its replacement with the meshes the plan decided, the
- * drawables the file's eye toggle reached given the visibility the plan decided, and the layers the
- * file gained appended under the same file (tiles, drawables, new parts, and each new
- * child placed among the existing children where the file puts it, like [withArtworkAdded]).  The
- * render root is re-derived, so a layer added at the top of the file draws in front.  The pack that places the new tiles is a
- * separate step over the result, exactly as for an added file: an unplaced tile's coordinates address
- * its own art, so the repack's re-derivation converts them.
+ * This model with one artwork file re-read into it ([ArtworkReload]): the file's record replaced, every
+ * superseded tile swapped for its unplaced replacement with its drawables moved onto it, the retired tiles
+ * removed with their drawables, and the layers the file gained placed where the file puts them, like
+ * [withArtworkAdded].  The pack that places the new tiles is a separate step over the result, exactly as for
+ * an added file.
  *
- * Nothing is deleted: a layer the file lost keeps its tile, its pixels, and its binding - the
- * refreshed inventory carries its row flagged not present, which is what the Sources space shows as
- * needing review.
+ * No rig work is deleted: a layer the file lost keeps its tile, its pixels, and its binding, and the
+ * refreshed inventory flags its row not present, which is what the Sources space shows as needing review.
  *
- * Refused (returns [this]) when the model does not list the file, a superseded or retired tile is
- * unknown, a retired tile is also superseded, or any new id collides with one the model has - the
- * planner mints past the model, so a collision is a caller bug rather than document state to absorb.
+ * Refused (returns [this]) when the delta does not fit the model - an unlisted file, an unknown or doubly
+ * claimed tile, or a new id that collides; the planner mints past the model, so a collision is a caller bug
+ * rather than document state to absorb.
  *
  * @param ArtworkReload reload The delta to apply.
  * @return PuppetModel The reloaded model, or [this] when refused.

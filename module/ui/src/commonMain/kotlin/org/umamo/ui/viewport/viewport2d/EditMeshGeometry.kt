@@ -135,18 +135,13 @@ internal fun editOwnerGeometries(
 }
 
 /**
- * Each session mesh's geometry at the constant neutral pose Edit mode is pinned to: its rest shape
- * (displayed = base + the neutral keyform blend), its deformer-chain mapping, and its world projection,
- * captured by [captureEditModeMeshes], with each mesh's topology.
- *
- * A drawable whose mapping cannot be built (a hidden ancestor) is skipped: it cannot be drawn, so it
- * cannot be edited - the same primitive the object gizmo and Properties use.  An empty
- * result is therefore a real state, not a failure, and it is exactly the state the pointer-addressed
- * commands have to keep working in.
+ * Each session mesh's geometry at the constant neutral pose Edit mode is pinned to, as [captureEditModeMeshes]
+ * captures it, with each mesh's topology.  A drawable that cannot be drawn (a hidden ancestor) is skipped, so an
+ * empty result is a real state, not a failure.
  *
  * @param PuppetModel model The model to project.
  * @param List<DrawableId> drawableIds The session's mesh selection.
- * @return List The per-mesh geometry, skipping what cannot be projected.
+ * @return List<EditMeshGeometry> The per-mesh geometry, skipping what cannot be projected.
  */
 internal fun editMeshGeometries(model: PuppetModel, drawableIds: List<DrawableId>): List<EditMeshGeometry> =
 	captureEditModeMeshes(model, drawableIds).map { captured ->

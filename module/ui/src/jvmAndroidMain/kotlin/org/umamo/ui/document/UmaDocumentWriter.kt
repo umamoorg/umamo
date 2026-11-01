@@ -31,22 +31,12 @@ const val UMA_THUMBNAIL_SIZE = 256
  * Writes [model] as a `.uma` at [destination], laid over [base].
  *
  * Pure given its inputs, which is what lets a gate test drive the real save with no picker: the caller
- * snapshots the session's model, the atlas page binding, and the editor state on the UI thread and hands them in, and this
- * runs the rest off it - the pixel gathering and the encode on the default dispatcher, the write on the
- * platform's own file-system route.  Nothing here marks the session saved; the caller does that with the
- * same snapshot once the file is on disk.
+ * snapshots the session's model, the atlas page binding, and the editor state on the UI thread and hands
+ * them in, and this runs the rest off it.  Nothing here marks the session saved; the caller does that with
+ * the same snapshot once the file is on disk.
  *
- * What the file gets for pixels (docs/format/UMA.md § 5):
- *  - A tile the base already holds is copied by the codec and never asked for.  Every other tile takes
- *    its PNG from the document's own bytes where it has them (a CMO3's embedded layer, a `.uma`'s stored
- *    entry) and is encoded from its decoded raster otherwise.
- *  - The render pages are stored as the file or the origin had them while the atlas is at the document's
- *    baseline - the same identity gate the CMO3 export uses - and derive from the tiles after any repack (UMA §5.5).
- *  - The thumbnail is [thumbnail] when the caller rendered one - the pose on screen as the viewport draws it -
- *    and otherwise the rest pose composited on the CPU, fitted into [UMA_THUMBNAIL_SIZE] pixels (UMA §5.6).
- *
- * Editor state rides on the save as a merge patch over what the base holds (docs/format/UMA.md § 7.5) and is never
- * a reason to refuse one: an editor entry too new for this version to merge into is carried as it is.
+ * Editor state rides on the save as a merge patch over what the base holds (docs/format/UMA.md § 7.5) and
+ * is never a reason to refuse one.
  *
  * @param PuppetDocument   document    The open document, for the pixels only it can supply.
  * @param UmaModel         base        The document the save lays over.
@@ -130,6 +120,8 @@ private fun pixelSourceFor(document: PuppetDocument, base: UmaModel, model: Pupp
 		}
 	}
 
+	// The render pages the file or the origin had are stored only while the atlas is at the document's
+	// baseline (the CMO3 export's identity gate); after any repack they derive from the tiles (UMA §5.5).
 	val atBaseline = binding.textures === document.textures
 	val renderPages: UmaRenderPagePixels =
 		when {

@@ -24,11 +24,9 @@ fun isFileSystemPath(path: String): Boolean = !path.contains("://")
  * The base name to seed a Save As or an export dialog with: [displayName] minus whatever file extension it
  * carries.
  *
- * Any extension, not only the formats a rig is saved in.  A document can start from an artwork file (a rig
- * built by importing `hero.psd` into a new document is still named after it), and its first save should
- * suggest `hero`, never `hero.psd.uma`; an export of it `hero.png`, never `hero.psd.png`.  Only a trailing
- * extension of a few letters is stripped, so a name with a dot in it (`v1.2 sketch`) is left alone.  FileKit
- * re-appends the destination's extension itself.
+ * Any extension, not only the formats a rig is saved in: a rig built by importing `hero.psd` is still named
+ * after it, and its first save should suggest `hero`, never `hero.psd.uma`.  FileKit re-appends the
+ * destination's extension itself.
  *
  * @param String displayName The document's file name.
  * @return String The name without its extension.
@@ -37,6 +35,7 @@ fun saveSuggestedName(displayName: String): String {
 	val dot = displayName.lastIndexOf('.')
 	val extension = if (dot > 0) displayName.substring(dot + 1) else ""
 
+	// Only a short alphanumeric tail is an extension, so a name with a dot in it (`v1.2 sketch`) is left alone.
 	return if (extension.length in 1..MAXIMUM_EXTENSION_LENGTH && extension.all { character -> character.isLetterOrDigit() }) {
 		displayName.substring(0, dot)
 	} else {

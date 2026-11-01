@@ -183,10 +183,9 @@ internal class ReflectiveClassSerializer(
 	/**
 	 * A fresh instance of [kClass] from its no-argument constructor.
 	 *
-	 * Reflection hands back whatever the constructor threw wrapped in an InvocationTargetException - since
-	 * JDK 18 (JEP 416) that includes an Error such as OutOfMemoryError, which is an Exception on the outside.
-	 * An Error is unwrapped and rethrown as itself, so no caller that recovers from an Exception can mistake
-	 * running out of memory for a class that will not instantiate.
+	 * An Error the constructor throws is unwrapped from its InvocationTargetException (JDK 18+, JEP 416, wraps
+	 * Errors too), so no caller that recovers from an Exception can mistake running out of memory for a class
+	 * that will not instantiate.
 	 *
 	 * @return Any The new instance.
 	 */

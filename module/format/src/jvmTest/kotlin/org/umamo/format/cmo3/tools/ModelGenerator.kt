@@ -36,11 +36,10 @@ class ModelGenerator {
 	 * a statement about the SAMPLES.  For these the official editor's custom deserializers
 	 * dereference the field unconditionally (CPartForm.opacity once the form carries its colors)
 	 * and NPE at load when it is absent, so omitting it writes a file Cubism cannot open - the corpus
-	 * merely happens to include older-era samples that predate the field.  Only a FRESH object honors the annotation (a read one replays the
-	 * fields it was read with), so an entry here changes what Umamo creates and nothing it
-	 * round-trips.  Corpus evidence cannot express that, so the exception lives here,
-	 * in the generator, and NOT as a hand-edit of the output: a from-scratch regeneration (the
-	 * output file deleted) has to reproduce it, and a hand-edit would not survive that.
+	 * merely happens to include older-era samples that predate the field.  Only a FRESH object honors
+	 * the annotation (a read one replays the fields it was read with), so an entry here changes what
+	 * Umamo creates and nothing it round-trips.  The exception lives here, in the generator, and NOT
+	 * as a hand-edit of the output, so a from-scratch regeneration reproduces it.
 	 *
 	 * Keyed "Tag.field"; the value is the comment emitted above the property.
 	 */
@@ -277,10 +276,9 @@ class ModelGenerator {
 	/**
 	 * The repository root, located by walking up for settings.gradle.kts.
 	 *
-	 * Not derived from the sample path, which is what it used to be: `sample.parentFile.parentFile`
-	 * assumed the corpus sat exactly two levels below the root, so with samples at test/corpus/cmo3/ it
-	 * resolved to test/corpus and wrote the "generated" model into the gitignored corpus, where nothing
-	 * would ever compile it.
+	 * Not derived from the sample path: that would assume the corpus sits a fixed depth below the root,
+	 * and a wrong guess writes the generated model somewhere nothing compiles it (the gitignored corpus,
+	 * say).
 	 *
 	 * @return File The repository root.
 	 */

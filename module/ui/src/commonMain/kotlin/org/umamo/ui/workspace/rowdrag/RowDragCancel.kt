@@ -16,8 +16,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
  * drag is in flight the owning panel parks its cancel callback here; the shell checks it before
  * clearing the selection.  Several row-dragging panels (outliner, parameters, sources) across several
  * areas may exist, but one pointer means at most one in-flight drag anywhere, so a single shared slot
- * suffices for all of them.  Holds null whenever no row drag is in flight.  Only the dragging panel
- * should write it.
+ * suffices for all of them.  Only the dragging panel should write it.
  *
  * @property Function cancel Cancels the in-flight row drag, or null when none is in flight.
  */

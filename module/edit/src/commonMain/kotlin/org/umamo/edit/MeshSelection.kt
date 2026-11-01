@@ -24,9 +24,9 @@ enum class MeshSelectMode {
  * One selectable mesh element: a vertex, an undirected edge, or a face.  Element identity is LOCAL to
  * its owner - a drawable's mesh or a warp's lattice (a vertex index means nothing without knowing whose), which
  * is why [MeshSelection] stores elements per owner and the active element carries its owner alongside.
- * The mesh topology is immutable while editing (copy-on-write replaces only positions), so vertex
- * indices, canonical (low, high) edge pairs, and face ordinals are stable identities across every
- * gesture.
+ * A gesture replaces only positions, so vertex indices, canonical (low, high) edge pairs, and face
+ * ordinals are stable identities across it; a topology edit commits a selection re-derived against the
+ * new mesh in the same step.
  *
  * メッシュの選択可能要素。頂点・無向辺・面のいずれか。要素の同一性はメッシュ内ローカル。
  */
@@ -86,28 +86,18 @@ data class ActiveMeshElement(val owner: ElementOwner, val element: MeshElement) 
 
 /**
  * An immutable Edit-mode sub-object selection over one or more owners' elements - drawables' meshes, or
- * warps' lattices: which owners are in the edit session, the select mode (vertex / edge / face), and the
- * selected elements per owner with the active (primary) one.  A session edits one kind of owner, the active
- * item's (Blender's rule), so its owners are all drawables or all warps; this type does not enforce it.  This is
- * the sub-object analog of [Selection] - where object-mode selects whole
- * entities, Edit mode selects elements inside the session meshes - and the multi-mesh shape is what lets
- * a rigger edit several art meshes at once (entering Edit with a multi-selection, and later the glue
- * workflows that need two meshes live together).
+ * warps' lattices: the element analog of [Selection], and what lets a rigger edit several meshes at once.  A
+ * session edits one kind of owner, the active item's (Blender's rule), so its owners are all drawables or all
+ * warps; this type does not enforce it.
  *
- * Only the current [selectMode]'s domain is ever stored in [elementsByOwner] (a vertex-mode selection
- * holds only [MeshElement.Vertex] members, and so on).  Cross-domain highlights - an edge lighting up
- * because both endpoints are selected in vertex mode - are derived for display via [MeshTopology], never
- * stored, which is exactly Blender's model.
- *
- * [owners] is empty when the session is inert (a Pose mode with no warp the pose draws); the overlay
- * then draws nothing and the transform operators no-op.  [activeOwner] is Blender's active object
- * within the session - the owner a click last landed on, which anchors per-owner actions (select-mode
- * conversion display, the status bar's denominators).  [activeElement] is the element analog of
- * [Selection.active]: the last-touched element with its owner; it is always a member of its
- * owner's element set, or null when nothing is selected.
+ * Only the current [selectMode]'s domain is ever stored in [elementsByOwner]; cross-domain highlights are
+ * derived for display via [MeshTopology], never stored.  [owners] is empty when the session is inert (a Pose
+ * mode with no warp the pose draws), and [activeElement] is always a member of its owner's element set, or
+ * null when nothing is selected.
  *
  * @property List<ElementOwner> owners The owners in the edit session, in selection order.
- * @property ElementOwner? activeOwner The session's active owner, or null when the session is inert.
+ * @property ElementOwner? activeOwner The session's active owner - the one a click last landed on - or null
+ *   when the session is inert.
  * @property MeshSelectMode selectMode The element domain clicks select (vertex / edge / face).  Session-wide: it is
  *   carried across owner switches and mode switches, and held by the empty session of Object mode so the next Edit or
  *   Pose entry selects in it.
@@ -312,11 +302,9 @@ object MeshSelectionOps {
 
 	/**
 	 * Applies a box (rubber-band) selection across the session meshes: replaces every mesh's element set
-	 * with its entry in [elementsByOwner], or unions them in when [additive].  The active element is
-	 * kept when it remains selected, otherwise it drops to null (a box has no single "last touched"
-	 * element).  An additive union that adds nothing to a mesh keeps that mesh's set instance, so a
-	 * consumer keyed on the set's identity (the GPU mesh overlay) sees the mesh as untouched; a brush
-	 * stroke passes every session mesh on every stamp.
+	 * with its entry in [elementsByOwner], or unions them in when [additive].  An additive union that adds
+	 * nothing to a mesh keeps that mesh's set instance, so a consumer keyed on the set's identity (the GPU
+	 * mesh overlay) sees the mesh as untouched; a brush stroke passes every session mesh on every stamp.
 	 *
 	 * @param MeshSelection selection The selection to modify.
 	 * @param Map<ElementOwner, Set<MeshElement>> elementsByOwner The enclosed elements per session owner.
@@ -406,13 +394,10 @@ object MeshSelectionOps {
 
 	/**
 	 * Switches the select mode, converting every session mesh's stored elements into the new domain with
-	 * Blender's flush-down / derive-up rules.  Flushing down (to vertex) expands every element to the
-	 * vertices it covers, so selection is never lost.  Deriving up is strict per Blender: an edge
-	 * qualifies only when both endpoints were selected, and a face only when all of its own vertices
-	 * (from vertex mode) or all of its own edges (from edge mode) were selected.  The active
-	 * element drops to null on conversion (no single "last touched" element survives a domain change);
-	 * a same-mode call returns the selection unchanged.  A session mesh whose topology the provider
-	 * cannot resolve converts to empty.
+	 * Blender's flush-down / derive-up rules: flushing down to vertices keeps every covered vertex, and
+	 * deriving up is strict - an edge needs both endpoints, a face all of its own vertices (from vertex mode)
+	 * or edges (from edge mode).  The active element drops, since no single "last touched" element survives a
+	 * domain change.
 	 *
 	 * @param MeshSelection selection The selection to convert.
 	 * @param MeshSelectMode newMode The target select mode.
@@ -583,10 +568,8 @@ object MeshSelectionOps {
 
 	/**
 	 * Unions a connectivity island's elements into one mesh's selection, in the CURRENT select mode's
-	 * domain - Blender's Select Linked (L): every vertex of the island in vertex mode, every edge with
-	 * both endpoints in the island in edge mode, every face with all vertices in the island in face
-	 * mode.  Additive by design (repeated L grows the selection island by island); the active element
-	 * is left untouched (still a member - the union only adds).
+	 * domain - Blender's Select Linked (L).  Additive by design, so repeated L grows the selection island by
+	 * island.
 	 *
 	 * @param MeshSelection selection The selection to extend.
 	 * @param ElementOwner owner The owner the island lives on.
@@ -617,11 +600,9 @@ object MeshSelectionOps {
 	}
 
 	/**
-	 * Reports whether every selected element still exists in its mesh: vertex indices within the vertex
-	 * count, edges present in the mesh's edge set, and face ordinals within the face count - across
-	 * every session mesh.  Used to decide whether a stashed selection may be restored (re-entering Edit
-	 * mode) after the meshes may have changed underneath it.  A session mesh the provider cannot resolve
-	 * fails the check.
+	 * Reports whether every selected element still exists in its session mesh - whether a stashed selection
+	 * may be restored after the meshes may have changed underneath it.  A session mesh the provider cannot
+	 * resolve fails the check.
 	 *
 	 * @param MeshSelection selection The selection to validate.
 	 * @param Function topologyOf Resolves a session owner's topology, or null when absent.

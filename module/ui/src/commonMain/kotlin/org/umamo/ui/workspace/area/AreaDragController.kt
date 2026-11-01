@@ -38,8 +38,6 @@ enum class AreaCorner {
  * valid DOCK (over a different non-aligned leaf - the source relocates to a workspace edge), a valid SPLIT
  * (back inside the source area, dragged past the arm distance, axis locked), or none (a no-op on release).
  *
- * 進行中のコーナードラッグの状態。座標はシェル内容ボックス基準のローカルピクセル。結合・ドック・分割・無効。
- *
  * @property String sourceId The leaf the drag started from (the survivor on a join, the docked/split leaf).
  * @property AreaCorner startCorner The corner grabbed.
  * @property Offset startPointer Where the drag began, content-local (for the split arm distance and axis).
@@ -80,10 +78,7 @@ private const val DEFAULT_DOCK_FRACTION = 0.4f
  *
  * The gesture itself lives in the corner hotspot (Compose can't hand an in-flight gesture to the shell
  * overlay): the corner calls [beginDrag] / [updateDrag] / [endDrag], and the shell applies the returned
- * command.  [cancelDrag] backs the Escape key.  Dragging into a different aligned sibling joins; dragging
- * back inside the source area (past [splitThresholdPx]) splits it.
- *
- * コーナードラッグによるエリア操作の共有状態。各葉の矩形・現在のツリー・進行中ドラッグを保持する。
+ * command.  [cancelDrag] backs the Escape key.
  */
 @Stable
 class AreaDragController {
@@ -158,8 +153,7 @@ class AreaDragController {
 	}
 
 	/**
-	 * Ends the drag, always clearing the state.  Returns the command to apply: a join when released over a
-	 * valid aligned-sibling target, a split when released inside the armed source area, else null.
+	 * Ends the drag, always clearing the state, and returns the join, dock, or split the drag resolved to.
 	 *
 	 * @return AreaCommand? The structural edit to apply, or null.
 	 */
@@ -199,7 +193,7 @@ class AreaDragController {
 
 	/**
 	 * Builds a drag state for a pointer position: hit-tests the leaf rectangles, then decides whether the
-	 * drag is a valid join (over a different sibling) or a split of the source area (back inside it, armed).
+	 * drag is a valid join, dock, or split.
 	 *
 	 * @param String sourceId The drag's source leaf.
 	 * @param AreaCorner corner The grabbed corner.

@@ -3,10 +3,10 @@ package org.umamo.edit
 import org.umamo.runtime.model.PuppetModel
 
 /**
- * The editor's interaction mode, Blender-style. Object mode selects whole entities (parts, drawables,
+ * The editor's interaction mode, Blender-style.  Object mode selects whole entities (parts, drawables,
  * deformers) and places them at rest; Edit mode dives into the active entity's interior (mesh or warp
- * lattice) at rest; Pose mode poses deformers at the current parameter values, for
- * keying.  The mode scopes hit-testing and tool behaviour.
+ * lattice) at rest; Pose mode poses deformers at the current parameter values, for keying.  The mode
+ * scopes hit-testing and tool behavior.
  *
  * Posing has a mode of its own rather than living in Object mode, so a drag in Object mode always means
  * "move the rest placement" and never silently means "pose this" depending on what is selected.
@@ -36,11 +36,9 @@ val EditorMode.pinsPose: Boolean get() = this == EditorMode.Edit
  * Whether this mode works on the session's elements - mesh vertices, edges, and faces, or lattice points, grid
  * lines, and cells - rather than on whole objects.
  *
- * Edit and Pose mode share one way of working: the viewport picks the elements of the session's owners, the select
- * modes switch the element domain, and G / R / S move what the elements cover.  What tells them apart is where the
- * edit lands, which [pinsPose] decides: Edit mode shapes the rest state, Pose mode shapes the pose and holds the result
- * pending until it is keyed.  A check that means "points rather than objects" reads this rule; a check that means "at
- * rest" (topology, UVs, mesh generation) stays on Edit mode itself.
+ * Edit and Pose mode pick and move elements the same way and differ only in where the edit lands, which [pinsPose]
+ * decides.  A check that means "points rather than objects" reads this rule; a check that means "at rest" (topology,
+ * UVs, mesh generation) stays on Edit mode itself.
  */
 val EditorMode.editsElements: Boolean get() = this != EditorMode.Object
 

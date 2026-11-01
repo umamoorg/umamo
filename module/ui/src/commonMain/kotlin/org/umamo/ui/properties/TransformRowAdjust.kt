@@ -29,7 +29,7 @@ import org.umamo.ui.viewport.viewport2d.registerWorldAdjustment
 
 /**
  * Moves drawable [id]'s world bounds center to ([centerX], [centerZ]) as one undo step (see [setDrawableWorldCenter])
- * and registers the move on the operation strip in [areaId], as a Grab by the delta from where the center was.
+ * and registers the move on the operation strip in [areaId] as a Grab.
  *
  * @param DrawableId id The drawable to move.
  * @param Float centerX The world x its bounds center should land on.
@@ -42,8 +42,7 @@ internal fun EditorSession.setDrawableWorldCenterAdjustable(id: DrawableId, cent
 
 /**
  * Scales drawable [id] about its world bounds center to ([width], [height]) as one undo step (see
- * [setDrawableWorldSize]) and registers the resize on the operation strip in [areaId], as a Scale by the factors the
- * extents changed by; a degenerate axis, which the setter leaves alone, registers a factor of 1.
+ * [setDrawableWorldSize]) and registers the resize on the operation strip in [areaId] as a Scale.
  *
  * @param DrawableId id The drawable to resize.
  * @param Float width The target world x extent.
@@ -56,8 +55,7 @@ internal fun EditorSession.setDrawableWorldSizeAdjustable(id: DrawableId, width:
 
 /**
  * Moves warp [id] as a whole so its lattice's world bounds center lands on ([centerX], [centerZ]) as one undo step
- * (see [setWarpWorldCenter]) and registers the move on the operation strip in [areaId], as a Grab by the delta from
- * where the center was.
+ * (see [setWarpWorldCenter]) and registers the move on the operation strip in [areaId] as a Grab.
  *
  * @param DeformerId id The warp to move.
  * @param Float centerX The world x its bounds center should land on.
@@ -70,8 +68,7 @@ internal fun EditorSession.setWarpWorldCenterAdjustable(id: DeformerId, centerX:
 
 /**
  * Scales warp [id] as a whole about its lattice's world bounds center to ([width], [height]) as one undo step (see
- * [setWarpWorldSize]) and registers the resize on the operation strip in [areaId], as a Scale by the factors the
- * extents changed by; a degenerate axis registers a factor of 1.
+ * [setWarpWorldSize]) and registers the resize on the operation strip in [areaId] as a Scale.
  *
  * @param DeformerId id The warp to resize.
  * @param Float width The target world x extent.

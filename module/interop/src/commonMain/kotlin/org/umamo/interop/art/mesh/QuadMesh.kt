@@ -8,18 +8,14 @@ import kotlin.math.ceil
 import kotlin.math.floor
 
 /**
- * A quad over a layer's art: the rectangle around every pixel at or above [alphaThreshold], grown by
- * [margin] on every side, in the raster's own pixels with y down - the import's quad, made from an alpha
- * channel so a drawable that samples only part of its tile gets a quad over its own region.
+ * A quad over a layer's art: the rectangle around every pixel at or above [alphaThreshold] and every
+ * pin, grown by [margin] on every side, in the raster's own pixels with y down - the import's quad, made
+ * from an alpha channel so a drawable that samples only part of its tile gets a quad over its own region.
  *
- * Its corners run left-top, right-top, right-bottom, left-bottom over the triangles 0, 1, 2 and 0, 2, 3,
- * the import's quad exactly, so a reload treats an untouched one as the import's own.  The rectangle is
- * not clamped to the raster: a quad may reach past it, as the import's does.
- *
- * Glued points ([pins]) must stay where they are, so the rectangle also grows to hold each of them, the
- * margin past it, and they are triangulated with the corners - each pin comes back as a vertex at its
+ * Its corners and triangles are the import's quad exactly, so a reload treats an untouched one as the
+ * import's own, and like it the quad may reach past the raster.  Each pin comes back as a vertex at its
  * Float-rounded point, listed in [PlanarTriangleMesh.pinVertices] in pin order, the way the art mesher
- * returns its pins.  Two pins at one point share a vertex; a pin on a corner is that corner.
+ * returns its pins.
  *
  * @param AlphaChannel alpha          The art.
  * @param Int          alphaThreshold The least alpha byte (1..255) counted as art.

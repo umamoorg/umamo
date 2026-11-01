@@ -25,8 +25,8 @@ import kotlin.math.roundToInt
  * the packer's disjoint pages byte-identical, since every pixel it touches is untouched.  Over painted
  * content a transparent sample is skipped, an opaque one replaces (later placements win), a
  * translucent one composites source-over, and a bleed band - synthetic pixels - never beats real
- * ones.  Hand-authored placements overlap; without the rule a later tile's transparent margin cut a
- * box out of the tile beneath it.
+ * ones.  Hand-authored placements overlap; without the rule a later tile's transparent margin would
+ * cut a box out of the tile beneath it.
  *
  * Kept apart from the packing geometry so the blit can be read and tested as pixels, which is where
  * a packer's silent bugs live - an orientation flipped, an extrusion off by one, a stride computed
@@ -240,16 +240,11 @@ internal fun blitTile(
 /**
  * Bleeds a placed tile's edge colors outward into the surrounding gutter, at zero alpha.
  *
- * Bilinear sampling at a tile's border reads half a texel past it, and the renderer filters straight
- * alpha, so the color it finds there tints the edge: transparent black would darken it.  The band gives
- * it the edge's own color with no coverage, so the page past the art stays as transparent as the layer
- * is there - a mesh reaching past its art must not find an opaque copy of the edge.  The edge is read
- * from the SOURCE raster, not from the page: under the content-preserving rule a tile's transparent
- * edge may not have landed on the page at all, and the band must carry the tile's own texel color,
- * never whatever another tile left there.  The caller guarantees room by reserving a gutter of at least
- * [extrude] on every side, so no clamping against the page edge is needed here - and a silent clamp
- * would hide exactly the arithmetic mistake this is most likely to make.  Band pixels are synthetic:
- * they fill unpainted pixels only.
+ * The edge is read from the SOURCE raster, not from the page: under the content-preserving rule a
+ * tile's transparent edge may not have landed on the page at all, and the band must carry the tile's
+ * own texel color, never whatever another tile left there.  The caller guarantees room by reserving a
+ * gutter of at least [extrude] on every side, so nothing clamps against the page edge here - a silent
+ * clamp would hide exactly the arithmetic mistake this is most likely to make.
  *
  * @param ByteArray   page         The destination page, RGBA8888 row-major from the top.
  * @param Int         pageWidth    The page width in pixels.
@@ -303,12 +298,9 @@ internal fun extrudeTileEdges(
 /**
  * Composes atlas pages from already-decided placements.
  *
- * This is the packer's own composition loop opened to callers that hold placements rather than a
- * pack request: [packAtlas] composes through here, and a repack's undo re-derives an earlier page
- * set through here, so the two can never drift apart.  Placement footprints including their
- * extrusion are pairwise disjoint (every placement reserves at least [extrude] of gutter on every
- * side, which the bounds checks below enforce against the page and the packer enforced between
- * tiles), so the composition is order-independent.
+ * This is the packer's own composition loop ([packAtlas] composes through here), opened to callers
+ * that hold placements rather than a pack request.  The packer keeps placement footprints, extrusion
+ * included, pairwise disjoint, so the composition is order-independent.
  *
  * @param IntArray pageWidths  Page widths in pixels, indexed by [AtlasPackPlacement.pageIndex].
  * @param IntArray pageHeights Page heights in pixels, index-parallel to [pageWidths].
@@ -411,20 +403,11 @@ public class AtlasTilePlacement(
  * Composes atlas pages from placements given as affines - [composeAtlasPages] for tiles that may sit
  * rotated, scaled, off the pixel grid, or partly off the page.
  *
- * A placement that is an exact integer translation, or an exact counter-clockwise quarter turn on
- * integer pixels, with room for its bleed band takes the packer's own blit and edge bleed, so a
- * page composed here from a repack's placements is byte-identical to the page the packer composed,
- * turned tiles included.  Every other placement is resampled: each page pixel reads the tile
- * bilinearly at its center's pre-image, against transparency beyond the trim, so an edge off the pixel
- * grid lands with the partial coverage it has - the way the editor resamples its own pages.  A page
- * pixel the tile does not cover within [extrude] pixels of the footprint takes the nearest edge's color
- * at zero alpha - the packer's bleed band, expressed so it holds under rotation.  Pixels that fall off
- * the page are dropped rather than refused: the placement is a rigger's authored choice, and clipping
- * is what the page would show.
- *
- * Unlike the packer's placements, hand-authored footprints may overlap; they paint in list order
- * under the content-preserving rule (a later transparent sample never erases an earlier tile, a later
- * opaque one wins).
+ * Each tile paints through [paintTilePlacement], so a page composed here from a repack's placements
+ * is byte-identical to the page the packer composed.  Pixels that fall off the page are dropped rather
+ * than refused: the placement is a rigger's authored choice, and clipping is what the page would show.
+ * Unlike the packer's placements, hand-authored footprints may overlap; they paint in list order under
+ * the content-preserving rule.
  *
  * @param IntArray pageWidths  Page widths in pixels, indexed by [AtlasTilePlacement.pageIndex].
  * @param IntArray pageHeights Page heights in pixels, index-parallel to [pageWidths].
@@ -597,7 +580,7 @@ private class ExactPlacement(
  *
  * The turned case is the affine the packer's own turn induces over the untrimmed tile frame: it sends
  * trim-local (u, v) to (originX + v, originY + trimWidth - u), so the placed top-left sits at
- * (m02 + trim.top, m12 - trim.left - trim.width).  Recognising it here is what lets a repack that
+ * (m02 + trim.top, m12 - trim.left - trim.width).  Recognizing it here is what lets a repack that
  * turned a tile derive byte-identical pages instead of resampling through the bilinear path, whose
  * bleed band rounds corners differently from the packer's.
  *
@@ -664,14 +647,9 @@ private fun invertAffine2x3(affine: FloatArray): FloatArray? {
 /**
  * Resamples one trimmed tile onto a page through an affine, clipping to the page.
  *
- * Runs over the footprint's bounding box grown by the bleed band plus the one texel a bilinear tap
- * reaches past the trim, and inverse-maps each page pixel center into the tile.  The tile is sampled
- * bilinearly there against TRANSPARENCY beyond the trim ([sampleBilinearCovered]), so an edge that
- * falls between page pixels paints the partial coverage it has, and nothing paints farther out than
- * the art reaches.  A pixel the tile does not cover at all takes the nearest edge's color at zero alpha
- * when that edge, mapped back to the page, lies within [extrude] pixels - the packer's bleed band as a
- * band of constant width around the footprint whatever its orientation - and is left untouched beyond
- * it.  Both go through the content-preserving rule; the band as synthetic.
+ * An edge that falls between page pixels paints the partial coverage it has ([sampleBilinearCovered]),
+ * and a pixel the tile does not cover takes the nearest edge's color at zero alpha out to [extrude]
+ * pixels: the packer's bleed band, held at constant width whatever the footprint's orientation.
  *
  * @param ByteArray   page        The destination page, RGBA8888 row-major from the top.
  * @param Int         pageWidth   The page width in pixels.

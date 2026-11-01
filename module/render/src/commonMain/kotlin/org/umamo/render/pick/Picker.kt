@@ -119,12 +119,9 @@ fun barycentricWeights(
 
 /**
  * Finds the FRONT-MOST drawable whose deformed mesh contains the point AND whose texel there is opaque,
- * or null on a miss. Candidates are the drawables present in [worldPositions] (the evaluator's visible
- * set) that also have triangle [indices], [meshUvs], and a [frontRank] (so a drawable not actually drawn
- * this frame is skipped). For each, the first containing triangle's UV is barycentric-interpolated and
- * [sampleAlpha]d; a texel below [alphaThreshold] is rejected (the transparent overhang). Among the
- * opaque hits, the highest [frontRank] wins — the renderer's resolved paint order, which is correct
- * where the raw draw-order scalar (ignoring the group hierarchy) is not.
+ * or null on a miss.  Front-most means the highest [frontRank] - the renderer's resolved paint order,
+ * which is correct where the raw draw-order scalar (ignoring the group hierarchy) is not - and a drawable
+ * without a rank is not drawn this frame, so it is skipped.
  *
  * @param Float worldX                               The point X in post-deform world space.
  * @param Float worldZ                               The point Z (up) in post-deform world space.
@@ -224,12 +221,9 @@ fun pickAllDrawables(
 }
 
 /**
- * Approximate "depth inside the opaque region" at a UV hit, in 0..1. Casts [CENTRALITY_RAY_COUNT] rays
- * outward in texture space (stepping [CENTRALITY_STEP_TEXELS]) up to [CENTRALITY_MAX_RADIUS_TEXELS],
- * finds the nearest texel where alpha drops below [alphaThreshold], and returns that min distance
- * normalised by the cap (1 = no transparent texel within the cap, i.e. deep inside). The middle of a
- * large opaque region scores high; a hit near a transparent boundary scores low. Approximate
- * (ray-sampled, not an exact distance transform), and it cannot tell apart adjacently-packed atlas art.
+ * Approximate "depth inside the opaque region" at a UV hit, in 0..1: the distance to the nearest
+ * transparent texel along a fan of rays, normalized by [CENTRALITY_MAX_RADIUS_TEXELS] (1 = deep inside).
+ * Ray-sampled, not an exact distance transform, and it cannot tell apart adjacently-packed atlas art.
  *
  * @param DrawableId id          The drawable being scored.
  * @param Float u                The hit U (full-atlas).

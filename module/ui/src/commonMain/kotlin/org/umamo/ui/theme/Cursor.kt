@@ -209,8 +209,8 @@ private fun cursor(
 /**
  * The bundled cursor set, adapted from the Blender project's cursor art (GPL; see CREDITS.md).  Like the
  * icon set it is a plain top-level value referenced directly (for example LocalUmamoCursors.crosshair),
- * kept so a per-theme override can layer on later without touching call sites.  These feed edit mode,
- * where the active tool chooses the pointer shape.
+ * kept so a per-theme override can layer on later without touching call sites.  The viewport overlays draw
+ * them with drawCursor, and everywhere else they become OS pointers through umamoPointerIcon.
  */
 val LocalUmamoCursors =
 	UmamoCursors(
@@ -1202,11 +1202,9 @@ val LocalUmamoCursors =
 
 /**
  * Draws [cursor] with its hotspot placed exactly on [anchor] (typically the pointer position), scaled so
- * the cursor's longer side spans [pixelSize].  Because the art is positioned by its hotspot the caller
- * passes the pointer location and a size and never offsets for the tip or center itself.  Draw into a
- * surface that surrounds [anchor] (an overlay over the viewport), not a tight cursor-sized box: a
- * non-corner hotspot places art on every side of [anchor].  Colors come baked into the layers, so unlike
- * drawIcon there is no caller tint.
+ * the cursor's longer side spans [pixelSize].  Draw into a surface that surrounds [anchor] (an overlay
+ * over the viewport), not a tight cursor-sized box: a non-corner hotspot places art on every side of
+ * [anchor].  Colors come baked into the layers, so there is no caller tint.
  *
  * @param UmamoCursor cursor    The cursor to paint.
  * @param Offset      anchor    Where the cursor's hotspot lands, in this DrawScope's coordinates.

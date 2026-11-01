@@ -21,12 +21,6 @@ import org.umamo.ui.viewport.uv.uvToDisplay
  * inputs are the same instances, which spares the edge walk and the display mapping, and is what lets the
  * renderer upload only the moved meshes' positions, since it compares them by identity.
  *
- * What each piece is kept by: a mesh's topology by its index array and vertex count; its recovered layer
- * coordinates by its stored coordinates, its layer binding, and the layer's size; its display positions by
- * the coordinates in the shown surface's frame and the surface's size; and its whole geometry by its
- * topology and display positions.
- * Each derive drops the meshes it no longer shows.
- *
  * Not thread-safe: the area's composition owns it.  Every entry is a pure function of what it is kept by,
  * so a composition that is thrown away leaves nothing wrong behind.
  */

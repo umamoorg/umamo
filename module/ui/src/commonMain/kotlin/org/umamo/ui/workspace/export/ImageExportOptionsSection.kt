@@ -45,14 +45,8 @@ private val IMAGE_SCALE_PERCENT_RANGE = 1f..1600f
 
 /**
  * Export Image's option pane: which region to capture and at what scale, and what to draw it over, with a live
- * readout of the image size that the choices make.
- *
- * Only the regions the moment can capture are offered: View when a 2D viewport has been touched (the hovered
- * one, else the last), Canvas when the document has a canvas, and Content always.  A remembered region the moment cannot offer
- * opens as Content, and stays remembered unless the rigger picks a region themselves: a fallback is this
- * moment's, not a choice.  Edits accumulate on a local copy and reach the export only through the request's
- * continuation when Export is pressed; Cancel discards them.  Export is disabled while the choices make no
- * image; the size readout says why.
+ * readout of the image size that the choices make.  Edits reach the export only through the request's
+ * continuation when Export is pressed.
  *
  * @param ExportOptionsRequest.Image request   The pending request: initial values, the rectangles the readout
  *                                             frames, and the continuation.
@@ -73,6 +67,8 @@ internal fun ImageExportOptionsPane(
 	var edited by remember(request) {
 		mutableStateOf(if (initialRegionOffered) request.initial else request.initial.copy(region = ImageRegion.Content))
 	}
+	// A remembered region the moment cannot offer opens as Content but stays remembered unless the rigger picks a
+	// region: a fallback is this moment's, not a choice.
 	var regionChosen by remember(request) { mutableStateOf(initialRegionOffered) }
 	val regionLabels =
 		mapOf(

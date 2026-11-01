@@ -16,10 +16,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Makes this element a resize grip: dragging it along [orientation] changes a size by the distance dragged, held
- * between [min] and [max].  Each step starts from the size as it stands, itself held to the limits, so a stored
- * size the limits cut down never leaves a dead zone at the start of a drag.  The size, the limits, and the
- * callbacks are read when each step lands rather than captured when the drag began, since the drag outlives the
- * composition that started it.  The grip shows [hoverIcon] while the pointer is over it.
+ * between [min] and [max].
  *
  * With [collapseBelow] set, the grip can also fold what it sizes away, as dragging a Blender region's edge far
  * enough hides the region: once the size the pointer asks for, followed from where the drag began without the
@@ -52,6 +49,8 @@ fun Modifier.dragResizes(
 	onCollapse: () -> Unit = {},
 ): Modifier {
 	val density = LocalDensity.current
+	// Read when each step lands rather than captured when the drag began, since the drag outlives the
+	// composition that started it.
 	val latestSize by rememberUpdatedState(size)
 	val latestMin by rememberUpdatedState(min)
 	val latestMax by rememberUpdatedState(max)
@@ -79,6 +78,8 @@ fun Modifier.dragResizes(
 					return@DraggableState
 				}
 
+				// Each step starts from the size as it stands, itself held to the limits, so a stored size the
+				// limits cut down leaves no dead zone at the start of a drag.
 				val shown = latestSize().coerceIn(latestMin, latestMax)
 				latestOnResize((shown + signedDelta).coerceIn(latestMin, latestMax))
 			}

@@ -147,11 +147,8 @@ internal class Cmo3KeyformLowering(
 
 	/**
 	 * Tags every form of [source] with the space an owner under [hasParentDeformer] stores its
-	 * positions in.  A rebinding reads the owner's forms in its new parent's space from then on - the
-	 * rest-keeping rebind writes the base there, and a keyed owner's numbers are kept and follow the
-	 * new parent - so the tag follows the binding for the editor to read the positions in the right
-	 * space.  A form already tagged with that name is left as it is, so an unchanged file re-emits
-	 * its bytes.
+	 * positions in, so after a rebind the editor reads the positions in the new parent's space.  A form
+	 * already tagged with that name is left as it is, so an unchanged file re-emits its bytes.
 	 *
 	 * CMO3: ACDrawableForm / ACDeformerForm field coordType.
 	 *
@@ -231,14 +228,8 @@ internal class Cmo3KeyformLowering(
 	 * the default form: its setKeyformGridSource rejects null and CArtMeshSource.getDefaultKeyForm
 	 * throws "no KeyForms" on an empty pool, and a model with either fails to open (Cubism 5.4 alpha1,
 	 * checked 2026-09-04 against a file whose meshes had no grid).  The corpus agrees - every unkeyed
-	 * source, part, and glue holds an axis-less grid with one form, which is also what the structural
-	 * create synthesizes for a fresh part or glue.  So a fully unkeyed owner whose rest state lives
-	 * outside its grid (a drawable's base mesh, a part's or glue's statics) bundles here to that one
-	 * cell: no axes, no geometry payload (the form writers fall back to the owner's base), the statics
-	 * as its channel values.  A geometry owner (warp, rotation) with no grid has no rest geometry
-	 * anywhere - it left with the last axis - so nothing is invented for it and the empty bundle
-	 * stands.  The shared bundler keeps returning the empty bundle because MOC3 has its own answer
-	 * for an unkeyed owner (its lowering emits the rest form itself).
+	 * source, part, and glue holds an axis-less grid with one form.  A geometry owner (warp, rotation)
+	 * with no grid has no rest geometry to put in that cell, so its empty bundle stands.
 	 *
 	 * CMO3 can decline to write an object's grid over a split state; MOC3 cannot (every object needs a
 	 * keyform), which is why the shared bundler takes the policy as a parameter instead of assuming one.
@@ -520,7 +511,18 @@ internal class Cmo3KeyformLowering(
 		editor.ensureChildSlot(owner, tag, property, beforeProperty)
 	}
 
-	/** Writes a color channel value into a form's CFloatColor field, creating one only when needed. */
+	/**
+	 * Writes a color channel value into a form's CFloatColor field, creating one only when needed.
+	 *
+	 * @param ACForm   form           The form owning the color field.
+	 * @param String   formTag        The form's serial tag for the child-slot record.
+	 * @param String   property       The color field's name.
+	 * @param String?  beforeProperty The sibling field the slot precedes, or null for last.
+	 * @param Any?     current        The current field value.
+	 * @param Function assign         Assigns a fresh color to the field.
+	 * @param ColorRgb color          The value to write.
+	 * @param ColorRgb identity       The channel's no-tint value, which an absent field already reads as.
+	 */
 	private fun writeFormColor(
 		form: ACForm,
 		formTag: String,
@@ -563,7 +565,12 @@ internal class Cmo3KeyformLowering(
 
 	private fun flagOf(value: ChannelValue?): Boolean? = (value as? ChannelValue.Flag)?.flag
 
-	/** True when every DRAW_ORDER value in [bundle] is integral (CMO3 stores draw order as Int). */
+	/**
+	 * True when every DRAW_ORDER value in [bundle] is integral (CMO3 stores draw order as Int).
+	 *
+	 * @param KeyformBundle bundle The bundled grid.
+	 * @return Boolean True when no cell carries a fractional draw order.
+	 */
 	private fun drawOrdersAreIntegral(bundle: KeyformBundle): Boolean =
 		bundle.cells.all { cell ->
 			val drawOrder = scalarOf(cell.channels[FormChannel.DRAW_ORDER]) ?: return@all true

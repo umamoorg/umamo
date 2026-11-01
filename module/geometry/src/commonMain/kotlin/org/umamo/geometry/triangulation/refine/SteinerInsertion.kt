@@ -358,11 +358,8 @@ internal class SteinerInsertion(private val store: HalfEdgeTriangulation) {
 	}
 
 	/**
-	 * Splits a constrained edge at a Float point near a target on it.  The candidates are the target
-	 * rounded to Float and its eight Float neighbors; one exactly on the segment is tried first, then
-	 * the first beside it on the preferred side, then the first on the other side, each only when it
-	 * lies strictly inside the triangle on its side (or beyond a hull edge).  The approval sees each in
-	 * turn, after its cavity is gathered, and the first it approves is inserted.
+	 * Splits a constrained edge at a Float point near a target on it: the target rounded to Float or one
+	 * of its eight Float neighbors, whichever valid candidate the approval accepts first.
 	 *
 	 * @param Int           start        The edge's start.
 	 * @param Int           end          The edge's end.

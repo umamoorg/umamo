@@ -154,8 +154,6 @@ class SpaceRegistry(private val descriptorsByKind: Map<SpaceKind, SpaceDescripto
 /**
  * The active [SpaceRegistry] for the composition. `static` - the registry is stable for the shell's
  * lifetime; areas read `LocalSpaceRegistry.current` to render and to build their dropdown.
- *
- * コンポジションで有効な SpaceRegistry。
  */
 val LocalSpaceRegistry =
 	staticCompositionLocalOf<SpaceRegistry> {

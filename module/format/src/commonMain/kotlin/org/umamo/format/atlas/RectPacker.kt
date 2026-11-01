@@ -56,15 +56,11 @@ internal class RectPackLayout(
 /**
  * Packs footprints onto as many equally-sized pages as they need.
  *
- * Requests are packed in descending max-side order, which is what makes MaxRects behave: the large
- * awkward pieces claim their space while the free list is still coarse, and the small ones fill the
- * remainders.  The caller is responsible for supplying a deterministic request order - this function
- * preserves it exactly and adds no ordering of its own.
- *
- * Seeds go first: a seeded page exists whether or not a request lands on it (a seed on page 2 opens
- * pages 0 and 1 too, so page indices keep their meaning), and its rectangle is taken before the first
- * request is placed.  The caller keeps every seed inside the page - a seed is a footprint the caller
- * already decided to keep, so there is nothing sensible to do with one that does not fit.
+ * Requests are placed exactly in the order given, so the caller owns determinism; descending max-side
+ * order is what makes MaxRects behave, since the large awkward pieces claim their space while the free
+ * list is still coarse.  A seeded page exists whether or not a request lands on it (a seed on page 2
+ * opens pages 0 and 1 too, so page indices keep their meaning), and the caller keeps every seed inside
+ * the page.
  *
  * @param List    requests      The footprints to place, already in packing order.
  * @param Int     pageSize      The square page side every page is packed against, in pixels.

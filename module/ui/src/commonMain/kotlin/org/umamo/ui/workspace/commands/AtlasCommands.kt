@@ -7,12 +7,9 @@ import org.umamo.ui.resources.*
  * The document's atlas commands: operations on the packed texture pages themselves.
  *
  * The repack handler is a nullable collaborator resolved at DISPATCH time, like every table
- * collaborator: the table declares the command, the shell supplies the orchestration closure, and a
- * null handler (no document, or a platform without one) makes the dispatch a no-op behind the
- * availability gate.  The handler receives the area its operation settings strip shows in: the hovered
- * work surface, else the last one the pointer touched, else the workspace's first (routing.operationStripArea
- * - the repack is document-wide, so it can fire from anywhere, but the strip exists only in a 2D viewport
- * or UV editor); null when the workspace has neither, and the strip then shows nowhere.
+ * collaborator: a null handler (no document, or a platform without one) makes the dispatch a no-op
+ * behind the availability gate.  The document-wide repack can fire from anywhere, so the handler
+ * receives the area its operation settings strip shows in ([CommandRouting.operationStripArea]).
  *
  * @param SessionAvailability availability The shared document-scoped availability tiers.
  * @param CommandRouting      routing      The hovered-area resolver, read at dispatch.

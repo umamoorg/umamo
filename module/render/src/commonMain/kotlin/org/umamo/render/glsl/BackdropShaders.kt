@@ -2,11 +2,8 @@ package org.umamo.render.glsl
 
 // The canvas backdrop's GLSL - the world-aligned grid and the world-origin axis lines.
 //
-// These were previously hand-copied between the desktop and Android backends, identical but for the
-// preamble, with nothing pinning the two together.  They had already begun to drift: the Android copies
-// had silently lost three of the explanatory comments.  Only comments so far, which is precisely why
-// merging them now was worth doing - the next divergence would have been in the math, and nothing would
-// have caught it.
+// One source serves the desktop and Android backends, differing only in the preamble, so the two cannot
+// drift apart in the math.
 //
 // Metal shares none of this; see GlslDialect.
 
@@ -29,12 +26,8 @@ internal fun gridVertexShader(dialect: GlslDialect): String =
 		""".trimIndent()
 
 /**
- * The world-aligned grid backdrop's fragment shader.
- *
- * Each fragment recovers its world position by inverting the same world-to-NDC affine the puppet is
- * projected through, then draws anti-aliased lines wherever that world coord is near a multiple of the
- * major or minor spacing.  Colors and spacings arrive as uniforms so the backdrop follows the editor
- * theme and the per-viewport grid config.  Opaque, so it both clears and paints in one pass.
+ * The world-aligned grid backdrop's fragment shader, projected through the same world-to-NDC affine as
+ * the puppet.  Opaque, so it both clears and paints in one pass.
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.

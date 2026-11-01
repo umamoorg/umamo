@@ -139,8 +139,8 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 
 	// Per-program state is re-established only when the program actually switches. A uniform keeps its value
 	// on the program object across binds, and the renderer passes the same camera / glue state for a whole
-	// pass, so re-sending them per draw (as the pre-device renderer's useProgramFor did NOT) is wasted work:
-	// a run of same-blend drawables would otherwise churn glUseProgram + blend + samplers + camera every draw.
+	// pass, so re-sending them per draw is wasted work: a run of same-blend drawables would otherwise churn
+	// glUseProgram + blend + samplers + camera every draw.
 	private var cameraApplied = false
 	private var glueStateApplied = false
 
@@ -215,7 +215,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 		val locations = current.locations
 
 		// The weld intensities and the position texture buffer are constant across the pass, so bind them
-		// once per glue-program bind (matching the old useProgramFor), not per glue draw.
+		// once per glue-program bind, not per glue draw.
 		if (!glueStateApplied) {
 			glueStateApplied = true
 			GL20.glUniform1fv(locations.glueIntensity, glueIntensities)

@@ -65,14 +65,10 @@ class UmaDocument(
 fun umamoWriterInfo(): UmaWriterInfo = UmaWriterInfo("Umamo", ProjectInfo.VERSION)
 
 /**
- * Assembles a [UmaDocument] from a file's bytes: the codec reads the container, the bridge rebuilds the
- * puppet with its atlas and sources, and the pages come from the file when it stores them or derive
- * from the tiles when it does not.
+ * Assembles a [UmaDocument] from a file's bytes, mapping a refused file to the open error the shell shows.
  *
- * Failures map to the open errors the shell shows: a file that is not a UMA at all, a container or a
- * puppet entry newer than this reader, and a damaged or malformed file each get their own.  Any OTHER
- * required entry this version cannot interpret is not a failure - the codec opens the file read-only and
- * the document says so; only the puppet is needed to have a rig to show at all.
+ * A required entry this version cannot interpret is not a failure unless it is the puppet, the one entry
+ * a rig cannot be shown without: the codec opens the file read-only and the document says so.
  *
  * @param ByteArray bytes The file's contents.
  * @param String    name  The file name, for the failure alert.

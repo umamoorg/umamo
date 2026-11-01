@@ -118,11 +118,11 @@ class AreaHoverStampTest {
 	}
 
 	/**
-	 * Every space kind stamps, not just the three editor surfaces that used to carry their own stamp.
+	 * Every space kind stamps its own area.
 	 *
-	 * Swept over the whole enum because the point of moving the stamp to the leaf is that coverage stops
-	 * being something a space author has to remember - a kind added later is covered by construction, and
-	 * this fails if that ever stops being true.
+	 * Swept over the whole enum because the stamp lives on the leaf so that coverage is not something a
+	 * space author has to remember - a kind added later is covered by construction, and this fails if
+	 * that ever stops being true.
 	 */
 	@Test
 	fun everySpaceKindStampsItsOwnArea() {
@@ -136,11 +136,11 @@ class AreaHoverStampTest {
 	}
 
 	/**
-	 * The area HEADER stamps too, which the per-space stamps never did.
+	 * The area HEADER stamps too, not only the body.
 	 *
-	 * This is the case the whole change exists for: the outliner's search field lives in its header, so
-	 * using it has to read as "the pointer is on the outliner" - otherwise the tracker keeps naming
-	 * whichever viewport the pointer visited before, and a key pressed afterwards acts there.
+	 * The outliner's search field lives in its header, so using it has to read as "the pointer is on the
+	 * outliner" - otherwise the tracker keeps naming whichever viewport the pointer visited before, and a
+	 * key pressed afterwards acts there.
 	 */
 	@Test
 	fun theHeaderStampsAsWellAsTheBody() {

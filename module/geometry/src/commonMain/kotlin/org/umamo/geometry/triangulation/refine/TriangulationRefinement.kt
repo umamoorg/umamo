@@ -116,18 +116,15 @@ public class RefinedTriangulation(
  *
  * The triangulation is exactly [org.umamo.geometry.triangulation.triangulate]'s, given the same
  * input; refinement then adds vertices after the input ones - angle refinement's first, short of the
- * share of the cap a guide with something to hold claims, then the guide's.  Without boundaries the convex hull's
- * edges bound the domain: they are made boundary constraints first, so they split like any other.
- * When a boundary edge is rejected or a ring is left open, inside and outside are not well defined and
- * nothing is added.
+ * share of the cap a guide with something to hold claims, then the guide's.  Without boundaries the
+ * convex hull's edges bound the domain: they are made boundary constraints first, so they split like
+ * any other.  When a boundary edge is rejected or a ring is left open, inside and outside are not well
+ * defined and nothing is added.
  *
- * Refinement always terminates.  Small input angles cannot be fixed, so a triangle whose small angle
- * lies between two constraints is left, as is one whose short edge joins two segments' concentric
- * shell points around the corner they share (Miller, Pav, and Walkington's rule); segments next to a
- * sharp corner split on power-of-two shells around it, so such triangles form instead of an endless
- * cascade.  The separation and segment-length floors, the added-point cap, and an operation backstop
- * bound the rest.  Every decision is exact or a deterministic floating-point inequality, so the result
- * is a function of the input alone, on every platform.
+ * Refinement always terminates: triangles whose small angle the input fixes are left and counted, and
+ * the separation and segment-length floors, the added-point cap, and an operation backstop bound the
+ * rest.  Every decision is exact or a deterministic floating-point inequality, so the result is a
+ * function of the input alone, on every platform.
  *
  * @param DoubleArray       points     The points, x0, y0, x1, y1, ...; every component must be finite.
  * @param List<IntArray>    boundaries Closed rings of point indices, as for triangulate.

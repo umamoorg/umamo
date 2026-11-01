@@ -19,10 +19,9 @@ import org.umamo.edit.eligibleTransformTargets
  */
 
 /**
- * Latches a modal mesh operator so the gizmo overlay begins the gesture. A no-op unless a mode that edits elements
- * ([editsElements]: Edit, or Pose over lattices) is active with a mesh or lattice and a non-empty selection — so the
- * bound G / S / R commands need no context guard of their own and the keymap stays mode-agnostic. For an edge or
- * face selection the gesture moves the union of vertices the selected elements cover (resolved in the overlay).
+ * Latches a modal mesh operator so the gizmo overlay begins the gesture.  A no-op unless a mode that edits elements
+ * ([editsElements]) is active with a non-empty selection, so the bound G / S / R commands need no context guard of
+ * their own and the keymap stays mode-agnostic.
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
@@ -45,14 +44,8 @@ fun EditorSession.beginMeshOperator(kind: MeshOperatorKind, areaId: String, supp
 
 /**
  * Begins an Object-mode modal transform (Grab / Scale / Rotate) over the selected drawables and warps as
- * whole objects - the Object-mode counterpart to [beginMeshOperator]. A no-op unless Object mode is active
- * with an eligible selection: at least one selected target must be a drawable that carries a mesh or a warp
- * with a rest lattice (see [eligibleTransformTargets]; parts, rotation deformers, and mesh-less drawables in
- * the selection are silently ignored, so a Select All that swept them in never blocks the gesture). The
- * gesture is BLOCKED with a near-cursor notice when the pose is not at parameter defaults: the object
- * overlay captures at the live pose, and writing a deformed capture back through the warp inverse corrupts
- * the rest meshes - the Blender-style guard tells the user to reset the parameters first. Clears any other
- * latched tool / operator (mutual exclusion) before latching.
+ * whole objects - the Object-mode counterpart to [beginMeshOperator].  Selected targets that cannot transform
+ * are ignored ([eligibleTransformTargets]), so a Select All that swept them in never blocks the gesture.
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
@@ -72,7 +65,7 @@ fun EditorSession.beginObjectOperator(kind: MeshOperatorKind, areaId: String) {
 
 	if (!isPoseNeutral(model.value, pose.value)) {
 		// Transforming rest geometry while the displayed pose is deformed would write garbage through
-		// the deformer inverse; refuse and tell the user how to proceed (see the docblock).
+		// the deformer inverse, so refuse and tell the user to reset the parameters first.
 		emitNotice("notice.transform.deformed", NoticePlacement.NearCursor)
 
 		return
@@ -83,27 +76,17 @@ fun EditorSession.beginObjectOperator(kind: MeshOperatorKind, areaId: String) {
 
 /**
  * Latches a modal UV operator so the UV editor's overlay begins the gesture - the UV-editor
- * counterpart to [beginMeshOperator].  What the gesture moves follows the mode: in Edit mode the
- * selected texture coordinates, in Object mode the selected drawables' atlas PLACEMENTS (the art
- * itself on its page, with the coordinates over it re-derived on commit).  Either way the bound
- * G / S / R commands stay mode-agnostic.  Vertex Slide is refused in both (it is rest-geometry math;
- * Blender's UV editor has no slide either).
- *
- * Edit mode is a silent no-op on an empty selection and BLOCKED with a near-cursor notice when no
- * covered mesh carries an editable UV array (imports may leave uvs empty), since latching would show
- * a modal HUD that can never commit anything.  Object mode is blocked with a notice when the stored
- * coordinates address the art rather than the pages (a placement is meaningless there), when
- * nothing selected is bound to packed art, and when every placed tile under the selection is
- * pinned (a pin holds against a hand move too).  Which page the overlay is showing - and whether it is
- * showing a page at all rather than a source layer - is per-area state the session cannot see, so
- * the overlay that owns the latch drops it with its own notice when its surface cannot serve the
- * gesture.  Pose mode latches nothing: the UV editor is view-only there.  Clears any other latched tool /
- * operator (mutual exclusion) before latching.
+ * counterpart to [beginMeshOperator].  Edit mode moves the selected texture coordinates and Object mode
+ * the selected drawables' atlas PLACEMENTS; a gesture that could never commit is refused with a
+ * near-cursor notice rather than showing a modal HUD.  Which page the overlay shows is per-area state the
+ * session cannot see, so the overlay drops the latch with its own notice when its surface cannot serve
+ * the gesture.
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating UV editor's area id (only its overlay drives the gesture).
  */
 fun EditorSession.beginUvOperator(kind: MeshOperatorKind, areaId: String) {
+	// Vertex Slide is rest-geometry math, with no meaning over texture coordinates.
 	if (kind == MeshOperatorKind.VertexSlide) {
 		return
 	}
@@ -157,9 +140,7 @@ fun EditorSession.beginUvOperator(kind: MeshOperatorKind, areaId: String) {
 
 /**
  * Arms the Box-select tool (Blender's B): the gizmo overlay shows full-viewport crosshair guides and the
- * next drag boxes.  Mode-agnostic - in Edit and Pose mode it needs something in the session (the box selects its
- * meshes' or lattices' elements); in Object mode it arms unconditionally (the box selects whole objects).  A no-op in
- * Edit or Pose mode with nothing in the session.  Clears any other latched tool / operator (mutual exclusion).
+ * next drag boxes the session's elements in Edit and Pose mode, or whole objects in Object mode.
  *
  * @param String areaId The arming viewport's area id (only its overlay drives the drag).
  */
@@ -172,9 +153,7 @@ fun EditorSession.beginBoxSelect(areaId: String) {
 }
 
 /**
- * Arms the Circle-select tool (Blender's C) at the remembered radius.  Mode-agnostic like [beginBoxSelect]:
- * needs something in the session in Edit and Pose mode, arms unconditionally in Object mode.  Clears any other latched
- * tool / operator (mutual exclusion).
+ * Arms the Circle-select tool (Blender's C) at the remembered radius, mode-agnostic like [beginBoxSelect].
  *
  * @param String areaId The arming viewport's area id (only its overlay drives the brush).
  */

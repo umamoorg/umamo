@@ -92,8 +92,7 @@ abstract class TestCorpusExtension {
  * The shared corpus default for [propertyName], or null when the table has no entry for it.
  *
  * These are the defaults that mean the same thing in every module, so they live in one place rather
- * than being re-derived per build script (which is how :interop and :render came to disagree with
- * :format about whether an explicit `-D` gets checked at all).
+ * than being re-derived per build script, where modules would drift apart.
  *
  * @param File corpusDirectory The local golden corpus root. Gitignored, so absent on CI and on a
  *             fresh clone — every lookup here is allowed to come back null.
@@ -144,17 +143,16 @@ fun sharedCorpusDefault(
  * Resolves [sampleProperty] to the value handed to the test JVM, or null to leave the test skipping.
  *
  * Two ways a path is found, in order:
- *   1. An explicit `-D` on the Gradle command line. A RELATIVE value resolves against the REPO ROOT —
- *      not the test JVM's working directory, which is the module. That distinction is the whole point:
- *      a gated test that cannot find its sample does not fail, it prints and returns, so it reports
- *      PASSED while doing nothing. A relative path therefore used to disable the gate in total silence.
- *      An explicit path that resolves to nothing fails the build outright instead.
+ *   1. An explicit `-D` on the Gradle command line.  A RELATIVE value resolves against the REPO ROOT,
+ *      not the test JVM's working directory (the module).  A gated test that cannot find its sample
+ *      prints and returns, reporting PASSED while doing nothing, so an explicit path that resolves to
+ *      nothing fails the build outright instead.
  *   2. The local golden corpus, when present — the module-specific default if it declared one, else the
- *      shared table. This is what makes the mandatory CMO3 round-trip gate run BY DEFAULT for anyone
- *      who has the corpus, rather than only when they remember the flag.
+ *      shared table.  This makes the mandatory CMO3 round-trip gate run BY DEFAULT for anyone who has
+ *      the corpus, rather than only when they remember the flag.
  *
- * Absent entirely (a fresh clone, CI) → null, the tests self-skip, and the build stays green without a
- * multi-gigabyte corpus in git. That is deliberate; CI passes no sample flags.
+ * Absent entirely (a fresh clone, CI), the tests self-skip and the build stays green without a
+ * multi-gigabyte corpus in git; CI passes no sample flags.
  *
  * @param File repositoryRoot  The repo root, which relative `-D` values resolve against.
  * @param File corpusDirectory The local golden corpus root (test/corpus).

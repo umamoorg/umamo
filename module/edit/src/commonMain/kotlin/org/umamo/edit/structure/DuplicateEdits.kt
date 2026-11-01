@@ -17,15 +17,9 @@ import org.umamo.runtime.model.withDerivedRenderRoot
 
 /**
  * Duplicates one whole drawable (Object-mode Shift+D): the copy takes a Blender-style ".001"-suffixed
- * unique id and name, a fresh mesh instance (positions copied so the copy edits independently;
- * uvs / indices shared - the copy-on-write discipline), a re-wrapped keyform grid sharing the form
- * payloads by reference (immutable in practice; a later edit copy-on-writes them), and its source's
- * mask references.  It sits immediately after its source in the org tree (or appends at the root when
- * the source was never placed - the import safety net's rule), and carries NO glue membership: glues
- * reference meshes by id, so a fresh id naturally welds nothing.
- *
- * 描画オブジェクトの複製。".001" 形式の一意な id と名前を付け、元の直後にツリー挿入する。
- * グルーには参加しない。
+ * unique id and name, its own position arrays, and its source's forms shared by reference (a later edit
+ * copies on write), and sits immediately after its source in the org tree.  It joins no glue: glues
+ * reference meshes by id, so a fresh id welds nothing.
  *
  * @param DrawableId id The drawable to duplicate.
  * @return Pair<PuppetModel, DrawableId>? The edited model and the copy's id, or null when the source
@@ -156,12 +150,8 @@ private fun duplicatedMesh(mesh: DrawableMesh): DrawableMesh {
 
 /**
  * Duplicates every selected meshed drawable and every selected warp (Object-mode Shift+D) as ONE undo step, keeping
- * the hierarchy among the copies: a copy whose source's parent warp was copied too sits under that parent's copy,
- * and every other copy keeps its source's parent (Blender).  An unselected child stays with its original.  Each
- * drawable copy lands after its source in the org tree, and the selection becomes the copies - the caller follows
- * with a Grab so they pull away under the pointer, Blender-style, and the Grab moves a copied warp with its copied
- * children inside it.  The active original's copy becomes the active target (else the last copy), and the
- * remembered owner follows it exactly as it follows a selection gesture.
+ * the hierarchy among the copies ([withCopiesReparented]), and selects the copies so the caller's following Grab
+ * pulls them away under the pointer, Blender-style.
  *
  * @return List<SelectionTarget> The created copies (empty when nothing was eligible).
  */

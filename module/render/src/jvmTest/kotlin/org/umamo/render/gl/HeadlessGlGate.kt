@@ -34,26 +34,10 @@ private var lastGlfwErrorText: String? = null
 /**
  * Prepares the shared headless GL context for a test, skipping the test when there is none.
  *
- * One context serves the whole module, created once and never terminated - the same lifetime the desktop
- * app gives its own offscreen context.  That is deliberate: context creation under CI's Xvfb + Mesa
- * software GL fails often enough per attempt that a context per test would put three dozen independent
- * chances to fail in a single run, and most runs would lose at least one.  Acquiring once holds the
- * exposure to one attempt, retried up to [ACQUIRE_ATTEMPT_LIMIT] times.
- *
- * Reuse costs the one thing a fresh context supplies for free - a clean GL state vector - so each caller
- * gets [resetSharedGlState] before its body runs, leaving bindings, capabilities, and the viewport exactly
- * as a new context would have them.
- *
- * Two behaviors on a missing context, and the difference is the whole point.  On a developer machine with
- * no display the test SKIPS - via a JUnit assumption, so the run reports it as skipped rather than passing
- * green having asserted nothing.  Under `-Dumamo.requireGl=true` (CI passes it) it is instead a hard
- * FAILURE.
- *
- * Why both: these tests are the only thing pinning the GL renderer's behavior, and they assert on
- * read-back pixels, so a context-less run covers exactly nothing.  A plain skip is right locally (not
- * every machine has a display) but wrong in CI, where a silent skip is indistinguishable from a pass and
- * would let the entire GL suite quietly stop covering anything.  CI asserts the context exists;
- * developers get the skip.
+ * One context serves the whole module, created once and never terminated: context creation under CI's
+ * Xvfb + Mesa software GL fails often enough per attempt that a context per test would lose most runs.
+ * A missing context skips the test through a JUnit assumption, so the run reports it as skipped rather
+ * than passing green, except under `-Dumamo.requireGl=true` (CI passes it), where it is a hard failure.
  *
  * @param String tag The test's log tag, e.g. "[world-axis-lines]".
  */

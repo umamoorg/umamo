@@ -67,11 +67,6 @@ internal enum class SpineEdge {
  * The drag is clamped BEFORE rewriting (boundaryDragBounds) so no adjacent panel shrinks below
  * [minPx] and no stored ratio leaves the render clamp band [MIN_RATIO, 1 - MIN_RATIO] - a stored
  * ratio outside the band would be silently re-clamped at render time and break the pixel invariance.
- * A non-positive [axisPx] (first frame, not yet measured), an empty clamp interval (degenerate
- * geometry), or a fully clamped-away drag returns the node unchanged.
- *
- * 仕切りドラッグ後の部分木を、仕切りに隣接する 2 パネルだけが伸縮するよう書き換える純粋関数。
- * 差分は同方向スプリットの背骨に沿って各比を補正しながら隣接パネルまで伝わる。
  *
  * @param SplitNode node The split whose divider was dragged.
  * @param Float dragPx The drag delta along the split axis, in pixels (positive grows the first child).

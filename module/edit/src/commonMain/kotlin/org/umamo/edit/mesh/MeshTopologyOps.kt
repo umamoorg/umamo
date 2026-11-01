@@ -8,8 +8,6 @@ import kotlin.math.abs
 /**
  * Where a merge's surviving vertex lands (Blender's Merge menu): the merged vertices' centroid, or the
  * first / last vertex of the selection order.
- *
- * マージ後の頂点の位置（中心・最初・最後）。
  */
 enum class MergeTarget {
 	AtCenter,
@@ -23,8 +21,6 @@ enum class MergeTarget {
  * cut path).  Null from a builder means the operation refused (nothing applicable, or a degenerate
  * geometry it will not guess at).
  *
- * トポロジ操作の結果。適用する編集と、操作後に選択される要素。
- *
  * @property MeshTopologyEdit edit The mesh edit to commit.
  * @property Set<MeshElement> newElements The elements selected after the edit (the new topology's ids).
  */
@@ -37,25 +33,16 @@ class TopologyOpResult(
  * Pure builders for the topology operations (Shift+D duplicate, M merge, V rip, J connect): each reads
  * one mesh and produces a [TopologyOpResult] for [withMeshTopologyEdit] to commit, or null to refuse.
  * They never touch the model - the session's commitMeshTopology is the single mutation path.
- *
- * トポロジ操作の純粋な構築関数。モデルには触れず、編集内容と新しい選択を返す。
  */
 object MeshTopologyOps {
 	/**
-	 * Duplicates the covered vertices (and every face fully covered by them) in place: the copies append
-	 * after the existing vertices, keyform deltas copy per vertex, and the new selection is the copies -
-	 * ready for the auto-grab that follows a Blender Shift+D.  Refuses (null) when nothing is covered.
+	 * Duplicates the covered vertices (and every face fully covered by them) in place, the copies appended
+	 * after the existing vertices and selected, ready for the auto-grab that follows a Blender Shift+D.
+	 * Refuses (null) when nothing is covered.
 	 *
-	 * The induced subgraph is faces-only by data model: DrawableMesh is triangles-only, so a fully
-	 * covered EDGE whose triangles have an uncovered third corner has no representation of its own and
-	 * is deliberately not carried - duplicating two adjacent vertices yields two unconnected points
-	 * (an accepted limitation; Blender would carry the edge because its meshes store edges as
-	 * first-class elements).
-	 *
-	 * Glue note: a duplicated vertex's glue pair stays welded to the ORIGINAL vertex, never the copy -
-	 * the old-to-new remap in withMeshTopologyEdit is first-claim, and the kept original (enumerated
-	 * before the copies) claims its old index first.  That matches Shift+D expectations (the copy is a
-	 * free floating clone).
+	 * DrawableMesh is triangles-only, so a covered EDGE whose triangles have an uncovered third corner has
+	 * no representation of its own and is not carried: duplicating two adjacent vertices yields two
+	 * unconnected points.
 	 *
 	 * @param DrawableMesh mesh The mesh to duplicate within.
 	 * @param Set<Int> coveredVertices The vertices the selection covers.
@@ -125,9 +112,8 @@ object MeshTopologyOps {
 	/**
 	 * Merges the given vertices into one survivor (Blender's M): AtCenter lands on their centroid with
 	 * averaged keyform deltas and UVs; AtFirst / AtLast keep the first / last vertex of the selection
-	 * order verbatim.  Unmerged vertices keep their order (so their indices only shift down); the
-	 * survivor appends last.  Triangles remap onto the survivor and degenerate ones (fewer than three
-	 * distinct corners) drop.  Refuses (null) with fewer than two vertices.
+	 * order verbatim.  Unmerged vertices keep their order and the survivor appends last, so its index is
+	 * the same for every target.  Refuses (null) with fewer than two vertices.
 	 *
 	 * @param DrawableMesh mesh The mesh to merge within.
 	 * @param List<Int> orderedVertices The vertices to merge, in selection order (first / last matter).
@@ -231,8 +217,7 @@ object MeshTopologyOps {
 	 * Rips the covered vertices apart (Blender's V): each covered vertex that sits between triangle fans
 	 * is duplicated, and the adjacent triangles the caller marks (the cursor's side) re-point at the
 	 * copy - so the following grab pulls that side away, opening a seam.  Refuses (null) when no
-	 * triangle actually re-points (every covered vertex was surrounded by unmarked triangles or has no
-	 * fan to split).
+	 * covered vertex's fan splits across the marked and unmarked sides.
 	 *
 	 * @param DrawableMesh mesh The mesh to rip within.
 	 * @param Set<Int> coveredVertices The vertices the selection covers.
@@ -329,12 +314,10 @@ object MeshTopologyOps {
 	}
 
 	/**
-	 * Connects two vertices with a cut (Blender's J): walks the straight segment between them, splits
-	 * every edge it properly crosses (a new lerped vertex per crossing), and retriangulates the crossed
-	 * triangles so the cut becomes real edges.  Deliberately strict: refuses (null) when the vertices
-	 * already share an edge, when the segment crosses nothing, or when any crossed triangle's crossing
-	 * pattern is degenerate (a collinear graze, an on-vertex hit, more than two crossings) - a refusal
-	 * with a notice always beats emitting a broken mesh.
+	 * Connects two vertices with a cut (Blender's J): splits every edge the straight segment between them
+	 * properly crosses and retriangulates the crossed triangles so the cut becomes real edges.
+	 * Deliberately strict: an existing edge, nothing crossed, or a crossing pattern the split rules do
+	 * not cover refuses (null), since a refusal with a notice beats emitting a broken mesh.
 	 *
 	 * @param DrawableMesh mesh The mesh to cut within.
 	 * @param Int vertexA The cut's first endpoint.
@@ -581,10 +564,9 @@ object MeshTopologyOps {
 /**
  * The replacement mesh a topology op ends with: [newPositions] as the canvas mesh, and the old keyform-space
  * base carried to the new vertex count through the same [sources] the keyform deltas follow, so every
- * rebuilt keyform (base plus delta) keeps the shape it had at each kept vertex.  A mesh whose base is its
- * canvas mesh keeps the one shared array.  Null when [sources] does not name one source per new vertex: the
- * carried base would not fit the mesh (a DrawableMesh holds its two arrays to one length), and the op refuses,
- * the model's own refusal of a malformed edit, rather than fail mid-gesture.
+ * rebuilt keyform (base plus delta) keeps the shape it had at each kept vertex.  Null when [sources] does
+ * not name one source per new vertex, so the op refuses rather than build a mesh whose two arrays disagree
+ * in length.
  *
  * @param DrawableMesh mesh The mesh before the op.
  * @param FloatArray newPositions The op's canvas positions, two per new vertex.

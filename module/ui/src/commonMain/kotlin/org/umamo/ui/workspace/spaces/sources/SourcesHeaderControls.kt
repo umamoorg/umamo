@@ -20,11 +20,8 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.workspace.AreaScope
 
 /**
- * The Sources space's area-header controls: Import Artwork… (the file.importArtwork command, so the palette
- * and the button share one path), the name search centered in the flexible middle, Match
- * Automatically (sources.matchAutomatically), Reload (which also re-probes whether each file is still
- * on disk), and the filter chip.  Reads and writes the area's shared SourcesViewState; renders nothing
- * without an open document.
+ * The Sources space's area-header controls: the table's search and filter, and its artwork operations, each
+ * dispatched through its registry command so the palette and the button share one path.
  *
  * @param AreaScope scope The hosting area's scope carrying the shared view state.
  */

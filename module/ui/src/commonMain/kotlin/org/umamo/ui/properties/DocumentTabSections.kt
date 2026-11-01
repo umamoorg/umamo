@@ -140,10 +140,8 @@ internal val CanvasSection =
  * on its texture manager - so the toggle writes the model as one undo step and round-trips on export.
  *
  * Shown for every open document, including one whose artwork the renderer cannot display from (a MOC3
- * origin is the packed endpoint of that pipeline and retains none): the toggle records authored INTENT,
- * which round-trips and applies once the artwork is there, so it is not gated on today's recoverability.
- * Honoring it is best-effort per drawable, so a document whose artwork is only partly recoverable
- * displays from a mix and says so.
+ * origin retains none): the toggle records authored intent, which round-trips and applies once the
+ * artwork is there.
  */
 internal val DisplaySection =
 	PropertySection(
@@ -172,7 +170,7 @@ internal val DisplaySection =
  *
  * A CMO3 export persists every target: Cubism targets as their literals, NoTarget as the editor's
  * SDK(N/A)/Latest sentinel, and Ayagami at its effective Cubism level (its identity cannot survive
- * CMO3, so a reopen shows Cubism 5.0 - UMA will carry the identity natively).
+ * CMO3, so a reopen shows Cubism 5.0; UMA carries the identity natively).
  */
 internal val RuntimeSection =
 	PropertySection(

@@ -94,12 +94,10 @@ class KeyformGridAlgebraTest {
 	/**
 	 * Inserting a key leaves the evaluated curve alone - it adds a sample, not a shape change.
 	 *
-	 * Asserted to a tolerance, NOT bit-equality, and deliberately so: re-associating one linear blend into
-	 * two consecutive ones is exact in the reals but lands a few ULP apart in float (pose 6 evaluates
-	 * 60.000004 before the insert and 60.0 after).  The bit-exact claim in this layer belongs only to
-	 * compaction and refinement being mutual inverses, which evaluate the SAME expression on the SAME
-	 * inputs - see KeyformCompactionTest.  Asserting bit-equality here would be claiming something the
-	 * arithmetic does not support.
+	 * Asserted to a tolerance, NOT bit-equality: re-associating one linear blend into two consecutive ones is
+	 * exact in the reals but lands a few ULP apart in float (pose 6 evaluates 60.000004 before the insert and
+	 * 60.0 after).  The bit-exact claim in this layer belongs only to compaction and refinement being mutual
+	 * inverses, which evaluate the SAME expression on the SAME inputs - see KeyformCompactionTest.
 	 */
 	@Test
 	fun insertingAKeyPreservesTheCurve() {
@@ -221,7 +219,7 @@ class KeyformGridAlgebraTest {
 	}
 
 	/**
-	 * A key may CROSS its neighbours; the axis re-sorts and the cells permute to match.
+	 * A key may CROSS its neighbors; the axis re-sorts and the cells permute to match.
 	 *
 	 * The permutation is the whole cost of allowing it.  A cell's coordinate on an axis is a key ORDINAL
 	 * and the evaluator requires an ascending axis, so re-sorting the keys alone would still satisfy

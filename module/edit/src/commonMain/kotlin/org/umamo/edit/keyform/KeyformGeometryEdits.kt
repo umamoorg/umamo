@@ -36,7 +36,7 @@ import org.umamo.runtime.model.WarpLatticeForm
  * algebra, and leaving them uneditable would make every geometry row in the keyform sheet silently swallow every
  * gesture, which on a corpus rig is nearly every row on screen.  The one form they author is a warp's lattice
  * ([withWarpLatticeCaptured]): Pose mode lowers a shaped lattice through the posed parent chain before it gets
- * here, so the capture itself is plain grid algebra too.  A drawable's mesh form is still never authored here.
+ * here, so the capture itself is plain grid algebra too.  A drawable's mesh form is never authored here.
  */
 
 /**
@@ -47,8 +47,8 @@ import org.umamo.runtime.model.WarpLatticeForm
  * @return Boolean True when a geometry grid exists and keys on that parameter.
  */
 fun PuppetModel.isGeometryKeyedOn(owner: KeyformOwner, parameterId: ParameterId): Boolean =
-	// Through geometryGridOf, the one owner dispatch - a second copy of the when let the keyed indicator
-	// and the actual edit ops disagree about a new owner kind.
+	// Through geometryGridOf, the one owner dispatch - a second copy of the when would let the keyed
+	// indicator and the actual edit ops disagree about a new owner kind.
 	(geometryGridOf(owner)?.axisIndexOf(parameterId) ?: -1) >= 0
 
 /**
@@ -81,11 +81,12 @@ fun PuppetModel.geometryGridOf(owner: KeyformOwner): KeyformGrid<*>? =
 	}
 
 /**
- * This model with [owner]'s geometry key at [fromValue] moved to [toValue] on [parameter]'s axis.
+ * This model with [owner]'s geometry key [keyIndex] moved to [toValue] on [parameter]'s axis.
  *
- * Moving a key changes only WHERE on the parameter its form applies - the cells are untouched - so it is
- * safe for every owner, including a deformer with no rest lattice.  The grid clamps at the neighbouring
- * keys, so the stored destination can differ from the requested one.
+ * Moving a key changes only WHERE on the parameter its form applies, never what it holds, so it is safe
+ * for every owner, including a deformer with no rest lattice.  The key may cross its neighbours, and the
+ * grid nudges the destination only to keep spans resolvable, so the stored position can differ slightly
+ * from the requested one.
  *
  * @param KeyformOwner owner The entity whose geometry track to edit.
  * @param Parameter parameter The parameter whose axis the key sits on.
@@ -115,12 +116,11 @@ fun PuppetModel.withGeometryKeyInserted(owner: KeyformOwner, parameter: Paramete
 	rewriteGeometry(owner) { grid, interpolator -> grid.withKeyInserted(parameter.id, position, interpolator) }
 
 /**
- * This model with [owner]'s geometry key at [position] removed from [parameter]'s axis.
+ * This model with [owner]'s geometry key [keyIndex] removed from [parameter]'s axis.
  *
- * REFUSED for a deformer when the removal would collapse its last axis.  A warp's control points live only
- * in its keyform cells - there is no rest lattice - so an unkeyed deformer is hidden, and silently making a
- * deformer and everything under it vanish is not an acceptable outcome of deleting one key.  A drawable
- * has a rest mesh, so the same removal there is safe and simply returns it to its rest shape.
+ * REFUSED for a deformer when the removal would collapse its last axis: a deformer's shape lives only in
+ * its keyform cells, so an unkeyed deformer and everything under it would vanish.  A drawable has a rest
+ * mesh, so the same removal there simply returns it to its rest shape.
  *
  * @param KeyformOwner owner The entity whose geometry track to edit.
  * @param Parameter parameter The parameter whose axis to remove from.
@@ -149,12 +149,7 @@ fun PuppetModel.warpGridLatticeAt(warpId: DeformerId, pose: Pose): WarpLatticeFo
 
 /**
  * This model with [form] captured as warp [warpId]'s lattice at [pose], keyed on [parameter] - the lattice
- * counterpart of [withChannelKeyCaptured], and where a Pose-mode shape lands when it is keyed:
- *
- *  - A warp whose grid does not key [parameter] gains it as an axis first, every cell replicated across it, so
- *    binding alone changes nothing on screen.  A warp with no grid at all is seeded with [form] at every key.
- *  - The capture then inserts a key on every axis whose pose value sits off a key (each insert filling its slice
- *    by interpolation, so every other pose is unchanged) and writes [form] into the cell the pose lands on.
+ * counterpart of [withChannelKeyCaptured], and where a Pose-mode shape lands when it is keyed.
  *
  * [form] is the grid's own lattice at the pose - the parent-space shape with any blend-shape contribution taken
  * out - which is what a pending Pose-mode lattice holds and what [warpGridLatticeAt] reads.
@@ -359,9 +354,10 @@ private fun <TForm> PuppetModel.replaceDeformerGeometry(
 /**
  * Views a grid as one over an unconstrained form type.
  *
- * The ops here move and remove KEYS and never touch a cell, so the form type is genuinely irrelevant to
- * them - but Kotlin has no way to say "any grid" without a type argument.  Confined to this file, and
- * sound because [KeyformGrid] is immutable and no cell is ever read or written through the view.
+ * The ops here move, insert, and remove KEYS without depending on the cell type, so the form type is
+ * irrelevant to them - but Kotlin has no way to say "any grid" without a type argument.  Confined to this
+ * file, and sound because [KeyformGrid] is immutable and a cell is only ever read or built through the
+ * interpolator of its own grid.
  */
 @Suppress("UNCHECKED_CAST")
 private fun <TForm> KeyformGrid<TForm>.asNothing(): KeyformGrid<Nothing> = this as KeyformGrid<Nothing>
@@ -371,7 +367,7 @@ private fun <TForm> KeyformGrid<TForm>.asNothing(): KeyformGrid<Nothing> = this 
 private fun <TForm> FormInterpolator<TForm>.asNothing(): FormInterpolator<Nothing> = this as FormInterpolator<Nothing>
 
 /**
- * Moves [owner]'s geometry key at [fromValue] to [toValue], as one undo step.
+ * Moves [owner]'s geometry key [keyIndex] to [toValue], as one undo step.
  *
  * @param KeyformOwner owner The entity.
  * @param Parameter parameter The parameter whose axis the key sits on.
@@ -394,7 +390,7 @@ fun EditorSession.insertGeometryKeyAt(owner: KeyformOwner, parameter: Parameter,
 }
 
 /**
- * Removes [owner]'s geometry key at [position], as one undo step.
+ * Removes [owner]'s geometry key [keyIndex], as one undo step.
  *
  * @param KeyformOwner owner The entity.
  * @param Parameter parameter The parameter whose axis to remove from.

@@ -94,8 +94,8 @@ class KeySelectionTest {
 	/**
 	 * Clicking a mark selects it AND lands the pose on it, as one step named for the selection.
 	 *
-	 * The label matters: the entry used to read "Adjust Parameters", which described the consequence rather
-	 * than the act - the rigger clicked a keyframe.
+	 * The label matters: "Adjust Parameters" would describe the consequence rather than the act - the rigger
+	 * clicked a keyframe.
 	 */
 	@Test
 	fun selectingAtAPoseIsOneStepNamedForTheSelection() {
@@ -145,8 +145,8 @@ class KeySelectionTest {
 	 * [EditorSession.setKeySelection] instead.
 	 *
 	 * The gesture is an empty-track press at the value the playhead already holds: it drops the selection and
-	 * then scrubs nowhere, so the pose commit short-circuits.  Staging alone left the selection changed with
-	 * nothing in history to undo it - the one failure mode the stage / edit / confirm rule exists to close.
+	 * then scrubs nowhere, so the pose commit short-circuits.  Staging alone would leave the selection changed
+	 * with nothing in history to undo it - the one failure mode the stage / edit / confirm rule exists to close.
 	 */
 	@Test
 	fun aStagedSelectionTheCommitDroppedIsRecordedByTheConfirm() {

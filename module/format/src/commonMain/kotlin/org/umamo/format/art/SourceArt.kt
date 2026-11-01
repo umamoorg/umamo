@@ -7,11 +7,9 @@ import kotlin.jvm.JvmInline
 /**
  * Stable identity of a source-art layer, format-agnostic.
  *
- * `@JvmInline value class` wraps a String with zero runtime overhead (the compiler erases it
- * to a bare String where it can) while making the type distinct - you can't accidentally pass a
- * raw layer name where a layer id is expected. This replaces the "stringly-typed" anti-pattern
- * (`Map<String, …>` keyed by ambiguous strings). The meaning of the wrapped value depends on
- * the source: CLIP supplies Celsys's rename-stable internal id; PSD can only offer a name/path.
+ * A value class, so a raw layer name cannot be passed where a layer id is expected.  The meaning
+ * of the wrapped value depends on the source: a CLIP or Krita layer uuid, a PSD lyid when the file
+ * carries one, else a name/path fallback ([SourceLayer.idIsStable] says which).
  *
  * The `kotlin.jvm.JvmInline` import is load-bearing, not noise: `kotlin.jvm.*` is a default import
  * only on JVM targets, so without it this file stops compiling the moment a non-JVM target
@@ -281,8 +279,7 @@ interface SourceGroup {
  * A parsed source-art document: an ordered set of [SourceLayer]s, the [SourceGroup]s describing the
  * folders that enclose them (keyed by path), plus the document pixel bounds.
  *
- * [groups] defaults to empty so readers that flatten without folder metadata (PSD, KRA) need no
- * change; CLIP overrides it.
+ * [groups] defaults to empty, for art with no folder metadata.
  */
 interface SourceArt {
 	val layers: List<SourceLayer>
@@ -293,19 +290,13 @@ interface SourceArt {
 
 /**
  * Effective on-screen visibility of [layer]: its own eye toggle folded together with every ancestor
- * folder's. A layer is shown only when it is itself visible and none of the folders enclosing it is
- * hidden; the enclosing folders are found by walking [SourceLayer.groupPath] upward (a layer in
- * "A/B/C" is hidden if any of "A", "A/B", or "A/B/C" is hidden). With no [groups] - the flat PSD/KRA
- * case, or a document with no folders - this reduces to [SourceLayer.visible].
+ * folder's, found by walking [SourceLayer.groupPath] upward.
  *
- * This is the pre-flattened answer for consumers that have no folder hierarchy of their own - the
- * source-art preview compositor, which just draws a flat layer list. It is deliberately NOT what the
- * eventual SourceArt to puppet-model ingest should use: that path keeps the two flags separate
- * (each layer's own [SourceLayer.visible] seeds its drawable's eye toggle, each folder's
- * [SourceGroup.visible] seeds the part the folder becomes) and lets the runtime's part-chain
- * visibility cascade hide a still-"visible" layer whose ancestor part is hidden. Flattening here
- * would discard the per-layer intent the artist may want back when they re-show a folder. Use this
- * for "should I draw this now", not for "what is this layer's stored visibility".
+ * This is the pre-flattened answer for consumers with no folder hierarchy of their own, such as the
+ * source-art preview compositor.  The puppet-model import keeps the two flags apart instead (a
+ * layer's own [SourceLayer.visible] seeds its drawable, a folder's [SourceGroup.visible] the part it
+ * becomes), so the artist's per-layer intent survives re-showing a folder.  Use this for "should I
+ * draw this now", not for "what is this layer's stored visibility".
  *
  * @param SourceLayer layer The layer to test; its [SourceLayer.groupPath] locates its folders.
  * @return Boolean Whether the layer should be drawn by a flat (folderless) consumer.

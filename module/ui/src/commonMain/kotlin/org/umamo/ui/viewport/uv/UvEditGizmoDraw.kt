@@ -21,11 +21,9 @@ import org.umamo.ui.viewport.gizmo.drawSelectToolAffordances
 
 /**
  * Draws the UV Edit overlay's gesture chrome: the rubber band, the armed select tool's affordance, and the
- * modal HUD with its proportional ring.  The pointer, the marquee corners, the capture, the axis constraint,
- * the proportional state, and the radius are read HERE, in the draw phase, never while the overlay composes
- * - so a pointer move or a mid-gesture change redraws this layer without recomposing anything.  The axis and
- * the proportional state arrive as State holders because they are read only for the gesture this area owns,
- * and the ring's radius is the gesture's own (the radius of the surface it began on, see UvEditGesture).
+ * modal HUD with its proportional ring.  Everything gesture-live is read here, in the draw phase, never
+ * while the overlay composes, so a pointer move or a mid-gesture change redraws this layer without
+ * recomposing anything.
  *
  * @param MarqueeSelectController<MeshSelection> marquee The area's box / circle machinery.
  * @param ModalGestureState<UvEditGesture, FloatArray> gesture The area's modal gesture state.

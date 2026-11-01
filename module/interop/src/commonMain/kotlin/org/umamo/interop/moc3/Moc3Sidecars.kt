@@ -41,10 +41,9 @@ object Moc3Sidecars {
 	/**
 	 * The family base name for a moc file called [fileName] - every sibling is named off this.
 	 *
-	 * The strip ignores CASE.  A file spelled `X.MOC3` would otherwise keep its extension in the base
-	 * name, and every generated sibling - the manifest included - would be named after an `X.MOC3.moc3`
-	 * that no write ever produces.  Import and export both derive the name this way, so a re-export
-	 * lands the family in the shape the model already used.
+	 * The strip ignores CASE, so a file spelled `X.MOC3` names its siblings after `X` rather than after an
+	 * `X.MOC3.moc3` no write ever produces.  Import and export both derive the name this way, so a
+	 * re-export lands the family in the shape the model already used.
 	 *
 	 * @param String fileName The moc's own file name.
 	 * @return String The base name the rest of the family hangs off.
@@ -103,8 +102,9 @@ object Moc3Sidecars {
 	/**
 	 * The complete export: every file to write, plus the lowering's advisory report.
 	 *
-	 * @property List         files  The family, moc first.
-	 * @property ExportReport report The notices from the moc lowering, plus one per carried sidecar that names
+	 * @property List         files       The family, moc first.
+	 * @property String       mocFileName The moc's own file name.
+	 * @property ExportReport report      The notices from the moc lowering, plus one per carried sidecar that names
 	 *   parameters the moc does not contain and one per sidecar that names parts it does not.
 	 */
 	class Bundle(val files: List<BundleFile>, val mocFileName: String, val report: ExportReport)
@@ -196,9 +196,8 @@ object Moc3Sidecars {
 
 	/**
 	 * The notices for a sidecar carried through verbatim that names ids the moc does not contain - deleted since
-	 * the import, or written under a shortened id: one for the parameters it names and one for the parts, each
-	 * absent when it names none such.  A sidecar that cannot be read raises nothing; it is carried as it is either
-	 * way, and its runtime reader has the last word on it.
+	 * the import, or written under a shortened id.  A sidecar that cannot be read raises nothing: it is carried as
+	 * it is either way, and its runtime reader has the last word on it.
 	 *
 	 * @param PassThroughSidecar sidecar    The sidecar.
 	 * @param Moc3WrittenIds     writtenIds The ids the moc was written with.
@@ -224,9 +223,8 @@ object Moc3Sidecars {
 	}
 
 	/**
-	 * The ids [sidecar] names, read by its kind's format.  Physics reads and drives parameters, an expression
-	 * sets them, a motion curves parameters and part opacities, and a pose switches parts; user data names art
-	 * meshes, and an entry for a mesh the moc lacks matches nothing and drives nothing, so it is not read here.
+	 * The ids [sidecar] names, read by its kind's format.  User data names only art meshes, and an entry for a
+	 * mesh the moc lacks matches nothing and drives nothing, so it is not read here.
 	 *
 	 * @param PassThroughSidecar sidecar The sidecar.
 	 * @return NamedIds The ids it names.
@@ -270,24 +268,14 @@ object Moc3Sidecars {
 	/**
 	 * The `cdi3.json` for [puppet]: parameter, group, part, and art-mesh display names.
 	 *
-	 * Written whenever [Moc3ExportOptions.includeDisplayInfo] allows it, even when every name equals
-	 * its id.  A cdi3 is what carries the ONE thing the MOC3 cannot - what the rigger called each
-	 * object - and deciding it is "not worth writing" because this model happens to use default names
-	 * would make the family's shape depend on the data in it.  The rigger's explicit opt-out in the
-	 * export options is the one sanctioned exception: a CHOICE may shape the family, the data may not.
+	 * Written whenever [Moc3ExportOptions.includeDisplayInfo] allows it, even when every name equals its
+	 * id, so the rigger's choice may shape the family but the data in it may not.
 	 *
-	 * Every id here is the id the MOC was written with, taken from [writtenIds] rather than from the
-	 * model: the runtime joins the two files on that string, so an id the record width forced short
-	 * would leave its cdi3 entry naming an object the MOC3 does not contain - the display name, the
-	 * parameter's group placement, and its combined-parameter pairing all quietly stranded.  Parameter
-	 * GROUP ids are the exception, and stay verbatim: they exist only in this file, so no MOC3 record
-	 * bounds them.
-	 *
-	 * Parts and art meshes are also filtered to the ones the lowering actually WROTE - the export drops
-	 * sketch subtrees, mesh-less drawables, and the hidden parts and drawables the options leave out.
-	 * Naming a dropped object is dead weight on its own, and worse than that alongside the shortening
-	 * above: a dropped object claims no id, so an over-long id can shorten onto exactly its string and
-	 * leave the file with two entries under one id for a reader's join to choose between.
+	 * Every id is the one the MOC was written with ([writtenIds]): the runtime joins the two files on that
+	 * string, so a shortened id taken from the model would strand its display name, group placement, and
+	 * combined-parameter pairing.  Parameter GROUP ids stay verbatim, since they exist only in this file.
+	 * Parts and art meshes are filtered to the ones the lowering WROTE: a dropped object claims no id, so
+	 * an over-long id could shorten onto exactly its string and leave two entries under one id.
 	 *
 	 * @param PuppetModel    puppet     The rig.
 	 * @param Moc3WrittenIds writtenIds What the lowering wrote each object's id as.

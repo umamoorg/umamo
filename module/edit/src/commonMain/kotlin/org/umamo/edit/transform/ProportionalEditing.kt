@@ -13,17 +13,11 @@ import kotlin.math.sqrt
  * influences, and the gizmo's transform operators feed them into the weighted MeshTransforms variants. */
 
 /**
- * The falloff weight at a normalized distance: 1 at the selection (distance 0), 0 at and beyond the
- * radius edge (distance >= 1), shaped in between by the curve.  The formulas match Blender's
- * proportional falloffs over fade = 1 - distance: Smooth is the smoothstep 3·fade² - 2·fade³, Sphere is
- * the quarter-circle sqrt(1 - distance²), Root is sqrt(fade), Inverse Square is fade·(2 - fade) (that
- * is, 1 - distance²), Sharp is fade², Linear is fade, Constant is 1 everywhere inside the radius, and
- * Random is fade scaled by a per-vertex value in [0, 1).
- *
- * Random's per-vertex value is a hash of the vertex index rather than a draw from a generator, so it is
- * the same every time the influence map is derived: the map is re-derived when the wheel resizes the
- * radius mid-gesture and when the operation strip adjusts the transform, and a fresh draw each time would
- * reshuffle the halo under the rigger.  Blender draws afresh; here only the fade rescales.
+ * The falloff weight at a normalized distance: 1 at the selection, 0 at and beyond the radius edge, shaped
+ * in between by the curve, whose formulas match Blender's proportional falloffs over fade = 1 - distance.
+ * Random scales the fade by a hash of the vertex index rather than a fresh draw, because the influence map
+ * is re-derived mid-gesture (a wheel resize, an operation-strip adjust) and a fresh draw would reshuffle the
+ * halo under the rigger.
  *
  * @param ProportionalFalloff falloff The falloff curve.
  * @param Float normalizedDistance The vertex's distance to the nearest selected vertex, divided by the
@@ -110,15 +104,8 @@ class ProportionalMesh(
  * The straight-line proportional influence maps for meshes that share one space, index-parallel to
  * [meshes]: every vertex not covered in its own mesh whose distance to the nearest covered vertex of ANY
  * of the meshes is inside [radiusWorld] maps to its falloff weight and the pivot of the group owning that
- * covered vertex.  Measuring across the meshes is what lets the halo reach nearby geometry with nothing
- * selected (Blender's multi-object proportional editing); Connected Only stays inside one mesh
- * ([proportionalInfluencesConnected]).  Covered vertices (they move at full strength through their pivot
- * groups) and vertices outside the radius are absent.
- *
- * Only a vertex inside the covered set's bounds grown by the radius is a candidate, and a candidate's nearest
- * covered vertex is found through a uniform grid of the covered vertices ([CoveredVertexGrid]), so each one
- * measures against the covered vertices near it rather than every one of every mesh.  A tie goes to the covered
- * vertex listed first.
+ * covered vertex, a tie going to the covered vertex listed first.  Measuring across the meshes lets the halo
+ * reach nearby geometry with nothing selected (Blender's multi-object proportional editing).
  *
  * @param List<ProportionalMesh> meshes The meshes, their positions in one shared space.
  * @param Float radiusWorld The influence radius, in the positions' units.
@@ -373,14 +360,9 @@ private class CoveredVertexGrid(
 
 /**
  * The CONNECTED-ONLY proportional influence map for one mesh: like [proportionalInfluences], but
- * distance is geodesic - the shortest path along mesh edges (euclidean edge lengths) from the mesh's own
- * covered vertices - so influence flows through the surface and never leaps a gap to nearby-but-unconnected
- * geometry, in this mesh or another (Blender's Connected Only).  A vertex unreachable within [radiusWorld]
- * takes no weight, and each influenced vertex takes the pivot of the group its shortest path started from.
- *
- * Dijkstra over the vertex adjacency, seeded at every covered vertex, with an early stop past the
- * radius.  The frontier scan is O(V) per settled vertex (no priority queue in common Kotlin) - fine
- * at rigging mesh sizes, and the radius bound keeps the settled set local in practice.
+ * distance is geodesic - the shortest path along mesh edges from the mesh's own covered vertices - so
+ * influence never leaps a gap to nearby-but-unconnected geometry, in this mesh or another (Blender's
+ * Connected Only).  Each influenced vertex takes the pivot of the group its shortest path started from.
  *
  * @param FloatArray positions The interleaved vertex positions (edge lengths measured here).
  * @param List<TransformPivotGroup> groups The pivot groups covering the selected vertices (the geodesic
@@ -420,7 +402,8 @@ fun proportionalInfluencesConnected(
 	}
 
 	while (true) {
-		// The unsettled frontier vertex nearest the covered set; past the radius nothing can gain weight.
+		// The unsettled frontier vertex nearest the covered set, by a linear scan (common Kotlin has no priority
+		// queue; fine at rigging mesh sizes); past the radius nothing can gain weight.
 		var frontier = -1
 		var frontierDistance = Float.MAX_VALUE
 

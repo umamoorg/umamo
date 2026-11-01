@@ -50,13 +50,9 @@ class Glue(
 	/**
 	 * This glue with the given fields replaced, every other one carried over.
 	 *
-	 * Every rewrite goes through here rather than the constructor, so changing one field cannot silently
-	 * drop another - a positional rebuild that stops early resets the rest to their defaults, and [id]
-	 * is the one whose default is indistinguishable from a source that carried none.
-	 *
-	 * Hand-written rather than a `data class` conversion: the generated `equals`/`hashCode` would
-	 * compare [pairs] and the channel grids by reference anyway, so that would buy this one method at
-	 * the cost of a misleading equality contract.
+	 * Every rewrite goes through here rather than the constructor, so a positional rebuild cannot reset
+	 * [id] to a default indistinguishable from a source that carried none.  Hand-written because a
+	 * `data class` would add an equality contract that compares [pairs] and the channel grids by reference.
 	 *
 	 * @param DrawableId     meshA         The first welded mesh.
 	 * @param DrawableId     meshB         The second welded mesh.

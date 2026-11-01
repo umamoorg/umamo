@@ -60,10 +60,9 @@ internal fun <TForm : Any> gridOf(
  * rounding at most.  :runtime's `referenceCellOf` is the same rule over the model's own grid, the one the
  * CMO3 import takes its base from.
  *
- * Resolves the default by parameter INDEX, not by id.  [Moc3ImportContext.defaultValueOf] answers the
- * same question keyed by id for the blend-shape pass, and on a document carrying one parameter id twice
- * the two disagree; an axis names its parameter positionally, so this is the accessor that matches what
- * the file said.
+ * Resolves the default by parameter INDEX, because an axis names its parameter positionally;
+ * [Moc3ImportContext.defaultValueOf] is the same table keyed by the de-duplicated id, for the
+ * blend-shape pass.
  *
  * @param Moc3ImportContext context The import's derived state, for the parameter defaults.
  * @param KeyformBinding?   binding The object's keyform binding, or null for a static object.

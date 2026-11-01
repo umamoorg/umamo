@@ -253,9 +253,7 @@ internal class DocumentExportController(
 /**
  * Runs one export's work and turns its failure into an alert, so a failed export costs the export rather than
  * the session: left alone, a failure escapes the app's scope to Compose's window exception handler, which shows a
- * bare Java error and asks the window to close.  Running out of memory is named as such, with a jar launch's way out;
- * an I/O failure carries its own message; anything else is an export bug, logged with its stack for the report.
- * Cancellation passes through untouched.
+ * bare Java error and asks the window to close.  Cancellation passes through untouched.
  *
  * @param String   destinationName The file the export writes, named in the alert and the log.
  * @param Function work            The export's work.

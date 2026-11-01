@@ -10,11 +10,10 @@ import org.umamo.ui.workspace.sidebar.AreaSidebarHub
 import org.umamo.ui.workspace.sidebar.SidebarState
 
 /**
- * The work-surface chrome toggles, acting on the area the pointer last touched: the 2D viewport registers its
- * area's toolbar and sidebar visibility into the shared hubs and the UV editor its sidebar's, and a toggle flips
- * the hovered area's, making that the area's own choice (Blender's hovered-area routing, as the overlay commands
- * use).  With the pointer over any other area, or T over a UV editor, which has no toolbar, they do nothing.  An
- * area with no choice of its own follows the application's defaults, which [defaults] reads when the command runs.
+ * The work-surface chrome toggles, acting on the area the pointer last touched (Blender's hovered-area routing,
+ * as the overlay commands use): a toggle flips the hovered area's toolbar or sidebar, making that the area's own
+ * choice.  An area with no choice of its own follows the application's defaults, which [defaults] reads when the
+ * command runs.
  *
  * @param AreaToolbarHub areaToolbars The 2D viewports' per-area toolbar visibility.
  * @param AreaSidebarHub areaSidebars The work surfaces' per-area sidebar state.

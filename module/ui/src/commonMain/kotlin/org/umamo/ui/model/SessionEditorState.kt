@@ -14,14 +14,12 @@ import org.umamo.runtime.model.PuppetModel
 
 /**
  * Backs the common [SelectionHandle] and [EditorModeHandle] with an [EditorSession], so every selection
- * gesture and mode toggle the panels make flows through the session — which records selection as an undo
- * step (the chosen Blender-faithful granularity) and republishes through its flows. Reads go through
- * Compose [State] mirrors of the session's flows, so panels recompose on change, including when undo /
- * redo restore a prior selection.
+ * gesture and mode toggle the panels make flows through the session, which records it as an undo step.
+ * Reads go through Compose [State] mirrors of the session's flows, so panels recompose on change,
+ * including when undo / redo restore a prior selection.
  *
- * Keeps :edit free of Compose (its module mandate): the session exposes coroutines flows, and this thin
- * :ui adapter is the only place they become Compose-observable state. Writes are one-way to the session,
- * which is the single source of truth; the mirrors only follow it.
+ * This thin adapter is the only place the session's flows become Compose-observable state, which keeps
+ * :edit free of Compose.
  *
  * @property EditorSession session The session every selection gesture and mode change is routed to.
  * @property State selectionMirror The session's selection, mirrored as Compose state.
@@ -81,11 +79,8 @@ class SessionEditorState internal constructor(
 }
 
 /**
- * Remembers a [SessionEditorState] over [session], collecting its selection and mode flows into Compose
- * state so the returned handle's reads are observable. Stable while [session] is, so providing it into
- * [LocalSelection] / [LocalEditorMode] does not thrash the composition.  It also remembers the item last
- * made active, from every selection the session publishes (undo and redo included), so the shown item
- * survives a deselect.
+ * Remembers a [SessionEditorState] over [session], stable while [session] is, so providing it into
+ * [LocalSelection] / [LocalEditorMode] does not thrash the composition.
  *
  * @param EditorSession session The open document's session.
  * @return SessionEditorState The session-backed selection + mode handle.

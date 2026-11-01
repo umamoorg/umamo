@@ -38,14 +38,13 @@ private const val PLACEMENT_SHEAR_TOLERANCE = 1e-4f
  * This placement with [pageAffine] applied on top - the placement whose forward transform is
  * `pageAffine . placementAffine(this)` - or null when that product is not a placement.
  *
- * A placement is translation / rotation / scale and nothing else, so only a similarity (translate,
- * rotate, uniform scale) or a scale along the tile's own axes composes onto one exactly; a non-uniform
- * scale along the page's axes shears a rotated tile, which no placement can carry.  Refusing beats
- * writing the closest placement, which would visibly re-point every mesh bound to the tile.
+ * A placement is translation / rotation / scale and nothing else, so a non-uniform scale along the
+ * page's axes, which shears a rotated tile, is refused: writing the closest placement instead would
+ * visibly re-point every mesh bound to the tile.
  *
  * The scale signs follow the receiver's, so a mirrored import stays mirrored through a move rather
- * than flipping into a half-turn with positive scales (both describe the same pixels, but the export
- * should write the file's own convention back).  The rotation comes back normalized to (-180, 180].
+ * than flipping into a half-turn with positive scales, and the export writes the file's own convention
+ * back.  The rotation comes back normalized to (-180, 180].
  *
  * @param FloatArray pageAffine The gesture's transform in page pixels, applied after the placement.
  * @return AtlasPlacement? The composed placement, or null when the product is not TRS-expressible or
@@ -120,9 +119,8 @@ fun localAxisScaleAboutAffine(
 
 /**
  * The placed tiles under [selection]: every selected drawable's tile that is packed onto a page,
- * pinned or not, in document order.  A drawable over unpacked art has nothing on a page, and a part
- * or deformer in the selection contributes nothing.  The pin commands' domain - Unpin must find the
- * pinned tiles - where a gesture reads the narrower [placementDragTileIds].
+ * pinned or not, in document order.  The pin commands' domain - Unpin must find the pinned tiles -
+ * where a gesture reads the narrower [placementDragTileIds].
  *
  * @param Selection selection The session's object selection.
  * @return Set<AtlasTileId> The placed tiles the selection covers, empty when there are none.
@@ -155,9 +153,8 @@ fun PuppetModel.placementSelectedTileIds(selection: Selection): Set<AtlasTileId>
 
 /**
  * The tiles a placement gesture over [selection] moves: the placed tiles under it
- * ([placementSelectedTileIds]) minus the pinned ones.  A pin means "keep this where it is", and a
- * hand move is no exception - a pinned tile stays put until it is unpinned, and a gesture over a
- * mixed selection moves the rest around it.
+ * ([placementSelectedTileIds]) minus the pinned ones, since a pin holds a tile against a hand move
+ * too.
  *
  * @param Selection selection The session's object selection.
  * @return Set<AtlasTileId> The movable placed tiles the selection covers, empty when there are none.

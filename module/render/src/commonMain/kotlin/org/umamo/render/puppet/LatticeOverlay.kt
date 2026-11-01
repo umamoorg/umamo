@@ -157,9 +157,7 @@ internal fun latticePointsOf(
 /**
  * The lattice layer the renderer draws: a direct overlay of kind [MeshOverlayKind.Lattice] holding each warp
  * [overlay] lists that [lattices] holds, in model order, each styled with its role and pending mark
- * ([MeshStyle.Lattice]) and drawn in its role's shape ([LatticePoints.shapeFor]): an idle lattice its outer edges and
- * four corner dots, any other its whole grid, with no triangles either way.  The encoder draws them role by role, so
- * a stronger role lands over a weaker one.  Null when none of them is drawn.
+ * ([MeshStyle.Lattice]) and drawn in its role's shape ([LatticePoints.shapeFor]).  Null when none of them is drawn.
  *
  * [previous] is handed back whole when nothing in it changed, and each mesh value in it is reused while its style
  * and shape hold, so a frame over an unchanged pose and selection uploads nothing.
