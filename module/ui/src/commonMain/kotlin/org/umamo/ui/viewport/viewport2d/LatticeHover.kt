@@ -11,8 +11,8 @@ import org.umamo.ui.viewport.PuppetViewportService
  * One 2D viewport area's lattice hover: the warp whose drawn lattice the free pointer is over, published to the
  * render service so that area alone draws it in the hover color ([PuppetViewportService.setLatticeHover]).  It
  * resolves by the same rule a click does ([selectableLatticeUnder]), so the lattice that lights up is the one a click
- * there takes in Object mode, and the one Alt+Q switches to in Pose mode.  Edit mode draws no lattice layer, so nothing resolves
- * there and the hover stays clear.
+ * there takes in Object mode, and the one Alt+Q switches to in Pose mode.  Edit mode draws no lattice layer, so
+ * nothing resolves there and the hover stays clear.
  *
  * Both gizmo overlays' pointer loops hold one per area: they hand it every event their idle branch sees, and clear it
  * whenever the area goes inert or a gesture takes the pointer.  The overlay clears it again as it leaves, so a mode

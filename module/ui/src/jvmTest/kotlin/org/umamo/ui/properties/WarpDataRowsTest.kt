@@ -63,8 +63,8 @@ private val PARAMETER = ParameterId("P")
 
 /**
  * The Data tab's warp rows: the lattice's Rows / Columns edit its resolution, the aspect lock carries the other count,
- * both and the Quad transform are inert outside Edit mode, and the Blend Shapes section lists an item's bindings and hides
- * for an item with none.
+ * both and the Quad transform are inert outside Edit mode, and the Blend Shapes section lists an item's bindings and
+ * hides for an item with none.
  */
 @OptIn(ExperimentalTestApi::class)
 class WarpDataRowsTest {

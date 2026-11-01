@@ -30,8 +30,7 @@ import kotlin.test.assertTrue
  * Pins the lattice layer on the pixels: each warp's control points and grid lines land where its lattice is in
  * world space, in its role's color, an idle lattice only in a frame that shows every deformer and only as its outline
  * and corners, the hovered one in the hover color, all faded by the frame's lattice opacity, and a pose moves them
- * with no new overlay.  The pick reads the same shapes, so
- * the pixel a lattice colors is the pixel that picks it.
+ * with no new overlay.  The pick reads the same shapes, so the pixel a lattice colors is the pixel that picks it.
  *
  * The lattice rig behind a 1:1 camera centered on the origin of a 128-pixel frame, so world (x, z) lands at
  * column 64 + x and row 64 - z.  At angle X -1 the outer warp's points sit at columns 54, 84, 114 and rows 64,

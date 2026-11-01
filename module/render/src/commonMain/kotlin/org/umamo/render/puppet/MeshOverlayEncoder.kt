@@ -575,7 +575,8 @@ internal class MeshOverlayEncoder(
 	 * @param OverlayColor selected The selected color.
 	 * @param OverlayColor active The active color.
 	 * @param Boolean opaque True to force every alpha to 1 (the face dots).
-	 * @param Float alphaScale What each color's alpha is multiplied by (the wireframe's opacity); 1 writes it as is.
+	 * @param Float alphaScale What each color's alpha is multiplied by (the wireframe's or the lattice's opacity); 1
+	 *   writes it as is.
 	 */
 	private fun setColors(idle: OverlayColor, selected: OverlayColor, active: OverlayColor, opaque: Boolean, alphaScale: Float = 1f) {
 		writeColor(uniformsScratch.idleColor, idle, opaque, alphaScale)

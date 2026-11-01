@@ -67,9 +67,9 @@ private const val OPACITY_PERCENT_STEP = 5
  * following the application's grid - no checkbox to flip, the edit is the choice.  A section's value fields
  * follow its rows: the wireframe's Opacity field under the Geometry rows on a 2D viewport, alone under the
  * Geometry heading on a UV editor, where it fades the islands; and the deformers' Opacity field under the
- * Deformers row on a 2D viewport, where it fades the warp lattices.  The rows and the fields stay enabled while the master
- * is off: each row's flag is what comes back when the master returns, so the rigger can set up the set they
- * want before switching it on.  A section with no row and no field for this surface is left out.
+ * Deformers row on a 2D viewport, where it fades the warp lattices.  The rows and the fields stay enabled while
+ * the master is off: each row's flag is what comes back when the master returns, so the rigger can set up the
+ * set they want before switching it on.  A section with no row and no field for this surface is left out.
  *
  * @param ViewportOverlayState state The area's overlay state.
  * @param Boolean enabled Whether the control takes input (false renders it disabled, the 2D header's no-document look).

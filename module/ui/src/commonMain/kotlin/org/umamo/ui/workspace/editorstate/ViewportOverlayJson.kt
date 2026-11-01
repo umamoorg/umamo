@@ -26,9 +26,8 @@ internal const val OVERLAYS_MEMBER = "overlays"
  * it deviates, a JSON null where it does not, and the area's own grid under `gridGeometry` or a null while it
  * follows.  Naming every key is what lets a flag go back to its default in the file: the entry is saved as a
  * merge patch (UMA § 7.5), which keeps a member the writer does not name.  Keys the surface has no overlay for
- * (the axes, the wireframe, its culling, the selection tint, and the deformers and their opacity under a UV editor) are
- * never written; the area's own grid
- * is written whole on both surfaces, a UV editor's scale in texels.
+ * (the axes, the wireframe, its culling, the selection tint, and the deformers and their opacity under a UV
+ * editor) are never written; the area's own grid is written whole on both surfaces, a UV editor's scale in texels.
  *
  * @return JsonElement The member value.
  */

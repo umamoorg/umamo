@@ -14,10 +14,9 @@ import org.umamo.ui.viewport.gizmo.ObjectPickController
  * The Object overlay's pointer loop.  Every event records the pointer, then goes to exactly one branch: the
  * modal transform while an operator is latched here, the circle brush while it is armed here, and
  * otherwise the click pick and the box select, armed or not, with the lattice hover beside them; every other
- * branch clears the hover.  While another area owns a gesture (or a UV
- * operator runs, which never belongs to a viewport), or Zoom Region is armed here, the loop takes nothing.
- * Whatever takes the area over mid-drag - another area, a transform, the circle tool, Zoom Region -
- * abandons an in-flight box first.
+ * branch clears the hover.  While another area owns a gesture (or a UV operator runs, which never belongs to a
+ * viewport), or Zoom Region is armed here, the loop takes nothing.  Whatever takes the area over mid-drag -
+ * another area, a transform, the circle tool, Zoom Region - abandons an in-flight box first.
  *
  * It runs for the life of its pointerInput, keyed on the area, and keeps the arguments it started with:
  * each is fixed for the area's life or a State holder read per event.

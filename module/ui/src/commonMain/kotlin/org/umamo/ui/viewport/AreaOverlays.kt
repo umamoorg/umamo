@@ -50,12 +50,12 @@ fun AreaOverlays.withHoveredLattice(deformerId: DeformerId?): AreaOverlays =
 
 /**
  * The render options an area's overlay state asks for over the application's grid for its surface.  A null
- * state (no area, as in a standalone shell) shows everything on the application's grid; an area with a grid of its own draws that
- * one; a UV editor never asks for the world axes, the wireframe, every warp lattice, or the tint off, which its surface has no
- * rows for; the mesh overlay follows the Show Overlays master alone, since the Edit cage has no row of its
- * own, while the wireframe, its culling, and the tint follow their rows under the master; the wireframe's
- * opacity is the area's on both surfaces, a UV editor's islands fading by it, and the lattices' opacity a 2D
- * viewport's alone.
+ * state (no area, as in a standalone shell) shows everything on the application's grid; an area with a grid of
+ * its own draws that one; a UV editor never asks for the world axes, the wireframe, every warp lattice, or the
+ * tint off, which its surface has no rows for; the mesh overlay follows the Show Overlays master alone, since the
+ * Edit cage has no row of its own, while the wireframe, its culling, and the tint follow their rows under the
+ * master; the wireframe's opacity is the area's on both surfaces, a UV editor's islands fading by it, and the
+ * lattices' opacity a 2D viewport's alone.
  *
  * @param ViewportOverlayState? state           The area's overlay state, or null for none.
  * @param GridConfig            applicationGrid The application's grid for the area's surface.
