@@ -14,9 +14,8 @@ import org.umamo.ui.viewport.uv.TexelAxis
 /**
  * The View tab's 2D Cursor panel in the UV editor: the UV cursor's X and Y on the shown page or source artwork, in
  * texels from its top-left with y down.  An unplaced cursor reads the stored origin, where the snaps take it to
- * rest (the page's top-left; over a source layer, wherever that layer's mapping puts it).  Typing or scrubbing a
- * value places it.  A cursor move is not an undo step, and Escape mid-scrub puts the cursor back where it was,
- * unplaced if it was.
+ * rest (the page's top-left; over a source layer, wherever that layer's mapping puts it).  A cursor move is not an
+ * undo step.
  *
  * @param SidebarContext context The sidebar's context.
  */

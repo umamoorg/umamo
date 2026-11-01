@@ -140,13 +140,12 @@ private sealed interface AddArtworkOutcome {
 }
 
 /**
- * The strip's rows for an add-artwork operation: Align and Offset X / Z for a file placed within the
- * rig's canvas, then Alpha Threshold and Birth Mesh Margin.  A rig's first artwork sets the canvas
- * rather than landing within it, so its step carries no placement rows.
+ * The strip's rows for an add-artwork operation.  A rig's first artwork sets the canvas rather than
+ * landing within it, so its step carries no placement rows.
  *
- * The Offset rows are in the viewport's world axes (X right, Z up, like the transform rows' Move Z),
- * the same axes the options' nudge and the record's offset use, so a positive Offset Z moves the art
- * up on screen; the placement negates z into canvas y where the canvas math is.
+ * The Offset rows are in the viewport's world axes (X right, Z up), the same axes the options' nudge
+ * and the record's offset use, so a positive Offset Z moves the art up on screen; the placement negates
+ * z into canvas y where the canvas math is.
  *
  * @param SourceArtImportOptions options The options the rows show.
  * @param Boolean                placed  Whether the file was placed within an existing canvas.
@@ -194,25 +193,10 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
 	)
 
 /**
- * Appends [request]'s art to [base] and packs the new tiles into the gaps: every tile already on a
- * page is handed to the packer fixed (pinned or not), the additions pack around them at the
- * document's own page size (once more at [MAX_IMPORT_PAGE_SIZE] if a layer does not fit), and the
- * result re-derives through [withAtlasRepack] under the document's current composition so the pages
- * the existing art sits on compose exactly as they did.  A new tile the pack cannot carry stays
- * unplaced and is a note; the source-layer display still draws it.
- *
- * Under the Automatic birth mode every new drawable's quad gives way to the mesh generated from its art
- * before the pack, which reserves each tile by its meshes' reach; a layer the mesher cannot mesh keeps
- * its quad, and a note says why.
- *
- * A file joining a rig that already has art is first placed on the rig's canvas by the options'
- * anchor and nudge ([SourceArtImport.offsetFor]), and its record keeps that offset so every later
- * read of the file lands the same way.  The request's own art stays unplaced: an adjustment places
- * it again from its rows.
- *
- * The new rasters are added to [artRasters] here, before the pack reads them; the store is
- * document-lifetime, so an adjustment finds them already present.  The pack itself is
- * [packNewTilesAround], shared with the reload, relink, and match flows.
+ * Appends [request]'s art to [base] and packs the new tiles into the gaps around the art already on
+ * the pages ([packNewTilesAround]).  A file joining a rig that already has art is first placed on the
+ * rig's canvas by the options' anchor and nudge ([SourceArtImport.offsetFor]); the request's own art
+ * stays unplaced, so an adjustment places it again from its rows.
  *
  * @param PuppetModel            base               The model the additions join.
  * @param AddArtworkRequest      request            The file.
@@ -220,7 +204,7 @@ internal fun addArtworkOptionsOf(parameters: List<OperatorParameter>, fallback: 
  * @param SourceArtRasters       artRasters         The document's raster store.
  * @param Boolean                premultipliedAlpha The document's texture-convention flag.
  * @param ProgressHandle?        progress           Counts the birth meshes and says when the atlas packs, or null.
- * @return AddArtworkOutcome? The outcome, or null when the file has no layer with art to add.
+ * @return AddArtworkOutcome The outcome, [AddArtworkOutcome.NothingToAdd] when the file has no layer with art to add.
  */
 private suspend fun addArtworkOutcome(
 	base: PuppetModel,
@@ -290,18 +274,15 @@ internal sealed interface PackAroundOutcome {
 }
 
 /**
- * Packs the tiles [model] gained into the gaps around the art already on its pages: every tile with a
- * placement is handed to the packer fixed (pinned or not), the new tiles pack around them at the
- * document's own page size (once more at [MAX_IMPORT_PAGE_SIZE] if one does not fit), and the result
- * re-derives through [withAtlasRepack] under the document's current composition so the pages the
- * existing art sits on compose exactly as they did.  Shared by Add Artwork, Reload, relink, Match
- * Automatically, and Replace Artwork, which differ only in how the new tiles came to be.
+ * Packs the tiles [model] gained into the gaps around the art already on its pages, every placed tile
+ * held fixed, and re-derives the model through [withAtlasRepack] under the document's current
+ * composition so the pages the existing art sits on compose exactly as they did.  Shared by Add
+ * Artwork, Reload, relink, Match Automatically, and Replace Artwork, which differ only in how the new
+ * tiles came to be.
  *
- * A refusal over the document's own PLACED art refuses the whole pack: the lowering would pack that
- * tile out, and the document's art must not move for tiles being added.  A refusal over a NEW tile, or
- * over a tile of the document's that has no placement (art an earlier pack left unplaced, a background
- * larger than any page), is a note - it stays unplaced and the source-layer display still draws it; one
- * that now fits is placed.
+ * A refusal over the document's own placed art refuses the whole pack, since the document's art must
+ * not move for tiles being added; any other refusal leaves its tile unplaced as a note, and the
+ * source-layer display still draws it.
  *
  * @param PuppetModel      model              The model carrying the new, unplaced tiles.
  * @param Set              newTileIds         Which tiles are the new ones.
@@ -373,7 +354,7 @@ internal fun packNewTilesAround(
 
 /**
  * Adds an artwork file to the open document as ONE undo step, packed beside the art already there,
- * and registers the step on the operation settings strip (Alpha Threshold, Birth Mesh Margin).
+ * and registers the step on the operation settings strip.
  *
  * Runs on the UI thread; the bridge and the pack hop to the default dispatcher.  The additions are
  * minted against the model current at the start, so ANY edit landing while they were built

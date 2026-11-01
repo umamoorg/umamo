@@ -148,14 +148,9 @@ internal sealed interface EditEntry {
 }
 
 /**
- * What entering Edit mode opens on, by the active item's kind (Blender's rule).
- *
- * An active warp opens on every selected warp Edit mode can shape (one with a lattice the default pose draws, see
- * [hasRestLattice]); an active warp it cannot shape, or an active rotation deformer, refuses with a notice naming
- * why.  Otherwise the session opens on every selected mesh-carrying drawable (multi-mesh edit, the object
- * selection's active drawable becoming the active mesh), else the remembered owner when it is still editable, else
- * the topmost editable drawable in Parts-panel order - a fallback the entry selects ([EditSeed.fallback]) - or
- * nothing, which refuses the entry silently.
+ * What entering Edit mode opens on, by the active item's kind (Blender's rule): the selected warps Edit mode can
+ * shape ([hasRestLattice]) when a warp is active, else the selected mesh-carrying drawables, else a fallback owner
+ * the entry selects ([EditSeed.fallback]), or a refusal.
  *
  * @param PuppetModel model The session's model.
  * @param Selection selection The object selection.
@@ -203,10 +198,8 @@ internal fun editEntryOf(model: PuppetModel, selection: Selection, rememberedOwn
 }
 
 /**
- * What entering Pose mode opens on: Edit mode's seed narrowed to warps, since Pose mode shapes lattices and nothing
- * else - every selected warp the pose draws, the object selection's active warp active when it is one of them; else
- * the remembered warp when the pose draws it; else the first warp the pose draws, either of them a fallback the entry
- * selects ([EditSeed.fallback]).  Null with none of those: Pose mode still scrubs and keys, so it opens on an empty
+ * What entering Pose mode opens on: Edit mode's seed narrowed to the warps the pose draws, since Pose mode shapes
+ * lattices and nothing else.  Null when there are none: Pose mode still scrubs and keys, so it opens on an empty
  * session rather than refusing.
  *
  * @param PuppetModel model The session's model.
@@ -314,10 +307,8 @@ fun ElementOwner.toSelectionTarget(): SelectionTarget =
  * The snapshot a session opens on: the model and pose as given, with [viewState] fitted to the model laid in, so
  * the state a document was saved with is where its history STARTS rather than a run of undo steps on top of it.
  *
- * A saved Edit mode holds only when it can be entered over the restored selection, and a saved Pose mode only
- * when the model has a deformer; otherwise the session opens in Object mode, the same refusals
- * [EditorSession.setMode] makes.  Either mode opens its session seeded as entering it seeds one, a fallback owner
- * becoming the selection as it does on entry.
+ * A saved Edit or Pose mode holds only when entering it would, under the same refusals [EditorSession.setMode]
+ * makes, and opens its session seeded as entering it seeds one; otherwise the session opens in Object mode.
  *
  * @param PuppetModel        model     The document model at open.
  * @param Pose               pose      The pose at open.

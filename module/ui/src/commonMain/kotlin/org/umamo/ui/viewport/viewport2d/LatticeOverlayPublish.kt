@@ -42,11 +42,9 @@ internal fun latticeOverlaySizes(density: Density): MeshOverlaySizes =
 	}
 
 /**
- * The lattices the 2D viewport draws in [mode]: in Object and Pose mode, every shown warp, the active one in
- * the active role, the other selected ones selected, and the rest idle (drawn only by an area that shows every
- * deformer); in Edit mode none, since Edit mode shows only what it edits (a lattice through the session's cage).  In
- * Pose mode the warps being posed are left to the session's cage, which draws their points, so the layer carries the
- * others alone.  A warp holding an unkeyed Pose-mode shape is marked pending, whatever its role.
+ * The lattices the 2D viewport draws in [mode], each shown warp in its selection role, an idle one drawn only by an
+ * area that shows every deformer.  Edit mode draws none, showing only what it edits, and Pose mode leaves the warps
+ * being posed to the session's cage, which draws their points.
  *
  * @param EditorMode mode The editor mode.
  * @param Selection selection The object selection.
@@ -94,10 +92,8 @@ internal fun latticeOverlayOf(
 }
 
 /**
- * Publishes the lattice overlay to [service] for as long as it runs: derived from the mode, the object
- * selection, the model, the posed and pending warps, and the sizes, and published only when the warps it lists,
- * their roles, their pending marks, or the sizes change - an edit that moves art, or a pose change, publishes
- * nothing.  The shown deformers are walked once per model.
+ * Publishes the lattice overlay to [service] for as long as it runs, only when the warps it lists, their roles,
+ * their pending marks, or the sizes change, so an edit that moves art or a pose change publishes nothing.
  *
  * @param PuppetViewportService service The render service to publish to.
  * @param EditorSession session The session to derive from.

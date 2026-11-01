@@ -20,17 +20,13 @@ internal data class AreaProjection(val camera: ViewportCamera, val size: IntSize
 
 /**
  * The viewport surfaces' box select - the 2D viewport and the UV editor, Edit and Object mode, armed
- * (Blender's B) and not - as kit's BoxGestureFlow run over a [MarqueeSelectController].  The RULES (what
- * a press, a drag, a release, a right-click, and a cancelled release do, and the click threshold) are the
+ * (Blender's B) and not - as kit's BoxGestureFlow run over a [MarqueeSelectController].  The RULES are the
  * flow's; this class is what they mean here:
- *   - the rubber-band is the marquee's, and a landed box applies through its applyBox;
  *   - an armed tool is the session's select-tool latch, so disarming clears it;
  *   - while a box is in flight the session's viewportGestureActive flag is up: it keeps navigation from
  *     also panning, routes Escape to the gesture cancel, and holds undo until the release;
  *   - an un-armed Shift+RightClick places the space's cursor at the unprojected point (Blender's
  *     gesture; the Cursor pivot mode and the snap / mirror commands anchor on it).
- * Only primary-driven events and right-clicks are consumed, so middle-drag pan and wheel zoom fall
- * through to the navigation layer beneath.
  *
  * @param EditorSession session The session owning the select-tool latch and the gesture flag.
  * @param MarqueeSelectController<*> marquee The rubber-band this flow drives; its applyBox lands the box.

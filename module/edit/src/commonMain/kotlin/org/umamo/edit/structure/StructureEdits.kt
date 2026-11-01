@@ -41,11 +41,8 @@ private fun List<OrgChild>.withChildInsertedBefore(child: OrgChild, before: OrgC
 
 /**
  * Returns a copy of [this] with the org child [child] (a sub-part or a drawable) moved under [newParentId]
- * (null = the top level) and positioned before [before] there (null / absent = appended). This is the one
- * organizational move: a part reparent / reorder, a drawable re-home, and a cross-kind interleave (a
- * drawable dropped between two parts) are the same edit. Because the parts-panel order is the draw-order
- * tiebreak, the render order is re-derived. A move that would drop a part inside its own subtree (a cycle),
- * or that changes nothing, returns the same instance.
+ * (null = the top level) and positioned before [before] there (null / absent = appended).  The parts-panel
+ * order is the draw-order tiebreak, so the render order is re-derived.
  *
  * @param OrgChild child The sub-part or drawable to move.
  * @param PartId? newParentId The destination part, or null for the top level.
@@ -116,13 +113,13 @@ private fun Deformer.withParent(newParent: DeformerId?): Deformer =
  * Returns a copy of [this] with the deformer [id] re-nested under [newParentId] (null = an armature root)
  * and re-positioned among the deformers list before [beforeId] (null = appended). Reparent and reorder are
  * one move: [Deformer.parent] sets the transform nesting (which changes deformation), and the deformers
- * list order sets sibling order in the armature (cosmetic). A move that would nest the deformer inside its
- * own subtree (a cycle) or that does nothing returns the same instance.
+ * list order sets sibling order in the armature (cosmetic).
  *
  * @param DeformerId id The deformer to move.
  * @param DeformerId? newParentId The destination parent deformer, or null for an armature root.
  * @param DeformerId? beforeId The sibling to insert before, or null to append.
- * @return PuppetModel The model with the deformer moved, or [this] if the move was a no-op or illegal.
+ * @return PuppetModel The model with the deformer moved, or [this] if the deformer is absent or the move
+ *   would form a cycle.
  */
 fun PuppetModel.withDeformerMoved(id: DeformerId, newParentId: DeformerId?, beforeId: DeformerId?): PuppetModel {
 	val deformer = deformers.firstOrNull { it.id == id } ?: return this
@@ -144,7 +141,7 @@ fun PuppetModel.withDeformerMoved(id: DeformerId, newParentId: DeformerId?, befo
 
 /**
  * Moves the deformer [id] under [newParentId] (null = armature root), before [beforeId] (null = append),
- * as one undo step. A cycle-forming or no-op move records nothing.
+ * as one undo step.  A cycle-forming move records nothing.
  *
  * @param DeformerId id The deformer to move.
  * @param DeformerId? newParentId The destination parent deformer, or null for a root.

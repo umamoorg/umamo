@@ -90,10 +90,8 @@ internal object ZipRecords {
 	 * Packs a local date and time into the MS-DOS format ZIP headers use.
 	 *
 	 * Date: year-1980 in bits 15..9, month in 8..5, day in 4..0.  Time: hour in 15..11, minute in
-	 * 10..5, and seconds HALVED into 4..0 - which is why a DOS stamp has two-second resolution.
-	 *
-	 * A year outside 1980..2107 cannot be expressed in the 7 bits available, so it clamps to the epoch
-	 * rather than wrapping into a wrong-but-plausible year.
+	 * 10..5, and seconds HALVED into 4..0 - which is why a DOS stamp has two-second resolution.  A year
+	 * outside 1980..2107 falls back to the epoch.
 	 *
 	 * @param Int year   Local year.
 	 * @param Int month  Local month, 1..12.

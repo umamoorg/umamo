@@ -148,18 +148,15 @@ internal class AppAlertQueues {
 internal val LocalAppAlerts = staticCompositionLocalOf<AppAlertQueues?> { null }
 
 /**
- * The shell's transient overlay state in one place: which modal chrome (palette, preferences, Quick
- * Setup, Help dialogs, export options, confirm dialog, file-open alert, app-layer alert, export report,
- * repack refusal report) is currently up.  The command handlers raise these, the modal key ladder
- * routes Escape/Enter by them, the focus-reclaim effect watches which is topmost, and the shell renders
- * the matching overlay for each - one holder instead of a loose var per overlay, so the pieces that must
- * agree read the same state.
+ * The shell's transient overlay state in one place: which modal chrome is currently up.  The command
+ * handlers raise these, the modal key ladder routes Escape/Enter by them, the focus-reclaim effect watches
+ * which is topmost, and the shell renders the matching overlay for each - one holder instead of a loose var
+ * per overlay, so the pieces that must agree read the same state.
  *
- * The five modal alerts (confirm, file-open failure, app-layer alert, export report, repack refusal report)
- * are queues, not slots: one of each kind shows at a time, and a later arrival of that kind waits behind it
- * in arrival order.  Exports and saves finish in the background, so a request can land while one of its kind
- * is still unread; replacing it would lose a prompt the rigger never saw, and a reflexive Enter would answer
- * the wrong one.
+ * The modal alerts are queues, not slots: one of each kind shows at a time, and a later arrival of that kind
+ * waits behind it in arrival order.  Exports and saves finish in the background, so a request can land while
+ * one of its kind is still unread; replacing it would lose a prompt the rigger never saw, and a reflexive
+ * Enter would answer the wrong one.
  *
  * @param QuickSetupState quickSetup The Quick Setup modal's visibility, which the app holds for its whole
  *   life because this state is rebuilt with the shell on every document swap; a standalone shell has its own.

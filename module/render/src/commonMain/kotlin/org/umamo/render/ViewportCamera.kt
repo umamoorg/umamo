@@ -7,8 +7,6 @@ import kotlin.math.roundToInt
  * the model for an initial fit; width and height are clamped by the producer to at least 1 so a
  * degenerate model never divides by zero downstream.
  *
- * 内容の存在範囲（ワールド空間、ピクセル単位）。モデルの初期フレーミングに使う。
- *
  * @property Float minX   Left edge in world units.
  * @property Float minY   Bottom edge in world units.
  * @property Float width  Extent along X in world units.
@@ -21,16 +19,12 @@ data class ContentBounds(val minX: Float, val minY: Float, val width: Float, val
  * renders 1:1 (one world unit = one model pixel = one screen pixel) at [zoom] == 1. Deformation never
  * reframes the view - the camera is set once (fit on open) and thereafter moved only by the user.
  *
- * Every edit helper is PURE - it returns a new camera and touches no GL - so the navigation maths
- * unit-tests without a context, the same discipline as the workspace splitter's pure ratio function.
- * The render backend consumes only [worldToNdc].
+ * Every edit helper is PURE - it returns a new camera and touches no GL - so the navigation math
+ * unit-tests without a context.  The render backend consumes only [worldToNdc].
  *
  * Coordinate conventions: screen pixels measure +x right, +y DOWN from the top-left; world space is
- * +y UP (the deform shader flips Cubism's native +y-down before projection). The screen-to-world maths
+ * +y UP (the deform shader flips Cubism's native +y-down before projection). The screen-to-world math
  * below therefore carries the Y sign explicitly.
- *
- * 2D ビューポートカメラ（平行投影のパン／ズーム、回転なし）。zoom==1 で 1 ワールド単位＝1 画面ピクセル。
- * 編集ヘルパは全て純粋関数（新しいカメラを返し GL に触れない）なので、操作の数学を文脈なしでテストできる。
  *
  * @property Float centerX World X shown at the viewport center.
  * @property Float centerY World Y shown at the viewport center.
@@ -93,8 +87,8 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 	}
 
 	/**
-	 * Centerd zoom by [deltaPercent] percentage points (the keyboard zoom-in/out), snapping to the
-	 * [stepPercent] grid and leaving the centerd world point fixed.
+	 * Centered zoom by [deltaPercent] percentage points (the keyboard zoom-in/out), snapping to the
+	 * [stepPercent] grid and leaving the centered world point fixed.
 	 *
 	 * @param Float deltaPercent Percentage points to add (negative zooms out).
 	 * @param Float stepPercent  The grid the result snaps to.
@@ -127,10 +121,7 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 
 	/**
 	 * Frames a screen-pixel rectangle (Blender's Zoom Region / Shift+B): the dragged box fills the viewport,
-	 * centerd on the box center.  The two corners may be given in any order.  The scale uses min() so the
-	 * WHOLE box fits inside the viewport (letterboxed on the looser axis) rather than cropping it; a degenerate
-	 * (zero-area) box is guarded by a one-pixel floor, and the zoom is clamped to the limits so a tiny box
-	 * cannot explode past MAX_ZOOM.  Pure, so the framing maths unit-tests without a context.
+	 * centered on the box center.  The two corners may be given in any order.
 	 *
 	 * @param Float leftPx One horizontal box edge in screen pixels.
 	 * @param Float topPx One vertical box edge in screen pixels.
@@ -169,7 +160,7 @@ data class ViewportCamera(val centerX: Float, val centerY: Float, val zoom: Floa
 		const val FIT_MARGIN: Float = 0.9f
 
 		/**
-		 * Frames [content] centerd in the viewport with a small margin - the default view on open and the
+		 * Frames [content] centered in the viewport with a small margin - the default view on open and the
 		 * target of the Fit command.
 		 *
 		 * @param ContentBounds content        The extent to frame.

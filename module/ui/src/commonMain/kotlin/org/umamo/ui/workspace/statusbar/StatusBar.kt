@@ -125,9 +125,7 @@ private const val NOTICE_VISIBLE_MS = 4000L
 /**
  * The transient-notice slot: shows the session's most recent status-bar-placed notice for a few seconds,
  * then clears itself.  A notice is momentary feedback explaining why an action did nothing, so it lives
- * outside the undo history and the change bus.  Notices placed [NoticePlacement.NearCursor] are the
- * viewport HUD overlay's to draw, not this slot's.  Renders nothing when no notice is active or no
- * document is open.
+ * outside the undo history and the change bus.
  */
 @Composable
 private fun StatusNotice() {
@@ -156,16 +154,11 @@ private fun StatusNotice() {
 
 /**
  * The context-binds zone: the shortcuts worth suggesting for the space under the pointer, derived from
- * what each command declares about itself (its spaces, its availability, its short hint label) rather
- * than listed here - see [statusHintsFor].  Moving the pointer from a viewport to a keyform sheet
- * changes the suggestions, and a command that gains a hint appears with no edit to this zone.
+ * what each command declares about itself rather than listed here (see [statusHintsFor]).
  *
- * An active modal transform operator - from any of the three families, since G / S / R latch the mesh,
- * the object, or the UV operator depending on the mode and the surface - overrides the list with its
- * confirm / cancel pair, and a Rotate that can turn in depth adds its axis keys and, once an axis is
- * locked, the primary-modifier wheel's depth push.  Those are literal strings because the inputs live in
- * the overlay's own pointer loop and the shell's hardcoded modal branches, not in the keymap - there is
- * nothing rebindable to resolve, and no command to derive them from.
+ * An active modal transform operator overrides the list with its confirm / cancel pair.  Those two are
+ * literal strings because the inputs live in the overlay's own pointer loop and the shell's hardcoded
+ * modal branches, not in the keymap: there is nothing rebindable to resolve.
  */
 @Composable
 private fun ContextBindsZone() {
@@ -304,15 +297,8 @@ private fun SelectedItemZone() {
 }
 
 /**
- * The model-stats zone: an inline summary of the open model's element counts (parts, drawables,
- * parameters, deformers, glues) plus its mesh vertex / triangle totals. While a selection exists the
- * mesh numbers turn selection-relative ("Verts: 12/3400") - in Object mode over the selected
- * drawables (a selected part counts its nested art), in Edit mode over the selected elements' covered
- * vertices and fully-covered faces. Reads the open document's [LocalPuppet] and renders nothing when
- * no model is open.
- *
- * モデル統計区画。各種件数と頂点・三角形の合計を表示し、選択があるあいだは選択分／合計の形になる。
- * 未読込時は何も描かない。
+ * The model-stats zone: an inline summary of the open model's element counts plus its mesh vertex and
+ * triangle totals, which turn selection-relative ("Verts: 12/3400") while a selection exists.
  */
 @Composable
 private fun ModelStats() {

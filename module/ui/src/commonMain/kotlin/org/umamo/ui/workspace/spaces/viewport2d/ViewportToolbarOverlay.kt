@@ -32,17 +32,12 @@ private val TOOLBAR_GLYPH_SIZE = 18.dp
 
 /**
  * The viewport's floating left tool toolbar (Blender's toolbar, reduced to a strip): the select tools
- * (Box, Circle) and the modal transforms (Grab, Rotate, Scale), each dispatching its registry command
- * so the buttons, shortcuts, pies, and palette all share one behavior.  The armed / in-flight state
- * lights the matching button.  With no open document the strip still renders, disabled, so the viewport
- * chrome reads the same before the first file opens.
+ * and the modal transforms, each dispatching its registry command so the buttons, shortcuts, pies, and
+ * palette all share one behavior.  With no open document the strip still renders, disabled, so the
+ * viewport chrome reads the same before the first file opens.
  *
- * Visibility is the area's own [org.umamo.ui.workspace.ChromeVisibility] (toggled by view.toggleToolbar / T),
- * else the [org.umamo.ui.workspace.LocalViewportChrome] default - the caller gates on it, keeping this
- * composable a pure strip.
- *
- * The caller mounts the strip in a [org.umamo.ui.kit.PointerShield] clipped to its outline, which keeps a
- * click in its padding or between two buttons from selecting under it and steps aside for a running gesture.
+ * The caller gates the strip's visibility and mounts it in a [org.umamo.ui.kit.PointerShield], keeping
+ * this composable a pure strip.
  *
  * @param Modifier modifier The layout modifier.
  */

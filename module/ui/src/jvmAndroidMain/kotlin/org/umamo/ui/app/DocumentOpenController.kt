@@ -131,10 +131,9 @@ internal class DocumentOpenController(
 	}
 
 	/**
-	 * File > Import > CMO3.  The filter is CMO3 alone: artwork comes in through Import Artwork, which adds to
-	 * the open document rather than replacing it, and MOC3 through its own row, which keeps the distinction
-	 * between a source project and a baked runtime visible in the UI.  Open and Save are reserved for the
-	 * native UMA format.
+	 * File > Import > CMO3.  The picker offers CMO3 alone: artwork comes in through Import Artwork, which adds
+	 * to the open document rather than replacing it, and MOC3 through its own row, keeping a source project
+	 * and a baked runtime distinct in the UI.
 	 */
 	fun importCmo3ViaPicker() {
 		pickAndLoad(FileKind.Cmo3)
@@ -170,9 +169,9 @@ internal class DocumentOpenController(
 	}
 
 	/**
-	 * Opens the file [choose] names over the open document: behind the unsaved-changes gate, as the one
-	 * open running, read and built off the UI thread with its task on the status bar, and landed back on
-	 * the app's scope.  The file is chosen on the app's scope too - a native dialog wants the UI thread.
+	 * Opens the file [choose] names over the open document, behind the unsaved-changes gate and as the one
+	 * open running.  The file is chosen on the app's scope, since a native dialog wants the UI thread; only
+	 * the read and the build leave it.
 	 *
 	 * @param Function choose Names the file, or null when there is none to open (a cancelled picker).
 	 */

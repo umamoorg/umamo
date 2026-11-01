@@ -16,9 +16,6 @@ import kotlin.math.sqrt
  * Edges come in as an interleaved endpoint array (two vertex indices per edge, the caller's edge order);
  * the point-in-triangle test is shared with the world-space picker (pointInTriangle in Picker.kt),
  * which is coordinate-space agnostic.
- *
- * 画面空間のヒットテストと範囲選択。カメラで投影する純粋な幾何で、UI 型に依存しない（結果は序数）。
- * UV エディタも同じ関数を自分のカメラで再利用できる。
  */
 
 /**
@@ -255,11 +252,9 @@ fun nearestEdge(
 }
 
 /**
- * The face under the pointer, or null.  A point-in-face test on the projected positions - a face is a ring of
- * corners, tested as the fan of triangles from its first corner, so a triangle is itself and a lattice cell its
- * two halves; when a deformed mesh overlaps itself and several faces contain the pointer, the one with the
- * nearest centroid (the mean of its corners) wins (a deterministic tie-break that favors the face whose click
- * affordance is closest).
+ * The face under the pointer, or null.  Where a deformed mesh overlaps itself and several faces contain the
+ * pointer, the one with the nearest centroid wins, a deterministic tie-break that favors the face whose click
+ * affordance is closest.
  *
  * @param FloatArray positions The interleaved (x, y) world positions.
  * @param IntArray faceCorners [cornersPerFace] vertex indices per face, around the face.

@@ -4,18 +4,10 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Pure transforms over an interleaved mesh-position array for the modal G / S / R operators. Positions
- * are interleaved (x0, y0, x1, y1, ...), so vertex [index] occupies slots `2*index` and `2*index+1`
- * (matching [org.umamo.runtime.model.DrawableMesh]). Each operator returns a NEW array, mutating only the
- * coordinates of the selected vertices and copying the rest verbatim - it never touches its input, which
- * keeps them trivially testable and upholds the copy-on-write discipline (the caller commits the returned
- * array into a fresh DrawableMesh).
- *
- * The functions are coordinate-space agnostic: they operate on whatever values the array holds. The
- * caller (the gizmo overlay) maps the pointer gesture into the same space the positions live in (model
- * space) before computing the delta / factor / angle and the pivot.
- *
- * モーダルな移動・拡縮・回転の純粋変換。選択頂点のみを変更した新しい配列を返し、入力は変更しない。
+ * Pure transforms over an interleaved mesh-position array (x0, y0, x1, y1, ..., matching
+ * [org.umamo.runtime.model.DrawableMesh]) for the modal G / S / R operators.  Each returns a NEW array and
+ * never touches its input, upholding the copy-on-write discipline.  The functions are coordinate-space
+ * agnostic: the caller maps the pointer gesture into the positions' own space first.
  */
 object MeshTransforms {
 	/**
@@ -45,11 +37,9 @@ object MeshTransforms {
 	}
 
 	/**
-	 * The combined median pivot across several interleaved position arrays: the mean (centroid) of every
-	 * vertex of every array, weighted by vertex count (so a denser mesh pulls the pivot toward itself, the
-	 * same way [medianPivot] weights a single mesh by its vertices). This is the shared anchor an object-mode
-	 * Scale / Rotate turns all selected drawables about. Returns (0, 0) when the collection is empty or holds
-	 * only empty arrays (no gesture runs in that case).
+	 * The combined median pivot across several interleaved position arrays: the centroid of every vertex of
+	 * every array, so a denser mesh pulls the pivot toward itself as [medianPivot] does within one mesh.  The
+	 * shared anchor an Object-mode Scale / Rotate turns all selected drawables about.
 	 *
 	 * @param Collection<FloatArray> positionsList The interleaved position arrays, one per selected drawable.
 	 * @return Pair<Float, Float> The (x, y) centroid across all arrays' vertices.

@@ -21,20 +21,12 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The visual-only highlight for an in-flight corner drag.  Reads the shared [controller]'s drag state
- * and paints one of three previews: a JOIN box spanning the source and target areas (consumed target
- * tinted stronger), a DOCK strip on a workspace edge (source's slot shown vacating), or a SPLIT preview
- * of the source area drawn as the two resulting areas.  It draws nothing for a no-op or when idle.
- *
- * Highlights are rounded to the same large corner radius the areas themselves use, and the split preview
- * leaves the same gap between its halves that a real [Splitter] leaves between areas, so the preview
- * reads as the actual layout it will produce.
+ * The visual-only highlight for an in-flight corner drag: a preview of the join, dock, or split the
+ * [controller]'s drag would produce, rounded and gapped like real areas so it reads as the actual layout.
  *
  * No pointer input: the gesture itself lives in the corner hotspot, so this layer must never intercept
  * events - it only renders.  It is drawn in the shell content Box, the same content-local space the leaf
  * rectangles are captured in, so the captured rects map straight to draw coordinates.
- *
- * コーナードラッグの進行中ハイライト（描画のみ）。結合・ドック・分割を、実際のエリアと同じ角丸と間隔で示す。
  *
  * @param AreaDragController controller The shared corner-drag state.
  * @param Modifier modifier The layout modifier (fill the content Box).

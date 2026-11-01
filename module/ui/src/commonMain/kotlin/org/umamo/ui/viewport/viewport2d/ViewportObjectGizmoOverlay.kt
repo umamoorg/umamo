@@ -57,31 +57,10 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
 
 /**
  * The Object-mode gizmo overlay: the Object-mode counterpart to [ViewportEditGizmoOverlay], driving whole-object
- * selection and transforms over the puppet image.  Composed whenever Object mode is active with a camera, and
- * gated off in the modes that edit elements (Edit and Pose, where [ViewportEditGizmoOverlay] owns the viewport), so
- * the two overlays are mutually exclusive by mode and never both drive the pointer.  Middle-drag pan and wheel zoom
- * are never consumed here, so they fall through to the navigation layer beneath.
- *
- * Four gestures, mirroring Edit mode but over whole objects rather than mesh elements:
- *   - Click pick (idle): the primary button picks on release what lies under the cursor - a warp whose drawn
- *     lattice is there before the front-most drawable's art (plain replaces, Shift / Ctrl toggles membership,
- *     an Alt click opens the overlap picker over lattices and stacked meshes, an unmodified click on empty
- *     canvas clears).  Before the press, the lattice a click would take draws in the hover color under the
- *     pointer.
- *   - Box select: a primary drag rubber-bands and selects every drawable whose world centroid, and every drawn
- *     warp whose lattice center, is enclosed (Shift adds to the current selection).  Works un-armed (a drag
- *     from empty canvas, Blender's default drag) and armed (Blender's B, which skips the pick and always boxes,
- *     then disarms).  Escape or a right-click abandons an in-flight drag.
- *   - Circle select (Blender's C): a brush paints objects by the same anchors - a primary drag adds, a middle or
- *     Shift+primary drag erases; the stroke accumulates into a working selection committed once on release
- *     (one undo step), previewed live through the GPU tint via [SessionToolLatches.setPreviewSelection]; the wheel
- *     resizes the brush; a right-click leaves the tool keeping what was painted.
- *   - Grab / Scale / Rotate: a modal transform of every selected drawable's whole geometry and every selected
- *     warp's whole lattice about their combined centroid, previewed straight to the renderer and committed as one
- *     undo step ([MeshChange.TransformObjects]).  A right-click or Escape cancels (the renderer re-syncs to the
- *     committed model); a primary click or Enter confirms.  Only drawables and warps transform - a selection with
- *     nothing transformable blocks at the session guard ([EditorSession.beginObjectOperator]) before an operator
- *     ever latches here.
+ * selection (click pick, box, and circle) and the modal G / S / R over the puppet image, mirroring Blender's Object
+ * mode.  It composes only outside the modes that edit elements, so the two overlays are mutually exclusive by mode
+ * and never both drive the pointer.  Middle-drag pan and wheel zoom are never consumed here, so they fall through to
+ * the navigation layer beneath.
  *
  * The transform math ([applyOperator], [MeshTransforms], the shared world->base round trip), the cursor-wrap
  * scheme, and the screen projection ([worldToScreen] / [screenToWorld]) are shared verbatim with the Edit

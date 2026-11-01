@@ -834,8 +834,7 @@ internal object Cmo3ImageChainBuilder {
 	 * Writes a packing origin into [transform]: the position in page pixels, the packer's resampling
 	 * scale, and its rotation in degrees.
 	 *
-	 * CMO3: ModelImageEntry field materialLocalToAtlasTransform - a GTransform2 whose position is the
-	 * packing origin in page pixels, scale the packer's resampling, and eulerAngle its rotation in
+	 * CMO3: ModelImageEntry field materialLocalToAtlasTransform, a GTransform2 whose eulerAngle is in
 	 * DEGREES.  Shared by the fresh conversion, the export's pack-in mint, and the placement lowering,
 	 * so the three write one convention.
 	 *
@@ -971,7 +970,7 @@ internal object Cmo3ImageChainBuilder {
 	 * @param Int        cropWidth  The patch rect's width.
 	 * @param Int        cropHeight The patch rect's height.
 	 * @return BooleanArray One flag per crop pixel in row-major order, or null when the mesh carries
-	 *         no triangles to mask with (the whole rect is then kept, as before).
+	 *         no triangles to mask with (the whole rect is then kept).
 	 */
 	private fun coverageMaskOf(
 		uvs: FloatArray,
@@ -1208,11 +1207,9 @@ internal object Cmo3ImageChainBuilder {
 
 	/**
 	 * Populates [root]'s texture manager with one page chain per atlas page, the real-layer web for
-	 * every artwork file in [sourceImages] (a layered image per file, a layer and model image per
-	 * tile from the document's own raster, entries and bindings off the tiles' placements), and the
-	 * crop web for the drawables [regionsByPage] lists - the MOC3-origin stand-in that slices each
-	 * drawable's patch out of its page.  A page with no crop regions mints no stand-in document, so an
-	 * artwork-origin file carries none.
+	 * every artwork file in [sourceImages], and the crop web for the drawables [regionsByPage] lists -
+	 * the MOC3-origin stand-in that slices each drawable's patch out of its page.  A page with no crop
+	 * regions mints no stand-in document, so an artwork-origin file carries none.
 	 *
 	 * @param CModelSource root          The fresh skeleton root (its textureManager must exist).
 	 * @param List         pages         The atlas pages, in model3 texture order.

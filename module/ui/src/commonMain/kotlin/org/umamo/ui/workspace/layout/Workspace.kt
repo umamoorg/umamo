@@ -6,10 +6,6 @@ import kotlinx.serialization.Serializable
  * One workspace: a named, top-level tab holding an independent area tree. The [id] is a stable,
  * locale-free identity - built-in workspaces use known ids ("modelling", "texture") that the tab
  * strip resolves to a localized title, so the persisted layout never bakes in a display language.
- * (User-created/renamed workspaces, when added, will carry a literal user name - user data, not
- * localized, like part names.)
- *
- * 1 つのワークスペース（最上位タブ）。独立したエリアツリーを持つ。id はロケール非依存の安定識別子。
  *
  * @property String id The stable workspace identity (also the title-resolution key for built-ins).
  * @property AreaNode root The root of this workspace's area tree.
@@ -28,8 +24,6 @@ data class Workspace(
  * The whole persisted interface layout: which workspace is active and the ordered set of workspaces.
  * Serialized as one object under the interface.layout settings key. An empty [workspaces] list is the
  * "no layout yet - seed defaults" signal (matches defaultSettings.json's `interface.layout.workspaces: []`).
- *
- * 永続化されるインターフェイスレイアウト全体。interface.layout キーに 1 オブジェクトとして保存する。
  *
  * @property String activeWorkspaceId The id of the workspace currently shown.
  * @property List workspaces The workspaces, in tab order.
@@ -72,8 +66,6 @@ data class InterfaceLayout(
 	 * Moves the active selection [delta] tabs along the strip, wrapping around either end (so Next from
 	 * the last tab lands on the first).  A no-op when there are no workspaces.
 	 *
-	 * アクティブ選択を delta 個ずらす（端で巻き戻る）。ワークスペースが無ければ何もしない。
-	 *
 	 * @param Int delta How many tabs to move (negative is leftward / previous).
 	 * @return InterfaceLayout The layout with the active id shifted.
 	 */
@@ -92,8 +84,6 @@ data class InterfaceLayout(
 	/**
 	 * Inserts [workspace] at [atIndex] (clamped into range), optionally making it the active tab.  The
 	 * insertion path for new and duplicated workspaces.
-	 *
-	 * workspace を atIndex に挿入し、必要ならアクティブにする（新規・複製の挿入経路）。
 	 *
 	 * @param Workspace workspace The workspace to insert.
 	 * @param Int atIndex The target index (clamped to 0..size).
@@ -114,8 +104,6 @@ data class InterfaceLayout(
 	 * Removes the workspace with [id].  Refuses to remove the last workspace (the strip never goes
 	 * empty), and if the removed workspace was active, moves the active selection to the tab that slides
 	 * into its slot (or the new last tab).
-	 *
-	 * id のワークスペースを削除する。最後の 1 つは削除を拒否し、アクティブを隣のタブへ移す。
 	 *
 	 * @param String id The workspace id to remove.
 	 * @return InterfaceLayout The layout with the workspace removed (unchanged if it was the last or absent).
@@ -146,8 +134,6 @@ data class InterfaceLayout(
 	 * Moves the workspace at [fromIndex] so it ends up at [toIndex] in tab order, leaving the active
 	 * selection unchanged (reordering re-arranges tabs, it does not switch which one is shown).
 	 *
-	 * fromIndex のワークスペースを toIndex の位置へ移動する（アクティブ選択は変えない）。
-	 *
 	 * @param Int fromIndex The current index of the workspace to move.
 	 * @param Int toIndex The destination index in the final ordering.
 	 * @return InterfaceLayout The reordered layout (unchanged if fromIndex is out of range).
@@ -168,8 +154,6 @@ data class InterfaceLayout(
 	 * Sets the display [name] of the workspace with [id] (user data, shown verbatim, overriding any
 	 * built-in localized title).  A no-op if no workspace has that id.  The caller is responsible for
 	 * rejecting a blank name; this method stores whatever it is given.
-	 *
-	 * id のワークスペースの表示名を name に設定する（ユーザーデータ。組み込みの既定タイトルを上書きする）。
 	 *
 	 * @param String id The workspace id to rename.
 	 * @param String name The new display name.

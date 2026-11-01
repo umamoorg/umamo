@@ -7,11 +7,11 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * The texture data backing a puppet preview: the distinct atlas page(s) the art meshes sample, plus a
  * per-drawable index into them.  Art meshes typically share one atlas page in `TEXTURE_ATLAS` mode, but
- * this structure generalises to multiple pages.
+ * this structure generalizes to multiple pages.
  *
  * For an IMPORTED document [atlases] is ordered by the renderer's own page walk and shares no
- * numbering with the model's `PuppetAtlas.pages`.  A page set Umamo generates itself (a repack's,
- * built by `deriveAtlasTextures`) is index-parallel to `PuppetAtlas.pages` instead, so for generated
+ * numbering with the model's `PuppetAtlas.pages`.  A page set Umamo generates itself (built by
+ * `generatedPuppetTextures`) is index-parallel to `PuppetAtlas.pages` instead, so for generated
  * sets a placement's page index is valid against both lists.
  *
  * [premultipliedAlpha] is the OR-fold of the CMO3 `GTexture2D.isPremultiplied` bits and is currently
@@ -63,11 +63,9 @@ enum class UndecodablePagePolicy {
  * Builds the [PuppetTextures] for a puppet from its atlas page bytes and a per-drawable index into
  * them - the format-agnostic core both ingest paths end at.
  *
- * Each format's own atlas-page walk (`cmo3AtlasPages`, `moc3AtlasPages`, in `:interop`) produces a
- * neutral `AtlasPageSet` that the document loader unpacks into these two arguments and hands here, so
- * the decode, the page-index validation, and the PuppetTextures shape are written once.  Nothing about
- * this function knows a format; it is deliberately reachable with hand-built arguments so tests need
- * no corpus file.
+ * Each format's atlas-page walk (`cmo3AtlasPages`, `moc3AtlasPages`, in `:interop`) ends here, so the
+ * decode, the page-index validation, and the PuppetTextures shape are written once, and tests can reach
+ * it with hand-built arguments.
  *
  * @param List<ByteArray>       pageBytes              The PNG bytes per atlas page, in index order.
  * @param Map<String, Int>      atlasIndexByDrawableId Drawable id (`ArtMesh…`) → index into [pageBytes].
@@ -130,10 +128,7 @@ fun buildPuppetTextures(
  * Re-encodes a decoded atlas page as PNG, for a page the document retains no source bytes for.
  *
  * The fallback half of both exports' page payload: a retained source PNG is written verbatim, which is
- * faster and lossless, and this covers every page there is no such PNG for.  A CMO3-origin document
- * reaches it for every page (its pixels are embedded per drawable, so it retains no atlas PNGs at all).
- * A MOC3-origin one retains a PNG per decoded page and so does not reach it, and falls back here only
- * if those two lists ever diverge - which would otherwise leave that page with no bytes to write.
+ * faster and lossless, and this covers every page there is no such PNG for.
  *
  * Re-encoding rather than dropping the page is what keeps page INDICES stable - drawables address
  * pages by number, so omitting one would renumber every page after it.

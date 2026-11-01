@@ -19,17 +19,10 @@ import org.umamo.ui.tracks.TrackRow
 /**
  * [current] with [clicked] toggled in or out - what a Shift+click on a mark leaves behind.
  *
- * TOGGLE rather than add-only because a click is the only gesture that can take a single mark back OUT of
- * a selection without starting over; the marquee stays add-only, which is the convention for a region
- * gesture.
- *
- * A summary mark's whole membership toggles as ONE unit - all of them or none - so a folded group cannot
- * end up half-selected by a gesture that showed the user a single mark.  Partly-selected therefore counts
- * as "not selected" and the click completes it, which is the reading that lets a second click undo the
- * first.
- *
- * Internal rather than private so the rule can be pinned without a composition: the UI test can only
- * reach as far as "Shift arrived", and what the sheet then DOES with it is the part worth stating.
+ * A toggle rather than add-only because a click is the only gesture that can take a single mark back out of
+ * a selection without starting over.  A summary mark's whole membership toggles as one unit, so a folded
+ * group cannot end up half-selected by a gesture that showed the user a single mark; partly-selected counts
+ * as not selected and the click completes it, which lets a second click undo the first.
  *
  * @param Set current The selection before the click.
  * @param Set clicked The keys the clicked mark stands for - one, or a summary's whole membership.
@@ -54,13 +47,9 @@ internal fun KeyformSheetProjection.keysOfMark(parameterId: ParameterId, rowKey:
  * The key selection a drag of a mark standing for [draggedKeys] works on: [current] when it already holds
  * every one of them, else exactly [draggedKeys].
  *
- * Dragging a mark that is not selected selects it first, the way a click on it would, and the drag then
- * moves what it selected - which is how every editor with a selection treats a drag.  A partly-selected
- * summary counts as not selected, for the reason [selectionAfterAdditiveClick] gives: a folded group must
- * not be dragged half-selected by a gesture that showed the user a single mark.
- *
- * The drag's start and its release both derive the selection here, so the two agree even when the release
- * arrives before the sheet has recomposed with what the start staged.
+ * A partly-selected summary counts as not selected, for the reason [selectionAfterAdditiveClick] gives.  The
+ * drag's start and its release both derive the selection here, so the two agree even when the release arrives
+ * before the sheet has recomposed with what the start staged.
  *
  * @param Set current The key selection before the drag.
  * @param Collection draggedKeys The keys the dragged mark stands for.
@@ -70,21 +59,12 @@ internal fun selectionDraggedWith(current: Set<TrackKeyRef>, draggedKeys: Collec
 	if (current.containsAll(draggedKeys)) current else draggedKeys.toSet()
 
 /**
- * The fraction of [parameter]'s range a drag of [mark] to [at] represents, or null when it is not a GROUP
- * drag at all.
- *
- * A GROUP drag moves the whole [selection].  A summary mark always drags that way, because the keys it
- * stands for are only reachable through the selection; a plain mark does once anything else is selected with
- * it.  Null - meaning "handle this as an ordinary single-key move" - when the dragged keys are not all in
- * [selection], when a plain mark is the whole selection, or when the parameter has no range to take a
- * fraction of.
+ * The fraction of [parameter]'s range a drag of [mark] to [at] represents, or null when it is an ordinary
+ * single-key move rather than a drag of the whole [selection].
  *
  * A fraction rather than an absolute delta because a selection can span two parameters (a linked pad shows
- * both axes at once) whose ranges differ by orders of magnitude.  Within ONE parameter a fraction of its
- * range IS the distance the hand moved.
- *
- * Shared by the live preview and the release so the two cannot disagree about which gesture this is - the
- * failure mode being a drag that previews as a group and commits as a single key, or the reverse.
+ * both axes at once) whose ranges differ by orders of magnitude.  Shared by the live preview and the release
+ * so a drag can never preview as a group and commit as a single key, or the reverse.
  *
  * @param Parameter parameter The section's parameter.
  * @param Set selection The key selection the drag works on (see [selectionDraggedWith]).
@@ -177,14 +157,9 @@ internal fun resolveTrackKeys(
  * Previews ([commit] false) or applies ([commit] true) a drag of the WHOLE key selection by [fraction] of
  * each key's parameter range.
  *
- * PREVIEW then COMMIT, through the same clamp: while the pointer moves, the fraction is only recorded (the
- * marks draw shifted by it and the model is untouched); on release it is applied as one undo step.  A
- * per-move commit would push an undo entry per pixel, and a preview at the unclamped fraction would show
- * the group travelling past the wall it is about to stop at.
- *
- * Resolved against EVERY section, because a linked pad shows two and one box select can enclose keys in
- * both - which is why the sheet runs this and hands it to its sections as an action, since a section sees
- * only its own projection.
+ * The preview goes through the same clamp as the release, so it never shows the group traveling past the
+ * wall it is about to stop at, and only the release records an undo step.  The sheet runs this rather than a
+ * section because one selection can span both sections of a linked pad.
  *
  * @param EditorSession? session The editing session, or null with none, which only clears the preview.
  * @param List projections Each targeted parameter and its tracks.

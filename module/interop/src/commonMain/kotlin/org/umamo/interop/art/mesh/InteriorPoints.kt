@@ -16,16 +16,13 @@ import kotlin.math.sqrt
 private val HEXAGON_ROW_HEIGHT: Double = sqrt(3.0) / 2.0
 
 /**
- * Samples the inner rings: keypoints at sharp turns, even spacing between, and any chord whose
- * midpoint strays more than halfway back toward the art's edge refined from the traced ring (so a
- * chord cannot cut across a notch).  Points within half a spacing of a pin are dropped; a ring left
- * with fewer than three points is dropped whole.
+ * Samples the inner rings at the interior spacing, refined from the traced ring wherever a chord
+ * would cut across a notch, and clear of the pins.
  *
- * Only a ring with room for the spacing is kept: at least three spacings around, and on average at
- * least a quarter spacing wide (its area over its perimeter, which is about half a thin loop's
- * width).  Where the art is barely wider than twice the inner margin, the inner contour breaks into
- * tiny loops or a thin sliver of a loop; forcing points onto those packs them together into
- * near-degenerate triangles, so such a stretch is meshed from its outline alone.
+ * Only a ring with room for the spacing is kept ([hasRoomForSpacing]): where the art is barely wider
+ * than twice the inner margin, the inner contour breaks into tiny loops or a thin sliver of a loop, and
+ * forcing points onto those packs them into near-degenerate triangles, so such a stretch is meshed from
+ * its outline alone.
  *
  * @param List<DoubleArray> denseRings  The field's contours at minus the inner margin.
  * @param AlphaField        field       The field.
@@ -64,11 +61,9 @@ internal fun innerRingPoints(denseRings: List<DoubleArray>, field: AlphaField, s
 }
 
 /**
- * The hexagonal lattice over the field's grid, anchored at the raster origin, kept where the field is
- * at most minus (inner margin + half a spacing) - well inside the art, clear of the inner ring - and
- * away from pins.  Rows alternate their half-spacing offset by row parity (floorMod, so negative rows
- * alternate too) and every position is a product, never an accumulated sum, so the lattice is the
- * same on every platform.
+ * The hexagonal lattice over the field's grid, anchored at the raster origin, kept well inside the
+ * art, clear of the inner ring, and away from pins.  Every position is a product, never an accumulated
+ * sum, so the lattice is the same on every platform.
  *
  * @param AlphaField  field       The field.
  * @param Double      spacing     The lattice spacing.
@@ -86,6 +81,7 @@ internal fun latticePoints(field: AlphaField, spacing: Double, innerMargin: Doub
 	val points = ArrayList<Double>()
 
 	for (row in ceil(top / rowHeight).toLong()..floor(bottom / rowHeight).toLong()) {
+		// mod rather than %, so negative rows alternate too.
 		val offset = if (row.mod(2L) == 1L) spacing / 2.0 else 0.0
 		val y = row * rowHeight
 
@@ -112,6 +108,7 @@ internal fun latticePoints(field: AlphaField, spacing: Double, innerMargin: Doub
 private fun hasRoomForSpacing(ring: DoubleArray, spacing: Double): Boolean {
 	val measure = RingMeasure.of(ring)
 
+	// Area over perimeter is about half a thin loop's width.
 	return measure.perimeter >= MINIMUM_INNER_RING_POINTS * spacing && abs(measure.doubledArea) / 2.0 / measure.perimeter >= spacing / 4.0
 }
 

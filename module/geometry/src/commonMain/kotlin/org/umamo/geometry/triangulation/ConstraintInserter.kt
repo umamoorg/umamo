@@ -121,9 +121,7 @@ internal class ConstraintInserter(
 	/**
 	 * Walks from a vertex toward a target through the triangles the straight segment between them
 	 * crosses, until the segment meets a vertex: the target itself, or one lying exactly on the
-	 * segment.  Every crossed edge has its origin to the right of from -> to and its destination to the
-	 * left.  A segment between two vertices never leaves the convex hull, so the walk never enters a
-	 * ghost triangle.
+	 * segment.
 	 *
 	 * @param Int              from    The start vertex.
 	 * @param Int              to      The target vertex.
@@ -240,10 +238,9 @@ internal class ConstraintInserter(
 	}
 
 	/**
-	 * One step of plain Sloan, which treats [crossings] as a FIFO queue: take the front edge; if its
-	 * quad is not strictly convex, send it to the back; otherwise flip it, and send the new diagonal to
-	 * the back if it still crosses the piece.  The queue order is what guarantees termination - a
-	 * diagonal that still crosses is never the very next edge tried, so a flip is never undone at once.
+	 * One step of plain Sloan over [crossings] as a FIFO queue.  The queue order is what guarantees
+	 * termination: a diagonal that still crosses is never the very next edge tried, so a flip is never
+	 * undone at once.
 	 *
 	 * @param Int start The piece's start.
 	 * @param Int end   The piece's end.

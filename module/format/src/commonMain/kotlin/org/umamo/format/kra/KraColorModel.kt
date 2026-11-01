@@ -118,12 +118,12 @@ internal class KraPixelFormat(
 }
 
 /**
- * Reads a 32-bit little-endian float at offset in source and quantises it to an 8-bit unorm byte
+ * Reads a 32-bit little-endian float at offset in source and quantizes it to an 8-bit unorm byte
  * (clamped to 0..1, scaled by 255, rounded).
  *
  * @param ByteArray source   Buffer holding the float.
  * @param Int offset         Byte offset of the 4-byte little-endian float.
- * @return Byte the quantised 0..255 channel value (as a signed Byte).
+ * @return Byte the quantized 0..255 channel value (as a signed Byte).
  */
 private fun floatByteToUnorm8(source: ByteArray, offset: Int): Byte {
 	val bits =

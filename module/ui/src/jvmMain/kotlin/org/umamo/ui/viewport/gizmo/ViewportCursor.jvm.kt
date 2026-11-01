@@ -26,8 +26,6 @@ private val cursorWarpRobot: Robot? by lazy {
  * (HiDPI / WSLg).  A no-op returning null when no Robot is available (headless / denied), so the caller
  * leaves its gesture anchor alone.
  *
- * デスクトップ実装：AWT Robot でカーソルを画面座標へ移動し、実際の着地点を MouseInfo で読み返す。
- *
  * @param Float screenX The requested absolute screen x in pixels.
  * @param Float screenY The requested absolute screen y in pixels.
  * @return Offset? The absolute screen position the cursor landed at, or null when no Robot is available.

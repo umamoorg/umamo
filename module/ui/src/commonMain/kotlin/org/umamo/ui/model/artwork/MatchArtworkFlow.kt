@@ -347,11 +347,9 @@ private fun matchOutcome(
 }
 
 /**
- * The log entries for the tiles a match plan rebound: of [accepted], those in [replaced], each named from the
- * model before the step with the layer it moved to and the score that moved it.  An accepted tile the plan could
- * not pull is left out - its match stayed a suggestion for its row, and a line saying it was rebound would
- * contradict the review chip still showing it.  A match plan records its tiles as Matched rather than Rebound,
- * so the scores come from the suggestions here rather than from the plan's report.
+ * The log entries for the tiles a match plan rebound, named from the model before the step.  An accepted tile
+ * the plan could not pull is left out, since its match stayed a suggestion for its row.  A match plan records
+ * its tiles as Matched rather than Rebound, so the scores come from the suggestions rather than the plan's report.
  *
  * @param List        accepted    Each accepted tile and the key of the layer it was to take.
  * @param Set         replaced    The tiles the plan replaced.
@@ -490,9 +488,8 @@ private inline fun packMatched(
 
 /**
  * Matches the document's unresolved bindings to the layers the matcher is confident about as ONE
- * undo step, registers it on the strip with the threshold row beside the import rows, and publishes
- * the suggestions it did not apply.  Nothing confident enough is a notice, not a step, and the
- * suggestions are published all the same.
+ * undo step registered on the strip, and publishes the suggestions it did not apply, even when
+ * nothing was confident enough for a step.
  *
  * Runs on the UI thread; the scoring, planning, and pack hop to the default dispatcher.  Planned
  * against the model current at the start, so any edit landing meanwhile supersedes it.
@@ -551,13 +548,8 @@ internal suspend fun adjustMatchArtwork(host: AtlasRepackHost, record: Adjustabl
 
 /**
  * Lands an adjustment of a match or replace step: [compute] runs over the record's base with the
- * record's parameters, and the result replaces the operation's own step.
- *
- * A pass that applies nothing under the new parameters amends the step back to the base and publishes
- * its suggestions - a threshold raised past every match must take the earlier rebindings with it, or
- * the strip would show one bar and the document another.  A pass the pack refuses is reported and
- * leaves the step as it was, and a record cleared while the pass ran makes
- * [org.umamo.edit.EditorSession.amendLastCommit] drop the result.
+ * record's parameters, and the result replaces the operation's own step unless the record was cleared
+ * while the pass ran ([org.umamo.edit.EditorSession.amendLastCommit]).
  *
  * @param AtlasRepackHost     host      The session, resolver, and shell callbacks the first run had.
  * @param AdjustableOperation record    The record with the adjusted parameters.
@@ -577,6 +569,8 @@ private suspend fun adjustMatch(
 
 	when (outcome) {
 		is MatchOutcome.NothingApplied -> {
+			// A threshold raised past every match takes the earlier rebindings with it, or the strip would show
+			// one bar and the document another.
 			if (!host.session.amendLastCommit(record, base)) {
 				UmamoLog.info("$operation: the adjustment was superseded before it landed; nothing was applied")
 
@@ -666,9 +660,8 @@ internal suspend fun adjustReplaceArtwork(host: AtlasRepackHost, record: Adjusta
 private inline fun <reified TChange : DocumentChange> MatchOutcome.appliedChange(): TChange = (this as MatchOutcome.Applied).change as TChange
 
 /**
- * Lands a match or replace outcome: the supersede check, the rasters into the store, the commit, the
- * pre-warm, the log, and the suggestions published.  A pass that applied nothing publishes its
- * suggestions and returns false without a step.
+ * Lands a match or replace outcome as its step, unless a later edit superseded it; a pass that applied
+ * nothing only publishes its suggestions.
  *
  * @param AtlasRepackHost host         The session, art, resolver, and shell callbacks.
  * @param String          operation    The log prefix.

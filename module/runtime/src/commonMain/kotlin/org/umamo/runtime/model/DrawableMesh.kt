@@ -69,13 +69,10 @@ private val BIRTH_QUAD_INDICES = intArrayOf(0, 1, 2, 0, 2, 3)
 
 /**
  * Whether this mesh is still the quad an artwork import gave the drawable at birth, untouched since:
- * four corners wound as the import winds them, an axis-aligned rectangle, and texture coordinates that
- * are the same rectangle in the tile's art - each corner samples exactly the art pixel under it.  A
- * moved vertex breaks the alignment or the position-to-texel agreement, a subdivision the count, so no
- * edit history is needed to tell an untouched quad from an authored mesh.
- *
- * Read on a reload to decide whether the drawable gets a fresh quad over the new art (an untouched
- * quad has nothing to preserve) or keeps its mesh.
+ * four corners wound as the import winds them, an axis-aligned rectangle, and texture coordinates under
+ * which each corner samples exactly the art pixel beneath it - so no edit history is needed to tell an
+ * untouched quad from an authored mesh.  A reload re-births an untouched quad over the new art, since it
+ * has nothing to preserve.
  *
  * @param FloatArray artUvs      The mesh's texture coordinates in the ART frame (0..1 across the tile).
  * @param Int        tileWidth   The tile's width in pixels.
@@ -83,7 +80,7 @@ private val BIRTH_QUAD_INDICES = intArrayOf(0, 1, 2, 0, 2, 3)
  * @param Float      layerLeft   The layer's canvas x at the last read - the art frame's origin.
  * @param Float      layerTop    The layer's canvas y at the last read.
  * @param Float      tolerance   How far, in pixels, a corner may sit from its texel before the quad
- *   counts as edited; half a pixel absorbs float round trips.
+ *   counts as edited; the default tenth of a pixel absorbs float round trips.
  * @return Boolean True for an untouched birth quad.
  */
 fun DrawableMesh.isUntouchedBirthQuad(

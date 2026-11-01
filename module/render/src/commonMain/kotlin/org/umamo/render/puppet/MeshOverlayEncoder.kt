@@ -65,14 +65,9 @@ internal class OverlayFrame(
  * value holds.
  *
  * The capture mirrors the glue capture: its own pass outside any render pass, once per frame whose store
- * is stale, followed by a barrier.  The draws go domain-major - every mesh's face fills, then every mesh's
- * edges, then the active edges, then the dots - so each domain binds its pipeline once rather than once
- * per mesh, and so the actives land on top of every batch; an entry the current pose leaves unposed (a
- * hidden ancestor, a grid out of range) is skipped in both.  An Edit overlay's plain wireframe meshes (those
- * outside the edit) join the edge domain alone, and only in a frame that draws the wireframe; they sit ahead
- * of the cage in the overlay's order, so the cage's edges land on top.  An islands overlay goes island-major
- * instead (see [drawIslands]): its stacking is the point, so each island's fill covers the islands behind it.
- * A lattice overlay goes role-major (see [drawLattices]), so a stronger role lands over a weaker one.
+ * is stale, followed by a barrier.  The draws go domain-major, so each domain binds its pipeline once
+ * rather than once per mesh and the actives land on top of every batch; an islands overlay
+ * ([drawIslands]) and a lattice overlay ([drawLattices]) order their draws by stacking instead.
  *
  * @param DrawPipelines pipelines The capture and overlay pipelines.
  * @param SideTargetPool sideTargets The side targets, whose capacity names the screen-space divisor.
@@ -216,11 +211,9 @@ internal class MeshOverlayEncoder(
 
 	/**
 	 * Records an overlay's draws, domain-major: every entry's face fills, then its edges, then the active
-	 * edges, then the dots and the active dots, each domain binding its pipeline once.  In an Edit overlay
-	 * the fills, the actives, and the dots are the cage's alone; the plain wireframe meshes contribute their
-	 * edges, and none when the frame draws no wireframe.  The wireframe's edges - an Object-mode overlay's
-	 * whole, an Edit overlay's plain meshes - draw at the palette's alpha times the frame's wireframe
-	 * opacity, and none at zero; the cage's draw at the palette's.
+	 * edges, then the dots and the active dots, each domain binding its pipeline once.  An Edit overlay's
+	 * plain wireframe meshes sit ahead of the cage in store order and contribute their edges alone, so the
+	 * cage's edges land on top.
 	 *
 	 * @param RenderPassEncoder pass The open pass.
 	 * @param MeshOverlay overlay The overlay value (kind, select mode, sizes).
@@ -353,13 +346,10 @@ internal class MeshOverlayEncoder(
 	}
 
 	/**
-	 * Records an islands overlay island-major, in the entries' order, which the producer makes back to front:
-	 * each island fills its every face in its fill role's color, then outlines its every edge in its edge
-	 * role's color, so a nearer island's fill covers the outlines of the islands behind it, the way the
-	 * islands stack for the pick.  No dots and no active primitive: an island is selected whole.  The roles
-	 * resolve against the palette here, so a palette change re-colors without a new overlay, and a role
-	 * change re-colors without an upload, since every island's flags are all idle.  Every fill and outline
-	 * draws at its role's alpha times the frame's wireframe opacity, and none at zero: the islands are the UV
+	 * Records an islands overlay island-major, in the entries' order, which the producer makes back to front,
+	 * so a nearer island's fill covers the outlines of the islands behind it, the way the islands stack for
+	 * the pick.  The roles resolve against the palette here, so a palette or role change re-colors without a
+	 * new overlay or an upload.  The islands fade by the frame's wireframe opacity, since they are the UV
 	 * scene's overlay outside an edit, as the wireframe is the 2D viewport's.
 	 *
 	 * @param RenderPassEncoder pass The open pass.
@@ -410,13 +400,10 @@ internal class MeshOverlayEncoder(
 	}
 
 	/**
-	 * Records a lattice overlay role-major: the idle lattices (when the frame draws them), then the selected, then
-	 * the active, so a lattice in a stronger role lands over a weaker one wherever they cross.  Within a role every
-	 * lattice's lines draw, then every lattice's dots, all in the role's color at its palette alpha times the frame's
-	 * lattice opacity: no fills, no triangles, and no per-element selection, since a lattice is picked whole here.
-	 * The lattice the pointer hovers ([OverlayFrame.hoveredLattice]) leaves its role's batch and draws after it, lines
-	 * then dots, in the palette's hover color at that color's own alpha: so it stands out over the lattices crossing
-	 * it whatever its role, its mark, or the opacity.
+	 * Records a lattice overlay role-major, so a lattice in a stronger role lands over a weaker one wherever they
+	 * cross.  The lattice the pointer hovers ([OverlayFrame.hoveredLattice]) leaves its role's batch and draws after
+	 * it in the palette's hover color at that color's own alpha, so it stands out over the lattices crossing it
+	 * whatever its role, its mark, or the opacity.
 	 *
 	 * @param RenderPassEncoder pass The open pass.
 	 * @param MeshOverlay overlay The lattice overlay (its sizes).

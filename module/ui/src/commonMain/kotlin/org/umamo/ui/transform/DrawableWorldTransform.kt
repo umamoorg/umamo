@@ -75,12 +75,8 @@ internal class ItemWorldTransform(val bounds: MeshBounds, val editable: Boolean)
 internal fun writesWholeObjects(model: PuppetModel, pose: Pose, mode: EditorMode): Boolean = !mode.editsElements && isPoseNeutral(model, pose)
 
 /**
- * Resolves the world bounds of drawable [id] at [pose] - what the Transform rows show.
- *
- * Not editable where the rows may not write ([writesWholeObjects]) or when the drawable has no world mapping at all,
- * which happens when an ancestor is hidden.  In that second case the
- * posed LOCAL geometry is reported instead so the rows still show the drawable's real proportions rather
- * than the misleading base array; it is marked non-editable, so nothing can be written from it.
+ * Resolves the world bounds of drawable [id] at [pose] - what the Transform rows show - and whether the rows
+ * may write them.
  *
  * @param PuppetModel model The document model.
  * @param Pose pose The shown pose (EditorMode.shownPose): the rig's pose, or the rest pose in Edit mode.
@@ -130,13 +126,6 @@ internal class WorldTransformPlan(val geometry: DrawableWorldGeometry, val rest:
 /**
  * Plans [transformWorld] on drawable [id]'s world geometry at [pose]: the rest arrays that would put the
  * drawable where the transform says, without writing anything.
- *
- * The round trip mirrors the object gizmo: project the posed local geometry to world, let the caller
- * reshape it there, invert the result back to local through the deformer chain, then difference that
- * against the posed local shape to recover the new base (a keyformed drawable's base is not its displayed
- * shape, so the delta is what carries over); the canvas mesh moves by the world movement.  Refuses where the rows
- * may not write ([writesWholeObjects]), on a missing mesh or mapping, and on a transform that returned its input
- * unchanged.
  *
  * @param PuppetModel model The document model to plan against.
  * @param Pose pose The shown pose the drawable is measured at.

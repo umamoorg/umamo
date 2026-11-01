@@ -22,6 +22,9 @@ import org.umamo.runtime.model.RenderNode
  * net, and this walk preserves that shape, skipping only a child whose drawable or part could not
  * be written at all.
  *
+ * @param PuppetModel   puppet The rig whose render tree is lowered.
+ * @param Moc3IndexPlan plan   The file's addressing scheme.
+ * @return List<RenderOrderGroup> The draw-group records, root first.
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
 internal fun lowerRenderOrder(puppet: PuppetModel, plan: Moc3IndexPlan): List<RenderOrderGroup> {

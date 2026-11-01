@@ -72,10 +72,7 @@ private const val PROPORTIONAL_SIZE_DECIMALS = 2
 
 /**
  * The vertex / edge / face select-mode buttons: a three-segment radio ButtonGroup whose lit segment is
- * the selection's current mode.  Each segment dispatches its mesh.selectMode command; the session
- * no-ops a same-mode set, so re-clicking the lit segment records nothing.  Renders nothing outside the modes
- * [shownIn] accepts, so the commands' Object-mode self-guard is belt-and-braces here but load-bearing for the
- * bare 1 / 2 / 3 key bindings.
+ * the selection's current mode, shown only in the modes [shownIn] accepts.
  *
  * @param Function shownIn Whether a mode shows the buttons: the modes that edit elements by default; a surface that
  *   edits in fewer passes its own.
@@ -118,11 +115,9 @@ internal fun MeshSelectModeButtons(shownIn: (EditorMode) -> Boolean = { mode -> 
 }
 
 /**
- * The transform pivot selector (Blender's Transform Pivot Point, the header face of the Period pie): the
- * chip wears the current pivot's glyph, and its panel heads one vertical [ButtonGroup] of the pivots, each
- * with the glyph the chip and the pie show for it, the current one lit - the proportional panel's option
- * group, so the header's two option panels work alike.  The panel stays open across picks.  Each segment
- * dispatches its transform.pivot command, so the pie, the palette, and this panel stay one behavior.
+ * The transform pivot selector (Blender's Transform Pivot Point, the header face of the Period pie): a chip
+ * wearing the current pivot's glyph over a panel of the pivots, each dispatching its transform.pivot command
+ * so the pie, the palette, and this panel stay one behavior.
  */
 @Composable
 internal fun PivotModeDropdown() {
@@ -210,16 +205,10 @@ private val UV_SNAP_SELECTION_ROWS =
 	)
 
 /**
- * The snap menu (Blender's Shift+S, as a header dropdown): an icon-only magnet chip over a menu of the
- * surface's snap commands - the cursor moves, a separator, then the selection moves, Blender's grouping.
- * Each row dispatches the command the snap pie's entry dispatches and wears the pie entry's glyph, so the
- * pie, the palette, and this menu stay one behavior.  Every row is a one-shot command, so this stays a
- * menu: a pick runs it and closes.
- *
- * The 2D viewport's menu is the world snaps; the UV editor's is the texture-space snaps, which move UVs in
- * Edit mode and placed art tiles in Object mode.  Both are offered in either mode and disabled with no
- * document.  A pick acts on the header's own area: the click that opened the chip stamped that area as the
- * hovered one, and the open menu keeps the pointer from stamping another.
+ * The snap menu (Blender's Shift+S, as a header dropdown): a magnet chip over the surface's snap commands,
+ * each row dispatching the snap pie's command and wearing its glyph so the pie, the palette, and this menu
+ * stay one behavior.  A pick acts on the header's own area: the click that opened the chip stamped that area
+ * as the hovered one, and the open menu keeps the pointer from stamping another.
  *
  * @param SnapMenuKind kind Which surface's snaps the menu offers.
  */
@@ -299,17 +288,9 @@ internal fun sessionProportionalSizeField(): ProportionalSizeField? {
 
 /**
  * The proportional-editing header control (Edit and Pose mode), Blender's two-part proportional control as ONE
- * [PopupChip]: the glyph half toggles proportional editing (dispatching mesh.proportional.toggle, the
- * command O binds to) and wears Blender's state glyph - off, on, or on with Connected Only - and the
- * chevron half, with the active falloff's curve beside the chevron, opens the settings panel.
- *
- * The panel is Blender's proportional settings popover: Connected Only, the falloff curves as a vertical
- * [ButtonGroup] with the active curve lit, and Proportional Size when the header supplies one.  The curve glyph and every row read the
- * session's proportional settings, so they show the configuration a toggle brings back while the tool is
- * off; the glyph dims and the panel dims with it, yet every row stays live, and a change made while off
- * waits for the next toggle (Blender's rule - a setting never switches the tool on).  The checkbox and the
- * curves dispatch their registry commands, the checkbox with the flag it sets so the change stays silent (the
- * box is its own confirmation); the size goes through [size].  Renders nothing outside the modes [shownIn] accepts.
+ * [PopupChip]: the glyph half toggles proportional editing and the chevron half opens the settings panel.
+ * The panel reads the session's proportional settings and stays live while the tool is off, so a change made
+ * then waits for the next toggle (Blender's rule - a setting never switches the tool on).
  *
  * @param ProportionalSizeField? size The surface's Proportional Size row, or null to leave the row out.
  * @param Function shownIn Whether a mode shows the control: the modes that edit elements by default; a surface that

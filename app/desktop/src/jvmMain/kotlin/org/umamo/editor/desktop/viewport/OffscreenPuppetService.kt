@@ -42,10 +42,8 @@ import org.umamo.ui.viewport.UvSceneContent
  *
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
  *     UI thread.
- *   - [EngineRenderInputs] - the render inputs the UI thread publishes (selection / shown / model / atlas
- *     pages / source artwork / grid colors / highlight colors / mesh overlay, lattice overlay, direct cage, and
- *     palette / supersample policy),
- *     each a volatile swap that bumps the engine's freshness.
+ *   - [EngineRenderInputs] - the render inputs the UI thread publishes, each a volatile swap the engine's
+ *     freshness tracks.
  *   - [OffscreenRenderEngine] - the render thread that owns the GL context, renderer, framebuffers, and
  *     async read-back, and reads those inputs each frame.
  *   - [ViewportPicker] - CPU hit-testing and art thumbnails, on the UI thread (no GL).
@@ -166,10 +164,8 @@ class OffscreenPuppetService(
 	override fun deliverSourceLayerRasters(batch: LayerRasterBatch) = inputs.deliverSourceLayerRasters(batch)
 
 	/**
-	 * Pushes the latest model to the render engine and, when it actually changed, refreshes the picker:
-	 * its model-derived lookup maps when the push was structural (so session-created drawables stay
-	 * pickable / sampleable / labeled), and only its position-keyed caches when the push moved mesh
-	 * positions alone - every preview push of a Grab, and the commit that follows it.
+	 * Pushes the latest model to the render engine and, when it actually changed, refreshes the picker -
+	 * only its position-keyed caches when the push moved mesh positions alone, as a Grab's preview pushes do.
 	 *
 	 * @param PuppetModel model The current model.
 	 */

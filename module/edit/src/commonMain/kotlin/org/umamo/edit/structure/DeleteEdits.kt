@@ -38,12 +38,10 @@ private fun Deformer.reboundToPart(newPart: PartId?): Deformer =
 	}
 
 /**
- * Returns a copy of [this] with every drawable in [ids] removed and every reference to them scrubbed: the
- * drawables list, the org tree (their [OrgChild.Drawable] entries), any other drawable's clip mask, any
- * part's composite mask, and any glue whose either partner was deleted. A drawable's `textureSourceId` is
- * left alone: it keys the atlas page mapping rather than naming a live drawable, so a copy keeps its art
- * when its source goes. The render order is NOT re-derived here - the caller does that once it has
- * finished its structural changes. An empty set returns the same instance.
+ * Returns a copy of [this] with every drawable in [ids] removed and every reference to them scrubbed.  A
+ * drawable's `textureSourceId` is left alone: it keys the atlas page mapping rather than naming a live
+ * drawable, so a copy keeps its art when its source goes.  The render order is NOT re-derived here - the
+ * caller does that once it has finished its structural changes.
  *
  * @param Set<DrawableId> ids The drawables to delete.
  * @return PuppetModel The model with those drawables and their references gone.
@@ -128,13 +126,11 @@ fun PuppetModel.withDrawableDeleted(id: DrawableId): PuppetModel {
 /**
  * Returns a copy of [this] with the deformer [id] deleted by unwrapping it: its child deformers and the
  * drawables it deformed re-home to its own parent (null = an armature root), so removing a transform
- * wrapper never deletes art. Does not touch the org tree, so the render order is unchanged. A no-op (no
- * such deformer) returns the same instance.
+ * wrapper never deletes art.  The org tree is untouched, so the render order is unchanged.
  *
- * A re-homed drawable's base was in the deleted deformer's space; one listed in [localPositionsByDrawable]
- * takes that base, already in its new parent's space, so it stays where it rests (see
- * [withDrawableParentDeformer]).  Every other re-homed drawable, and every child deformer, keeps its numbers,
- * so a caller passing an empty map chooses the art following the new parent, in so many words.
+ * A re-homed drawable listed in [localPositionsByDrawable] takes that base, already in its new parent's
+ * space, so it stays where it rests; every other re-homed drawable, and every child deformer, keeps its
+ * numbers and follows the new parent.
  *
  * @param DeformerId id                      The deformer to delete.
  * @param Map        localPositionsByDrawable The bases of the re-homed drawables that keep their place.
@@ -175,11 +171,9 @@ private fun PuppetModel.partSubtreeIds(id: PartId): Set<PartId> {
 }
 
 /**
- * Returns a copy of [this] with the part [id] deleted. A [cascade] removes the whole subtree - the part,
- * every descendant part, and every drawable under any of them (references scrubbed); an ungroup (cascade
- * false) dissolves only the folder - its children (sub-parts and drawables) splice into its parent in
- * place, so nothing is destroyed. The render order is re-derived. A no-op (no such part) returns the same
- * instance.
+ * Returns a copy of [this] with the part [id] deleted: a [cascade] removes the whole subtree and every
+ * drawable under it, while an ungroup (cascade false) dissolves only the folder, splicing its children into
+ * its parent in place so nothing is destroyed.
  *
  * @param PartId id The part to delete.
  * @param Boolean cascade True to delete the subtree, false to ungroup (keep contents, splice them up).

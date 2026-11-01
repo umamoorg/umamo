@@ -58,7 +58,7 @@ private const val VISIBILITY_SHOWN_BIT = 1L
 // default for a new folder.  Only meaningful on folder rows; observed in several samples.
 private const val COMPOSITE_THROUGH = 30L
 
-// CLIP: Layer.LayerType - verified across the corpus (see docs/CLIP.md §5).  1 and 3 are raster
+// CLIP: Layer.LayerType - verified across the corpus (see docs/format/CLIP.md §4b).  1 and 3 are raster
 // layers (pixels persist); 0 is an object layer (vector/text, distinguished by TextLayerType); 1584
 // is the Paper/fill layer; 4098 is a procedural adjustment/correction layer.  None of 0/1584/4098
 // carry a persisted raster.

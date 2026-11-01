@@ -17,7 +17,7 @@ import org.umamo.ui.theme.UmamoIcon
 import org.umamo.ui.theme.drawIcon
 
 /**
- * A labelled glyph whose gesture the caller owns: a themed icon centered in a fixed-size box, carrying the
+ * A labeled glyph whose gesture the caller owns: a themed icon centered in a fixed-size box, carrying the
  * accessible name and (by default) the matching hover tooltip.  This is [IconButton]'s sibling for the
  * slots that cannot be an [IconButton] - a tree row's eye, its selectable pointer, a disclosure chevron -
  * because they consume their own press so the whole-row selection handler skips them, and they must not

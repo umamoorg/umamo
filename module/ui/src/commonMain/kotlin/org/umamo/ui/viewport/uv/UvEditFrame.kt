@@ -18,17 +18,11 @@ import org.umamo.runtime.model.meshOf
 
 /**
  * The space a UV editing gesture works in: the display surface's texel size, and how a coordinate
- * over it reaches the stored texture coordinates.
- *
- * The UV editor authors one mapping over two surfaces.  Over an atlas page the display IS the stored
- * frame - the texel mapping in UvDisplayMapping.kt is the whole conversion - and [storedFromFrame] is
- * null, so that path carries no conversion at all.  Over a source layer the display is the artwork's own
- * pixels, and the drawable's atlas placement stands between them; [storedFromFrame] carries that step
- * so an edit authored on the art commits in the frame the document stores.
- *
- * Everything downstream of the display coordinates - the transform operators, proportional falloff,
- * box and circle queries, hit tests - is space-agnostic and needs no part of this.  Only the two ends
- * do: reading a stored coordinate to show it, and writing an authored one back.
+ * over it reaches the stored texture coordinates.  Over an atlas page the display is the stored frame and
+ * [storedFromFrame] is null; over a source layer the drawable's atlas placement stands between them, so an
+ * edit authored on the art commits in the frame the document stores.  Only the two ends of an edit read
+ * it - showing a stored coordinate and writing an authored one back; the operators between are
+ * space-agnostic.
  *
  * A plain class, not a data class: it wraps an affine array whose identity-based equals would make a
  * generated structural equals quietly wrong.  Never key a remember or an effect on one - key on the
@@ -165,11 +159,9 @@ class UvEditFrame(
  * The stored uvs a texture-coordinate edit commits: the drawable's current values with ONLY the moved
  * vertices overwritten from the transformed display positions.
  *
- * Rebuilding from the stored array rather than converting the whole transformed one is what keeps an
- * untouched vertex bit-identical.  A display round trip is exact in the reals but not in floats, and
- * through a source layer's placement it is one conversion further; the export's changed-uv test is a
- * bitwise compare, so converting everything would report meshes as edited that the gesture never
- * touched - and warn the user about re-derived mappings that were never authored.
+ * Rebuilding from the stored array keeps an untouched vertex bit-identical: a display round trip is not
+ * exact in floats, and the export's changed-uv test is a bitwise compare, so converting everything would
+ * report meshes the gesture never touched as edited.
  *
  * @param FloatArray storedUvs The drawable's current stored coordinates.
  * @param Collection<Int> movedIndices The vertices the operation actually moved.
@@ -244,7 +236,7 @@ fun atlasPageEditFrame(pageWidth: Int, pageHeight: Int): UvEditFrame =
  *
  * Note the store's packed / unpacked test and the CMO3 export's are independently derived, and a
  * document that carries an atlas while sampling per-layer rasters satisfies only one of them.  That
- * divergence is pre-existing and harmless here: an unpacked binding's frame is the identity, so a
+ * divergence is harmless here: an unpacked binding's frame is the identity, so a
  * disagreement costs a conversion that would have changed nothing.
  *
  * @param DrawableLayerBinding binding The shown drawable's recovered binding.

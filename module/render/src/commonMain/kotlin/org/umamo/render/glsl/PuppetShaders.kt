@@ -3,9 +3,8 @@ package org.umamo.render.glsl
 // The puppet render programs' GLSL, shared by the GL-family backends.
 //
 // Each builder returns a READY-TO-COMPILE source: the preamble is already applied and there is no
-// `trimIndent()` left for a caller to remember.  That is deliberate - the sources these replaced were
-// trimmed inconsistently (inside the backdrop's `link`, at the call site for the fragment shader, and
-// not at all for the concatenated vertex shaders), which is a trap with no upside.
+// `trimIndent()` left for a caller to remember, so no call site can trim a source differently from
+// another.
 //
 // Metal shares none of this; see GlslDialect.
 
@@ -35,16 +34,14 @@ internal fun puppetVertexShader(dialect: GlslDialect): String =
  * The glue pass-2 vertex shader: welds against pass-1's shared positions, then projects.
  *
  * Positions are NOT deformed here - pass 1 already wrote them to the shared position buffer (world
- * space, post-Y-flip).  Each vertex reads its own deformed position and, when it is a glued seam vertex,
- * its partner's, and applies `own + (partner − own)·w·intensity` on the GPU, matching the CPU
- * `applyGluesResolved`.  Non-glued vertices pass through unchanged.
+ * space, post-Y-flip).  The weld matches the CPU `applyGluesResolved`.
  *
  * @param GlslDialect dialect The target flavor.
  * @return String The ready-to-compile source.
  * @warning The [GlslDialect.Es300] output is NOT compilable as-is: `samplerBuffer` is GLES 3.2, and the
  *   Android baseline is 3.0.  Making it portable means repacking the shared position buffer as a regular
- *   2D texture indexed `(i % width, i / width)` - see TODO.md § Android GLES renderer backend option (b).
- *   The parameter is accepted here so the seam exists, not because ES works today.
+ *   2D texture indexed `(i % width, i / width)`.  The parameter is accepted here so the seam exists, not
+ *   because ES works today.
  */
 internal fun glueVertexShader(dialect: GlslDialect): String =
 	glslHeader(dialect) +
@@ -200,13 +197,9 @@ private fun artAlphaGlsl(): String =
  * The UV scene's image-quad vertex shader: an atlas page or a source-layer image, and the placement drag's
  * scrims and crops over it.
  *
- * Emits a quad's four unit corners from `gl_VertexID` (no vertex buffer, only an empty VAO) and carries
- * each through the quad's unit-corner-to-world affine, given as two rows (m00 m01 m02 / m10 m11 m12, the
- * rows convention of the fragment's uvAffine), into the Y-up display / texel space - with NO Cubism Y
- * negation (unlike `deformWorld`: the image is placed straight into the already-Y-up display space).  A
- * page's quad is diag(W, H): world X in [0, W], Y in [0, H].  The UVs carry the V-flip so the image's V=0
- * (its top texel row) lands at the top of the quad - corner (0, 1) -> uv (0, 0) - matching
- * UvDisplayMapping's `displayY = (1-v)*H`.  Projects through the same worldToNdc affine as the puppet.
+ * The quad is placed straight into the already-Y-up display / texel space, with NO Y negation (unlike
+ * `deformWorld`), and its UVs carry the V-flip that lands the image's top texel row (v = 0) at the top of
+ * the quad, matching UvDisplayMapping.kt's `displayY = (1-v)*H`.
  *
  * That V-flip is a CONTENT convention (Y-up display vs top-first image rows), not a backend one, so it is
  * identical in MSL - a Metal port must keep it, not "correct" it for Metal's top-left texture origin.

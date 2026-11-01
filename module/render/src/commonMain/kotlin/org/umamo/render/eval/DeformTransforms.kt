@@ -74,10 +74,7 @@ internal fun cellOrdinal(grid: Float, cellCount: Int): Int = grid.toInt().coerce
 
 /**
  * In-grid warp transform: maps a child point `(u, v)` inside the lattice `[0,1)²` to world via the
- * deformed control points [cp] - `(cols+1)×(rows+1)` points, interleaved x,y. [bilinear] true does the
- * quad (bilinear) blend of the 4 surrounding control points, false the triangle split. Writes the
- * result to `out[outIndex]`,`out[outIndex+1]`; returns false (and writes nothing) when `(u, v)` is
- * outside the grid.
+ * deformed control points [cp], writing nothing when `(u, v)` is outside the grid.
  *
  * @param FloatArray cp       Control points, `(cols+1)*(rows+1)` interleaved x,y.
  * @param Int        cols     Grid columns.

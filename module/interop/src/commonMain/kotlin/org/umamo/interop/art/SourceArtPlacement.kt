@@ -36,10 +36,8 @@ data class CanvasOffset(val x: Int, val z: Int) {
 /**
  * This art with every layer's bounds shifted by [offset], the file's canvas placed on the document's.
  *
- * The layers delegate everything but their bounds to the originals, so each layer's raster is the
- * SAME instance: the add path's decode memo and the renderer's texture cache both key on that
- * identity.  The file's own canvas size and its folders pass through unchanged.  A zero offset
- * returns this art itself.
+ * Each layer's raster stays the SAME instance, since the add path's decode memo and the renderer's
+ * texture cache both key on that identity.
  *
  * @param CanvasOffset offset The translation.
  * @return SourceArt The placed art.

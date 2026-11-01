@@ -168,15 +168,12 @@ internal fun overlayDotVertexShader(dialect: GlslDialect, fromFaceCentroid: Bool
 
 /**
  * The one overlay fragment shader: the flag picks the idle, selected, or active color, the shape
- * decides the coverage (a flat fill, since a soft edge on tiled triangles would seam; a band that fades
- * over the last framebuffer pixel beyond the half-width; a round dot that fades over the last pixel
- * beyond the radius), and the output is premultiplied for the Normal blend.
+ * decides the coverage (a fill has no soft edge, since one on tiled triangles would seam), and the output
+ * is premultiplied for the Normal blend.
  *
- * The band alone reads the draw-order texture: with a cull order at or above zero it fetches the order
- * the pass wrote at its own framebuffer pixel (the two bytes the order program packed) and discards where
- * a drawable in front of the edge's own was drawn there; over its own art, over its padding with
- * something behind, or over nothing, the edge stays.  A texel fetch, not a filtered sample, since the
- * target is created filtering and an order is not a color to blend.
+ * The band alone reads the draw-order texture, discarding where a drawable in front of the edge's own was
+ * drawn at its pixel.  A texel fetch, not a filtered sample, since the target is created filtering and an
+ * order is not a color to blend.
  *
  * @param GlslDialect dialect The target flavor.
  * @param OverlayShape shape The coverage rule.

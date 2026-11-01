@@ -53,10 +53,9 @@ internal sealed interface SourcesPreviewSubject {
 }
 
 /**
- * The art a row previews on hover: a tile row its tile, a layer row the first tile bound to it, and a
- * drawable row its drawable.  A layer under review still binds its old tile, so its row previews the art
- * the review is about.  A file row, the unbound group, and a layer no tile binds preview nothing - an
- * unbound layer's pixels live in its file, not in the document.
+ * The art a row previews on hover, or null for a row with none in the document, such as an unbound layer
+ * whose pixels live only in its file.  A layer under review still binds its old tile, so its row previews
+ * the art the review is about.
  *
  * A layer's tile is read off the row's own list, not off the rows listed under it: a search lists only
  * the tiles it matches, and the row stands for the binding whatever is listed.
@@ -73,10 +72,8 @@ internal fun sourcesPreviewSubject(node: SourcesNode): SourcesPreviewSubject? =
 	}
 
 /**
- * The drawables a row's click selects: a drawable row itself, a tile row every drawable over it, a
- * layer row every drawable over every tile bound to it; files and the unbound group select nothing.
- * Read off the row's own list, so a click asks the model nothing and selects the same whatever a
- * search leaves listed under the row.
+ * The drawables a row's click selects, read off the row's own list, so a click asks the model nothing and
+ * selects the same whatever a search leaves listed under the row.
  *
  * @param SourcesNode node The clicked row.
  * @return List The targets, possibly empty.

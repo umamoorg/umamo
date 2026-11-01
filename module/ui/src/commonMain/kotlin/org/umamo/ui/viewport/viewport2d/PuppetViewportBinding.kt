@@ -200,11 +200,10 @@ private class SourceArtworkGaps {
 }
 
 /**
- * The selection tint the viewport draws: the drawables it tints and the active one tinted apart.  Only drawables
- * tint, and only in Object mode - Edit and Pose mode tint nothing.  In Edit mode the object selection still holds
- * the drawable being edited, but the highlight is object-mode chrome that would fight the mesh gizmo overlay; Pose
- * mode acts on deformers, so a tinted drawable would read as something it poses.  Derived from the mode rather
- * than stashed, so entering either clears the tint and leaving restores it with the selection never touched.
+ * The selection tint the viewport draws: the drawables it tints and the active one tinted apart, only in Object
+ * mode.  In Edit mode the highlight would fight the mesh gizmo overlay, and Pose mode acts on deformers, so a tinted
+ * drawable would read as something it poses.  Derived from the mode rather than stashed, so leaving either mode
+ * restores the tint with the selection never touched.
  *
  * @param Selection selection The committed object selection.
  * @param EditorMode mode The editor mode.
@@ -232,11 +231,10 @@ internal fun selectionTintOf(selection: Selection, mode: EditorMode, previewSele
 	}
 
 /**
- * Builds a [PuppetViewportBinding] backed by a [PuppetViewportService]: the puppet renders on the
- * engine's own thread and shows as a lightweight Compose `Image` with a per-area pan/zoom camera, so the
- * viewport is ordinary Compose content (the zoom readout - and future gizmos - layer over it correctly).
- * The service is created through [serviceFactory], owned for the life of this composition (one document),
- * and disposed when it leaves; viewport areas register / resize / navigate against it by id.
+ * Builds a [PuppetViewportBinding] backed by a [PuppetViewportService]: the puppet renders on the engine's own
+ * thread and shows as a Compose `Image` with a per-area pan/zoom camera, so the gizmos and the HUD layer over it as
+ * ordinary Compose content.  The service is created through [serviceFactory] and owned for the life of this
+ * composition (one document).
  *
  * @param PuppetModel puppet The rig to render (the document's model at open; the service builds from it).
  * @param AtlasPageBinding atlasPages The session's effective atlas pages, paired with their atlas value;
@@ -540,8 +538,8 @@ fun rememberPuppetViewportHost(
 					val image by imageFlow.collectAsState()
 					val camera by cameraFlow.collectAsState()
 					// Keyed on the cursor, not remembered bare: this composable recomposes per rendered frame
-					// (image), so the lookup is worth caching - but the cursor set is documented as gaining a
-					// per-theme override later, and a keyless remember would then serve stale art forever.
+					// (image), so the lookup is worth caching, but a keyless remember would serve stale art
+					// forever once the cursor set changed (a per-theme override).
 					val panCursor = LocalUmamoCursors.nsewScroll
 					val grabCursor = remember(panCursor) { umamoPointerIcon(panCursor) }
 					var panning by remember(areaId) { mutableStateOf(false) }
@@ -712,11 +710,8 @@ fun rememberPuppetViewportHost(
 }
 
 /**
- * The viewport pointer loop: middle-mouse drag pans (grab), the wheel zooms toward the cursor (Shift
- * for the coarse step), and any pointer activity marks this area active so keyboard view commands
- * target it. Picking is NOT handled here - the mode's gizmo overlay above owns the primary button
- * (the Object overlay's click pick / un-armed box, the Edit overlay's element picking). The right
- * button stays reserved for the context menu; touch pinch is the Android host's concern.
+ * The viewport pointer loop: middle-mouse drag pans (grab) and the wheel zooms toward the cursor (Shift for
+ * the coarse step).  Picking is NOT handled here - the mode's gizmo overlay above owns the primary button.
  *
  * @param PuppetViewportService service The render service to drive.
  * @param String areaId The area this viewport hosts.

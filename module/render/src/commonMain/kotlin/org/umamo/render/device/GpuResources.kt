@@ -26,9 +26,8 @@ public interface DeformCapturePipeline
 /**
  * A surface a pass renders into.
  *
- * Never implicitly current: every pass names the target it writes.  The renderer used to discover its own
- * target by reading the bound framebuffer out of ambient GL state, which worked only because the caller
- * happened to have bound it first - a coupling that was invisible at both ends.
+ * Never implicitly current: every pass names the target it writes, so no draw depends on whichever
+ * framebuffer a caller happened to bind first.
  */
 public interface RenderTarget {
 	/** This target's contents as a sampleable texture, or null when created with `sampled = false`. */
@@ -66,7 +65,7 @@ public enum class TextureFilter {
 
 /** What a texture yields for a coordinate outside [0, 1]. */
 public enum class TextureWrap {
-	/** Repeats the nearest edge texel outward.  Correct for an atlas page, whose art never reaches its border. */
+	/** Repeats the nearest edge texel outward.  The default; art, atlas pages included, samples [ClampToTransparentBorder]. */
 	ClampToEdge,
 
 	/**

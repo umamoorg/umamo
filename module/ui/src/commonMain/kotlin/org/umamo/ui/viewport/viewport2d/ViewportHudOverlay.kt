@@ -16,16 +16,11 @@ import kotlin.math.roundToInt
 
 /**
  * The viewport HUD layer: informational chrome drawn over every other overlay - the modal-operator
- * status badge (operator name plus the axis lock), the depth turn's bottom-right inset, the top-left
- * active-mesh info chip, and the bottom-left zoom readout.  Draw-only - it installs no pointer input, so
- * it can sit topmost without stealing gestures from the gizmo overlays.  The 2D cursor is a control marker, not HUD chrome, and
- * draws in its own sibling overlay (Cursor2dOverlay.kt); near-cursor notices live at the shell level
- * (ShellCursorOverlays.kt), where one instance escapes area bounds and follows the pointer across
- * areas without duplicating.
+ * status badge, the active-mesh info chip, and the zoom readout.  Draw-only - it installs no pointer
+ * input, so it can sit topmost without stealing gestures from the gizmo overlays.
  *
  * The zoom readout reads the LIVE [liveCamera]: the wheel updates it immediately, where the frame
- * camera lags the raster by a few frames.  Only the INITIATING area shows the badge: the operator
- * latch names its area, so the gate is reactive.
+ * camera lags the raster by a few frames.
  *
  * @param String areaId This viewport's area id (gates the badge to the initiating area).
  * @param EditorSession session The session whose operator state and selections this HUD surfaces.

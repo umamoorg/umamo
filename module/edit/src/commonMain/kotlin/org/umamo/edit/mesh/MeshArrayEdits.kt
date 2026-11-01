@@ -29,12 +29,8 @@ fun PuppetModel.withMeshPositions(id: DrawableId, rest: MeshRestPositions): Pupp
 
 /**
  * Returns a copy of [this] with the drawable [id]'s texture UVs replaced by [newUvs], sharing every
- * other drawable and the rest of the model. The mirror image of [withMeshPositions], copy-on-write at
- * the mesh leaf: it wraps [newUvs] in a NEW [DrawableMesh] and shares the unchanged positions / indices
- * arrays by reference, so retargeting which atlas texels a mesh samples never disturbs its rest
- * geometry - the mesh/UV decoupling invariant seen from the UV side. A no-op (no such drawable, no
- * mesh, the same array instance, or a length mismatch - vertex count never changes here) returns the
- * same instance so the session records nothing.
+ * other drawable and the rest of the model.  The positions and indices arrays are shared by reference,
+ * so retargeting which atlas texels a mesh samples never disturbs its rest geometry.
  *
  * The caller must pass a freshly built array (e.g. from [MeshTransforms]); never the live mesh array.
  *
@@ -63,14 +59,11 @@ fun PuppetModel.withMeshUvs(id: DrawableId, newUvs: FloatArray): PuppetModel {
 
 /**
  * Returns a copy of [this] with several drawables' rest shapes replaced at once - each the canvas editable
- * mesh and the keyform-space base the deltas are measured from - in one pass over the drawables rather than
- * one per entry.  Copy-on-write at the mesh leaf: each new [DrawableMesh] shares the unchanged uvs / indices
- * arrays, so a prior snapshot's arrays are never mutated.  No keyform delta is touched: a delta measured from
- * the moved base moves with it, which is what keeps every keyed shape following a rest-shape edit.  An
- * unknown id, a drawable with no mesh, both arrays the instances it holds, or a length mismatch on either is
- * skipped, and only the first drawable of an id is touched.  The drawable list is copied on the first real
- * change and every untouched drawable is shared, and when nothing changes the same instance comes back,
- * which is how the session tells a no-op commit from an edit.
+ * mesh and the keyform-space base the deltas are measured from - in one pass over the drawables.
+ *
+ * No keyform delta is touched: a delta measured from the moved base moves with it, which is what keeps every
+ * keyed shape following a rest-shape edit.  When nothing changes the same instance comes back, which is how
+ * the session tells a no-op commit from an edit.
  *
  * @param Map<DrawableId, MeshRestPositions> restById Each drawable's new canvas mesh and base.
  * @return PuppetModel The model with those meshes updated, or [this] if nothing changed.
@@ -138,12 +131,7 @@ private inline fun <TEntry> PuppetModel.withMeshEntries(
 
 /**
  * Commits a mesh-vertex edit (a finished modal G / S / R gesture) as ONE undo step: each session
- * drawable's rest shape (canvas mesh and keyform-space base) becomes its entry in [restByDrawable].  An
- * Edit session spans several meshes, so the copy-on-write [withMeshPositions] batch folds them into a
- * single model (one history step, like [commitObjectPositions]).  Mid-gesture preview frames reach
- * the renderer directly (transient), so a whole drag is a single step.  A model edit (rest geometry
- * is document content), so it marks the document dirty; a no-op (every array unchanged / mismatched)
- * records nothing.
+ * drawable's rest shape (canvas mesh and keyform-space base) becomes its entry in [restByDrawable].
  *
  * @param MeshChange change The edit descriptor (a [MeshChange.TransformVertices]).
  * @param Map<DrawableId, MeshRestPositions> restByDrawable Each edited drawable's committed rest shape.
@@ -155,11 +143,7 @@ fun EditorSession.commitMeshPositions(change: MeshChange, restByDrawable: Map<Dr
 /**
  * Commits an Object-mode transform of several drawables (a finished modal G / S / R gesture) as ONE undo
  * step: each drawable's rest shape (canvas mesh and keyform-space base) becomes its entry in
- * [restByDrawable]. The copy-on-write [withMeshPositions] batch folds them into a single model, so N moved
- * drawables are one history step (not N). Mid-gesture preview frames reach the renderer directly
- * (transient), so a whole drag is a single step. A model edit (rest geometry is document content), so it
- * marks the document dirty; a no-op (every array unchanged / mismatched, so the fold returns the same
- * instance) records nothing.
+ * [restByDrawable].
  *
  * @param MeshChange change The edit descriptor (a [MeshChange.TransformObjects]).
  * @param Map<DrawableId, MeshRestPositions> restByDrawable Each moved drawable's committed rest shape.
@@ -171,8 +155,7 @@ fun EditorSession.commitObjectPositions(change: MeshChange, restByDrawable: Map<
 /**
  * Commits an Object-mode transform that moves warps - with or without drawables - as ONE undo step.  A warp's new
  * forms come from the evaluator (each one mapped through its parent), which :edit cannot see, so the caller hands
- * over the whole transformed model and this records it.  A model edit, so it marks the document dirty; the same
- * instance records nothing.
+ * over the whole transformed model and this records it.
  *
  * @param MeshChange.TransformObjects change The edit descriptor.
  * @param PuppetModel transformed The model with every moved object in place.
@@ -184,11 +167,6 @@ fun EditorSession.commitObjectTransform(change: MeshChange.TransformObjects, tra
 /**
  * Commits a UV edit (a finished modal G / S / R gesture in the UV editor, or a Mirror command) as
  * ONE undo step: each edited drawable's texture coordinates become its entry in [newUvsByDrawable].
- * The texture-mapping twin of [commitMeshPositions] - the copy-on-write [withMeshUvs] batch folds the
- * edits into a single model, so N edited meshes are one history step.  Mid-gesture preview
- * frames reach the renderer directly (transient), so a whole drag is a single step.  A model edit
- * (the sampled texels are document content), so it marks the document dirty; a no-op (every
- * array unchanged / mismatched) records nothing.
  *
  * @param MeshChange change The edit descriptor (a [MeshChange.TransformUvs] or [MeshChange.MirrorUvs]).
  * @param Map<DrawableId, FloatArray> newUvsByDrawable Each edited drawable's committed atlas UVs.

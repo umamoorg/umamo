@@ -125,8 +125,6 @@ fun IconButton(
 
 /**
  * How an [IconButton]'s face is painted: a bare glyph, or a filled elevation chip.
- *
- * エリアヘッダのような塗り付きボタンと、ダイアログの✕のような塗りなしボタンを一つの型で表す。
  */
 sealed interface IconButtonAppearance {
 	/** Flat: no fill; the glyph itself carries hover and active feedback. */
@@ -143,10 +141,9 @@ sealed interface IconButtonAppearance {
 }
 
 /**
- * The fill behind a filled icon button or button-group segment: the neutral control fill at rest, the
- * accent while selected, brightening one step on hover and darkening one while held.  Shared so the
- * header's filled buttons and a [ButtonGroup]'s segments stay one visual family rather than two copies of
- * the same ramp; [Button] restates it only because its secondary hover is the softer rowHover.
+ * The fill behind a filled icon button or button-group segment, shared so the header's filled buttons and a
+ * [ButtonGroup]'s segments stay one visual family; [Button] restates it only because its secondary hover is
+ * the softer rowHover.
  *
  * A press outranks a hover because the pointer is necessarily over a control it is pressing.
  *

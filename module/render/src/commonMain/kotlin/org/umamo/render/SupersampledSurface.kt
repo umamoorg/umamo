@@ -17,7 +17,7 @@ import kotlin.math.max
  * Allocation is GROW-ONLY: the targets are kept at a per-axis high-water capacity and each render
  * uses only its bottom-left (render-origin) used region, resolved and read back at the used size.
  * A gutter drag resizes the viewport every frame, and one surface is shared by every area, so
- * differently-sized areas alternate sizes render-to-render - a recreate-on-any-change policy paid a
+ * differently-sized areas alternate sizes render-to-render - a recreate-on-any-change policy would pay a
  * framebuffer destroy + create per frame in both cases.  The cost is that the session retains the
  * high-water allocation (a 2x draw target at 4K is about 130 MB).
  *

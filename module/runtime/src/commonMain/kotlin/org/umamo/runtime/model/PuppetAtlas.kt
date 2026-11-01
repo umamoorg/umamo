@@ -31,9 +31,6 @@ data class AtlasPage(
  * A tile is per ARTWORK, not per drawable - several drawables can sample one piece of art, and they all
  * move together when it is repacked, which is why the placement lives here and not on the drawable.
  *
- * A null [placement] means the art is in the document but was never packed onto a page; drawables
- * bound to it sample it directly and their uvs already address it.
- *
  * A [pinned] tile is one a rigger placed by hand and wants kept: a repack packs the other tiles
  * around it and leaves its placement - page, position, rotation, and scale - exactly as it is.
  * Record data, not editor state: it changes what a repack produces, so it persists on the tile in a
@@ -45,7 +42,8 @@ data class AtlasPage(
  * @property String          name      The tile's display name.
  * @property Int             width     The art's width in pixels.
  * @property Int             height    The art's height in pixels.
- * @property AtlasPlacement? placement Where it sits on its page, or null when it was never packed.
+ * @property AtlasPlacement? placement Where it sits on its page, or null when it was never packed (drawables
+ *   bound to it then sample it directly, their uvs already addressing it).
  * @property SourceLayerRef? source    The source layer this tile's art came from - the artwork file
  *   and the layer key within it - or null when the document retains no binding (a MOC3-origin rig;
  *   a CMO3-origin one recovers a name-keyed ref from its image chain).  Editor and native-format

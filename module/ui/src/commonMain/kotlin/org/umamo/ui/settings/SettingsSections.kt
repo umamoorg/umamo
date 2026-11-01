@@ -221,13 +221,10 @@ internal const val MESH_GENERATION_PRESET_KEY = "meshGeneration.preset"
  * The Import section: what an artwork import seeds a new model with, the mesh each new drawable starts
  * with and the preset it is generated at, where a later file is anchored on the rig's canvas, what a
  * document does when a watched artwork file changes, whether Delete Art keeps the deleted layer out of
- * the rig, and which frame the Sources layer rows measure positions in.  The initial mesh and its preset
- * are read when an import runs; the preset also seeds a session's first Generate Mesh from Art.
- * The parameter template and the anchor are stored as their keys so a later entry is one more option
- * here and one more enum entry, nothing else; the import reads them at the moment it runs, so a change
- * applies to the next import (and the anchor is only the default of the import's own Align row).  The
- * watch mode is stored as the mode's key and read live by the open document's watcher.  The Delete Art
- * choice is read at each dispatch.  The layer-position frame is read live by the Sources space.
+ * the rig, and which frame the Sources layer rows measure positions in.  The enumerated choices are stored
+ * as their keys, so a later entry is one more option here and one more enum entry, nothing else.  Every
+ * choice is read when its consumer runs, so a change applies to the next use (the anchor is only the
+ * default of the import's own Align row).
  */
 @Composable
 internal fun ImportSection() {
@@ -426,16 +423,11 @@ private fun ColorSettingRow(label: String, key: String, defaultHex: String) {
 }
 
 /**
- * The Viewport section: pointer-interaction tuning plus the rendering performance toggles.  The zoom
- * steps are the percent change per wheel notch (fine) and per Shift-wheel notch (coarse); the grid
- * scale and subdivisions are what a 2D viewport area draws and snaps to while it follows the application's
- * grid (world units), and the UV grid pair is the UV editor's own, in texels, so a page's cells land on texel
- * boundaries independent of the world grid (an area given its own grid in its overlays popover keeps it);
- * the supersampling pair
- * trades render quality for speed on weak GPUs (off = 1x everywhere; the resize toggle keeps 2x during
- * panel drags).  The viewport binding and each area's render-options publisher read every key live, so a
- * committed edit re-tunes wheel zoom / re-draws the grid / re-renders at the new quality immediately.
- * Each number field commits clamped to its [ViewportSettings] range (the [NumberField] contract).
+ * The Viewport section: wheel-zoom tuning, the application's grids, the rendering performance toggles, and the
+ * toolbar and sidebar defaults.  The UV grid pair is the UV editor's own, in texels, so a page's cells land on
+ * texel boundaries independent of the world grid; an area given its own grid in its overlays popover keeps it.
+ * The viewport binding and each area's render-options publisher read every key live, so a committed edit takes
+ * effect immediately.
  */
 @Composable
 internal fun ViewportSection() {

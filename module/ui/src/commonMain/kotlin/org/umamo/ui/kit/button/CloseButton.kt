@@ -10,12 +10,8 @@ import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 
 /**
- * A modal-card header close button: a flat "✕" glyph that brightens from muted to full text color on
- * hover, matching the kit's other icon controls.  Shared by the settings window and the Help dialogs;
- * needed for keyboardless tablets where Escape is unavailable.  A thin preset of [IconButton] - it fixes
- * the close glyph at a larger 20dp and, sitting in stable dialog chrome, keeps keyboard focus.
- *
- * モーダルヘッダの閉じるボタン。ホバーで明るくなる「✕」。Esc が使えないタブレット向け。
+ * A modal-card header close button, the way out on a keyboardless tablet where Escape is unavailable.  A
+ * preset of [IconButton] that, sitting in stable dialog chrome, keeps keyboard focus.
  *
  * @param Function onClick            Click callback (closes the window).
  * @param String   contentDescription The accessible label (the face is only a glyph).

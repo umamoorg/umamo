@@ -10,12 +10,12 @@ import org.umamo.ui.workspace.hostsOperationStrip
  * The ONE place a command asks "which area does the pointer mean".
  *
  * Blender's hovered-area routing - the key acts where the pointer is - needs the same question answered
- * by a dozen commands, and answering it inline gave a dozen slightly different answers.  Every rule that
- * reads the pointer's surface lives here, so a change to the routing model is a change to this file
+ * by a dozen commands, and answering it inline would give a dozen slightly different answers.  Every rule
+ * that reads the pointer's surface lives here, so a change to the routing model is a change to this file
  * rather than an archaeology exercise across the command tables.
  *
  * ONE resolver backs it: the hovered surface (area id + space kind), stamped by every workspace leaf, so
- * it answers "what is the pointer on" for all nine space kinds.  Exactly one, deliberately: a second
+ * it answers "what is the pointer on" for every space kind.  Exactly one, deliberately: a second
  * resolver scoped to 2D viewports could only mean "the last viewport touched, however long ago" rather
  * than "the one under the pointer", and the two would disagree the moment the pointer moved to another
  * space.  Every command resolves a surface the user is actually pointing at, or none at all.
@@ -91,15 +91,11 @@ internal class CommandRouting(
 	constructor(hoveredSurface: () -> HoveredSurface?) : this(hoveredSurface, { null }, { null })
 
 	/**
-	 * Where a document-wide operation's settings strip shows: the hovered area when it is a work surface
-	 * (2D viewport or UV editor), else the last work surface the pointer touched, else the workspace's
-	 * first work surface, else null - which only a workspace with no work surface at all reaches, and
-	 * then the strip shows nowhere.  The strip exists only in those two spaces, so a command fired from
-	 * a panel (the Sources header's Add Artwork, the palette over the outliner) still lands it somewhere
-	 * the rigger will find it, including on a freshly opened document whose viewports the pointer has
-	 * not crossed yet.
+	 * Where a document-wide operation's settings strip shows, so a command fired from a panel (the Sources
+	 * header's Add Artwork, the palette over the outliner) still lands it in a work surface the rigger will
+	 * find.
 	 *
-	 * @return String? The area to show the strip in, or null.
+	 * @return String? The area to show the strip in, or null when the workspace has no work surface.
 	 */
 	fun operationStripArea(): String? {
 		val hovered = hoveredSurface()

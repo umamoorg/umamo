@@ -44,12 +44,10 @@ internal data class OverlapState(
 )
 
 /**
- * Builds the overlap-popup state from a hit at [position] with [candidates], in the stack's order.  The
- * pre-highlighted default is what a plain click there would take: the first lattice when the stack has one,
- * else the highest-centrality drawable (the most unambiguously clicked one).  A drawable's row carries its
- * layer-art thumbnail from [service] (cached there), or none when it is untextured; a warp's row carries the
- * warp deformer icon.  The name and thumbnail lookups are pure model/texture reads, so any area kind may call
- * this - a UV-editor area included.
+ * Builds the overlap-popup state from a hit at [position] with [candidates], in the stack's order, pre-highlighting
+ * what a plain click there would take: the first lattice when the stack has one, else the highest-centrality
+ * drawable.  The name and thumbnail lookups are pure model/texture reads, so any area kind may call this - a
+ * UV-editor area included.
  *
  * @param PuppetViewportService service The service that supplies the drawable names and (cached) thumbnails.
  * @param PuppetModel model The model the deformer names and parts are read from.

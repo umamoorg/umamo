@@ -86,9 +86,9 @@ internal class BlendLimitPool(sections: MocSections) {
  * The delta region follows the base rows (and, on MOC3 v6, the offscreen keyform prefix), holding
  * one row per (record, key) for warp, mesh, and rotation records in global record order - part
  * records own no color rows.  It anchors at the content-derived base-row total
- * ([BlendDeltaTables.colorDeltaRowStart]); anchoring at table length minus the delta total drifts
- * by the element region's 64-byte zero padding (2 rows on Model A, 10 on Model C - caught by
- * their authored color morphs).
+ * ([BlendDeltaTables.colorDeltaRowStart]); anchoring at table length minus the delta total would
+ * drift by the element region's 64-byte zero padding (2 rows on Model A, 10 on Model C, both of
+ * which carry authored color morphs).
  *
  * The region is also a later format addition, so presence is probed rather than assumed: a
  * 4.2-era bake with blend shapes carries the base rows only (corpus: Azxiana.moc3, V42 - CountInfo

@@ -105,21 +105,10 @@ private class TileReplacement(
  */
 object ArtworkReloadPlanner {
 	/**
-	 * Plans re-reading one listed file into [model].
-	 *
-	 * A bound tile is replaced when its layer's pixels, size, or canvas bounds differ from what the
-	 * document holds; an unchanged layer costs nothing.  A binding whose key the art lost is scored by
-	 * [matcher] against the layers no tile is bound to BEFORE anything is minted: at or above
-	 * [matchThreshold] its tile takes the best candidate's art (the layer re-created under a new key), so
-	 * the rig work follows the layer and no fresh drawable is minted beside it; below the bar the layer
-	 * is minted and the binding is left for review, the proposal kept in [ReloadPlan.leftovers] so the
-	 * row can still offer it (accepting then retires the fresh drawable).  The remaining raster layers
-	 * no tile is bound to are minted through the bridge under the same source - except those the rigger
-	 * ignored ([ArtSourceLayer.ignored]), which stay out however many reloads find them.  A drawable whose
-	 * layer's eye toggle changed since the last read follows it while it still shows the old state
-	 * ([ArtworkReload.drawableVisibility]); one the rigger toggled since is left alone.  The source record
-	 * takes the inventory as just read.  Null when the file is not one the model lists or when nothing at
-	 * all changed - not even the inventory - so a reload with nothing to do pushes no step.
+	 * Plans re-reading one listed file into [model]: each changed bound layer replaces its tile, a lost
+	 * binding takes its confident match, and the unbound layers are minted, under the file comment's rules.
+	 * Null when the file is not one the model lists or when nothing at all changed - not even the
+	 * inventory - so a reload with nothing to do pushes no step.
 	 *
 	 * @param PuppetModel            model       The model the plan applies to.
 	 * @param ArtSourceId            sourceId    The listed file being re-read.
@@ -127,13 +116,9 @@ object ArtworkReloadPlanner {
 	 * @param SourceArtImportOptions options     The threshold and margin every re-born quad and added layer use.
 	 * @param Function               oldRasterOf The document's pixels for a tile, or null when it has none.
 	 * @param String?                contentHash The whole-file content hash of the bytes [art] was read from,
-	 *   recorded on the refreshed source; null keeps the record's.  A hash that changed while nothing in the
-	 *   layers did does not by itself make a plan - the watcher acknowledges such a save instead.
-	 * @param ArtSourceDescriptor?   replacement The file the record is repointed to (Replace Artwork): its
-	 *   name, path, and format take over, every binding the new art cannot resolve reads as SourceReplaced,
-	 *   and the plan is made even when no layer changed.  Layers no tile is bound to are NOT minted under
-	 *   a replacement - they are the candidates the unresolved bindings are matched against, and a Reload
-	 *   brings in whatever is still unbound once the review is done.  Null re-reads the record's own file.
+	 *   recorded on the refreshed source; null keeps the record's.
+	 * @param ArtSourceDescriptor?   replacement The file the record is repointed to (Replace Artwork), every
+	 *   binding the new art cannot resolve reading as SourceReplaced; null re-reads the record's own file.
 	 * @param List<ArtSourceLayer>  inventory   The inventory of [art], for a caller that already computed it
 	 *   (it hashes every layer's pixels, so one read file should pay for it once); computed here by default.
 	 * @param Long?                  lastModified The file's modification time when [art] was read, recorded on
@@ -250,6 +235,8 @@ object ArtworkReloadPlanner {
 		}
 
 		val addedKeys = report.results.filterIsInstance<ReconcileResult.Added>().mapTo(HashSet()) { result -> result.layerKey }
+		// Under a replacement the unbound layers are the candidates the unresolved bindings are matched
+		// against, so none is minted; a Reload brings in whatever is still unbound once the review is done.
 		val added =
 			if (addedKeys.isEmpty() || replacement != null) {
 				null
@@ -302,15 +289,9 @@ object ArtworkReloadPlanner {
 	/**
 	 * Plans rebinding every tile in [accepted] to the layer named beside it, with that layer's art pulled
 	 * in - Match Automatically's step, a review row's accepted proposal, and the relink a tile chip
-	 * makes, once per pair.  A tile may come from another listed file (a relink across files): its old
-	 * inventory row is read from that file, so the carried mesh still knows where its art sat.  A pair
-	 * whose tile the model lacks, whose key names no raster layer, or whose tile already holds exactly
-	 * that binding over the same art is skipped; the file's record takes the inventory as just read, the
-	 * lost rows the accepted tiles no longer bind dropped.  The tiles in [retire] that are bound to a
-	 * claimed key and carry no rig work ([retirableTiles]) leave with their drawables - the fresh
-	 * drawable a reload minted for the layer, named by the proposal being accepted - so accepting after
-	 * a reload merges rather than doubles; a tile with rig work over it is never retired, whatever the
-	 * caller names.  Null when the file is unknown or no pair could be applied.
+	 * makes.  A tile in [retire] bound to a claimed key leaves with its drawables when it carries no rig
+	 * work ([retirableTiles]), so accepting after a reload merges rather than doubles.  Null when the file
+	 * is unknown or no pair could be applied.
 	 *
 	 * @param PuppetModel            model       The model the plan applies to.
 	 * @param ArtSourceId            sourceId    The file whose layers the tiles move to.
@@ -397,12 +378,9 @@ object ArtworkReloadPlanner {
 		model.sources.firstOrNull { candidate -> candidate.id == ref.sourceId }?.layers?.firstOrNull { row -> row.key == ref.layerKey }
 
 	/**
-	 * Plans rebinding one tile to [ref]'s layer with that layer's art pulled in: the tile is replaced
-	 * whenever the binding changes or the layer's art differs from what the tile holds, and the layer's
-	 * file takes the inventory as just read.  Null when the tile or the file is unknown, the layer is not
-	 * a raster layer with art, or the tile already holds exactly this binding and this art - the caller
-	 * then has nothing to pull and rewrites the binding alone if it differs.  The one-pair form of
-	 * [planMatches]; the replacement's binding says what the reader says about the key's strength.
+	 * Plans rebinding one tile to [ref]'s layer with that layer's art pulled in - the one-pair form of
+	 * [planMatches].  Null when there is nothing to pull; the caller then rewrites the binding alone if
+	 * it differs.
 	 *
 	 * @param PuppetModel            model       The model the plan applies to.
 	 * @param AtlasTileId            tileId      The tile being rebound.
@@ -433,11 +411,9 @@ object ArtworkReloadPlanner {
 		art.layers.filter { layer -> layer.kind == SourceLayerKind.Raster }.associateBy { layer -> layer.id.raw }
 
 	/**
-	 * Records, for the drawables over [tile], the visibility the file's eye toggle now asks for, when it
-	 * changed since the last read: a drawable still showing the OLD file state follows the new one; a
-	 * drawable the rigger toggled since (its flag already differs from the old state) is left alone, since
-	 * that toggle is rig work.  A document that never recorded the old state cannot tell the two apart and
-	 * records nothing.
+	 * Records, for the drawables over [tile], the visibility the file's eye toggle now asks for when it
+	 * changed since the last read; a drawable the rigger toggled since keeps its flag, since that toggle
+	 * is rig work.
 	 *
 	 * @param PuppetModel     model        The model the tile lives in.
 	 * @param AtlasTile       tile         The tile whose drawables are considered.

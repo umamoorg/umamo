@@ -113,20 +113,11 @@ internal class RenderPlanEncoder(
 	): RenderPassEncoder = renderPlanNodes(frame, plan, target, 0, inputs, startPass, scissor = null, orderTarget = inputs.drawOrderTarget, orderOpacity = 1f)
 
 	/**
-	 * Walks a render-plan span into [target]: plain drawables draw directly (with the mask-coverage
-	 * pass fragmentation), a drawable whose blend is not fixed-function-expressible composites as an
-	 * implicit singleton composite, and a [RenderPlanComposite] node renders its subtree into a
-	 * pooled layer target and composites it back as one layer.  Passes never nest - the frame stays
-	 * a flat pass sequence, and the CURRENT pass travels through as the return value.
-	 *
-	 * Two per-pose accelerations short-circuit the composite machinery (both pixel-preserving; see
-	 * [planCompositeAcceleration]): a pose-identity Normal/Over composite over an all-Normal/Over
-	 * subtree draws inline into the current pass, and a non-Out composite whose layer would land
-	 * empty on screen (bounds off-viewport, or pose-blended opacity 0) is skipped outright.  The
-	 * remaining composites confine their layer work to the subtree's bounds via [scissor] rects.
-	 *
-	 * A plan with no composite nodes and no extended-blend drawables takes exactly the old flat
-	 * path: zero extra passes, zero resolves - the regression guard.
+	 * Walks a render-plan span into [target], each [RenderPlanComposite] node (and each extended-blend
+	 * drawable, as an implicit singleton composite) rendered into a pooled layer target and composited
+	 * back as one layer.  Passes never nest - the frame stays a flat pass sequence, and the CURRENT pass
+	 * travels through as the return value.  A plan with no composite nodes and no extended-blend
+	 * drawables costs zero extra passes and zero resolves.
 	 *
 	 * @param FrameEncoder         frame     The frame being recorded.
 	 * @param List<RenderPlanNode> nodes     The span to draw, back-to-front.
@@ -404,12 +395,6 @@ internal class RenderPlanEncoder(
 	 * The composite reads and writes the same fragments, so [compositeScissor] bounds BOTH the
 	 * destination snapshot copy and the composite draw - the whole target when null.
 	 *
-	 * The composite draw runs in its OWN pass under [compositeScissor], which is then ended; the
-	 * returned continuation pass is scissored to [continuationScissor] (the enclosing span's own
-	 * scissor, null at the top level) so the drawables the caller draws AFTER this composite are NOT
-	 * clipped to the composite's bounds - reusing the composite's own scissor for the continuation
-	 * pass would incorrectly shrink everything drawn behind it in the same span.
-	 *
 	 * @param FrameEncoder frame               The frame being recorded.
 	 * @param RenderTarget layerTarget         The pooled layer holding the subtree/drawable to composite.
 	 * @param RenderTarget target              The surface the layer composites back into.
@@ -460,7 +445,7 @@ internal class RenderPlanEncoder(
 	 * Renders the mask sources' coverage into the shared mask target, as its own cleared pass at the
 	 * render's USED viewport (the same origin-anchored projection as the main pass, so fragment (x, y)
 	 * there reads coverage texel (x, y) here).  The Clear load fills the whole capacity texture
-	 * (a clear ignores the viewport) - harmless, and cheap next to the realloc it replaces.
+	 * (a clear ignores the viewport) - harmless, and cheap next to reallocating it at each viewport size.
 	 *
 	 * @param FrameEncoder     frame   The frame being recorded.
 	 * @param List<DrawableId> maskIds The mask source drawables.

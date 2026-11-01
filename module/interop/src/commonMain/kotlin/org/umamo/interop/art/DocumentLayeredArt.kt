@@ -76,13 +76,9 @@ private class DocumentLayeredArt(
 
 /**
  * The file [sourceId] names as the document holds it: one source layer per present inventory row, in the
- * file's layer order, each reading as the pixels of the tile bound to it; a row no tile binds, and a row the
- * file erased to nothing, has no pixels to give.  Of several tiles bound to one row, the row reads as the one
- * sized like it - a tile minted from the row's own read has that size, where a tile a person relinked to the
- * key by binding alone keeps whatever art it had - and as the first in atlas order when none is.  The rows
- * already sit on the document canvas - an inventory row records the layer where the file's offset put it -
- * so the art is never placed again.  A row the file lost is left out: read back as present it would clear
- * its own review.
+ * file's layer order, each reading as the pixels of the tile bound to it.  The rows already sit on the
+ * document canvas - an inventory row records the layer where the file's offset put it - so the art is never
+ * placed again.
  *
  * @param PuppetModel model    The model, with its current tiles (a reloaded tile's pixels included).
  * @param ArtSourceId sourceId The file to read.
@@ -91,6 +87,7 @@ private class DocumentLayeredArt(
  */
 fun documentSourceArtOf(model: PuppetModel, sourceId: ArtSourceId, rasterOf: (AtlasTileId) -> LayerRaster?): SourceArt? {
 	val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return null
+	// A row the file lost is left out: read back as present it would clear its own review.
 	val presentRows = source.layers.filter { row -> row.present }
 
 	if (presentRows.isEmpty()) {
@@ -119,6 +116,8 @@ fun documentSourceArtOf(model: PuppetModel, sourceId: ArtSourceId, rasterOf: (At
 
 		val row = rowByKey[ref.layerKey] ?: continue
 
+		// Of several tiles bound to one row, the one sized like it wins - a tile minted from the row's own
+		// read has that size, where one a person relinked by key alone keeps whatever art it had.
 		if (!sizedLike(held, row) && sizedLike(tile, row)) {
 			boundTileByKey[ref.layerKey] = tile
 		}

@@ -66,22 +66,16 @@ import org.umamo.ui.workspace.spaces.zebraFill
  */
 
 /**
- * The outliner space: the unified Blender-style tree that folds Cubism's split Part and Deformer panels
- * into one.  A single puppet root holds the Armature deformer hierarchy followed by the parts, each part
- * listing its drawables then its sub-parts.  Reads the open document's puppet from [LocalPuppet] (empty
- * state when nothing is loaded).  Branches start collapsed (only the root is open); rows dim when hidden
- * or sketch and select through [LocalSelection] (plain click replaces, Ctrl / Cmd toggles, Shift adds).
- * A selection made elsewhere (a viewport pick) reveals its row - ancestors expand and the list scrolls
- * to it - but a click inside the outliner never scrolls the list.  Clearing the search reveals the active
+ * The outliner space: the unified Blender-style tree of the rig, a single puppet root holding the Armature
+ * deformer hierarchy followed by the parts, each part listing its drawables and sub-parts.
+ *
+ * A selection made elsewhere (a viewport pick) reveals its row - ancestors expand and the list scrolls to
+ * it - but a click inside the outliner never scrolls the list.  Clearing the search reveals the active
  * selection the same way, so a row picked out of the results is not stranded behind a branch that closes
- * again.  The AREA header carries the name search and the filter dropdown (outlinerHeaderControls,
- * sharing this body's OutlinerViewState through [scope]); names never wrap, so a horizontal scroll
- * reaches long ones.
+ * again.
  *
  * This composable is the wiring: it derives the tree and its visible rows, holds the list, the rename
- * state, and the drag state, runs the two reveal effects, and hands each row to [OutlinerRowView].  The
- * chrome comes from [outlinerLabels], the rows' width from [outlinerContentWidth], and a drop lands
- * through [performOutlinerDrop].
+ * state, and the drag state, runs the two reveal effects, and hands each row to [OutlinerRowView].
  *
  * @param AreaScope scope The hosting area's scope carrying the shared view state.
  * @param Modifier modifier The layout modifier.

@@ -19,23 +19,14 @@ import org.umamo.ui.workspace.PickKind
 
 /**
  * The relation-pick overlay: while a Properties field's eyedropper is armed, this layer covers the whole
- * viewport, shows the eyedropper cursor, and turns the next click into the picked entity.  Mounted ABOVE
- * the Object gizmo - that overlay owns the primary button in Object mode and would otherwise change the
- * selection before the pick ever saw the click.
+ * viewport and turns the next click into the picked entity, publishing what the pointer is over as it moves.
+ * Mounted ABOVE the Object gizmo - that overlay owns the primary button in Object mode and would otherwise
+ * change the selection before the pick ever saw the click.
  *
- * Self-gated on the shell's [org.umamo.ui.workspace.RelationPickController]: with no pick armed it composes
- * nothing and installs no pointer input, so every other frame passes straight through to the gizmo and
- * navigation layers beneath.  Unlike the zoom-region and select-tool latches this is NOT scoped to one
- * area - a pick may be resolved from any viewport or from the outliner, whichever the user clicks first.
- *
+ * Self-gated on the shell's [org.umamo.ui.workspace.RelationPickController], and NOT scoped to one area: a
+ * pick may be resolved from any viewport or from the outliner, whichever the user clicks first.
  * [PuppetViewportService.pickAt] hit-tests drawables only, so a Part request resolves through the picked
- * drawable's owning part; a Deformer-only request has nothing to offer here and stays outliner-only.
- * The selectability filter the Object gizmo applies is deliberately skipped - an eyedropper may bind an
- * unselectable object, matching Blender.
- *
- * It also publishes what the pointer is over as it moves, which the shell's overlay names in a badge.  The
- * eyedropper cursor itself is drawn at the SHELL level, not here, so it is visible the instant a pick is
- * armed no matter which panel the pointer happens to be over.
+ * drawable's owning part, and a Deformer-only request stays outliner-only.
  *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (for the hit test).

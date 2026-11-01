@@ -27,9 +27,8 @@ import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.gestureParameters
 
 /**
- * The captured state of an in-flight Object-mode transform: the shared [ModalTransformCapture] (which owns
- * the pivot groups, the anchor, the frozen operator kind, and the rotation tracker) plus the per-drawable
- * [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the rest
+ * The captured state of an in-flight Object-mode transform: the shared [ModalTransformCapture] plus the
+ * per-drawable [DrawableWorldGeometry] the drive loop needs to invert a transformed world shape back onto the rest
  * arrays.  The geometry is held in a map keyed on the drawable's owner, looked up by
  * [org.umamo.edit.transform.ModalCaptureEntry], so nothing stays index-aligned with the capture's entry
  * list.  A moving warp is a capture entry too, with no geometry here: it moves as a whole by the gesture's
@@ -45,12 +44,9 @@ internal class ObjectGesture(
 
 /**
  * The commit side of the Object overlay's modal G / S / R over whole objects: it captures the selected drawables
- * and warps when an operator latches in its area, drives whole-object previews about the shared pivot - a drawable
- * through a positions-only model push, a warp through the renderer's lattice preview, so its art follows without a
- * model push - confirms as one TransformObjects undo step, and cancels through the session's operator clear.  The
- * pointer-side mechanics live in [org.umamo.ui.viewport.gizmo.ModalTransformController], which is handed
- * this as its target; Object mode has no scroll behavior.  The drive runs through [drive], resolved per
- * pointer event here and computed off the UI thread in parallel, as the Edit transform's.
+ * and warps when an operator latches in its area, drives their previews through [drive], and lands or cancels the
+ * step.  The pointer-side mechanics live in [org.umamo.ui.viewport.gizmo.ModalTransformController], which is
+ * handed this as its target.
  *
  * One instance per area, created with `remember(areaId)`: the pointer loop and the session collectors are
  * long-running and keep the instance they started with, so it holds nothing that may change under them.
@@ -88,10 +84,9 @@ internal class ObjectModalTransform(
 		)
 
 	/**
-	 * Starts the gesture as an operator latches in this area: freezes each moving drawable's world geometry and
-	 * each moving warp's lattice at the current object-mode pose (the rest pose, which the latch requires) and hands
-	 * the shared builder its sources plus this area's active-element / cursor anchors.  Only the outermost selected
-	 * items move ([eligibleTransformTargets]).  Drops the operator when nothing transformable survives.
+	 * Starts the gesture as an operator latches in this area, freezing each moving drawable's world geometry and
+	 * each moving warp's lattice at the current object-mode pose.  Only the outermost selected items move
+	 * ([eligibleTransformTargets]).
 	 *
 	 * @param MeshOperatorKind kind The latched operator.
 	 */
@@ -142,12 +137,9 @@ internal class ObjectModalTransform(
 	fun end(): Boolean = gesture.end()
 
 	/**
-	 * Ends the gesture because the overlay is leaving composition mid-gesture: the mode changed, the area
-	 * closed, or the area lost its camera.  The latch effect is cancelled with the overlay and never runs
-	 * its teardown, so this does it instead.  The latch is cleared while it is still this area's - a mode
-	 * switch has cleared it already, and a latch another area holds is not this one's to clear - so no
-	 * gesture is left latched to an overlay that cannot drive it, and none restarts from a fresh gesture
-	 * state when the overlay comes back.
+	 * Ends the gesture because the overlay is leaving composition mid-gesture, standing in for the teardown its
+	 * cancelled latch effect never runs.  A latch still this area's is cleared, so no gesture is left latched to an
+	 * overlay that cannot drive it.
 	 *
 	 * @return Boolean True when a gesture was in flight, so the caller resyncs the renderer to the
 	 *   committed model rather than leave it on the uncommitted preview.
@@ -176,11 +168,9 @@ internal class ObjectModalTransform(
 	}
 
 	/**
-	 * Confirms the in-flight object transform at the latest pointer: settles a drive the worker has not
-	 * published yet, commits every drawable's new rest shape and every warp moved as a whole as one undo step (a
-	 * null preview means no drive landed, so nothing commits), registers that step on the operation settings strip
-	 * over the retained capture, then clears the operator - its teardown resyncs the renderer.  The warps land on
-	 * the session's model as it is now, by the same affines the drive previewed.
+	 * Confirms the in-flight object transform at the latest pointer, committing every moved drawable and warp as one
+	 * undo step registered on the operation settings strip, then clears the operator (its teardown resyncs the
+	 * renderer).
 	 */
 	override fun confirm() {
 		drive.settle()

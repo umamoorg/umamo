@@ -158,7 +158,7 @@ interface SessionToolSettings {
 	/**
 	 * Sets proportional editing outright - on with [state], or off with null - without a notice: the
 	 * operation settings strip writes an adjusted transform's proportional rows back through here, so
-	 * the next gesture starts from what the rigger last dialled in.
+	 * the next gesture starts from what the rigger last dialed in.
 	 *
 	 * @param ProportionalEditState? state The state to set, or null to turn proportional editing off.
 	 */

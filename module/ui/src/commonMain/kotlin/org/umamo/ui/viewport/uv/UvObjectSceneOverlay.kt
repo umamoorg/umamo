@@ -67,11 +67,9 @@ internal class UvObjectScene(
 )
 
 /**
- * The island's colors: a selected or active island fills selected (the active fill color belongs to a face
- * dot, never a fill, so the active island fills as selected and shows in its outline); its outline is the
- * warning color while its tile is in a placement collision, else the pinned color for a
- * pinned tile, else active, selected, or idle.  A warning is transient and a pin is state, so the warning
- * wins.
+ * The island's colors.  The active island fills as selected, since the active fill color belongs to a face
+ * dot, never a fill; its outline shows it instead.  A collision's warning outline wins over a pin's, since a
+ * warning is transient and a pin is state.
  *
  * @param DrawableId drawableId The island.
  * @param Set<DrawableId> selectedIds The selected drawables.
@@ -106,10 +104,7 @@ internal fun islandStyleOf(
 /**
  * Turns the object selection, a UV area's shown scene, and its placement gesture into the renderer's
  * islands overlay and placement preview, keeping from one derive to the next everything that did not change,
- * so the renderer uploads only what moved: an island's edge list lives as long as its edges (by identity),
- * its overlay entry as long as its edges and its style, the positions pass through by identity (a mover's
- * preview positions during a drag, the shown geometry's otherwise), and each whole value is the previous
- * instance while all of its parts are.  A selection change therefore re-styles islands and uploads nothing.
+ * so the renderer uploads only what moved: a selection change re-styles islands and uploads nothing.
  *
  * Not thread-safe: one sequential derive owns it.
  */

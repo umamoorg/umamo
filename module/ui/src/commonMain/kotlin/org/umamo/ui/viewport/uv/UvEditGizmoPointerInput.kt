@@ -11,15 +11,10 @@ import org.umamo.ui.viewport.gizmo.MarqueeSelectController
 import org.umamo.ui.viewport.gizmo.MeshPickController
 
 /**
- * The UV Edit overlay's pointer loop.  Every event records the pointer, then goes to exactly one of three
- * branches: the modal transform while a UV operator is latched here, the circle brush while it is armed
- * here, and otherwise the element pick and the box select, armed or not.  While another area owns a gesture
- * (or a viewport-owned operator runs, which can never belong to a UV area), or Zoom Region is armed here,
- * the loop takes nothing.  Whatever takes the area over mid-drag - another area, a transform, the circle
- * tool, Zoom Region - abandons an in-flight box first.
- *
- * It runs for the life of its pointerInput, keyed on the area, and keeps the arguments it started with:
- * each is fixed for the area's life or a State holder read per event.
+ * The UV Edit overlay's pointer loop, routing each event to the modal transform, the circle brush, or the
+ * element pick and box select by what this area owns.  It runs for the life of its pointerInput, keyed on
+ * the area, and keeps the arguments it started with: each is fixed for the area's life or a State holder
+ * read per event.
  *
  * @param String areaId The overlay's area.
  * @param EditorSession session The session owning the latches and the selection.

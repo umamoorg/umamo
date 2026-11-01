@@ -80,14 +80,11 @@ public class MocSections internal constructor(private val model: MocModel) {
 	public fun isPresent(section: Section): Boolean = rawSlice(section) != null
 
 	/**
-	 * Number of elements [section] decodes to (CountInfo count, or whole-slice count for tables).
+	 * Number of elements [section] decodes to (CountInfo count, or whole-slice count for tables),
+	 * clamped to what the slice can hold.
 	 *
-	 * A per-object count is clamped to what the slice can actually hold.  CountInfo and the
-	 * section bytes are independent on disk, so a stripped or truncated file can claim more
-	 * objects than it stores; reading the claim would run off the end of the slice and fail the
-	 * whole decode, which [org.umamo.format.moc3.decode.MocDecoder] promises not to do for an
-	 * absent or partial id/flag section.  Clamping yields a short array instead, which every
-	 * caller already tolerates (they index through `getOrElse`).
+	 * A stripped or truncated file's CountInfo can claim more objects than the section stores;
+	 * clamping yields a short array, which every caller tolerates, instead of failing the whole decode.
 	 *
 	 * @param Section section The section to size.
 	 * @return Int The element count, 0 when the section is absent.

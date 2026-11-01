@@ -22,25 +22,11 @@ import org.umamo.runtime.model.storedToArtAffineForTile
  * This model with one atlas tile packed at [placement], every drawable over that art re-mapped so it
  * keeps sampling the same pixels.
  *
- * Moving art around a page must not change what the art means.  Stored texture coordinates address the
- * PAGE, so a placement that moves without them moving with it silently re-points every mesh at whatever
- * now occupies the old spot; that is why this rewrites both together, and why a repack is an edit on
- * the tile rather than on each drawable.  The re-mapping is the composition of the old mapping into the
- * art's own frame with the inverse of the new one, so the vertex-to-art-pixel binding comes out
- * bit-identical wherever the affines are exact.
+ * Stored texture coordinates address the PAGE, so a placement that moved without them would re-point
+ * every mesh at whatever now occupies the old spot; that is why this rewrites both together.
  *
- * The mappings are built from the placements directly: stored coordinates mean the same thing whichever
- * surface is being displayed, so a document whose coordinates address the packed pages re-maps here and
- * one whose coordinates already address the art does not.
- *
- * PIXELS ARE NOT MOVED.  A page's bytes belong to the document, not the model, so a caller that moves a
- * placement must recompose the page for the result to render; the session's page resolver does that
- * from the committed model, which is what lets the placement gizmo commit here and let the pixels
- * follow.
- *
- * A no-op returns the same instance.  So does an edit that cannot be expressed: an unknown tile, a
- * placement naming a page the document does not have, or a mapping that will not invert (a zero scale,
- * a zero-sized tile).  Refusing beats writing a placement whose coordinates cannot follow it.
+ * PIXELS ARE NOT MOVED.  A page's bytes belong to the document, not the model, so the page must be
+ * recomposed for the result to render; the session's page resolver does that from the committed model.
  *
  * @param AtlasTileId     tileId    The tile to place.
  * @param AtlasPlacement? placement Where its art now sits, or null to mark it unpacked.
@@ -53,11 +39,9 @@ fun PuppetModel.withAtlasPlacement(tileId: AtlasTileId, placement: AtlasPlacemen
  * This model with several tiles placed anew in one pass - [withAtlasPlacement] over a whole gesture's
  * worth of tiles, every drawable over each moved tile re-mapped so it keeps sampling the same pixels.
  *
- * One pass rather than a fold of single-tile edits so the result is one instance for one history
- * push, and so the whole edit is refused together: an unknown tile, a placement naming a page the
- * document does not have, or a mapping that will not invert anywhere in the map returns [this]
- * untouched rather than moving the tiles that happened to precede the fault.  The page inventory
- * never changes here - that is the repack's op, [withAtlasRepack].
+ * All or nothing: a tile that cannot be placed anywhere in the map returns [this] untouched rather than
+ * moving the tiles that precede the fault.  The page inventory never changes here - that is
+ * [withAtlasRepack]'s op.
  *
  * @param Map placementByTile Each tile's new placement, keyed by tile, null to mark it unpacked.
  * @return PuppetModel The model with the placements and the re-derived coordinates, or [this] when
@@ -115,9 +99,8 @@ fun PuppetModel.withAtlasPlacements(placementByTile: Map<AtlasTileId, AtlasPlace
  * This model with every tile in [tileIds] that has a placement pinned or unpinned - the flag a
  * repack reads to keep a hand-placed tile where it is.
  *
- * A tile without a placement is skipped rather than refused: there is nothing on a page to keep, and
- * a selection spanning packed and unpacked art should still pin what it can.  An unknown tile is
- * skipped the same way.  No coordinates move - the flag says only what a LATER repack may do.
+ * An unplaced or unknown tile is skipped rather than refused, so a selection spanning packed and
+ * unpacked art still pins what it can.
  *
  * @param Collection<AtlasTileId> tileIds The tiles to pin or unpin.
  * @param Boolean                 pinned  True to pin, false to unpin.
@@ -230,24 +213,13 @@ private fun List<Drawable>.remappedOver(remapByTile: Map<AtlasTileId, AtlasTileR
  * This model repacked: the page inventory replaced by [pages], every tile's placement restated from
  * [placementsByTile], and every bound drawable's texture coordinates re-derived, in one pass.
  *
- * The whole-atlas twin of [withAtlasPlacement], and a distinct op because the per-tile edit cannot
- * change the page list: a tile's old mapping normalizes against the CURRENT pages and its new one
- * against the REPLACEMENT pages, so folding per-tile edits would read the new mapping off a stale
- * inventory.  One call is also one history push - a repack is one gesture, not one step per tile.
+ * A distinct op from [withAtlasPlacements] because a tile's new mapping normalizes against the
+ * REPLACEMENT pages, which folding per-tile edits would read off a stale inventory.
  *
- * Input is validated up front instead of refused tile-by-tile: the placement map must restate every
- * tile (an explicit null marks it unpacked), every placement must name one of [pages], and a tile
- * with drawables bound must carry an expressible re-derivation.  The orchestrating repack guarantees
- * all three - it aborts before mutating when a bound tile cannot come along - so a violation here is
- * a caller bug, not document state to absorb.  A tile with NO drawables bound may have an
- * inexpressible mapping (a degenerate imported placement); its placement still installs, and there
- * are no coordinates to move.
- *
- * A tile whose mapping comes out unchanged is left alone entirely, so an untouched drawable's
- * coordinate arrays pass through by reference rather than picking up float round-trip noise.
- *
- * PIXELS ARE NOT MOVED - [withAtlasPlacement]'s rule, unchanged: the caller must compose the new
- * pages for the result to render.
+ * Malformed input throws rather than being refused: the orchestrating repack guarantees that every tile
+ * is restated, every placement names one of [pages], and every bound tile has an expressible
+ * re-derivation, so a violation is a caller bug, not document state to absorb.  PIXELS ARE NOT MOVED -
+ * the caller must compose the new pages for the result to render.
  *
  * @param List             pages            The new page inventory.
  * @param Map              placementsByTile Every tile's new placement, keyed by tile, null for unpacked.

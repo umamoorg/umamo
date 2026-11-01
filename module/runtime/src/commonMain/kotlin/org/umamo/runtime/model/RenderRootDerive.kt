@@ -10,17 +10,11 @@ package org.umamo.runtime.model
 fun PuppetModel.withDerivedRenderRoot(): PuppetModel = copy(renderRoot = deriveRenderRoot())
 
 /**
- * Derives the draw-order group tree ([PuppetModel.renderRoot]) from the organizational tree. The org tree
- * ([PuppetModel.rootChildren] / [Part.children]) is the single source of truth for hierarchy + panel
- * order; draw order is a pure function of it plus the explicit draw-order levers ([Part.groupMode] /
- * [Part.drawOrder] / [Part.channelGrids], and each drawable's keyformed draw order). This walks the org
- * tree to materialise the structure the renderer consumes, so any org-tree edit yields correct draw order
- * by recomputing it - there is no parallel render structure to drift out of sync.
- *
- * Mirrors Cubism: panel order is top = front, so the render tree (back-to-front) walks each child list
- * reversed; a grouped or isolated part becomes a [RenderGroup] boundary (carrying its part draw order
- * and grid), a pass-through part is transparent (its children hoist into the enclosing group). A safety
- * net appends any drawable the org walk missed, so the render never silently drops a mesh.
+ * Derives the draw-order group tree ([PuppetModel.renderRoot]) from the organizational tree, the single
+ * source of truth for hierarchy and panel order, so any org-tree edit yields correct draw order by
+ * recomputing it rather than maintaining a parallel render structure.  Mirrors Cubism: a grouped or
+ * isolated part becomes a [RenderGroup] boundary, and a pass-through part hoists its children into the
+ * enclosing group.
  *
  * @return RenderGroup The derived render-order root.
  */

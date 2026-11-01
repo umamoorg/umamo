@@ -38,15 +38,9 @@ internal const val REPACK_MAX_GUTTER = 64
 /**
  * The strip's rows for [options], in display order.
  *
- * The extrusion's range follows the gutter: the packer requires extrude in 0..gutter, so the row can
- * never offer a value the packer refuses.  The page size is a choice over the common sizes because a
- * free integer would invite sizes no GPU wants; the document's current size is offered even when it
- * is not one of them, so an imported document's own size is always one click away.  It is the
- * MAXIMUM page size, and the row says so: with Shrink Pages on (the default) the packer settles on
- * the smallest power-of-two side that needs no more pages than this one would, so a larger choice
- * changes nothing until the art needs the room or Shrink Pages is off.  Keep Pinned Tiles is the
- * one row that is not a packer option: it decides whether the pinned tiles are handed to the packer
- * fixed or free.
+ * The page size is a choice over the common sizes, plus the document's own, because a free integer
+ * would invite sizes no GPU wants; it is the MAXIMUM page size, which Shrink Pages may settle below.
+ * The extrusion's range follows the gutter because the packer refuses an extrusion wider than it.
  *
  * @param AtlasPackOptions options    The options the rows show.
  * @param Boolean          keepPinned Whether the pinned tiles stay where they are.

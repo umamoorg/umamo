@@ -12,11 +12,9 @@ import org.umamo.runtime.model.meshOf
 
 /**
  * Switches the select mode (vertex / edge / face, or a lattice's points / grid lines / cells) as its own undo step,
- * converting the stored selection into the new domain with Blender's flush-down / derive-up rules (see
- * [MeshSelectionOps.changeSelectMode]). The conversion is lossy by design, so the snapshot is what makes it
- * recoverable. A no-op in a mode that edits no elements ([editsElements]) — so the bound 1 / 2 / 3 commands need
- * no context guard of their own and the keymap stays mode-agnostic — and a no-op when already in [selectMode].
- * Not a document edit — leaves dirty untouched.
+ * converting the stored selection into the new domain ([MeshSelectionOps.changeSelectMode]); the conversion is lossy
+ * by design, so the snapshot is what makes it recoverable.  A no-op in a mode that edits no elements
+ * ([editsElements]), so the bound 1 / 2 / 3 commands need no context guard of their own.
  *
  * @param MeshSelectMode selectMode The new select mode.
  */
@@ -95,17 +93,13 @@ fun EditorSession.invertObjectSelection() {
 }
 
 /**
- * Re-seeds the session onto one owner (Alt+Q's switch), as ONE undo step covering both selections: the session's
- * owners become just [owner] (with its remembered elements restored where they still fit, in the select mode the
- * session keeps), and the OBJECT selection moves onto the same item - so leaving the mode keeps the switched item
- * instead of reviving the selection the mode was entered with.  The outgoing owners' element selections stash into
- * the per-owner memory first, and the remembered-owner memory follows.  A no-op unless the mode edits elements and
- * [owner] can join a session there ([isSessionOwner]: in Edit mode a meshed drawable or a warp with a rest lattice,
- * in Pose mode a warp the pose draws).
+ * Re-seeds the session onto one owner (Alt+Q's switch) as ONE undo step covering both selections: the session's
+ * owners become just [owner], and the OBJECT selection moves onto the same item, so leaving the mode keeps the
+ * switched item instead of reviving the selection the mode was entered with.  A no-op unless [owner] can join a
+ * session in the current mode ([isSessionOwner]).
  *
- * Built as one combined snapshot push (never chained setSelection + setMeshSelection - each of
- * those snapshots the OTHER selection's pre-change value, which would tear the pair across two
- * undo steps).
+ * Built as one combined push, never chained setSelection + setMeshSelection: each of those snapshots the OTHER
+ * selection's pre-change value, which would tear the pair across two undo steps.
  *
  * @param ElementOwner owner The mesh or lattice to edit next.
  */

@@ -99,11 +99,8 @@ private val MENU_ICON_LABEL_GAP = 8.dp
 
 /**
  * A popup menu rendered from a [MenuItem] list - the one menu surface used across the menu bar, context
- * menus, and the area type selector.  Styled to the kit's menu look: medium rounded corners, the dark
- * panel fill, no border, and no drop shadow.  Hosted in a [Popup] so it escapes its parent's bounds,
- * positioned by [positionProvider]; a focusable root dismisses on an outside click or Esc via
- * [onDismissRequest].  Renders [MenuItem.Submenu] entries as nested flyouts that open on hover (desktop)
- * or tap (touch).
+ * menus, and the area type selector.  Hosted in a [Popup] so it escapes its parent's bounds; renders
+ * [MenuItem.Submenu] entries as nested flyouts.
  *
  * @param List items The entries to render.
  * @param Function onDismissRequest Called to close the whole menu tree (outside click / Esc / selection).
@@ -131,14 +128,9 @@ fun Menu(
 }
 
 /**
- * The styled column of rows inside a [Menu]'s popup.  Tracks which submenu (if any) is currently open so
- * exactly one flyout shows per level; [dismissRoot] is threaded down so selecting a leaf anywhere in the
- * tree tears the whole menu down.  When any action row in this panel carries an icon, every row reserves
- * the icon slot so all labels share one column (Blender-style); each flyout is its own panel, so the
- * decision never leaks across nesting levels.
- *
- * A [MenuItem.Search] pins above the scrolling rows and fixes the panel to its width; without one the
- * panel hugs its widest row.
+ * The styled column of rows inside a [Menu]'s popup, showing at most one submenu flyout per level.  When
+ * any action row in this panel carries an icon, every row reserves the icon slot so all labels share one
+ * column (Blender-style); each flyout is its own panel, so the decision never leaks across nesting levels.
  *
  * @param List items The entries to render.
  * @param Function dismissRoot Closes the entire menu tree.
@@ -185,7 +177,7 @@ private fun MenuPanel(items: List<MenuItem>, dismissRoot: () -> Unit, modifier: 
 				val rowCap = if (searchRowsCap != null && searchRowsCap < windowCap) searchRowsCap else windowCap
 				Box {
 					// The cap and the scroll ride on an OUTER column so the row column below keeps measuring its
-					// IntrinsicSize.Max width exactly as before - intrinsics are asked of that node, never
+					// own IntrinsicSize.Max width - intrinsics are asked of that node, never
 					// through the scrolling one.  Under a search the width is the search's, and the rows fill it.
 					Column(modifier = Modifier.heightIn(max = rowCap).verticalScroll(scrollState)) {
 						val rowColumnWidth = if (fixedWidth != null) Modifier.fillMaxWidth() else Modifier.width(IntrinsicSize.Max)
@@ -232,7 +224,7 @@ private fun MenuPanel(items: List<MenuItem>, dismissRoot: () -> Unit, modifier: 
 						}
 					}
 					// matchParentSize keeps the scrollbar a pure overlay: it fills its own box rather than the
-					// popup's window-sized constraints, so it can no longer inflate the menu to full height.
+					// popup's window-sized constraints, so it cannot inflate the menu to full height.
 					Box(modifier = Modifier.matchParentSize()) {
 						VerticalScrollbarOverlay(scrollState)
 					}
@@ -244,8 +236,8 @@ private fun MenuPanel(items: List<MenuItem>, dismissRoot: () -> Unit, modifier: 
 
 /**
  * The pinned search box: the kit [SearchField] at the panel's width less the row inset, focused as
- * soon as it composes so the menu opens ready to type into.  Esc and a pick dismiss the menu as ever -
- * the popup owns both - and Compose hands focus back to whatever held it before the popup opened.
+ * soon as it composes so the menu opens ready to type into.  Compose hands focus back to whatever held it
+ * before the popup opened.
  *
  * @param MenuItem.Search item The search entry.
  */
@@ -324,7 +316,7 @@ private fun MenuActionRow(item: MenuItem.Action, reserveIconSlot: Boolean, onCli
 
 		// One line, ellipsized, and the row's slack is the label's: a fixed-width menu (one with a search
 		// box) must never wrap a long layer name, and the shortcut stays at the row's end.  A hugging menu
-		// is as wide as its widest row, so nothing changes there.
+		// is as wide as its widest row, so its labels never ellipsize.
 		Text(
 			text = item.label,
 			style = typography.labelMedium,
@@ -349,11 +341,9 @@ private fun MenuSeparatorRow() {
 }
 
 /**
- * A submenu row: label, a trailing arrow, and a nested flyout that opens to its right.  On desktop the
- * flyout opens on hover and closes after a short grace once the pointer leaves both the row and the
- * flyout (so a diagonal move across the gap does not snap it shut); on a touch screen, with no hover,
- * tapping the row toggles it.  The flyout popup is non-focusable so the focusable root menu stays the
- * sole owner of the outside-click / Esc dismiss for the whole tree.
+ * A submenu row: label, a trailing arrow, and a nested flyout that opens to its right on hover (desktop)
+ * or tap (touch).  The flyout popup is non-focusable so the focusable root menu stays the sole owner of
+ * the outside-click / Esc dismiss for the whole tree.
  *
  * @param MenuItem.Submenu item The submenu row.
  * @param Boolean reserveIconSlot Whether this row indents its label to the panel's shared label column.

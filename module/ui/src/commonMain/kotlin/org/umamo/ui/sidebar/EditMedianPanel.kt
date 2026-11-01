@@ -102,12 +102,10 @@ private class LatticeScrubPreview(
 }
 
 /**
- * The Item tab's Transform panel in Edit and Pose mode: where the covered vertices sit, "Vertex:" for one and
- * "Median:" for several, their mean across every mesh or lattice in the edit, measured from the world axes.  A typed
- * or scrubbed value moves them all together as a Grab would, one undo step the operation strip can adjust, and while
- * a modal transform runs, here or in another viewport, the numbers follow it.  With nothing covered it says so.
- *
- * The geometry is captured once per commit, and only while the panel is composed.
+ * The Item tab's Transform panel in Edit and Pose mode: the mean of the covered vertices across every mesh or lattice
+ * in the edit, measured from the world axes.  A typed or scrubbed value moves them all together as a Grab would, one
+ * undo step the operation strip can adjust.  The geometry is captured once per commit, and only while the panel is
+ * composed.
  *
  * @param SidebarContext context The sidebar's context.
  */

@@ -24,22 +24,21 @@ interface SessionToolLatches {
 	val activeMeshOperator: StateFlow<ActiveOperator?>
 
 	/**
-	 * The modal OBJECT operator currently running (Grab / Scale / Rotate over the selected drawables' whole
-	 * geometry) with its initiating viewport area, or null. The Object-mode sibling of [activeMeshOperator]:
-	 * a separate latch because the object overlay captures N drawables where the mesh overlay captures one,
-	 * so the two must be distinguishable. Transient UI coordination like [activeMeshOperator] - not
-	 * snapshotted, not on the bus - latched by a registry command, observed by the initiating area's object
-	 * gizmo overlay, cleared on confirm / cancel / leaving Object mode.
+	 * The modal OBJECT operator currently running (Grab / Scale / Rotate over the selected items' whole
+	 * geometry) with its initiating viewport area, or null.  The Object-mode sibling of [activeMeshOperator],
+	 * a separate latch so the object and mesh gizmo overlays never capture one gesture.  Transient UI
+	 * coordination like [activeMeshOperator] - latched by a registry command, observed by the initiating area's
+	 * object gizmo overlay, cleared on confirm / cancel / leaving Object mode.
 	 */
 	val activeObjectOperator: StateFlow<ActiveOperator?>
 
 	/**
-	 * The modal UV operator currently running (Grab / Scale / Rotate over the selected vertices' texture
-	 * coordinates) with its initiating UV-editor area, or null. The UV-editor sibling of
-	 * [activeMeshOperator]: a separate latch so the puppet viewport's gizmo overlays and the UV editor's
-	 * overlay can never cross-capture one gesture (each overlay's capture effect keys on its own latch).
-	 * Transient UI coordination like the others - not snapshotted, not on the bus - latched by a registry
-	 * command, observed by the initiating area's UV overlay, cleared on confirm / cancel / leaving Edit mode.
+	 * The modal UV operator currently running (Grab / Scale / Rotate over the selected texture coordinates in
+	 * Edit mode, or the selected art placements in Object mode) with its initiating UV-editor area, or null.  The
+	 * UV-editor sibling of [activeMeshOperator]: a separate latch so the puppet viewport's gizmo overlays and the
+	 * UV editor's overlay can never cross-capture one gesture.  Transient UI coordination like the others -
+	 * latched by a registry command, observed by the initiating area's UV overlay, cleared on confirm / cancel /
+	 * a mode switch.
 	 */
 	val activeUvOperator: StateFlow<ActiveOperator?>
 
@@ -118,15 +117,15 @@ interface SessionToolLatches {
 	fun setViewportGestureActive(active: Boolean)
 
 	/**
-	 * The Edit-mode selection tool currently armed (Box or Circle), or null. Transient UI coordination like
+	 * The selection tool currently armed (Box or Circle), or null.  Transient UI coordination like
 	 * [activeMeshOperator] (not snapshotted, not on the bus): a registry command latches it, the gizmo overlay
-	 * observes it to reinterpret pointer input, and it clears on completion / cancel / leaving Edit mode.
+	 * observes it to reinterpret pointer input, and it clears on completion / cancel / a mode switch.
 	 */
 	val activeSelectTool: StateFlow<ActiveSelectTool?>
 
 	/**
-	 * The viewport area id whose Zoom Region gesture is armed (Blender's Shift+B), or null. Mode-agnostic -
-	 * Zoom Region works in Object and Edit mode alike - so it is keyed by area rather than gated on the mode,
+	 * The viewport area id whose Zoom Region gesture is armed (Blender's Shift+B), or null.  Mode-agnostic -
+	 * Zoom Region works in every mode alike - so it is keyed by area rather than gated on the mode,
 	 * and the top-level region overlay for that area reads it to capture the drag. Transient, not snapshotted.
 	 */
 	val zoomRegionArmedArea: StateFlow<String?>
@@ -142,9 +141,7 @@ interface SessionToolLatches {
 	 * Whether a mesh operator of [kind], latched as the active one, weights the unselected vertices near
 	 * the selection by proportional editing: every operator but Vertex Slide (positions-only, one vertex
 	 * along one edge), unless its latch suppressed proportional editing (the duplicate / rip auto-grab).
-	 * The one rule every proportional gate asks - the capture, the wheel, a mid-gesture change, the strip's
-	 * rows, the ring, and the status badge.  It takes the kind rather than reading the latch because each
-	 * gate already holds the kind it is deciding for.
+	 * The one rule every proportional gate asks.
 	 *
 	 * @param MeshOperatorKind kind The latched operator's kind.
 	 * @return Boolean True when the gesture takes proportional weights.
@@ -195,8 +192,8 @@ interface SessionToolLatches {
 	fun clearSelectTool()
 
 	/**
-	 * Arms the Zoom Region gesture (Blender's Shift+B) for [areaId].  Mode-agnostic - valid in Object and
-	 * Edit mode.  Clears any latched Edit-mode tool so two overlays never capture at once.
+	 * Arms the Zoom Region gesture (Blender's Shift+B) for [areaId], in any mode.  Clears every latched
+	 * operator and select tool so two overlays never capture at once.
 	 *
 	 * @param String areaId The viewport area the gesture will run in (the pointer's active area).
 	 */

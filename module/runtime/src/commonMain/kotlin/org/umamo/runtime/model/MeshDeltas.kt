@@ -45,9 +45,6 @@ fun deltaReaching(reference: Float, absolute: Float): Float {
 /**
  * The float32 neighbor of [value] toward positive infinity, the platform `nextUp` in common code: kotlin.math
  * declares `Float.nextUp` for JVM and Native but not for the common metadata, so the step goes through the bits.
- * A finite float's neighbor away from zero is the next raw-bits pattern and toward zero the previous one, for
- * either sign; both zeros step to the smallest positive subnormal.  NaN and positive infinity come back as they
- * are.
  *
  * @param Float value The value.
  * @return Float The next float32 above it.

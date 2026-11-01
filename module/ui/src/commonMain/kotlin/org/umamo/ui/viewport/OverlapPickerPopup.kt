@@ -67,13 +67,9 @@ data class OverlapEntry(
 
 /**
  * A command-palette-styled popup for choosing among the art meshes and warp lattices stacked under the cursor,
- * when a single click is ambiguous. Anchored at [anchor]; lists [entries] in the stack's order with
- * [defaultIndex] (what a plain click there would take) pre-highlighted. There is exactly one highlight state (Blender-style,
- * no separate hover): moving the mouse over a row and pressing Up/Down both drive it, Enter or a click
- * picks it, Escape or a click outside dismisses. The popup itself is shared, ordinary Compose content;
- * desktop's Object gizmo triggers it with an Alt-click, and Android's own trigger (a pen long-press) is
- * intended for once its GLES viewport and gizmo overlay land. The popup never touches the selection
- * state; it reports the chosen target through [onPick] and closure through [onDismiss].
+ * when a single click is ambiguous.  It lists [entries] in the stack's order under exactly one highlight state
+ * (Blender-style, no separate hover) that the pointer and the arrow keys both drive.  The popup never touches the
+ * selection state; it reports the chosen target through [onPick] and closure through [onDismiss].
  *
  * @param IntOffset anchor          The cursor position to anchor the popup at, local to the popup's
  *                                  parent layout node (AtPointPositionProvider offsets from the

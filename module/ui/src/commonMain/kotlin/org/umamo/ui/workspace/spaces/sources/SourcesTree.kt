@@ -242,13 +242,9 @@ internal fun sourcesLayerRowId(sourceId: ArtSourceId, layerKey: String): String 
 internal const val SOURCES_UNBOUND_GROUP_ID: String = "unbound"
 
 /**
- * Builds the Sources tree from a puppet: one node per artwork file in document order, each holding
- * its inventory layers in the file's order with the tiles bound to each - a layer the file lost but a
- * tile still binds reads as needing review, named and sized as the inventory last saw it, with the
- * proposed relink when there is one and its own status when a replacement lost it; an unbound layer
- * the rigger ignored reads as ignored - then any tile bound to a key the inventory never listed, the
- * drawables over each tile, and last the unbound group when any tile has no binding or is bound to a file
- * the document does not list (those read as needing review, with the binding they carry).
+ * Builds the Sources tree from a puppet: one node per artwork file in document order holding its inventory
+ * layers, the tiles bound to each, and the drawables over each tile, then the unbound group for every tile
+ * no file row lists.  A binding its file no longer resolves stays listed as needing review.
  *
  * @param PuppetModel puppet            The rig to walk.
  * @param Function    presenceOf        Whether each file is still on disk.
@@ -257,10 +253,7 @@ internal const val SOURCES_UNBOUND_GROUP_ID: String = "unbound"
  *   ([SourcesDetail.LayerOnAxes]) instead of the file's own top-left corner ([SourcesDetail.Layer]).
  * @param Function    suggestionsFor    The proposals for a lost binding by file and key, best first
  *   (the pixel-scored one an operation published, then the one the inventory alone ranks); the row
- *   takes the first that still holds - one naming a layer the file no longer has, or a layer bound to a
- *   tile with rig work over it, is passed over, so a stale published proposal never hides a live one
- *   behind it; a layer bound only to fresh, untouched drawables stands, and the proposal names the
- *   tiles accepting it retires.
+ *   takes the first that still holds, so a stale published proposal never hides a live one behind it.
  * @return List<SourcesNode> The top-level rows.
  */
 internal fun buildSourcesTree(

@@ -25,8 +25,8 @@ import org.umamo.ui.resources.text_menu_select_all
  * The context menu for the kit's text fields.
  *
  * Compose's own text fields carry a built-in Cut / Copy / Paste / Select All menu, and because that menu is
- * installed on the innermost node it wins the right-click outright - so a Properties row's Insert / Remove
- * Keyframe menu and a panel header's area menu were both unreachable over any field.  Rather than suppress
+ * installed on the innermost node it would win the right-click outright, leaving a Properties row's Insert /
+ * Remove Keyframe menu and a panel header's area menu unreachable over any field.  Rather than suppress
  * the built-in menu and lose the clipboard entries, this replaces it with ONE menu drawn in the kit's own
  * chrome: whatever the enclosing ContextMenuArea offers, a rule, then the four clipboard actions (Copy and
  * Select All alone over read-only text).
@@ -98,13 +98,9 @@ internal fun TextEditContextMenuArea(
 }
 
 /**
- * The four clipboard entries, each disabled when it would do nothing, or Copy and Select All alone for
- * read-only text.
- *
- * Cut and Copy need a non-collapsed selection, Paste needs something on the clipboard, and Select All needs
- * text to select.  Showing them greyed rather than hiding them keeps the menu's shape stable, so the entry a
- * user is reaching for does not move between right-clicks.  Read-only text leaves Cut and Paste out rather than
- * greyed: they can never apply there, so they are not a place the entry might move to.
+ * The four clipboard entries, each disabled rather than hidden when it would do nothing, so the entry a
+ * user is reaching for does not move between right-clicks.  Read-only text gets Copy and Select All alone,
+ * since Cut and Paste can never apply there.
  *
  * @param TextFieldValue value The field's current text and selection.
  * @param Function onValueChange Applies the result back to the field.

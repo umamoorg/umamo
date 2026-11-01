@@ -16,14 +16,9 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.elementsInBox
 
 /**
- * The static rest-pose front rank per drawable: the index of each drawable in the resolved
- * back-to-front paint order (higher = drawn more in front), computed over the STATIC draw orders.
- * The UV editor is a rest-space authoring view, so island stacking deliberately ignores any
- * pose-blended draw-order channel - the rank a rigger sees here is the one the model rests at.
- *
- * The order rule mirrors the renderer's pose resolve exactly: the hierarchical group sort over
- * renderRoot when the model carries a draw-order group tree, else the flat paintOrder sort over the
- * parts-tree drawable order.
+ * The static rest-pose front rank per drawable: its index in the back-to-front paint order the renderer
+ * resolves, over the STATIC draw orders.  The UV editor is a rest-space authoring view, so island stacking
+ * deliberately ignores any pose-blended draw-order channel.
  *
  * @param PuppetModel model The model whose drawables to rank.
  * @return Map<DrawableId, Float> The front rank per drawable (higher = more front).
@@ -43,10 +38,8 @@ internal fun restFrontRank(model: PuppetModel): Map<DrawableId, Float> {
 /**
  * An alpha sampler over the shown surface - the atlas page or the source layer's artwork - for the
  * shared pick functions: (id, u, v) -> texel alpha 0..1.  v = 0 is the image's TOP row, matching the
- * decoded image's top-row-first byte layout, so the sample needs no flip; out-of-range coordinates
- * clamp to the edge texel.  A null image (the untextured 1x1 fallback) samples 1f everywhere, so
- * untextured islands stay clickable.  The DrawableId parameter is unused - every shown island samples
- * the one shown surface.
+ * decoded layout, so the sample needs no flip; a null image (the untextured 1x1 fallback) samples 1f
+ * everywhere, so untextured islands stay clickable.
  *
  * @param DecodedImage? page The shown surface's decoded pixels, or null for the untextured fallback.
  * @return Function The sampler the pick functions consume.
@@ -73,17 +66,11 @@ private const val GEOMETRY_TIER_ALPHA_THRESHOLD = 0f
 
 /**
  * The UV editor's island picker: the shared point pick (pickDrawable / pickAllDrawables) bound to
- * the shown surface's display-space islands, in two tiers.  The opaque tier is the alpha-gated
- * pick: the hit's uv is barycentric-interpolated from the mesh uvs in the SHOWN SURFACE's own frame
- * (the stored coordinates over an atlas page, the layer-frame ones over a source layer), so the
- * gate samples exactly the texel the click lands on, and overlapping islands resolve by the art
- * actually visible there.  When no island is opaque at the point, the geometry tier takes over:
- * any island whose mesh contains the point is a hit, so a click on an island's transparent
- * interior still selects it.  In the UV editor the mesh IS the island, which is why this fallback
- * is here and not in the 2D viewport's raster pick.  The point is taken in display (texel) space -
- * the caller unprojects a click through the area camera first.  Front-most wins by [frontRankById]
- * in either tier; the stack query is front-to-back with per-candidate centrality for the overlap
- * popup's default row.
+ * the shown surface's display-space islands, in two tiers.  The opaque tier samples alpha in the shown
+ * surface's own frame, so overlapping islands resolve by the art actually visible at the click; when no
+ * island is opaque there, the geometry tier takes any island whose mesh contains the point, so a click on
+ * an island's transparent interior still selects it.  In the UV editor the mesh IS the island, which is
+ * why this fallback is here and not in the 2D viewport's raster pick.
  *
  * @property Map<DrawableId, FloatArray> displayPositionsById Interleaved display-space (x, y) vertices per island.
  * @property Map<DrawableId, IntArray> indicesById Triangle index triples per island.
@@ -116,10 +103,9 @@ internal class UvIslandPickController(
 
 	/**
 	 * The islands under the point, front-to-back, each with its centrality - the overlap popup's
-	 * candidate list.  The tiers match [topmostAt]: the opaque islands when any is opaque at the point,
-	 * else every island whose mesh contains it.  Geometry-tier candidates carry one flat centrality
-	 * (no ray-march - a march from a transparent hit measures nothing), so the popup's default row is
-	 * the front-most, the island a plain click there picks.
+	 * candidate list, tiered like [topmostAt].  Geometry-tier candidates carry one flat centrality (a
+	 * ray-march from a transparent hit measures nothing), so the popup's default row is the island a plain
+	 * click there picks.
 	 *
 	 * @param Float displayX The point X in display (texel) space.
 	 * @param Float displayY The point Y in display (texel) space.

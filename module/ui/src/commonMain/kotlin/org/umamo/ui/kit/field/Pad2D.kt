@@ -17,18 +17,13 @@ import org.umamo.ui.theme.LocalUmamoColors
 
 /**
  * A flat, draggable 2D pad for a LINKED ("combined") parameter pair: a recessed square drawing a
- * nine-point reference grid plus a single handle, set by tap or drag anywhere on the control. The X axis
- * runs left to right over [xRange]; the Y axis runs bottom to top over [yRange] - screen-top is the
- * maximum, matching how Cubism orients its combined-parameter pad. The control is sized entirely by
- * [modifier]: supply both a width and a bounded height (e.g.
+ * nine-point reference grid plus a single handle, set by tap or drag anywhere on the control.  The Y axis
+ * runs bottom to top over [yRange] - screen-top is the maximum, matching how Cubism orients its
+ * combined-parameter pad.
+ *
+ * The control is sized entirely by [modifier]: supply both a width and a bounded height (e.g.
  * `Modifier.fillMaxWidth().heightIn(max = 200.dp)`), because a Canvas otherwise expands to fill all the
- * space offered - inside a scrolling column that would overrun the rows beneath it. The grid and handle
- * scale to whatever rectangle results, so a non-square pad is fine (each axis maps independently).
- *
- * 2D パッド（リンクパラメータ対用）。X は左右、Y は下上（上端が最大）。大きさは [modifier] で指定（幅と高さの上限）。
- *
- * [onChange] streams the live (X, Y) for every tap / drag frame; [onChangeFinished] fires once at the
- * gesture boundary (tap, drag release, or cancel), so a whole drag can be committed as one gesture.
+ * space offered.  Each axis maps independently, so a non-square pad is fine.
  *
  * @param Float    xValue          The current X-axis value.
  * @param Float    yValue          The current Y-axis value.

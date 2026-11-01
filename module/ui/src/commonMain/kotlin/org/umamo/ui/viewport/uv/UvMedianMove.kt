@@ -25,11 +25,10 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
  */
 
 /**
- * The covered texture coordinates captured for a move of their median: a Grab capture over every covered vertex
- * with no proportional weights and every other shown mesh in the edit as a bystander, the frame the coordinates were
- * authored in, the surface's radius, and the median the move measures from.  All frozen when the move is built, as a
- * viewport gesture freezes them, so a page switch between the first frame of a scrub and its release cannot move the
- * target.
+ * The covered texture coordinates captured for a move of their median: a Grab capture over the shown meshes, the
+ * frame the coordinates were authored in, the surface's radius, and the median the move measures from.  All frozen
+ * when the move is built, as a viewport gesture freezes them, so a page switch between the first frame of a scrub
+ * and its release cannot move the target.
  *
  * Built from the committed coordinates at a write's first frame and reused only until something commits: the
  * operation strip keeps the capture of the step it registers and re-derives its halos on adjustment.
@@ -83,11 +82,9 @@ internal class UvMedianMove(
 
 /**
  * Captures the coordinates [selection] covers across the shown meshes for a move of their median.  The pivot is the
- * median point with no anchors: a Grab ignores the pivot, and Individual Origins would only build connectivity islands
- * for nothing.  Every shown mesh in the edit is offered, each with its triangles, the way the UV editor's own Grab
- * offers them ([uvCaptureSources]), so turning proportional editing on from the strip afterward reaches the same
- * meshes that Grab's would - a straight-line halo into the meshes with nothing covered, Connected Only along each
- * mesh's own edges.
+ * median point with no anchors, since a Grab ignores the pivot, and every shown mesh is offered the way the UV
+ * editor's own Grab offers them ([uvCaptureSources]), so proportional editing turned on from the strip afterward
+ * reaches the same meshes that Grab's would.
  *
  * @param MeshSelection selection The mesh selection.
  * @param List<GizmoMeshGeometry> geometries The shown meshes' display geometry, read from the COMMITTED coordinates.
@@ -135,13 +132,9 @@ internal fun EditorSession.previewUvMedianMove(move: UvMedianMove, axis: TexelAx
 
 /**
  * Moves the covered texture coordinates so their median's [axis] coordinate lands on [texelValue], as one undo step
- * filed as a UV move, and registers the step on the operation strip in [areaId] as the UV editor's Grab: Move X and
- * Move Y, then the proportional rows, off for this move but carrying the session's remembered curve and Connected
- * Only and the surface's radius.  A strip adjustment hands proportional editing back only when the rigger set one
- * of its rows, so moving a Move row never switches it off.
- *
- * Nothing lands while a UV transform owns the coordinates (its confirm owns the next step), or when the median is
- * already there.
+ * registered on the operation strip in [areaId] as the UV editor's Grab.  Its proportional rows start off, and a
+ * strip adjustment hands proportional editing back only when the rigger set one of those rows, so moving a Move row
+ * never switches it off.
  *
  * @param UvMedianMove move The captured move.
  * @param TexelAxis axis The axis typed on.

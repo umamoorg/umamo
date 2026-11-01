@@ -54,12 +54,10 @@ internal fun uvProportionalRadiusRange(displayWidth: Int, displayHeight: Int): C
 	MIN_UV_PROPORTIONAL_RADIUS_DISPLAY..(4f * maxOf(displayWidth, displayHeight))
 
 /**
- * The captured state of an in-flight UV transform: the shared [ModalTransformCapture] (its entries hold each
- * mesh's frozen display-space coordinates as their positions, plus the pivot groups, proportional halos, and
- * moved sets) together with the frame those coordinates were mapped in.  The texture-space sibling of the
- * Edit gesture, minus every deformer concern: UVs live in one flat display space, so there is no deformer
- * space mapping, no movement transfer, and no world/local split - the operator transforms the display
- * coordinates directly and the result converts back through the frame to the stored coordinates.
+ * The captured state of an in-flight UV transform: the shared [ModalTransformCapture], whose entries hold each
+ * mesh's frozen display-space coordinates as their positions, with the frame those coordinates were mapped in.
+ * UVs live in one flat display space, so unlike the Edit gesture there is no deformer mapping: the operator
+ * transforms the display coordinates directly.
  *
  * The frame freezes here so the display-to-uv conversion at drive and commit always matches the space the
  * originals were mapped in (the shown surface can hop mid-gesture: the page commands still dispatch during a
@@ -79,20 +77,14 @@ internal class UvEditGesture(
 )
 
 /**
- * The commit side of the UV Edit overlay's modal G / S / R over raw texture coordinates: it captures the
- * shown meshes' covered vertices when an operator latches in its area, drives the shared operator math over
- * the frozen display coordinates (no deformer inverse), previews the converted coordinates through the
- * render sync so the 2D viewport shows the art resampling as the mapping moves, confirms ONE undo step via
- * commitMeshUvs, and resizes the proportional influence radius on scroll.  The drive runs through [drive]:
- * each pointer event resolves a request here, on the UI thread, and the conversion runs off it, publishing
- * back here.
+ * The commit side of the UV Edit overlay's modal G / S / R over raw texture coordinates, previewing through
+ * the render sync so the 2D viewport shows the art resampling as the mapping moves.
  *
  * The proportional radius is the UV editor's own, in display texels - the session's world radius is scaled
- * for the puppet canvas and means nothing on a texture surface.  The host keeps one per shown surface and
- * hands over the shown one through [proportionalRadius]; a gesture takes the radius state of the surface it
- * begins on and keeps it to the end, with its frame.  So a gesture begun after a page or layer switch works
- * on the surface now shown, while a switch mid-gesture leaves the wheel, the weights, the strip rows, and a
- * later strip adjustment all on the surface the gesture's coordinates are measured in.
+ * for the puppet canvas and means nothing on a texture surface.  The host keeps one per shown surface, and a
+ * gesture keeps the radius state of the surface it began on to the end, with its frame, so a page or layer
+ * switch mid-gesture leaves the wheel, the weights, and the strip rows on the surface the gesture's
+ * coordinates are measured in.
  *
  * @param String areaId The UV editor area the overlay covers; only an operator latched here drives.
  * @param EditorSession session The session owning the mesh selection, the model, and the UV latch.
@@ -122,11 +114,8 @@ internal class UvEditModalTransform(
 		)
 
 	/**
-	 * Starts the gesture as an operator latches in this area.  The capture moves the shown meshes with
-	 * covered vertices, and every other shown mesh in the edit joins as a bystander, so a straight-line
-	 * proportional halo reaches nearby coordinates with nothing selected (the Edit overlay's rule, in display
-	 * space).  The anchor follows the pivot mode in display space.  Drops the operator when nothing on the
-	 * shown surface is movable.
+	 * Starts the gesture as an operator latches in this area, or drops the operator when nothing on the shown
+	 * surface is movable.
 	 *
 	 * @param MeshOperatorKind kind The latched operator.
 	 * @param List<GizmoMeshGeometry> geometries The shown meshes' display geometry.
@@ -185,11 +174,8 @@ internal class UvEditModalTransform(
 	}
 
 	/**
-	 * Confirms the in-flight gesture at the latest pointer: settles a drive the worker has not published yet,
-	 * converts each moving mesh's display preview back to stored coordinates and commits them as ONE undo
-	 * step, registers that step on the operation settings strip, then clears the operator (its teardown
-	 * resyncs the renderer to the committed model the bridge republishes).  A null preview means no
-	 * movement, so nothing commits.
+	 * Confirms the in-flight gesture at the latest pointer as one undo step, registered on the operation
+	 * settings strip, then clears the operator.
 	 */
 	override fun confirm() {
 		drive.settle()
@@ -267,10 +253,9 @@ internal class UvEditModalTransform(
 	}
 
 	/**
-	 * Resolves and submits a drive for one virtual-pointer position, on the UI thread: the pointer frame
-	 * into the parameters every mesh applies (once per event: the Rotate branch advances the accumulator,
-	 * which must see every step), each mesh's halo as it is now, and the model to fold onto.
-	 * Shared by Move and the radius Scroll.
+	 * Resolves and submits a drive for one virtual-pointer position, on the UI thread; shared by Move and the
+	 * radius Scroll.  It resolves once per event because the Rotate branch advances the accumulator, which
+	 * must see every step.
 	 *
 	 * @param MeshOperatorKind operator The latched operator.
 	 * @param Offset virtualPointer The wrap-continuous pointer.

@@ -37,13 +37,9 @@ internal class CompositeAcceleration(
 }
 
 /**
- * Derives the per-pose composite acceleration state from the freshly resolved plan: which
- * isolated parts flatten into their parent pass this pose (identity Normal/Over composite over
- * an all-Normal/Over subtree - premultiplied Over is associative, so inlining is pixel-exact),
- * and the conservative world bounds of each isolated subtree and extended-blend drawable, which
- * render() turns into layer scissors.  A subtree containing a drawable whose bounds cannot be
- * computed publishes NO bounds, so render() falls back to the full-viewport path - conservatism
- * is the contract, an undersized bound would clip pixels.
+ * Derives the per-pose composite acceleration state from the freshly resolved plan.  A subtree
+ * containing a drawable whose bounds cannot be computed publishes NO bounds, so render() falls back
+ * to the full-viewport path - conservatism is the contract, an undersized bound would clip pixels.
  *
  * Backend-neutral - it decides WHICH layer work can be skipped or confined, never how a layer is drawn.
  *

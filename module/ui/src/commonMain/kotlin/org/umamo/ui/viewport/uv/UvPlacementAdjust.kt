@@ -159,11 +159,9 @@ internal fun changedPlacements(movers: List<PlacementMover>, result: PlacementDr
 
 /**
  * Registers the placement gesture that just committed [result] as the session's adjustable
- * operation.  Call it right after the commit.  An adjustment re-evaluates the retained [gesture]
- * under the edited rows - the same movers, bystanders, pivots, and page paint the drag ran over, so
- * the collision warnings stay honest - lands the placements over the gesture's own step from the
- * record's base, and hands the new evaluation to [onLanded] (the overlay's ghosts and notices).
- * Synchronous: an evaluation is the per-pointer-frame cost.
+ * operation; call it right after the commit.  An adjustment re-evaluates the retained [gesture] under
+ * the edited rows - the same movers, bystanders, and page paint the drag ran over, so the collision
+ * warnings stay honest - synchronously, since an evaluation is the per-pointer-frame cost.
  *
  * @param EditorSession       session  The session the gesture committed into.
  * @param String              areaId   The UV editor the gesture ran in (where the strip shows).

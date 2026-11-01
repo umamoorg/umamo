@@ -46,12 +46,9 @@ import org.umamo.ui.workspace.editorstate.LocalAreaViewStates
 import org.umamo.ui.workspace.shell.PersistentEditorShell
 
 /**
- * Renders the open document inside the editor shell. For a puppet document, a per-area viewport host
- * is injected (when the platform supplies a render-service factory) and the runtime model + live
- * params are provided to the panels; with no document, the shell shows placeholders.
- * With a null factory the model locals still mount - the outliner, parameters, and thumbnails all
- * work - only the viewport areas render placeholders. The shell's workspace layout + locale are
- * persisted via settings regardless of the open document.
+ * Renders the open document inside the editor shell, providing a puppet document's model, session, and
+ * pages to the panels.  With a null render-service factory the model locals still mount and only the
+ * viewport areas render placeholders.
  *
  * @param Document? document The open document, or null.
  * @param EditorSession? session The open document's editing session (non-null for a puppet document).

@@ -74,24 +74,10 @@ import org.umamo.ui.workspace.LocalKeyformSheetViews
  * The keyform sheet: for each parameter targeted in the Parameters panel, one track per (item, channel)
  * keyed on it, with the marks laid out across that parameter's authored range.
  *
- * One SECTION per targeted parameter, stacked under a single scroll.  A linked pad targets both of its
- * axes at once, so a single-section sheet would show only half of what the panel says is selected.
- *
- * Within a section, tracks hang under a collapsible per-owner group row - one track per CHANNEL rather
- * than per item, because that is the thing the per-channel split made possible and the thing this sheet
- * exists to make visible: an item can key opacity on a parameter its geometry never touches.  A collapsed
- * group still shows its subtree's key positions, so folding hides detail, never the presence of keys.
- *
- * Clicking a mark scrubs the parameter onto it and selects it; dragging a mark that is not selected selects
- * it in place of the selection as the drag starts, and a drag then moves the whole selection - a folded
- * group's summary mark stands for every key stacked under it (a key may cross its neighbors, and stops only
- * at the parameter's range); Delete removes the selection as one undo step; right-clicking a lane inserts a
- * key there or removes the one under the pointer; Box Select (B) arms a marquee that adds the keys it
- * encloses to the selection.  Edit mode changes no key (EditorMode.editsKeys): there a mark only selects, and
- * the lane menu's rows are grayed out.
- *
- * This composable is the wiring: it derives the sections, holds the scroll and the drag cursor, registers
- * the area's command surface, and hands each section to [KeyformSheetSection].
+ * One section per targeted parameter, stacked under a single scroll, because a linked pad targets both of
+ * its axes at once and a single-section sheet would show only half of what the panel says is selected.  This
+ * composable is the wiring: it derives the sections, holds the scroll and the drag cursor, registers the
+ * area's command surface, and hands each section to [KeyformSheetSection].
  *
  * @param AreaScope scope The hosting area's scope.
  */
@@ -344,12 +330,10 @@ internal fun KeyformSheetSpace(scope: AreaScope) {
  * Registers this area's command surface with the shell's open-sheet registry for as long as the sheet has
  * something to show.
  *
- * The sheet's commands (delete/nudge selected keys, frame all) live at SHELL level - per-area registration
- * made two open sheets clobber each other in the last-write-wins registry.  The area only registers its
- * command surface here; the lambdas read the live view state and the CURRENT projections and drag at
- * dispatch time, through [rememberUpdatedState], so the effect never needs to re-run on an edit or a
- * selection change.  A ref whose row is gone simply drops out of selectedTracks, which is what makes a stale
- * selection harmless rather than dangerous.
+ * The sheet's commands live at shell level, since per-area commands would let two open sheets clobber each
+ * other in the last-write-wins registry.  The lambdas read the live view state and the current projections
+ * and drag at dispatch time, through [rememberUpdatedState], so the effect never needs to re-run on an edit
+ * or a selection change.
  *
  * @param String areaId The hosting area's id.
  * @param EditorSession? session The editing session, or null with none.

@@ -292,13 +292,8 @@ object SourceArtImport {
 	 * [model] with the frame its FIRST artwork gives it: the file's canvas, the world origin at that
 	 * canvas's center, and the fresh-import display state.
 	 *
-	 * Rest positions are canvas pixels with y down, the convention every import shares, so the world
-	 * origin is the canvas center negated into world space like every vertex.  Source-layer display is
-	 * the official editor's own state after an import - the rigger sees the layers as drawn, and the
-	 * pack that follows is what makes the document shippable.
-	 *
-	 * For the first artwork only: a document that already has art keeps the canvas it was authored
-	 * against, since a second file is placed within that frame rather than redefining it.
+	 * Source-layer display is the official editor's own state after an import - the rigger sees the
+	 * layers as drawn, and the pack that follows is what makes the document shippable.
 	 *
 	 * @param PuppetModel model The model to seed.
 	 * @param SourceArt   art   The artwork the frame comes from.
@@ -322,11 +317,8 @@ object SourceArtImport {
 	 *
 	 * The tree is materialized (one leaf per parameter at the root) rather than left empty: the CMO3
 	 * export places parameters in the editor's group hierarchy from the tree alone, and the official
-	 * editor logs a recovery for every parameter it finds outside it.  Same shape the editor's own
-	 * parameter-create materializes.
-	 *
-	 * For a rig with no axes yet: seeding over authored parameters would replace them, so the caller
-	 * seeds only a model whose parameter list is empty.
+	 * editor logs a recovery for every parameter it finds outside it.  Seeding over authored
+	 * parameters would replace them, so the caller seeds only a model whose parameter list is empty.
 	 *
 	 * @param PuppetModel model      The model to seed.
 	 * @param List        parameters The template's parameters; an empty list leaves the model alone.
@@ -344,9 +336,8 @@ object SourceArtImport {
 	}
 
 	/**
-	 * Whether an artwork file added to [model] would be its FIRST: a rig with no drawable and no tile
-	 * takes its frame from the file that arrives ([withFirstArtworkState]), so the file is never placed
-	 * within a canvas - it defines the canvas.  The one test the add's framing and its placement share.
+	 * Whether an artwork file added to [model] would be its FIRST, and so define the canvas
+	 * ([withFirstArtworkState]) rather than be placed within one.
 	 *
 	 * @param PuppetModel model The model the artwork would join.
 	 * @return Boolean True when the model has no art of its own yet.
@@ -356,10 +347,7 @@ object SourceArtImport {
 	/**
 	 * Where [art]'s canvas lands on [model]'s: the anchor's placement of the file's size within the
 	 * document's, plus the options' nudge, in the world axes (x right, z up).  Zero for a rig's first
-	 * artwork (the file sets the canvas) and for a document with no canvas to place within.  Negative
-	 * along x where the file is wider than the canvas (the art overhangs the way the anchor says), and
-	 * along z whenever the file's top edge sits below the document's, which is every anchor but the top
-	 * row for a file shorter than the canvas.
+	 * artwork, which sets the canvas.
 	 *
 	 * @param PuppetModel            model   The model the artwork joins.
 	 * @param SourceArt              art     The file, for its canvas size.
@@ -378,10 +366,9 @@ object SourceArtImport {
 	}
 
 	/**
-	 * The canvas-frame offset an anchor places a file at along one axis: the spare room (the document's
-	 * extent minus the file's, negative when the file is larger) split by the anchor's fraction, rounded
-	 * down so a centered file with one odd pixel of room sits one pixel nearer the top-left.  Canvas y
-	 * runs down, so the caller negates the vertical result into z.
+	 * The canvas-frame offset an anchor places a file at along one axis: the spare room split by the
+	 * anchor's fraction, rounded down so a centered file with one odd pixel of room sits nearer the
+	 * top-left.  Canvas y runs down, so the caller negates the vertical result into z.
 	 *
 	 * @param Int   room     The document's extent minus the file's along the axis.
 	 * @param Float fraction How far along the room the file is anchored (0, 0.5, or 1).
@@ -391,30 +378,19 @@ object SourceArtImport {
 
 	/**
 	 * The additions [art] makes to [existing]: the delta an open document appends to itself, with every
-	 * id minted past the ones the document already has.
+	 * id minted past the ones the document already has.  The additions carry no placements: the caller
+	 * packs them around the document's art.
 	 *
-	 * Ids continue the existing sequences (`ArtMesh<n>` and `Part<n>` past their highest suffix, the
-	 * source past `art-<k>`), and a tile key that collides with an existing tile is disambiguated the
-	 * same way a duplicate layer key is.  The additions carry no placements: the caller packs them
-	 * around the document's art.
-	 *
-	 * The art is never placed here: [art] is expected in the DOCUMENT canvas frame already (a new file
-	 * placed by [SourceArt.placedBy], a listed file's read placed by [SourceArt.placedFor]), and the
-	 * birth meshes and inventory rows take its bounds as they are.
-	 *
-	 * @param SourceArt              art         The parsed source art, in the document canvas frame.
+	 * @param SourceArt              art         The parsed source art, already in the DOCUMENT canvas frame
+	 *   ([SourceArt.placedBy] for a new file, [SourceArt.placedFor] for a listed file's read).
 	 * @param ArtSourceDescriptor    source      What to record about the file it came from.
 	 * @param SourceArtImportOptions options     The threshold and margin (the seed parameters are a fresh import's).
 	 * @param PuppetModel            existing    The model the additions will join.
 	 * @param ArtSourceId?           underSource The source the additions belong to when the file is one
-	 *   the model already lists (a reload adding the layers a file gained): the tiles bind to it and the
-	 *   returned record carries its id, so the caller merges rather than appends the record.  Only the
-	 *   folders the added layers live in become parts; a folder the document already keeps as a part
-	 *   (the part holding the most drawables of that folder, found through the source's bindings) takes
-	 *   the new layers as children instead of being minted again; and every new child of the root or of
-	 *   such a part is placed among the existing children where the file puts it, anchored to its
-	 *   nearest sibling in the file.  Null mints a new source with every folder of the file, the shape a
-	 *   fresh import and Add Artwork take.
+	 *   the model already lists (a reload adding the layers a file gained): the tiles bind to it, the
+	 *   returned record carries its id so the caller merges rather than appends the record, and the new
+	 *   children are placed among the existing ones where the file puts them.  Null mints a new source
+	 *   with every folder of the file, the shape a fresh import and Add Artwork take.
 	 * @param Set<String>?           layerKeys   The keys of the layers to mint, or null for every layer.  A
 	 *   reload names the layers the file gained while handing over the WHOLE file, so the placement can
 	 *   see the layers around them.
@@ -877,12 +853,9 @@ object SourceArtImport {
 	}
 
 	/**
-	 * Which of [existing]'s parts stands for each folder of [sourceId]'s file: for every drawable bound
-	 * to the file, its layer's folder (from the recorded inventory) and the part holding the drawable
-	 * directly; a folder maps to the part holding the most of its drawables, and a folder with no
-	 * drawable of its own (one holding only sub-folders) to the part that holds a mapped sub-folder's
-	 * part.  A CMO3-origin document has no folder binding on its parts, so this is what says "Front
-	 * hair" already exists.
+	 * Which of [existing]'s parts stands for each folder of [sourceId]'s file: the part holding the most
+	 * of the drawables bound to that folder's layers.  A CMO3-origin document has no folder binding on its
+	 * parts, so this is what says "Front hair" already exists.
 	 *
 	 * @param PuppetModel existing The model the additions will join.
 	 * @param ArtSourceId sourceId The file whose folders are being placed.
@@ -1138,10 +1111,6 @@ object SourceArtImport {
 	 * Lowers one level of gathered children onto org children, minting a part per folder in pre-order
 	 * so part ids follow the panel order.
 	 *
-	 * A folder composites like the art when it must: opacity under 1 or a non-Normal blend makes the
-	 * part Isolated with that composite, since pass-through would draw its layers as if the folder were
-	 * not there.  A folder that isolates for no visible reason stays pass-through, the model's default.
-	 *
 	 * @param List    children The gathered children of one folder (or the root).
 	 * @param MutableList parts Every part minted so far, appended to.
 	 * @param IdMinter minter  The id sequences, advanced per part.
@@ -1178,6 +1147,8 @@ object SourceArtImport {
 						notices.add(SourceArtImportNotice.FolderClipDropped(node.path))
 					}
 
+					// Pass-through would draw the layers as if the folder were not there, so a folder whose
+					// composite shows isolates; one that would isolate for no visible reason stays pass-through.
 					val composites = node.opacity < 1f || blendMapping.blendMode != BlendMode.Normal
 					parts[slot] =
 						Part(

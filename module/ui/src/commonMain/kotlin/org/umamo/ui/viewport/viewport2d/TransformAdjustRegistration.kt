@@ -36,16 +36,9 @@ import org.umamo.ui.transform.amendLatticeLanding
  */
 
 /**
- * Registers the Edit- or Pose-mode element transform that just committed as the session's adjustable operation.
- * Call it right after the commit and before the operator clears (its teardown drops the capture the
- * caller still holds).  An adjustment re-derives the halos on the RETAINED [transform] from its frozen
- * positions under the edited proportional rows, applies the edited numbers per owner, inverts each
- * mesh's world shape back onto the rest arrays through the frozen [geometryByOwner] (a lattice's points land at
- * [stage]), lands the result over the gesture's own step from the record's base, and hands the
- * proportional state back to [onProportional] so the next gesture can start from it.  The adjusted record goes
- * with it, so a caller whose rows did not start from the session's own state can write back only what the rigger
- * set there.  A Rotate that could turn in depth also carries its Axis, Depth, and Surface rows, and an adjustment of
- * the Depth or Surface row writes it back to the session the same way, so the next turn starts from it.
+ * Registers the Edit- or Pose-mode element transform that just committed as the session's adjustable operation,
+ * whose rerun replays the RETAINED [transform] under the edited rows over the gesture's own step.  Call it right
+ * after the commit and before the operator clears (its teardown drops the capture the caller still holds).
  * Synchronous: an evaluation is the per-pointer-frame cost.
  *
  * @param EditorSession              session      The session the gesture committed into.
@@ -59,7 +52,8 @@ import org.umamo.ui.transform.amendLatticeLanding
  * @param Boolean                    turnsInDepth True when the gesture could turn in depth (a Pose-mode Rotate), which
  *   adds the depth rows.
  * @param Function                   onProportional Receives the adjusted record and its proportional state
- *   (null for off) after each landed adjustment; unused when [proportional] is null.
+ *   (null for off) after each landed adjustment, so the next gesture can start from it and a caller can write
+ *   back only the rows the rigger set; unused when [proportional] is null.
  * @return AdjustableOperation? The record, or null when the session refused the registration or the
  *   operator has no rows.
  */

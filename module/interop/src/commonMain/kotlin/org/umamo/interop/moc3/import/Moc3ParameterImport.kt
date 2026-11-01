@@ -63,8 +63,7 @@ internal fun importParameterLinks(context: Moc3ImportContext): List<ParameterLin
  *
  * cdi3 stores two flat lists (parameters and groups, each naming an owning groupId; "" = root), so
  * within each group the leaf parameters come first (cdi3 order) followed by sub-groups (cdi3 order) -
- * the original interleaving is not recorded in a baked export.  Parameters cdi3 never places (or
- * placed under an unknown group) are appended at the root so every axis stays reachable in the panel.
+ * the original interleaving is not recorded in a baked export.
  *
  * @param Moc3ImportContext context The import's derived state.
  * @return List<ParameterNode> The root children (empty when cdi3 is absent).

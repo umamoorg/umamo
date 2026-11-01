@@ -20,21 +20,18 @@ const val DEFAULT_HISTORY_LIMIT: Int = 200
 typealias Pose = Map<ParameterId, Float>
 
 /**
- * One undoable state: the document model plus the ephemeral editor state that rides with it. The
- * interaction mode, the object-mode selection, the live pose, and the Edit-mode vertex selection are
- * snapshotted here (not inside [PuppetModel]) so undo restores the mode (entering / leaving Edit is a
- * real history step, not a guess), the prior selection after a misclick, the prior pose after a scrub,
- * and the vertex selection after a mesh edit; a document edit also restores all of these as they were at
- * that edit. Every field is an immutable value, so a snapshot is just a few references — cheap to keep
- * and to restore.
+ * One undoable state: the document model plus the ephemeral editor state that rides with it - the mode,
+ * the selections, the pose, and the pending edits - held outside [PuppetModel] so undo restores the editor
+ * as it was at each step, not just the document.  Every field is an immutable value, so a snapshot is just
+ * a few references - cheap to keep and to restore.
  *
  * 取り消し可能な1状態：ドキュメントモデルと、それに付随するモード・選択・ポーズ・頂点選択。PuppetModel の外に持つ。
  *
  * @property PuppetModel model The document model at this step.
  * @property Selection selection The object-mode selection at this step.
  * @property Pose pose The live parameter values (scrub position) at this step.
- * @property MeshSelection meshSelection The Edit-mode vertex selection at this step.
- * @property EditorMode mode The interaction mode (Object / Edit) at this step.
+ * @property MeshSelection meshSelection The Edit-mode element selection at this step.
+ * @property EditorMode mode The interaction mode (Object / Edit / Pose) at this step.
  */
 data class EditorSnapshot(
 	val model: PuppetModel,
@@ -119,7 +116,7 @@ data class HistoryStep(
 
 /**
  * A linear undo/redo stack of immutable snapshots. The entry at [cursor] is the live state; [push]
- * records a new step (discarding any redo branch, the chosen v1 behaviour), and [undo] / [redo] move the
+ * records a new step (discarding any redo branch, the chosen v1 behavior), and [undo] / [redo] move the
  * cursor and return the state to restore. Snapshots structurally share their unchanged sub-trees, so the
  * stack's cost is bounded by what each step actually changed plus the [limit] cap on retained steps.
  *
@@ -191,12 +188,11 @@ class History(
 
 	/**
 	 * Replaces the live entry with [snapshot] and [change], keeping the cursor where it is - the
-	 * mechanism behind adjusting the last operation: its result is recomputed from the state before
-	 * it and lands over its own step, so the stack never grows and the base is never replayed.
+	 * mechanism behind adjusting the last operation, whose recomputed result lands over its own step.
 	 *
-	 * Refuses when a redo branch exists: an adjustment applies only to the newest step, and the caller
-	 * clears its record on any undo anyway.  Works at cursor 0 too, since a cap of one drops the base
-	 * entry on push and the adjusting record holds that base itself.
+	 * Refuses when a redo branch exists, since an adjustment applies only to the newest step.  Works at
+	 * cursor 0 too, since a cap of one drops the base entry on push and the adjusting record holds that
+	 * base itself.
 	 *
 	 * @param EditorSnapshot snapshot The recomputed live state.
 	 * @param Change change The change that produced it (normally the entry's own).
@@ -214,10 +210,8 @@ class History(
 
 	/**
 	 * Drops the oldest entries until the stack fits [limit], stopping at the live step so the current state
-	 * and its redo branch are never discarded. That stop is what makes a lowered cap safe to apply to a
-	 * stack whose cursor sits mid-history: it frees what it can at once and sheds the rest on subsequent
-	 * pushes, and the cursor stays valid throughout. On the push path the cursor is the last entry, so the
-	 * stop never engages and the stack lands exactly at the cap.
+	 * and its redo branch are never discarded - which makes a lowered cap safe on a stack whose cursor sits
+	 * mid-history: it frees what it can at once and sheds the rest on later pushes.
 	 */
 	private fun trimToLimit() {
 		while (entries.size > limit && cursor > 0) {

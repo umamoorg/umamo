@@ -48,11 +48,9 @@ fun KeyedFieldState.tint(colors: UmamoColors): Color? =
 /**
  * The FILL for this state, or null for [KeyedFieldState.None] (the control keeps its ordinary background).
  *
- * A text control expresses its keyed state by tinting its whole background rather than by drawing an
- * outline: a 1px stroke on a 20dp field is a small thing to read across a column of rows, and the column is
- * how the state is actually used.  Controls whose fill already MEANS something keep the outline instead -
- * a checkbox's fill is its checked state and a color swatch's fill is the user's own color, so neither has a
- * background to spend.  The token is translucent, so the control's own hover fill still shows through.
+ * A text control tints its whole background rather than drawing an outline, which reads far better down a
+ * column of rows; a control whose fill already means something (a checkbox, a color swatch) keeps the
+ * [tint] outline instead.  The token is translucent, so the control's own hover fill still shows through.
  *
  * @param UmamoColors colors The active scheme.
  * @return Color? The fill, or null when the field is not keyed.

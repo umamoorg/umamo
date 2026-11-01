@@ -73,13 +73,10 @@ fun SectionHeader(label: String, expanded: Boolean, onToggle: () -> Unit, modifi
 }
 
 /**
- * A collapsible section card: a [SectionHeader] over the section's rows, rounded with the medium shape.  By
- * default the card is raised one step above the panel it sits on (the panelThirdElevation fill and border);
- * a card floating over a work surface passes its own [fill] and [border].  The rows are composed only while
- * the card is [expanded].  The header spans the card and its hover fill is clipped to the rounded corners,
- * so the card adds no inset of its own around it; the rows get the section indent and a small gap between
- * one another.  The card fills the width it is offered; a caller that sizes it itself (the operation strip,
- * as wide as its widest row) does so through [modifier], which comes first.
+ * A collapsible section card: a [SectionHeader] over the section's rows, raised one step above the panel
+ * it sits on unless a card floating over a work surface passes its own [fill] and [border].  The card
+ * fills the width it is offered; a caller that sizes it itself does so through [modifier], which comes
+ * first.
  *
  * @param String   title    The section heading.
  * @param Boolean  expanded Whether the rows are shown.

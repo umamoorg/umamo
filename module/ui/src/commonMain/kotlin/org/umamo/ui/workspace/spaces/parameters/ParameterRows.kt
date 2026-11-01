@@ -110,16 +110,12 @@ internal fun parameterIdsMatching(puppet: PuppetModel, query: String): Set<Param
 		.mapTo(HashSet()) { parameter -> parameter.id }
 
 /**
- * The parameters the panel's two filters leave, shaped to feed [buildParameterRows]'s visibleParamIds:
- * the ones that drive the selection when that filter is on and something is selected, the ones the search
- * matches when there is a search, and the ones in both sets when both apply.  Both filters restrict, so
- * with both on a parameter must satisfy each of them.
+ * The parameters the panel's two filters leave, shaped to feed [buildParameterRows]'s visibleParamIds.  The
+ * selection filter is inert with nothing selected, so the panel is never mysteriously blank.
  *
- * The selection filter is inert with nothing selected, so the panel is never mysteriously blank.
- *
- * The parameter being named is kept whatever the filters say.  A parameter created under a filter has a
- * name the search does not match and drives nothing the selection holds, so without this its row, and
- * the field to name it in, would never show.  Once named it is filtered like any other.
+ * The parameter being named is kept whatever the filters say: one created under a filter has a name the
+ * search does not match and drives nothing the selection holds, so without this its row, and the field to
+ * name it in, would never show.
  *
  * @param PuppetModel  puppet            The loaded rig.
  * @param Selection    selection         The current object selection.
@@ -372,14 +368,11 @@ private fun groupHoldsGroup(group: ParameterNode.Group, groupId: ParameterGroupI
 
 /**
  * Converts a run of sibling parameters into slider / pad rows: a non-animatable parameter is skipped, a
- * LINKED pair's vertical member is folded into its horizontal's pad (and skipped on its own), and every
- * other animatable parameter becomes a slider.  All emitted rows carry [depth] for indentation.
+ * LINKED pair's vertical member is folded into its horizontal's pad, and every other animatable parameter
+ * becomes a slider.
  *
- * Each slider row also carries its link candidate - the parameter a link click would pair it with.
- * The candidate is the run's immediately-next parameter (CMO3's "next parameter in document order",
- * scoped to the run so a link never crosses a group boundary - [walkParameterNodes] flushes runs at
- * every group) when that next parameter is animatable and NEITHER side already belongs to any link;
- * otherwise null and the row offers no link affordance.
+ * Each slider row also carries its link candidate ([ParameterRow.Single.linkCandidateId]), scoped to the run
+ * so a link never crosses a group boundary - [walkParameterNodes] flushes runs at every group.
  * // CMO3: CParameterSource.combined - first member flags the pair, partner is the next parameter in
  * // document order (see Cmo3Import's link derivation).
  *

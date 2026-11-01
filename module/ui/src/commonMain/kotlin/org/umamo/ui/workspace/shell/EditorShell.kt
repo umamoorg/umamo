@@ -88,19 +88,12 @@ import org.umamo.ui.workspace.statusbar.StatusBar
 
 /**
  * The whole editor shell: workspace tabs over a recursive, switchable, splittable area tree, with the
- * command palette overlaid. Self-contained so it runs standalone (defaults seed a two-workspace
+ * command palette overlaid. Self-contained so it runs standalone (defaults seed the built-in workspace
  * layout and a base space registry), while every collaborator is injectable so an app can supply the
  * GL [viewportHost], override specific spaces, share a pre-populated [commandRegistry] (e.g. with File
  * commands), drive the [languageTag] from settings, and persist via [onLayoutChange].
  *
- * The shell is wiring over its collaborators: [ShellControllers] holds what it keeps for its lifetime -
- * among them the [WorkspaceLayoutController] that owns the layout and its edits (structural edits route
- * through the single [org.umamo.ui.workspace.layout.AreaCommand] choke point) and the ShellOverlayState
- * that holds the modal chrome.  The command tables live in the org.umamo.ui.workspace.commands package
- * (registered per group by [RegisterShellCommands]), and the root key handling is the modal ladder in
- * ModalKeyLadder.kt.  The palette and keymap dispatch through the action registry - the input spine.
- *
- * @param InterfaceLayout initialLayout The starting layout (defaults to the seeded two-workspace layout).
+ * @param InterfaceLayout initialLayout The starting layout (defaults to the seeded built-in layout).
  * @param ViewportHost? viewportHost What draws a 2D viewport area, or null with no render service to draw with.
  * @param Map spaceOverrides Per-kind space descriptors layered over the base registry.
  * @param List propertyTabOverrides Property tabs layered over the base tab set (a vendor extension seam).
@@ -118,9 +111,8 @@ import org.umamo.ui.workspace.statusbar.StatusBar
  *   ends; the persistence wrapper holds the debounced write while the drag is live and commits
  *   immediately at its end.  The signal carries no layout and publishes nothing, so it bypasses
  *   [WorkspaceLayoutController] on purpose - a controller pass-through would add API for no state.
- * @param ArtworkOperations? artwork The app's artwork orchestrations (add a file, reload the listed
- *   files, relink a tile, match or replace a file's bindings) over the area the command fires in, or
- *   null (the default) when no open document can take artwork.  The shell registers the commands
+ * @param ArtworkOperations? artwork The app's artwork orchestrations over the area the command fires in,
+ *   or null (the default) when no open document can take artwork.  The shell registers the commands
  *   itself so the operation strip lands in the hovered work surface.
  * @param Function? exportImage Export Image, handed the 2D viewport area it should frame (or null when the
  *   pointer last touched none), or null (the default) when nothing can be captured.  The shell registers the
@@ -252,7 +244,7 @@ fun EditorShell(
  * The window's top row: the application menu bar, when the app supplies one, then the workspace tabs.
  *
  * The menu bar shares the tab strip's row, sitting to its left to save vertical space; the tabs take the
- * remaining width.  With no menu (e.g. on Android this slice) only the tabs show.
+ * remaining width.  With no menu, only the tabs show.
  *
  * @param List                      appMenu    The application menu-bar contents; empty renders no bar.
  * @param WorkspaceLayoutController workspaces The layout the tabs show and edit.

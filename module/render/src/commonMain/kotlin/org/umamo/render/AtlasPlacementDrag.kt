@@ -39,8 +39,7 @@ import kotlin.math.floor
 
 /**
  * Per tile, the union of its bound drawables' mesh reach in the tile's own art frame, rounded out to
- * whole pixels (a bound within float noise of a pixel edge counts as on it) - what a pack must keep clear
- * BEYOND the opaque pixels.
+ * whole pixels - what a pack must keep clear BEYOND the opaque pixels.
  *
  * The pixels alone do not bound what samples a tile: an art mesh rings outside the opaque region
  * (Erica's reach up to 58px past their trim, and past the raster itself), so a pack spaced by
@@ -380,9 +379,6 @@ class PageOccupancy private constructor(
 
 	/**
 	 * Whether any painted pixel lies inside [region].
-	 *
-	 * Walks the blocks under the region's bounds, and only for a block that may be painted tests its
-	 * pixels exactly against the region and the page.
 	 *
 	 * @param SampledRegion region The region to test.
 	 * @return PixelRect? A one-pixel rectangle at the first painted pixel found, or null when none.
@@ -738,10 +734,6 @@ class SampledRegion(
 /**
  * Whether [region] samples any opaque texel of [mask] placed at [placement], the composer's extrusion
  * band counted as painted (a page pixel within [extrude] of the trim reads the nearest edge texel).
- *
- * Scans the intersection of the region's bounds with the placed trim's bounds grown by the band, and
- * tests each pixel center both ways: inside the region, and on an opaque texel through the mask
- * placement's inverse.
  *
  * @param SampledRegion  region    The sampling tile's region.
  * @param AtlasPlacement placement Where the painting tile sits.

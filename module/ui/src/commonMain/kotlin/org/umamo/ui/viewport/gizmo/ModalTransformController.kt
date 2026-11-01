@@ -16,8 +16,8 @@ import org.umamo.ui.action.controlIsDistinctFromPrimary
 
 /**
  * The commit-side seam of a modal G / S / R gesture: what differs between the Edit overlay (per-mesh
- * covered vertices folded through the deformer inverse), the Object overlay (whole drawables), and a
- * future UV editor (raw texture coordinates).  The pointer-side mechanics - stale-event discard,
+ * covered vertices folded through the deformer inverse), the Object overlay (whole drawables), and the
+ * UV editor (raw texture coordinates).  The pointer-side mechanics - stale-event discard,
  * virtual-pointer drive, cursor wrap, confirm / cancel buttons - are identical and live in
  * [ModalTransformController]; implementations supply only where the preview goes and how it commits.
  */
@@ -70,11 +70,8 @@ internal class ModalTransformController(
 	private val cursorWrap: CursorWrapState,
 ) {
 	/**
-	 * Feeds one pointer event of an active modal gesture to [target]: Move / Exit discard stale
-	 * pre-warp events, drive the preview from the virtual pointer, then wrap the cursor at the
-	 * viewport edge (Exit is handled with Move so a fast flick that clears the trigger band before its
-	 * last in-bounds Move still wraps); a secondary press cancels, a primary press confirms; a scroll
-	 * goes to the target.  Every event is consumed - a modal gesture owns the pointer.
+	 * Feeds one pointer event of an active modal gesture to [target], consuming every event since a
+	 * modal gesture owns the pointer.
 	 *
 	 * @param PointerEvent event The full pointer event (buttons and type).
 	 * @param PointerInputChange change The event's first change (position and consumption).
@@ -98,8 +95,9 @@ internal class ModalTransformController(
 
 		when (event.type) {
 			PointerEventType.Move, PointerEventType.Exit -> {
-				// Discard stale pre-warp events, keeping the HUD anchored at the landing instead of
-				// flicking back to the old edge (see CursorWrapState.resolveArrival).
+				// Exit runs with Move so a fast flick that clears the trigger band before its last in-bounds
+				// Move still wraps.  Discard stale pre-warp events, keeping the HUD anchored at the landing
+				// instead of flicking back to the old edge (see CursorWrapState.resolveArrival).
 				val staleLanding = cursorWrap.resolveArrival(change.position, size)
 
 				if (staleLanding != null) {

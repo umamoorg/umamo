@@ -21,7 +21,7 @@ private const val REPLACEMENT_CHARACTER = '�'
  * Matches the JVM's `String(bytes, offset, length, Charsets.US_ASCII)` exactly, including mapping any
  * byte outside 0x00..0x7F to U+FFFD.  That fidelity matters: the naive alternative (`Byte.toChar()`)
  * would silently decode high bytes as Latin-1, so a corrupt signature could compare equal to
- * something it is not.  Note `decodeToString()` is not a substitute — it decodes UTF-8.
+ * something it is not.
  *
  * @param ByteArray bytes The buffer to read from.
  * @param Int offset      Offset of the first byte.

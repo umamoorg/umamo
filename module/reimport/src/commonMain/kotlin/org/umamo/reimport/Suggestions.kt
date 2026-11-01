@@ -17,23 +17,14 @@ import org.umamo.runtime.model.PuppetModel
 
 /**
  * The inventory a refresh records: [fresh] as read, plus every [previous] row whose key the fresh art
- * lacks and a tile still binds, marked not present.  A previous row already not present stays so, and
- * a lost row nothing binds is dropped - there is no binding left to review.  A row losing its presence
- * in this refresh records why ([ArtSourceLayer.replaced]): the file was repointed at art that mints
- * other keys when [lostByReplacement] says so, else the layer left the file.
+ * lacks and a tile still binds, marked not present and whether a Replace Artwork lost it
+ * ([ArtSourceLayer.replaced]).  A lost row nothing binds is dropped - there is no binding left to review.
  *
- * A plan that pulls art for some tiles and not others (a relink, an accepted match) names the bound
- * keys it left alone in [untouchedKeys]: their previous rows are kept over the fresh ones, so a change
- * to those layers the plan did not carry into their tiles is still seen by the next reload instead of
- * being recorded as already taken.
- *
- * A row that reads as erased keeps the canvas frame its art last had: an art program saves an erased
- * layer with a collapsed rectangle, and the tile still holds the art from the frame before, so a
- * reload that finds the art back (an undo in the art program) measures it against that frame rather
- * than against the collapse - which would carry every coordinate by the bogus difference.
- *
- * The rigger's ignore mark ([ArtSourceLayer.ignored]) is the document's, not the file's, so a fresh
- * row carries its previous row's mark; a layer new to the file starts unmarked.
+ * The rows of [untouchedKeys] keep their previous state, so a change the plan did not carry into their
+ * tiles is still seen by the next reload.  A row that reads as erased keeps the canvas frame its art
+ * last had: an art program saves an erased layer with a collapsed rectangle, and a reload that finds
+ * the art back would otherwise carry every coordinate by the bogus difference.  The rigger's ignore mark
+ * ([ArtSourceLayer.ignored]) is the document's, not the file's, so a fresh row carries its previous row's.
  *
  * @param List<ArtSourceLayer> previous      The inventory as the document held it.
  * @param List<ArtSourceLayer> fresh         The inventory of the art as just read.
@@ -96,9 +87,9 @@ private fun missingRowFor(row: ArtSourceLayer?, tile: AtlasTile): ArtSourceLayer
  * as erased to nothing - keyed by the lost layer's key.  The candidates are the file's present layers
  * with art that no tile is bound to and the rigger has not ignored - never a bound one, since on the
  * model alone nothing tells a re-created layer's fresh drawable from any other untouched drawable; the
- * proposal that names a
- * bound layer comes only from a reload that scored the binding before it minted the layer.  Without
- * rasters the ranking rests on the inventory alone; with them the matcher compares pixels too.
+ * proposal that names a bound layer comes only from a reload that scored the binding before it minted
+ * the layer.  Without rasters the ranking rests on the inventory alone; with them the matcher compares
+ * pixels too.
  *
  * @param PuppetModel  model             The document's model.
  * @param ArtSourceId  sourceId          The file whose lost layers are scored.
@@ -156,11 +147,9 @@ fun suggestionsFor(
 }
 
 /**
- * The suggestions for [sourceId]'s unresolved bindings against its art as just read: the record's
- * inventory refreshed with [inventory] first - the lost rows kept, and every bound layer's previous row
- * kept too, since nothing here carries a change into a tile - so a file never reloaded still scores,
- * then [suggestionsFor] over that.  What the reload planner scores before it mints, and what an
- * operation that read the file publishes for the review chips.
+ * The suggestions for [sourceId]'s unresolved bindings against its art as just read, so a file never
+ * reloaded still scores - what the reload planner scores before it mints, and what an operation that
+ * read the file publishes for the review chips.
  *
  * @param PuppetModel          model             The model as it stands.
  * @param ArtSourceId          sourceId          The file.
@@ -180,6 +169,7 @@ fun suggestionsAgainstRead(
 ): Map<String, LayerMatch> {
 	val source = model.sources.firstOrNull { candidate -> candidate.id == sourceId } ?: return emptyMap()
 	val boundKeys = model.atlas.tiles.filter { tile -> tile.source?.sourceId == sourceId }.mapNotNullTo(HashSet()) { tile -> tile.source?.layerKey }
+	// Every bound row keeps its previous state, since scoring carries no change into a tile.
 	val refreshed = source.copy(layers = inventoryWithMissing(source.layers, inventory, boundKeys, untouchedKeys = boundKeys))
 	val scoringModel = model.copy(sources = model.sources.map { candidate -> if (candidate.id == sourceId) refreshed else candidate })
 
@@ -211,11 +201,10 @@ fun confidentMatches(suggestions: Map<String, LayerMatch>, threshold: Float): Ma
 }
 
 /**
- * The tiles a rebinding onto [candidateKey] may retire: every tile of [sourceId] bound to that key
- * other than [except] whose drawables carry no rig work - the fresh drawable a reload minted for the
- * layer before the lost layer's rig work claimed it.  A tile with rig work over it stays bound; two
- * tiles then share the layer, which a person sorts out.  What the Sources space shows against a
- * proposal naming a bound layer, and what a match re-checks before it retires anything.
+ * The tiles a rebinding onto [candidateKey] may retire: those of [sourceId] bound to that key whose
+ * drawables carry no rig work, such as the fresh drawable a reload minted for the layer before the lost
+ * layer's rig work claimed it.  A tile with rig work over it stays bound, two tiles then sharing the
+ * layer for a person to sort out.
  *
  * @param PuppetModel      model        The model the rebinding applies to.
  * @param ArtSourceId      sourceId     The file.

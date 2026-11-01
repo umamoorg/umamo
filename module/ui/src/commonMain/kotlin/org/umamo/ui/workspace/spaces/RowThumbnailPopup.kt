@@ -36,17 +36,9 @@ import kotlin.math.roundToInt
 private val ROW_PREVIEW_SIZE = 120.dp
 
 /**
- * Where a row's hover preview goes, as its top-left in window pixels.
- *
- * Beside the row when there is room: just right of it, or just left of it when the right would overflow
- * the window, level with the row's top.  With room on neither side - a list that spans the window - the
- * preview anchors to the pointer instead: below and right of it, flipping above or left at the window's
- * far edges.  It is never clamped over the row, because a preview under the pointer takes the row's hover,
- * which withdraws the preview, which returns the hover, in a loop; and it covers whatever the pointer was
- * reaching for.
- *
- * The pointer is asked for only when the row has no room, so a preview beside its row does not follow
- * pointer moves it has no use for.
+ * Where a row's hover preview goes, as its top-left in window pixels: beside the row when there is room,
+ * else anchored to the pointer.  It is never clamped over the row, because a preview under the pointer
+ * takes the row's hover, which withdraws the preview, which returns the hover, in a loop.
  *
  * @param Rect     anchorRect   The hovered row's visible bounds, in window pixels.
  * @param Function pointer      The pointer in window pixels, or null when it is not known.
@@ -136,11 +128,9 @@ private class RowPreviewPositionProvider(
 }
 
 /**
- * A passive hover preview for a list row with art - an Outliner drawable or part, a Sources layer, tile,
- * or drawable: the thumbnail over the themed checker (so a transparent layer reads as a silhouette) with
- * the row's name beneath, in a small floating card beside the hovered row, or at the pointer when the
- * row has no room beside it.  Non-focusable - it never steals input or the selection; the caller shows
- * and hides it purely by composing or not composing it (no dismiss handling needed).
+ * A passive hover preview for a list row with art: the thumbnail over the themed checker with the row's
+ * name beneath, in a small floating card beside the hovered row.  Non-focusable, so it never steals input
+ * or the selection; the caller shows and hides it by composing it or not.
  *
  * @param String name The row's display name (document data, not localized).
  * @param ImageBitmap thumbnail The cropped art preview.

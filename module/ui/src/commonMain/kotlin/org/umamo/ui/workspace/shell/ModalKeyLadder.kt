@@ -59,7 +59,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 			// A confirm dialog is the topmost modal: it owns the keyboard entirely.  Enter confirms (like its
 			// confirm button, the dialog's default) and Escape cancels (like its cancel button); every other key
 			// is swallowed so no shortcut fires behind it - notably Space, which would otherwise open the palette
-			// over the dialog now that the dialog reclaims root focus.  It outranks the self-focused overlays
+			// over the dialog, since the dialog reclaims root focus.  It outranks the self-focused overlays
 			// below, so a confirm raised over Preferences takes its own Enter and Escape without closing them.
 			overlays.pendingConfirm != null -> {
 				if (isArmedEnterDown) {
@@ -114,7 +114,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 			// is inert.  It has to claim the rest rather than pass them on - the bar's dropdowns open
 			// non-focusable so its labels keep receiving hover for the sweep-to-switch, which leaves the
 			// host window focused and this ladder seeing every key first, ahead of the bar's own handler
-			// (which claims only Escape).  Passing them on fired shortcuts behind the open menu.
+			// (which claims only Escape).  Passing them on would fire shortcuts behind the open menu.
 			closeOpenMenu != null -> {
 				if (isEscapeDown) {
 					closeOpenMenu()
@@ -268,7 +268,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
-			// An in-flight panel row drag (outliner / parameters) owns Escape: cancel it (through the
+			// An in-flight panel row drag (outliner / parameters / sources) owns Escape: cancel it (through the
 			// registry, mirroring area.dragCancel) before the clear-selection branch below - the press
 			// that started the drag already selected the row, so that branch would otherwise swallow
 			// Escape and deselect the dragged rows while the drag kept going.
@@ -280,8 +280,9 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 			// An in-flight divider (splitter) drag owns Escape, before the clear-selection arm below.
 			// It needs its own arm because it is NOT the area corner drag the three arms below gate on:
 			// its session lives in the dragged SplitContainer, never touches AreaDragController, and so
-			// left isDragging false - Escape fell through and cleared the object selection while the user
-			// was only resizing a panel.  Routed through the registry like the row-drag cancel.
+			// leaves isDragging false - without this arm Escape would fall through and clear the object
+			// selection while the user is only resizing a panel.  Routed through the registry like the
+			// row-drag cancel.
 			isEscapeDown && splitterDragCancel.cancel != null -> {
 				commandRegistry.invoke("area.dragCancel")
 				true
@@ -357,12 +358,9 @@ private fun handleShellKey(stroke: ShellKeyStroke, keymap: Keymap, registry: Com
 }
 
 /**
- * Whether a stroke is the platform copy chord: the primary modifier with C, or a dedicated Copy key.  An alert
- * lets it through to its selectable text; everything else it swallows.  Neither the keymap nor anything behind
- * the alert sees it, because the ladder returns before the keymap is consulted.
- *
- * A literal Control counts too, so Control+C passes through on macOS exactly as it does where Control is the
- * primary modifier.
+ * Whether a stroke is the platform copy chord, the one key an alert lets through to its selectable text: the
+ * primary modifier with C, or a dedicated Copy key.  A literal Control counts too, so Control+C passes through
+ * on macOS exactly as it does where Control is the primary modifier.
  *
  * @param ShellKeyStroke stroke The stroke.
  * @return Boolean Whether it copies.

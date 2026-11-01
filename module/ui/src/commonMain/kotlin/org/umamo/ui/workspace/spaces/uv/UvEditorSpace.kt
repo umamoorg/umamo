@@ -100,21 +100,12 @@ import org.umamo.ui.workspace.spaces.PlaceholderSpace
  * The UV editor space: the shown surface - an atlas page, or the source layer the art was authored on -
  * drawn under its UV islands, with the session's selections shared 1:1 (Blender's UV sync selection,
  * always on - Umamo UVs are strictly per-vertex, so the viewport and the UV editor agree by
- * construction).  In Edit mode the composed [UvEditGizmoOverlay] owns the interactions: element picking
- * and box select over the shared mesh selection, and the modal G / S / R operators over the texture
- * coordinates with live GPU preview.  In Object mode the frame shows every visible island on the shown
- * surface, and [UvObjectGizmoOverlay] owns island selection - click, box, and the Alt overlap stack, writing
- * the session's object selection, so a selection made here flows out to the viewport and the outliner.
- * Middle-drag pans and the wheel zooms in both modes, through this space's own navigation loop.
+ * construction).
  *
- * FULL VIEWPORT-SERVICE PARITY: the surface is rendered by the SAME offscreen GL engine the 2D viewport
- * uses (a per-area UV render scene, whose content is either an atlas page or a source layer's raster,
- * with the Edit-mode wireframe, or Object mode's islands and placement preview, drawn over it from the
- * scene this space publishes - UvSceneOverlay.kt),
- * blitted here by [UvPageUnderlay]; the UV camera is owned by that service, and the Compose gizmo
- * overlays lock to the frame camera so they stay glued to the (asynchronously produced) raster during
- * pan / zoom.  With no service present (Android until the GLES engine lands) the space shows a bare
- * panel, as the 2D viewport shows a plain backdrop without one - there is no CPU underlay fallback.
+ * The surface is rendered by the SAME offscreen GL engine the 2D viewport uses and blitted here by
+ * [UvPageUnderlay]; the UV camera is owned by that service, and the Compose gizmo overlays lock to the
+ * frame camera so they stay glued to the asynchronously produced raster during pan / zoom.  There is no
+ * CPU underlay fallback.
  *
  * The working space is the display mapping of UvDisplayMapping.kt: texel units with Y up (v = 0 is the
  * image's TOP row, so the axis flips - see that file's header).
@@ -176,8 +167,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 
 	// The palette's page-switch requests (uv.page.*): the executing area was resolved at dispatch
 	// into the payload, so this gate is deterministic.  Mode-agnostic on purpose - reviewing pages is
-	// not an Edit-mode operation.  Collected ABOVE the placeholder early-return so a document with
-	// textures but nothing meshed (placeholder showing) can still pin a page into view.
+	// not an Edit-mode operation.  Collected ABOVE the early return below so a document with textures
+	// but nothing meshed, which shows no surface, can still pin a page into view.
 	val liveEffectivePageIndex = rememberUpdatedState(resolvedPage?.pageIndex)
 	val livePageCount = rememberUpdatedState(textures?.atlases?.size ?: 0)
 	LaunchedEffect(session, scope.areaId) {
@@ -623,15 +614,10 @@ internal fun UvEditorSpace(scope: AreaScope) {
 
 /**
  * The UV editor's navigation pointer loop: middle-mouse drag pans and the wheel zooms toward the cursor
- * (Shift for the coarse step).  Pan and zoom drive the SERVICE camera (same as the 2D viewport) and are
- * skipped while this area owns a modal UV operator or an armed select tool - the overlay's controller owns
- * the pointer then (a wheel scroll resizes the proportional radius, not the zoom) - and while an un-armed
- * box drag is live (viewportGestureActive, area-less by design: pointer capture pins the drag's events to
- * the dragging overlay, and zooming under a live rubber-band would desync the box from the camera used at
- * release) or Zoom Region is armed here (its overlay owns the drag above).  The gate is the one the 2D
- * viewport loop and the floating chrome read (gestureOwnsAreaPointer).  A gesture latched in ANOTHER area
- * does not block: its events never reach here, so this area keeps panning and zooming during it (Blender
- * parity).
+ * (Shift for the coarse step), driving the SERVICE camera as the 2D viewport does.  It stands aside while
+ * a gesture of this area owns the pointer (gestureOwnsAreaPointer, the gate the 2D viewport loop and the
+ * floating chrome read); a gesture latched in ANOTHER area never reaches here, so this area keeps panning
+ * and zooming during it.
  *
  * This loop stamps nothing about where the pointer is: the hovered surface is stamped by the hosting
  * leaf, for every space alike (see stampsHoveredSurface).

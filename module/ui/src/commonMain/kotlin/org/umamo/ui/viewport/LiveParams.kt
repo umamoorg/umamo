@@ -111,14 +111,9 @@ fun posedLattices(
 	}
 
 /**
- * Builds the initial [LiveParams] from each parameter's default. Hosts with a headless-dump flow
- * (the desktop `UMAMO_DUMP_PARAMS` override) rewrite the values afterwards — environment reads are a
- * desktop dev affordance, not common code.
- *
- * A pose the document was saved with lays over the defaults (docs/format/UMA.md § 7.4), each value clamped to its
- * parameter's range - a range can have been narrowed since the pose was saved - and an id the rig does not have
- * simply never matches.  The session takes these values as its initial pose, so the panel, the viewport, and the
- * first undo snapshot agree from frame one.
+ * Builds the initial [LiveParams] from each parameter's default, with the pose the document was saved with laid
+ * over them (docs/format/UMA.md § 7.4).  Hosts with a headless-dump flow (the desktop `UMAMO_DUMP_PARAMS`
+ * override) rewrite the values afterwards — environment reads are a desktop dev affordance, not common code.
  *
  * @param PuppetModel puppet    The rig (for parameter defaults and ranges).
  * @param Map         savedPose The pose the document was saved with, by parameter id; empty for a plain open.
@@ -127,21 +122,20 @@ fun posedLattices(
 fun initialLiveParams(puppet: PuppetModel, savedPose: Map<ParameterId, Float> = emptyMap()): LiveParams =
 	LiveParams(
 		puppet.parameters.associate { parameter ->
+			// Clamped, since a range can have been narrowed since the pose was saved.
 			parameter.id to (savedPose[parameter.id]?.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max)) ?: parameter.default)
 		},
 	)
 
 /**
  * Adapts the [LiveParams] volatile hand-off to the platform-neutral [LiveParamsHandle] the common
- * Parameters panel writes through. [preview] publishes a new immutable map (a volatile write) so the
- * render thread's reference compare detects the change and re-poses — the fast per-frame scrub path,
- * which does not touch undo. [commit] routes the gesture's final pose through the [EditorSession] as one
- * undo step, so a whole drag is undoable in a single Ctrl+Z; the session's pose StateFlow is then mirrored
- * back into this same volatile by the host, so an undo / redo re-poses the viewport.
+ * Parameters panel writes through: [preview] is the fast per-frame scrub path that touches no undo, and
+ * [commit] records a whole drag as one undo step.  The host mirrors the session's pose back into the same
+ * hand-off, so an undo / redo re-poses the viewport.
  *
  * Both are refused while the session's pose is pinned (Edit mode).  This is the one way a pose write
- * reaches the renderer, so refusing here holds for every control that scrubs - the Parameters panel,
- * its header, the keyform sheet, and whatever is built next - with none of them having to remember to.
+ * reaches the renderer, so refusing here holds for every control that scrubs, with none of them having
+ * to remember to.
  *
  * @property LiveParams liveParams The underlying render-thread hand-off (the live pose mirror).
  * @property EditorSession session The session that records the committed pose as an undo step.
@@ -153,22 +147,16 @@ class LiveParamsAdapter(private val liveParams: LiveParams, private val session:
 
 	/**
 	 * Previews one parameter's value toward the render thread without recording an undo step (the fast
-	 * per-frame scrub path).
-	 *
-	 * Moving the pose RETIRES every pending unkeyed edit - channel values and Pose-mode lattices alike - on the
-	 * first frame that actually moves rather than at the gesture's end.  A pending value was chosen for one pose;
-	 * carrying it across a scrub would apply it at every pose on the way, showing a half-typed opacity as a flat
-	 * override across the whole range being scrubbed until release finally snapped it back to the track.  The
-	 * session's own commit already clears them on a pose move - this is the same rule applied to the preview path,
-	 * which does not go through commit - and says near the cursor how many shaped lattices went.
-	 *
-	 * Refused while the pose is pinned: the hand-off then holds the rest pose Edit mode shows, and a
-	 * preview written into it would pose the rig under an edit of its neutral state.
+	 * per-frame scrub path).  Every pending unkeyed edit is retired on the first frame that moves the pose
+	 * ([EditorSession.discardPendingEditsForPose]), not at the gesture's end, since carrying one across a
+	 * scrub would apply it at every pose on the way.
 	 *
 	 * @param ParameterId id The parameter to set.
 	 * @param Float value The new value.
 	 */
 	override fun preview(id: ParameterId, value: Float) {
+		// While pinned the hand-off holds the rest pose Edit mode shows, and a preview written into it would pose
+		// the rig under an edit of its neutral state.
 		if (session.posePinned) {
 			return
 		}
@@ -186,12 +174,10 @@ class LiveParamsAdapter(private val liveParams: LiveParams, private val session:
 	/**
 	 * Records the current live pose as one undo step, ending a scrub gesture.
 	 *
-	 * Refused while the pose is pinned.  The session would refuse it as well; it stops here because what
-	 * this hands over is the hand-off's pose, and while pinned that is not the rig's.
-	 *
 	 * @param Set<ParameterId> changedIds The parameters this gesture moved (for the history-panel label).
 	 */
 	override fun commit(changedIds: Set<ParameterId>) {
+		// The session would refuse this too; it stops here because while pinned the hand-off's pose is not the rig's.
 		if (session.posePinned) {
 			return
 		}

@@ -29,23 +29,12 @@ import org.umamo.ui.workspace.spaces.SnapMenuKind
 import org.umamo.ui.workspace.spaces.sessionProportionalSizeField
 
 /**
- * The 2D viewport's space-specific header strip (mounted via SpaceDescriptor.headerContent): the
- * Object / Edit / Pose mode dropdown, the vertex / edge / face select-mode buttons (Edit and Pose mode), the
- * transform pivot dropdown, the snap menu, and the proportional-editing chip, whose panel's size row is the
- * session's world radius (Edit and Pose mode).  With no open document the chips render disabled rather
- * than vanishing, so the viewport chrome reads the same before the first file opens.
+ * The 2D viewport's space-specific header strip: the editor mode dropdown, then the edit controls the UV
+ * editor's header also mounts, and the area's overlays control.  With no open document the chips render
+ * disabled rather than vanishing, so the viewport chrome reads the same before the first file opens.
  *
- * Every control observes the session's own flows and mutates only by dispatching registry commands,
- * per the everything-through-the-action-registry rule - a rebind or palette invocation stays
- * consistent with these controls for free.  The editing pieces (select modes, pivot, snap, proportional)
- * are the shared EditHeaderControls.kt composables the UV editor's header mounts too, and each gates
- * itself on the session's mode: an item that renders nothing measures zero and costs the strip nothing.
- *
- * The widest strip in the app, so it is the one that most needs the overflow behavior.  Only the mode
- * dropdown is pinned - it is the control the whole viewport header is about, and a header that hides its
- * own subject is worse than one that clips.  The overlays control (the Show Overlays toggle and its popover,
- * OverlaysHeaderControl.kt) sits at the trailing end after a flexible gap, where Blender keeps it; it is the
- * one control here that reads per-area state, so this builder takes the hosting scope.
+ * Only the mode dropdown is pinned against the overflow: it is the control the whole viewport header is
+ * about, and a header that hides its own subject is worse than one that clips.
  *
  * @param AreaScope scope The hosting area's scope carrying the viewport's view state.
  */
@@ -65,11 +54,8 @@ fun OverflowRowScope.viewport2DHeaderControls(scope: AreaScope) {
 }
 
 /**
- * The editor-mode selector, Blender-style: the button face is the current mode's icon plus its label
- * plus a chevron that points right while the menu is closed and down while it is open.  Clicking opens
- * a three-row menu (Object / Edit / Pose Mode, each icon + label + bound-shortcut hint); choosing a row
- * dispatches the matching set-mode command.  The chip anatomy is the shared kit [DropdownChip], the
- * same face as the area header's AreaTypeDropdown so the header chips read as one family.
+ * The editor-mode selector, Blender-style: the current mode's icon and label on the shared kit
+ * [DropdownChip] face, opening a menu whose rows dispatch the matching set-mode command.
  */
 @Composable
 private fun EditorModeDropdown() {

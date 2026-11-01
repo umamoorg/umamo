@@ -96,10 +96,9 @@ fun rememberLocaleTag(settings: Settings): State<String> =
 expect fun applyAppLocale(languageTag: String)
 
 /**
- * Provides [languageTag] to the subtree and makes stringResource() resolve against it. Two effects:
- * [applyAppLocale] sets the platform locale before children compose (via remember keyed on the tag,
- * so it re-runs only when the language actually changes), and `key(languageTag)` forces the subtree -
- * including Compose's cached resource environment - to recompose on a switch so the new catalog is read.
+ * Provides [languageTag] to the subtree and makes stringResource() resolve against it: the platform locale
+ * is applied before children compose, and `key(languageTag)` forces the subtree - including Compose's
+ * cached resource environment - to recompose on a switch so the new catalog is read.
  *
  * @param String languageTag The BCP-47 language tag to make active.
  * @param Function content The subtree to render under this locale.

@@ -29,9 +29,9 @@ sealed interface SelectionTarget {
 
 /**
  * An immutable object-mode selection: the set of selected targets plus the active (primary) one — the
- * last target the user added, which the Inspector features when several are selected and which anchors
- * future range operations. The active target is always a member of [targets], or null when the
- * selection is empty.
+ * last target the user added, which the Properties panel features when several are selected and which
+ * anchors the outliner's range select.  The active target is always a member of [targets], or null when
+ * the selection is empty.
  */
 data class Selection(
 	/** The selected targets, empty when nothing is selected. */
@@ -229,11 +229,8 @@ object SelectionOps {
 	}
 
 	/**
-	 * Expands every selected target to its outliner subtree (the Select Hierarchy context action): a
-	 * part adds its descendant parts and their drawables, a deformer its descendant deformers, a
-	 * drawable just itself - exactly the rows the outliner shows beneath each (see
-	 * [PuppetModel.subtreeTargets]).  The active target is kept (still selected); an empty selection
-	 * stays empty.
+	 * Expands every selected target to its outliner subtree ([PuppetModel.subtreeTargets]) - the Select
+	 * Hierarchy context action.
 	 *
 	 * @param Selection selection The selection whose targets to expand.
 	 * @param PuppetModel model The rig the subtrees are read from.
@@ -269,16 +266,13 @@ fun PuppetModel.hasTarget(target: SelectionTarget): Boolean =
 	}
 
 /**
- * Enumerates the outliner subtree rooted at [target], the target itself first, in tree order.  Matches
- * exactly what the outliner shows as children: a part yields itself plus every descendant part and every
- * drawable in those parts' org-tree children; a deformer yields itself plus its descendant deformers only
- * (never the drawables bound to them via parentDeformerId — those rows live under their parts); a
- * drawable is a leaf, so it yields just itself.  An id that no longer resolves is still yielded (the
- * transforms no-op on it) but never descended into, and a malformed cycle is visited once.  Pure over the
- * model, so it unit-tests without Compose.
+ * Enumerates the outliner subtree rooted at [target], the target itself first, in tree order - exactly
+ * what the outliner shows as its children, so a deformer's subtree holds its descendant deformers only,
+ * never the drawables bound to them (those rows live under their parts).  An id that no longer resolves is
+ * still yielded but never descended into, and a malformed cycle is visited once.
  *
  * @param SelectionTarget target The subtree root.
- * @return List The subtree's targets, [target] first.
+ * @return List<SelectionTarget> The subtree's targets, [target] first.
  */
 fun PuppetModel.subtreeTargets(target: SelectionTarget): List<SelectionTarget> =
 	when (target) {
@@ -333,10 +327,9 @@ fun PuppetModel.subtreeTargets(target: SelectionTarget): List<SelectionTarget> =
 
 /**
  * The selected drawables that carry a mesh, or null when there are none: what an Object-mode operation over
- * drawables alone works on (Generate Mesh, Frame Selected's art).  Parts, deformers, and mesh-less drawables are
- * silently IGNORED rather than blocking: a Select All / Invert sweeps them into the selection, and the user
- * expectation is that the operation still reaches the meshes it can.  An Object-mode transform moves warps too,
- * and resolves its items through [eligibleTransformTargets] instead.
+ * drawables alone works on (Generate Mesh, Frame Selected's art).  Everything else is skipped rather than blocking,
+ * so the operation still reaches the meshes a Select All / Invert swept in.  An Object-mode transform moves warps
+ * too, and resolves its items through [eligibleTransformTargets] instead.
  *
  * @param Selection selection The object-mode selection to evaluate.
  * @param PuppetModel model The rig the targets index into.
@@ -378,14 +371,11 @@ class TransformTargets(
 
 /**
  * The items an Object-mode Grab / Scale / Rotate moves, or null when the gesture must be blocked.  A drawable
- * moves by its rest arrays, so it needs a mesh; a warp moves as a whole deformer, every form it carries at once,
- * so it needs a lattice the default pose draws.  Parts and rotation deformers cannot be transformed yet and are
- * silently skipped, as are mesh-less drawables and warps hidden at rest: a Select All sweeps them in, and G still
- * moves what it can.
+ * needs a mesh and a warp a lattice the default pose draws; everything else is skipped rather than blocking, so
+ * after a Select All, G still moves what it can.
  *
- * Each item moves once.  An item under a warp that moves follows that warp - its art lives in the warp's
- * lattice - so it is left out rather than moved a second time on its own (Blender's rule for a selected parent
- * and child).
+ * Each item moves once: an item under a warp that moves follows that warp, so it is left out rather than moved a
+ * second time on its own (Blender's rule for a selected parent and child).
  *
  * @param Selection selection The object-mode selection to evaluate.
  * @param PuppetModel model The rig the targets index into.

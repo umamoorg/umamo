@@ -170,15 +170,12 @@ internal class ArtworkController(
 	}
 
 	/**
-	 * The artwork import: each file's layers join the open document as one undoable edit.  Every layered and
-	 * flat-raster format the registry reads comes in through this one path, from the File menu's Import row,
-	 * the Sources space, and a drop on the window alike.  The options carry the parameter template, which
-	 * seeds only when the document has no parameters of its own - a rig's first artwork.
+	 * The artwork import: each file's layers join the open document as one undoable edit, by the one path the
+	 * File menu, the Sources space, and a drop on the window share.
 	 *
-	 * With no [request] it asks for a file.  With one it adds the files it was handed, one after another and
-	 * each awaited: an add packs against the model as it stood when it began, so two running at once would
-	 * each pack as though the other had not happened.  A file that will not read is reported and the rest
-	 * still land.
+	 * With no [request] it asks for a file.  With one it adds the files one after another, each awaited: an
+	 * add packs against the model as it stood when it began, so two running at once would each pack as though
+	 * the other had not happened.
 	 *
 	 * @param ImportArtworkRequest? request The files to add, or null to ask for one.
 	 * @param String?               areaId  The area the command fired over, resolved by the shell before the
@@ -203,10 +200,8 @@ internal class ArtworkController(
 	 * Reads the artwork file at [path], describing it the way the document records a file.
 	 *
 	 * A file that yields no art raises the unrecognized-file alert an open would, so a dropped file that
-	 * turns out not to be artwork is named rather than silently skipped.  The reasons are not told apart -
-	 * a file gone since the drop, one the reader refuses, and one that is simply not art all reach the same
-	 * row - because the reader reports them as one absence and the distinction would not change what the
-	 * rigger does about it.
+	 * turns out not to be artwork is named rather than silently skipped.  The reasons are not told apart:
+	 * the reader reports them as one absence, and the distinction would not change what the rigger does.
 	 *
 	 * @param String path The file's stored path.
 	 * @return PickedArtwork? The read file, or null when no art came out of it.
@@ -238,11 +233,9 @@ internal class ArtworkController(
 	}
 
 	/**
-	 * Reloads the listed artwork files that are present on disk - those the scope names, or every one - as
-	 * one undo step; a file that cannot be read is logged and skipped.  Each read is placed by its record's
-	 * offset, so the planner compares the file against the inventory in one frame.  Real file-system paths
-	 * only: a platform uri has no reader here, so a document opened through one reloads nothing.  The
-	 * watcher hears how it ended, so it knows whether to wait for the model's new hashes, try again, or let go.
+	 * Reloads the listed artwork files present on disk, those the scope names or every one, as one undo step,
+	 * and tells the watcher how it ended so it knows whether to wait for the model's new hashes, try again, or
+	 * let go.  Real file-system paths only: a platform uri has no reader here.
 	 *
 	 * @param String?      areaId      The area the operation strip shows in.
 	 * @param ReloadScope? reloadScope The files to re-read, or null for every present file.
@@ -303,10 +296,8 @@ internal class ArtworkController(
 	}
 
 	/**
-	 * Rebinds one or more tiles as one step.  An unbind is the plain binding edit; a binding to a layer
-	 * pulls the layer's art in when its file is on disk - or, when it is not, from the layer PNGs the official
-	 * editor decomposed into a CMO3 the document is open from, else from the tile the document holds for that
-	 * layer - and changes the bindings alone when none has art for the layer.
+	 * Rebinds one or more tiles as one step, pulling the layer's art in from wherever [readSourceArt] finds it
+	 * and changing the bindings alone when nothing has art for the layer.
 	 *
 	 * @param RelinkRequest request The tiles and the binding they take.
 	 * @param String?       areaId  The area the operation strip shows in.
@@ -373,10 +364,8 @@ internal class ArtworkController(
 	}
 
 	/**
-	 * Repoints one listed file at another the rigger picks: what the new file resolves by key reloads, what
-	 * the matcher is confident about rebinds, and the rest is flagged for review with suggestions scored
-	 * against the new file's layers.  The replacement keeps the record's frame: the new file is placed by
-	 * the offset the record already carries, since it stands in for the same art.
+	 * Repoints one listed file at another the rigger picks.  The new file is placed by the offset the record
+	 * already carries, since it stands in for the same art.
 	 *
 	 * @param ReplaceRequest request The record to repoint.
 	 * @param String?        areaId  The area the operation strip shows in.

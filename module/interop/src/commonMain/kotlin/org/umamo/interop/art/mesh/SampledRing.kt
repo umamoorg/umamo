@@ -49,12 +49,8 @@ internal class SampledRing(private val dense: DoubleArray) {
 	 * rounding the spacing to divide it evenly.  A ring too short for [minimumPoints] at that spacing
 	 * is divided into exactly [minimumPoints] even pieces instead, with no keypoints.
 	 *
-	 * With anchor runs, every anchor is a sample, and between two anchors of one run that follow each
-	 * other there is no other sample - the run's stretch of ring is sampled at its anchors alone, and no
-	 * keypoint inside it counts.  The rest of the ring is sampled as above, between keypoints and the
-	 * runs' ends.  A ring that comes out under [minimumPoints] halves its longest gaps until it reaches
-	 * them, the gaps outside the runs first: the anchors stay, since the strand they pair across has
-	 * already been laid out on them.
+	 * With anchor runs, every anchor is a sample and a run's stretch of ring is sampled at its anchors
+	 * alone, since the strand they pair across has already been laid out on them.
 	 *
 	 * @param Double          spacing       The target arc distance between samples.
 	 * @param Double          tolerance     The Douglas-Peucker tolerance for finding candidate corners.

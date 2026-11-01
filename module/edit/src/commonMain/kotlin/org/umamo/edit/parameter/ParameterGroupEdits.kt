@@ -41,11 +41,9 @@ fun PuppetModel.freshParameterGroupId(): ParameterGroupId {
 }
 
 /**
- * A copy of this model with a new empty group [newGroupId] named [name] inserted at the top of the
- * parameter root, expanded. Materializes a flat tree first for a group-less model, so the existing rows
- * keep their order beneath the new group. An empty group has no visual anchor, so it lands at the top of
- * the scroll region where the user is already looking and its immediate inline-rename is on screen -
- * rather than below the fold. Refuses (returns this same instance) a colliding id.
+ * A copy of this model with a new empty, expanded group [newGroupId] named [name] at the top of the
+ * parameter root.  An empty group has no visual anchor, so the top keeps its immediate inline rename on
+ * screen rather than below the fold.
  *
  * @param ParameterGroupId newGroupId The minted id of the new group.
  * @param String name The initial display name.

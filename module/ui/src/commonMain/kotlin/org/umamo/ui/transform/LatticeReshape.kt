@@ -36,14 +36,8 @@ internal class LatticeReshape(
 
 /**
  * Lowers dragged lattice points onto [model]: each warp in [targetWorldById] ends with its rest lattice on the given
- * world points and its children resting where they rested.
- *
- * Warps are taken parents first, each against the model its ancestors' reshapes left: a warp's target is inverted
- * into its parent's space through the parent as it is NOW, after an edited parent has kept this warp in place, so
- * nested edited warps each land where they were dragged.  The offset from the warp's current rest lattice to the
- * inverted target shifts every grid cell and blend-shape form ([withLatticeShifted]), which moves the evaluated
- * lattice by exactly that offset at every pose, and [warpChildrenKeptInPlace] then re-expresses its children.  A
- * warp the rest pose does not draw, or a target of another point count, is left alone.
+ * world points and its children resting where they rested.  Warps are taken parents first, each inverted through
+ * its parent as that parent's own reshape left it, so nested edited warps each land where they were dragged.
  *
  * @param PuppetModel model The model the lattices are dragged over.
  * @param Map<DeformerId, FloatArray> targetWorldById Each reshaped warp's new rest lattice in world space,

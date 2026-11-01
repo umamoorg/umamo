@@ -18,11 +18,8 @@ import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
 /**
  * Collects the keymap commands the Edit overlay executes for its area: Select Linked, Alt+Q switch
- * object, Rip, and the Shift+S snaps.  Each request carries the area its command resolved at dispatch,
- * and only that area's overlay runs it - every open 2D viewport collects the same flows, and an ungated
- * request would run once per viewport.  The area check comes BEFORE the empty-geometry notice, so a
- * request over nothing to edit answers once, from the asking area.  The bodies are the plain handlers in
- * SessionRequestHandlers.kt and gizmo/GizmoSelectionInput.kt; this is only the routing.
+ * object, Rip, and the Shift+S snaps.  Only the area each request names runs it, checked BEFORE the
+ * empty-geometry notice so a request over nothing to edit answers once, from the asking area.
  *
  * Runs until its caller's effect is cancelled.  Everything that changes while it runs is read through
  * a State holder at request time, never captured by value.

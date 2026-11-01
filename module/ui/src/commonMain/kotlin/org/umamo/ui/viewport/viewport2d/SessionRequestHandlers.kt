@@ -194,11 +194,9 @@ internal fun handleRipRequest(
 }
 
 /**
- * Executes the geometry-dependent Shift+S snaps for Edit and Pose mode: the cursor moves read the covered
- * world median, and the selection moves ride the same pipeline as a finished Grab (one undo step) - the
- * movement transfer for a mesh, the lattice's landing at [stage] for a lattice.  An unplaced cursor snaps from the
- * world origin, its conceptual resting place.  The grid snap rounds to the executing area's own grid, the lines that
- * area draws.
+ * Executes the geometry-dependent Shift+S snaps for Edit and Pose mode over the covered world median, a selection
+ * move landing as one undo step through the same pipeline as a finished Grab.  The grid snap rounds to the executing
+ * area's own grid, the lines that area draws.
  *
  * @param EditorSession session The session owning the selection, cursor, and commits.
  * @param List<EditOwnerGeometry> geometries The session owners' live geometry.
@@ -328,11 +326,8 @@ private fun snappedElementsWorld(
 
 /**
  * Executes the geometry-dependent Shift+S snaps for Object mode over the centroids of the items an Object-mode
- * transform moves ([eligibleTransformTargets]): a drawable's vertex mean, a warp's lattice point mean.  The cursor
- * moves read them; the selection moves translate whole drawables through the movement-transfer pipeline and whole
- * warps as objects, their art following (one undo step).  The same pose-neutral guard as a transform applies to the
- * selection moves - writing a deformed capture back through the warp inverse corrupts rest meshes.  The grid snap
- * rounds to the executing area's own grid, the lines that area draws.
+ * transform moves ([eligibleTransformTargets]), a selection move landing as one undo step.  The grid snap rounds to
+ * the executing area's own grid, the lines that area draws.
  *
  * @param EditorSession session The session owning the selection, cursor, and commits.
  * @param SnapKind kind The requested snap.
@@ -367,6 +362,8 @@ internal fun handleObjectSnapRequest(session: EditorSession, kind: SnapKind, gri
 		}
 
 		else -> {
+			// The transform's pose-neutral guard: writing a deformed capture back through the warp inverse would
+			// corrupt rest meshes.
 			if (!isPoseNeutral(model, pose)) {
 				session.emitNotice("notice.transform.deformed", NoticePlacement.NearCursor)
 

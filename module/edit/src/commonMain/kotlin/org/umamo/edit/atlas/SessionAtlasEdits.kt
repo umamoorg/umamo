@@ -58,13 +58,12 @@ fun EditorSession.setAtlasPins(tileIds: Collection<AtlasTileId>, pinned: Boolean
 
 /**
  * Repacks the whole atlas as a single undo step: the new page inventory and every tile's placement
- * land together, with every bound drawable's coordinates re-derived over them - withAtlasRepack's
- * one-pass edit under the one history push a repack should be.
+ * land together, with every bound drawable's coordinates re-derived over them ([withAtlasRepack]).
  *
  * The page PIXELS are session state the caller swaps in beside this commit, which is why the
- * committed model comes back: the orchestrator pre-warms the session's page resolver with the SAME
- * atlas instance this publishes (the resolver memoizes by identity), so the commit resolves its
- * pages by cache hit - and undo re-resolves them the same way.
+ * committed model comes back: the caller pre-warms the session's page resolver with the SAME atlas
+ * instance this publishes (the resolver memoizes by identity), so the commit resolves its pages by
+ * cache hit.
  *
  * @param List             pages            The new page inventory.
  * @param Map              placementsByTile Every tile's new placement, keyed by tile, null for unpacked.

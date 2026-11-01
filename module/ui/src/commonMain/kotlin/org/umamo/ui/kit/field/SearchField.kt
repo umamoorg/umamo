@@ -26,10 +26,8 @@ val SEARCH_FIELD_MIN_WIDTH = 72.dp
 /**
  * A filter box: a [TextField] with a clear affordance pinned inside its trailing edge, shown only while
  * there is text to clear.  The X rides the field's trailing slot rather than being overlaid on it, so
- * the value and the caret can never run underneath it.
- *
- * Every panel that filters a list mounts this one component - the outliner and the properties panel both
- * did their own copy of the field-plus-X, which is exactly the drift the kit exists to prevent.
+ * the value and the caret can never run underneath it.  Every panel that filters a list mounts this one
+ * component, so the field-plus-X cannot drift between them.
  *
  * @param String   value                   The current query.
  * @param Function onValueChange           Edit callback; the clear affordance reports an empty string.

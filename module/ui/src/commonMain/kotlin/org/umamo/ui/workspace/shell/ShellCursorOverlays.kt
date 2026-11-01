@@ -88,14 +88,9 @@ internal fun ShellCursorOverlayStack(pointerPosition: () -> Offset?) {
 }
 
 /**
- * The shell-level radial pie menu host: observes the open document's pie latch and renders the entry
- * ring at the window-space pointer position, frozen at open (the pie opens under the hand,
- * Blender-style).  Living ABOVE the area tree - not inside a viewport's clipped box - is what lets
- * the ring escape area bounds, and being the only instance structurally prevents any cross-viewport
- * duplication (a per-viewport copy could never be gated consistently).
- * [PieMenuOverlay] clamps the center to the window so the ring never clips (Blender's
- * constrain-to-screen); entries dispatch through the command registry, and opening / closing go
- * through the session so the shell's key ladder routes Escape and the 1..N digits unchanged.
+ * The shell-level radial pie menu host: renders the open document's pie at the pointer position frozen
+ * at open (the pie opens under the hand, Blender-style).  Living above the area tree lets the ring
+ * escape area bounds, and being the only instance means no viewport can show a duplicate.
  *
  * @param Offset? pointerPosition The last pointer position in shell-root pixels, or null before any
  *   pointer event (a keyboard-opened pie then centers in the window).
@@ -130,10 +125,9 @@ internal fun ShellPieMenuHost(pointerPosition: Offset?, modifier: Modifier = Mod
 /**
  * The shell-level near-cursor notice: transient [NoticePlacement.NearCursor] notices (Blender's
  * "can't do this because" style) beside the live window-space pointer, auto-dismissed after a few
- * seconds.  One instance above the area tree replaces the per-viewport copies, so the badge follows
- * the pointer across areas without duplicating, escapes area bounds, and appears at the true pointer
- * even when it hovers a non-viewport panel (the per-area version rendered in whichever viewport the
- * pointer last touched).  Draw-only - installs no pointer input.
+ * seconds.  Living above the area tree lets the badge follow the pointer across areas without
+ * duplicating, escape area bounds, and appear over non-viewport panels too.  Draw-only - installs no
+ * pointer input.
  *
  * @param Offset? pointerPosition The last pointer position in shell-root pixels, or null before any
  *   pointer event (the notice then anchors at the window's lower center).

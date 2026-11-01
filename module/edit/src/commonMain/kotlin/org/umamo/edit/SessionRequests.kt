@@ -52,9 +52,8 @@ interface SessionRequests {
 	 * Fires a UV snap (the UV editor's Shift+S pie) for one UV editor overlay to execute: the shown
 	 * surface's dimensions and display geometry live with the overlay, so it performs the snap over
 	 * the texture coordinates in Edit mode or the placed art tiles in Object mode (the texture-space
-	 * sibling of [snapRequests]).  The payload carries the
-	 * operation AND the dispatch-time resolved area (see [UvSnapRequest]), so the collector gates
-	 * deterministically on its own area id.
+	 * sibling of [snapRequests]).  The payload carries the operation AND the dispatch-time resolved area
+	 * (see [UvSnapRequest]), so the collector gates deterministically on its own area id.
 	 */
 	val uvSnapRequests: SharedFlow<UvSnapRequest>
 

@@ -16,9 +16,8 @@ import org.umamo.runtime.model.ParameterId
  * (the same index [org.umamo.runtime.eval.WeightedCell.linearIndex] carries, which is how the vertex
  * shader's active corners find their column).
  *
- * A null grid is an UNKEYED drawable and gets a single column, which the texel build fills with zeros -
- * so the shader fetches column 0 at full weight and reads no offset, leaving the mesh at rest.  That is
- * what lets an unkeyed drawable render with no shader, uniform-layout, or RenderDevice change at all.
+ * A null grid is an UNKEYED drawable and gets a single all-zero column, so it renders at rest through the
+ * same shader and uniform layout as a keyed one.
  *
  * @param KeyformGrid? grid The mesh's keyform grid, or null when the drawable is unkeyed.
  * @return Int The cell count, floored at 1 so an axis-less or absent grid still gets its single rest cell.
@@ -33,10 +32,6 @@ internal fun keyformCellCount(grid: KeyformGrid<MeshDeltaForm>?): Int = maxOf(1,
  * Backend-neutral by construction: it returns plain texels, so each backend uploads them its own way
  * (an RG32F 2D texture on the GL family; whatever Metal prefers).  Emitting a backend's buffer type here
  * would put a texture-upload decision in shared code.
- *
- * A cell with no keyform, or one whose delta array is too short for this vertex, contributes (0, 0) -
- * i.e. that cell leaves the vertex at its rest position.  Both cases are reachable in real models, so
- * they are a normal absence rather than an error.
  *
  * @param KeyformGrid? grid       The mesh's keyform grid, or null when the drawable is unkeyed (which
  *   yields an all-zero single column - the rest mesh).
@@ -65,7 +60,8 @@ internal fun buildDeltaTexels(
 				texels[writeIndex + 1] = deltas[vertexIndex * 2 + 1]
 			}
 
-			// else: leave (0, 0) - a missing cell or a short delta array means no offset from rest.
+			// else: leave (0, 0) - a missing cell or a short delta array, both reachable in real models, means
+			// no offset from rest rather than an error.
 			writeIndex += 2
 		}
 	}
@@ -129,8 +125,8 @@ internal fun blendColumnLayout(drawable: Drawable, cellCount: Int): BlendColumnL
 
 /**
  * Builds a mesh's delta texels INCLUDING its appended blend-shape columns: the grid columns as
- * [buildDeltaTexels], then one column per non-neutral blend form holding the E5-resolved delta
- * (form minus the grid-at-default reference) per vertex. Static per model, like the grid columns.
+ * [buildDeltaTexels], then one column per non-neutral blend form holding its reference-resolved delta
+ * (form minus the grid-at-default reference) per vertex.  Static per model, like the grid columns.
  *
  * @param KeyformGrid       grid         The mesh's keyform grid.
  * @param Drawable          drawable     The drawable (blend forms + reference resolution).

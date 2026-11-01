@@ -17,18 +17,12 @@ import org.umamo.ui.viewport.AtlasPageBinding
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * The render inputs the UI thread pushes and the render thread reads each frame: the selection, the
- * shown set, the model, the atlas pages, the source artwork, the grid colors, the highlight colors, the mesh
- * overlay, the lattice overlay, the Edit-mode direct cage, their palette, and the supersample policy.
- * Each is a volatile publish of an immutable value or a plain scalar.  A change
- * to a value the render reads as it draws bumps a render-version counter the loop folds into per-area
- * freshness, so a state-only change (no resize / pose / camera change) still forces exactly one redraw:
- * the puppet areas watch [puppetRenderBump]; the UV editor's flat scenes (atlas page, source layer)
- * watch [atlasRenderBump], which bumps separately so a puppet update does not needlessly re-render them.
- * The atlas pages and the source artwork are the exception: the loop hands them to the renderer before
- * it schedules any area, so they publish without a bump and the loop bumps its pose version when it
- * applies them - a bump at publish could land after that hand-off and stamp an area fresh over a frame
- * of the outgoing art.
+ * The render inputs the UI thread pushes and the render thread reads each frame, each a volatile publish
+ * of an immutable value or a plain scalar.  A change to a value the render reads as it draws bumps a
+ * render-version counter the loop folds into per-area freshness, so a state-only change (no resize /
+ * pose / camera change) still forces exactly one redraw: the puppet areas watch [puppetRenderBump], the
+ * UV editor's flat scenes watch [atlasRenderBump].  The atlas pages and the source artwork are the
+ * exception: they publish without a bump, and the loop bumps when it applies them ([setAtlasPages]).
  *
  * The UI thread owns the writes, with one exception: the render loop bumps the atlas counter itself
  * when it applies a page binding, and a UI-thread bump landing at that moment can collapse into it -

@@ -67,15 +67,9 @@ import org.umamo.ui.workspace.layout.Workspace
 private const val REORDER_HOLD_MILLIS = 100L
 
 /**
- * The browser-style top tab strip: one tab per workspace (the active one selected), a trailing "+"
- * button that creates a new workspace, a right-click context menu per tab (Duplicate, Delete, and the
- * Previous/Next navigation commands), and drag-to-reorder.  The strip is a thin view: every mutation is
- * reported to the shell, which owns the layout - selecting reports an id, create/duplicate/delete/reorder
- * report the requested edit, and Previous/Next dispatch through the action registry (so the same keyboard
- * shortcut and this menu drive one code path).
- *
- * 最上部のタブ帯。ワークスペースごとに 1 タブ＋末尾の「+」で新規作成、右クリックで複製・削除・前後移動、
- * ドラッグで並べ替え。状態は持たず、すべての変更をシェルに通知する。
+ * The browser-style top tab strip: one tab per workspace plus a trailing "+" button, with a per-tab
+ * context menu, inline rename, and drag-to-reorder.  A thin view: every mutation is reported to the
+ * shell, which owns the layout.
  *
  * @param List workspaces The workspaces in tab order.
  * @param String activeId The currently active workspace id.
@@ -138,8 +132,7 @@ fun WorkspaceTabs(
 			// A workspace with a name shows it verbatim (user data, never translated); otherwise the title
 			// resolves from the id, which localizes built-ins (and is the id itself for anything else).  So
 			// an unnamed built-in relabels on a runtime language switch, while renaming one promotes it to a
-			// custom-named tab that keeps its literal name.  A legacy layout that baked a name onto a built-in
-			// is cleared to null on load (see migrateLayout), so those tabs localize again rather than sticking.
+			// custom-named tab that keeps its literal name.
 			val title = workspace.name ?: workspaceTitle(workspace.id)
 
 			if (editingWorkspaceId == workspace.id) {
@@ -313,14 +306,9 @@ fun WorkspaceTabs(
 }
 
 /**
- * The in-place rename editor shown over a tab's slot.  Styled to match a selected [Tab] (panel fill, same
- * padding) so it reads as the tab itself turning editable.  The whole name starts selected so typing
- * replaces it; it commits on Enter or when focus leaves (clicking away), and cancels on Escape - the last
- * routed in by the shell via [LocalInlineEditController], because the shell's root key handler previews
- * Escape (and every shortcut) before this field could see it.  A blank name commits as a cancel, so the
- * tab keeps its old title.
- *
- * タブ位置に重ねるインライン名前編集。Enter／フォーカス喪失で確定、Escape で取消（シェル経由）。空名は取消扱い。
+ * The in-place rename editor shown over a tab's slot, styled to match a selected [Tab] so it reads as the
+ * tab itself turning editable.  The commit and cancel lifecycle is [InlineRenameField]'s, with Escape
+ * routed in through [LocalInlineEditController].
  *
  * @param String initialName The current title, pre-selected for replacement.
  * @param Function onCommit Called with the trimmed new name when the edit is confirmed.
@@ -393,12 +381,7 @@ private fun NewWorkspaceButton(contentDescription: String, onClick: () -> Unit) 
 /**
  * The destination index for a drag-reordered tab: the number of other tabs whose center lies left of the
  * dragged tab's projected center (its measured center plus the accumulated drag).  Because the dragged
- * tab is removed before re-insertion, this count is exactly its final index - moving right past one
- * neighbor yields the neighbor's old index, moving fully left yields 0.  Tabs with an unmeasured center
- * (null, only on the first frame) are ignored, and a missing dragged center is a no-op (returns
- * [fromIndex]).  Pure so the off-by-one-prone index math is unit-tested directly.
- *
- * ドラッグ並べ替えの着地インデックス。投影中心より左にある他タブの数（＝除去後の最終位置）。
+ * tab is removed before re-insertion, this count is exactly its final index.
  *
  * @param Int fromIndex The dragged tab's current index.
  * @param Float dragDeltaX The accumulated horizontal drag in pixels.

@@ -98,10 +98,6 @@ private class SharesPointerWithSiblingsNode :
  * while a gesture of the surface owns the pointer: a modal transform keeps following the pointer across the
  * chrome and is confirmed or cancelled over it, as a Blender modal operator is.
  *
- * Blocking, the chrome's own controls handle the pointer and the empty space between them blocks it.
- * Passing through, the surface beneath receives every event and a cover over the chrome keeps its controls
- * inert, so a click that confirms a transform never also presses the button under it.
- *
  * The hit test asks only the surface's direct sibling whether it hands the pointer on.  A shield nested in a
  * container laid over the surface needs that container to hand it on too while passing through, with
  * [sharesPointerWithSiblings].
@@ -116,6 +112,8 @@ fun PointerShield(passPointerThrough: Boolean, modifier: Modifier = Modifier, co
 	Box(modifier = rootModifier) {
 		content()
 
+		// Passing through, a cover keeps the chrome's controls inert, so a click that confirms a transform
+		// never also presses the button under it.
 		if (passPointerThrough) {
 			Box(modifier = Modifier.matchParentSize().blocksPointerFallThrough())
 		}

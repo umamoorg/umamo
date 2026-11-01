@@ -25,13 +25,8 @@ import org.umamo.ui.workspace.keyableTrack
  */
 
 /**
- * Wraps [content] as a keyable property row: it publishes [target] on hover and carries the keyframe
- * context menu.
- *
- * The menu dispatches through the action registry rather than calling the session directly, per the
- * project's input rule - so a rebind reaches the menu too, and the menu shows whatever chord is currently
- * bound.  The commands resolve the HOVERED target when they fire, and a right-click necessarily leaves the
- * pointer over this row, so they aim here without the menu having to pass anything.
+ * Wraps [content] as a keyable property row over one channel: it publishes [target] on hover and carries the
+ * keyframe context menu.
  *
  * @param KeyableTarget target The entity and channel this row edits.
  * @param Modifier modifier The layout modifier for the row.
@@ -48,10 +43,12 @@ internal fun KeyablePropertyRow(
 
 /**
  * Wraps [content] as a keyable row over any keyform [track] - a channel, or a geometry track such as a warp's
- * lattice: it publishes the track on hover and carries the keyframe context menu, as the channel form does.
+ * lattice: it publishes the track on hover and carries the keyframe context menu.
  *
- * The menu's rows gray out in Edit mode, where their commands do not apply (EditorMode.editsKeys).  The mode is
- * collected so a switch reaches a row that is already composed.
+ * The menu dispatches through the action registry, so a rebind reaches it and it shows whatever chord is bound.
+ * Its commands resolve the hovered track when they fire, and a right-click leaves the pointer over this row, so
+ * they aim here without the menu passing anything.  The rows gray out in Edit mode, where the commands do not
+ * apply.
  *
  * @param KeyformTrackRef track The track this row keys.
  * @param Modifier modifier The layout modifier for the row.

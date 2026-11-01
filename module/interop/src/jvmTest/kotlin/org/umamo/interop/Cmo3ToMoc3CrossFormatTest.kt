@@ -27,9 +27,10 @@ import kotlin.test.assertTrue
  * lists, parameter ranges.  Those are decisions, not arithmetic - if the editor put a drawable under a
  * warp, so must we.
  *
- * The TEXTURE PAGE is not compared, and cannot be: a CMO3 has no atlas.  Its pixels are
- * embedded per drawable, and the packed pages a moc indexes into are produced BY the bake - so the
- * editor's page numbers describe a packing this file does not contain.  What the export writes is its
+ * The TEXTURE PAGE is not compared, and cannot be: a CMO3 has no per-drawable page field (it binds
+ * through the layered-art web), so a CMO3-origin drawable carries no page index, and the packed pages a
+ * moc indexes into are produced BY the bake - so the editor's page numbers describe a packing the
+ * imported rig does not record.  What the export writes is its
  * own page set (one per embedded image, or the retained atlas for a MOC3-origin document), and the
  * family it writes is self-consistent with it.
  *

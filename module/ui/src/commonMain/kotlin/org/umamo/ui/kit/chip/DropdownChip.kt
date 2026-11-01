@@ -65,12 +65,9 @@ class ChipToggle(
 )
 
 /**
- * The roles a [DropdownChip] plays: a [Header] chrome chip (content-width, tab-fill, an accent open
- * state, a right/down disclosure chevron), a form [Field] (fills its column over the control fill, a
- * down/up chevron pushed to the trailing edge) that sits beside the other form controls, or a [Compact]
- * header chip sized for a 22.dp list row (a 14.dp glyph in 2.dp padding, so the face is 18.dp tall
- * where a Header's 24.dp would overflow the row).  Sanctioned variations of the one chip rather than
- * forks, so every role shares the anatomy.
+ * The roles a [DropdownChip] plays: a [Header] chrome chip at its content width, a form [Field] that fills
+ * its column beside the other form controls, or a [Compact] header chip sized for a 22.dp list row.
+ * Sanctioned variations of the one chip rather than forks, so every role shares the anatomy.
  */
 enum class DropdownChipStyle {
 	Header,
@@ -79,22 +76,15 @@ enum class DropdownChipStyle {
 }
 
 /**
- * The header dropdown chip, Blender-style: an optional 16.dp leading glyph, an optional labelMedium
- * text, an optional value glyph, and a 12.dp chevron that points right while the dropdown is closed and
- * down while it is open.  The value glyph sits beside the chevron and shows what the dropdown is set to
- * (Blender's falloff curve beside the proportional toggle, its snap target beside the magnet), so a face
- * can carry a setting's current value without a label.
- * Flat like the rest of the kit - the default indication is suppressed and the chip paints its own
- * three-state border and fill: accent while open, panelBackground / panelBorderHover under the
- * pointer, tabBackground / panelBorder at rest; content is accentText while open, text
- * otherwise.  The face is explicit params rather than a content slot on purpose: the anatomy (sizes,
- * paddings, chevron) stays un-forkable across every header chip, which is the drift this component
- * exists to prevent.  The dropdown stays a slot because consumers differ (a kit Menu that dismisses
- * per click vs a stay-open Popup).
+ * The header dropdown chip, Blender-style: an optional leading glyph, an optional label, an optional value
+ * glyph, and a chevron that points right while the dropdown is closed and down while it is open.  The value
+ * glyph shows what the dropdown is set to (Blender's falloff curve beside the proportional toggle), so a
+ * face can carry a setting's current value without a label.
  *
- * A Header chip holds its intrinsic width: the glyphs and the label ignore the incoming maximum, so a
- * parent with no room left pushes the chip off its edge instead of squeezing it down to an empty
- * padding box.  A Field chip still ellipsizes its label, which is what a form column wants.
+ * The face is explicit params rather than a content slot on purpose: the anatomy (sizes, paddings,
+ * chevron) stays un-forkable across every header chip, which is the drift this component exists to
+ * prevent.  The dropdown stays a slot because consumers differ (a kit Menu that dismisses per click vs a
+ * stay-open Popup).
  *
  * @param Boolean   expanded           Whether the chip's dropdown is open (drives the accent state).
  * @param Function  onExpandRequest    Invoked on click to open the dropdown.
@@ -311,11 +301,10 @@ private fun PlainChipFace(
 }
 
 /**
- * The split face of a chip carrying an [iconToggle]: the glyph is a lit / unlit button of its own and the
- * chevron (with the label and the value glyph, if any) opens the dropdown, the two halves sharing one border with a seam between
- * them.  Each half paints its own fill and carries its own tooltip and accessible name; the border follows
- * the whole - accent while open, hover-lit while the pointer is over either half.  The toggle half's lit fill
- * is the IconButton family's accent ramp, so it reads like the header's other filled toggles.
+ * The split face of a chip carrying a [ChipToggle]: the glyph is a lit / unlit button of its own and the
+ * chevron (with the label and the value glyph, if any) opens the dropdown, the two halves sharing one border
+ * with a seam between them.  The toggle half's lit fill is the IconButton family's accent ramp, so it reads
+ * like the header's other filled toggles.
  *
  * @param Boolean           expanded           Whether the dropdown is open.
  * @param Function          onExpandRequest    Invoked by the chevron half to open the dropdown.

@@ -4,11 +4,9 @@ import org.umamo.edit.Pose
 import org.umamo.runtime.model.PuppetModel
 
 /**
- * Reports whether the live pose sits at every parameter's default value.  Object-mode transforms capture
- * the displayed (posed) geometry and write it back through the deformer-chain inverse, which is only
- * exact at the neutral pose - so [EditorSession.beginObjectOperator] refuses to start while any
- * parameter is scrubbed away from its default.  A parameter missing from the pose map counts as neutral
- * (the renderer substitutes the default for it).
+ * Reports whether the live pose sits at every parameter's default value - the gate for Object-mode
+ * transforms, whose write-back through the deformer-chain inverse is only exact at the neutral pose.  A
+ * parameter missing from the pose map counts as neutral, since the renderer substitutes its default.
  *
  * @param PuppetModel model The rig whose parameter defaults define neutral.
  * @param Pose pose The live parameter values to test.
@@ -98,12 +96,9 @@ fun meshBounds(positions: FloatArray): MeshBounds {
 fun allPointIndices(positions: FloatArray): Set<Int> = (0 until positions.size / 2).toSet()
 
 /**
- * Translates a whole mesh so its bounds center lands on ([newCenterX], [newCenterY]).  This is the write
- * side of the Properties Position row: the row reads [meshBounds]'s center, and typing a value moves the
- * mesh rigidly by the difference, so the displayed number becomes exactly the value entered.
- *
- * Pure and space-agnostic - it moves the array it is given.  The Properties panel applies it to WORLD
- * positions and inverts the result back onto the base mesh; see DrawableWorldTransform.kt.
+ * Translates a whole mesh so its bounds center lands on ([newCenterX], [newCenterY]) - the write side of
+ * the Properties Position row, which reads [meshBounds]'s center, so the displayed number becomes exactly
+ * the value entered.
  *
  * @param FloatArray positions The interleaved positions.
  * @param Float newCenterX The x the bounds center should land on.
@@ -127,16 +122,10 @@ fun movedToBoundsCenter(positions: FloatArray, newCenterX: Float, newCenterY: Fl
 }
 
 /**
- * Scales a whole mesh about its bounds center so its extents become ([newWidth], [newHeight]).  The write
- * side of the Properties Size row.  Pure and space-agnostic like [movedToBoundsCenter].
- *
- * The bounds center is the pivot precisely because it is a fixed point of the scale: the Position row reads
- * that same center, so resizing never makes the position readout jump.  (The vertex centroid -
- * MeshTransforms.combinedCentroid, which the viewport gizmo pivots on - sits off the bounds center on an
- * asymmetric mesh and would move it.)
- *
- * An axis whose current extent is zero has no defined factor - a degenerate mesh with every vertex on one
- * line cannot be given a width - so that axis is left alone rather than multiplied by infinity.
+ * Scales a whole mesh about its bounds center so its extents become ([newWidth], [newHeight]) - the write
+ * side of the Properties Size row.  The bounds center is the pivot because the Position row reads that same
+ * center, so resizing never makes the position readout jump; the vertex centroid the viewport gizmo pivots
+ * on sits off it on an asymmetric mesh.
  *
  * @param FloatArray positions The interleaved positions.
  * @param Float newWidth The target x extent (ignored when the current x extent is 0).

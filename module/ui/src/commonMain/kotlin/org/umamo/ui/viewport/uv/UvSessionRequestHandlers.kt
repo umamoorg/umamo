@@ -25,18 +25,9 @@ import kotlin.math.roundToInt
 
 /**
  * Executes the UV editor's Shift+S snaps in Edit mode, over the shown surface's texture coordinates (Object
- * mode moves placed art instead - see handleUvObjectSnapRequest): the cursor moves read the UV cursor or the
- * covered median and write the UV cursor directly, and the selection moves transform the covered vertices in
- * the texel display space and commit ONE TransformUvs step (the same commit path a finished modal UV gesture
- * uses).  All math is identity display space - no deformer
- * inverse, no movement transfer - since UVs live in one flat space; only the covered vertices of the
- * meshes on the shown surface participate (the overlay only shows one surface at a time, exactly as the
- * modal capture scopes).
- *
- * The grid snaps target the drawn UV grid: its major lines are the executing area's grid scale in texels
- * and the minor lines divide each cell by its subdivisions, anchored at the image origin, so a grid snap
- * rounds display coordinates to the grid's snap step.  The pixel snaps round to the nearest integer texel,
- * which is a pixel corner in this texel-unit space - the artwork-edge-accuracy target.
+ * mode moves placed art instead - see handleUvObjectSnapRequest).  A selection move commits ONE TransformUvs
+ * step, the commit path a finished modal UV gesture uses, over the covered vertices of the meshes on the
+ * shown surface alone, as the modal capture scopes them.
  *
  * @param EditorSession session The session owning the selection, the UV cursor, and the commit.
  * @param List<GizmoMeshGeometry> geometries The shown meshes' display-space gizmo geometry.
@@ -156,10 +147,9 @@ internal fun handleUvSnapRequest(
 }
 
 /**
- * Runs a UV snap that moves the UV cursor alone and reads no selection: Cursor to Pixels rounds the cursor to
- * the nearest texel corner of the shown surface, Cursor to Grid to the area's grid step, both in display space
- * and both from an unplaced cursor's resting place (UV 0,0).  One rule for the Edit and the Object handler,
- * whose other snaps read different selections; any other kind is not this function's and does nothing.
+ * Runs a UV snap that moves the UV cursor alone and reads no selection (Cursor to Pixels, Cursor to Grid): one
+ * rule for the Edit and the Object handler, whose other snaps read different selections.  Any other kind does
+ * nothing.
  *
  * @param EditorSession session The session owning the UV cursor.
  * @param UvEditFrame frame The shown surface's frame, mapping the cursor to display space and back.
@@ -192,23 +182,10 @@ internal fun snapUvCursor(session: EditorSession, frame: UvEditFrame, kind: UvSn
  * tile's origin is its footprint center (footprintCenterDisplay), the point Individual Origins turns it
  * about, so Cursor to Selected followed by Selection to Cursor moves nothing.
  *
- * - Cursor to Pixels / Grid move the cursor alone (snapUvCursor), over a page or a source layer.
- * - Cursor to Selected puts the cursor on the mean of the selected placed tiles' origins, pinned tiles
- *   included, since it moves none of them.
- * - Selection to Cursor lands each movable tile's origin on the cursor, Blender's pile-up.
- * - Selection to Cursor (Keep Offset) moves every movable tile by one delta, landing the mean of their
- *   origins on the cursor and keeping their layout.
- * - Selection to Grid rounds each origin to the area's grid step in display space, the lines its backdrop
- *   draws (anchored at the page's bottom-left, so the snap runs before the flip into page space).
- * - Selection to Pixels rounds each placement's position, where raster pixel (0,0) lands, to whole page
- *   pixels, so an unscaled, upright tile composes pixel for pixel instead of resampled.
- *
- * The movable tiles are the ones a placement drag would move: the selection's placed, unpinned tiles shown
- * on the page.  With none, the snap answers with the drag's own notices.  Every move commits as ONE placement
- * step, which re-derives the UVs of every drawable over each moved tile; like every snap, it registers no
- * operation-strip entry and runs none of the drag's overlap checks.  The origins need the movers' art
- * decoded, which runs on [computeDispatcher]; a document that changed while it ran drops the snap rather
- * than commit placements read from the old one.
+ * The movable tiles are the ones a placement drag would move, and with none the snap answers with the drag's
+ * own notices.  Every move commits as ONE placement step; like every snap, it registers no operation-strip
+ * entry and runs none of the drag's overlap checks.  A document that changed while the movers' art decoded
+ * drops the snap rather than commit placements read from the old one.
  *
  * @param EditorSession session The session owning the selection, the UV cursor, and the commit.
  * @param UvPlacementSurface? surface The shown atlas page and the source-art store, or null over a source
@@ -318,10 +295,14 @@ internal suspend fun handleUvObjectSnapRequest(
 					placement.translatedInDisplay(cursorDisplayX - meanX, cursorDisplayY - meanY)
 				}
 
+				// The grid's lines are anchored at the page's bottom-left in display space, so the snap runs before
+				// the flip into page space.
 				UvSnapKind.SelectionToGrid -> {
 					placement.translatedInDisplay(snapToGrid(originX, 0f, gridStep) - originX, snapToGrid(originY, 0f, gridStep) - originY)
 				}
 
+				// The position (where raster pixel (0,0) lands) rounds to whole page pixels, so an unscaled, upright
+				// tile composes pixel for pixel instead of resampled.
 				UvSnapKind.SelectionToPixels -> {
 					placement.copy(positionX = round(placement.positionX), positionY = round(placement.positionY))
 				}

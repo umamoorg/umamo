@@ -74,12 +74,6 @@ private val RELATION_DROPDOWN_MIN_WIDTH = 140.dp
  *
  * `[type glyph] [current relation, or the typed query] [x] [eyedropper]`
  *
- * Focusing the field swaps its text for an empty query and opens the candidate list; blurring restores the
- * bound entity's name.  The dropdown is deliberately NON-focusable and its rows decline focus, so clicking
- * a row cannot blur the field out from under the click (the classic combo-box race); it closes on commit,
- * Escape, or the field losing focus.  Up / Down / Enter are intercepted ahead of the field so they navigate
- * the list while ordinary typing still reaches it.
- *
  * Like [NumberField] and [HexColorField] it lends its cancel hook to [LocalInlineEditController] while
  * focused, so the shell's root key handler yields keystrokes to the field instead of firing shortcuts.
  *

@@ -54,35 +54,16 @@ import org.umamo.ui.viewport.rememberViewportOverlayColors
  */
 
 /**
- * The UV editor's Object-mode gizmo overlay, the mode-exclusive sibling of [UvEditGizmoOverlay]
- * (each one self-gates on the session's mode, the viewport overlay pair's convention; in Pose mode neither
- * mounts, so the UV editor is view-only there): every
- * visible island on the shown surface is a click target writing the ONE session object selection, so a
- * selection made here flows out to the viewport and the outliner.  The islands themselves draw in the area's
- * frame, in the Blender object-overlay style (UvObjectSceneOverlay.kt).
+ * The UV editor's Object-mode gizmo overlay, the mode-exclusive sibling of [UvEditGizmoOverlay] (in Pose
+ * mode neither mounts, so the UV editor is view-only there).  Every visible island on the shown surface is a
+ * click target writing the ONE session object selection, with the viewport Object gizmo's interaction
+ * vocabulary through the same [org.umamo.ui.viewport.gizmo.ObjectPickController], so a selection made here
+ * flows out to the viewport and the outliner.
  *
- * The interaction vocabulary is the viewport Object gizmo's, through the same
- * [org.umamo.ui.viewport.gizmo.ObjectPickController]: a sub-threshold primary click picks the front-most
- * island under the cursor (plain replaces, Shift / Ctrl toggles membership, an unmodified click on empty
- * canvas clears - under Follow Selection that may hop the shown page to the first-meshed fallback, while a
- * pinned page holds), an Alt click resolves the overlap stack through the host's popup, a primary
- * drag box-selects every island with a vertex inside the box (Shift adds), and Shift+RightClick
- * places the UV cursor.
- * Picking is CPU-side over [islandPick] - display-space point-in-face in two tiers.  An island
- * whose art is opaque under the cursor wins, so over overlapping islands the visible art decides;
- * when none is opaque there, any island whose mesh contains the point is hit, so a click on an
- * island's transparent interior still selects it and only a click outside every mesh is empty
- * canvas.  The same overlay serves both surfaces: over a source layer it gates on that artwork's own
- * alpha and places the cursor through the layer's frame, which is the whole of the difference.
- *
- * Over an ATLAS PAGE the overlay also owns the placement gesture (UvPlacementModalTransform): a UV operator
- * latched in this area in Object mode (G / S / R) moves the selected drawables' art on the page, publishes the
- * drag to the host's [placementSceneState] (the area's frame then shows the crops at their new spots and the
- * islands moved with them), outlines any footprint that collides or spills off the page, and commits ONE undo
- * step.  Nothing is pushed to the puppet renderer during the drag:
- * a placement move is invisible in the 2D viewport by construction.  Only primary-driven events are consumed
- * while idle; pan / zoom and the plain right-click (the context menu) fall through, and a modal gesture owns
- * the pointer.
+ * Over an ATLAS PAGE the overlay also owns the placement gesture (UvPlacementModalTransform): a G / S / R
+ * latched in this area moves the selected drawables' art on the page as one undo step.  Nothing is pushed to
+ * the puppet renderer during the drag, since a placement move is invisible in the 2D viewport by
+ * construction.
  *
  * Posed from the FRAME camera so it lags with the GL image during pan / zoom.
  *

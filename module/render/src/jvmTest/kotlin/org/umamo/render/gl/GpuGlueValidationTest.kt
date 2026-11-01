@@ -35,7 +35,7 @@ import kotlin.test.assertTrue
  * it should, at load and after every kind of structural edit.
  *
  * [GpuDeformValidationTest] excludes glue, and `GlueTest` / `GlueCorpusTest` exercise only the CPU
- * [applyGluesResolved]; this covers the parts unique to the GPU path and easiest to get wrong: the
+ * `applyGluesResolved`; this covers the parts unique to the GPU path and easiest to get wrong: the
  * per-vertex weld attributes `planGlueLayout` plans (partner GLOBAL index, glue index, weld weight), the
  * shared position buffer's per-mesh base offsets, the pass-1 transform-feedback deform, and the pass-2
  * weld shader's partner lookup.  A wrong base offset or a swapped partner index welds a vertex toward
@@ -131,6 +131,9 @@ class GpuGlueValidationTest {
 	/**
 	 * The two-quad probe.  With [welded] the glue drags B's left edge onto A's right edge; without it the
 	 * same two meshes sit apart, which is the control the weld is measured against.
+	 *
+	 * @param Boolean welded Whether the glue joins the two quads.
+	 * @return PuppetModel The probe model.
 	 */
 	private fun model(welded: Boolean): PuppetModel {
 		// The anchor carries NO indices: it draws nothing and exists only as a weld partner.
@@ -281,6 +284,10 @@ class GpuGlueValidationTest {
 	 * that is self-consistent but out of bounds - a uniformly shifted base offset moves the writes, the
 	 * own-reads, and the partner-reads together, so the welded edge still lands correctly and only the
 	 * mesh's last vertex runs off the end of the shared buffer.  A left-edge-only probe is blind to it.
+	 *
+	 * @param String         label    The stage, for the failure message.
+	 * @param Pair<Int, Int> actual   The rendered (leftmost, rightmost) columns.
+	 * @param Pair<Int, Int> expected The CPU oracle's (leftmost, rightmost) columns.
 	 */
 	private fun assertExtentMatches(label: String, actual: Pair<Int, Int>, expected: Pair<Int, Int>) {
 		assertTrue(
@@ -311,7 +318,7 @@ class GpuGlueValidationTest {
 		return worldXToColumn(minX) to worldXToColumn(maxX) - 1
 	}
 
-	/** World x → framebuffer column, at the fixed 1:1 camera centerd on the world origin. */
+	/** World x → framebuffer column, at the fixed 1:1 camera centered on the world origin. */
 	private fun worldXToColumn(worldX: Float): Int = ((worldX + viewportSize / 2f)).toInt()
 
 	/**

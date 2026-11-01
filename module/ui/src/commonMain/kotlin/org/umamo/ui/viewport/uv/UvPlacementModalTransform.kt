@@ -22,18 +22,11 @@ import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 /**
  * The commit side of the UV Object overlay's placement gesture: a UV operator latched in its area in Object
  * mode (G / S / R) moves the selected drawables' ART on the shown atlas page - each tile's pixels and every
- * drawable over it together, so the vertex-to-art mapping never changes.  The capture freezes the movers
- * (their placements, trims, mesh reserves, and crops), the page's bystanders, and the moving islands'
- * display positions; each drive evaluates the placements through the shared operator parameters
- * (UvPlacementGesture.kt) and publishes the host's readout and the drag's share of the area's scene (the
- * scrims, the crops, and the moving islands' positions, which the renderer draws); confirm commits ONE undo
- * step through setAtlasPlacements, leaves the crops drawn at their new spots (the ghost) until the pages for
- * the commit are applied, and registers the gesture on the operation settings strip.  Nothing is pushed to
- * the puppet renderer: a placement move is invisible in the 2D viewport by construction.
+ * drawable over it together, so the vertex-to-art mapping never changes.  Nothing is pushed to the puppet
+ * renderer, since a placement move is invisible in the 2D viewport by construction; after a confirm the crops
+ * stay drawn at their new spots (the ghost) until the pages for the commit are applied.
  *
- * The capture builds off the UI thread (it decodes rasters and cuts crops), so [begin] suspends; a latch
- * that clears or changes while it builds begins nothing.  The drive runs through [drive]: each pointer event
- * resolves a request here, on the UI thread, and the evaluation runs off it, publishing back here.
+ * The capture builds off the UI thread (it decodes rasters and cuts crops), so [begin] suspends.
  *
  * @param String areaId The UV editor area the overlay covers; only an operator latched here drives.
  * @param EditorSession session The session owning the object selection, the model, and the UV latch.
@@ -66,13 +59,9 @@ internal class UvPlacementModalTransform(
 	}
 
 	/**
-	 * Starts the placement gesture as a UV operator latches in this area.  Over a source layer there is no
-	 * page to move on, so the latch drops with a notice.  Otherwise the capture builds off-thread from the
-	 * values read before it starts; a latch that cleared or changed while it built (Escape, a mode switch)
-	 * begins nothing, and a build that found nothing movable drops the latch with its own notice.  A latch
-	 * cleared and made again with the same operator in the same area before the overlay recomposes still
-	 * begins: the latch effect keys on the operator by value and so does not restart for it, which leaves
-	 * this build as the only one that can begin it.
+	 * Starts the placement gesture as a UV operator latches in this area, building the capture off-thread.  A
+	 * latch that cleared or changed while it built begins nothing, and a surface or build with nothing movable
+	 * drops the latch with a notice.
 	 *
 	 * @param ActiveOperator operator The latched operator.
 	 * @param UvPlacementSurface? surface The shown page and the source-art store, or null over a source layer.
@@ -106,7 +95,9 @@ internal class UvPlacementModalTransform(
 				buildPlacementGesture(model, surface, selection, shownGeometries, pivotMode, activeDrawableId, cursorDisplay, operator.kind)
 			}
 
-		// By value, not identity: see the docblock for the same-operator re-latch this lets begin.
+		// By value, not identity: a latch cleared and made again with the same operator in the same area before
+		// the overlay recomposes does not restart the latch effect, which keys on the operator by value, so this
+		// build is the only one that can begin it.
 		if (session.activeUvOperator.value != operator) {
 			return
 		}
@@ -146,11 +137,9 @@ internal class UvPlacementModalTransform(
 	}
 
 	/**
-	 * Confirms the in-flight placement gesture at the latest pointer: settles a drive the worker has not
-	 * published yet, commits every mover whose placement changed as ONE undo step under the operator's own
-	 * label, publishes the landing, registers the gesture on the operation settings strip (an adjustment
-	 * re-evaluates the same frozen gesture over that step), then clears the operator.  No preview was ever
-	 * pushed to the renderer, so there is nothing to resync.
+	 * Confirms the in-flight placement gesture at the latest pointer as one undo step, registered on the
+	 * operation settings strip, then clears the operator.  No preview was ever pushed to the renderer, so there
+	 * is nothing to resync.
 	 */
 	override fun confirm() {
 		drive.settle()
@@ -171,9 +160,8 @@ internal class UvPlacementModalTransform(
 	}
 
 	/**
-	 * Resolves and submits a drive for one pointer frame, on the UI thread: the shared operator parameters
-	 * over the capture's anchor (once per event: the Rotate branch advances the accumulator, which must see
-	 * every step), handed to the worker with the frozen gesture.
+	 * Resolves and submits a drive for one pointer frame, on the UI thread.  It resolves once per event because
+	 * the Rotate branch advances the accumulator, which must see every step.
 	 *
 	 * @param MeshOperatorKind operator The latched operator.
 	 * @param Offset virtualPointer The wrap-continuous pointer.

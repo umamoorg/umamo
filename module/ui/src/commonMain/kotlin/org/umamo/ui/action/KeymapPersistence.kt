@@ -44,10 +44,7 @@ internal fun readKeymapOverrides(settings: Settings): Map<String, String> {
 
 /**
  * Writes the chord overrides back to settings as a JSON object (chord-spec → command-id), replacing the
- * stored value wholesale.  Persists via the Settings user layer and emits the [KEYMAP_OVERRIDES_KEY] change
- * so the reactive keymap resolver rebuilds.
- *
- * コード上書きを JSON オブジェクトとして保存する（全置換）。
+ * stored value wholesale.
  *
  * @param Settings settings The settings store to write to.
  * @param Map overrides The override map to persist.
@@ -58,11 +55,7 @@ internal fun writeKeymapOverrides(settings: Settings, overrides: Map<String, Str
 
 /**
  * Resolves the active [Keymap] from settings: the selected preset's bindings ([keymapPresetSpecs]) with the
- * user's overrides layered on top (an empty-string override unbinds the chord).  This is the settings-backed
- * replacement for the bare [defaultKeymap]; the shell resolves it reactively and re-resolves on any
- * input.keybinding change.
- *
- * 設定から有効なキーマップを解決する（プリセット＋ユーザー上書き、空値は解除）。
+ * user's overrides layered on top (an empty-string override unbinds the chord).
  *
  * @param Settings settings The settings store to resolve from.
  * @return Keymap The resolved keymap.
@@ -155,12 +148,9 @@ private fun releaseChord(settings: Settings, overrides: MutableMap<String, Strin
 }
 
 /**
- * Rebinds [commandId] to [newChord], persisting the change.  Releases the command's existing canonical chord
- * first so the command moves rather than gaining a second binding, then binds [newChord] to it - which also
- * resolves any conflict, since the new entry wins over whatever previously held that chord (the caller is
- * expected to confirm a conflict with the user first; see the keybindings editor).
- *
- * commandId を newChord に再割り当てして保存する。既存の正規コードを解放してから新コードを束縛する。
+ * Rebinds [commandId] to [newChord], persisting the change.  The command moves rather than gaining a second
+ * binding, and [newChord] is taken from whatever held it, so the caller confirms a conflict with the user
+ * first.
  *
  * @param Settings settings The settings store to write to.
  * @param String commandId The command being rebound.

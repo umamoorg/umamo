@@ -19,17 +19,12 @@ import org.umamo.ui.viewport.gizmo.drawCursorMarker
 import org.umamo.ui.viewport.gizmo.worldToScreen
 
 /**
- * The UV cursor marker (the texture-space 2D cursor), the UV editor's twin of [org.umamo.ui.viewport.viewport2d.Cursor2dOverlay]:
- * the same crosshair at the cursor's display-space position, present in both modes and drawn above
- * the gizmo chrome for viewport parity.  Draw-only; placement stays a gizmo gesture
- * (Shift+RightClick, handled by the mode's own overlay in both modes).
+ * The UV cursor marker (the texture-space 2D cursor), the UV editor's twin of [org.umamo.ui.viewport.viewport2d.Cursor2dOverlay],
+ * drawn above the gizmo chrome in both modes.  Draw-only; placement stays a gizmo gesture (Shift+RightClick).
  *
- * The cursor is stored in ATLAS coordinates, so the shown surface's frame is what puts it in the
- * right place: over a page that is the plain texel mapping, and over a source layer it also carries
- * the drawable's placement.  One cursor either way - the same point on the art, wherever it is seen.
- *
- * The area's overlays control (its 2D Cursor row, or the Show Overlays master) hides the marker through
- * LocalAreaOverlays; the cursor stays placed, and the pivot and snap commands keep reading it.
+ * The cursor is stored in ATLAS coordinates and placed through the shown surface's frame, so it is one
+ * cursor, the same point on the art wherever it is seen.  The area's overlays control hides only the
+ * marker; the pivot and snap commands keep reading the cursor.
  *
  * @param EditorSession session The session whose UV cursor this overlay draws.
  * @param UvEditFrame frame The shown surface's texel size plus its conversion from stored coordinates.

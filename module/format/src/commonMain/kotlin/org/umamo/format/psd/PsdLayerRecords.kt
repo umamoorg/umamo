@@ -8,9 +8,8 @@ import kotlin.math.abs
 /**
  * The PSD file header plus the bits of the file structure the channel decoder needs.
  *
- * EN: Read from the 26-byte File Header.  Canvas size and the per-layer pixel geometry both derive
- *     from depth and color mode, so they are surfaced here rather than guessed downstream.
- * JA: PSD ファイルヘッダ（26 バイト）。キャンバスサイズと深度・カラーモードを公開する。
+ * Read from the 26-byte File Header.  Canvas size and the per-layer pixel geometry both derive from
+ * depth and color mode, so they are surfaced here rather than guessed downstream.
  *
  * @see <a href="https://docs.umamo.org/format/PSD.md">PSD.md §1 File Header</a>
  */
@@ -64,13 +63,9 @@ internal data class PsdLayerMask(
 /**
  * Per-layer metadata read from a PSD's "Layer and Mask Information" section.
  *
- * We parse this ourselves rather than leaning on a library that keeps its layer structures private:
- * the record headers that carry bounds/name/opacity/clipping/blend and the channel-info table are
- * trivially and reliably walked here.  [channelDataOffset] is the absolute file offset of this
- * layer's channel image data, computed once all records are parsed (the channel data of every layer
- * is stored sequentially after the records), so [PsdRaster] can seek straight to a layer's pixels.
- *
- * PSD のレイヤーレコードから取り出すメタデータ。チャンネルデータの絶対オフセットも保持する。
+ * [channelDataOffset] is the absolute file offset of this layer's channel image data, computed once
+ * all records are parsed (the channel data of every layer is stored sequentially after the records),
+ * so [PsdRaster] can seek straight to a layer's pixels.
  *
  * @see <a href="https://docs.umamo.org/format/PSD.md">PSD.md §3 Layer records</a>
  */
@@ -399,9 +394,9 @@ internal object PsdLayerRecords {
 
 			"mul " -> LayerBlend.Multiply
 
+			// PSD "idiv" = Color Burn
 			"idiv" -> LayerBlend.ColorBurn
 
-			// PSD "idiv" = Color Burn
 			"lbrn" -> LayerBlend.LinearBurn
 
 			"dkCl" -> LayerBlend.DarkerColor
@@ -412,9 +407,9 @@ internal object PsdLayerRecords {
 
 			"div " -> LayerBlend.ColorDodge
 
+			// linear dodge (add)
 			"lddg" -> LayerBlend.Add
 
-			// linear dodge (add)
 			"lgCl" -> LayerBlend.LighterColor
 
 			"over" -> LayerBlend.Overlay
@@ -433,9 +428,9 @@ internal object PsdLayerRecords {
 
 			"diff" -> LayerBlend.Difference
 
+			// PSD "smud" = Exclusion
 			"smud" -> LayerBlend.Exclusion
 
-			// PSD "smud" = Exclusion
 			"fsub" -> LayerBlend.Subtract
 
 			"fdiv" -> LayerBlend.Divide

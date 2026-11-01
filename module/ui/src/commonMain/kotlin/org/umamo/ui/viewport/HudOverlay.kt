@@ -40,13 +40,10 @@ private val ACTIVE_MESH_INFO_MAX_WIDTH = 260.dp
 
 /**
  * The top-left active-object info chip shared by the 2D viewport and the UV editor: which drawable
- * element clicks and operators land on, or in the 2D viewport which deformer.  Row 1 is "Part | Name" (the
- * part omitted, pipe and all, for an object no part owns); row 2 is the innermost parent deformer's name (the
- * row omitted for an object no deformer moves).  Edit and Pose mode annotate the session's active mesh or lattice;
- * Object mode the object selection's active drawable, or with [showsDeformers] its active deformer.  With none
- * resolved the chip renders nothing, so the hosts need no gate of their own.  Every name is user data, rendered
- * verbatim (never localized) and capped at [ACTIVE_MESH_INFO_MAX_WIDTH] with an ellipsis - draw-only per the HUD
- * contract, so no tooltip carries the full name.
+ * element clicks and operators land on, or in the 2D viewport which deformer, with its part and its innermost
+ * parent deformer.  With none resolved the chip renders nothing, so the hosts need no gate of their own.  Every
+ * name is user data, rendered verbatim (never localized) and capped at [ACTIVE_MESH_INFO_MAX_WIDTH] with an
+ * ellipsis - draw-only per the HUD contract, so no tooltip carries the full name.
  *
  * @param EditorSession session The session whose mode, selections, and model resolve the active object.
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
@@ -179,11 +176,11 @@ internal fun MeshOperatorKind.labelResource(): StringResource =
 	}
 
 /**
- * The modal status badge (top center): the operator's name, the axis lock (the axis a Rotate turns about in
- * depth, or the one a Grab or Scale runs along), and optionally the proportional-editing segment - so the gesture's state reads without glancing at the status bar.
- * Shared by the two HUD assemblies, [org.umamo.ui.viewport.viewport2d.ViewportHudOverlay] and [org.umamo.ui.viewport.uv.UvHudOverlay]; the assembly decides
- * whether the proportional segment applies and in which units the radius reads (world px in the
- * viewport, texels in UV).
+ * The modal status badge (top center): the operator's name, the axis lock, and optionally the
+ * proportional-editing segment - so the gesture's state reads without glancing at the status bar.
+ * Shared by the two HUD assemblies, [org.umamo.ui.viewport.viewport2d.ViewportHudOverlay] and
+ * [org.umamo.ui.viewport.uv.UvHudOverlay]; the assembly decides whether the proportional segment applies
+ * and in which units the radius reads (world px in the viewport, texels in UV).
  *
  * @param MeshOperatorKind operatorKind The live operator.
  * @param TransformAxisConstraint? axisConstraint The axis lock, or null when unconstrained.

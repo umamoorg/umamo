@@ -37,11 +37,9 @@ private class UvMedianWrites(private val capture: () -> UvMedianMove?) {
 }
 
 /**
- * The UV editor's Item tab in Edit mode: where the covered texture coordinates sit on the shown page or source
- * artwork, "Vertex:" for one and "Median:" for several, their mean across every shown mesh in the edit, in texels
- * from the surface's top-left with y down.  A typed or scrubbed value moves them all together as the UV editor's
- * Grab would, one undo step the operation strip can adjust, and while a UV transform runs, here or in another UV
- * editor, the numbers follow it.  With nothing covered it says so.
+ * The UV editor's Item tab in Edit mode: the mean of the covered texture coordinates across every shown mesh in the
+ * edit, on the shown page or source artwork in texels from its top-left with y down.  A typed or scrubbed value moves
+ * them all together as the UV editor's Grab would, one undo step the operation strip can adjust.
  *
  * @param SidebarContext context The sidebar's context.
  */

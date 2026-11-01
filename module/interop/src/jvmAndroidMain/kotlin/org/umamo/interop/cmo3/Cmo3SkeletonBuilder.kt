@@ -47,15 +47,11 @@ import org.umamo.format.raster.RasterImage
  * too - their DontSerializeIfDefault annotations are hand-removed in the generated model, because
  * the official reader's custom deserializers reject their absence.
  *
- * ERA NOTE, unresolved: seeding from BareMinimum means a fresh graph declares fileFormatVersion
- * 504000000 (Cubism 5.4) even though a MOC3-origin conversion populates nothing 5.x and its
- * targetVersionNo says SDK 4.0.  Both files that are known to RENDER for the same model - Cubism's
- * own golden (402030000) and a third-party converter's output (401030000) - are 4.x.  The standing
- * theory for the MOC3-origin render gap (see [Cmo3Conversion]) is that the 5.4 reader composites
- * through the model-image web, so a merely shape-correct synthetic web is not enough, while a 4.x
- * file draws straight from the atlas.  Emitting an era-matched graph (4.x version PIs, dropping
- * the 5.x-only fields) would test it; it was not pursued because the art-sourcing pipeline
- * supersedes the whole synthetic path.
+ * ERA NOTE: seeding from BareMinimum means a fresh graph declares fileFormatVersion 504000000
+ * (Cubism 5.4) even though a MOC3-origin conversion populates nothing 5.x, while Cubism's own golden
+ * (402030000) and a third-party converter's output (401030000) for the same model are both 4.x.  The
+ * 5.4-era graph opens and renders in the official editor (see [Cmo3Conversion]); an era-matched graph
+ * (4.x version PIs, dropping the 5.x-only fields) remains untried.
  */
 internal object Cmo3SkeletonBuilder {
 	/**

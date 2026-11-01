@@ -107,10 +107,9 @@ internal class ByteReader(
 	 * Reads [count] bytes at [at] and decodes them as US-ASCII, without moving [position].
 	 *
 	 * For the fixed 4-character tags binary formats use as signatures and keys (PSD's `8BIM`/`lyid`,
-	 * RIFF's `WEBP`).  Strictly ASCII, via [decodeAscii]: any byte above 0x7F becomes U+FFFD rather
-	 * than a Latin-1 character, so a corrupt tag cannot compare equal to something it is not.  NOT for
-	 * arbitrary text - a format's human-readable strings (a PSD layer name, say) carry a real encoding
-	 * and must be decoded with it; see [readBytes] plus `decodeToString()` for UTF-8.
+	 * RIFF's `WEBP`), strictly ASCII via [decodeAscii].  NOT for arbitrary text - a format's
+	 * human-readable strings (a PSD layer name, say) carry a real encoding and must be decoded with it;
+	 * see [readBytes] plus `decodeToString()` for UTF-8.
 	 *
 	 * @param Int at    Absolute offset of the first byte.
 	 * @param Int count Number of bytes to decode.

@@ -11,8 +11,7 @@ import org.umamo.geometry.packVertexPair
  * 2x2 linear part of a least-squares affine fit from the old art-frame points to the old geometry over
  * the old vertices nearest that feature.  The fit spans a neighbourhood rather than one triangle, so
  * the thin sliver triangles real meshes carry at their edges cannot blow it up, and it is exact
- * wherever the old geometry is an affine map of the art.  The neighbourhood starts at the eight
- * nearest vertices and doubles until it spreads at least a pixel in every direction.
+ * wherever the old geometry is an affine map of the art.
  *
  * One fit per feature, kept for the next vertex anchored there, so every vertex along one boundary
  * edge moves by the same map.  Ties between equally near vertices go to the lower index, so the

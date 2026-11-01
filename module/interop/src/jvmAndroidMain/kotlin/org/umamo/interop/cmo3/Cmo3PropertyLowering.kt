@@ -88,7 +88,7 @@ internal class Cmo3PropertyLowering(
 	// The document's texture frames, taken from the graph before the export changed it.
 	private val textureFrames: Cmo3TextureFrames,
 	// True when the caller replaced the stored page images with pages recomposed for the edited
-	// placements (Cmo3Export's same-count patch); the stale-page notices below are then false and stay
+	// placements (the atlas-web reconcile ran); the stale-page notices below are then false and stay
 	// quiet.  Defaults false so every other construction keeps the honest warning.
 	private val pagesRecomposed: Boolean = false,
 	// The lineage roots whose layer web the atlas-web reconcile minted or rewrote to the edited art;
@@ -742,9 +742,8 @@ internal class Cmo3PropertyLowering(
 		for (diff in diffs) {
 			when (diff) {
 				// The diff compares shared tiles only, because art arrives and leaves with an import
-				// rather than with an edit - so these arms are unreachable today.  They stay defensive
-				// rather than silent: whoever makes the inventory editable (re-import) lands the lowering
-				// that serves them, and until then an appearance here is a bug worth reporting.
+				// rather than with an edit - so these arms are unreachable.  They stay defensive rather
+				// than silent: an appearance here is a bug worth reporting.
 				is EntityDiff.Created, is EntityDiff.Deleted -> {
 					unsupported(ExportEntityCategory.Document, null, ExportNoticeReason.AtlasTileMetadataNotReconcilable)
 				}
@@ -1216,10 +1215,9 @@ internal class Cmo3PropertyLowering(
 
 	/**
 	 * Rewrites the parameter source order and combined flags from the edited model.  Document order
-	 * is semantic: a combined (2D) pair is encoded positionally, X flagged and Y immediately next.
-	 * The target order is the edited parameter order with each link's Y moved directly after its X
-	 * when not already adjacent (reported, since the reimported order will then differ); sources
-	 * with no edited counterpart (deletions pending structural lowering) keep a stable tail.
+	 * is semantic: a combined (2D) pair is encoded positionally, X flagged and Y immediately next, so
+	 * a link's Y is moved directly after its X when not already adjacent (reported, since the
+	 * reimported order will then differ).
 	 */
 	private fun lowerParameterOrderAndLinks() {
 		val sourceSet = index.modelSource.parameterSourceSet as? CParameterSourceSet
@@ -1299,9 +1297,8 @@ internal class Cmo3PropertyLowering(
 	 * the guid the import minted the source id from; psdFile is the external-reference file shape, its
 	 * text the absolute path on the machine that linked it, and psdFileLastModified the source's
 	 * modification time in epoch milliseconds (docs/format/CMO3.md section 4).  Only a record the
-	 * baseline also lists is a repointed file; one it lacks is art added this session, whose export
-	 * story is the atlas web's, and is passed over here.  A shared record whose image the graph has
-	 * lost is noted; a record with no known time leaves the image's as it was.
+	 * baseline also lists is a repointed file; one it lacks is art added this session, which the atlas
+	 * web exports instead.
 	 */
 	private fun lowerSourceFiles() {
 		val textureManager = index.modelSource.textureManager as? CTextureManager
@@ -1364,10 +1361,7 @@ internal class Cmo3PropertyLowering(
 	 * The flag alone is not the whole state.  Flipping the mode in the official editor also retargets
 	 * each art mesh's currentTextureInputData between its model-image input and its atlas-region one
 	 * (docs/format/CMO3.md §4), so writing only the flag would leave every drawable pointing at the
-	 * input the OTHER mode samples - a file that says one thing and points at another.  A drawable
-	 * missing the input the mode needs keeps the pointer it has and takes a notice, rather than being
-	 * given a dangling one - except a drawable that was never packed, whose model image is its one input
-	 * and stays current in atlas mode too, as the editor writes it.
+	 * input the OTHER mode samples - a file that says one thing and points at another.
 	 */
 	private fun lowerSourceLayerDisplay() {
 		// CMO3: CModelSource field textureManager -> CTextureManager field isTextureInputModelImageMode.
@@ -1441,7 +1435,12 @@ internal class Cmo3PropertyLowering(
 		editor.ensureChildSlot(canvas, "CImageCanvas", "pixelHeight", "background")
 	}
 
-	/** The drawables under a part in the edited model's org tree, in panel order. */
+	/**
+	 * The drawables under a part in the edited model's org tree, in panel order.
+	 *
+	 * @param PartId partId The part whose subtree is walked.
+	 * @return List<DrawableId> The subtree's drawables, empty when the part is unknown.
+	 */
 	private fun descendantDrawables(partId: PartId): List<DrawableId> {
 		val part = editedPartById[partId] ?: return emptyList()
 		val drawableIds = ArrayList<DrawableId>()

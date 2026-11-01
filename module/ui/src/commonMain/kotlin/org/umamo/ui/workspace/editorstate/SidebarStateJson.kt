@@ -11,7 +11,7 @@ import org.umamo.ui.workspace.sidebar.SIDEBAR_MIN_WIDTH
 import org.umamo.ui.workspace.sidebar.SidebarState
 
 /*
- * The `sidebar` member of a work surface's block, the `viewport` member of an area block
+ * The `sidebar` member of a work surface's block, the `viewport` or `uv` member of an area block
  * (docs/format/UMA.md § 7.3): how an area's SidebarState is written into the editor state and read back,
  * beside the other editor-state serializers.  Extension functions rather than members of the state, as the
  * overlay serializers are.

@@ -40,11 +40,9 @@ fun EditorSession.setTileSources(tileIds: Collection<AtlasTileId>, source: Sourc
 }
 
 /**
- * Removes the tile [tileId] from the atlas as one undo step, when no drawable samples it; a tile some
- * drawable still samples, or one the model lacks, pushes nothing.  With [ignoreLayer] the layer the tile
- * was bound to is marked ignored in the same step (the import setting's choice), so the next reload
- * does not mint the art back; an unbound tile has no layer to mark, and a layer another tile still binds
- * is left unmarked, since the reload matches it by key.
+ * Removes the tile [tileId] from the atlas as one undo step, when no drawable samples it.  With
+ * [ignoreLayer] the layer the tile was bound to is marked ignored in the same step, so the next reload
+ * does not mint the art back.
  *
  * @param AtlasTileId tileId      The tile to remove.
  * @param Boolean     ignoreLayer Whether to keep the tile's layer out of the rig from now on.
@@ -83,10 +81,9 @@ fun EditorSession.setLayerIgnored(ref: SourceLayerRef, ignored: Boolean) {
 /**
  * Commits a model that already carries an artwork file's additions and their pack as ONE undo step.
  *
- * The orchestrator builds [added] off the UI thread (the bridge, the pack around the existing art,
- * the re-derivation) from the model current when it started, checks nothing moved underneath it, and
- * lands it here; the page pixels are session state it swaps in beside this commit, which is why the
- * committed model comes back for the resolver's pre-warm.
+ * The caller builds [added] off the UI thread from the model current when it started and checks
+ * nothing moved underneath it before landing it here; the page pixels are session state it swaps in
+ * beside this commit, which is why the committed model comes back for the resolver's pre-warm.
  *
  * @param String      sourceName    The added file's display name, for the history label.
  * @param Int         drawableCount How many drawables it added.
@@ -101,9 +98,7 @@ fun EditorSession.commitArtworkAdded(sourceName: String, drawableCount: Int, add
 
 /**
  * Commits a model that already carries a reload of the document's artwork files and its pack as ONE
- * undo step - the same contract as [commitArtworkAdded]: built off the UI thread from the model
- * current when the reload started, checked against it, landed here, the page pixels swapped in
- * beside it and the committed model returned for the resolver's pre-warm.
+ * undo step; see [commitArtworkAdded] for the contract.
  *
  * @param DocumentChange.ReloadArtwork change   The step's counts, for the history label.
  * @param PuppetModel                  reloaded The model with the reload and its pack applied.

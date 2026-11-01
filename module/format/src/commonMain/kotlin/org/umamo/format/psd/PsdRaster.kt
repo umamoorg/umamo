@@ -11,10 +11,10 @@ import org.umamo.format.binary.inflateZlib
 /**
  * Decodes one PSD layer's channel image data into a straight-alpha RGBA8888 [LayerRaster].
  *
- * A pure-Kotlin pixel decoder, needed because TwelveMonkeys / javax.imageio is absent on
- * Android.  A layer's pixels are stored as separate
- * channel planes (R, G, B, alpha, …), each independently compressed; this object decompresses
- * each plane, reduces it to 8 bits, and interleaves them to RGBA cropped to the layer bounds.
+ * A pure-Kotlin pixel decoder, needed because TwelveMonkeys / javax.imageio is absent on Android.
+ * A layer's pixels are stored as separate channel planes (R, G, B, alpha, …), each independently
+ * compressed; this object decompresses each plane, reduces it to 8 bits, and interleaves them to
+ * RGBA cropped to the layer bounds.
  * A raster layer mask (channel -2, and -3 beside a vector mask) is decoded at its own rectangle
  * and multiplied into the alpha, so the raster is the layer as the artist sees it - the same
  * baking the CLIP reader applies.  Supported: 8/16-bit RGB(A) and Grayscale, Indexed-color, and
@@ -105,11 +105,7 @@ internal object PsdRaster {
 
 	/**
 	 * Multiplies one mask into the raster's alpha: inside the mask rectangle the stored value, outside
-	 * it the mask's default color, so a mask that hides everything beyond its rectangle does exactly
-	 * that.  The rectangle is always read as canvas-placed: Photoshop sets the "relative to layer"
-	 * flag on every mask in the corpus while still writing canvas coordinates, and offsetting by the
-	 * layer as the flag suggests throws the mask clear of its layer (every masked layer then decodes
-	 * fully transparent).
+	 * it the mask's default color.
 	 *
 	 * @param ByteArray   rgba        The layer's RGBA8888 pixels, modified in place.
 	 * @param Int         width       The layer width in pixels.
@@ -122,7 +118,9 @@ internal object PsdRaster {
 		val plane = maskPlane.plane
 		val maskWidth = mask.bounds.width
 		val maskHeight = mask.bounds.height
-		// The mask rectangle's origin in LAYER pixel coordinates.
+		// The mask rectangle's origin in LAYER pixel coordinates.  The rectangle is canvas-placed whatever
+		// its relative-to-layer flag says (see [PsdLayerMask]); offsetting by the layer as the flag
+		// suggests would throw every mask clear of its layer.
 		val originX = mask.bounds.left - layerBounds.left
 		val originY = mask.bounds.top - layerBounds.top
 
@@ -153,8 +151,6 @@ internal object PsdRaster {
 	/**
 	 * Decompresses every channel of [record] into an 8-bit-per-pixel plane: the displayable channels
 	 * keyed by id at the layer's size, and each enabled mask channel at its own mask rectangle's size.
-	 * A mask channel whose record describes no mask, or a disabled one, is skipped; the cursor advances
-	 * by each channel's full block length regardless, keeping the channels sequential.
 	 *
 	 * @param ByteArray bytes      The complete `.psd` file.
 	 * @param PsdLayerRecord record The layer whose channels to decode.
@@ -574,9 +570,9 @@ internal object PsdRaster {
 	 */
 	private fun bytesPerRow(width: Int, depth: Int): Int =
 		when (depth) {
+			// PSD: 1-bit rows are byte-padded.
 			1 -> (width + 7) / 8
 
-			// PSD: 1-bit rows are byte-padded.
 			8 -> width
 
 			16 -> width * 2

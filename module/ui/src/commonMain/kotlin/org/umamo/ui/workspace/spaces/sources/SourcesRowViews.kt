@@ -57,15 +57,10 @@ import org.umamo.ui.workspace.spaces.RowHoverPreviewState
 private const val DELETE_ART_COMMAND = "sources.deleteArt"
 
 /**
- * One row with its context menu attached: indent, chevron, icon, label, detail, status, and the
- * trailing chip its kind carries - a tile row's relink chip, a review row's proposal chip, an unbound
- * layer row's ignore chip, a file row's actions chip (the last two mirrored in the row's context menu).
+ * One row with its context menu attached, whose entries are the row's own chip's, so a mouse and a pen
+ * reach the same actions.
  *
- * A secondary press falls through the row's clickable to the menu, whose entries are the row's own
- * chip's, so a mouse and a pen reach the same actions.  A file row and an unbound layer row have a menu;
- * every other row passes straight through to the bare [SourcesRowBody].
- *
- * Which of the two a row is follows its status, and a status can change under a live row: a drop turns an
+ * Whether a row has a menu follows its status, and a status can change under a live row: a drop turns an
  * unbound layer bound.  So the frame holds what has to outlive that change - the hover source, the row's
  * coordinates, and the effect that clears its drag bounds - and reads none of it: the body reads the hover,
  * so resting on a row runs the body alone.

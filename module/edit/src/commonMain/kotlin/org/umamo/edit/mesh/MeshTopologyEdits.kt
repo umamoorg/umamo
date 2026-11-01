@@ -27,13 +27,7 @@ import org.umamo.runtime.model.meshOf
  * How one vertex of a topology-edited mesh derives its keyform deltas, its keyform-space base, and its
  * glue identity from the old mesh's vertices.  A topology operation changes the vertex count, and every
  * keyform cell's positionDeltas array is parallel to the positions (stride 2 * vertexCount) - so each
- * NEW vertex must say where its per-cell deltas come from:
- *
- *   - [FromOld] copies one old vertex's deltas verbatim (a kept or duplicated vertex).
- *   - [AverageOf] averages several old vertices' deltas (a merge's surviving vertex).
- *   - [LerpOf] interpolates two old vertices' deltas by t (a split point on an old edge).
- *   - [Weighted] blends any old vertices' deltas by weights summing to one (a regenerated mesh's
- *     vertex, placed by where it falls in the old mesh).
+ * NEW vertex must say where its per-cell deltas come from.
  */
 sealed interface VertexSource {
 	/**
@@ -91,13 +85,10 @@ class MeshTopologyEdit(
 )
 
 /**
- * Applies a topology edit to one drawable: swaps in the full replacement mesh, rebuilds EVERY keyform
- * cell's positionDeltas to the new vertex count per the edit's [VertexSource]s (copy / average / lerp / blend -
- * so a parameter scrub after the edit still deforms sanely), and remaps the model's glue pairs through
- * the old-to-new vertex mapping (a pair whose vertex was removed is dropped rather than left dangling).
- * Everything else structurally shares with the receiver (the copy-on-write discipline).  Returns the
- * same instance when the drawable is missing, carries no mesh, or the edit's source list does not match
- * its new mesh (a malformed edit must not corrupt the model).
+ * Applies a topology edit to one drawable: swaps in the replacement mesh, rebuilds every per-vertex keyform
+ * and blend-shape array to the new vertex count through the edit's [VertexSource]s, and remaps the model's
+ * glue pairs through the old-to-new vertex mapping.  A malformed edit (a source list that does not match its
+ * new mesh) returns the same instance rather than corrupt the model.
  *
  * @param DrawableId id The drawable whose mesh the edit replaces.
  * @param MeshTopologyEdit edit The edit to apply.
@@ -240,12 +231,10 @@ private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSourc
 	MeshDeltaForm(remapPerVertex(form.positionDeltas, vertexSources, oldVertexCount))
 
 /**
- * Rebuilds a per-vertex (x, y) array at the new vertex count: each new vertex's pair copies, averages,
- * lerps, or blends from the old array per its [VertexSource] - the one recipe a topology edit applies to
- * every per-vertex array it carries over (keyform deltas, blend-shape deltas, the keyform-space base).  An
- * old index beyond the old array (a malformed grid) contributes zero, keeping the rebuild total.  A
- * weighted sum starts from its first term, so a single weight of one copies the old value exactly,
- * negative zero included.
+ * Rebuilds a per-vertex (x, y) array at the new vertex count, each new vertex's pair derived per its
+ * [VertexSource] - the one recipe a topology edit applies to every per-vertex array it carries over.  An
+ * old index beyond the old array (a malformed grid) contributes zero, and a weighted sum starts from its
+ * first term so a single weight of one copies the old value exactly, negative zero included.
  *
  * @param FloatArray values The old interleaved (x, y) values.
  * @param List<VertexSource> vertexSources One source per new vertex.
@@ -303,15 +292,10 @@ internal fun remapPerVertex(values: FloatArray, vertexSources: List<VertexSource
 }
 
 /**
- * Commits a topology operation on one session mesh as ONE undo step: the model takes the edit (mesh
- * swap, keyform-delta rebuild, glue remap - see [withMeshTopologyEdit]) and the mesh selection
- * becomes the operation's result elements on that mesh, in the SAME history push - splitting them
- * would let undo tear the selection from the topology it indexes into.  The ops produce vertex
- * results; they are re-derived into the CURRENT select mode (Blender keeps the mode across a
- * topology op - a face-mode duplicate leaves the new faces selected in face mode), falling back to
- * vertex mode only when nothing in the current domain covers them (e.g. a duplicated lone edge
- * copies as loose vertices, which no edge or face contains - stranding them unselected would hide
- * the copies and starve the follow-up auto-grab).  A no-op edit records nothing.
+ * Commits a topology operation on one session mesh as ONE undo step: the model takes the edit
+ * ([withMeshTopologyEdit]) and the mesh selection becomes the operation's result elements on that mesh,
+ * in the SAME history push - splitting them would let undo tear the selection from the topology it
+ * indexes into.  The result is re-derived into the current select mode ([rederiveTopologyResult]).
  *
  * @param String labelKey The operation's history label key (change.mesh.duplicate / merge / rip / connect).
  * @param DrawableId drawableId The edited mesh.
@@ -344,11 +328,12 @@ fun EditorSession.commitMeshTopology(labelKey: String, drawableId: DrawableId, r
 
 /**
  * Converts a topology op's vertex-mode result selection into [selectMode] against [newModel] (the
- * post-edit topology, where the new elements exist), via the strict derive-up rules of
- * [MeshSelectionOps.changeSelectMode]; the first derived element becomes active.  Returns the
- * vertex result unchanged when the session is already in vertex mode, when the op selected
- * nothing, or when nothing in the target domain covers the new vertices (see
- * [commitMeshTopology]'s docblock for that fallback's rationale).
+ * post-edit topology, where the new elements exist), so the mode survives a topology op as in Blender -
+ * a face-mode duplicate leaves the new faces selected in face mode.
+ *
+ * Falls back to the vertex result when nothing in the target domain covers the new vertices: a
+ * duplicated lone edge copies as loose vertices no edge or face contains, and leaving them unselected
+ * would hide the copies and starve the follow-up auto-grab.
  *
  * @param MeshSelection vertexResult The op's result selection, in vertex mode.
  * @param MeshSelectMode selectMode The session's current select mode to re-derive into.
@@ -422,12 +407,9 @@ fun EditorSession.duplicateSelectedElements() {
 
 /**
  * Merges the ACTIVE session mesh's selected vertices (Blender's M) as one undo step, leaving the
- * survivor selected, and registers the step on the operation settings strip with its one row, Merge
- * At - so a merge landed at the center can be re-landed at the first or last vertex without undoing.
- * The rerun re-merges the SAME vertices from the record's base; every target keeps the survivor at
- * the same index, so the survivor selection the step carries stays valid across an adjustment.
- * Vertex mode only - the first / last targets read the selection order, which only vertex elements
- * carry directly.  Refusals explain themselves with a near-cursor notice.
+ * survivor selected, and registers the step on the operation settings strip so its Merge At row can
+ * re-land the survivor without undoing.  Vertex mode only, since the first / last targets read the
+ * selection order, which only vertex elements carry directly.
  *
  * @param MergeTarget target Where the survivor lands (center / first / last).
  * @param String? areaId The area the strip shows in (opaque here, like the operator latches), or null.
@@ -474,6 +456,8 @@ fun EditorSession.mergeSelectedVertices(target: MergeTarget, areaId: String? = n
 	}
 
 	val mergedVertices = orderedVertices.toList()
+	// Every target keeps the survivor at the same index, so the selection this step carries stays valid
+	// when a rerun re-merges the same vertices from the record's base.
 	registerAdjustableOperation(model.value, areaId, mergeParameters(target)) { record ->
 		val adjustedTarget = mergeTargetOf(record.parameters, target)
 		val baseModel = record.baseSnapshot.model

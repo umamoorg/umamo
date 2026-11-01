@@ -81,10 +81,9 @@ val LocalOperationStrip = staticCompositionLocalOf { OperationStripState() }
 
 /**
  * Where a panel-driven operation shows its strip: the same answer the command routing gives a command
- * fired from a panel (the hovered work surface, else the last one the pointer touched, else the
- * workspace's first), or null when the workspace has none.  Called as the operation commits, never read
- * during composition - it answers from the pointer's dispatch-time state.  Defaults to no area, so a
- * panel hosted without the shell registers a record that shows nowhere.
+ * fired from a panel, or null when the workspace has no work surface.  Called as the operation commits,
+ * never read during composition - it answers from the pointer's dispatch-time state.  Defaults to no
+ * area, so a panel hosted without the shell registers a record that shows nowhere.
  */
 val LocalOperationStripArea = staticCompositionLocalOf<() -> String?> { { null } }
 
@@ -101,10 +100,8 @@ private val STRIP_MIN_WIDTH = 300.dp
 
 /**
  * Hosts the strip for one area over [content]: the space body renders under the strip's inset, and
- * the strip itself draws in the bottom-left whenever the session's adjustable operation names
- * [areaId] and [kind] hosts the strip.  Mounted by every area leaf, so the gate lives in one place
- * rather than in each space - and it is the ONLY place the strip is drawn, so a record whose area is
- * not composed (another workspace is active, or the area closed) or names no area shows nowhere.
+ * the strip itself draws in the bottom-left when the session's adjustable operation belongs to this
+ * area.  Mounted by every area leaf, so the gate lives in one place rather than in each space.
  *
  * @param String    areaId  The hosting area's id.
  * @param SpaceKind kind    The space the area currently hosts.
@@ -276,10 +273,9 @@ internal fun operationStripRows(parameters: List<OperatorParameter>): List<Opera
 
 /**
  * One row of the strip, rendered by the parameter's kind through the Properties panel's own row
- * primitives - a right-aligned label over a control filling the right half for the numeric and
- * choice kinds, a lone checkbox in the field column for a flag - so a strip row and a panel row are
- * the same row, description tooltip included.  The number fields commit once per edit (a scrub's
- * release, a typed value), which is the one run per adjustment the design promises.
+ * primitives, so a strip row and a panel row are the same row, description tooltip included.  The
+ * number fields commit once per edit (a scrub's release, a typed value), so each adjustment re-runs
+ * the operation once.
  *
  * @param OperatorParameter parameter The row's parameter.
  * @param Function          onChange  Receives the parameter with its new value.

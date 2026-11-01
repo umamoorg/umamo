@@ -25,14 +25,9 @@ import org.umamo.ui.viewport.uv.TexelAxis
 
 /**
  * The UV editor's Item tab in Object mode: where the shown drawable's art sits on its page, the tile placement the
- * UV editor's Object-mode Grab, Rotate, and Scale move.  Position is where the art's origin lands, in page pixels
- * from the top-left with y down; Angle turns the art about that origin; Scale sizes it along its own axes, a
- * negative scale mirroring it, and its lock keeps the two in proportion.  Each typed value is one undo step filed as the matching move, and the pages
- * recompose from it.  While the area's own placement drag runs, the numbers follow it.
- *
- * The fields are dimmed wherever the UV editor's own placement drag would refuse: a pinned tile, a document whose
- * texture coordinates address the source layers rather than the pages, a view that is not a page with source art
- * to recompose it from, a tile on another page than the one shown, or while a UV transform runs.
+ * UV editor's Object-mode Grab, Rotate, and Scale move, its position in page pixels from the top-left with y down.
+ * Each typed value is one undo step filed as the matching move, and the fields are dimmed wherever that placement
+ * drag would refuse.
  *
  * @param SidebarContext context The sidebar's context.
  */
@@ -69,6 +64,7 @@ internal fun UvPlacementPanel(context: SidebarContext) {
 	val uvOperator by session.activeUvOperator.collectAsState()
 	// The area's own placement drag shows where it would put the tile; any other time, the committed placement.
 	val placement = surface.placementScene.drag?.result?.placementByTile?.get(tile.id) ?: committed
+	// The placement drag's own refusals; a tile on another page than the one shown has no geometry here.
 	val editable =
 		!tile.pinned &&
 			puppet.atlas.storedUvsAddressPages &&

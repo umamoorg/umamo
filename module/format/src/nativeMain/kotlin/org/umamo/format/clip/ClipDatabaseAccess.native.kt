@@ -13,16 +13,10 @@ import kotlin.random.Random
  * Kotlin/Native actual: write the database bytes to a temp file and open SQLDelight's
  * [NativeSqliteDriver] (SQLiter) over it.
  *
- * This is the iPadOS path, and it is the one native actual worth having: Clip Studio Paint runs on
- * iPad, so ingesting a `.clip` is exactly what a tablet build is for.
- *
- * Two details are load-bearing:
- *  - SQLiter opens a database by NAME within a directory, not by arbitrary path, so the blob has to
- *    be written somewhere and the configuration pointed at that directory.
- *  - Schema creation must be defeated. The convenience `NativeSqliteDriver(schema, name)` constructor
- *    runs Schema.create when user_version is 0 — and an embedded .clip database carries user_version 0
- *    while already having every table, so it would collide. The Android actual documents the same
- *    trap. Hence the DatabaseConfiguration overload with no-op create/upgrade.
+ * This is the iPadOS path: Clip Studio Paint runs on iPad, so ingesting a `.clip` is exactly what a
+ * tablet build is for.  The DatabaseConfiguration overload is load-bearing: the convenience
+ * `NativeSqliteDriver(schema, name)` constructor runs Schema.create when user_version is 0, and an
+ * embedded .clip database carries user_version 0 while already having every table.
  *
  * @param ByteArray databaseBytes The raw "SQLite format 3" bytes.
  * @param Function1 block         Runs against the open database.
@@ -66,13 +60,10 @@ internal actual fun <T> useClipDatabase(databaseBytes: ByteArray, block: (ClipDa
 /**
  * Writes [databaseBytes] to a freshly created file in [directory] and returns its path.
  *
- * The name is random per call rather than derived from the content, which is what the sibling actuals
- * guarantee too (JVM `Files.createTempFile`, Android `System.nanoTime()`).  A content-derived name
- * would not: two concurrent reads of the same `.clip` would resolve to one path, so each would
- * truncate the database the other had open and then delete it mid-query.
- *
- * `mustCreate` claims the name atomically (O_EXCL), so the retry closes that race rather than merely
- * narrowing it.
+ * The name is random per call, as in the sibling actuals: a content-derived name would give two
+ * concurrent reads of the same `.clip` one path, each truncating and then deleting the database the
+ * other has open.  `mustCreate` claims the name atomically (O_EXCL), so the retry closes that race
+ * rather than merely narrowing it.
  *
  * @param FileSystem fileSystem   The filesystem to create on.
  * @param Path directory          The directory to create in.

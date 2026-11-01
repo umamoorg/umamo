@@ -14,10 +14,7 @@ import kotlin.math.floor
  * no area covers nothing.
  *
  * A pixel [alreadyCutOff] names does not count: art the mesh left out before the art changed (a faint
- * fringe a hand-made mesh never reached) is the modeller's choice, not art that grew past the mesh.
- *
- * Only the art's opaque bounds are scanned, one bit per pixel, so a large mostly-empty layer costs its
- * art, not its canvas.
+ * fringe a hand-made mesh never reached) is the modeler's choice, not art that grew past the mesh.
  *
  * @param AlphaChannel alpha          The art.
  * @param Int          alphaThreshold The least alpha byte (1..255) counted as art.

@@ -55,8 +55,6 @@ private val CATEGORY_RAIL_WIDTH = 168.dp
  * label; the right pane switches on the selection in [SettingsWindow] (an exhaustive `when`, so adding a
  * category is a compile-time prompt to give it content).
  *
- * 設定のカテゴリ（左レール）。各自のローカライズ済みラベルを持つ。右ペインは選択に応じて切り替わる。
- *
  * @property StringResource label The rail label resource.
  */
 internal enum class SettingsCategory(val label: StringResource) {
@@ -69,17 +67,11 @@ internal enum class SettingsCategory(val label: StringResource) {
 }
 
 /**
- * The preferences window: a focus-stealing in-window overlay (a scrim over the shell with a centered
- * card), styled like the kit's other modals (the command palette, the confirm dialog) so it reads as
- * the same surface family rather than a host-OS window.  A left category rail selects which section the
- * right pane shows; sections auto-save every change (no OK/Apply), so the only chrome is dismissal.
- *
- * Dismissal is by Escape, a scrim click, or the header close button - the last matters on a keyboardless
- * tablet, where there is no Escape key and the scrim may not read as interactive.  The shell owns the
- * visible state and routes Escape here (mirroring the command palette); this composable only renders.
- *
- * 設定ウィンドウ。シェルを覆うスクリム＋中央カードのモーダル。左レールでセクションを選び、変更は即時保存。
- * Esc・スクリムのクリック・閉じるボタンで閉じる（キーボード無しのタブレット向けに閉じるボタンを用意）。
+ * The preferences window: a focus-stealing in-window overlay styled like the kit's other modals (the
+ * command palette, the confirm dialog), so it reads as the same surface family rather than a host-OS window.
+ * Sections auto-save every change, so the only chrome is dismissal; the header close button serves a
+ * keyboardless tablet, where there is no Escape key and the scrim may not read as interactive.  The shell owns
+ * the visible state and routes Escape here.
  *
  * @param Function onDismiss Closes the window (Escape is routed here by the shell; also the scrim / close button).
  */

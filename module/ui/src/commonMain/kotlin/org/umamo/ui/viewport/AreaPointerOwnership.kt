@@ -5,13 +5,11 @@ import androidx.compose.runtime.collectAsState
 import org.umamo.edit.EditorSession
 
 /**
- * Whether one of a work surface area's gestures owns the pointer: the area's modal operator (G / S / R in the 2D
- * viewport or the UV editor), its armed Box / Circle select tool, its armed Zoom Region, or an in-flight
- * un-armed box drag, which carries no area because pointer capture already pins its events to the dragging
- * overlay.  While one does, the gesture follows the pointer everywhere in the area: the surface's navigation
- * stops panning and zooming under it, and the chrome floating over the surface lets the pointer through so the
- * gesture can be confirmed or cancelled over it, as a Blender modal operator can.  A gesture latched in another
- * area owns nothing here.
+ * Whether one of a work surface area's gestures owns the pointer: a modal operator, select tool, or Zoom Region
+ * latched in this area, or an in-flight un-armed box drag, which carries no area because pointer capture already
+ * pins its events to the dragging overlay.  While one does, the surface's navigation stops under it and the chrome
+ * floating over the surface lets the pointer through, so the gesture can be confirmed or cancelled anywhere in the
+ * area, as a Blender modal operator can.
  *
  * One gate serves both surfaces: an operator latches the area it runs in, and that area shows the surface the
  * operator belongs to, so a 2D viewport's area never matches a UV operator, nor a UV editor's a mesh operator.

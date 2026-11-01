@@ -10,8 +10,7 @@ import org.umamo.ui.resources.*
  * Each handler is a nullable collaborator resolved at DISPATCH time, like the repack's: the table declares
  * the command, the shell supplies the run, and a null handler (no document, or no art store) makes the
  * dispatch a no-op behind the availability gate.  A handler receives the area its operation settings
- * strip shows in (routing.operationStripArea - the hovered work surface, else the last one touched, else
- * the workspace's first), so the command can fire from any space.
+ * strip shows in, so the command can fire from any space.
  *
  * @param SessionAvailability availability The shared document-scoped availability tiers.
  * @param CommandRouting      routing      The hovered-area resolver, read at dispatch.

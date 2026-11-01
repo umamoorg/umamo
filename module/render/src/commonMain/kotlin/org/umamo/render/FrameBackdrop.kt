@@ -42,10 +42,6 @@ sealed interface FrameBackdrop {
 /**
  * Turns a premultiplied capture drawn over [backdrop] into the straight-alpha image a file stores, in place.
  *
- * Over an opaque backdrop every pixel is opaque, so the color is already straight and only the alpha
- * channel is set to 255.  Over anything with coverage to spare (transparency, or a translucent fill) the
- * color divides back out by its alpha.
- *
  * Consumes the capture: its own buffer is converted and the same image returned, because a capture can be
  * a gigabyte and a converted copy would double that.  The caller must own the pixels.
  *

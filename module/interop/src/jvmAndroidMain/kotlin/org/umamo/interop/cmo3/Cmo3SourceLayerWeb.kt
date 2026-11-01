@@ -113,21 +113,16 @@ internal object Cmo3SourceLayerWeb {
 	)
 
 	/**
-	 * Routes [puppet]'s tiles into per-file inputs: every tile bound to a listed file whose binding
-	 * names an inventory row (present or lost - its tile still holds the art) and for which
-	 * [tileRasters] has pixels, in the file's inventory order.  A tile nothing samples is still a
-	 * layer of its file.  A tile with pixels but no such binding - bound to no layer, as a CMO3's
-	 * multi-layer model image or a hit area is - becomes a single-layer image of its own, the shape the
-	 * official editor gives a flat image import, at the canvas origin its drawables put it, so its whole
-	 * raster and its placement cross the export as they are; only a tile with no pixels is left to the
-	 * crop path.  A tile that HAD a binding and still lands there - its file unlisted, or its key absent
-	 * from the file's inventory - carries that binding on its input, because the Sources space shows the
-	 * tile as waiting on a person and an export that quietly rekeyed it would hide that.
+	 * Routes [puppet]'s tiles into per-file inputs: every tile with pixels whose binding names an
+	 * inventory row of a listed file becomes a layer of that file, and any other tile with pixels
+	 * becomes a single-layer image of its own - the shape the official editor gives a flat image
+	 * import - so its whole raster and placement cross the export as they are.  A tile that HAD a
+	 * binding and still lands there carries that binding on its input, because the Sources space shows
+	 * the tile as waiting on a person and an export that quietly rekeyed it would hide that.
 	 *
-	 * The layered image's frame is the document canvas: an import sets the canvas from the art, and
-	 * the inventory's canvas coordinates live in that frame - a later file's rows already carry the
-	 * offset it was placed by (ArtSource.offsetX), so they are written as they are.  The CMO3 keeps
-	 * no such offset of its own, so a document reopened from the export reads every file at offset 0.
+	 * The layered image's frame is the document canvas: a later file's rows already carry the offset
+	 * it was placed by (ArtSource.offsetX), so they are written as they are.  The CMO3 keeps no such
+	 * offset of its own, so a document reopened from the export reads every file at offset 0.
 	 *
 	 * @param PuppetModel puppet      The model being converted.
 	 * @param Function    tileRasters The document's pixels for a tile, or null.

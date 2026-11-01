@@ -11,16 +11,11 @@ private const val SELECT_HIERARCHY_COMMAND = "outliner.selectHierarchy"
 private const val CREATE_WARP_COMMAND = "deformer.createWarp"
 
 /**
- * Builds the context-menu entries for a real outliner row, by entity kind: parts and drawables get a
- * visibility toggle (deformers have none); every kind gets selectability, rename, and delete.  In Object mode
- * drawables and deformers also get Create Warp Deformer, which wraps the selection and is enabled exactly when
- * its command is; it is an Object-mode operation, so no other mode lists it.  A part's "Delete" ungroups (keeps
- * the contents, splicing them into its parent) and a second "Delete Hierarchy" cascades (removes the whole
- * subtree); a drawable or deformer has the single delete.  Selectability gates only viewport picking, so every
- * entry stays enabled on an unselectable row.
+ * Builds the context-menu entries for a real outliner row, by entity kind.  Selectability gates only viewport
+ * picking, so every entry stays enabled on an unselectable row.
  *
  * A plain function over the resolved labels: the row builds it as its menu opens, so the mode and the command's
- * availability are read as they are then, and commonTest pins the entries directly.
+ * availability are read as they are then.
  *
  * @param SelectionTarget target The row's entity.
  * @param OutlinerLabels labels The outliner's localized chrome.
@@ -30,7 +25,8 @@ private const val CREATE_WARP_COMMAND = "deformer.createWarp"
  * @param Function onToggleVisibility Flips the entity's visibility.
  * @param Function onToggleSelectable Flips the entity's selectability.
  * @param Function onStartRename Opens the inline rename.
- * @param Function onRequestDelete Requests a delete (true = cascade / the sole delete, false = ungroup).
+ * @param Function onRequestDelete Requests a delete (true = the part's whole subtree, false = just this item, a
+ *   part's contents rising to its parent).
  * @return List The menu entries.
  */
 internal fun outlinerRowMenuItems(

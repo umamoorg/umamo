@@ -75,10 +75,8 @@ internal fun activeElementMedian(selection: MeshSelection, geometries: List<Gizm
 
 /**
  * The nearest element of the given domain under the pointer across every mesh, or null.  Each mesh's
- * own hit test already picks its nearest candidate; this compares the survivors across meshes by the
- * same screen-space metric each domain uses (vertex distance, point-to-segment distance, face
- * centroid distance - the mean of the face's corners), so overlapping meshes resolve to the visually
- * closest element.
+ * own nearest candidate is compared across meshes by its domain's screen-space metric, so overlapping
+ * meshes resolve to the visually closest element.
  *
  * @param MeshSelectMode selectMode The element domain to pick in.
  * @param List<GizmoMeshGeometry> geometries The meshes' gizmo geometry.
@@ -264,10 +262,8 @@ internal class MeshHighlightSets(
 )
 
 /**
- * Projects the stored selection into per-domain highlight sets for the wireframe draw, applying
- * Blender's derive-up rules (vertex mode lights edges with both endpoints selected and faces with all
- * vertices selected; edge mode lights faces with all their own edges selected) and flush-down display
- * (face mode lights the selected faces' own edges).
+ * Projects the stored selection into per-domain highlight sets for the wireframe draw, by the display
+ * rules [MeshHighlightSets] describes.
  *
  * @param Set<MeshElement> elements One mesh's stored elements (the current select mode's domain).
  * @param MeshElement? active The active element when it lives on this mesh, or null.

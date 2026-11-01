@@ -99,10 +99,9 @@ private fun loadInitialDocument(initialPath: String?): Document? {
 /**
  * The window title: the app name, the open document's name, the unsaved marker, and the read-only marker.
  *
- * The name follows the `.uma` the document saves to once it has one, so a `Erica.cmo3` saved as `Erica.uma`
- * reads as the latter.  A document with no file is named here rather than by [Document.displayName], which
- * is the plain-text name the log and an export's suggested file name need; the title is chrome, so it
- * localizes.  A read-only document says so, since Save is greyed for as long as it is open.
+ * The name follows the `.uma` the document saves to once it has one.  A document with no file is named
+ * here rather than by [Document.displayName], the plain-text name the log and an export's suggested file
+ * name need, because the title is chrome and localizes.
  *
  * @param Document? document  The open document.
  * @param String?   savedPath The `.uma` the document saves to, or null before its first save.
@@ -134,19 +133,12 @@ private fun windowTitleFor(document: Document?, savedPath: String?, readOnly: Bo
 internal fun isOpenableDocumentPath(path: String): Boolean = FormatRegistry.kindForFileName(path)?.role == FileRole.Document
 
 /**
- * Desktop entrypoint. Opens a single editor window over the storage/settings foundation: window state
- * (size/position) and the recent-files list restore from `:settings`, and File → Open/Save-As use the
- * native `:storage` dialogs. An initial document may come from a `.uma`, `.cmo3`, or `.moc3` argument or
- * `-Dumamo.testCmo3`; otherwise the window opens into a new, empty document.
- * `UMAMO_DUMP_PNG` still dumps the first frame headlessly (the WSL verification path).
+ * Desktop entrypoint: opens a single editor window over the storage/settings foundation, into the document
+ * a `.uma`, `.cmo3`, or `.moc3` argument or `-Dumamo.testCmo3` names, else a new, empty one.
  *
- * Settings load synchronously here (the bundled default is a Compose resource, read via `runBlocking`)
- * so the window state is ready before the window opens and the window is unconditional - `application {}`
- * exits if it ever has zero windows, which an async settings gate would briefly cause.
- *
- * A jar started with too little memory first relaunches itself with enough (JarRelaunch.kt).  Then the session
- * log file and the uncaught-exception handler are set up before anything else, so every line the launch logs -
- * and the reason for a crash - lands in the file a bug report attaches.
+ * Settings load synchronously here so the window state is ready before the window opens and the window is
+ * unconditional - `application {}` exits if it ever has zero windows, which an async settings gate would
+ * briefly cause.
  *
  * @param Array<String> args Optional: a `.uma`, `.cmo3`, or `.moc3` path; or `--self-check` and an optional report
  *   file, which runs the headless checks an installer test asks for instead of the editor.
@@ -165,8 +157,9 @@ fun main(args: Array<String>) {
 	// once, here, and the heap detection below reads the same ones.
 	val jarLaunch = gatherJarLaunchFacts()
 	val relaunchNote = relaunchForHeapIfDue(jarLaunch, args)
-	// Then, so the initial document load and everything after it reach the log file.  Building the storage
-	// does no IO; the log opens its own file under the data directory.
+	// Then, so the initial document load and everything after it - and the reason for a crash - reach the
+	// log file a bug report attaches.  Building the storage does no IO; the log opens its own file under the
+	// data directory.
 	val storage = desktopAppStorage("umamo")
 	val sessionLog = attachSessionLog(storage)
 	installUncaughtExceptionLogging()
@@ -293,8 +286,8 @@ fun main(args: Array<String>) {
 					// scheme for everything created here - the Windows title-bar tint AND the GL viewport host,
 					// which reads the themed grid-backdrop colors at creation (it lives outside the shell's
 					// own UmamoTheme).  The shell re-applies the same theme to its subtree, an idempotent,
-					// cheap re-provide.  Without this wrap LocalUmamoColors falls back to its static dark default,
-					// so the viewport grid never tracked the theme.
+					// cheap re-provide.  Without this wrap LocalUmamoColors would fall back to its static dark
+					// default, and the viewport grid would not track the theme.
 					UmamoTheme {
 						WindowsTitleBarTint(window)
 						WindowResizeHeal(window)

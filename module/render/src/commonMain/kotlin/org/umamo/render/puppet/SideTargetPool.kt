@@ -57,11 +57,9 @@ internal class SideTargetPool(
 		private set
 
 	/**
-	 * Grows the shared side-target capacity (mask + draw order + snapshot + composite pool) to hold a
-	 * [viewportWidth] x [viewportHeight] render, per-axis high-water: a request inside the current
-	 * capacity allocates nothing (the per-frame path during a gutter drag), growth destroys the mask,
-	 * draw order, snapshot, and pool together and recreates mask + snapshot at the new capacity (the
-	 * draw order refills lazily in [ensureDrawOrder], the pool in [acquireLayer]).
+	 * Grows the shared side-target capacity to hold a [viewportWidth] x [viewportHeight] render, per-axis
+	 * high-water, so a request inside the current capacity (the per-frame path during a gutter drag)
+	 * allocates nothing.
 	 *
 	 * @param Int viewportWidth  The render width in pixels.
 	 * @param Int viewportHeight The render height in pixels.

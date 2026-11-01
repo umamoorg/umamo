@@ -5,11 +5,11 @@ import org.umamo.format.art.ChannelMask
 /*
  * The channelflags -> ChannelMask mapping, split out of KraReader so it can live in commonMain.
  *
- * KraReader itself cannot: it is a zip container plus a JDOM/SAX XML parse, both JVM-only, so it
- * stays in jvmAndroidMain alongside the FormatRegistry that is its only non-test caller.  This
- * mapping is pure arithmetic over a string and belongs with the rest of KRA's platform-free logic
- * (KraColorModel, KraLzf, KraTileData), where KraChannelMaskTest can reach it from commonTest and
- * exercise it on every target.
+ * KraReader itself cannot: its JDOM/SAX XML parse is JVM-only, so it stays in jvmAndroidMain
+ * alongside the FormatRegistry that is its only non-test caller.  This mapping is pure arithmetic
+ * over a string and belongs with the rest of KRA's platform-free logic (KraColorModel, KraLzf,
+ * KraTileData), where KraChannelMaskTest can reach it from commonTest and exercise it on every
+ * target.
  */
 
 /**

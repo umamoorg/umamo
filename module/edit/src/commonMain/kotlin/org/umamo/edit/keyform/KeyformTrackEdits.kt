@@ -22,7 +22,7 @@ import org.umamo.runtime.model.channelGridsOf
  */
 
 /**
- * This model with [track]'s key at [fromValue] moved to [toValue] on [parameter]'s axis.
+ * This model with [track]'s key [keyIndex] moved to [toValue] on [parameter]'s axis.
  *
  * @param KeyformTrackRef track The track to edit.
  * @param Parameter parameter The parameter whose axis the key sits on.
@@ -69,7 +69,7 @@ fun PuppetModel.withTrackKeyInserted(
 	}
 
 /**
- * This model with [track]'s key at [position] removed from [parameter]'s axis.
+ * This model with [track]'s key [keyIndex] removed from [parameter]'s axis.
  *
  * @param KeyformTrackRef track The track to edit.
  * @param Parameter parameter The parameter whose axis to remove from.
@@ -104,7 +104,7 @@ private fun clampToParameterRange(value: Float, parameter: Parameter): Float =
 	value.coerceIn(minOf(parameter.min, parameter.max), maxOf(parameter.min, parameter.max))
 
 /**
- * Moves [track]'s key at [fromValue] to [toValue], as one undo step.
+ * Moves [track]'s key [keyIndex] to [toValue], as one undo step.
  *
  * @param KeyformTrackRef track The track to edit.
  * @param Parameter parameter The parameter whose axis the key sits on.
@@ -133,12 +133,8 @@ fun EditorSession.moveTrackKey(
 }
 
 /**
- * The ordinal a key inserted at [position] on [track] would take, or -1 when the insert adds none.
- *
- * The insert counterpart of [trackKeyIndexAfterMove], and needed for the same reason: an insert renumbers
- * every key at or above it, so the keyform sheet has to correct its key selection to the ordinal the
- * selected key lands on - and it has to do so before the insert records its step, since the selection rides
- * that snapshot.
+ * The ordinal a key inserted at [position] on [track] would take, or -1 when the insert adds none - the
+ * insert counterpart of [trackKeyIndexAfterMove].
  *
  * Clamps [position] exactly as [insertTrackKeysAt] does, so the query cannot answer for a destination the
  * insert would never use.
@@ -154,13 +150,10 @@ fun PuppetModel.trackKeyIndexAfterInsert(track: KeyformTrackRef, parameter: Para
 /**
  * The ordinal [keyIndex] on [track] would hold after being moved to [toValue] - pure, nothing recorded.
  *
- * Public for the same reason [limitedDragFraction] is: the keyform sheet has to know where a key will land
- * BEFORE the move records its step, because the sheet's key selection rides that step's snapshot and a
- * selection staged afterwards reaches no history entry at all.  Preview, stage, and commit must agree about
- * the landing, so they call one function rather than reimplementing the crossing rule.
- *
- * Clamps [toValue] exactly as [moveTrackKey] does, which is why the clamp lives here and not at either
- * call site - a query that answered for an unclamped destination would disagree with the move it describes.
+ * Public because the keyform sheet stages its key selection at the landing BEFORE the move records its
+ * step, so the selection rides that step's snapshot; preview, stage, and commit all ask here rather than
+ * reimplementing the crossing rule.  Clamps [toValue] exactly as [moveTrackKey] does, so the answer
+ * matches the move it describes.
  *
  * @param KeyformTrackRef track The track the key sits on.
  * @param Parameter parameter The parameter whose axis the key sits on.
@@ -200,10 +193,8 @@ fun EditorSession.insertTrackKeysAt(tracks: List<KeyformTrackRef>, parameter: Pa
 /**
  * Moves every key in [keys] to [toValue] as ONE undo step - the summary-row drag.
  *
- * They go to the same place rather than by the same delta because that is what dragging a summary mark
- * means: the marks were stacked at one value and stay stacked.  Each still lands through its own track's
- * `withKeyMoved`, so a key that would collide with a neighbour on ITS track is nudged the sub-pixel
- * distance that keeps the span resolvable - the group can drift apart by at most EPS_SPAN, which is far
+ * They go to the same place rather than by the same delta because the summary marks were stacked at one
+ * value and stay stacked; a key nudged off a collision on its own track drifts by at most EPS_SPAN, far
  * below anything the sheet can draw.
  *
  * @param List keys The (track, parameter, key ordinal) triples to move.
@@ -224,10 +215,8 @@ fun EditorSession.moveTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, In
 /**
  * [fraction] reduced to what every key in [keys] can actually take without leaving its parameter's range.
  *
- * Public because the sheet PREVIEWS a group drag before committing it, and a preview drawn at the
- * unclamped fraction would show the marks travelling past a wall they are about to stop at - which is the
- * snap-back this exists to prevent.  Preview and commit must be the same number, so they call the same
- * function rather than reimplementing the bound.
+ * Public so the sheet's preview of a group drag stops at the same wall the commit will, rather than
+ * drawing the marks past it and snapping back.
  *
  * @param List keys The (track, parameter, key ordinal) triples being dragged.
  * @param Float fraction The requested drag as a signed fraction of each parameter's range.
@@ -254,22 +243,14 @@ private fun PuppetModel.keyDragsOf(keys: List<Triple<KeyformTrackRef, Parameter,
  * Drags every key in [keys] by [fraction] of its parameter's range, as ONE undo step - the multi-select
  * mark drag.
  *
- * By a fraction rather than an absolute delta because a selection can span two parameters (a linked pad
- * shows both axes at once) whose ranges differ by orders of magnitude.  Within ONE parameter a fraction of
- * its range IS the absolute delta, so the common case is exactly what the hand did; across two it is the
- * only reading that keeps the group together on screen.
- *
- * Clamped to the MOST CONSTRAINED member rather than per key: clamping individually would let the keys
- * nearest an end pile up while the rest kept travelling, silently destroying the spacing the rigger
- * authored.  Reducing the whole drag instead just stops the group at the wall.
- *
- * Each key is re-found BY VALUE inside the fold rather than trusted to keep its ordinal: a key that crosses
- * an unselected neighbour renumbers the axis under the keys still to be moved.
+ * By a fraction of each range because a selection can span two parameters (a linked pad) whose ranges
+ * differ by orders of magnitude; within one parameter the fraction is the absolute delta.  The whole group
+ * stops at its most constrained member's wall, so keys near an end never pile up and destroy the spacing
+ * the rigger authored.
  *
  * @param List keys The (track, parameter, key ordinal) triples to drag.
  * @param Float fraction The drag as a signed fraction of each parameter's range.
- * @return List<Int> Each key's ordinal AFTER the drag, in the order given - crossings renumber the axis, so
- *   a caller holding the old ordinals would be pointing at whichever keys took their place.
+ * @return List<Int> Each key's ordinal AFTER the drag, in the order given, since crossings renumber the axis.
  */
 fun EditorSession.dragTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, Int>>, fraction: Float): List<Int> {
 	val plan = model.value.planTrackKeyDrag(keys, fraction) ?: return keys.map { (_, _, keyIndex) -> keyIndex }
@@ -285,10 +266,8 @@ fun EditorSession.dragTrackKeys(keys: List<Triple<KeyformTrackRef, Parameter, In
 /**
  * Where every key in [keys] would land if dragged by [fraction] - pure, nothing recorded.
  *
- * The query half of [dragTrackKeys], public for the reason [trackKeyIndexAfterMove] spells out: the sheet
- * has to re-point its key selection at the landed ordinals BEFORE the drag records its step, because the
- * selection rides that step's snapshot.  Both call the same planner, so the answer cannot drift from the
- * drag it describes.
+ * The query half of [dragTrackKeys], public for the reason [trackKeyIndexAfterMove] gives; both call the
+ * same planner, so the answer cannot drift from the drag it describes.
  *
  * @param List keys The (track, parameter, key ordinal) triples being dragged.
  * @param Float fraction The drag as a signed fraction of each parameter's range.
@@ -513,9 +492,8 @@ private fun trackGridOf(puppet: PuppetModel, track: KeyformTrackRef): KeyformGri
 /**
  * Removes every key in [keys] as ONE undo step - the sheet's Delete over a multi-key selection.
  *
- * One step rather than one per key because the user made one gesture; a per-key step would make undoing a
- * five-key delete take five presses.  Applied in DESCENDING index order so each removal cannot renumber
- * the keys the later ones still have to find.
+ * Applied in DESCENDING index order so each removal cannot renumber the keys the later ones still have to
+ * find.
  *
  * @param List keys The (track, parameter, key ordinal) triples to remove.
  */

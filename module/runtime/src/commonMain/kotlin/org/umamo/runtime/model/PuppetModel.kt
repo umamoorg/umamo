@@ -76,9 +76,8 @@ data class PuppetModel(
 	 * MOC3 stores geometry in model units around its canvas origin and this factor converts it, so a
 	 * MOC3-origin document carries the value its file recorded.  A CMO3 authors directly in canvas
 	 * pixels and its `CModelInfo.pixelsPerUnit` is 1 on every corpus model, which describes the project
-	 * rather than any bake - so a CMO3-origin document carries null and the export picks a default.
-	 * Nothing in the editor or the evaluator reads it - both work purely in world space - but an EXPORT
-	 * cannot invert the import without it: the root-space affine and the scale of every root-path
+	 * rather than any bake - so a CMO3-origin document carries null and the export picks a default.  An
+	 * EXPORT cannot invert the import without it: the root-space affine and the scale of every root-path
 	 * rotation deformer both fold it in.
 	 *
 	 * NULLABLE rather than a sentinel because 1 is a legitimate bake scale.  Inferring the origin from
@@ -104,14 +103,9 @@ data class PuppetModel(
 	 */
 	val rendersFromSourceLayers: Boolean = false,
 	/**
-	 * The document's source art and where it packs onto the atlas pages.
-	 *
-	 * Document content, and authored: a repack moves placements, so they have to undo, diff, and export
-	 * like anything else the rigger changes.  Empty for a document with no separable source art - a
-	 * MOC3-origin rig, whose pages arrived already packed.
-	 *
-	 * Pixels are deliberately absent.  A page's bytes and a tile's raster belong to the document, which
-	 * loads them once; putting them here would put them in every undo snapshot.
+	 * The document's source art and where it packs onto the atlas pages, without pixels (those would land
+	 * in every undo snapshot).  Empty for a document with no separable source art - a MOC3-origin rig,
+	 * whose pages arrived already packed.
 	 */
 	val atlas: PuppetAtlas = PuppetAtlas.Empty,
 	/**
@@ -330,11 +324,9 @@ data class Drawable(
 
 /**
  * The drawables that are actually shown, after cascading the Parts-panel visibility toggles: a drawable is
- * shown only when its own [Drawable.isVisible] is set and every ancestor part up the tree is visible.
- * This is Cubism's editor-preview rule - hiding a folder hides everything inside it (e.g. a hidden
- * `[Guide Image]` sketch part hides its art) - and it is static (the eyeball is an authoring toggle, not
- * parameter-animated), so callers compute it once. It gates only what is drawn: a hidden drawable that is
- * still a mask source or a glue partner must keep being deformed, so apply those gates elsewhere.
+ * shown only when its own [Drawable.isVisible] is set and every ancestor part up the tree is visible (the
+ * official editor's preview rule).  Static, so callers compute it once, and it gates only what is drawn: a
+ * hidden drawable that is still a mask source or a glue partner must keep being deformed.
  *
  * @return Set<DrawableId> The ids of the drawables to draw.
  */
@@ -390,9 +382,6 @@ private fun PuppetModel.walkOrgTree(visit: (OrgChild, Boolean) -> Unit) {
  * hierarchy is shown, and the part it belongs to is shown with every ancestor part up the tree.  What the
  * viewport draws over a deformer (a warp's lattice) follows it; the deformation itself does not, so the art
  * under a hidden deformer still moves with it.
- *
- * A part the org tree does not reach is judged by its own toggle, and a parent deformer or part the model
- * does not hold hides nothing.
  *
  * @return Set<DeformerId> The ids of the shown deformers.
  */
@@ -472,8 +461,8 @@ fun PuppetModel.endsInCycle(chain: List<Deformer>): Boolean = chain.lastOrNull()
 
 /**
  * The owning part of each drawable, derived from the org tree (the drawable's parent in [rootChildren] /
- * [Part.children]), or null for a root-level drawable. Since membership lives only in the tree, this is how
- * the few sites that need "which part owns this mesh" (the Inspector) read it - computed once per model.
+ * [Part.children]), or null for a root-level drawable.  Membership lives only in the tree, so this is how
+ * a caller that needs a mesh's owning part reads it, computed once per model.
  *
  * @return Map<DrawableId, PartId?> Drawable id to its owning part id, or null at the root.
  */
@@ -496,13 +485,8 @@ fun PuppetModel.partByDrawable(): Map<DrawableId, PartId?> {
 
 /**
  * The first drawable in Parts-panel order (top = front) that can actually be edited: it carries a mesh
- * and is shown (its own [Drawable.isVisible] is set and every ancestor part is visible).  Edit mode seeds
- * onto this when nothing is selected or remembered, so a fresh document lands on the topmost editable mesh
- * instead of an inert Edit session.  A drawable without a mesh, or a hidden one, leaves the gizmo overlay
- * with nothing to draw, so both are skipped.  The scan is the same forward pre-order walk of the org tree
- * as [visibleDrawableIds], short-circuiting at the first match.  Only when the org tree carries no drawable
- * at all (a degenerate model with an empty [rootChildren]) does it fall back to a flat scan of [drawables];
- * a populated tree that yields no shown, meshed drawable returns null (nothing editable to seed onto).
+ * and is shown.  Edit mode seeds onto this when nothing is selected or remembered, so a fresh document lands
+ * on the topmost editable mesh instead of an inert Edit session.
  *
  * @return DrawableId? The topmost editable drawable, or null when the model has none.
  */

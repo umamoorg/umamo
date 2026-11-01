@@ -62,7 +62,7 @@ fun atlasCompositionOf(options: AtlasPackOptions): AtlasComposition = AtlasCompo
  * Upright, the tile's origin sits trimLeft / trimTop above and left of the packed rect.  Turned, the
  * packer sends trim-local (u, v) to (pageX + v, pageY + trimWidth - u), so over the untrimmed tile
  * frame the origin lands at (pageX - trimTop, pageY + trimWidth + trimLeft) under a -90 degree
- * rotation - the affine the composer's own exact quarter-turn path recognises, so a turned pack
+ * rotation - the affine the composer's own exact quarter-turn path recognizes, so a turned pack
  * derives through the packer's blit.  Any other turn count is a packer contract violation.
  *
  * @param AtlasPackPlacement packPlacement Where the packer put one tile.
@@ -111,13 +111,8 @@ class AtlasDerivationPlan(
 /**
  * Resolves what [model]'s atlas denotes without composing a pixel.
  *
- * Null when the atlas cannot be derived at all: a placement naming a page the atlas lacks, art that
- * will not decode, or art whose size disagrees with its tile - faults in the document, not in the
- * placement.  A placed tile with nothing opaque is skipped rather than refused (there is nothing to
- * draw), and scale, rotation, fractional positions, and footprints past the page edge all derive:
- * the composer resamples and clips them.
- *
- * Thread-safe: reads pixels through [SourceArtRasters.decodeRaster] and shares nothing, so callers
+ * Refuses only a fault in the document, never a placement: scale, rotation, fractional positions,
+ * and footprints past the page edge are the composer's to resample and clip.  Thread-safe, so callers
  * run it off the UI thread.
  *
  * @param PuppetModel      model      The model whose atlas to resolve.
@@ -163,14 +158,7 @@ fun planAtlasDerivation(model: PuppetModel, artRasters: SourceArtRasters): Atlas
  * [PuppetTextures.atlases] is index-parallel to `PuppetAtlas.pages`, and the drawable map carries
  * each placement's own page index.  That guarantee holds for GENERATED sets only - an imported
  * document's two numberings stay independent (see [AtlasPlacement]), because its renderer pages were
- * collected by a different walk than its document pages.
- *
- * A placement the packer authored (an integer translation with room for its extrusion) composes
- * through the packer's own blit, byte-identical to the pages the repack produced; every other
- * placement resamples through the affine composer.  Null exactly when [planAtlasDerivation] is null;
- * the caller treats that as "keep showing the pages you have".
- *
- * Thread-safe, like the plan.
+ * collected by a different walk than its document pages.  Thread-safe, like the plan.
  *
  * @param PuppetModel      model              The model whose atlas to compose.
  * @param SourceArtRasters artRasters         The source-art pixel store.
@@ -200,9 +188,8 @@ fun deriveAtlasTextures(
  * The [PuppetTextures] a GENERATED page set is: [pages] wrapped as decoded images, index-parallel to
  * `PuppetAtlas.pages`, under the drawable map of [generatedAtlasIndexByDrawableId].
  *
- * One function used by the repack (from the pack it just ran), the derivation above (for an undone
- * generation), and the export gate, so no caller assembles the wrapper on its own and the page cache's
- * identity-keyed sets are always built the same way.
+ * Every generated page set is wrapped here, so the page cache's identity-keyed sets are always built
+ * the same way.
  *
  * @param List        pages              The composed pages, in the model's page order.
  * @param PuppetModel model              The model whose bindings key the drawable map.

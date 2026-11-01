@@ -55,16 +55,12 @@ import org.umamo.ui.workspace.spaces.PlaceholderSpace
 private val TAB_STRIP_WIDTH = 32.dp
 
 /**
- * The Properties space: a Blender-style tabbed property editor.  A left icon strip switches between the
- * always-on Document tab and the per-item Object / Data tabs, which show the active item, even among several
- * selected, or the item last made active after a deselect, as Blender's do (see shownTargetOf); the body
- * renders the active tab's collapsible sections.  The header's search box (mounted separately via
- * [propertiesHeaderControls]) filters sections and auto-switches to a tab that has matches.
+ * The Properties space: a Blender-style tabbed property editor, whose left icon strip switches between the
+ * always-on Document tab and the per-item Object / Data tabs over a body of the active tab's collapsible
+ * sections.
  *
- * Reads [LocalPuppet] for the document + object graph, [LocalSelection] for the item shown, and
- * [LocalEditorSession] for the session an editable row writes its change through.  Its search /
- * active-tab / expanded state lives on the area's [PropertiesViewState], shared with the header
- * controls, so it survives switching the space away and back.
+ * Its search, active-tab, and expanded state lives on the area's [PropertiesViewState], shared with
+ * [propertiesHeaderControls], so it survives switching the space away and back.
  *
  * @param AreaScope scope The hosting area's scope carrying the shared view state.
  * @param Modifier modifier The layout modifier.

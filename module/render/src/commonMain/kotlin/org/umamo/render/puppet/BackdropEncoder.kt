@@ -111,10 +111,9 @@ internal class BackdropEncoder(
 	}
 
 	/**
-	 * Fills an open pass with the flat underlay both UV scenes share: the themed grid backdrop (bounded by
-	 * the shown surface when the grid carries one), then the image as a single textured quad at the world
-	 * origin.  A null image or handle paints the grid alone.  The caller owns the frame and the pass, so
-	 * what a scene draws over its surface lands in the same pass.
+	 * Fills an open pass with the flat underlay both UV scenes share: the grid backdrop, then the image as a
+	 * single textured quad at the world origin.  The caller owns the frame and the pass, so what a scene
+	 * draws over its surface lands in the same pass.
 	 *
 	 * The quad samples through the same premultiplied fragment shader the puppet uses, so an underlay
 	 * matches the puppet's texel rendering exactly.
@@ -137,14 +136,11 @@ internal class BackdropEncoder(
 	}
 
 	/**
-	 * The uploaded texture for an underlay image, uploading it on first sight.
+	 * The uploaded texture for an underlay image, uploading it on first sight and evicting the oldest past
+	 * [UNDERLAY_TEXTURE_CACHE_SIZE].
 	 *
 	 * Keyed on image IDENTITY, not content: the store hands out the same decoded instance for a given
-	 * layer, so identity is both correct and free.  The cache is deliberately tiny - a UV editor shows
-	 * one layer at a time and only a handful of areas can exist - and evicts in insertion order, which
-	 * costs a re-upload in the pathological case and bounds GPU memory in every other.  Rendering the
-	 * whole document's layers at once is a different problem with a different answer (paging or
-	 * rebatching), and it belongs to the viewport's layer display mode, not here.
+	 * layer, so identity is both correct and free.
 	 *
 	 * Render thread only: it creates GPU resources, so it must run with the context current.
 	 *

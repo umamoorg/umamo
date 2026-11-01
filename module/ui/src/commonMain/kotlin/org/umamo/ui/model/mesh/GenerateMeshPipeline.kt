@@ -812,13 +812,9 @@ internal sealed interface GrownPackOutcome {
 
 /**
  * Packs the tiles whose meshes grew past their room into new spots around every other placed tile, which
- * holds still (pinned or not, painted or fully transparent), at the document's page size and once more
- * at [MAX_IMPORT_PAGE_SIZE] when one does not fit; the result re-derives every coordinate through
- * [withAtlasRepack] under the document's composition.  Only the grown tiles move: a tile with no
- * placement that is not growing (art the import left unpacked, a canvas-sized background larger than any
- * page) stays out of the pack as it is.  A grown tile the pack cannot carry refuses the whole pack, and so
- * does a held tile the new pages would lose - a used tile left without a placement would leave its
- * drawables without a page.
+ * holds still, and re-derives the model through [withAtlasRepack] under the document's composition.  A
+ * tile with no placement that is not growing stays out of the pack as it is.  Any refusal refuses the whole
+ * pack, since a used tile left without a placement would leave its drawables without a page.
  *
  * @param PuppetModel      model              The model with the new meshes.
  * @param Set<AtlasTileId> grownTileIds       The tiles that need a new spot.

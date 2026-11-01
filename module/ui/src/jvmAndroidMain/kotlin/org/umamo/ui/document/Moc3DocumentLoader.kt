@@ -28,13 +28,9 @@ import org.umamo.ui.viewport.initialLiveParams
  * A `.moc3` imported together with its JSON sidecars and external atlas pages.  None of the file's
  * undigested form is retained, because the MOC3 export bakes every section fresh from the model with
  * no reference container involved (docs/format/MOC3.md § 8) - which is why this class has no
- * counterpart to [Cmo3Document]'s retained graph.  That one IS load-bearing: the CMO3 export
- * reconciles onto a fresh read of it.  The original atlas page PNGs are the one thing kept
+ * counterpart to [Cmo3Document]'s retained graph.  The original atlas page PNGs are the one thing kept
  * ([atlasPages], in model3 texture order): both exports prefer those exact bytes over re-encoding the
- * decoded RGBA, Export CMO3 embedding them in the synthesized graph's image chain and Export MOC3
- * writing them beside the moc.
- * Each export falls back to a re-encode for any decoded page this list does not reach, so the page
- * numbering the drawables address stays intact either way.
+ * decoded RGBA ([pagePngs]).
  */
 class Moc3Document(
 	override val path: String,
@@ -51,11 +47,8 @@ class Moc3Document(
 	 *
 	 * Retained as TEXT, unparsed: Umamo models none of these, so a MOC3 export re-emits them verbatim
 	 * rather than rebuilding them from a model that never held them.  Reading them at import is what
-	 * makes that possible at all - a picker-driven export has no access to the source directory.
-	 *
-	 * The KIND travels with the text because only the manifest knows it.  A rigger is free to name the
-	 * physics file anything, and re-deriving the kind from the file name later would drop such a file
-	 * into the motion catch-all - written beside the moc, but no longer wired into the manifest.
+	 * makes that possible at all - a picker-driven export has no access to the source directory.  The
+	 * KIND travels with the text because only the manifest states it.
 	 */
 	val sidecars: List<Moc3Sidecars.PassThroughSidecar>,
 ) : PuppetDocument {
@@ -85,10 +78,9 @@ class Moc3Document(
  * not a single file: the `<basename>.model3.json` manifest next to the moc names the atlas PNGs (and
  * the optional cdi3/physics3/... sidecars), all resolved relative to the moc's directory.
  *
- * The whole pipeline runs on Dispatchers.IO: the sibling reads are blocking okio IO, and the decode
- * plus import that interleave them are seconds of CPU on a real model (a single 8192 atlas page is
- * 256MB of RGBA) - none of which may run on the caller's dispatcher, which is the Compose Main
- * thread for every interactive open.
+ * The whole pipeline runs on Dispatchers.IO: the sibling reads are blocking, and the decode plus
+ * import are seconds of CPU on a real model, none of which may run on the caller's dispatcher - the
+ * Compose Main thread for every interactive open.
  *
  * Desktop-first: sibling discovery needs a real directory, so an Android SAF `content://` handle
  * (which has no resolvable parent) fails cleanly as MissingManifest until a folder-picker flow exists.
@@ -115,19 +107,10 @@ suspend fun loadMoc3Document(file: PlatformFile, mocBytes: ByteArray): DocumentL
 
 /**
  * Assembles a [Moc3Document] from a moc's bytes and its sidecars, every sibling read injected via
- * [readRelative] so the discovery/failure rules unit-test without a filesystem.  The rules:
- *
- *  - `<basename>.model3.json` is REQUIRED - absent fails as MissingManifest; present but
- *    unparseable fails as ParseFailed (the file exists, so "not found" would mislead).
- *  - Every texture the manifest lists is REQUIRED, and every mesh's textureIndex must land inside
- *    that list - an empty list, a missing file, an undecodable page, or an out-of-range index
- *    fails as MissingTexture: a puppet without its atlas wiring is broken, not degraded.
- *  - cdi3 (display names) is OPTIONAL - the manifest's DisplayInfo reference first, then the
- *    basename fallback; absent or unparseable degrades to raw format ids.
- *  - physics3/pose3/userdata3/exp3/motion3 are read as TEXT and retained for a MOC3 export to
- *    re-emit; each is optional, and a missing one degrades that export rather than the open.
- *  - No failure escapes as an exception: like the byte-level CMO3 loader, anything thrown by the
- *    import/assembly is caught and reported as ParseFailed, never propagated to the caller.
+ * [readRelative] so the discovery and failure rules unit-test without a filesystem.  The manifest and
+ * every texture it lists are required, since a puppet without its atlas wiring is broken, not degraded;
+ * the display info and the pass-through sidecars only degrade when missing.  No failure escapes as an
+ * exception.
  *
  * @param String    path         The stored path recorded on the document (the recent-files key).
  * @param String    name         The moc file name (`Erica.moc3`; sidecars derive from its basename).
