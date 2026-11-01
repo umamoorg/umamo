@@ -96,7 +96,7 @@ internal fun SectionHeader(name: String, collapsed: Boolean, onToggle: () -> Uni
  *   selection spans sections and a section sees only its own projection.
  * @param Boolean keysEditable Whether the mode lets keys change (EditorMode.editsKeys).  When it does not, a mark
  *   only selects - the lane gets no drag handlers, so it leaves its marks in place - and the lane menu's rows
- *   are greyed out.
+ *   are grayed out.
  * @param Function selectedMarkDragDelta The in-flight group drag in THIS section's domain units, drawn on
  *   its selected marks so they travel with the one under the hand.  A lambda so the per-frame read lands in
  *   the lane's draw scope rather than recomposing the sheet.

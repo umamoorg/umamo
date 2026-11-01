@@ -21,10 +21,10 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 /**
- * Pins what the renderer records for its lattice layer, on a [RecordingRenderDevice]: each role's grid lines then
- * its dots in the role's color, idle first and active last, the hovered lattice opaque after the rest of its role;
- * idle lattices only in a frame that shows every deformer; nothing under the Show Overlays master or in a capture;
- * and an upload only for a lattice the pose moved.
+ * Pins what the renderer records for its lattice layer, on a [RecordingRenderDevice]: each role's lines then its
+ * dots in the role's color at the frame's lattice opacity, idle first and active last, the hovered lattice in the
+ * hover color after the rest of its role; idle lattices only in a frame that shows every deformer; nothing under the
+ * Show Overlays master or in a capture; and an upload only for a lattice the pose moved.
  */
 class LatticeLayerPassTest {
 	private val viewportSize = 64
@@ -106,7 +106,7 @@ class LatticeLayerPassTest {
 	}
 
 	@Test
-	fun theHoveredLatticeDrawsOpaqueAfterTheRestOfItsRole() {
+	fun theHoveredLatticeDrawsInTheHoverColorAfterTheRestOfItsRole() {
 		val device = RecordingRenderDevice()
 		val renderer = latticeRenderer(device)
 		val translucent = OverlayColor(0.25f, 0.25f, 0.25f, 0.5f)
@@ -119,18 +119,18 @@ class LatticeLayerPassTest {
 		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(hoveredLattice = LATTICE_RIG_OUTER))
 
 		val draws = device.overlayDraws()
-		val opaque = components(translucent.copy(alpha = 1f))
+		val hover = components(palette.latticeHover)
 		assertEquals(
 			listOf(
 				PipelinePurpose.OverlayEdge to components(translucent),
 				PipelinePurpose.OverlayEdge to components(translucent),
 				PipelinePurpose.OverlayVertexDot to components(translucent),
 				PipelinePurpose.OverlayVertexDot to components(translucent),
-				PipelinePurpose.OverlayEdge to opaque,
-				PipelinePurpose.OverlayVertexDot to opaque,
+				PipelinePurpose.OverlayEdge to hover,
+				PipelinePurpose.OverlayVertexDot to hover,
 			),
 			describe(draws),
-			"the other idle lattices at the palette's alpha, then the hovered one opaque",
+			"the other idle lattices at the palette's alpha, then the hovered one in the hover color",
 		)
 		// The outer warp is the 2x2 lattice, whose outline rings eight border segments; the others are 1x1.
 		assertEquals(listOf(4, 4, 4, 4, 8, 8), draws.map { draw -> draw.buffers.spec.edgeEndpoints.size / 2 }, "the hovered one is the outer warp")
@@ -145,6 +145,63 @@ class LatticeLayerPassTest {
 		)
 		assertTrue(device.overlayDraws().all { draw -> draw.idleColor == components(translucent) }, "all at the palette's alpha")
 		assertTrue(device.resourceEvents.none { event -> event is OverlayBuffersCreated }, "and the hover uploads nothing")
+	}
+
+	@Test
+	fun theHoverColorWinsOverEveryRoleAndThePendingMark() {
+		val device = RecordingRenderDevice()
+		val renderer = latticeRenderer(device)
+		renderer.setLatticeOverlay(LatticeOverlay(roles, sizes, pendingIds = setOf(LATTICE_RIG_RANGED)))
+		val target = mainTarget(device)
+		val hover = components(palette.latticeHover)
+
+		for (hovered in listOf(LATTICE_RIG_INNER, LATTICE_RIG_RANGED, LATTICE_RIG_OUTER)) {
+			device.clearLog()
+			renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(hoveredLattice = hovered))
+
+			val colors = device.overlayDraws().map { draw -> draw.idleColor }
+			assertEquals(2, colors.count { color -> color == hover }, "$hovered draws its lines and dots in the hover color, whatever its role")
+		}
+
+		device.clearLog()
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(hoveredLattice = LATTICE_RIG_INNER))
+		assertTrue(device.overlayDraws().any { draw -> draw.idleColor == components(palette.latticePending) }, "the unhovered pending lattice keeps its mark")
+	}
+
+	@Test
+	fun theLatticeOpacityFadesEveryRoleButNotTheHover() {
+		val device = RecordingRenderDevice()
+		val renderer = latticeRenderer(device)
+		val target = mainTarget(device)
+		device.clearLog()
+
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(hoveredLattice = LATTICE_RIG_INNER, latticeOpacity = 0.5f))
+
+		val halved = { color: OverlayColor -> components(color.copy(alpha = color.alpha * 0.5f)) }
+		assertEquals(
+			listOf(
+				PipelinePurpose.OverlayEdge to components(palette.latticeHover),
+				PipelinePurpose.OverlayVertexDot to components(palette.latticeHover),
+				PipelinePurpose.OverlayEdge to halved(palette.latticeSelected),
+				PipelinePurpose.OverlayVertexDot to halved(palette.latticeSelected),
+				PipelinePurpose.OverlayEdge to halved(palette.latticeActive),
+				PipelinePurpose.OverlayVertexDot to halved(palette.latticeActive),
+			),
+			describe(device.overlayDraws()),
+			"the idle lattice is the hovered one, at the hover color whole; the selected and active fade by half",
+		)
+	}
+
+	@Test
+	fun noLatticeOpacityDrawsNoLattice() {
+		val device = RecordingRenderDevice()
+		val renderer = latticeRenderer(device)
+		val target = mainTarget(device)
+		device.clearLog()
+
+		renderer.render(target, viewportSize, viewportSize, overlays = FrameOverlays(hoveredLattice = LATTICE_RIG_INNER, latticeOpacity = 0f))
+
+		assertTrue(device.overlayDraws().isEmpty(), "at no opacity the layer draws nothing, the hovered lattice included")
 	}
 
 	@Test

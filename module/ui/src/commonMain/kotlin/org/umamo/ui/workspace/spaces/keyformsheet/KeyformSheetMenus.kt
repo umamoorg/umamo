@@ -69,7 +69,7 @@ internal fun labelMenuItemsFor(
  * item dispatches THROUGH the registry rather than calling the session, so the menu can never drift from
  * the shortcut it advertises.  The popup owns the pointer by the time an item fires and the live lane hover
  * is gone, so the clicked spot is re-published for the command's dispatch-time read and cleared right after.
- * Every entry changes keys, so all of them are greyed out where the mode changes none (EditorMode.editsKeys) -
+ * Every entry changes keys, so all of them are grayed out where the mode changes none (EditorMode.editsKeys) -
  * the summary Delete included, which calls the session rather than a command and so has no availability of
  * its own.
  *
@@ -77,7 +77,7 @@ internal fun labelMenuItemsFor(
  * @param Parameter parameter The section's parameter.
  * @param KeyformSheetProjection projection The section's projection, which maps the row back to its track.
  * @param EditorSession? session The editing session, or null with none, which offers nothing.
- * @param Boolean keysEditable Whether the mode lets keys change; false greys out every entry.
+ * @param Boolean keysEditable Whether the mode lets keys change; false grays out every entry.
  * @param KeyableHover? keyableHover The shell's keyable hover, which the command reads, or null outside a shell.
  * @param CommandRegistry commands The registry the entries dispatch through.
  * @param Keymap keymap The keymap, for the shortcut each entry advertises.

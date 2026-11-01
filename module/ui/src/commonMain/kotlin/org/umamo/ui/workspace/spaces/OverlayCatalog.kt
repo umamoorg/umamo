@@ -94,9 +94,10 @@ internal enum class OverlayToggle(
 
 /**
  * One value field of the overlays popover: its section, the surfaces it is offered on, its label, and its
- * description.  A field follows its section's rows - under the Wireframe row on a 2D viewport, alone under
- * the Geometry heading on a UV editor - and the header control knows how each is edited.  The grid fields
- * are not here: they are the Grid row's own, with their reset.
+ * description.  A field follows its section's rows - the wireframe's Opacity under the Cull Hidden row on a 2D
+ * viewport and alone under the Geometry heading on a UV editor, the deformers' Opacity under the Deformers row - and
+ * the header control knows how each is edited.  The grid fields are not here: they are the Grid row's own, with
+ * their reset.
  *
  * @property OverlaySection section The section the field sits under.
  * @property Set<OverlaySurface> surfaces The work surfaces that offer the field.
@@ -110,6 +111,7 @@ internal enum class OverlayField(
 	val description: StringResource,
 ) {
 	WireframeOpacity(OverlaySection.Geometry, OverlaySurface.entries.toSet(), Res.string.overlay_wireframe_opacity, Res.string.overlay_wireframe_opacity_description),
+	DeformerOpacity(OverlaySection.Objects, setOf(OverlaySurface.Viewport2D), Res.string.overlay_deformer_opacity, Res.string.overlay_deformer_opacity_description),
 }
 
 /**

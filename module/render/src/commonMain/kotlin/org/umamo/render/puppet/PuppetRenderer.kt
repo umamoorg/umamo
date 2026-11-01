@@ -754,7 +754,8 @@ class PuppetRenderer(
 	 * @param MeshOverlay?    overlay        The mesh overlay drawn over the art, or null for none; its
 	 *   device objects must already reflect it (the viewport applies before each frame, a capture passes null).
 	 * @param FrameOverlays   overlays       What the frame draws beyond the backdrop: the grid lines and axes
-	 *   with a grid backdrop, and whether and how opaque the overlay's wireframe meshes draw.
+	 *   with a grid backdrop, whether and how opaque the overlay's wireframe meshes draw, and the lattice layer's
+	 *   drawn roles, hovered lattice, and opacity.
 	 * @param Boolean         cullWireframe  Whether the frame writes the draw order first and culls the
 	 *   wireframe by it (a capture never does).
 	 * @param Boolean         drawLattices   Whether the lattice layer draws over the art and the mesh overlay; its
@@ -858,7 +859,7 @@ class PuppetRenderer(
 
 			// Over the mesh overlay: a lattice is what a click in Object or Pose mode takes first.
 			if (drawLattices) {
-				overlayEncoder.encodeLatticeDraws(pass, latticeResidency, inputs, latticeRolesDrawnIn(overlays), overlays.hoveredLattice)
+				overlayEncoder.encodeLatticeDraws(pass, latticeResidency, inputs, overlays)
 			}
 		}
 

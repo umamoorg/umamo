@@ -29,8 +29,8 @@ import kotlin.test.assertTrue
 /**
  * Pins the lattice layer on the pixels: each warp's control points and grid lines land where its lattice is in
  * world space, in its role's color, an idle lattice only in a frame that shows every deformer and only as its outline
- * and corners, the hovered one opaque, and a pose moves them with no new overlay.  The pick reads the same shapes, so
- * the pixel a lattice colors is the pixel that picks it.
+ * and corners, the hovered one in the hover color, all faded by the frame's lattice opacity, and a pose moves them
+ * with no new overlay.  The pick reads the same shapes, so the pixel a lattice colors is the pixel that picks it.
  *
  * The lattice rig behind a 1:1 camera centered on the origin of a 128-pixel frame, so world (x, z) lands at
  * column 64 + x and row 64 - z.  At angle X -1 the outer warp's points sit at columns 54, 84, 114 and rows 64,
@@ -43,6 +43,7 @@ class LatticeLayerRenderTest {
 	private val red = OverlayColor(1f, 0f, 0f, 1f)
 	private val green = OverlayColor(0f, 1f, 0f, 1f)
 	private val blue = OverlayColor(0f, 0f, 1f, 1f)
+	private val white = OverlayColor(1f, 1f, 1f, 1f)
 	private val sizes = MeshOverlaySizes(vertexDotRadiusPx = 4f, edgeWidthPx = 2f, faceDotRadiusPx = 3f)
 	private val roles = mapOf(LATTICE_RIG_OUTER to LatticeRole.Active, LATTICE_RIG_INNER to LatticeRole.Idle, LATTICE_RIG_RANGED to LatticeRole.Selected)
 
@@ -114,7 +115,7 @@ class LatticeLayerRenderTest {
 	}
 
 	@Test
-	fun theHoveredLatticeDrawsOpaqueInItsAreaAlone() {
+	fun theHoveredLatticeDrawsInTheHoverColor() {
 		requireHeadlessGl("[lattice-render]")
 		val live = LiveLatticeRenderer(idle = red.copy(alpha = 0.5f))
 		live.renderer.setLatticeOverlay(LatticeOverlay(mapOf(LATTICE_RIG_OUTER to LatticeRole.Idle, LATTICE_RIG_INNER to LatticeRole.Idle), sizes))
@@ -124,8 +125,22 @@ class LatticeLayerRenderTest {
 
 		// Up and left of the corner, inside its dot and off both edges, so one translucent layer covers the pixel.
 		assertTrue(plain.at(52, 62)[0] in 100..160, "the idle corner dot blends at half alpha, got ${plain.at(52, 62)}")
-		assertEquals(listOf(255, 0, 0, 255), hovered.at(52, 62), "hovered, it draws opaque")
-		assertEquals(plain.at(69, 79), hovered.at(69, 79), "the other idle lattice keeps its alpha")
+		assertEquals(listOf(255, 255, 255, 255), hovered.at(52, 62), "hovered, it draws in the hover color")
+		assertEquals(plain.at(69, 79), hovered.at(69, 79), "the other idle lattice keeps its color")
+	}
+
+	@Test
+	fun theLatticeOpacityFadesTheLayer() {
+		requireHeadlessGl("[lattice-render]")
+		val live = LiveLatticeRenderer()
+		val bare = live.render()
+		live.renderer.setLatticeOverlay(LatticeOverlay(mapOf(LATTICE_RIG_OUTER to LatticeRole.Idle), sizes))
+
+		val faded = live.render(FrameOverlays(latticeOpacity = 0.5f))
+		val unseen = live.render(FrameOverlays(latticeOpacity = 0f))
+
+		assertTrue(faded.at(52, 62)[0] in 100..160, "the opaque red corner dot blends at half opacity, got ${faded.at(52, 62)}")
+		assertEquals(bare.at(52, 62), unseen.at(52, 62), "and at none it does not draw")
 	}
 
 	/**
@@ -163,7 +178,8 @@ class LatticeLayerRenderTest {
 	}
 
 	/**
-	 * A GL renderer over the lattice rig, at angle X -1, over a black grid, with opaque selected and active colors.
+	 * A GL renderer over the lattice rig, at angle X -1, over a black grid, with opaque selected, active, and (white)
+	 * hover colors.
 	 *
 	 * @param OverlayColor idle The idle lattice color; opaque red by default.
 	 */
@@ -176,7 +192,7 @@ class LatticeLayerRenderTest {
 			renderer.initGl()
 			renderer.setGrid(blackGrid, 100f, 10)
 			renderer.setCamera(ViewportCamera(0f, 0f, 1f))
-			renderer.setMeshOverlayPalette(MeshOverlayPalette.Classic.copy(latticeIdle = idle, latticeSelected = green, latticeActive = blue))
+			renderer.setMeshOverlayPalette(MeshOverlayPalette.Classic.copy(latticeIdle = idle, latticeSelected = green, latticeActive = blue, latticeHover = white))
 			renderer.setPose(mapOf(LATTICE_RIG_ANGLE_X to -1f))
 			target = device.createRenderTarget(RenderTargetSpec(viewportSize, viewportSize, TextureFormat.Rgba8, sampled = true))
 		}

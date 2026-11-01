@@ -36,7 +36,7 @@ fun Modifier.rowDropHighlight(active: Boolean, shape: Shape, colors: UmamoColors
 	return drawBehind {
 		drawOutline(shape.createOutline(size, layoutDirection, this), colors.dropTargetBackground)
 		val stroke = RING_STROKE.toPx()
-		// The stroke is centred on the inset outline, so its outer edge sits RING_INSET inside the row.
+		// The stroke is centered on the inset outline, so its outer edge sits RING_INSET inside the row.
 		inset(RING_INSET.toPx() + stroke / 2f) {
 			drawOutline(shape.createOutline(size, layoutDirection, this), colors.accent, style = Stroke(width = stroke))
 		}

@@ -256,17 +256,17 @@ internal val EVERY_LATTICE_ROLE: Set<LatticeRole> = LatticeRole.entries.toSet()
 private val PICKED_LATTICE_ROLES: Set<LatticeRole> = setOf(LatticeRole.Selected, LatticeRole.Active)
 
 /**
- * The lattice roles a frame drawing with [overlays] draws: none when the frame hides the mesh overlay, every role
- * when it shows every deformer, and only the selected and active ones otherwise.  The one rule both the renderer's
- * lattice draws and the picks over them ([latticesDrawnIn]) read, so a pick never lands on a lattice the area does
- * not draw.
+ * The lattice roles a frame drawing with [overlays] draws: none when the frame hides the mesh overlay or draws the
+ * lattices at no opacity, every role when it shows every deformer, and only the selected and active ones otherwise.
+ * The one rule both the renderer's lattice draws and the picks over them ([latticesDrawnIn]) read, so a pick - and
+ * so a hover - never lands on a lattice the area does not draw.
  *
  * @param FrameOverlays overlays The frame's overlay options.
  * @return Set<LatticeRole> The drawn roles.
  */
 fun latticeRolesDrawnIn(overlays: FrameOverlays): Set<LatticeRole> =
 	when {
-		!overlays.meshOverlay -> emptySet()
+		!overlays.meshOverlay || overlays.latticeOpacity <= 0f -> emptySet()
 		overlays.allLattices -> EVERY_LATTICE_ROLE
 		else -> PICKED_LATTICE_ROLES
 	}

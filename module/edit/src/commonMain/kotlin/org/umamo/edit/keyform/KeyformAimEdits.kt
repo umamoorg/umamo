@@ -108,17 +108,19 @@ fun EditorSession.captureKeyOnTrack(
  *
  * An aimed capture inserts a shape-preserving key at that position, so it holds whatever the track already
  * evaluates to there - unless its one track holds an edit the mode shows (a typed channel value, or a warp's
- * Pose-mode lattice): that edit was made for the pose, so it is keyed at the pose wherever the aim pointed, rather
- * than left held beside a key that ignores it.  A capture at the pose stores the PENDING unkeyed edit when there is
- * one, else what the track shows there - so an insert after typing or shaping stores what was made, and an insert
- * with nothing edited pins what is already on screen (Blender's behaviour, and how a rigger anchors a pose before
- * moving on):
+ * Pose-mode lattice): that edit was made for the pose, so it is keyed at the pose wherever the aim pointed,
+ * rather than left held beside a key that ignores it.  A capture at the pose stores the PENDING unkeyed edit when
+ * there is one, else what the track shows there - so an insert after typing or shaping stores what was made, and
+ * an insert with nothing edited pins what is already on screen (Blender's behavior, and how a rigger anchors a
+ * pose before moving on):
  *
  *  - A channel stores its pending value, else its evaluated value.
  *  - A warp's lattice stores its pending Pose-mode shape, else the lattice its grid blends to at the pose, and a
- *    warp not yet keyed on the parameter gains the axis ([withWarpLatticeCaptured]).  A pending shape is taken only
- *    while the pose is free: it was made for the rig's pose, which a pinned mode does not show.
+ *    warp not yet keyed on the parameter gains the axis ([withWarpLatticeCaptured]).
  *  - Any other geometry inserts a key at the pose holding the shape already there.
+ *
+ * A pending value or shape is taken only while the pose is free ([shownPending]): it was made for the rig's pose,
+ * which a pinned mode does not show.
  *
  * Refuses with a notice rather than silently doing nothing when no parameter resolves, since that is a thing
  * the user can fix.

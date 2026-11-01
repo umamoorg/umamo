@@ -1,5 +1,6 @@
 package org.umamo.render.puppet
 
+import org.umamo.render.FrameOverlays
 import org.umamo.render.device.DeformUniforms
 import org.umamo.render.device.DeformedPositionStore
 import org.umamo.render.device.DrawTextures
@@ -34,8 +35,10 @@ import org.umamo.runtime.model.drawableId
  *   wrote it; a wireframe entry absent from it draws unculled.
  * @property Set<LatticeRole> latticeRoles The lattice roles a lattice overlay draws in this frame
  *   ([latticeRolesDrawnIn]).
- * @property DeformerId? hoveredLattice The warp whose lattice draws opaque and last in its role, the one the pointer
- *   is over in this frame's area ([org.umamo.render.FrameOverlays.hoveredLattice]), or null for none.
+ * @property DeformerId? hoveredLattice The warp whose lattice draws last in its role, in the palette's hover color, the
+ *   one the pointer is over in this frame's area ([org.umamo.render.FrameOverlays.hoveredLattice]), or null for none.
+ * @property Float latticeOpacity The alpha scale, 0 to 1, of a lattice overlay's role colors in this frame
+ *   ([org.umamo.render.FrameOverlays.latticeOpacity]); the hover color keeps its own alpha.
  */
 internal class OverlayFrame(
 	val affine: WorldToNdc,
@@ -51,6 +54,7 @@ internal class OverlayFrame(
 	val drawOrderOf: Map<DrawableId, Int> = emptyMap(),
 	val latticeRoles: Set<LatticeRole> = EVERY_LATTICE_ROLE,
 	val hoveredLattice: DeformerId? = null,
+	val latticeOpacity: Float = 1f,
 )
 
 /**
@@ -142,11 +146,11 @@ internal class MeshOverlayEncoder(
 	 * @param RenderPassEncoder pass The open, unscissored pass on the frame's target.
 	 * @param DirectOverlayResidency residency The lattice layer's residency, already brought to the layer.
 	 * @param FrameInputs inputs The frame's inputs.
-	 * @param Set<LatticeRole> roles The roles the frame draws ([latticeRolesDrawnIn]).
-	 * @param DeformerId? hovered The warp the pointer is over in the frame's area, drawn opaque, or null.
+	 * @param FrameOverlays overlays The frame's overlay options: the roles it draws ([latticeRolesDrawnIn]), the
+	 *   hovered lattice, and the lattices' opacity.
 	 */
-	fun encodeLatticeDraws(pass: RenderPassEncoder, residency: DirectOverlayResidency, inputs: FrameInputs, roles: Set<LatticeRole>, hovered: DeformerId? = null) {
-		encodeDirectDraws(pass, residency, overlayFrameOf(inputs, roles, hovered))
+	fun encodeLatticeDraws(pass: RenderPassEncoder, residency: DirectOverlayResidency, inputs: FrameInputs, overlays: FrameOverlays) {
+		encodeDirectDraws(pass, residency, overlayFrameOf(inputs, latticeRolesDrawnIn(overlays), overlays.hoveredLattice, overlays.latticeOpacity))
 	}
 
 	/**
@@ -168,10 +172,16 @@ internal class MeshOverlayEncoder(
 	 *
 	 * @param FrameInputs inputs The frame's inputs.
 	 * @param Set<LatticeRole> latticeRoles The roles a lattice layer draws.
-	 * @param DeformerId? hoveredLattice The lattice a lattice layer draws opaque, or null.
+	 * @param DeformerId? hoveredLattice The lattice a lattice layer draws in the hover color, or null.
+	 * @param Float latticeOpacity The alpha scale of a lattice layer's role colors.
 	 * @return OverlayFrame The frame.
 	 */
-	private fun overlayFrameOf(inputs: FrameInputs, latticeRoles: Set<LatticeRole> = EVERY_LATTICE_ROLE, hoveredLattice: DeformerId? = null): OverlayFrame =
+	private fun overlayFrameOf(
+		inputs: FrameInputs,
+		latticeRoles: Set<LatticeRole> = EVERY_LATTICE_ROLE,
+		hoveredLattice: DeformerId? = null,
+		latticeOpacity: Float = 1f,
+	): OverlayFrame =
 		OverlayFrame(
 			inputs.affine,
 			inputs.viewportWidth,
@@ -186,6 +196,7 @@ internal class MeshOverlayEncoder(
 			inputs.drawOrderOf,
 			latticeRoles,
 			hoveredLattice,
+			latticeOpacity,
 		)
 
 	/**
@@ -401,16 +412,18 @@ internal class MeshOverlayEncoder(
 	/**
 	 * Records a lattice overlay role-major: the idle lattices (when the frame draws them), then the selected, then
 	 * the active, so a lattice in a stronger role lands over a weaker one wherever they cross.  Within a role every
-	 * lattice's lines draw, then every lattice's dots, all in the role's color at its palette alpha: no fills, no
-	 * triangles, and no per-element selection, since a lattice is picked whole here.  The lattice the pointer hovers
-	 * ([OverlayFrame.hoveredLattice]) leaves its role's batch and draws after it, lines then dots, opaque: so it reads
-	 * at full strength over the lattices crossing it, whatever alpha its role's color carries.
+	 * lattice's lines draw, then every lattice's dots, all in the role's color at its palette alpha times the frame's
+	 * lattice opacity: no fills, no triangles, and no per-element selection, since a lattice is picked whole here.
+	 * The lattice the pointer hovers ([OverlayFrame.hoveredLattice]) leaves its role's batch and draws after it, lines
+	 * then dots, in the palette's hover color at that color's own alpha: so it stands out over the lattices crossing
+	 * it whatever its role, its mark, or the opacity.
 	 *
 	 * @param RenderPassEncoder pass The open pass.
 	 * @param MeshOverlay overlay The lattice overlay (its sizes).
 	 * @param List<OverlayDrawEntry> entries The lattices, in store order.
 	 * @param DeformedPositionStore store The store the lattices' positions are in.
-	 * @param OverlayFrame frame The pass's camera, viewport, scale, palette, drawn lattice roles, and hovered lattice.
+	 * @param OverlayFrame frame The pass's camera, viewport, scale, palette, drawn lattice roles, hovered lattice, and
+	 *   lattice opacity.
 	 */
 	private fun drawLattices(pass: RenderPassEncoder, overlay: MeshOverlay, entries: List<OverlayDrawEntry>, store: DeformedPositionStore, frame: OverlayFrame) {
 		val palette = frame.palette
@@ -438,27 +451,29 @@ internal class MeshOverlayEncoder(
 				frame.hoveredLattice?.let { hoveredId ->
 					entries.firstOrNull { entry -> entry.owner.deformerId == hoveredId && (entry.style as? MeshStyle.Lattice)?.role == role }
 				}
-			drawLatticeBatch(pass, overlay, entries, store, frame, roleColor, opaque = false) { entry ->
+			drawLatticeBatch(pass, overlay, entries, store, frame, roleColor, alphaScale = frame.latticeOpacity) { entry ->
 				entry !== hovered && (entry.style as? MeshStyle.Lattice)?.role == role
 			}
 
 			if (hovered != null) {
-				drawLatticeBatch(pass, overlay, entries, store, frame, roleColor, opaque = true) { entry -> entry === hovered }
+				drawLatticeBatch(pass, overlay, entries, store, frame, palette.latticeHover, alphaScale = 1f, overridesMark = true) { entry -> entry === hovered }
 			}
 		}
 	}
 
 	/**
 	 * Records one batch of lattice entries: every included entry's lines, then every included entry's dots, each in
-	 * [roleColor] or, for an entry holding an unkeyed Pose-mode shape, the palette's pending color.
+	 * [color] or, for an entry holding an unkeyed Pose-mode shape, the palette's pending color unless [overridesMark]
+	 * holds, all at their alpha times [alphaScale].
 	 *
 	 * @param RenderPassEncoder pass The open pass.
 	 * @param MeshOverlay overlay The lattice overlay (its sizes).
 	 * @param List<OverlayDrawEntry> entries The lattices, in store order.
 	 * @param DeformedPositionStore store The store the lattices' positions are in.
 	 * @param OverlayFrame frame The pass's camera, viewport, scale, and palette.
-	 * @param OverlayColor roleColor The batch's role color.
-	 * @param Boolean opaque True to draw every color at full alpha (the hovered lattice).
+	 * @param OverlayColor color The batch's color: its role's, or the hover color.
+	 * @param Float alphaScale What each color's alpha is multiplied by (the frame's lattice opacity, or 1).
+	 * @param Boolean overridesMark True when [color] wins over the pending mark (the hovered lattice).
 	 * @param Function includes Whether an entry belongs to the batch.
 	 */
 	private inline fun drawLatticeBatch(
@@ -467,8 +482,9 @@ internal class MeshOverlayEncoder(
 		entries: List<OverlayDrawEntry>,
 		store: DeformedPositionStore,
 		frame: OverlayFrame,
-		roleColor: OverlayColor,
-		opaque: Boolean,
+		color: OverlayColor,
+		alphaScale: Float,
+		overridesMark: Boolean = false,
 		includes: (OverlayDrawEntry) -> Boolean,
 	) {
 		val palette = frame.palette
@@ -479,8 +495,8 @@ internal class MeshOverlayEncoder(
 			val lattice = entry.style as? MeshStyle.Lattice ?: continue
 
 			if (includes(entry)) {
-				val color = if (lattice.pending) palette.latticePending else roleColor
-				setColors(color, color, color, opaque)
+				val entryColor = if (lattice.pending && !overridesMark) palette.latticePending else color
+				setColors(entryColor, entryColor, entryColor, opaque = false, alphaScale = alphaScale)
 				batch(entry)
 				pass.drawOverlayEdges(entry.buffers, store, uniformsScratch)
 			}
@@ -493,8 +509,8 @@ internal class MeshOverlayEncoder(
 			val lattice = entry.style as? MeshStyle.Lattice ?: continue
 
 			if (includes(entry)) {
-				val color = if (lattice.pending) palette.latticePending else roleColor
-				setColors(color, color, color, opaque)
+				val entryColor = if (lattice.pending && !overridesMark) palette.latticePending else color
+				setColors(entryColor, entryColor, entryColor, opaque = false, alphaScale = alphaScale)
 				batch(entry)
 				pass.drawOverlayVertexDots(entry.buffers, store, uniformsScratch)
 			}
@@ -559,7 +575,8 @@ internal class MeshOverlayEncoder(
 	 * @param OverlayColor selected The selected color.
 	 * @param OverlayColor active The active color.
 	 * @param Boolean opaque True to force every alpha to 1 (the face dots).
-	 * @param Float alphaScale What each color's alpha is multiplied by (the wireframe's opacity); 1 writes it as is.
+	 * @param Float alphaScale What each color's alpha is multiplied by (the wireframe's or the lattice's opacity); 1
+	 *   writes it as is.
 	 */
 	private fun setColors(idle: OverlayColor, selected: OverlayColor, active: OverlayColor, opaque: Boolean, alphaScale: Float = 1f) {
 		writeColor(uniformsScratch.idleColor, idle, opaque, alphaScale)

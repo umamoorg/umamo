@@ -29,10 +29,9 @@ import org.umamo.storage.UmamoLog
  * child is re-expressed in its new space instead (childrenRehomed), keyed motion included, so it rests where it
  * rested.  The conversion is :render's, which is why this sits in :ui beside the other transform lowerings.
  *
- * A re-parent registers on the operation strip with Keep in Place, so a rigger who wanted the old behaviour - the
- * item keeping its numbers and following its new parent - unchecks it.  A child that cannot be kept (its new parent
- * folds over or cannot reach it) still moves with the edit, and a notice and the log say so, since its art visibly
- * moves.
+ * A re-parent registers on the operation strip with Keep in Place, so a rigger who wants the item to keep its numbers
+ * and follow its new parent unchecks it.  A child that cannot be kept (its new parent folds over or cannot reach it)
+ * still moves with the edit, and a notice and the log say so, since its art visibly moves.
  */
 
 /**

@@ -42,8 +42,8 @@ class OperationStripLabelsTest {
 	/**
 	 * Every row every adjustable operation registers: the repack, the three placement gestures, adding and
 	 * matching artwork, each modal transform in both of its spaces with the proportional rows on, the
-	 * vertex slide, the merge, the lattice resize and subdivision, a re-parent's Keep in Place, Generate Mesh from Art, and
-	 * Generate Quad Mesh.
+	 * vertex slide, the merge, the lattice resize and subdivision, a re-parent's Keep in Place, Create Warp
+	 * Deformer, Generate Mesh from Art, and Generate Quad Mesh.
 	 */
 	private val everyRow: List<OperatorParameter> =
 		buildList {

@@ -213,5 +213,11 @@ class LatticeLayerTest {
 		assertSame(lattices.getValue(LATTICE_RIG_OUTER).full, shapes[LATTICE_RIG_OUTER], "a selected lattice picks by its grid")
 		assertSame(lattices.getValue(LATTICE_RIG_INNER).outline, shapes[LATTICE_RIG_INNER], "an idle one by its outline")
 		assertEquals(listOf(LATTICE_RIG_OUTER), latticeShapesDrawnIn(overlay, lattices, FrameOverlays(allLattices = false)).keys.toList())
+
+		val unseen = FrameOverlays(latticeOpacity = 0f)
+		assertTrue(latticeRolesDrawnIn(unseen).isEmpty(), "no opacity draws no role")
+		assertTrue(latticesDrawnIn(overlay, lattices, unseen).isEmpty(), "so no lattice is drawn")
+		assertTrue(latticeShapesDrawnIn(overlay, lattices, unseen).isEmpty(), "and none can be picked")
+		assertEquals(listOf(LATTICE_RIG_OUTER, LATTICE_RIG_INNER), latticesDrawnIn(overlay, lattices, FrameOverlays(latticeOpacity = 0.1f)).keys.toList(), "while any opacity draws them all")
 	}
 }

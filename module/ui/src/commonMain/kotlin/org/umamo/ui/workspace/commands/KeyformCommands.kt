@@ -142,7 +142,7 @@ internal fun keyformCommands(
 			title = Res.string.cmd_keyform_insert_pie,
 			availability = availability.inPoseMode,
 			spaces = SpaceScope.Viewport2D,
-			// Read under Insert Key beside I, so a Pose-mode viewport's strip suggests the two as one entry.
+			// Read under Insert Key beside I, so the status bar over a Pose-mode viewport suggests the two as one entry.
 			hint = CommandHint(Res.string.status_bind_insert_key),
 		) {
 			// Opened over a viewport alone: the posed warps it keys are what that viewport shows.

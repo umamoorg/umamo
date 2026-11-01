@@ -787,25 +787,7 @@ class EditorSession private constructor(
 
 	/**
 	 * Sets the interaction mode as its own undo step, so undo restores the mode (and the selections
-	 * it seeds) together - the editor never lands in Edit mode showing a state captured in Object mode.
-	 * Entering Edit seeds the session by the active item's kind ([editEntryOf]): an active warp opens on EVERY
-	 * selected warp Edit mode can shape; otherwise the session takes EVERY selected mesh-carrying drawable
-	 * (multi-mesh edit; the object selection's active drawable becomes the session's active mesh), falling back
-	 * to the last owner that was active (Blender's remembered selection) when nothing is selected, and past that
-	 * to the topmost editable drawable in Parts-panel order (so a fresh document lands on something to
-	 * edit rather than an inert session); the remembered fallback is skipped if that owner is no longer
-	 * editable, and a fallback owner becomes the object selection in the same step. When the model has nothing
-	 * editable at all, or the active item is a rotation deformer or a warp
-	 * with no rest lattice, entering Edit is refused - the mode stays as it was, a notice says why where there is
-	 * one, and nothing is recorded - so Edit mode always holds owners. Leaving Edit or Pose mode stashes the
-	 * element selection and clears it; re-entering on the same owner restores the stash when every
-	 * element still fits its topology (Blender's remembered mesh selection). Leaving also ends any in-flight
-	 * operator. Entering Pose mode is refused with a notice when the model has no deformer, since there is
-	 * nothing to pose; otherwise it seeds the session with the warps the pose draws, as Tab seeds Edit mode
-	 * ([poseSeedOf]) and selecting a fallback warp the same way, or with nothing when there are none.  The select
-	 * mode rides every switch, Object mode included (Blender's select mode is a tool setting, not part of the selection).  The pending edits ride every switch
-	 * untouched: a switch never moves the pose they were made for.  The mode is editor state, not document content, so it
-	 * does not dirty the document. A no-op (already in [mode]) records nothing.
+	 * it seeds) together.
 	 *
 	 * @param EditorMode mode The new mode.
 	 */

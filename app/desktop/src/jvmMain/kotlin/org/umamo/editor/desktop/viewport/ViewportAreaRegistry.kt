@@ -398,10 +398,10 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Sets the warp whose lattice an area draws opaque because the pointer is over it there, or null for none; a
-	 * no-op for an unregistered area.  It rides the area's overlays, which freshness compares by value, so a change
-	 * re-renders this area alone and the same warp again renders nothing.  UI thread, like [setAreaOverlays], so the
-	 * two never interleave their read and store.
+	 * Sets the warp whose lattice an area draws in the hover color because the pointer is over it there, or null for
+	 * none; a no-op for an unregistered area.  It rides the area's overlays, which freshness compares by value, so a
+	 * change re-renders this area alone and the same warp again renders nothing.  UI thread, like [setAreaOverlays],
+	 * so the two never interleave their read and store.
 	 *
 	 * @param String      areaId     The area.
 	 * @param DeformerId? deformerId The hovered warp, or null.

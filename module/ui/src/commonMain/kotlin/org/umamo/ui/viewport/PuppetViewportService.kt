@@ -444,10 +444,11 @@ interface PuppetViewportService {
 	fun setLatticeOverlay(overlay: LatticeOverlay?)
 
 	/**
-	 * Sets the warp whose lattice [areaId] draws opaque because the pointer is over it there, or null for none.  The
-	 * area's frames carry it ([org.umamo.render.FrameOverlays.hoveredLattice]), so only that area re-renders, and the
-	 * other areas showing the same warp keep its color's alpha.  Transient view state: never saved, and carried over
-	 * every later [setAreaOverlays] of the area until it is set again.  A no-op for an unregistered area.
+	 * Sets the warp whose lattice [areaId] draws in the hover color because the pointer is over it there, or null
+	 * for none.  The area's frames carry it ([org.umamo.render.FrameOverlays.hoveredLattice]), so only that area
+	 * re-renders, and the other areas showing the same warp keep its role's color.  Transient view state: never
+	 * saved, and carried over every later [setAreaOverlays] of the area until it is set again.  A no-op for an
+	 * unregistered area.
 	 *
 	 * @param String areaId The area the pointer is in.
 	 * @param DeformerId? deformerId The hovered warp, or null for none.

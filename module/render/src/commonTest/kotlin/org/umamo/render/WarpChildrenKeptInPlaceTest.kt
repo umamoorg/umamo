@@ -49,7 +49,7 @@ class WarpChildrenKeptInPlaceTest {
 	/**
 	 * A 2x2 lattice 100 units across, or curved when [bend] is non-zero.
 	 *
-	 * @param Float bend How far the centre point is pushed.
+	 * @param Float bend How far the center point is pushed.
 	 * @return FloatArray The nine control points.
 	 */
 	private fun cage(bend: Float = 0f): FloatArray =
