@@ -117,7 +117,7 @@ internal fun lzfDecompress(
  * channel 1, and so on) back into packed interleaved pixels (b,g,r,a,b,g,r,a and onward).
  *
  * Mirror of KisAbstractCompression::delinearizeColors: with stride equal to dataSize / pixelSize
- * (the pixel count), output byte pixel * pixelSize + channel reads input byte channelstride + pixel.
+ * (the pixel count), output byte pixel * pixelSize + channel reads input byte channel * stride + pixel.
  * Only compressed tiles are linearised; raw tiles are already interleaved.
  *
  * @param ByteArray planarInput    The de-compressed, planar tile bytes.

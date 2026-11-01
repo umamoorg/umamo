@@ -17,14 +17,11 @@ import kotlin.math.roundToInt
 
 /**
  * The UV editor's HUD layer, the sibling assembly of [org.umamo.ui.viewport.viewport2d.ViewportHudOverlay]: the modal-operator status
- * badge (gated on the UV operator latch), the top-left active-mesh info chip, and the bottom-left zoom
- * readout.  Informational chrome only - the UV cursor and every transform affordance are gesture
- * controls and stay in UvEditGizmoOverlay.  Draw-only: it installs no pointer input, so the host mounts it
- * last and nothing below loses a gesture.
+ * badge, the active-mesh info chip, and the zoom readout.  Draw-only: it installs no pointer input, so the
+ * host mounts it last and nothing below loses a gesture.
  *
- * The badge's proportional segment reads the UV editor's display-unit (texel) radius, not the
- * session's world radius - the host owns that state and the gizmo overlay's gesture machinery writes
- * it, so it is passed in rather than collected here.
+ * The badge's proportional segment reads the UV editor's texel radius, not the session's world radius; the
+ * host owns that state, so it is passed in rather than collected here.
  *
  * @param String areaId This UV editor's area id (gates the badge to the initiating area).
  * @param EditorSession session The session whose operator state and selections this HUD surfaces.

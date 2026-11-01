@@ -163,19 +163,11 @@ internal fun importDeformers(context: Moc3ImportContext): List<Deformer> {
  * §5.6 s15 carries real deformer→part membership, and this runs solely when that section placed
  * nothing at all.
  *
- * A MOC3 whose s15 is absent or entirely -1 - a stripped or synthesized file, or one that
- * genuinely puts every deformer at the root - converts to a flat org tree with an unusable
- * parts panel.  The two cases are indistinguishable in a bake, and inference is the better
- * outcome for both, so this reconstructs the grouping from the one signal that is still
- * present: a deformer's drawables almost always live in the deformer's own part.  The rule is
- * the plurality part of the DIRECTLY deformed drawables, falling back to the whole descendant
- * subtree for a deformer that only deforms other deformers.
- *
- * This is INFERENCE, not recovery.  Measured against the corpus twins (each model's
- * editor-written CMO3 against its own bake) it reproduced 81-93% of the original placements,
- * and a deformer whose drawables span several parts can land in any of them - which is why it
- * never overrides s15.  A CMO3-origin document never reaches here: it carries the real
- * membership on ACParameterControllableSource.parentGuid.
+ * Without it, a MOC3 whose s15 is absent or entirely -1 converts to a flat org tree with an
+ * unusable parts panel; the grouping is recovered from the one signal still present, since a
+ * deformer's drawables almost always live in the deformer's own part.  This is INFERENCE, not recovery: measured against the corpus twins (each model's editor-written
+ * CMO3 against its own bake) it reproduced 81-93% of the original placements, which is why it never
+ * overrides s15.
  *
  * @param List deformers      The imported deformers, none of which resolved a part.
  * @param List drawables      The imported drawables.

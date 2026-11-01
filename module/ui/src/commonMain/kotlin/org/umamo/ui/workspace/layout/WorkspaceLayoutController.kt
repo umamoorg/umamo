@@ -14,10 +14,6 @@ import org.umamo.ui.workspace.SpaceKind
  * a focusable popup) would otherwise leave focus null and silently kill all keyboard shortcuts until
  * the next click.  (Reorder and rename are exempt: a reorder is a pointer drag that never holds
  * focus, and a rename ends in the inline editor's own close-time reclaim.)
- *
- * シェルのワークスペース配置状態と、それを書き換える全操作（エリアツリー編集・タブの CRUD・
- * インポート）を持つ。書き込みは onLayoutChange で永続化され、フォーカスを壊しうる編集は
- * structuralEditCount を進めてシェルの再フォーカス処理を起こす。
  */
 internal class WorkspaceLayoutController(
 	initialLayout: InterfaceLayout,

@@ -31,7 +31,7 @@ import org.umamo.render.device.TextureWrap
  *
  * The ONE real divergence is [createDeformedPositionStore].  The desktop device backs the glue store
  * with a texture buffer object, and TBOs are GLES 3.2 - the baseline here is 3.0.  The 3.0-clean
- * route (TODO.md Claude Note § Android GLES renderer backend, option (b)):
+ * route:
  *  - Store: a regular RG32F 2D texture, indexed `(index % width, index / width)` via texelFetch.
  *  - Capture: transform feedback IS core in ES 3.0 but can only target a buffer, so pass 1 becomes
  *    TF into a buffer, then buffer → texture via a GL_PIXEL_UNPACK_BUFFER bind + glTexSubImage2D

@@ -45,17 +45,10 @@ import org.umamo.ui.theme.LocalUmamoTypography
 
 /**
  * The searchable command overlay: a scrim over the shell with a search field and a filtered list of the
- * registered [Command]s, each invokable by click or by keyboard.  A discoverability surface that falls
- * almost free out of the registry - the caller passes the already-filtered, user-facing commands
- * (title != null) in registration order.
+ * registered [Command]s, each shown with its bound accelerator and invokable by click or by keyboard.
  *
- * It is keyboard-first (Blender-like): the search field autofocuses on open, typing narrows the list
- * (ranked by match quality; a blank query keeps registration order), Up/Down move a highlighted
- * selection, Enter invokes it, and Escape (or a scrim click) dismisses.  The
- * shell yields every non-Escape key to this overlay while it is open, so the field and the navigation keys
- * receive input; the bound accelerator for each command is shown on the right via the active [Keymap].
- *
- * 検索可能なコマンドパレット。検索欄は自動でフォーカスされ、入力で絞り込み、上下で選択、Enter で実行、Esc で閉じる。
+ * It is keyboard-first: Up/Down move the highlight, Enter invokes it, and Escape or a scrim click dismisses.
+ * The shell yields every non-Escape key to this overlay while it is open.
  *
  * @param List commands The commands to list (already filtered to titled, user-facing ones; registry order).
  * @param Function onDismiss Called to close the palette without invoking.

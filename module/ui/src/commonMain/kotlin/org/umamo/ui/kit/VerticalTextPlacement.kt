@@ -12,7 +12,7 @@ internal enum class GlyphOrientation {
 	/** Stands upright and takes a cell of its own, stacked under the one before: kana, kanji, Hangul. */
 	Upright,
 
-	/** Lies on its side, turned a quarter turn clockwise, and runs on with its neighbours: Latin. */
+	/** Lies on its side, turned a quarter turn clockwise, and runs on with its neighbors: Latin. */
 	Rotated,
 }
 
@@ -426,11 +426,10 @@ private class CutPoint(
 )
 
 /**
- * Lays [measured] down a column, one segment after another, centered across it.  When the whole would run
- * past [maxLength] the label is cut after the longest run of clusters that leaves room for the ellipsis,
- * never after whitespace, and the ellipsis matches the last cluster kept: lying on its side after rotated
- * text, the upright vertical ellipsis after upright text.  When no cluster fits beside it, the ellipsis
- * stands alone, and when not even that fits nothing is placed.
+ * Lays [measured] down a column, one segment after another, centered across it, cutting the label short
+ * with an ellipsis when the whole would run past [maxLength].  A cut never falls after whitespace, and the
+ * ellipsis matches the last cluster kept: lying on its side after rotated text, the upright vertical
+ * ellipsis after upright text.
  *
  * @param List measured The label's segments, measured, in order.
  * @param EllipsisMetrics rotatedEllipsis The ellipsis that follows rotated text.

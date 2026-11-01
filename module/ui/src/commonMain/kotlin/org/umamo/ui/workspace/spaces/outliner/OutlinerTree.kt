@@ -38,21 +38,20 @@ internal enum class OutlinerIcon {
 }
 
 /**
- * One node in the unified outliner tree: the Blender-style single tree that folds Cubism's split Part
- * and Deformer panels into one. A node is a part, a drawable, a deformer, or one of the two synthetic
- * grouping rows (the puppet root and the Armature deformer-hierarchy node). Synthetic rows carry a null
- * [target] - they only expand / collapse, they do not select.
+ * One node in the unified outliner tree, the Blender-style single tree of the rig: a part, a drawable, a
+ * deformer, or one of the two synthetic grouping rows (the puppet root and the Armature deformer-hierarchy
+ * node).  Synthetic rows carry a null [target] - they only expand / collapse, they do not select.
  *
  * Immutable: a node is built once with its tree and never changed after, its children included.  The
  * annotation is that promise made to Compose, which then compares a node by value, so a row handed a
  * node equal to the one it has skips.
  *
  * @property String id A stable, unique key for expand-state and reveal lookup (never reused).
- * @property String label The display text (already localised for synthetic rows; raw document name otherwise).
- * @property OutlinerIcon icon The placeholder icon kind.
+ * @property String label The display text (already localized for synthetic rows; raw document name otherwise).
+ * @property OutlinerIcon icon The icon kind.
  * @property Boolean dimmed Whether the row renders muted (hidden / sketch).
  * @property SelectionTarget? target What the row selects when clicked, or null for a synthetic row.
- * @property List children The child rows, in display order (drawables before sub-parts within a part).
+ * @property List children The child rows, in display order (a part's in its org-tree order).
  * @property Boolean selectable Whether the row's entity is viewport-selectable (synthetic rows true).
  */
 @Immutable
@@ -68,15 +67,13 @@ internal data class OutlinerNode(
 
 /**
  * Builds the unified outliner tree from a puppet: one root holding the Armature deformer hierarchy
- * (all warp / rotation deformers nested by [Deformer.parent], roots being the parentless ones) followed
- * by the top-level parts, each part listing its drawables then its sub-parts. This is a pure function
- * over [PuppetModel] so it unit-tests without Compose. Cross-links (which deformer deforms a drawable,
- * which part owns a deformer) are deliberately absent - they belong in the Properties panel, not
- * duplicated into the tree, which is exactly what makes Cubism's twin-panel layout confusing.
+ * followed by the top-level org tree, each part listing its drawables and sub-parts in their org-tree
+ * order.  Cross-links (which deformer deforms a drawable, which part owns a deformer) are deliberately
+ * absent - they belong in the Properties panel, not duplicated into the tree.
  *
  * @param PuppetModel puppet The rig to walk.
- * @param String rootLabel The localised label for the puppet root row.
- * @param String armatureLabel The localised label for the deformer-hierarchy row.
+ * @param String rootLabel The localized label for the puppet root row.
+ * @param String armatureLabel The localized label for the deformer-hierarchy row.
  * @return OutlinerNode The root node of the unified tree.
  */
 internal fun buildOutlinerTree(puppet: PuppetModel, rootLabel: String = "Armature", armatureLabel: String = "Armature"): OutlinerNode {
@@ -133,13 +130,10 @@ internal fun buildOutlinerTree(puppet: PuppetModel, rootLabel: String = "Armatur
 }
 
 /**
- * Prunes the tree for the outliner header's search box and kind toggles, returning a new root. Runs two
- * passes: first the kind toggles ([showParts] / [showDrawables] / [showDeformers]) drop whole kinds -
- * turning Parts off hoists their drawables up rather than hiding them, so the meshes flatten instead of
- * vanishing - then the [query] keeps only rows whose name (or a descendant's) matches (case-insensitive
- * substring; blank matches everything). A name match keeps its whole kind-filtered subtree so a matched
- * part still shows its contents; ancestors of a deeper match are retained as the path to it. The puppet
- * root always survives so the panel never goes fully blank.
+ * Prunes the tree for the outliner header's search box and kind toggles, returning a new root: the kind
+ * toggles drop whole kinds first, then [query] keeps only the paths down to matching rows.  Turning Parts
+ * off hoists their drawables up rather than hiding them, and the puppet root always survives so the panel
+ * never goes fully blank.
  *
  * @param OutlinerNode root The full tree.
  * @param String query The case-insensitive name filter (blank = no name filter).
@@ -157,9 +151,8 @@ internal fun filterOutliner(root: OutlinerNode, query: String, showParts: Boolea
 /**
  * Computes a Shift-click range selection over the outliner's visible rows: the contiguous run of targets
  * from the active anchor to the clicked row (inclusive, in either direction) is added to the existing
- * selection, and the clicked target becomes active. With no current anchor the range is just the clicked
- * row. Pure over the ordered target list (the row order the user sees), so it unit-tests without Compose;
- * the visible-row order encodes the range, which is why this takes [orderedTargets] rather than the tree.
+ * selection, and the clicked target becomes active.  Takes [orderedTargets] rather than the tree because
+ * the visible-row order is what the range runs over.
  *
  * @param List orderedTargets The visible rows' targets in display order (null for non-selectable rows).
  * @param Selection current The selection before the click.
@@ -241,7 +234,7 @@ private fun queryPruned(node: OutlinerNode, query: String): OutlinerNode? {
  * reference, mirroring the parts / parameter-tree walks in the importer.
  *
  * @param PuppetModel puppet The rig whose deformers populate the node.
- * @param String armatureLabel The localised label for the node.
+ * @param String armatureLabel The localized label for the node.
  * @return OutlinerNode The Armature deformer-hierarchy node.
  */
 private fun buildArmatureNode(puppet: PuppetModel, armatureLabel: String): OutlinerNode {

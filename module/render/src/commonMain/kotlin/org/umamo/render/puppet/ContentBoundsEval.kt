@@ -41,8 +41,7 @@ internal fun contentBoundsOf(geometry: DeformedGeometry, shownIds: Set<DrawableI
  * carries no canvas - a square around the world origin.
  *
  * The canvas is where the art will go, so it is the honest frame for a new, empty document and for a rig
- * whose every drawable is hidden.  World space is canvas x with canvas y negated, so a canvas spanning
- * [0, width] x [0, height] occupies x in [0, width] and y in [-height, 0] here.
+ * whose every drawable is hidden.
  *
  * @param PuppetModel model The model being framed.
  * @return ContentBounds The rectangle to fit.

@@ -55,11 +55,9 @@ internal suspend fun PointerInputScope.observeTextEntryPresses(
  * Hands the keyboard back to [focusRequester] after a press that lands away from a live text editor, so a
  * filter cannot keep the keyboard after the pointer has moved on.
  *
- * Its own observer rather than a branch of the window-pointer tracker: that one is an always-on position
- * feed, this one is a per-press state machine over the editor's press claim.  The release takes focus and
- * never clears it, since a null focus owner silently kills every shortcut.  Moving focus still fires each
- * control's onFocusChanged(hasFocus = false), and that is what commits an inline rename and unparks the
- * cancel hook.
+ * The release takes focus and never clears it, since a null focus owner silently kills every shortcut.
+ * Moving focus still fires each control's onFocusChanged(hasFocus = false), and that is what commits an
+ * inline rename and unparks the cancel hook.
  *
  * @param InlineEditController inlineEditController The text-entry seam: the cancel hook and the press claim.
  * @param ShellOverlayState    overlays             The modal chrome; a self-focused overlay keeps its keyboard.

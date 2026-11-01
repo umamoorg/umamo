@@ -31,9 +31,8 @@ internal class GpuDrawable(
 	var atlasTexture: GpuTexture?,
 	// The drawable's SOURCE ARTWORK alternative to the atlas, and the affine carrying its stored
 	// coordinates into that image's frame.  Both var: a drawable acquires them when the document
-	// switches to source-artwork display, which is a state change, not a re-upload.  Null means this
-	// drawable has no recoverable art and keeps rendering from the atlas - the mode is best-effort
-	// per drawable, so a document is routinely mixed.
+	// switches to source-artwork display, which is a state change, not a re-upload.  Null means the
+	// mode is not engaged, or this drawable has no recoverable art and keeps rendering from the atlas.
 	var layerTexture: GpuTexture? = null,
 	var layerUvAffine: FloatArray? = null,
 	val color: FloatArray,
@@ -64,10 +63,6 @@ internal class GpuDrawable(
 	/**
 	 * The texture this drawable actually samples: its source artwork when the document displays from
 	 * artwork AND this drawable has recoverable art, else the atlas page it was packed onto.
-	 *
-	 * The fallback is per drawable on purpose - art the document does not retain, a placement that
-	 * will not invert, or a layer that would not decode all leave a drawable on the atlas rather than
-	 * removing it from the puppet.
 	 *
 	 * @return GpuTexture? The texture to bind, or null when the drawable has neither.
 	 */

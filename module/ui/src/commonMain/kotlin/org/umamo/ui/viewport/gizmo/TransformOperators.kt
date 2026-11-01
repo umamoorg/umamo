@@ -19,9 +19,7 @@ import kotlin.math.atan2
 /**
  * One modal gesture's pointer frame: everything the operator math needs to convert the screen-space
  * gesture into world-space deltas, factors, and angles.  Frozen per pointer event and shared by every
- * mesh in the capture (the per-mesh loop varies only the geometry and pivot groups).  This is also
- * where Blender-style numeric input (G X 5 Enter) later lands: a typed override slots in here once
- * and feeds the Edit, Object, and UV overlays alike.
+ * mesh in the capture (the per-mesh loop varies only the geometry and pivot groups).
  *
  * @property Pair<Float, Float> anchor The world-space anchor factors / angles measure against.
  * @property Offset start The pointer position at gesture start, in screen pixels.
@@ -187,18 +185,12 @@ internal fun slideVertexByFactor(
 
 /**
  * Applies the active modal operator to [originalWorld] by the resolved [parameters], producing a new
- * world-posed array: Grab translates by the delta; Scale and Rotate work about each pivot group's
- * pivot by the factors and the angle.  The parameters come from a pointer frame during the drag
- * ([gestureParameters], which owns the screen-to-world conversion and the rotation accumulator) or from
- * the operation settings strip's rows after it, so an adjustment runs the very same math.
+ * world-posed array.  The parameters come from a pointer frame during the drag ([gestureParameters]) or
+ * from the operation settings strip's rows after it, so an adjustment runs the very same math.
  *
- * Proportional editing adds [proportionalInfluences]: after the selected vertices transform at full
- * strength through their pivot groups, each influenced unselected vertex takes the SAME gesture scaled
- * by its falloff weight, anchored on the pivot its influence carries (the pivot of the group OWNING its
- * nearest covered vertex, in this mesh or another) - so with Individual Origins the halo turns with its
- * island, while the shared-pivot modes keep anchoring on the gesture anchor.  A bystander mesh has no
- * groups and moves by its halo alone.  Factors and angles are still MEASURED against the frame anchor
- * (Blender measures against the transform center even with Individual Origins).
+ * Each proportionally influenced vertex takes the same gesture scaled by its falloff weight, anchored on
+ * the pivot of the group owning its nearest covered vertex, so with Individual Origins the halo turns with
+ * its island.
  *
  * @param MeshOperatorKind operator The active operator.
  * @param FloatArray originalWorld The world posed positions captured at gesture start.
@@ -258,9 +250,8 @@ internal fun applyOperator(
 
 /**
  * The world transform [applyOperator] applies to a whole object in pivot group [group], as a 2x3 row-major affine
- * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f): Grab translates, Scale scales about the group's
- * pivot, and Rotate turns about it.  An object moved whole takes no proportional halo, so the affine is the
- * operator exactly - what a warp moved as an object maps every one of its forms through.
+ * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f).  An object moved whole takes no proportional
+ * halo, so the affine is the operator exactly - what a warp moved as an object maps every one of its forms through.
  *
  * @param MeshOperatorKind operator The active operator.
  * @param TransformGestureParameters parameters The delta / factors / angle to apply.

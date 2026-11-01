@@ -36,18 +36,14 @@ import org.umamo.runtime.model.partByDrawable
  *    deforms when exactly one is in reach: "Warp40 (ArtMesh5)".
  *  - Blend shapes.  MOC3 records store per-key DELTAS relative to the object's grid form at the
  *    DEFAULT pose (MOC3.md §5.6), while the runtime `BlendShapeBinding` keeps grid-convention
- *    forms (MeshForm relative to DrawableMesh.localPositions; Warp/RotationForm absolute) and the evaluator re-subtracts
- *    that same grid-at-default reference.  The mapping therefore ADDS the reference back when
- *    synthesizing each form - computed with the shared org.umamo.runtime.eval sampling helpers,
- *    the exact functions the evaluator later calls, so the round trip cancels to ULP.  Delta
- *    geometry converts like the grid keyforms minus the origin term (a delta in root space scales
- *    by ppu only; lattice/rotation-local deltas pass through; the rotation-scale ppu seam applies
- *    to scale deltas too).  Neutral form slots import as null (the stored neutral row is all-zero).
- *    PART-owned records carry only a draw-order delta (a part has no other blendable channel) and
- *    ingest onto [org.umamo.runtime.model.Part.blendShapes].  Offscreens ingest into
- *    [org.umamo.runtime.model.PartComposite] per owner part (packed blend int, flags, mask indices)
- *    - the part's group mode becomes Isolated - with the keyformed opacity/color channels merged
- *    into the part's `PartForm` grid (they ride the same cells, MOC3 §5.6).
+ *    forms and the evaluator re-subtracts that same grid-at-default reference.  The mapping
+ *    therefore ADDS the reference back when synthesizing each form - computed with the shared
+ *    org.umamo.runtime.eval sampling helpers, the exact functions the evaluator later calls, so the
+ *    round trip cancels to ULP.
+ *
+ * Offscreens have no runtime object of their own: each ingests into its owner part's
+ * [org.umamo.runtime.model.PartComposite], making the part Isolated, with its keyformed
+ * opacity/color channels merged into the part's grid (they ride the same cells, MOC3 §5.6).
  *
  * This object is only the orchestrator.  The work sits in per-concern producers beside it -
  * [importParameters], [importParameterLinks], [importParameterTree], [importDeformers],

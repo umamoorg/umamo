@@ -70,14 +70,8 @@ internal sealed interface BlendBindingScrub {
 }
 
 /**
- * How deleting [deleted] treats [binding].
- *
- * A binding the parameter drives goes, and costs the rest pose only when it contributed there.  A limit
- * over the parameter caps the binding at the constant `c` its curve holds at the parameter's default: a cap
- * of 1 or more changes nothing and the limit goes; a cap of 0 or less silences the binding wherever the
- * parameter sat at its default, so the binding goes; a cap between them on a binding with no other limit is
- * baked into the forms; and with other limits beside it, whose minimum no single constant can stand in for,
- * the limit goes and the rest pose is kept only if those others were already the tighter cap there.
+ * How deleting [deleted] treats [binding]: a binding the parameter drives goes, and a limit over the parameter
+ * is resolved by the constant cap its curve holds at the parameter's default.
  *
  * @param BlendShapeBinding binding   The binding.
  * @param Parameter         deleted   The parameter being deleted.
@@ -115,6 +109,8 @@ internal fun blendBindingScrubOf(
 			BlendBindingScrub.ScaleForms(deletedCap)
 		}
 
+		// No single constant can stand in for the minimum with the other limits, so the cap cannot be baked;
+		// the rest pose holds only if the others were already the tighter cap there.
 		else -> {
 			val othersCap = others.multiplierAt(defaultOf)
 			val contributesAtRest = binding.contributesAt(defaultOf(binding.parameterId))
@@ -314,12 +310,10 @@ internal fun Part.partFormScaler(defaultOf: (ParameterId) -> Float): (PartForm, 
 
 /**
  * Whether collapsing [parameterId]'s axis out of [grid] at [keepValue] changes the grid's value at the default
- * pose.  It does when the default sits on none of the axis's keys - the collapse keeps the nearest key's slice
- * rather than the look at the default - and, for a sole-axis grid whose kept key has no cell (a sparse grid, as
- * a CMO3 import leaves one whose form guid did not resolve), when [missingKeptCellMoves]: the collapse then drops
- * the track or the grid, and what a missing cell evaluated to (nothing - a zero contribution) gives way to the
- * owner's static, or to no grid at all.  A grid with more axes keeps that cell missing, so its value at the
- * default is the same nothing before and after.
+ * pose: when the default sits on none of the axis's keys, since the collapse keeps the nearest key's slice, and,
+ * with [missingKeptCellMoves], when a sole-axis sparse grid's kept key has no cell, since the collapse then drops
+ * the grid and the owner's static (or no grid at all) takes over from the zero contribution a missing cell
+ * evaluated to.
  *
  * @param KeyformGrid? grid                 The grid, or null.
  * @param ParameterId  parameterId          The parameter being deleted.

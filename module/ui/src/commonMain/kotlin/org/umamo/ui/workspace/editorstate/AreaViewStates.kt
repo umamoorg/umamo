@@ -72,13 +72,9 @@ class AreaViewStates(private val restoredAreas: JsonObject? = null) {
 	/**
 	 * The `areas` member of a save's merge patch (UMA §7.5): a block for each area of the saver's layout that was
 	 * shown in this session, and a null for every id the document held that the layout does not have - last writer
-	 * wins, which is also what keeps another layout's tokens from piling up in the file.
-	 *
-	 * An area of the layout that was never shown (an inactive workspace's, say) is not named, so the block the
-	 * file had for it survives the merge.  An area that was shown and then closed is not in [layoutAreaIds], so it
-	 * is not written either.
-	 *
-	 * New blocks enter the file in [layoutAreaIds]'s order.
+	 * wins, which is also what keeps another layout's tokens from piling up in the file.  An area of the layout that
+	 * was never shown (an inactive workspace's, say) is not named, so the block the file had for it survives the
+	 * merge.
 	 *
 	 * @param Map cameras Every camera the platform's render service remembers, by area and surface; empty where
 	 *   there is no render service (Android today).

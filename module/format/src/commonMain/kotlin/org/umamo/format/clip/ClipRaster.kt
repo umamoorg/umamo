@@ -9,7 +9,7 @@ import org.umamo.format.binary.inflateZlib
  * Decodes a CLIP layer's tiled raster into a cropped RGBA8888 buffer.
  *
  * EN: A layer's pixels live in an external CHNKExta chunk as a grid of 256x256 tiles.  Each tile is
- *     `[4-byte little-endian length][zlib stream]`; the inflated tile is `2562565` bytes laid out
+ *     `[4-byte little-endian length][zlib stream]`; the inflated tile is `256 * 256 * 5` bytes laid out
  *     as a one-byte alpha plane followed by an interleaved BGRA color plane (the color plane's own
  *     alpha slot is unused).  The tile grid (columns/rows and the padded image size) comes from the
  *     Offscreen.Attribute index.  This object walks the block data, inflates each non-empty tile,

@@ -96,8 +96,7 @@ internal class CoveredMedianMove(
  * Captures the vertices [selection] covers across [edit] for a move of their median.  The pivot is the median point
  * with no anchors: a Grab ignores the pivot, and Individual Origins would only build connectivity islands for nothing.
  * Every owner in the edit is offered, each with its topology, the way the viewport's Grab offers them, so turning
- * proportional editing on from the strip afterward reaches the same meshes and lattices that Grab's would - a
- * straight-line halo into the owners with nothing covered, Connected Only along each owner's own edges.
+ * proportional editing on from the strip afterward reaches the same meshes and lattices that Grab's would.
  *
  * @param MeshSelection selection The mesh selection.
  * @param List<EditOwnerGeometry> edit Every owner in the edit, as captured from the committed model.
@@ -151,15 +150,8 @@ internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axi
 }
 
 /**
- * Moves the covered vertices so their median's [axis] coordinate lands on [worldValue], as one undo step filed as
- * a move (a lattice's points landed at the stage they were captured at), and registers the step on the operation
- * strip in [areaId] as a Grab: Move X and Move Z, then the proportional rows, off for this move (the panel's move
- * takes no falloff) but carrying the session's remembered curve and Connected Only for the rigger to turn on.  A
- * strip adjustment hands proportional editing back to the session only when the rigger set one of its rows, so
- * moving a Move row never switches proportional editing off.
- *
- * Nothing lands while a modal transform owns the meshes (its confirm owns the next step), or when the median is
- * already there: the drive always returns fresh arrays, so an empty move would otherwise record a step.
+ * Moves the covered vertices so their median's [axis] coordinate lands on [worldValue], as one undo step
+ * registered on the operation strip in [areaId] as a Grab whose proportional rows start off and stay adjustable.
  *
  * @param CoveredMedianMove move The captured move.
  * @param WorldAxis axis The axis typed on.
@@ -171,6 +163,7 @@ internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, 
 		return
 	}
 
+	// The drive always returns fresh arrays, so a median already in place stops here rather than recording an empty step.
 	val parameters = move.parametersFor(axis, worldValue) ?: return
 	val result = move.drive(parameters, model.value)
 	val movedIndicesByDrawable =
@@ -183,6 +176,7 @@ internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, 
 	}
 
 	val settings = proportionalSettings.value
+	// The panel's move takes no falloff, so the rows start off while carrying the session's remembered curve.
 	val proportional = ProportionalRows(false, settings.falloff, settings.radiusWorld, settings.connectedOnly)
 	registerMeshTransformAdjustment(this, areaId, move.transform, move.geometryByOwner, move.stage, parameters, proportional) { record, state ->
 		if (record.adjustedKey in TransformParameterKeys.PROPORTIONAL_ROWS) {

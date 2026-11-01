@@ -20,7 +20,7 @@ import org.umamo.runtime.model.DrawableMesh
  * back.  Minting never waits on the mesher, so the bridge and the reload planner stay free of threads,
  * and a layer the mesher cannot mesh simply keeps the quad it already has.
  *
- * A born mesh is an ordinary mesh: nothing remembers how it was made, so the modeller's first edit and
+ * A born mesh is an ordinary mesh: nothing remembers how it was made, so the modeler's first edit and
  * every reload after treat it exactly like one drawn by hand.
  */
 
@@ -161,10 +161,9 @@ object BirthMesher {
 	}
 
 	/**
-	 * A mesh in the raster's own pixels placed as a drawable's mesh: canvas positions at the raster's
-	 * canvas origin plus each pixel coordinate, and art-frame texture coordinates, each pixel coordinate
-	 * over the raster's size - the two views of the art the birth quad gives too.  The triangles keep
-	 * the mesher's orientation, which is the quad's.
+	 * A mesh in the raster's own pixels placed as a drawable's mesh, with the canvas positions and
+	 * art-frame texture coordinates the birth quad gives too.  The triangles keep the mesher's
+	 * orientation, which is the quad's.
 	 *
 	 * @param PlanarTriangleMesh mesh    The mesh, raster pixels, y down.
 	 * @param PendingBirth       pending The pending birth it is for.

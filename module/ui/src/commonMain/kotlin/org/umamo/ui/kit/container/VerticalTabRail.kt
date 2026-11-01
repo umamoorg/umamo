@@ -72,21 +72,18 @@ enum class RailContentSide {
 }
 
 /**
- * A vertical rail of labelled tabs, read down the column ([VerticalText]): Blender's sidebar tabs.  Each tab is
- * rounded on both sides, and the selected tab takes the color of the content it switches.  The rail leaves no
- * inset on the content's side, so how far the tabs stand from the content is the caller's choice.  Tabs never take focus, so selecting one leaves the keyboard
- * where it was.  A rail too long for its height scrolls, and a label too long for [maxLabelLength] is cut short
- * and shown whole in a tooltip.
+ * A vertical rail of labelled tabs, read down the column ([VerticalText]): Blender's sidebar tabs.  Tabs
+ * never take focus, so selecting one leaves the keyboard where it was.
  *
- * The rail paints no background of its own; the caller paints the strip it sits in, or none, for tabs floating
- * over a work surface, which the borders keep legible.
+ * The rail paints no background and leaves no inset on the content's side: the caller paints the strip it
+ * sits in, or none for tabs floating over a work surface, and chooses how far the tabs stand from the content.
  *
  * @param List tabs The tabs, top to bottom.
  * @param String? selectedId The selected tab's id, or null for none.
  * @param Function onSelect Called with a tab's id when it is clicked.
  * @param RailContentSide contentSide Which side the content the tabs switch sits on.
  * @param Modifier modifier Layout modifier.
- * @param Dp maxLabelLength The longest a label runs before it is cut short.
+ * @param Dp maxLabelLength The longest a label runs before it is cut short and shown whole in a tooltip.
  * @param Color tabFill A tab's fill, or Unspecified for the panel background.
  * @param Color selectedFill The selected tab's fill, the color of the content it switches, or Unspecified for
  *   the header background.

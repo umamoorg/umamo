@@ -67,9 +67,9 @@ public interface RenderDevice {
 	 *
 	 * The renderer calls this once per POSE CHANGE, never in the draw loop, and a backend must not
 	 * re-create the resource here.  Warp control points are pose-dependent but frame-invariant, and
-	 * re-specifying that texture 60x/sec churned the d3d12/Mesa driver into progressively corrupting the
-	 * points it sampled - the "facial features warp over time" bug, worst on masked warp meshes, which
-	 * draw twice.  The frequency is the fix; keep it.
+	 * re-specifying that texture every frame drives the d3d12/Mesa driver into progressively corrupting
+	 * the points it samples, worst on masked warp meshes, which draw twice; the once-per-pose frequency
+	 * is what prevents it.
 	 *
 	 * @param GpuTexture texture The texture to overwrite.
 	 * @param Int        width   Width in texels.
@@ -388,8 +388,8 @@ public interface FrameEncoder {
 	 *
 	 * A declared DEPENDENCY, not an instruction to stall - which is what lets each backend meet it its own
 	 * way.  The GL device issues `glFinish`: the WSL d3d12/Mesa stack does not reliably order transform
-	 * feedback's writes before a later texture read, so pass 2 sampled a half-written store and produced
-	 * garbage welds while a parameter moved.  `glMemoryBarrier` cannot help - feedback writes are
+	 * feedback's writes before a later texture read, so without it pass 2 could sample a half-written store
+	 * and weld garbage while a parameter moves.  `glMemoryBarrier` cannot help - feedback writes are
 	 * coherent-pipeline writes, outside its scope - so the full sync is the honest fix.  A Metal backend
 	 * would implement this as a genuine no-op, since it tracks the dependency itself within a command
 	 * buffer; that is correct, not a stub.
@@ -455,7 +455,7 @@ public data class ScissorRect(
  * One render pass.
  *
  * Every field is explicit because a pass that discovered its own target could not exist on a backend with
- * no bound-framebuffer concept - and because, even on GL, discovering it from ambient state hid a real
+ * no bound-framebuffer concept - and because, even on GL, discovering it from ambient state would hide a
  * coupling between the renderer and whoever bound the framebuffer first.
  *
  * @property RenderTarget colorTarget    The surface this pass writes.
@@ -639,9 +639,9 @@ public interface DeformCapturePassEncoder {
 	 * [destinationVertexOffset] plus the vertex's own index.  Draws nothing.
 	 *
 	 * The name describes the EFFECT, not the mechanism, which is what lets the mechanism change without
-	 * touching the renderer: the GL family runs it as transform feedback today and may become a
-	 * point-scatter render once the store is a 2D texture (a texture cannot be a feedback target); Metal
-	 * has no transform feedback at all and would use a compute kernel.  None of that reaches here.
+	 * touching the renderer: the GL family runs it as transform feedback (on GLES 3.0 into a buffer then
+	 * copied into a 2D-texture store, since a texture cannot be a feedback target); Metal has no transform
+	 * feedback at all and would use a compute kernel.  None of that reaches here.
 	 *
 	 * @param GpuMesh         mesh                   The mesh to deform.
 	 * @param DeformUniforms  deform                 Its per-pose deform inputs (marshal, do not retain).

@@ -71,24 +71,12 @@ internal fun editableUvCoverage(selection: MeshSelection, model: PuppetModel, sh
 /**
  * Mirrors the selected vertices' texture coordinates about the transform pivot as ONE undo step -
  * the UV editor's Mirror U / V commands, serving the duplicated-and-flipped texture regions
- * workflow (both eyes sampling one eye texture).  The pivot follows [SessionToolSettings.pivotMode], resolved in UV
- * space: Median Point mirrors about the covered vertices' combined median across every edited mesh,
- * Individual Origins mirrors each connectivity island about its own median, Active Element anchors
- * on the active element's median, and Cursor anchors on the UV cursor (each falling back to the
- * combined median when unresolvable - a mirror should never silently do nothing because a pivot was
- * never placed).  Mirroring is axis-aligned, so operating directly in normalized UV space matches
- * the on-screen result regardless of the shown surface's size.  A no-op outside Edit mode or with an
- * empty selection; a notice explains when no covered mesh carries an editable UV array.
+ * workflow (both eyes sampling one eye texture).
  *
- * [frame] names the space the user is mirroring in, which for this operation is the whole question:
- * an axis in the atlas page's frame is a different axis in a rotated or mirrored source layer's.
- * With no frame the stored coordinates ARE the authoring space (the page view), and the whole
- * conversion drops out.  Untouched vertices keep their exact stored values either way, so a mirror
- * never marks a vertex changed that it did not move.
- *
- * [shownDrawableIds] narrows the mirror to the meshes the authoring surface shows.  An edit can span
- * pages and layers, and a mesh on another one is measured in another space: its coordinates would
- * move the shared pivot and be reflected through a frame they are not in.
+ * [frame] names the space the user is mirroring in, since an axis in the atlas page's frame is a
+ * different axis in a rotated or mirrored source layer's.  [shownDrawableIds] narrows the mirror to the
+ * meshes the authoring surface shows: a mesh on another page or layer is measured in another space, so
+ * its coordinates would move the shared pivot and be reflected through a frame they are not in.
  *
  * @param Boolean mirrorU True to mirror horizontally (u about the pivot), false vertically (v).
  * @param UvFrame? frame The authoring frame, or null when the stored coordinates are the frame.
@@ -125,7 +113,8 @@ fun EditorSession.mirrorSelectedUvs(mirrorU: Boolean, frame: UvFrame? = null, sh
 	val coveredByDrawable = coverage.mapValues { (_, covered) -> covered.vertexIndices }
 	val meshByDrawable = coverage.mapValues { (_, covered) -> covered.mesh }
 	// The whole operation runs in the authoring frame: pivots, island medians, and the reflection
-	// itself.  With no frame these arrays are the stored ones and the conversions are absent.
+	// itself.  A reflection is axis-aligned, so normalized coordinates match the on-screen result
+	// whatever the surface's size.  With no frame these arrays are the stored ones.
 	val frameUvsByDrawable =
 		meshByDrawable.mapValues { (_, mesh) -> frame?.toFrame(mesh.uvs) ?: mesh.uvs }
 	val sharedPivot =
@@ -179,9 +168,9 @@ fun EditorSession.mirrorSelectedUvs(mirrorU: Boolean, frame: UvFrame? = null, sh
 }
 
 /**
- * Resolves the shared UV mirror pivot for the single-anchor pivot modes: Cursor anchors on the UV
- * cursor and Active Element on the active element's covered median, each falling back to the
- * combined covered median across every edited mesh - which is also the Median Point result.
+ * Resolves the shared UV mirror pivot for the single-anchor pivot modes, falling back to the combined
+ * covered median (the Median Point result) when the mode's anchor is unresolvable, so a mirror never
+ * silently does nothing because a pivot was never placed.
  *
  * Resolved in the AUTHORING frame throughout, so every anchor means the same thing the reflection
  * does - including the UV cursor, which is stored in atlas coordinates and converts in like the

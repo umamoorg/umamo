@@ -48,13 +48,9 @@ internal class LatticeRewrite(
 
 /**
  * Lowers new lattice resolutions onto [model]: each warp in [sizes] resampled onto its new grid, every grid cell and
- * blend-shape form included ([resampledTo]), with its children resting where they rested.
- *
- * A quad-mode refinement by whole multiples keeps the old map exactly, inside the lattice and in the extrapolation
- * beyond it, so its children keep their coordinates as they are.  Any other size only approximates the map, so the
- * children are re-expressed ([warpChildrenKeptInPlace]).  Warps are taken parents first, each against the model its
- * ancestors' rewrites left, as a reshape takes them.  A size outside 1..[LATTICE_DIVISION_MAX], or the warp's own,
- * leaves that warp alone.
+ * blend-shape form included ([resampledTo]), with its children resting where they rested.  A quad-mode refinement by
+ * whole multiples keeps the old map exactly, inside the lattice and in the extrapolation beyond it, so only another
+ * size re-expresses the children.
  *
  * @param PuppetModel model The model the lattices are resized in.
  * @param Map<DeformerId, LatticeSize> sizes Each resized warp's new resolution.
@@ -77,7 +73,7 @@ internal fun latticeResizeOf(model: PuppetModel, sizes: Map<DeformerId, LatticeS
 /**
  * Lowers a Quad transform toggle onto [model]: [warpId] switched to bilinear ([quad]) or triangle-split mapping, with
  * its children re-expressed so they rest where they rested.  The two mappings agree only on an affine lattice, so
- * the children are always re-expressed.  The warp's own setting, or a deformer that is not a warp, changes nothing.
+ * the children are always re-expressed.
  *
  * @param PuppetModel model The model the warp is in.
  * @param DeformerId warpId The warp.

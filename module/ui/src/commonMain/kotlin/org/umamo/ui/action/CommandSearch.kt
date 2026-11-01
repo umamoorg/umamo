@@ -1,12 +1,8 @@
 package org.umamo.ui.action
 
 /**
- * Scores how well one command matches a palette query; lower is better, null is no match.
- *
- * The tiers keep the intuitive result first: a query that starts the visible label ("ac" ->
- * "Actual Size") outranks a label whose later word starts with it ("Zoom In" for "in"), which
- * outranks a mere substring hit ("Workspace" for "ac"), which outranks a match found only in the
- * dotted command id. Matching is case-insensitive.
+ * Scores how well one command matches a palette query, case-insensitively; lower is better, null is no
+ * match.
  *
  * @param String label     The command's resolved, user-visible label.
  * @param String commandId The command's dotted id (e.g. "view.zoomIn").

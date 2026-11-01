@@ -18,7 +18,7 @@ import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.DialogAlternative
 import kotlin.coroutines.cancellation.CancellationException
 
-/** Whether Umamo looks for a newer release when it starts (docs/plan/distribution.md D8); Help > Check for Updates works either way. */
+/** Whether Umamo looks for a newer release when it starts; Help > Check for Updates works either way. */
 internal const val CHECK_FOR_UPDATES_KEY = "app.checkForUpdates"
 
 /** When GitHub last answered an update check, in milliseconds since the epoch. */
@@ -129,7 +129,7 @@ internal sealed interface UpdateCheckOutcome {
 	 *
 	 * @property ReleaseVersion latest  The newest release.
 	 * @property String         current The running version, as ProjectInfo.VERSION spells it.
-	 * @property String         pageUrl The release's page, where its downloads are.
+	 * @property String         pageUrl The page to download it from.
 	 */
 	data class Newer(
 		val latest: ReleaseVersion,

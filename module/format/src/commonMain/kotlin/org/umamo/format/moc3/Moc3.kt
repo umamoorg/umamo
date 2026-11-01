@@ -32,7 +32,7 @@ import org.umamo.format.moc3.moc.MocVersion
  * The JSON sidecar helpers handle `model3.json` and friends.  Those sidecars are `String`-shaped
  * (not `ByteArray`), so they sit alongside the [FormatCodec] members rather than within them.  The
  * `.moc3` and its sidecars are sibling files (the manifest references the rest by path), so they are
- * decoupled here - pair them yourself.  Pure Kotlin (JVM + Android); no JDOM/reflection.
+ * decoupled here - pair them yourself.  Pure commonMain Kotlin; no JDOM/reflection.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §8</a>
  */
@@ -97,11 +97,8 @@ public object Moc3 : FormatCodec<MocDocument> {
 
 	/**
 	 * Bakes a (possibly-edited) [doc] onto [reference], synthesizing every section the lowering covers
-	 * and carrying anything it does not from the reference container.
-	 *
-	 * That carry-through is empty for every corpus model (`MocBakeFreshCoverageTest` pins the carried
-	 * set at nothing), so it stands against a section some later format version adds rather than against
-	 * one we cannot derive.  [write] is the reference-free form, and what an export uses.
+	 * and carrying anything it does not from the reference container.  [write] is the reference-free
+	 * form, and what an export uses.
 	 *
 	 * @param MocModel reference The decoded source providing the carried sections and the version.
 	 * @param MocDocument doc The document to bake.

@@ -34,10 +34,9 @@ import org.umamo.runtime.model.channelGridsOf
  * editing SEMANTICS, so they belong in this module - a panel row, a keypress, and a lane context menu must
  * answer them identically, and none of them is the right place to decide.
  *
- * This is also why these are not in :ui, where they started out: taking a Compose-side hover type put
- * authoring rules in the UI module and made them untestable without a composition.  A :ui caller now passes
- * plain data - a track, an optional parameter id, and a KeyformAim - and keeps only the pointer bookkeeping
- * that produced them.
+ * This is also why these are not in :ui: taking a Compose-side hover type would put authoring rules in the UI
+ * module and make them untestable without a composition.  A :ui caller passes plain data - a track, an optional
+ * parameter id, and a KeyformAim - and keeps only the pointer bookkeeping that produced them.
  */
 
 /**
@@ -106,31 +105,10 @@ fun EditorSession.captureKeyOnTrack(
 /**
  * Captures a key on every track in [tracks] at [aim], keyed on the parameter the edit writes on, as ONE undo step.
  *
- * An aimed capture inserts a shape-preserving key at that position, so it holds whatever the track already
- * evaluates to there - unless its one track holds an edit the mode shows (a typed channel value, or a warp's
- * Pose-mode lattice): that edit was made for the pose, so it is keyed at the pose wherever the aim pointed,
- * rather than left held beside a key that ignores it.  A capture at the pose stores the PENDING unkeyed edit when
- * there is one, else what the track shows there - so an insert after typing or shaping stores what was made, and
- * an insert with nothing edited pins what is already on screen (Blender's behavior, and how a rigger anchors a
- * pose before moving on):
- *
- *  - A channel stores its pending value, else its evaluated value.
- *  - A warp's lattice stores its pending Pose-mode shape, else the lattice its grid blends to at the pose, and a
- *    warp not yet keyed on the parameter gains the axis ([withWarpLatticeCaptured]).
- *  - Any other geometry inserts a key at the pose holding the shape already there.
- *
- * A pending value or shape is taken only while the pose is free ([shownPending]): it was made for the rig's pose,
- * which a pinned mode does not show.
- *
- * Refuses with a notice rather than silently doing nothing when no parameter resolves, since that is a thing
- * the user can fix.
- *
- * When no parameter is named and more than one is targeted (a linked pad), the edit parks as a
- * [ParameterChoiceRequest] instead of writing on whichever axis happens to be active.
- *
- * Reconciles the keyform sheet's key selection when [rowKey] names the row the aim came from, exactly as
- * [removeKeysOnTracks] does: the new key renumbers every key at or above where it lands, so a selection on
- * one of those keys must shift up by one to keep naming the same key.
+ * An aimed capture inserts a shape-preserving key there.  A capture at the pose stores the pending unkeyed edit
+ * when there is one, else what the track shows, so an insert with nothing edited pins what is already on screen
+ * (Blender's behavior, and how a rigger anchors a pose before moving on).  An ambiguous target parks as a
+ * [ParameterChoiceRequest] rather than write on whichever axis happens to be active.
  *
  * @param List<KeyformTrackRef> tracks The tracks to key.
  * @param ParameterId? parameterId The axis to key on, or null to use the session's targeted parameter.
@@ -154,6 +132,8 @@ fun EditorSession.captureKeysOnTracks(
 		return
 	}
 	val parameter = keyformParameterFor(parameterId) ?: return
+	// A held edit was made for the pose, so an aimed capture of its one track keys it at the pose rather than
+	// leave it held beside a key that ignores it.
 	val placed = if (aim is KeyformAim.Position && tracks.singleOrNull()?.let { track -> holdsShownEdit(track) } == true) KeyformAim.Pose else aim
 	// An aimed capture keys where it was pointed; every other kind keys at the pose.  Resolved once, because
 	// it is both where the key goes and what the ordinal query has to be asked about.
@@ -295,18 +275,9 @@ fun EditorSession.removeKeyOnTrack(
 /**
  * Removes the key [aim] names from every track in [tracks], on the parameter the edit writes on, as ONE undo step.
  *
- * Either way the key is an ORDINAL, and either way aiming at nothing removes nothing: picking "the nearest
- * key" would be a guess at which one the user meant, and a wrong guess silently destroys authored work.  A track
- * with no key there is left alone, and a removal that would collapse a deformer's last axis is refused
- * ([withGeometryKeyRemoved]).
- *
- * Parks as a [ParameterChoiceRequest] on an ambiguous target, exactly as [captureKeysOnTracks] does - a
- * removal aimed at the wrong axis destroys authored work, so it is the LAST thing to guess at.
- *
- * Reconciles the keyform sheet's key selection when [rowKey] names the row the aim came from - the removal
- * renumbers the keys above it, so a selection left alone would end up naming the neighbour.  Done HERE
- * rather than at each caller because this is where the ordinal is finally resolved, and the aim may not
- * carry one at all (a pose aim resolves it against the track).
+ * Aiming at nothing removes nothing, and an ambiguous target parks as a [ParameterChoiceRequest]: a guessed key
+ * or axis would silently destroy authored work.  The keyform sheet's key selection is reconciled here rather
+ * than at each caller because this is where the ordinal is finally resolved; a pose aim carries none.
  *
  * @param List<KeyformTrackRef> tracks The tracks to unkey.
  * @param ParameterId? parameterId The axis to remove from, or null to use the session's targeted parameter.
@@ -355,15 +326,10 @@ fun EditorSession.removeKeysOnTracks(
  * Routes a keyable property's typed or picked [value]: a KEYED channel records it as a pending unkeyed
  * edit, an unkeyed channel writes the static through [writeStatic].
  *
- * The one place the rule lives.  Writing the static of a keyed channel is shadowed by the track, so the
- * edit appears to be silently rejected (the field snaps back and a following `I` captures the old track
- * value); a pending edit previews in the viewport and waits for `I`.  An unkeyed channel has no track to
- * shadow it, so the static is the real store.  Reimplementing this branch at each property row instead of
- * calling here would let the two halves drift: some rows would apply the guard and others would silently
- * skip it.
- *
- * Both branches record exactly one undo step, and both record it under [change] - which of the two a given
- * channel takes depends on whether it happens to carry a track, which is not a distinction the rigger made.
+ * A keyed channel's static is shadowed by its track, so writing it would look like a silent rejection (the
+ * field snaps back and a following `I` captures the old track value); the pending edit previews instead and
+ * waits for `I`.  Both branches record one undo step under [change], since which one a channel takes is not
+ * a distinction the rigger made.
  *
  * @param KeyableTarget target The entity and channel being edited.
  * @param ChannelValue value The value the user chose.
@@ -499,9 +465,6 @@ fun RuntimeTarget.keyableColorChannels(): List<FormChannel> =
  * The tracks a Pose-mode key of [kind] writes on, over every warp the session poses, which is what "the selected
  * deformers" means in Pose mode; null outside Pose mode, where keying falls to whatever the caller aims at.  An empty
  * session refuses with a notice and answers an empty list, so the caller does nothing more.
- *
- * Built per posed deformer as its geometry track plus its channel tracks, so a deformer kind that comes to be posed
- * keys through the same kinds.
  *
  * @param PoseKeyKind kind Which of each warp's tracks to take.
  * @return List<KeyformTrackRef>? The tracks, warp by warp, or null outside Pose mode.

@@ -27,17 +27,11 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.workspace.AreaScope
 
 /**
- * The parameters panel's area-header controls (mounted via SpaceDescriptor.headerContent): the leading
- * Add Parameter dropdown and New Group button, the name / id search field centered in the flexible
- * middle, then Reset All and the filter chip at the header's end - so the panel body keeps its full
- * height for the parameter list. Renders nothing without an open document, matching the other header
- * controls.
+ * The parameters panel's area-header controls, which keep the panel body's full height for the parameter list.
  *
- * These stay inline handlers rather than registry commands on purpose - adding a parameter, creating a
- * group, and resetting the pose are direct manipulation like the sliders themselves; a command becomes
- * warranted only when a shortcut or menu needs to reach it. Creating either opens it for inline rename
- * immediately, so the new id is parked on the shared [scope] view state (the header and body are
- * sibling subtrees).
+ * These stay inline handlers rather than registry commands on purpose: adding a parameter, creating a group,
+ * and resetting the pose are direct manipulation like the sliders themselves.  A created item opens for inline
+ * rename, so its id is parked on the shared [scope] view state, the header and body being sibling subtrees.
  *
  * @param AreaScope scope The hosting area's scope carrying the panel's view state.
  */
@@ -76,9 +70,8 @@ internal fun OverflowRowScope.parametersHeaderControls(scope: AreaScope) {
 }
 
 /**
- * The Add Parameter dropdown: the rigger picks the kind up front - a key-form (circle) or a blend-shape
- * (square) parameter.  Either creates a document edit and opens the new row for inline rename.  The full
- * add-ticks / keyform-capture workflow is not built yet.
+ * The Add Parameter dropdown: the rigger picks the kind up front, a keyform (circle) or a blend-shape (square)
+ * parameter, and the new row opens for inline rename.
  *
  * Its entries are the ones every parameter menu in the panel body ends with, from the same builder, so
  * what the runtime target hides here it hides there.
@@ -126,12 +119,9 @@ private fun NewParameterGroupButton(viewState: ParametersViewState) {
 /**
  * Reset All: returns every parameter to its default in one undo step.
  *
- * A pose write, so it goes through the writer the panel body's sliders go through and is refused in Edit
- * mode with them; a locked panel is not writable from the header.  Group create / delete / rename are
- * document edits rather than pose writes, so they are NOT gated.
- *
- * The header and the body are sibling subtrees, so this holds a writer of its own: the same class under
- * the same lock, echoing into no displayed values.  The body's sliders follow the reset through the pose.
+ * A pose write, so it goes through the same writer class as the body's sliders and Edit mode refuses it
+ * with them.  The header and the body are sibling subtrees, so this holds a writer of its own, echoing into
+ * no displayed values; the body's sliders follow the reset through the pose.
  */
 @Composable
 private fun ResetAllParametersButton() {
@@ -146,9 +136,8 @@ private fun ResetAllParametersButton() {
 }
 
 /**
- * The panel's view filters.  The same stay-open filter panel the outliner uses, rather than a bare toggle
- * button: this panel grows more view toggles as the keyform tracks land, and a shared chip keeps the two
- * headers from drifting apart.  The funnel glyph still reports the filtered / unfiltered state at a glance.
+ * The panel's view filters, in the same stay-open filter panel the outliner uses rather than a bare toggle
+ * button, so the two headers do not drift apart as view toggles are added.
  *
  * @param ParametersViewState viewState The panel's shared view state.
  */

@@ -18,8 +18,7 @@ import java.util.Locale
 import kotlin.random.Random
 
 /*
- * The convert subcommand: cmo3/moc3 resaves and cross-format conversions, replacing the old
- * Cmo3ResaveDumpTest -Dcmo3.resave workflow.
+ * The convert subcommand: cmo3/moc3 resaves and cross-format conversions.
  */
 
 /**
@@ -70,11 +69,7 @@ internal fun runConvert(arguments: List<String>): Int {
 
 /**
  * Lowers a CMO3 document to the full MOC3 family (moc3 + model3.json + cdi3.json + atlas textures)
- * next to [outputFile].
- *
- * The two mandatory pre-steps mirror the app's own export path: the puppet's drawables arrive on
- * the -1 texture-page sentinel (CMO3 binds textures through the layered-art web, not a page index),
- * so withTexturePagesFrom must land real pages before the lowering can name them.
+ * next to [outputFile], through the same pre-steps as the app's own export path.
  *
  * @param LoadedInput.Cmo3Input loaded The cmo3 input.
  * @param File outputFile             The target .moc3 path; the family lands beside it.
@@ -93,6 +88,8 @@ private fun convertCmo3ToMoc3Family(loaded: LoadedInput.Cmo3Input, outputFile: F
 			pageSet.premultipliedAlpha,
 			UndecodablePagePolicy.Skip,
 		) ?: PuppetTextures(emptyList(), emptyMap(), pageSet.premultipliedAlpha)
+	// CMO3 drawables arrive on the -1 texture-page sentinel (CMO3 binds textures through the layered-art
+	// web, not a page index), so real pages must land before the lowering can name them.
 	val puppet = withTexturePagesFrom(importedPuppet, textures)
 	val pages =
 		textures.atlases.mapIndexed { pageIndex, atlas ->
@@ -122,10 +119,8 @@ private fun convertCmo3ToMoc3Family(loaded: LoadedInput.Cmo3Input, outputFile: F
 }
 
 /**
- * Synthesizes a fresh CMO3 from a MOC3-origin document.  The atlas pages come from the manifest's
- * texture files; without a manifest the conversion proceeds textureless with a warning.  A
- * MissingSourceArt notice is always reported - the pages are atlas copies, not the original
- * layered source art.
+ * Synthesizes a fresh CMO3 from a MOC3-origin document, its atlas pages taken from the manifest's
+ * texture files.
  *
  * @param LoadedInput.Moc3Input loaded The moc3 input with its discovered family.
  * @param File outputFile             The target .cmo3 path.

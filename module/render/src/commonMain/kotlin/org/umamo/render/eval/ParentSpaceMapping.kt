@@ -80,10 +80,8 @@ class ParentSpaceMapping internal constructor(
 
 	/**
 	 * Maps world positions back to local positions for the given vertex [indices], leaving every other
-	 * vertex at its [seedLocal] value. The rotation affine inverts in closed form; the warp lattice
-	 * inverts by damped Newton iteration on the forward transform, seeded per vertex from [seedLocal]
-	 * (the vertex's own original UV), keeping the best estimate when it cannot converge - a vertex
-	 * sticks rather than jumps. A degenerate transform (zero determinant) keeps the seed.
+	 * vertex at its [seedLocal] value.  A warp vertex that cannot converge keeps its best estimate, so it
+	 * sticks rather than jumps.
 	 *
 	 * @param FloatArray world The interleaved world positions to invert.
 	 * @param FloatArray seedLocal The local positions to start from (and to keep for untouched vertices).
@@ -127,23 +125,15 @@ class ParentSpaceMapping internal constructor(
 
 	/**
 	 * Maps world positions back to local for the given vertex [indices] with a per-vertex EXACT inverse,
-	 * leaving every other vertex at its [seedLocal] value. No parent inverts by pure Y un-negation and
-	 * a rotation parent by its closed-form affine inverse (both one step); a warp parent inverts each vertex
-	 * independently by a reach-uncapped Newton ([invertWarpUncapped]) seeded from its own rest UV, so every
-	 * vertex lands on its own world target - the mesh stays rigid in world space (no squish), which the
-	 * shared-Jacobian linearizations cannot achieve on a curved cage.
+	 * leaving every other vertex at its [seedLocal] value, so every vertex lands on its own world target and
+	 * the mesh stays rigid in world space (no squish).
 	 *
-	 * Seeding each warp vertex from its rest UV keeps neighbours converging to nearby pre-images, so the
+	 * Seeding each warp vertex from its rest UV keeps neighbors converging to nearby pre-images, so the
 	 * result stays coherent (no scatter) wherever the forward map is injective. Where a target sits in a
 	 * folded / multivalued extrapolation region the Newton keeps its best estimate near the seed rather than
 	 * flinging - so a truly unreachable vertex lags instead of boiling. Not capping the per-step reach
 	 * (unlike [invertWarp]) is what lets a large grab follow instead of pinning / ovalizing; the risk traded
 	 * back is that a strongly non-injective cage can still scatter far outside the lattice.
-	 *
-	 * The warp tolerance and scratch are hoisted out of the vertex loop (constant per mapping), and the
-	 * Newton early-exits the moment a vertex converges, so the whole-selection Object-mode grab (hundreds of
-	 * warp vertices per drawable, over many drawables) stays interactive. A degenerate Jacobian (a
-	 * zero-scale deformer) keeps the seed.
 	 *
 	 * @param FloatArray world The interleaved transformed world targets to invert.
 	 * @param FloatArray seedLocal The rest local coords (per-vertex Newton seed; kept for untouched vertices).
@@ -214,10 +204,8 @@ class ParentSpaceMapping internal constructor(
 
 	/**
 	 * The Jacobian of this space's map to the parent transform's output at local ([x], [y]), before the renderer's Y
-	 * negation, written row-major into [out]: d(x)/dx, d(x)/dy, d(y)/dx, d(y)/dy.  The identity with no parent, the
-	 * affine's linear part under a rotation, and under a warp the lattice's exact Jacobian inside it or a forward
-	 * difference of the extrapolation outside.  The negation is left out because the ratio of two such Jacobians is
-	 * what a conversion between spaces reads, and it cancels there.
+	 * negation, written row-major into [out]: d(x)/dx, d(x)/dy, d(y)/dx, d(y)/dy.  The negation is left out because
+	 * the ratio of two such Jacobians is what a conversion between spaces reads, and it cancels there.
 	 *
 	 * @param Float x The local x.
 	 * @param Float y The local y.
@@ -266,13 +254,10 @@ class ParentSpaceMapping internal constructor(
 	}
 
 	/**
-	 * Reach-uncapped world-rigid inverse of the warp lattice: solves `warpApply(u, v) = (targetX, targetY)`
-	 * from the seed already in `local[coordIndex]`,`local[coordIndex+1]`, writing the best estimate back.
-	 * Identical to [invertWarp] except it has no per-step damping clamp, so a full Newton step reaches a
-	 * far target instead of pinning at [WARP_INVERSE_MAX_STEP], which keeps the mesh from pinning /
-	 * ovalizing on a big grab. Allocation-free (reuses [scratch]) and early-exits at [toleranceSquared], so
-	 * it stays cheap for a whole-selection Object-mode grab; [toleranceSquared] is passed in because it is
-	 * constant per lattice.
+	 * Reach-uncapped world-rigid inverse of the warp lattice: [invertWarp] without its per-step damping clamp,
+	 * solving `warpApply(u, v) = (targetX, targetY)` from the seed already in `local[coordIndex]`,
+	 * `local[coordIndex+1]` and writing the best estimate back.  Allocation-free, with [toleranceSquared] passed
+	 * in because it is constant per lattice, so it stays cheap for a whole-selection Object-mode grab.
 	 *
 	 * @param WarpWorld warp The baked world lattice.
 	 * @param Float targetX The pre-negate world x to invert.
@@ -359,10 +344,8 @@ fun parentSpaceAt(model: PuppetModel, parentId: DeformerId?, parameters: Map<Par
 }
 
 /**
- * Builds the local<->world mapping for [drawableId] at the given pose, resolving parameters with the
- * evaluator's fallback (`parameters[id] ?: parameter.default ?: 0`). Returns null when the drawable
- * does not exist or its parent deformer's world transform cannot be built (a hidden ancestor) - the
- * drawable is not on screen, so there is nothing to map onto.
+ * Builds the local<->world mapping for [drawableId] at the given pose; null when the drawable does not
+ * exist or a hidden ancestor leaves it off screen, with nothing to map onto.
  *
  * One drawable, one bake of the whole deformer chain: for more than one drawable at one pose use a
  * [DrawableSpaceResolver], which bakes the chain once for all of them.
@@ -385,9 +368,7 @@ fun drawableSpaceMapping(model: PuppetModel, parameters: Map<ParameterId, Float>
 
 /**
  * The per-drawable half of [drawableSpaceMapping], shared with [DrawableSpaceResolver] so the batch
- * and the single call cannot drift: a direct drawable maps through the Y negation alone, and a parented
- * one through the world [parentWorldOf] resolves for its parent - or not at all when that world is
- * absent (a hidden ancestor, or a parent the model does not carry).
+ * and the single call cannot drift.
  *
  * @param Drawable drawable The drawable to map.
  * @param Function parentWorldOf Resolves a deformer's baked world at the pose, or null when it has none.

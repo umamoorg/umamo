@@ -10,11 +10,6 @@ import org.umamo.runtime.model.RenderNode
  * Builds the runtime render-order tree from the moc's explicit render-order groups (group 0 is the
  * root), or null when the document carries none (degenerate; the caller derives from the org tree).
  *
- * A kind-0 child is a drawable leaf; a kind-1 child is a "Group by Draw Order" part whose sub-group
- * record is [org.umamo.format.moc3.model.RenderOrderChild.groupIndex].  A visited set guards a
- * malformed cyclic group reference, and drawables the stored tree never places are appended at the
- * root (the renderer draws exclusively from this tree, so a missing leaf would never render).
- *
  * Runs BEFORE the part import, and reads the same part attributes it does - a grouped part's draw
  * order, tracks, and composite appear on both its render group and its runtime `Part` - which is why
  * those live in `Moc3PartImport` as plain functions over the context rather than being computed here.
@@ -111,7 +106,6 @@ internal fun panelIndexesFrom(renderRoot: RenderGroup?): Map<DrawableId, Int> =
  *
  * @param RenderNode            node The subtree root.
  * @param ArrayList<DrawableId> into The destination leaf list.
- * @return Unit
  */
 private fun collectRenderLeaves(
 	node: RenderNode,

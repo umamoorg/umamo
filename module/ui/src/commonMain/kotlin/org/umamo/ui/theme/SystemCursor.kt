@@ -12,7 +12,7 @@ import androidx.compose.ui.input.pointer.PointerIcon
  *     art is rasterized once into a platform cursor and handed to pointerHoverIcon.
  *
  * Both paths therefore render the SAME UmamoCursor definitions from Cursor.kt; a control never falls back
- * to a stock OS arrow, which is what kept the designed set from applying outside the viewport before.
+ * to a stock OS arrow, so the designed set applies outside the viewport too.
  */
 
 /**

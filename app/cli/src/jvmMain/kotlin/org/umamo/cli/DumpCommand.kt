@@ -225,10 +225,9 @@ private fun dumpPuppetSummary(puppet: PuppetModel) {
 /**
  * The source-artwork summary: canvas, folder attributes, and one line per layer.
  *
- * The layer inventory a PSD/CLIP/KRA reader produces has had no way to be seen until now, which is
- * the same gap the atlas command closes on the packing side - this is what you read to judge whether
- * a pack skipped the layers it should have.  The alpha column is the packer's own view: the trimmed
- * opaque bounds, or `empty` for a layer with no opaque pixel (which never reaches a page).
+ * This is the layer inventory a PSD/CLIP/KRA reader produces, read to judge whether a pack skipped
+ * the layers it should have.  The alpha column is the packer's own view: the trimmed opaque bounds,
+ * or `empty` for a layer with no opaque pixel (which never reaches a page).
  *
  * @param LoadedInput.SourceArtInput loaded The loaded artwork document.
  */

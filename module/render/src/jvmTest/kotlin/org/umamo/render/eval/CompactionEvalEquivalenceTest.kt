@@ -62,6 +62,9 @@ class CompactionEvalEquivalenceTest {
 	 * One parameter at a time rather than a combinatorial sweep: the grids are multilinear, so a fault on
 	 * one axis shows up while the others sit at their defaults, and the corpus models carry enough
 	 * parameters that a product sweep would not finish.
+	 *
+	 * @param PuppetModel model The rig whose parameters are swept.
+	 * @return List<Map<ParameterId, Float>> The all-default pose, then each parameter at each sweep fraction.
 	 */
 	private fun sweepPoses(model: PuppetModel): List<Map<ParameterId, Float>> {
 		val defaults = model.parameters.associate { parameter -> parameter.id to parameter.default }

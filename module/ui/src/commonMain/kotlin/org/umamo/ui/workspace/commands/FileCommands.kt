@@ -14,12 +14,11 @@ import org.umamo.ui.resources.*
  * loader and the CMO3 codec, which sit above the shell (and, for the codec, off commonMain entirely).  The
  * file picker alone is no reason: the workspace layout's file commands and the log export need one too,
  * and the shell registers those, since nothing about them is a document.  Only the TABLE lives here: each
- * builder takes the action as a plain lambda,
- * so the ids, titles, and availability tiers sit with every other command table while the app keeps the
- * document logic.  Registering them here instead would drag the whole document layer into the shell's
- * package and invert the dependency.  The artwork table ([fileArtworkCommands]) is the exception: the
- * shell registers it (with the app's closures injected) because its operation strip needs the hovered
- * area at dispatch.
+ * builder takes the action as a plain lambda, so the ids, titles, and availability tiers sit with every
+ * other command table while the app keeps the document logic.  Registering them here instead would drag
+ * the whole document layer into the shell's package and invert the dependency.  The artwork table
+ * ([fileArtworkCommands]) is the exception: the shell registers it (with the app's closures injected)
+ * because its operation strip needs the hovered area at dispatch.
  *
  * Open / Save mean the native UMA document and nothing else; CMO3 and MOC3 are interop boundaries, so they
  * come and go through Import / Export.
@@ -185,20 +184,14 @@ class ArtworkOperations(
 )
 
 /**
- * The artwork commands over the OPEN document: Import Artwork (a file's layers join the document), Reload
- * (every present file is re-read and the changed layers land), the Sources space's relink (a tile
- * rebound, with the layer's art pulled in), Match Automatically (the bindings the files no longer
- * resolve rebound to their confident matches), Replace Artwork (one record repointed at another file),
- * and the Sources row's Delete Art and ignore toggle.  Each is an undoable edit; the file-reading ones
- * land on the operation settings strip.
+ * The artwork commands over the OPEN document, each an undoable edit; the file-reading ones land on the
+ * operation settings strip.
  *
  * Unlike the other file commands these are registered by the SHELL, not the app, with the app's
- * file-reading closures injected as a collaborator: the strip's area (the hovered work surface, else
- * the last one the pointer touched - the Sources header is the usual origin, and a panel hosts no
- * strip) is a question only the shell's routing can answer.  An app-registered handler would have no
- * area to give and the strip would show nowhere.  The collaborator is read at dispatch, so the table
- * survives a document swap without re-registration, and a null one (no puppet document) hides the
- * commands.
+ * file-reading closures injected as a collaborator: the strip's area is a question only the shell's
+ * routing can answer, since the Sources header is the usual origin and a panel hosts no strip.  The
+ * collaborator is read at dispatch, so the table survives a document swap without re-registration, and a
+ * null one (no puppet document) hides the commands.
  *
  * @param CommandRouting routing The hovered-area resolver, read at dispatch.
  * @param Function       artwork Supplies the current orchestrations, or null when no document can take artwork.
@@ -266,10 +259,9 @@ internal fun fileArtworkCommands(routing: CommandRouting, artwork: () -> Artwork
  * Export Image: a capture of the posed puppet, straight from the viewport renderer, saved as a PNG.
  *
  * Registered by the SHELL for the same reason the artwork commands are: the capture can frame exactly what a
- * 2D viewport shows, and which viewport the rigger means is a question only the shell's routing answers - the
- * hovered one, else the last 2D viewport the pointer touched, and none at all before any was (the dialog then
- * offers only the regions that need no viewport).  The collaborator is read at dispatch, and
- * a null one - no puppet document, or no puppet renderer on this platform - hides the command.
+ * 2D viewport shows, and which viewport the rigger means is a question only the shell's routing answers.  The
+ * collaborator is read at dispatch, and a null one - no puppet document, or no puppet renderer on this
+ * platform - hides the command.
  *
  * @param CommandRouting routing     The hovered-area resolver, read at dispatch.
  * @param Function       exportImage Supplies the export, handed the 2D viewport area to frame (or null), or
@@ -290,7 +282,7 @@ internal fun fileImageExportCommands(routing: CommandRouting, exportImage: () ->
  *
  * Neither carries a default chord.  With two formats there is no honest meaning for one "export"
  * accelerator, and the pair is one keystroke away in the palette and one row apart in the File menu -
- * a shortcut that silently favours whichever format was implemented first is worse than none.
+ * a shortcut that silently favors whichever format was implemented first is worse than none.
  *
  * @param Function canExport      Whether the open document can be exported, queried live.
  * @param Function onExportCmo3   Runs the CMO3 export (picker, reconcile, write, report).

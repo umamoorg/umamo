@@ -23,9 +23,8 @@ internal actual fun Modifier.contextMenuGesture(onContextMenu: (IntOffset) -> Un
  *
  * The desktop actual has to beat the text field's built-in secondary-click menu; here the corresponding
  * gesture is a long press, and on a touch screen long-pressing text means SELECT A WORD, which is correct
- * platform behaviour and not ours to take away.  So this loses to the platform where the two collide, and a
- * field inside a context-menu area does not offer that area's items on Android.  Revisit alongside the
- * Android viewport - until that lands the editor does not run here, so the gap costs nothing today.
+ * platform behavior and not ours to take away.  So this loses to the platform where the two collide, and a
+ * field inside a context-menu area does not offer that area's items on Android.
  *
  * @param Function onContextMenu Called with the press point in local coordinates.
  * @return Modifier The modifier with the detector attached.

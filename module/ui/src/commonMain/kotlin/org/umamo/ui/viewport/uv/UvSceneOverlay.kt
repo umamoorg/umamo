@@ -59,19 +59,13 @@ internal class UvShownScene(
 )
 
 /**
- * Publishes a UV area's scene to [service] for as long as it runs: the shown surface and its extent, with
- * the Edit overlay of the shown session meshes laid on the surface while the session edits (from the area's
- * live circle stroke or else the committed mesh selection), and otherwise the shown islands in the object
- * selection's styles, with the placement gesture's preview over a page.  It publishes whenever the content
- * (the overlay and the preview by identity) or the extent changes, so a Grab's confirm, which commits what
- * the preview already showed, publishes nothing.
+ * Publishes a UV area's scene to [service] for as long as it runs.  It publishes only when the content (the
+ * overlay and the preview by identity) or the extent changes, so a Grab's confirm, which commits what the
+ * preview already showed, publishes nothing.
  *
- * The circle stroke is the area's own rather than the session's preview selection: the stroke a UV area
- * paints is drawn over that area alone.  So is the placement scene, which only the area's own Object
- * overlay writes.
- *
- * The derive runs on [deriveDispatcher], one input at a time with the latest winning, and the publish
- * lands back on the caller's dispatcher.
+ * The circle stroke and the placement scene are the area's own rather than the session's, so what a UV area
+ * paints or drags is drawn over that area alone.  The derive runs on [deriveDispatcher] with the latest input
+ * winning, and the publish lands back on the caller's dispatcher.
  *
  * @param PuppetViewportService service The render service to publish to.
  * @param String areaId The UV area the scene is for.
@@ -179,10 +173,8 @@ private fun withScene(content: UvSceneContent, overlay: DirectMeshOverlay?, plac
 
 /**
  * Turns the session's state over one UV area's shown scene into the renderer's [DirectMeshOverlay]: the
- * Edit overlay of the session meshes the area shows (the shared [EditMeshOverlayProducer], narrowed to the
- * shown ones), each paired with its display positions and triangle indices exactly as the shown geometry
- * holds them.  The value is the previous instance while the overlay and every paired array are the same
- * instances, and the arrays pass through by identity, so the renderer re-uploads only what moved.
+ * shared [EditMeshOverlayProducer]'s Edit overlay narrowed to the shown meshes, each paired by identity with
+ * the shown geometry's display positions and triangle indices, so the renderer re-uploads only what moved.
  *
  * Not thread-safe: one sequential derive owns it.
  */

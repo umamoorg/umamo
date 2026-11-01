@@ -9,14 +9,14 @@ import org.umamo.runtime.model.ParameterId
 
 /*
  * Exact-only keyform-grid compaction: drop every axis a track does not actually vary along, and every
- * interior key that is bit-equal to the blend of its neighbours.
+ * interior key that is bit-equal to the blend of its neighbors.
  *
  * This is what turns an imported Cubism rig into a sparse Umamo one.  Cubism keys every channel on every
  * cell of one bundled grid, so after the per-channel fan-out a typical drawable's opacity track is the
  * same value repeated across the whole grid; compacting it to a constant retires the track entirely and
  * the owner's static field takes over.
  *
- * EXACT, never an epsilon.  A key that is merely close to its interpolated neighbours is a value the
+ * EXACT, never an epsilon.  A key that is merely close to its interpolated neighbors is a value the
  * rigger chose, and silently replacing it would alter their rig - which the fidelity contract forbids.
  * The greedy drop test compares against the same FormInterpolator expression refinedToUnion re-inserts
  * with, and the drop set is then VERIFIED by running refinedToUnion itself and re-keeping any key whose
@@ -49,27 +49,19 @@ sealed interface CompactionResult<TForm> {
 /**
  * This grid with every redundant axis and interior key removed, or the constant it collapses to.
  *
- * An axis is redundant when every cell is bit-equal along it - the track simply does not respond to that
- * parameter.  An interior key is redundant when its whole slice is bit-equal to the blend of the slices on
- * either side, so the evaluator would produce it anyway.  Endpoint keys are never dropped: the blend test
- * needs both neighbours, and dropping an endpoint would narrow the axis's span and change when the track
- * falls out of range.
- *
- * A [valueKind] of FLAG restricts compaction to whole axes.  A flag snaps to the floor cell rather than
- * blending, so "equal to the blend of its neighbours" is not the right test for an interior flag key, and
- * flag tracks are small enough that the conservatism costs nothing.
- *
- * A sparse grid is returned unchanged as [CompactionResult.Reduced] - the missing cells cannot be tested,
- * and inventing them would be a repair this layer has no business making.
+ * An axis is redundant when the track does not vary along it, an interior key when its slice is bit-equal
+ * to the blend of its neighbors.  Endpoint keys always stay, since dropping one would narrow the axis's
+ * span and change when the track falls out of range.  A sparse grid comes back unchanged, its missing
+ * cells untestable.
  *
  * @param FormInterpolator interpolator The blend and exact-equality tests; must be the same one
  *   [refinedToUnion] will later re-insert with.
  * @param ChannelValueKind? valueKind The track's value kind when it is a channel track, or null for a
  *   geometry grid (which blends like a scalar).
- * @param Function axisSpansRange Whether an axis's keys bracket its parameter's whole range.  A
- *   non-spanning axis gates the track's out-of-span fallback to the owner's static, so it is never
- *   dropped and never lifted; channel compaction MUST pass the model-derived predicate (the permissive
- *   default exists for shape-only tests and single-grid callers with no parameter table in reach).
+ * @param Function axisSpansRange Whether an axis's keys bracket its parameter's whole range; a
+ *   non-spanning axis gates the out-of-span fallback, so it is never dropped or lifted.  Channel
+ *   compaction must pass the model-derived predicate (the permissive default suits single-grid callers
+ *   with no parameter table in reach).
  * @return CompactionResult The constant the track collapses to, or the reduced grid.
  */
 fun <TForm> KeyformGrid<TForm>.compacted(
@@ -81,6 +73,8 @@ fun <TForm> KeyformGrid<TForm>.compacted(
 		return CompactionResult.Reduced(this)
 	}
 
+	// A flag snaps to the floor cell rather than blending, so the neighbor-blend test does not apply to its
+	// interior keys.
 	val allowsInteriorKeyDrop = valueKind != ChannelValueKind.FLAG
 	var working = this
 	// Axes first: dropping one shrinks every later pass, and it can expose a key that is now interpolable.
@@ -119,14 +113,8 @@ fun <TForm> KeyformGrid<TForm>.compacted(
 /**
  * This grid with every interior key dropped whose restoration by [refinedToUnion] is bit-exact.
  *
- * The greedy pass validates each drop against the CURRENT neighbours, but a neighbour used to justify a
- * drop can itself drop later, and refinedToUnion then re-blends the first key from the surviving
- * endpoints - a different IEEE-754 rounding sequence that matches only algebraically.  So the greedy
- * result is verified by running the ACTUAL inverse and re-keeping every key involved in a slice that did
- * not restore bit-identically, until the round trip verifies.
- *
- * Terminates: a mismatched cell always involves at least one dropped key (a cell whose keys all survived
- * is carried verbatim), so every iteration moves at least one key from dropped to kept.
+ * A greedy drop is justified against neighbors that may drop later, so the greedy result is checked by
+ * running the actual inverse and re-run with every key of a slice that failed to restore held back.
  *
  * @param FormInterpolator interpolator The blend and exact-equality tests.
  * @return KeyformGrid The reduced grid whose refinement restores this grid bit-for-bit.
@@ -134,6 +122,8 @@ fun <TForm> KeyformGrid<TForm>.compacted(
 private fun <TForm> KeyformGrid<TForm>.withVerifiedInteriorKeyDrops(interpolator: FormInterpolator<TForm>): KeyformGrid<TForm> {
 	val mustKeep = HashMap<ParameterId, MutableSet<Float>>()
 
+	// Terminates: a mismatched cell always involves at least one dropped key (a cell whose keys all survived
+	// is carried verbatim), so every round moves at least one key from dropped to kept.
 	while (true) {
 		val reduced = withGreedyInteriorKeyDrops(interpolator, mustKeep)
 
@@ -156,7 +146,7 @@ private fun <TForm> KeyformGrid<TForm>.withVerifiedInteriorKeyDrops(interpolator
 }
 
 /**
- * The original greedy interior-key drop pass, skipping any key value listed in [mustKeep].
+ * The greedy interior-key drop pass, skipping any key value listed in [mustKeep].
  *
  * @param FormInterpolator interpolator The blend and exact-equality tests.
  * @param Map mustKeep Key values (per parameter) that a prior verification round proved non-restorable.
@@ -254,7 +244,7 @@ private fun <TForm> KeyformGrid<TForm>.isConstantAlong(axisIndex: Int, interpola
 }
 
 /**
- * Whether the whole slice at [keyIndex] on [axisIndex] is bit-equal to the blend of its neighbours - so
+ * Whether the whole slice at [keyIndex] on [axisIndex] is bit-equal to the blend of its neighbors - so
  * the evaluator would reproduce it exactly without the key being stored.
  *
  * @param Int axisIndex The axis the key sits on.

@@ -15,9 +15,9 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * Everything the export producers derive from a rig before any of them writes a record.
  *
- * Immutable, and deliberately narrower than the encode side's `MocLoweringContext`: the two things a
- * producer MUTATES - the keyform pool it interns bindings into and the notice sink it reports through -
- * are passed alongside this rather than held here, so a producer's signature says what it changes.
+ * Immutable, and deliberately narrower than the encode side's `MocLoweringContext`: what a producer
+ * MUTATES - the keyform pool it interns bindings into, the ids it claims, and the notice sink it reports
+ * through - is passed alongside this rather than held here, so a producer's signature says what it changes.
  *
  * The rig here is the STRIPPED one.  A producer that reached back to the caller's model would read
  * features the target version cannot carry, and on every export at a model's own version the two are
@@ -63,9 +63,8 @@ internal class Moc3ExportContext(
 	 * Whether the target version carries offscreen records.
 	 *
 	 * Offscreen rendering (an isolated part composited as one layer) arrived in Cubism 5.3, as did the
-	 * extended blend surface.  Two names for one number: they are separate features that happen to
-	 * share a version, and a later version bump should be able to move one without the other - which is
-	 * why this and [extendedBlendEnabled] stay separate fields rather than collapsing into one.
+	 * extended blend surface; [extendedBlendEnabled] stays a separate field because the two are separate
+	 * features that only happen to share a version.
 	 */
 	val offscreensEnabled: Boolean = version.byteValue >= 6
 
@@ -85,9 +84,8 @@ internal class Moc3ExportContext(
 	 * The space a child of [parentId] stores its positions in.
 	 *
 	 * The export's mirror of the import's `pointSpaceOf`, resolved through the plan so an unknown parent
-	 * normalizes to root exactly as the import normalizes an unresolvable index.  Three callers - the
-	 * deformer, art-mesh, and blend-shape lowerings - and they must all resolve identically, which is
-	 * what makes this a context method rather than a local helper in one of them.
+	 * normalizes to root exactly as the import normalizes an unresolvable index.  A context method so the
+	 * deformer, art-mesh, and blend-shape lowerings all resolve identically.
 	 *
 	 * @param DeformerId? parentId The owning object's parent deformer.
 	 * @return PointSpace The space to store in.

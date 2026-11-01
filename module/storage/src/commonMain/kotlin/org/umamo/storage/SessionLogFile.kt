@@ -135,10 +135,7 @@ class SessionLogFile private constructor(
 	companion object {
 		/**
 		 * Starts a new session log in [directory], after pruning the oldest ones so that, with this one,
-		 * [keptSessions] remain, and marks it through [locks] for as long as it stays open.  Only files named like
-		 * a session log are ever pruned.  One another running session holds - by its mark, or because the file
-		 * system refuses to delete a file another process has open, as Windows does - is left for a later session
-		 * to prune.
+		 * [keptSessions] remain, and marks it through [locks] for as long as it stays open.
 		 *
 		 * @param FileSystem      fileSystem   The file system holding [directory].
 		 * @param Path            directory    The logs directory, created if missing.

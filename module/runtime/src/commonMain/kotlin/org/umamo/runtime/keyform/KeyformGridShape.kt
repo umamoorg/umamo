@@ -73,17 +73,15 @@ fun KeyformGrid<*>.axisIndexOf(parameterId: ParameterId): Int = axes.indexOfFirs
 
 /**
  * This grid with the axis for [parameterId] removed, collapsing that dimension to the key nearest
- * [keepKeyValue]. Returns this same instance when the grid has no such axis (so a caller can skip
- * untouched entities by identity), or null when removing the axis leaves no axes at all (the entity
- * becomes unkeyed). The surviving cells are those whose coordinate on the dropped axis is the kept key
- * index, each re-projected to the N-1 coordinate; the form payloads are carried through untouched.
+ * [keepKeyValue].
  *
  * The kept slice is the NEAREST key, not an interpolated one, so collapsing an axis whose kept value
  * falls between keys discards the interpolated pose rather than baking it.
  *
  * @param ParameterId parameterId The axis parameter to remove.
  * @param Float keepKeyValue The parameter value whose nearest key slice survives (the deleted default).
- * @return KeyformGrid The collapsed grid, this if the axis was absent, or null if no axes remain.
+ * @return KeyformGrid The collapsed grid, this same instance if the axis was absent (so a caller can skip
+ *   untouched entities by identity), or null if no axes remain.
  */
 fun <TForm> KeyformGrid<TForm>.withAxisCollapsed(parameterId: ParameterId, keepKeyValue: Float): KeyformGrid<TForm>? {
 	val axisIndex = axisIndexOf(parameterId)
@@ -111,11 +109,9 @@ fun <TForm> KeyformGrid<TForm>.withAxisCollapsed(parameterId: ParameterId, keepK
  * This grid with the axis for [parameterId] collapsed as [withAxisCollapsed] collapses it, except that
  * removing the LAST axis keeps the kept slice as a one-cell grid with no axes instead of dropping the grid.
  *
- * For a geometry grid, where the grid is the owner's shape: a warp's lattice and a rotation's pivot live
- * only in their cells, and a drawable's kept slice is the look it had at the kept value, so dropping the
- * grid would lose the one and snap the other back to its base mesh.  A one-cell grid with no axes is the
- * shape every static object already has - a MOC3 import writes one per static object, and a CMO3 export
- * writes one per unkeyed owner - so every consumer reads it.
+ * For a geometry grid, whose cells are the owner's shape (a warp's lattice, a rotation's pivot, a
+ * drawable's look at the kept value), so dropping the grid would lose it.  A one-cell grid with no axes is
+ * the shape every static object already has, so every consumer reads it.
  *
  * @param ParameterId parameterId  The axis parameter to remove.
  * @param Float       keepKeyValue The parameter value whose nearest key slice survives.
@@ -181,16 +177,12 @@ class CollapsedChannels(
  * kept slice's value of any track that drops entirely.
  *
  * The whole-owner counterpart of [withAxisCollapsed], so deleting a parameter scrubs every track in one
- * walk rather than needing a hand-written case per channel - a hand-rolled enumeration is exactly the kind
- * of list a channel like a glue's intensity grid could quietly be left off.  A track left with no axes is
- * dropped, and the value of its kept slice is returned
- * in [CollapsedChannels.lifted] for the caller to write into the owner's static.  A sparse grid missing
- * its kept cell lifts nothing (the static keeps its current value).  Returns this same grids instance
- * (with an empty lifted map) when no track referenced the parameter.
+ * walk rather than a hand-written case per channel.  A sparse grid missing its kept cell lifts nothing.
  *
  * @param ParameterId parameterId The axis parameter to remove from every track.
  * @param Float keepKeyValue The parameter value whose nearest key slice survives.
- * @return CollapsedChannels The scrubbed tracks plus the lifted slice values.
+ * @return CollapsedChannels The scrubbed tracks plus the lifted slice values, or this same grids instance
+ *   with nothing lifted when no track referenced the parameter.
  */
 fun ChannelGrids.withAxisCollapsedLifting(parameterId: ParameterId, keepKeyValue: Float): CollapsedChannels {
 	var changed = false

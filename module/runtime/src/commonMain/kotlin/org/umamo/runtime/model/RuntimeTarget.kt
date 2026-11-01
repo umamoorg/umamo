@@ -164,7 +164,7 @@ enum class RuntimeFeature {
 	/** Offscreen drawing - [PartGroupMode.Isolated] plus [PartComposite].  Official dialog: "Offscreen drawing - SDK5.3+".  (MOC3 §5.6 sections 152-163.) */
 	PartComposite,
 
-	/** Parameter repeat flags.  A 5.3 moc feature (MOC3 §5.5 s54).  Informational only - not modeled. */
+	/** Parameter repeat flags, [Parameter.repeat].  A 5.3 moc feature (MOC3 §5.5 s54). */
 	ParameterRepeat,
 
 	/** Vector-line art paths.  Official dialog: "ArtPath - SDK(N/A)/Latest Cubism only".  Informational only - CMO3 round-trip payload, not modeled. */

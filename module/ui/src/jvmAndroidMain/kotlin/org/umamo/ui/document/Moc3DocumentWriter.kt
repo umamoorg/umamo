@@ -9,7 +9,7 @@ import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.storage.UmamoLog
 
 /*
- * Writes an exported moc family to disk, and classifies the sidecars an import retained.
+ * Writes an exported moc family to disk, and hands over the sidecars an import retained.
  *
  * The picker hands back ONE destination - a `.moc3` - but a baked model is a family, so everything
  * else lands beside it under the manifest-relative names the bundle assigned.  That mirrors the
@@ -90,11 +90,8 @@ suspend fun writeMoc3Bundle(destination: PlatformFile, bundle: Moc3Sidecars.Bund
 
 /**
  * The pass-through sidecars of [document], already classified by the manifest section that named
- * them (see `Moc3Document.sidecars`).
- *
- * Nothing is re-derived here.  Classifying by file name instead would drop any sidecar the rigger
- * named off-convention into the motion catch-all, and the export's manifest would stop pointing at
- * it - the file copied beside the moc, but silently unwired from the rig.
+ * them (see `Moc3Document.sidecars`); nothing is re-derived from file names, which only the manifest
+ * can classify.
  *
  * @param Moc3Document? document The imported document, or null for a non-MOC3 origin.
  * @return List The sidecars to re-emit, empty when there are none.

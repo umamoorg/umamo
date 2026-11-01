@@ -100,15 +100,12 @@ fun KeyChord.dispatchCandidates(): List<KeyChord> =
 	}
 
 /**
- * Parses a human-authored chord spec like "primary+shift+KeyP" into a [KeyChord]. Tokens are split on
- * '+'; the final token is the key, the rest are modifiers ("primary" / "cmd", "ctrl" / "control", "shift",
- * "alt" / "option", case insensitive). This is the on-disk keymap form (settings input.keybinding) and the
- * form preset files use, so it must be tolerant of case and whitespace but reject a malformed spec (empty
- * key, unknown modifier) rather than silently mis-binding.
+ * Parses a human-authored chord spec like "primary+shift+KeyP" into a [KeyChord].  This is the on-disk
+ * keymap form (settings input.keybinding) and the form presets use, so it tolerates case and whitespace but
+ * rejects a malformed spec (empty key, unknown modifier) rather than silently mis-binding.
  *
- * "ctrl" names the literal Control key, which is the primary modifier everywhere but macOS: where Control is
- * not distinct it parses as primary, so "ctrl+Tab" and "primary+Tab" are one chord there and can never
- * conflict or double-bind.
+ * "ctrl" parses as primary where Control is not a modifier of its own, so "ctrl+Tab" and "primary+Tab" are
+ * one chord there and can never conflict or double-bind.
  *
  * @param String spec The chord spec, modifiers and key joined by '+'.
  * @param Boolean controlIsDistinct Whether Control is a modifier of its own on this host.
@@ -165,10 +162,8 @@ fun parseKeyChord(spec: String, controlIsDistinct: Boolean = controlIsDistinctFr
 
 /**
  * Serializes a [KeyChord] back to the spec string [parseKeyChord] reads ("primary+shift+KeyP") - the form
- * stored in settings input.keybinding.overrides.  Modifiers are emitted in a fixed order (primary, ctrl,
- * shift, alt) so a given chord always round-trips to the same string and the stored override key stays
- * stable; parseKeyChord itself accepts any order, so this is the inverse of parsing for any chord it
- * produced.
+ * stored in settings input.keybinding.overrides.  Modifiers go in a fixed order so a chord always
+ * serializes to the same string and its stored override key stays stable.
  *
  * @param KeyChord chord The chord to serialize.
  * @return String The spec string.
@@ -196,8 +191,8 @@ fun chordToSpec(chord: KeyChord): String =
 
 /**
  * A resolved set of key-chord → command-id bindings, plus the lookup the input layer uses. Built from
- * a preset spec map; conflicts (two chords on the same command, or a re-bound chord) are resolved
- * last-write-wins at build time. The keymap holds only ids - it never references [Command] objects -
+ * a preset spec map; a chord bound twice resolves last-write-wins at build time, while one command may
+ * keep several chords.  The keymap holds only ids - it never references [Command] objects -
  * so it stays decoupled from registration order and from whether a command currently exists.
  */
 class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
@@ -239,7 +234,7 @@ class Keymap(private val commandIdByChord: Map<KeyChord, String>) {
 	}
 
 	/**
-	 * The number of bindings - handy for tests and a future conflict/coverage report.
+	 * The number of bindings - handy for tests.
 	 *
 	 * @return Int the binding count.
 	 */
@@ -455,8 +450,7 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"shift+alt+KeyZ" to "view.overlay.all",
 		"primary+Comma" to "edit.preferences",
 		// Blender's Home is Frame All in WHICHEVER editor the pointer is over, so a single context-aware
-		// binding covers both cases; two separate Home entries would collide silently under mapOf's
-		// last-wins semantics.
+		// binding covers both cases; two separate Home entries would be a duplicate chord presetSpecs refuses.
 		"Home" to "frame.all",
 		"primary+Digit1" to "view.zoomActualSize",
 		"Equals" to "view.zoomIn",

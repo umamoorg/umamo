@@ -11,8 +11,9 @@ import org.umamo.runtime.model.DeformerId
  * The per-area render options the editor hands the render service: each work-surface area's grid geometry
  * (its own, else the application's setting) and its frame's overlays (grid lines, axes, mesh overlay,
  * wireframe and its opacity, selection tint), derived from the area's ViewportOverlayState, pushed as the
- * area registers and again whenever the value changes.  The engine keeps the value on the area's slot and compares it by value for freshness,
- * so a flip or a grid edit re-renders that area alone and the other areas of the document never notice.
+ * area registers and again whenever the value changes.  The engine keeps the value on the area's slot and
+ * compares it by value for freshness, so a flip or a grid edit re-renders that area alone and the other areas
+ * of the document never notice.
  */
 
 /**
@@ -49,13 +50,9 @@ fun AreaOverlays.withHoveredLattice(deformerId: DeformerId?): AreaOverlays =
 	if (frame.hoveredLattice == deformerId) this else copy(frame = frame.copy(hoveredLattice = deformerId))
 
 /**
- * The render options an area's overlay state asks for over the application's grid for its surface.  A null
- * state (no area, as in a standalone shell) shows everything on the application's grid; an area with a grid of
- * its own draws that one; a UV editor never asks for the world axes, the wireframe, every warp lattice, or the
- * tint off, which its surface has no rows for; the mesh overlay follows the Show Overlays master alone, since the
- * Edit cage has no row of its own, while the wireframe, its culling, and the tint follow their rows under the
- * master; the wireframe's opacity is the area's on both surfaces, a UV editor's islands fading by it, and the
- * lattices' opacity a 2D viewport's alone.
+ * The render options an area's overlay state asks for over the application's grid for its surface, each overlay
+ * following the state only on a surface that has a row for it.  A null state (no area, as in a standalone shell)
+ * shows everything on the application's grid.
  *
  * @param ViewportOverlayState? state           The area's overlay state, or null for none.
  * @param GridConfig            applicationGrid The application's grid for the area's surface.
@@ -67,6 +64,7 @@ fun areaOverlaysFor(state: ViewportOverlayState?, applicationGrid: GridConfig): 
 		FrameOverlays(
 			gridLines = state?.effectiveGrid ?: true,
 			axes = state == null || (state.surface == OverlaySurface.Viewport2D && state.effectiveAxes),
+			// The Edit cage has no row of its own, so the mesh overlay follows the Show Overlays master alone.
 			meshOverlay = state?.showOverlays ?: true,
 			wireframe = state == null || (state.surface == OverlaySurface.Viewport2D && state.effectiveWireframe),
 			selectionTint = state == null || state.surface == OverlaySurface.UvEditor || state.effectiveSelectionTint,
@@ -82,20 +80,18 @@ fun areaOverlaysFor(state: ViewportOverlayState?, applicationGrid: GridConfig): 
  * application's grid setting for its surface (a null state is a 2D viewport's), seeded as the area registers
  * and pushed again whenever either changes.
  *
- * The seed is a composition-time push, like the registration it follows in the host, so the slot carries the
- * area's value before the resize that triggers its first render; the effect then re-pushes on a change only,
- * which the engine compares by value.  The pushed value takes the setting directly, never the state's mirror
- * of it: the mirror is the space body's ([ApplicationGridMirror]), written after composition and only on a
- * change, and reading it back here would cost a second composition and push per setting change.
- *
  * @param PuppetViewportService service The render service the area registered with.
  * @param String                areaId  The area.
  * @param ViewportOverlayState? state   The area's overlay state, or null for none (everything shown).
  */
 @Composable
 fun AreaOverlaysPublisher(service: PuppetViewportService, areaId: String, state: ViewportOverlayState?) {
+	// The setting directly, never the state's mirror of it (ApplicationGridMirror): the mirror is written after
+	// composition, so reading it back here would cost a second composition and push per setting change.
 	val applicationGrid = rememberApplicationGrid(state?.surface ?: OverlaySurface.Viewport2D)
 	val overlays = areaOverlaysFor(state, applicationGrid)
+	// A composition-time seed, like the registration it follows in the host, so the slot carries the area's value
+	// before the resize that triggers its first render.
 	remember(areaId, service) { service.setAreaOverlays(areaId, overlays) }
 	LaunchedEffect(areaId, service, overlays) {
 		service.setAreaOverlays(areaId, overlays)

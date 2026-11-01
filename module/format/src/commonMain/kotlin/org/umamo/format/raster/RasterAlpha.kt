@@ -10,12 +10,9 @@ package org.umamo.format.raster
  * Converts this raster's premultiplied RGBA to straight alpha in place.
  *
  * In place because the raster is a renderer's read-back, owned by whoever asked for it: a capture can be
- * a gigabyte, and a converted copy beside it would double what it holds at its peak.
- *
- * Each color channel divides back out by the pixel's alpha, rounded to nearest and clamped at 255: a
- * premultiplied pixel whose color exceeds its alpha (an additive contribution over nothing) has no
- * straight form, and the clamp keeps its hue as close as the byte range allows.  A pixel with zero
- * alpha has no color at all, so it becomes transparent black.
+ * a gigabyte, and a converted copy beside it would double what it holds at its peak.  A premultiplied
+ * pixel whose color exceeds its alpha (an additive contribution over nothing) has no straight form; the
+ * clamp keeps its hue as close as the byte range allows.
  */
 public fun RasterImage.unpremultiplyInPlace() {
 	var offset = 0

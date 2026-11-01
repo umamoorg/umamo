@@ -85,18 +85,8 @@ class LayerRasterBatch(
 /**
  * Works out which source artwork each drawable would display from, and what each image would cost.
  *
- * Decodes NOTHING.  It reads only the model's atlas - tile sizes and placements - so it is cheap
- * enough to build eagerly for the whole document and to rebuild whenever the drawable set or a
- * placement changes.  Deciding the mapping separately from paying for the pixels is what lets a budget
- * be applied before any memory is spent, and what keeps a budget-evicted layer promotable later.
- *
- * Safe on a background thread: it reads only the immutable model and touches neither the document's
- * decode cache nor the device.
- *
- * A drawable is left out (and counted in [LayerDrawPlan.unresolvedDrawableCount]) when the document
- * retains no art for it or when its placement will not invert.  A layer whose pixels turn out not to
- * decode is NOT known here - that surfaces later, from the batch that tried, so this count means
- * exactly "no artwork exists" and never "not decoded yet".
+ * Decodes nothing: it reads only the immutable model's atlas, so it is cheap enough to rebuild
+ * whenever the drawable set or a placement changes, and safe on a background thread.
  *
  * @param PuppetModel model The puppet whose drawables need artwork.
  * @return LayerDrawPlan Each drawable's mapping plus the per-layer byte cost.

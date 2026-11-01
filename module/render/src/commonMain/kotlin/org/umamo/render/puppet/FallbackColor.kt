@@ -5,7 +5,7 @@ package org.umamo.render.puppet
  *
  * Only reached when a drawable resolves to no atlas page, so it is a development affordance rather than
  * anything a rigger sees in a textured model - it exists so an untextured mesh is visible and tellable
- * apart from its neighbours instead of rendering invisible.  Hashing the id (rather than cycling a
+ * apart from its neighbors instead of rendering invisible.  Hashing the id (rather than cycling a
  * palette by index) keeps a given drawable the same color across reorders and reloads.
  *
  * The channel floor of 0.35 and the 0.6 span keep every result mid-bright: dark enough to read against

@@ -33,7 +33,7 @@ import kotlin.math.min
  * box and circle selection read.  That is each drawable's world centroid and each drawn warp lattice's
  * center (see [viewportSelectionAnchors]), snapshotted at the press that starts a select gesture (the pose
  * is fixed for the whole drag, so one snapshot serves every move) and tested against the region each
- * frame.  Objects that gain a viewport anchor later (a part, a rotation's pivot) join here.
+ * frame.
  *
  * One instance per area: the marquee, the pick controller, and the armed box all refresh and read this
  * same holder, so a snapshot any of them takes is the one the others test against.
@@ -149,10 +149,8 @@ internal fun viewportPickStack(service: PuppetViewportService, areaId: String, p
 internal fun Selection.selectedDrawableIds(): Set<DrawableId> = targets.mapNotNull { target -> (target as? SelectionTarget.Drawable)?.id }.toSet()
 
 /**
- * One Circle-select brush stamp: encloses the objects whose world anchor is within the brush, filters
- * out the unselectable ones, and adds them to (or removes them from) the working selection.  The radius is
- * in screen pixels, so it converts to world units by the zoom; the center unprojects to world space to
- * match the anchors.  A stamp that encloses nothing returns [working] itself.
+ * One Circle-select brush stamp: adds the selectable objects whose world anchor is within the brush to (or
+ * removes them from) the working selection.  A stamp that encloses nothing returns [working] itself.
  *
  * @param Selection working The stroke's working selection.
  * @param Boolean erasing True when the stroke removes what it paints.

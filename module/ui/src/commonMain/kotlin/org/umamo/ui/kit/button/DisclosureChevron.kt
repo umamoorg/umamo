@@ -12,9 +12,7 @@ import org.umamo.ui.theme.LocalUmamoIcons
 
 /**
  * The expand / collapse chevron every tree in the app draws: a down glyph while open, a right glyph while
- * closed, named for the action a click performs.  Consolidates what were separate copies of the same
- * conditional glyph in the panel section header, the keyform sheet, the parameter groups, and the track
- * sheet, so the art and the label stay in one place.
+ * closed, named for the action a click performs.  Shared so the art and the label stay in one place.
  *
  * The default label matters more than it looks: a disclosure row's visible text names the section but never
  * says whether it is open, so the chevron's accessible name is the only place that state is exposed.  For

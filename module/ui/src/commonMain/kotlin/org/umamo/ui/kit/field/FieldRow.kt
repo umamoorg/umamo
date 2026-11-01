@@ -46,11 +46,8 @@ private val FIELD_ROW_ICON_SIZE = 16.dp
 
 /**
  * One labelled control row: a fixed-width label on the left and its [control] on the right, so the
- * controls down a section align.  The shared label:control primitive the settings sections and the
- * Properties panel build on (promoted here from the settings package so both reuse one row).
- *
- * An [icon] leads the label inside the same column, so the controls stay aligned with the rows that
- * have none.  It is decorative - the label beside it is the row's name - so it carries no semantics.
+ * controls down a section align.  An [icon] leads the label inside the same column, so the controls stay
+ * aligned with the rows that have none; it is decorative, so it carries no semantics.
  *
  * @param String label The already-localized row label.
  * @param Modifier modifier The layout modifier for the row.

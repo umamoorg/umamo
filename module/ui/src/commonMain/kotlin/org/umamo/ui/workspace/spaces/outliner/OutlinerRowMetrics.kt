@@ -55,11 +55,9 @@ internal val OUTLINER_ICON_LABEL_GAP = 4.dp
 internal val OUTLINER_TRAILING_GAP = 6.dp
 
 /**
- * Measures the single width every row is fixed to: the wider of the viewport and the longest row (its
- * indent + chevron + icon + gap + the measured label + the trailing restriction slots its row kind and
- * the active restriction toggles compose).  Fixing all rows to one width is what keeps the selection /
- * hover backgrounds full-width and the horizontal scroll range constant as rows scroll in and out.
- * Run once per visible-row set (memoised by the caller), not per frame.
+ * Measures the single width every row is fixed to: the wider of the viewport and the longest row.  Fixing
+ * all rows to one width is what keeps the selection / hover backgrounds full-width and the horizontal scroll
+ * range constant as rows scroll in and out.
  *
  * @param List rows The visible rows.
  * @param TextMeasurer measurer Measures label widths.

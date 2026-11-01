@@ -27,19 +27,12 @@ import org.umamo.ui.workspace.export.exportReportMessage
 /**
  * The shell's modal overlays, painted in stacking order straight into the root surface's content.
  *
- * They are siblings of the shell's content column (the root surface stacks its content in a Box), so
- * their full-window scrims cover the menu bar and tab strip too: a click anywhere outside the overlay's
- * card dismisses it, and the chrome behind is not interactable while it is open (so the palette cannot be
- * left open under a menu-bar-launched window).  Painted bottom-to-top in the reverse of the order the
- * modal key ladder hands them keys, so the overlay taking Escape and Enter is always the one on top: the
- * palette, the Help dialogs, preferences, Quick Setup, the export-options dialog, the repack refusal
- * report, the export report, the app layer's alert, the file-open alert, then the confirm dialog (the
- * topmost modal).  Each modal alert shows the head of its kind's queue, keyed on it so the next arrival
- * gets a fresh dialog rather than inheriting a press in flight on the last, and its buttons and scrim name
- * the arrival they were drawn for, so a click that lands after that one was answered never answers the
- * next.
- *
- * Emits no layout of its own, so the order of the calls below is the stacking order.
+ * They are siblings of the shell's content column, so their full-window scrims cover the menu bar and
+ * tab strip too and the chrome behind is not interactable while one is open.  Emits no layout of its
+ * own, so the order of the calls below is the stacking order: the reverse of the order the modal key
+ * ladder hands them keys, so the overlay taking Escape and Enter is always the one on top.  Each modal
+ * alert is keyed on the arrival it shows, so the next arrival gets a fresh dialog and a late click never
+ * answers it.
  *
  * @param ShellOverlayState     overlays        The modal chrome flags and alert queues.
  * @param CommandRegistry       commandRegistry The registry the palette lists and dispatches into.

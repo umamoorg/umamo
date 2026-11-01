@@ -74,11 +74,8 @@ private val ROW_ADJUSTABLE_SKIPS: Set<GenerateMeshSkipReason> =
 	setOf(GenerateMeshSkipReason.NothingOpaque, GenerateMeshSkipReason.OverBudget, GenerateMeshSkipReason.PinnedWithoutRoom, GenerateMeshSkipReason.Withheld)
 
 /**
- * The notice an outcome reports: a refused pack first, then the skips a rigger can do something about
- * (pinned art with no room, a mesh over every budget), then drawables glue holds throughout, then any
- * skip, then meshes that needed a raised budget or their holes filled, then meshes built coarser than
- * the rows asked for, then the plain count.  Generate Quad Mesh reports through the same notices; a quad
- * is never over budget, refitted, or coarsened.
+ * The notice an outcome reports, the condition a rigger can most readily act on winning over the plain
+ * count.  Generate Quad Mesh reports through the same notices.
  *
  * @param GenerateMeshOutcome outcome The outcome.
  * @return GenerateMeshNotice The notice.
@@ -182,10 +179,8 @@ internal suspend fun runGenerateMesh(host: GenerateMeshHost, targets: List<Drawa
 }
 
 /**
- * Registers a landed run on the operation settings strip.  An adjustment the recipe re-seeds rows for -
- * Generate Mesh from Art's Preset row, choosing another preset or the one already shown to undo edits to
- * its rows - re-seeds them before the rerun reads them; a newer adjustment cancels the rerun still in
- * flight.
+ * Registers a landed run on the operation settings strip, each adjustment re-seeding the rows its recipe
+ * asks for ([MeshRecipe.reseededRows]) and cancelling the rerun still in flight.
  *
  * @param GenerateMeshHost host                  The host.
  * @param PuppetModel      committed             The model the run committed.

@@ -47,12 +47,9 @@ data class SliderKeyMark(
 
 /**
  * A flat, draggable slider: a thin track + fill + small thumb on a [Canvas], set by tap or drag anywhere on
- * the control. Replaces Material's Slider (no large thumb, no ripple). A fixed-height control; pass a width
- * via [modifier] (e.g. `Modifier.fillMaxWidth()`).
- *
- * [onValueChange] streams the live value for every frame of a tap or drag; [onValueChangeFinished] fires
- * once at the gesture boundary (the tap, or the drag's release / cancel). This lets a caller treat a whole
- * continuous drag as a single committed gesture (e.g. one undo step) while still previewing each frame.
+ * the control.  A fixed-height control; pass a width via [modifier] (e.g. `Modifier.fillMaxWidth()`).
+ * [onValueChangeFinished] fires once per gesture, so a caller can treat a whole drag as one undo step while
+ * [onValueChange] still previews each frame.
  *
  * @param Float    value                 The current value.
  * @param Function onValueChange         Called with the new value on each tap / drag frame (the preview).

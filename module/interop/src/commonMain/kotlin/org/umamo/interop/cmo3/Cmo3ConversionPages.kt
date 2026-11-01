@@ -76,10 +76,9 @@ public fun modelPageIndexByDrawableId(puppet: PuppetModel, renderIndices: List<I
 public class ModelOrderPages<TPage>(val pages: List<TPage>, val pageIndexByDrawableId: Map<String, Int>)
 
 /**
- * Puts a document's render pages into the model's page order for the synthesis: each model page is the render
- * page its placed drawables sample ([modelPageRenderIndices]), else what [fallbackPage] supplies for it, and each
- * drawable's page is renumbered to match ([modelPageIndexByDrawableId]).  A model with no atlas pages (a MOC3's)
- * keeps its render pages, which are its texture order, and asks for no fallback.
+ * Puts a document's render pages into the model's page order for the synthesis, renumbering each drawable's page
+ * to match; a model page no drawable resolves takes what [fallbackPage] supplies.  A model with no atlas pages (a
+ * MOC3's) keeps its render pages, which are its texture order.
  *
  * Generic over the page so the app's export policy and a test can both run the one resolution over whatever
  * page value they hold - encoded bytes, or a page with its decoded pixels.

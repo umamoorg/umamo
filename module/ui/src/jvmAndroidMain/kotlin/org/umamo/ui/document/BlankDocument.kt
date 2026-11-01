@@ -32,12 +32,10 @@ class BlankDocument(
 /**
  * A new, empty document.
  *
- * The model is empty rather than seeded: a rigger who made a document by hand has made no parameters
- * yet, and the template belongs to the artwork import that follows (`import.parameterTemplate`, seeded
- * by the first art to land in a rig that has none).  The canvas is the one thing a blank rig cannot do
- * without - the viewport, the properties panel, and an export all read it - so it starts square at
- * [BLANK_DOCUMENT_CANVAS_SIZE] with the world origin at its center, the same centering every import
- * applies, and the first artwork replaces both with its own.
+ * The model is empty rather than seeded: the parameter template (`import.parameterTemplate`) belongs to
+ * the artwork import that follows, seeded by the first art to land in a rig that has none.  The canvas is
+ * the one thing a blank rig cannot do without - the viewport, the properties panel, and an export all
+ * read it - so it starts square at [BLANK_DOCUMENT_CANVAS_SIZE] until the first artwork brings its own.
  *
  * @return BlankDocument The new document.
  */

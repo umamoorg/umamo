@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * WHICH flat surface - a packed atlas page or a source layer's artwork - is not recorded here.  That
  * belongs to [AreaSlot.uvContent], which carries the kind together with its payload; splitting it
- * across two fields is what let a switch be observed half applied.
+ * across two fields would let a switch be observed half applied.
  */
 internal enum class RenderScene {
 	Puppet2D,
@@ -297,19 +297,14 @@ internal class ViewportAreaRegistry {
 	/**
 	 * Makes [slot] an area of [scene], whatever it was.
 	 *
-	 * A slot outlives the space that registered it whenever the next space registers first - and switching an
-	 * area's editor type in place does exactly that, the new space composing before the old one is disposed.  The
-	 * slot then holds the OLD kind, its surface, and its camera, so a registration has to claim all three or the
-	 * engine keeps drawing the UV page under a 2D viewport's gizmos (and frames the puppet with a page's pan and
-	 * zoom).  A registration of the same kind - a leaf rebuilt during a tree collapse - changes nothing here, so
-	 * the surviving viewport keeps its view.
+	 * Switching an area's editor type in place composes the new space before the old one is disposed, so the slot
+	 * still holds the OLD kind, surface, and camera; a registration claims all three, or the engine would keep
+	 * drawing the UV page under a 2D viewport's gizmos.  A registration of the same kind - a leaf rebuilt during a
+	 * tree collapse - changes nothing here, so the surviving viewport keeps its view.
 	 *
-	 * Order matters to the render thread, which walks the slot map and can see this slot mid-claim.  Becoming a
-	 * UV scene, the content goes first and the kind second; becoming a puppet, the kind goes first and the
-	 * content is cleared second - either way the area never reads as a UV scene with nothing to draw.  The camera
-	 * goes LAST: dropped before the kind, the render thread could re-establish the old surface's view in the gap
-	 * and keep it.  Dropped after, the worst it can do is render one frame of the new surface through the old
-	 * camera, which the fresh camera then makes stale.
+	 * Order matters to the render thread, which can see this slot mid-claim: the area never reads as a UV scene
+	 * with nothing to draw, and the camera goes LAST - dropped before the kind, the render thread could
+	 * re-establish the old surface's view in the gap and keep it.
 	 *
 	 * @param AreaSlot        slot         The slot to claim.
 	 * @param RenderScene     scene        The kind of area registering.
@@ -344,13 +339,9 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Retargets what an already-registered UV-editor area draws, and the mesh extent its fit takes in. A no-op
-	 * for an unregistered area or a puppet (2D) area - only a registration moves an area between the puppet and
-	 * the UV family, and this moves the content within the UV one.
-	 *
-	 * A switch to another page or layer changes no camera here: the render thread sees that the surface shown is
-	 * no longer the one the camera frames and swaps the view as it establishes the next frame, so the new
-	 * surface's first frame already renders through its own view (see [establishCamera]).
+	 * Retargets what an already-registered UV-editor area draws, and the mesh extent its fit takes in; only a
+	 * registration moves an area between the puppet and the UV family.  The camera follows on the render
+	 * thread, which swaps the view as it establishes the next frame ([establishCamera]).
 	 *
 	 * @param String         areaId       The UV-editor area to retarget.
 	 * @param UvSceneContent content      The new content to draw.
@@ -368,11 +359,8 @@ internal class ViewportAreaRegistry {
 
 	/**
 	 * Publishes one UV content choice onto a slot, kind and payload inseparably, with the mesh extent measured
-	 * over it.
-	 *
-	 * The content is one volatile store of one immutable value, which is what makes the switch atomic - see
-	 * [AreaSlot.uvContent] for what publishing them separately would cost.  The extent goes first, so a render
-	 * thread that sees the new content also sees the extent that belongs to it.
+	 * over it.  The extent goes first, so a render thread that sees the new content also sees the extent that
+	 * belongs to it.
 	 *
 	 * @param AreaSlot       slot         The slot to retarget.
 	 * @param UvSceneContent content      What the area draws.
@@ -384,10 +372,9 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Publishes what an area draws beyond its scene; a no-op for an unregistered area.  One volatile store of
-	 * one immutable value: the render thread reads it once per render and stamps the frame from that read.  The
-	 * area's hovered lattice ([setLatticeHover]) carries over onto the new value, since the pointer owns it, not the
-	 * overlay state the value comes from.
+	 * Publishes what an area draws beyond its scene; a no-op for an unregistered area.  The area's hovered
+	 * lattice ([setLatticeHover]) carries over onto the new value, since the pointer owns it, not the overlay
+	 * state the value comes from.
 	 *
 	 * @param String       areaId   The area.
 	 * @param AreaOverlays overlays The area's render options.
@@ -557,7 +544,7 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Fits a world-space rectangle inside the area, centerd (the Frame Selected camera move). A no-op before
+	 * Fits a world-space rectangle inside the area, centered (the Frame Selected camera move). A no-op before
 	 * the first fit or when the area has no size yet.
 	 *
 	 * @param String areaId The area id.
@@ -598,11 +585,8 @@ internal class ViewportAreaRegistry {
 
 	/**
 	 * Render-thread: ensures the slot has a camera for what it shows, establishing or refitting it now that the
-	 * size is known.  A pending refit forces a fresh fit.  Otherwise a freshly-(re)registered area restores its
-	 * remembered camera (so workspace switches preserve pan/zoom), and a UV-editor area whose shown page or
-	 * layer is no longer the one its camera frames swaps to the view it left that surface with - either falling
-	 * back to a fit the first time that surface is shown.  The content bounds are resolved lazily (only when a
-	 * fit is actually needed) via [contentBounds]; a UV-editor fit is widened to the shown meshes' extent.
+	 * size is known - a pending refit fits fresh, otherwise a remembered view is restored ([recallCamera]) or
+	 * the content is fitted.
 	 *
 	 * The kind and the content are read once, up front: the fit, the recall, and the record all have to be about
 	 * the same surface, and the UI thread can retarget the slot at any moment.  A retarget that lands after the
@@ -659,10 +643,8 @@ internal class ViewportAreaRegistry {
 	 * The view an area had of a surface, for an area establishing one without a refit, or null when it has none
 	 * and the surface is fitted.
 	 *
-	 * A UV-editor area takes its own view of that page or layer first.  The area's whole-UV view - what a saved
-	 * document seeds - stands in only while the area has shown no UV surface this session: until then it can only
-	 * be the saved view, which belongs to whatever surface the area opens on.  After that it is the last surface's
-	 * view, and a different surface fits rather than inheriting it.
+	 * A UV-editor area takes its own view of that page or layer first; its whole-UV view, what a saved document
+	 * seeds, stands in only while the area has shown no UV surface this session ([uvShownAreaIds]).
 	 *
 	 * @param String       areaId  The area id.
 	 * @param RenderScene  scene   The area's kind.

@@ -443,10 +443,8 @@ fun exportNoticePhraseText(phrase: ExportNoticePhrase): String {
 /**
  * Builds the export-report alert's text: the localized header, then one line per notice.
  *
- * Every line is localized from the notice's structured fields - the entity category, the reason and
- * whatever it carries, the affected drawable names, the missing page count, or the stripped feature
- * and the entities that carried it.  The only text passed through verbatim is document data: an
- * entity's own id, which is format-level and must never be translated.
+ * Every line is localized from the notice's structured fields.  The only text passed through verbatim is
+ * document data: an entity's own id, which is format-level and must never be translated.
  *
  * The header names the format the export actually wrote, from the report's own discriminator - a
  * notice reads identically for either format, so nothing else in the alert says which file the

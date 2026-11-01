@@ -48,10 +48,8 @@ internal fun relinkFor(payload: SourcesDragPayload, target: SourcesNode): Pair<A
 }
 
 /**
- * Applies the drop at the end of a drag: reads the drag state, resolves the rebind through [relinkFor]
- * (the rule the drop ring drew by, so what the rigger saw is what happens), asks for the relink, opens
- * the layer row the tile lands under so the rigger sees it land rather than fearing it vanished into a
- * closed row, and ends the drag.  A drop with no valid target asks for nothing and opens nothing.
+ * Applies the drop at the end of a drag through [relinkFor], the rule the drop ring drew by, so what the
+ * rigger saw is what happens, then opens the layer row the tile lands under so the rigger sees it land.
  *
  * The row opened is named by the BINDING the tile takes, not by the row the pointer was on: a file that
  * lists one key twice has a second row for it, and a tile bound to the key is listed under the first.

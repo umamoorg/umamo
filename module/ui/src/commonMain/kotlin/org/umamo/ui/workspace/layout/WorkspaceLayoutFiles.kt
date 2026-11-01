@@ -16,10 +16,9 @@ import org.umamo.ui.action.CommandRegistry
  * the app's document flows.
  *
  * An export writes the PERSISTED layout - the saved JSON from settings, which is what a rigger means by
- * "my layout" and what another install will load.  The saved element goes out verbatim, so any key a newer
- * build wrote that this one does not know survives the trip.  Layout edits reach settings through a
- * debounce, though, so an export first commits whatever the debounce is still holding: the file is the
- * layout on screen, never the one from a moment before the last split.
+ * "my layout" and what another install will load.  Layout edits reach settings through a debounce, though,
+ * so an export first commits whatever the debounce is still holding: the file is the layout on screen,
+ * never the one from a moment before the last split.
  *
  * An import never edits the layout itself: it parses the file and dispatches workspace.applyLayout or
  * workspace.appendWorkspace, so the shell's live layout state stays the single source of truth and a

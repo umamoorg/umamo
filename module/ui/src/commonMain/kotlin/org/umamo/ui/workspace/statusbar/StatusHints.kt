@@ -25,21 +25,12 @@ internal data class StatusHint(val chords: List<KeyChord>, val label: StringReso
 
 /**
  * Resolves the shortcuts worth suggesting for the space under the pointer, from the same declarations
- * the command palette filters on.
+ * the command palette filters on, cut at [STATUS_HINT_LIMIT] (see [everyStatusHintFor] for the list
+ * before the cut).
  *
- * A command is suggested when it carries a [Command.hint], is offered over [hoveredKind] (the palette's
- * own rule, [isOfferedIn]), its hint's suggestedWhen holds, and the spaces its hint's suggestedOver names
- * right now, when it names any, take in [hoveredKind] too.  Commands scoped to particular spaces
- * come first - they are what is specific to where the pointer is - followed by the ones that belong
- * everywhere, each in registration order.
- *
- * Commands sharing one label are suggested as one entry carrying every member's chord.  Such a group is
- * shown only when EVERY member is bound: a partial run ("1/3 Select Mode") would misread as the full set.
- * For a lone command that is simply the rule that an unbound command is never advertised.  Chords come
- * from the live keymap, so a rebind shows here at once.
- *
- * The list is then cut at [STATUS_HINT_LIMIT], keeping the leading entries - see [everyStatusHintFor]
- * for the list before the cut.
+ * Commands scoped to particular spaces come first, since they are what is specific to where the pointer
+ * is.  Commands sharing one label are suggested as one entry carrying every member's chord, shown only
+ * when EVERY member is bound: a partial run ("1/3 Select Mode") would misread as the full set.
  *
  * @param List<Command> commands The registered commands, in registration order.
  * @param Keymap keymap The active keymap.

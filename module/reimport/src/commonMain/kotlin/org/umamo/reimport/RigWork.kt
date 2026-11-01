@@ -12,11 +12,9 @@ import org.umamo.runtime.model.PuppetModel
  */
 
 /**
- * Whether no drawable over [tileId] carries rig structure: no parent deformer, no clip mask either way,
- * no glue, no geometry or channel keys, and no blend shapes.  The mesh does not count, however it was
+ * Whether no drawable over [tileId] carries rig structure.  The mesh does not count, however it was
  * reshaped: a mesh is made again in one step, the merge that removes it says so, and the removal is
- * one undo away.  A tile no drawable samples qualifies, since there is nothing over it to lose; a
- * drawable with no mesh, or a tile the model lacks, does not.
+ * one undo away.
  *
  * @param AtlasTileId tileId The tile whose drawables are judged.
  * @return Boolean True when removing the tile's drawables would lose no rig work.

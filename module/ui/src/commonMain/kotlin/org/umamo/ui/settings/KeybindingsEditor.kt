@@ -121,13 +121,7 @@ internal fun KeymapPresetSettingRow(onSelect: () -> Unit = {}, quick: Boolean = 
  * The keybindings editor: pick a preset, then rebind individual commands.  The preset dropdown and every
  * rebind write through settings (input.keybinding.preset / .overrides) and the shell re-resolves the live
  * [LocalKeymap] reactively, so a change takes effect across menus, the palette, and dispatch immediately.
- *
- * Only titled commands appear (an untitled command is an internal action with no user-facing label); each
- * row shows the command, its current chord (or "unbound"), and a clear button.  Clicking the chord captures
- * the next key combination; if it is already bound elsewhere a confirm prompt offers to reassign it.  Reset
- * clears all user overrides back to the selected preset.
- *
- * キーバインド編集。プリセット選択と個別コマンドの再割り当て。変更は設定に書き込まれ、キーマップは即時反映される。
+ * Only titled commands appear, since an untitled command is an internal action with no user-facing label.
  */
 @Composable
 internal fun KeybindingsEditor() {

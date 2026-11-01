@@ -50,16 +50,12 @@ import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 /**
  * Object > Transform: the shown item's placement.  A drawable has no scalar transform - its placement IS
  * its geometry - so the rows measure its WORLD bounds and write back through the deformer chain (see
- * DrawableWorldTransform.kt for why world, and not the raw base mesh array).  A warp's rows measure and write
- * its lattice's world box the same way (WarpTransformRows).  A part and a rotation show where they sit too,
- * read-only for now (ReadOnlyTransformRows.kt): a part by the drawables it holds, and a rotation by its pivot
- * with its own angle and scale, above its editable Base Angle.
+ * DrawableWorldTransform.kt for why world, and not the raw base mesh array); a warp's rows do the same for its
+ * lattice.  A part and a rotation show where they sit read-only (ReadOnlyTransformRows.kt).  Axes are labeled by
+ * the displayed convention (Y+ forward, Z+ up), the same naming the G / S / R axis lock uses.
  *
- * Axes are labelled by the DISPLAYED convention (Y+ forward, Z+ up), so the vertical field is Z and maps to
- * world y, which grows upward - the same naming the G / S / R axis lock uses.
- *
- * A mesh-less drawable has no transform to show, so it contributes NO rows, and sectionVisibility then hides
- * the whole section rather than drawing an empty card.
+ * An item with nothing to transform, such as a mesh-less drawable, contributes no rows, so sectionVisibility
+ * hides the whole section rather than drawing an empty card.
  */
 internal val TransformSection =
 	PropertySection(
@@ -264,21 +260,10 @@ private fun WarpTransformRows(context: PropertyContext, deformerId: DeformerId, 
  * One of an item's two Transform rows - Position X/Z, or Size X/Z with its aspect lock - over its world box: the rows
  * a drawable and a warp share.
  *
- * The box is resolved IN the composition by the caller, at the shown pose (EditorMode.shownPose, the pose the setters
- * evaluate at), so the fields follow a pose scrub and a mode switch; the section's rows() lambda cannot, since it is
- * not composable and re-runs only when the model changes.  The rows write only in Object mode at the neutral pose
- * ([writesWholeObjects]): elsewhere they show the current world numbers and are inert, the panel's face of the guard
- * that blocks a viewport object transform there.
- *
- * A scrub previews: each drag frame's model goes to the renderer through the row's [FieldScrubPreview], built by the
- * setter's preview twin from the same arguments the release commits, so the viewport follows the drag and the whole
- * drag is still one undo step.  The commit registers the operation strip the way the viewport's G / S do (see
- * TransformRowAdjust.kt), in the area the shell's routing names for a panel.
- *
- * Position reads from the world axes, so it converts at this boundary: shown values subtract the world origin, and an
- * edited value adds it back.  Only the edited axis converts - the other passes its world value through untouched,
- * because a subtract-then-add can land one float step off and record a spurious move on an axis nobody edited.  Size
- * is a difference and needs no conversion.
+ * The caller resolves the box in the composition at the shown pose, so the fields follow a pose scrub and a mode
+ * switch; the section's rows() lambda cannot, since it is not composable and re-runs only when the model changes.  A
+ * scrub previews through the row's [FieldScrubPreview], and the commit registers the operation strip the way the
+ * viewport's G / S do (see TransformRowAdjust.kt).
  *
  * @param PropertyContext context The row's context.
  * @param ItemWorldTransform transform The item's world box and whether the rows may write it.

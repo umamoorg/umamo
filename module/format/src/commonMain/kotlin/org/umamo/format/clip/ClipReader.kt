@@ -8,20 +8,20 @@ import org.umamo.format.clip.db.SelectAllLayers
 import kotlin.math.roundToInt
 
 /**
- * Clip Studio Paint (.clip) reader (STRETCH, but the re-import-critical one).
+ * Clip Studio Paint (.clip) reader.
  *
  * EN: `.clip` carries Celsys's rename/reorder-stable layer ids (Layer.MainId and Layer.LayerUuid),
- *     which give non-destructive re-import a reliable identity key PSD cannot.  This reader parses the
+ *     which give non-destructive re-import a reliable identity key.  This reader parses the
  *     CSFCHUNK container down to the embedded SQLite database (CHNKSQLi) for the Canvas + Layer tables,
  *     and decodes the tiled raster from the CHNKExta chunks: ids, names, group hierarchy, order,
  *     opacity, blend, bounds, kind, visibility, RGBA/greyscale/monochrome pixels, masks (baked into
  *     alpha), and clipping.  See docs/format/CLIP.md.
  * JA: CLIP 読み込み。安定レイヤー ID が再取り込みの信頼性を生む。ラスタ（RGBA/グレースケール/モノクロ）も復号する。
  *
- * Cross-platform (JVM + Android): the only platform-specific step - opening a SQLite driver over the
- * extracted database bytes - sits behind the [useClipDatabase] expect/actual seam (JVM JdbcSqliteDriver,
- * Android AndroidSqliteDriver).  The container parse and tile decode are pure jvmAndroidMain Kotlin.
- * On Android, ClipAndroid.applicationContext must be set once at startup (the driver needs a Context).
+ * Cross-platform: the only platform-specific step - opening a SQLite driver over the extracted
+ * database bytes - sits behind the [useClipDatabase] expect/actual seam.  The container parse and tile
+ * decode are pure commonMain Kotlin.  On Android, ClipAndroid.applicationContext must be set once at
+ * startup (the driver needs a Context).
  */
 object ClipReader : ArtReader {
 	override val kind: FileKind = FileKind.Clip
@@ -35,7 +35,7 @@ object ClipReader : ArtReader {
 	override fun matches(candidateBytes: ByteArray): Boolean = ClipContainer.isClip(candidateBytes)
 
 	/**
-	 * Parses a complete .clip file into the neutral SourceArt model (layer tree only, this pass).
+	 * Parses a complete .clip file into the neutral SourceArt model.
 	 *
 	 * @param ByteArray bytes The complete .clip file contents.
 	 * @return SourceArt The canvas size and the ordered, bottom-to-top layer list.
@@ -50,9 +50,7 @@ object ClipReader : ArtReader {
 
 	/**
 	 * Reads the Canvas + Layer tables, decodes each layer's raster from [fileBytes], and assembles
-	 * SourceArt.  The driver lifecycle (write a temp DB, open the platform driver, close, clean up)
-	 * lives in [useClipDatabase]; everything here is platform-neutral.  The embedded database already
-	 * has its tables, so the generated SELECTs run WITHOUT Schema.create.
+	 * SourceArt.
 	 *
 	 * @param ByteArray fileBytes     The complete .clip file (raster tiles are read from it).
 	 * @param ByteArray databaseBytes The raw "SQLite format 3" bytes from the CHNKSQLi chunk.

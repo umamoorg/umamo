@@ -26,11 +26,8 @@ import org.umamo.runtime.model.PuppetModel
  * that space, and `restMeshesToCanvasSpace` sets only the canvas mesh, so one lowering serves every
  * origin.
  *
- * An export ALWAYS writes.  Anything it cannot express becomes an [ExportNotice] rather than a
- * silent drop, including hidden objects, which by default are CARRIED with their flag clear rather
- * than deleted the way the official editor's bake deletes them.  [Moc3ExportOptions] is where the
- * rigger changes that: its hidden/guide flags feed [resolveExportEligibility], and its scale
- * override feeds the [Moc3ExportContext]; the options-less default stays the carrying behavior.
+ * An export ALWAYS writes: anything it cannot express becomes an [ExportNotice] rather than a silent
+ * drop, and hidden objects are CARRIED with their flag clear unless [Moc3ExportOptions] says otherwise.
  *
  * This object is only the orchestrator.  The work sits in per-concern producers beside it -
  * [resolveExportEligibility] for what gets written at all, then [lowerParameters], [lowerRenderOrder],
@@ -179,28 +176,20 @@ object Moc3Export {
 	}
 
 	/**
-	 * The pixels-per-unit a bake of [puppet] should carry.
+	 * The pixels-per-unit a bake of [puppet] should carry: the scale a MOC3-origin document's file already
+	 * had, else the canvas WIDTH, the official editor's bake default (21 of the 25 corpus bakes use it
+	 * exactly).  The export dialog seeds its scale field from this function, which is why it is public.
 	 *
 	 * A moc's canvas scale is a BAKE parameter, not a project property: every corpus `.cmo3` stores
-	 * `CModelInfo.pixelsPerUnit = 1` - a CMO3 works in canvas pixels - while the editor's bake of the
-	 * same project writes a real scale, and the rigger picks it in the export dialog.  Its default there
-	 * is the canvas WIDTH, which 21 of the 25 corpus bakes use exactly (the four that do not chose their
-	 * own: 9000 -> 5000, 9000 -> 3077, 4500 -> 3000, 5134 -> 5000).
-	 *
-	 * So a CMO3-origin export defaults to the canvas width, and a MOC3-origin one keeps the scale its
-	 * file already had.  Writing the project's literal 1 instead is not a smaller choice - it stores the
-	 * whole rig at PIXEL scale, which every runtime then draws hundreds of times too large.  A rigger
-	 * who wants a different bake scale sets [Moc3ExportOptions.pixelsPerUnitOverride]; the export
-	 * dialog seeds its scale field from this function, which is why it is public.
-	 *
-	 * The two cases are told apart by [PuppetModel.pixelsPerUnit] being NULL, never by the value's
-	 * magnitude: 1 is a legitimate bake scale, so a `> 1` test would silently rescale a moc that baked
-	 * at 1 - or at any scale below it - by the canvas width and shrink the rig by that whole factor.
+	 * `CModelInfo.pixelsPerUnit = 1`, and writing that literal 1 would store the whole rig at PIXEL scale,
+	 * which every runtime then draws hundreds of times too large.
 	 *
 	 * @param PuppetModel puppet The rig being exported.
 	 * @return Float The canvas scale to write.
 	 */
 	fun mocPixelsPerUnitFor(puppet: PuppetModel): Float {
+		// Told apart by NULL, never by magnitude: 1 is a legitimate bake scale, so a `> 1` test would
+		// rescale a moc that baked at 1 by the canvas width.
 		puppet.pixelsPerUnit?.let { recorded -> return recorded }
 
 		return puppet.canvasWidth.takeIf { width -> width > 0f } ?: 1f

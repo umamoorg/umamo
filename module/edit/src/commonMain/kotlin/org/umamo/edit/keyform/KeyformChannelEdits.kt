@@ -30,10 +30,8 @@ import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
  * Keyform authoring for the SCALAR and COLOR channels - opacity, the multiply / screen tints, draw order,
- * glue intensity.  Geometry keyframing is deliberately not here: it needs the deformer-chain inverse under
- * a pose, which is a separate problem, while these channels need no inverse at all.  That is exactly why
- * they come first - the whole authoring loop (bind, capture, remove, undo, and the sheet reflecting it)
- * gets proven on the easy case before the hard one raises its own questions.
+ * glue intensity.  Geometry keyframing is deliberately not here (see KeyformGeometryEdits): it needs the
+ * deformer-chain inverse under a pose, while these channels need no inverse at all.
  *
  * Two rules from the grid algebra shape everything below, both forced by how the evaluator brackets a pose:
  * a newly bound axis SPANS the parameter's range (an axis that does not reach the ends leaves the channel
@@ -159,21 +157,9 @@ private fun FormChannel.accepts(value: ChannelValue): Boolean = valueKind == val
 /**
  * This model with [value] captured on [target]'s channel at [pose], keyed on [parameter].
  *
- * The whole authoring gesture in one op:
- *
- *  - An UNBOUND channel is bound first - a new axis spanning the parameter's min / default / max holding
- *    the entity's current static value, so binding alone changes nothing on screen.
- *  - A channel already keyed on OTHER parameters gains this one as an additional axis, its existing cells
- *    replicated across it, so the motion it already had is preserved.
- *  - The capture then inserts a key at the pose if one is not already there (filling the new slice by
- *    interpolation, so every other pose is unchanged) and writes [value] into the single cell the pose now
- *    sits exactly on.
- *
- * Because the capture always lands on a key, the write is a plain assignment - there is never a blend to
- * invert, which is why these channels need no math the geometry path is still missing.
- *
- * Returns the same instance when the entity is missing, the channel does not belong to it, [value] is the
- * wrong kind for the channel, or the grid algebra refused the reshape (a degenerate parameter range).
+ * A channel not yet keyed on [parameter] gains the axis first, holding its current look across it, so binding
+ * alone never changes the render.  The capture then lands on a key at the pose, so the write is a plain
+ * assignment with no blend to invert.
  *
  * @param KeyableTarget target The entity and channel to key.
  * @param Parameter parameter The parameter to key on.
@@ -215,15 +201,10 @@ fun PuppetModel.withChannelKeyCaptured(
 }
 
 /**
- * This model with the key at [pose] removed from [target]'s channel on [parameter]'s axis.
+ * This model with the key at [pose] removed from [target]'s channel on [parameter]'s axis; collapsing the
+ * last axis drops the track, and the channel returns to its owner's static value.
  *
- * Removing below two keys collapses the axis entirely - a one-key axis would resolve only within EPS_KEY of
- * that key and leave the channel on its static everywhere else, which reads as the key having done
- * something bizarre rather than having been removed.  Collapsing the last axis drops the track, and the
- * channel returns to its owner's static value.
- *
- * Returns the same instance when nothing is keyed there - in particular when the pose is not ON a key,
- * since removing "the nearest key" to a pose between two of them is a guess, not an instruction.
+ * A pose between keys removes nothing, since "the nearest key" would be a guess, not an instruction.
  *
  * @param KeyableTarget target The entity and channel.
  * @param Parameter parameter The parameter whose axis to remove from.
@@ -246,12 +227,10 @@ fun PuppetModel.withChannelKeyRemoved(target: KeyableTarget, parameter: Paramete
 
 /**
  * The value [target]'s channel currently evaluates to at [pose], or null when the entity or channel does
- * not exist.
+ * not exist - what an insert captures when nothing is being edited.
  *
- * What an insert captures when nothing is being edited: pinning the value already on screen, which is what
- * Blender's `I` does and how a rigger anchors a pose before moving on.  Reads through the same channel
- * sampling the renderer uses, so the key lands on exactly what was displayed rather than on a value
- * recomputed by a second code path.
+ * Reads through the same channel sampling the renderer uses, so the key lands on exactly what was
+ * displayed.
  *
  * @param KeyableTarget target The entity and channel.
  * @param Pose pose The pose to sample at.
@@ -272,7 +251,7 @@ fun PuppetModel.channelValueAt(target: KeyableTarget, pose: Pose): ChannelValue?
 }
 
 /**
- * This model with the key at [fromValue] on [target]'s channel moved to [toValue].
+ * This model with key [keyIndex] on [target]'s channel moved to [toValue].
  *
  * The sheet's drag gesture: the key keeps whatever it holds and only changes where on the parameter it
  * applies.  Identified by ORDINAL, not by its current value - keys a hair apart are legal, and resolving a

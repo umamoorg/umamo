@@ -71,10 +71,8 @@ private fun Color.toColorRef(): Int {
 }
 
 /**
- * Sets the Windows title-bar caption color to [color] via the Desktop Window Manager.  A no-op on any
- * non-Windows OS, before the window has a native peer (no HWND yet), or on a Windows build that predates
- * DWMWA_CAPTION_COLOR - in the last case DWM returns a failure HRESULT, which is deliberately ignored so
- * the call degrades to "system default caption" rather than throwing.
+ * Sets the Windows title-bar caption color to [color] via the Desktop Window Manager, degrading to the
+ * system default caption wherever that cannot apply rather than throwing.
  *
  * @param Window window The window whose caption to tint.
  * @param Color  color  The desired caption fill color.

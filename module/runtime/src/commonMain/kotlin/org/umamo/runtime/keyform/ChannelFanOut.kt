@@ -20,11 +20,10 @@ import org.umamo.runtime.model.WarpLatticeForm
  * the source grid's axes list by reference and holds one cell per source cell, which makes the split a
  * pure re-shape: gridCorners over a fanned track returns the same corners in the same order as over the
  * source, and each channel's weighted sum accumulates in the same order the bundled blend used.  The
- * evaluated result is therefore bit-identical, which is what lets the whole migration be gated on a
- * zero-diff oracle run rather than a tolerance.
+ * evaluated result is therefore bit-identical, checkable by a zero-diff oracle run rather than a tolerance.
  *
- * Compaction is deliberately NOT part of this - it runs as a separate model pass so the split can land
- * with the oracle green by construction and compaction can be turned on (and off) independently.
+ * Compaction is deliberately NOT part of this - it runs as a separate model pass so the fan-out stays
+ * bit-identical by construction and compaction can be switched on and off independently.
  */
 
 /**
@@ -83,8 +82,7 @@ class FannedDeformer<TGeometry>(
 /**
  * Splits a bundled warp grid into its lattice geometry and its render channels.
  *
- * Shared by both importers rather than written twice, so the two paths cannot drift in which channel a
- * value lands on - the failure mode a per-importer copy invites.
+ * Shared by both importers, so the two cannot disagree on which channel a value lands on.
  *
  * @return FannedDeformer The lattice grid plus the opacity / multiply / screen tracks.
  */

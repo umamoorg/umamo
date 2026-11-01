@@ -8,8 +8,6 @@ import io.github.vinceglb.filekit.PlatformFile
  * not visible from shared code — and Android must additionally route SAF `content://` strings back
  * through a Uri, hence the seam.
  *
- * 保存済みパス文字列から PlatformFile を再構築する継ぎ目。Android は content:// を Uri 経由で戻す。
- *
  * @param String path The stored path or URI string.
  * @return PlatformFile The reconstructed file handle.
  */

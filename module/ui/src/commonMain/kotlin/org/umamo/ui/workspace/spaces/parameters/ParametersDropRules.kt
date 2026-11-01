@@ -12,12 +12,9 @@ private const val GROUP_NEST_LOW_FRACTION = 0.33f
 private const val GROUP_NEST_HIGH_FRACTION = 0.66f
 
 /**
- * The band a drop resolves to, or null when the pairing is illegal - one level of groups only. Parameters
- * never nest, so a slider / pad target only takes Before / After. A group header takes Into (a parameter
- * nesting inside it) plus Before / After (a root sibling), but only for a dragged parameter run - a
- * dragged group never nests, so against a group header it takes only Before / After. A dragged group may
- * reorder only among root nodes, so a non-root target refuses it. Used by both the indicator and the
- * dispatch, so the line the user sees matches the move that happens.
+ * The band a drop resolves to, or null when the pairing is illegal - one level of groups only, so a parameter
+ * may nest into a group header, but a dragged group never nests and reorders only among root nodes.  Used by
+ * both the indicator and the dispatch, so the line the user sees matches the move that happens.
  *
  * @param ParameterMoveSubject dragged The subject being dragged.
  * @param ParameterRow targetRow The row under the pointer.
@@ -57,7 +54,12 @@ internal fun parameterDropBandFor(
 	}
 }
 
-/** Before above the row's midline, After below it. */
+/**
+ * Before above the row's midline, After below it.
+ *
+ * @param Float fraction The pointer's 0..1 position down the target row.
+ * @return RowDropBand The reorder band.
+ */
 private fun beforeOrAfter(fraction: Float): RowDropBand =
 	if (fraction >= 0.5f) {
 		RowDropBand.After
@@ -81,10 +83,7 @@ internal fun parameterMoveSubjectOf(row: ParameterRow): ParameterMoveSubject =
 
 /**
  * The destination parent group and the insert-before anchor for dropping onto [targetRow] with [band],
- * resolved against the model's tree (a group-less model is treated as a flat root of leaves). Into
- * appends inside the group; Before anchors on the target's leading node; After anchors on the node past
- * the target's span (a pad spans its two leaves), or null (append) when the target is last in its
- * siblings.
+ * resolved against the model's tree (a group-less model is treated as a flat root of leaves).
  *
  * @param PuppetModel puppet The model whose tree is walked.
  * @param ParameterRow targetRow The row under the pointer.
@@ -168,7 +167,12 @@ internal fun resolveParameterDrop(
 	return ParameterDrop(newParentGroupId, before, expandsGroupId)
 }
 
-/** The node ref that anchors [targetRow]: a group by its id, a slider / pad by its leading leaf. */
+/**
+ * The node ref that anchors [targetRow]: a group by its id, a slider / pad by its leading leaf.
+ *
+ * @param ParameterRow targetRow The row under the pointer.
+ * @return ParameterNodeRef The anchoring ref.
+ */
 private fun primaryRefOf(targetRow: ParameterRow): ParameterNodeRef =
 	when (targetRow) {
 		is ParameterRow.GroupHeader -> ParameterNodeRef.Group(targetRow.groupId)
@@ -176,14 +180,24 @@ private fun primaryRefOf(targetRow: ParameterRow): ParameterNodeRef =
 		is ParameterRow.Pair2D -> ParameterNodeRef.Leaf(targetRow.horizontal.id)
 	}
 
-/** The ref naming a tree node. */
+/**
+ * The ref naming a tree node.
+ *
+ * @param ParameterNode node The tree node.
+ * @return ParameterNodeRef The ref naming it.
+ */
 private fun refOf(node: ParameterNode): ParameterNodeRef =
 	when (node) {
 		is ParameterNode.Param -> ParameterNodeRef.Leaf(node.id)
 		is ParameterNode.Group -> ParameterNodeRef.Group(node.id)
 	}
 
-/** True when [node] is the one [ref] names. */
+/**
+ * True when this node is the one [ref] names.
+ *
+ * @param ParameterNodeRef ref The ref to test against.
+ * @return Boolean True when the ref names this node.
+ */
 private fun ParameterNode.matches(ref: ParameterNodeRef): Boolean =
 	when {
 		this is ParameterNode.Param && ref is ParameterNodeRef.Leaf -> id == ref.id
@@ -191,7 +205,13 @@ private fun ParameterNode.matches(ref: ParameterNodeRef): Boolean =
 		else -> false
 	}
 
-/** The sibling list and index of the node [ref] names, with its parent group id (null at root). */
+/**
+ * The sibling list and index of the node [ref] names, with its parent group id (null at root).
+ *
+ * @param List<ParameterNode> tree The parameter tree to search.
+ * @param ParameterNodeRef ref The node to find.
+ * @return Triple? The parent group id, the sibling list, and the index, or null when [ref] is not in the tree.
+ */
 private fun locate(tree: List<ParameterNode>, ref: ParameterNodeRef): Triple<ParameterGroupId?, List<ParameterNode>, Int>? {
 	val rootIndex = tree.indexOfFirst { node -> node.matches(ref) }
 

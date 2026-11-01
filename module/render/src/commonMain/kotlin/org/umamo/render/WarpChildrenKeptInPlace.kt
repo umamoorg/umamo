@@ -11,12 +11,6 @@ import org.umamo.runtime.model.PuppetModel
 /**
  * [after] with warp [warpId]'s direct children re-expressed so each rests where it rested in [before].
  *
- * [after] carries the warp's reshaped lattice with its children not yet touched; each direct child - every drawable
- * with a mesh, every warp and rotation - is re-expressed in the reshaped lattice by [childrenRehomed], keyed motion
- * included.  A child the default pose hides, or one the reshaped lattice cannot reach within [LANDING_TOLERANCE_PX]
- * (it folds over or collapses there), keeps its numbers and is listed, and nothing is converted when the default pose
- * hides the warp itself.
- *
  * @param PuppetModel before The model before the reshape.
  * @param PuppetModel after The model with the warp reshaped and its children as they were.
  * @param DeformerId warpId The reshaped warp.

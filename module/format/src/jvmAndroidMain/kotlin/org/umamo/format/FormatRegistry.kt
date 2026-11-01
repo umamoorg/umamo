@@ -26,8 +26,7 @@ public object FormatRegistry {
 	/**
 	 * Every registered codec, in priority order (first magic match wins in [detect]): the native UMA
 	 * container, the model codecs (CMO3, MOC3), the layered art readers (CLIP, KRA, PSD), and the flat raster
-	 * codecs (PNG, BMP, JPEG, WebP, TIFF).  The registry sits in jvmAndroidMain because the CMO3 codec does.
-	 * The magics do not collide: UMA and KRA are both ZIPs announcing themselves through a mimetype entry,
+	 * codecs (PNG, BMP, JPEG, WebP, TIFF).  The magics do not collide: UMA and KRA are both ZIPs announcing themselves through a mimetype entry,
 	 * but each probe matches only its own mimetype string.  The raster codecs sit last, so BMP's short
 	 * 2-byte "BM" magic is checked after the longer signatures.
 	 */
@@ -36,16 +35,16 @@ public object FormatRegistry {
 
 	/**
 	 * Identifies the codec for [bytes], preferring a reliable magic-byte match and falling back to the
-	 * file extension when no codec recognises the leading bytes.
+	 * file extension when no codec recognizes the leading bytes.
 	 *
-	 * Magic comes first because it is content-truthful - a mislabelled file still routes correctly.
+	 * Magic comes first because it is content-truthful - a mislabeled file still routes correctly.
 	 * The extension fallback exists for container formats whose magic is not self-identifying (e.g. a
 	 * ZIP-based .kra whose mimetype marker a third-party tool stripped), where the name is the only
 	 * remaining signal. [fileName] may be a bare name or a full path; only its extension is read.
 	 *
 	 * @param ByteArray bytes The file contents to identify.
 	 * @param String? fileName The file name or path, used only for the extension fallback.
-	 * @return FormatCodec<*>? The matching codec, or null when unrecognised.
+	 * @return FormatCodec<*>? The matching codec, or null when unrecognized.
 	 */
 	public fun detect(bytes: ByteArray, fileName: String? = null): FormatCodec<*>? {
 		codecs.firstOrNull { codec -> codec.matches(bytes) }?.let { return it }
@@ -57,10 +56,9 @@ public object FormatRegistry {
 	/**
 	 * Identifies a file kind from its name alone - the extension or one of its aliases, case-insensitively.
 	 *
-	 * Name-only, so it says nothing about whether the bytes are what the name claims: this answers "which
-	 * way in does this path take" for a caller holding a path and no contents (a command-line argument, a
-	 * file the OS hands over, a dropped file), and it is the extension fallback [detect] uses once the
-	 * magic has not matched.  The chosen route then reads the file and detects its content for real.
+	 * Name-only, so it says nothing about whether the bytes are what the name claims: it routes a caller
+	 * holding a path and no contents (a command-line argument, a dropped file), and it is [detect]'s
+	 * extension fallback.
 	 *
 	 * @param String fileName The file name or path; only its extension is read.
 	 * @return FileKind? The kind that claims that extension, or null when none does.
@@ -77,8 +75,8 @@ public object FormatRegistry {
 	}
 
 	/**
-	 * Returns the registered codec for [kind], or null when no codec is wired for it yet (e.g. the
-	 * JSON kind, which has no registered codec).
+	 * Returns the registered codec for [kind], or null when no codec is registered for it (e.g. the
+	 * JSON kind, whose sidecars are text helpers rather than codecs).
 	 *
 	 * @param FileKind kind The file kind to look up.
 	 * @return FormatCodec<*>? The codec for that kind, or null.

@@ -43,7 +43,7 @@ import org.umamo.ui.workspace.layout.SplitOrientation
  *
  * @param AreaNode node The node to render.
  * @param Function onNodeChange Receives a rewritten replacement for this node (ratio edits).
- * @param Function onCommand Sink for structural edits from area headers.
+ * @param Function onCommand Sink for structural edits from the areas.
  * @param Modifier modifier The layout modifier.
  * @param Function onSplitterDragChange Receives true when a splitter drag begins anywhere in this
  *        subtree and false when it ends; the persistence layer paces layout saves on it.
@@ -78,12 +78,9 @@ fun AreaTree(
 /**
  * Lays out a split's two children with a divider between them, weighted by the node's ratio. Each
  * child recurses through [AreaTree], threading its own rewrite back into the parent via [onNodeChange]
- * so an edit deep in the tree rebuilds only the path to the root. A divider drag rewrites this node's
- * whole subtree through a [SplitterDragSession]: the session snapshots the node when the drag begins
- * and rewrites snapshot + accumulated total per delta, so deltas arriving faster than recomposition
- * commits are never lost (see the session's docblock).  The ancestor onNodeChange chain
- * (node.copy(first = ...)) stays value-correct under those publishes because a ratio drag never
- * changes any ancestor's other fields.
+ * so an edit deep in the tree rebuilds only the path to the root.  A divider drag rewrites this node's
+ * whole subtree through a [SplitterDragSession]; the ancestor onNodeChange chain (node.copy(first = ...))
+ * stays value-correct under its publishes because a ratio drag never changes any ancestor's other fields.
  *
  * @param SplitNode node The split to lay out.
  * @param Function onNodeChange Receives the rewritten split.

@@ -27,11 +27,10 @@ import org.umamo.ui.workspace.spaces.viewport2d.Viewport2DBody
 import org.umamo.ui.workspace.spaces.viewport2d.viewport2DHeaderControls
 
 /**
- * Builds the base [SpaceRegistry] every shell starts from: a descriptor for each [SpaceKind]. The 2D
- * viewport delegates to the host-injected [LocalViewportHost] (a plain backdrop when absent); every other
- * space but [SpaceKind.ToolDetails] has a real body wired directly here (UvEditor, Outliner, Parameters,
- * KeyformSheet, Properties, History, Logs) - only ToolDetails still renders a [PlaceholderSpace] until
- * its own panel lands. The app layers additional overrides on with [SpaceRegistry.withOverrides].
+ * Builds the base [SpaceRegistry] every shell starts from: a descriptor for each [SpaceKind].  The 2D
+ * viewport delegates to the host-injected [LocalViewportHost] (a plain backdrop when absent), and
+ * [SpaceKind.ToolDetails] renders a [PlaceholderSpace].  The app layers additional overrides on with
+ * [SpaceRegistry.withOverrides].
  *
  * @return SpaceRegistry The base registry covering every SpaceKind.
  */

@@ -13,18 +13,15 @@ import androidx.compose.runtime.staticCompositionLocalOf
  */
 
 /**
- * A coordination seam between a transient inline text editor (today: renaming a workspace tab) and a
- * host that runs its own keyboard dispatch.  A bare text field cannot defend itself here: the editor
- * lives inside the editor shell, whose root key handler previews every keystroke before the focused
- * field sees it, so the shell would claim Space (palette), letters (file commands), and Escape while the
- * user is merely typing a name.  While an editor is open it parks its cancel callback here; the host
- * checks this first and, finding it non-null, routes Escape to the cancel and lets every other key fall
- * through to the field instead of running its own shortcuts.  Holds null whenever no inline editor is
- * open.  Only the editor should write it.
+ * A coordination seam between an inline text editor (a rename field, a focused kit text or number field)
+ * and a host that runs its own keyboard dispatch.  A bare text field cannot defend itself here: the editor
+ * shell's root key handler previews every keystroke before the focused field sees it, so the shell would
+ * claim Space, letters, and Escape while the user is merely typing.  While an editor is open it parks its
+ * cancel callback here; the host, finding it non-null, routes Escape to the cancel and lets every other
+ * key fall through to the field.  Only the editor should write it.
  *
- * The same seam answers the other question a host has about text entry: whether the press it is
- * watching landed on the editor itself.  A press anywhere else ends text entry (the shell hands the
- * keyboard back to its root), and only the editor's own node can say that the press was meant for it.
+ * The same seam answers whether the press the host is watching landed on the editor itself: a press
+ * anywhere else ends text entry, and only the editor's own node can say that the press was meant for it.
  *
  * @property Function cancel Cancels the open inline editor, or null when none is open.
  * @property Boolean pressLandedOnTextEditor Whether the press being dispatched hit a text editor.

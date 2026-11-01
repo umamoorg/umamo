@@ -55,7 +55,7 @@ data class PartComposite(
 	 * tree sees the expansion, never these ids: [PuppetModel.deriveRenderRoot] resolves each part to its
 	 * descendant drawables and merges them into [maskedBy] for the [RenderGroup] it builds, so the stored
 	 * value keeps the grouping for the UI while the renderer stays drawable-only.  A CMO3 export flattens
-	 * this away (that format has nowhere to put it); UMA will carry it.
+	 * this away (that format has nowhere to put it); UMA carries it.
 	 */
 	val maskedByParts: List<PartId> = emptyList(),
 	/** When true, the clip is inverted - the composite shows outside the [maskedBy] coverage. (CMO3 invertClippingMask; MOC3 offscreen flags bit 3.) */

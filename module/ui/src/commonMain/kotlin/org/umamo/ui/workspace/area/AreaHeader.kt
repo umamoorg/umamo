@@ -32,16 +32,10 @@ private val HEADER_HEIGHT = 28.dp
 
 /**
  * The top strip of every leaf area: the area-type dropdown on the left (the agnostic "switch this
- * area to any space" control) and the current space's optional [org.umamo.ui.workspace.SpaceDescriptor.headerContent] filling
- * the rest of the width.  Split / close / join live in the area's right-click context menu and the
- * corner-drag gesture instead (see [AreaLeaf]), not as buttons in this strip.  All structural edits
- * emitted from here are [AreaCommand]s through [onCommand], the single choke point the shell routes
- * through the action registry - the header never mutates the tree itself.  The space slot is resolved
- * from the registry so the header itself stays space-agnostic; when a slot exists it OWNS the flexible
- * middle region (an [OverflowRow]), so each space arranges its own controls - start-packed by default,
- * or centered / end-aligned via its own flexibleSpace gaps - without the header knowing.  Narrowing an
- * area collapses the controls that no longer fit into the strip's trailing dropdown instead of crushing
- * them, so the header stays usable down to the minimum area width.
+ * area to any space" control) and the current space's optional [org.umamo.ui.workspace.SpaceDescriptor.headerContent]
+ * filling the rest of the width.  All structural edits emitted from here are [AreaCommand]s through
+ * [onCommand], the single choke point the shell routes through the action registry - the header never
+ * mutates the tree itself.
  *
  * @param LeafArea area The area this header belongs to.
  * @param AreaScope scope The area's stable scope, handed to the space's header content.
@@ -77,12 +71,9 @@ fun AreaHeader(area: LeafArea, scope: AreaScope, onCommand: (AreaCommand) -> Uni
 }
 
 /**
- * The area-type selector, Blender-style: the button face is the current space's icon plus a chevron
- * that points right while the menu is closed and down while it is open. Clicking opens a menu of every
- * registered space, each row an icon plus its localized title. Choosing one emits a SwitchSpace command
- * (the area keeps its id, so per-area state such as camera position survives switching away and back;
- * the rendered viewport frame itself is torn down and rebuilt fresh - switching away is a genuine
- * content change).  The chip anatomy is the shared kit [DropdownChip].
+ * The area-type selector, Blender-style: a [DropdownChip] menu of every registered space, whose choice
+ * emits a SwitchSpace command.  The area keeps its id, so per-area state such as camera position survives
+ * switching away and back.
  *
  * @param LeafArea area The area whose space is being chosen.
  * @param Function onCommand Sink for the SwitchSpace command.

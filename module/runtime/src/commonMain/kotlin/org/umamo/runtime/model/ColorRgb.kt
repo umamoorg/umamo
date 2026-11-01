@@ -26,7 +26,7 @@ data class ColorRgb(
 	 *
 	 * Additive accumulation (blend-shape color deltas, the deformer screen composition) can leave the
 	 * range at the ends of a keyed span, and the clamp belongs AFTER the whole sum rather than per
-	 * term - clamping each contribution would bias a record whose neighbours pull the other way.
+	 * term - clamping each contribution would bias a record whose neighbors pull the other way.
 	 *
 	 * @return ColorRgb The clamped color.
 	 */

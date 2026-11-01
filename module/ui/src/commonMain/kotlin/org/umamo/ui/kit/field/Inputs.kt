@@ -109,13 +109,9 @@ fun Checkbox(
 }
 
 /**
- * A compact bordered text field wrapping Foundation's [BasicTextField] (which already handles cursor,
- * selection, and IME). Single line, tight padding.  When [placeholder] is set it shows as dimmed hint
- * text while the field is empty.
- *
- * Like [NumberField], it lends a cancel hook to [LocalInlineEditController] while focused so the editor
- * shell's root key handler stops claiming keystrokes the field needs - notably Space (which otherwise
- * opens the command palette) and letter shortcuts - and routes Escape here (clearing focus) instead.
+ * A compact bordered single-line text field wrapping Foundation's [BasicTextField].  Like [NumberField], it
+ * lends a cancel hook to [LocalInlineEditController] while focused so the editor shell's root key handler
+ * stops claiming keystrokes the field needs.
  *
  * @param String    value         The current text.
  * @param Function  onValueChange Edit callback.

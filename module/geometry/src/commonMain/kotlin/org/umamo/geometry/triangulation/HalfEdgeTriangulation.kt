@@ -612,10 +612,7 @@ internal class HalfEdgeTriangulation(private val coordinates: DoubleArray, point
 	}
 
 	/**
-	 * Checks every structural invariant, for tests and fuzzing: twins pair up and agree on their ends,
-	 * attributes match across twins (and a boundary edge is always constrained), each triangle has at
-	 * most one ghost corner, real triangles are positively oriented, a ghost triangle is never inside,
-	 * and the vertex map points at half-edges leaving each vertex.
+	 * Checks every structural invariant of the store, for tests and fuzzing.
 	 */
 	fun validate() {
 		check(halfEdgeCount % 3 == 0) { "half-edge count $halfEdgeCount is not a multiple of three" }

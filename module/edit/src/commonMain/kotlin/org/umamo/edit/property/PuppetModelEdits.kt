@@ -144,10 +144,8 @@ fun PuppetModel.withDrawableDrawOrder(id: DrawableId, drawOrder: Float): PuppetM
  * Returns a copy of [this] with drawable [id]'s static [FormChannel.MULTIPLY_COLOR] set to [color].
  * A no-op (missing drawable, or the color already set) returns the same instance.
  *
- * A single-field copy: the tint is its own track with its own static, so this writes just that field
- * rather than rewriting every keyform cell.  Rewriting the whole grid instead would flatten any authored
- * per-keyform color animation, and would trip diffModel's identity check into re-uploading the drawable's
- * geometry for a mere color change.
+ * Writes only the tint track's static, never the keyform cells, so authored per-keyform color animation
+ * survives and the renderer's diffModel does not re-upload the drawable's geometry for a color change.
  *
  * @param DrawableId id The drawable to retint.
  * @param ColorRgb color The new multiply color.
@@ -211,13 +209,12 @@ fun PuppetModel.withDrawableInvertMask(id: DrawableId, invert: Boolean): PuppetM
 /**
  * Returns a copy of [this] with the drawable [id] bound to the deformer [parentDeformerId] (null unbinds),
  * sharing every other entity. A no-op id (no such drawable, or the binding already matches) returns the
- * same instance. A drawable is deformed by, but never a child of, a deformer - so this is no tree surgery
+ * same instance.  A drawable is deformed by, but never a child of, a deformer - so this is no tree surgery
  * and no render-order rederive.
  *
  * The drawable's keyform-space base lives in its parent's space, so a rebinding that should leave the art
- * where it is passes the base in the new parent's space as [localPositions] (the caller derives it, since
- * that takes the evaluator).  Without one - or with one of the wrong length - the base is kept as it is, a
- * flat write under which the art follows the new parent; a caller passing null chooses that in so many words.
+ * where it is passes the base re-expressed in the new parent's space as [localPositions] (the caller derives
+ * it, since that takes the evaluator); with null the base is kept and the art follows the new parent.
  *
  * @param DrawableId  id               The drawable to rebind.
  * @param DeformerId? parentDeformerId The deformer that deforms it, or null to unbind.

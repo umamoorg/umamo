@@ -119,10 +119,8 @@ private fun isKra(bytes: ByteArray): Boolean {
 	// KRA: ZIP local-file-header magic @ +0x00, then the mimetype entry content (KoQuaZipStore.cpp:165
 	// writes it first/uncompressed).  A .kra carries TWO similar-looking Krita mime strings and they
 	// are not interchangeable: the mimetype entry holds "application/x-krita", while "application/x-kra"
-	// is the <IMAGE mime> attribute inside maindoc.xml (see docs/format/KRA.md §1).  Matching the
-	// latter here finds nothing — it is not even a prefix of the former, the two diverge at "kr|a" vs
-	// "kr|ita" — so scan for the real entry content.  Both are accepted anyway: neither string can
-	// occur this early in a non-Krita ZIP, so allowing both only buys tolerance of writer variation.
+	// is the <IMAGE mime> attribute inside maindoc.xml (see docs/format/KRA.md §1); neither is a prefix
+	// of the other, as they diverge at "kr|a" vs "kr|ita".
 	val zipMagic = byteArrayOf(0x50, 0x4B, 0x03, 0x04) // "PK\x03\x04"
 
 	if (bytes.size < zipMagic.size) {
@@ -143,9 +141,9 @@ private fun isKra(bytes: ByteArray): Boolean {
 /**
  * The mimetype-entry contents that identify a Krita archive.
  *
- * "application/x-krita" is what Krita actually writes; "application/x-kra" is accepted defensively
- * (it is the maindoc.xml `<IMAGE mime>` value, and is what an earlier version of this check looked
- * for by mistake).
+ * "application/x-krita" is what Krita actually writes; "application/x-kra" (the maindoc.xml
+ * `<IMAGE mime>` value) is accepted defensively, since neither string can occur this early in a
+ * non-Krita ZIP and allowing both only buys tolerance of writer variation.
  */
 private val KRA_MIMETYPE_MARKERS = listOf("application/x-krita", "application/x-kra")
 
@@ -237,10 +235,7 @@ private fun collectPaintLayers(
  * Builds a neutral SourceGroup from a Krita group-layer element.
  *
  * KRA group layers carry the same visibility/opacity/composite attributes as paint layers, plus a
- * passthrough flag (a non-isolating folder). Krita has no per-folder "clip to below" concept that
- * maps cleanly onto the neutral clipped flag (its inherit-alpha lives in channelflags and needs the
- * resolved color space), so clipped is left false here; the source-art compositor only consumes
- * group visibility today.
+ * passthrough flag (a non-isolating folder).
  *
  * @param Element groupElement The grouplayer element.
  * @param String path          The slash-joined folder path including this folder's name.
@@ -254,6 +249,8 @@ private fun buildGroup(groupElement: Element, path: String, name: String): Sourc
 		// KRA: a group layer's @visible "0" hides the whole subtree (kis_kra_loader sets node visible).
 		visible = groupElement.getAttributeValue("visible") != "0",
 		opacity = (groupElement.getAttributeValue("opacity")?.toIntOrNull() ?: 255) / 255f,
+		// Krita's per-folder inherit-alpha lives in channelflags and needs the resolved color space, so it
+		// does not map cleanly onto the neutral clipped flag.
 		clipped = false,
 		blend = parseCompositeOp(groupElement.getAttributeValue("compositeop")),
 		// KRA: @passthrough "1" is a non-isolating folder; its blend then does not apply.
@@ -363,7 +360,7 @@ private fun assembleRaster(
 	val rgba = ByteArray(width * height * 4)
 
 	// Pre-fill with the converted default pixel (the color Krita uses for untiled gaps). A
-	// transparent default leaves the zero-initialised buffer untouched.
+	// transparent default leaves the zero-initialized buffer untouched.
 	val fillPixel = ByteArray(4)
 
 	if (defaultPixelBytes != null && defaultPixelBytes.size >= format.pixelSize) {
@@ -428,9 +425,8 @@ private fun Element.childrenNamed(localName: String): List<Element> =
  * Parses maindoc.xml into its root element with external-DTD loading disabled.
  *
  * KRA's maindoc.xml declares a DOCTYPE pointing at an external DTD (calligra.org or koffice.org)
- * that we never need - we only read element/attribute structure. Left enabled, the parser tries to
- * fetch that URL and fails (offline, or the URL no longer serves a valid DTD). So we turn off
- * external-DTD loading and install a no-op entity resolver as a portable backstop.
+ * the reader never needs; left enabled, the parser would try to fetch it and fail offline or once the
+ * URL stops serving it.  The no-op entity resolver is a portable backstop.
  *
  * @param ByteArray xmlBytes The raw maindoc.xml bytes.
  * @return Element the document root (DOC).

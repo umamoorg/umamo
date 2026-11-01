@@ -23,12 +23,9 @@ class Moc3ExportSessionOptions {
 	private var confirmedDocumentPath: String? = null
 
 	/**
-	 * The options the export dialog should open with for the document at [documentPath].
-	 *
-	 * First open of the session returns the dialog defaults, which match the official editor's bake
-	 * (hidden objects and guides dropped) rather than [Moc3ExportOptions.Default]'s carry-everything
-	 * API contract.  After a confirm, returns the confirmed toggles, with the scale re-seeded from
-	 * [puppet] whenever [documentPath] is not the document the confirm happened on.
+	 * The options the export dialog should open with for the document at [documentPath]: the last confirmed
+	 * toggles, or [moc3ExportDialogDefaults] before any, with a confirmed scale kept only on the document it
+	 * was confirmed on.
 	 *
 	 * @param String?     documentPath The current document's identity, or null for one with no file, which
 	 *   has no identity to be the same document twice - its scale re-seeds from the model every time.
@@ -97,8 +94,8 @@ class ImageExportSessionOptions {
  * model.
  *
  * Deliberately not [Moc3ExportOptions.Default]: that value is the API's compatibility contract for
- * options-less calls (carry everything, exactly as the lowering behaved before options existed),
- * while this is what a rigger who never touched the dialog gets - the editor-matching bake.
+ * options-less calls (carry everything), while this is what a rigger who never touched the dialog
+ * gets - the editor-matching bake.
  *
  * @return Moc3ExportOptions The dialog defaults.
  */

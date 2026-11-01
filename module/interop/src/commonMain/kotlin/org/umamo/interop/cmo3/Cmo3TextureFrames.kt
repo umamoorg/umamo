@@ -156,9 +156,7 @@ internal class Cmo3TextureFrames(private val modelSource: CModelSource) {
 	}
 
 	/**
-	 * The stored coordinates of a drawable's model ones - [modelUvsOf] run backward.  Page coordinates are
-	 * stored verbatim.  Otherwise a placed tile's model coordinates come off its page through the placement
-	 * into the raster frame, which Raster stores verbatim and Cache through the raster-to-cache affine.
+	 * The stored coordinates of a drawable's model ones - [modelUvsOf] run backward.
 	 *
 	 * A coordinate pair the edit left alone keeps its stored value, so the float round trip cannot drift a
 	 * file the rigger did not touch there.  That needs both the stored and the baseline model coordinates,

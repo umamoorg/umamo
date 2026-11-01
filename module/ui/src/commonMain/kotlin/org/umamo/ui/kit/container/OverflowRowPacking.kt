@@ -70,19 +70,9 @@ internal data class OverflowRowPacking(
 /**
  * Decides which slots fit on the strip, at which x, and how wide each flexible gap resolves to.
  *
- * The strip is walked up to twice.  The first walk charges nothing for the overflow chip, because a
- * strip whose controls all fit does not show one; if that walk collapses nothing it is the answer.  Only
- * when something genuinely does not fit is the chip certain to exist, and the second walk charges for it.
- * That ordering is what keeps the two walks from disagreeing - once a control has missed at the full
- * width, reserving the chip can only push more out, never restore "everything fits" - so the strip
- * settles rather than oscillating on a one-pixel resize.
- *
- * Widths are pulled through [slotWidthPx] rather than passed in so the caller can compose lazily: every
- * Pinned slot is measured up front (they are always placed, so their width must be reserved before any
- * earlier Collapsible slot is admitted), Collapsible slots are measured in declaration order until one
- * does not fit, and nothing after that is measured at all.  A slot measuring zero is dropped entirely -
- * no spacing, not collapsed, absent from the dropdown - which is how a mode-gated control that renders
- * nothing costs nothing.
+ * Widths are pulled through [slotWidthPx] rather than passed in so the caller can compose lazily: no
+ * Collapsible slot past the collapse point is measured at all.  A slot measuring zero is dropped
+ * entirely - no spacing, not collapsed, absent from the dropdown.
  *
  * @param List     slots                 The declared slots, in declaration order.
  * @param Int      availableWidthPx      The strip's width; ignored for collapsing when [boundedWidth] is false.
@@ -137,7 +127,7 @@ internal fun packOverflowRow(
 	}
 
 	// Walked twice at most.  The first walk reserves NOTHING for the overflow chip, because a strip whose
-	// controls all fit shows no chip and must not be charged for one - reserving unconditionally collapsed
+	// controls all fit shows no chip and must not be charged for one - reserving unconditionally would collapse
 	// the last control roughly a chip early, with visible slack still in the flexible gaps.  If that walk
 	// collapses nothing, it is the answer.  If it collapses something, the chip is needed for certain, so
 	// the second walk charges for it; that can only push MORE out, never bring the set back to "everything
@@ -225,12 +215,8 @@ private class StripWalk(
 )
 
 /**
- * Admits slots left to right against a budget, collapsing from the first one that does not fit.
- *
- * A slot declaring [OverflowSlotSpec.minWidthPx] is offered the room actually left rather than measured
- * unbounded, so it compresses toward its floor instead of collapsing the moment its natural width stops
- * fitting - a 160.dp search box has most of its width to give up before vanishing is the right answer.
- * Below the floor it collapses like anything else.
+ * Admits slots left to right against a budget, collapsing from the first one that does not fit; a slot
+ * declaring [OverflowSlotSpec.minWidthPx] compresses toward that floor before it collapses.
  *
  * @param List     slots                   The declared slots, in declaration order.
  * @param Int      availableWidthPx        The strip's width.
@@ -238,7 +224,7 @@ private class StripWalk(
  * @param Int      spacingPx               The gap between two adjacent placed slots.
  * @param Int      reservedForChipPx       Width held back for the trailing overflow chip.
  * @param Set      preCollapsedSlotIndices Collapsible slots an earlier pass already ruled out.
- * @param IntArray reservedWidthAfter        Width already owed at or after each index - pinned slots' widths
+ * @param IntArray reservedWidthAfter      Width already owed at or after each index - pinned slots' widths
  *   and flexible gaps' floors - so an earlier control cannot take room its successors have a claim on.
  * @param Map      pinnedWidths            The pinned slots' already-measured widths.
  * @param Function slotWidthPx             Measures one slot at a given maximum width.
@@ -268,7 +254,7 @@ private fun walkStrip(
 		if (slot.kind == OverflowSlotKind.Flexible) {
 			// Placed at its floor, not at zero: the floor is the gap's guaranteed separation, so it has to be
 			// spent here where it counts against what the controls beside it may take.  Any leftover is added
-			// on top afterwards.  A zero-floor gap behaves exactly as before.
+			// on top afterwards.  A zero-floor gap spends nothing here.
 			placedIndices.add(slotIndex)
 			placedWidths.add(slot.minWidthPx)
 			usedPx += slot.minWidthPx

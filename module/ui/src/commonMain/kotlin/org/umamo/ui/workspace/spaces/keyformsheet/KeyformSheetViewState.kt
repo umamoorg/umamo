@@ -31,10 +31,9 @@ internal const val KEYFORM_SHEET_VIEW_STATE_KEY = "keyformSheet"
  * On the AreaScope rather than the session because these are how one area is LOOKING at the rig, not what
  * the rig is - two sheets side by side may reasonably be folded differently, and none of it belongs in undo.
  *
- * The SELECTED KEYS used to live here on that reasoning and no longer do: undo restores session state, so a
- * selection that undo is meant to bring back has to be session state, and that outranks letting two sheets
- * disagree about what is selected.  It is EditorSession.keySelection now, alongside the object, mesh, and
- * parameter selections, which all made the same trade.
+ * The selected keys are the exception: undo restores session state, so a selection that undo is meant to
+ * bring back has to be session state, and that outranks letting two sheets disagree about what is selected.
+ * They are EditorSession.keySelection, alongside the object, mesh, and parameter selections.
  */
 internal class KeyformSheetViewState : PersistentSpaceState {
 	/** The label column's width, dragged on the separator. */
@@ -65,8 +64,8 @@ internal class KeyformSheetViewState : PersistentSpaceState {
 	 * The visible slice of every section's domain.
 	 *
 	 * ONE window for the whole area, normalized, so zooming works like a timeline's: every track and both
-	 * of a linked pad's sections move together.  Per-track zoom has no precedent in any editor with tracks
-	 * and would make comparing two rows - the reason the sheet exists - impossible.
+	 * of a linked pad's sections move together.  Per-track zoom would make comparing two rows - the reason
+	 * the sheet exists - impossible.
 	 */
 	var window: TrackWindow by mutableStateOf(TrackWindow.Full)
 

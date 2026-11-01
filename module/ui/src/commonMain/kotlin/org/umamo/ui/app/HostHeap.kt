@@ -12,10 +12,7 @@ import org.umamo.ui.workspace.DialogAlternative
 /**
  * The memory limit the editor's JVM started with, as the desktop host reads it at launch.  The installed
  * launcher sets that limit itself; a jar launch gets whatever Java picks, a quarter of the machine's memory,
- * which a large export can run out of.  A jar that starts that small relaunches itself with [JAR_HEAP_OPTION]
- * (the desktop's JarRelaunch.kt), so the shell warns only a jar that could not, and an export that runs out
- * tells the command that raises it to any jar whose limit that option does not already set.  Android has no
- * such choice and passes none.
+ * which a large export can run out of.  Android has no such choice and passes none.
  *
  * @property Long    maxBytes          The most the heap may grow to.
  * @property Boolean packagedLaunch    Whether the installed launcher started the editor; false for a jar or a
@@ -43,7 +40,7 @@ const val JAR_HEAP_OPTION = "-XX:MaxRAMPercentage=50"
 /**
  * The limit below which a jar launch relaunches itself with [JAR_HEAP_OPTION], or is warned when it cannot.  It is
  * headroom rather than a measured floor: the largest typical export needs about 1.3 GB on its own (modelG, three
- * 8192² pages, after distribution Phase 1c), and the open document, the viewport's pages, and the editing around
+ * 8192² pages), and the open document, the viewport's pages, and the editing around
  * them need room on top of that.
  */
 const val LOW_HEAP_NOTICE_BELOW_BYTES = 3L * 1024 * 1024 * 1024
@@ -55,9 +52,8 @@ internal const val SHOW_LOW_MEMORY_NOTICE_KEY = "app.showLowMemoryNotice"
 private const val JAR_FILE_NAME_PLACEHOLDER = "umamo-<target>-<version>.jar"
 
 /**
- * Whether the low-memory alert is due at launch: a jar launch below [LOW_HEAP_NOTICE_BELOW_BYTES] whose
- * rigger has not turned the alert off.  The installed launcher sets its own limit, and a jar that relaunched
- * with [JAR_HEAP_OPTION] has the same one, so neither is warned: the alert's command would change nothing.
+ * Whether the low-memory alert is due at launch: a launch below [LOW_HEAP_NOTICE_BELOW_BYTES] that
+ * [JAR_HEAP_OPTION] would still raise, whose rigger has not turned the alert off.
  *
  * @param HostHeap? hostHeap      The launch's heap, or null where the host reports none.
  * @param Boolean   noticeEnabled Whether the alert is still wanted.

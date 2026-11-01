@@ -261,12 +261,8 @@ class PuppetRenderer(
 	}
 
 	/**
-	 * Sets which artwork every drawable would display from.  An empty plan returns the whole puppet to
-	 * its atlas pages.
-	 *
-	 * The plan carries no pixels, so this is cheap.  The pixels follow through
-	 * [deliverSourceLayerRasters], and the puppet keeps displaying from its atlas until they ALL have -
-	 * the producer streams them in chunks rather than holding the document's artwork decoded at once.
+	 * Sets which artwork every drawable would display from (see [ArtResidency.setSourceLayerPlan]).  An
+	 * empty plan returns the whole puppet to its atlas pages.
 	 *
 	 * Render thread only - it frees GPU resources.
 	 *
@@ -281,10 +277,7 @@ class PuppetRenderer(
 	 *
 	 * Render thread only: it creates and destroys GPU resources, so it must run with the context
 	 * current.  The engine holds the pending value and calls this from inside the render loop, the way
-	 * every other renderer input arrives.
-	 *
-	 * The batch is consumed, never retained - its images are uploaded and the reference dropped, so the
-	 * decoded bytes do not outlive the call.
+	 * every other renderer input arrives.  The batch is consumed, never retained.
 	 *
 	 * @param LayerRasterBatch batch The decoded artwork to take up.
 	 */
@@ -315,7 +308,7 @@ class PuppetRenderer(
 	 * render afterwards.
 	 *
 	 * The artwork and underlay caches are created and destroyed across the renderer's life rather than
-	 * uploaded once, so letting them die with the context is no longer enough: an engine that outlives
+	 * uploaded once, so letting them die with the context is not enough: an engine that outlives
 	 * one renderer would leak everything the previous one had admitted.  The pipelines are not freed
 	 * here because the device seam exposes no way to - they remain context-lifetime objects.
 	 */
@@ -511,25 +504,14 @@ class PuppetRenderer(
 	}
 
 	/**
-	 * Reconciles the renderer with the current model after an edit, via a backend-neutral [diffModel] whose
-	 * four tiers [DrawableResidency.reconcile] applies as device calls: a reorder / reparent needs no
-	 * buffer work; a base-mesh move re-uploads positions; a UV edit re-uploads UVs; a structural change
-	 * frees and re-uploads whole.
-	 *
-	 * The glue layout follows the model: an edit that moves a weld re-plans it, re-uploads the glue meshes
-	 * whose weld attributes or store region moved, and fits the shared store, so every glue mesh welds as
-	 * a fresh upload of [newModel] would (see [DrawableResidency.reconcile]).
-	 *
-	 * The diff compares against [currentModel] and therefore runs BEFORE the reassignment, keeping the
+	 * Reconciles the renderer with the current model after an edit ([DrawableResidency.reconcile]).  The
+	 * diff compares against [currentModel] and therefore runs BEFORE the reassignment, keeping the
 	 * invariant "GPU buffer contents === currentModel's arrays".
 	 *
-	 * A push that moved mesh positions alone - every preview push of a Grab - keeps the last pose: its
-	 * inputs, the render plan, the composite states, and the draw order hold no positions, and the
-	 * residents' pose stamps survive because the reconcile reuses the resident instances.  What reads
-	 * positions is refreshed here instead - the glue store is marked stale so pass 1 re-captures it, and
-	 * the composite acceleration is re-planned over the moved bounds - so the next render is right without
-	 * a [setPose].  Reported as [ModelUpdateKind.PositionsOnly] only once a pose exists; before one there
-	 * is nothing to keep.
+	 * A push that moved mesh positions alone - every preview push of a Grab - keeps the last pose, since
+	 * nothing the pose holds is a position and the reconcile reuses the resident instances; what reads
+	 * positions is refreshed here instead, so the next render is right without a [setPose].  Reported as
+	 * [ModelUpdateKind.PositionsOnly] only once a pose exists; before one there is nothing to keep.
 	 *
 	 * @param PuppetModel newModel The current model.
 	 * @return ModelUpdateKind Whether the caller may keep the pose ([ModelUpdateKind.PositionsOnly]) or
@@ -871,11 +853,8 @@ class PuppetRenderer(
 	 * Renders the current pose into a CPU image: the puppet as the viewport draws it, over [backdrop], with
 	 * no selection tint and no editor chrome.
 	 *
-	 * The image renders at [SNAPSHOT_SUPERSAMPLE] into a surface of its own and is resolved and read back
-	 * synchronously, in tiles of at most [tileEdge] output pixels (and never past what the device can
-	 * allocate), stitched into one image.  A tile is the same camera re-centered on its own rectangle, so
-	 * the pieces meet exactly: tile edges fall on whole output pixels, and the resolve never averages
-	 * across one.
+	 * The image renders at [SNAPSHOT_SUPERSAMPLE] into a surface of its own, in tiles of at most [tileEdge]
+	 * output pixels stitched into one image ([captureSnapshot]).
 	 *
 	 * Nothing the host set is disturbed: the capture draws through a camera, render scale, and empty
 	 * selection of its own, and the side targets are released again when the capture grew them, so a
@@ -959,8 +938,7 @@ class PuppetRenderer(
 	 * out-of-range [pageIndex] paints no page quad.
 	 *
 	 * The page samples the SAME uploaded atlas texture a drawable binds while the puppet displays from the
-	 * atlas, through the same premultiplied fragment shader, so the underlay matches the puppet's texel
-	 * rendering exactly.
+	 * atlas, so the underlay matches the puppet's texel rendering exactly.
 	 *
 	 * When the area's content carries a mesh overlay, it draws over the page in the same pass, from the
 	 * positions uploaded into the area's own store ([sceneKey] names the area; see [retainUvScenes]).  A
@@ -991,11 +969,8 @@ class PuppetRenderer(
 
 	/**
 	 * Draws an arbitrary image as the flat underlay - the UV editor's source-layer view, the pre-atlas
-	 * counterpart of [renderAtlasPage].
-	 *
-	 * Unlike the atlas pages, which upload as a whole set (at init, or wholesale on a [setAtlasPages]
-	 * swap) rather than one image at a time, a layer image arrives whenever the editor is pointed at
-	 * one, so its texture is created on first sight and cached.  A null image paints no image quad.
+	 * counterpart of [renderAtlasPage].  Its texture is created on first sight and cached
+	 * ([BackdropEncoder.underlayTextureFor]).  A null image paints no image quad.
 	 *
 	 * @param RenderTarget       target         The surface to draw into.
 	 * @param DecodedImage?      image          The image to draw, or null for none.
@@ -1038,16 +1013,14 @@ class PuppetRenderer(
 	}
 
 	/**
-	 * The flat underlay frame both UV scenes share, in one pass: the themed grid backdrop bounded by the
-	 * shown surface (the surround color beyond it and the border just outside its edge), the image as a
-	 * single textured quad at the world origin, the placement preview's scrims and crops, then the area's
-	 * mesh overlay over them.  A null image or handle paints no quad, and the surface is the unit square.
+	 * The flat underlay frame both UV scenes share, in one pass: the grid backdrop bounded by the shown
+	 * surface, the image quad, the placement preview, then the area's mesh overlay over them.  A null image
+	 * or handle paints no quad, and the surface is the unit square.
 	 *
 	 * The area's residency is brought to [overlay] and [placement] BEFORE the frame opens, since its uploads
-	 * are resource operations; an area that shows no overlay frees its buffers and keeps its store, and one
-	 * that shows no placement frees its uploaded crops.  A frame that HIDES the overlay (the area's Show
-	 * Overlays master is off) still brings the residency to it and only skips the draws, so showing it again
-	 * uploads nothing; the placement preview's scrims and crops keep drawing, since they are gesture feedback.
+	 * are resource operations.  A frame that HIDES the overlay still brings the residency to it and only
+	 * skips the draws, so showing it again uploads nothing; the placement preview keeps drawing, since it is
+	 * gesture feedback.
 	 *
 	 * @param RenderTarget       target         The surface to draw into.
 	 * @param DecodedImage?      image          The image whose extent the quad and the grid's surface take, or null; the grid's lines are the area's scale in texels.

@@ -8,17 +8,9 @@ import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.PuppetModel
 
 /**
- * A copy of this model with parameter [id]'s range set to [min]..[max] and its default clamped within
- * it. The range is normalized so the stored minimum never exceeds the maximum regardless of entry order
- * (typing a maximum below the current minimum still yields a valid range). The default is coerced into
- * the resulting range. Returns this same instance unchanged when nothing actually differs (so the caller
- * need not pre-check) or when [id] is not a parameter of this model.
- *
- * Pure over the model: it does not touch the live pose. Re-clamping the live value into a shrunk range
- * is the session's concern, since the pose is editor state held outside the model.
- *
- * パラメータ [id] の範囲（最小・最大）と既定値を設定したモデルのコピー。範囲は最小≤最大に正規化し、
- * 既定値は範囲内に丸める。変化が無ければ同一インスタンスを返す。ライブのポーズには触れない。
+ * A copy of this model with parameter [id]'s range set to [min]..[max], normalized so the minimum never
+ * exceeds the maximum whatever the entry order, and its default clamped into it.  The live pose is editor
+ * state outside the model, so re-clamping it is the session's concern.
  *
  * @param ParameterId id The parameter to retarget.
  * @param Float min The requested minimum.
@@ -48,21 +40,12 @@ fun PuppetModel.withParameterRange(id: ParameterId, min: Float, default: Float, 
 
 /**
  * A copy of this model with the parameter link [horizontal]->[vertical] added ([linked] = true) or
- * removed ([linked] = false). The model edit is the invariant keeper - any UI-side validity check is
- * advisory only - so an invalid request returns this same instance unchanged (and the session's
- * same-instance short-circuit then records no undo step): a link is refused when either id already
- * belongs to any existing link, when the ids are equal, or when either id is not a parameter of this
- * model; an unlink of a pair that is not present is a no-op.
- *
- * Pure over the model: values, ranges, and the live pose are untouched - a link only changes how the
- * pair presents (one 2D pad instead of two sliders).
+ * removed ([linked] = false).  This edit is the invariant keeper - any UI-side validity check is advisory
+ * only - so a request that would pair a parameter twice, with itself, or with an unknown id returns this
+ * same instance.
  *
  * // CMO3: CParameterSource.combined - the first member flags the pair, the partner is the next
  * // parameter in document order (see Cmo3Import's link derivation).
- *
- * パラメータリンクを追加または削除したモデルのコピー。無効な要求（既にリンク済み・同一 ID・未知の
- * ID・存在しないペアの解除）は同一インスタンスを返し、取り消し段も記録されない。値やポーズには
- * 触れない。
  *
  * @param ParameterId horizontal The X-axis (upper) parameter.
  * @param ParameterId vertical The Y-axis parameter (the next parameter below in panel order).
@@ -100,9 +83,8 @@ fun PuppetModel.withParameterLink(horizontal: ParameterId, vertical: ParameterId
 }
 
 /**
- * Sets parameter [id]'s range and default, and re-clamps its live pose value into the new range — all
- * as one undo step. A model edit (the range is document content), so it marks the document dirty; the
- * pose re-clamp rides the same step so undo restores both together. A no-op range records nothing.
+ * Sets parameter [id]'s range and default, and re-clamps its live pose value into the new range, as one
+ * undo step so undo restores both together.
  *
  * @param ParameterId id The parameter to retarget.
  * @param Float min The requested minimum.
@@ -137,10 +119,8 @@ fun EditorSession.setParameterRange(id: ParameterId, min: Float, default: Float,
 
 /**
  * Links parameter [horizontal] with [vertical] (the next parameter below it in panel order) into
- * one 2D pad, or removes that link, as one undo step. A model edit (the link is document content),
- * so it marks the document dirty. The pose needs no care here: a link only changes presentation,
- * both parameters keep their live values by construction. An invalid request returns the same
- * model instance from [withParameterLink], so the commit short-circuit records nothing.
+ * one 2D pad, or removes that link, as one undo step.  The pose is untouched: a link only changes how
+ * the pair presents.
  *
  * @param ParameterId horizontal The X-axis (upper) parameter.
  * @param ParameterId vertical The Y-axis parameter.

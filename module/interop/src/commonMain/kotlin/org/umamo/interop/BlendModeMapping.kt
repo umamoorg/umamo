@@ -7,11 +7,10 @@ import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
 
 /*
- * The blend-mode bijections shared by both importers, per the extraction tables in
- * docs/plan/offscreen-support.md: CMO3 serializes enum tokens (ColorComposition /
- * AlphaComposition), MOC3 packs ints (sections 153/157, colorMode or (alphaMode shl 8)).
- * The bare legacy tokens (NORMAL/ADD/MULTIPLY) are the pre-5.3 modes in every era; each
- * 5.3 mode has its own token and int.
+ * The blend-mode bijections shared by the CMO3 and MOC3 importers and exporters: CMO3 serializes
+ * enum tokens (ColorComposition / AlphaComposition), MOC3 packs ints (sections 153/157,
+ * colorMode or (alphaMode shl 8), docs/format/MOC3.md §5.6).  The bare legacy tokens
+ * (NORMAL/ADD/MULTIPLY) are the pre-5.3 modes in every era; each 5.3 mode has its own token and int.
  */
 
 /**
@@ -157,13 +156,8 @@ internal fun alphaBlendOfPacked(packed: Int): AlphaBlendMode =
 	}
 
 /**
- * The LEGACY 2-bit constant-flag encoding of [mode] - the only blend a moc below v6 can express.
- *
- * The pre-5.3 fixed-function set is just Normal / Add / Multiply, so every 5.3+ mode has to fall back
- * to its nearest premultiplied ancestor: the 5.3 additive family reads as Add and the multiply family
- * as Multiply, and anything with no fixed-function equivalent reads as Normal.  A v6 export writes the
- * packed extended blend instead and leaves these bits at Normal, so this is only reached when the
- * target version genuinely cannot carry the authored mode.
+ * The LEGACY 2-bit constant-flag encoding of [mode] - the only blend a moc below v6 can express, so a
+ * 5.3+ mode falls back to its nearest pre-5.3 ancestor ([nearestLegacyBlendMode]).
  *
  * @param BlendMode mode The runtime blend mode.
  * @return Int The constant-flag bits (0 for Normal).
@@ -203,15 +197,9 @@ internal fun nearestLegacyBlendMode(mode: BlendMode): BlendMode =
 /**
  * The constant-flag bits of [mode] when the pair names the mode EXACTLY, else 0.
  *
- * Unlike [legacyBlendFlagOf] this never approximates: only the two premultiplied modes have a legacy
- * bit that means the same thing, so Additive (non-premultiplied), AdditiveGlow, and Multiply all read
- * as Normal here.  That is what a moc 6 offscreen's flag byte contains - every corpus offscreen sets
- * the bit for colorMode 1 or 2 and clears it for every other mode - because on v6 the packed section
- * is authoritative and these bits merely restate the two modes an old reader could have understood.
- *
- * Approximating here would state a mode the file does not, which is the failure the two names exist to
- * keep apart: [legacyBlendFlagOf] is for a DOWNGRADE (the packed section is gone and the nearest
- * ancestor is the best available), this is for an ECHO (the packed section is right there).
+ * This is the ECHO a moc 6 offscreen's flag byte carries beside its authoritative packed blend - every
+ * corpus offscreen sets the bit for colorMode 1 or 2 and clears it for every other mode - so it never
+ * approximates; [legacyBlendFlagOf] is the approximating form, for a DOWNGRADE with no packed section.
  *
  * @param BlendMode mode The runtime blend mode.
  * @return Int The constant-flag bits (0 unless the mode is exactly additive- or multiply-premultiplied).

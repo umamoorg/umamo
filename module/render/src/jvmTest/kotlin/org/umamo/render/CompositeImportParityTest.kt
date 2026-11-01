@@ -63,6 +63,10 @@ class CompositeImportParityTest {
 	 * Compares each channel's own track rather than one bundled cell: after the fan-out the channels are
 	 * independent tracks, and comparing them separately is what would catch a fan-out that mis-routed one
 	 * channel's values into another's.
+	 *
+	 * @param ChannelGrids cmo3Channels The CMO3 import's part channel tracks.
+	 * @param ChannelGrids moc3Channels The MOC3 import's part channel tracks.
+	 * @param String       label        The prefix for assertion messages.
 	 */
 	private fun assertChannelTracksMatch(cmo3Channels: ChannelGrids, moc3Channels: ChannelGrids, label: String) {
 		for (channel in listOf(FormChannel.OPACITY, FormChannel.MULTIPLY_COLOR, FormChannel.SCREEN_COLOR)) {

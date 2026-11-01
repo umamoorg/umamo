@@ -27,16 +27,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 
 /**
- * A single-line inline rename text field, the shared core behind every in-place rename in the editor
- * (the workspace tab and the outliner row).  The whole name starts selected so typing replaces it; it
- * commits on Enter or when focus leaves (clicking away), and cancels on Escape.  Escape is routed in by
- * the host through [LocalInlineEditController], because the editor shell's root key handler previews
- * Escape (and every shortcut) before this field could see it.  A blank name commits as a cancel, so the
- * entity keeps its old name.  The caller supplies the surrounding styling (a tab fill, a tree row); this
- * owns only the field and its commit/cancel lifecycle.
- *
- * 共通のインライン名前編集フィールド（タブとアウトライナーで再利用）。Enter／フォーカス喪失で確定、
- * Escape で取消（シェル経由）。空名は取消扱い。装飾は呼び出し側が与える。
+ * A single-line inline rename text field, the shared core behind every in-place rename in the editor.  The
+ * whole name starts selected so typing replaces it; it commits on Enter or click-away and cancels on
+ * Escape, which the host routes in through [LocalInlineEditController].  The caller supplies the
+ * surrounding styling; this owns only the field and its commit/cancel lifecycle.
  *
  * @param String initialName The current name, pre-selected for replacement.
  * @param TextStyle textStyle The text style (the caller supplies the color to match its context).

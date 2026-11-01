@@ -18,10 +18,9 @@ import org.umamo.runtime.model.WarpLatticeForm
  * ([selection], [mode]), the undo [History], and the change-event bus. Every edit flows through here so
  * undo, change events, and dirty-tracking stay consistent.
  *
- * Two channels, per the history design: [changes] emits on every mutation (the "everything emits a
- * change event" completeness), while the history stack records only the undoable subset. A document
- * mutation ([mutate]) and a selection gesture ([setSelection]) each push one step; a mode toggle
- * ([setMode]) and future tool/brush switches are transient — they emit but never become steps.
+ * [changes] announces every step the history records, and every amend of one: a document mutation
+ * ([mutate]), a selection gesture ([setSelection]), and a mode change ([setMode]) each push one step.  The
+ * tool latches and tool settings are transient session state - never steps, and not on the bus.
  *
  * Undo is by immutable snapshot, never inverse op: [undo] / [redo] just republish a stored
  * [EditorSnapshot]. Dirty is reference-equality of the model against the last-saved instance — because
@@ -150,16 +149,11 @@ class EditorSession private constructor(
 	 * Channel values edited but NOT yet keyed - Blender's model, where changing a keyed property off a key
 	 * takes effect now but is lost unless you key it.
 	 *
-	 * Deliberately NOT in the document: a pending edit never reaches [PuppetModel], so it costs nothing in
-	 * document terms and a keyform insert can consume it without that being a document edit either. It IS in
-	 * the undo history, one step per gesture end (see [commitPendingChannelEdit]) rather than per keystroke -
-	 * a per-frame preview ([setPendingChannelEdit]) records nothing on its own. Every pending value is
-	 * cleared whenever the pose moves, because a value chosen FOR one pose is meaningless at another; a
-	 * history jump does not clear them, since [restore] lands on the very pose they were chosen for and
-	 * restores them alongside it.
-	 *
-	 * The keyed-field tint reads this to show the edited-but-unkeyed state, and a keyform insert consumes
-	 * it: the whole point is that `I` captures what you just typed rather than what is still stored.
+	 * Deliberately NOT in the document, but in the undo history: one step per gesture end
+	 * ([commitPendingChannelEdit]), never per preview frame.  Every pending value is cleared whenever the pose
+	 * moves, because a value chosen FOR one pose is meaningless at another; a history jump restores them with the
+	 * very pose they were chosen for.  A keyform insert consumes them, so `I` captures what was just typed rather
+	 * than what is still stored.
 	 */
 	val pendingChannelEdits: StateFlow<Map<KeyableTarget, ChannelValue>> = mutablePendingChannelEdits.asStateFlow()
 
@@ -196,10 +190,10 @@ class EditorSession private constructor(
 	private val mutableMode = MutableStateFlow(openingSnapshot.mode)
 
 	/**
-	 * The live interaction mode. Snapshotted (a mode change is its own undo step), and pose-neutral by
-	 * contract: entering or leaving Edit mode NEVER writes the pose — Edit mode's rest view is a
-	 * display-only override in the render host, so the Object-mode pose survives an Edit session
-	 * untouched with no stashed state to juggle.
+	 * The live interaction mode.  Snapshotted (a mode change is its own undo step), and pose-neutral by
+	 * contract: entering or leaving Edit mode NEVER writes the pose - Edit mode's rest view is a display rule
+	 * ([EditorMode.shownPose]), so the Object-mode pose survives an Edit session untouched with no stashed state
+	 * to juggle.
 	 */
 	val mode: StateFlow<EditorMode> = mutableMode.asStateFlow()
 
@@ -209,13 +203,10 @@ class EditorSession private constructor(
 	val meshSelection: StateFlow<MeshSelection> = mutableMeshSelection.asStateFlow()
 
 	/**
-	 * The current transient user notice, or null when none is showing. A short message the shell surfaces
-	 * briefly (near the status bar) to explain why an action did nothing. Deliberately off the undo history and
-	 * the change bus - a notice is momentary feedback, never document state. Used today when an Object-mode
-	 * transform blocks because the selection holds nothing it can move ([eligibleTransformTargets]). A StateFlow (not
-	 * a one-shot event) so the shell reads it with the standard collectAsState path and a late subscriber still
-	 * sees an in-flight notice; the [Notice.serial] lets the shell time its dismissal and re-trigger on a repeat
-	 * of the same text.
+	 * The current transient user notice, or null when none is showing - a short message the shell surfaces
+	 * briefly to explain why an action did nothing, kept off the undo history and the change bus.  A StateFlow
+	 * rather than a one-shot event, so a late subscriber still sees an in-flight notice; the [Notice.serial] lets
+	 * the shell time its dismissal and re-trigger on a repeat of the same text.
 	 */
 	val notice: StateFlow<Notice?> = notices.notice
 
@@ -243,7 +234,7 @@ class EditorSession private constructor(
 
 	private val mutableChanges = MutableSharedFlow<Change>(extraBufferCapacity = 64)
 
-	/** The change-event bus: every mutation emits here, the undoable ones and the transient ones alike. */
+	/** The change-event bus: every recorded step, and every amend of one, emits here. */
 	val changes: SharedFlow<Change> = mutableChanges.asSharedFlow()
 
 	/** True when the document model differs from the last-saved state (drives the title/status marker). */
@@ -262,10 +253,8 @@ class EditorSession private constructor(
 	 * The retained-undo-step cap.  The host writes it from the user preference - once when the document
 	 * opens and again on every committed change - so the session never reads settings itself.
 	 *
-	 * Lowering it trims the stack at once rather than waiting for the next edit, but never past the live
-	 * step, so the current state and its redo branch always survive; the excess sheds on subsequent
-	 * pushes.  The write republishes the derived flags, so the panel drops the same rows the stack did and
-	 * [canUndo] stays honest when the trim lands the cursor on the oldest entry.
+	 * Lowering it trims the stack at once, never past the live step ([History.limit]); the write republishes the
+	 * derived flags so the panel and [canUndo] follow the trim.
 	 */
 	var historyLimit: Int
 		get() = history.limit
@@ -289,19 +278,14 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Records one undo step whose state is the live state with the given fields replaced, and publishes it:
-	 * the snapshot is pushed, every snapshotted flow takes its value from it (model first, mode last - the
-	 * order [restore] publishes in, so an undo and the edit it reverts agree), the derived flags refresh, and
-	 * [change] goes out on the bus.  The one path every step takes: a member that pushes a step calls this
-	 * rather than writing the flows itself, and an operation in another file reaches the history only
-	 * through here.
+	 * Records one undo step whose state is the live state with the given fields replaced, and publishes it.
+	 * The one path every step takes: a member that pushes a step calls this rather than writing the flows
+	 * itself, and an operation in another file reaches the history only through here.
 	 *
-	 * Every field defaults to the LIVE value, never to an empty one: a field added later is then carried
-	 * unchanged by every existing caller instead of silently recorded empty.  The defaults that are not the live
-	 * value are the pending edits: a pose that differs from the live pose discards them, because every pending
-	 * value was chosen FOR the pose being left, and [pendingLatticeEdits] also drops the warps whose lattice forms or
-	 * parent [model] rewrites ([pendingLatticesCarried]) - the rules live here and nowhere else.  A pose move that
-	 * drops pending lattices says so near the cursor, with the count.
+	 * Every field defaults to the LIVE value, never to an empty one, so a field added later is carried unchanged
+	 * by every existing caller instead of silently recorded empty.  The exceptions are the pending edits: a pose
+	 * move discards them, because every pending value was chosen FOR the pose being left, and [pendingLatticeEdits]
+	 * also drops the warps whose lattice forms or parent [model] rewrites ([pendingLatticesCarried]).
 	 *
 	 * @param Change change The descriptor of this step (for the bus and the history-panel label).
 	 * @param PuppetModel model The document model after the step.
@@ -370,9 +354,8 @@ class EditorSession private constructor(
 	 * [parameters], and editing one calls [rerun] with the updated record, which recomputes from the
 	 * record's base and lands through [amendLastCommit].
 	 *
-	 * Call it right after the operation's own commit.  Refuses (null) when nothing was pushed since the
-	 * last registration or restore, or when the live model is not [committedModel] - a client that
-	 * committed nothing (a no-op edit) must not register against some other step's base.
+	 * Call it right after the operation's own commit; a client that committed nothing (a no-op edit) is
+	 * refused, so it never registers against some other step's base.
 	 *
 	 * @param PuppetModel committedModel The model the operation's commit published.
 	 * @param String? areaId The area the operation ran in, or null.
@@ -434,13 +417,9 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Lands an adjustment: replaces the operation's own history step with [model] and publishes it,
-	 * keeping the record live for the next adjustment.  Nothing is undone and nothing is replayed - the
-	 * step is rewritten in place ([History.amendTop]).
-	 *
-	 * Refuses when [operation] is not the live record (it was cleared by another push, an undo, or a
-	 * document swap while an asynchronous rerun was in flight - the result is dropped, never committed
-	 * over whatever the rigger did meanwhile) or when the stack refuses the amend.
+	 * Lands an adjustment: rewrites the operation's own history step in place with [model] ([History.amendTop])
+	 * and publishes it, keeping the record live for the next adjustment.  A rerun whose record is no longer live
+	 * is dropped, never committed over whatever the rigger did meanwhile.
 	 *
 	 * @param AdjustableOperation operation The record the rerun was given.
 	 * @param PuppetModel model The recomputed document model.
@@ -509,11 +488,10 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Commits one undo step from an already-computed [model] and [pose], recording it and publishing both.
-	 * The single choke point behind [mutate] (model edits), [commitPose] (scrubs), and [setParameterRange]
-	 * (both at once). A commit that changes neither the model instance nor the pose records nothing, so
-	 * callers need not pre-check. Dirty is measured against the model only, so a pose-only commit (a scrub)
-	 * is an undo step without marking the document unsaved, exactly like a selection gesture.
+	 * Commits one undo step from an already-computed [model] and [pose] - the choke point behind [mutate]
+	 * (model edits) and [commitPose] (scrubs).  A commit that changes neither records nothing, so callers need
+	 * not pre-check.  Dirty is measured against the model only, so a pose-only commit is an undo step without
+	 * marking the document unsaved.
 	 *
 	 * @param Change change The descriptor of this edit (for the bus and the history-panel label).
 	 * @param PuppetModel model The new document model (same instance as now for a pose-only commit).
@@ -528,12 +506,22 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * A snapshot of the session's current state, with any field overridden - what [amendLastCommit] rewrites
-	 * the live step with.  A push never builds its snapshot here: it goes through [commitStep], whose
-	 * parameters follow the same rule for the same reason.  [EditorSnapshot]'s own defaults are dangerous: a
-	 * field added later would default to its EMPTY value at every existing call site, which compiles cleanly
-	 * but would silently record the wrong state - for example, undoing an unrelated edit would clear the
-	 * parameter target instead of leaving it as it was.  Defaulting to live state makes the omission harmless.
+	 * A snapshot of the session's current state, with any field overridden - what an amend rewrites the live
+	 * step with.
+	 *
+	 * Every field defaults to live state rather than to [EditorSnapshot]'s empty defaults, so a field added
+	 * later is carried unchanged at every existing call site instead of silently recorded empty.
+	 *
+	 * @param PuppetModel model The document model.
+	 * @param Selection selection The object selection.
+	 * @param Pose pose The pose.
+	 * @param MeshSelection meshSelection The Edit-mode element selection.
+	 * @param EditorMode mode The interaction mode.
+	 * @param ParameterSelection parameterSelection The keyform-authoring target.
+	 * @param Map<KeyableTarget, ChannelValue> pendingChannelEdits The unkeyed channel edits.
+	 * @param Set<TrackKeyRef> keySelection The keyform-sheet key selection.
+	 * @param Map<DeformerId, WarpLatticeForm> pendingLatticeEdits The unkeyed Pose-mode lattices.
+	 * @return EditorSnapshot The live state with the given fields replaced.
 	 */
 	private fun snapshot(
 		model: PuppetModel = mutableModel.value,
@@ -571,15 +559,13 @@ class EditorSession private constructor(
 
 	/**
 	 * Commits a parameter scrub as one undo step: the live [pose] reached a new resting position (a slider
-	 * or 2D-pad gesture released, a value typed, a reset). Mid-gesture preview frames bypass this and reach
-	 * the renderer directly, so a whole drag is a single step. The model is unchanged, so this does not
-	 * mark the document dirty. A commit equal to the current pose records nothing.
+	 * or 2D-pad gesture released, a value typed, a reset).  Mid-gesture preview frames bypass this and reach
+	 * the renderer directly, so a whole drag is a single step.
 	 *
-	 * Refused while the pose is pinned ([posePinned]), whoever asks.  The refusal is here rather than left
-	 * to each caller because of what a caller has to hand over: in Edit mode the pose a view holds is the
-	 * rest pose it is being shown, which names no parameter, and recording that as the rig's pose would
-	 * drop every value the rig held.  A document edit that has to move the pose with it - a range
-	 * narrowed under the value - does not come through here, and is not refused.
+	 * Refused while the pose is pinned ([posePinned]), whoever asks: in Edit mode the pose a view holds is the
+	 * rest pose it is shown, and recording that as the rig's pose would drop every value the rig held.  A
+	 * document edit that moves the pose with it (a range narrowed under the value) goes through [commitStep]
+	 * and is not refused.
 	 *
 	 * @param Change change The scrub descriptor (a [ParameterChange.SetValue]).
 	 * @param Pose pose The pose to commit (the gesture's final parameter values).
@@ -596,7 +582,7 @@ class EditorSession private constructor(
 	 * Records [value] as an unkeyed edit of [target] - a value the user typed that is not stored anywhere yet.
 	 *
 	 * Transient by construction: no history step, no model change.  The next pose move discards it, which is
-	 * the behaviour rather than a limitation - the value was chosen FOR this pose, so carrying it to another
+	 * the behavior rather than a limitation - the value was chosen FOR this pose, so carrying it to another
 	 * would be applying an edit somewhere it was never meant.
 	 *
 	 * @param KeyableTarget target The property edited.
@@ -607,21 +593,12 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Records [value] as an unkeyed edit of [target] AND as one undo step, described by [change].
+	 * Records [value] as an unkeyed edit of [target] AND as one undo step, described by [change] - what a
+	 * keyable property field calls when its gesture ends, where [setPendingChannelEdit] is its per-frame preview.
 	 *
-	 * What a keyable property field calls when its gesture ends, where [setPendingChannelEdit] is what it
-	 * calls per frame while the gesture is still running.  A pending edit is still transient - the next pose
-	 * move discards it - but discarding is not the same as never having happened: it is a deliberate edit
-	 * the user can see take effect in the viewport, so it must be undoable independent of whether it ever
-	 * reaches the document.
-	 *
-	 * Pushes its own step through [commitStep] rather than going through [mutate] / [commit], for the same
-	 * reason [setSelection] and [setMeshSelection] do: neither the model nor the pose changes, so the commit
-	 * choke point would short-circuit and record nothing.  Not a document edit, so it leaves dirty untouched.
-	 *
-	 * [change] is the SAME descriptor the unkeyed path would have used, so the history entry reads "Set
-	 * Opacity" whichever branch the edit took - which branch it took is an implementation detail of where
-	 * the value could be stored, not something a rigger asked for.
+	 * A pending edit is transient, but it is a deliberate edit the user sees take effect, so it is undoable
+	 * whether or not it ever reaches the document.  [change] is the same descriptor a stored write of the
+	 * property uses, so the history entry reads alike whichever branch the edit took.
 	 *
 	 * @param KeyableTarget target The property edited.
 	 * @param ChannelValue value The value the user chose.
@@ -635,7 +612,7 @@ class EditorSession private constructor(
 			// Still published: the guard says this step would record nothing new, not that the value is live.
 			// The two diverge whenever something retired the pending edit without recording that it did - a
 			// scrub previews through clearPendingChannelEdits and then ends where it began - and returning
-			// outright left the re-typed value out of the viewport and the field untinted.
+			// outright would leave the re-typed value out of the viewport and the field untinted.
 			setPendingChannelEdit(target, value)
 
 			return
@@ -645,15 +622,9 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Discards every pending unkeyed edit.
-	 *
-	 * Called when a pose PREVIEW moves - a scrub frame that reaches the renderer without recording a step -
-	 * since every pending value was chosen for the pose being left; a recorded pose move discards them the
-	 * same way through [commitStep]'s default.  A history jump does NOT call this: [restore] publishes the
-	 * snapshot's own [EditorSnapshot.pendingChannelEdits] instead, since the pose it lands on is exactly the
-	 * pose those values were chosen for.  A keyform insert that consumed one target's value uses
-	 * [clearPendingChannelEdit] instead, because the other targets' values are still valid for the unchanged
-	 * pose.
+	 * Discards every pending unkeyed edit because a pose PREVIEW moved - a scrub frame that records no step -
+	 * since every pending value was chosen for the pose being left; a recorded pose move discards them through
+	 * [commitStep]'s default instead.
 	 */
 	fun clearPendingChannelEdits() {
 		if (mutablePendingChannelEdits.value.isNotEmpty()) {
@@ -757,7 +728,6 @@ class EditorSession private constructor(
 	 *
 	 * @param Selection selection The new selection.
 	 */
-
 	fun setSelection(selection: Selection) {
 		if (selection == mutableSelection.value) {
 			return
@@ -768,12 +738,8 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Sets the parameters targeted for keyform authoring as its own undo step.
-	 *
-	 * Pushes its own snapshot rather than going through [mutate] / [commit], exactly like [setSelection]:
-	 * neither the model nor the pose changes, so the commit choke point would short-circuit and record
-	 * nothing.  Shared session state rather than a panel's view state, so every area agrees on which
-	 * parameter an insert would write to.
+	 * Sets the parameters targeted for keyform authoring as its own undo step.  Shared session state rather
+	 * than a panel's view state, so every area agrees on which parameter an insert would write to.
 	 *
 	 * @param ParameterSelection parameterSelection The new target set.
 	 */
@@ -848,14 +814,8 @@ class EditorSession private constructor(
 
 	/**
 	 * Enters [mode], Edit or Pose, on the element session [seed] opens over [model], or an empty one for no seed, as ONE
-	 * undo step with the object selection the seed lands on ([EditSeed.selectionOver]): a fallback owner replaces the
-	 * object selection, as Alt+Q's switch selects the owner it moves to, so the panels show what the session edits and
-	 * the next mode switch seeds from it.  A seed whose active owner is not the object selection's own active item is
-	 * remembered, so the next entry is stable.  The transient tool state clears, since the select tool is shared with
-	 * Object mode and a tool armed before the switch must not drive the element overlay.  The session being left is
-	 * stashed (nothing, from Object mode), then each seeded owner's remembered elements are restored where they still
-	 * fit its topology, converted into the select mode the session carries; the rest start empty, and entering on other
-	 * owners keeps every other owner's memory.
+	 * undo step with the object selection the seed lands on ([EditSeed.selectionOver]), so the panels show what the
+	 * session edits and the next mode switch seeds from it.
 	 *
 	 * @param EditorMode mode The mode entered, Edit or Pose.
 	 * @param EditSeed? seed The owners to open on, or null for none.
@@ -866,6 +826,7 @@ class EditorSession private constructor(
 			elementMemory.lastActiveOwner = seed.activeOwner
 		}
 
+		// The select tool is shared with Object mode, so a tool armed before the switch must not drive the element overlay.
 		latches.clearTransient(clearViewportGesture = true)
 		val selectMode = mutableMeshSelection.value.selectMode
 		elementMemory.stash(mutableMeshSelection.value)
@@ -924,12 +885,7 @@ class EditorSession private constructor(
 
 	/**
 	 * Records a keyform-sheet key-selection gesture as its own undo step, so a misclick that loses a
-	 * carefully built multi-key selection is recoverable.  A no-op records nothing.  Not a document edit -
-	 * leaves dirty untouched.
-	 *
-	 * Shared session state rather than a sheet's view state, for the same reason the parameter target is: a
-	 * thing that undo restores has to live where undo can reach it, and two open sheets agreeing on one
-	 * selection is the same trade [setParameterSelection] already made.
+	 * carefully built multi-key selection is recoverable.  Not a document edit - leaves dirty untouched.
 	 *
 	 * Also the CONFIRM half of [stageKeySelection]: calling this with the staged selection after the
 	 * gesture's edit records the selection exactly when the edit did not.
@@ -952,21 +908,14 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Publishes [keySelection] WITHOUT recording a step of its own, for a gesture whose own step is about to
-	 * follow.
+	 * Publishes [keySelection] WITHOUT recording a step of its own, for a keyform-sheet gesture that selects
+	 * and edits at once: [commitStep] carries every field it is not given from live state, so staging the
+	 * selection BEFORE the edit folds it into that edit's own step, and one drag takes one Ctrl+Z.
 	 *
-	 * A keyform-sheet gesture selects and edits at once - a drag re-points the selection at the ordinals its
-	 * keys landed on, an empty-track press drops the selection and scrubs - and they are one gesture, so
-	 * they are one entry.  [snapshot] defaults every field it is not given to live state, so staging the
-	 * selection BEFORE the edit folds it into that edit's own step.  Recording both would make one drag take
-	 * two presses of Ctrl+Z to reverse.
-	 *
-	 * STAGE, EDIT, CONFIRM - every caller runs all three.  The edit may decline to record anything (a drag
-	 * clamped to zero, a scrub that ended where it began, a move onto a key's own value), and a stage that
-	 * reached no snapshot is a selection change undo cannot see.  So the gesture ends by calling
-	 * [setKeySelection] with the same selection: that compares against history rather than against the live
-	 * flow, so it is a no-op when the edit's push already carried the selection and records a step of its
-	 * own when it did not.  Staging without confirming is a bug, not a shortcut.
+	 * STAGE, EDIT, CONFIRM - every caller runs all three.  The edit may record nothing (a drag clamped to zero,
+	 * a scrub that ended where it began), and a stage that reached no snapshot is a selection change undo cannot
+	 * see, so the gesture ends with [setKeySelection] on the same selection, which records a step only when the
+	 * edit's push did not carry it.  Staging without confirming is a bug, not a shortcut.
 	 *
 	 * @param Set<TrackKeyRef> keySelection The new key selection.
 	 */
@@ -975,19 +924,12 @@ class EditorSession private constructor(
 	}
 
 	/**
-	 * Selects [keySelection] and moves the pose to [pose] as ONE undo step, named for the selection.
+	 * Selects [keySelection] and moves the pose to [landedPose] as ONE undo step named for the selection - a
+	 * click on a keyform-sheet mark, where the pose moving is the consequence of selecting the key.
 	 *
-	 * Clicking a mark in the keyform sheet does both - it selects the key and lands the pose exactly on it -
-	 * and they are one gesture, so they are one entry.  Naming it for the selection rather than for the
-	 * scrub is what makes the history read as what the user did: they clicked a keyframe, and the pose
-	 * moving is the consequence.
-	 *
-	 * Recorded even when the pose does not move (clicking a key the pose already sits on), which is why this
-	 * exists rather than staging the selection and letting a pose commit carry it: the pose commit
-	 * short-circuits on an unchanged pose, and the selection would then vanish from history entirely.
-	 *
-	 * While the pose is pinned ([posePinned]) the click selects and the pose stays: selecting a key is a
-	 * selection, which Edit mode allows, and landing on it is a pose move, which it does not.
+	 * Recorded even when the pose does not move, which a staged selection carried by a pose commit would not
+	 * be, since that commit short-circuits on an unchanged pose.  While the pose is pinned ([posePinned]) the
+	 * click selects and the pose stays.
 	 *
 	 * @param Set<TrackKeyRef> keySelection The keys the click selected.
 	 * @param Pose landedPose The pose the click landed on, which is taken only while the pose is free to move.
@@ -1100,8 +1042,6 @@ class EditorSession private constructor(
 
 	/**
 	 * Restores every session flow from [snapshot] - the history mechanism behind undo, redo, and jumpTo.
-	 * Also updates the remembered active owner and tears down all transient tool state (see the inline
-	 * comment), publishes the snapshot through [publish], and republishes the derived flags.
 	 *
 	 * @param EditorSnapshot snapshot The history snapshot to restore.
 	 */

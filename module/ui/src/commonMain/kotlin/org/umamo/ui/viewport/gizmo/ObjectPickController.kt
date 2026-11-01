@@ -68,11 +68,8 @@ internal fun resolveAltOverlapPick(candidates: List<ObjectPickCandidate>): AltPi
 	}
 
 /**
- * Resolves a finished box drag against the object selection: additive (Shift) keeps the current targets
- * and adds the enclosed ones, the last one becoming active (or the current active surviving when the
- * box enclosed nothing); plain replaces the selection with the enclosed set.  One rule for every surface
- * that boxes whole objects - the viewport's drawables and warps by their centers, the UV editor's drawables
- * by any island vertex.
+ * Resolves a finished box drag against the object selection, additive (Shift) or replacing: the one rule
+ * for every surface that boxes whole objects.
  *
  * @param Selection current The committed object selection.
  * @param List<SelectionTarget> enclosed The enclosed, selectable targets in enclosure order.
@@ -113,12 +110,10 @@ internal fun selectableDeformerTargets(ids: Iterable<DeformerId>, model: PuppetM
 	ids.map { deformerId -> SelectionTarget.Deformer(deformerId) }.filter { target -> model.selectableOf(target) }
 
 /**
- * The marquee (box + circle) machinery over whole objects, for every surface that selects objects: the
- * stroke is seeded from and committed to the session's object selection, the wheel resizes the session's
- * brush, and a right-click inside the circle tool leaves it.  What differs per surface passes in: how a
- * stamp paints, how a finished box applies, and the viewport's snapshot and GPU tint.  The stamp has no
- * default on purpose - an identity default would quietly turn a new surface's circle tool into a no-op -
- * and the preview never defaults to the session's tint, which only the viewport publishes.
+ * The marquee (box + circle) machinery over the session's object selection, for every surface that selects
+ * whole objects.  The stamp has no default on purpose - an identity default would quietly turn a new
+ * surface's circle tool into a no-op - and the preview never defaults to the session's tint, which only the
+ * viewport publishes.
  *
  * @param EditorSession session The session owning the object selection and the armed tool.
  * @param Function stampStroke Applies one brush stamp (working, erasing, center, radiusPx, camera, size).
@@ -149,14 +144,8 @@ internal fun objectMarquee(
 /**
  * The object-selecting surfaces' pointer flow, shared by the 2D viewport's Object mode and the UV editor's:
  * the box select (un-armed and armed, one flow - see BoxSelectFlow) with the object domain's click, which
- * picks on the release of a sub-threshold click (plain replaces, Shift / Ctrl toggles membership, an Alt
- * click resolves the overlap stack, an unmodified click on empty canvas clears).
- *
- * The domain seams pass in as constructor callbacks, the [MarqueeSelectController] pattern: the 2D
- * viewport binds the render service's lattice and raster pickers and the world 2D cursor; a UV object mode
- * binds its own display-space island hit tests and the UV cursor over the SAME session selection.  The
- * shared parts - the selection store and the selectable filter - read the session directly, like
- * [MeshPickController] does for the mesh-element domain.
+ * picks on the release of a sub-threshold click.  Each surface's pickers and cursor pass in as constructor
+ * callbacks over the same session selection, the [MarqueeSelectController] pattern.
  *
  * @param EditorSession session The session owning the model, the object selection, and the gesture-active flag.
  * @param MarqueeSelectController<Selection> marquee The box machinery this flow rubber-bands through.
@@ -218,9 +207,8 @@ internal class ObjectPickController(
 	}
 
 	/**
-	 * Applies the sub-threshold click: the Alt path resolves the candidate stack (2+ opens the overlap
-	 * picker, exactly one selects directly, empty leaves the selection), the plain path picks what the
-	 * surface puts first through the decision table.  Unselectable targets are excluded from both.
+	 * Applies the sub-threshold click, an Alt click resolving the candidate stack and a plain one what the
+	 * surface puts first; unselectable targets are excluded from both.
 	 *
 	 * @param Offset position The click position in area-local pixels.
 	 * @param Boolean toggleMembership True when a membership modifier (Shift / Ctrl / Meta) is held.

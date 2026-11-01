@@ -45,8 +45,6 @@ import kotlin.math.sin
  * guardrail - the pie never hardcodes a handler), so a rebind or palette invocation of the same
  * command behaves identically.
  *
- * パイメニューの1項目。コマンドレジストリ経由で実行される。
- *
  * @property String commandId The command to invoke when picked.
  * @property StringResource label The entry's localized label.
  * @property Any? argument Optional argument forwarded to the command handler.
@@ -102,11 +100,9 @@ private val PIE_ICON_PLACEHOLDER = Color(0xFFFF2BD6)
 private class PlacedPieCenter(var position: Offset)
 
 /**
- * Where one entry chip sits relative to the pie center, following Blender's pie layout rule: a chip on
- * the left half ends at its ring point and a chip on the right half starts there, so the diagonal chips
- * grow away from each other and the West / East chips away from the title; the North and South chips
- * center on their ring point horizontally and sit outside it, and every other chip centers on its ring
- * point vertically.
+ * Where one entry chip sits relative to the pie center, following Blender's pie layout rule: each chip
+ * is anchored to its ring point by its inner edge, so the chips grow outward, away from each other and
+ * from the title.
  *
  * @param Int slotIndex The entry's slot (see PIE_SLOT_ANGLES).
  * @param Int chipWidth The chip's measured width in pixels.
@@ -157,24 +153,14 @@ internal fun clampPieCenterAxis(requested: Float, extentMin: Float, extentMax: F
 
 /**
  * A Blender-style radial pie menu centered at [center]: up to eight entries on a ring, picked by
- * DIRECTION from the center (not chip bounds), so a coarse flick works as well as a precise click -
- * and the same gesture works for press-drag-release (pen-friendly; the future pen radial menu reuses
- * this component).  A click (or release) inside the dead zone, or on a disabled entry's direction,
- * dismisses without invoking.  Escape is the shell's to route (it closes the pie via the session
- * latch), and so are the 1..N instant digit picks; this composable only handles pointer input.
+ * DIRECTION from the center (not chip bounds), so a coarse flick works as well as a precise click and a
+ * press-drag-release works too.  This composable handles pointer input only; Escape and the 1..N instant
+ * digit picks are the shell's to route.
  *
- * The wedge background disc makes the direction mapping readable: each entry's sector is the exact
- * angular region the pick function resolves to it (the angular Voronoi of the used slot directions),
- * with the hovered sector highlighted; the dead zone renders as the center disc, holding [title].
- * Each chip is anchored to the ring by its inner edge (see [pieChipOffset]), so labels grow outward
- * and never cover each other or the title.
- *
- * The center is CLAMPED so the whole pie - the disc and every chip, as measured - fits inside the
- * overlay's bounds (Blender constrains its pies to the screen the same way): the whole pie shifts
- * inward rather than squishing chips at an edge, and only as far as its own labels need.  The clamp
- * lives in this layout - not in the host - because it needs the chips' measured sizes, and the
- * direction pick, the wedges, the title, and the chips must all share the one effective center or the
- * pick math desyncs from the drawing.
+ * The center is CLAMPED so the whole pie fits inside the overlay (Blender constrains its pies to the
+ * screen the same way).  The clamp lives in this layout - not in the host - because it needs the chips'
+ * measured sizes, and the direction pick, the wedges, the title, and the chips must all share the one
+ * effective center or the pick math desyncs from the drawing.
  *
  * @param List<PieMenuEntry> entries The entries, in Blender slot order (W, E, S, N, NW, NE, SW, SE).
  * @param Offset center The requested pie center in the host's local pixels (frozen at open by the

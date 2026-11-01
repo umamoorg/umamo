@@ -21,11 +21,9 @@ public data class MeshFit(val budget: Int?, val holesFilled: Boolean)
 public class FittedArtMesh(public val result: ArtMeshResult, public val fit: MeshFit?)
 
 /**
- * Meshes art under the settings asked for and, while the mesher finds it over the vertex budget, again:
- * first under a raised budget (doubled, or straight to the count the mesher reported, up to [budgetCap]),
- * then with holes filled from the asked budget up.  Art the settings cannot fit is meshed however it fits
- * rather than skipped - lace and webs whose every hole is a ring of its own, layers of many specks - and
- * a refusal for any other reason stands at once.
+ * Meshes art under the settings asked for and, while the mesher finds it over the vertex budget, again
+ * under a raised budget and then with holes filled, so art the settings cannot fit (lace and webs whose
+ * every hole is a ring of its own, layers of many specks) is meshed however it fits rather than skipped.
  *
  * @param AlphaChannel    alpha           The art's alpha.
  * @param ArtMeshSettings settings        The settings asked for.
@@ -72,10 +70,9 @@ public fun fitArtMesh(
 }
 
 /**
- * Whether a throwable is a guard inside the meshing refusing to go on - a require (an
- * IllegalArgumentException) or a check (an IllegalStateException) in the mesher, the triangulator,
- * or the transfer - which a caller turns into a skip or a notice rather than a crash.  A cancellation
- * is an IllegalStateException too and is never one: it propagates.
+ * Whether a throwable is a guard inside the meshing refusing to go on (a require or a check in the
+ * mesher, the triangulator, or the transfer), which a caller turns into a skip or a notice rather than
+ * a crash.  A cancellation is an IllegalStateException too, but always propagates.
  *
  * @return Boolean True for a guard's refusal.
  */

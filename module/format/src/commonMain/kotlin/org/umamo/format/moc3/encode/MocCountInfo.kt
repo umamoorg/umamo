@@ -10,8 +10,9 @@ import org.umamo.format.moc3.model.BlendShapeKeyform
  * totals (6-10, 14) INCLUDE the blend-shape delta rows (MOC3 §5.6: CountInfo counts the full
  * shared tables, base plus delta), and fields 23-36 carry the blend-shape and offscreen totals.
  *
- * Every total is taken from the shared context rather than recomputed, because CountInfo declares
- * the extent of tables the other producers write - a second traversal here could disagree with them.
+ * The totals of derived tables (the binding table width, the key-position extent) are taken from the
+ * shared context rather than recomputed, because CountInfo declares the extent of tables the other
+ * producers write - a second traversal here could disagree with them.
  *
  * @param MocLoweringContext context The shared lowering derivations (document, per-kind deformer
  *                                   lists, blend layout, and the keyform-grid totals).

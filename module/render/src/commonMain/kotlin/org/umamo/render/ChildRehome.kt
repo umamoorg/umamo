@@ -70,21 +70,11 @@ class ChildrenRehomed(
 }
 
 /**
- * [after] with [children] re-expressed so each rests where it rested in [before].
+ * [after] with [children] re-expressed so each rests where it rested in [before], its keyed motion keeping its
+ * on-screen size and direction.
  *
- * Each child is read in its parent's space as [before] has it and re-expressed in its parent's space as [after] has
- * it - the same parent reshaped or resized, a new parent, or none.  [after] carries every change but the children's
- * own numbers.  Per child:
- *  - a drawable: each vertex's rest point moves to where the new space reaches the same world point, every keyform
- *    and blend-shape delta is re-mapped by the local stretch there, and the base is whatever puts the rest back on
- *    the moved point.  Its canvas mesh is untouched.
- *  - a warp: every control point of every form moves the same way, about its rest lattice point.
- *  - a rotation: every form's origin moves the same way, about its rest origin, its base angle takes up the turn the
- *    new space gives it there, and its scales take up the change in the scale the new space hands it, so its world
- *    pivot, angle, and size hold.
- *
- * A child the default pose hides, one whose old or new space the default pose hides, or one the new space cannot reach
- * within [LANDING_TOLERANCE_PX] (it folds over or collapses there) keeps its numbers and is listed.
+ * [after] carries every change - the same parent reshaped or resized, a new parent, or none - but the children's own
+ * numbers.  A child that cannot be kept in place keeps its numbers and is listed in the result.
  *
  * @param PuppetModel before The model before the change.
  * @param PuppetModel after The model after it, with the children's own numbers as they were.
@@ -270,16 +260,15 @@ private class ParentChange(private val oldSpace: ParentSpaceMapping, private val
 	 * per-point linear map that carries an offset from the old space to the new one.  Null when any point cannot be
 	 * reached within [LANDING_TOLERANCE_PX] or the new space is singular there.
 	 *
-	 * The new space's inverse is seeded from the points themselves when both spaces are lattices (a reshape or a
-	 * move between warps, whose coordinates share a range), and from the new lattice's middle otherwise: an old
-	 * canvas or frame coordinate says nothing about where a point sits in a lattice.
-	 *
 	 * @param FloatArray restPoints Interleaved points in the old space's coordinates.
 	 * @return PointMoves? The moves, or null.
 	 */
 	private fun movesOf(restPoints: FloatArray): PointMoves? {
 		val pointCount = restPoints.size / 2
 		val world = oldSpace.localToWorld(restPoints)
+		// A new lattice's inverse seeds from the points themselves only when the old space is a lattice too, whose
+		// coordinates share its range: an old canvas or frame coordinate says nothing about where a point sits in a
+		// lattice.
 		val seed = if (oldSpace.isLattice || !newSpace.isLattice) restPoints else FloatArray(restPoints.size) { LATTICE_MIDDLE }
 		val moved = newSpace.worldToLocalLinearized(world, seed, (0 until pointCount).toSet())
 		val landed = newSpace.localToWorld(moved)

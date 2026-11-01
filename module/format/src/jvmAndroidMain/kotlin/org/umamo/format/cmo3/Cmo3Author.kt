@@ -76,19 +76,11 @@ public object Cmo3Author {
 	/**
 	 * Reconciles a written document's prologue PIs with the tags it actually contains.
 	 *
-	 * `Cmo3.write` replays the prologue recorded at read time, which is complete for an unedited
-	 * graph but misses any class first introduced AFTER the read - a session-created glue in a
-	 * glue-less document, or the whole created population of a fresh-graph (MOC3-origin) export.
-	 * The official reader resolves element tags through the `<?import?>` list, so a missing import
-	 * makes the file unreadable in the editor.  This pass restores the corpus invariant: the
-	 * import list is exactly one sorted FQCN per distinct non-structural tag (an import whose tag
-	 * left the document is pruned; corpus files never carry stale imports).  Version PIs are only
-	 * ever APPENDED (5.4-era documents only - the per-tag numbers are era-specific), never pruned:
-	 * corpus files do carry version PIs for classes with no matching element (BareMinimum's
-	 * ModelStateSet:1), so pruning would break replay byte-identity.
-	 *
-	 * A document whose prologue is already complete is left untouched, keeping the unedited
-	 * round trip byte-identical.
+	 * `Cmo3.write` replays the prologue recorded at read time, which misses any class first introduced
+	 * AFTER the read - a session-created glue in a glue-less document, or the whole created population
+	 * of a fresh-graph (MOC3-origin) export - and the official reader cannot resolve an element tag
+	 * missing from the `<?import?>` list.  A document whose prologue is already complete is left
+	 * untouched, keeping the unedited round trip byte-identical.
 	 *
 	 * @param Document document The written model document (mutated in place).
 	 */
@@ -113,6 +105,9 @@ public object Cmo3Author {
 				}
 				.sorted()
 
+		// Version PIs are only appended, never pruned: corpus files carry them for classes with no matching
+		// element (BareMinimum's ModelStateSet:1).  The per-tag numbers are 5.4-era, so only a 5.4 document
+		// gains any.
 		val replayedVersionNames = versionInstructions.map { it.data.trim().substringBeforeLast(':') }.toHashSet()
 		val fileFormatVersion = document.rootElement.getAttributeValue("fileFormatVersion")
 		val appendedVersions =

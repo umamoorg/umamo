@@ -38,12 +38,8 @@ internal class CoveredVertices(
 internal class WorldMedian(val worldX: Float, val worldZ: Float, val vertexCount: Int)
 
 /**
- * The covered vertices of every owner in [geometries], dropping one that has none.
- *
- * An index at or past the captured vertex count is dropped too: the selection and the model can reach a reader
- * through separate collectors, so for a moment after a duplicate or a rip the selection may name vertices the
- * captured geometry does not have.  A set needing no such drop is kept as the topology returned it, so a sum over
- * it runs in the topology's order, the one a modal transform's capture sums the same vertices in.
+ * The covered vertices of every owner in [geometries], dropping one that has none and any index past the
+ * owner's captured vertex count ([MeshTopology.coveredVertexIndicesWithin]).
  *
  * @param MeshSelection selection The mesh selection.
  * @param List<OwnerWorldGeometry> geometries The owners' captured geometry.
@@ -69,11 +65,8 @@ internal fun coveredVerticesOf(
 	}
 
 /**
- * The median as a gesture's preview has the covered vertices.  A mesh's previewed base is carried onto the captured
- * displayed shape and through the captured deformer mapping - valid while the deformer chain holds still, which Edit
- * mode's pinned pose guarantees, and cheap, because only the covered vertices are mapped; a lattice's previewed
- * points are already in world space.  An owner the preview does not move, or one whose vertex count it changed,
- * counts at its captured world position.
+ * The median of the covered vertices as a gesture's preview has moved them; an owner the preview does not
+ * move counts at its captured world position.
  *
  * @param List<CoveredVertices> covered The covered vertices, as captured from the committed model.
  * @param Map<DrawableId, MeshRestPositions> restByDrawable The preview's new rest shape per moved mesh.
@@ -93,6 +86,7 @@ internal fun coveredMedian(
 		val packed =
 			when (val geometry = owner.geometry) {
 				is DrawableWorldGeometry -> {
+					// The captured deformer mapping still holds, since Edit mode's pinned pose keeps the chain still.
 					restByDrawable[geometry.drawableId]?.localPositions
 						?.takeIf { base -> base.size == geometry.local.size }
 						?.let { previewBase -> previewedWorld(geometry, previewBase, owner.indices) }

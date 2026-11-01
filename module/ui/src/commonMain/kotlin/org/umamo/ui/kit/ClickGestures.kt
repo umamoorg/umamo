@@ -72,27 +72,16 @@ class DoubleClickTracker(private val windowMillis: Long = DOUBLE_CLICK_MILLIS) {
 }
 
 /**
- * A single- and double-click detector that fires the single-click action IMMEDIATELY on press, with no
- * wait for a possible second click.  `Modifier.clickable` and `detectTapGestures(onDoubleTap = …)` both
- * defer the single click by the platform double-tap window to disambiguate it; this does not.  It
- * dispatches [onSingle] on a primary press and, if the press is the second half of a double click (see
- * [DoubleClickTracker]), dispatches [onDouble] instead.  So a double click runs the single action once and
- * then the double action; callers rely on the double action replacing what the single one showed (e.g. an
- * inline rename field taking over a row).
+ * A single- and double-click detector that fires the single-click action IMMEDIATELY on press, where
+ * `Modifier.clickable` and `detectTapGestures(onDoubleTap = …)` defer it by the double-tap window.  A double
+ * click therefore runs the single action and then the double one; callers rely on the double action
+ * replacing what the single one showed (e.g. an inline rename field taking over a row).
  *
- * [onSingle] receives the press's keyboard modifiers.  A press holding Ctrl, Meta, or Shift, the selection
- * modifiers, always goes to [onSingle] and never takes part in a double click, so Ctrl-clicking a row twice
- * toggles it twice rather than renaming it.
- *
- * Secondary (right) presses and already-consumed presses are ignored, so a wrapping context menu still
- * opens and child controls that consume their own press are not double-handled.  Uses raw pointerInput,
- * which never requests focus, so keyboard dispatch stays on the shell root.  While [enabled] is false no
- * pointer handling is installed at all, and a press pending from before is forgotten.
- *
- * A press this handles is left unconsumed unless [consumePress] says otherwise, so whatever else listens
- * on the way up still sees it: a long-press drag on the same row needs the press it shares.  That also
- * lets a clickable ancestor take the press for a click of its own, so a control sitting inside one claims
- * its presses with [consumePress].
+ * A press holding a selection modifier (Ctrl, Meta, or Shift) always goes to [onSingle], so Ctrl-clicking a
+ * row twice toggles it twice rather than renaming it.  Secondary and already-consumed presses are ignored,
+ * so a wrapping context menu still opens, and a handled press is left unconsumed unless [consumePress] says
+ * otherwise, so a long-press drag sharing the row still sees it.  Raw pointerInput never requests focus, so
+ * keyboard dispatch stays on the shell root.
  *
  * @param Function onSingle          Called on a primary press that is not the second half of a double click.
  * @param Function onDouble          Called on a second unmodified primary press within [doubleClickMillis].

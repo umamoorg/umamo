@@ -80,12 +80,8 @@ object Cmo3Export {
 	/**
 	 * Reconciles [edited] onto [target]'s graph in place and returns the advisory report.
 	 *
-	 * The fresh-graph synthesis path (MOC3-origin -> CMO3) constructs a blank target graph and
-	 * reuses this same reconcile: an empty baseline lowers everything as created, with
-	 * [drawableTextureBindings] supplying the texture web created drawables bind to when they have
-	 * no existing source to clone (a session duplicate) - the CMO3-origin export path passes none,
-	 * and its created drawables over reconciled art bind through the bindings the atlas-web
-	 * reconcile mints instead.
+	 * The fresh-graph synthesis path reuses this same reconcile over a blank target graph, whose
+	 * empty baseline lowers everything as created.
 	 *
 	 * @param PuppetModel edited The session's current model (EditorSession.model.value - NOT the
 	 *                           document's original import, which edits never update).

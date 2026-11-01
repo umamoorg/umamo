@@ -125,8 +125,7 @@ object RotationPivotInterpolator : FormInterpolator<RotationPivotForm> {
  *
  * Scalars and colors blend; a FLAG snaps to [lower], which is the floor cell.  That matches the evaluator
  * exactly: `gridCorners` seeds a single corner and appends the lower-key split before the upper-key one,
- * so `corners[0]` is always the all-lower-key corner - and that is the corner the rotation flags already
- * read today.  A mismatched pair (two different kinds in one track) is a malformed track; [lower] wins,
+ * so `corners[0]` is always the all-lower-key corner - the one `flagAt` reads.  A mismatched pair (two different kinds in one track) is a malformed track; [lower] wins,
  * so the track keeps its own kind rather than silently changing type mid-axis.
  */
 object ChannelValueInterpolator : FormInterpolator<ChannelValue> {

@@ -21,32 +21,27 @@ private const val LATTICE_CENTRE: Float = 0.5f
  * Derives each drawable's canvas editable mesh (DrawableMesh.positions) from its default-pose geometry,
  * matching the CMO3 convention the editor is built on.
  *
- * The runtime convention (set by CMO3, verified against the corpus): DrawableMesh.positions is the
- * EDITABLE canvas-space geometry - what the atlas, the thumbnails, and a CMO3 export's editable mesh read -
- * while the keyforms and their base (DrawableMesh.localPositions) live in the drawable's PARENT-DEFORMER
- * space.  A `.moc3` stores only the parent-space keyforms, so :interop's `Moc3Import` can give a
- * warp/rotation-parented drawable nothing but its base for both arrays.  This pass finishes the import: it
- * evaluates the default pose through the validated deformer cascade (glue excluded - the weld is a
- * render-time effect, not rest geometry) and takes the pre-Y-negation canvas positions as the canvas mesh.
- * The base and every delta stay exactly as the importer measured them, so evaluation is untouched.
- * Drawables the raw default pose hides (a keyform axis whose keys do not bracket the driving parameter's
- * default - the toggle-part authoring pattern) get a second evaluation at a pose with those parameters
- * clamped into their axes' key ranges, so their canvas meshes still land in canvas space.  It lives in
- * `:render` (not `:runtime`) because it is the evaluator that turns parent-space keyforms into canvas
- * geometry.
+ * DrawableMesh.positions is the EDITABLE canvas-space geometry while the keyforms and their base
+ * (DrawableMesh.localPositions) live in the drawable's PARENT-DEFORMER space.  A `.moc3` stores only the
+ * parent-space keyforms, so :interop's `Moc3Import` gives a warp/rotation-parented drawable its base for
+ * both arrays, and this pass finishes the import; the base and every delta stay as imported, so evaluation
+ * is untouched.  It lives in `:render` because it is the evaluator that turns parent-space keyforms into
+ * canvas geometry.
  *
  * @param PuppetModel model An imported model whose canvas meshes may still be its bases (a MOC3 import).
  * @return PuppetModel The model with canvas-space canvas meshes (a drawable that stays hidden even at the
  *                     clamped pose keeps its base as its canvas mesh).
  */
 fun restMeshesToCanvasSpace(model: PuppetModel): PuppetModel {
+	// Glue is excluded: the weld is a render-time effect, not rest geometry.
 	val preGlueModel = model.copy(glues = emptyList())
 	val evaluator = CpuDeformationEvaluator()
 	val defaultPose = evaluator.evaluate(preGlueModel, emptyMap())
 
-	// Second chance for drawables absent from the raw default pose: clamp every involved parameter
-	// into its axes' key ranges and evaluate once more.  Only the still-missing drawables read from
-	// this pose, so in-range drawables keep their true default geometry.
+	// Second chance for drawables absent from the raw default pose (keys that do not bracket a driving
+	// parameter's default, the toggle-part pattern): clamp every involved parameter into its axes' key
+	// ranges and evaluate once more.  Only the still-missing drawables read from this pose, so in-range
+	// drawables keep their true default geometry.
 	val fallback = defaultPoseFallbackFor(model, defaultPose)
 	val clampedPose = fallback?.let { rescue -> evaluator.evaluate(preGlueModel, rescue.clampedDefaults) }
 
@@ -116,15 +111,8 @@ private fun defaultPoseFallbackFor(model: PuppetModel, defaultPose: DeformedGeom
 
 /**
  * The space seam for [puppet]: inverts a drawable's canvas-space rest mesh back through its
- * parent-deformer chain, at the same pose [restMeshesToCanvasSpace] mapped it forward with.
- *
- * That pose is the neutral one for most drawables - it is the pose the rest mesh is defined at, so
- * inverting there is the forward pass read backwards.  A drawable the raw default hides went forward
- * through the clamped second-chance pose instead, so it is inverted through that same clamped pose;
- * using the raw default for it would undo a transform that was never applied.
- *
- * A drawable the chain cannot map (a deformer with no lattice anywhere) returns null, for the caller to
- * report, rather than a silently mis-scaled mesh.
+ * parent-deformer chain, at the same pose [restMeshesToCanvasSpace] mapped it forward with - the neutral
+ * pose, or the clamped second-chance pose for a drawable the raw default hides.
  *
  * @param PuppetModel puppet The rig.
  * @return Function2 The seam: drawable id plus interleaved canvas-space positions to parent-space

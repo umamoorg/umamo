@@ -21,15 +21,15 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 // The MultiplyScreenColors sample's authored colors: multiply #677CD1, screen #95C068 (editor hex,
-// each channel serialized as hex / 255 in f32 on both formats - verified channel-exact in the
-// extraction, docs/plan/offscreen-support.md).
+// each channel serialized as hex / 255 in f32 on both formats - verified channel-exact against the
+// authored extraction family).
 private val AUTHORED_MULTIPLY = ColorRgb(103f / 255f, 124f / 255f, 209f / 255f)
 private val AUTHORED_SCREEN = ColorRgb(149f / 255f, 192f / 255f, 104f / 255f)
 private const val COLOR_TOLERANCE = 1e-6f
 
 /**
  * Corpus-gated offscreen ingest anchors over the authored extraction family (see
- * docs/plan/offscreen-support.md § corpus evidence): part offscreen state, clip lists, invert,
+ * docs/format/MOC3.md §5.6, Offscreens): part offscreen state, clip lists, invert,
  * static and keyformed colors, and the drawable-level extended blend + culling - on BOTH import
  * paths. Skips gracefully without the corpus.
  */

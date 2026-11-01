@@ -49,17 +49,13 @@ private val CORNER_HANDLE_SIZE_HEIGHT = 20.dp
 private val CORNER_HANDLE_SIZE_WIDTH = 15.dp
 
 /**
- * One leaf area: its header (editor-type dropdown + split/close) above the current space's content,
- * with four corner drag handles for the Blender-style join gesture.  The content is resolved from
- * [LocalSpaceRegistry] by the area's [LeafArea.space]; the [AreaScope] is remembered on the stable area
- * id so it (and any future per-space state) survives recomposition.  A thin outline delineates the area.
+ * One leaf area: its header above the current space's content, with four corner drag handles for the
+ * Blender-style join, dock, and split gesture.  The content is resolved from [LocalSpaceRegistry] by the
+ * area's [LeafArea.space].
  *
  * The leaf reports its on-screen rectangle to the shared [LocalAreaDragController] (content-local, the
  * one space the drag overlay also uses) and evicts it on dispose, so a leaf consumed by a join cleans
  * up after itself.
- *
- * 1 つの葉エリア。ヘッダ（種別ドロップダウン＋分割／閉じる）の下に現在の空間の内容を表示し、四隅に結合
- * 用のドラッグハンドルを置く。自身の矩形を共有コントローラへ報告する。
  *
  * @param LeafArea area The area to render.
  * @param Function onCommand Sink for the header's and the corner gesture's structural edits.
@@ -83,7 +79,7 @@ fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifie
 		}
 	val dragController = LocalAreaDragController.current
 
-	// The right-click context menu mirrors the header's structural actions plus a Change Editor Type
+	// The right-click context menu carries the area's structural actions plus a Change Editor Type
 	// submenu of every registered space.  Built here (in composition) so each label can be localized.
 	val contextItems =
 		listOf(
@@ -198,16 +194,14 @@ fun AreaLeaf(area: LeafArea, onCommand: (AreaCommand) -> Unit, modifier: Modifie
 
 /**
  * One corner drag handle: a small, invisible hit target showing the move cursor on hover and, on a real
- * drag, driving the shared [controller] to begin / update / end a corner join.  Pointer positions are
- * converted from this handle's local space into the controller's content-local space via the captured
- * coordinates, so the drag is tracked correctly even after the pointer leaves the handle.
- *
- * 四隅のドラッグハンドル。ホバーで移動カーソル、ドラッグで結合ジェスチャを駆動する。
+ * drag, driving the shared [controller] through a corner drag.  Pointer positions are converted from this
+ * handle's local space into the controller's content-local space via the captured coordinates, so the
+ * drag is tracked correctly even after the pointer leaves the handle.
  *
  * @param AreaDragController controller The shared corner-drag state.
- * @param String areaId The owning leaf's id (the join survivor).
+ * @param String areaId The owning leaf's id (the drag's source).
  * @param AreaCorner corner Which corner this handle is.
- * @param Function onCommand Sink for the resulting join command on release.
+ * @param Function onCommand Sink for the resulting command on release.
  */
 @Composable
 private fun BoxScope.AreaCornerHandle(

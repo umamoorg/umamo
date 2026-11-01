@@ -33,8 +33,8 @@ class RenderPlanComposite(
 
 /**
  * The per-pose render plan over the draw-order group tree: [renderOrder]'s hierarchical sort with
- * isolated group boundaries kept as [RenderPlanComposite] nodes.  Plain groups flatten away
- * exactly as before - `renderOrder` IS this plan flattened, so the two can never disagree.
+ * isolated group boundaries kept as [RenderPlanComposite] nodes.  Plain groups flatten away -
+ * `renderOrder` IS this plan flattened, so the two can never disagree.
  *
  * @param RenderGroup           root           The draw-order group tree root (`PuppetModel.renderRoot`).
  * @param Map<DrawableId,Float> drawOrder      Blended draw order per drawable (missing → the Cubism default).
@@ -104,17 +104,12 @@ fun flattenRenderPlan(nodes: List<RenderPlanNode>): List<DrawableId> {
 /**
  * The back-to-front paint order for one pose, computed hierarchically over the draw-order group tree.
  * Within each [RenderGroup] the children are stably sorted by an int sort key (a [RenderDrawable] by
- * its own quantised draw order, a sub-[RenderGroup] by the part's draw order), then emitted depth-first.
- * So a drawable's draw order only sorts it among its group siblings, and a "Group by Draw Order" part
- * moves as a unit - a child can't escape the group's slot.
+ * its own quantized draw order, a sub-[RenderGroup] by its part's draw order, which a parameter may
+ * drive), then emitted depth-first.  So a drawable's draw order only sorts it among its group siblings,
+ * and a "Group by Draw Order" part moves as a unit - a child can't escape the group's slot.
  *
  * A group-less model is one flat group of all drawables, so this reduces exactly to [paintOrder]'s global
- * sort.  Quantisation (`+0.001`→int) matches the Umamo C++ runtime and de-noises tied float draw orders
- * (see [paintOrder]).
- *
- * A sub-group's key is its part draw order, which can itself be parameter-driven ([partDrawOrders])
- * - blended per pose, quantised the same way; missing → the group's static [RenderGroup.drawOrder].
- * So whole groups swap front/back as their controlling parameters move.
+ * sort, quantization included.
  *
  * @param RenderGroup           root           The draw-order group tree root (`PuppetModel.renderRoot`).
  * @param Map<DrawableId,Float> drawOrder      Blended draw order per drawable (missing → the Cubism default).
@@ -134,7 +129,7 @@ fun renderOrder(
  * the whole model regardless of part; equal draw orders keep [baseOrder]. This mirrors how the Cubism
  * editor stacks drawables (drawOrder first, the parts tree breaking ties).
  *
- * Quantise to int before sorting: (`drawDrawOrders[i] = (int)(0.001f + drawOrder)`).
+ * Quantize to int before sorting: (`drawDrawOrders[i] = (int)(0.001f + drawOrder)`).
  * Draw order is authored as an integer (0-1000, default 500); the multilinear keyform blend
  * `Σ wᵢ·orderᵢ` only lands near an integer (float-summation gives e.g. 499.99997 vs 500.00003), so
  * sorting the raw float reshuffles drawables that should be tied - a sub-ULP-noise reorder that makes a

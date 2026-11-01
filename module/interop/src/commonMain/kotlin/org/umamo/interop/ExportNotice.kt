@@ -56,14 +56,10 @@ sealed interface ExportNotice {
 	 * fabricated source document - the whole file, for a MOC3-origin document, which has no source
 	 * artwork at all.
 	 *
-	 * A CMO3 is organised around the layered art it was imported from; a MOC3 carries only packed
-	 * atlas pages, so the export reconstructs a stand-in source document by slicing each drawable's
-	 * patch back out of the atlas.  The result opens and renders in the official Cubism Editor, and
-	 * switches between its layered-art and texture-atlas display modes - but every layer in it is a
-	 * slice of a baked page, not the artwork the rig was drawn from.  What that costs is editable
-	 * art: the layers cannot be redrawn upstream and refreshed, and their quality is capped by the
-	 * page they were cut from.  Reconciling the ORIGINAL layered art (PSD/CLIP/KRA) into the
-	 * document is what replaces them with the real thing.
+	 * The stand-in slices each drawable's patch back out of the atlas pages, so the file opens and
+	 * renders in the official Cubism Editor, but its layers cannot be redrawn upstream and refreshed,
+	 * and their quality is capped by the page they were cut from.  Reconciling the original layered art
+	 * (PSD/CLIP/KRA) into the document replaces them.
 	 *
 	 * @property Int pageCount The number of atlas pages the stand-in source was built from.
 	 */
@@ -112,11 +108,9 @@ fun describeExportNotice(notice: ExportNotice): String =
  * The kind of thing an [ExportNotice.UnsupportedChange] is about, naming the panel a rigger would
  * look in to find it.
  *
- * An enum rather than the free text it replaces: the vocabulary was previously documented in a
- * comment and enforced by nothing, so a typo produced a category no reader recognized, and the label
- * could not be localized.  [Keyform] is the odd member - a keyform is not an entity in its own right -
- * but the notice's subject there is the owning drawable or part, so the rendered line still reads as
- * a place to look.
+ * An enum so the compiler enforces the vocabulary and the label can be localized.  [Keyform] is the
+ * odd member - a keyform is not an entity in its own right - but the notice's subject there is the
+ * owning drawable or part, so the rendered line still reads as a place to look.
  */
 enum class ExportEntityCategory {
 	Parameter,
@@ -145,11 +139,8 @@ enum class ExportFormat {
 /**
  * The advisory outcome of one export: what the written file does not carry.
  *
- * The notice kinds are format-neutral because the contract is: an export ALWAYS writes, and notices
- * only say what the written file does not carry.  That holds identically for CMO3 and MOC3, so both
- * report through this rather than through parallel types the UI would have to handle twice.  The
- * [format] is what keeps the report attributable: a reader (the alert's header, a log line) has to
- * name the file family the findings are about, and no notice carries that on its own.
+ * CMO3 and MOC3 both report through this one type, so the UI handles notices once; [format] keeps the
+ * report attributable, since no notice names the file family it is about.
  *
  * @property ExportFormat format  The format the export wrote.
  * @property List         notices The findings, empty for a fully-lowered export.

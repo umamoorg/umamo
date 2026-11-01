@@ -26,13 +26,9 @@ import org.umamo.ui.viewport.gizmo.EditMeshOverlayProducer
  */
 
 /**
- * Publishes the mesh overlay to [service] for as long as it runs: derived from the mode, the brush stroke's
- * preview or else the committed mesh selection, the model, the sizes, and whether any 2D area asks for the
- * wireframe, and published whenever the derived value changes by identity (the producer hands back the
- * same instance while nothing it shows changed, so a Grab's confirm, which commits positions only,
- * publishes nothing).  The wireframe covers the model's shown drawables, the same set the renderer is
- * handed to draw, so hidden parts stay hidden; the set is walked once per model, not per derive, and not at
- * all while no area asks for the wireframe.
+ * Publishes the mesh overlay to [service] for as long as it runs, whenever the derived value changes by identity,
+ * so a Grab's confirm, which commits positions only, publishes nothing.  The wireframe covers the drawables the
+ * renderer is handed to draw, so hidden parts stay hidden.
  *
  * The derive runs on [deriveDispatcher], one input at a time with the latest winning (a selection over a
  * whole large rig costs about a tenth of a second), and the publish lands back on the caller's dispatcher.

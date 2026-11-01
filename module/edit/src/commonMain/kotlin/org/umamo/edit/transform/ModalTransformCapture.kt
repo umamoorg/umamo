@@ -128,11 +128,9 @@ class ModalTransformCapture internal constructor(
 	val owners: List<ElementOwner> get() = entries.map { entry -> entry.owner }
 
 	/**
-	 * Re-derives every mesh's proportional halo from the frozen originals.  Called on latch and again on a
-	 * mid-gesture radius or falloff change; feeding the same inputs twice is idempotent.  A straight-line halo
-	 * measures every mesh against the covered vertices of all of them, so it reaches nearby geometry in
-	 * another mesh, a bystander included; Connected Only measures each mesh along its own edges from its own
-	 * covered vertices, so it never leaves the mesh and leaves a bystander where it is (Blender's rule).
+	 * Re-derives every mesh's proportional halo from the frozen originals, on latch and again on a mid-gesture
+	 * radius or falloff change.  A straight-line halo reaches across meshes, a bystander included, while
+	 * Connected Only never leaves its own mesh (Blender's rule).
 	 *
 	 * @param ProportionalEditState? state The proportional configuration, or null to clear the halos.
 	 * @param Float radius The influence radius in the gesture space's units (unused when [state] is null).
@@ -161,17 +159,9 @@ class ModalTransformCapture internal constructor(
 
 /**
  * Builds a [ModalTransformCapture] from the meshes a gesture will move, resolving the shared anchor and each
- * mesh's pivot groups per the active [pivotMode].
- *
- * This owns exactly the part every overlay duplicated: the covered-vertex mean across the meshes, the
- * fallback policy (Active Element and Cursor both fall back to the median when their anchor is absent), and
- * the per-mesh group derivation.  What differs between overlays stays with the caller and arrives
- * pre-resolved: [activeAnchor] (each overlay finds its active element / drawable differently) and
- * [cursorAnchor] (each reads a different cursor, in a different space).
- *
- * The caller offers every mesh in the edit, so the split between moving meshes and bystanders is made here,
- * once, for every overlay: a source with covered vertices gets its pivot groups, and one with none joins after
- * them with no groups, so only a straight-line proportional halo reaching it from the selection moves it.
+ * mesh's pivot groups per the active [pivotMode], shared by every gizmo overlay.  What differs between the
+ * overlays arrives pre-resolved as [activeAnchor] and [cursorAnchor]; a source with no covered vertices
+ * becomes a bystander that only a straight-line proportional halo can move.
  *
  * @param List<ModalCaptureSource> sources The meshes offered, their positions in one shared space.
  * @param TransformPivotMode pivotMode The active pivot mode (which anchor, and single vs per-island groups).

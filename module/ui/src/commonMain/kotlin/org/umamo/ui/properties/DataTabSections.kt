@@ -672,13 +672,9 @@ internal fun dataTabIcon(context: PropertyContext): UmamoIcon =
 	}
 
 /**
- * One keyable COLOR channel's field row: the label, the hex field with its keyed tint, the
- * track-resolved display value, and the keyed-goes-pending edit routing.
- *
- * ONE composable for every color channel row - drawable or part, multiply or screen - rather than the
- * routing rule hand-copied per row: a rule duplicated across every row is exactly the kind of thing that
- * drifts, and a row missing it writes a static the track shadows, so the edit appears to be silently
- * rejected.
+ * One keyable color channel's field row, shared by every color channel row so the keyed-goes-pending edit
+ * routing is never hand-copied: a row missing it would write a static the track shadows, and the edit would
+ * appear to be silently rejected.
  *
  * @param String label The row's field label.
  * @param String description What the channel does, as the label's tooltip.
@@ -833,8 +829,7 @@ private fun WarpLatticeKeyRow(
  *
  * Shared by both subtypes because both carry them and both cascade them.  Listed FIRST in the section, so
  * the channels a rigger keys sit above the structural fields (lattice dimensions, base angle) that are set
- * once and left alone.  Opacity is always shown; the two color rows are each gated on [target] supporting
- * their feature, so the result can be fewer than three rows.
+ * once and left alone.
  *
  * @param Deformer deformer The deformer the rows edit.
  * @param EditorSession? session The open document's session, or null.

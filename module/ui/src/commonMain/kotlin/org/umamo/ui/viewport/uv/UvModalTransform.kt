@@ -71,12 +71,9 @@ internal abstract class UvModalTransform<TCapture>(
 	open fun end(): Boolean = gesture.end()
 
 	/**
-	 * Ends the gesture because the overlay is leaving composition mid-gesture: the mode changed, the area
-	 * closed, the area lost its camera, or the shown surface stopped holding anything to edit.  The latch
-	 * effect is cancelled with the overlay and never runs its teardown, so this does it instead.  The latch is
-	 * cleared while it is still this area's - a mode switch has cleared it already, and a latch another area
-	 * holds is not this one's to clear - so no gesture is left latched to an overlay that cannot drive it,
-	 * and none restarts from a fresh gesture state when the overlay comes back.
+	 * Ends the gesture because the overlay is leaving composition mid-gesture, standing in for the teardown
+	 * of the latch effect cancelled with it.  The latch is cleared only while it is still this area's, so no
+	 * gesture is left latched to an overlay that cannot drive it.
 	 *
 	 * @return Boolean True when a gesture was in flight, so the caller restores whatever it previewed.
 	 */

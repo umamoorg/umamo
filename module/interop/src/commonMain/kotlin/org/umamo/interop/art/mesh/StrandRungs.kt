@@ -239,11 +239,8 @@ private fun chordsOf(branch: AxisBranch, samples: AxisSamples, field: AlphaField
 }
 
 /**
- * The runs of a branch's chords over art narrower than the cutoff, at least two chords long.  A
- * stretch of wider chords joins the runs around it when it is too short for an inner ring of its own
- * and under twice the cutoff - between two runs, or between a run and a tip.  A loop narrow all the way
- * around is one closed run; otherwise a loop's runs are read from after a wide chord, so none is cut in
- * two at the loop's start.
+ * The runs of a branch's chords over art narrower than the cutoff, at least two chords long, a short
+ * wider stretch between them joining the runs around it ([absorbShortWideStretches]).
  *
  * @param AxisBranch        branch          The branch.
  * @param List<StrandChord> chords          Its chords.
@@ -269,11 +266,9 @@ private fun narrowRuns(branch: AxisBranch, chords: List<StrandChord>, cutoff: Do
 }
 
 /**
- * Marks narrow every stretch of wider chords that is short enough to join the runs around it: under
- * one and a half interior spacings along the axis (an inner ring around it would be under three
- * spacings, which no inner ring keeps), every chord measured and under twice the cutoff, with a narrow
- * chord on one side and on the other a narrow chord or the branch's tip.  Around a loop the stretches
- * wrap.
+ * Marks narrow every stretch of wider chords short enough to join the runs around it, between narrow
+ * chords or a narrow chord and the branch's tip.  Under one and a half interior spacings along the axis,
+ * an inner ring around the stretch would be under three spacings, which no inner ring keeps.
  *
  * @param AxisBranch        branch          The branch.
  * @param List<StrandChord> chords          Its chords.

@@ -169,9 +169,8 @@ internal object UmaPuppetEntry {
 	/**
 	 * The reader of a cell's identity in [grid] (UMA §4.7): the key value the cell sits at on each axis, named by the
 	 * axis's parameter and in parameter order, so a key added before the cell or a reordering of the axes leaves it
-	 * the same cell.  A repeated key is told apart by its position among the keys equal to it.  The axes are read once
-	 * per grid; a cell whose coordinate does not resolve through them has no identity, which the shape rules report
-	 * first.
+	 * the same cell.  A repeated key is told apart by its position among the keys equal to it.  A cell whose coordinate
+	 * does not resolve through the axes has no identity, which the shape rules report first.
 	 *
 	 * @param JsonObject grid The grid holding the cells.
 	 * @return Function The identity reader.

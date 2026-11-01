@@ -80,21 +80,14 @@ private const val NUMBER_FIELD_FILL_ALPHA = 0.30f
  * NumberField and a SelectField line up.  Pinned (rather than content-driven) so the display and type-in
  * faces do not jump when swapping, and so the edge chevrons' fillMaxHeight has a bounded constraint to fill
  * - a scroll container hands children an unbounded max height, under which fillMaxHeight collapses to the
- * glyph.  With no vertical padding on the inner content, the box's fixed height plus center alignment
- * position the single text line, so the glyph is never clipped by a competing content height.
+ * glyph.
  */
 private val NUMBER_FIELD_HEIGHT = FIELD_CONTROL_HEIGHT
 
 /**
- * A compact numeric field for a scalar [value], clamped to [range].  Blender-style: the field shows the
- * value while idle; a quick click enters type-in mode; a horizontal drag past the touch slop scrubs the
- * value (previewed live, committed once on release); hovering reveals decrement / increment chevrons that
- * step by [step].  When [range] is a usable finite span a left-to-right magnitude fill tracks where the
- * value sits in it.  Commits (type-in confirm, chevron step, drag release) each fire [onValueChange] once
- * with the value rounded to [decimals] places and clamped to [range]; a whole scrub is one commit, so a
- * caller can treat it as one undo step.
- *
- * 数値入力欄。クリックで入力、ドラッグでスクラブ、ホバーで増減シェブロン。範囲が有限なら塗りで大きさを示す。
+ * A compact numeric field for a scalar [value], clamped to [range], in Blender's style: click to type, drag
+ * to scrub, hover for step chevrons, and a magnitude fill over a finite range.  Each commit fires
+ * [onValueChange] once, and a whole scrub is one commit, so a caller can treat it as one undo step.
  *
  * @param Float value The current value, shown when not being edited.
  * @param Function onValueChange Called with the committed value (rounded to [decimals] and clamped to [range]).
@@ -153,12 +146,8 @@ fun NumberField(
 }
 
 /**
- * Integer variant of [NumberField]: shows and commits a whole number (a typed decimal or non-number is
- * rejected).  Same Blender-style interaction - click to type, drag to scrub, hover chevrons - stepping by
- * [step].  The magnitude fill draws only for a genuinely bounded range: a half-open sanity clamp such as
- * `0..Int.MAX_VALUE` reads as unbounded and shows no fill.
- *
- * 整数版の数値入力欄。クリックで入力、ドラッグでスクラブ、ホバーで増減。両端が有限のときだけ塗りを描く。
+ * Integer variant of [NumberField]: shows and commits a whole number, rejecting a typed decimal or
+ * non-number.
  *
  * @param Int value The current value, shown when not being edited.
  * @param Function onValueChange Called with the committed value (clamped to [range]).
@@ -218,11 +207,8 @@ fun NumberField(
 
 /**
  * The shared engine behind both [NumberField] overloads, working in Float and delegating type-specific
- * formatting / parsing / rounding to the overload via [format], [parse], and [onCommit].  Holds the two
- * interaction states: a display face (tap to edit, drag to scrub, hover chevrons, magnitude fill) and the
- * type-in editor swapped in while editing.  A scrub previews locally (nothing commits per frame) and
- * commits once on release; a cancelled scrub - Escape through the shell's seam, or a gesture dropped by an
- * unmount - commits nothing and returns the field to [value]; [plain] skips straight to a bare type-in box.
+ * formatting / parsing / rounding to the overload via [format], [parse], and [onCommit].  Swaps between the
+ * display face and the type-in editor; [plain] skips straight to a bare type-in box.
  *
  * @param Float value The current value (the source of truth while idle).
  * @param ClosedFloatingPointRange range The clamp range.
@@ -266,7 +252,7 @@ private fun NumberFieldCore(
 	}
 
 	if (plain) {
-		// The simple field: a bare type-in box, matching the pre-upgrade behavior (no scrub / chevrons / fill).
+		// The simple field: a bare type-in box (no scrub / chevrons / fill).
 		// Disabled, it degrades to the same inert display face the rich field uses, so both faces read alike.
 		if (enabled) {
 			NumberEntryField(
@@ -409,13 +395,9 @@ private class ScrubGesture {
 }
 
 /**
- * The idle display face of a [NumberField]: a box showing [text] (plus an optional [unitSuffix]) over a
- * left-to-right accent magnitude fill, with decrement / increment chevrons that fade in on hover.
- * A quick tap enters type-in mode ([onTapToEdit]); a horizontal drag past the touch slop scrubs
- * ([onScrubStart] / [onScrub] with the total delta from the gesture start / [onScrubEnd], or
- * [onScrubCancel] when the gesture is dropped rather than released).  The two pointer handlers are
- * separate inputs like [Slider], and callbacks are read through [rememberUpdatedState] so a reused row
- * slot always drives the current field.
+ * The idle display face of a [NumberField]: [text] over a left-to-right accent magnitude fill, with step
+ * chevrons that appear on hover.  Callbacks are read through [rememberUpdatedState] so a reused row slot
+ * always drives the current field.
  *
  * @param String text The formatted value to show.
  * @param String? unitSuffix An optional trailing unit, or null.
@@ -467,7 +449,7 @@ private fun NumberFieldDisplay(
 				.background(if (hovered && enabled) colors.controlBackgroundHover else colors.controlBackground)
 				// The keyed tint layers OVER the fill rather than replacing it, which is what keeps hover
 				// working on a keyed field: the base below changes, the translucent tint above does not.  An
-				// unkeyed field paints nothing extra and looks exactly as it did.
+				// unkeyed field paints nothing extra.
 				.background(keyState.backgroundTint(colors) ?: Color.Transparent, shape)
 				.then(
 					if (!enabled) {
@@ -549,11 +531,9 @@ private fun NumberFieldDisplay(
 }
 
 /**
- * A decrement / increment chevron shown on the idle field's edge while hovered: a full-height edge button
- * with its own control-fill background (brightening on hover) so the glyph stays legible over the value
- * text and the magnitude fill behind it.  Its square outer corners are clipped to the field's rounded
- * shape by the parent.  A pointer convenience over the field's type-in, so it carries no accessibility
- * label of its own.
+ * A decrement / increment chevron on the idle field's edge while hovered, with its own control fill so the
+ * glyph stays legible over the value and the magnitude fill.  A pointer convenience over the field's
+ * type-in, so it carries no accessibility label of its own.
  *
  * @param UmamoIcon icon The chevron glyph (left = decrement, right = increment).
  * @param Function onClick Steps the value one increment.
@@ -591,12 +571,9 @@ private fun StepChevron(icon: UmamoIcon, onClick: () -> Unit, modifier: Modifier
 }
 
 /**
- * The single-line type-in editor: a [BasicTextField] showing [display] while idle and letting the user
- * type a replacement, committing the raw text to [commit] on Enter or focus loss and discarding on Escape.
- * When [autoFocus] is set it grabs focus on first composition (the field just swapped into edit mode) and
- * calls [onFocusLost] when focus leaves, so the host can swap the display face back in.  It lends its
- * cancel hook to [LocalInlineEditController] while focused so the shell routes Escape here and yields
- * shortcut keys (Space, digits, minus) to the field.
+ * The single-line type-in editor, committing the raw text to [commit] on Enter or focus loss and
+ * discarding it on Escape.  It lends its cancel hook to [LocalInlineEditController] while focused so the
+ * shell routes Escape here and yields shortcut keys (Space, digits, minus) to the field.
  *
  * @param String display The formatted external value, shown while idle.
  * @param Shape shape The field's (stack-aware) corner shape.
@@ -656,8 +633,8 @@ private fun NumberEntryField(
 	// The visual box carries the fixed height, fill, and border so it matches the display face exactly (no
 	// jump on click); the inner text field wraps its own line height and the box centers it, with horizontal
 	// padding only - the same "let the fixed box own the height" approach the display face uses.  That
-	// promise includes the KEYED tint: without it, clicking a keyed field to type flashed the whole box back
-	// to the plain fill for the length of the edit.
+	// promise includes the KEYED tint: without it, clicking a keyed field to type would flash the whole box
+	// back to the plain fill for the length of the edit.
 	TextEditContextMenuArea(value = text, onValueChange = { edited -> text = edited }) { gesture ->
 		Box(
 			modifier =

@@ -98,6 +98,7 @@ private class TrackedSource(
  * @param Function       mode           The watch mode, read live at each decision.
  * @param Long           settleMillis   How long after the last event a file is left alone before it is hashed.
  * @param Long           idlePollMillis How often the idle gate is re-asked while a reload waits.
+ * @param Function       modifiedAtOf   The modification time (epoch milliseconds) of the file at a path, or null when unknown.
  */
 class SourceWatchCoordinator(
 	private val scope: CoroutineScope,
@@ -225,9 +226,8 @@ class SourceWatchCoordinator(
 	}
 
 	/**
-	 * Waits for the writes to stop, then reads the file's hash and decides: unreadable while present
-	 * means the editor is still writing (wait again, up to a limit), absent means missing, a hash the
-	 * document already holds or already acknowledged means nothing to do, and anything else is a change.
+	 * Waits for the writes to stop, then reads the file's hash and hands it to [decide]; a file unreadable
+	 * while present is still being written, so it waits again, up to a limit.
 	 *
 	 * @param TrackedSource entry The file.
 	 */
@@ -320,15 +320,9 @@ class SourceWatchCoordinator(
 	}
 
 	/**
-	 * The one-time check a newly tracked file gets: its disk hash against the recorded one - or, for a
-	 * file the document recorded no hash for (a CMO3-origin source), its modification time against the
-	 * recorded one - so a file edited while the document was closed is reported before anyone asks.
-	 * Batched per track call.  The hash is the surer signal and wins wherever it exists; a time can move
-	 * with no change in the bytes, which a reload then finds and acknowledges.
-	 *
-	 * Each file is hashed only once its watch is armed: the watcher's baseline stamp then precedes the
-	 * hash, so a save landing between the two reads as a change against that stamp on the next tick
-	 * instead of becoming the stamp and going unreported.
+	 * The one-time check newly tracked files get against what the document recorded ([isStaleAtOpen]), so
+	 * a file edited while the document was closed is reported before anyone asks.  A modification time can
+	 * move with no change in the bytes, which a reload then finds and acknowledges.
 	 *
 	 * @param List<TrackedSource> entries The files that just began tracking.
 	 */
@@ -336,6 +330,8 @@ class SourceWatchCoordinator(
 		val stale = LinkedHashSet<ArtSourceId>()
 
 		for (entry in entries) {
+			// The watcher's baseline stamp must precede the hash, so a save landing between the two reads as
+			// a change against that stamp on the next tick instead of becoming the stamp and going unreported.
 			entry.handle.awaitArmed()
 
 			if (!tracked.containsValue(entry)) {

@@ -37,12 +37,8 @@ private const val REGION_DRAG_THRESHOLD_PX = 3f
  * The Zoom Region overlay (Blender's Shift+B): a mode-agnostic top-level layer over the puppet image that,
  * while armed for this area, shows full-viewport crosshair guides and rubber-bands a box; on release it
  * frames that box into the viewport ([PuppetViewportService.zoomToRegion]).  Mounted above the Edit-mode
- * gizmo overlay so it captures the drag in Edit mode too, and self-gated on [SessionToolLatches.zoomRegionArmedArea]
- * matching this [areaId] so only the armed area is live - every other area (and the unarmed state) composes
- * nothing here and passes pointer input through to the gizmo / navigation layers beneath.
- *
- * The crosshair cursor and dashed guides are drawn (the OS cursor is hidden while armed), so the affordance
- * matches the armed Box-select tool; the two share [drawCrosshairGuides].
+ * gizmo overlay so it captures the drag in Edit mode too; every area but the armed one composes nothing
+ * here and passes pointer input through to the gizmo / navigation layers beneath.
  *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (for the zoom-to-region call).

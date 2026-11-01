@@ -9,14 +9,10 @@ import org.umamo.runtime.model.PuppetModel
 
 /**
  * Resolves the local<->world mappings and the posed local shapes of MANY drawables at one (model,
- * pose), sharing everything that is a property of the pair rather than of a drawable: the parameter
- * defaults, the drawable index, and the deformer worlds, which bake once on the first parented request
- * and never for a batch of direct drawables.  Per drawable the answers are exactly what
- * [drawableSpaceMapping] and [drawableLocalPosed] give, because both halves run the same code
- * ([mappingOver], [localPosedOver]) and the worlds come from the same [buildDeformerWorlds] call the
- * single functions make (the pose and the defaults from one [PoseParameters], no channel overrides), so a
- * batch cannot answer differently from a single call.  Blend shapes measure from the defaults there, as
- * the renderer's own bake measures them, so the worlds are where the viewport draws the rig.
+ * pose), sharing everything that is a property of the pair rather than of a drawable.  Per drawable the
+ * answers are exactly what [drawableSpaceMapping] and [drawableLocalPosed] give: both halves run the same
+ * code ([mappingOver], [localPosedOver]) over worlds from the same [buildDeformerWorlds] call, so a batch
+ * cannot answer differently from a single call.
  *
  * One resolver per batch is the whole point.  A loop over the single functions rebakes every deformer
  * world per drawable - 1330 x 623 on modelF, seconds per Edit-mode commit or Object-mode latch over

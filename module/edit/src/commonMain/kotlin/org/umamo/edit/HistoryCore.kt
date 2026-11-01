@@ -111,10 +111,8 @@ internal class HistoryCore(initialSnapshot: EditorSnapshot, initialHistoryLimit:
 	 * instance becomes the panel's saved marker.
 	 *
 	 * The entry is found by the model's identity rather than taken to be the live one, because a save
-	 * snapshots the model and writes off-thread: an edit landed while the file was being written makes a
-	 * newer entry live, and that entry was never persisted.  Dirty then stays true (the live model is not
-	 * the saved instance) and the marker sits on the row that was.  A model no entry holds any more (the
-	 * step was trimmed) falls back to the live entry.
+	 * writes off-thread and an edit landed meanwhile makes a newer, never-persisted entry live.  A model no
+	 * entry holds any more (the step was trimmed) falls back to the live entry.
 	 *
 	 * @param PuppetModel model The model instance just persisted.
 	 */

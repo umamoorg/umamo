@@ -26,13 +26,8 @@ import org.umamo.ui.theme.LocalUmamoTypography
 
 /**
  * The logs space: the retained UmamoLog output as a scrolling console, so a user who launched without a
- * terminal (a desktop shortcut, or Android) can still read the diagnostics.  Each line is tinted by
- * severity - routine info is de-emphasised, a warning reads at full weight, and an error is accented -
- * escalating with the flat palette's existing tokens rather than introducing semantic colors.
- *
- * The list follows the tail as new lines arrive, but only while the user is already at the bottom, so
- * scrolling up to read history is never fought (the same restraint HistorySpace uses for its cursor).
- * It reads no document state - logs exist from startup, before and independent of any open puppet.
+ * terminal (a desktop shortcut, or Android) can still read the diagnostics.  It reads no document state -
+ * logs exist from startup, before and independent of any open puppet.
  *
  * @param Modifier modifier The layout modifier.
  */

@@ -38,17 +38,9 @@ import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 
 /**
- * The Help → Credits dialog: the bundled CREDITS.md (the single consolidated home of credits and
- * third-party license attributions) rendered as a scrollable sheet, in the same scrim-plus-card
- * modal family as the settings window.  The file is read from the build-time-bundled compose
- * resource, so editing the repo-root CREDITS.md and rebuilding is the whole update path.
- *
- * The rendering is deliberately line-based, not a Markdown engine: headings get title styles, the
- * fenced license block gets monospace, everything else is body text - sufficient for this one
- * document and nothing more to maintain.
- *
- * クレジットダイアログ。ビルド時に同梱した CREDITS.md をスクロール表示する（Markdown エンジンは使わず、
- * 行単位の簡易整形のみ）。
+ * The Help → Credits dialog: the bundled CREDITS.md (credits and third-party license attributions) as a
+ * scrollable sheet.  The file is a build-time Compose resource, so editing the repo-root CREDITS.md and
+ * rebuilding is the whole update path.
  *
  * @param Function onDismiss Closes the dialog (Escape is routed here by the shell; also the scrim / close button).
  */
@@ -105,10 +97,8 @@ fun CreditsDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * Renders the credits text line by line: "# " and "## " headings get title/label styles (with
- * breathing room above subsections), ``` fences toggle a monospace style for the embedded license
- * block (the fence lines themselves are dropped), blank lines become spacers, and everything else is
- * small body text.
+ * Renders the credits text line by line - headings, the fenced license block in monospace, and body
+ * text - deliberately not a Markdown engine, since this one document needs nothing more.
  *
  * @param String text The full CREDITS.md contents.
  */

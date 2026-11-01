@@ -60,12 +60,8 @@ suspend fun loadAppSettings(storage: AppStorage): Settings = Settings.load(stora
 
 /**
  * Seeds what a first run decides before anything is shown: the UI language, matched from the operating
- * system's preferred languages (English when none has a catalog).  Runs only when no user settings file was
- * found at load, so a language the rigger chose is never overridden.
- *
- * The match is written even when it is English: it pins the language the app first opened in, and it creates
- * the user file, so the next launch finds settings and does not treat itself as a first run.  The Quick Setup
- * modal a first run opens then shows this language already selected.
+ * system's preferred languages.  The match is written even when it is English, so it creates the user file
+ * and the next launch does not treat itself as a first run.
  *
  * @param Settings settings   The freshly loaded settings.
  * @param List     systemTags The operating system's preferred language tags, most preferred first.

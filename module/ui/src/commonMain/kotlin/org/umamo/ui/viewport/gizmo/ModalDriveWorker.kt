@@ -52,9 +52,8 @@ internal fun ModalDriveEffect(worker: ModalDriveWorker<*, *>) {
  * One modal transform's drive: requests submitted on the UI thread, computed off it, published back on it.
  *
  * The rules, all kept on the UI thread so no field needs a lock:
- *  - The latest request wins: submitted requests ride a conflated channel, the worker computes one at a
- *    time, and it skips a request a newer one has already superseded by the time it gets to it, so at most
- *    one compute is in flight and a burst of pointer events costs one compute, not one each.
+ *  - The latest request wins: at most one compute is in flight, and a burst of pointer events costs one
+ *    compute, not one each.
  *  - A result publishes only while its gesture is the current one ([ModalGestureState.epoch], bumped as a
  *    gesture begins and ends) and nothing newer has published, so a result landing after a cancel, a
  *    teardown's resync, or a confirm is dropped.
@@ -223,10 +222,9 @@ internal suspend fun <TItem, TResult> mapInBalancedChunks(
 }
 
 /**
- * Plans [items] into contiguous runs of roughly equal total weight.  The chunk weight is the larger of
- * [minChunkWeight] and the total over [targetChunks], so a light load is one run, and a heavy one splits into
- * about [targetChunks] pieces a dispatcher can balance over its threads (common code has no core count to
- * size them by).  A run closes as its weight reaches the chunk weight; the last takes what is left.
+ * Plans [items] into contiguous runs of roughly equal total weight: one run for a light load, about
+ * [targetChunks] for a heavy one, a count a dispatcher can balance over its threads (common code has no
+ * core count to size them by).
  *
  * @param List<TItem> items The items.
  * @param Function weightOf An item's cost.

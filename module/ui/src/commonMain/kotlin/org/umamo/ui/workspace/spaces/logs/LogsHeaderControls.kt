@@ -17,24 +17,17 @@ import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 
 /**
- * The logs panel's area-header controls (mounted via SpaceDescriptor.headerContent): a flexible gap
- * then two trailing buttons - Copy the whole log to the clipboard, and Export it to a file.  Unlike the
- * parameter/outliner headers this never early-returns on a missing document: the log exists from startup,
- * independent of any open puppet, so its controls are always live.
+ * The logs panel's area-header controls: a flexible gap, then Copy the whole log to the clipboard and Export
+ * it to a file.  The log exists from startup, independent of any open puppet, so the controls are always live.
  *
- * Copy stays an inline handler (the clipboard is a composition-local reachable here) rather than a
- * registry command - the same direct-manipulation rationale parametersHeaderControls documents, since no
- * shortcut or menu needs to reach it.  Export is the registry command logs.export instead: the shell that
- * mounts this header holds the FilePicker the write goes through, and dispatching the command reaches it
- * without the header taking a picker of its own - and puts the export in the palette.
- *
- * Copy and Export ride one item so the pair collapses together: they are the same "do something with
- * this log" affordance, and splitting them across the strip and the overflow panel would read as noise.
+ * Copy stays an inline handler because the clipboard is a composition-local reachable here and no shortcut
+ * or menu needs it.  Export is the registry command logs.export because the shell that mounts this header
+ * holds the FilePicker the write goes through.  The two ride one item so the pair collapses together.
  */
 internal fun OverflowRowScope.logsHeaderControls() {
 	flexibleSpace()
 	item("logTools") {
-		// LocalClipboardManager / setText are deprecated in favour of the suspend LocalClipboard, but the
+		// LocalClipboardManager / setText are deprecated in favor of the suspend LocalClipboard, but the
 		// replacement needs a platform-built ClipEntry and a coroutine scope - overkill for a one-shot button.
 		@Suppress("DEPRECATION")
 		val clipboard = LocalClipboardManager.current

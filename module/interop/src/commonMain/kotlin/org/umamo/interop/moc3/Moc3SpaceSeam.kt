@@ -48,13 +48,9 @@ class MocCanvasMapping(
 /**
  * The scale every conversion in this file actually applies.
  *
- * A degenerate canvas (ppu 0) has no invertible scale: dividing by it is a division by zero, and
- * multiplying by it collapses the whole rig onto the canvas origin.  Both directions therefore
- * substitute the identity, which is also how the import treats a canvas-less document.
- *
- * Shared rather than written out per direction because a guard applied on only one side is exactly
- * how the two stop being inverses - the moc direction would map a degenerate canvas as the identity
- * while the runtime direction flattened every point onto one spot, and nothing here would say so.
+ * A degenerate canvas (ppu 0) has no invertible scale, so both directions substitute the identity,
+ * which is also how the import treats a canvas-less document.  Shared so the guard cannot land on one
+ * side only, which would silently stop the two directions being inverses.
  *
  * @param MocCanvasMapping canvas The document's canvas mapping.
  * @return Float The scale factor to apply.
@@ -220,10 +216,10 @@ fun rotationAncestorFlags(
 	}
 
 /**
- * [rotationAncestorFlags] over a RUNTIME deformer list, keyed by deformer id.
+ * [rotationAncestorFlags]' predicate over a RUNTIME deformer list, keyed by deformer id.
  *
- * The export walks ids rather than file indices, but the predicate must stay the one the import used -
- * hence one implementation with two adapters rather than two walks.
+ * The export walks ids rather than file indices, but the predicate must stay the one the import used:
+ * any rotation anywhere above, under the same step cap against a cyclic parent chain.
  *
  * @param List deformers The runtime deformers.
  * @return Map Whether a rotation sits above each deformer.

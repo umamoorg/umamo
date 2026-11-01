@@ -85,17 +85,9 @@ fun PuppetModel.atlasKeyByDrawable(): Map<DrawableId, String> =
 	drawables.associate { drawable -> drawable.id to (drawable.textureSourceId ?: drawable.id).raw }
 
 /**
- * How one drawable's stored texture coordinates map back into its source art's own pixel frame.
- *
- * The single resolution every source-art consumer starts from - the renderer sampling per-layer
- * textures, the UV editor drawing a mapping over the artwork - so the tile lookup, the page lookup, and
- * the packed-versus-direct decision are made once here rather than reassembled at each call site.
- *
- * A placement applies only when the document's stored coordinates address the packed pages and this
- * tile was actually packed; otherwise the coordinates already address the art and the mapping is the
- * identity.  The DISPLAY mode is deliberately not consulted - it decides which texture is sampled, not
- * what the coordinates mean, and reinterpreting them on a toggle would draw every mesh at its atlas
- * position.
+ * How one drawable's stored texture coordinates map back into its source art's own pixel frame: the
+ * single resolution every source-art consumer starts from (the renderer sampling per-layer textures, the
+ * UV editor drawing a mapping over the artwork).
  *
  * @param Drawable drawable The drawable to resolve.
  * @return DrawableLayerBinding? The binding, or null when the document retains no art for it.
@@ -248,13 +240,9 @@ fun PuppetModel.parentPartByPart(): Map<PartId, PartId> {
 }
 
 /**
- * Every part in [id]'s org-tree subtree, including [id] itself.  The set a part may NOT be re-homed under -
- * doing so would orphan a cycle - so the org-move guard and the Properties picker's candidate filter derive
- * from this one definition instead of each walking the tree its own way (two implementations of one
- * invariant would drift apart).
- *
- * The org tree is the only hierarchy source for parts: a part's children live in [Part.children], and there
- * is no parent back-pointer, so this walks DOWN like [deformerSelfAndDescendants] does.
+ * Every part in [id]'s org-tree subtree, including [id] itself: the set a part may NOT be re-homed under,
+ * since that would orphan a cycle.  The org-move guard and the Properties picker's candidate filter both
+ * derive from this one definition.
  *
  * @param PartId id The part whose subtree to collect.
  * @return Set<PartId> The part and every part beneath it.
@@ -314,10 +302,8 @@ fun PuppetModel.deformerSelfAndDescendants(id: DeformerId): Set<DeformerId> {
  * through it, and an exporter to a format that cannot express part masks MUST use it too, so the two can
  * never disagree about the clipping the user sees.
  *
- * Takes the part-subtree index rather than building it: both callers resolve MANY composites in one pass,
- * and [drawablesByPartSubtree] walks the whole part tree, so building it per composite would make a model
- * with K part-masked composites over N parts cost O(K*N) on every render-root derive.  Pass
- * `drawablesByPartSubtree()` computed once for the batch.
+ * Takes the part-subtree index rather than building it, since both callers resolve many composites in one
+ * pass and [drawablesByPartSubtree] walks the whole part tree; compute it once for the batch.
  *
  * @param PartComposite composite The authored composite.
  * @param Map subtrees Each part's descendant drawables, from [drawablesByPartSubtree], built once per batch.
@@ -336,13 +322,8 @@ fun flattenedMasks(composite: PartComposite, subtrees: Map<PartId, List<Drawable
 /**
  * A copy of this model with every part composite's part-masks expanded into plain drawable masks and
  * [PartComposite.maskedByParts] emptied - the conversion an export to a drawable-only mask format (CMO3,
- * MOC3) MUST apply.
- *
- * Call it and the clipping SURVIVES the export exactly as the viewport shows it; what is lost is only the
- * authoring grouping ("masked by this part", which follows the part as its children change), because those
- * formats have nowhere to record it.  Skipping this call would instead drop the part masks outright and
- * silently change how the model renders - so exporters flatten, never ignore.  UMA keeps the grouping and
- * needs no flattening.
+ * MOC3) MUST apply, so the clipping survives exactly as the viewport shows it and only the authoring
+ * grouping is lost.  UMA keeps the grouping and needs no flattening.
  *
  * @return PuppetModel The model with part-masks flattened, or [this] when none are used.
  */
@@ -382,20 +363,14 @@ fun Drawable.displayMultiplyColor(): ColorRgb = multiplyColor
  * The drawable's 5.3 per-art-mesh screen color for display in the Properties panel; see
  * [displayMultiplyColor].
  *
- * @return ColorRgb The drawable's screen color, or [ColorRgb.ScreenIdentity] when unkeyed.
+ * @return ColorRgb The drawable's static screen color.
  */
 fun Drawable.displayScreenColor(): ColorRgb = screenColor
 
 /**
  * Whether this model differs from [previous] in nothing but some drawables' mesh positions - the canvas mesh
- * and the keyform-space base - the shape every preview push of a Grab has: withMeshPositions wraps the new
- * arrays in a new DrawableMesh that shares the uvs and the indices, and copies the drawable and the model
- * around it with every other field by reference.  Decided by identity and equality: a data-class equals
- * short-circuits on a shared reference, so when the push really is positions-only the check costs one walk
- * over the drawables, and DrawableMesh is identity-equal, so a changed mesh is compared field by field here.
- * The same instance differs in nothing.  Everything else is structural, conservatively: a UV or topology
- * edit, a parameter, deformer, part, glue, or order change, a visibility or composite edit, a drawable
- * added, removed, reordered, or losing its mesh, and a vertex count that changed.
+ * and the keyform-space base - the shape every preview push of a Grab has.  Conservative: any other change,
+ * a UV, topology, or vertex-count edit included, counts as structural.
  *
  * The renderer reads it to keep its pose across a push (the pose's inputs hold no positions), and the
  * desktop viewport service to keep the picker lookups that read no positions.
@@ -408,6 +383,8 @@ fun PuppetModel.differsOnlyInMeshPositions(previous: PuppetModel): Boolean {
 		return true
 	}
 
+	// A data-class equals short-circuits on shared references, so a positions-only push (new meshes, every
+	// other field shared) costs one walk over the drawables.
 	if (drawables.size != previous.drawables.size || copy(drawables = previous.drawables) != previous) {
 		return false
 	}

@@ -13,8 +13,6 @@ const val INTERFACE_LAYOUT_KEY: String = "interface.layout"
  * polymorphism; encodeDefaults so ratio and other defaulted fields always persist; ignoreUnknownKeys
  * so a layout written by a newer build (extra fields) still loads. Held module-internal - callers go
  * through the encode/decode helpers, not this directly.
- *
- * エリアツリー直列化用の JSON 設定。type 識別子で sealed の多態を解決し、既定値も書き出す。
  */
 internal val LayoutJson: Json =
 	Json {
@@ -28,8 +26,6 @@ internal val LayoutJson: Json =
  * The same scheme as [LayoutJson] but pretty-printed, used only for the human-facing workspace.json that
  * Export writes (a file a user may read or hand-edit before re-importing).  Import parses with [LayoutJson],
  * which reads compact and pretty alike, so the two stay interchangeable.
- *
- * Export 用に整形して出力する点だけが [LayoutJson] と異なる。読み込みは [LayoutJson] が両方を解釈する。
  */
 internal val LayoutExportJson: Json =
 	Json {
@@ -43,8 +39,6 @@ internal val LayoutExportJson: Json =
  * Encodes an [InterfaceLayout] to a [JsonElement] for storage under the interface.layout settings key
  * (Settings.set takes a JsonElement, so we stay inside its API without re-stringifying).
  *
- * レイアウトを JsonElement に符号化する（Settings.set が JsonElement を取るため）。
- *
  * @param InterfaceLayout layout The layout to encode.
  * @return JsonElement The encoded tree.
  */
@@ -54,8 +48,6 @@ fun encodeLayout(layout: InterfaceLayout): JsonElement = LayoutJson.encodeToJson
  * Decodes an [InterfaceLayout] from a [JsonElement], or null if the element is malformed or describes
  * an empty layout (no workspaces) - both of which mean "fall back to the seeded defaults". Never
  * throws: a corrupt stored layout must not prevent the editor from opening.
- *
- * JsonElement からレイアウトを復号する。不正・空なら null（既定レイアウトにフォールバック）。例外は投げない。
  *
  * @param JsonElement element The stored layout element.
  * @return InterfaceLayout? The decoded layout, or null to signal "use defaults".
@@ -68,9 +60,7 @@ fun decodeLayout(element: JsonElement): InterfaceLayout? =
 /**
  * Loads the persisted layout, or seeds the defaults when none is stored (decode failure or the empty
  * `interface.layout.workspaces: []` baseline). On a seed it writes the concrete default back once, so
- * the stored layout is materialised on first run (mirrors how window state seeds its defaults).
- *
- * 保存済みレイアウトを読み込む。無ければ既定を種として書き戻す。
+ * the stored layout is materialized on first run (mirrors how window state seeds its defaults).
  *
  * @param Settings settings The settings store to read/seed.
  * @return InterfaceLayout The loaded or freshly-seeded layout.
@@ -89,11 +79,7 @@ fun loadLayout(settings: Settings): InterfaceLayout {
 }
 
 /**
- * Persists [layout] under the interface.layout settings key as a JsonElement (staying inside the
- * Settings API, which takes/returns JsonElement). Settings handles the write to the user layer, the
- * re-merge over defaults, and the disk write.
- *
- * レイアウトを interface.layout キーに JsonElement として保存する。
+ * Persists [layout] under the interface.layout settings key.
  *
  * @param Settings settings The settings store to write to.
  * @param InterfaceLayout layout The layout to persist.
@@ -108,8 +94,6 @@ fun saveLayout(settings: Settings, layout: InterfaceLayout) {
  * a single-workspace export (no `workspaces` array) returns null here - that is how Import tells the two
  * file shapes apart (try this first, then [decodeWorkspaceText]).  Never throws.
  *
- * レイアウト全体の workspace.json を検証付きで [InterfaceLayout] に復号する。不正・単一ワークスペースなら null。
- *
  * @param String text The raw JSON file contents.
  * @return InterfaceLayout? The decoded layout, or null when it is not a valid full layout.
  */
@@ -122,8 +106,6 @@ fun decodeLayoutText(text: String): InterfaceLayout? =
  * the second branch Import tries after [decodeLayoutText].  The caller is expected to re-mint ids before
  * inserting the result (see the append path) so it never collides with an existing workspace.  Never throws.
  *
- * 単一ワークスペースの workspace.json を [Workspace] に復号する。不正・レイアウト全体なら null。
- *
  * @param String text The raw JSON file contents.
  * @return Workspace? The decoded workspace, or null when it is not a valid single workspace.
  */
@@ -132,10 +114,8 @@ fun decodeWorkspaceText(text: String): Workspace? =
 
 /**
  * Renders the persisted interface layout as pretty-printed JSON for Export All Workspaces, or null when no
- * layout is stored yet.  Exports the saved element verbatim (just reformatted), matching "the saved JSON
- * from settings.json": any forward-compatible extra keys a newer build wrote are preserved, not dropped.
- *
- * 保存済みのレイアウトを整形 JSON として出力する（未保存なら null）。保存された要素をそのまま整形する。
+ * layout is stored yet.  Exports the saved element verbatim (just reformatted), so any forward-compatible
+ * extra keys a newer build wrote are preserved, not dropped.
  *
  * @param Settings settings The settings store to read the layout from.
  * @return String? The pretty-printed layout JSON, or null when nothing is stored.
@@ -146,8 +126,6 @@ fun exportLayoutText(settings: Settings): String? =
 /**
  * Renders a single [workspace] as pretty-printed JSON for Export This Workspace.  The result decodes back
  * through [decodeWorkspaceText]; on re-import it is appended as a fresh tab (ids re-minted by the caller).
- *
- * 単一ワークスペースを整形 JSON として出力する（Export This Workspace 用）。
  *
  * @param Workspace workspace The workspace to serialize.
  * @return String The pretty-printed workspace JSON.

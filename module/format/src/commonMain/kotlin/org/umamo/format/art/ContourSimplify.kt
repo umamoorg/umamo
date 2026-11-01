@@ -5,17 +5,11 @@ import org.umamo.geometry.polyline.douglasPeuckerKeypoints
 /**
  * Simplifies a closed lattice ring with Douglas-Peucker, returning a subset of its vertices.
  *
- * The simplification is :geometry's integer [douglasPeuckerKeypoints]: anchor A is ring index 0 (the
- * tracer's deterministic topmost-then-leftmost start vertex) and anchor B the vertex farthest from it
- * (ties to the lowest index); the two halves A->B and B->A are simplified independently, so both
- * anchors always survive.  Distances are exact Long products up to one final division, compared
- * strictly against epsilon squared, so epsilon 0 drops exactly-collinear vertices and nothing else.
- *
- * Guarantees: every kept vertex is an original lattice vertex on the exact mask boundary, and every
- * dropped vertex lies within epsilon pixels of a segment of the simplified ring (the Douglas-Peucker
- * construction), so the result deviates from the exact boundary by at most epsilon.  If simplification
- * would leave fewer than 3 points (a 1xN sliver's rectangle at epsilon 1 collapses to its two anchors),
- * the unsimplified ring is returned instead.  Output is deterministic.
+ * The ring is anchored at index 0, the tracer's deterministic topmost-then-leftmost start vertex, so
+ * the output is deterministic.  Every kept vertex is an original lattice vertex on the exact mask
+ * boundary, and the result deviates from that boundary by at most epsilon.  A result under 3 points
+ * (a 1xN sliver's rectangle at epsilon 1 collapses to its two anchors) returns the unsimplified ring
+ * instead.
  *
  * Known limitation, accepted for v1: on adversarial shapes Douglas-Peucker can produce a
  * self-intersecting simplified ring.  Callers needing a guaranteed-simple polygon should pass a smaller

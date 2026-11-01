@@ -18,17 +18,10 @@ import org.umamo.ui.viewport.gizmo.applyOperator
 
 /**
  * Registers the UV editor's texture-coordinate transform that just committed as the session's
- * adjustable operation.  The rows read in display texels; the rerun applies the edited numbers over
- * the frozen display coordinates and writes only the moved vertices back through [frame] onto the
- * BASE model's stored coordinates (the untouched ones stay bit-identical, as the commit keeps them; see
- * [storedUvsForCommit]).
- * The proportional radius is in texels too, so [onProportional] receives it separately from the
- * state for the caller to place where the editor keeps its radius, and the adjusted record goes with
- * them, so a caller whose rows did not start from the session's own state can write back only what the
- * rigger set there (see [writeBackUvProportional]).
- *
- * The landing is [uvTransformLanding], the same compute a value typed in the sidebar commits through, so
- * an adjustment of either replays exactly what landed.
+ * adjustable operation, its rows in display texels.  A rerun lands through [uvTransformLanding], the same
+ * compute a value typed in the sidebar commits through, so an adjustment of either replays exactly what
+ * landed.  The proportional radius is in texels too, so [onProportional] receives it apart from the state,
+ * for the caller to place where the editor keeps its radius.
  *
  * @param EditorSession              session      The session the gesture committed into.
  * @param String                     areaId       The UV editor the gesture ran in.
@@ -74,8 +67,7 @@ internal fun registerUvTransformAdjustment(
  * Where a UV transform lands: each drive job's frozen display coordinates through the operator, written back
  * through [frame] onto [baseModel]'s stored coordinates for the moved vertices alone, so the untouched ones stay
  * bit-identical.  The jobs are the gesture's own ([uvDriveJobs]), so a bystander the halo does not reach is left
- * out here exactly as the drive leaves it out.  One compute for a strip adjustment's rerun and for a value typed in
- * the sidebar, so the first landing and every adjustment of it are the same function.
+ * out here exactly as the drive leaves it out.
  *
  * @param ModalTransformCapture transform The frozen capture (display-space positions).
  * @param UvEditFrame frame The space the coordinates were authored in.

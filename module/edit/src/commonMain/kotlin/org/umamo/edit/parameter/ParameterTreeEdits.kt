@@ -11,9 +11,9 @@ import org.umamo.runtime.model.PuppetModel
 /*
  * Parameter-panel group-tree structure edits. PuppetModel.parameterTree is the canonical panel order
  * (an ordered mix of parameter leaves and named groups); the flat parameters list stays the id-keyed
- * authoritative axis list, whose ORDER nothing reads at runtime once a tree exists. So a reorder or a
- * move into / out of a group rewrites ONLY parameterTree, leaving parameters and parameterLinks alone -
- * the future CMO3 exporter flattens the tree for the _sources order. A model imported with no groups
+ * authoritative axis list, whose order the panel ignores once a tree exists.  So a reorder or a move
+ * into / out of a group rewrites ONLY parameterTree, leaving parameters and parameterLinks alone - the
+ * CMO3 export lowers the tree into the parameter groups' child lists.  A model imported with no groups
  * has an empty tree; the first real structure edit materializes a flat all-leaves-at-root tree so there
  * is one code path afterward. Every edit snapshots the whole PuppetModel through EditorSession.mutate,
  * so it undoes for free.
@@ -69,7 +69,7 @@ internal fun collectParameterGroupIds(nodes: List<ParameterNode>): Set<Parameter
 	return ids
 }
 
-/** The node ids removed by a detach for [subject] (leaf ids, or the single group id). */
+/** The leaf ids removed by a detach for [subject]; empty when it moves a group. */
 private fun ParameterMoveSubject.movedLeafIds(): Set<ParameterId> =
 	when (this) {
 		is ParameterMoveSubject.Leaves -> ids.toSet()
@@ -84,8 +84,7 @@ private fun ParameterMoveSubject.movedGroupId(): ParameterGroupId? =
 	}
 
 /**
- * Removes the moved node(s) from a node list (non-recursively at this level), returning the survivors and
- * the detached group node when [subject] was a group found here.
+ * Removes the moved node(s) from a node list (non-recursively at this level), returning the survivors.
  */
 private fun List<ParameterNode>.detachSubject(subject: ParameterMoveSubject): List<ParameterNode> {
 	val movedLeaves = subject.movedLeafIds()
@@ -122,12 +121,9 @@ private fun ParameterNode.matchesRef(ref: ParameterNodeRef): Boolean =
 /**
  * A copy of this model with [subject] relocated in the parameter-panel group tree: under
  * [newParentGroupId] (null = the root level) and inserted before [before] there (null / absent =
- * appended). The flat parameters list and the links are untouched - this is layout only. Materializes a
- * flat tree first when the model has no groups, so one code path serves grouped and group-less models.
- * The moved leaves are always re-inserted contiguously in [subject] order, so a linked pad keeps its
- * two members adjacent regardless of a slightly-off UI anchor. Refuses - returning this same instance,
- * so the session records no undo step - a group moved under any group (groups do not nest one level
- * deep), an unknown destination group, and any no-op move.
+ * appended).  Layout only - the flat parameters list and the links are untouched.  The moved leaves
+ * land contiguously in [subject] order, so a linked pad keeps its two members adjacent whatever the UI
+ * anchor.
  *
  * @param ParameterMoveSubject subject The leaves or group to move.
  * @param ParameterGroupId? newParentGroupId The destination group, or null for the root level.

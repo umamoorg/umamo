@@ -17,13 +17,11 @@ import kotlin.math.roundToInt
 
 /**
  * Wraps [content] so a context-menu request - a secondary (right) click on desktop, or a long press on a
- * touch screen - opens [items] as a [Menu] at the pointer.  The menu is positioned at the click point
- * rather than anchored to an element, which is what distinguishes a context menu from a dropdown.
+ * touch screen - opens [items] as a [Menu] at the pointer.
  *
  * The items are a pre-built value, not a lambda, because their labels are localized via stringResource -
  * a @Composable call that can only run during composition, not on the pointer event that opens the menu.
- * The list is cheap to rebuild each recomposition and is therefore current wherever the caller recomposes
- * on the state it reads; a caller that does not (an outliner row) builds its entries on open instead.
+ * A caller that does not recompose on the state its entries read uses the itemsOnOpen overload instead.
  *
  * While [suppressed], a request is still taken - it reaches no enclosing area's menu - but opens nothing: a surface
  * whose right press means something else while a gesture runs elsewhere says so here.
@@ -93,16 +91,12 @@ fun ContextMenuArea(
 }
 
 /**
- * The items of the innermost enclosing [ContextMenuArea], for content that has to build its OWN menu.
+ * The items of the innermost enclosing [ContextMenuArea], for content that has to build its OWN menu: a text
+ * field, which appends its own clipboard entries and needs its own gesture to beat the one the text-field
+ * primitive installs.  Read here rather than passed down, so a field picks up whatever menu it is nested in
+ * with no call site changed.
  *
- * A text field is the case this exists for: it cannot simply sit inside a [ContextMenuArea] and inherit the
- * behavior, because it needs its own clipboard entries appended and its own gesture to beat the one the
- * text-field primitive installs.  Reading the enclosing items here rather than passing them down means a
- * field picks up whatever menu it happens to be nested in - the keyframe menu on a Properties row, the area
- * menu in a panel header - with no call site changed.
- *
- * A builder, called as the nested menu opens, so the field's menu shows the area's entries as they are then.
- * Empty outside any area, which reads as "no items to prepend" rather than as an error.
+ * A builder, called as the nested menu opens; empty outside any area, which reads as "no items to prepend".
  */
 internal val LocalContextMenuItems = compositionLocalOf<() -> List<MenuItem>> { { emptyList() } }
 

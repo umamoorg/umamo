@@ -62,14 +62,8 @@ internal class ModelDiff(
 )
 
 /**
- * Decides how to reconcile a backend's resident drawables with an edited model - four tiers, cheapest
- * first.
- *
- * A layer reorder or a reparent that does not change control-point ownership needs no buffer work at all
- * (every drawable is a no-op [Keep]); a base-mesh move re-uploads positions; a UV edit re-uploads UVs; and
- * a structural change - a drawable added, removed, remeshed, its blend-shape bindings changed, or
- * reparented across the warp boundary (which gains or loses its control-point texture) - frees and
- * re-uploads whole.
+ * Decides how to reconcile a backend's resident drawables with an edited model, each drawable taking the
+ * cheapest [DrawableAction] tier that still matches the new model.
  *
  * The diff is keyed by drawable id (so it is robust to a simultaneous reorder) and by ARRAY REFERENCE
  * identity: the edit path is copy-on-write, so an untouched drawable keeps its exact array instances and

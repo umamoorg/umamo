@@ -28,19 +28,12 @@ private val ASPECT_LOCK_GUTTER = 24.dp
 
 /**
  * Two joined number fields measuring one quantity along two axes (a size's extents, a scale's factors) plus
- * the aspect-ratio lock spanning them.  Its own composable rather than a plain [FieldStack] because the lock
- * is stateful and couples the two fields: while locked, editing one scales the other by the same factor (see
- * [aspectLockedPartner]), so the pair keeps its proportions.  The fields share one range, step, and unit for
- * the same reason.
+ * the aspect-ratio lock spanning them: while locked, editing one scales the other by the same factor (see
+ * [aspectLockedPartner]), so the pair keeps its proportions.
  *
- * The lock is transient UI state (a tool preference, not document data), so it lives in a remember and resets
- * when the pair unmounts.  The ratio is read from the CURRENT values rather than captured when the lock was
- * engaged, so it always reflects what the fields are showing.  Nothing commits mid-scrub, so during one those
- * values are still the ones the scrub started from, and every frame scales against the same ratio.
- *
- * While one field is scrubbed the other follows it: the pair the scrub implies is held here, and the field not
- * being dragged shows its half (the dragged one shows its own draft).  That keeps the locked partner live
- * whether or not the caller previews the scrub anywhere else.
+ * The lock is transient UI state (a tool preference, not document data), so it resets when the pair
+ * unmounts.  While one field is scrubbed the pair holds the values the scrub implies, so the locked partner
+ * follows it whether or not the caller previews the scrub anywhere else.
  *
  * @param String firstLabel The first field's localized label.
  * @param String firstDescription What the first field measures, as its label's tooltip.
@@ -82,8 +75,9 @@ fun AspectLockFieldPair(
 	// its draft without committing, and the values it implied go with it.
 	var scrubbedPair by remember(enabled) { mutableStateOf<FieldPairValues?>(null) }
 	val icons = LocalUmamoIcons
-	// A locked edit of one field derives the other from the ratio the pair currently has.  The preview and the
-	// commit both resolve through these, so the release lands exactly the values the last frame showed.
+	// A locked edit of one field derives the other from the ratio the pair currently has; nothing commits
+	// mid-scrub, so every frame of one scales against the same ratio.  The preview and the commit both resolve
+	// through these, so the release lands exactly the values the last frame showed.
 	val pairForFirst: (Float) -> FieldPairValues = { newFirst ->
 		FieldPairValues(newFirst, aspectLockedPartner(newFirst, firstValue, secondValue, locked, range))
 	}
@@ -216,11 +210,8 @@ internal fun wholeValueOf(value: Float, range: IntRange): Int = value.roundToInt
 /**
  * The value an [AspectLockFieldPair] gives the field NOT edited when the other becomes [editedValue].
  *
- * Unlocked, the partner keeps its value.  Locked, it scales by the magnitude of the edited field's factor and
- * keeps its own sign, so the lock keeps the proportions while each axis keeps its own mirror: a scale pair of
- * (-1, 1) edited to (2, ?) becomes (2, 2), not (2, -2).  An edited field that was zero (a degenerate extent)
- * has no ratio to carry, so the partner keeps its value then too.  The result clamps to [range], which is where
- * the ratio gives way.
+ * Locked, the partner scales by the magnitude of the edited field's factor and keeps its own sign, so each
+ * axis keeps its own mirror: a scale pair of (-1, 1) edited to (2, ?) becomes (2, 2), not (2, -2).
  *
  * @param Float editedValue The edited field's new value.
  * @param Float editedCurrent The edited field's value before the edit.

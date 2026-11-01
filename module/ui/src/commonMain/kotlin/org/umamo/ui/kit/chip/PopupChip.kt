@@ -27,16 +27,11 @@ import org.umamo.ui.theme.UmamoIcon
 
 /**
  * A [DropdownChip] over a stay-open panel of arbitrary content: only an outside click or Esc dismisses
- * it, so several controls can be driven in one visit.  That is the whole reason this is a raw [Popup]
- * rather than the kit [org.umamo.ui.kit.menu.Menu], which dismisses per click - and the reason [DropdownChip] leaves its
- * dropdown a slot in the first place.
+ * it, so several controls can be driven in one visit.  That is why this is a raw [Popup] rather than the
+ * kit [org.umamo.ui.kit.menu.Menu], which dismisses per click.
  *
- * The panel provides [LocalPopupDismissOwned], so a [org.umamo.ui.kit.menu.Menu] or nested chip composed inside the content
- * yields the dismiss to this popup instead of fighting it for focus.
- *
- * Open state is optionally hoistable: leave [expanded] null and the chip owns it (the common case), or
- * pass it with [onExpandedChange] when the caller has to force the panel shut - the overflow row does,
- * since a strip that widens while the panel is open would otherwise leave it anchored to nothing.
+ * Leave [expanded] null and the chip owns its open state; hoist it with [onExpandedChange] when the caller
+ * has to force the panel shut.
  *
  * @param String    contentDescription The accessible label for the chip (the face is icon-only).
  * @param Modifier  modifier           The layout modifier.
@@ -97,21 +92,16 @@ fun PopupChip(
 }
 
 /**
- * The stay-open panel a [PopupChip] drops: a raw [Popup] below its anchor, styled like the kit [org.umamo.ui.kit.menu.Menu]
- * (the dark panel fill, medium corners) but dismissed only by an outside click or Esc, so several
- * controls can be driven in one visit.  Composable on its own inside a [DropdownChip] slot, for a chip
- * that shows a [org.umamo.ui.kit.menu.Menu] on one visit and a panel on the next (a review chip's relink-by-hand list).
+ * The stay-open panel a [PopupChip] drops: a raw [Popup] below its anchor, styled like the kit
+ * [org.umamo.ui.kit.menu.Menu] but dismissed only by an outside click or Esc.  Usable on its own inside a
+ * [DropdownChip] slot, for a chip that shows a Menu on one visit and a panel on the next.
  *
  * The panel provides [LocalPopupDismissOwned], so a [org.umamo.ui.kit.menu.Menu] or nested chip composed inside the content
  * yields the dismiss to this popup instead of fighting it for focus.
  *
- * The panel hugs its widest row, never narrower than [minContentWidth].  A panel of two-column property
- * rows passes the floor: a Row of two equal weights has an intrinsic width of twice its most demanding
- * half, so the floor gives short labels the panel's usual width while a label that needs more - a longer
- * locale's - still widens the panel to fit rather than being cut or wrapped.
- *
  * @param Function onDismissRequest Called on an outside click or Esc.
- * @param Dp?      minContentWidth  The narrowest the column may be, or null for no floor.
+ * @param Dp?      minContentWidth  The narrowest the column may be, or null for no floor; the panel otherwise
+ *   hugs its widest row, so a label that needs more still widens it rather than being cut.
  * @param Function content          The panel's rows.
  */
 @Composable

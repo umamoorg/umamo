@@ -45,14 +45,9 @@ expect fun DragAndDropEvent.droppedFilePaths(): List<String>
  * Wraps [content] in a surface that accepts files dropped on it from outside the application, framing
  * itself in the accent color while a drag it would accept is over it.
  *
- * Only a drag carrying files starts a session here ([carriesFiles]), so a text or image drag falls through
- * to whatever else in the hierarchy wants it.  Nothing is read or validated beyond that: [onDrop] is handed
- * the paths and decides what each one means, because the way a file is opened is the caller's business and
- * the file's contents are the loader's.
- *
- * The frame is drawn here rather than left to the caller so the over-state and the thing it paints cannot
- * drift apart, and it is drawn as an overlaid sibling so it neither re-lays-out [content] nor takes any
- * space from it.
+ * Only a drag carrying files starts a session here, so a text or image drag falls through to whatever else
+ * in the hierarchy wants it; [onDrop] alone decides what each path means.  The frame is an overlaid sibling
+ * so it neither re-lays-out [content] nor takes any space from it.
  *
  * @param Function onDrop  Called with the dropped files' stored paths; never called with an empty list.
  * @param Function content The content the drop target covers.

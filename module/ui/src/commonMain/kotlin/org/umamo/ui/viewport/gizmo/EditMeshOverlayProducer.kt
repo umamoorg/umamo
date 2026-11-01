@@ -52,11 +52,8 @@ internal fun editMeshOverlaySizes(density: Density): MeshOverlaySizes =
 
 /**
  * Turns the session's state into the renderer's [MeshOverlay], keeping everything it can from one call to
- * the next so the renderer re-uploads nothing it already has: a mesh's edge list lives as long as its
- * index array (and outlives a mode switch, since the cage and the wireframe share it), its flag arrays as
- * long as its selected set (by identity), active element, select mode, and topology, a wireframe entry as
- * long as its topology, and the whole value as long as its kind, every mesh entry, and the sizes - the
- * renderer compares edge and flag arrays by identity, and the render service compares the value by identity.
+ * the next so the renderer re-uploads nothing it already has: the renderer compares edge and flag arrays by
+ * identity, and the render service compares the value by identity.
  *
  * Not thread-safe: one sequential derive owns it.
  */
@@ -100,14 +97,10 @@ internal class EditMeshOverlayProducer {
 	private var trimmedToModel: PuppetModel? = null
 
 	/**
-	 * The overlay for one state, the previous instance when nothing it shows changed.  In Edit mode: the
-	 * plain wireframe of every drawable in [wireframeOver] that is outside the session, in the model's order,
-	 * then the cage - every session mesh with a mesh, in the session's order - or null when neither lists
-	 * anything.  Outside Edit mode: the object wireframe of every drawable in [wireframeOver], or null when
-	 * none is given or none can be shown.  A session mesh the renderer cannot pose (a hidden ancestor) is
-	 * still listed; the renderer skips it per frame.  A session's lattices are not listed: their cage carries
-	 * positions of its own (viewport2d/LatticeCagePublish.kt).  A surface that shows only some of the session's meshes
-	 * (a UV area shows those mapped onto its page or layer) narrows the cage with [shownIds].
+	 * The overlay for one state, or the previous instance when nothing it shows changed: in Edit mode the
+	 * plain wireframe of the drawables outside the session followed by the session meshes' cage, outside it
+	 * the object wireframe alone.  A session's lattices are not listed, since their cage carries positions of
+	 * its own (viewport2d/LatticeCagePublish.kt).
 	 *
 	 * @param EditorMode mode The editor mode.
 	 * @param MeshSelection selection The selection to show.

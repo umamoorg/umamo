@@ -46,10 +46,9 @@ fun partGroupModeOptionsFor(target: RuntimeTarget, current: PartGroupModeKind): 
 }
 
 /**
- * Whether the alpha-composition row shows: the blend mode must not ignore alpha, AND either the
- * target supports the 5.3 blend-mode family the alpha modes belong to or [currentAlpha] already
- * holds an out-of-target value - a stored value never vanishes from its own control, so the rigger
- * can still see it and reset it to Over.
+ * Whether the alpha-composition row shows: never under a blend mode that ignores alpha, else where the
+ * target supports the 5.3 blend-mode family or [currentAlpha] already holds an out-of-target value the
+ * rigger must still be able to see and reset to Over.
  *
  * @param RuntimeTarget target The document's runtime target.
  * @param BlendMode blendMode The owning control's current blend mode.

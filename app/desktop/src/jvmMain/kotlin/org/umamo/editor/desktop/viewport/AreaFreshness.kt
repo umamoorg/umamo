@@ -85,11 +85,7 @@ internal fun isSizeFresh(slot: AreaSlot, width: Int, height: Int, settleScale: I
 
 /**
  * Whether everything but the size is fresh.  A UV scene is model-independent, so its freshness ignores
- * the pose version and the puppet render version: it re-renders only on the camera / the content it
- * shows (the page index or the layer raster, with the overlay and placement preview riding it), plus
- * what the atlas render version tracks (the grid colors, the overlay palette, an applied page set).
- * The puppet keeps the full freshness via the puppet render version.  Both watch the area's own render
- * options (its grid geometry and frame overlays) by value, so a toggle re-renders that area alone.
+ * the pose version and the puppet render version.
  *
  * @param AreaSlot       slot             The area.
  * @param ViewportCamera camera           The camera established for this pass, compared by identity.
@@ -159,10 +155,8 @@ internal fun renderScaleFor(slot: AreaSlot, nowNanos: Long, settleScale: Int, in
 }
 
 /**
- * Decides what the loop does with one sized, idle area.  Freshness splits into the size axis
- * (throttled during an active resize) and the rest: fresh on both means nothing to do, size-only
- * staleness waits on the throttle, and anything else renders at the scale the size's motion allows.
- * Pure over the slot's render-thread bookkeeping, so the matrix is testable without a render thread.
+ * Decides what the loop does with one sized, idle area, pure over the slot's render-thread bookkeeping
+ * so the matrix is testable without a render thread.
  *
  * The two render versions are passed per area rather than carried on the tick because the loop reads
  * them as it reaches each area, so a bump landing mid-pass is seen by the areas judged after it.

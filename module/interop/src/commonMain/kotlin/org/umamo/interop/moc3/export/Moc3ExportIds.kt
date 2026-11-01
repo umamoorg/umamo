@@ -13,24 +13,13 @@ import org.umamo.runtime.model.PartId
  * The id each object is written under, one namespace per moc id space.
  *
  * MOC3 §5.4 makes every id a fixed 64-byte record, so an id whose UTF-8 form does not fit with room
- * for the terminator cannot be written - the writer's own precondition rejects one, and an export that
- * let that reach the caller would throw straight past the report and out of the file write.  CMO3
- * places no width limit on these ids, and 22 CJK characters already exceed the record, so shortening
- * is a reachable path rather than a theoretical one.
+ * for the terminator is shortened here rather than left for the writer's precondition to throw past the
+ * report; CMO3 places no width limit on these ids, and 22 CJK characters already exceed the record.
  *
  * Shortening is also what MINTS DUPLICATES: two names that differ only past the 63rd byte truncate to
- * the same string.  A MOC3 addresses nothing by id, so the file itself takes the duplicate without
- * complaint and the loss surfaces only on the way back, where a re-import merges the two objects into
- * one - one mesh's masks, part membership, and keyforms landing on the other.  So a shortened id is
- * disambiguated here rather than reported and left colliding.
- *
- * Every id the model can write VERBATIM is claimed up front, at construction, rather than as each
- * object is lowered.  Otherwise the outcome would depend on lowering order: a shortened id could take
- * a name that a later object holds outright, and that object - whose id needed no shortening at all -
- * would be the one renamed.  Claiming first means shortening can only ever yield ground, never take it.
- *
- * Mutable (it accumulates claims), so it is passed to each producer explicitly alongside the keyform
- * pool and the notice sink rather than held on the immutable [Moc3ExportContext].
+ * the same string, which a re-import would merge into one object.  So a shortened id is disambiguated,
+ * and every id the model can write VERBATIM is claimed up front, at construction, so shortening can
+ * only ever yield ground, never rename a later object whose id needed no shortening at all.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.4</a>
  */
@@ -115,18 +104,13 @@ internal class Moc3ExportIds(
 }
 
 /**
- * What an export actually wrote each object's id as.
+ * What an export actually wrote each object's id as, so the sidecars beside the moc (the `cdi3.json`
+ * above all) name each object by the string the runtime joins them on, not by a model id the record
+ * width forced short.
  *
- * The moc is not the only file in a bake: the `cdi3.json` beside it names parameters, parts, and art
- * meshes BY ID to carry their display names, and the runtime joins the two on that string.  So a
- * sidecar built from the model's own ids silently unpairs itself from the moc for every id the record
- * width forced short - the name, the parameter's group placement, and its combined-parameter pairing
- * all address an object the moc does not contain under that name.  Handing this back with the document
- * is what lets the family agree with itself.
- *
- * An id the export never wrote (a dropped drawable) maps to itself, which is the only honest answer:
- * there is no written form to report.  Whether an object was written at all is a separate question, and
- * one a sidecar has to ask before naming it - see [wrotePart] / [wroteDrawable].
+ * An id the export never wrote (a dropped drawable) maps to itself, since there is no written form to
+ * report; whether an object was written at all is a separate question a sidecar asks before naming it
+ * ([wrotePart] / [wroteDrawable]).
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.4</a>
  */
@@ -150,10 +134,9 @@ class Moc3WrittenIds internal constructor(
 	/**
 	 * Whether the moc contains a record for [id].
 	 *
-	 * A drawable can be dropped for several reasons (a sketch subtree, a missing mesh, an uninvertible
-	 * deformer chain), and a dropped one holds no claim on its id - so an over-long id can be shortened
-	 * onto exactly that string.  A sidecar that named the dropped object anyway would then carry two
-	 * entries under one id, and a join on that string would pick between them arbitrarily.
+	 * A dropped drawable (a sketch subtree, a missing mesh, a mesh past the index width, a hidden one the
+	 * options leave out) holds no claim on its id, so an over-long id can be shortened onto exactly that
+	 * string; a sidecar naming the dropped object would then carry two entries under one id.
 	 *
 	 * @param DrawableId id The drawable's model id.
 	 * @return Boolean True when the export wrote it.

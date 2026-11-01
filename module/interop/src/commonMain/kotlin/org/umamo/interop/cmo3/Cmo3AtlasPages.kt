@@ -23,9 +23,7 @@ import org.umamo.interop.AtlasPageSet
  * document loader); a test passes a map lookup.
  *
  * A resource carrying no bytes at all is dropped here, leaving its drawables unmapped; one carrying
- * bytes that will not decode is the decoder's call, and for a CMO3 that means dropping the page rather
- * than refusing the document - its pixels are embedded in the model file, so one corrupt resource
- * inside an otherwise editable rig must not cost the rigger everything else.
+ * bytes that will not decode is left to the decoder's page policy.
  *
  * @param CModelSource modelSource The CMO3's root model source.
  * @param Function     readPng     Yields an image resource's embedded PNG bytes, or null when it has none.

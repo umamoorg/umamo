@@ -34,12 +34,6 @@ import org.umamo.ui.model.thumbnails.DrawableThumbnailer
  * thread produces) and its resolved draw order, and the retained CPU atlas pixels for the alpha gate. The
  * facade resolves each area's camera and size and forwards them here, so this class is area-agnostic.
  *
- * The model-derived lookup maps (pick indices / UVs, atlas keys, part labels) and the thumbnail provider are
- * rebuilt by [updateModel] so session-created drawables (a duplicate's fresh ".001" id) and visibility edits
- * stay pickable, sampleable, and labeled - maps frozen at construction would leave a duplicate unpickable.
- *
- * ビューポートの CPU ヒットテストとアートプレビュー。UI スレッドのみ、GL 不使用。
- *
  * @property PuppetRenderer renderer The renderer, for its pure-CPU pickGeometry() and drawnOrder().
  * @property PuppetTextures textures The atlas pages, for the alpha gate and page sizes.
  */

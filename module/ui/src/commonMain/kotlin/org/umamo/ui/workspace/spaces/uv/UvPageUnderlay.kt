@@ -14,11 +14,8 @@ import org.umamo.ui.viewport.RenderedFrame
  * The UV editor's underlay: the area's frame as the GL engine rendered it, drawn over the whole area - or
  * the plain viewport backdrop color for the moment before the first GL frame lands.
  *
- * The frame is the whole scene: the shown surface (an atlas page or a source layer's artwork, upright,
- * correctly sampled, sharing the puppet's texture), the panel color the engine paints around it with the
- * 1 dp border just outside its edge, and the mesh overlay over both (the Edit-mode wireframe, or in
- * Object mode the islands with the placement drag's preview under them).  Nothing is clipped, so a
- * mesh off the surface stays visible over the surround and the border.
+ * The frame is the whole scene, the shown surface with its surround, border, and mesh overlay alike, so
+ * this composable draws nothing of its own over it.
  *
  * @param RenderedFrame? rendered The displayed GL frame, or null before the first frame.
  * @param Modifier modifier The layout modifier (the host passes a stack fill).

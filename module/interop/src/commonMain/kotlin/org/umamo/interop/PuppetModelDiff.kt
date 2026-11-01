@@ -441,17 +441,11 @@ private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerFi
 /**
  * Diffs the atlas inventory, comparing only the tiles BOTH models carry.
  *
- * Set membership is deliberately not a difference here.  A tile is the art the document holds, which
- * arrives and leaves with an import rather than with an edit - and the two models being compared do not
- * always track it the same way: a MOC3-origin conversion synthesizes model images into the graph that
- * its puppet, which never had layered art, does not know about.  Reporting those as deletions would
- * describe an edit nobody made, on a path with nothing to reconcile.
- *
- * Art added since the import needs no entry here either: the drawables over it arrive as Created
- * entries, and the atlas-web reconcile mints a layer web for every edited tile the graph has no image
- * for.  A reload changes a shared tile's art: it supersedes the tile with a new one, compared here
- * under its lineage root, which reads as [AtlasTileField.PIXELS] even where the name, the size, and
- * the place are unchanged.
+ * Set membership is deliberately not a difference: a tile arrives and leaves with an import rather than
+ * an edit, and a MOC3-origin conversion synthesizes model images into the graph that its puppet does not
+ * know about, so reporting those as deletions would describe an edit nobody made.  Art added since the
+ * import needs no entry either - the drawables over it arrive as Created entries, and the atlas-web
+ * reconcile mints a layer web for every edited tile the graph has no image for.
  *
  * @param List baseline The graph-derived tiles.
  * @param List edited   The session's tiles.
@@ -582,10 +576,8 @@ private fun drawableFields(baseline: Drawable, edited: Drawable): Set<DrawableFi
 	}
 
 /**
- * The mesh aspect of a drawable diff.  A vertex-count or triangulation change (or a mesh appearing/
- * disappearing) is MESH_TOPOLOGY; with topology intact, a moved canvas editable mesh is MESH_POSITIONS and
- * remapped texels MESH_UVS - the split the lowering dispatches on, since topology forces a full
- * GEditableMesh2 rebuild while the others patch arrays in place.  The keyform-space base
+ * The mesh aspect of a drawable diff, split the way the lowering dispatches: a topology change forces a full
+ * GEditableMesh2 rebuild, while moved positions or remapped UVs patch arrays in place.  The keyform-space base
  * (`DrawableMesh.localPositions`) is not a mesh field: what it changes is the keyforms, so it surfaces as
  * GEOMETRY and BLEND_SHAPES through [meshGeometryEqual].
  *
@@ -812,8 +804,7 @@ private fun floatEq(baseline: Float, edited: Float): Boolean = baseline.toRawBit
  * alone moves every keyform and is an edit, while two delta arrays that rebuild the same floats from bases that
  * differ by the same amount are not.  A CMO3 round trip relies on that - the file stores absolutes, the import
  * derives each delta from them, and a delta re-derived from a rebuilt float can differ in its last bit from the
- * one it was rebuilt from while giving the float back exactly.  A grid that holds only the rest shape (no grid,
- * or one axis-less cell of zero deltas; both spellings come from the formats) compares as its base alone.
+ * one it was rebuilt from while giving the float back exactly.
  *
  * @param Drawable baseline The baseline's drawable.
  * @param Drawable edited   The edited drawable.
@@ -851,10 +842,7 @@ private fun rawBitsEqual(baseline: FloatArray, edited: FloatArray): Boolean =
 
 /**
  * Whether two keyforms rebuild the same absolute floats, `local + Δ` per component over the base's whole length,
- * each against its own base.  A component past the end of a short delta array takes the base unchanged, as
- * positionsFromDeltas rebuilds it, so a base that moves there is a moved keyform too.  When either side has no
- * base (a malformed drawable with deltas and no mesh) or deltas longer than its base, the deltas compare as
- * they are.
+ * each against its own base, so a base that moves past the end of a short delta array is a moved keyform too.
  *
  * @param FloatArray? baselineLocal  The baseline's base.
  * @param FloatArray  baselineDeltas The baseline's deltas.

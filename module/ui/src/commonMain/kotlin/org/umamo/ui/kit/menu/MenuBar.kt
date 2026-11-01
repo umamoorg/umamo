@@ -40,8 +40,6 @@ import org.umamo.ui.theme.LocalUmamoTypography
  * pulls this and dismisses the menu before its own shortcut for that key fires.  Holds null whenever no
  * menu-bar menu is open.  Only a [MenuBar] should write it.
  *
- * MenuBar とホスト側のキー処理をつなぐ小さな仲介。メニューが開いている間だけ閉じる関数を預ける。
- *
  * @property Function closeOpenMenu Closes the currently open menu, or null when none is open.
  */
 class MenuBarController {
@@ -57,21 +55,13 @@ val LocalMenuBarController = staticCompositionLocalOf { MenuBarController() }
 
 /**
  * A horizontal strip of top-level menu labels (File, Help, …), each opening its [TopLevelMenu] as a
- * [Menu] dropped beneath it.  Clicking a label toggles its menu; while any menu is open, hovering a
- * different label switches to it (the standard menu-bar behavior), so a user can sweep across the bar
- * without re-clicking.  Built from kit [Menu]s, so it shares the menu look and works on desktop and
- * tablet alike - an in-window bar rather than a host-OS menu strip.
+ * [Menu] dropped beneath it.  While any menu is open, hovering a different label switches to it, so a
+ * user can sweep across the bar without re-clicking.  Built from kit [Menu]s - an in-window bar rather
+ * than a host-OS menu strip, so it works on desktop and tablet alike.
  *
- * The dropdowns open non-focusable so the host window keeps focus while a menu is open - a focusable
- * popup steals focus and the labels (which live in that now-unfocused window) stop receiving hover, so
- * the sweep-to-switch would silently never fire.  That trade-off moves the keyboard dismiss onto the bar
- * itself: opening a menu pulls focus to the bar and Escape closes it (a host with its own key dispatch
- * coordinates through [LocalMenuBarController] instead); pointer dismissal (outside click / selection)
- * works regardless.
- *
- * 最上位メニューラベルの横帯。クリックで開閉、開いている間は他ラベルへのホバーで切り替わる。
- * ドロップダウンは非フォーカスで開き（フォーカスを奪うとラベルのホバーが効かなくなるため）、Esc は
- * バー自身が処理する。
+ * The dropdowns open non-focusable so the labels keep receiving hover for the sweep, which leaves the
+ * keyboard dismiss to the bar itself; a host with its own key dispatch coordinates through
+ * [LocalMenuBarController] instead.
  *
  * @param List menus The top-level menus in bar order.
  * @param Modifier modifier The layout modifier.
@@ -131,10 +121,7 @@ fun MenuBar(menus: List<TopLevelMenu>, modifier: Modifier = Modifier) {
 /**
  * One menu-bar label and the [Menu] it anchors.  The popup is a child of this label's [Box], so Compose
  * hands the label's bounds to the below-anchor position provider and the menu drops under the label with
- * no manual coordinate capture.  While a menu is already open elsewhere on the bar, hovering this label
- * switches the open menu to it.
- *
- * メニューバーの 1 ラベルとそれが開くメニュー。ポップアップはラベルの子なので真下に開く。
+ * no manual coordinate capture.
  *
  * @param TopLevelMenu menu The menu this label opens.
  * @param Boolean menuOpen Whether this label's menu is currently open.

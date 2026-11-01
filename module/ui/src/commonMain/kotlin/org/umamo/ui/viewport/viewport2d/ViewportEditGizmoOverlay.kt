@@ -53,50 +53,22 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  *   - EditGizmoSelection.kt: the marquee and the element pick over mesh elements.
  *   - EditGizmoDraw.kt: the gesture chrome, read in the draw phase.
  *   - EditMeshGeometry.kt: the session owners' live geometry at the stage, which the picks read.
- *   - MeshOverlayPublish.kt: the wireframe, dots, and face fills as data for the renderer, which draws them
- *     into the frame with the art; the viewport binding publishes them, not this overlay.
+ *   - MeshOverlayPublish.kt and LatticeCagePublish.kt: the wireframe, dots, face fills, and lattice cage as data
+ *     for the renderer, which draws them into the frame with the art; the viewport binding publishes them, not this
+ *     overlay.
  * The collectors' handlers are in SessionRequestHandlers.kt, and the strip registrations in
  * TransformAdjustRegistration.kt.
  */
 
 /**
  * The element gizmo overlay of Edit and Pose mode: a Compose layer over the offscreen puppet image that runs the
- * element selection and the modal G / S / R operators and draws their gesture chrome.  The mesh itself (the
- * vertices, edges, and faces of the session meshes' rest shape, or a lattice's points, grid lines, and cells) is
- * drawn by the renderer into the image, from the overlays the viewport binding publishes (MeshOverlayPublish.kt,
- * LatticeCagePublish.kt), so it and the art are the same pixels.  It is gated on a mode that edits elements
- * ([editsElements]) with something in the session; in Object mode nothing is composed, so pointer input flows
- * untouched to the viewport navigation beneath.
+ * element selection and the modal G / S / R operators and draws their gesture chrome.  The mesh or cage itself is
+ * drawn by the renderer into the image, from the overlays the viewport binding publishes, so it and the art are the
+ * same pixels.  It composes only in a mode that edits elements ([editsElements]) with something in the session, so
+ * pointer input otherwise flows untouched to the viewport navigation beneath.
  *
- * Pose mode works exactly as Edit mode does over the warps it poses, at the session's pose instead of at rest: a
- * finished lattice edit is held pending at the pose rather than reshaping the rest lattice, and the art follows the
- * drag.  The stage ([elementEditStageOf]) carries the difference.
- *
- * Selection follows Blender's select modes (vertex / edge / face, switched by the mesh.selectMode
- * commands): only the current mode's domain is clickable and stored, while the other domains highlight by
- * derivation - an edge lights up when both endpoints are selected, a face only when all three of its own
- * vertices (vertex mode) or edges (edge mode) are. The mesh palette comes from the viewport.meshEdit
- * settings, so the colors follow the user's preferences live.
- *
- * Edit mode edits the neutral state of the base mesh or the rest lattice, and only that - it is pinned to the
- * neutral pose (the render bridge feeds the renderer neutral parameters while the mode is active, and the
- * parameter panel is locked), so the session pose is never touched and blend-shape states are out of scope. The
- * shape shown is the rest shape as rendered - base + the neutral keyform blend, since real rigs park
- * parts elsewhere on the texture sheet and place them via those deltas - and the picks read it projected
- * to world through the composed parent-deformer chain ([drawableSpaceMapping]), so a click lands on the art
- * for warp and rotation children too. A mesh drag commits by movement transfer, writing only the drawable's rest
- * arrays: the base (DrawableMesh.localPositions) as `newBase = base + (displayed' - displayed)`, and the
- * canvas mesh (DrawableMesh.positions) by the same movement on the canvas; the neutral blend cancels out of
- * the subtraction, so no keyform cell resolution is involved, and blend-shape deltas (stored relative to the
- * base) follow the edit.
- *
- * Interaction mirrors Blender. Idle: a primary click selects the element under the cursor per the select
- * mode (Ctrl toggles, Shift adds), an empty primary drag rubber-bands a box, an empty click clears;
- * middle-drag pan and wheel zoom fall through (left unconsumed) to the navigation layer. Modal (an
- * operator latched on the session by a G / S / R command): pointer movement drives the transform live over
- * a copy-on-write working array covering the vertices the selected elements span, pushed to the renderer,
- * which draws the mesh from the same preview as the art. A primary click or Enter confirms (one undo step),
- * Esc or right-click cancels. While modal, all pointer input is swallowed.
+ * Pose mode works as Edit mode does over the warps it poses, at the session's pose instead of at rest; the stage
+ * ([elementEditStageOf]) carries the difference.  Interaction mirrors Blender's mesh edit mode.
  *
  * @param String areaId The viewport area this overlay covers.
  * @param PuppetViewportService service The render service (for live preview pushes).

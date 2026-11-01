@@ -14,16 +14,12 @@ import org.umamo.ui.l10n.applyAppLocale
 import org.umamo.ui.l10n.rememberLocaleTag
 
 /**
- * Builds the in-window menu bar from the shared per-menu builders, and keeps it live: the accelerators
- * follow the keymap settings (so a row shows the chord the keyboard uses after a preset switch or a
- * rebind), Open Recent follows the recent-files list, the Edit rows follow the session's undo and redo
- * availability, and the labels follow the UI language.
+ * Builds the in-window menu bar from the shared per-menu builders and keeps it live against the keymap,
+ * the recent-files list, the session's undo and redo availability, and the UI language.
  *
- * The bar is built outside the shell's own ProvideAppLocale scope, so it re-localizes itself: the
- * key on the locale re-resolves the builders' stringResource() calls against the new catalog, and the
- * remember applies the platform locale that resolution reads before the builders run.  That is scoped
- * to the menu alone, so a language switch re-localizes the bar without re-mounting the viewport or the
- * shell underneath.
+ * The bar is built outside the shell's own ProvideAppLocale scope, so it re-localizes itself, scoped to
+ * the menu alone: a language switch re-localizes the bar without re-mounting the viewport or the shell
+ * underneath.
  *
  * @param Settings       settings  The settings the keymap, the recent files, and the locale are read from.
  * @param EditorSession? session   The open document's session, or null; gates the Undo and Redo rows.
@@ -74,6 +70,8 @@ internal fun buildAppMenu(
 	}
 	val locale by rememberLocaleTag(settings)
 
+	// The key re-resolves the builders' stringResource() calls against the new catalog, and the remember
+	// applies the platform locale that resolution reads before the builders run.
 	return key(locale) {
 		remember(locale) { applyAppLocale(locale) }
 		listOf(

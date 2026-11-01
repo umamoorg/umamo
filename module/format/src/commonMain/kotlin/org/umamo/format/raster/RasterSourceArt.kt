@@ -9,14 +9,11 @@ import org.umamo.format.art.SourceLayer
 
 /**
  * Wraps a single decoded [RasterImage] as a one-layer [SourceArt], so a flat raster (PNG, BMP, …)
- * rides the same source-art ingest path as the layered readers (PSD, CLIP, KRA) without a second
- * import mechanism.
+ * rides the same source-art ingest path as the layered readers (PSD, CLIP, KRA).
  *
- * The result is a root-level document with one raster layer covering the whole canvas: no groups,
- * normal blend, full opacity, unclipped.  A flat image carries no per-layer stable identity (the
- * whole file is the layer), so [id] defaults to the file [name] and is marked unstable - a re-import
- * can only ever match it by content.  The pixels are handed through by reference - the caller must
- * not mutate [RasterImage.rgba] afterwards.
+ * A flat image carries no per-layer stable identity, so the layer's id is [name], marked unstable: a
+ * re-import can only match it by content.  The pixels are handed through by reference - the caller
+ * must not mutate [RasterImage.rgba] afterwards.
  *
  * @param RasterImage image The decoded flat image (RGBA8888, straight alpha, top-first).
  * @param String name        A display name / provisional layer id for the single layer (e.g. the file name).

@@ -28,10 +28,7 @@ val LocalThemeMode = staticCompositionLocalOf { DEFAULT_THEME_MODE }
 /**
  * The Umamo theme: resolves the palette (dark or light per [LocalThemeMode]) and provides the custom design
  * tokens - [LocalUmamoColors], [LocalUmamoTypography], [LocalUmamoShapes] - to the subtree. There is no
- * Material here; the kit widgets ([org.umamo.ui.kit]) read these locals directly. "system" follows the OS
- * via [isSystemInDarkTheme]; any unrecognized mode falls back to dark.
- *
- * Umamo のテーマ。LocalThemeMode に従って配色を選び、独自トークンをコンポジションローカルで供給する。
+ * Material here; the kit widgets ([org.umamo.ui.kit]) read these locals directly.
  *
  * @param Function content The UI to render under the theme.
  */
@@ -52,12 +49,9 @@ fun UmamoTheme(content: @Composable () -> Unit) {
 }
 
 /**
- * Resolves the theme mode from [LocalSettings] and provides it as [LocalThemeMode], reactively: the initial
- * value is read once, and a collector on the settings `changes` flow updates it whenever `interface.theme`
- * is written, so an in-app theme change re-themes the running app. Place this where settings are available;
- * a subtree without settings simply skips it and uses the [LocalThemeMode] default.
- *
- * 設定からテーマモードを解決し LocalThemeMode に供給する。変更フローを購読して実行中に再配色する。
+ * Resolves the theme mode from [LocalSettings] and provides it as [LocalThemeMode], reactively, so an in-app
+ * theme change re-themes the running app.  Place this where settings are available; a subtree without
+ * settings simply skips it and uses the [LocalThemeMode] default.
  *
  * @param Function content The subtree to render under the resolved theme mode.
  */

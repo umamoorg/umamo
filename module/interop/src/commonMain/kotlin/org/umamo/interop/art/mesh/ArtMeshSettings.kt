@@ -30,20 +30,8 @@ public const val MINIMUM_ART_MESH_INTERIOR_THINNING_LIMIT: Double = 1.0
  *
  * Pixels at or above [alphaThreshold] are guaranteed covered: the outline keeps at least
  * [minimumMargin] from every such pixel, and runs [outerMargin] outside the art where the shape
- * allows.  A hole in the art whose outline ring would be shorter than [outlineSpacing] around is meshed
- * over rather than cut out.  A second, inner ring runs [innerMargin] inside the art's edge (none when zero), and a
- * hexagonal lattice fills the rest.  With [fillHoles] the mesh covers the art's silhouette instead:
- * holes in the art (a lace pattern, a spider web) are meshed over rather than cut out, so the part
- * deforms as one sheet, and the inner ring and lattice run across them.  With a [minimumAngle], vertices
- * are then added beside every triangle whose narrowest corner falls short of it, never moving one
- * already placed, until no such triangle is left that a vertex can fix or the vertex budget runs out;
- * corners the outline itself makes (a hair tip's) are left as they are.  When the mesh replaces
- * one a rig is built on, the old vertices where that rig bends are kept until the new mesh follows it to
- * within [deformationTolerance].  Over the [vertexBudget] the interior thins first, to at most
- * [interiorThinningLimit] times the outline spacing, and past that the outline widens with it.  With
- * [strandRungs], art narrower than [strandWidth] (a hair lock, a strap, a line of ink) is meshed as a
- * strip of rungs, its outline paired straight across it; the presets put that width where an inner
- * ring stops fitting, twice the inner margin plus half the interior spacing.
+ * allows.  The presets put [strandWidth] where an inner ring stops fitting, twice the inner margin
+ * plus half the interior spacing.
  *
  * @property Int     alphaThreshold       The minimum alpha byte counted as art (1..255).
  * @property Double  outlineSpacing       The target distance between outline vertices.

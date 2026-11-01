@@ -57,25 +57,15 @@ import org.umamo.ui.viewport.gizmo.selectToolKind
  */
 
 /**
- * The UV editor's gizmo overlay: the Edit-mode interaction core the UV space composes over its texture
- * underlay - the atlas page or the source layer's artwork the area is showing.  Self-gates to Edit mode
- * with a camera - the mode-exclusive sibling of [UvObjectGizmoOverlay], so the host mounts both
- * unconditionally (the viewport overlay pair's convention).
- * Draws the gesture chrome, runs the idle element selection (click pick with Shift/Ctrl toggle, empty-drag
- * box, sub-threshold-click clear, the circle brush, whose live stroke it writes to the host's
- * [circleStrokeState] for the area's published wireframe), and drives the
- * modal G / S / R operators over raw texture coordinates through the shared
- * [org.umamo.ui.viewport.gizmo.ModalTransformController] - the same pointer semantics as the viewport
- * overlays (stale discard, virtual pointer, cursor wrap, LMB-confirm / RMB-cancel), with no deformer inverse
- * involved: the transformed display arrays convert back through the shown surface's frame to the stored
- * coordinates on drive and commit.
+ * The UV editor's Edit-mode gizmo overlay over the texture underlay the area shows (an atlas page or a
+ * source layer's artwork): the idle element selection, and the modal G / S / R over raw texture
+ * coordinates through the shared [org.umamo.ui.viewport.gizmo.ModalTransformController].  It self-gates to
+ * Edit mode with a camera, the mode-exclusive sibling of [UvObjectGizmoOverlay], so the host mounts both
+ * unconditionally.
  *
- * Live preview streams through [LocalPuppetRenderSync]: each pointer frame folds the transformed UVs into an
- * uncommitted model and pushes it to the puppet renderer, so the 2D viewport shows the art resampling as the
- * mapping moves, and every UV area's wireframe follows it through the host's geometry; confirm commits ONE
- * undo step via commitMeshUvs and the session's model bridge republishes the committed model.  Gating follows
- * the area-ownership contract: the capture effect and pointer drive key on the UV latch's own areaId,
- * bystander areas stay inert, and teardown resyncs the raster only when this overlay owned a gesture.
+ * Live preview streams through [LocalPuppetRenderSync], so the 2D viewport shows the art resampling as the
+ * mapping moves; confirm commits one undo step.  Only the area the UV latch names captures and drives, and
+ * teardown resyncs the raster only when this overlay owned a gesture.
  *
  * @param String areaId The UV editor area this overlay covers.
  * @param EditorSession session The session owning the selection and the UV operator latch.
@@ -245,7 +235,7 @@ internal fun UvEditGizmoOverlay(
 		} else {
 			// Resync the renderer only when THIS overlay owned a gesture: the else branch also runs at mount and
 			// when another area's operator latches, and an unguarded resync from a bystander would stomp the
-			// initiating area's live preview (the ownership doc's mid-gesture-split guard).
+			// initiating area's live preview.
 			if (modalTransform.end()) {
 				liveRenderSync.value?.resync()
 			}

@@ -3,9 +3,8 @@ package org.umamo.format.moc3.io
 /**
  * Little-endian, non-obfuscated reader over a byte array.
  *
- * EN: MOC3 is a flat little-endian blob - no obfuscation, no compression (unlike CMO3's
- *     big-endian, XOR'd CAFF container). All multi-byte integers and floats are little-endian.
- * JA: MOC3 はリトルエンディアンの素のバイナリ（難読化・圧縮なし）。
+ * MOC3 is a flat little-endian blob - no obfuscation, no compression (unlike CMO3's big-endian,
+ * XOR'd CAFF container).  All multi-byte integers and floats are little-endian.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
  */
@@ -78,8 +77,8 @@ public class LittleEndianReader(private val data: ByteArray) {
 	/**
 	 * Reads a little-endian unsigned 32-bit integer as a [Long] (0..4294967295).
 	 *
-	 * EN: Section offsets and counts are stored as u32; in practice they fit in a signed Int (files
-	 *     are < 2 GiB), but this avoids surprises near the boundary.
+	 * Section offsets and counts are stored as u32; in practice they fit in a signed Int (files are
+	 * < 2 GiB), but this avoids surprises near the boundary.
 	 *
 	 * @return Long The decoded value.
 	 */
@@ -108,7 +107,7 @@ public class LittleEndianReader(private val data: ByteArray) {
 	/**
 	 * Reads a fixed-width [width]-byte record as a NUL-terminated ASCII/UTF-8 string.
 	 *
-	 * EN: MOC3 IDs are 64-byte records: the identifier bytes, a NUL, then zero padding.
+	 * MOC3 IDs are 64-byte records: the identifier bytes, a NUL, then zero padding.
 	 *
 	 * @param Int width Record width in bytes (e.g. 64).
 	 * @return String The string up to the first NUL.

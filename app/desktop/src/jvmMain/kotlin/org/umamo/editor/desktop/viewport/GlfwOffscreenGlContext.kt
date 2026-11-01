@@ -19,11 +19,8 @@ internal class GlfwOffscreenGlContext : OffscreenGlContext {
 	private var failure: String? = null
 
 	/**
-	 * Creates the GLFW hidden-window GL 3.3 core context on this thread and makes it current. Returns false
-	 * (degrading to a blank viewport) if GLFW init, window creation, or creating the GL capabilities fails, or
-	 * the natives will not load, and keeps a description of the failure, GLFW's own where GLFW reports one, for
-	 * [failureReason].  A false return holds nothing: a window created before the failure is destroyed again,
-	 * so no hidden window or current context outlives an attempt that did not succeed.
+	 * Creates the GLFW hidden-window GL 3.3 core context on this thread and makes it current, keeping a
+	 * description of any failure, GLFW's own where GLFW reports one, for [failureReason].
 	 *
 	 * @return Boolean True on success.
 	 */
