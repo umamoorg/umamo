@@ -19,7 +19,8 @@ import kotlin.test.assertTrue
 /**
  * Pins Pose mode as Edit mode at the pose: entering it opens the warps the pose draws the way Tab opens Edit mode,
  * the select modes switch a lattice between points, grid lines, and cells, Select All and G work on its elements,
- * Alt+Q's switch moves to another posed warp, and a warp's element selection rides a Tab between the two.
+ * Alt+Q's switch moves to another posed warp, and a warp's element selection and the select mode ride a Tab between
+ * the two.
  */
 class PoseSessionTest {
 	@Test

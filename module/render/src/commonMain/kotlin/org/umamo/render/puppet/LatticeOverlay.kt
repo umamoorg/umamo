@@ -9,14 +9,22 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.WarpLatticeLayout
 
 /**
- * Which color a warp's lattice draws in: the idle color of a lattice shown only because its area shows every
- * deformer, the selected color, or the active color.  The layer draws the roles in this order, so a selected
- * lattice lands over an idle one and the active lattice over both.
+ * Which color a warp's lattice draws in, and so its shape ([drawsOutline]): the idle color of a lattice shown only
+ * because its area shows every deformer, the selected color, or the active color.  The layer draws the roles in this
+ * order, so a selected lattice lands over an idle one and the active lattice over both.
  */
 enum class LatticeRole {
 	Idle,
 	Selected,
 	Active,
+	;
+
+	/**
+	 * Whether a lattice in this role draws slim - its outer edges and its four corner dots alone - rather than its
+	 * whole grid: an idle lattice does, so an area showing every deformer stays readable, and a selected or active one
+	 * shows its grid.  The one rule the lattice layer's draws and the picks over them read ([LatticePoints.shapeFor]).
+	 */
+	val drawsOutline: Boolean get() = this == Idle
 }
 
 /**
@@ -51,7 +59,53 @@ class LatticeOverlay(
 class LatticePoints(
 	val layout: WarpLatticeLayout,
 	val world: FloatArray,
+) {
+	/** The whole grid as drawn: every control point dotted, every grid line. */
+	val full: LatticeShape by lazy(LazyThreadSafetyMode.PUBLICATION) { LatticeShape(world, layout.edgeEndpoints, layout.pointCount) }
+
+	/**
+	 * The slim outline as drawn: the border points gathered out of [world] in the layout's outline order
+	 * ([WarpLatticeLayout.outlinePointIndices]), the four corners first and dotted alone, and the border ring's edges.
+	 */
+	val outline: LatticeShape by lazy(LazyThreadSafetyMode.PUBLICATION) {
+		val indices = layout.outlinePointIndices
+		val positions = FloatArray(indices.size * 2)
+
+		for (slot in indices.indices) {
+			positions[slot * 2] = world[indices[slot] * 2]
+			positions[slot * 2 + 1] = world[indices[slot] * 2 + 1]
+		}
+
+		LatticeShape(positions, layout.outlineEdgeEndpoints, OUTLINE_DOT_COUNT)
+	}
+
+	/**
+	 * What this lattice draws in [role], and so what picks it: the [outline] for a role that draws slim
+	 * ([LatticeRole.drawsOutline]), else the [full] grid.  Each shape is built once per instance, so an unmoved
+	 * lattice hands back the same arrays and the upload that compares them by identity does nothing.
+	 *
+	 * @param LatticeRole role The lattice's role.
+	 * @return LatticeShape The drawn shape.
+	 */
+	fun shapeFor(role: LatticeRole): LatticeShape = if (role.drawsOutline) outline else full
+}
+
+/**
+ * What of one lattice is drawn, and so what a click on it can land on: the points, the edges between them, and how
+ * many of the points, from the first, are dotted.  The undotted rest are only the edges' anchors.
+ *
+ * @property FloatArray positions The points in world space, interleaved x, z.
+ * @property IntArray edgeEndpoints The edges as index pairs into [positions].
+ * @property Int dotCount How many points, from the first, draw a dot and pick as a point.
+ */
+class LatticeShape(
+	val positions: FloatArray,
+	val edgeEndpoints: IntArray,
+	val dotCount: Int,
 )
+
+/** The dots a slim outline draws: its four corners, which the layout lists first. */
+private const val OUTLINE_DOT_COUNT = 4
 
 /** The triangle list every lattice carries in the layer: none, since a lattice never fills and never draws a diagonal. */
 private val NO_TRIANGLES = IntArray(0)
@@ -103,11 +157,12 @@ internal fun latticePointsOf(
 /**
  * The lattice layer the renderer draws: a direct overlay of kind [MeshOverlayKind.Lattice] holding each warp
  * [overlay] lists that [lattices] holds, in model order, each styled with its role and pending mark
- * ([MeshStyle.Lattice]), with its grid lines as edges and no triangles.  The encoder draws them role by role, so a
- * stronger role lands over a weaker one.  Null when none of them is drawn.
+ * ([MeshStyle.Lattice]) and drawn in its role's shape ([LatticePoints.shapeFor]): an idle lattice its outer edges and
+ * four corner dots, any other its whole grid, with no triangles either way.  The encoder draws them role by role, so
+ * a stronger role lands over a weaker one.  Null when none of them is drawn.
  *
  * [previous] is handed back whole when nothing in it changed, and each mesh value in it is reused while its style
- * and layout hold, so a frame over an unchanged pose and selection uploads nothing.
+ * and shape hold, so a frame over an unchanged pose and selection uploads nothing.
  *
  * @param LatticeOverlay overlay The warps to draw and their roles.
  * @param Map<DeformerId, LatticePoints> lattices The current pose's lattices ([latticePointsOf]), in model order.
@@ -129,14 +184,15 @@ internal fun latticeLayerOf(
 		val owner = ElementOwner.Deformer(deformerId)
 		val held = previousByOwner[owner]
 		val style = MeshStyle.Lattice(role, deformerId in overlay.pendingIds)
+		val shape = lattice.shapeFor(role)
 		val mesh =
-			if (held != null && held.style == style && held.edgeEndpoints === lattice.layout.edgeEndpoints) {
+			if (held != null && held.style == style && held.edgeEndpoints === shape.edgeEndpoints) {
 				held
 			} else {
 				MeshOverlayMesh(
 					owner = owner,
-					vertexCount = lattice.layout.pointCount,
-					edgeEndpoints = lattice.layout.edgeEndpoints,
+					vertexCount = shape.positions.size / 2,
+					edgeEndpoints = shape.edgeEndpoints,
 					vertexFlags = ByteArray(0),
 					edgeFlags = ByteArray(0),
 					faceFlags = ByteArray(0),
@@ -144,10 +200,11 @@ internal fun latticeLayerOf(
 					activeEdge = null,
 					activeFace = null,
 					style = style,
+					vertexDotCount = shape.dotCount,
 				)
 			}
 		meshes.add(mesh)
-		positionsByOwner[owner] = lattice.world
+		positionsByOwner[owner] = shape.positions
 		trianglesByOwner[owner] = NO_TRIANGLES
 	}
 
@@ -199,24 +256,25 @@ internal val EVERY_LATTICE_ROLE: Set<LatticeRole> = LatticeRole.entries.toSet()
 private val PICKED_LATTICE_ROLES: Set<LatticeRole> = setOf(LatticeRole.Selected, LatticeRole.Active)
 
 /**
- * The lattice roles a frame drawing with [overlays] draws: none when the frame hides the mesh overlay, every role
- * when it shows every deformer, and only the selected and active ones otherwise.  The one rule both the renderer's
- * lattice draws and the picks over them ([latticesDrawnIn]) read, so a pick never lands on a lattice the area does
- * not draw.
+ * The lattice roles a frame drawing with [overlays] draws: none when the frame hides the mesh overlay or draws the
+ * lattices at no opacity, every role when it shows every deformer, and only the selected and active ones otherwise.
+ * The one rule both the renderer's lattice draws and the picks over them ([latticesDrawnIn]) read, so a pick - and
+ * so a hover - never lands on a lattice the area does not draw.
  *
  * @param FrameOverlays overlays The frame's overlay options.
  * @return Set<LatticeRole> The drawn roles.
  */
 fun latticeRolesDrawnIn(overlays: FrameOverlays): Set<LatticeRole> =
 	when {
-		!overlays.meshOverlay -> emptySet()
+		!overlays.meshOverlay || overlays.latticeOpacity <= 0f -> emptySet()
 		overlays.allLattices -> EVERY_LATTICE_ROLE
 		else -> PICKED_LATTICE_ROLES
 	}
 
 /**
  * The lattices a frame drawing with [overlays] shows of [lattices]: each listed warp whose role the frame draws
- * ([latticeRolesDrawnIn]).  What a click in that frame can pick.
+ * ([latticeRolesDrawnIn]), whole.  What box and circle select test by center; a click reads the drawn shapes
+ * ([latticeShapesDrawnIn]).
  *
  * @param LatticeOverlay? overlay The lattices the renderer holds, or null.
  * @param Map<DeformerId, LatticePoints> lattices The current pose's lattices, in model order.
@@ -235,4 +293,35 @@ fun latticesDrawnIn(
 	}
 
 	return lattices.filter { (deformerId, _) -> overlay.roles[deformerId] in roles }
+}
+
+/**
+ * The shapes a frame drawing with [overlays] draws of [lattices]: each lattice [latticesDrawnIn] keeps, in its
+ * role's shape ([LatticePoints.shapeFor]).  What a click or a hover in that frame can land on, so a lattice picks
+ * exactly where its dots and lines are drawn.
+ *
+ * @param LatticeOverlay? overlay The lattices the renderer holds, or null.
+ * @param Map<DeformerId, LatticePoints> lattices The current pose's lattices, in model order.
+ * @param FrameOverlays overlays The frame's overlay options.
+ * @return Map<DeformerId, LatticeShape> The drawn shapes, in model order.
+ */
+fun latticeShapesDrawnIn(
+	overlay: LatticeOverlay?,
+	lattices: Map<DeformerId, LatticePoints>,
+	overlays: FrameOverlays,
+): Map<DeformerId, LatticeShape> {
+	val drawn = latticesDrawnIn(overlay, lattices, overlays)
+
+	if (overlay == null || drawn.isEmpty()) {
+		return emptyMap()
+	}
+
+	val shapes = LinkedHashMap<DeformerId, LatticeShape>()
+
+	for ((deformerId, lattice) in drawn) {
+		val role = overlay.roles[deformerId] ?: continue
+		shapes[deformerId] = lattice.shapeFor(role)
+	}
+
+	return shapes
 }

@@ -48,6 +48,8 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  *   - VertexSlide.kt: the slide's frozen candidates and the per-frame edge pick.
  *   - EditGizmoRequests.kt: the area-gated collectors for Select Linked, Alt+Q, Rip, and the snaps.
  *   - EditGizmoPointerInput.kt: the pointer loop (modal transform, circle brush, idle selection).
+ *   - LatticeHover.kt: the idle lattice the pointer is over in Pose mode, drawn in the hover color (shared with
+ *     the Object overlay).
  *   - EditGizmoSelection.kt: the marquee and the element pick over mesh elements.
  *   - EditGizmoDraw.kt: the gesture chrome, read in the draw phase.
  *   - EditMeshGeometry.kt: the session owners' live geometry at the stage, which the picks read.
@@ -186,6 +188,10 @@ fun ViewportEditGizmoOverlay(
 	// The element pick and box select, armed or not, one per area (see MeshPickController).
 	val meshPick = remember(areaId) { editMeshPick(session, marquee, liveGeometryState) }
 
+	// The idle lattice the pointer is over in Pose mode, drawn in the hover color in this area alone, one per area
+	// (see LatticeHover).
+	val latticeHover = remember(areaId) { LatticeHover(areaId, service) { session.model.value } }
+
 	// The modal transform's commit side, one per area: the pointer loop and the collectors below keep the
 	// instance they started with (see EditModalTransform).  Its gesture state is what the Box, the pointer
 	// loop, and the chrome read.
@@ -201,7 +207,7 @@ fun ViewportEditGizmoOverlay(
 	// to project disposes this part of the overlay mid-gesture, which cancels the latch effect below WITHOUT
 	// running its teardown - the renderer would be left on the uncommitted preview, and the latch on an
 	// overlay that no longer exists.  A select gesture in flight is dropped the same way, nothing of it
-	// landing, and the gesture flag it raised comes down.
+	// landing, and the gesture flag it raised comes down.  The lattice hover clears with it.
 	DisposableEffect(modalTransform) {
 		onDispose {
 			if (modalTransform.abandon()) {
@@ -210,6 +216,7 @@ fun ViewportEditGizmoOverlay(
 
 			marquee.discard()
 			meshPick.cancel()
+			latticeHover.clear()
 		}
 	}
 
@@ -309,7 +316,7 @@ fun ViewportEditGizmoOverlay(
 					.fillMaxSize()
 					.graphicsLayer()
 					.pointerInput(areaId) {
-						editGizmoPointerLoop(areaId, session, modalTransform, marquee, meshPick, liveCamera, liveSize)
+						editGizmoPointerLoop(areaId, session, modalTransform, marquee, meshPick, latticeHover, liveCamera, liveSize)
 					},
 		) {
 			drawEditGizmoChrome(

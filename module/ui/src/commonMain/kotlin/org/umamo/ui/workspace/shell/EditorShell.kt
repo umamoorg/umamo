@@ -78,8 +78,8 @@ import org.umamo.ui.workspace.statusbar.StatusBar
  *  - ModalKeyLadder.kt, over ShellModalState.kt and ShellKeyStroke.kt: the Escape / Enter ladder that
  *    runs before the keymap.
  *  - ShellTextEntry.kt: the press that ends text entry.  ShellCursorClaim.kt: the window-wide cursor.
- *  - ShellCursorOverlays.kt (with the pie menu tables in ViewportPieMenus.kt): the overlays anchored at
- *    the window pointer.  ShellModalOverlays.kt: the modal dialogs, in stacking order.
+ *  - ShellCursorOverlays.kt (drawing the pie menu tables from workspace/commands/ViewportPieMenus.kt): the
+ *    overlays anchored at the window pointer.  ShellModalOverlays.kt: the modal dialogs, in stacking order.
  *  - WorkspaceTabs.kt: the workspace tab strip.
  *  - EditorShellPersistence.kt: the settings-backed wrapper apps mount, and LogExport.kt, the log export
  *    it registers.

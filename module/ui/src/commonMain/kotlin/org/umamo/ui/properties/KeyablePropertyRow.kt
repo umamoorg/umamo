@@ -50,7 +50,7 @@ internal fun KeyablePropertyRow(
  * Wraps [content] as a keyable row over any keyform [track] - a channel, or a geometry track such as a warp's
  * lattice: it publishes the track on hover and carries the keyframe context menu, as the channel form does.
  *
- * The menu's rows grey out in Edit mode, where their commands do not apply (EditorMode.editsKeys).  The mode is
+ * The menu's rows gray out in Edit mode, where their commands do not apply (EditorMode.editsKeys).  The mode is
  * collected so a switch reaches a row that is already composed.
  *
  * @param KeyformTrackRef track The track this row keys.

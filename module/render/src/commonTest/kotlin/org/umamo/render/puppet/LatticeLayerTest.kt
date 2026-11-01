@@ -19,8 +19,9 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the lattice layer's derive from a pose: its points are exactly where the bake puts each warp, in world
- * space, they follow the pose, a warp the pose hides and a deformer that is not a warp have none, and an unmoved
- * lattice or an unchanged layer keeps its instances, which is what spares the GPU its uploads.
+ * space, they follow the pose, a warp the pose hides and a deformer that is not a warp have none, an idle lattice
+ * draws its outline and corners while the others draw their grid, and an unmoved lattice or an unchanged layer keeps
+ * its instances, which is what spares the GPU its uploads.
  */
 class LatticeLayerTest {
 	private val sizes = MeshOverlaySizes(2.5f, 1f, 2.5f)
@@ -119,11 +120,46 @@ class LatticeLayerTest {
 		assertEquals(modelOrder.map { warpId -> MeshStyle.Lattice(roles.getValue(warpId), pending = false) }, layer.overlay.meshes.map { mesh -> mesh.style })
 
 		for (mesh in layer.overlay.meshes) {
-			val lattice = assertNotNull(lattices[(mesh.owner as ElementOwner.Deformer).id])
-			assertSame(lattice.world, layer.positionsByOwner[mesh.owner], "${mesh.owner} draws the lattice's own points")
-			assertSame(lattice.layout.edgeEndpoints, mesh.edgeEndpoints, "${mesh.owner} draws the grid lines")
+			val warpId = (mesh.owner as ElementOwner.Deformer).id
+			val shape = assertNotNull(lattices[warpId]).shapeFor(roles.getValue(warpId))
+			assertSame(shape.positions, layer.positionsByOwner[mesh.owner], "${mesh.owner} draws its role's shape's points")
+			assertSame(shape.edgeEndpoints, mesh.edgeEndpoints, "${mesh.owner} draws its role's shape's lines")
+			assertEquals(shape.dotCount, mesh.vertexDotCount, "${mesh.owner} dots its role's shape's points")
 			assertEquals(0, assertNotNull(layer.triangleIndicesByOwner[mesh.owner]).size, "${mesh.owner} has no triangles to draw")
 		}
+	}
+
+	@Test
+	fun anIdleLatticeDrawsItsOutlineAndItsCornersAlone() {
+		val lattice = assertNotNull(latticesAt(latticeRigModel(), mapOf(LATTICE_RIG_ANGLE_X to -1f))[LATTICE_RIG_OUTER])
+		val layer = assertNotNull(latticeLayerOf(LatticeOverlay(mapOf(LATTICE_RIG_OUTER to LatticeRole.Idle), sizes), mapOf(LATTICE_RIG_OUTER to lattice), null))
+		val mesh = layer.overlay.meshes.single()
+		val positions = assertNotNull(layer.positionsByOwner[mesh.owner])
+		val layout = lattice.layout
+
+		assertEquals(8, mesh.vertexCount, "a 2x2 lattice's eight border points")
+		assertEquals(4, mesh.vertexDotCount, "of which only the corners are dotted")
+		assertSame(layout.outlineEdgeEndpoints, mesh.edgeEndpoints, "the border ring alone")
+
+		for ((slot, pointIndex) in layout.outlinePointIndices.withIndex()) {
+			assertEquals(lattice.world[pointIndex * 2], positions[slot * 2], "slot $slot's x is point $pointIndex's")
+			assertEquals(lattice.world[pointIndex * 2 + 1], positions[slot * 2 + 1], "slot $slot's z is point $pointIndex's")
+		}
+
+		assertEquals(lattice.world[layout.pointIndex(2, 2) * 2], positions[4], "the third dot is the far corner")
+	}
+
+	@Test
+	fun aRoleChangeSwapsTheShape() {
+		val lattices = latticesAt(latticeRigModel(), emptyMap())
+		val idle = assertNotNull(latticeLayerOf(LatticeOverlay(mapOf(LATTICE_RIG_OUTER to LatticeRole.Idle), sizes), lattices, null))
+		val selected = assertNotNull(latticeLayerOf(LatticeOverlay(mapOf(LATTICE_RIG_OUTER to LatticeRole.Selected), sizes), lattices, idle))
+		val lattice = assertNotNull(lattices[LATTICE_RIG_OUTER])
+
+		assertSame(lattice.world, selected.positionsByOwner[ElementOwner.Deformer(LATTICE_RIG_OUTER)], "selected, it draws every point")
+		assertSame(lattice.layout.edgeEndpoints, selected.overlay.meshes.single().edgeEndpoints, "and every grid line")
+		assertEquals(lattice.layout.pointCount, selected.overlay.meshes.single().vertexDotCount, "dotting every point")
+		assertSame(lattice.outline, lattice.shapeFor(LatticeRole.Idle), "the outline is built once per lattice")
 	}
 
 	@Test
@@ -171,5 +207,17 @@ class LatticeLayerTest {
 		assertEquals(listOf(LATTICE_RIG_OUTER), latticesDrawnIn(overlay, lattices, FrameOverlays(allLattices = false)).keys.toList(), "no idle one without every deformer")
 		assertTrue(latticesDrawnIn(overlay, lattices, FrameOverlays(meshOverlay = false)).isEmpty(), "none without the overlays")
 		assertTrue(latticesDrawnIn(null, lattices, FrameOverlays()).isEmpty(), "none without an overlay")
+
+		val shapes = latticeShapesDrawnIn(overlay, lattices, FrameOverlays())
+		assertEquals(listOf(LATTICE_RIG_OUTER, LATTICE_RIG_INNER), shapes.keys.toList(), "the shapes follow the same rule")
+		assertSame(lattices.getValue(LATTICE_RIG_OUTER).full, shapes[LATTICE_RIG_OUTER], "a selected lattice picks by its grid")
+		assertSame(lattices.getValue(LATTICE_RIG_INNER).outline, shapes[LATTICE_RIG_INNER], "an idle one by its outline")
+		assertEquals(listOf(LATTICE_RIG_OUTER), latticeShapesDrawnIn(overlay, lattices, FrameOverlays(allLattices = false)).keys.toList())
+
+		val unseen = FrameOverlays(latticeOpacity = 0f)
+		assertTrue(latticeRolesDrawnIn(unseen).isEmpty(), "no opacity draws no role")
+		assertTrue(latticesDrawnIn(overlay, lattices, unseen).isEmpty(), "so no lattice is drawn")
+		assertTrue(latticeShapesDrawnIn(overlay, lattices, unseen).isEmpty(), "and none can be picked")
+		assertEquals(listOf(LATTICE_RIG_OUTER, LATTICE_RIG_INNER), latticesDrawnIn(overlay, lattices, FrameOverlays(latticeOpacity = 0.1f)).keys.toList(), "while any opacity draws them all")
 	}
 }

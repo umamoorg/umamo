@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import org.umamo.render.FrameOverlays
+import org.umamo.runtime.model.DeformerId
 
 /*
  * The per-area render options the editor hands the render service: each work-surface area's grid geometry
@@ -37,12 +38,24 @@ data class AreaOverlays(
 }
 
 /**
+ * These options with [deformerId] as the area's hovered lattice ([FrameOverlays.hoveredLattice]), or this value
+ * itself when it already says so.  The render service lays an area's hover over each value the area pushes, since
+ * the pointer, not the overlay state, owns it.
+ *
+ * @param DeformerId? deformerId The hovered warp, or null for none.
+ * @return AreaOverlays The options with that hover.
+ */
+fun AreaOverlays.withHoveredLattice(deformerId: DeformerId?): AreaOverlays =
+	if (frame.hoveredLattice == deformerId) this else copy(frame = frame.copy(hoveredLattice = deformerId))
+
+/**
  * The render options an area's overlay state asks for over the application's grid for its surface.  A null
- * state (no area, as in a standalone shell) shows everything on the application's grid; an area with a grid of its own draws that
- * one; a UV editor never asks for the world axes, the wireframe, every warp lattice, or the tint off, which its surface has no
- * rows for; the mesh overlay follows the Show Overlays master alone, since the Edit cage has no row of its
- * own, while the wireframe, its culling, and the tint follow their rows under the master; the wireframe's
- * opacity is the area's on both surfaces, a UV editor's islands fading by it.
+ * state (no area, as in a standalone shell) shows everything on the application's grid; an area with a grid of
+ * its own draws that one; a UV editor never asks for the world axes, the wireframe, every warp lattice, or the
+ * tint off, which its surface has no rows for; the mesh overlay follows the Show Overlays master alone, since the
+ * Edit cage has no row of its own, while the wireframe, its culling, and the tint follow their rows under the
+ * master; the wireframe's opacity is the area's on both surfaces, a UV editor's islands fading by it, and the
+ * lattices' opacity a 2D viewport's alone.
  *
  * @param ViewportOverlayState? state           The area's overlay state, or null for none.
  * @param GridConfig            applicationGrid The application's grid for the area's surface.
@@ -60,6 +73,7 @@ fun areaOverlaysFor(state: ViewportOverlayState?, applicationGrid: GridConfig): 
 			wireframeOpacity = state?.wireframeOpacity ?: 1f,
 			wireframeCulling = state == null || state.surface == OverlaySurface.UvEditor || state.effectiveCullHiddenWireframe,
 			allLattices = state == null || (state.surface == OverlaySurface.Viewport2D && state.effectiveDeformers),
+			latticeOpacity = if (state == null || state.surface != OverlaySurface.Viewport2D) 1f else state.deformerOpacity,
 		),
 	)
 

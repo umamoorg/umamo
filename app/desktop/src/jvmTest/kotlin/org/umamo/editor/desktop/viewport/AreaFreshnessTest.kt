@@ -11,9 +11,11 @@ import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.puppet.PlacementPreview
+import org.umamo.runtime.model.DeformerId
 import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.UvSceneContent
+import org.umamo.ui.viewport.withHoveredLattice
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -79,6 +81,19 @@ class AreaFreshnessTest {
 		val changed = AreaOverlays.Default.copy(frame = AreaOverlays.Default.frame.copy(gridLines = false))
 		assertEquals(AreaRenderDecision.Render(2), decide(freshPuppetSlot().apply { overlays = changed }), "a puppet area re-renders for its own options")
 		assertEquals(AreaRenderDecision.Render(2), decide(freshUvSlot().apply { overlays = changed }), "and so does a UV area")
+	}
+
+	/** A lattice hover rides the area's overlays, so hovering a warp re-renders the area and nothing else is needed. */
+	@Test
+	fun aLatticeHoverMakesThePuppetAreaStale() {
+		val hovered = AreaOverlays.Default.withHoveredLattice(DeformerId("warp"))
+		assertEquals(AreaRenderDecision.Render(2), decide(freshPuppetSlot().apply { overlays = hovered }), "a new hover re-renders")
+		val rendered =
+			freshPuppetSlot().apply {
+				overlays = hovered
+				renderedOverlays = hovered
+			}
+		assertEquals(AreaRenderDecision.Fresh, decide(rendered), "and an unchanged one does not")
 	}
 
 	/** A new instance equal by value is as fresh as the stamp itself, so an equal re-push renders nothing. */

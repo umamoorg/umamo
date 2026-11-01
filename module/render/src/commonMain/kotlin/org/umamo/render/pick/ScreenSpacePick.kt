@@ -144,6 +144,8 @@ fun hitTestVertex(
  * @param ViewportCamera camera The projecting camera.
  * @param Int viewportWidth The viewport width in pixels.
  * @param Int viewportHeight The viewport height in pixels.
+ * @param Int vertexCount How many of the vertices, from the first, can be hit: every one by default, fewer when only
+ *   the first are drawn as dots (a slim lattice's corners).
  * @return ScreenHit? The nearest vertex and its distance, or null.
  */
 fun nearestVertex(
@@ -154,10 +156,10 @@ fun nearestVertex(
 	camera: ViewportCamera,
 	viewportWidth: Int,
 	viewportHeight: Int,
+	vertexCount: Int = positions.size / 2,
 ): ScreenHit? {
 	var best = -1
 	var bestDistance = hitRadiusPx
-	val vertexCount = positions.size / 2
 
 	for (vertexIndex in 0 until vertexCount) {
 		val screenX = worldToScreenX(positions[vertexIndex * 2], camera, viewportWidth)

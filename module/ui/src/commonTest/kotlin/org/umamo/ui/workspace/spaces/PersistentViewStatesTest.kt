@@ -187,14 +187,17 @@ class PersistentViewStatesTest {
 		val tree = saved.toJson()
 		val overlays = tree["overlays"] as JsonObject
 		assertEquals(
-			listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "deformers", "wireframeCulling", "wireframeOpacity", "gridGeometry"),
+			listOf("all", "grid", "axes", "cursor", "info", "wireframe", "selectionTint", "deformers", "wireframeCulling", "deformerOpacity", "wireframeOpacity", "gridGeometry"),
 			overlays.keys.toList(),
 			"every key is named, so a merge can take a deviation back out",
 		)
 		assertEquals(JsonPrimitive(false), overlays["all"])
 		assertEquals(JsonPrimitive(false), overlays["cursor"])
 		assertEquals(JsonPrimitive(true), overlays["deformers"])
-		assertTrue(listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull }, "a flag at its default, an opacity that is whole, and a grid that follows, is a null")
+		assertTrue(
+			listOf("grid", "axes", "info", "wireframe", "selectionTint", "wireframeCulling", "deformerOpacity", "wireframeOpacity", "gridGeometry").all { key -> overlays[key] is JsonNull },
+			"a flag at its default, an opacity that is whole, and a grid that follows, is a null",
+		)
 
 		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
 		assertFalse(reopened.overlays.showOverlays)
@@ -393,6 +396,38 @@ class PersistentViewStatesTest {
 		assertEquals(uvTree, uvReopened.toJson())
 	}
 
+	/** The deformers' opacity round-trips on a 2D viewport, 0 included, and back at whole the member is a null. */
+	@Test
+	fun theDeformerOpacityRoundTrips() {
+		val saved = Viewport2DViewState()
+		saved.overlays.deformerOpacity = 0.4f
+
+		val tree = saved.toJson()
+		assertEquals(JsonPrimitive(0.4f), (tree["overlays"] as JsonObject)["deformerOpacity"])
+		val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+		assertEquals(0.4f, reopened.overlays.deformerOpacity)
+		assertEquals(tree, reopened.toJson(), "and the restored state writes the same member")
+
+		saved.overlays.deformerOpacity = 0f
+		val hiddenTree = saved.toJson()
+		assertEquals(JsonPrimitive(0f), (hiddenTree["overlays"] as JsonObject)["deformerOpacity"], "zero is a value, not a default")
+		assertEquals(0f, Viewport2DViewState().also { state -> state.restore(hiddenTree) }.overlays.deformerOpacity)
+
+		saved.overlays.deformerOpacity = 1f
+		assertEquals(JsonNull, saved.toJson()["overlays"], "back at whole the member is a null")
+	}
+
+	/** A deformerOpacity outside 0 to 1, or not a number, reads as whole. */
+	@Test
+	fun aBrokenDeformerOpacityReadsAsWhole() {
+		for (planted in listOf<JsonElement>(JsonPrimitive(1.5f), JsonPrimitive(-0.1f), JsonPrimitive("no"), JsonPrimitive(true))) {
+			val tree = buildJsonObject { put("overlays", buildJsonObject { put("deformerOpacity", planted) }) }
+			val reopened = Viewport2DViewState().also { state -> state.restore(tree) }
+			assertEquals(1f, reopened.overlays.deformerOpacity, "$planted reads as whole")
+			assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
+		}
+	}
+
 	/** A wireframeOpacity outside 0 to 1, or not a number, reads as whole. */
 	@Test
 	fun aBrokenWireframeOpacityReadsAsWhole() {
@@ -456,6 +491,8 @@ class PersistentViewStatesTest {
 						put("wireframe", true)
 						put("selectionTint", false)
 						put("wireframeCulling", false)
+						put("deformers", true)
+						put("deformerOpacity", 0.4f)
 					},
 				)
 			}
@@ -466,6 +503,8 @@ class PersistentViewStatesTest {
 		assertFalse(reopened.overlays.showWireframe, "a UV editor's wireframe flag stays at its default")
 		assertTrue(reopened.overlays.showSelectionTint, "and so does its tint flag")
 		assertTrue(reopened.overlays.cullHiddenWireframe, "and its culling flag")
+		assertFalse(reopened.overlays.showDeformers, "and its deformers flag")
+		assertEquals(1f, reopened.overlays.deformerOpacity, "and the deformers' opacity")
 		assertTrue(writesOnlyNulls(reopened), "and nothing is written back")
 	}
 

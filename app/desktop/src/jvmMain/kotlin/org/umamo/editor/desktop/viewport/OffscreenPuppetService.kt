@@ -190,6 +190,8 @@ class OffscreenPuppetService(
 
 	override fun setLatticeOverlay(overlay: LatticeOverlay?) = inputs.setLatticeOverlay(overlay)
 
+	override fun setLatticeHover(areaId: String, deformerId: DeformerId?) = registry.setLatticeHover(areaId, deformerId)
+
 	override fun setLatticePreview(overrides: Map<DeformerId, WarpLatticeForm>) {
 		liveParams.latticePreview = overrides
 	}

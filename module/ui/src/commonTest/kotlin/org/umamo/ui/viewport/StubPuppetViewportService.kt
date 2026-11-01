@@ -39,6 +39,9 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	/** Every lattice overlay published through [setLatticeOverlay], oldest first, nulls included. */
 	val pushedLatticeOverlays = ArrayList<LatticeOverlay?>()
 
+	/** Every hover published through [setLatticeHover], oldest first, as the area and the warp (null included). */
+	val pushedLatticeHovers = ArrayList<Pair<String, DeformerId?>>()
+
 	/** Every direct Edit cage published through [setEditDirectOverlay], oldest first, nulls included. */
 	val pushedEditDirectOverlays = ArrayList<DirectMeshOverlay?>()
 
@@ -350,6 +353,16 @@ internal class StubPuppetViewportService : PuppetViewportService {
 	 */
 	override fun setLatticeOverlay(overlay: LatticeOverlay?) {
 		pushedLatticeOverlays.add(overlay)
+	}
+
+	/**
+	 * Records the hovered lattice.
+	 *
+	 * @param String areaId The area the pointer is in.
+	 * @param DeformerId? deformerId The hovered warp, or null.
+	 */
+	override fun setLatticeHover(areaId: String, deformerId: DeformerId?) {
+		pushedLatticeHovers.add(areaId to deformerId)
 	}
 
 	/**

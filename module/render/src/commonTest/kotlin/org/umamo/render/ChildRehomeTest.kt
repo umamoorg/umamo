@@ -57,10 +57,10 @@ class ChildRehomeTest {
 		KeyformGrid(listOf(KeyformAxis(sway, floatArrayOf(0f, 1f))), listOf(KeyformCell(intArrayOf(0), rest), KeyformCell(intArrayOf(1), swayedForm)))
 
 	/**
-	 * A 2 x 2 lattice over [originX]..[originX] + 100 and 0..100 in canvas space, its centre pushed by [bend].
+	 * A 2 x 2 lattice over [originX]..[originX] + 100 and 0..100 in canvas space, its center pushed by [bend].
 	 *
 	 * @param Float originX The left edge.
-	 * @param Float bend How far the centre point is pushed.
+	 * @param Float bend How far the center point is pushed.
 	 * @return FloatArray The nine control points.
 	 */
 	private fun lattice(originX: Float, bend: Float = 0f): FloatArray =

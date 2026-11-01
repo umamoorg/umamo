@@ -10,9 +10,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the lattice pick: every control point is a target, a point outranks a grid line, a line takes its own
- * band, nearer outranks farther, a tie goes to the warp later in the model, and the radii are screen pixels at
- * every zoom.
+ * Pins the lattice pick: a full grid's every control point is a target and a slim outline's only its corners and
+ * outer edges, a point outranks a line, a line takes its own band, nearer outranks farther, a tie goes to the warp
+ * later in the model, and the radii are screen pixels at every zoom.
  */
 class LatticePickTest {
 	private val viewportSize = 200
@@ -56,7 +56,7 @@ class LatticePickTest {
 
 	@Test
 	fun theMiddlePointIsATargetLikeTheCorners() {
-		val lattices = mapOf(parent to lattice(-40f, 40f, 40f))
+		val lattices = mapOf(parent to lattice(-40f, 40f, 40f).full)
 		val (middleX, middleY) = screenOf(0f, 0f)
 
 		assertEquals(listOf(parent), latticeHitsAt(lattices, middleX + 2f, middleY, 3f, 3f, camera, viewportSize, viewportSize))
@@ -65,7 +65,7 @@ class LatticePickTest {
 
 	@Test
 	fun aGridLineIsATargetBetweenItsPoints() {
-		val lattices = mapOf(parent to lattice(-40f, 40f, 40f))
+		val lattices = mapOf(parent to lattice(-40f, 40f, 40f).full)
 		val (lineX, lineY) = screenOf(-20f, 40f)
 
 		assertEquals(listOf(parent), latticeHitsAt(lattices, lineX, lineY + 2f, 3f, 3f, camera, viewportSize, viewportSize), "halfway along the top line")
@@ -74,19 +74,19 @@ class LatticePickTest {
 	@Test
 	fun aPointOutranksALineAndNearerOutranksFarther() {
 		// The child's corner sits 2 pixels from the pointer; the parent's top line runs 1 pixel from it.
-		val lattices = mapOf(parent to lattice(-40f, 40f, 40f), child to lattice(-18f, 39f, 5f))
+		val lattices = mapOf(parent to lattice(-40f, 40f, 40f).full, child to lattice(-18f, 39f, 5f).full)
 		val (pointerX, pointerY) = screenOf(-20f, 39f)
 
 		assertEquals(listOf(child, parent), latticeHitsAt(lattices, pointerX, pointerY, 3f, 3f, camera, viewportSize, viewportSize), "the point first, though the line is nearer")
 
 		val (nearX, nearY) = screenOf(-39f, 39f)
-		val both = mapOf(parent to lattice(-40f, 40f, 40f), child to lattice(-37f, 40f, 40f))
+		val both = mapOf(parent to lattice(-40f, 40f, 40f).full, child to lattice(-37f, 40f, 40f).full)
 		assertEquals(listOf(parent, child), latticeHitsAt(both, nearX, nearY, 3f, 3f, camera, viewportSize, viewportSize), "between two points, the nearer first")
 	}
 
 	@Test
 	fun aLineTakesItsOwnNarrowerBand() {
-		val lattices = mapOf(parent to lattice(-40f, 40f, 40f))
+		val lattices = mapOf(parent to lattice(-40f, 40f, 40f).full)
 		val (lineX, lineY) = screenOf(-20f, 40f)
 
 		assertEquals(listOf(parent), latticeHitsAt(lattices, lineX, lineY + 6f, 10f, 8f, camera, viewportSize, viewportSize), "6 pixels off a line, inside its band")
@@ -95,8 +95,8 @@ class LatticePickTest {
 
 	@Test
 	fun aTieGoesToTheLaterWarp() {
-		val shared = lattice(-40f, 40f, 40f)
-		val lattices = mapOf(parent to shared, child to lattice(-40f, 40f, 40f))
+		val shared = lattice(-40f, 40f, 40f).full
+		val lattices = mapOf(parent to shared, child to lattice(-40f, 40f, 40f).full)
 		val (cornerX, cornerY) = screenOf(-40f, 40f)
 
 		assertEquals(listOf(child, parent), latticeHitsAt(lattices, cornerX, cornerY, 3f, 3f, camera, viewportSize, viewportSize), "the child, drawn over its parent")
@@ -104,7 +104,7 @@ class LatticePickTest {
 
 	@Test
 	fun theRadiusIsScreenPixelsAtEveryZoom() {
-		val lattices = mapOf(parent to lattice(-40f, 40f, 40f))
+		val lattices = mapOf(parent to lattice(-40f, 40f, 40f).full)
 		val zoomedOut = ViewportCamera(0f, 0f, 0.25f)
 		val zoomedIn = ViewportCamera(0f, 0f, 4f)
 
@@ -114,6 +114,29 @@ class LatticePickTest {
 
 		assertEquals(listOf(parent), latticeHitsAt(lattices, outX, outY, 3f, 3f, zoomedOut, viewportSize, viewportSize))
 		assertTrue(latticeHitsAt(lattices, inX, inY, 3f, 3f, zoomedIn, viewportSize, viewportSize).isEmpty(), "the same world distance is too far zoomed in")
+	}
+
+	@Test
+	fun aSlimOutlinePicksOnlyItsCornersAndOuterEdges() {
+		val lattices = mapOf(parent to lattice(-40f, 40f, 40f).outline)
+		val (cornerX, cornerY) = screenOf(-40f, 40f)
+		val (middleX, middleY) = screenOf(0f, 0f)
+		val (innerLineX, innerLineY) = screenOf(0f, 20f)
+		val (sidePointX, sidePointY) = screenOf(0f, 40f)
+
+		assertEquals(listOf(parent), latticeHitsAt(lattices, cornerX + 2f, cornerY, 3f, 3f, camera, viewportSize, viewportSize), "a corner")
+		assertTrue(latticeHitsAt(lattices, middleX + 2f, middleY, 3f, 3f, camera, viewportSize, viewportSize).isEmpty(), "the middle point is not drawn, so it is no target")
+		assertTrue(latticeHitsAt(lattices, innerLineX + 2f, innerLineY, 3f, 3f, camera, viewportSize, viewportSize).isEmpty(), "nor is an inner grid line")
+		assertEquals(listOf(parent), latticeHitsAt(lattices, sidePointX, sidePointY + 2f, 3f, 3f, camera, viewportSize, viewportSize), "a side's middle point takes it by the outer edge")
+	}
+
+	@Test
+	fun aSlimOutlinesSidePointRanksAsALine() {
+		// The slim parent's undotted side point sits under the pointer; the full child's corner is 2 pixels away.
+		val (pointerX, pointerY) = screenOf(0f, 40f)
+		val lattices = mapOf(parent to lattice(-40f, 40f, 40f).outline, child to lattice(2f, 40f, 5f).full)
+
+		assertEquals(listOf(child, parent), latticeHitsAt(lattices, pointerX, pointerY, 3f, 3f, camera, viewportSize, viewportSize), "a dotted corner outranks an undotted point's line")
 	}
 
 	@Test

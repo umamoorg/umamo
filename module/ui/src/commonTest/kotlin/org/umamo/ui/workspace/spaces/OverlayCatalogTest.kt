@@ -16,8 +16,9 @@ import kotlin.test.assertTrue
 class OverlayCatalogTest {
 	/**
 	 * The 2D viewport offers every row; the UV editor every row but the axes, the selection tint, the deformers,
-	 * and the wireframe, which its surface has none of.  Both offer the Opacity field, the UV editor's under a Geometry
-	 * heading with no row of its own.
+	 * and the wireframe, which its surface has none of.  Both offer the wireframe's Opacity field, the UV editor's
+	 * under a Geometry heading with no row of its own; the deformers' Opacity sits under the 2D viewport's Objects
+	 * rows alone.
 	 */
 	@Test
 	fun eachSurfaceOffersItsRowsAndFieldsInSectionOrder() {
@@ -44,9 +45,10 @@ class OverlayCatalogTest {
 		assertEquals(OverlaySection.Geometry, OverlayToggle.Wireframe.section)
 		assertEquals(OverlaySection.Geometry, OverlayToggle.CullHidden.section)
 		assertEquals(listOf(OverlaySection.Guides, OverlaySection.Text, OverlaySection.Objects, OverlaySection.Geometry), OverlaySection.entries)
-		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.Viewport2D))
-		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.UvEditor), "the UV editor's islands fade by the same field")
+		assertEquals(listOf(OverlayField.WireframeOpacity, OverlayField.DeformerOpacity), overlayFieldsFor(OverlaySurface.Viewport2D))
+		assertEquals(listOf(OverlayField.WireframeOpacity), overlayFieldsFor(OverlaySurface.UvEditor), "the UV editor's islands fade by the same field, and it draws no lattice")
 		assertEquals(OverlaySection.Geometry, OverlayField.WireframeOpacity.section)
+		assertEquals(OverlaySection.Objects, OverlayField.DeformerOpacity.section, "under the Deformers row")
 	}
 
 	/** The selection tint row reads and writes its flag and no other. */
@@ -134,7 +136,7 @@ class OverlayCatalogTest {
 		assertTrue(state.effectiveCursor && state.effectiveInfo && state.effectiveGrid && state.effectiveAxes && state.effectiveWireframe && state.effectiveSelectionTint && state.effectiveCullHiddenWireframe)
 	}
 
-	/** Everything is on by default but the wireframe and the deformers, the opacity is whole, and a reset returns there. */
+	/** Everything is on by default but the wireframe and the deformers, both opacities are whole, and a reset returns there. */
 	@Test
 	fun defaultsAreEverythingOnButTheWireframe() {
 		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
@@ -163,6 +165,12 @@ class OverlayCatalogTest {
 		assertFalse(state.isAtDefaults, "showing every deformer is a deviation")
 		state.reset()
 		assertFalse(state.showDeformers, "which a reset returns")
+
+		assertEquals(1f, state.deformerOpacity, "the lattices draw whole by default")
+		state.deformerOpacity = 0.4f
+		assertFalse(state.isAtDefaults, "fading them is a deviation")
+		state.reset()
+		assertEquals(1f, state.deformerOpacity, "which a reset returns")
 	}
 
 	/** The area's grid is its own over the application's, whole on both surfaces, each surface seeded with its own default. */

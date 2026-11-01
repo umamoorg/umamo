@@ -288,7 +288,7 @@ class ProportionalEditingTest {
 	}
 
 	private companion object {
-		/** How many random meshes sets the grid is checked against a full scan over. */
+		/** How many random mesh sets the grid is checked against a full scan over. */
 		const val EQUIVALENCE_ROUNDS = 200
 
 		/** A vertex index for the curves that ignore it. */

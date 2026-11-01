@@ -35,8 +35,8 @@ import kotlin.test.assertTrue
  * Pins re-parenting and deleting without moving art: a drawable bound to a deformer - keyed or not - keeps its place
  * and its keyed motion, a re-nested warp keeps its lattice and its art, deleting a warp keeps every child it held (its
  * drawables, warps, and rotations), a re-parent registers Keep in Place on the strip and unchecking it lets the item
- * follow its new parent as before, a reorder among siblings registers nothing, and a child the new chain cannot map
- * still moves with a notice.
+ * keep its numbers and follow its new parent, a reorder among siblings registers nothing, and a child the new chain
+ * cannot map still moves with a notice.
  */
 class RehomeTest {
 	private val parameterId = ParameterId("P")
