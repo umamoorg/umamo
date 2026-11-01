@@ -48,7 +48,7 @@ class TransformStateTest {
 		// Two disconnected triangles: vertices 0-2 at x=0..2, vertices 3-5 at x=10..12 (y = 0).
 		val positions = floatArrayOf(0f, 0f, 2f, 0f, 1f, 2f, 10f, 0f, 12f, 0f, 11f, 2f)
 		val triangles = intArrayOf(0, 1, 2, 3, 4, 5)
-		val islands = TransformPivots.islandGroups(positions, setOf(0, 1, 2, 3, 4, 5), triangles)
+		val islands = TransformPivots.islandGroups(positions, setOf(0, 1, 2, 3, 4, 5), ElementTopology.ofTriangles(6, triangles))
 		assertEquals(2, islands.size, "two components make two islands")
 		val leftIsland = islands.first { group -> 0 in group.vertexIndices }
 		assertEquals(setOf(0, 1, 2), leftIsland.vertexIndices)

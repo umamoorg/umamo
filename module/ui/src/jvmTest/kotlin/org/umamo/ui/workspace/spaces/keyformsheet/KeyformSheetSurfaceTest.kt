@@ -69,6 +69,26 @@ class KeyformSheetSurfaceTest {
 			assertEquals(cursorBefore + 1, harness.historyCursor)
 		}
 
+	/** In Edit mode, which changes no key, the nudges and Delete Selected Keys are refused and the selected key stays put. */
+	@Test
+	fun inEditModeTheNudgesAndDeleteChangeNoKey() =
+		runComposeUiTest {
+			val harness = mountSheet(listOf(PanelIds.bodyX))
+			clickAt(lanePoint(harness, SheetRows.GEOMETRY, PanelIds.bodyX, -5f))
+			runOnIdle { harness.enterEditMode() }
+			waitForIdle()
+			val cursorBefore = harness.historyCursor
+
+			for (commandId in listOf("keyform.nudgeKeyLeft", "keyform.nudgeKeyRight", "keyform.deleteSelectedKeys")) {
+				assertFalse(runOnIdle { harness.registry.invoke(commandId) }, "$commandId has to be refused")
+			}
+
+			waitForIdle()
+			assertEquals(listOf(-5f, 0f, 5f), geometryKeysOf(harness, PanelIds.drawable, PanelIds.bodyX))
+			assertEquals(setOf(geometryKey0), harness.session.keySelection.value)
+			assertEquals(cursorBefore, harness.historyCursor)
+		}
+
 	/** Frame All returns a zoomed sheet to the whole range. */
 	@Test
 	fun frameAllShowsTheWholeRange() =

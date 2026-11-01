@@ -1,6 +1,7 @@
 package org.umamo.render.puppet
 
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -84,5 +85,5 @@ class MeshOverlayTest {
 		activeVertex: Int? = null,
 		activeEdge: Int? = null,
 		activeFace: Int? = null,
-	): MeshOverlayMesh = MeshOverlayMesh(drawableId, 4, edgeEndpoints, vertexFlags, edgeFlags, faceFlags, activeVertex, activeEdge, activeFace)
+	): MeshOverlayMesh = MeshOverlayMesh(ElementOwner.Drawable(drawableId), 4, edgeEndpoints, vertexFlags, edgeFlags, faceFlags, activeVertex, activeEdge, activeFace)
 }

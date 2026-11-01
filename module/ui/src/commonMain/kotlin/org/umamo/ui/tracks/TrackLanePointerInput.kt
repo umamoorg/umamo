@@ -30,7 +30,8 @@ import kotlin.math.abs
  * @property Function? onTrackScrub Invoked as an empty-track drag moves, with the gesture's Shift state.
  * @property Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @property Function? onMarkDrag Invoked on every move of a mark drag.
- * @property Function? onMarkDragEnd Invoked when a mark drag is released.
+ * @property Function? onMarkDragEnd Invoked when a mark drag is released; null leaves the marks in place, so a
+ *   press on one is a click however far the pointer travels.
  * @property Function? onLaneHover Reports the live hit under the pointer, or null on exit.
  */
 internal class TrackLaneCallbacks(
@@ -102,7 +103,8 @@ internal suspend fun PointerInputScope.trackLaneHoverLoop(
 /**
  * The lane's tap / scrub / drag loop: one gesture at a time, resolved from the raw pointer stream into a
  * click on a mark, a drag of a mark, or a scrub of empty track, with the owner told at the press, on every
- * move past the slop, and at the release.
+ * move past the slop, and at the release.  A lane with no mark-drag release handler never drags a mark: the press
+ * stays a click, rather than drawing a drag at the pointer that can land nowhere and snaps back.
  *
  * @param TrackRow row The lane's row.
  * @param TrackAxis axis The domain.
@@ -152,6 +154,9 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 		// drag is manipulating the mark it started on, whatever the list does meanwhile.
 		val hitMark =
 			nearestMark(editableMarks.value, pressedValue, pickTolerance(axis, size.width, markRadiusPx))
+		// Sampled at the press like the modifier: whether the mark under it can move is part of what the gesture
+		// meant when it began.  An empty-track press always may, since its drag is the scrub.
+		val pressMayDrag = hitMark == null || callbacks.value.onMarkDragEnd != null
 		var dragging = false
 		var releaseValue = pressedValue
 		// The window a mark drag may move within: the axis, end to end.  Read once per gesture so the bound
@@ -181,7 +186,7 @@ internal suspend fun PointerInputScope.trackLaneGestureLoop(
 			}
 
 			if (change.positionChange().x != 0f || change.positionChange().y != 0f) {
-				if (!dragging && abs(change.position.x - down.position.x) > touchSlop) {
+				if (!dragging && pressMayDrag && abs(change.position.x - down.position.x) > touchSlop) {
 					dragging = true
 
 					if (hitMark != null) {

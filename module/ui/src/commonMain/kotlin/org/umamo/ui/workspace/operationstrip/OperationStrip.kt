@@ -190,6 +190,15 @@ internal fun OperationStrip(
 							)
 						}
 					}
+
+					is OperationStripRow.IntRatioPair -> {
+						OperationIntParameterPair(row.first, row.second) { first, second ->
+							session.adjustLastOperation(
+								record.parameters.withParameter(first.key, first).withParameter(second.key, second),
+								adjustedKey = first.key,
+							)
+						}
+					}
 				}
 			}
 		}
@@ -197,7 +206,7 @@ internal fun OperationStrip(
 }
 
 /**
- * One row of the strip: a lone parameter, or two real-valued parameters drawn as one ratio-lockable pair.
+ * One row of the strip: a lone parameter, or two parameters of one kind drawn as one ratio-lockable pair.
  */
 internal sealed interface OperationStripRow {
 	/** The key the row composes under: its first parameter's. */
@@ -221,12 +230,23 @@ internal sealed interface OperationStripRow {
 	data class RatioPair(val first: OperatorParameter.FloatParameter, val second: OperatorParameter.FloatParameter) : OperationStripRow {
 		override val key: String get() = first.key
 	}
+
+	/**
+	 * Two integer parameters drawn as one whole-number [AspectLockFieldPair]: [first] names [second] as its ratio
+	 * partner.
+	 *
+	 * @property OperatorParameter.IntParameter first  The first parameter.
+	 * @property OperatorParameter.IntParameter second The parameter right after it.
+	 */
+	data class IntRatioPair(val first: OperatorParameter.IntParameter, val second: OperatorParameter.IntParameter) : OperationStripRow {
+		override val key: String get() = first.key
+	}
 }
 
 /**
- * The strip's rows for [parameters], in order: a real-valued parameter whose ratio partner is the real-valued
- * parameter right after it pairs with it, and every other parameter stands alone - a partner key naming
- * anything else is ignored.
+ * The strip's rows for [parameters], in order: a parameter whose ratio partner is the parameter right after it, of
+ * the same kind (real-valued or integer), pairs with it, and every other parameter stands alone - a partner key
+ * naming anything else is ignored.
  *
  * @param List parameters The record's parameters, in display order.
  * @return List The rows.
@@ -241,6 +261,9 @@ internal fun operationStripRows(parameters: List<OperatorParameter>): List<Opera
 
 		if (parameter is OperatorParameter.FloatParameter && partner is OperatorParameter.FloatParameter && parameter.ratioPartnerKey == partner.key) {
 			rows.add(OperationStripRow.RatioPair(parameter, partner))
+			parameterIndex += 2
+		} else if (parameter is OperatorParameter.IntParameter && partner is OperatorParameter.IntParameter && parameter.ratioPartnerKey == partner.key) {
+			rows.add(OperationStripRow.IntRatioPair(parameter, partner))
 			parameterIndex += 2
 		} else {
 			rows.add(OperationStripRow.Single(parameter))
@@ -354,6 +377,32 @@ private fun OperationParameterPair(
 		decimals = 2,
 		step = first.step,
 		unitSuffix = parameterUnitSuffix(first.unit),
+		onCommit = { firstValue, secondValue -> onChange(first.copy(value = firstValue), second.copy(value = secondValue)) },
+	)
+}
+
+/**
+ * A ratio-lockable pair of integer parameters, drawn through the kit's whole-number [AspectLockFieldPair] - the
+ * control the Properties panel's lattice Rows / Columns use.  Both fields take the first parameter's range.
+ *
+ * @param OperatorParameter.IntParameter first    The first parameter, naming [second] as its ratio partner.
+ * @param OperatorParameter.IntParameter second   The parameter right after it.
+ * @param Function                       onChange Receives both parameters with their new values.
+ */
+@Composable
+private fun OperationIntParameterPair(
+	first: OperatorParameter.IntParameter,
+	second: OperatorParameter.IntParameter,
+	onChange: (OperatorParameter.IntParameter, OperatorParameter.IntParameter) -> Unit,
+) {
+	AspectLockFieldPair(
+		firstLabel = operatorParameterLabel(first.labelKey),
+		firstDescription = operatorParameterDescription(first.labelKey),
+		firstValue = first.value,
+		secondLabel = operatorParameterLabel(second.labelKey),
+		secondDescription = operatorParameterDescription(second.labelKey),
+		secondValue = second.value,
+		range = first.min..first.max,
 		onCommit = { firstValue, secondValue -> onChange(first.copy(value = firstValue), second.copy(value = secondValue)) },
 	)
 }

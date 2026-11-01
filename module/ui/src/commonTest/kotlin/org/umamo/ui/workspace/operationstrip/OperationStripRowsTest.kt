@@ -38,6 +38,18 @@ class OperationStripRowsTest {
 		assertEquals(listOf(OperationStripRow.Single(scaleX), OperationStripRow.Single(proportional), OperationStripRow.Single(scaleY)), rows)
 	}
 
+	/** Two integer parameters pair the same way (a lattice's rows and columns); an integer naming a real-valued partner does not. */
+	@Test
+	fun integerPartnersPairButAMixedPairDoesNot() {
+		val rows = OperatorParameter.IntParameter("rows", "rows", 6, 1, 100, ratioPartnerKey = "columns")
+		val columns = OperatorParameter.IntParameter("columns", "columns", 4, 1, 100)
+
+		assertEquals(listOf(OperationStripRow.IntRatioPair(rows, columns)), operationStripRows(listOf(rows, columns)))
+
+		val pointsAtScale = rows.copy(ratioPartnerKey = "scaleY")
+		assertEquals(listOf(OperationStripRow.Single(pointsAtScale), OperationStripRow.Single(scaleY)), operationStripRows(listOf(pointsAtScale, scaleY)))
+	}
+
 	/** A partner key naming the next parameter is ignored when that parameter is not real-valued. */
 	@Test
 	fun aPartnerThatIsNotAFloatIsIgnored() {

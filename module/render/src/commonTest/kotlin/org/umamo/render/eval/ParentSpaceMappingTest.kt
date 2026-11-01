@@ -24,15 +24,15 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Verifies [DrawableSpaceMapping]: the forward local->world projection matches the evaluator's world
+ * Verifies [ParentSpaceMapping]: the forward local->world projection matches the evaluator's world
  * positions exactly (same chain, same Y negation), and the inverse recovers local coordinates - in
  * closed form for rotation parents, by Newton iteration for warp parents - including for a moved
  * world target (the Edit-gizmo drag case). Degenerate transforms keep the seed instead of exploding.
- * The single-step [DrawableSpaceMapping.worldToLocalLinearized] used by the transform path is exact for
- * affine parents and, unlike the Newton inverse, follows a large warp-child drag without pinning or
- * boiling.
+ * The per-vertex [ParentSpaceMapping.worldToLocalLinearized] used by the transform path is exact for
+ * affine parents and, unlike the reach-capped Newton inverse, follows a large warp-child drag without
+ * pinning or boiling.
  */
-class DrawableSpaceMappingTest {
+class ParentSpaceMappingTest {
 	private val tol = 1e-3f
 	private val paramA = ParameterId("A")
 	private val drawableId = DrawableId("M")
@@ -169,7 +169,7 @@ class DrawableSpaceMappingTest {
 
 	/**
 	 * A warp-child grab far past the lattice follows the cursor with the linearized inverse, where the
-	 * damped iterative [DrawableSpaceMapping.worldToLocal] pins short of the target: the 2x4 cage spans 2
+	 * damped iterative [ParentSpaceMapping.worldToLocal] pins short of the target: the 2x4 cage spans 2
 	 * world-x per lattice UV, so its damped ~10-UV Newton reach stalls near world-x 31, and a +200 grab
 	 * targets far beyond that reach.
 	 */
@@ -181,10 +181,10 @@ class DrawableSpaceMappingTest {
 		val worldRest = mapping.localToWorld(local)
 		val worldTarget = worldRest.copyOf().also { it[0] += 200f }
 
-		// The linearized inverse follows the 200-unit grab to within a world unit (the residual is
-		// finite-difference Jacobian error, not the Newton reach cliff). A true inverse would be exact, but
-		// sub-unit accuracy on a 200-unit drag is visually indistinguishable and never pins.
-		val solvedLinearized = mapping.worldToLocalLinearized(worldTarget, local, worldRest, setOf(0))
+		// The linearized inverse follows the 200-unit grab to within a world unit: its per-vertex Newton is
+		// reach-uncapped, so it has no reach cliff to pin at, and sub-unit accuracy on a 200-unit drag is
+		// visually indistinguishable.
+		val solvedLinearized = mapping.worldToLocalLinearized(worldTarget, local, setOf(0))
 		val reprojectedLinearized = mapping.localToWorld(solvedLinearized)
 		val linearizedShortfall = abs(reprojectedLinearized[0] - worldTarget[0])
 		assertTrue(linearizedShortfall < 1f, "linearized inverse follows the cursor (shortfall=$linearizedShortfall)")
@@ -218,7 +218,7 @@ class DrawableSpaceMappingTest {
 					it[0] += frame * 3f
 					it[1] -= frame * 2f
 				}
-			val solved = mapping.worldToLocalLinearized(worldTarget, local, worldRest, setOf(0))
+			val solved = mapping.worldToLocalLinearized(worldTarget, local, setOf(0))
 			val reprojected = mapping.localToWorld(solved)
 			// Follows: the reach-uncapped inverse lands the vertex on the moving target (never pins).
 			assertEquals(worldTarget[0], reprojected[0], 1f, "swept grab follows the target x (frame $frame)")
@@ -246,7 +246,7 @@ class DrawableSpaceMappingTest {
 				it[2] -= 5f
 				it[3] += 6f
 			}
-		val directSolved = directMapping.worldToLocalLinearized(directTarget, directLocal, directRest, setOf(0, 1))
+		val directSolved = directMapping.worldToLocalLinearized(directTarget, directLocal, setOf(0, 1))
 		val directReprojected = directMapping.localToWorld(directSolved)
 
 		for (coordIndex in directTarget.indices) {
@@ -267,7 +267,7 @@ class DrawableSpaceMappingTest {
 				it[0] += 40f
 				it[1] -= 25f
 			}
-		val rotationSolved = rotationMapping.worldToLocalLinearized(rotationTarget, rotationLocal, rotationRest, setOf(0))
+		val rotationSolved = rotationMapping.worldToLocalLinearized(rotationTarget, rotationLocal, setOf(0))
 		val rotationReprojected = rotationMapping.localToWorld(rotationSolved)
 		assertEquals(rotationTarget[0], rotationReprojected[0], tol, "rotation reprojects onto target")
 		assertEquals(rotationTarget[1], rotationReprojected[1], tol, "rotation reprojects onto target")
@@ -297,7 +297,7 @@ class DrawableSpaceMappingTest {
 				it[3] -= 5f
 			}
 
-		val solved = mapping.worldToLocalLinearized(worldTarget, local, worldRest, setOf(0, 1))
+		val solved = mapping.worldToLocalLinearized(worldTarget, local, setOf(0, 1))
 		val reprojected = mapping.localToWorld(solved)
 
 		for (coordIndex in worldTarget.indices) {
@@ -327,7 +327,7 @@ class DrawableSpaceMappingTest {
 			worldTarget[vertexIndex * 2 + 1] += 40f
 		}
 
-		val solved = mapping.worldToLocalLinearized(worldTarget, local, worldRest, indices)
+		val solved = mapping.worldToLocalLinearized(worldTarget, local, indices)
 
 		// Reproject the solved centroid and compare to the target centroid: the gross offset is gone.
 		var centroidU = 0f
@@ -353,7 +353,7 @@ class DrawableSpaceMappingTest {
 		val mapping = assertNotNull(drawableSpaceMapping(puppet, emptyMap(), drawableId))
 		val worldRest = mapping.localToWorld(local)
 		val worldTarget = worldRest.copyOf().also { it[0] += 9f }
-		val solved = mapping.worldToLocalLinearized(worldTarget, local, worldRest, setOf(0))
+		val solved = mapping.worldToLocalLinearized(worldTarget, local, setOf(0))
 		assertEquals(local.toList(), solved.toList(), "seed kept")
 		assertFalse(solved.any { it.isNaN() }, "no NaN")
 	}

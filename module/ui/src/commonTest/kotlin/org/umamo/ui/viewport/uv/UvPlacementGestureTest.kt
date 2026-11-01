@@ -13,7 +13,7 @@ import org.umamo.render.TileOpaqueMask
 import org.umamo.render.placementFootprint
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -132,7 +132,7 @@ class UvPlacementGestureTest {
 		assertEquals(3, result.status.deltaX)
 		assertEquals(3, result.status.deltaY)
 		// The islands follow the same move in display space.
-		val displayed = applyUvAffine(floatArrayOf(25f, 45f), result.displayAffineByTile.getValue(mover.tileId))
+		val displayed = applyAffine(floatArrayOf(25f, 45f), result.displayAffineByTile.getValue(mover.tileId))
 		assertClose(28f, displayed[0], "island x")
 		assertClose(42f, displayed[1], "island y (display y up)")
 	}
@@ -151,7 +151,7 @@ class UvPlacementGestureTest {
 		assertClose(-80f, turned.rotationDegrees, "the page angle mirrors the display angle")
 		assertClose(-90f, result.status.angleDegrees, "the readout shows the page-space angle")
 		// The pivot is a fixed point of the islands' affine.
-		val pivot = applyUvAffine(floatArrayOf(40f, 40f), result.displayAffineByTile.getValue(mover.tileId))
+		val pivot = applyAffine(floatArrayOf(40f, 40f), result.displayAffineByTile.getValue(mover.tileId))
 		assertClose(40f, pivot[0], "pivot x fixed")
 		assertClose(40f, pivot[1], "pivot y fixed")
 	}
@@ -165,7 +165,7 @@ class UvPlacementGestureTest {
 		assertClose(2f, scaled.scaleX, "scale x doubled")
 		assertClose(2f, scaled.scaleY, "scale y doubled")
 		assertClose(45f, scaled.rotationDegrees, "rotation untouched")
-		val pivot = applyUvAffine(floatArrayOf(40f, 40f), result.displayAffineByTile.getValue(mover.tileId))
+		val pivot = applyAffine(floatArrayOf(40f, 40f), result.displayAffineByTile.getValue(mover.tileId))
 		assertClose(40f, pivot[0], "pivot x fixed")
 		assertClose(40f, pivot[1], "pivot y fixed")
 	}
@@ -332,8 +332,8 @@ class UvPlacementGestureTest {
 		// A tile at page (20, 30): its origin shows at display (20, h - 30) and its rows run DOWN the
 		// page, so the next row sits one texel lower in display space - not mirrored below the page.
 		val mapping = tileToDisplayAffine(placement(20f, 30f), pageHeight)
-		val origin = applyUvAffine(floatArrayOf(0f, 0f), mapping)
-		val nextRow = applyUvAffine(floatArrayOf(0f, 1f), mapping)
+		val origin = applyAffine(floatArrayOf(0f, 0f), mapping)
+		val nextRow = applyAffine(floatArrayOf(0f, 1f), mapping)
 		assertClose(20f, origin[0], "origin x")
 		assertClose((pageHeight - 30).toFloat(), origin[1], "origin y")
 		assertClose((pageHeight - 31).toFloat(), nextRow[1], "the next row is one texel lower")

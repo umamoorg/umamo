@@ -1,5 +1,7 @@
 package org.umamo.edit.transform
 
+import org.umamo.runtime.model.applyAffine
+
 /**
  * A change of texture-coordinate frame: how the stored uvs relate to the space an edit is authored in.
  *
@@ -55,29 +57,4 @@ class UvFrame(private val toFrameAffine: FloatArray, private val fromFrameAffine
 	fun pointFromFrame(u: Float, v: Float): Pair<Float, Float> =
 		(fromFrameAffine[0] * u + fromFrameAffine[1] * v + fromFrameAffine[2]) to
 			(fromFrameAffine[3] * u + fromFrameAffine[4] * v + fromFrameAffine[5])
-
-	/**
-	 * Maps a whole interleaved uv array through a 2x3 row-major affine, into a fresh array.
-	 *
-	 * A trailing odd component is left out rather than half-mapped: the arrays are interleaved pairs, so
-	 * an odd length is malformed input, and the callers' own guards reject it upstream.
-	 *
-	 * @param FloatArray uvs The interleaved (u, v) pairs to map.
-	 * @param FloatArray affine The 2x3 row-major affine (m00, m01, m02, m10, m11, m12).
-	 * @return FloatArray The mapped pairs, in a new array of the same length.
-	 */
-	private fun applyAffine(uvs: FloatArray, affine: FloatArray): FloatArray {
-		val mapped = FloatArray(uvs.size)
-		var componentIndex = 0
-
-		while (componentIndex + 1 < uvs.size) {
-			val u = uvs[componentIndex]
-			val v = uvs[componentIndex + 1]
-			mapped[componentIndex] = affine[0] * u + affine[1] * v + affine[2]
-			mapped[componentIndex + 1] = affine[3] * u + affine[4] * v + affine[5]
-			componentIndex += 2
-		}
-
-		return mapped
-	}
 }

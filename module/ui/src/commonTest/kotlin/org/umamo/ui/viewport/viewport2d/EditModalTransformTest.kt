@@ -24,7 +24,9 @@ import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.transform.ElementEditStage
 import kotlin.math.abs
+import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -69,7 +71,7 @@ class EditModalTransformTest {
 		session.beginMeshOperator(kind, LEFT_AREA_ID, suppressProportional)
 		assertEquals(kind, session.activeMeshOperator.value?.kind, "the session latched the operator")
 		transform.gesture.lastPointer = pointer
-		transform.begin(kind, geometriesOf(session), session.meshSelection.value)
+		transform.begin(kind, geometriesOf(session), session.meshSelection.value, ElementEditStage.Rest)
 	}
 
 	/**
@@ -95,7 +97,7 @@ class EditModalTransformTest {
 		val rig = rigOver(gizmoEditSession(elements = listOf(MeshElement.Vertex(0))))
 		rig.session.beginMeshOperator(MeshOperatorKind.Grab, LEFT_AREA_ID)
 
-		rig.transform.begin(MeshOperatorKind.Grab, geometriesOf(rig.session), MeshSelectionOps.clear(rig.session.meshSelection.value))
+		rig.transform.begin(MeshOperatorKind.Grab, geometriesOf(rig.session), MeshSelectionOps.clear(rig.session.meshSelection.value), ElementEditStage.Rest)
 
 		assertNull(rig.session.activeMeshOperator.value)
 		assertNull(rig.transform.gesture.capture)
@@ -220,6 +222,35 @@ class EditModalTransformTest {
 			rig.transform.reapplyProportional(halo)
 
 			assertEquals(weighted, entry.influence.isNotEmpty(), "$kind, suppressed = $suppressed")
+		}
+	}
+
+	/**
+	 * A straight-line halo pulls the nearby mesh in the edit that has nothing selected, and the confirm commits it;
+	 * Connected Only leaves it where it was.
+	 */
+	@Test
+	fun aStraightLineHaloPullsAnotherMeshInTheEdit() {
+		for (connectedOnly in listOf(false, true)) {
+			// Quad vertex 1 at (20, 0) is selected.  The triangle beside it has its (40, 0) corner 20 away and its
+			// (40, 20) corner 20 x sqrt(2) away, both inside the radius, and its (60, 0) corner outside.
+			val session = gizmoEditSession(editing = listOf(RIG_QUAD, RIG_OTHER), elements = listOf(MeshElement.Vertex(1)))
+			session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 30f, connectedOnly))
+			val rig = rigOver(session)
+			rig.latch(MeshOperatorKind.Grab)
+
+			assertTrue(rig.driveTo(Offset(240f, 150f)))
+			rig.transform.confirm()
+
+			val other = rigPositionsOf(session, RIG_OTHER)
+
+			if (connectedOnly) {
+				assertEquals(listOf(40f, 0f, 60f, 0f, 40f, 20f), other, "Connected Only never leaves the selected mesh")
+			} else {
+				assertEquals(40f + 10f * (1f - 20f / 30f), other[0], 1e-4f, "the near corner takes a third of the move")
+				assertEquals(40f + 10f * (1f - sqrt(800f) / 30f), other[4], 1e-4f, "the far corner takes less")
+				assertEquals(listOf(60f, 0f), other.subList(2, 4), "the corner outside the radius stays")
+			}
 		}
 	}
 

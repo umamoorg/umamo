@@ -14,7 +14,7 @@ import org.umamo.interop.art.SourceArtImportNotice
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.interop.art.mesh.meshCoversOpaquePixels
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.ui.model.artwork.resolveBirths
 import java.io.File
@@ -114,7 +114,7 @@ class AutomaticBirthImportGateTest {
 
 			val decoded = assertNotNull(document.artRasters.decodeRaster(tileId))
 			val raster = LayerRaster(decoded.width, decoded.height, decoded.rgba)
-			val artUvs = applyUvAffine(mesh.uvs, assertNotNull(puppet.atlas.storedToArtAffineForTile(tileId)))
+			val artUvs = applyAffine(mesh.uvs, assertNotNull(puppet.atlas.storedToArtAffineForTile(tileId)))
 			val artPoints = FloatArray(artUvs.size) { component -> artUvs[component] * if (component % 2 == 0) raster.width else raster.height }
 			assertTrue(meshCoversOpaquePixels(raster.alphaChannel(), automaticOptions.alphaThreshold, artPoints, mesh.indices), "'${tile.name}' covers its art")
 		}

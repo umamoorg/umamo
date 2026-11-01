@@ -1,8 +1,8 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelectMode
+import org.umamo.edit.editsElements
 import org.umamo.edit.invertMeshSelection
 import org.umamo.edit.invertObjectSelection
 import org.umamo.edit.selectAllMeshElements
@@ -18,10 +18,10 @@ import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.SpaceScope
 
 /**
- * The selection commands: the Edit-mode element domains, select all / invert, the Box and Circle marquee
- * tools, and the pointer-driven Select Linked pair.
+ * The selection commands: the element domains of Edit and Pose mode, select all / invert, the Box and
+ * Circle marquee tools, and the pointer-driven Select Linked pair.
  *
- * Several of these dispatch by mode so one binding serves both - mesh elements in Edit mode, whole
+ * Several of these dispatch by mode so one binding serves both - elements in Edit and Pose mode, whole
  * entities in Object mode - and the session methods no-op in the wrong mode, so the keymap binds them
  * context-free.
  *
@@ -39,13 +39,13 @@ internal fun selectCommands(
 	availability: SessionAvailability,
 ): List<Command> =
 	listOf(
-		// Edit-mode select modes (Blender 1 / 2 / 3). The session guards them to no-op outside Edit mode,
+		// The element modes' select modes (Blender 1 / 2 / 3). The session guards them to no-op in Object mode,
 		// so the keymap can bind bare digits context-free; the availability tier additionally hides them
-		// from the palette in Object mode (there is no element domain to switch there).
+		// from the palette there (there is no element domain to switch).
 		Command(
 			"mesh.selectMode.vertex",
 			title = Res.string.cmd_mesh_select_mode_vertex,
-			availability = availability.inEditMode,
+			availability = availability.inElementMode,
 			hint = CommandHint(Res.string.status_select_mode),
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Vertex)
@@ -53,7 +53,7 @@ internal fun selectCommands(
 		Command(
 			"mesh.selectMode.edge",
 			title = Res.string.cmd_mesh_select_mode_edge,
-			availability = availability.inEditMode,
+			availability = availability.inElementMode,
 			hint = CommandHint(Res.string.status_select_mode),
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Edge)
@@ -61,29 +61,29 @@ internal fun selectCommands(
 		Command(
 			"mesh.selectMode.face",
 			title = Res.string.cmd_mesh_select_mode_face,
-			availability = availability.inEditMode,
+			availability = availability.inElementMode,
 			hint = CommandHint(Res.string.status_select_mode),
 		) {
 			editorSession?.setMeshSelectMode(MeshSelectMode.Face)
 		},
-		// Select All / Invert dispatch by mode so one binding (A / Ctrl+I) serves both: mesh elements in Edit
+		// Select All / Invert dispatch by mode so one binding (A / Ctrl+I) serves both: elements in Edit and Pose
 		// mode, whole selectable entities in Object mode. Each session method no-ops in the wrong mode.
 		Command("select.all", title = Res.string.cmd_select_all, availability = availability.hasDocument) {
-			if (editorSession?.mode?.value == EditorMode.Edit) {
+			if (editorSession?.mode?.value?.editsElements == true) {
 				editorSession.selectAllMeshElements()
 			} else {
 				editorSession?.selectAllObjects()
 			}
 		},
 		Command("select.invert", title = Res.string.cmd_select_invert, availability = availability.hasDocument) {
-			if (editorSession?.mode?.value == EditorMode.Edit) {
+			if (editorSession?.mode?.value?.editsElements == true) {
 				editorSession.invertMeshSelection()
 			} else {
 				editorSession?.invertObjectSelection()
 			}
 		},
 		// Box (Blender B) and Circle (Blender C) select tools latch on the session; the arming surface's
-		// overlay drives the gesture (both modes in the viewport; Edit mode in the UV editor, whose
+		// overlay drives the gesture (every mode in the viewport; Edit mode in the UV editor, whose
 		// overlay only composes there). The circle grow / shrink commands (numpad +/-) apply only
 		// while a Circle brush is live, so they hide from the palette otherwise.
 		// ONE Box Select that acts on whatever is under the pointer, rather than a second command fighting
@@ -123,13 +123,13 @@ internal fun selectCommands(
 		// the projected geometry live in the overlays, so these fire session request flows they collect.
 		// The executing area resolves HERE, at dispatch, into the request payload (the hovered surface -
 		// viewport or UV editor alike), so the collectors gate deterministically on their own area id.
-		Command("mesh.selectLinkedAtCursor", title = Res.string.cmd_mesh_select_linked_cursor, availability = availability.inEditMode, spaces = SpaceScope.WorkSurfaces) {
+		Command("mesh.selectLinkedAtCursor", title = Res.string.cmd_mesh_select_linked_cursor, availability = availability.inElementMode, spaces = SpaceScope.WorkSurfaces) {
 			editorSession?.requestSelectLinked(fromSelection = false, areaId = routing.hoveredAreaIdAnyKind())
 		},
-		Command("mesh.selectLinked", title = Res.string.cmd_mesh_select_linked, availability = availability.inEditMode, spaces = SpaceScope.WorkSurfaces) {
+		Command("mesh.selectLinked", title = Res.string.cmd_mesh_select_linked, availability = availability.inElementMode, spaces = SpaceScope.WorkSurfaces) {
 			editorSession?.requestSelectLinked(fromSelection = true, areaId = routing.hoveredAreaIdAnyKind())
 		},
-		Command("edit.switchObjectUnderCursor", title = Res.string.cmd_switch_object_under_cursor, availability = availability.inEditMode, spaces = SpaceScope.Viewport2D) {
+		Command("edit.switchObjectUnderCursor", title = Res.string.cmd_switch_object_under_cursor, availability = availability.inElementMode, spaces = SpaceScope.Viewport2D) {
 			editorSession?.requestSwitchObjectUnderCursor(routing.viewportArea())
 		},
 	)

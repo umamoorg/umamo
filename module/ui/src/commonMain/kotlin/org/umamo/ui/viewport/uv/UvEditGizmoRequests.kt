@@ -64,7 +64,7 @@ internal suspend fun collectUvEditGizmoRequests(
 				}
 
 				val editable = editableGeometryOrNotice(session, geometries.value, "notice.uv.noEditableGeometry") ?: return@collect
-				session.mirrorSelectedUvs(request.mirrorU, frame.value.asUvFrame(), editable.mapTo(HashSet()) { geometry -> geometry.drawableId })
+				session.mirrorSelectedUvs(request.mirrorU, frame.value.asUvFrame(), editable.mapNotNullTo(HashSet()) { geometry -> geometry.drawableId })
 			}
 		}
 		// Select Linked (Blender's L / Ctrl+L).  UV islands are topology islands (UVs share the vertex index

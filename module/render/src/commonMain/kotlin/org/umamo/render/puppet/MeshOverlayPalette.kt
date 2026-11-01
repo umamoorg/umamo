@@ -34,8 +34,9 @@ data class OverlayColor(
 }
 
 /**
- * The colors the mesh overlay draws with: each domain's idle, selected, and active color, and the two
- * placement colors a UV area's islands outline in.  The active face color colors the active face's DOT
+ * The colors the mesh overlay draws with: each domain's idle, selected, and active color, the two
+ * placement colors a UV area's islands outline in, the three a warp's lattice draws in by its role, and the
+ * one a pending lattice draws in whatever its role.  The active face color colors the active face's DOT
  * only; a fill never uses it, the active face fills as selected.  The viewport.meshEdit settings also
  * carry an off-key color per domain, which nothing draws, so it has no place here.
  *
@@ -50,6 +51,14 @@ data class OverlayColor(
  * @property OverlayColor faceActive The active face dot, with alpha forced to 1.
  * @property OverlayColor warning The outline of an island whose tile is in a placement collision.
  * @property OverlayColor pinnedPlacement The outline of an island whose tile is pinned.
+ * @property OverlayColor latticeIdle A warp lattice shown only because its area shows every deformer: its outer edges
+ *   and its corner dots, translucent by default so a rig full of them stays readable.
+ * @property OverlayColor latticeSelected A selected warp's lattice.
+ * @property OverlayColor latticeActive The active warp's lattice.
+ * @property OverlayColor latticePending A warp lattice shaped in Pose mode and not yet keyed, whatever its role: its
+ *   grid lines and dots in the lattice layer, and its unselected grid lines in the Edit cage.
+ * @property OverlayColor latticeHover The lattice the pointer is over, whatever its role or mark, drawn at this
+ *   color's own alpha whatever the area's deformer opacity: what a click there takes.
  */
 data class MeshOverlayPalette(
 	val vertexIdle: OverlayColor,
@@ -63,6 +72,11 @@ data class MeshOverlayPalette(
 	val faceActive: OverlayColor,
 	val warning: OverlayColor = OverlayColor.fromArgb(0xFFFF5A5AL),
 	val pinnedPlacement: OverlayColor = OverlayColor.fromArgb(0xFFB266FFL),
+	val latticeIdle: OverlayColor = OverlayColor.fromArgb(0x80404040L),
+	val latticeSelected: OverlayColor = OverlayColor.fromArgb(0xFF338CFFL),
+	val latticeActive: OverlayColor = OverlayColor.fromArgb(0xFF7DE400L),
+	val latticePending: OverlayColor = OverlayColor.fromArgb(0xFFDF8431L),
+	val latticeHover: OverlayColor = OverlayColor.fromArgb(0xFFFF00ECL),
 ) {
 	companion object {
 		/** The settings defaults, so a renderer draws something sensible before the UI pushes a palette. */

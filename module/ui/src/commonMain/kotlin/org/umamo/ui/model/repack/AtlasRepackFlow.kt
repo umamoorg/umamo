@@ -29,7 +29,7 @@ import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.placementAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.storage.UmamoLog
@@ -257,7 +257,7 @@ internal fun repackRefusals(
 			// the model does not have counts as degenerate too - the mapping cannot be formed at all.
 			val storedToArt = model.atlas.storedToArtAffineForTile(tile.id)
 
-			if (storedToArt == null || invertUvAffine(storedToArt) == null) {
+			if (storedToArt == null || invertAffine(storedToArt) == null) {
 				refusals.add(AtlasRepackRefusal(tile.name, AtlasRepackRefusalReason.DegeneratePlacement))
 			}
 		}

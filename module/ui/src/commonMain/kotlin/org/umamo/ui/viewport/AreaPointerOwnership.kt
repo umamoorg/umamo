@@ -81,3 +81,37 @@ internal fun rememberGestureOwnsAreaPointer(session: EditorSession?, areaId: Str
 		zoomRegionArmedAreaId = zoomRegionArmedArea,
 	)
 }
+
+/**
+ * Whether any gesture is live anywhere in the window: a modal operator, an armed select tool or Zoom Region, or an
+ * in-flight box drag in whichever area, an open pie, or a parked which-axis question.  A surface's context menu stays
+ * shut while one is, even in an area the gesture does not own: the right press belongs to that gesture, and a menu
+ * opening beside it would act on a state about to change.
+ *
+ * @param EditorSession? session The session whose latches are read, or null with no document open.
+ * @return Boolean True when a gesture is live; false with no session.
+ */
+@Composable
+internal fun rememberAnyGestureLive(session: EditorSession?): Boolean {
+	if (session == null) {
+		return false
+	}
+
+	val meshOperator = session.activeMeshOperator.collectAsState().value
+	val objectOperator = session.activeObjectOperator.collectAsState().value
+	val uvOperator = session.activeUvOperator.collectAsState().value
+	val selectTool = session.activeSelectTool.collectAsState().value
+	val viewportGestureActive = session.viewportGestureActive.collectAsState().value
+	val zoomRegionArmedArea = session.zoomRegionArmedArea.collectAsState().value
+	val pieMenu = session.activePieMenu.collectAsState().value
+	val parameterChoice = session.pendingParameterChoice.collectAsState().value
+
+	return meshOperator != null ||
+		objectOperator != null ||
+		uvOperator != null ||
+		selectTool != null ||
+		viewportGestureActive ||
+		zoomRegionArmedArea != null ||
+		pieMenu != null ||
+		parameterChoice != null
+}

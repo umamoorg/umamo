@@ -1,6 +1,7 @@
 package org.umamo.edit.keyform
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.KeyformAim
 import org.umamo.runtime.eval.scalarAt
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelValue
@@ -149,7 +150,7 @@ class KeyformChannelEditsTest {
 	fun anInsertPastTheRangeClampsToTheEnd() {
 		val editorSession =
 			EditorSession(model().withChannelKeyCaptured(target, parameter(angleX), mapOf(angleX to 15f), ChannelValue.Scalar(1f)))
-		editorSession.insertTrackKeyAt(KeyformTrackRef.Channel(target), parameter(angleX), -31.7f)
+		editorSession.insertTrackKeysAt(listOf(KeyformTrackRef.Channel(target)), parameter(angleX), -31.7f)
 
 		val axis = editorSession.model.value.drawables.single().channelGrids[FormChannel.OPACITY]!!.axes.single()
 		assertEquals(-30f, axis.keys.first(), "the clamped hit coincides with the min key, so nothing was added")
@@ -203,7 +204,7 @@ class KeyformChannelEditsTest {
 	@Test
 	fun captureAndRemovalUndoAsSingleSteps() {
 		val session = EditorSession(model())
-		session.captureChannelKey(target, parameter(angleX), ChannelValue.Scalar(1f))
+		session.captureKeysOnTracks(listOf(KeyformTrackRef.Channel(target)), angleX, KeyformAim.Pose)
 		assertTrue(session.model.value.isChannelKeyedOn(target, angleX))
 
 		session.removeChannelKey(target, parameter(angleX))

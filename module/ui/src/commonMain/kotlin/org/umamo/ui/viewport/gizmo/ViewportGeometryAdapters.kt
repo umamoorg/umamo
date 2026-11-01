@@ -2,6 +2,7 @@ package org.umamo.ui.viewport.gizmo
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.render.ViewportCamera
 import org.umamo.render.pick.screenToWorldX
@@ -101,11 +102,11 @@ internal fun hitTestEdge(
 		?.let { edgeOrdinal -> edges[edgeOrdinal] }
 
 /**
- * The face under [pointer], or null.  When a deformed mesh overlaps itself, the triangle with the
+ * The face under [pointer], or null.  When a deformed mesh overlaps itself, the face with the
  * nearest centroid wins.
  *
  * @param FloatArray positions The interleaved world posed positions.
- * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).
+ * @param ElementTopology topology The mesh's topology (its faces).
  * @param Offset pointer The cursor in screen pixels.
  * @param ViewportCamera camera The area camera.
  * @param IntSize size The area size in pixels.
@@ -113,14 +114,14 @@ internal fun hitTestEdge(
  */
 internal fun hitTestFace(
 	positions: FloatArray,
-	triangleIndices: IntArray,
+	topology: ElementTopology,
 	pointer: Offset,
 	camera: ViewportCamera,
 	size: IntSize,
 ): MeshElement.Face? =
 	org.umamo.render.pick
-		.hitTestFace(positions, triangleIndices, pointer.x, pointer.y, camera, size.width, size.height)
-		?.let { triangleOrdinal -> MeshElement.Face(triangleOrdinal) }
+		.hitTestFace(positions, topology.faceCorners, topology.cornersPerFace, pointer.x, pointer.y, camera, size.width, size.height)
+		?.let { faceOrdinal -> MeshElement.Face(faceOrdinal) }
 
 /**
  * The set of vertices whose screen projection lies inside the rectangle spanned by [cornerA] and
@@ -165,7 +166,7 @@ internal fun edgesInBox(
  * face-mode click affordance.
  *
  * @param FloatArray positions The interleaved world posed positions.
- * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).
+ * @param ElementTopology topology The mesh's topology (its faces).
  * @param Offset cornerA One box corner in screen pixels.
  * @param Offset cornerB The opposite box corner.
  * @param ViewportCamera camera The area camera.
@@ -174,15 +175,15 @@ internal fun edgesInBox(
  */
 internal fun facesInBox(
 	positions: FloatArray,
-	triangleIndices: IntArray,
+	topology: ElementTopology,
 	cornerA: Offset,
 	cornerB: Offset,
 	camera: ViewportCamera,
 	size: IntSize,
 ): Set<MeshElement> =
 	org.umamo.render.pick
-		.facesInBox(positions, triangleIndices, cornerA.x, cornerA.y, cornerB.x, cornerB.y, camera, size.width, size.height)
-		.map { triangleOrdinal -> MeshElement.Face(triangleOrdinal) }
+		.facesInBox(positions, topology.faceCorners, topology.cornersPerFace, cornerA.x, cornerA.y, cornerB.x, cornerB.y, camera, size.width, size.height)
+		.map { faceOrdinal -> MeshElement.Face(faceOrdinal) }
 		.toSet<MeshElement>()
 
 /**
@@ -228,7 +229,7 @@ internal fun edgesInCircle(
  * the face-mode overlay draws.
  *
  * @param FloatArray positions The interleaved world posed positions.
- * @param IntArray triangleIndices The mesh triangle vertex indices (three per triangle).
+ * @param ElementTopology topology The mesh's topology (its faces).
  * @param Offset center The brush center in screen pixels.
  * @param Float radiusPx The brush radius in screen pixels.
  * @param ViewportCamera camera The area camera.
@@ -237,13 +238,13 @@ internal fun edgesInCircle(
  */
 internal fun facesInCircle(
 	positions: FloatArray,
-	triangleIndices: IntArray,
+	topology: ElementTopology,
 	center: Offset,
 	radiusPx: Float,
 	camera: ViewportCamera,
 	size: IntSize,
 ): Set<MeshElement> =
 	org.umamo.render.pick
-		.facesInCircle(positions, triangleIndices, center.x, center.y, radiusPx, camera, size.width, size.height)
-		.map { triangleOrdinal -> MeshElement.Face(triangleOrdinal) }
+		.facesInCircle(positions, topology.faceCorners, topology.cornersPerFace, center.x, center.y, radiusPx, camera, size.width, size.height)
+		.map { faceOrdinal -> MeshElement.Face(faceOrdinal) }
 		.toSet<MeshElement>()

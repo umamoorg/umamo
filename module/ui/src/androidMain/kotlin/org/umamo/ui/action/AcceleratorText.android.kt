@@ -10,3 +10,11 @@ package org.umamo.ui.action
  * @return String The primary modifier label.
  */
 actual fun primaryModifierLabel(): String = "Ctrl"
+
+/**
+ * Android: Control is the primary modifier (a tablet keyboard has no Command key), so it is never a modifier
+ * of its own.
+ *
+ * @return Boolean Always false.
+ */
+actual fun controlIsDistinctFromPrimary(): Boolean = false

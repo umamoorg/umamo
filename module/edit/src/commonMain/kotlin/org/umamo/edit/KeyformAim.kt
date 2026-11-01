@@ -31,10 +31,10 @@ sealed interface KeyformAim {
  * What a deferred keyform edit will do once the user picks the axis it writes on.
  */
 enum class KeyformAction {
-	/** Insert a key ([captureKeyOnTrack]). */
+	/** Insert a key ([org.umamo.edit.keyform.captureKeysOnTracks]). */
 	Capture,
 
-	/** Remove a key ([removeKeyOnTrack]). */
+	/** Remove a key ([org.umamo.edit.keyform.removeKeysOnTracks]). */
 	Remove,
 }
 
@@ -49,15 +49,16 @@ enum class KeyformAction {
  * Carries the whole edit rather than just the question, so answering it is a plain replay through the same
  * entry point with the axis filled in; the UI decides nothing but which name was clicked.
  *
- * @property KeyformTrackRef track The track the edit was aimed at.
- * @property KeyformAim aim Where on that track it lands.
+ * @property List<KeyformTrackRef> tracks The tracks the edit was aimed at: one for a hover, every posed warp's
+ *   lattice for the viewport's key over a Pose-mode session.
+ * @property KeyformAim aim Where on those tracks it lands.
  * @property KeyformAction action Which edit is waiting.
  * @property List candidates The targeted parameters to choose between, in model order.
  * @property String? rowKey The keyform-sheet row the aim came from, carried so the replay can reconcile the
  *   key selection exactly as an unparked edit does; null when the aim came from somewhere with no sheet row.
  */
 data class ParameterChoiceRequest(
-	val track: KeyformTrackRef,
+	val tracks: List<KeyformTrackRef>,
 	val aim: KeyformAim,
 	val action: KeyformAction,
 	val candidates: List<ParameterId>,

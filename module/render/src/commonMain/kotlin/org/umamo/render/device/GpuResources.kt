@@ -225,6 +225,11 @@ public interface OverlayMeshBuffers
  * @property ByteArray vertexFlags One flag per vertex; its size is the mesh's vertex count.
  * @property ByteArray edgeFlags One flag per edge.
  * @property ByteArray faceFlags One flag per triangle.
+ * @property IntArray? faceDotCorners Three vertex indices per triangle whose centroid is where that triangle's face
+ *   dot draws, parallel to [faceCorners] and sharing its flags; null draws each dot at its own triangle's centroid.
+ *   A lattice points both triangles of a cell at the cell's center, so a cell shows one dot.
+ * @property Int vertexDotCount How many of the vertices, from the first, draw a vertex dot; the rest are anchors a
+ *   face dot points at and draw none.  Every vertex by default.
  */
 public class OverlayMeshSpec(
 	val edgeEndpoints: IntArray,
@@ -232,4 +237,6 @@ public class OverlayMeshSpec(
 	val vertexFlags: ByteArray,
 	val edgeFlags: ByteArray,
 	val faceFlags: ByteArray,
+	val faceDotCorners: IntArray? = null,
+	val vertexDotCount: Int = vertexFlags.size,
 )

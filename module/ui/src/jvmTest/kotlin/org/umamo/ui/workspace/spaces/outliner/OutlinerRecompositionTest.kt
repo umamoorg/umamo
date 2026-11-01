@@ -6,7 +6,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.parameter.renameParameter

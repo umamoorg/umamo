@@ -35,6 +35,7 @@ import org.umamo.ui.workspace.commands.fileImageExportCommands
 import org.umamo.ui.workspace.commands.frameCommands
 import org.umamo.ui.workspace.commands.historyCommands
 import org.umamo.ui.workspace.commands.keyformCommands
+import org.umamo.ui.workspace.commands.latticeCommands
 import org.umamo.ui.workspace.commands.meshGenerationCommands
 import org.umamo.ui.workspace.commands.modeCommands
 import org.umamo.ui.workspace.commands.objectCommands
@@ -229,6 +230,7 @@ internal fun RegisterShellCommands(
 					uvCommands(editorSession, routing, availability) +
 					topologyCommands(editorSession, routing, availability) +
 					meshGenerationCommands(availability, routing, generateMesh, generateQuadMesh) +
+					latticeCommands(editorSession, routing, availability) +
 					proportionalCommands(editorSession, availability) +
 					displayCommands(editorSession, availability) +
 					atlasCommands(availability, routing, repackAtlas) +

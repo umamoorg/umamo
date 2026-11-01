@@ -43,7 +43,7 @@ import org.umamo.ui.theme.LocalUmamoColors
  * @param Function? onTrackScrub Invoked as an empty-track drag moves, with the gesture's Shift state.
  * @param Function? onTrackScrubEnd Invoked when an empty-track drag is released.
  * @param Function? onMarkDrag Invoked on every move of a mark drag.
- * @param Function? onMarkDragEnd Invoked when a mark drag is released.
+ * @param Function? onMarkDragEnd Invoked when a mark drag is released; null leaves the marks in place.
  * @param Function selectedMarkDragDelta The in-flight group-drag offset drawn on selected marks; null for none.
  * @param Function? laneMenuItems Builds the lane's context-menu items.
  * @param Function? onLaneHover Reports the live hit under the pointer, or null on exit.
@@ -144,7 +144,7 @@ internal fun TrackLane(
 			// Read HERE rather than in composition: a group drag changes its offset, and a mark drag its
 			// feedback, every pointer frame; a draw scope read redraws the lane without recomposing the
 			// sheet above it.
-			drawTrackLane(marks, axis, playhead, markRadiusPx, colors, drag.mark, drag.value, selectedMarkDragDelta())
+			drawTrackLane(marks, axis, playhead, markRadiusPx, colors, drag.mark, drag.value, selectedMarkDragDelta(), row.pendingAt)
 		}
 
 		if (laneMenuItems != null && menuOpen && laneWidth > 0) {

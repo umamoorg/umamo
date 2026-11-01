@@ -63,13 +63,18 @@ sealed interface OperatorParameter {
 	/**
 	 * An integer setting with a range, a scrub step, and a display unit.
 	 *
-	 * @property String        key      See [OperatorParameter.key].
-	 * @property String        labelKey See [OperatorParameter.labelKey].
-	 * @property Int           value    The current value.
-	 * @property Int           min      The smallest value the row accepts.
-	 * @property Int           max      The largest value the row accepts.
-	 * @property Int           step     The scrub / chevron increment.
-	 * @property ParameterUnit unit     The display unit.
+	 * Like a real-valued setting, it can name the integer setting right after it as its [ratioPartnerKey] (a lattice's
+	 * rows and columns), and the UI then draws the pair with the lock that keeps their ratio, rounding the partner to
+	 * a whole number.
+	 *
+	 * @property String        key             See [OperatorParameter.key].
+	 * @property String        labelKey        See [OperatorParameter.labelKey].
+	 * @property Int           value           The current value.
+	 * @property Int           min             The smallest value the row accepts.
+	 * @property Int           max             The largest value the row accepts.
+	 * @property Int           step            The scrub / chevron increment.
+	 * @property ParameterUnit unit            The display unit.
+	 * @property String?       ratioPartnerKey The key of the next setting this one can be ratio-locked with, or null.
 	 */
 	data class IntParameter(
 		override val key: String,
@@ -79,6 +84,7 @@ sealed interface OperatorParameter {
 		val max: Int,
 		val step: Int = 1,
 		val unit: ParameterUnit = ParameterUnit.None,
+		val ratioPartnerKey: String? = null,
 	) : OperatorParameter
 
 	/**

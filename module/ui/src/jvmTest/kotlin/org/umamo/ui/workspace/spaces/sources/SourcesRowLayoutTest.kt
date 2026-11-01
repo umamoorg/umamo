@@ -2,7 +2,7 @@ package org.umamo.ui.workspace.spaces.sources
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.kit.SCROLLBAR_THICKNESS

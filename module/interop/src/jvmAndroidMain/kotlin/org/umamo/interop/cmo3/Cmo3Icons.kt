@@ -10,7 +10,7 @@ import org.umamo.format.raster.cropped
 import org.umamo.format.raster.fittedInto
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -136,6 +136,6 @@ internal object Cmo3Icons {
 		val tileId = drawable.atlasTileId ?: return null
 		val storedToArt = model.atlas.storedToArtAffineForTile(tileId) ?: return null
 
-		return applyUvAffine(uvs, storedToArt)
+		return applyAffine(uvs, storedToArt)
 	}
 }

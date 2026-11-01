@@ -35,6 +35,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
@@ -1458,6 +1459,7 @@ class RenderPassStructureTest {
 	 * @param Int vertexCount The vertex count each entry claims; 4 pairs with a quad.
 	 * @param Int? activeVertex The active vertex on every entry, or null.
 	 * @param Int? activeEdge The active edge ordinal on every entry, or null.
+	 * @param Set<String> wireframeOnly The quads styled [MeshStyle.Wireframe]; every other entry is [MeshStyle.Plain].
 	 * @return MeshOverlay The overlay.
 	 */
 	private fun overlayOver(
@@ -1485,7 +1487,7 @@ class RenderPassStructureTest {
 					edgeFlags[activeEdge] = OVERLAY_FLAG_ACTIVE
 				}
 
-				MeshOverlayMesh(DrawableId(id), vertexCount, quadEdges, vertexFlags, edgeFlags, ByteArray(2), activeVertex, activeEdge, null, wireframeOnly = id in wireframeOnly)
+				MeshOverlayMesh(ElementOwner.Drawable(DrawableId(id)), vertexCount, quadEdges, vertexFlags, edgeFlags, ByteArray(2), activeVertex, activeEdge, null, style = if (id in wireframeOnly) MeshStyle.Wireframe else MeshStyle.Plain)
 			},
 			MeshOverlaySizes(3.5f, 1f, 2.5f),
 		)

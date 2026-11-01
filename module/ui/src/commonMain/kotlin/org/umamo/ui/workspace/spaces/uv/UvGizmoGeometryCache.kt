@@ -1,10 +1,13 @@
 package org.umamo.ui.workspace.spaces.uv
 
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshTopology
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableLayerBinding
+import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasBindingFor
 import org.umamo.runtime.model.layerUvsFromAtlasUvs
@@ -18,9 +21,10 @@ import org.umamo.ui.viewport.uv.uvToDisplay
  * inputs are the same instances, which spares the edge walk and the display mapping, and is what lets the
  * renderer upload only the moved meshes' positions, since it compares them by identity.
  *
- * What each piece is kept by: a mesh's edges by its index array; its recovered layer coordinates by its
- * stored coordinates, its layer binding, and the layer's size; its display positions by the coordinates
- * in the shown surface's frame and the surface's size; and its whole geometry by those three results.
+ * What each piece is kept by: a mesh's topology by its index array and vertex count; its recovered layer
+ * coordinates by its stored coordinates, its layer binding, and the layer's size; its display positions by
+ * the coordinates in the shown surface's frame and the surface's size; and its whole geometry by its
+ * topology and display positions.
  * Each derive drops the meshes it no longer shows.
  *
  * Not thread-safe: the area's composition owns it.  Every entry is a pure function of what it is kept by,
@@ -60,20 +64,9 @@ internal class UvGizmoGeometryCache {
 		val positions: FloatArray,
 	)
 
-	/**
-	 * One mesh's unique edges.
-	 *
-	 * @property IntArray indices The triangle indices they were walked from (compared by identity).
-	 * @property List<MeshElement.Edge> edges The edges.
-	 */
-	private class Edges(
-		val indices: IntArray,
-		val edges: List<MeshElement.Edge>,
-	)
-
 	private val recoveredById = HashMap<DrawableId, RecoveredUvs>()
 	private val displayById = HashMap<DrawableId, DisplayPositions>()
-	private val edgesById = HashMap<DrawableId, Edges>()
+	private val topologyById = HashMap<DrawableId, ElementTopology>()
 	private val geometryById = HashMap<DrawableId, GizmoMeshGeometry>()
 
 	/**
@@ -113,7 +106,7 @@ internal class UvGizmoGeometryCache {
 
 	/**
 	 * The shown drawables' display-space gizmo geometry (see [uvGizmoGeometries]), each mesh's the previous
-	 * instance when its indices and its mapping are the ones it was built from and the surface kept its size.
+	 * instance when its topology and its mapping are the ones it was built from and the surface kept its size.
 	 *
 	 * @param List<Drawable> shownDrawables The drawables drawn over the shown surface.
 	 * @param Map<DrawableId, FloatArray> uvsById Each drawable's mapping in the shown surface's frame.
@@ -132,17 +125,17 @@ internal class UvGizmoGeometryCache {
 		for (drawable in shownDrawables) {
 			val mesh = drawable.mesh ?: continue
 			val uvs = uvsById[drawable.id] ?: continue
-			val edges = edgesOf(drawable.id, mesh.indices)
+			val topology = topologyOf(drawable.id, mesh)
 			val positions = displayPositionsOf(drawable.id, uvs, displayWidth, displayHeight)
 			val cached = geometryById[drawable.id]
 
-			if (cached != null && cached.indices === mesh.indices && cached.edges === edges && cached.positions === positions) {
+			if (cached != null && cached.topology === topology && cached.positions === positions) {
 				geometries.add(cached)
 
 				continue
 			}
 
-			val geometry = GizmoMeshGeometry(drawable.id, mesh.indices, edges, positions)
+			val geometry = GizmoMeshGeometry(ElementOwner.Drawable(drawable.id), topology, positions)
 			geometryById[drawable.id] = geometry
 			geometries.add(geometry)
 		}
@@ -150,7 +143,7 @@ internal class UvGizmoGeometryCache {
 		val shownIds = geometries.mapTo(HashSet(geometries.size)) { geometry -> geometry.drawableId }
 		geometryById.keys.retainAll(shownIds)
 		displayById.keys.retainAll(shownIds)
-		edgesById.keys.retainAll(shownIds)
+		topologyById.keys.retainAll(shownIds)
 
 		return geometries
 	}
@@ -207,22 +200,23 @@ internal class UvGizmoGeometryCache {
 	}
 
 	/**
-	 * A mesh's unique edges, kept while its index array is the one they were walked from.
+	 * A mesh's topology, kept while its index array and vertex count are the ones it was built from, so its edges
+	 * are walked once per shape.
 	 *
 	 * @param DrawableId drawableId The drawable.
-	 * @param IntArray indices Its triangle indices.
-	 * @return List<MeshElement.Edge> The edges.
+	 * @param DrawableMesh mesh Its mesh.
+	 * @return ElementTopology The topology.
 	 */
-	private fun edgesOf(drawableId: DrawableId, indices: IntArray): List<MeshElement.Edge> {
-		val cached = edgesById[drawableId]
+	private fun topologyOf(drawableId: DrawableId, mesh: DrawableMesh): ElementTopology {
+		val cached = topologyById[drawableId]
 
-		if (cached != null && cached.indices === indices) {
-			return cached.edges
+		if (cached != null && cached.faceCorners === mesh.indices && cached.vertexCount == mesh.vertexCount) {
+			return cached
 		}
 
-		val edges = MeshTopology.uniqueEdges(indices)
-		edgesById[drawableId] = Edges(indices, edges)
+		val topology = ElementTopology.ofMesh(mesh)
+		topologyById[drawableId] = topology
 
-		return edges
+		return topology
 	}
 }

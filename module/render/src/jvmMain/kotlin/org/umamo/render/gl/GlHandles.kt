@@ -188,7 +188,10 @@ internal class GlUniformLocations(program: Int) {
 /**
  * One mesh's resident overlay instance data: a VAO per primitive domain over its per-instance index
  * buffer (none for the vertex domain, whose instance index is the vertex) and its per-instance flag
- * buffer.  A domain the mesh lacks (no edges, no triangles) has 0 for its names and draws nothing.
+ * buffer.  A domain the mesh lacks (no edges, no triangles) has 0 for its names and draws nothing.  A mesh whose
+ * face dots point elsewhere than their triangles' corners (a lattice cell's center) has its own face-dot VAO over
+ * those corners, sharing the face flags; otherwise its face dots draw from the face VAO, and [faceDotVao] is 0.
+ * [vertexDotCount] of the vertices, from the first, draw vertex dots.
  */
 internal class GlOverlayMeshBuffers(
 	val edgeVao: Int,
@@ -202,6 +205,9 @@ internal class GlOverlayMeshBuffers(
 	val vertexVao: Int,
 	val vertexFlagVbo: Int,
 	val vertexCount: Int,
+	val faceDotVao: Int = 0,
+	val faceDotVbo: Int = 0,
+	val vertexDotCount: Int = vertexCount,
 ) : OverlayMeshBuffers
 
 /** A linked draw program with its blend, cull state, and resolved uniform locations. */

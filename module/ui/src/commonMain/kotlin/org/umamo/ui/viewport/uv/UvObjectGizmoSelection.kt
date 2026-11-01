@@ -5,8 +5,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
 import org.umamo.render.ViewportCamera
-import org.umamo.render.pick.PickCandidate
+import org.umamo.ui.viewport.ObjectPickCandidate
+import org.umamo.ui.viewport.asObjectPickCandidates
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.MarqueeSelectController
 import org.umamo.ui.viewport.gizmo.ObjectPickController
@@ -59,18 +61,18 @@ internal fun uvObjectPick(
 	frame: State<UvEditFrame>,
 	camera: State<ViewportCamera>,
 	size: State<IntSize>,
-	onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
+	onOverlapRequest: (Offset, List<ObjectPickCandidate>) -> Unit,
 ): ObjectPickController =
 	ObjectPickController(
 		session = session,
 		marquee = marquee,
 		pickTopmost = { position ->
 			val (displayX, displayY) = screenToWorld(position.x, position.y, camera.value, size.value)
-			islandPick.value.topmostAt(displayX, displayY)
+			islandPick.value.topmostAt(displayX, displayY)?.let { drawableId -> SelectionTarget.Drawable(drawableId) }
 		},
 		pickStack = { position ->
 			val (displayX, displayY) = screenToWorld(position.x, position.y, camera.value, size.value)
-			islandPick.value.stackAt(displayX, displayY)
+			islandPick.value.stackAt(displayX, displayY).asObjectPickCandidates()
 		},
 		onOverlapRequest = onOverlapRequest,
 		placeCursor = { displayX, displayY -> placeUvCursor(session, frame.value, displayX, displayY) },

@@ -22,6 +22,7 @@ import org.umamo.edit.KeyformAction
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.keyform.resolveParameterChoice
+import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.AtPointPositionProvider
 import org.umamo.ui.kit.TooltipCard
 import org.umamo.ui.kit.menu.Menu
@@ -38,6 +39,8 @@ import org.umamo.ui.resources.pick_hover_part
 import org.umamo.ui.theme.LocalUmamoCursors
 import org.umamo.ui.theme.drawCursor
 import org.umamo.ui.workspace.LocalRelationPick
+import org.umamo.ui.workspace.commands.pieMenuEntriesFor
+import org.umamo.ui.workspace.commands.pieMenuTitleFor
 import org.umamo.ui.workspace.noticeText
 import kotlin.math.roundToInt
 
@@ -103,7 +106,7 @@ internal fun ShellPieMenuHost(pointerPosition: Offset?, modifier: Modifier = Mod
 	val session = LocalEditorSession.current ?: return
 	val activePie by session.activePieMenu.collectAsState()
 	val kind = activePie ?: return
-	val entries = pieMenuEntriesFor(kind)
+	val entries = pieMenuEntriesFor(kind, LocalCommands.current)
 
 	if (entries.isEmpty()) {
 		return

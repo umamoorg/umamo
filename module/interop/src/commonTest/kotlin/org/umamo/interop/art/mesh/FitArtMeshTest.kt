@@ -37,7 +37,7 @@ class FitArtMeshTest {
 		val fit = assertNotNull(fitted.fit)
 		assertEquals(false, fit.holesFilled, "a raised budget fits the holes, so they stay")
 		assertTrue(assertNotNull(fit.budget) > 16)
-		assertTrue(assertNotNull(fitted.result.mesh).vertexCount <= fit.budget!!)
+		assertTrue(assertNotNull(fitted.result.mesh).vertexCount <= fit.budget)
 	}
 
 	@Test

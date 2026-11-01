@@ -35,8 +35,8 @@ import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.applyAffine
+import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.ui.document.blendedAt
 import org.umamo.ui.model.repack.MAX_IMPORT_PAGE_SIZE
@@ -198,7 +198,7 @@ internal object GenerateMeshFlowFixtures {
 				pages = listOf(AtlasPage(256, 256)),
 				tiles = listOf(AtlasTile(tileA, "A", 64, 64, placement = aPlacement, pinned = pinA), AtlasTile(tileB, "B", 64, 64, placement = bPlacement)),
 			)
-		val artToStored = invertUvAffine(atlas.storedToArtAffineForTile(tileA)!!)!!
+		val artToStored = invertAffine(atlas.storedToArtAffineForTile(tileA)!!)!!
 		val drawables =
 			quads.map { (drawableId, margin) ->
 				val low = if (margin == 0f) 0f else 12f - margin
@@ -206,7 +206,7 @@ internal object GenerateMeshFlowFixtures {
 				val unplaced = quad(drawableId, tileA, low, low, high, high)
 				val mesh = unplaced.mesh!!
 
-				unplaced.copy(mesh = DrawableMesh.withLocalEqualToCanvas(mesh.positions, applyUvAffine(mesh.uvs, artToStored), mesh.indices))
+				unplaced.copy(mesh = DrawableMesh.withLocalEqualToCanvas(mesh.positions, applyAffine(mesh.uvs, artToStored), mesh.indices))
 			}
 
 		return model(drawables, atlas)
@@ -305,7 +305,7 @@ internal object GenerateMeshFlowFixtures {
 	 */
 	fun artXsOf(model: PuppetModel, drawableId: DrawableId): List<Float> {
 		val drawable = model.drawables.first { candidate -> candidate.id == drawableId }
-		val artUvs = applyUvAffine(drawable.mesh!!.uvs, model.atlas.storedToArtAffineForTile(drawable.atlasTileId!!)!!)
+		val artUvs = applyAffine(drawable.mesh!!.uvs, model.atlas.storedToArtAffineForTile(drawable.atlasTileId!!)!!)
 
 		return (0 until artUvs.size / 2).map { vertex -> artUvs[2 * vertex] * 64f }
 	}

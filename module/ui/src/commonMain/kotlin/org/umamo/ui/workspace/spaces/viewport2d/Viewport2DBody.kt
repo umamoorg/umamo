@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import org.umamo.ui.kit.PointerShield
+import org.umamo.ui.kit.menu.ContextMenuArea
 import org.umamo.ui.model.LocalEditorSession
 import org.umamo.ui.model.LocalPuppetViewportService
 import org.umamo.ui.resources.*
@@ -19,6 +20,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.viewport.ApplicationGridMirror
 import org.umamo.ui.viewport.LocalAreaOverlays
+import org.umamo.ui.viewport.rememberAnyGestureLive
 import org.umamo.ui.viewport.rememberGestureOwnsAreaPointer
 import org.umamo.ui.viewport.viewport2d.ViewportSpaceCamera
 import org.umamo.ui.workspace.AreaScope
@@ -52,6 +54,11 @@ import org.umamo.ui.workspace.sidebar.SidebarDrawer
  * The area's overlay visibility reaches the host's cursor and HUD overlays through LocalAreaOverlays,
  * provided here: the host seam takes only the area id, and this body is where the state the header's
  * overlays control edits is in hand.
+ *
+ * An idle right-click over the surface opens the mode's context menu (ViewportContextMenu.kt).  It wraps the surface
+ * alone, so the floating chrome's right-click still reaches the area menu, and every gesture inside the surface takes
+ * its own right press first (a modal's cancel, a box's abandon, the cursor's Shift placement); while a gesture is live
+ * anywhere the menu stays shut, so the right press never opens a menu beside it.
  *
  * @param AreaScope scope The hosting area context (its id keys the host's GL surface).
  */
@@ -100,12 +107,16 @@ internal fun Viewport2DBody(scope: AreaScope) {
 	// The floating chrome stops the pointer reaching the surface, except while one of this area's gestures
 	// owns it: a G started over the surface keeps following the pointer across the drawer.
 	val gestureOwnsPointer = rememberGestureOwnsAreaPointer(session, scope.areaId)
+	val contextItems = rememberViewportContextItems(session)
+	val anyGestureLive = rememberAnyGestureLive(session)
 	CompositionLocalProvider(LocalAreaOverlays provides viewState.overlays) {
 		Box(modifier = Modifier.fillMaxSize()) {
-			if (host != null) {
-				host.Viewport2D(scope.areaId, Modifier.fillMaxSize())
-			} else {
-				Box(modifier = Modifier.fillMaxSize().background(LocalUmamoColors.current.viewportGridBackground))
+			ContextMenuArea(items = contextItems, modifier = Modifier.fillMaxSize(), suppressed = anyGestureLive || contextItems.isEmpty()) {
+				if (host != null) {
+					host.Viewport2D(scope.areaId, Modifier.fillMaxSize())
+				} else {
+					Box(modifier = Modifier.fillMaxSize().background(LocalUmamoColors.current.viewportGridBackground))
+				}
 			}
 
 			if (viewState.toolbar.isShown(chrome.showToolbar)) {

@@ -24,6 +24,8 @@ import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.editsElements
+import org.umamo.edit.toSelectionTarget
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.ui.kit.Text
@@ -37,43 +39,58 @@ import kotlin.math.roundToInt
 private val ACTIVE_MESH_INFO_MAX_WIDTH = 260.dp
 
 /**
- * The top-left active-mesh info chip shared by the 2D viewport and the UV editor: which drawable
- * element clicks and operators land on.  Row 1 is "Part | Drawable" (the part omitted, pipe and all,
- * for a drawable no part owns); row 2 is the innermost parent deformer's name (the row omitted for an
- * undeformed drawable).  Edit mode annotates the edit-target mesh; Object mode the object selection's
- * active drawable; with neither resolved the chip renders nothing, so the hosts need no gate of their
- * own.  Every name is user data, rendered verbatim (never localized) and capped at
- * [ACTIVE_MESH_INFO_MAX_WIDTH] with an ellipsis - draw-only per the HUD contract, so no tooltip
- * carries the full name.
+ * The top-left active-object info chip shared by the 2D viewport and the UV editor: which drawable
+ * element clicks and operators land on, or in the 2D viewport which deformer.  Row 1 is "Part | Name" (the
+ * part omitted, pipe and all, for an object no part owns); row 2 is the innermost parent deformer's name (the
+ * row omitted for an object no deformer moves).  Edit and Pose mode annotate the session's active mesh or lattice;
+ * Object mode the object selection's active drawable, or with [showsDeformers] its active deformer.  With none
+ * resolved the chip renders nothing, so the hosts need no gate of their own.  Every name is user data, rendered
+ * verbatim (never localized) and capped at [ACTIVE_MESH_INFO_MAX_WIDTH] with an ellipsis - draw-only per the HUD
+ * contract, so no tooltip carries the full name.
  *
- * @param EditorSession session The session whose mode, selections, and model resolve the active mesh.
+ * @param EditorSession session The session whose mode, selections, and model resolve the active object.
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
+ * @param Boolean showsDeformers Whether an active deformer has a chip: the 2D viewport, which draws the warps.
  */
 @Composable
 internal fun ActiveMeshInfoLabel(
 	session: EditorSession,
 	modifier: Modifier = Modifier,
+	showsDeformers: Boolean = false,
 ) {
 	val editorMode by session.mode.collectAsState()
 	val meshSelection by session.meshSelection.collectAsState()
 	val objectSelection by session.selection.collectAsState()
 	val model by session.model.collectAsState()
-	// Both lookups walk the whole model, so they are remembered per model instance - above the
+	// Every lookup walks the whole model, so they are remembered per model instance - above the
 	// resolution null-gates, so a selection change that toggles the chip never recomputes them.
 	val partNameOfDrawable = remember(model) { model.partNameByDrawable() }
-	val deformerNameById = remember(model) { model.deformers.associate { deformer -> deformer.id to deformer.name } }
-	val activeDrawableId =
-		when (editorMode) {
-			EditorMode.Edit -> meshSelection.activeDrawableId
-			EditorMode.Object -> (objectSelection.active as? SelectionTarget.Drawable)?.id
-		} ?: return
-	val activeDrawable = model.drawables.firstOrNull { drawable -> drawable.id == activeDrawableId } ?: return
-	val partName = partNameOfDrawable[activeDrawable.id]
-	val meshRow = if (partName != null) "$partName | ${activeDrawable.name}" else activeDrawable.name
-	val deformerName = activeDrawable.parentDeformerId?.let { deformerId -> deformerNameById[deformerId] }
+	val partNameById = remember(model) { model.parts.associate { part -> part.id to part.name } }
+	val deformerById = model.deformerById
+	val activeTarget = (if (editorMode.editsElements) meshSelection.activeOwner?.toSelectionTarget() else objectSelection.active) ?: return
+	val (nameRow, deformerName) =
+		when (activeTarget) {
+			is SelectionTarget.Drawable -> {
+				val activeDrawable = model.drawables.firstOrNull { drawable -> drawable.id == activeTarget.id } ?: return
+				val partName = partNameOfDrawable[activeDrawable.id]
+				infoRowOf(partName, activeDrawable.name) to activeDrawable.parentDeformerId?.let { deformerId -> deformerById[deformerId]?.name }
+			}
+
+			is SelectionTarget.Deformer -> {
+				// The lattice Edit mode shapes names itself whether or not the area shows every deformer; a posed one shows
+				// where deformers do (the UV editor is view-only in Pose mode).
+				val activeDeformer = deformerById[activeTarget.id]?.takeIf { showsDeformers || editorMode == EditorMode.Edit } ?: return
+				val partName = activeDeformer.partId?.let { partId -> partNameById[partId] }
+				infoRowOf(partName, activeDeformer.name) to activeDeformer.parent?.let { parentId -> deformerById[parentId]?.name }
+			}
+
+			is SelectionTarget.Part -> {
+				return
+			}
+		}
 	val hudColors = LocalUmamoColors.current
 	Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
-		// One chip holding both rows (never two chips): one background reads as one fact about one mesh.
+		// One chip holding both rows (never two chips): one background reads as one fact about one object.
 		Column(
 			modifier =
 				Modifier
@@ -82,7 +99,7 @@ internal fun ActiveMeshInfoLabel(
 					.padding(horizontal = 8.dp, vertical = 3.dp),
 		) {
 			Text(
-				text = meshRow,
+				text = nameRow,
 				style = LocalUmamoTypography.current.labelMedium,
 				color = hudColors.viewportBadgeText,
 				maxLines = 1,
@@ -103,6 +120,15 @@ internal fun ActiveMeshInfoLabel(
 		}
 	}
 }
+
+/**
+ * The chip's first row: "Part | Name", or the name alone for an object no part owns.
+ *
+ * @param String? partName The owning part's name, or null.
+ * @param String name The object's own name.
+ * @return String The row.
+ */
+private fun infoRowOf(partName: String?, name: String): String = if (partName != null) "$partName | $name" else name
 
 /**
  * The bottom-left zoom readout shared by the 2D viewport and the UV editor.  Reads the LIVE service

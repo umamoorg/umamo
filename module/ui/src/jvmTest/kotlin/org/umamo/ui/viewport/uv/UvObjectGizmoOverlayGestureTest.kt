@@ -12,6 +12,8 @@ import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginUvOperator
+import org.umamo.runtime.model.Deformer
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
@@ -296,6 +298,31 @@ class UvObjectGizmoOverlayGestureTest {
 			assertNull(session.activeUvOperator.value)
 			assertNull(fixture.placementDragStatusByArea.getValue(LEFT_AREA).value)
 			assertEquals(uvRigTilePlacement(100f), uvRigPlacementOf(session, UV_RIG_QUAD_TILE))
+		}
+
+	/**
+	 * The UV editor is view-only in Pose mode: entering Pose mid-placement ends the gesture with the overlay gone,
+	 * exactly as leaving for Edit does, and a UV operator asked for in Pose mode never latches.
+	 */
+	@Test
+	fun poseModeLeavesTheUvEditorViewOnly() =
+		runComposeUiTest {
+			val warp = Deformer.Warp(DeformerId("w"), "w", parent = null, partId = null, rows = 1, columns = 1, isQuadTransform = true, geometryGrid = null)
+			val fixture = mountUvGizmoOverlays(uvObjectSession(listOf(UV_RIG_QUAD), uvRigPlacedModel().copy(deformers = listOf(warp))), uvRigPlacementSurface())
+			val session = fixture.session
+			latchPlacementGrab(fixture)
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
+
+			session.setMode(EditorMode.Pose)
+			waitForIdle()
+
+			assertEquals(EditorMode.Pose, session.mode.value)
+			assertNull(session.activeUvOperator.value)
+			assertNull(fixture.placementDragStatusByArea.getValue(LEFT_AREA).value)
+			assertEquals(uvRigTilePlacement(100f), uvRigPlacementOf(session, UV_RIG_QUAD_TILE))
+
+			session.beginUvOperator(MeshOperatorKind.Grab, LEFT_AREA)
+			assertNull(session.activeUvOperator.value, "Pose mode latches no UV operator")
 		}
 
 	/**

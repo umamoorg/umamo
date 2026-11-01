@@ -36,6 +36,7 @@ internal data class OutlinerLabels(
 	val rename: String,
 	val delete: String,
 	val deleteHierarchy: String,
+	val createWarp: String,
 )
 
 /**
@@ -56,4 +57,5 @@ internal fun outlinerLabels(): OutlinerLabels =
 		rename = stringResource(Res.string.outliner_menu_rename),
 		delete = stringResource(Res.string.outliner_menu_delete),
 		deleteHierarchy = stringResource(Res.string.outliner_menu_delete_hierarchy),
+		createWarp = stringResource(Res.string.cmd_deformer_create_warp),
 	)

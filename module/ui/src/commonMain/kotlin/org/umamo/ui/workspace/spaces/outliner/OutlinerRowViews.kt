@@ -36,6 +36,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.structure.RowDropBand
@@ -196,18 +197,22 @@ internal fun OutlinerRowView(
 		// Select Hierarchy dispatches through the registry with the row's target as the argument, so the
 		// palette and a future binding share it.
 		val commands = LocalCommands.current
+		// Built as the menu opens: a row recomposes only when its own inputs change, so entries built in
+		// composition would show the mode and the availability of whenever this row last composed.
 		ContextMenuArea(
-			items =
+			itemsOnOpen = {
 				outlinerRowMenuItems(
 					target,
 					labels,
 					commands,
+					inObjectMode = session?.mode?.value == EditorMode.Object,
 					// A menu action has no Shift context, so it is always the plain single-entity toggle.
 					{ onToggleVisibility(false) },
 					{ onToggleSelectable(false) },
 					startRename,
 					onRequestDelete,
-				),
+				)
+			},
 			content = body,
 		)
 	}

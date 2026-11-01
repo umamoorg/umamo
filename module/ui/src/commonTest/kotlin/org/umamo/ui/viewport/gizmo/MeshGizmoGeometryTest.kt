@@ -3,12 +3,14 @@ package org.umamo.ui.viewport.gizmo
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.ActiveMeshElement
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -17,7 +19,7 @@ import kotlin.test.assertTrue
 
 /**
  * The shared gizmo element queries over synthetic GizmoMeshGeometry - the geometry-source-agnostic
- * record the Edit overlay (deformer-projected world shapes) and the future UV editor (raw texture
+ * record the Edit overlay (deformer-projected world shapes) and the UV editor (raw texture
  * coordinates) both feed.  Camera at origin with zoom 1 over a 200x200 area, so world (x, y) lands at
  * screen (x + 100, 100 - y).
  */
@@ -37,7 +39,7 @@ class MeshGizmoGeometryTest {
 	 * @return GizmoMeshGeometry The geometry under test.
 	 */
 	private fun quad(id: String, positions: FloatArray = quadPositions): GizmoMeshGeometry =
-		GizmoMeshGeometry(DrawableId(id), quadIndices, MeshTopology.uniqueEdges(quadIndices), positions)
+		GizmoMeshGeometry(ElementOwner.Drawable(DrawableId(id)), ElementTopology.ofTriangles(positions.size / 2, quadIndices), positions)
 
 	@Test
 	fun hitTestPicksTheVertexUnderThePointer() {
@@ -80,7 +82,7 @@ class MeshGizmoGeometryTest {
 	@Test
 	fun circleStampAddsThenErasesElements() {
 		val geometry = quad("a")
-		val seed = MeshSelection.editing(listOf(DrawableId("a")))
+		val seed = MeshSelection.editingDrawables(listOf(DrawableId("a")))
 		// v3 (20, 20) is at screen (120, 80): a small brush there selects only it.
 		val painted = circleSelection(seed, erasing = false, Offset(120f, 80f), 5f, listOf(geometry), camera, size)
 		assertEquals(setOf<MeshElement>(MeshElement.Vertex(3)), painted.elementsOf(DrawableId("a")))
@@ -97,7 +99,7 @@ class MeshGizmoGeometryTest {
 				elements = setOf(MeshElement.Vertex(0), MeshElement.Vertex(1), MeshElement.Vertex(2)),
 				active = MeshElement.Vertex(2),
 				selectMode = MeshSelectMode.Vertex,
-				triangleIndices = quadIndices,
+				topology = ElementTopology.ofTriangles(4, quadIndices),
 			)
 		assertEquals(setOf(0, 1, 2), highlight.selectedVertexIndices)
 		assertEquals(2, highlight.activeVertexIndex)
@@ -109,9 +111,9 @@ class MeshGizmoGeometryTest {
 	@Test
 	fun theActiveElementMedianIsWhatTheElementCovers() {
 		val geometries = listOf(quad("a"))
-		val vertexActive = MeshSelection(listOf(DrawableId("a")), DrawableId("a"), activeElement = ActiveMeshElement(DrawableId("a"), MeshElement.Vertex(3)))
+		val vertexActive = MeshSelection(listOf(ElementOwner.Drawable(DrawableId("a"))), ElementOwner.Drawable(DrawableId("a")), activeElement = ActiveMeshElement(ElementOwner.Drawable(DrawableId("a")), MeshElement.Vertex(3)))
 		assertEquals(20f to 20f, activeElementMedian(vertexActive, geometries))
-		val edgeActive = vertexActive.copy(selectMode = MeshSelectMode.Edge, activeElement = ActiveMeshElement(DrawableId("a"), MeshElement.Edge(0, 1)))
+		val edgeActive = vertexActive.copy(selectMode = MeshSelectMode.Edge, activeElement = ActiveMeshElement(ElementOwner.Drawable(DrawableId("a")), MeshElement.Edge(0, 1)))
 		assertEquals(10f to 0f, activeElementMedian(edgeActive, geometries))
 	}
 
@@ -119,8 +121,8 @@ class MeshGizmoGeometryTest {
 	@Test
 	fun noShownActiveElementHasNoMedian() {
 		val geometries = listOf(quad("a"))
-		assertNull(activeElementMedian(MeshSelection(listOf(DrawableId("a")), DrawableId("a")), geometries))
-		val elsewhere = MeshSelection(listOf(DrawableId("b")), DrawableId("b"), activeElement = ActiveMeshElement(DrawableId("b"), MeshElement.Vertex(0)))
+		assertNull(activeElementMedian(MeshSelection(listOf(ElementOwner.Drawable(DrawableId("a"))), ElementOwner.Drawable(DrawableId("a"))), geometries))
+		val elsewhere = MeshSelection(listOf(ElementOwner.Drawable(DrawableId("b"))), ElementOwner.Drawable(DrawableId("b")), activeElement = ActiveMeshElement(ElementOwner.Drawable(DrawableId("b")), MeshElement.Vertex(0)))
 		assertNull(activeElementMedian(elsewhere, geometries))
 	}
 }

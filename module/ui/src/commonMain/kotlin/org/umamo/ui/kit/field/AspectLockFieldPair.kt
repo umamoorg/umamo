@@ -17,6 +17,7 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoIcons
 import org.umamo.ui.theme.LocalUmamoShapes
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Space the pair's rows reserve at their right edge for the aspect lock that overlays it: the 20dp icon
@@ -159,6 +160,58 @@ fun AspectLockFieldPair(
 		)
 	}
 }
+
+/**
+ * [AspectLockFieldPair] over whole numbers - a lattice's rows and columns - as [NumberField] has an integer form: the
+ * same pair and lock, showing no decimals and stepping by one, with every value it hands back rounded to the nearest
+ * whole number inside [range].  A locked partner rounds the same way, so 6 x 4 locked with the first edited to 9
+ * becomes 9 x 6.
+ *
+ * @param String firstLabel The first field's localized label.
+ * @param String firstDescription What the first field measures, as its label's tooltip.
+ * @param Int firstValue The first field's value.
+ * @param String secondLabel The second field's localized label.
+ * @param String secondDescription What the second field measures, as its label's tooltip.
+ * @param Int secondValue The second field's value.
+ * @param IntRange range The range both fields clamp to, a locked partner included.
+ * @param Boolean enabled Whether the fields and the lock accept input; disabled, they only show the values.
+ * @param Function onCommit Called with the new (first, second) values once per edit.
+ */
+@Composable
+fun AspectLockFieldPair(
+	firstLabel: String,
+	firstDescription: String,
+	firstValue: Int,
+	secondLabel: String,
+	secondDescription: String,
+	secondValue: Int,
+	range: IntRange,
+	enabled: Boolean = true,
+	onCommit: (Int, Int) -> Unit,
+) {
+	AspectLockFieldPair(
+		firstLabel = firstLabel,
+		firstDescription = firstDescription,
+		firstValue = firstValue.toFloat(),
+		secondLabel = secondLabel,
+		secondDescription = secondDescription,
+		secondValue = secondValue.toFloat(),
+		range = range.first.toFloat()..range.last.toFloat(),
+		decimals = 0,
+		step = 1f,
+		enabled = enabled,
+		onCommit = { first, second -> onCommit(wholeValueOf(first, range), wholeValueOf(second, range)) },
+	)
+}
+
+/**
+ * [value] rounded to the nearest whole number inside [range]: what an integer [AspectLockFieldPair] hands back.
+ *
+ * @param Float value The pair's value.
+ * @param IntRange range The range the pair clamps to.
+ * @return Int The whole value.
+ */
+internal fun wholeValueOf(value: Float, range: IntRange): Int = value.roundToInt().coerceIn(range)
 
 /**
  * The value an [AspectLockFieldPair] gives the field NOT edited when the other becomes [editedValue].

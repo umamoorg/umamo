@@ -82,11 +82,11 @@ class MeshDriveParallelTest {
 		val session = EditorSession(manyMeshModel(48))
 		val targets = session.model.value.drawables.map { drawable -> SelectionTarget.Drawable(drawable.id) }
 		session.setSelection(Selection(targets.toSet(), targets.first()))
-		val transform = ObjectModalTransform(AREA_ID, session) { }
+		val transform = ObjectModalTransform(AREA_ID, session, pushPreview = { })
 		session.beginObjectOperator(MeshOperatorKind.Rotate, AREA_ID)
 		transform.begin(MeshOperatorKind.Rotate)
 		val gestureData = assertNotNull(transform.gesture.capture)
-		val jobs = meshDriveJobs(gestureData.transform, gestureData.geometryById, wholeMeshes = true)
+		val jobs = meshDriveJobs(gestureData.transform, gestureData.geometryByOwner, wholeMeshes = true)
 		assertEquals(48, jobs.size, "every mesh moves")
 		val parameters = TransformGestureParameters(3.5f, -2.25f, 1.3f, 0.7f, 0.9f)
 

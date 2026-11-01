@@ -109,8 +109,6 @@ class KeyformPrecisionProofProbe {
 						is RotationDeformer -> {
 							rotationComponents++
 						}
-
-						else -> {}
 					}
 
 					if (expected[componentIndex].toRawBits() != actual[componentIndex].toRawBits()) {

@@ -69,7 +69,7 @@ fun ViewportHudOverlay(
 	// UV editor gets the same chips through its own assembly, UvHudOverlay.  They are what the area's
 	// General Information overlay toggle covers; the operator badge above is feedback and always shows.
 	if (LocalAreaOverlays.current?.effectiveInfo != false) {
-		ActiveMeshInfoLabel(session = session, modifier = modifier)
+		ActiveMeshInfoLabel(session = session, modifier = modifier, showsDeformers = true)
 		ViewportZoomBadge(camera = liveCamera, modifier = modifier)
 	}
 }

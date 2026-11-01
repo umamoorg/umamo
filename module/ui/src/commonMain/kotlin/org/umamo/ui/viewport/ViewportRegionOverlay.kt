@@ -91,9 +91,11 @@ fun ViewportRegionOverlay(
 
 							when (event.type) {
 								PointerEventType.Press -> {
-									// Right-click cancels the armed gesture; left-click begins the region drag.
+									// Right-click cancels the armed gesture, taking the press so no context menu opens
+									// under it; left-click begins the region drag.
 									if (event.buttons.isSecondaryPressed) {
 										session.disarmZoomRegion()
+										change.consume()
 									} else if (event.buttons.isPrimaryPressed) {
 										regionStart = change.position
 										regionCurrent = change.position

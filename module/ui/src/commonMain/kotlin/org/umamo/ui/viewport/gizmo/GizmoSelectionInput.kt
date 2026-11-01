@@ -33,8 +33,8 @@ internal fun selectToolKind(ownedSelectTool: ActiveSelectTool?): Int =
 	}
 
 /**
- * The marquee (box + circle) machinery over mesh elements, shared by the 2D viewport's Edit mode and the UV
- * editor's: the stroke / rubber-band state and event rules are MarqueeSelectController's, and these callbacks
+ * The marquee (box + circle) machinery over mesh elements, shared by the 2D viewport's Edit and Pose mode and
+ * the UV editor's: the stroke / rubber-band state and event rules are MarqueeSelectController's, and these callbacks
  * bind them to the element domain.  An overlay holds one per area, so every callback reads the session and
  * [geometries] when it runs.
  *
@@ -58,11 +58,11 @@ internal fun meshMarquee(
 		previewStroke = previewStroke,
 		applyBox = { start, end, additive, boxCamera, boxSize ->
 			val selection = session.meshSelection.value
-			val insideByDrawable =
+			val insideByOwner =
 				geometries().associate { geometry ->
-					geometry.drawableId to elementsInBox(selection.selectMode, geometry, start, end, boxCamera, boxSize)
+					geometry.owner to elementsInBox(selection.selectMode, geometry, start, end, boxCamera, boxSize)
 				}
-			session.setMeshSelection(MeshSelectionOps.box(selection, insideByDrawable, additive = additive))
+			session.setMeshSelection(MeshSelectionOps.box(selection, insideByOwner, additive = additive))
 		},
 		setCircleRadius = { radiusPx -> session.setCircleRadius(radiusPx) },
 		clearTool = { session.clearSelectTool() },
@@ -70,7 +70,7 @@ internal fun meshMarquee(
 	)
 
 /**
- * The mesh-element surfaces' pointer flow, shared by the 2D viewport's Edit mode and the UV editor's: the
+ * The mesh-element surfaces' pointer flow, shared by the 2D viewport's Edit and Pose mode and the UV editor's: the
  * box select (un-armed and armed, one flow - see BoxSelectFlow) with the element domain's press and click.
  * An un-armed primary press on an element selects it per the select mode (Shift / Ctrl toggles, plain
  * replaces) instead of starting a box, and an un-armed sub-threshold click on empty canvas clears the
@@ -78,8 +78,8 @@ internal fun meshMarquee(
  *
  * The seams are the geometry and the cursor: the 2D viewport passes its world-posed shapes and places its
  * world 2D cursor, the UV editor its display-mapped texture coordinates and its UV cursor.  Object mode is
- * NOT a user - it selects whole drawables with its own click pick ([ObjectPickController]) over the same
- * box flow.
+ * NOT a user - it selects whole drawables and warps with its own click pick ([ObjectPickController]) over the
+ * same box flow.
  *
  * @param EditorSession session The session owning the mesh selection, the armed tool, and the gesture flag.
  * @param MarqueeSelectController<MeshSelection> marquee The box machinery the flow rubber-bands through.
@@ -142,11 +142,11 @@ internal class MeshPickController(
 				// Shift and Ctrl both toggle membership (Blender-style): a second modified click on a selected
 				// element deselects it.
 				modifiers.isShiftPressed || modifiers.isCtrlPressed || modifiers.isMetaPressed -> {
-					MeshSelectionOps.toggle(current, hit.drawableId, hit.element)
+					MeshSelectionOps.toggle(current, hit.owner, hit.element)
 				}
 
 				else -> {
-					MeshSelectionOps.replace(current, hit.drawableId, hit.element)
+					MeshSelectionOps.replace(current, hit.owner, hit.element)
 				}
 			}
 		session.setMeshSelection(updated)
@@ -191,13 +191,13 @@ internal fun handleSelectLinkedRequest(
 
 	if (fromSelection) {
 		for (geometry in geometries) {
-			val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(geometry.drawableId), geometry.indices)
+			val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(geometry.owner), geometry.topology)
 
 			if (covered.isEmpty()) {
 				continue
 			}
 
-			val adjacency = MeshTopology.buildVertexAdjacency(geometry.positions.size / 2, geometry.indices)
+			val adjacency = geometry.topology.adjacency
 			val reached = HashSet<Int>()
 
 			for (seedVertex in covered) {
@@ -206,15 +206,14 @@ internal fun handleSelectLinkedRequest(
 				}
 			}
 
-			selection = MeshSelectionOps.selectLinked(selection, geometry.drawableId, reached, geometry.indices)
+			selection = MeshSelectionOps.selectLinked(selection, geometry.owner, reached, geometry.topology)
 		}
 	} else {
 		val hit = hitTestMeshes(selection.selectMode, geometries, pointer, camera, size) ?: return
-		val geometry = geometries.firstOrNull { candidate -> candidate.drawableId == hit.drawableId } ?: return
-		val seedVertex = MeshTopology.coveredVertexIndices(setOf(hit.element), geometry.indices).firstOrNull() ?: return
-		val adjacency = MeshTopology.buildVertexAdjacency(geometry.positions.size / 2, geometry.indices)
+		val geometry = geometries.firstOrNull { candidate -> candidate.owner == hit.owner } ?: return
+		val seedVertex = MeshTopology.coveredVertexIndices(setOf(hit.element), geometry.topology).firstOrNull() ?: return
 		selection =
-			MeshSelectionOps.selectLinked(selection, hit.drawableId, MeshTopology.connectedVertices(adjacency, seedVertex), geometry.indices)
+			MeshSelectionOps.selectLinked(selection, hit.owner, MeshTopology.connectedVertices(geometry.topology.adjacency, seedVertex), geometry.topology)
 	}
 
 	session.setMeshSelection(selection)

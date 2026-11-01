@@ -1,8 +1,8 @@
 package org.umamo.ui.workspace.commands
 
-import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.editsElements
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.edit.transform.beginUvOperator
@@ -68,8 +68,8 @@ internal fun transformCommands(
 /**
  * Begins a modal transform on [session] for the surface the pointer last touched: a UV operator over
  * texture coordinates in a hovered UV editor (Blender's hovered-area routing - the key acts where the
- * pointer is), else an Edit-mode mesh operator over the selected vertices or an Object-mode operator over
- * the selected drawables' whole geometry.
+ * pointer is), else an element operator over the selected vertices or lattice points (Edit and Pose mode) or an
+ * Object-mode operator over the selected objects' whole geometry.
  *
  * @param EditorSession? session The active session, or null when no document is open.
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
@@ -90,7 +90,7 @@ private fun beginTransform(session: EditorSession?, kind: MeshOperatorKind, rout
 		}
 
 		is TransformTarget.Viewport -> {
-			if (session.mode.value == EditorMode.Edit) {
+			if (session.mode.value.editsElements) {
 				session.beginMeshOperator(kind, target.areaId)
 			} else {
 				session.beginObjectOperator(kind, target.areaId)

@@ -25,7 +25,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.ReplacedTile
 import org.umamo.runtime.model.SourceLayerRef
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.isUntouchedBirthQuad
 import org.umamo.runtime.model.reloadTileId
 import org.umamo.runtime.model.storedToArtAffineForTile
@@ -558,7 +558,7 @@ object ArtworkReloadPlanner {
 				continue
 			}
 
-			val artUvs = applyUvAffine(mesh.uvs, storedToArt)
+			val artUvs = applyAffine(mesh.uvs, storedToArt)
 
 			// A fresh quad is born on the canvas, which is its base's space only for a drawable with no deformer;
 			// under one, the quad is kept and its coordinates carried like any authored mesh.

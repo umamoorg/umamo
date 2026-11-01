@@ -1,5 +1,6 @@
 package org.umamo.ui.transform
 
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.mesh.MeshRestPositions
@@ -10,6 +11,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -116,9 +118,10 @@ class CoveredVerticesTest {
 	 */
 	private fun selecting(verticesById: Map<DrawableId, List<Int>>): MeshSelection =
 		MeshSelection(
-			drawableIds = allMeshes,
-			activeDrawableId = allMeshes.first(),
-			elementsByDrawable = verticesById.mapValues { (_, vertices) -> vertices.map { vertexIndex -> MeshElement.Vertex(vertexIndex) }.toSet() },
+			owners = allMeshes.map { drawableId -> ElementOwner.Drawable(drawableId) },
+			activeOwner = ElementOwner.Drawable(allMeshes.first()),
+			elementsByOwner =
+				verticesById.entries.associate { (drawableId, vertices) -> ElementOwner.Drawable(drawableId) to vertices.map { vertexIndex -> MeshElement.Vertex(vertexIndex) }.toSet() },
 		)
 
 	/**
@@ -132,7 +135,7 @@ class CoveredVerticesTest {
 		coveredVerticesOf(
 			selection,
 			captureDrawableWorlds(model, emptyMap(), allMeshes),
-			model.drawables.associate { drawable -> drawable.id to drawable.mesh!!.indices },
+			model.drawables.associate { drawable -> ElementOwner.Drawable(drawable.id) to ElementTopology.ofMesh(drawable.mesh!!) },
 		)
 
 	/** The median is the mean over every covered vertex, so a mesh with more covered vertices weighs more. */
@@ -156,14 +159,15 @@ class CoveredVerticesTest {
 		val covered = coveredIn(model, selection)
 		val restById =
 			covered.associate { mesh ->
-				val base = mesh.geometry.local.copyOf()
+				val geometry = mesh.geometry as DrawableWorldGeometry
+				val base = geometry.local.copyOf()
 
 				for (vertexIndex in mesh.indices) {
-					base[vertexIndex * 2] += if (mesh.geometry.drawableId == warped) 0.1f else 3f
-					base[vertexIndex * 2 + 1] -= if (mesh.geometry.drawableId == warped) 0.05f else 2f
+					base[vertexIndex * 2] += if (geometry.drawableId == warped) 0.1f else 3f
+					base[vertexIndex * 2 + 1] -= if (geometry.drawableId == warped) 0.05f else 2f
 				}
 
-				mesh.geometry.drawableId to MeshRestPositions(base.copyOf(), base)
+				geometry.drawableId to MeshRestPositions(base.copyOf(), base)
 			}
 		val live = assertNotNull(coveredMedian(covered, restById))
 		val recaptured = assertNotNull(coveredMedian(coveredIn(model.withMeshPositions(restById), selection)))
@@ -187,7 +191,7 @@ class CoveredVerticesTest {
 	@Test
 	fun anIndexPastTheMeshIsDropped() {
 		val covered = coveredIn(model(), selecting(mapOf(flat to listOf(0, 7), warped to listOf(9))))
-		assertEquals(listOf(flat), covered.map { mesh -> mesh.geometry.drawableId }, "a mesh with only out-of-range indices covers nothing")
+		assertEquals(listOf<ElementOwner>(ElementOwner.Drawable(flat)), covered.map { mesh -> mesh.geometry.owner }, "a mesh with only out-of-range indices covers nothing")
 		assertEquals(setOf(0), covered.single().indices)
 	}
 }

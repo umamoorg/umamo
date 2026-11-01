@@ -42,7 +42,7 @@ internal class UvSpaceCamera(
 		for (geometry in geometries()) {
 			val vertexIndices: Iterable<Int> =
 				if (editMode) {
-					MeshTopology.coveredVertexIndices(selection.elementsOf(geometry.drawableId), geometry.indices)
+					MeshTopology.coveredVertexIndices(selection.elementsOf(geometry.owner), geometry.topology)
 				} else {
 					0 until geometry.positions.size / 2
 				}

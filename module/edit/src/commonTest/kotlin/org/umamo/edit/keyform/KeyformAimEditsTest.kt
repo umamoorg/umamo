@@ -182,6 +182,24 @@ class KeyformAimEditsTest {
 		)
 	}
 
+	/**
+	 * A lane aimed anywhere on a track holding a typed value keys that value at the pose - the value was made for the
+	 * pose - and the key selection shifts past the key it lands, not past where the lane was aimed.
+	 */
+	@Test
+	fun anAimAtATrackHoldingAValueKeysItAtThePose() {
+		val editorSession = session()
+		editorSession.setKeySelection(setOf(TrackKeyRef(angleX, row, 1)))
+		editorSession.setPendingChannelEdit(target, ChannelValue.Scalar(0.75f))
+
+		editorSession.captureKeyOnTrack(track, angleX, KeyformAim.Position(0.5f, keyIndex = null), row)
+
+		assertEquals(listOf(-1f, 0f, 1f), editorSession.keysOn(angleX), "keyed at the pose, not at 0.5")
+		assertEquals(ChannelValue.Scalar(0.75f), editorSession.model.value.channelValueAt(target, editorSession.pose.value))
+		assertTrue(editorSession.pendingChannelEdits.value.isEmpty(), "the key consumed it")
+		assertEquals(setOf(TrackKeyRef(angleX, row, 2)), editorSession.keySelection.value)
+	}
+
 	/** An insert ABOVE the selection renumbers nothing, and the whole capture stays one undo step. */
 	@Test
 	fun anInsertAboveTheSelectionLeavesItAloneAndRecordsOneStep() {

@@ -55,7 +55,7 @@ class DeltaPrecisionProfileProbe {
 	 *
 	 * @return Long The bytes.
 	 */
-	private fun threadAllocatedBytes(): Long = (ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean).getThreadAllocatedBytes(Thread.currentThread().id)
+	private fun threadAllocatedBytes(): Long = (ManagementFactory.getThreadMXBean() as com.sun.management.ThreadMXBean).getThreadAllocatedBytes(Thread.currentThread().threadId())
 
 	/**
 	 * The heap one primitive array occupies: a 16-byte header and its components, padded to 8 bytes.
@@ -285,7 +285,7 @@ class DeltaPrecisionProfileProbe {
 		var stepArrayBytes = 0L
 		repeat(moveCount) { stepIndex ->
 			val model = session!!.model.value
-			val pose = session!!.pose.value
+			val pose = session.pose.value
 			val geometries = model.drawables.filter { drawable -> drawable.mesh != null }.mapNotNull { drawable -> captureDrawableWorld(model, pose, drawable.id) }
 			val newPositions =
 				geometries.associate { geometry ->
@@ -295,10 +295,10 @@ class DeltaPrecisionProfileProbe {
 			movedIds = newPositions.keys
 			val allocatedBefore = threadAllocatedBytes()
 			val commitStart = System.nanoTime()
-			session!!.commitObjectPositions(MeshChange.TransformDrawables(newPositions.keys.toList(), MeshOperatorKind.Grab), newPositions)
+			session.commitObjectPositions(MeshChange.TransformObjects(newPositions.keys.toList(), MeshOperatorKind.Grab), newPositions)
 			commitNanos += System.nanoTime() - commitStart
 			commitAllocated += threadAllocatedBytes() - allocatedBefore
-			stepArrayBytes += newArrayBytes(model, session!!.model.value)
+			stepArrayBytes += newArrayBytes(model, session.model.value)
 		}
 		val historyAfter = settledHeapBytes()
 		// Nothing reads the session after the moves, so without the fence the collector may take it - history and all -

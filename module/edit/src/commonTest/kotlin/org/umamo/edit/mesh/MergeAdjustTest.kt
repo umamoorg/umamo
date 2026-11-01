@@ -13,6 +13,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -56,11 +57,11 @@ class MergeAdjustTest {
 		session.setMode(EditorMode.Edit)
 		session.setMeshSelection(
 			MeshSelection(
-				drawableIds = listOf(drawableId),
-				activeDrawableId = drawableId,
+				owners = listOf(ElementOwner.Drawable(drawableId)),
+				activeOwner = ElementOwner.Drawable(drawableId),
 				selectMode = MeshSelectMode.Vertex,
-				elementsByDrawable = mapOf(drawableId to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1))),
-				activeElement = ActiveMeshElement(drawableId, MeshElement.Vertex(1)),
+				elementsByOwner = mapOf(ElementOwner.Drawable(drawableId) to setOf(MeshElement.Vertex(0), MeshElement.Vertex(1))),
+				activeElement = ActiveMeshElement(ElementOwner.Drawable(drawableId), MeshElement.Vertex(1)),
 			),
 		)
 
@@ -118,7 +119,7 @@ class MergeAdjustTest {
 	fun aRefusedMergeRegistersNothing() {
 		val session = EditorSession(model())
 		session.setMode(EditorMode.Edit)
-		session.setMeshSelection(MeshSelection(drawableIds = listOf(drawableId), activeDrawableId = drawableId, elementsByDrawable = mapOf(drawableId to setOf(MeshElement.Vertex(0)))))
+		session.setMeshSelection(MeshSelection(owners = listOf(ElementOwner.Drawable(drawableId)), activeOwner = ElementOwner.Drawable(drawableId), elementsByOwner = mapOf(ElementOwner.Drawable(drawableId) to setOf(MeshElement.Vertex(0)))))
 
 		session.mergeSelectedVertices(MergeTarget.AtCenter, areaId = "area-1")
 

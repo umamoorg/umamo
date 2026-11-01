@@ -17,7 +17,11 @@ import kotlin.test.assertSame
 class ObjectGizmoSelectionTest {
 	private val quad = SelectionTarget.Drawable(RIG_QUAD)
 	private val other = SelectionTarget.Drawable(RIG_OTHER)
-	private val centroids = mapOf(RIG_QUAD to floatArrayOf(10f, -10f), RIG_OTHER to floatArrayOf(140f / 3f, -20f / 3f))
+	private val centroids =
+		mapOf<SelectionTarget, FloatArray>(
+			SelectionTarget.Drawable(RIG_QUAD) to floatArrayOf(10f, -10f),
+			SelectionTarget.Drawable(RIG_OTHER) to floatArrayOf(140f / 3f, -20f / 3f),
+		)
 	private val model = gizmoRigModel()
 
 	/**
@@ -94,18 +98,18 @@ class ObjectGizmoSelectionTest {
 	@Test
 	fun theAnchorsServeTheirLastSnapshot() {
 		var reads = 0
-		var source = mapOf(RIG_QUAD to floatArrayOf(1f, 2f))
+		var source = mapOf<SelectionTarget, FloatArray>(quad to floatArrayOf(1f, 2f))
 		val anchors =
 			ObjectSelectionAnchors {
 				reads++
 				source
 			}
-		assertEquals(emptyMap(), anchors.centroids)
+		assertEquals(emptyMap(), anchors.anchors)
 
 		anchors.refresh()
-		source = mapOf(RIG_OTHER to floatArrayOf(3f, 4f))
+		source = mapOf(other to floatArrayOf(3f, 4f))
 
-		assertEquals(setOf(RIG_QUAD), anchors.centroids.keys)
+		assertEquals(setOf<SelectionTarget>(quad), anchors.anchors.keys)
 		assertEquals(1, reads)
 	}
 

@@ -133,6 +133,7 @@ import org.umamo.ui.workspace.commands.chromeCommands
 import org.umamo.ui.workspace.commands.fileArtworkCommands
 import org.umamo.ui.workspace.commands.inMemorySettings
 import org.umamo.ui.workspace.commands.keyformCommands
+import org.umamo.ui.workspace.commands.latticeCommands
 import org.umamo.ui.workspace.commands.objectCommands
 import org.umamo.ui.workspace.commands.registerAll
 import org.umamo.ui.workspace.commands.selectCommands
@@ -352,6 +353,7 @@ internal fun panelFixtureModel(runtimeTarget: RuntimeTarget = RuntimeTarget.NoTa
  * @property String outlinerRename The outliner's Rename entry.
  * @property String outlinerDelete The outliner's Delete entry.
  * @property String deleteHierarchy The outliner's Delete Hierarchy entry.
+ * @property String outlinerCreateWarp The outliner's Create Warp Deformer entry.
  * @property String sourcesUnboundArt The Sources space's row for art bound to no layer.
  * @property String sourcesFileMenu The accessible name of a file row's actions chip.
  * @property String sourcesFileReplace The Sources space's Replace Artwork entry.
@@ -417,6 +419,7 @@ internal class PanelText(
 	val outlinerRename: String,
 	val outlinerDelete: String,
 	val deleteHierarchy: String,
+	val outlinerCreateWarp: String,
 	val sourcesUnboundArt: String,
 	val sourcesFileMenu: String,
 	val sourcesFileReplace: String,
@@ -687,9 +690,10 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 	}
 
 	if (harness.showOutliner) {
-		// The outliner's menu dispatches Select Hierarchy through the registry.  No selection handle: that
-		// command reads the selection off the session.
+		// The outliner's menu dispatches Select Hierarchy and Create Warp Deformer through the registry.  No
+		// selection handle: both read the selection off the session.
 		harness.registry.registerAll(objectCommands(harness.session, null, SessionAvailability(harness.session)))
+		harness.registry.registerAll(latticeCommands(harness.session, CommandRouting { null }, SessionAvailability(harness.session)))
 	}
 
 	if (harness.showSources) {
@@ -740,6 +744,7 @@ internal fun ComposeUiTest.mountParametersPanel(harness: ParametersPanelHarness)
 				outlinerRename = stringResource(Res.string.outliner_menu_rename),
 				outlinerDelete = stringResource(Res.string.outliner_menu_delete),
 				deleteHierarchy = stringResource(Res.string.outliner_menu_delete_hierarchy),
+				outlinerCreateWarp = stringResource(Res.string.cmd_deformer_create_warp),
 				sourcesUnboundArt = stringResource(Res.string.sources_unbound_art),
 				sourcesFileMenu = stringResource(Res.string.sources_file_menu),
 				sourcesFileReplace = stringResource(Res.string.sources_file_menu_replace),

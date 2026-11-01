@@ -1,6 +1,7 @@
 package org.umamo.render.puppet
 
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -23,7 +24,7 @@ class OverlayLayoutTest {
 				mapOf(first to 4, second to 3, third to 6),
 				mapOf(first to 2, second to 1, third to 4),
 			)
-		assertEquals(listOf(first to 0, second to 4, third to 7), layout.placed.map { placement -> placement.mesh.drawableId to placement.baseOffset })
+		assertEquals(listOf(first to 0, second to 4, third to 7), layout.placed.map { placement -> placement.mesh.drawableOwnerId to placement.baseOffset })
 		assertEquals(13, layout.totalVertexCount)
 	}
 
@@ -35,7 +36,7 @@ class OverlayLayoutTest {
 				mapOf(first to 4, second to 5, third to 6),
 				mapOf(first to 2, second to 1, third to 4),
 			)
-		assertEquals(listOf(first to 0, third to 4), layout.placed.map { placement -> placement.mesh.drawableId to placement.baseOffset })
+		assertEquals(listOf(first to 0, third to 4), layout.placed.map { placement -> placement.mesh.drawableOwnerId to placement.baseOffset })
 		assertEquals(10, layout.totalVertexCount)
 	}
 
@@ -54,7 +55,7 @@ class OverlayLayoutTest {
 	@Test
 	fun aMeshWithNoResidentIsSkipped() {
 		val layout = planOverlayLayout(overlay(MeshOverlayKind.Edit, mesh(first, 4, faceCount = 2), mesh(second, 3, faceCount = 1)), mapOf(second to 3), mapOf(second to 1))
-		assertEquals(listOf(second to 0), layout.placed.map { placement -> placement.mesh.drawableId to placement.baseOffset })
+		assertEquals(listOf(second to 0), layout.placed.map { placement -> placement.mesh.drawableOwnerId to placement.baseOffset })
 	}
 
 	@Test
@@ -82,5 +83,5 @@ class OverlayLayoutTest {
 	 * @return MeshOverlayMesh The entry.
 	 */
 	private fun mesh(drawableId: DrawableId, vertexCount: Int, faceCount: Int): MeshOverlayMesh =
-		MeshOverlayMesh(drawableId, vertexCount, IntArray(0), ByteArray(vertexCount), ByteArray(0), ByteArray(faceCount), null, null, null)
+		MeshOverlayMesh(ElementOwner.Drawable(drawableId), vertexCount, IntArray(0), ByteArray(vertexCount), ByteArray(0), ByteArray(faceCount), null, null, null)
 }

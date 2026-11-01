@@ -13,10 +13,10 @@ class AreaOverlaysTest {
 	/** The application's grid the tests hand the area. */
 	private val applicationGrid = GridConfig(100f, 10)
 
-	/** What a default 2D area asks for: everything but the wireframe, whose row is off by default. */
-	private val viewportDefaults = FrameOverlays(gridLines = true, axes = true, meshOverlay = true, wireframe = false)
+	/** What a default 2D area asks for: everything but the wireframe and every deformer, whose rows are off by default. */
+	private val viewportDefaults = FrameOverlays(gridLines = true, axes = true, meshOverlay = true, wireframe = false, allLattices = false)
 
-	/** A default 2D state asks for everything but the wireframe, on the application's grid. */
+	/** A default 2D state asks for everything but the wireframe and every deformer, on the application's grid. */
 	@Test
 	fun aDefaultViewportStateAsksForEverythingButTheWireframe() {
 		assertEquals(AreaOverlays(applicationGrid, viewportDefaults), areaOverlaysFor(ViewportOverlayState(OverlaySurface.Viewport2D), applicationGrid))
@@ -38,11 +38,17 @@ class AreaOverlaysTest {
 		state.showSelectionTint = false
 		assertEquals(viewportDefaults.copy(selectionTint = false), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
 		state.showSelectionTint = true
+		state.showDeformers = true
+		assertEquals(viewportDefaults.copy(allLattices = true), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
+		state.showDeformers = false
 		state.wireframeOpacity = 0.3f
 		assertEquals(viewportDefaults.copy(wireframeOpacity = 0.3f), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
 		state.wireframeOpacity = 1f
 		state.cullHiddenWireframe = false
 		assertEquals(viewportDefaults.copy(wireframeCulling = false), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
+		state.cullHiddenWireframe = true
+		state.deformerOpacity = 0.4f
+		assertEquals(viewportDefaults.copy(latticeOpacity = 0.4f), areaOverlaysFor(state, GridConfig(50f, 4)).frame)
 	}
 
 	/** An area with a grid of its own asks for that grid, whatever the application's is. */
@@ -62,23 +68,36 @@ class AreaOverlaysTest {
 	fun theMasterOffHidesEveryFrameFlag() {
 		val state = ViewportOverlayState(OverlaySurface.Viewport2D)
 		state.showWireframe = true
+		state.showDeformers = true
 		state.wireframeOpacity = 0.5f
 		state.showOverlays = false
 		assertEquals(
-			AreaOverlays(GridConfig(25f, 5), FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.5f, wireframeCulling = false)),
+			AreaOverlays(
+				GridConfig(25f, 5),
+				FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.5f, wireframeCulling = false, allLattices = false),
+			),
 			areaOverlaysFor(state, GridConfig(25f, 5)),
 		)
 	}
 
-	/** A UV editor never asks for the world axes, the wireframe, or the tint off, whatever its flags say; its opacity rides along. */
+	/**
+	 * A UV editor never asks for the world axes, the wireframe, every deformer, the tint off, or the lattices faded,
+	 * whatever its flags say; its wireframe opacity rides along.
+	 */
 	@Test
 	fun aUvEditorNeverAsksForAxesOrTheWireframe() {
 		val state = ViewportOverlayState(OverlaySurface.UvEditor)
 		state.showWireframe = true
 		state.showSelectionTint = false
+		state.showDeformers = true
 		state.cullHiddenWireframe = false
 		state.wireframeOpacity = 0.3f
-		assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, selectionTint = true, wireframeOpacity = 0.3f, wireframeCulling = true), areaOverlaysFor(state, applicationGrid).frame)
+		state.deformerOpacity = 0.4f
+		assertEquals(
+			FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, selectionTint = true, wireframeOpacity = 0.3f, wireframeCulling = true, allLattices = false),
+			areaOverlaysFor(state, applicationGrid).frame,
+			"its own opacity rides along, while the lattices it never draws stay whole",
+		)
 	}
 
 	/** No area state (a standalone shell) shows everything, the wireframe included, on the application's grid. */

@@ -415,15 +415,16 @@ private fun emitNotice(session: EditorSession, notice: GenerateMeshNotice) {
 /**
  * The drawables a mesh generation is asked for: the Edit-mode session's meshes, whole, or the
  * Object-mode selection's drawables that have a mesh.  The run adds every drawable sharing their art.
+ * Pose mode names none: a generated mesh is a rest edit of drawables, which Pose mode never makes.
  *
  * @param EditorSession session The document's session.
  * @return List<DrawableId> The drawables, empty when nothing is selected to mesh.
  */
 internal fun generateMeshTargets(session: EditorSession): List<DrawableId> =
-	if (session.mode.value == EditorMode.Edit) {
-		session.meshSelection.value.drawableIds
-	} else {
-		eligibleTransformDrawables(session.selection.value, session.model.value).orEmpty()
+	when (session.mode.value) {
+		EditorMode.Edit -> session.meshSelection.value.drawableIds
+		EditorMode.Object -> eligibleTransformDrawables(session.selection.value, session.model.value).orEmpty()
+		EditorMode.Pose -> emptyList()
 	}
 
 /**

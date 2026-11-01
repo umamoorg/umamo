@@ -10,12 +10,13 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.setMeshSelectMode
-import org.umamo.edit.structure.duplicateSelectedDrawables
+import org.umamo.edit.structure.duplicateSelectedObjects
 import org.umamo.edit.structure.withDrawableDuplicated
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.GluePair
 import org.umamo.runtime.model.KeyformAxis
@@ -334,7 +335,7 @@ class MeshTopologyEditsTest {
 			"the copied face is selected in face mode",
 		)
 		assertEquals(
-			ActiveMeshElement(DrawableId("d"), MeshElement.Face(2)),
+			ActiveMeshElement(ElementOwner.Drawable(DrawableId("d")), MeshElement.Face(2)),
 			session.meshSelection.value.activeElement,
 			"the copied face becomes active",
 		)
@@ -386,15 +387,15 @@ class MeshTopologyEditsTest {
 		)
 	}
 
-	/** Object-mode duplicateSelectedDrawables selects the copies as one undo step. */
+	/** Object-mode duplicateSelectedObjects selects the copies as one undo step. */
 	@Test
 	fun sessionDuplicatesDrawablesAndSelectsCopies() {
 		val session = EditorSession(model())
 		session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("d"))))
 
 		val stepsBefore = session.historyView.value.steps.size
-		val copies = session.duplicateSelectedDrawables()
-		assertEquals(listOf(DrawableId("d.001")), copies)
+		val copies = session.duplicateSelectedObjects()
+		assertEquals(listOf<SelectionTarget>(SelectionTarget.Drawable(DrawableId("d.001"))), copies)
 		assertEquals(stepsBefore + 1, session.historyView.value.steps.size, "one undo step")
 		assertEquals(
 			setOf<SelectionTarget>(SelectionTarget.Drawable(DrawableId("d.001"))),
@@ -416,7 +417,7 @@ class MeshTopologyEditsTest {
 	fun duplicatedCopyBecomesTheRememberedDrawable() {
 		val session = EditorSession(model())
 		session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(DrawableId("d"))))
-		session.duplicateSelectedDrawables()
+		session.duplicateSelectedObjects()
 
 		// Deselect, then enter Edit mode: the seed falls back to the remembered drawable.
 		session.setSelection(Selection())

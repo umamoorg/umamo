@@ -543,8 +543,8 @@ internal fun UvEditorSpace(scope: AreaScope) {
 						onOverlapRequest = { position, candidates ->
 							// The Object-mode Alt pick over a stack: picking a row replaces the object selection.
 							overlap =
-								overlapStateFrom(service, position, candidates) { pickedId ->
-									session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(pickedId)))
+								overlapStateFrom(service, session.model.value, position, candidates) { picked ->
+									session.setSelection(SelectionOps.replace(picked))
 								}
 						},
 					)

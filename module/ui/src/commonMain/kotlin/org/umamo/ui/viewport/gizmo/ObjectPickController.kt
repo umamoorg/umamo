@@ -14,9 +14,10 @@ import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.structure.selectableOf
 import org.umamo.render.ViewportCamera
-import org.umamo.render.pick.PickCandidate
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.viewport.ObjectPickCandidate
 
 /**
  * Resolves a primary click against the object selection: a hit with a membership modifier toggles
@@ -24,13 +25,14 @@ import org.umamo.runtime.model.PuppetModel
  * empty canvas keeps the selection, and a plain one clears it.
  *
  * @param Selection current The committed object selection.
- * @param SelectionTarget.Drawable? target The selectable drawable under the cursor, or null on empty canvas.
+ * @param SelectionTarget? target The selectable target under the cursor (a drawable's art, or a warp's lattice),
+ *   or null on empty canvas.
  * @param Boolean toggleMembership True when a membership modifier (Shift / Ctrl / Meta) is held.
  * @return Selection The selection the click produces.
  */
 internal fun resolveObjectClickSelection(
 	current: Selection,
-	target: SelectionTarget.Drawable?,
+	target: SelectionTarget?,
 	toggleMembership: Boolean,
 ): Selection =
 	when {
@@ -43,10 +45,10 @@ internal fun resolveObjectClickSelection(
 /** The outcome of an Alt click over a candidate stack: open the overlap picker, select directly, or nothing. */
 internal sealed class AltPickResolution {
 	/** Two or more candidates are stacked under the cursor: the overlap picker disambiguates. */
-	class ShowOverlap(val candidates: List<PickCandidate>) : AltPickResolution()
+	class ShowOverlap(val candidates: List<ObjectPickCandidate>) : AltPickResolution()
 
 	/** Exactly one candidate: select it directly, no picker needed. */
-	class SelectSingle(val id: DrawableId) : AltPickResolution()
+	class SelectSingle(val target: SelectionTarget) : AltPickResolution()
 
 	/** Empty canvas: the selection stays as-is (Alt is the disambiguate gesture, not a clear). */
 	object None : AltPickResolution()
@@ -55,30 +57,31 @@ internal sealed class AltPickResolution {
 /**
  * Resolves an Alt click over the (already selectable-filtered) candidate stack under the cursor.
  *
- * @param List<PickCandidate> candidates The selectable candidates under the cursor, front-to-back.
+ * @param List<ObjectPickCandidate> candidates The selectable candidates under the cursor, in the stack's order.
  * @return AltPickResolution What the click does.
  */
-internal fun resolveAltOverlapPick(candidates: List<PickCandidate>): AltPickResolution =
+internal fun resolveAltOverlapPick(candidates: List<ObjectPickCandidate>): AltPickResolution =
 	when {
 		candidates.size > 1 -> AltPickResolution.ShowOverlap(candidates)
-		candidates.size == 1 -> AltPickResolution.SelectSingle(candidates.first().id)
+		candidates.size == 1 -> AltPickResolution.SelectSingle(candidates.first().target)
 		else -> AltPickResolution.None
 	}
 
 /**
  * Resolves a finished box drag against the object selection: additive (Shift) keeps the current targets
- * and adds the enclosed drawables, the last one becoming active (or the current active surviving when the
+ * and adds the enclosed ones, the last one becoming active (or the current active surviving when the
  * box enclosed nothing); plain replaces the selection with the enclosed set.  One rule for every surface
- * that boxes whole drawables - the viewport by centroid, the UV editor by any island vertex.
+ * that boxes whole objects - the viewport's drawables and warps by their centers, the UV editor's drawables
+ * by any island vertex.
  *
  * @param Selection current The committed object selection.
- * @param List<SelectionTarget.Drawable> enclosed The enclosed, selectable drawables in enclosure order.
+ * @param List<SelectionTarget> enclosed The enclosed, selectable targets in enclosure order.
  * @param Boolean additive True when Shift extends the selection.
  * @return Selection The selection the box produces.
  */
 internal fun resolveObjectBoxSelection(
 	current: Selection,
-	enclosed: List<SelectionTarget.Drawable>,
+	enclosed: List<SelectionTarget>,
 	additive: Boolean,
 ): Selection =
 	if (additive) {
@@ -99,7 +102,18 @@ internal fun selectableDrawableTargets(ids: Iterable<DrawableId>, model: PuppetM
 	ids.map { drawableId -> SelectionTarget.Drawable(drawableId) }.filter { target -> model.selectableOf(target) }
 
 /**
- * The marquee (box + circle) machinery over whole drawables, for every surface that selects objects: the
+ * The selectable warps among [ids], as selection targets in the same order: a locked warp is passed over by a
+ * region and a click alike.
+ *
+ * @param Iterable<DeformerId> ids The warps a region enclosed or a click hit.
+ * @param PuppetModel model The model the selectable flags live in.
+ * @return List<SelectionTarget.Deformer> The selectable ones, in the order given.
+ */
+internal fun selectableDeformerTargets(ids: Iterable<DeformerId>, model: PuppetModel): List<SelectionTarget.Deformer> =
+	ids.map { deformerId -> SelectionTarget.Deformer(deformerId) }.filter { target -> model.selectableOf(target) }
+
+/**
+ * The marquee (box + circle) machinery over whole objects, for every surface that selects objects: the
  * stroke is seeded from and committed to the session's object selection, the wheel resizes the session's
  * brush, and a right-click inside the circle tool leaves it.  What differs per surface passes in: how a
  * stamp paints, how a finished box applies, and the viewport's snapshot and GPU tint.  The stamp has no
@@ -139,15 +153,16 @@ internal fun objectMarquee(
  * click resolves the overlap stack, an unmodified click on empty canvas clears).
  *
  * The domain seams pass in as constructor callbacks, the [MarqueeSelectController] pattern: the 2D
- * viewport binds the render service's raster pickers and the world 2D cursor; a UV object mode binds
- * its own display-space island hit tests and the UV cursor over the SAME session selection.  The
+ * viewport binds the render service's lattice and raster pickers and the world 2D cursor; a UV object mode
+ * binds its own display-space island hit tests and the UV cursor over the SAME session selection.  The
  * shared parts - the selection store and the selectable filter - read the session directly, like
  * [MeshPickController] does for the mesh-element domain.
  *
  * @param EditorSession session The session owning the model, the object selection, and the gesture-active flag.
  * @param MarqueeSelectController<Selection> marquee The box machinery this flow rubber-bands through.
- * @param Function pickTopmost The front-most selectable-unfiltered drawable at an area-local point, or null.
- * @param Function pickStack The full candidate stack at an area-local point, front-to-back, unfiltered.
+ * @param Function pickTopmost What a plain click at an area-local point takes, or null: the surface's own
+ *   priority (a lattice before art in the 2D viewport), selectable-unfiltered.
+ * @param Function pickStack The full candidate stack at an area-local point, in priority order, unfiltered.
  * @param Function onOverlapRequest Opens the overlap picker for an Alt click with 2+ candidates.
  * @param Function placeCursor Places the space's cursor at a Shift+RightClick, given the unprojected point.
  * @param Function onBoxBegin Runs at the press that starts the rubber-band (the viewport refreshes its
@@ -156,9 +171,9 @@ internal fun objectMarquee(
 internal class ObjectPickController(
 	private val session: EditorSession,
 	marquee: MarqueeSelectController<Selection>,
-	private val pickTopmost: (Offset) -> DrawableId?,
-	private val pickStack: (Offset) -> List<PickCandidate>,
-	private val onOverlapRequest: (Offset, List<PickCandidate>) -> Unit,
+	private val pickTopmost: (Offset) -> SelectionTarget?,
+	private val pickStack: (Offset) -> List<ObjectPickCandidate>,
+	private val onOverlapRequest: (Offset, List<ObjectPickCandidate>) -> Unit,
 	placeCursor: (Float, Float) -> Unit,
 	onBoxBegin: () -> Unit = {},
 ) {
@@ -204,9 +219,8 @@ internal class ObjectPickController(
 
 	/**
 	 * Applies the sub-threshold click: the Alt path resolves the candidate stack (2+ opens the overlap
-	 * picker, exactly one selects directly, empty leaves the selection), the plain path picks the
-	 * front-most drawable through the decision table.  Unselectable drawables are excluded from both,
-	 * so a click passes through them.
+	 * picker, exactly one selects directly, empty leaves the selection), the plain path picks what the
+	 * surface puts first through the decision table.  Unselectable targets are excluded from both.
 	 *
 	 * @param Offset position The click position in area-local pixels.
 	 * @param Boolean toggleMembership True when a membership modifier (Shift / Ctrl / Meta) is held.
@@ -216,8 +230,7 @@ internal class ObjectPickController(
 		val model = session.model.value
 
 		if (alt) {
-			val candidates =
-				pickStack(position).filter { candidate -> model.selectableOf(SelectionTarget.Drawable(candidate.id)) }
+			val candidates = pickStack(position).filter { candidate -> model.selectableOf(candidate.target) }
 
 			when (val resolution = resolveAltOverlapPick(candidates)) {
 				is AltPickResolution.ShowOverlap -> {
@@ -225,7 +238,7 @@ internal class ObjectPickController(
 				}
 
 				is AltPickResolution.SelectSingle -> {
-					session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(resolution.id)))
+					session.setSelection(SelectionOps.replace(resolution.target))
 				}
 
 				AltPickResolution.None -> {}
@@ -234,13 +247,7 @@ internal class ObjectPickController(
 			return
 		}
 
-		val hit = pickTopmost(position)?.takeIf { drawableId -> model.selectableOf(SelectionTarget.Drawable(drawableId)) }
-		session.setSelection(
-			resolveObjectClickSelection(
-				current = session.selection.value,
-				target = hit?.let { drawableId -> SelectionTarget.Drawable(drawableId) },
-				toggleMembership = toggleMembership,
-			),
-		)
+		val hit = pickTopmost(position)?.takeIf { target -> model.selectableOf(target) }
+		session.setSelection(resolveObjectClickSelection(current = session.selection.value, target = hit, toggleMembership = toggleMembership))
 	}
 }

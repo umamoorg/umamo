@@ -1,9 +1,11 @@
 package org.umamo.edit
 
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyableTarget
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 
 /** The default cap on retained undo steps; the oldest is dropped past this (a memory backstop). */
 const val DEFAULT_HISTORY_LIMIT: Int = 200
@@ -63,6 +65,14 @@ data class EditorSnapshot(
 	 * that no longer exists there - the sheet prunes at use, which is what makes that harmless.
 	 */
 	val keySelection: Set<TrackKeyRef> = emptySet(),
+	/**
+	 * The warp lattices shaped in Pose mode but not yet keyed at this step, each standing in for its warp's grid
+	 * blend at [pose].
+	 *
+	 * Snapshotted for the reason [pendingChannelEdits] is: a pending lattice is a deliberate edit the viewport shows,
+	 * and it was shaped FOR the pose this snapshot carries, so undo returns to the two together.
+	 */
+	val pendingLatticeEdits: Map<DeformerId, WarpLatticeForm> = emptyMap(),
 )
 
 /**

@@ -6,7 +6,8 @@ import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.atlas.placementDragTileIds
 import org.umamo.edit.atlas.placementSelectedTileIds
-import org.umamo.edit.eligibleTransformDrawables
+import org.umamo.edit.editsElements
+import org.umamo.edit.eligibleTransformTargets
 
 /*
  * The guards between a command and a tool latch: the begin / arm entry points for the modal mesh, object,
@@ -18,10 +19,10 @@ import org.umamo.edit.eligibleTransformDrawables
  */
 
 /**
- * Latches a modal mesh operator so the gizmo overlay begins the gesture. A no-op unless Edit mode is
- * active with a drawable and a non-empty selection — so the bound G / S / R commands need no context
- * guard of their own and the keymap stays mode-agnostic. For an edge or face selection the gesture
- * moves the union of vertices the selected elements cover (resolved in the overlay).
+ * Latches a modal mesh operator so the gizmo overlay begins the gesture. A no-op unless a mode that edits elements
+ * ([editsElements]: Edit, or Pose over lattices) is active with a mesh or lattice and a non-empty selection — so the
+ * bound G / S / R commands need no context guard of their own and the keymap stays mode-agnostic. For an edge or
+ * face selection the gesture moves the union of vertices the selected elements cover (resolved in the overlay).
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
@@ -29,13 +30,13 @@ import org.umamo.edit.eligibleTransformDrawables
  *   duplicate / rip auto-grabs; treated like Vertex Slide at every proportional gate).
  */
 fun EditorSession.beginMeshOperator(kind: MeshOperatorKind, areaId: String, suppressProportional: Boolean = false) {
-	if (mode.value != EditorMode.Edit) {
+	if (!mode.value.editsElements) {
 		return
 	}
 
 	val selection = meshSelection.value
 
-	if (selection.drawableIds.isEmpty() || selection.isEmpty) {
+	if (selection.owners.isEmpty() || selection.isEmpty) {
 		return
 	}
 
@@ -43,15 +44,15 @@ fun EditorSession.beginMeshOperator(kind: MeshOperatorKind, areaId: String, supp
 }
 
 /**
- * Begins an Object-mode modal transform (Grab / Scale / Rotate) over the selected drawables' whole
- * geometry - the Object-mode counterpart to [beginMeshOperator]. A no-op unless Object mode is active
- * with an eligible selection: at least one selected target must be a drawable that carries a mesh (see
- * [eligibleTransformDrawables]; parts, deformers, and mesh-less drawables in the selection are silently
- * ignored, so a Select All that swept them in never blocks the gesture). The gesture is BLOCKED with a
- * near-cursor notice when the pose is not at parameter defaults: the object overlay captures at the live
- * pose, and writing a deformed capture back through the warp inverse corrupts the rest meshes - the
- * Blender-style guard tells the user to reset the parameters first. Clears any other latched tool /
- * operator (mutual exclusion) before latching.
+ * Begins an Object-mode modal transform (Grab / Scale / Rotate) over the selected drawables and warps as
+ * whole objects - the Object-mode counterpart to [beginMeshOperator]. A no-op unless Object mode is active
+ * with an eligible selection: at least one selected target must be a drawable that carries a mesh or a warp
+ * with a rest lattice (see [eligibleTransformTargets]; parts, rotation deformers, and mesh-less drawables in
+ * the selection are silently ignored, so a Select All that swept them in never blocks the gesture). The
+ * gesture is BLOCKED with a near-cursor notice when the pose is not at parameter defaults: the object
+ * overlay captures at the live pose, and writing a deformed capture back through the warp inverse corrupts
+ * the rest meshes - the Blender-style guard tells the user to reset the parameters first. Clears any other
+ * latched tool / operator (mutual exclusion) before latching.
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
@@ -61,8 +62,9 @@ fun EditorSession.beginObjectOperator(kind: MeshOperatorKind, areaId: String) {
 		return
 	}
 
-	if (eligibleTransformDrawables(selection.value, model.value) == null) {
-		// Nothing transformable at all (empty, or only parts / deformers / mesh-less drawables).
+	if (eligibleTransformTargets(selection.value, model.value) == null) {
+		// Nothing transformable at all (empty, or only parts / rotation deformers / mesh-less drawables / warps
+		// hidden at rest).
 		emitNotice("notice.transform.onlyDrawables", NoticePlacement.NearCursor)
 
 		return
@@ -95,7 +97,8 @@ fun EditorSession.beginObjectOperator(kind: MeshOperatorKind, areaId: String) {
  * pinned (a pin holds against a hand move too).  Which page the overlay is showing - and whether it is
  * showing a page at all rather than a source layer - is per-area state the session cannot see, so
  * the overlay that owns the latch drops it with its own notice when its surface cannot serve the
- * gesture.  Clears any other latched tool / operator (mutual exclusion) before latching.
+ * gesture.  Pose mode latches nothing: the UV editor is view-only there.  Clears any other latched tool /
+ * operator (mutual exclusion) before latching.
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating UV editor's area id (only its overlay drives the gesture).
@@ -132,7 +135,7 @@ fun EditorSession.beginUvOperator(kind: MeshOperatorKind, areaId: String) {
 		EditorMode.Edit -> {
 			val selection = meshSelection.value
 
-			if (selection.drawableIds.isEmpty() || selection.isEmpty) {
+			if (selection.owners.isEmpty() || selection.isEmpty) {
 				return
 			}
 
@@ -142,6 +145,11 @@ fun EditorSession.beginUvOperator(kind: MeshOperatorKind, areaId: String) {
 				return
 			}
 		}
+
+		// The UV editor is view-only in Pose mode: posing has nothing to do with the texture, so nothing moves.
+		EditorMode.Pose -> {
+			return
+		}
 	}
 
 	latches.latchUvOperator(kind, areaId)
@@ -149,14 +157,14 @@ fun EditorSession.beginUvOperator(kind: MeshOperatorKind, areaId: String) {
 
 /**
  * Arms the Box-select tool (Blender's B): the gizmo overlay shows full-viewport crosshair guides and the
- * next drag boxes.  Mode-agnostic - in Edit mode it needs an active drawable (the box selects that mesh's
- * elements); in Object mode it arms unconditionally (the box selects whole drawables).  A no-op in Edit
- * mode without a drawable.  Clears any other latched tool / operator (mutual exclusion).
+ * next drag boxes.  Mode-agnostic - in Edit and Pose mode it needs something in the session (the box selects its
+ * meshes' or lattices' elements); in Object mode it arms unconditionally (the box selects whole objects).  A no-op in
+ * Edit or Pose mode with nothing in the session.  Clears any other latched tool / operator (mutual exclusion).
  *
  * @param String areaId The arming viewport's area id (only its overlay drives the drag).
  */
 fun EditorSession.beginBoxSelect(areaId: String) {
-	if (mode.value == EditorMode.Edit && meshSelection.value.drawableIds.isEmpty()) {
+	if (mode.value.editsElements && meshSelection.value.owners.isEmpty()) {
 		return
 	}
 
@@ -165,13 +173,13 @@ fun EditorSession.beginBoxSelect(areaId: String) {
 
 /**
  * Arms the Circle-select tool (Blender's C) at the remembered radius.  Mode-agnostic like [beginBoxSelect]:
- * needs an active drawable in Edit mode, arms unconditionally in Object mode.  Clears any other latched
+ * needs something in the session in Edit and Pose mode, arms unconditionally in Object mode.  Clears any other latched
  * tool / operator (mutual exclusion).
  *
  * @param String areaId The arming viewport's area id (only its overlay drives the brush).
  */
 fun EditorSession.beginCircleSelect(areaId: String) {
-	if (mode.value == EditorMode.Edit && meshSelection.value.drawableIds.isEmpty()) {
+	if (mode.value.editsElements && meshSelection.value.owners.isEmpty()) {
 		return
 	}
 

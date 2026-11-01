@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,10 +37,13 @@ import kotlinx.coroutines.withContext
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
+import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.pinsPose
-import org.umamo.edit.switchEditDrawable
+import org.umamo.edit.shownPendingChannelEdits
+import org.umamo.edit.shownPendingLatticeEdits
+import org.umamo.edit.switchEditOwner
 import org.umamo.render.DecodedImage
 import org.umamo.render.GridColors
 import org.umamo.render.LayerDrawPlan
@@ -48,8 +52,11 @@ import org.umamo.render.SourceArtRasters
 import org.umamo.render.ViewportCamera
 import org.umamo.render.buildLayerDrawPlan
 import org.umamo.runtime.model.AtlasTileId
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.visibleDrawableIds
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.LocalSettings
@@ -61,8 +68,10 @@ import org.umamo.ui.theme.umamoPointerIcon
 import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AreaOverlaysPublisher
 import org.umamo.ui.viewport.AtlasPageBinding
+import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.LocalAreaOverlays
+import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.OverlapPickerPopup
 import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PuppetViewportService
@@ -70,11 +79,13 @@ import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.ViewportSettings
+import org.umamo.ui.viewport.asObjectPickCandidates
 import org.umamo.ui.viewport.gestureOwnsAreaPointer
 import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.parseSelectionHighlightColor
 import org.umamo.ui.viewport.rememberViewportOverlayColors
+import org.umamo.ui.viewport.resyncAfterElementGesture
 import org.umamo.ui.viewport.toMeshOverlayPalette
 import org.umamo.ui.viewport.tracksAreaPointer
 import org.umamo.ui.workspace.ViewportHost
@@ -189,6 +200,38 @@ private class SourceArtworkGaps {
 }
 
 /**
+ * The selection tint the viewport draws: the drawables it tints and the active one tinted apart.  Only drawables
+ * tint, and only in Object mode - Edit and Pose mode tint nothing.  In Edit mode the object selection still holds
+ * the drawable being edited, but the highlight is object-mode chrome that would fight the mesh gizmo overlay; Pose
+ * mode acts on deformers, so a tinted drawable would read as something it poses.  Derived from the mode rather
+ * than stashed, so entering either clears the tint and leaving restores it with the selection never touched.
+ *
+ * @param Selection selection The committed object selection.
+ * @param EditorMode mode The editor mode.
+ * @param Set<DrawableId>? previewSelection An in-flight object circle stroke's painted drawables, or null.
+ * @return Pair<Set<DrawableId>, DrawableId?> The tinted drawables and the active one, or null for none.
+ */
+internal fun selectionTintOf(selection: Selection, mode: EditorMode, previewSelection: Set<DrawableId>?): Pair<Set<DrawableId>, DrawableId?> =
+	when {
+		mode != EditorMode.Object -> {
+			emptySet<DrawableId>() to null
+		}
+
+		// An in-flight object circle stroke paints a transient preview; while it is live the tint shows exactly what
+		// the stroke has painted, with no active drawable yet, so drawables light up plain under the brush before the
+		// stroke commits.
+		previewSelection != null -> {
+			previewSelection to null
+		}
+
+		// Otherwise the committed selection's drawables tint, its active (last-selected) drawable apart.  A part or
+		// deformer active target yields no active, so every selected drawable tints plain.
+		else -> {
+			selection.selectedDrawableIds() to (selection.active as? SelectionTarget.Drawable)?.id
+		}
+	}
+
+/**
  * Builds a [PuppetViewportBinding] backed by a [PuppetViewportService]: the puppet renders on the
  * engine's own thread and shows as a lightweight Compose `Image` with a per-area pan/zoom camera, so the
  * viewport is ordinary Compose content (the zoom readout - and future gizmos - layer over it correctly).
@@ -237,36 +280,9 @@ fun rememberPuppetViewportHost(
 	// viewport tints) plus the active (last-selected) one, so it re-renders the tint with the active drawable
 	// distinguished from the rest of a multi-selection. The session is the source of truth, so this also
 	// follows an undo/redo that changes the selection. Mirrors how settings/liveparams reach the render thread.
-	//
-	// Edit mode suppresses the tint entirely (an empty set, no active): the object selection still holds the
-	// drawable being edited, but the highlight is object-mode chrome that would fight the mesh gizmo overlay.
-	// Gated on the mode exactly like the pose override below, so entering Edit clears the tint and leaving
-	// restores it with no stash - session.selection is never touched.
+	// What tints in which mode is selectionTintOf's rule.
 	LaunchedEffect(service, session) {
-		combine(session.selection, session.mode, session.previewSelection) { selection, mode, previewSelection ->
-			when {
-				mode == EditorMode.Edit -> {
-					emptySet<DrawableId>() to null
-				}
-
-				// An in-flight object circle stroke paints a transient preview; while it is live the tint shows
-				// exactly what the stroke has painted (previewSelection) with no active drawable yet, so drawables
-				// light up plain under the brush before the stroke commits.
-				previewSelection != null -> {
-					previewSelection to null
-				}
-
-				// Otherwise the committed object selection's drawables tint as usual, with its active
-				// (last-selected) drawable tinted apart. A Part/Deformer active target yields null, so every
-				// selected drawable tints plain - correct, since only drawables are tinted.
-				else -> {
-					val selectedDrawableIds =
-						selection.targets.filterIsInstance<SelectionTarget.Drawable>().map { it.id }.toSet()
-					val activeDrawableId = (selection.active as? SelectionTarget.Drawable)?.id
-					selectedDrawableIds to activeDrawableId
-				}
-			}
-		}
+		combine(session.selection, session.mode, session.previewSelection, ::selectionTintOf)
 			.distinctUntilChanged()
 			.collect { (drawableIds, activeDrawableId) ->
 				service.setSelection(drawableIds)
@@ -293,6 +309,27 @@ fun rememberPuppetViewportHost(
 	val wireframeDemand = remember(service) { WireframeDemand() }
 	LaunchedEffect(service, session) {
 		publishMeshOverlay(service, session, snapshotFlow { meshOverlaySizes.value }, wireframeDemand.wanted)
+	}
+	// The warp lattices every 2D area draws over the art in Object and Pose mode: which warps, in which role.  The
+	// renderer reads their points off the pose it draws, so only a mode, selection, or model change publishes.
+	val latticeSizes = rememberUpdatedState(latticeOverlaySizes(LocalDensity.current))
+	LaunchedEffect(service, session) {
+		publishLatticeOverlay(service, session, snapshotFlow { latticeSizes.value })
+	}
+	// The cage of the warps an Edit or Pose session shapes, drawn from positions of its own: the lattice as the shown
+	// pose draws it, or the points a rest drag has moved (the art stays put) or the forms a posed drag previews (the
+	// art follows).  The window's live mesh preview carries the drag; the shell provides it to what it composes and the
+	// host is built outside the shell, so the host learns it through its areas.  The pose is the hand-off's, so a
+	// scrub carries the cage along frame by frame.
+	val livePreviewLink = remember(service) { mutableStateOf<LiveMeshPreview?>(null) }
+	LaunchedEffect(service, session) {
+		publishLatticeCage(
+			service,
+			session,
+			snapshotFlow { meshOverlaySizes.value },
+			snapshotFlow { livePreviewLink.value?.let { preview -> LatticeDragPreview(preview.latticeWorldByDeformer, preview.latticeFormsByDeformer) } },
+			snapshotFlow { liveParams.observed },
+		)
 	}
 	// How many drawables have no usable artwork: the mapping failures the plan knows up front, plus the
 	// ones whose layer turned out not to decode, which only a decode can discover.  Never residency -
@@ -392,9 +429,12 @@ fun rememberPuppetViewportHost(
 	// Publishing them into the same volatile hand-off is what makes a typed-but-unkeyed value show in the
 	// viewport at all - it is session state, so it can never reach the renderer inside the model.
 	LaunchedEffect(service, session) {
-		combine(session.pendingChannelEdits, session.mode) { pending, mode ->
-			if (mode.pinsPose) emptyMap() else pending
-		}.collect { effectiveOverrides -> liveParams.channelOverrides = effectiveOverrides }
+		session.shownPendingChannelEdits.collect { effectiveOverrides -> liveParams.channelOverrides = effectiveOverrides }
+	}
+	// Pending Pose-mode lattices reach the renderer the same way and are suppressed in Edit mode for the same
+	// reason: each stands in for its warp's grid blend at the pose, so the art follows the shape a key would capture.
+	LaunchedEffect(service, session) {
+		session.shownPendingLatticeEdits.collect { shown -> service.setLatticeOverrides(shown) }
 	}
 	// Feed the zoom-increment settings into the service and keep them live as settings change; the keys,
 	// defaults, and highlight parser are shared with the preferences window via ViewportSettings.
@@ -477,6 +517,10 @@ fun rememberPuppetViewportHost(
 					val overlayState = LocalAreaOverlays.current
 					AreaOverlaysPublisher(service, areaId, overlayState)
 					WireframeDemandPublisher(wireframeDemand, areaId, overlayState)
+					val livePreview = LocalLiveMeshPreview.current
+					SideEffect {
+						livePreviewLink.value = livePreview
+					}
 					val cameraFlow = remember(areaId, service) { service.cameraFlow(areaId) }
 					DisposableEffect(areaId, service) {
 						onDispose { service.unregister(areaId) }
@@ -544,12 +588,12 @@ fun rememberPuppetViewportHost(
 									onDismiss = { overlap = null },
 								)
 							}
-							// The Edit-mode gizmo over the puppet image: the element selection, the modal
-							// transforms, and their chrome; the mesh itself is in the image (the overlay
-							// published above).  It self-gates on Edit mode with an active drawable, so it is inert
-							// (and passes input through) otherwise.  It projects with the DISPLAYED frame's camera,
-							// not the live one: the raster lands a few frames behind, and the frame's camera keeps
-							// the chrome glued to it during pan and zoom.
+							// The element gizmo of Edit and Pose mode over the puppet image: the element selection, the
+							// modal transforms, and their chrome; the mesh or cage itself is in the image (the overlays
+							// published above).  It self-gates on a mode that edits elements with something in the
+							// session, so it is inert (and passes input through) otherwise.  It projects with the DISPLAYED
+							// frame's camera, not the live one: the raster lands a few frames behind, and the frame's
+							// camera keeps the chrome glued to it during pan and zoom.
 							ViewportEditGizmoOverlay(
 								areaId = areaId,
 								service = service,
@@ -560,17 +604,17 @@ fun rememberPuppetViewportHost(
 								areaPointer = areaPointer,
 								onOverlapRequest = { position, candidates ->
 									// Edit mode's Alt+Q over a stack: picking a row switches the edited mesh
-									// (never the object selection - that follows inside switchEditDrawable).
+									// (never the object selection - that follows inside switchEditOwner).
 									overlap =
-										overlapStateFrom(service, position, candidates) { id ->
-											session.switchEditDrawable(id)
+										overlapStateFrom(service, session.model.value, position, candidates.asObjectPickCandidates()) { target ->
+											(target as? SelectionTarget.Drawable)?.let { picked -> session.switchEditOwner(ElementOwner.Drawable(picked.id)) }
 										}
 								},
 							)
-							// The Object-mode gizmo: the mode-exclusive sibling of the Edit gizmo (each self-gates to
-							// its mode). It owns the whole primary-button surface in Object mode - the click pick
-							// (including the Alt overlap popup), the un-armed box drag, and the armed box / circle
-							// tools and object G / S / R. Same frame-camera projection as the Edit gizmo so the
+							// The Object-mode gizmo: the mode-exclusive sibling of the element gizmo (each self-gates to
+							// its modes). It owns the whole primary-button surface in Object mode - the click pick
+							// (including the Alt overlap popup), the un-armed box drag, the armed box / circle tools,
+							// and object G / S / R. Same frame-camera projection as the Edit gizmo so the
 							// affordance stays glued to the art.
 							ViewportObjectGizmoOverlay(
 								areaId = areaId,
@@ -581,8 +625,8 @@ fun rememberPuppetViewportHost(
 								heightPx = heightPx,
 								onOverlapRequest = { position, candidates ->
 									overlap =
-										overlapStateFrom(service, position, candidates) { id ->
-											session.setSelection(SelectionOps.replace(SelectionTarget.Drawable(id)))
+										overlapStateFrom(service, session.model.value, position, candidates) { target ->
+											session.setSelection(SelectionOps.replace(target))
 										}
 								},
 							)
@@ -647,11 +691,15 @@ fun rememberPuppetViewportHost(
 					service.setModel(model)
 				}
 
+				override fun previewLattices(forms: Map<DeformerId, WarpLatticeForm>) {
+					service.setLatticePreview(forms)
+				}
+
 				override fun resync() {
 					// Cleared before the renderer is restored: a surface reading the preview must never be
 					// left holding one the renderer has already dropped.
 					previewState.value = null
-					service.setModel(session.model.value)
+					service.resyncAfterElementGesture(session)
 				}
 			}
 		PuppetViewportBinding(

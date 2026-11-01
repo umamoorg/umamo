@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.EditorMode
 import org.umamo.ui.kit.BelowAnchorPositionProvider
 import org.umamo.ui.kit.chip.DropdownChip
 import org.umamo.ui.kit.container.OverflowRowScope
@@ -58,11 +59,12 @@ internal fun OverflowRowScope.uvEditorHeaderControls(scope: AreaScope) {
 			UvLayerPickerChip()
 		}
 	}
-	item("selectMode") { MeshSelectModeButtons() }
+	// The UV editor is view-only in Pose mode, so its element controls show in Edit mode alone.
+	item("selectMode") { MeshSelectModeButtons(shownIn = { mode -> mode == EditorMode.Edit }) }
 	flexibleSpace()
 	item("pivot") { PivotModeDropdown() }
 	item("snap") { SnapDropdown(SnapMenuKind.UvEditor) }
-	item("proportional") { ProportionalEditControls(size = uvProportionalSizeField(viewState.proportionalRadii)) }
+	item("proportional") { ProportionalEditControls(size = uvProportionalSizeField(viewState.proportionalRadii), shownIn = { mode -> mode == EditorMode.Edit }) }
 	flexibleSpace()
 	item("overlays") {
 		if (documentIsOpen()) {

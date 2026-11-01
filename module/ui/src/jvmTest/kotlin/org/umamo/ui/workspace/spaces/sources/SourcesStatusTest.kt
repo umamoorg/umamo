@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composer
 import androidx.compose.runtime.CompositionTracer
 import androidx.compose.runtime.InternalComposeTracingApi
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import kotlinx.coroutines.CompletableDeferred
 import kotlin.test.Test
 import kotlin.test.assertEquals

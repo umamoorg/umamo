@@ -16,8 +16,8 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalTestApi::class)
 class AreaOverlaysPublisherTest {
-	/** What a default 2D area asks for: everything but the wireframe, whose row is off by default. */
-	private val viewportDefaults = FrameOverlays(gridLines = true, axes = true, meshOverlay = true, wireframe = false)
+	/** What a default 2D area asks for: everything but the wireframe and every deformer, whose rows are off by default. */
+	private val viewportDefaults = FrameOverlays(gridLines = true, axes = true, meshOverlay = true, wireframe = false, allLattices = false)
 
 	/** The first push lands as the area mounts, carrying the state's flags over the setting's geometry. */
 	@Test
@@ -70,9 +70,21 @@ class AreaOverlaysPublisherTest {
 			waitForIdle()
 			assertEquals(viewportDefaults.copy(gridLines = false, wireframe = true, selectionTint = false, wireframeOpacity = 0.25f, wireframeCulling = false), service.areaOverlays("area")?.frame, "the culling row reached the service")
 
+			state.showDeformers = true
+			waitForIdle()
+			assertEquals(
+				viewportDefaults.copy(gridLines = false, wireframe = true, selectionTint = false, wireframeOpacity = 0.25f, wireframeCulling = false, allLattices = true),
+				service.areaOverlays("area")?.frame,
+				"the deformers row reached the service",
+			)
+
 			state.showOverlays = false
 			waitForIdle()
-			assertEquals(FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.25f, wireframeCulling = false), service.areaOverlays("area")?.frame, "the master off hides every frame flag")
+			assertEquals(
+				FrameOverlays(gridLines = false, axes = false, meshOverlay = false, wireframe = false, selectionTint = false, wireframeOpacity = 0.25f, wireframeCulling = false, allLattices = false),
+				service.areaOverlays("area")?.frame,
+				"the master off hides every frame flag",
+			)
 		}
 
 	/** A change to the application's grid setting pushes the new geometry to an area that follows it. */
@@ -149,7 +161,7 @@ class AreaOverlaysPublisherTest {
 			assertEquals(GridConfig(512f, 8), service.areaOverlays("uv")?.grid, "the changed UV setting reached the service")
 		}
 
-	/** A UV editor's area never asks for the world axes or the wireframe. */
+	/** A UV editor's area never asks for the world axes, the wireframe, or every deformer. */
 	@Test
 	fun aUvAreaNeverAsksForAxesOrTheWireframe() =
 		runComposeUiTest {
@@ -161,6 +173,6 @@ class AreaOverlaysPublisherTest {
 			}
 			waitForIdle()
 
-			assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false), service.areaOverlays("uv")?.frame)
+			assertEquals(FrameOverlays(gridLines = true, axes = false, meshOverlay = true, wireframe = false, allLattices = false), service.areaOverlays("uv")?.frame)
 		}
 }

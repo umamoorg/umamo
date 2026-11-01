@@ -8,6 +8,7 @@ import org.umamo.runtime.eval.scalarOrNull
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.DEFAULT_DRAW_ORDER
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.GluePair
@@ -17,6 +18,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderGroup
+import org.umamo.runtime.model.WarpLatticeForm
 
 /**
  * Backend-neutral per-pose deform inputs for one drawable - the cheap output of [preparePose]: which
@@ -72,6 +74,12 @@ internal class PoseDeformInputs(
 	 * so the composite pass never has to re-derive them.
 	 */
 	val partCompositeStates: Map<PartId, PartRenderState> = emptyMap(),
+	/**
+	 * Every deformer the pose built, by id: the baked worlds the drawables' transforms came from.  A hidden
+	 * deformer, or one under a hidden ancestor, is absent, as [buildDeformerWorlds] leaves it out.  Kept so
+	 * what the viewport draws over a deformer (a warp's lattice) reads the same bake as the art under it.
+	 */
+	val deformerWorlds: Map<DeformerId, DeformerWorld> = emptyMap(),
 )
 
 /**
@@ -83,12 +91,15 @@ internal class PoseDeformInputs(
  * @param Map         parameters Parameter id → value (partial; the rest default).
  * @param Map         channelOverrides Pending unkeyed channel edits, which win over the stored value - how
  *   a value the user typed but has not keyed shows in the viewport without entering the document.
+ * @param Map         latticeOverrides Pending lattices by warp, each standing in for that warp's grid blend -
+ *   how a lattice posed but not yet keyed shows in the viewport without entering the document.
  * @return PoseDeformInputs The backend-neutral per-pose inputs.
  */
 internal fun preparePose(
 	model: PuppetModel,
 	parameters: Map<ParameterId, Float>,
 	channelOverrides: Map<KeyableTarget, ChannelValue> = emptyMap(),
+	latticeOverrides: Map<DeformerId, WarpLatticeForm> = emptyMap(),
 ): PoseDeformInputs {
 	val pose = PoseParameters(model, parameters)
 	val paramValue = pose.paramValue
@@ -97,7 +108,7 @@ internal fun preparePose(
 	// constructing its KeyableTarget key - the per-frame path otherwise allocated a handful of key
 	// objects per entity purely to probe an empty map.
 	val overrides = channelOverrides.takeIf { pending -> pending.isNotEmpty() }
-	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue, channelOverrides)
+	val deformerWorlds = buildDeformerWorlds(model.deformers, paramValue, defaultValue, channelOverrides, latticeOverrides)
 	val drawables = ArrayList<DrawableDeformInputs>(model.drawables.size)
 
 	for (drawable in model.drawables) {
@@ -302,7 +313,7 @@ internal fun preparePose(
 	}
 	blendGroupStates(model.renderRoot)
 
-	return PoseDeformInputs(drawables, glues, partDrawOrders, partCompositeStates)
+	return PoseDeformInputs(drawables, glues, partDrawOrders, partCompositeStates, deformerWorlds)
 }
 
 /**

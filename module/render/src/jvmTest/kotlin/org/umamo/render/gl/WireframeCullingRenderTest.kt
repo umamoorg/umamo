@@ -14,6 +14,7 @@ import org.umamo.render.puppet.MeshOverlayMesh
 import org.umamo.render.puppet.MeshOverlayPalette
 import org.umamo.render.puppet.MeshOverlaySelectMode
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.runtime.model.AtlasPage
@@ -21,6 +22,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -161,7 +163,7 @@ class WireframeCullingRenderTest {
 		MeshOverlay(
 			MeshOverlayKind.ObjectWireframe,
 			MeshOverlaySelectMode.Vertex,
-			ids.map { id -> MeshOverlayMesh(id, 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, wireframeOnly = true) },
+			ids.map { id -> MeshOverlayMesh(ElementOwner.Drawable(id), 4, quadEdges, ByteArray(0), ByteArray(0), ByteArray(0), null, null, null, style = MeshStyle.Wireframe) },
 			MeshOverlaySizes(3.5f, 2f, 2.5f),
 		)
 

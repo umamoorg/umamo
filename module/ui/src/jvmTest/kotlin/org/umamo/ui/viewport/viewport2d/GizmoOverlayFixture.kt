@@ -18,14 +18,15 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
-import org.umamo.render.pick.PickCandidate
 import org.umamo.settings.Settings
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.LocalLiveMeshPreview
+import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.StubPuppetViewportService
 import org.umamo.ui.viewport.ViewportRegionOverlay
+import org.umamo.ui.viewport.asObjectPickCandidates
 import org.umamo.ui.viewport.gizmo.HeldDriveDispatcher
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.LocalModalDriveDispatcher
@@ -64,7 +65,7 @@ internal class GizmoOverlayFixture(
 	val livePreview = LiveMeshPreview()
 
 	/** Every overlap picker an overlay asked for, as the area, the anchor, and the candidates. */
-	val overlapRequests = ArrayList<Triple<String, Offset, List<PickCandidate>>>()
+	val overlapRequests = ArrayList<Triple<String, Offset, List<ObjectPickCandidate>>>()
 
 	/**
 	 * The areas whose overlays are mounted.  Taking an area out unmounts its overlays mid-gesture the way
@@ -114,7 +115,7 @@ internal fun ComposeUiTest.mountGizmoOverlays(session: EditorSession, beside: (@
 											widthPx = RIG_AREA_WIDTH,
 											heightPx = RIG_AREA_HEIGHT,
 											areaPointer = areaPointer,
-											onOverlapRequest = { anchor, candidates -> fixture.overlapRequests.add(Triple(areaId, anchor, candidates)) },
+											onOverlapRequest = { anchor, candidates -> fixture.overlapRequests.add(Triple(areaId, anchor, candidates.asObjectPickCandidates())) },
 										)
 										ViewportObjectGizmoOverlay(
 											areaId = areaId,

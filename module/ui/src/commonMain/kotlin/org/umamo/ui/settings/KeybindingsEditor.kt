@@ -52,6 +52,7 @@ import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.action.LocalKeymap
 import org.umamo.ui.action.formatAccelerator
+import org.umamo.ui.action.keyChordOf
 import org.umamo.ui.action.keyName
 import org.umamo.ui.action.rebindCommand
 import org.umamo.ui.action.resetKeymapOverrides
@@ -319,7 +320,8 @@ private fun ChordChip(
 /**
  * Turns a key event during capture into a chord: ignores key-up and bare modifier presses (waiting for a
  * real key), treats unmodified Escape as cancel, and otherwise emits the chord via [onCaptured].  The key
- * naming is the shared [keyName] table, so a captured chord dispatches identically at runtime.
+ * naming is the shared [keyName] table and the modifiers come from [keyChordOf], the rule dispatch decodes
+ * with, so a captured chord dispatches identically at runtime - a literal Control on macOS included.
  *
  * @param KeyEvent event         The key event during capture.
  * @param Function onCaptured     Receives the captured chord.
@@ -341,11 +343,12 @@ private fun handleCaptureKey(event: KeyEvent, onCaptured: (KeyChord) -> Unit, on
 	}
 
 	onCaptured(
-		KeyChord(
+		keyChordOf(
 			keyName = pressedKeyName,
-			primaryModifier = event.isCtrlPressed || event.isMetaPressed,
-			shift = event.isShiftPressed,
-			alt = event.isAltPressed,
+			controlPressed = event.isCtrlPressed,
+			metaPressed = event.isMetaPressed,
+			shiftPressed = event.isShiftPressed,
+			altPressed = event.isAltPressed,
 		),
 	)
 

@@ -311,8 +311,9 @@ class OverlaysHeaderControlTest {
 		}
 
 	/**
-	 * Typing a percent into the Opacity field writes the area's wireframe opacity, zero included; a field left
-	 * with the percent it already showed commits nothing.
+	 * Typing a percent into the wireframe's Opacity field writes the area's wireframe opacity, zero included; a field
+	 * left with the percent it already showed commits nothing.  On a 2D viewport it is the second Opacity field, the
+	 * Geometry section's, after the deformers' in the Objects section.
 	 */
 	@Test
 	fun theOpacityFieldWritesTheAreasOpacityAndAnUntouchedFieldCommitsNothing() =
@@ -323,28 +324,72 @@ class OverlaysHeaderControlTest {
 			clickDescribed(VIEWPORT_OVERLAYS)
 			assertTrue(popupShows(OPACITY_FIELD) && popupShows(OPACITY_SHOWN), "the field shows the whole opacity as a percent")
 
-			onNode(hasText(OPACITY_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
-			waitForIdle()
-			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
-			waitForIdle()
+			commitPopupField(OPACITY_SHOWN, WIREFRAME_OPACITY_INDEX, typed = null)
 			assertEquals(1f, overlays.wireframeOpacity, "leaving the field with the percent it showed is no edit")
 			assertTrue(overlays.isAtDefaults, "and the area is still at its defaults")
 
-			onNode(hasText(OPACITY_SHOWN) and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
-			waitForIdle()
-			onNode(hasSetTextAction() and isFocused()).performTextReplacement("30")
-			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
-			waitForIdle()
+			commitPopupField(OPACITY_SHOWN, WIREFRAME_OPACITY_INDEX, typed = "30")
 			assertEquals(0.3f, overlays.wireframeOpacity, "the typed percent is the area's opacity")
+			assertEquals(1f, overlays.deformerOpacity, "and the deformers' opacity is left alone")
 			assertTrue(popupShows("30"), "and the field shows it")
 
-			onNode(hasText("30") and hasAnyAncestor(isPopup()), useUnmergedTree = true).performClick()
-			waitForIdle()
-			onNode(hasSetTextAction() and isFocused()).performTextReplacement("0")
-			onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
-			waitForIdle()
+			commitPopupField("30", 0, typed = "0")
 			assertEquals(0f, overlays.wireframeOpacity, "zero is allowed: the wireframe vanishes while its row stays as set")
 		}
+
+	/**
+	 * A 2D viewport's deformers have an Opacity field of their own, under the Deformers row and above the Geometry
+	 * heading: a typed percent writes the area's deformer opacity, zero included, and leaves the wireframe's alone.
+	 */
+	@Test
+	fun theDeformerOpacityFieldSitsUnderDeformersAndWritesItsOwnOpacity() =
+		runComposeUiTest {
+			val scope = AreaScope(HEADER_TEST_AREA_ID)
+			setAreaHeader(kind = SpaceKind.Viewport2D, headerWidth = 900.dp, puppet = mutableStateOf(emptyHeaderPuppet()), scope = scope)
+			val overlays = scope.spaceState(VIEWPORT_VIEW_STATE_KEY) { Viewport2DViewState() }.overlays
+			clickDescribed(VIEWPORT_OVERLAYS)
+
+			val opacityTops = popupTextTops(OPACITY_FIELD)
+			assertEquals(2, opacityTops.size, "a 2D viewport has two Opacity fields")
+			assertTrue(popupTextTops(DEFORMERS_ROW).single() < opacityTops[DEFORMER_OPACITY_INDEX], "the deformers' sits under the Deformers row")
+			assertTrue(opacityTops[DEFORMER_OPACITY_INDEX] < popupTextTops(GEOMETRY).single(), "and above the Geometry heading")
+
+			commitPopupField(OPACITY_SHOWN, DEFORMER_OPACITY_INDEX, typed = "40")
+			assertEquals(0.4f, overlays.deformerOpacity, "the typed percent is the area's deformer opacity")
+			assertEquals(1f, overlays.wireframeOpacity, "and the wireframe's is left alone")
+
+			commitPopupField("40", 0, typed = "0")
+			assertEquals(0f, overlays.deformerOpacity, "zero is allowed: the lattices vanish while the Deformers row stays as set")
+		}
+
+	/**
+	 * Clicks the [index]th popover field showing [shown] in layout order, types [typed] into it when given, and commits
+	 * with Enter.
+	 *
+	 * @param String shown The text the field shows.
+	 * @param Int index Which of the fields showing it, in layout order.
+	 * @param String? typed What to type, or null to commit what it shows.
+	 */
+	private fun ComposeUiTest.commitPopupField(shown: String, index: Int, typed: String?) {
+		onAllNodes(hasText(shown) and hasAnyAncestor(isPopup()), useUnmergedTree = true)[index].performClick()
+		waitForIdle()
+
+		if (typed != null) {
+			onNode(hasSetTextAction() and isFocused()).performTextReplacement(typed)
+		}
+
+		onNode(hasSetTextAction() and isFocused()).performKeyInput { pressKey(Key.Enter) }
+		waitForIdle()
+	}
+
+	/**
+	 * The top of every popover text reading [label], in layout order.
+	 *
+	 * @param String label The text.
+	 * @return List<Float> Each match's top in root pixels.
+	 */
+	private fun ComposeUiTest.popupTextTops(label: String): List<Float> =
+		onAllNodes(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).fetchSemanticsNodes().map { node -> node.boundsInRoot.top }
 
 	/**
 	 * A toggle row, a grid field, and a section heading each show their description once the pointer has
@@ -396,6 +441,7 @@ class OverlaysHeaderControlTest {
 		const val INFO_ROW = "General Information"
 		const val OBJECTS = "Objects"
 		const val SELECTION_TINT_ROW = "Selection Tint"
+		const val DEFORMERS_ROW = "Deformers"
 		const val WIREFRAME_ROW = "Wireframe"
 		const val CULL_HIDDEN_ROW = "Cull Hidden"
 
@@ -407,9 +453,13 @@ class OverlaysHeaderControlTest {
 		const val UV_SUBDIVISIONS_SHOWN = "8"
 		const val FOLLOW_APPLICATION = "Follow Application Grid"
 
-		/** The Opacity field's label and what the whole opacity shows in it; exact matches, apart from the Scale field's "100.00". */
+		/** The Opacity fields' label and what the whole opacity shows in them; exact matches, apart from the Scale field's "100.00". */
 		const val OPACITY_FIELD = "Opacity"
 		const val OPACITY_SHOWN = "100"
+
+		/** On a 2D viewport, the Opacity fields in layout order: the deformers' (Objects), then the wireframe's (Geometry). */
+		const val DEFORMER_OPACITY_INDEX = 0
+		const val WIREFRAME_OPACITY_INDEX = 1
 
 		/** The overflow chip's English name. */
 		const val MORE = "More"

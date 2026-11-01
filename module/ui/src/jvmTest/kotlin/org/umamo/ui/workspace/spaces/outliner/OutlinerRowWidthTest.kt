@@ -1,7 +1,7 @@
 package org.umamo.ui.workspace.spaces.outliner
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import org.umamo.runtime.model.PuppetModel

@@ -50,6 +50,7 @@ import org.umamo.ui.workspace.ShellOverlayState
 import org.umamo.ui.workspace.area.AreaCorner
 import org.umamo.ui.workspace.area.AreaDragController
 import org.umamo.ui.workspace.area.SplitterDragCancelController
+import org.umamo.ui.workspace.commands.pieMenuEntriesFor
 import org.umamo.ui.workspace.export.ExportOptionsRequest
 import org.umamo.ui.workspace.rowdrag.RowDragCancelController
 import kotlin.test.Test
@@ -891,7 +892,7 @@ class ModalKeyLadderTest {
 	fun aPieMenuDigitPicksItsEntryAndClosesTheRing() {
 		val session = session(EditorMode.Object)
 		session.openPieMenu(PieMenuKind.PivotMode)
-		val first = pieMenuEntriesFor(PieMenuKind.PivotMode).first()
+		val first = pieMenuEntriesFor(PieMenuKind.PivotMode, CommandRegistry()).first()
 		val registry = RecordingRegistry(first.commandId)
 		val state = ShellModalState(editorSession = session, commandRegistry = registry.registry)
 
@@ -1176,6 +1177,26 @@ class ModalKeyLadderTest {
 
 		assertFalse(press(Key.G, state), "the bare chord is unbound")
 		assertTrue(press(Key.G, state, primaryModifier = true, shift = true))
+		assertTrue(registry.invoked)
+	}
+
+	@Test
+	fun aLiteralControlStrokeDispatchesItsOwnBinding() {
+		val registry = RecordingRegistry("mode.togglePose")
+		val keymap = Keymap(mapOf(KeyChord("Tab", controlKey = true) to "mode.togglePose"))
+		val state = ShellModalState(commandRegistry = registry.registry, keymap = keymap)
+
+		assertTrue(handleModalKeyLadder(ShellKeyStroke(Key.Tab, isDown = true, controlKey = true), state))
+		assertTrue(registry.invoked)
+	}
+
+	@Test
+	fun aLiteralControlStrokeFallsBackToThePrimaryBinding() {
+		val registry = RecordingRegistry("mesh.grab")
+		val keymap = Keymap(mapOf(KeyChord("KeyG", primaryModifier = true) to "mesh.grab"))
+		val state = ShellModalState(commandRegistry = registry.registry, keymap = keymap)
+
+		assertTrue(handleModalKeyLadder(ShellKeyStroke(Key.G, isDown = true, controlKey = true), state), "Control+G reaches the primary binding on macOS")
 		assertTrue(registry.invoked)
 	}
 

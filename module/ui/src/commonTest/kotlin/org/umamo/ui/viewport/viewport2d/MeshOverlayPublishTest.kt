@@ -1,5 +1,6 @@
 package org.umamo.ui.viewport.viewport2d
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -20,10 +21,12 @@ import org.umamo.edit.mesh.commitMeshPositions
 import org.umamo.render.puppet.MeshOverlay
 import org.umamo.render.puppet.MeshOverlayKind
 import org.umamo.render.puppet.MeshOverlaySizes
+import org.umamo.render.puppet.MeshStyle
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
 import org.umamo.ui.viewport.StubPuppetViewportService
+import org.umamo.ui.viewport.drawableOwnerId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -40,6 +43,7 @@ import kotlin.test.assertTrue
  * the areas' demand - over every shown drawable in Object mode, over those outside the edit under the cage
  * in Edit mode, and not at all while no area asks.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class MeshOverlayPublishTest {
 	private val sizes = MeshOverlaySizes(3.5f, 1f, 2.5f)
 
@@ -53,7 +57,7 @@ class MeshOverlayPublishTest {
 			session.setMode(EditorMode.Edit)
 			runCurrent()
 			assertEquals(2, service.pushedOverlays.size, "entering Edit publishes the overlay")
-			assertEquals(listOf(RIG_QUAD), assertNotNull(service.pushedOverlays.last()).meshes.map { mesh -> mesh.drawableId })
+			assertEquals(listOf(RIG_QUAD), assertNotNull(service.pushedOverlays.last()).meshes.map { mesh -> mesh.drawableOwnerId })
 
 			session.setMode(EditorMode.Object)
 			runCurrent()
@@ -148,8 +152,8 @@ class MeshOverlayPublishTest {
 			runCurrent()
 			val wireframe = assertNotNull(service.pushedOverlays.last(), "an area asking publishes the wireframe")
 			assertEquals(MeshOverlayKind.ObjectWireframe, wireframe.kind)
-			assertEquals(listOf(RIG_QUAD, RIG_OTHER, RIG_HIDDEN), wireframe.meshes.map { mesh -> mesh.drawableId }, "over every shown drawable, in the model's order")
-			assertTrue(wireframe.meshes.all { mesh -> mesh.wireframeOnly && mesh.vertexFlags.isEmpty() }, "each a plain wireframe")
+			assertEquals(listOf(RIG_QUAD, RIG_OTHER, RIG_HIDDEN), wireframe.meshes.map { mesh -> mesh.drawableOwnerId }, "over every shown drawable, in the model's order")
+			assertTrue(wireframe.meshes.all { mesh -> mesh.style == MeshStyle.Wireframe && mesh.vertexFlags.isEmpty() }, "each a plain wireframe")
 
 			wanted.value = false
 			runCurrent()
@@ -170,12 +174,12 @@ class MeshOverlayPublishTest {
 			runCurrent()
 			val edit = assertNotNull(service.pushedOverlays.last())
 			assertEquals(MeshOverlayKind.Edit, edit.kind, "entering Edit publishes the cage")
-			assertEquals(listOf(RIG_OTHER, RIG_HIDDEN, RIG_QUAD), edit.meshes.map { mesh -> mesh.drawableId }, "with the wireframe of what is outside the edit ahead of it")
-			assertEquals(listOf(true, true, false), edit.meshes.map { mesh -> mesh.wireframeOnly }, "the cage alone carries flags")
+			assertEquals(listOf(RIG_OTHER, RIG_HIDDEN, RIG_QUAD), edit.meshes.map { mesh -> mesh.drawableOwnerId }, "with the wireframe of what is outside the edit ahead of it")
+			assertEquals(listOf(true, true, false), edit.meshes.map { mesh -> mesh.style == MeshStyle.Wireframe }, "the cage alone carries flags")
 
 			wanted.value = false
 			runCurrent()
-			assertEquals(listOf(RIG_QUAD), assertNotNull(service.pushedOverlays.last()).meshes.map { mesh -> mesh.drawableId }, "no area asking leaves the cage alone")
+			assertEquals(listOf(RIG_QUAD), assertNotNull(service.pushedOverlays.last()).meshes.map { mesh -> mesh.drawableOwnerId }, "no area asking leaves the cage alone")
 
 			wanted.value = true
 			session.setMode(EditorMode.Object)
@@ -212,7 +216,7 @@ class MeshOverlayPublishTest {
 				)
 			val service = publishing(EditorSession(model), MutableStateFlow(true))
 
-			assertEquals(listOf(RIG_QUAD, RIG_HIDDEN), assertNotNull(service.pushedOverlays.last()).meshes.map { mesh -> mesh.drawableId })
+			assertEquals(listOf(RIG_QUAD, RIG_HIDDEN), assertNotNull(service.pushedOverlays.last()).meshes.map { mesh -> mesh.drawableOwnerId })
 		}
 
 	/**

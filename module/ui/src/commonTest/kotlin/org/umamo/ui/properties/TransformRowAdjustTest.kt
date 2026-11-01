@@ -92,7 +92,7 @@ class TransformRowAdjustTest {
 	 * @param EditorSession session The session.
 	 * @return org.umamo.edit.transform.MeshBounds The bounds.
 	 */
-	private fun boundsOf(session: EditorSession) = drawableWorldTransform(session.model.value, session.shownPose, drawableId)!!.bounds
+	private fun boundsOf(session: EditorSession) = drawableWorldTransform(session.model.value, session.shownPose, drawableId, session.mode.value)!!.bounds
 
 	/**
 	 * [parameters] with the float row [key] set to [value].
@@ -118,7 +118,7 @@ class TransformRowAdjustTest {
 
 		val record = assertNotNull(session.adjustableOperation.value, "the commit registered")
 		assertEquals(areaId, record.areaId)
-		val change = assertIs<MeshChange.TransformDrawables>(record.change)
+		val change = assertIs<MeshChange.TransformObjects>(record.change)
 		assertEquals(MeshOperatorKind.Grab, change.kind)
 		assertEquals(-500f, record.parameters.floatValue(TransformParameterKeys.MOVE_X, Float.NaN))
 		assertEquals(500f, record.parameters.floatValue(TransformParameterKeys.MOVE_Z, Float.NaN), "world y up, shown as Z")
@@ -141,7 +141,7 @@ class TransformRowAdjustTest {
 		session.setDrawableWorldSizeAdjustable(drawableId, 50f, 25f, areaId)
 
 		val record = assertNotNull(session.adjustableOperation.value)
-		assertEquals(MeshOperatorKind.Scale, assertIs<MeshChange.TransformDrawables>(record.change).kind)
+		assertEquals(MeshOperatorKind.Scale, assertIs<MeshChange.TransformObjects>(record.change).kind)
 		assertEquals(0.5f, record.parameters.floatValue(TransformParameterKeys.SCALE_X, Float.NaN))
 		assertEquals(0.25f, record.parameters.floatValue(TransformParameterKeys.SCALE_Z, Float.NaN))
 
@@ -180,21 +180,21 @@ class TransformRowAdjustTest {
 		assertNull(session.adjustableOperation.value)
 	}
 
-	/** In Edit mode on a posed rig the edit lands at rest, registers, and adjusts at rest; the pinned pose is untouched. */
+	/** In Edit mode the rows write only in Object mode: a commit lands nothing, registers nothing, and holds the pose. */
 	@Test
-	fun inEditModeTheRegistrationRerunsAtRest() {
+	fun inEditModeTheRowsWriteNothingAndRegisterNothing() {
 		val posed = mapOf(parameterId to 1f)
 		val session = EditorSession(model(posedShiftX = 100f), initialPose = posed)
 		val target = SelectionTarget.Drawable(drawableId)
 		session.setSelection(Selection(setOf(target), target))
 		session.setMode(EditorMode.Edit)
 		assertEquals(EditorMode.Edit, session.mode.value, "the fixture must really be in Edit mode")
+		val modelBefore = session.model.value
 
 		session.setDrawableWorldCenterAdjustable(drawableId, 0f, 0f, areaId)
-		val record = assertNotNull(session.adjustableOperation.value)
-		session.adjustLastOperation(adjusted(record.parameters, TransformParameterKeys.MOVE_X, -250f))
 
-		assertEquals(250f, boundsOf(session).centerX, 1e-3f, "adjusted where the rigger is looking: at rest")
+		assertSame(modelBefore, session.model.value, "Edit mode shapes interiors, so the rows do not move the drawable")
+		assertNull(session.adjustableOperation.value, "and nothing registers on the strip")
 		assertEquals(posed, session.pose.value, "the pinned pose is held as it is")
 	}
 }

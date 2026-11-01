@@ -307,12 +307,12 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 
 	override fun drawOverlayVertexDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
 		val glBuffers = buffers as GlOverlayMeshBuffers
-		drawOverlay(glBuffers.vertexVao, glBuffers.vertexCount, QUAD_VERTICES, store, uniforms)
+		drawOverlay(glBuffers.vertexVao, glBuffers.vertexDotCount, QUAD_VERTICES, store, uniforms)
 	}
 
 	override fun drawOverlayFaceDots(buffers: OverlayMeshBuffers, store: DeformedPositionStore, uniforms: OverlayDrawUniforms) {
 		val glBuffers = buffers as GlOverlayMeshBuffers
-		drawOverlay(glBuffers.faceVao, glBuffers.faceCount, QUAD_VERTICES, store, uniforms)
+		drawOverlay(if (glBuffers.faceDotVao != 0) glBuffers.faceDotVao else glBuffers.faceVao, glBuffers.faceCount, QUAD_VERTICES, store, uniforms)
 	}
 
 	/**

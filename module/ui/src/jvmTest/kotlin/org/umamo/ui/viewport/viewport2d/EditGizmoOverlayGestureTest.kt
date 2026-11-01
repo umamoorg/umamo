@@ -21,6 +21,7 @@ import org.umamo.edit.transform.beginCircleSelect
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.render.pick.PickCandidate
 import org.umamo.runtime.model.DeformerId
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.RIGHT_AREA
 import org.umamo.ui.viewport.gizmo.clickIn
@@ -451,7 +452,7 @@ class EditGizmoOverlayGestureTest {
 			waitForIdle()
 			releaseIn(LEFT_AREA)
 
-			assertEquals(emptyMap(), session.meshSelection.value.elementsByDrawable)
+			assertEquals(emptyMap(), session.meshSelection.value.elementsByOwner)
 			assertTrue(session.historyView.value.steps.none { step -> step.labelKey == "change.mesh.select" }, "no selection step after the switch")
 			assertEquals(false, session.viewportGestureActive.value)
 		}

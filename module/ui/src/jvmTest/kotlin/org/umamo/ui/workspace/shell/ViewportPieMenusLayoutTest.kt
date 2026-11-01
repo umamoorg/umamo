@@ -21,6 +21,8 @@ import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.LocalCommands
 import org.umamo.ui.kit.menu.PieMenuOverlay
 import org.umamo.ui.theme.UmamoTheme
+import org.umamo.ui.workspace.commands.pieMenuEntriesFor
+import org.umamo.ui.workspace.commands.pieMenuTitleFor
 import kotlin.test.Test
 import kotlin.test.assertFalse
 
@@ -37,7 +39,7 @@ class ViewportPieMenusLayoutTest {
 		var title = ""
 		runComposeUiTest {
 			setContent {
-				val entries = pieMenuEntriesFor(kind)
+				val entries = pieMenuEntriesFor(kind, CommandRegistry())
 				labels = entries.map { entry -> stringResource(entry.label) }
 				title = stringResource(pieMenuTitleFor(kind))
 				UmamoTheme {

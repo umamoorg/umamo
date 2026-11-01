@@ -9,23 +9,29 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import org.umamo.ui.action.pressHoldsLiteralControl
+import org.umamo.ui.action.pressHoldsPrimary
 
 /**
- * One key press reduced to the five facts the shell's modal ladder and keymap dispatch actually read.
+ * One key press reduced to the six facts the shell's modal ladder and keymap dispatch actually read.
  *
  * Compose's KeyEvent is an expect class with no common constructor - it wraps the platform's native
  * event - so a function taking one cannot be exercised from commonTest at all.  Decoding to this value
  * type at the root handler keeps the whole precedence a pure common function, which is what lets
  * ModalKeyLadderTest state a modal condition and press a key without standing up a composition.
  *
- * [primaryModifier] folds Ctrl and Meta the way [org.umamo.ui.action.KeyChord] does, so the keymap
- * fallthrough builds its chord straight from these fields rather than decoding the event a second time.
+ * [primaryModifier] and [controlKey] are decoded by the same rule as a [org.umamo.ui.action.KeyChord]
+ * ([pressHoldsPrimary] / [pressHoldsLiteralControl]), so the keymap fallthrough builds its chord straight
+ * from these fields rather than decoding the event a second time.
  *
  * @property Key key The key that moved.
  * @property Boolean isDown True on key-down; the ladder's arms that test for a press read this.
- * @property Boolean primaryModifier True when Ctrl (or Meta on macOS) is held.
+ * @property Boolean primaryModifier True when the primary modifier is held: Command on macOS, Ctrl or
+ *   Meta elsewhere.
  * @property Boolean shift True when Shift is held.
  * @property Boolean alt True when Alt / Option is held.
+ * @property Boolean controlKey True when a literal Control is held on a host where it is not the primary
+ *   modifier (macOS).
  */
 internal data class ShellKeyStroke(
 	val key: Key,
@@ -33,6 +39,7 @@ internal data class ShellKeyStroke(
 	val primaryModifier: Boolean = false,
 	val shift: Boolean = false,
 	val alt: Boolean = false,
+	val controlKey: Boolean = false,
 )
 
 /**
@@ -48,7 +55,8 @@ internal fun KeyEvent.toShellKeyStroke(): ShellKeyStroke =
 	ShellKeyStroke(
 		key = key,
 		isDown = type == KeyEventType.KeyDown,
-		primaryModifier = isCtrlPressed || isMetaPressed,
+		primaryModifier = pressHoldsPrimary(isCtrlPressed, isMetaPressed),
 		shift = isShiftPressed,
 		alt = isAltPressed,
+		controlKey = pressHoldsLiteralControl(isCtrlPressed),
 	)

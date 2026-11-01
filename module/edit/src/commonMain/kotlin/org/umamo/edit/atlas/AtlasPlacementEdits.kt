@@ -7,8 +7,8 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.applyAffine
+import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 
 /*
@@ -196,7 +196,7 @@ private fun tileRemap(oldAtlas: PuppetAtlas, newAtlas: PuppetAtlas, tileId: Atla
 		return TileRemapOutcome.Unchanged
 	}
 
-	val artToStored = newAffine?.let { affine -> invertUvAffine(affine) }
+	val artToStored = newAffine?.let { affine -> invertAffine(affine) }
 
 	if (oldAffine == null || artToStored == null) {
 		return TileRemapOutcome.Inexpressible
@@ -221,8 +221,8 @@ private fun List<Drawable>.remappedOver(remapByTile: Map<AtlasTileId, AtlasTileR
 	return map { drawable ->
 		val remap = drawable.atlasTileId?.let { tileId -> remapByTile[tileId] } ?: return@map drawable
 		val mesh = drawable.mesh ?: return@map drawable
-		val artUvs = applyUvAffine(mesh.uvs, remap.storedToArt)
-		drawable.copy(mesh = mesh.withUvs(applyUvAffine(artUvs, remap.artToStored)))
+		val artUvs = applyAffine(mesh.uvs, remap.storedToArt)
+		drawable.copy(mesh = mesh.withUvs(applyAffine(artUvs, remap.artToStored)))
 	}
 }
 

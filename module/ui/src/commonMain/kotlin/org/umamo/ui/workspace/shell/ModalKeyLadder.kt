@@ -1,13 +1,14 @@
 package org.umamo.ui.workspace.shell
 
 import androidx.compose.ui.input.key.Key
-import org.umamo.edit.EditorMode
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.editsElements
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.action.KeyChord
 import org.umamo.ui.action.Keymap
 import org.umamo.ui.action.keyName
+import org.umamo.ui.workspace.commands.pieMenuEntriesFor
 
 /*
  * The shell's modal key ladder: the ordered Escape/Enter (and modal-only key) precedence that runs in
@@ -206,7 +207,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 							Key.Eight, Key.NumPad8 -> 8
 							else -> 0
 						}
-					val entry = if (digit > 0) pieMenuEntriesFor(openPie).getOrNull(digit - 1) else null
+					val entry = if (digit > 0) pieMenuEntriesFor(openPie, commandRegistry).getOrNull(digit - 1) else null
 
 					if (entry != null && entry.enabled) {
 						// Invoke-then-close, matching the pointer pick's order.
@@ -293,25 +294,25 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
-			// In Edit mode, Escape abandons an in-flight non-armed box drag (armed tools and the
+			// In Edit and Pose mode, Escape abandons an in-flight non-armed box drag (armed tools and the
 			// zoom region are handled above); the overlay clears its rubber-band on the signal. Gated
 			// off an in-flight area CORNER drag so that still yields to area.dragCancel - a divider
 			// (splitter) drag is a separate mechanism this gate does not see, and cannot cancel.
 			// Blender-parity: with nothing in flight this is a harmless no-op that consumes Escape and
 			// never clears selection.
-			isEscapeDown && editorSession?.mode?.value == EditorMode.Edit && !dragController.isDragging -> {
+			isEscapeDown && editorSession?.mode?.value?.editsElements == true && !dragController.isDragging -> {
 				editorSession.requestMeshGestureCancel()
 				true
 			}
 
 			// With no modal open and no in-flight corner drag, Escape clears a non-empty OBJECT
-			// selection.  Gated to Object mode (a null session counts as Object): in Edit mode the
-			// object selection holds the drawable being edited, so clearing it here would strand the
-			// Edit session on a drawable nothing points at.  Blender's Edit mode leaves the selection
-			// untouched on Escape, so Edit falls through to area.dragCancel (a no-op with no drag).
+			// selection.  Gated to Object mode (a null session counts as Object): in Edit and Pose mode the
+			// object selection holds the item being edited, so clearing it here would strand the
+			// session on an item nothing points at.  Blender's Edit mode leaves the selection
+			// untouched on Escape, so those modes fall through to area.dragCancel (a no-op with no drag).
 			// While a drag is active it yields to area.dragCancel (handled via handleShellKey below).
 			isEscapeDown &&
-				editorSession?.mode?.value != EditorMode.Edit &&
+				editorSession?.mode?.value?.editsElements != true &&
 				!dragController.isDragging &&
 				selection?.selection?.isEmpty == false -> {
 				selection.set(SelectionOps.clear())
@@ -347,8 +348,9 @@ private fun handleShellKey(stroke: ShellKeyStroke, keymap: Keymap, registry: Com
 			primaryModifier = stroke.primaryModifier,
 			shift = stroke.shift,
 			alt = stroke.alt,
+			controlKey = stroke.controlKey,
 		)
-	val commandId = keymap.commandFor(chord) ?: return false
+	val commandId = keymap.commandForPress(chord) ?: return false
 
 	return registry.invoke(commandId)
 }
@@ -358,7 +360,11 @@ private fun handleShellKey(stroke: ShellKeyStroke, keymap: Keymap, registry: Com
  * lets it through to its selectable text; everything else it swallows.  Neither the keymap nor anything behind
  * the alert sees it, because the ladder returns before the keymap is consulted.
  *
+ * A literal Control counts too, so Control+C passes through on macOS exactly as it does where Control is the
+ * primary modifier.
+ *
  * @param ShellKeyStroke stroke The stroke.
  * @return Boolean Whether it copies.
  */
-private fun isCopyChord(stroke: ShellKeyStroke): Boolean = stroke.key == Key.Copy || (stroke.key == Key.C && stroke.primaryModifier)
+private fun isCopyChord(stroke: ShellKeyStroke): Boolean =
+	stroke.key == Key.Copy || (stroke.key == Key.C && (stroke.primaryModifier || stroke.controlKey))

@@ -1,6 +1,7 @@
 package org.umamo.ui.workspace.spaces.uv
 
 import org.umamo.edit.EditorMode
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
@@ -17,6 +18,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PartId
@@ -114,7 +116,7 @@ class UvEditorViewStateTest {
 		val resolved =
 			resolveUvEditorPage(
 				model = model,
-				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("b")), activeDrawableId = DrawableId("b")),
+				meshSelection = MeshSelection(owners = listOf(ElementOwner.Drawable(DrawableId("b"))), activeOwner = ElementOwner.Drawable(DrawableId("b"))),
 				objectSelection = Selection(setOf(SelectionTarget.Drawable(DrawableId("a"))), SelectionTarget.Drawable(DrawableId("a"))),
 				textures = twoPageTextures(),
 			)
@@ -156,7 +158,7 @@ class UvEditorViewStateTest {
 		val page =
 			resolveUvEditorPage(
 				model = model,
-				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("gone")), activeDrawableId = DrawableId("gone")),
+				meshSelection = MeshSelection(owners = listOf(ElementOwner.Drawable(DrawableId("gone"))), activeOwner = ElementOwner.Drawable(DrawableId("gone"))),
 				objectSelection = Selection(),
 				textures = twoPageTextures(),
 			)
@@ -199,7 +201,7 @@ class UvEditorViewStateTest {
 		val resolved =
 			resolveUvEditorPage(
 				model = model,
-				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
+				meshSelection = MeshSelection(owners = listOf(ElementOwner.Drawable(DrawableId("a"))), activeOwner = ElementOwner.Drawable(DrawableId("a"))),
 				objectSelection = Selection(),
 				textures = twoPageTextures(),
 				textureSelection = UvTextureSelection.PinnedPage(1),
@@ -233,7 +235,7 @@ class UvEditorViewStateTest {
 		val resolved =
 			resolveUvEditorPage(
 				model = model,
-				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
+				meshSelection = MeshSelection(owners = listOf(ElementOwner.Drawable(DrawableId("a"))), activeOwner = ElementOwner.Drawable(DrawableId("a"))),
 				objectSelection = Selection(),
 				textures = twoPageTextures(),
 				textureSelection = UvTextureSelection.PinnedPage(7),
@@ -345,7 +347,7 @@ class UvEditorViewStateTest {
 		val resolved =
 			resolveUvEditorLayer(
 				model = model,
-				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
+				meshSelection = MeshSelection(owners = listOf(ElementOwner.Drawable(DrawableId("a"))), activeOwner = ElementOwner.Drawable(DrawableId("a"))),
 				objectSelection = Selection(),
 			)
 		assertNotNull(resolved, "the active drawable's layer resolves")
@@ -368,7 +370,7 @@ class UvEditorViewStateTest {
 		val resolved =
 			resolveUvEditorLayer(
 				model = model,
-				meshSelection = MeshSelection(drawableIds = listOf(duplicate.id), activeDrawableId = duplicate.id),
+				meshSelection = MeshSelection(owners = listOf(ElementOwner.Drawable(duplicate.id)), activeOwner = ElementOwner.Drawable(duplicate.id)),
 				objectSelection = Selection(),
 			)
 		assertNotNull(resolved, "the duplicate resolves its own tile")
@@ -382,7 +384,7 @@ class UvEditorViewStateTest {
 		assertNull(
 			resolveUvEditorLayer(
 				model = model,
-				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("b")), activeDrawableId = DrawableId("b")),
+				meshSelection = MeshSelection(owners = listOf(ElementOwner.Drawable(DrawableId("b"))), activeOwner = ElementOwner.Drawable(DrawableId("b"))),
 				objectSelection = Selection(),
 			),
 			"a drawable with no tile has no layer to show",
@@ -426,7 +428,7 @@ class UvEditorViewStateTest {
 			shownLayerDrawables(
 				model,
 				EditorMode.Edit,
-				MeshSelection(drawableIds = listOf(DrawableId("a")), activeDrawableId = DrawableId("a")),
+				MeshSelection(owners = listOf(ElementOwner.Drawable(DrawableId("a"))), activeOwner = ElementOwner.Drawable(DrawableId("a"))),
 				"layer0",
 			)
 		assertEquals(listOf(DrawableId("a")), shown.map { drawable -> drawable.id }, "only the edited mesh is shown")
@@ -494,7 +496,7 @@ class UvEditorViewStateTest {
 			shownUvDrawables(
 				model = model,
 				mode = EditorMode.Edit,
-				meshSelection = MeshSelection(drawableIds = listOf(DrawableId("a"), DrawableId("b")), activeDrawableId = DrawableId("a")),
+				meshSelection = MeshSelection.editingDrawables(listOf(DrawableId("a"), DrawableId("b")), DrawableId("a")),
 				textures = twoPageTextures(),
 				pageIndex = 0,
 			)
@@ -570,10 +572,7 @@ class UvEditorViewStateTest {
 				model = model,
 				mode = EditorMode.Edit,
 				meshSelection =
-					MeshSelection(
-						drawableIds = listOf(DrawableId("emptyUvs"), DrawableId("mismatched"), DrawableId("a")),
-						activeDrawableId = DrawableId("a"),
-					),
+					MeshSelection.editingDrawables(listOf(DrawableId("emptyUvs"), DrawableId("mismatched"), DrawableId("a")), DrawableId("a")),
 				// Null textures reduce the filter to the UV-shape checks alone (no page filter).
 				textures = null,
 				pageIndex = null,
@@ -623,8 +622,8 @@ class UvEditorViewStateTest {
 	 */
 	@Test
 	fun islandExtentCoversEveryShownMesh() {
-		val onPage = GizmoMeshGeometry(DrawableId("a"), intArrayOf(0, 1, 2), emptyList(), floatArrayOf(16f, 16f, 48f, 16f, 16f, 24f))
-		val pastTheEdge = GizmoMeshGeometry(DrawableId("b"), intArrayOf(0, 1, 2), emptyList(), floatArrayOf(60f, -8f, 90f, -8f, Float.NaN, 5f))
+		val onPage = GizmoMeshGeometry(ElementOwner.Drawable(DrawableId("a")), ElementTopology.ofTriangles(3, intArrayOf(0, 1, 2)), floatArrayOf(16f, 16f, 48f, 16f, 16f, 24f))
+		val pastTheEdge = GizmoMeshGeometry(ElementOwner.Drawable(DrawableId("b")), ElementTopology.ofTriangles(3, intArrayOf(0, 1, 2)), floatArrayOf(60f, -8f, 90f, -8f, Float.NaN, 5f))
 
 		assertEquals(ContentBounds(16f, 16f, 32f, 8f), shownIslandExtent(listOf(onPage)))
 		assertEquals(ContentBounds(16f, -8f, 74f, 32f), shownIslandExtent(listOf(onPage, pastTheEdge)))

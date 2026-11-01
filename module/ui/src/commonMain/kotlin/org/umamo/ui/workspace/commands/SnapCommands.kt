@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.commands
 
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.PieMenuKind
 import org.umamo.edit.SnapKind
@@ -54,12 +55,14 @@ internal fun snapCommands(
 		},
 		Command("snap.pie", title = Res.string.cmd_snap_pie, availability = availability.hasDocument) {
 			// Blender's hovered-area routing (the key acts where the pointer is): over the UV editor this opens
-			// the UV snap pie in either mode - its entries snap texture coordinates in Edit mode and placed art
-			// tiles in Object mode; everywhere else the world snap pie, mirroring how mesh.grab / scale /
-			// rotate route to beginUvOperator.
+			// the UV snap pie - its entries snap texture coordinates in Edit mode and placed art tiles in Object
+			// mode, and nothing in Pose mode, where the UV editor is view-only, so no pie opens there; everywhere
+			// else the world snap pie, mirroring how mesh.grab / scale / rotate route to beginUvOperator.
 			editorSession?.let { live ->
 				if (routing.isHovering(SpaceKind.UvEditor)) {
-					live.openPieMenu(PieMenuKind.UvSnap)
+					if (live.mode.value != EditorMode.Pose) {
+						live.openPieMenu(PieMenuKind.UvSnap)
+					}
 				} else {
 					live.openPieMenu(PieMenuKind.Snap)
 				}

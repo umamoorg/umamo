@@ -3,6 +3,9 @@ package org.umamo.edit.atlas
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.composeAffine
 import org.umamo.runtime.model.placementAffine
+import org.umamo.runtime.model.rotationAboutAffine
+import org.umamo.runtime.model.scaleAboutAffine
+import org.umamo.runtime.model.translationAffine
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.test.Test

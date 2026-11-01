@@ -48,10 +48,10 @@ class DrawableSpaceResolver(
 	 * The local<->world mapping for [drawableId] at this pose: what [drawableSpaceMapping] answers.
 	 *
 	 * @param DrawableId drawableId The drawable to map.
-	 * @return DrawableSpaceMapping? The mapping, or null when the drawable is absent or unmappable (a
+	 * @return ParentSpaceMapping? The mapping, or null when the drawable is absent or unmappable (a
 	 *   hidden ancestor, or a parent the model does not carry).
 	 */
-	fun mapping(drawableId: DrawableId): DrawableSpaceMapping? {
+	fun mapping(drawableId: DrawableId): ParentSpaceMapping? {
 		val drawable = drawableById[drawableId] ?: return null
 
 		return mappingOver(drawable) { parentDeformerId -> deformerWorlds[parentDeformerId] }

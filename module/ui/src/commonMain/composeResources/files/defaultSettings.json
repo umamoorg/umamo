@@ -51,6 +51,13 @@
 			"faceActive": "#FF7DE400",
 			"faceOffKey": "#44888888"
 		},
+		"deformer": {
+			"latticeIdle": "#80404040",
+			"latticeSelected": "#FF338CFF",
+			"latticeActive": "#FF7DE400",
+			"latticePending": "#FFDF8431",
+			"latticeHover": "#FFFF00EC"
+		},
 		"showToolbar": true,
 		"showSidebar": false
 	},

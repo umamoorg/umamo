@@ -11,6 +11,7 @@ import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
@@ -55,7 +56,7 @@ class MeshOverlayResidencyTest {
 		assertEquals(1, stores.size, "one store for the overlay")
 		assertEquals(8, stores.single().store.vertexCapacity, "sized to the two quads")
 		val created = device.eventsOf<OverlayBuffersCreated>()
-		assertEquals(listOf(first, second), residency.entries.map { entry -> entry.mesh.drawableId })
+		assertEquals(listOf(first, second), residency.entries.map { entry -> entry.mesh.drawableOwnerId })
 		assertEquals(2, created.size, "one buffer set per paired mesh")
 		assertSame(value.meshes[0].edgeEndpoints, created[0].buffers.spec.edgeEndpoints, "the edge list is uploaded as shipped")
 		assertSame(model.drawables.first { drawable -> drawable.id == first }.mesh!!.indices, created[0].buffers.spec.faceCorners, "the triangles are the model's own indices")
@@ -135,7 +136,7 @@ class MeshOverlayResidencyTest {
 		residency.apply(overlay(value.meshes[1], value.meshes[0]), residents, model)
 
 		assertTrue(device.resourceEvents.isEmpty(), "local indices make a reorder free, got ${device.resourceEvents.map { event -> event::class.simpleName }}")
-		assertEquals(listOf(second to 0, first to 4), residency.entries.map { entry -> entry.mesh.drawableId to entry.baseOffset })
+		assertEquals(listOf(second to 0, first to 4), residency.entries.map { entry -> entry.mesh.drawableOwnerId to entry.baseOffset })
 		assertTrue(residency.storeStale, "the store layout moved, so the capture must run again")
 	}
 
@@ -167,7 +168,7 @@ class MeshOverlayResidencyTest {
 
 		residency.apply(overlay(mesh(first, vertexCount = 5, edges = IntArray(0), vertexFlags = ByteArray(5), edgeFlags = ByteArray(0)), mesh(second)), residents, model)
 
-		assertEquals(listOf(second), residency.entries.map { entry -> entry.mesh.drawableId }, "the mismatched mesh is left out")
+		assertEquals(listOf(second), residency.entries.map { entry -> entry.mesh.drawableOwnerId }, "the mismatched mesh is left out")
 		assertEquals(1, device.eventsOf<OverlayBuffersCreated>().size)
 		assertEquals(4, device.eventsOf<StoreCreated>().single().store.vertexCapacity, "the store is sized to what paired")
 	}
@@ -316,7 +317,7 @@ class MeshOverlayResidencyTest {
 		vertexFlags: ByteArray = ByteArray(4),
 		edgeFlags: ByteArray = ByteArray(edges.size / 2),
 		vertexCount: Int = 4,
-	): MeshOverlayMesh = MeshOverlayMesh(id, vertexCount, edges, vertexFlags, edgeFlags, ByteArray(2), null, null, null)
+	): MeshOverlayMesh = MeshOverlayMesh(ElementOwner.Drawable(id), vertexCount, edges, vertexFlags, edgeFlags, ByteArray(2), null, null, null)
 
 	/**
 	 * An Edit overlay in vertex mode over the given meshes.

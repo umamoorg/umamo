@@ -16,6 +16,10 @@ class MeshTopologyTest {
 	// exactly one neighbor - A (face 1) across (0,1), B (face 2) across (1,2), C (face 3) across (0,2).
 	private val spokeIndices = intArrayOf(0, 1, 2, 0, 1, 3, 1, 2, 4, 2, 0, 5)
 
+	// The two fixtures' topologies, as the queries take them.
+	private val stripTopology = ElementTopology.ofTriangles(4, stripIndices)
+	private val spokeTopology = ElementTopology.ofTriangles(6, spokeIndices)
+
 	/** uniqueEdges canonicalizes to (low, high) and emits a shared interior edge once. */
 	@Test
 	fun uniqueEdgesDedupsAndCanonicalizes() {
@@ -34,13 +38,13 @@ class MeshTopologyTest {
 		assertTrue(edges.all { edge -> edge.endpointLow <= edge.endpointHigh }, "every edge is canonical")
 	}
 
-	/** edgesOfTriangle and verticesOfTriangle read one triangle's corners. */
+	/** A triangle topology's per-face accessors read one triangle's corners. */
 	@Test
 	fun perTriangleAccessors() {
-		assertEquals(setOf(1, 2, 3), MeshTopology.verticesOfTriangle(stripIndices, 1))
+		assertEquals(setOf(1, 2, 3), stripTopology.verticesOfFace(1))
 		assertEquals(
 			setOf(MeshElement.Edge(1, 3), MeshElement.Edge(2, 3), MeshElement.Edge(1, 2)),
-			MeshTopology.edgesOfTriangle(stripIndices, 1).toSet(),
+			stripTopology.edgesOfFace(1).toSet(),
 		)
 	}
 
@@ -53,13 +57,13 @@ class MeshTopologyTest {
 				MeshElement.Edge.of(3, 1),
 				MeshElement.Face(0),
 			)
-		assertEquals(setOf(0, 1, 2, 3, 5), MeshTopology.coveredVertexIndices(elements, spokeIndices))
+		assertEquals(setOf(0, 1, 2, 3, 5), MeshTopology.coveredVertexIndices(elements, spokeTopology))
 	}
 
 	/** An edge derives from a vertex set only when both endpoints are selected. */
 	@Test
 	fun edgesWithBothEndpointsSelectedIsStrict() {
-		val edges = MeshTopology.edgesWithBothEndpointsSelected(spokeIndices, setOf(0, 1, 3))
+		val edges = MeshTopology.edgesWithBothEndpointsSelected(spokeTopology, setOf(0, 1, 3))
 		assertEquals(
 			setOf(MeshElement.Edge(0, 1), MeshElement.Edge(0, 3), MeshElement.Edge(1, 3)),
 			edges,
@@ -71,10 +75,10 @@ class MeshTopologyTest {
 	fun facesWithAllVerticesSelectedIsStrict() {
 		assertEquals(
 			setOf(MeshElement.Face(0)),
-			MeshTopology.facesWithAllVerticesSelected(spokeIndices, setOf(0, 1, 2)),
+			MeshTopology.facesWithAllVerticesSelected(spokeTopology, setOf(0, 1, 2)),
 		)
 		assertTrue(
-			MeshTopology.facesWithAllVerticesSelected(spokeIndices, setOf(0, 1, 4)).isEmpty(),
+			MeshTopology.facesWithAllVerticesSelected(spokeTopology, setOf(0, 1, 4)).isEmpty(),
 			"two of three vertices never derive a face",
 		)
 	}
@@ -90,13 +94,13 @@ class MeshTopologyTest {
 				MeshElement.Edge.of(2, 4),
 			)
 		assertTrue(
-			MeshTopology.facesWithAllEdgesSelected(spokeIndices, neighborEdges).isEmpty(),
+			MeshTopology.facesWithAllEdgesSelected(spokeTopology, neighborEdges).isEmpty(),
 			"edges covering T's vertices do not select T",
 		)
 		assertEquals(
 			setOf(MeshElement.Face(0)),
 			MeshTopology.facesWithAllEdgesSelected(
-				spokeIndices,
+				spokeTopology,
 				setOf(MeshElement.Edge.of(0, 1), MeshElement.Edge.of(1, 2), MeshElement.Edge.of(0, 2)),
 			),
 		)
@@ -105,10 +109,10 @@ class MeshTopologyTest {
 	// Two disconnected components: the strip (vertices 0-3) plus a lone triangle (vertices 4-6).
 	private val twoIslandIndices = intArrayOf(0, 1, 2, 1, 3, 2, 4, 5, 6)
 
-	/** buildVertexAdjacency lists each vertex's edge-sharing neighbors once, empty for unused vertices. */
+	/** A topology's adjacency lists each vertex's edge-sharing neighbors once, empty for unused vertices. */
 	@Test
 	fun adjacencyListsEdgeNeighborsOnce() {
-		val adjacency = MeshTopology.buildVertexAdjacency(5, stripIndices)
+		val adjacency = ElementTopology.ofTriangles(5, stripIndices).adjacency
 		assertEquals(setOf(1, 2), adjacency[0].toSet(), "vertex 0 neighbors")
 		assertEquals(setOf(0, 2, 3), adjacency[1].toSet(), "vertex 1 neighbors")
 		assertEquals(setOf(0, 1, 3), adjacency[2].toSet(), "vertex 2 neighbors; the shared (1,2) edge appears once")
@@ -119,7 +123,7 @@ class MeshTopologyTest {
 	/** connectedVertices floods a whole component and never crosses to a disconnected one. */
 	@Test
 	fun connectedVerticesFloodsOneComponent() {
-		val adjacency = MeshTopology.buildVertexAdjacency(7, twoIslandIndices)
+		val adjacency = ElementTopology.ofTriangles(7, twoIslandIndices).adjacency
 		assertEquals(setOf(0, 1, 2, 3), MeshTopology.connectedVertices(adjacency, 0), "the strip floods from vertex 0")
 		assertEquals(setOf(4, 5, 6), MeshTopology.connectedVertices(adjacency, 5), "the lone triangle floods from vertex 5")
 		assertEquals(emptySet(), MeshTopology.connectedVertices(adjacency, 99), "an out-of-range seed yields nothing")
@@ -128,7 +132,7 @@ class MeshTopologyTest {
 	/** selectionIslands splits by connectivity WITHIN the subset: an unselected bridge vertex separates islands. */
 	@Test
 	fun selectionIslandsSplitOnUnselectedBridges() {
-		val adjacency = MeshTopology.buildVertexAdjacency(7, twoIslandIndices)
+		val adjacency = ElementTopology.ofTriangles(7, twoIslandIndices).adjacency
 
 		// The whole strip selected is one island; adding the lone triangle's vertices makes a second.
 		val islands = MeshTopology.selectionIslands(adjacency, setOf(0, 1, 2, 3, 4, 5, 6))

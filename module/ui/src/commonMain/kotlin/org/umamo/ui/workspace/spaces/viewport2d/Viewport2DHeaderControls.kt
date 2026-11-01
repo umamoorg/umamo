@@ -30,10 +30,10 @@ import org.umamo.ui.workspace.spaces.sessionProportionalSizeField
 
 /**
  * The 2D viewport's space-specific header strip (mounted via SpaceDescriptor.headerContent): the
- * Object / Edit mode dropdown, the vertex / edge / face select-mode buttons (Edit mode), the transform
- * pivot dropdown, the snap menu, and the proportional-editing chip, whose panel's size row is the
- * session's world radius (Edit mode).  With no open document the chips render disabled rather than vanishing, so the viewport
- * chrome reads the same before the first file opens.
+ * Object / Edit / Pose mode dropdown, the vertex / edge / face select-mode buttons (Edit and Pose mode), the
+ * transform pivot dropdown, the snap menu, and the proportional-editing chip, whose panel's size row is the
+ * session's world radius (Edit and Pose mode).  With no open document the chips render disabled rather
+ * than vanishing, so the viewport chrome reads the same before the first file opens.
  *
  * Every control observes the session's own flows and mutates only by dispatching registry commands,
  * per the everything-through-the-action-registry rule - a rebind or palette invocation stays
@@ -67,7 +67,7 @@ fun OverflowRowScope.viewport2DHeaderControls(scope: AreaScope) {
 /**
  * The editor-mode selector, Blender-style: the button face is the current mode's icon plus its label
  * plus a chevron that points right while the menu is closed and down while it is open.  Clicking opens
- * a two-row menu (Object Mode / Edit Mode, each icon + label + bound-shortcut hint); choosing a row
+ * a three-row menu (Object / Edit / Pose Mode, each icon + label + bound-shortcut hint); choosing a row
  * dispatches the matching set-mode command.  The chip anatomy is the shared kit [DropdownChip], the
  * same face as the area header's AreaTypeDropdown so the header chips read as one family.
  */
@@ -82,12 +82,14 @@ private fun EditorModeDropdown() {
 		when (editorMode) {
 			EditorMode.Object -> LocalUmamoIcons.editorModeObject
 			EditorMode.Edit -> LocalUmamoIcons.editorModeEdit
+			EditorMode.Pose -> LocalUmamoIcons.editorModePose
 		}
 	// Resolved in composition because the chip's semantics lambda is not composable.
 	val currentLabel =
 		when (editorMode) {
 			EditorMode.Object -> stringResource(Res.string.cmd_mode_object)
 			EditorMode.Edit -> stringResource(Res.string.cmd_mode_edit)
+			EditorMode.Pose -> stringResource(Res.string.cmd_mode_pose)
 		}
 	var expanded by remember { mutableStateOf(false) }
 	// One row per mode; the menu's own dismiss closes the popup, so onSelect need not toggle `expanded`.
@@ -105,6 +107,12 @@ private fun EditorModeDropdown() {
 				onSelect = { commands.invoke("mode.edit") },
 				shortcut = keymap.chordFor("mode.edit")?.let { chord -> formatAccelerator(chord) },
 				icon = LocalUmamoIcons.editorModeEdit,
+			),
+			MenuItem.Action(
+				label = stringResource(Res.string.cmd_mode_pose),
+				onSelect = { commands.invoke("mode.pose") },
+				shortcut = keymap.chordFor("mode.pose")?.let { chord -> formatAccelerator(chord) },
+				icon = LocalUmamoIcons.editorModePose,
 			),
 		)
 	DropdownChip(

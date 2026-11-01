@@ -6,8 +6,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the history label every whole-gesture transform reports, across all three domains and every
- * [MeshOperatorKind].
+ * Pins the history label every object, mesh, and UV whole-gesture transform reports, across those three
+ * domains and every [MeshOperatorKind].
  *
  * Two things are being protected.  First, the domain has to be readable at a glance in the history panel -
  * an object transform, an Edit-mode mesh transform, and a UV transform must never share a label, which is
@@ -32,10 +32,10 @@ class TransformChangeLabelTest {
 	/** Object mode has no Vertex Slide of its own, so a slide reads as a plain move rather than an unmapped key. */
 	@Test
 	fun objectTransformLabelsPerOperator() {
-		assertEquals("change.object.move", MeshChange.TransformDrawables(drawableIds, MeshOperatorKind.Grab).labelKey)
-		assertEquals("change.object.scale", MeshChange.TransformDrawables(drawableIds, MeshOperatorKind.Scale).labelKey)
-		assertEquals("change.object.rotate", MeshChange.TransformDrawables(drawableIds, MeshOperatorKind.Rotate).labelKey)
-		assertEquals("change.object.move", MeshChange.TransformDrawables(drawableIds, MeshOperatorKind.VertexSlide).labelKey)
+		assertEquals("change.object.move", MeshChange.TransformObjects(drawableIds, MeshOperatorKind.Grab).labelKey)
+		assertEquals("change.object.scale", MeshChange.TransformObjects(drawableIds, MeshOperatorKind.Scale).labelKey)
+		assertEquals("change.object.rotate", MeshChange.TransformObjects(drawableIds, MeshOperatorKind.Rotate).labelKey)
+		assertEquals("change.object.move", MeshChange.TransformObjects(drawableIds, MeshOperatorKind.VertexSlide).labelKey)
 	}
 
 	/** The UV editor's slide is unimplemented (see TODO § UV Editor); until it lands it degrades to the move label. */
@@ -58,7 +58,7 @@ class TransformChangeLabelTest {
 			val keys =
 				setOf(
 					MeshChange.TransformVertices(vertexIndices, kind).labelKey,
-					MeshChange.TransformDrawables(drawableIds, kind).labelKey,
+					MeshChange.TransformObjects(drawableIds, kind).labelKey,
 					MeshChange.TransformUvs(vertexIndices, kind).labelKey,
 				)
 			assertEquals(3, keys.size, "$kind produced a shared label key across domains: $keys")
@@ -77,7 +77,7 @@ class TransformChangeLabelTest {
 	fun everyTransformIsUndoable() {
 		for (kind in MeshOperatorKind.entries) {
 			assertTrue(MeshChange.TransformVertices(vertexIndices, kind).undoability == Undoability.Undoable, "$kind vertices")
-			assertTrue(MeshChange.TransformDrawables(drawableIds, kind).undoability == Undoability.Undoable, "$kind drawables")
+			assertTrue(MeshChange.TransformObjects(drawableIds, kind).undoability == Undoability.Undoable, "$kind drawables")
 			assertTrue(MeshChange.TransformUvs(vertexIndices, kind).undoability == Undoability.Undoable, "$kind uvs")
 		}
 	}

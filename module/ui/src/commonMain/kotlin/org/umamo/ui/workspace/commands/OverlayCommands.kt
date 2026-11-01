@@ -68,6 +68,10 @@ internal fun overlayCommands(areaOverlays: AreaOverlayHub, routing: CommandRouti
 		Command("view.overlay.selectionTint", title = Res.string.cmd_view_overlay_selection_tint, availability = hasViewport, spaces = SpaceScope.Viewport2D) {
 			hovered2DOverlays()?.let { state -> state.showSelectionTint = !state.showSelectionTint }
 		},
+		// The deformer lattices are the 2D viewport's alone, like the selection tint: a UV editor shows no deformer.
+		Command("view.overlay.deformers", title = Res.string.cmd_view_overlay_deformers, availability = hasViewport, spaces = SpaceScope.Viewport2D) {
+			hovered2DOverlays()?.let { state -> state.showDeformers = !state.showDeformers }
+		},
 		// The wireframe is the 2D viewport's alone, like the axes: a UV editor's islands are its click targets
 		// and it offers no row for it, so this too flips only a hovered 2D viewport's flag.
 		Command("view.overlay.wireframe", title = Res.string.cmd_view_overlay_wireframe, availability = hasViewport, spaces = SpaceScope.Viewport2D) {

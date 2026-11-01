@@ -2,6 +2,7 @@ package org.umamo.edit.transform
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
@@ -55,7 +56,7 @@ internal fun editableUvCoverage(selection: MeshSelection, model: PuppetModel, sh
 			continue
 		}
 
-		val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), mesh.indices)
+		val covered = MeshTopology.coveredVertexIndices(selection.elementsOf(drawableId), ElementTopology.ofMesh(mesh))
 
 		if (covered.isEmpty()) {
 			continue
@@ -140,7 +141,7 @@ fun EditorSession.mirrorSelectedUvs(mirrorU: Boolean, frame: UvFrame? = null, sh
 		val frameUvs = frameUvsByDrawable.getValue(drawableId)
 		val groups =
 			if (sharedPivot == null) {
-				TransformPivots.islandGroups(frameUvs, covered, mesh.indices)
+				TransformPivots.islandGroups(frameUvs, covered, ElementTopology.ofMesh(mesh))
 			} else {
 				TransformPivots.sharedGroup(covered, sharedPivot.first, sharedPivot.second)
 			}
@@ -215,7 +216,7 @@ private fun EditorSession.resolveUvMirrorPivot(
 			val activeFrameUvs = active?.let { activeElement -> frameUvsByDrawable[activeElement.drawableId] }
 
 			if (active != null && activeMesh != null && activeFrameUvs != null) {
-				val activeCovered = MeshTopology.coveredVertexIndices(setOf(active.element), activeMesh.indices)
+				val activeCovered = MeshTopology.coveredVertexIndices(setOf(active.element), ElementTopology.ofMesh(activeMesh))
 
 				if (activeCovered.isNotEmpty()) {
 					return MeshTransforms.medianPivot(activeFrameUvs, activeCovered)

@@ -132,6 +132,9 @@ data class PuppetModel(
 	 * `equals`, `hashCode`, and `copy`.
 	 */
 	val partById: Map<PartId, Part> by lazy { parts.associateBy { part -> part.id } }
+
+	/** Every deformer by id, built once per model instance, for the same reasons as [partById]. */
+	val deformerById: Map<DeformerId, Deformer> by lazy { deformers.associateBy { deformer -> deformer.id } }
 }
 
 /**
@@ -336,32 +339,136 @@ data class Drawable(
  * @return Set<DrawableId> The ids of the drawables to draw.
  */
 fun PuppetModel.visibleDrawableIds(): Set<DrawableId> {
-	val partById = parts.associateBy { it.id }
-	val drawableById = drawables.associateBy { it.id }
+	val drawableById = drawables.associateBy { drawable -> drawable.id }
 	val shown = HashSet<DrawableId>()
 
+	walkOrgTree { child, ancestorsVisible ->
+		if (child is OrgChild.Drawable && ancestorsVisible && drawableById[child.id]?.isVisible == true) {
+			shown.add(child.id)
+		}
+	}
+
+	return shown
+}
+
+/**
+ * Walks the org tree from the root, handing [visit] each child with whether every part above it is visible: the one
+ * cascade both visibility queries read.  A part is visited and entered once, however many parents list it, and a part
+ * the model does not hold is visited but not entered.
+ *
+ * @param Function visit Called with each child and whether its ancestor parts are all visible.
+ */
+private fun PuppetModel.walkOrgTree(visit: (OrgChild, Boolean) -> Unit) {
+	val entered = HashSet<PartId>()
+
+	/**
+	 * Visits [children] and everything below them.
+	 *
+	 * @param List<OrgChild> children The children to walk.
+	 * @param Boolean ancestorsVisible Whether every part above them is visible.
+	 */
 	fun walk(children: List<OrgChild>, ancestorsVisible: Boolean) {
 		for (child in children) {
-			when (child) {
-				is OrgChild.Drawable -> {
-					val drawable = drawableById[child.id] ?: continue
+			if (child is OrgChild.Part && !entered.add(child.id)) {
+				continue
+			}
 
-					if (ancestorsVisible && drawable.isVisible) {
-						shown.add(child.id)
-					}
-				}
+			visit(child, ancestorsVisible)
 
-				is OrgChild.Part -> {
-					val part = partById[child.id] ?: continue
-					walk(part.children, ancestorsVisible && part.isVisible)
-				}
+			if (child is OrgChild.Part) {
+				val part = partById[child.id] ?: continue
+				walk(part.children, ancestorsVisible && part.isVisible)
 			}
 		}
 	}
 	walk(rootChildren, ancestorsVisible = true)
-
-	return shown
 }
+
+/**
+ * The deformers that are shown, after cascading the visibility toggles as [visibleDrawableIds] does for art: a
+ * deformer is shown only when its own [Deformer.isVisible] is set, every deformer above it in the transform
+ * hierarchy is shown, and the part it belongs to is shown with every ancestor part up the tree.  What the
+ * viewport draws over a deformer (a warp's lattice) follows it; the deformation itself does not, so the art
+ * under a hidden deformer still moves with it.
+ *
+ * A part the org tree does not reach is judged by its own toggle, and a parent deformer or part the model
+ * does not hold hides nothing.
+ *
+ * @return Set<DeformerId> The ids of the shown deformers.
+ */
+fun PuppetModel.visibleDeformerIds(): Set<DeformerId> {
+	val reached = HashSet<PartId>()
+	val shownParts = HashSet<PartId>()
+
+	walkOrgTree { child, ancestorsVisible ->
+		if (child is OrgChild.Part) {
+			reached.add(child.id)
+
+			if (ancestorsVisible && partById[child.id]?.isVisible == true) {
+				shownParts.add(child.id)
+			}
+		}
+	}
+	val shownById = HashMap<DeformerId, Boolean>()
+
+	/**
+	 * Whether [deformer] is shown, memoized: its own toggle, its part's, and its parent deformer's.
+	 *
+	 * @param Deformer deformer The deformer.
+	 * @param Int depth How far up the chain the walk is, which bounds a parent cycle.
+	 * @return Boolean True when shown.
+	 */
+	fun shown(deformer: Deformer, depth: Int): Boolean {
+		shownById[deformer.id]?.let { known -> return known }
+
+		val partId = deformer.partId
+		val partShown =
+			when {
+				partId == null -> true
+				partId in reached -> partId in shownParts
+				else -> partById[partId]?.isVisible ?: true
+			}
+		// A depth past the deformer count can only be a parent cycle, which the bake leaves out anyway.
+		val parent = deformer.parent?.let { parentId -> deformerById[parentId] }
+		val parentShown = parent == null || (depth < deformers.size && shown(parent, depth + 1))
+		val result = deformer.isVisible && partShown && parentShown
+		shownById[deformer.id] = result
+
+		return result
+	}
+
+	return deformers.filter { deformer -> shown(deformer, 0) }.mapTo(LinkedHashSet()) { deformer -> deformer.id }
+}
+
+/**
+ * Deformer [deformerId] and every ancestor the model holds, nearest first: the one walk up the transform hierarchy.
+ * It stops at a parent the model does not hold, which every consumer treats as the root, and at a parent cycle, which
+ * the deformation bake never builds - so a chain whose last deformer names a parent the model holds ended at a cycle.
+ *
+ * @param DeformerId deformerId The deformer the chain starts at.
+ * @return List<Deformer> The chain, the deformer itself first; empty when the model does not hold it.
+ */
+fun PuppetModel.deformerChain(deformerId: DeformerId): List<Deformer> {
+	val chain = ArrayList<Deformer>()
+	val visited = HashSet<DeformerId>()
+	var current = deformerById[deformerId]
+
+	while (current != null && visited.add(current.id)) {
+		chain.add(current)
+		current = current.parent?.let { parentId -> deformerById[parentId] }
+	}
+
+	return chain
+}
+
+/**
+ * Whether [chain] ([deformerChain]) ended at a parent cycle rather than at the root: its last deformer names a parent
+ * the model holds.
+ *
+ * @param List<Deformer> chain The chain.
+ * @return Boolean True when the walk was cut short by a cycle.
+ */
+fun PuppetModel.endsInCycle(chain: List<Deformer>): Boolean = chain.lastOrNull()?.parent?.let { parentId -> parentId in deformerById } ?: false
 
 /**
  * The owning part of each drawable, derived from the org tree (the drawable's parent in [rootChildren] /

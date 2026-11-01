@@ -305,23 +305,41 @@ class GlRenderDevice : RenderDevice {
 		GL15.glDeleteBuffers(glStore.buffer)
 	}
 
+	/**
+	 * Binds [vertexArray] and gives it attribute 0: [indices] uploaded to a buffer of its own, [componentsPerInstance]
+	 * integer indices per instance - an overlay domain's edges (2) or triangles (3).  The array stays bound, for the
+	 * caller to add its flag attribute.
+	 *
+	 * @param Int vertexArray The vertex array to fill.
+	 * @param IntArray indices The per-instance indices.
+	 * @param Int componentsPerInstance The indices per instance.
+	 * @return Int The index buffer.
+	 */
+	private fun bindInstancedIndices(vertexArray: Int, indices: IntArray, componentsPerInstance: Int): Int {
+		GL30.glBindVertexArray(vertexArray)
+		val buffer = uploadIntArrayBuffer(indices)
+		GL20.glEnableVertexAttribArray(0)
+		GL30.glVertexAttribIPointer(0, componentsPerInstance, GL11.GL_INT, componentsPerInstance * Int.SIZE_BYTES, 0L)
+		GL33.glVertexAttribDivisor(0, 1)
+
+		return buffer
+	}
+
 	override fun createOverlayMeshBuffers(spec: OverlayMeshSpec): OverlayMeshBuffers {
 		val edgeCount = spec.edgeEndpoints.size / 2
 		val faceCount = spec.faceCorners.size / 3
 		val vertexCount = spec.vertexFlags.size
 		check(spec.edgeFlags.size == edgeCount) { "one edge flag per edge: ${spec.edgeFlags.size} flags for $edgeCount edges" }
 		check(spec.faceFlags.size == faceCount) { "one face flag per triangle: ${spec.faceFlags.size} flags for $faceCount triangles" }
+		check(spec.faceDotCorners == null || spec.faceDotCorners.size == spec.faceCorners.size) { "one face-dot triangle per face triangle" }
+		check(spec.vertexDotCount in 0..vertexCount) { "${spec.vertexDotCount} vertex dots for $vertexCount vertices" }
 		var edgeVao = 0
 		var edgeVbo = 0
 		var edgeFlagVbo = 0
 
 		if (edgeCount > 0) {
 			edgeVao = GL30.glGenVertexArrays()
-			GL30.glBindVertexArray(edgeVao)
-			edgeVbo = uploadIntArrayBuffer(spec.edgeEndpoints)
-			GL20.glEnableVertexAttribArray(0)
-			GL30.glVertexAttribIPointer(0, 2, GL11.GL_INT, 2 * Int.SIZE_BYTES, 0L)
-			GL33.glVertexAttribDivisor(0, 1)
+			edgeVbo = bindInstancedIndices(edgeVao, spec.edgeEndpoints, 2)
 			edgeFlagVbo = uploadFlagBuffer(spec.edgeFlags)
 			bindFlagAttribute()
 		}
@@ -332,12 +350,20 @@ class GlRenderDevice : RenderDevice {
 
 		if (faceCount > 0) {
 			faceVao = GL30.glGenVertexArrays()
-			GL30.glBindVertexArray(faceVao)
-			faceVbo = uploadIntArrayBuffer(spec.faceCorners)
-			GL20.glEnableVertexAttribArray(0)
-			GL30.glVertexAttribIPointer(0, 3, GL11.GL_INT, 3 * Int.SIZE_BYTES, 0L)
-			GL33.glVertexAttribDivisor(0, 1)
+			faceVbo = bindInstancedIndices(faceVao, spec.faceCorners, 3)
 			faceFlagVbo = uploadFlagBuffer(spec.faceFlags)
+			bindFlagAttribute()
+		}
+
+		var faceDotVao = 0
+		var faceDotVbo = 0
+		val faceDotCorners = spec.faceDotCorners
+
+		// The face dots' own corners, over the face flags already uploaded, so a flag update reaches both.
+		if (faceCount > 0 && faceDotCorners != null) {
+			faceDotVao = GL30.glGenVertexArrays()
+			faceDotVbo = bindInstancedIndices(faceDotVao, faceDotCorners, 3)
+			GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, faceFlagVbo)
 			bindFlagAttribute()
 		}
 
@@ -353,7 +379,22 @@ class GlRenderDevice : RenderDevice {
 
 		GL30.glBindVertexArray(0)
 
-		return GlOverlayMeshBuffers(edgeVao, edgeVbo, edgeFlagVbo, edgeCount, faceVao, faceVbo, faceFlagVbo, faceCount, vertexVao, vertexFlagVbo, vertexCount)
+		return GlOverlayMeshBuffers(
+			edgeVao,
+			edgeVbo,
+			edgeFlagVbo,
+			edgeCount,
+			faceVao,
+			faceVbo,
+			faceFlagVbo,
+			faceCount,
+			vertexVao,
+			vertexFlagVbo,
+			vertexCount,
+			faceDotVao,
+			faceDotVbo,
+			spec.vertexDotCount,
+		)
 	}
 
 	override fun updateOverlayMeshFlags(buffers: OverlayMeshBuffers, vertexFlags: ByteArray, edgeFlags: ByteArray, faceFlags: ByteArray) {
@@ -378,13 +419,13 @@ class GlRenderDevice : RenderDevice {
 	override fun destroyOverlayMeshBuffers(buffers: OverlayMeshBuffers) {
 		val glBuffers = buffers as GlOverlayMeshBuffers
 
-		for (vao in intArrayOf(glBuffers.edgeVao, glBuffers.faceVao, glBuffers.vertexVao)) {
+		for (vao in intArrayOf(glBuffers.edgeVao, glBuffers.faceVao, glBuffers.faceDotVao, glBuffers.vertexVao)) {
 			if (vao != 0) {
 				GL30.glDeleteVertexArrays(vao)
 			}
 		}
 
-		for (vbo in intArrayOf(glBuffers.edgeVbo, glBuffers.edgeFlagVbo, glBuffers.faceVbo, glBuffers.faceFlagVbo, glBuffers.vertexFlagVbo)) {
+		for (vbo in intArrayOf(glBuffers.edgeVbo, glBuffers.edgeFlagVbo, glBuffers.faceVbo, glBuffers.faceFlagVbo, glBuffers.faceDotVbo, glBuffers.vertexFlagVbo)) {
 			if (vbo != 0) {
 				GL15.glDeleteBuffers(vbo)
 			}

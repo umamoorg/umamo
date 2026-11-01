@@ -23,8 +23,8 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
-import org.umamo.runtime.model.invertUvAffine
+import org.umamo.runtime.model.applyAffine
+import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 
 /**
@@ -96,9 +96,9 @@ internal object RegenerationFixtures {
 	 */
 	fun storedUvsOf(atlas: PuppetAtlas, artPoints: FloatArray): FloatArray {
 		val artUvs = FloatArray(artPoints.size) { component -> artPoints[component] / TILE_SIZE }
-		val artToStored = invertUvAffine(atlas.storedToArtAffineForTile(tileId)!!)!!
+		val artToStored = invertAffine(atlas.storedToArtAffineForTile(tileId)!!)!!
 
-		return applyUvAffine(artUvs, artToStored)
+		return applyAffine(artUvs, artToStored)
 	}
 
 	/**

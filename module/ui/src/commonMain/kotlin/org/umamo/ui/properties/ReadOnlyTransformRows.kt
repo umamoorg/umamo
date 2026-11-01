@@ -17,15 +17,15 @@ import org.umamo.ui.kit.field.FieldStack
 import org.umamo.ui.kit.field.NumberField
 import org.umamo.ui.kit.field.PropertyFieldRow
 import org.umamo.ui.resources.*
-import org.umamo.ui.transform.WorldExtent
 import org.umamo.ui.transform.partWorldBounds
 
 /*
- * The Transform rows of a part and of a deformer: where each sits at the shown pose, read-only until parts and
- * deformers can be moved from the panel.  A part is placed by the drawables it holds and a warp by its lattice,
- * each as Position and Size like a drawable; a rotation by its pivot, with its own Angle and Scale beside the
- * Base Angle that stays editable (DeformerBaseAngleField).  Like the drawable rows, each row resolves the pose
- * in the composition, so a pose scrub or a mode switch moves the numbers without the model changing.
+ * The Transform rows of a part and of a rotation deformer: where each sits at the shown pose, read-only until they
+ * can be moved from the panel.  A part is placed by the drawables it holds, as Position and Size like a drawable; a
+ * rotation by its pivot, with its own Angle and Scale beside the Base Angle that stays editable
+ * (DeformerBaseAngleField).  A warp's rows are editable (ObjectTabSections.kt).  Like the drawable rows, each row
+ * resolves the pose in the composition, so a pose scrub or a mode switch moves the numbers without the model
+ * changing.
  */
 
 /**
@@ -50,15 +50,6 @@ private val PART_BOUNDS_TEXT =
 		Res.string.properties_part_position_z_description,
 		Res.string.properties_part_size_x_description,
 		Res.string.properties_part_size_z_description,
-	)
-
-/** A warp's descriptions: the bounds of its lattice. */
-private val WARP_BOUNDS_TEXT =
-	BoundsRowText(
-		Res.string.properties_warp_position_x_description,
-		Res.string.properties_warp_position_z_description,
-		Res.string.properties_warp_size_x_description,
-		Res.string.properties_warp_size_z_description,
 	)
 
 /**
@@ -92,25 +83,6 @@ internal fun PartTransformRows(context: PropertyContext, partId: PartId, showSiz
 	// lets the Position row and the Size row share that one capture.
 	val bounds = remember(context.puppet, shownPose, partId) { context.partBoundsMemo.boundsOf(context.puppet, shownPose, partId) }
 	ReadOnlyBoundsRows(context.puppet, bounds, showSize, PART_BOUNDS_TEXT)
-}
-
-/**
- * One of a warp deformer's two Transform rows: the Position pair or the Size pair of its lattice.
- *
- * @param PropertyContext context The row's context (its session supplies the live pose).
- * @param DeformerId deformerId The shown warp.
- * @param Boolean showSize False for the Position pair, true for the Size pair.
- */
-@Composable
-internal fun WarpTransformRows(context: PropertyContext, deformerId: DeformerId, showSize: Boolean) {
-	val shownPose = rememberShownPose(context)
-	val bounds =
-		remember(context.puppet, shownPose, deformerId) {
-			(deformerPlacement(context.puppet, shownPose, deformerId) as? DeformerPlacement.Warp)?.let { lattice ->
-				WorldExtent(lattice.worldMinX, lattice.worldMinZ, lattice.worldMaxX, lattice.worldMaxZ).toMeshBounds()
-			}
-		}
-	ReadOnlyBoundsRows(context.puppet, bounds, showSize, WARP_BOUNDS_TEXT)
 }
 
 /**

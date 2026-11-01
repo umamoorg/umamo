@@ -37,3 +37,26 @@ internal fun pointExtentOf(points: FloatArray): PointExtent? {
 
 	return PointExtent(minX, minY, maxX, maxY)
 }
+
+/**
+ * The box around the points of every entry of [pointsByKey] that [keys] lists, in the points' own space: the one
+ * sweep a framing box is measured by, whatever the points belong to.
+ *
+ * @param Map<Key, FloatArray> pointsByKey Interleaved (x, y) points per object.
+ * @param Set<Key> keys The objects to measure.
+ * @return PointExtent? The box, or null when no listed object has a whole point.
+ */
+internal fun <Key> listedPointsExtent(pointsByKey: Map<Key, FloatArray>, keys: Set<Key>): PointExtent? {
+	var extent: PointExtent? = null
+
+	for ((key, points) in pointsByKey) {
+		if (key !in keys) {
+			continue
+		}
+
+		val own = pointExtentOf(points) ?: continue
+		extent = extent?.let { held -> PointExtent(minOf(held.minX, own.minX), minOf(held.minY, own.minY), maxOf(held.maxX, own.maxX), maxOf(held.maxY, own.maxY)) } ?: own
+	}
+
+	return extent
+}

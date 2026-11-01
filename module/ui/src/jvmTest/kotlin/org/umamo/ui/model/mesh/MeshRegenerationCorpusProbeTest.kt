@@ -29,7 +29,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.drawableIdsByAtlasTile
 import org.umamo.runtime.model.storedToArtAffineForTile
 import java.io.File
@@ -320,8 +320,8 @@ class MeshRegenerationCorpusProbeTest {
 		val tileId: AtlasTileId = drawable.atlasTileId!!
 		val tile = model.atlas.tileById.getValue(tileId)
 		val storedToArt = model.atlas.storedToArtAffineForTile(tileId)!!
-		val oldPoints = artPixels(applyUvAffine(oldMesh.uvs, storedToArt), tile.width, tile.height)
-		val newPoints = artPixels(applyUvAffine(newMesh.uvs, storedToArt), tile.width, tile.height)
+		val oldPoints = artPixels(applyAffine(oldMesh.uvs, storedToArt), tile.width, tile.height)
+		val newPoints = artPixels(applyAffine(newMesh.uvs, storedToArt), tile.width, tile.height)
 		val locator = TriangleLocator(oldPoints, oldMesh.indices)
 
 		return vertices.map { vertex -> locator.locate(newPoints[2 * vertex].toDouble(), newPoints[2 * vertex + 1].toDouble())?.distance ?: Double.NaN }

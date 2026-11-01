@@ -122,7 +122,17 @@ class CommandTableOrderTest {
 		)
 		assertEquals(listOf("frame.all"), frameCommands(CommandRegistry(), routing()).map { command -> command.id })
 		assertEquals(
-			listOf("view.overlay.all", "view.overlay.grid", "view.overlay.axes", "view.overlay.cursor", "view.overlay.info", "view.overlay.selectionTint", "view.overlay.wireframe", "view.overlay.wireframeCulling"),
+			listOf(
+				"view.overlay.all",
+				"view.overlay.grid",
+				"view.overlay.axes",
+				"view.overlay.cursor",
+				"view.overlay.info",
+				"view.overlay.selectionTint",
+				"view.overlay.deformers",
+				"view.overlay.wireframe",
+				"view.overlay.wireframeCulling",
+			),
 			overlayCommands(AreaOverlayHub(), routing(), viewportPresent = false).map { command -> command.id },
 		)
 	}
@@ -131,7 +141,7 @@ class CommandTableOrderTest {
 	@Test
 	fun modeTableIsComplete() {
 		assertEquals(
-			listOf("select.clear", "mode.toggleEdit", "mode.object", "mode.edit"),
+			listOf("select.clear", "mode.toggleEdit", "mode.togglePose", "mode.object", "mode.edit", "mode.pose"),
 			modeCommands(null, null).map { command -> command.id },
 		)
 	}
@@ -155,6 +165,7 @@ class CommandTableOrderTest {
 				uvCommands(null, routing, availability) +
 				topologyCommands(null, routing, availability) +
 				meshGenerationCommands(availability, routing, null, null) +
+				latticeCommands(null, routing, availability) +
 				proportionalCommands(null, availability) +
 				displayCommands(null, availability) +
 				atlasCommands(availability, routing, null)
@@ -219,6 +230,8 @@ class CommandTableOrderTest {
 				"mesh.vertexSlide",
 				"mesh.generateFromArt",
 				"mesh.generateQuad",
+				"lattice.subdivide",
+				"deformer.createWarp",
 				"mesh.proportional.toggle",
 				"mesh.proportional.connectedToggle",
 				"mesh.proportional.falloff.smooth",
@@ -490,6 +503,12 @@ class CommandTableOrderTest {
 			listOf(
 				"keyform.insert",
 				"keyform.delete",
+				"keyform.insertPie",
+				"keyform.insert.lattice",
+				"keyform.insert.opacity",
+				"keyform.insert.colors",
+				"keyform.insert.all",
+				"keyform.clearPoseEdits",
 				"keyform.deleteSelectedKeys",
 				"keyform.nudgeKeyLeft",
 				"keyform.nudgeKeyRight",

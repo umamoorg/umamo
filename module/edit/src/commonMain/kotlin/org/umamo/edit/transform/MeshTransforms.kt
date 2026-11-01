@@ -196,76 +196,73 @@ object MeshTransforms {
 	}
 
 	/**
-	 * Translates the weighted vertices by their share of ([deltaX], [deltaY]) - the proportional-editing
-	 * companion of [translateVertices]: a weight of 1 moves fully, 0.5 half way.
+	 * Translates the influenced vertices by their share of ([deltaX], [deltaY]) - the proportional-editing
+	 * companion of [translateVertices]: a weight of 1 moves fully, 0.5 half way.  A translation has no pivot,
+	 * so the influences' pivots go unread.
 	 *
 	 * @param FloatArray positions The interleaved mesh positions.
-	 * @param Map<Int, Float> weights Vertex index to influence weight in [0, 1].
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1]).
 	 * @param Float deltaX The full x offset (each vertex takes weight x this).
 	 * @param Float deltaY The full y offset.
-	 * @return FloatArray A new positions array with the weighted vertices moved.
+	 * @return FloatArray A new positions array with the influenced vertices moved.
 	 */
-	fun translateVerticesWeighted(positions: FloatArray, weights: Map<Int, Float>, deltaX: Float, deltaY: Float): FloatArray {
+	fun translateVerticesWeighted(positions: FloatArray, influences: Map<Int, ProportionalInfluence>, deltaX: Float, deltaY: Float): FloatArray {
 		val result = positions.copyOf()
 
-		for ((vertexIndex, weight) in weights) {
-			result[vertexIndex * 2] += deltaX * weight
-			result[vertexIndex * 2 + 1] += deltaY * weight
+		for ((vertexIndex, influence) in influences) {
+			result[vertexIndex * 2] += deltaX * influence.weight
+			result[vertexIndex * 2 + 1] += deltaY * influence.weight
 		}
 
 		return result
 	}
 
 	/**
-	 * Scales the weighted vertices about the pivot by their share of the per-axis factors - the
-	 * proportional-editing companion of [scaleVerticesAxis]: each vertex lerps from its current position
-	 * toward its fully-scaled position by its weight (equivalently, its effective factor per axis is
+	 * Scales the influenced vertices by their share of the per-axis factors, each about its own influence's
+	 * pivot - the proportional-editing companion of [scaleVerticesAxis]: each vertex lerps from its current
+	 * position toward its fully-scaled position by its weight (equivalently, its effective factor per axis is
 	 * 1 + (factor - 1) x weight).
 	 *
 	 * @param FloatArray positions The interleaved mesh positions.
-	 * @param Map<Int, Float> weights Vertex index to influence weight in [0, 1].
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot).
 	 * @param Float factorX The full scale factor along x.
 	 * @param Float factorY The full scale factor along y.
-	 * @param Float pivotX The pivot x (the scale anchor).
-	 * @param Float pivotY The pivot y.
-	 * @return FloatArray A new positions array with the weighted vertices scaled.
+	 * @return FloatArray A new positions array with the influenced vertices scaled.
 	 */
-	fun scaleVerticesWeighted(positions: FloatArray, weights: Map<Int, Float>, factorX: Float, factorY: Float, pivotX: Float, pivotY: Float): FloatArray {
+	fun scaleVerticesWeighted(positions: FloatArray, influences: Map<Int, ProportionalInfluence>, factorX: Float, factorY: Float): FloatArray {
 		val result = positions.copyOf()
 
-		for ((vertexIndex, weight) in weights) {
+		for ((vertexIndex, influence) in influences) {
 			val x = result[vertexIndex * 2]
 			val y = result[vertexIndex * 2 + 1]
-			result[vertexIndex * 2] = pivotX + (x - pivotX) * (1f + (factorX - 1f) * weight)
-			result[vertexIndex * 2 + 1] = pivotY + (y - pivotY) * (1f + (factorY - 1f) * weight)
+			result[vertexIndex * 2] = influence.pivotX + (x - influence.pivotX) * (1f + (factorX - 1f) * influence.weight)
+			result[vertexIndex * 2 + 1] = influence.pivotY + (y - influence.pivotY) * (1f + (factorY - 1f) * influence.weight)
 		}
 
 		return result
 	}
 
 	/**
-	 * Rotates the weighted vertices about the pivot by their share of [radians] - the
+	 * Rotates the influenced vertices by their share of [radians], each about its own influence's pivot - the
 	 * proportional-editing companion of [rotateVertices].  The ANGLE is weighted (a half-weight vertex
 	 * turns half the angle along the arc), not the endpoint position: lerping positions would cut the
 	 * chord and collapse the falloff ring toward the pivot on large rotations.
 	 *
 	 * @param FloatArray positions The interleaved mesh positions.
-	 * @param Map<Int, Float> weights Vertex index to influence weight in [0, 1].
+	 * @param Map<Int, ProportionalInfluence> influences Vertex index to its influence (weight in [0, 1], pivot).
 	 * @param Float radians The full rotation angle in radians (each vertex turns weight x this).
-	 * @param Float pivotX The pivot x (the rotation center).
-	 * @param Float pivotY The pivot y.
-	 * @return FloatArray A new positions array with the weighted vertices rotated.
+	 * @return FloatArray A new positions array with the influenced vertices rotated.
 	 */
-	fun rotateVerticesWeighted(positions: FloatArray, weights: Map<Int, Float>, radians: Float, pivotX: Float, pivotY: Float): FloatArray {
+	fun rotateVerticesWeighted(positions: FloatArray, influences: Map<Int, ProportionalInfluence>, radians: Float): FloatArray {
 		val result = positions.copyOf()
 
-		for ((vertexIndex, weight) in weights) {
-			val cosAngle = cos(radians * weight)
-			val sinAngle = sin(radians * weight)
-			val offsetX = result[vertexIndex * 2] - pivotX
-			val offsetY = result[vertexIndex * 2 + 1] - pivotY
-			result[vertexIndex * 2] = pivotX + offsetX * cosAngle - offsetY * sinAngle
-			result[vertexIndex * 2 + 1] = pivotY + offsetX * sinAngle + offsetY * cosAngle
+		for ((vertexIndex, influence) in influences) {
+			val cosAngle = cos(radians * influence.weight)
+			val sinAngle = sin(radians * influence.weight)
+			val offsetX = result[vertexIndex * 2] - influence.pivotX
+			val offsetY = result[vertexIndex * 2 + 1] - influence.pivotY
+			result[vertexIndex * 2] = influence.pivotX + offsetX * cosAngle - offsetY * sinAngle
+			result[vertexIndex * 2 + 1] = influence.pivotY + offsetX * sinAngle + offsetY * cosAngle
 		}
 
 		return result

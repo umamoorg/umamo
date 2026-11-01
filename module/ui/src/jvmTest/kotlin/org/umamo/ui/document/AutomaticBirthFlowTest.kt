@@ -23,7 +23,7 @@ import org.umamo.interop.art.mesh.meshCoversOpaquePixels
 import org.umamo.runtime.model.ArtSourceId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.ui.model.artwork.AddArtworkRequest
 import org.umamo.ui.model.artwork.ImportParameterKeys
@@ -103,7 +103,7 @@ class AutomaticBirthFlowTest {
 	 */
 	private fun coversItsArt(model: PuppetModel, drawable: Drawable, raster: LayerRaster, alphaThreshold: Int): Boolean {
 		val mesh = assertNotNull(drawable.mesh)
-		val artUvs = applyUvAffine(mesh.uvs, assertNotNull(model.atlas.storedToArtAffineForTile(assertNotNull(drawable.atlasTileId))))
+		val artUvs = applyAffine(mesh.uvs, assertNotNull(model.atlas.storedToArtAffineForTile(assertNotNull(drawable.atlasTileId))))
 		val artPoints = FloatArray(artUvs.size) { component -> artUvs[component] * if (component % 2 == 0) raster.width else raster.height }
 
 		return meshCoversOpaquePixels(raster.alphaChannel(), alphaThreshold, artPoints, mesh.indices)

@@ -1,5 +1,5 @@
 ---
-description: Sweep a branch's changed files against a base ref and fix comments/docblocks that no longer describe current code — stale claims, leftover planning/phase language, bug-narrative diary comments, irrelevant comparisons to unrelated tools/projects, wrong CMO3/MOC3 field citations, and incomplete docblocks. Batches large branches across parallel background agents. Use when asked to "clean up comments," "fix comments on this branch," or before merging a branch that accumulated debugging-session comment cruft.
+description: Sweep a branch's changed files against a base ref and fix comments/docblocks that no longer describe current code — stale claims, leftover planning/phase language, bug-narrative diary comments, irrelevant comparisons to unrelated tools/projects, wrong CMO3/MOC3 field citations, incomplete docblocks, and bloated docblocks that narrate a function's whole body instead of stating its purpose. Batches large branches across parallel background agents. Use when asked to "clean up comments," "fix comments on this branch," or before merging a branch that accumulated debugging-session comment cruft.
 argument-hint: [base-ref]
 ---
 
@@ -43,14 +43,14 @@ targeted diff, and re-reviewing already-clean content wastes the pass.
 
 Every delegated agent prompt must include, verbatim or adapted:
 - The exact file list for its batch (absolute repo-relative paths).
-- The seven categories from §3, each with the concrete calibration example from §5.
+- The eight categories from §3, each with the concrete calibration example from §5.
 - The explicit "what not to do" list from §4.
 - An instruction to flag suspected real code bugs as `POSSIBLE CODE BUG: file:line — reason`
   instead of fixing them.
 - A word budget on the final report (400–700 words depending on batch size) so N parallel reports
   don't blow the orchestrating session's context on consolidation.
 
-## 3. What counts as a fix (seven categories)
+## 3. What counts as a fix (eight categories)
 
 **(A) Staleness.** A comment/docblock describes behavior, a signature, a nullability, a module
 location, or a control-flow path that no longer matches the code beneath it. Includes dangling
@@ -136,11 +136,41 @@ in CLAUDE.md), not a rhetorical aside about an unrelated project. The test is wh
 project is the thing this code interoperates with or is bounded by (Cubism/CMO3/MOC3 for this
 codebase), not whether a proper noun appears in the sentence.
 
+**(H) Narrating docblocks.** A function docblock states the function's overall purpose: what it is
+for, in a sentence or two, plus its tags. It does not walk through the body — every branch, refusal,
+fallback, and edge case in turn. That walkthrough tends to grow one appended clause per feature until
+the docblock is as long as the code it sits on, and it duplicates (and soon contradicts) the body.
+Complex behavior that needs explaining gets sparse inline comments at the code that implements it,
+not a paragraph up top. Signs: the prose rivals the body in length, it enumerates the arms of a
+`when` below it, or this branch appended yet another clause to an already long paragraph.
+
+Fix by cutting the docblock down to its purpose. Before deleting a detail, check that it is either
+plain from the code or already covered by an inline comment; if a genuinely non-obvious *why* would
+be lost, move it into one short inline comment at the line it explains rather than keeping it in the
+docblock. Example fix applied in this project (`EditorSession.setMode`, whose body already carries
+inline comments for the Edit refusal, the Pose refusal, the return mode, and the stash):
+
+```
+- * Sets the interaction mode as its own undo step, so undo restores the mode (and the selections
+- * it seeds) together - the editor never lands in Edit mode showing a state captured in Object mode.
+- * Entering Edit seeds the session by the active item's kind ([editEntryOf]): an active warp opens on EVERY
+- * selected warp Edit mode can shape; otherwise the session takes EVERY selected mesh-carrying drawable
+- * ... (nine more lines: fallbacks, refusals, stash/restore, Pose seeding, select mode, pending edits) ...
+- * the document. A no-op (already in [mode]) records nothing.
++ * Sets the interaction mode as its own undo step, so undo restores the mode (and the selections
++ * it seeds) together.
+```
+
+The same test applies to a class docblock that narrates each member's behavior instead of saying what
+the class is for. It does NOT apply to a file-level map of a package's files, a test class docblock
+listing the behaviors it pins, or the dated "KNOWN GAP" notes protected under (C).
+
 ## 4. What not to do
 
 - No code-logic changes. Comment, docblock, and pure-whitespace text only.
 - Don't add new comments/docblocks to undocumented functions.
-- Don't "improve" already-accurate comments for style alone.
+- Don't "improve" already-accurate comments for style alone.  Cutting a narrating docblock under (H)
+  is not a style edit — an accurate walkthrough of the body is still a fix target.
 - Don't shorten legitimate dated investigative documentation just because it's long (see the (C)
   exception above).
 - Don't touch files outside the assigned scope/batch.
@@ -150,7 +180,7 @@ codebase), not whether a proper noun appears in the sentence.
 
 ## 5. Calibrate before delegating
 
-Read one file yourself, find one real instance of category (A) or (B), fix it, and keep the exact
+Read one file yourself, find one real instance of category (A), (B), or (H), fix it, and keep the exact
 before/after diff. Paste that verbatim into every batch's agent prompt as "here's a fix I already
 made for calibration — read the file yourself since it won't show in `git diff` yet." This is what
 keeps parallel agents from either being too aggressive (rewriting fine comments for style) or too
@@ -168,8 +198,10 @@ timid (leaving real staleness because it wasn't a 100% textual match to the exam
   done
   ```
 - Sanity-check the aggregate diff: `git diff --stat` should show a comment-sized insert/delete
-  ratio (roughly 1:1, small numbers) — a large net line-count change means something drifted into
-  code edits.
+  ratio (roughly 1:1, small numbers, or deletion-heavy where (H) trimmed docblocks) — a large net
+  insertion means something drifted into code edits.  Confirm every changed line is a comment line:
+  `git diff -U0 | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -vE '^[+-]\s*(\*|/\*\*|\*/|//)'`
+  should print nothing.
 - If a fix touches control flow that a report only weakly implied should change (e.g. a stale
   comment that was ALSO a real duplicate-notice bug), don't fix the logic unasked — report it, and
   wait for explicit approval before removing/changing behavior (see the `Cmo3PropertyLowering`

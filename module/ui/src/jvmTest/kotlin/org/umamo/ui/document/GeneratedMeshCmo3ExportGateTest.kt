@@ -29,7 +29,7 @@ import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.runtime.model.applyUvAffine
+import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.drawableIdsByAtlasTile
 import org.umamo.runtime.model.storedToArtAffineForTile
 import org.umamo.ui.model.SessionAtlasPages
@@ -595,7 +595,7 @@ class GeneratedMeshCmo3ExportGateTest {
 	 */
 	private fun artPointsOf(model: PuppetModel, drawableId: DrawableId): FloatArray? {
 		val tile = model.atlas.tileById.getValue(meshTileOf(model, drawableId))
-		val artUvs = applyUvAffine(meshOf(model, drawableId).uvs, model.atlas.storedToArtAffineForTile(tile.id) ?: return null)
+		val artUvs = applyAffine(meshOf(model, drawableId).uvs, model.atlas.storedToArtAffineForTile(tile.id) ?: return null)
 
 		return FloatArray(artUvs.size) { component -> artUvs[component] * if (component % 2 == 0) tile.width else tile.height }
 	}

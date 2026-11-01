@@ -161,11 +161,24 @@ fun EditorSession.commitMeshPositions(change: MeshChange, restByDrawable: Map<Dr
  * marks the document dirty; a no-op (every array unchanged / mismatched, so the fold returns the same
  * instance) records nothing.
  *
- * @param MeshChange change The edit descriptor (a [MeshChange.TransformDrawables]).
+ * @param MeshChange change The edit descriptor (a [MeshChange.TransformObjects]).
  * @param Map<DrawableId, MeshRestPositions> restByDrawable Each moved drawable's committed rest shape.
  */
 fun EditorSession.commitObjectPositions(change: MeshChange, restByDrawable: Map<DrawableId, MeshRestPositions>) {
 	mutate(change) { current -> current.withMeshPositions(restByDrawable) }
+}
+
+/**
+ * Commits an Object-mode transform that moves warps - with or without drawables - as ONE undo step.  A warp's new
+ * forms come from the evaluator (each one mapped through its parent), which :edit cannot see, so the caller hands
+ * over the whole transformed model and this records it.  A model edit, so it marks the document dirty; the same
+ * instance records nothing.
+ *
+ * @param MeshChange.TransformObjects change The edit descriptor.
+ * @param PuppetModel transformed The model with every moved object in place.
+ */
+fun EditorSession.commitObjectTransform(change: MeshChange.TransformObjects, transformed: PuppetModel) {
+	mutate(change) { transformed }
 }
 
 /**
