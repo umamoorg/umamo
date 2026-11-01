@@ -8,6 +8,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.ActiveMeshInfoLabel
+import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.ModalOperatorBadge
 import org.umamo.ui.viewport.ViewportZoomBadge
@@ -15,9 +16,9 @@ import kotlin.math.roundToInt
 
 /**
  * The viewport HUD layer: informational chrome drawn over every other overlay - the modal-operator
- * status badge (operator name plus the axis lock), the top-left active-mesh info chip, and the
- * bottom-left zoom readout.  Draw-only - it installs no pointer input, so it can sit topmost without
- * stealing gestures from the gizmo overlays.  The 2D cursor is a control marker, not HUD chrome, and
+ * status badge (operator name plus the axis lock), the depth turn's bottom-right inset, the top-left
+ * active-mesh info chip, and the bottom-left zoom readout.  Draw-only - it installs no pointer input, so
+ * it can sit topmost without stealing gestures from the gizmo overlays.  The 2D cursor is a control marker, not HUD chrome, and
  * draws in its own sibling overlay (Cursor2dOverlay.kt); near-cursor notices live at the shell level
  * (ShellCursorOverlays.kt), where one instance escapes area bounds and follows the pointer across
  * areas without duplicating.
@@ -63,6 +64,21 @@ fun ViewportHudOverlay(
 			proportionalRadius = if (showProportional) proportionalState.radiusWorld.roundToInt() else null,
 			modifier = modifier,
 		)
+	}
+
+	// The depth turn's inset (bottom right): the initiating area's Rotate turning in depth about a locked axis.  The
+	// latch publishes its depth flag before the operator, so composing on the operator reads it settled, and only a
+	// shown inset collects the depth.
+	val liveMeshOperator = meshOperator
+
+	if (
+		liveMeshOperator != null &&
+		liveMeshOperator.areaId == areaId &&
+		axisConstraint != null &&
+		session.meshOperatorTurnsInDepth(liveMeshOperator.kind)
+	) {
+		val pivotDepth by session.pivotDepth.collectAsState()
+		PivotDepthInset(pivotDepth = pivotDepth, gridScale = LocalAreaOverlays.current?.grid?.scale ?: GridConfig().scale, modifier = modifier)
 	}
 
 	// The area-wide info chips: the top-left active-mesh label and the bottom-left zoom readout.  The

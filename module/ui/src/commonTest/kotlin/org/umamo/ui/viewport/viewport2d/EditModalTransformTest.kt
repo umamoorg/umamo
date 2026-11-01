@@ -177,7 +177,7 @@ class EditModalTransformTest {
 		rig.latch(MeshOperatorKind.Grab)
 		rig.driveTo(Offset(240f, 150f))
 
-		rig.transform.onScroll(-1f, RIG_CAMERA, RIG_AREA_SIZE)
+		rig.transform.onScroll(-1f, primaryHeld = false, RIG_CAMERA, RIG_AREA_SIZE)
 
 		assertEquals(10f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(session.proportionalEdit.value).radiusWorld, 1e-4f)
 		assertEquals(2, rig.pushed.size, "the scroll drove a second preview")
@@ -197,7 +197,7 @@ class EditModalTransformTest {
 				rig.latch(MeshOperatorKind.VertexSlide, rigScreenOf(0f, 0f))
 			}
 
-			rig.transform.onScroll(-1f, RIG_CAMERA, RIG_AREA_SIZE)
+			rig.transform.onScroll(-1f, primaryHeld = false, RIG_CAMERA, RIG_AREA_SIZE)
 
 			assertEquals(10f, assertNotNull(session.proportionalEdit.value).radiusWorld, "suppressed = $suppressed")
 			assertTrue(rig.pushed.isEmpty(), "suppressed = $suppressed")
@@ -421,7 +421,7 @@ class EditModalTransformTest {
 			rig.driveTo(Offset(240f, 150f))
 			runCurrent()
 
-			rig.transform.onScroll(-1f, RIG_CAMERA, RIG_AREA_SIZE)
+			rig.transform.onScroll(-1f, primaryHeld = false, RIG_CAMERA, RIG_AREA_SIZE)
 
 			assertEquals(10f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(session.proportionalEdit.value).radiusWorld, 1e-4f)
 			assertEquals(1, rig.pushed.size, "the re-drive waits for the worker")

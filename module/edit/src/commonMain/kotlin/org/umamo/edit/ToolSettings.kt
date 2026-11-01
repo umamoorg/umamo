@@ -3,6 +3,8 @@ package org.umamo.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.umamo.edit.transform.DepthSurface
+import org.umamo.edit.transform.PIVOT_DEPTH_LIMIT
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions: the
@@ -28,6 +30,16 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 
 	/** What a modal Scale / Rotate turns the selection about (see [SessionToolSettings.pivotMode]). */
 	override val pivotMode: StateFlow<TransformPivotMode> = mutablePivotMode.asStateFlow()
+
+	private val mutablePivotDepth = MutableStateFlow(0f)
+
+	/** The depth-turn pivot's depth along world Y (see [SessionToolSettings.pivotDepth]). */
+	override val pivotDepth: StateFlow<Float> = mutablePivotDepth.asStateFlow()
+
+	private val mutableDepthSurface = MutableStateFlow(DepthSurface.Flat)
+
+	/** How deep the points sit before a depth turn (see [SessionToolSettings.depthSurface]). */
+	override val depthSurface: StateFlow<DepthSurface> = mutableDepthSurface.asStateFlow()
 
 	private val mutableProportionalEdit = MutableStateFlow<ProportionalEditState?>(null)
 
@@ -83,6 +95,24 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	 */
 	override fun setPivotMode(mode: TransformPivotMode) {
 		mutablePivotMode.value = mode
+	}
+
+	/**
+	 * Sets the depth-turn pivot's depth, clamped to the Depth row's range.
+	 *
+	 * @param Float depthWorld The depth along world Y, in world px, positive into the screen.
+	 */
+	override fun setPivotDepth(depthWorld: Float) {
+		mutablePivotDepth.value = clampPivotDepth(depthWorld)
+	}
+
+	/**
+	 * Sets the depth surface the next depth turn lays the points over.
+	 *
+	 * @param DepthSurface surface The surface.
+	 */
+	override fun setDepthSurface(surface: DepthSurface) {
+		mutableDepthSurface.value = surface
 	}
 
 	/**
@@ -180,9 +210,9 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
-	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, proportional editing with the
-	 * configuration it would re-enable with.  Called once, as the session is built, so nothing here is a gesture
-	 * and nothing here posts a notice.
+	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, the depth turn's pivot depth and
+	 * surface, and proportional editing with the configuration it would re-enable with.  Called once, as the session
+	 * is built, so nothing here is a gesture and nothing here posts a notice.
 	 *
 	 * @param SessionViewState viewState The saved state, already fitted to the model.
 	 */
@@ -190,9 +220,20 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 		mutableCursor2d.value = viewState.cursor2d
 		mutableUvCursor.value = viewState.uvCursor
 		mutablePivotMode.value = viewState.pivotMode
+		mutablePivotDepth.value = clampPivotDepth(viewState.pivotDepth)
+		mutableDepthSurface.value = viewState.depthSurface
 		viewState.proportionalSettings?.let { settings ->
 			mutableProportionalSettings.value = settings.copy(radiusWorld = clampProportionalRadius(settings.radiusWorld))
 		}
 		mutableProportionalEdit.value = mutableProportionalSettings.value.takeIf { viewState.proportionalEnabled }
 	}
 }
+
+/**
+ * [depthWorld] clamped into the Depth row's range - the one clamp every write of the pivot depth goes through (a
+ * mid-gesture wheel push, the strip's write-back, and a saved document's seed).
+ *
+ * @param Float depthWorld The requested depth in world px.
+ * @return Float The depth within -[PIVOT_DEPTH_LIMIT]..[PIVOT_DEPTH_LIMIT].
+ */
+private fun clampPivotDepth(depthWorld: Float): Float = depthWorld.coerceIn(-PIVOT_DEPTH_LIMIT, PIVOT_DEPTH_LIMIT)

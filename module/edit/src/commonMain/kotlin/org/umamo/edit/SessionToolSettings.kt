@@ -1,6 +1,7 @@
 package org.umamo.edit
 
 import kotlinx.coroutines.flow.StateFlow
+import org.umamo.edit.transform.DepthSurface
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions:
@@ -69,6 +70,34 @@ interface SessionToolSettings {
 	 * @param TransformPivotMode mode The pivot mode the next transforms anchor on.
 	 */
 	fun setPivotMode(mode: TransformPivotMode)
+
+	/**
+	 * How far a depth-turning Rotate's pivot is pushed along world Y, in world px, positive into the screen: the
+	 * primary-modifier wheel pushes it mid-gesture and the operation strip's Depth row writes it back, so the next
+	 * turn starts where the last one left it (the proportional radius's rule).  Transient editor state like
+	 * [pivotMode] - never snapshotted.
+	 */
+	val pivotDepth: StateFlow<Float>
+
+	/**
+	 * Sets the depth-turn pivot's depth outright, silently, clamped to the Depth row's range.
+	 *
+	 * @param Float depthWorld The depth along world Y, in world px, positive into the screen.
+	 */
+	fun setPivotDepth(depthWorld: Float)
+
+	/**
+	 * How deep the points sit before a turn about X or Z (see [org.umamo.edit.transform.DepthSurface]); the strip's
+	 * Surface row writes it back, so the next turn starts from it.
+	 */
+	val depthSurface: StateFlow<DepthSurface>
+
+	/**
+	 * Sets the depth surface outright, silently.
+	 *
+	 * @param DepthSurface surface The surface the next depth turn lays the points over.
+	 */
+	fun setDepthSurface(surface: DepthSurface)
 
 	/**
 	 * Proportional editing (Blender's O): non-null while enabled, carrying the falloff curve and the

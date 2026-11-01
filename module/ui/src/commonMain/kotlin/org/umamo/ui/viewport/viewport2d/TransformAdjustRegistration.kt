@@ -44,7 +44,8 @@ import org.umamo.ui.transform.amendLatticeLanding
  * [stage]), lands the result over the gesture's own step from the record's base, and hands the
  * proportional state back to [onProportional] so the next gesture can start from it.  The adjusted record goes
  * with it, so a caller whose rows did not start from the session's own state can write back only what the rigger
- * set there.
+ * set there.  A Rotate that could turn in depth also carries its Axis, Depth, and Surface rows, and an adjustment of
+ * the Depth or Surface row writes it back to the session the same way, so the next turn starts from it.
  * Synchronous: an evaluation is the per-pointer-frame cost.
  *
  * @param EditorSession              session      The session the gesture committed into.
@@ -55,6 +56,8 @@ import org.umamo.ui.transform.amendLatticeLanding
  * @param ElementEditStage           stage        Where the geometry was captured.
  * @param TransformGestureParameters parameters   The numbers the gesture landed with.
  * @param ProportionalRows?          proportional The proportional rows, or null when the gesture took no weights.
+ * @param Boolean                    turnsInDepth True when the gesture could turn in depth (a Pose-mode Rotate), which
+ *   adds the depth rows.
  * @param Function                   onProportional Receives the adjusted record and its proportional state
  *   (null for off) after each landed adjustment; unused when [proportional] is null.
  * @return AdjustableOperation? The record, or null when the session refused the registration or the
@@ -68,10 +71,11 @@ internal fun registerMeshTransformAdjustment(
 	stage: ElementEditStage,
 	parameters: TransformGestureParameters,
 	proportional: ProportionalRows?,
+	turnsInDepth: Boolean = false,
 	onProportional: (AdjustableOperation, ProportionalEditState?) -> Unit,
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
-	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional)
+	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional, turnsInDepth)
 
 	if (rows.isEmpty()) {
 		return null
@@ -83,8 +87,17 @@ internal fun registerMeshTransformAdjustment(
 		// The drive's own compute and landing, so a replay and the gesture it replays cannot drift apart.
 		val jobs = meshDriveJobs(transform, geometryByOwner, wholeMeshes = false)
 
-		if (session.amendDrive(record, computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model, stage)), stage) && proportionalRows != null) {
+		if (!session.amendDrive(record, computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model, stage)), stage)) {
+			return@registerAdjustableOperation
+		}
+
+		if (proportionalRows != null) {
 			onProportional(record, proportionalRows.asState())
+		}
+
+		if (turnsInDepth && record.adjustedKey in TransformParameterKeys.DEPTH_ROWS) {
+			session.setPivotDepth(adjusted.pivotDepth)
+			session.setDepthSurface(adjusted.depthSurface)
 		}
 	}
 }

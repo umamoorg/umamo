@@ -151,6 +151,23 @@ interface SessionToolLatches {
 	 */
 	fun meshOperatorTakesProportional(kind: MeshOperatorKind): Boolean
 
+	/**
+	 * True while the active mesh operator was latched able to turn in depth - a Pose-mode Rotate, whose X and Z lock
+	 * the axis the turn goes about instead of being ignored.  Transient latch state (never snapshotted), reset
+	 * whenever the operator latches or clears.
+	 */
+	val activeMeshOperatorTurnsInDepth: Boolean
+
+	/**
+	 * Whether a mesh operator of [kind], latched as the active one, can turn in depth: a Rotate latched in Pose mode
+	 * (see [activeMeshOperatorTurnsInDepth]).  The one rule every depth-turn gate asks - the axis lock, the wheel's
+	 * depth push, the strip's depth rows, the badge, the status hints, and the depth inset.
+	 *
+	 * @param MeshOperatorKind kind The latched operator's kind.
+	 * @return Boolean True when the gesture can turn about X or Z.
+	 */
+	fun meshOperatorTurnsInDepth(kind: MeshOperatorKind): Boolean
+
 	/** Clears the active modal mesh operator (the overlay calls this on confirm or cancel). */
 	fun clearMeshOperator()
 
@@ -211,8 +228,9 @@ interface SessionToolLatches {
 
 	/**
 	 * Toggles the modal axis constraint (pressing a lock's own key again releases it; pressing the other
-	 * axis switches).  A no-op unless a Grab or Scale operator is in flight - Rotate has no axis to lock
-	 * and idle keys must not arm a stale constraint.
+	 * axis switches).  A no-op unless a Grab or Scale operator is in flight, or a Rotate that turns in depth
+	 * ([meshOperatorTurnsInDepth]), whose lock names the axis the turn goes about - any other Rotate has only
+	 * the view axis, and idle keys must not arm a stale constraint.
 	 *
 	 * @param TransformAxisConstraint axis The axis whose lock to toggle.
 	 */

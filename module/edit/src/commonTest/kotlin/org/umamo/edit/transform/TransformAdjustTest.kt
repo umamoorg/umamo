@@ -68,6 +68,36 @@ class TransformAdjustTest {
 	}
 
 	@Test
+	fun aDepthTurningRotateAddsItsAxisDepthAndSurfaceRowsAndRoundTrips() {
+		val gesture = TransformGestureParameters(0f, 0f, 1f, 1f, 0.5f, RotationAxis.Z, 140f, DepthSurface.Rounded)
+
+		val plain = transformParameters(MeshOperatorKind.Rotate, gesture, TransformRowSpace.World, proportional = null)
+		assertEquals(listOf(TransformParameterKeys.ANGLE), plain.map { row -> row.key }, "a Rotate that cannot turn in depth shows its angle alone")
+
+		val rows = transformParameters(MeshOperatorKind.Rotate, gesture, TransformRowSpace.World, proportional = null, turnsInDepth = true)
+		assertEquals(
+			listOf(TransformParameterKeys.ANGLE, TransformParameterKeys.AXIS, TransformParameterKeys.PIVOT_DEPTH, TransformParameterKeys.DEPTH_SURFACE),
+			rows.map { row -> row.key },
+		)
+
+		val back = transformGestureParametersOf(MeshOperatorKind.Rotate, TransformRowSpace.World, rows)
+		assertClose(0.5f, back.rotationRadians, "the angle round-trips")
+		assertEquals(RotationAxis.Z, back.rotationAxis)
+		assertEquals(140f, back.pivotDepth)
+		assertEquals(DepthSurface.Rounded, back.depthSurface)
+		assertTrue(back.turnsInDepth)
+
+		// Choosing the axis on the strip turns an in-plane Rotate in depth after the fact.
+		val axisRow = rows.first { row -> row.key == TransformParameterKeys.AXIS } as OperatorParameter.ChoiceParameter
+		val inPlane = rows.withParameter(TransformParameterKeys.AXIS, axisRow.copy(value = RotationAxis.Y.choiceKey))
+		assertEquals(RotationAxis.Y, transformGestureParametersOf(MeshOperatorKind.Rotate, TransformRowSpace.World, inPlane).rotationAxis)
+
+		val withoutDepthRows = transformGestureParametersOf(MeshOperatorKind.Rotate, TransformRowSpace.World, plain)
+		assertEquals(RotationAxis.Y, withoutDepthRows.rotationAxis, "missing depth rows read as the in-plane turn")
+		assertEquals(0f, withoutDepthRows.pivotDepth)
+	}
+
+	@Test
 	fun scaleRowsNameTheVerticalAxisPerSpaceAndRoundTrip() {
 		val gesture = parameters(factorX = 2f, factorY = 0.5f)
 

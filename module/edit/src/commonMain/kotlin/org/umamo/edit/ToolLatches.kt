@@ -86,6 +86,13 @@ internal class ToolLatches : SessionToolLatches {
 		private set
 
 	/**
+	 * True while the active mesh operator was latched able to turn in depth (a Pose-mode Rotate).  Reset whenever
+	 * the operator latches or clears.
+	 */
+	override var activeMeshOperatorTurnsInDepth: Boolean = false
+		private set
+
+	/**
 	 * Clears the mutually-exclusive transient tool latches - the modal mesh / object / UV operators and
 	 * the armed select tool - plus the optional extras the caller names.  Every site that latches a tool,
 	 * switches mode, or restores a snapshot funnels through here so the mutual-exclusion story lives in
@@ -124,16 +131,18 @@ internal class ToolLatches : SessionToolLatches {
 	/**
 	 * Latches a modal mesh operator (the caller has already checked the Edit-mode preconditions).
 	 * Drops any armed select tool / zoom region first (mutual exclusion), and publishes the
-	 * suppression BEFORE the operator itself: the overlay's latch effect keys on the operator flow and
-	 * must read a consistent flag when it fires.
+	 * suppression and the depth flag BEFORE the operator itself: the overlay's latch effect keys on the
+	 * operator flow and must read consistent flags when it fires.
 	 *
 	 * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
 	 * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
 	 * @param Boolean suppressProportional True to ignore proportional editing for this gesture.
+	 * @param Boolean turnsInDepth True when a Rotate may turn about X or Z (Pose mode); ignored for the others.
 	 */
-	fun latchMeshOperator(kind: MeshOperatorKind, areaId: String, suppressProportional: Boolean) {
+	fun latchMeshOperator(kind: MeshOperatorKind, areaId: String, suppressProportional: Boolean, turnsInDepth: Boolean = false) {
 		clearTransient(clearZoomRegion = true, clearAxisConstraint = true)
 		activeMeshOperatorSuppressesProportional = suppressProportional
+		activeMeshOperatorTurnsInDepth = turnsInDepth && kind == MeshOperatorKind.Rotate
 		mutableActiveMeshOperator.value = ActiveOperator(kind, areaId)
 	}
 
@@ -142,6 +151,7 @@ internal class ToolLatches : SessionToolLatches {
 		mutableActiveMeshOperator.value = null
 		mutableAxisConstraint.value = null
 		activeMeshOperatorSuppressesProportional = false
+		activeMeshOperatorTurnsInDepth = false
 	}
 
 	/**
@@ -210,6 +220,14 @@ internal class ToolLatches : SessionToolLatches {
 	 */
 	override fun meshOperatorTakesProportional(kind: MeshOperatorKind): Boolean =
 		kind != MeshOperatorKind.VertexSlide && !activeMeshOperatorSuppressesProportional
+
+	/**
+	 * See [SessionToolLatches.meshOperatorTurnsInDepth]: a Rotate latched able to turn in depth.
+	 *
+	 * @param MeshOperatorKind kind The latched operator's kind.
+	 * @return Boolean True when the gesture can turn about X or Z.
+	 */
+	override fun meshOperatorTurnsInDepth(kind: MeshOperatorKind): Boolean = kind == MeshOperatorKind.Rotate && activeMeshOperatorTurnsInDepth
 
 	/**
 	 * Clears whichever operator family is running, if any.
@@ -341,15 +359,17 @@ internal class ToolLatches : SessionToolLatches {
 
 	/**
 	 * Toggles the modal axis constraint (pressing a lock's own key again releases it; pressing the
-	 * other axis switches).  A no-op unless a Grab or Scale operator is in flight - Rotate has no axis
-	 * to lock and idle keys must not arm a stale constraint.
+	 * other axis switches).  A no-op unless a Grab or Scale operator is in flight, or a mesh Rotate latched
+	 * to turn in depth - any other Rotate has only the view axis, and idle keys must not arm a stale
+	 * constraint.
 	 *
 	 * @param TransformAxisConstraint axis The axis whose lock to toggle.
 	 */
 	override fun toggleAxisConstraint(axis: TransformAxisConstraint) {
 		val operator = mutableActiveMeshOperator.value ?: mutableActiveObjectOperator.value ?: mutableActiveUvOperator.value ?: return
 
-		if (operator.kind == MeshOperatorKind.Rotate) {
+		// Only the mesh latch carries the depth flag, so an Object or UV Rotate never locks.
+		if (operator.kind == MeshOperatorKind.Rotate && !(operator === mutableActiveMeshOperator.value && activeMeshOperatorTurnsInDepth)) {
 			return
 		}
 

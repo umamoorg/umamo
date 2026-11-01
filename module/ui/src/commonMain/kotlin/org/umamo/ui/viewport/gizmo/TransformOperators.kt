@@ -4,9 +4,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.edit.transform.ProportionalInfluence
 import org.umamo.edit.transform.RotationAngleTracker
+import org.umamo.edit.transform.RotationAxis
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
 import org.umamo.render.ViewportCamera
@@ -14,7 +16,9 @@ import org.umamo.runtime.model.identityAffine
 import org.umamo.runtime.model.rotationAboutAffine
 import org.umamo.runtime.model.scaleAboutAffine
 import org.umamo.runtime.model.translationAffine
+import kotlin.math.PI
 import kotlin.math.atan2
+import kotlin.math.min
 
 /**
  * One modal gesture's pointer frame: everything the operator math needs to convert the screen-space
@@ -26,9 +30,12 @@ import kotlin.math.atan2
  * @property Pair<Float, Float> anchor The world-space anchor factors / angles measure against.
  * @property Offset start The pointer position at gesture start, in screen pixels.
  * @property Offset current The current (wrap-continuous virtual) pointer, in screen pixels.
- * @property TransformAxisConstraint? axisConstraint The axis lock, or null when unconstrained.
+ * @property TransformAxisConstraint? axisConstraint The axis lock, or null when unconstrained; on a Rotate, the axis
+ *   the turn goes about in depth (only a depth-turning Rotate ever holds one).
  * @property ViewportCamera camera The area camera (world<->screen affine).
  * @property IntSize size The area size in pixels.
+ * @property Float pivotDepth The depth turn's pivot depth along world Y, in world px (read only by a locked Rotate).
+ * @property DepthSurface depthSurface How deep the points sit before a depth turn (read only by a locked Rotate).
  */
 internal class TransformGestureFrame(
 	val anchor: Pair<Float, Float>,
@@ -37,13 +44,17 @@ internal class TransformGestureFrame(
 	val axisConstraint: TransformAxisConstraint?,
 	val camera: ViewportCamera,
 	val size: IntSize,
+	val pivotDepth: Float = 0f,
+	val depthSurface: DepthSurface = DepthSurface.Flat,
 )
 
 /**
  * Resolves [frame] into the parameters [operator] applies: a Grab's translation, a Scale's factors,
- * or a Rotate's accumulated angle, the rest at identity.  Call it once per pointer frame, before the
- * per-mesh loop - the Rotate branch advances [rotationTracker], and one advance per frame is what the
- * accumulator expects.
+ * or a Rotate's accumulated angle, the rest at identity.  A Rotate whose frame holds an axis lock turns in
+ * depth about that axis instead, by [depthTurnRadians], at the frame's pivot depth and surface.  Call it once
+ * per pointer frame, before the per-mesh loop - the Rotate branch advances [rotationTracker] (locked or not,
+ * so releasing a lock picks the in-plane angle up where the pointer is), and one advance per frame is what
+ * the accumulator expects.
  *
  * @param MeshOperatorKind operator The active operator.
  * @param TransformGestureFrame frame The gesture's pointer frame.
@@ -67,7 +78,23 @@ internal fun gestureParameters(
 		}
 
 		MeshOperatorKind.Rotate -> {
-			TransformGestureParameters(0f, 0f, 1f, 1f, gestureRotationRadians(frame, rotationTracker))
+			val inPlaneRadians = gestureRotationRadians(frame, rotationTracker)
+
+			when (frame.axisConstraint) {
+				// The in-plane turn carries the frame's depth and surface unread, so a strip that offers them shows
+				// where the next depth turn would start.
+				null -> {
+					TransformGestureParameters(0f, 0f, 1f, 1f, inPlaneRadians, RotationAxis.Y, frame.pivotDepth, frame.depthSurface)
+				}
+
+				TransformAxisConstraint.AxisX -> {
+					TransformGestureParameters(0f, 0f, 1f, 1f, depthTurnRadians(frame), RotationAxis.X, frame.pivotDepth, frame.depthSurface)
+				}
+
+				TransformAxisConstraint.AxisZ -> {
+					TransformGestureParameters(0f, 0f, 1f, 1f, depthTurnRadians(frame), RotationAxis.Z, frame.pivotDepth, frame.depthSurface)
+				}
+			}
 		}
 
 		// Vertex Slide has its own edge projection (slideFactorAlongEdge); it never applies these.
@@ -115,7 +142,8 @@ internal fun gestureScaleFactors(frame: TransformGestureFrame): Pair<Float, Floa
 /**
  * The angle a Rotate gesture applies about a pivot, in the positions' units: the pointer's angle about
  * the anchor accumulated through [rotationTracker], negated out of screen space into the positions'
- * sense - the value [MeshTransforms.rotateVertices] takes.  Rotate has no axis to lock in 2D.
+ * sense - the value [MeshTransforms.rotateVertices] takes.  The in-plane angle, whatever the axis lock: a
+ * locked Rotate turns by [depthTurnRadians] instead.
  *
  * @param TransformGestureFrame frame The gesture's pointer frame.
  * @param RotationAngleTracker rotationTracker The gesture's angle accumulator.
@@ -126,6 +154,32 @@ internal fun gestureRotationRadians(frame: TransformGestureFrame, rotationTracke
 	val pointerAngle = atan2(frame.current.y - anchorScreen.y, frame.current.x - anchorScreen.x)
 
 	return -rotationTracker.advance(pointerAngle)
+}
+
+/**
+ * The angle a depth-turning Rotate applies about its locked axis: the pointer's travel from the gesture start along
+ * the screen direction that turns it - horizontal for Z (rightward turns the front right), vertical for X (downward
+ * tilts the front down) - at a quarter turn per half the area's shorter side, so the rate is the same whatever the
+ * zoom.  The travel is the wrap-continuous pointer's, so the turn is unbounded.
+ *
+ * @param TransformGestureFrame frame The gesture's pointer frame, holding an axis lock.
+ * @return Float The turn in radians; 0 without a lock.
+ */
+internal fun depthTurnRadians(frame: TransformGestureFrame): Float {
+	val shorterSide = min(frame.size.width, frame.size.height).toFloat()
+
+	if (shorterSide <= 0f) {
+		return 0f
+	}
+
+	val travel =
+		when (frame.axisConstraint) {
+			TransformAxisConstraint.AxisZ -> frame.current.x - frame.start.x
+			TransformAxisConstraint.AxisX -> frame.current.y - frame.start.y
+			null -> 0f
+		}
+
+	return (travel * PI / shorterSide).toFloat()
 }
 
 /**
@@ -241,13 +295,26 @@ internal fun applyOperator(
 
 		MeshOperatorKind.Rotate -> {
 			// The angle was measured against the gesture anchor; each group then rotates about its own
-			// pivot, and each influenced vertex about its owning group's pivot.
+			// pivot, and each influenced vertex about its owning group's pivot.  A turn in depth does the same
+			// about X or Z, each group's pivot pushed to the one depth.
 			val rotation = parameters.rotationRadians
-			val moved =
-				groups.fold(originalWorld) { positions, group ->
-					MeshTransforms.rotateVertices(positions, group.vertexIndices, rotation, group.pivotX, group.pivotY)
-				}
-			MeshTransforms.rotateVerticesWeighted(moved, proportionalInfluences, rotation)
+
+			if (parameters.turnsInDepth) {
+				val axis = parameters.rotationAxis
+				val depth = parameters.pivotDepth
+				val surface = parameters.depthSurface
+				val moved =
+					groups.fold(originalWorld) { positions, group ->
+						MeshTransforms.turnVerticesInDepth(positions, group.vertexIndices, axis, rotation, depth, surface, group.pivotX, group.pivotY)
+					}
+				MeshTransforms.turnVerticesInDepthWeighted(moved, proportionalInfluences, axis, rotation, depth, surface)
+			} else {
+				val moved =
+					groups.fold(originalWorld) { positions, group ->
+						MeshTransforms.rotateVertices(positions, group.vertexIndices, rotation, group.pivotX, group.pivotY)
+					}
+				MeshTransforms.rotateVerticesWeighted(moved, proportionalInfluences, rotation)
+			}
 		}
 
 		// Vertex Slide never reaches here: the drive loop handles it with its own edge projection.
@@ -260,7 +327,9 @@ internal fun applyOperator(
  * The world transform [applyOperator] applies to a whole object in pivot group [group], as a 2x3 row-major affine
  * `[a, b, c, d, e, f]` (x' = a x + b y + c, y' = d x + e y + f): Grab translates, Scale scales about the group's
  * pivot, and Rotate turns about it.  An object moved whole takes no proportional halo, so the affine is the
- * operator exactly - what a warp moved as an object maps every one of its forms through.
+ * operator exactly - what a warp moved as an object maps every one of its forms through.  A turn in depth never
+ * reaches here: only a Pose-mode Rotate can turn about X or Z (the latch's rule), and Object mode moves whole
+ * objects, so the in-plane angle is the whole of a Rotate.
  *
  * @param MeshOperatorKind operator The active operator.
  * @param TransformGestureParameters parameters The delta / factors / angle to apply.

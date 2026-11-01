@@ -1,6 +1,8 @@
 package org.umamo.edit
 
+import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.MeshTransforms
+import org.umamo.edit.transform.PIVOT_DEPTH_LIMIT
 import org.umamo.edit.transform.RotationAngleTracker
 import org.umamo.edit.transform.TransformPivots
 import org.umamo.edit.transform.beginBoxSelect
@@ -80,7 +82,7 @@ class TransformStateTest {
 		return EditorSession(model)
 	}
 
-	/** The axis constraint toggles only while a Grab / Scale is live, never for Rotate, and clears with the operator. */
+	/** The axis constraint toggles only while a Grab / Scale is live, never for an Object Rotate, and clears with the operator. */
 	@Test
 	fun axisConstraintTogglesOnlyDuringGrabOrScale() {
 		val session = meshedSession()
@@ -103,10 +105,67 @@ class TransformStateTest {
 		session.clearObjectOperator()
 		assertNull(session.axisConstraint.value, "clearing the operator clears the lock")
 
-		// Rotate has no 2D axis to lock.
+		// An Object Rotate has only the view axis.
 		session.beginObjectOperator(MeshOperatorKind.Rotate, "area-test")
 		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
 		assertNull(session.axisConstraint.value, "Rotate refuses the lock")
+	}
+
+	/** A Pose-mode Rotate turns in depth: X and Z lock the axis it turns about, and the flag clears with the latch. */
+	@Test
+	fun aPoseRotateLocksTheAxisItTurnsAbout() {
+		val session = PoseLatticeTestRig.posing(listOf(SelectionTarget.Deformer(PoseLatticeTestRig.cage)))
+		session.selectAllMeshElements()
+
+		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
+		assertTrue(session.meshOperatorTurnsInDepth(MeshOperatorKind.Rotate), "a Pose Rotate turns in depth")
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+		assertEquals(TransformAxisConstraint.AxisZ, session.axisConstraint.value)
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
+		assertEquals(TransformAxisConstraint.AxisX, session.axisConstraint.value, "the other axis switches the turn")
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
+		assertNull(session.axisConstraint.value, "the same axis goes back to the in-plane turn")
+
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+		session.clearMeshOperator()
+		assertNull(session.axisConstraint.value, "clearing the operator clears the lock")
+		assertFalse(session.activeMeshOperatorTurnsInDepth, "and the depth flag")
+
+		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test")
+		assertFalse(session.meshOperatorTurnsInDepth(MeshOperatorKind.Rotate), "a Grab latch never turns in depth")
+	}
+
+	/** An Edit-mode Rotate keeps only the view axis: X and Z stay no-ops. */
+	@Test
+	fun anEditRotateRefusesTheDepthLock() {
+		val session = meshedSession()
+		session.setMode(EditorMode.Edit)
+		session.setMeshSelection(MeshSelectionOps.add(session.meshSelection.value, DrawableId("d"), MeshElement.Vertex(0)))
+
+		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
+		assertFalse(session.meshOperatorTurnsInDepth(MeshOperatorKind.Rotate))
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+		assertNull(session.axisConstraint.value, "the Edit Rotate refuses the lock")
+	}
+
+	/** The depth turn's pivot depth and surface stick, clamp, gather into the view state, and seed back from it. */
+	@Test
+	fun theDepthTurnSettingsStick() {
+		val session = meshedSession()
+		assertEquals(0f, session.pivotDepth.value, "the pivot starts on the art")
+		assertEquals(DepthSurface.Flat, session.depthSurface.value)
+
+		session.setPivotDepth(120f)
+		session.setDepthSurface(DepthSurface.Rounded)
+		assertEquals(120f, session.viewState().pivotDepth)
+		assertEquals(DepthSurface.Rounded, session.viewState().depthSurface)
+
+		session.setPivotDepth(-1e9f)
+		assertEquals(-PIVOT_DEPTH_LIMIT, session.pivotDepth.value, "a write clamps to the Depth row's range")
+
+		val reopened = EditorSession(session.model.value, initialViewState = SessionViewState(pivotDepth = 64f, depthSurface = DepthSurface.Rounded))
+		assertEquals(64f, reopened.pivotDepth.value, "a saved state seeds the depth")
+		assertEquals(DepthSurface.Rounded, reopened.depthSurface.value)
 	}
 
 	/** The cursor, pivot mode, and pie latches hold their values; undo clears the transient pie latch. */

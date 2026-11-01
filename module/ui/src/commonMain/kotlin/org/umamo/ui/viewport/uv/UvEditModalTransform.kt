@@ -242,13 +242,15 @@ internal class UvEditModalTransform(
 	/**
 	 * The wheel resizes the display-unit influence radius mid-gesture (the Edit overlay's behavior, in this
 	 * space's units): geometric steps and weights re-derived from the frozen originals at once, on the UI
-	 * thread, and a drive submitted so the mapping responds without pointer motion.
+	 * thread, and a drive submitted so the mapping responds without pointer motion.  Texture coordinates have no
+	 * depth, so the primary modifier changes nothing.
 	 *
 	 * @param Float steps The scroll in wheel steps; negative (wheel up) grows the radius.
+	 * @param Boolean primaryHeld Whether the primary modifier is held (unread).
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
 	 */
-	override fun onScroll(steps: Float, camera: ViewportCamera, size: IntSize) {
+	override fun onScroll(steps: Float, primaryHeld: Boolean, camera: ViewportCamera, size: IntSize) {
 		val operator = ownedOperator() ?: return
 		val proportional = session.proportionalEdit.value
 		val gestureData = gesture.capture

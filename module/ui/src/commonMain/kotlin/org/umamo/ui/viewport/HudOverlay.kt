@@ -179,8 +179,8 @@ internal fun MeshOperatorKind.labelResource(): StringResource =
 	}
 
 /**
- * The modal status badge (top center): the operator's name, the axis lock, and optionally the
- * proportional-editing segment - so the gesture's state reads without glancing at the status bar.
+ * The modal status badge (top center): the operator's name, the axis lock (the axis a Rotate turns about in
+ * depth, or the one a Grab or Scale runs along), and optionally the proportional-editing segment - so the gesture's state reads without glancing at the status bar.
  * Shared by the two HUD assemblies, [org.umamo.ui.viewport.viewport2d.ViewportHudOverlay] and [org.umamo.ui.viewport.uv.UvHudOverlay]; the assembly decides
  * whether the proportional segment applies and in which units the radius reads (world px in the
  * viewport, texels in UV).
@@ -203,10 +203,12 @@ internal fun ModalOperatorBadge(
 ) {
 	val hudColors = LocalUmamoColors.current
 	val operatorLabel = stringResource(operatorKind.labelResource())
+	// A locked Rotate turns about its axis in depth; a locked Grab or Scale runs along it.
+	val turnsAbout = operatorKind == MeshOperatorKind.Rotate
 	val axisSuffix =
 		when (axisConstraint) {
-			TransformAxisConstraint.AxisX -> "  ${stringResource(Res.string.hud_along_x)}"
-			TransformAxisConstraint.AxisZ -> "  ${stringResource(Res.string.hud_along_z)}"
+			TransformAxisConstraint.AxisX -> "  ${stringResource(if (turnsAbout) Res.string.hud_about_x else Res.string.hud_along_x)}"
+			TransformAxisConstraint.AxisZ -> "  ${stringResource(if (turnsAbout) Res.string.hud_about_z else Res.string.hud_along_z)}"
 			null -> ""
 		}
 	val proportionalSuffix =

@@ -22,7 +22,8 @@ import org.umamo.edit.eligibleTransformTargets
  * Latches a modal mesh operator so the gizmo overlay begins the gesture. A no-op unless a mode that edits elements
  * ([editsElements]: Edit, or Pose over lattices) is active with a mesh or lattice and a non-empty selection — so the
  * bound G / S / R commands need no context guard of their own and the keymap stays mode-agnostic. For an edge or
- * face selection the gesture moves the union of vertices the selected elements cover (resolved in the overlay).
+ * face selection the gesture moves the union of vertices the selected elements cover (resolved in the overlay).  A
+ * Rotate latched in Pose mode may turn in depth: its X and Z lock the axis the turn goes about.
  *
  * @param MeshOperatorKind kind The operator to begin (Grab / Scale / Rotate).
  * @param String areaId The initiating viewport's area id (only its overlay drives the gesture).
@@ -40,7 +41,7 @@ fun EditorSession.beginMeshOperator(kind: MeshOperatorKind, areaId: String, supp
 		return
 	}
 
-	latches.latchMeshOperator(kind, areaId, suppressProportional)
+	latches.latchMeshOperator(kind, areaId, suppressProportional, turnsInDepth = mode.value == EditorMode.Pose)
 }
 
 /**
