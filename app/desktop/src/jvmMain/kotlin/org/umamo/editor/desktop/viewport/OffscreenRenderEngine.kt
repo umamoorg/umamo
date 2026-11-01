@@ -197,6 +197,7 @@ internal class OffscreenRenderEngine(
 
 		try {
 			renderer.initGl()
+			warnOversizedPages(appliedAtlasBinding.textures)
 
 			while (running) {
 				readbacks.collect(registry.areas)
@@ -218,6 +219,22 @@ internal class OffscreenRenderEngine(
 	}
 
 	/**
+	 * Logs each page of [textures] past this GPU's texture limit, which the renderer uploads scaled down, so a
+	 * soft viewport on a small GPU is explained in the log.
+	 *
+	 * @param PuppetTextures textures The page set just handed to the renderer.
+	 */
+	private fun warnOversizedPages(textures: PuppetTextures) {
+		val maxEdge = device.maxTextureSize()
+
+		for ((pageIndex, page) in textures.atlases.withIndex()) {
+			if (page.width > maxEdge || page.height > maxEdge) {
+				UmamoLog.warn("[GL] atlas page ${pageIndex + 1} is ${page.width}x${page.height}, past this GPU's $maxEdge px texture limit; the viewport shows it scaled down")
+			}
+		}
+	}
+
+	/**
 	 * Hands the renderer what the UI thread published since the last tick, bumping [paramsVersion] for each
 	 * hand-off that changes what the puppet areas show.
 	 */
@@ -235,6 +252,7 @@ internal class OffscreenRenderEngine(
 			// new-pixels).  A concurrent UI-thread bump can collapse into this one; both causes are
 			// covered by the single re-render that follows either way.
 			renderer.setAtlasPages(binding.textures)
+			warnOversizedPages(binding.textures)
 			appliedAtlasBinding = binding
 			paramsVersion++
 			inputs.doAtlasRenderBump()

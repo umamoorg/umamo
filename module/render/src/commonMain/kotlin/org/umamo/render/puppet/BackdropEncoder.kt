@@ -8,8 +8,6 @@ import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.GridUniforms
 import org.umamo.render.device.RenderDevice
 import org.umamo.render.device.RenderPassEncoder
-import org.umamo.render.device.TextureFilter
-import org.umamo.render.device.TextureFormat
 import org.umamo.render.device.WorldToNdc
 
 /**
@@ -157,7 +155,7 @@ internal class BackdropEncoder(
 			underlayTextures.remove(evicted)?.let { handle -> device.destroyTexture(handle) }
 		}
 
-		val created = device.createTexture(image.width, image.height, TextureFormat.Rgba8, TextureFilter.Linear, image.rgba)
+		val created = device.createArtTexture(image.width, image.height, image.rgba)
 		underlayTextures[image] = created
 
 		return created

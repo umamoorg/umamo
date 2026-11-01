@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.spaces.parameters
 
 import org.umamo.edit.ParameterMoveSubject
 import org.umamo.edit.parameter.ParameterNodeRef
+import org.umamo.edit.parameter.withParameterRowMoved
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
@@ -9,7 +10,9 @@ import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 /**
  * Pins a release resolved whole: from the row the pointer was over and how far down it, to the move the
@@ -71,6 +74,14 @@ class ParameterDropResolutionTest {
 
 		// Eye Open is the last of its group, so "after it" is the end of that group.
 		assertEquals(ParameterDrop(newParentGroupId = face, before = null, expandsGroupId = null), drop)
+	}
+
+	/** A release on the lower half of the row just above the dragged one leaves the dragged row where it is. */
+	@Test
+	fun aReleaseJustBelowTheRowAboveStaysInPlace() {
+		val drop = assertNotNull(resolveParameterDrop(puppet, rows, draggedBreath, rowKey(bodyXRow), fraction = 0.75f))
+
+		assertSame(puppet, puppet.withParameterRowMoved(draggedBreath, drop.newParentGroupId, drop.before))
 	}
 
 	/** A release on the middle of a group header nests, and asks for the group to be opened. */

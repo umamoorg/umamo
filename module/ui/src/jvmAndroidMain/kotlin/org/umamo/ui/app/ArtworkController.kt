@@ -39,6 +39,7 @@ import org.umamo.ui.model.artwork.ReloadEntry
 import org.umamo.ui.model.artwork.ReplaceArtworkRequest
 import org.umamo.ui.model.artwork.SourceSuggestionState
 import org.umamo.ui.model.artwork.SourceSuggestions
+import org.umamo.ui.model.artwork.refuseArtworkAdd
 import org.umamo.ui.model.artwork.runAddArtwork
 import org.umamo.ui.model.artwork.runMatchArtwork
 import org.umamo.ui.model.artwork.runRelinkArtwork
@@ -182,6 +183,11 @@ internal class ArtworkController(
 	 *   picker opens; it is where the operation strip shows once the import lands.
 	 */
 	private fun importArtwork(request: ImportArtworkRequest?, areaId: String?) {
+		// Asked before the picker opens, so a document that cannot take art never waits on a file being read.
+		if (refuseArtworkAdd(puppet.session)) {
+			return
+		}
+
 		services.scope.launch {
 			if (request == null) {
 				val picked = pickArtwork() ?: return@launch

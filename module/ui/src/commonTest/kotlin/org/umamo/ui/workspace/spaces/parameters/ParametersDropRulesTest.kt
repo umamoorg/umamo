@@ -35,6 +35,9 @@ class ParametersDropRulesTest {
 	private val draggedLeaf = ParameterMoveSubject.Leaves(listOf(breath))
 	private val draggedGroup = ParameterMoveSubject.Group(ParameterGroupId("ParamGroupOther"))
 
+	// A leaf in none of the anchor trees, so it never stands where an anchor would land.
+	private val draggedElsewhere = ParameterMoveSubject.Leaves(listOf(ParameterId("ParamCheek")))
+
 	/** A leaf target takes Before above the midline, After below; a dragged group only if the target is at root. */
 	@Test
 	fun leafTargetBands() {
@@ -73,8 +76,8 @@ class ParametersDropRulesTest {
 	fun anchorBeforeAndInto() {
 		val tree = listOf(ParameterNode.Param(angleX), header().let { ParameterNode.Group(groupA, "Group", true, emptyList()) })
 		val puppet = model(listOf(parameter(angleX)), tree)
-		assertEquals(null to ParameterNodeRef.Leaf(angleX), parameterDropAnchor(puppet, single(angleX), RowDropBand.Before))
-		assertEquals(groupA to null, parameterDropAnchor(puppet, header(), RowDropBand.Into))
+		assertEquals(null to ParameterNodeRef.Leaf(angleX), parameterDropAnchor(puppet, draggedElsewhere, single(angleX), RowDropBand.Before))
+		assertEquals(groupA to null, parameterDropAnchor(puppet, draggedElsewhere, header(), RowDropBand.Into))
 	}
 
 	/** After a root leaf anchors on the next root node; after the last node appends (null). */
@@ -82,8 +85,8 @@ class ParametersDropRulesTest {
 	fun anchorAfterRootLeaf() {
 		val tree = listOf(ParameterNode.Param(angleX), ParameterNode.Param(breath))
 		val puppet = model(listOf(parameter(angleX), parameter(breath)), tree)
-		assertEquals(null to ParameterNodeRef.Leaf(breath), parameterDropAnchor(puppet, single(angleX), RowDropBand.After))
-		assertEquals(null to null, parameterDropAnchor(puppet, single(breath), RowDropBand.After))
+		assertEquals(null to ParameterNodeRef.Leaf(breath), parameterDropAnchor(puppet, draggedElsewhere, single(angleX), RowDropBand.After))
+		assertEquals(null to null, parameterDropAnchor(puppet, draggedElsewhere, single(breath), RowDropBand.After))
 	}
 
 	/** After a pad skips its vertical partner and anchors on the node past both leaves. */
@@ -92,6 +95,16 @@ class ParametersDropRulesTest {
 		// Tree: [padHorizontal(angleY), padVertical(angleZ), breath]; after the pad should anchor on breath.
 		val tree = listOf(ParameterNode.Param(angleY), ParameterNode.Param(angleZ), ParameterNode.Param(breath))
 		val puppet = model(listOf(parameter(angleY), parameter(angleZ), parameter(breath)), tree)
-		assertEquals(null to ParameterNodeRef.Leaf(breath), parameterDropAnchor(puppet, pad(), RowDropBand.After))
+		assertEquals(null to ParameterNodeRef.Leaf(breath), parameterDropAnchor(puppet, draggedElsewhere, pad(), RowDropBand.After))
+	}
+
+	/** After the row just above the dragged one anchors past the dragged row, which is lifted out before it lands. */
+	@Test
+	fun anchorAfterSkipsTheDraggedRow() {
+		// Tree: [angleX, padHorizontal(angleY), padVertical(angleZ), breath]; the pad dragged after angleX anchors on breath.
+		val tree = listOf(ParameterNode.Param(angleX), ParameterNode.Param(angleY), ParameterNode.Param(angleZ), ParameterNode.Param(breath))
+		val puppet = model(listOf(parameter(angleX), parameter(angleY), parameter(angleZ), parameter(breath)), tree)
+		val draggedPad = ParameterMoveSubject.Leaves(listOf(angleY, angleZ))
+		assertEquals(null to ParameterNodeRef.Leaf(breath), parameterDropAnchor(puppet, draggedPad, single(angleX), RowDropBand.After))
 	}
 }

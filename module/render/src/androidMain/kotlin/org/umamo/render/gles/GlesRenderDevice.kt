@@ -149,5 +149,7 @@ class GlesRenderDevice : RenderDevice {
 	override fun maxRenderTargetSize(): Int =
 		TODO("GLES port: the least of GL_MAX_TEXTURE_SIZE, GL_MAX_RENDERBUFFER_SIZE, and both GL_MAX_VIEWPORT_DIMS")
 
+	override fun maxTextureSize(): Int = TODO("GLES port: GL_MAX_TEXTURE_SIZE")
+
 	override fun describeBackend(): String = TODO("GLES port: GLES20.glGetString(GL_RENDERER / GL_VERSION / GL_VENDOR)")
 }

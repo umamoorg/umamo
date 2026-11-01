@@ -697,6 +697,7 @@
 	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3's physics, guides, keyform notes, random pose, model state sets, user data, and other editor settings are not carried in this file.  CMO3 exports from this session still keep them, but a CMO3 exported after reopening the file will not.</string>
 	<string name="notice_document_moc3_loss">Saved as UMA.  Physics, motions, expressions, user data, and pose from the MOC3 family are not carried in this file.</string>
 	<string name="notice_import_artwork_superseded">The document changed while the artwork was being added; nothing was applied.</string>
+	<string name="notice_import_baked_atlas">Artwork can't be added to documents created from imported MOC3 files.  Export it as CMO3 first and then import the artwork into that file.</string>
 	<string name="notice_import_no_art_layers">The file has no layers with pixels to add.</string>
 	<string name="notice_reload_done">Artwork reloaded: %1$d updated, %2$d added, %3$d matched.</string>
 	<string name="notice_reload_notes">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review.  See the log.</string>

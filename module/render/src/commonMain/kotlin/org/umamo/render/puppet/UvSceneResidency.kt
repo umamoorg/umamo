@@ -3,8 +3,6 @@ package org.umamo.render.puppet
 import org.umamo.render.DecodedImage
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.RenderDevice
-import org.umamo.render.device.TextureFilter
-import org.umamo.render.device.TextureFormat
 import org.umamo.render.device.TextureWrap
 
 /** The sample affine of an uploaded crop, which is the trim itself. */
@@ -106,7 +104,7 @@ internal class UvSceneResidency(
 				cropTextures.getOrPut(crop) {
 					// Linear with a transparent border, like the layer texture it stands in for, so both sources
 					// draw the same pixels.
-					device.createTexture(crop.width, crop.height, TextureFormat.Rgba8, TextureFilter.Linear, crop.rgba, TextureWrap.ClampToTransparentBorder)
+					device.createArtTexture(crop.width, crop.height, crop.rgba, TextureWrap.ClampToTransparentBorder)
 				}
 
 			return ResolvedCropQuad(texture, quad.quadToWorld, IDENTITY_SAMPLE)

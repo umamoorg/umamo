@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.umamo.edit.AdjustableOperation
+import org.umamo.edit.EditorSession
 import org.umamo.edit.NoticePlacement
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ParameterChoice
@@ -353,6 +354,25 @@ internal fun packNewTilesAround(
 }
 
 /**
+ * Refuses an add into [session]'s document when it cannot take one, saying so in the log and on the status
+ * bar: a drawable with no tile renders from the atlas pages alone, the way a baked model's art does, and the
+ * add's pack composes the pages from the tiles, so it would take those drawables' pixels away.
+ *
+ * @param EditorSession session The document's session.
+ * @return Boolean True when the add was refused.
+ */
+internal fun refuseArtworkAdd(session: EditorSession): Boolean {
+	if (session.model.value.drawables.none { drawable -> drawable.atlasTileId == null }) {
+		return false
+	}
+
+	UmamoLog.warn("add artwork: the document's drawables render from baked atlas pages, which an add's pack would replace; nothing was added")
+	session.emitNotice("notice.import.bakedAtlas", NoticePlacement.StatusBar)
+
+	return true
+}
+
+/**
  * Adds an artwork file to the open document as ONE undo step, packed beside the art already there,
  * and registers the step on the operation settings strip.
  *
@@ -367,6 +387,11 @@ internal fun packNewTilesAround(
  */
 suspend fun runAddArtwork(host: AtlasRepackHost, request: AddArtworkRequest, areaId: String?): Boolean {
 	val session = host.session
+
+	if (refuseArtworkAdd(session)) {
+		return false
+	}
+
 	val modelAtStart = session.model.value
 	val outcome =
 		host.progress.track(ProgressLabels.ARTWORK_ADDING, listOf(request.descriptor.name)) { progress ->

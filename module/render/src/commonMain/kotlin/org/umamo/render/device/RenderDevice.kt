@@ -343,6 +343,14 @@ public interface RenderDevice {
 	fun maxRenderTargetSize(): Int
 
 	/**
+	 * The largest texture edge this device can sample, in texels.  An image past it does not upload at all,
+	 * so art uploads scale down to it (see createArtTexture).
+	 *
+	 * @return Int The edge, in texels.
+	 */
+	fun maxTextureSize(): Int
+
+	/**
 	 * The backend's device / driver / version as one line - a startup diagnostic confirming which backend
 	 * actually drives the viewport (a hardware driver vs a software rasterizer, say).
 	 *
