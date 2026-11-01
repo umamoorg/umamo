@@ -51,8 +51,9 @@ data class OverlayColor(
  * @property OverlayColor faceActive The active face dot, with alpha forced to 1.
  * @property OverlayColor warning The outline of an island whose tile is in a placement collision.
  * @property OverlayColor pinnedPlacement The outline of an island whose tile is pinned.
- * @property OverlayColor latticeIdle A warp lattice shown only because its area shows every deformer: its grid
- *   lines and its control-point dots.
+ * @property OverlayColor latticeIdle A warp lattice shown only because its area shows every deformer: its outer edges
+ *   and its corner dots, translucent by default so a rig full of them stays readable; the lattice the pointer hovers
+ *   draws it opaque.
  * @property OverlayColor latticeSelected A selected warp's lattice.
  * @property OverlayColor latticeActive The active warp's lattice.
  * @property OverlayColor latticePending A warp lattice shaped in Pose mode and not yet keyed, whatever its role: its
@@ -70,7 +71,7 @@ data class MeshOverlayPalette(
 	val faceActive: OverlayColor,
 	val warning: OverlayColor = OverlayColor.fromArgb(0xFFFF5A5AL),
 	val pinnedPlacement: OverlayColor = OverlayColor.fromArgb(0xFFB266FFL),
-	val latticeIdle: OverlayColor = OverlayColor.fromArgb(0xB3404040L),
+	val latticeIdle: OverlayColor = OverlayColor.fromArgb(0x80404040L),
 	val latticeSelected: OverlayColor = OverlayColor.fromArgb(0xFF338CFFL),
 	val latticeActive: OverlayColor = OverlayColor.fromArgb(0xFF7DE400L),
 	val latticePending: OverlayColor = OverlayColor.fromArgb(0xFFDF8431L),

@@ -42,7 +42,6 @@ import org.umamo.ui.transform.coveredVerticesOf
 import org.umamo.ui.transform.elementEditStage
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.activeElementMedian
-import org.umamo.ui.viewport.gizmo.selectableDeformerTargets
 import org.umamo.ui.viewport.gizmo.worldToScreen
 
 /*
@@ -119,7 +118,7 @@ private fun poseWarpUnder(
 	pointer: Offset,
 ): DeformerId? {
 	val model = session.model.value
-	selectableDeformerTargets(latticesUnder(service, areaId, pointer), model).firstOrNull()?.let { lattice -> return lattice.id }
+	selectableLatticeUnder(service, areaId, pointer, model)?.let { lattice -> return lattice }
 
 	val drawableId = service.pickAt(areaId, pointer.x, pointer.y) ?: return null
 	val parentId = model.drawables.firstOrNull { drawable -> drawable.id == drawableId }?.parentDeformerId ?: return null

@@ -52,7 +52,7 @@
 			"faceOffKey": "#44888888"
 		},
 		"deformer": {
-			"latticeIdle": "#B3404040",
+			"latticeIdle": "#80404040",
 			"latticeSelected": "#FF338CFF",
 			"latticeActive": "#FF7DE400",
 			"latticePending": "#FFDF8431"

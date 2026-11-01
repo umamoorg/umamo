@@ -47,6 +47,7 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  *     drawn warp lattice's center), the pure circle-stamp and box functions, the lattice-aware picks, and this
  *     viewport's marquee and pick controller.
  *   - ObjectGizmoPointerInput.kt: the pointer loop (modal transform, circle brush, armed box, idle pick).
+ *   - LatticeHover.kt: the lattice the idle pointer is over, drawn opaque (shared with the Edit overlay).
  *   - ObjectGizmoDraw.kt: the gesture chrome, read in the draw phase.
  *   - ObjectGizmoRequests.kt: the area-gated collector for the Shift+S snaps.
  * The shared pick and marquee flows are in gizmo/ObjectPickController.kt and gizmo/MarqueeSelectController.kt;
@@ -65,7 +66,7 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  *   - Click pick (idle): the primary button picks on release what lies under the cursor - a warp whose drawn
  *     lattice is there before the front-most drawable's art (plain replaces, Shift / Ctrl toggles membership,
  *     an Alt click opens the overlap picker over lattices and stacked meshes, an unmodified click on empty
- *     canvas clears).
+ *     canvas clears).  Before the press, the lattice a click would take draws opaque under the pointer.
  *   - Box select: a primary drag rubber-bands and selects every drawable whose world centroid, and every drawn
  *     warp whose lattice center, is enclosed (Shift adds to the current selection).  Works un-armed (a drag
  *     from empty canvas, Blender's default drag) and armed (Blender's B, which skips the pick and always boxes,
@@ -149,11 +150,15 @@ fun ViewportObjectGizmoOverlay(
 	// viewportObjectPick and ObjectPickController).
 	val objectPick = remember(areaId) { viewportObjectPick(areaId, session, service, marquee, anchors, onOverlapRequest) }
 
+	// The lattice the idle pointer is over, drawn opaque in this area alone, one per area (see LatticeHover).
+	val latticeHover = remember(areaId) { LatticeHover(areaId, service) { session.model.value } }
+
 	// The unmount-mid-gesture guard: leaving Object mode or closing the area disposes this part of the overlay
 	// mid-gesture, which cancels the latch effect below WITHOUT running its teardown - the renderer would be
 	// left on the uncommitted preview, and the latch on an overlay that no longer exists.  A select gesture in
 	// flight is dropped the same way, nothing of it landing: a box abandons and lowers the gesture flag it
-	// raised, and a stroke goes uncommitted with its tint preview taken down.
+	// raised, and a stroke goes uncommitted with its tint preview taken down.  The lattice hover clears, so no
+	// lattice stays opaque in an area this overlay no longer serves.
 	DisposableEffect(modalTransform) {
 		onDispose {
 			if (modalTransform.abandon()) {
@@ -162,6 +167,7 @@ fun ViewportObjectGizmoOverlay(
 
 			marquee.discard()
 			objectPick.cancel()
+			latticeHover.clear()
 		}
 	}
 
@@ -235,7 +241,7 @@ fun ViewportObjectGizmoOverlay(
 					},
 				)
 				.pointerInput(areaId) {
-					objectGizmoPointerLoop(areaId, session, modalTransform, marquee, objectPick, liveCamera, liveSize)
+					objectGizmoPointerLoop(areaId, session, modalTransform, marquee, objectPick, latticeHover, liveCamera, liveSize)
 				},
 	) {
 		Canvas(modifier = Modifier.fillMaxSize()) {

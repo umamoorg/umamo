@@ -13,7 +13,8 @@ import org.umamo.ui.viewport.gizmo.MeshPickController
 /**
  * The Edit overlay's pointer loop.  Every event records the pointer, then goes to exactly one of three
  * branches: the modal transform while an operator is latched here, the circle brush while it is armed
- * here, and otherwise the element pick and the box select, armed or not.  While another area owns a
+ * here, and otherwise the element pick and the box select, armed or not, with the lattice hover beside them;
+ * every other branch clears the hover.  While another area owns a
  * gesture (or a UV operator runs, which never belongs to a viewport), or Zoom Region is armed here, the
  * loop takes nothing.  Whatever takes the area over mid-drag - another area, a transform, the circle
  * tool, Zoom Region - abandons an in-flight box first.
@@ -26,6 +27,7 @@ import org.umamo.ui.viewport.gizmo.MeshPickController
  * @param EditModalTransform modalTransform The area's modal transform (its gesture state and commit side).
  * @param MarqueeSelectController<MeshSelection> marquee The area's box / circle machinery.
  * @param MeshPickController meshPick The area's element pick and box select.
+ * @param LatticeHover latticeHover The area's lattice hover, which follows the idle pointer (Pose mode's idle lattices).
  * @param State<ViewportCamera> liveCamera The area camera.
  * @param State<IntSize> liveSize The area size in pixels.
  */
@@ -35,6 +37,7 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 	modalTransform: EditModalTransform,
 	marquee: MarqueeSelectController<MeshSelection>,
 	meshPick: MeshPickController,
+	latticeHover: LatticeHover,
 	liveCamera: State<ViewportCamera>,
 	liveSize: State<IntSize>,
 ) {
@@ -56,6 +59,7 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 				session.activeUvOperator.value != null
 			) {
 				meshPick.cancel()
+				latticeHover.clear()
 
 				continue
 			}
@@ -70,6 +74,7 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 			// in flight is abandoned rather than left to follow the pointer after Zoom Region disarms.
 			if (session.zoomRegionArmedArea.value == areaId) {
 				meshPick.cancel()
+				latticeHover.clear()
 
 				continue
 			}
@@ -77,6 +82,7 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 			// A transform or the circle tool armed mid-drag supersedes the box.
 			if (operator != null || selectTool is ActiveSelectTool.Circle) {
 				meshPick.cancel()
+				latticeHover.clear()
 			}
 
 			if (operator != null) {
@@ -93,7 +99,9 @@ internal suspend fun PointerInputScope.editGizmoPointerLoop(
 				// ELEMENT PICK AND BOX SELECT, armed or not: the flow shared with the UV editor and
 				// Object mode (Shift+RightClick places the viewport's 2D cursor here).  Only
 				// primary-driven events and right-clicks are consumed, so middle-drag pan and wheel
-				// zoom fall through.
+				// zoom fall through.  The lattice hover follows the same events first: Pose mode's idle lattices
+				// light up where Alt+Q would take them, and Edit mode draws none, so nothing lights there.
+				latticeHover.track(event, change)
 				meshPick.handleEvent(event, change, selectTool is ActiveSelectTool.BoxArmed, activeCamera, size)
 			}
 		}

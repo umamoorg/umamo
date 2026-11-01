@@ -4,11 +4,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.umamo.render.ContentBounds
 import org.umamo.render.ViewportCamera
+import org.umamo.runtime.model.DeformerId
 import org.umamo.ui.viewport.AreaCameraKey
 import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.CameraSurface
 import org.umamo.ui.viewport.RenderedFrame
 import org.umamo.ui.viewport.UvSceneContent
+import org.umamo.ui.viewport.withHoveredLattice
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -383,14 +385,30 @@ internal class ViewportAreaRegistry {
 
 	/**
 	 * Publishes what an area draws beyond its scene; a no-op for an unregistered area.  One volatile store of
-	 * one immutable value: the render thread reads it once per render and stamps the frame from that read.
+	 * one immutable value: the render thread reads it once per render and stamps the frame from that read.  The
+	 * area's hovered lattice ([setLatticeHover]) carries over onto the new value, since the pointer owns it, not the
+	 * overlay state the value comes from.
 	 *
 	 * @param String       areaId   The area.
 	 * @param AreaOverlays overlays The area's render options.
 	 */
 	fun setAreaOverlays(areaId: String, overlays: AreaOverlays) {
 		val slot = areas[areaId] ?: return
-		slot.overlays = overlays
+		slot.overlays = overlays.withHoveredLattice(slot.overlays.frame.hoveredLattice)
+	}
+
+	/**
+	 * Sets the warp whose lattice an area draws opaque because the pointer is over it there, or null for none; a
+	 * no-op for an unregistered area.  It rides the area's overlays, which freshness compares by value, so a change
+	 * re-renders this area alone and the same warp again renders nothing.  UI thread, like [setAreaOverlays], so the
+	 * two never interleave their read and store.
+	 *
+	 * @param String      areaId     The area.
+	 * @param DeformerId? deformerId The hovered warp, or null.
+	 */
+	fun setLatticeHover(areaId: String, deformerId: DeformerId?) {
+		val slot = areas[areaId] ?: return
+		slot.overlays = slot.overlays.withHoveredLattice(deformerId)
 	}
 
 	/**
