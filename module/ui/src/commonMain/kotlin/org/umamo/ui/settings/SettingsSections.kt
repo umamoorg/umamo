@@ -49,6 +49,7 @@ import org.umamo.ui.resources.settings_colors_group_vertex
 import org.umamo.ui.resources.settings_colors_mesh_edit
 import org.umamo.ui.resources.settings_colors_pinned_placement
 import org.umamo.ui.resources.settings_colors_role_active
+import org.umamo.ui.resources.settings_colors_role_hovered
 import org.umamo.ui.resources.settings_colors_role_idle
 import org.umamo.ui.resources.settings_colors_role_offkey
 import org.umamo.ui.resources.settings_colors_role_selected
@@ -390,6 +391,7 @@ internal fun ColorsSection() {
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_selected), ViewportColorSettings.LATTICE_SELECTED_KEY, ViewportColorSettings.LATTICE_SELECTED_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_active), ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT)
 			ColorSettingRow(stringResource(Res.string.settings_colors_role_unkeyed), ViewportColorSettings.LATTICE_PENDING_KEY, ViewportColorSettings.LATTICE_PENDING_DEFAULT)
+			ColorSettingRow(stringResource(Res.string.settings_colors_role_hovered), ViewportColorSettings.LATTICE_HOVER_KEY, ViewportColorSettings.LATTICE_HOVER_DEFAULT)
 		}
 		VerticalScrollbarOverlay(scrollState)
 	}

@@ -46,11 +46,11 @@ private val GRID_RESET_GAP = 4.dp
 /** The fractional places the Scale field shows and commits: the kit field's default, named so the edit guard compares at the same places. */
 private const val GRID_SCALE_DECIMALS = 2
 
-/** The commit clamp of the Opacity field, in percent: 0 draws nothing while the row stays on, 100 is the palette as it is. */
-private val WIREFRAME_OPACITY_PERCENT_RANGE = 0..100
+/** The commit clamp of an Opacity field, in percent: 0 draws nothing while the row stays on, 100 is the palette as it is. */
+private val OPACITY_PERCENT_RANGE = 0..100
 
-/** The Opacity field's chevron and scrub step, in percent. */
-private const val WIREFRAME_OPACITY_PERCENT_STEP = 5
+/** An Opacity field's chevron and scrub step, in percent. */
+private const val OPACITY_PERCENT_STEP = 5
 
 /**
  * The overlays control both work-surface headers mount at their trailing end, Blender's two-part Viewport
@@ -65,8 +65,9 @@ private const val WIREFRAME_OPACITY_PERCENT_STEP = 5
  * and field carries its description as a hover tooltip.  Under the Grid row sit the area's grid fields: an
  * edit gives the area a grid of its own, and the reset beside them, shown only then, returns it to
  * following the application's grid - no checkbox to flip, the edit is the choice.  A section's value fields
- * follow its rows: the Opacity field under the Wireframe row on a 2D viewport, alone under the Geometry
- * heading on a UV editor, where it fades the islands.  The rows and the fields stay enabled while the master
+ * follow its rows: the wireframe's Opacity field under the Geometry rows on a 2D viewport, alone under the
+ * Geometry heading on a UV editor, where it fades the islands; and the deformers' Opacity field under the
+ * Deformers row on a 2D viewport, where it fades the warp lattices.  The rows and the fields stay enabled while the master
  * is off: each row's flag is what comes back when the master returns, so the rigger can set up the set they
  * want before switching it on.  A section with no row and no field for this surface is left out.
  *
@@ -120,7 +121,8 @@ internal fun OverlaysHeaderControl(state: ViewportOverlayState, enabled: Boolean
 
 				for (field in sectionFields) {
 					when (field) {
-						OverlayField.WireframeOpacity -> WireframeOpacityField(state, field)
+						OverlayField.WireframeOpacity -> OpacityPercentField(field, state.wireframeOpacity) { opacity -> state.wireframeOpacity = opacity }
+						OverlayField.DeformerOpacity -> OpacityPercentField(field, state.deformerOpacity) { opacity -> state.deformerOpacity = opacity }
 					}
 				}
 			}
@@ -129,27 +131,28 @@ internal fun OverlaysHeaderControl(state: ViewportOverlayState, enabled: Boolean
 }
 
 /**
- * The Opacity field: the area's wireframe opacity as a whole percent, 0 to 100.  A commit of the percent the
- * field already shows is no edit, so leaving the field hands nothing back; a differing one writes the area's
- * opacity, 0 included, which draws no wireframe while the row stays as set.  The field ends where the grid
- * fields do, leaving the reset icon's slot empty, so the popover's fields share one right edge.
+ * An Opacity field: one of the area's opacities as a whole percent, 0 to 100.  A commit of the percent the field
+ * already shows is no edit, so leaving the field hands nothing back; a differing one hands the new opacity to
+ * [onCommit], 0 included, which draws none of what the field fades while its row stays as set.  The field ends where
+ * the grid fields do, leaving the reset icon's slot empty, so the popover's fields share one right edge.
  *
- * @param ViewportOverlayState state The area's overlay state.
  * @param OverlayField field The field's catalog entry, for its label and description.
+ * @param Float opacity The opacity the area holds, 0 to 1.
+ * @param Function onCommit Writes a new opacity, 0 to 1, into the area's state.
  */
 @Composable
-private fun WireframeOpacityField(state: ViewportOverlayState, field: OverlayField) {
-	val shownPercent = (state.wireframeOpacity * 100f).roundToInt()
+private fun OpacityPercentField(field: OverlayField, opacity: Float, onCommit: (Float) -> Unit) {
+	val shownPercent = (opacity * 100f).roundToInt()
 	PropertyFieldRow(label = stringResource(field.label), description = stringResource(field.description), trailingGutter = GRID_RESET_GAP + GRID_RESET_SIZE) {
 		NumberField(
 			value = shownPercent,
 			onValueChange = { percent ->
 				if (percent != shownPercent) {
-					state.wireframeOpacity = percent / 100f
+					onCommit(percent / 100f)
 				}
 			},
-			range = WIREFRAME_OPACITY_PERCENT_RANGE,
-			step = WIREFRAME_OPACITY_PERCENT_STEP,
+			range = OPACITY_PERCENT_RANGE,
+			step = OPACITY_PERCENT_STEP,
 			unitSuffix = stringResource(Res.string.unit_percent),
 			modifier = Modifier.fillMaxWidth(),
 		)

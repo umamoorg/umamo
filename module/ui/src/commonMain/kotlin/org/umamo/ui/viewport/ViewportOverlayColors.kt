@@ -47,6 +47,7 @@ internal object ViewportColorSettings {
 	const val LATTICE_SELECTED_KEY = "viewport.deformer.latticeSelected"
 	const val LATTICE_ACTIVE_KEY = "viewport.deformer.latticeActive"
 	const val LATTICE_PENDING_KEY = "viewport.deformer.latticePending"
+	const val LATTICE_HOVER_KEY = "viewport.deformer.latticeHover"
 
 	const val VERTEX_IDLE_DEFAULT = "#FFFF00EC"
 	const val VERTEX_SELECTED_DEFAULT = "#FFFF7A00"
@@ -68,6 +69,7 @@ internal object ViewportColorSettings {
 	const val LATTICE_SELECTED_DEFAULT = SELECTION_HIGHLIGHT_DEFAULT
 	const val LATTICE_ACTIVE_DEFAULT = ACTIVE_SELECTION_HIGHLIGHT_DEFAULT
 	const val LATTICE_PENDING_DEFAULT = "#FFDF8431"
+	const val LATTICE_HOVER_DEFAULT = "#FFFF00EC"
 }
 
 /**
@@ -96,6 +98,7 @@ internal object ViewportColorSettings {
  * @property Color latticeSelected A selected warp's lattice.
  * @property Color latticeActive The active warp's lattice.
  * @property Color latticePending A warp lattice shaped in Pose mode and not yet keyed, whatever its role.
+ * @property Color latticeHover The warp lattice under the pointer, whatever its role or mark: what a click there takes.
  */
 internal data class ViewportOverlayColors(
 	val vertexIdle: Color,
@@ -118,6 +121,7 @@ internal data class ViewportOverlayColors(
 	val latticeSelected: Color,
 	val latticeActive: Color,
 	val latticePending: Color,
+	val latticeHover: Color,
 )
 
 /**
@@ -150,10 +154,11 @@ internal fun rememberViewportOverlayColors(): ViewportOverlayColors =
 		latticeSelected = settingColor(ViewportColorSettings.LATTICE_SELECTED_KEY, ViewportColorSettings.LATTICE_SELECTED_DEFAULT),
 		latticeActive = settingColor(ViewportColorSettings.LATTICE_ACTIVE_KEY, ViewportColorSettings.LATTICE_ACTIVE_DEFAULT),
 		latticePending = settingColor(ViewportColorSettings.LATTICE_PENDING_KEY, ViewportColorSettings.LATTICE_PENDING_DEFAULT),
+		latticeHover = settingColor(ViewportColorSettings.LATTICE_HOVER_KEY, ViewportColorSettings.LATTICE_HOVER_DEFAULT),
 	)
 
 /**
- * The nine Edit-mode element colors, the two placement colors, and the four lattice colors as the renderer's
+ * The nine Edit-mode element colors, the two placement colors, and the five lattice colors as the renderer's
  * mesh overlay palette, straight alpha, each channel the color's own 0..1 component.  The off-key trio is drawn
  * nowhere and stays out.
  *
@@ -176,6 +181,7 @@ internal fun ViewportOverlayColors.toMeshOverlayPalette(): MeshOverlayPalette =
 		latticeSelected = latticeSelected.toOverlayColor(),
 		latticeActive = latticeActive.toOverlayColor(),
 		latticePending = latticePending.toOverlayColor(),
+		latticeHover = latticeHover.toOverlayColor(),
 	)
 
 /**

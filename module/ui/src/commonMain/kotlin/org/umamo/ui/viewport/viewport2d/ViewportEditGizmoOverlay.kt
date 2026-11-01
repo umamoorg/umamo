@@ -48,8 +48,8 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  *   - VertexSlide.kt: the slide's frozen candidates and the per-frame edge pick.
  *   - EditGizmoRequests.kt: the area-gated collectors for Select Linked, Alt+Q, Rip, and the snaps.
  *   - EditGizmoPointerInput.kt: the pointer loop (modal transform, circle brush, idle selection).
- *   - LatticeHover.kt: the idle lattice the pointer is over in Pose mode, drawn opaque (shared with the Object
- *     overlay).
+ *   - LatticeHover.kt: the idle lattice the pointer is over in Pose mode, drawn in the hover color (shared with
+ *     the Object overlay).
  *   - EditGizmoSelection.kt: the marquee and the element pick over mesh elements.
  *   - EditGizmoDraw.kt: the gesture chrome, read in the draw phase.
  *   - EditMeshGeometry.kt: the session owners' live geometry at the stage, which the picks read.
@@ -188,8 +188,8 @@ fun ViewportEditGizmoOverlay(
 	// The element pick and box select, armed or not, one per area (see MeshPickController).
 	val meshPick = remember(areaId) { editMeshPick(session, marquee, liveGeometryState) }
 
-	// The idle lattice the pointer is over in Pose mode, drawn opaque in this area alone, one per area (see
-	// LatticeHover).
+	// The idle lattice the pointer is over in Pose mode, drawn in the hover color in this area alone, one per area
+	// (see LatticeHover).
 	val latticeHover = remember(areaId) { LatticeHover(areaId, service) { session.model.value } }
 
 	// The modal transform's commit side, one per area: the pointer loop and the collectors below keep the

@@ -26,7 +26,8 @@ internal const val OVERLAYS_MEMBER = "overlays"
  * it deviates, a JSON null where it does not, and the area's own grid under `gridGeometry` or a null while it
  * follows.  Naming every key is what lets a flag go back to its default in the file: the entry is saved as a
  * merge patch (UMA § 7.5), which keeps a member the writer does not name.  Keys the surface has no overlay for
- * (the axes, the wireframe, its culling, and the selection tint under a UV editor) are never written; the area's own grid
+ * (the axes, the wireframe, its culling, the selection tint, and the deformers and their opacity under a UV editor) are
+ * never written; the area's own grid
  * is written whole on both surfaces, a UV editor's scale in texels.
  *
  * @return JsonElement The member value.
@@ -55,6 +56,8 @@ internal fun ViewportOverlayState.overlaysJsonOrNull(): JsonElement {
 			put("selectionTint", flagOrNull(showSelectionTint, defaultValue = true))
 			put("deformers", flagOrNull(showDeformers, defaultValue = false))
 			put("wireframeCulling", flagOrNull(cullHiddenWireframe, defaultValue = true))
+			// UMA § 7.3 `deformerOpacity`: the warp lattices' alpha scale, 0 to 1 (`viewport` only).
+			put("deformerOpacity", if (deformerOpacity == 1f) JsonNull else JsonPrimitive(deformerOpacity))
 		}
 
 		// UMA § 7.3 `wireframeOpacity`: the wireframe's (a UV editor's islands') alpha scale, 0 to 1, on both surfaces.
@@ -75,8 +78,8 @@ internal fun ViewportOverlayState.overlaysJsonOrNull(): JsonElement {
 /**
  * Takes the `overlays` member a document was saved with, resetting every flag first so an absent key means
  * its default (UMA § 7.1).  A key of the wrong type is skipped, a key the surface has no overlay for is
- * ignored, a `wireframeOpacity` outside 0 to 1 reads as 1, and a `gridGeometry` that fails its checks leaves
- * the area following the application's grid.
+ * ignored, a `wireframeOpacity` or `deformerOpacity` outside 0 to 1 reads as 1, and a `gridGeometry` that fails its
+ * checks leaves the area following the application's grid.
  *
  * @param JsonObject? tree The member as the file held it, or null when the block has none.
  */
@@ -98,6 +101,7 @@ internal fun ViewportOverlayState.restoreOverlays(tree: JsonObject?) {
 		showSelectionTint = booleanOf(tree, "selectionTint") ?: true
 		showDeformers = booleanOf(tree, "deformers") ?: false
 		cullHiddenWireframe = booleanOf(tree, "wireframeCulling") ?: true
+		deformerOpacity = finiteFloatOf(tree["deformerOpacity"])?.takeIf { value -> value in 0f..1f } ?: 1f
 	}
 
 	wireframeOpacity = finiteFloatOf(tree["wireframeOpacity"])?.takeIf { value -> value in 0f..1f } ?: 1f

@@ -858,7 +858,7 @@ class PuppetRenderer(
 
 			// Over the mesh overlay: a lattice is what a click in Object or Pose mode takes first.
 			if (drawLattices) {
-				overlayEncoder.encodeLatticeDraws(pass, latticeResidency, inputs, latticeRolesDrawnIn(overlays), overlays.hoveredLattice)
+				overlayEncoder.encodeLatticeDraws(pass, latticeResidency, inputs, overlays)
 			}
 		}
 

@@ -80,6 +80,14 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	var wireframeOpacity by mutableStateOf(1f)
 
 	/**
+	 * The opacity, 0 to 1, of the warp lattices drawn over the art (the 2D viewport only): the idle, selected, and
+	 * active lattices each drawn at their palette alpha times this.  The hovered lattice keeps its hover color whole,
+	 * and the cage being edited keeps the palette.  At 0 no lattice draws or picks while the Deformers row stays as
+	 * set.  Saved as the `deformerOpacity` key.
+	 */
+	var deformerOpacity by mutableStateOf(1f)
+
+	/**
 	 * The area's own grid geometry, or null while the area follows the application's grid for its surface (the
 	 * viewport.grid.* setting on a 2D viewport, viewport.uvGrid.* on a UV editor).  The first edit of a grid field in the overlays popover gives the area its own; the reset beside the fields
 	 * takes it back.  Saved as the `gridGeometry` key on both surfaces: the scale is world units on a 2D viewport
@@ -139,7 +147,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 	val isAtDefaults: Boolean
 		get() =
 			showOverlays && showGrid && showAxes && showCursor && showInfo && !showWireframe && showSelectionTint && !showDeformers && cullHiddenWireframe &&
-				wireframeOpacity == 1f && gridGeometry == null
+				wireframeOpacity == 1f && deformerOpacity == 1f && gridGeometry == null
 
 	/**
 	 * The grid this area draws and snaps to over a given application grid: its own, else the application's,
@@ -164,6 +172,7 @@ class ViewportOverlayState(val surface: OverlaySurface) {
 		showDeformers = false
 		cullHiddenWireframe = true
 		wireframeOpacity = 1f
+		deformerOpacity = 1f
 		gridGeometry = null
 	}
 }
