@@ -112,9 +112,10 @@ internal fun atlasPagesFor(
 		val sourceName = moc3Document?.manifest?.fileReferences?.textures?.getOrNull(pageIndex)
 		Moc3Sidecars.AtlasPage(
 			fileName = sourceName ?: "$textureFolder/texture_${paddedPageIndex(pageIndex)}.png",
-			// The verbatim-bytes preference is only reachable for a MOC3-origin document, which the
-			// repack's availability gate excludes (no atlas tiles) - so a recomposed effective set can
-			// never be shadowed by stale retained bytes here.
+			// The verbatim-bytes preference is only reachable for a MOC3-origin document, whose pages
+			// nothing recomposes: the repack's availability gate needs atlas tiles, and Import Artwork
+			// refuses a document whose drawables have none (refuseArtworkAdd) - so a recomposed effective
+			// set can never be shadowed by stale retained bytes here.
 			bytes = moc3Document?.atlasPages?.getOrNull(pageIndex) ?: encodeAtlasPng(atlas),
 		)
 	}

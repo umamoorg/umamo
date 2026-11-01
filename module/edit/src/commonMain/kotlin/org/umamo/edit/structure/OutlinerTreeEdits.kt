@@ -104,9 +104,13 @@ private fun PuppetModel.orgSiblingsOf(child: OrgChild): List<OrgChild> {
 private fun PuppetModel.orgParentOf(child: OrgChild): PartId? =
 	parts.firstOrNull { child in it.children }?.id
 
-/** The org child immediately after [child] among its siblings, or null when it is last (append). */
-private fun PuppetModel.orgSiblingAfter(child: OrgChild): OrgChild? {
-	val siblings = orgSiblingsOf(child)
+/**
+ * The org child after [child] among its siblings once [moving] is lifted out, or null when [child] is then
+ * last (append).  The move detaches [moving] before it inserts, so an anchor on [moving] itself would
+ * not be found and would append.
+ */
+private fun PuppetModel.orgSiblingAfter(child: OrgChild, moving: OrgChild): OrgChild? {
+	val siblings = orgSiblingsOf(child) - moving
 
 	return siblings.getOrNull(siblings.indexOf(child) + 1)
 }
@@ -115,10 +119,10 @@ private fun PuppetModel.orgSiblingAfter(child: OrgChild): OrgChild? {
 private fun PuppetModel.deformerParentOf(id: DeformerId): DeformerId? =
 	deformers.firstOrNull { it.id == id }?.parent
 
-/** The deformer immediately after [id] among its same-parent siblings (list order), or null when last. */
-private fun PuppetModel.deformerSiblingAfter(id: DeformerId): DeformerId? {
+/** The deformer after [id] among its same-parent siblings (list order) once [moving] is lifted out, or null when last. */
+private fun PuppetModel.deformerSiblingAfter(id: DeformerId, moving: DeformerId): DeformerId? {
 	val parent = deformerParentOf(id)
-	val siblings = deformers.filter { it.parent == parent }.map { it.id }
+	val siblings = deformers.filter { it.parent == parent && it.id != moving }.map { it.id }
 
 	return siblings.getOrNull(siblings.indexOf(id) + 1)
 }
@@ -144,7 +148,7 @@ fun PuppetModel.resolveOutlinerDrop(dragged: SelectionTarget, target: SelectionT
 			}
 
 			RowDropBand.After -> {
-				OutlinerDrop.MoveDeformer(dragged.id, deformerParentOf(target.id), beforeId = deformerSiblingAfter(target.id), expandTarget = false)
+				OutlinerDrop.MoveDeformer(dragged.id, deformerParentOf(target.id), beforeId = deformerSiblingAfter(target.id, dragged.id), expandTarget = false)
 			}
 
 			RowDropBand.Into -> {
@@ -163,7 +167,7 @@ fun PuppetModel.resolveOutlinerDrop(dragged: SelectionTarget, target: SelectionT
 		}
 
 		RowDropBand.After -> {
-			OutlinerDrop.MoveOrgChild(draggedChild, orgParentOf(targetChild), before = orgSiblingAfter(targetChild), expandTarget = false)
+			OutlinerDrop.MoveOrgChild(draggedChild, orgParentOf(targetChild), before = orgSiblingAfter(targetChild, draggedChild), expandTarget = false)
 		}
 
 		RowDropBand.Into -> {

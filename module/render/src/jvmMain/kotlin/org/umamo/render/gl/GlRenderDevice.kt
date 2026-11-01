@@ -647,13 +647,15 @@ class GlRenderDevice : RenderDevice {
 		return minOf(textureSize, renderbufferSize, viewportDimensions[0], viewportDimensions[1])
 	}
 
+	override fun maxTextureSize(): Int = GL11.glGetInteger(GL11.GL_MAX_TEXTURE_SIZE)
+
 	override fun describeBackend(): String {
 		val renderer = GL11.glGetString(GL11.GL_RENDERER)
 		val version = GL11.glGetString(GL11.GL_VERSION)
 		val vendor = GL11.glGetString(GL11.GL_VENDOR)
 		val glsl = GL11.glGetString(GL20.GL_SHADING_LANGUAGE_VERSION)
 
-		return "renderer=$renderer | version=$version | vendor=$vendor | glsl=$glsl"
+		return "renderer=$renderer | version=$version | vendor=$vendor | glsl=$glsl | maxTexture=${maxTextureSize()}"
 	}
 
 	/** The (vertex, fragment) GLSL for a pipeline purpose - this backend's shader library, keyed by purpose. */

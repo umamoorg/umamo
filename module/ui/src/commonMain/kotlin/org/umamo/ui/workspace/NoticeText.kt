@@ -77,6 +77,7 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.document.cmo3Loss" -> stringResource(Res.string.notice_document_cmo3_loss)
 		"notice.document.moc3Loss" -> stringResource(Res.string.notice_document_moc3_loss)
 		"notice.import.artworkSuperseded" -> stringResource(Res.string.notice_import_artwork_superseded)
+		"notice.import.bakedAtlas" -> stringResource(Res.string.notice_import_baked_atlas)
 		"notice.import.noArtLayers" -> stringResource(Res.string.notice_import_no_art_layers)
 		"notice.reload.done" -> stringResource(Res.string.notice_reload_done, *countArguments(arguments, 3))
 		"notice.reload.notes" -> stringResource(Res.string.notice_reload_notes, *countArguments(arguments, 4))

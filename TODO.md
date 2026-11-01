@@ -14,7 +14,7 @@
 ## 0.5.0 Goals
 0.) Merge in the existing language translations.(Some were merged.)
 ~~1.) Work on the 2D Viewport sidebar that is empty.~~
-2.) Warp Deformer Gizmos and Editing(Rotation deformer is deferred.)
+~~2.) Warp Deformer Gizmos and Editing(Rotation deformer is deferred.)~~
 3.) Glue Gizmos and Editing(Deferred)
 
 ## VERY IMPORTANT
@@ -43,7 +43,7 @@
 ## Deformers
 * Generation
 	* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
-* Deformer overlay shows partially transparent with only the outline.
+* Create Warp Deformer on a part should apply to all drawables in that part.
 
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.

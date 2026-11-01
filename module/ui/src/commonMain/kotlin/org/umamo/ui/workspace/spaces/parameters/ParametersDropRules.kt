@@ -86,12 +86,14 @@ internal fun parameterMoveSubjectOf(row: ParameterRow): ParameterMoveSubject =
  * resolved against the model's tree (a group-less model is treated as a flat root of leaves).
  *
  * @param PuppetModel puppet The model whose tree is walked.
+ * @param ParameterMoveSubject subject What is being dragged, which never anchors its own drop.
  * @param ParameterRow targetRow The row under the pointer.
  * @param RowDropBand band The resolved band.
  * @return Pair<ParameterGroupId?, ParameterNodeRef?> The destination parent (null = root) and the anchor.
  */
 internal fun parameterDropAnchor(
 	puppet: PuppetModel,
+	subject: ParameterMoveSubject,
 	targetRow: ParameterRow,
 	band: RowDropBand,
 ): Pair<ParameterGroupId?, ParameterNodeRef?> {
@@ -111,8 +113,9 @@ internal fun parameterDropAnchor(
 
 		RowDropBand.After -> {
 			val span = if (targetRow is ParameterRow.Pair2D) 2 else 1
-			val afterIndex = index + span
-			val anchor = siblings.getOrNull(afterIndex)?.let { node -> refOf(node) }
+			// The move detaches the subject before it inserts, so an anchor on the subject itself would not be
+			// found and would append; the anchor is the first sibling past the target the move leaves standing.
+			val anchor = siblings.drop(index + span).firstOrNull { node -> !subject.includes(node) }?.let { node -> refOf(node) }
 			parentGroupId to anchor
 		}
 
@@ -156,7 +159,7 @@ internal fun resolveParameterDrop(
 ): ParameterDrop? {
 	val targetRow = rows.firstOrNull { candidate -> rowKey(candidate) == targetKey } ?: return null
 	val band = parameterDropBandFor(subject, targetRow, targetRow.depth == 0, fraction) ?: return null
-	val (newParentGroupId, before) = parameterDropAnchor(puppet, targetRow, band)
+	val (newParentGroupId, before) = parameterDropAnchor(puppet, subject, targetRow, band)
 	val expandsGroupId =
 		if (band == RowDropBand.Into && targetRow is ParameterRow.GroupHeader) {
 			targetRow.groupId
@@ -190,6 +193,18 @@ private fun refOf(node: ParameterNode): ParameterNodeRef =
 	when (node) {
 		is ParameterNode.Param -> ParameterNodeRef.Leaf(node.id)
 		is ParameterNode.Group -> ParameterNodeRef.Group(node.id)
+	}
+
+/**
+ * True when [node] is part of what this subject moves.
+ *
+ * @param ParameterNode node The tree node.
+ * @return Boolean True when the move detaches the node.
+ */
+private fun ParameterMoveSubject.includes(node: ParameterNode): Boolean =
+	when (this) {
+		is ParameterMoveSubject.Leaves -> node is ParameterNode.Param && node.id in ids
+		is ParameterMoveSubject.Group -> node is ParameterNode.Group && node.id == id
 	}
 
 /**

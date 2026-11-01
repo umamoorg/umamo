@@ -6,8 +6,6 @@ import org.umamo.render.LayerRasterBatch
 import org.umamo.render.PuppetTextures
 import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.RenderDevice
-import org.umamo.render.device.TextureFilter
-import org.umamo.render.device.TextureFormat
 import org.umamo.render.device.TextureWrap
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
@@ -143,11 +141,9 @@ internal class ArtResidency(
 			}
 
 			layerTextures[layerKey] =
-				device.createTexture(
+				device.createArtTexture(
 					image.width,
 					image.height,
-					TextureFormat.Rgba8,
-					TextureFilter.Linear,
 					image.rgba,
 					// A drawable's mesh overhangs the art it samples, so its recovered coordinates run past
 					// this image - across the corpus by up to 443 layer pixels.  An atlas page absorbs that
@@ -281,7 +277,7 @@ internal class ArtResidency(
 	 * @return GpuTexture The texture handle.
 	 */
 	private fun atlasPageTexture(page: DecodedImage): GpuTexture =
-		device.createTexture(page.width, page.height, TextureFormat.Rgba8, TextureFilter.Linear, page.rgba, TextureWrap.ClampToTransparentBorder)
+		device.createArtTexture(page.width, page.height, page.rgba, TextureWrap.ClampToTransparentBorder)
 
 	/**
 	 * Re-points every resident at its atlas page under the current [textures] - the atlas twin of

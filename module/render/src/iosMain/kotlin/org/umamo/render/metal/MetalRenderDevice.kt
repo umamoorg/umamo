@@ -162,5 +162,7 @@ class MetalRenderDevice : RenderDevice {
 
 	override fun maxRenderTargetSize(): Int = TODO("Metal port: the device family's maximum 2D texture width (16384 on Apple GPU families 3 and up)")
 
+	override fun maxTextureSize(): Int = TODO("Metal port: the device family's maximum 2D texture width (16384 on Apple GPU families 3 and up)")
+
 	override fun describeBackend(): String = TODO("Metal port: MTLDevice.name")
 }

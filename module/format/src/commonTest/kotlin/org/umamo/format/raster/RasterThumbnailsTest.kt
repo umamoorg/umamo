@@ -88,6 +88,22 @@ class RasterThumbnailsTest {
 	}
 
 	@Test
+	fun theLongerEdgeScaleKeepsTheAspectWithNoPadding() {
+		val scaled = opaque(8, 2, 9, 8, 7).scaledToLongerEdge(4)
+		assertEquals(4 to 1, scaled.width to scaled.height)
+		assertTrue((0 until 4).all { x -> pixel(scaled, x, 0) == listOf(9, 8, 7, 255) })
+	}
+
+	@Test
+	fun aScaleDownAveragesInPremultipliedSpace() {
+		// An opaque blue pixel beside a transparent white one halves to half-alpha BLUE: the transparent
+		// pixel's color never reaches the result.
+		val rgba = byteArrayOf(0, 0, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0)
+		val scaled = RasterImage(2, 1, rgba).scaledTo(1, 1)
+		assertEquals(listOf(0, 0, 255, 128), pixel(scaled, 0, 0))
+	}
+
+	@Test
 	fun croppingCoversAndCutsTheRect() {
 		val source = opaque(3, 2, 1, 2, 3)
 		assertSame(source, source.cropped(LayerBounds(0, 0, 3, 2)), "full bounds return the raster itself")
