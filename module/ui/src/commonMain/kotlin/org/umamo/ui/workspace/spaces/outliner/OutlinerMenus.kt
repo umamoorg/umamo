@@ -50,7 +50,7 @@ internal fun outlinerRowMenuItems(
 		add(MenuItem.Action(labels.selectable, onSelect = onToggleSelectable))
 		add(MenuItem.Action(labels.rename, onSelect = onStartRename))
 
-		if (inObjectMode && (target is SelectionTarget.Drawable || target is SelectionTarget.Deformer)) {
+		if (inObjectMode) {
 			add(MenuItem.Separator)
 			add(MenuItem.Action(labels.createWarp, onSelect = { commands.invoke(CREATE_WARP_COMMAND) }, enabled = commands[CREATE_WARP_COMMAND]?.availability?.isAvailable() == true))
 		}

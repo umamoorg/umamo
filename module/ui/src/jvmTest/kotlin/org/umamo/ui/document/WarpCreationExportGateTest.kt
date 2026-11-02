@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonObject
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.structure.WARP_BIRTH_DIVISIONS
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.uma.UmaModel
 import org.umamo.interop.ExportNotice
@@ -101,6 +102,8 @@ class WarpCreationExportGateTest {
 			val created = assertIs<Deformer.Warp>(session.model.value.deformerById[createdId])
 			assertEquals(home.id, created.parent, "the warp is created under the warp they share")
 			assertTrue(assertNotNull(created.geometryGrid).axes.isEmpty(), "born with one keyform")
+			println("[warp-create]   born ${created.rows} x ${created.columns} under ${home.name} (${home.rows} x ${home.columns})")
+			assertTrue(created.rows > WARP_BIRTH_DIVISIONS && created.columns > WARP_BIRTH_DIVISIONS, "born as fine as the keyed warp it sits under, not ${created.rows} x ${created.columns}")
 			assertNull(session.notice.value, "the create keeps everything in place: ${session.notice.value?.messageKey}")
 			assertStayed(base, session.model.value, createdArt, "create")
 

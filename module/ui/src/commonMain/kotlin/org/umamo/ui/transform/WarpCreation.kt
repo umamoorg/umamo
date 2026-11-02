@@ -16,9 +16,11 @@ import org.umamo.edit.structure.commitWarpCreation
 import org.umamo.edit.structure.freshDeformerId
 import org.umamo.edit.structure.freshDeformerName
 import org.umamo.edit.structure.warpCreationParameters
+import org.umamo.edit.subtreeTargets
 import org.umamo.render.ChildrenRehomed
 import org.umamo.render.RehomedChildren
 import org.umamo.render.childrenRehomed
+import org.umamo.render.eval.ParentSpaceMapping
 import org.umamo.render.eval.parentSpaceAt
 import org.umamo.render.eval.warpLatticeAt
 import org.umamo.runtime.model.Deformer
@@ -32,6 +34,7 @@ import org.umamo.runtime.model.RuntimeFeature
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.deformerChain
 import org.umamo.runtime.model.partByDrawable
+import kotlin.math.ceil
 
 /*
  * Create Warp Deformer: a warp wrapped around the selection, born with one keyform, and the selection re-parented
@@ -46,14 +49,14 @@ private const val WARP_BASE_NAME = "Warp"
 /**
  * How a warp is born.
  *
- * @property Int rows The cells along v.
- * @property Int columns The cells along u.
+ * @property Int? rows The cells along v, or null for the birth size.
+ * @property Int? columns The cells along u, or null for the birth size.
  * @property Float marginPercent The margin around the selection, in percent of its larger side.
  * @property Boolean quad Whether it maps bilinearly rather than by triangle split.
  */
 internal data class WarpBirth(
-	val rows: Int = WARP_BIRTH_DIVISIONS,
-	val columns: Int = WARP_BIRTH_DIVISIONS,
+	val rows: Int? = null,
+	val columns: Int? = null,
 	val marginPercent: Float = WARP_BIRTH_MARGIN_PERCENT,
 	val quad: Boolean = true,
 )
@@ -66,6 +69,7 @@ internal data class WarpBirth(
  * @property List<DrawableId> wrappedDrawables The drawables re-parented under it.
  * @property List<DeformerId> wrappedDeformers The deformers re-parented under it.
  * @property ChildrenRehomed rehome How the wrapped items were kept in place, and which could not be.
+ * @property LatticeSize size The cells the warp was born with.
  */
 internal class WarpCreation(
 	val model: PuppetModel,
@@ -73,11 +77,13 @@ internal class WarpCreation(
 	val wrappedDrawables: List<DrawableId>,
 	val wrappedDeformers: List<DeformerId>,
 	val rehome: ChildrenRehomed,
+	val size: LatticeSize,
 )
 
 /**
  * The outermost wrappable items of [targets]: drawables with a mesh and deformers, without any item that a selected
- * deformer already carries (it follows its ancestor into the new warp).  Parts wrap nothing.
+ * deformer already carries (it follows its ancestor into the new warp).  A part stands for every drawable of its
+ * subtree, as Select Hierarchy expands it.
  *
  * @param PuppetModel model The model.
  * @param Collection<SelectionTarget> targets The selection.
@@ -85,7 +91,15 @@ internal class WarpCreation(
  */
 internal fun wrappableTargets(model: PuppetModel, targets: Collection<SelectionTarget>): Pair<List<DrawableId>, List<DeformerId>> {
 	val selectedDeformers = targets.filterIsInstance<SelectionTarget.Deformer>().map { target -> target.id }.filter { deformerId -> model.deformerById.containsKey(deformerId) }.toSet()
-	val selectedDrawables = targets.filterIsInstance<SelectionTarget.Drawable>().map { target -> target.id }.toSet()
+	val selectedDrawables =
+		targets
+			.flatMap { target ->
+				when (target) {
+					is SelectionTarget.Drawable -> listOf(target.id)
+					is SelectionTarget.Part -> model.subtreeTargets(target).filterIsInstance<SelectionTarget.Drawable>().map { drawable -> drawable.id }
+					is SelectionTarget.Deformer -> emptyList()
+				}
+			}.toSet()
 	// A deformer's own entry heads its chain; only its ancestors decide whether a selected one carries it.
 	val carried = { parentId: DeformerId? -> parentId != null && model.deformerChain(parentId).any { ancestor -> ancestor.id in selectedDeformers } }
 	val drawables = model.drawables.filter { drawable -> drawable.id in selectedDrawables && drawable.mesh != null && !carried(drawable.parentDeformerId) }.map { drawable -> drawable.id }
@@ -121,13 +135,20 @@ internal fun warpCreationOf(model: PuppetModel, targets: Collection<SelectionTar
 	}
 
 	val parentSpace = parentSpaceAt(model, parentId) ?: return null
-	val rows = birth.rows.coerceIn(1, LATTICE_DIVISION_MAX)
-	val columns = birth.columns.coerceIn(1, LATTICE_DIVISION_MAX)
-	val latticeWorld = boxLattice(world, rows, columns, birth.marginPercent)
-	val pointCount = latticeWorld.size / 2
-	// A lattice parent's inverse starts from its middle; the root's and a rotation's are closed-form.
-	val seed = if (parentSpace.isLattice) FloatArray(latticeWorld.size) { LATTICE_MIDDLE } else latticeWorld
-	val latticeLocal = parentSpace.worldToLocalLinearized(latticeWorld, seed, (0 until pointCount).toSet())
+	val provisionalRows = (birth.rows ?: WARP_BIRTH_DIVISIONS).coerceIn(1, LATTICE_DIVISION_MAX)
+	val provisionalColumns = (birth.columns ?: WARP_BIRTH_DIVISIONS).coerceIn(1, LATTICE_DIVISION_MAX)
+	val provisional = mappedIntoParent(parentSpace, boxLattice(world, provisionalRows, provisionalColumns, birth.marginPercent))
+	// A warp's control points are where its parent's motion reaches what it carries, so under a warp the pose moves it
+	// is born as fine as that warp: fewer points would smooth the motion away.
+	val density = keyedWarpOf(model, parentId)?.let { parent -> birthDivisionsUnder(provisional, parent.rows, parent.columns) }
+	val rows = birth.rows?.coerceIn(1, LATTICE_DIVISION_MAX) ?: density?.rows ?: provisionalRows
+	val columns = birth.columns?.coerceIn(1, LATTICE_DIVISION_MAX) ?: density?.columns ?: provisionalColumns
+	val latticeLocal =
+		if (rows == provisionalRows && columns == provisionalColumns) {
+			provisional
+		} else {
+			mappedIntoParent(parentSpace, boxLattice(world, rows, columns, birth.marginPercent))
+		}
 	val warpId = model.freshDeformerId(WARP_BASE_NAME)
 	val warp =
 		Deformer.Warp(
@@ -157,7 +178,7 @@ internal fun warpCreationOf(model: PuppetModel, targets: Collection<SelectionTar
 		)
 	val rehome = childrenRehomed(model, reparented, RehomedChildren(drawables, deformers))
 
-	return WarpCreation(rehome.model, warpId, drawables, deformers, rehome)
+	return WarpCreation(rehome.model, warpId, drawables, deformers, rehome, LatticeSize(rows, columns))
 }
 
 /**
@@ -182,13 +203,13 @@ internal fun EditorSession.createWarpAdjustable(areaId: String?) {
 	}
 
 	reportRehome(before, creation.rehome, "created ${creation.warpId.raw}")
-	registerAdjustableOperation(model.value, areaId, warpCreationParameters(birth.rows, birth.columns, birth.marginPercent, if (quadAllowed) birth.quad else null)) { record ->
+	registerAdjustableOperation(model.value, areaId, warpCreationParameters(creation.size.rows, creation.size.columns, birth.marginPercent, if (quadAllowed) birth.quad else null)) { record ->
 		val base = record.baseSnapshot.model
 		val baseSelection: Selection = record.baseSnapshot.selection
 		val rerunBirth =
 			WarpBirth(
-				rows = record.parameters.intValue(WarpCreationParameterKeys.ROWS, birth.rows),
-				columns = record.parameters.intValue(WarpCreationParameterKeys.COLUMNS, birth.columns),
+				rows = record.parameters.intValue(WarpCreationParameterKeys.ROWS, creation.size.rows),
+				columns = record.parameters.intValue(WarpCreationParameterKeys.COLUMNS, creation.size.columns),
 				marginPercent = record.parameters.floatValue(WarpCreationParameterKeys.MARGIN, birth.marginPercent),
 				quad = quadAllowed && record.parameters.booleanValue(WarpCreationParameterKeys.QUAD, birth.quad),
 			)
@@ -335,7 +356,7 @@ private class WorldBox(val minX: Float, val maxX: Float, val minZ: Float, val ma
 }
 
 /**
- * The part [target] belongs to: a drawable's part in the org tree, a deformer's own part; null for none or a part.
+ * The part [target] belongs to: a drawable's part in the org tree, a deformer's own part, a part itself; null for none.
  *
  * @param PuppetModel model The model.
  * @param SelectionTarget? target The item.
@@ -345,8 +366,63 @@ private fun partOf(model: PuppetModel, target: SelectionTarget?): PartId? =
 	when (target) {
 		is SelectionTarget.Drawable -> model.partByDrawable()[target.id]
 		is SelectionTarget.Deformer -> model.deformerById[target.id]?.partId
-		is SelectionTarget.Part, null -> null
+		is SelectionTarget.Part -> target.id
+		null -> null
 	}
+
+/**
+ * The cells a warp is born with under a parent warp of [parentRows] x [parentColumns] cells, so its cells are no larger
+ * than the parent's.
+ *
+ * @param FloatArray latticeLocal The new warp's lattice in the parent's normalized space, interleaved.
+ * @param Int parentRows The parent's cells along v.
+ * @param Int parentColumns The parent's cells along u.
+ * @return LatticeSize The birth size.
+ */
+internal fun birthDivisionsUnder(latticeLocal: FloatArray, parentRows: Int, parentColumns: Int): LatticeSize {
+	var minU = Float.POSITIVE_INFINITY
+	var maxU = Float.NEGATIVE_INFINITY
+	var minV = Float.POSITIVE_INFINITY
+	var maxV = Float.NEGATIVE_INFINITY
+
+	for (pointIndex in 0 until latticeLocal.size / 2) {
+		minU = minOf(minU, latticeLocal[pointIndex * 2])
+		maxU = maxOf(maxU, latticeLocal[pointIndex * 2])
+		minV = minOf(minV, latticeLocal[pointIndex * 2 + 1])
+		maxV = maxOf(maxV, latticeLocal[pointIndex * 2 + 1])
+	}
+
+	val cellsOver = { extent: Float, cells: Int -> ceil(extent * cells - DENSITY_ROUNDING_SLACK).toInt().coerceIn(WARP_BIRTH_DIVISIONS, LATTICE_DIVISION_MAX) }
+
+	return LatticeSize(rows = cellsOver(maxV - minV, parentRows), columns = cellsOver(maxU - minU, parentColumns))
+}
+
+/**
+ * The warp [deformerId] names when the pose moves it (a grid axis or a blend shape), else null.
+ *
+ * @param PuppetModel model The model.
+ * @param DeformerId? deformerId The deformer, or null for the root.
+ * @return Deformer.Warp? The keyed warp, or null.
+ */
+private fun keyedWarpOf(model: PuppetModel, deformerId: DeformerId?): Deformer.Warp? =
+	(deformerId?.let { id -> model.deformerById[id] } as? Deformer.Warp)?.takeIf { warp -> warp.geometryGrid?.axes?.isNotEmpty() == true || warp.blendShapes.isNotEmpty() }
+
+/**
+ * [latticeWorld] mapped into [parentSpace]'s coordinates.
+ *
+ * @param ParentSpaceMapping parentSpace The new warp's parent space at rest.
+ * @param FloatArray latticeWorld The lattice in world space, interleaved x, z.
+ * @return FloatArray The lattice in the parent's coordinates.
+ */
+private fun mappedIntoParent(parentSpace: ParentSpaceMapping, latticeWorld: FloatArray): FloatArray {
+	// A lattice parent's inverse starts from its middle; the root's and a rotation's are closed-form.
+	val seed = if (parentSpace.isLattice) FloatArray(latticeWorld.size) { LATTICE_MIDDLE } else latticeWorld
+
+	return parentSpace.worldToLocalLinearized(latticeWorld, seed, (0 until latticeWorld.size / 2).toSet())
+}
+
+/** How far over a whole cell count an extent may land and still round down to it, against float noise in the inverse. */
+private const val DENSITY_ROUNDING_SLACK = 1e-3f
 
 /** The normalized coordinate of a lattice's middle, the inverse's seed in a lattice parent. */
 private const val LATTICE_MIDDLE = 0.5f

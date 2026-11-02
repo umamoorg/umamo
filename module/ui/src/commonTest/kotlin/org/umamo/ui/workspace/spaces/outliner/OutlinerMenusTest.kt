@@ -74,7 +74,7 @@ class OutlinerMenusTest {
 	@Test
 	fun aPartOffersEveryEntryInOrder() {
 		assertEquals(
-			listOf("Select Hierarchy", null, "Toggle Visibility", "Toggle Selectability", "Rename", null, "Delete", "Delete Hierarchy"),
+			listOf("Select Hierarchy", null, "Toggle Visibility", "Toggle Selectability", "Rename", null, "Create Warp Deformer", null, "Delete", "Delete Hierarchy"),
 			labelsOf(itemsFor(part)),
 		)
 	}
@@ -125,6 +125,10 @@ class OutlinerMenusTest {
 			labelsOf(itemsFor(drawable, registry, inObjectMode = false)),
 		)
 		assertEquals(listOf("Select Hierarchy", null, "Toggle Selectability", "Rename", null, "Delete"), labelsOf(itemsFor(deformer, registry, inObjectMode = false)))
+		assertEquals(
+			listOf("Select Hierarchy", null, "Toggle Visibility", "Toggle Selectability", "Rename", null, "Delete", "Delete Hierarchy"),
+			labelsOf(itemsFor(part, registry, inObjectMode = false)),
+		)
 	}
 
 	/** Select Hierarchy dispatches the row through the registry, so the palette shares the edit. */
