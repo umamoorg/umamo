@@ -27,7 +27,7 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalTestApi::class)
 class OutlinerMenuTest {
-	/** A part offers Select Hierarchy, the two toggles, Rename, then Delete and Delete Hierarchy, in that order. */
+	/** A part offers Select Hierarchy, the two toggles, Rename, Create Warp Deformer, then Delete and Delete Hierarchy, in that order. */
 	@Test
 	fun aPartsMenuListsEveryEntryInOrder() =
 		runComposeUiTest {
@@ -41,6 +41,7 @@ class OutlinerMenuTest {
 					harness.text.toggleVisibility,
 					harness.text.toggleSelectable,
 					harness.text.outlinerRename,
+					harness.text.outlinerCreateWarp,
 					harness.text.outlinerDelete,
 					harness.text.deleteHierarchy,
 				)

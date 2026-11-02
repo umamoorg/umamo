@@ -43,7 +43,6 @@
 ## Deformers
 * Generation
 	* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
-* Create Warp Deformer on a part should apply to all drawables in that part.
 * Clean up language strings.
 
 ## Artwork Import

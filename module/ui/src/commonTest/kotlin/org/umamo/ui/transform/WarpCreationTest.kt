@@ -40,9 +40,10 @@ import kotlin.test.assertTrue
 /**
  * Pins Create Warp Deformer: the warp is born around the selection's world box plus a margin, with one keyform,
  * under the selection's nearest common ancestor, named "Warp" (suffixed when taken); the wrapped items - the outermost
- * selected drawables and deformers, never parts - rest where they rested with their keyed motion; the commit is one
- * step that selects the new warp, and the strip reruns it with other cells, margin, and mapping; a target without
- * bilinear warps offers no mapping choice; and only Object mode creates.
+ * selected drawables and deformers, a part standing for its subtree's drawables - rest where they rested with their
+ * keyed motion; under a keyed warp it is born as fine as that warp; the commit is one step that selects the new warp,
+ * and the strip reruns it with other cells, margin, and mapping; a target without bilinear warps offers no mapping
+ * choice; and only Object mode creates.
  */
 class WarpCreationTest {
 	private val parameterId = ParameterId("P")
@@ -51,6 +52,8 @@ class WarpCreationTest {
 	private val spinId = DeformerId("spin")
 	private val bodyId = PartId("body")
 	private val headId = PartId("head")
+	private val limbsId = PartId("limbs")
+	private val notesId = PartId("notes")
 	private val createdId = DeformerId("Warp")
 	private val swung = mapOf(parameterId to 1f)
 
@@ -101,8 +104,9 @@ class WarpCreationTest {
 		)
 
 	/**
-	 * Two root drawables in the body part, one keyed; a root warp over canvas pixels 300..500 holding a keyed drawable,
-	 * a warp with a drawable of its own, and a keyed rotation, all in the head part.
+	 * Two root drawables in the body part, one keyed, and a third in its limbs sub-part; a root warp over canvas pixels
+	 * 300..500 holding a keyed drawable, a warp with a drawable of its own, and a keyed rotation, all in the head part;
+	 * and a notes part holding only a meshless drawable.
 	 *
 	 * @param RuntimeTarget target The runtime target.
 	 * @return PuppetModel The model.
@@ -114,8 +118,10 @@ class WarpCreationTest {
 			parameters = listOf(Parameter(parameterId, "P", -1f, 1f, 0f)),
 			parts =
 				listOf(
-					Part(bodyId, "body", children = listOf(OrgChild.Drawable(DrawableId("left")), OrgChild.Drawable(DrawableId("right")))),
+					Part(bodyId, "body", children = listOf(OrgChild.Drawable(DrawableId("left")), OrgChild.Drawable(DrawableId("right")), OrgChild.Part(limbsId))),
+					Part(limbsId, "limbs", children = listOf(OrgChild.Drawable(DrawableId("hand")))),
 					Part(headId, "head", children = listOf(OrgChild.Drawable(DrawableId("caged")), OrgChild.Drawable(DrawableId("deep")))),
+					Part(notesId, "notes", children = listOf(OrgChild.Drawable(DrawableId("label")))),
 				),
 			deformers =
 				listOf(
@@ -129,8 +135,10 @@ class WarpCreationTest {
 					drawable("right", null, floatArrayOf(200f, 120f, 260f, 120f, 260f, 180f), sweep = 5f),
 					drawable("caged", cageId, floatArrayOf(340f, 340f, 380f, 340f, 380f, 380f), floatArrayOf(0.2f, 0.2f, 0.4f, 0.2f, 0.4f, 0.4f), sweep = 0.05f),
 					drawable("deep", innerId, floatArrayOf(420f, 420f, 440f, 420f, 440f, 440f), floatArrayOf(0.2f, 0.2f, 0.4f, 0.2f, 0.4f, 0.4f)),
+					drawable("hand", null, floatArrayOf(150f, 200f, 170f, 200f, 170f, 220f)),
+					drawable("label", null, floatArrayOf(10f, 10f, 20f, 10f, 20f, 20f)).copy(mesh = null),
 				),
-			rootChildren = listOf(OrgChild.Part(bodyId), OrgChild.Part(headId)),
+			rootChildren = listOf(OrgChild.Part(bodyId), OrgChild.Part(headId), OrgChild.Part(notesId)),
 			rootPartId = null,
 			runtimeTarget = target,
 		)
@@ -281,12 +289,11 @@ class WarpCreationTest {
 	}
 
 	@Test
-	fun aSelectedDeformerCarriesWhatItHoldsAndPartsWrapNothing() {
+	fun aSelectedDeformerCarriesWhatItHolds() {
 		val before = model()
-		val everything = setOf(SelectionTarget.Deformer(cageId), SelectionTarget.Drawable(DrawableId("caged")), SelectionTarget.Drawable(DrawableId("deep")), SelectionTarget.Part(bodyId))
+		val everything = setOf(SelectionTarget.Deformer(cageId), SelectionTarget.Drawable(DrawableId("caged")), SelectionTarget.Drawable(DrawableId("deep")), SelectionTarget.Part(headId))
 
-		assertEquals(emptyList<DrawableId>() to listOf(cageId), wrappableTargets(before, everything), "the cage carries its art")
-		assertNull(warpCreationOf(before, setOf(SelectionTarget.Part(bodyId)), null, WarpBirth()), "a part alone wraps nothing")
+		assertEquals(emptyList<DrawableId>() to listOf(cageId), wrappableTargets(before, everything), "the cage carries its art, its part's included")
 
 		val creation = assertNotNull(warpCreationOf(before, everything, SelectionTarget.Deformer(cageId), WarpBirth()))
 
@@ -377,7 +384,106 @@ class WarpCreationTest {
 		assertSame(inEdit, session.model.value, "Pose mode creates nothing")
 
 		session.setMode(EditorMode.Object)
+		session.setSelection(Selection(setOf(SelectionTarget.Part(notesId)), SelectionTarget.Part(notesId)))
+		assertFalse(session.canCreateWarp(), "a part holding no mesh")
 		session.setSelection(Selection(setOf(SelectionTarget.Part(bodyId)), SelectionTarget.Part(bodyId)))
-		assertFalse(session.canCreateWarp(), "a part alone")
+		assertTrue(session.canCreateWarp(), "a part holding meshes")
+	}
+
+	/** A part wraps every meshed drawable of its subtree, its sub-parts' included, and the warp joins that part. */
+	@Test
+	fun aPartWrapsEveryMeshedDrawableOfItsSubtree() {
+		val before = model()
+		val creation = assertNotNull(warpCreationOf(before, setOf(SelectionTarget.Part(bodyId)), SelectionTarget.Part(bodyId), WarpBirth()))
+
+		assertEquals(listOf(DrawableId("left"), DrawableId("right"), DrawableId("hand")), creation.wrappedDrawables)
+		assertEquals(bodyId, warpOf(creation.model).partId, "the warp joins the selected part")
+
+		for (id in listOf("left", "right", "hand")) {
+			assertEquals(createdId, parentOf(creation.model, id))
+			assertSamePlace(worldAt(before, id), worldAt(creation.model, id), id)
+		}
+
+		assertEquals(listOf(DrawableId("left"), DrawableId("right"), DrawableId("hand")) to listOf(cageId), wrappableTargets(before, setOf(SelectionTarget.Part(bodyId), SelectionTarget.Deformer(cageId))), "beside a deformer, the part's art wraps directly")
+		assertNull(warpCreationOf(before, setOf(SelectionTarget.Part(notesId)), null, WarpBirth()), "a part holding no mesh wraps nothing")
+	}
+
+	/** Under a keyed 20 x 20 warp, a box over 0.6 of it is born 12 x 12; the strip shows that and a rerun takes its own size. */
+	@Test
+	fun underAKeyedWarpTheBirthMatchesItsCellSize() {
+		val creation = assertNotNull(warpCreationOf(fineModel(keyed = true), setOf(SelectionTarget.Drawable(DrawableId("inside"))), null, WarpBirth()))
+
+		assertEquals(fineId, warpOf(creation.model).parent)
+		assertEquals(LatticeSize(12, 12), creation.size)
+		assertEquals(12, warpOf(creation.model).rows)
+		assertEquals(12, warpOf(creation.model).columns)
+		assertSamePlace(worldAt(fineModel(keyed = true), "inside"), worldAt(creation.model, "inside"), "inside rests in place")
+
+		val session = sessionSelecting(fineModel(keyed = true), SelectionTarget.Drawable(DrawableId("inside")))
+		session.createWarpAdjustable("area")
+		val record = assertNotNull(session.adjustableOperation.value)
+		val rows = record.parameters.first { parameter -> parameter.key == WarpCreationParameterKeys.ROWS } as OperatorParameter.IntParameter
+		assertEquals(12, rows.value, "the strip shows the birth size")
+
+		session.adjustLastOperation(record.parameters.withParameter(rows.key, rows.copy(value = 7)), adjustedKey = rows.key)
+
+		assertEquals(7, warpOf(session.model.value).rows)
+		assertEquals(12, warpOf(session.model.value).columns)
+	}
+
+	/** An unkeyed parent warp leaves the birth at five cells each way. */
+	@Test
+	fun underAnUnkeyedWarpTheBirthStaysAtFive() {
+		val creation = assertNotNull(warpCreationOf(fineModel(keyed = false), setOf(SelectionTarget.Drawable(DrawableId("inside"))), null, WarpBirth()))
+
+		assertEquals(LatticeSize(5, 5), creation.size)
+	}
+
+	@Test
+	fun theBirthSizeIsClampedAndRoundsUpPastFloatNoise() {
+		assertEquals(LatticeSize(12, 12), birthDivisionsUnder(floatArrayOf(0.2f, 0.2f, 0.8f, 0.8f), 20, 20), "0.6 of 20 cells is 12, not 13")
+		assertEquals(LatticeSize(5, 5), birthDivisionsUnder(floatArrayOf(0.5f, 0.5f, 0.51f, 0.51f), 20, 20), "at least five")
+		assertEquals(LatticeSize(100, 100), birthDivisionsUnder(floatArrayOf(-1f, -1f, 2f, 2f), 50, 50), "at most a hundred")
+		assertEquals(LatticeSize(9, 5), birthDivisionsUnder(floatArrayOf(0f, 0f, 0.25f, 0.45f), 20, 20), "rows follow v, columns u")
+	}
+
+	/** The fine fixture's warp. */
+	private val fineId = DeformerId("fine")
+
+	/**
+	 * A root 20 x 20 warp over canvas pixels 300..500, keyed on P (two keys, one lattice) or born unkeyed, holding a
+	 * drawable over 350..450.
+	 *
+	 * @param Boolean keyed Whether the warp is keyed.
+	 * @return PuppetModel The model.
+	 */
+	private fun fineModel(keyed: Boolean): PuppetModel {
+		val divisions = 20
+		val lattice = FloatArray((divisions + 1) * (divisions + 1) * 2)
+
+		for (row in 0..divisions) {
+			for (column in 0..divisions) {
+				val pointIndex = row * (divisions + 1) + column
+				lattice[pointIndex * 2] = 300f + 200f * column / divisions
+				lattice[pointIndex * 2 + 1] = 300f + 200f * row / divisions
+			}
+		}
+
+		val grid =
+			if (keyed) {
+				KeyformGrid(listOf(KeyformAxis(parameterId, floatArrayOf(-1f, 1f))), listOf(KeyformCell(intArrayOf(0), WarpLatticeForm(lattice)), KeyformCell(intArrayOf(1), WarpLatticeForm(lattice))))
+			} else {
+				KeyformGrid(emptyList(), listOf(KeyformCell(IntArray(0), WarpLatticeForm(lattice))))
+			}
+		val fine = Deformer.Warp(id = fineId, name = "fine", parent = null, partId = headId, rows = divisions, columns = divisions, isQuadTransform = true, geometryGrid = grid)
+
+		return PuppetModel(
+			parameters = listOf(Parameter(parameterId, "P", -1f, 1f, 0f)),
+			parts = listOf(Part(headId, "head", children = listOf(OrgChild.Drawable(DrawableId("inside"))))),
+			deformers = listOf(fine),
+			drawables = listOf(drawable("inside", fineId, floatArrayOf(350f, 350f, 450f, 350f, 450f, 450f), floatArrayOf(0.25f, 0.25f, 0.75f, 0.25f, 0.75f, 0.75f))),
+			rootChildren = listOf(OrgChild.Part(headId)),
+			rootPartId = null,
+		)
 	}
 }
