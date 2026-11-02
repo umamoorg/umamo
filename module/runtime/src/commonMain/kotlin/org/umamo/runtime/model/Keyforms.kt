@@ -85,6 +85,14 @@ sealed interface ParameterNode {
 }
 
 /**
+ * This model's parameter tree, with a group-less model's flat parameter list as root leaves - the shape the
+ * panel shows either way, for callers that need a tree to edit or to write out.
+ *
+ * @return List<ParameterNode> The tree, or one root leaf per parameter in list order when the model has no groups.
+ */
+fun PuppetModel.materializedParameterTree(): List<ParameterNode> = parameterTree.ifEmpty { parameters.map { parameter -> ParameterNode.Param(parameter.id) } }
+
+/**
  * A captured delta at a specific parameter value. The runtime blends across the N-D grid of
  * keyforms: `p = base + Σ wᵢ·Δᵢ` (multilinear interpolation). Weights are cheap and computed
  * CPU-side per frame; the per-vertex delta-sum runs in the vertex shader (see `:render`).

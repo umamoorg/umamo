@@ -6,6 +6,7 @@ import org.umamo.edit.structure.RowDropBand
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.materializedParameterTree
 
 // Above / below these fractions a group-header drop reads as reorder (before / after) rather than nest.
 private const val GROUP_NEST_LOW_FRACTION = 0.33f
@@ -101,7 +102,7 @@ internal fun parameterDropAnchor(
 		return targetRow.groupId to null
 	}
 
-	val tree = puppet.parameterTree.ifEmpty { puppet.parameters.map { parameter -> ParameterNode.Param(parameter.id) } }
+	val tree = puppet.materializedParameterTree()
 	val primaryRef = primaryRefOf(targetRow)
 	val location = locate(tree, primaryRef) ?: return null to null
 	val (parentGroupId, siblings, index) = location

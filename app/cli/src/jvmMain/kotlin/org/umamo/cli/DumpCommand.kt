@@ -8,6 +8,7 @@ import org.umamo.format.cmo3.serialize.ModelDocument
 import org.umamo.format.moc3.MocDocument
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
+import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
 
 /*
@@ -198,8 +199,9 @@ private fun dumpCmo3Xml(model: Cmo3Model) {
 }
 
 /**
- * The imported-puppet summary: entity counts and the parameter table - the exact import path the
- * convert command lowers from, so a suspect conversion can be inspected at this tier first.
+ * The imported-puppet summary: entity counts, the parameter table, the parameter panel's group tree, and
+ * the linked pairs - the exact import path the convert command lowers from, so a suspect conversion can be
+ * inspected at this tier first.
  *
  * @param PuppetModel puppet The imported puppet.
  */
@@ -207,7 +209,8 @@ private fun dumpPuppetSummary(puppet: PuppetModel) {
 	println("[puppet]")
 	println(
 		"# counts parameters=${puppet.parameters.size} parts=${puppet.parts.size} " +
-			"deformers=${puppet.deformers.size} drawables=${puppet.drawables.size} glues=${puppet.glues.size}",
+			"deformers=${puppet.deformers.size} drawables=${puppet.drawables.size} glues=${puppet.glues.size} " +
+			"parameterGroups=${countParameterGroups(puppet.parameterTree)} links=${puppet.parameterLinks.size}",
 	)
 	println(
 		"# canvas ${formatSixSignificant(puppet.canvasWidth)}x${formatSixSignificant(puppet.canvasHeight)} " +
@@ -220,7 +223,43 @@ private fun dumpPuppetSummary(puppet: PuppetModel) {
 				"max=${formatSixSignificant(parameter.max)} def=${formatSixSignificant(parameter.default)}",
 		)
 	}
+
+	// An empty tree is a group-less panel showing the flat list above, so it prints nothing.
+	printParameterTree(puppet.parameterTree, depth = 0)
+
+	for (link in puppet.parameterLinks) {
+		println("K x=${link.horizontal.raw} y=${link.vertical.raw}")
+	}
 }
+
+/**
+ * Prints the parameter panel's group tree in panel order, one line per node with its nesting depth.
+ *
+ * @param List nodes The nodes at this level.
+ * @param Int  depth How many groups enclose them.
+ */
+private fun printParameterTree(nodes: List<ParameterNode>, depth: Int) {
+	for (node in nodes) {
+		when (node) {
+			is ParameterNode.Param -> {
+				println("N $depth param id=${node.id.raw}")
+			}
+
+			is ParameterNode.Group -> {
+				println("N $depth group id=${node.id.raw} name=${node.name} open=${if (node.initiallyOpen) 1 else 0}")
+				printParameterTree(node.children, depth + 1)
+			}
+		}
+	}
+}
+
+/**
+ * Counts the groups anywhere in a parameter tree.
+ *
+ * @param List nodes The tree.
+ * @return Int The number of groups, nested ones included.
+ */
+private fun countParameterGroups(nodes: List<ParameterNode>): Int = nodes.sumOf { node -> if (node is ParameterNode.Group) 1 + countParameterGroups(node.children) else 0 }
 
 /**
  * The source-artwork summary: canvas, folder attributes, and one line per layer.

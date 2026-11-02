@@ -5,12 +5,13 @@ import org.umamo.edit.ParameterChange
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.materializedParameterTree
 
 /*
  * Parameter-group document edits: create an empty group, delete (unwrap) a group keeping its parameters,
  * and rename a group. All operate on PuppetModel.parameterTree (layout) and never touch the flat
  * parameters list or the links; each undoes for free through EditorSession.mutate's whole-model snapshot.
- * Reuses materializedParameterTree / collectParameterGroupIds from ParameterTreeEdits.
+ * Reuses collectParameterGroupIds from ParameterTreeEdits and the model's materializedParameterTree.
  *
  * パラメータグループの編集：空グループ作成・グループ解除（子は残す）・改名。parameterTree のみを変更。
  */
