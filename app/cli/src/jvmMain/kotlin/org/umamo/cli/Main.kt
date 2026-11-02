@@ -87,10 +87,7 @@ Commands:
                                    notice is always reported.)
                    A moc3 input may also be given as its .model3.json manifest; sibling
                    sidecars (model3/cdi3/physics3/pose3/userdata3) are discovered by
-                   the manifest's own file references.  A cdi3 the manifest does not
-                   name is read from <basename>.cdi3.json, manifest or not; a moc3
-                   imported without one warns, since display names, parameter groups,
-                   and linked parameters live only there.
+                   the manifest's own file references.
   diff <a> <b>     Import both files (either format) and print the semantic per-entity
                    difference.
   help             This text."""

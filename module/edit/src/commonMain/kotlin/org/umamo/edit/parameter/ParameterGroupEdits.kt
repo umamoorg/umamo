@@ -12,8 +12,6 @@ import org.umamo.runtime.model.materializedParameterTree
  * and rename a group. All operate on PuppetModel.parameterTree (layout) and never touch the flat
  * parameters list or the links; each undoes for free through EditorSession.mutate's whole-model snapshot.
  * Reuses collectParameterGroupIds from ParameterTreeEdits and the model's materializedParameterTree.
- *
- * パラメータグループの編集：空グループ作成・グループ解除（子は残す）・改名。parameterTree のみを変更。
  */
 
 /**
