@@ -7,6 +7,7 @@ import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.materializedParameterTree
 
 /*
  * Parameter-panel group-tree structure edits. PuppetModel.parameterTree is the canonical panel order
@@ -30,21 +31,6 @@ sealed interface ParameterNodeRef {
 	/** Anchor on a group. */
 	data class Group(val id: ParameterGroupId) : ParameterNodeRef
 }
-
-/**
- * This model's parameter tree, materializing a flat all-leaves-at-root tree when the model carries no
- * groups. Gives structure edits one shape to operate on: a group-less model becomes a root list of
- * [ParameterNode.Param] in the flat parameters order (which is what the panel already renders for an
- * empty tree), so the first move / group edit has a tree to rewrite.
- *
- * @return List<ParameterNode> The existing tree, or a freshly materialized flat one.
- */
-internal fun PuppetModel.materializedParameterTree(): List<ParameterNode> =
-	if (parameterTree.isEmpty()) {
-		parameters.map { parameter -> ParameterNode.Param(parameter.id) }
-	} else {
-		parameterTree
-	}
 
 /**
  * Every group id anywhere in [nodes], recursing into nested groups. Used to mint collision-free ids and

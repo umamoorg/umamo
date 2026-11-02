@@ -13,6 +13,8 @@ Umamo is early alpha.
 * UI: The viewport sidebar is now actually built and functional.
 
 ### Changed
+* Diagnostics: The `--puppet` `dump` flag now prints the parameter panel's group tree and linked parameters.
+* Diagnostics: If the CLI can't find the MOC3's cdi3.json sidecar it will print a warning.
 * UI: The 2D Viewport's mode DropdownChip is now pinned instead of collapsing into the more chip.
 * UI: The Properties panel's Object and Data tabs show the active item when several are selected and keep showing the last active item after a deselect.
 
@@ -20,6 +22,7 @@ Umamo is early alpha.
 * Format: MOC3 export now refuses to export an art mesh with more than 65,536 vertices instead of writing wrapped triangle indices.
 * Format: CMO3 export no longer warns that a glue could not be exported when the meshes on both sides of it were remeshed.
 * Format: CMO3 export no longer duplicates mirrored meshes imported from a MOC3.
+* Format: CMO3 export that lacked parameter groups would export with the root missing all parameters which would break subsequent imports.
 * UI: The tooltip could sometimes block clicking when it overflowed from its default position.
 * UI: Turning on proportional editing from the UV Editor's operation strip no longer resets the 2D Viewport's proportional radius to its default.
 

@@ -8,7 +8,6 @@ import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import org.umamo.format.moc3.Moc3
-import org.umamo.format.moc3.json.Cdi3Json
 import org.umamo.format.moc3.json.Model3Json
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
@@ -213,7 +212,10 @@ internal fun buildMoc3Document(
 	val sidecars = readPassThroughSidecars(manifest, readRelative)
 
 	// cdi3: optional display info; a parse failure degrades (cosmetics never block a working model).
-	val displayInfo = readDisplayInfo(manifest.fileReferences.displayInfo, basename, readRelative)
+	val displayInfo =
+		Moc3Sidecars.readDisplayInfo(manifest.fileReferences.displayInfo, basename, readRelative) { reference, failure ->
+			UmamoLog.warn("ignoring unparseable $reference: ${failure.message}")
+		}
 
 	// The import leaves warp/rotation-parented rest meshes in parent-deformer space (all a moc stores);
 	// the post-pass evaluates the default pose to rewrite them into the editor's canvas-space convention.
@@ -287,35 +289,4 @@ private fun readPassThroughSidecars(
 	}
 
 	return sidecars
-}
-
-/**
- * Reads the optional cdi3 display info: the manifest's DisplayInfo reference first, then the
- * `<basename>.cdi3.json` sibling fallback; null (raw-id degradation) when neither reads or parses.
- *
- * @param String?  manifestReference The manifest's FileReferences.DisplayInfo, or null.
- * @param String   basename          The moc's basename for the sibling fallback.
- * @param Function readRelative      Reads a manifest-directory-relative reference.
- * @return Cdi3Json? The parsed display info, or null.
- */
-private fun readDisplayInfo(
-	manifestReference: String?,
-	basename: String,
-	readRelative: (String) -> ByteArray?,
-): Cdi3Json? {
-	val candidates = listOfNotNull(manifestReference, "$basename.cdi3.json").distinct()
-
-	for (candidate in candidates) {
-		val bytes = readRelative(candidate) ?: continue
-		val parsed =
-			runCatching { Moc3.readCdi3(bytes.decodeToString()) }
-				.onFailure { failure -> UmamoLog.warn("ignoring unparseable $candidate: ${failure.message}") }
-				.getOrNull()
-
-		if (parsed != null) {
-			return parsed
-		}
-	}
-
-	return null
 }

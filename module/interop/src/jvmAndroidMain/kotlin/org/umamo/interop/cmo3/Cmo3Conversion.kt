@@ -17,6 +17,7 @@ import org.umamo.interop.ExportReport
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.materializedParameterTree
 import kotlin.math.roundToInt
 
 /**
@@ -86,7 +87,8 @@ public object Cmo3Conversion {
 	/**
 	 * The conversion outcome: the fresh model, the reconcile's advisory report, and the puppet
 	 * actually encoded - the input after the twin co-location prepass, whose canvas meshes differ
-	 * from the caller's wherever a baked twin took its slot representative's.  Round-trip checks
+	 * from the caller's wherever a baked twin took its slot representative's, and whose parameter
+	 * tree lists every parameter at the root where the caller's had no groups.  Round-trip checks
 	 * must compare a re-import against THIS puppet, not the caller's.
 	 */
 	public class Result(
@@ -136,7 +138,11 @@ public object Cmo3Conversion {
 		// model-image web; the prepass gives every further placement the representative's canvas
 		// mesh, as official files do, so each slot keeps one placement and one material.  Everything
 		// below runs on ITS puppet.
-		val effectivePuppet = Cmo3TwinColocation.colocate(puppet, pages, cropPageIndexByDrawableId).puppet
+		val colocatedPuppet = Cmo3TwinColocation.colocate(puppet, pages, cropPageIndexByDrawableId).puppet
+		// A group-less model's panel is its flat parameter list, which a CMO3 stores as the root group's
+		// children.  Left as an empty tree it matches the blank baseline's, so nothing would lower it and
+		// the root would list no parameter at all - every one outside the hierarchy the editor walks.
+		val effectivePuppet = colocatedPuppet.copy(parameterTree = colocatedPuppet.materializedParameterTree())
 		val skeleton =
 			Cmo3SkeletonBuilder.buildBlank(
 				modelName = modelName,

@@ -9,6 +9,7 @@ import org.umamo.interop.EntityDiff
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.interop.cmo3.Cmo3Conversion.AtlasPage
+import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.PuppetModel
 import java.io.File
@@ -18,10 +19,11 @@ import kotlin.test.assertTrue
 
 /**
  * The MOC3 -> CMO3 self round trip: every corpus .moc3 with a model3 sidecar converts to a
- * fresh CMO3, and re-importing the written file reproduces the source PuppetModel with only the
- * documented residues - WORLD_ORIGIN (the moc stores a real origin; CMO3 import derives the
- * canvas center) and bounded-ULP drift on keyform deltas (fresh absolutes are base + delta and
- * the re-import subtracts, which is not an IEEE identity).  The canvas editable mesh is written to
+ * fresh CMO3, and re-importing the written file reproduces the source PuppetModel, its cdi3's
+ * display names, parameter groups, and linked pairs included, with only the documented residues -
+ * WORLD_ORIGIN (the moc stores a real origin; CMO3 import derives the canvas center) and
+ * bounded-ULP drift on keyform deltas (fresh absolutes are base + delta and the re-import
+ * subtracts, which is not an IEEE identity).  The canvas editable mesh is written to
  * CArtMeshSource.positions and read back from it as it is, so a MESH_POSITIONS residue fails.
  */
 class Cmo3ConversionRoundTripTest {
@@ -78,13 +80,21 @@ class Cmo3ConversionRoundTripTest {
 				val decoded = PngCodec.read(pngBytes)
 				AtlasPage(pngBytes, decoded.width, decoded.height)
 			}
-		// displayInfo deliberately null: the same puppet is both the conversion source and the
-		// comparison target, so cosmetic names/groups cancel out either way.  The canvas meshes are
-		// derived exactly like the app's MOC3 document loader - the export's source-level positions
-		// and the whole texture-placement web are canvas geometry, so converting a raw Moc3Import
-		// puppet, whose canvas mesh may still be its parent-space base, would write deformer-local
-		// coordinates there.
-		val puppet = org.umamo.render.restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, displayInfo = null))
+		// The family's cdi3 rides in through the loaders' own lookup, so the display names, the parameter
+		// groups, and the linked pairs all cross the conversion and the residue checks below catch any the
+		// written file does not carry back.  The canvas meshes are derived exactly like the app's MOC3
+		// document loader - the export's source-level positions and the whole texture-placement web are
+		// canvas geometry, so converting a raw Moc3Import puppet, whose canvas mesh may still be its
+		// parent-space base, would write deformer-local coordinates there.
+		val displayInfo =
+			Moc3Sidecars.readDisplayInfo(
+				manifest.fileReferences.displayInfo,
+				Moc3Sidecars.basenameFor(mocFile.name),
+				{ reference -> File(mocFile.parentFile, reference).takeIf { file -> file.isFile }?.readBytes() },
+			) { reference, failure ->
+				failures.add("$label: unparseable $reference: ${failure.message}")
+			}
+		val puppet = org.umamo.render.restMeshesToCanvasSpace(Moc3Import.fromMocDocument(mocDocument, displayInfo))
 		val pageIndexByDrawableId = mocDocument.artMeshes.associate { artMesh -> artMesh.id to artMesh.textureIndex }
 
 		val result =

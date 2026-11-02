@@ -55,6 +55,44 @@ object Moc3Sidecars {
 			fileName
 		}
 
+	/**
+	 * Reads a family's optional cdi3 display info, so the editor's loader and the CLI find the same file.
+	 *
+	 * The manifest's DisplayInfo reference is tried first, then the `<basename>.cdi3.json` sibling, and the
+	 * first candidate that reads and parses wins.
+	 *
+	 * @param String?  manifestReference The manifest's DisplayInfo reference, or null when it names none or
+	 *   there is no manifest.
+	 * @param String   basename          The family's base name ([basenameFor]), for the sibling fallback.
+	 * @param Function readRelative      Reads a family-directory-relative reference, or null when missing.
+	 * @param Function onUnparseable     Told about each candidate that exists but does not parse, before the
+	 *   next one is tried.
+	 * @return Cdi3Json? The display info, or null when no candidate reads and parses.
+	 */
+	fun readDisplayInfo(
+		manifestReference: String?,
+		basename: String,
+		readRelative: (String) -> ByteArray?,
+		onUnparseable: (reference: String, failure: Throwable) -> Unit,
+	): Cdi3Json? {
+		// model3: FileReferences.DisplayInfo names the cdi3 (MOC3.md § 6.1); a manifest may omit it.
+		val candidates = listOfNotNull(manifestReference, "$basename.cdi3.json").distinct()
+
+		for (candidate in candidates) {
+			val bytes = readRelative(candidate) ?: continue
+			val parsed =
+				runCatching { Moc3.readCdi3(bytes.decodeToString()) }
+					.onFailure { failure -> onUnparseable(candidate, failure) }
+					.getOrNull()
+
+			if (parsed != null) {
+				return parsed
+			}
+		}
+
+		return null
+	}
+
 	/** The cdi3 schema version the editor writes. */
 	private const val CDI3_VERSION: Int = 3
 
