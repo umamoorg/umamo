@@ -59,7 +59,7 @@
 			"latticeHover": "#FFFF00EC"
 		},
 		"showToolbar": true,
-		"showSidebar": false
+		"showSidebar": true
 	},
 	"import": {
 		"parameterTemplate": "humanoid",
