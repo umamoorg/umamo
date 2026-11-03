@@ -901,7 +901,7 @@
 	<string name="properties_section_blend">Blend</string>
 	<string name="properties_section_deformer">Deformer</string>
 	<string name="properties_section_blend_shapes">Blend Shapes</string>
-	<string name="properties_blend_shape_binding">%1$s: %2$d keys</string>
+	<string name="properties_blend_shape_binding">%1$s: %2$d key(s)</string>
 	<string name="properties_field_lattice_rows">Rows</string>
 	<string name="properties_field_lattice_rows_description">How many cells the lattice has from top to bottom.  Changing it resamples the mesh keyforms, so motion may change slightly.</string>
 	<string name="properties_field_lattice_columns">Columns</string>
