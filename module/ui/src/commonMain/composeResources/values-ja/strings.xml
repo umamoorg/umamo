@@ -540,7 +540,6 @@
 
 	<string name="notice_transform_only_drawables">変形できるのはドローアブルとワープデフォーマのみです。パーツと回転デフォーマは未対応です。</string>
 	<string name="notice_mode_pose_needs_deformer">ポーズモードにはデフォーマが必要です。</string>
-	<string name="notice_pose_lattice_edits_discarded">ポーズを動かしたため、キー未設定の格子の編集 %1$d 件を破棄しました。元に戻すには取り消してください。</string>
 	<string name="notice_transform_deformed">メッシュの変形中は変形操作できません。先にパラメータをすべてリセットしてください。</string>
 	<string name="notice_unknown">この操作は実行できません。</string>
 

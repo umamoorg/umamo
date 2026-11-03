@@ -276,7 +276,6 @@ class PoseLatticeGestureTest {
 			LiveParamsAdapter(LiveParams(session.pose.value), session).preview(LATTICE_RIG_PARAMETER, 0.75f)
 
 			assertTrue(session.pendingLatticeEdits.value.isEmpty(), "a scrub discards it")
-			assertEquals("notice.pose.latticeEditsDiscarded", assertNotNull(session.notice.value).messageKey)
 		}
 
 	@Test
