@@ -655,8 +655,8 @@
 	<!-- Generate Mesh from Art notices.  %1$d is the number of meshes generated, %2$d the number skipped. -->
 	<string name="notice_mesh_generated">Generated %1$d mesh(es) from art.</string>
 	<string name="notice_mesh_generated_with_skips">Generated %1$d mesh(es) from art; %2$d skipped.</string>
-	<string name="notice_mesh_generated_coarser">Generated %1$d mesh(es) from art; %2$d built coarser than asked to stay within the Vertex Budget.</string>
-	<string name="notice_mesh_generated_refit">Generated %1$d mesh(es) from art; %2$d had to be redone with a higher Vertex Budget or with holes filled.</string>
+	<string name="notice_mesh_generated_coarser">Generated %1$d mesh(es) from art; %2$d built coarser than asked to stay within the vertex budget.</string>
+	<string name="notice_mesh_generated_refit">Generated %1$d mesh(es) from art; %2$d had to be redone with a higher vertex budget or with holes filled.</string>
 	<string name="notice_mesh_pinned_without_room">Generated %1$d mesh(es); %2$d skipped because pinned art has no room to grow.  Unpin the art or lower the margin.</string>
 	<string name="notice_mesh_over_budget">Generated %1$d mesh(es); %2$d skipped because they need more than 4096 vertices even with holes filled.  Raise the Alpha Threshold or lower the Minimum Outline Points.</string>
 	<string name="notice_mesh_glued_throughout">Generated %1$d mesh(es); %2$d skipped because most of their vertices are glued to other meshes, and regenerating would change how they follow them.</string>
@@ -1144,9 +1144,9 @@
 	<string name="mesh_options_inner_margin_description">How far inside the art's edge the inner ring runs, in pixels.  0 for no inner ring.</string>
 	<string name="mesh_options_minimum_margin_description">The closest the outline may come to the art, in pixels.</string>
 	<string name="mesh_options_minimum_outline_points_description">The fewest vertices one outline ring may have, however small its piece of art.</string>
-	<string name="mesh_options_minimum_angle_description">Adds vertices to break up thin, sliver-shaped triangles until each triangle's narrowest corner is at least this many degrees.  Higher values use more vertices, up to the Vertex Budget.  Corners the outline itself makes, such as a hair tip's, can't be widened and stay as they are.  0 adds none.</string>
+	<string name="mesh_options_minimum_angle_description">Adds vertices to break up thin, sliver-shaped triangles until each triangle's narrowest corner is at least this many degrees.  Higher values use more vertices, up to the vertex budget.  Corners the outline itself makes, such as a hair tip's, can't be widened and stay as they are.  0 adds none.</string>
 	<string name="mesh_options_vertex_budget_description">The most vertices one mesh should have.  Art that can't fit is meshed again under a higher budget, up to 4096, and then with its holes filled.</string>
-	<string name="mesh_options_interior_thinning_limit_description">When a mesh would exceed the Vertex Budget, the interior thins out first, up to this many times the outline spacing.  Past that, the outline thins too.  Higher keeps more outline detail; lower keeps the interior even.</string>
+	<string name="mesh_options_interior_thinning_limit_description">When a mesh would exceed the vertex budget, the interior thins out first, up to this many times the outline spacing.  Past that, the outline thins too.  Higher keeps more outline detail; lower keeps the interior even.</string>
 	<string name="mesh_options_fill_holes_description">Meshes over holes in the art as one sheet instead of cutting them out.  A hole smaller than the Outline Spacing is always meshed over.</string>
 	<string name="mesh_options_strand_rungs_description">Meshes thin art as even strips with a single run down the center instead of outlining the art.</string>
 	<string name="mesh_options_strand_width_description">With Strand Rungs on, art narrower than this, in pixels, is meshed as a strip.  Raise it to mesh wider straps and locks as strips too; lower it to give more of them an inner ring.</string>
