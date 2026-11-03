@@ -137,7 +137,7 @@
 	<string name="export_reason_sketch_part_not_runtime_content">下絵（スケッチ）パーツはランタイムの内容ではないため、除外しました。</string>
 	<string name="export_reason_hidden_part_omitted_by_option">非表示のパーツをエクスポートしない設定のため、このパーツの内容を除外しました。</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">非表示のドローアブルをエクスポートしない設定のため、このドローアブルを除外しました。</string>
-	<string name="export_reason_vertex_count_exceeds_index_width">メッシュの頂点数 %1$d が 16 ビットの三角形インデックスで扱える上限 %2$d を超えるため、このドローアブルを除外しました。</string>
+	<string name="export_reason_vertex_count_exceeds_index_width">メッシュの頂点数 %1$d が、この形式で扱える上限 %2$d を超えるため、このドローアブルを除外しました。</string>
 	<string name="export_reason_no_atlas_page_bound">このドローアブルにはアトラスページが割り当てられていないため、ページ 0 を指す状態で書き出しました。</string>
 	<string name="export_reason_clipping_mask_not_in_export">クリッピングマスク %1$s はこのエクスポートに含まれないため、メッシュはそのマスクなしで書き出しました。</string>
 	<string name="export_reason_offscreen_mask_not_in_export">クリッピングマスクが書き出せなかったドローアブルを指しているため、オフスクリーンから除外しました。</string>
@@ -174,9 +174,9 @@
 	<string name="export_reason_keyform_cannot_bundle">%1$s CMO3 はオブジェクトごとに 1 つのグリッドしか保持できません。</string>
 	<string name="export_reason_axis_parameter_no_source">グリッドの軸パラメータ %1$s に CMO3 側の実体がないため、キーフォームグリッドは書き出されませんでした。</string>
 	<string name="export_reason_blend_shape_parameter_no_source">ブレンドシェイプのパラメータ %1$s に CMO3 側の実体がないため、ブレンドシェイプは書き出されませんでした。</string>
-	<string name="export_reason_physics_names_deleted_parameter">物理演算設定 %1$s は、削除されたこのパラメータを参照したままです。変更せずに書き出したため、Cubism Editor で参照先を変更するか削除してください。</string>
-	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s はこのエクスポートに含まれないパラメータ（%2$s）を参照しています。変更せずに書き出したため、ランタイムはそれらの入出力の対象を見つけられません。</string>
-	<string name="export_reason_sidecar_names_unwritten_parts">%1$s はこのエクスポートに含まれないパーツ（%2$s）を参照しています。変更せずに書き出したため、ランタイムは切り替えやフェードの対象を見つけられません。</string>
+	<string name="export_reason_physics_names_deleted_parameter">物理演算設定 %1$s は、削除されたこのパラメータをまだ使用しています。変更せずにエクスポートしたため、Cubism Editor で別のパラメータに変更するか削除してください。</string>
+	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s はこのエクスポートに含まれないパラメータ（%2$s）を参照しています。変更せずにエクスポートしたため、モデルを再生するソフトウェアはそれらを見つけられません。</string>
+	<string name="export_reason_sidecar_names_unwritten_parts">%1$s はこのエクスポートに含まれないパーツ（%2$s）を参照しています。変更せずにエクスポートしたため、モデルを再生するソフトウェアはそれらの表示や非表示を切り替えられません。</string>
 	<string name="export_reason_keyforms_without_base_mesh">ベースメッシュのないキーフォームは CMO3 にまとめられません。</string>
 	<string name="export_reason_fractional_draw_order">CMO3 の描画順は整数のため、小数の値は書き出されませんでした。</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">キーフォームのない固定のグルー強度は、CMO3 に保持する場所がありません。</string>
@@ -199,7 +199,7 @@
 	<string name="export_reason_atlas_page_not_recomposed">この原画はアトラスページ上で移動しましたが、ページ画像には移動前の位置のまま残っています。再パックすると描き直されます。</string>
 	<string name="export_reason_atlas_tile_metadata">この原画のピクセル、名前、またはサイズが変更されました。アトラス配置では表現できないため、原画を再取り込みしてください。</string>
 	<string name="export_reason_atlas_tile_rebinding">このドローアブルは別の原画に結び付けられました。再パックではなく原画の再取り込みが必要です。</string>
-	<string name="export_reason_source_layer_binding_not_in_export">この原画は %1$s のレイヤー %2$s に結び付けられていますが、ドキュメントにその項目がないため結び付けを書き出せませんでした。CMO3 には単独の平面画像として書き出されています。結び付けをエクスポートするには、ソースパネルで再リンクしてください。</string>
+	<string name="export_reason_source_layer_binding_not_in_export">このアートは %1$s のレイヤー %2$s に紐付いていますが、ドキュメントにそのファイルが登録されていないため、紐付けをエクスポートできませんでした。紐付けをエクスポートするには、ソースパネルで再リンクしてください。</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 のキャンバスサイズは整数ピクセルのため、小数の値は書き出されませんでした。</string>
 	<!-- エクスポートの上書き警告（document.confirm コマンド。%1$d は上書きされる既存ファイル数、
 	     %2$s は省略表示のファイル一覧）。 -->
@@ -598,10 +598,10 @@
 	<string name="notice_mesh_generated">アートから %1$d 個のメッシュを生成しました。</string>
 	<string name="notice_mesh_generated_with_skips">アートから %1$d 個のメッシュを生成し、%2$d 個をスキップしました。ログを参照してください。</string>
 	<string name="notice_mesh_generated_coarser">アートから %1$d 個のメッシュを生成しました。頂点数の上限に収めるため、%2$d 個は指定より粗く生成しました。ログを参照してください。</string>
-	<string name="notice_mesh_generated_refit">アートから %1$d 個のメッシュを生成しました。%2$d 個は収めるために頂点数の上限を上げるか、穴を埋める必要がありました（ログを参照）。</string>
+	<string name="notice_mesh_generated_refit">アートから %1$d 個のメッシュを生成しました。%2$d 個は、頂点数の上限を上げるか穴を埋めて、やり直す必要がありました。</string>
 	<string name="notice_mesh_pinned_without_room">%1$d 個のメッシュを生成しました。ピン留めされたアートに広がる余地がないため %2$d 個をスキップしました。ピン留めを解除するか、余白を小さくしてください。</string>
 	<string name="notice_mesh_over_budget">%1$d 個のメッシュを生成しました。穴を埋めても 4096 頂点を超えるため %2$d 個をスキップしました。アルファしきい値を上げるか、輪郭の最小点数を下げてください。</string>
-	<string name="notice_mesh_glued_throughout">%1$d 個のメッシュを生成しました。頂点の大半がグルーで固定されているため %2$d 個をスキップしました。再生成するとグルー先への追従が変わってしまいます。</string>
+	<string name="notice_mesh_glued_throughout">%1$d 個のメッシュを生成しました。頂点の大半が他のメッシュにグルーで固定されているため %2$d 個をスキップしました。再生成すると、それらへの追従が変わってしまいます。</string>
 	<string name="notice_mesh_none_generated">メッシュは生成されませんでした。ログを参照してください。</string>
 	<string name="notice_mesh_pack_refused">アトラスに大きくなったメッシュの余地がないため、何も生成しませんでした。</string>
 	<string name="notice_mesh_superseded">メッシュの生成中にドキュメントが変更されたため、何も適用しませんでした。</string>
@@ -636,9 +636,9 @@
 	<string name="progress_count">%1$d / %2$d</string>
 	<string name="progress_more_tasks">ほか %1$d 件</string>
 	<string name="notice_document_cmo3_loss">UMA として保存しました。CMO3 の物理演算、ガイド、キーフォームのメモ、ランダムポーズ、モデルステートセット、ユーザーデータなどのエディター設定はこのファイルには含まれません。このセッションからの CMO3 エクスポートには引き続き含まれますが、ファイルを開き直した後にエクスポートした CMO3 には含まれません。</string>
-	<string name="notice_document_moc3_loss">UMA として保存しました。MOC3 ファミリーの物理演算、モーション、表情、ユーザーデータ、ポーズはこのファイルには含まれません。</string>
+	<string name="notice_document_moc3_loss">UMA として保存しました。MOC3 モデルの物理演算、モーション、表情、ユーザーデータ、ポーズのファイルは、このファイルではまだサポートされていません。</string>
 	<string name="notice_import_artwork_superseded">アートワークの追加中にドキュメントが変更されたため、何も適用されませんでした。</string>
-	<string name="notice_import_baked_atlas">インポートした MOC3 ファイルから作成されたドキュメントにはアートワークを追加できません。先に CMO3 としてエクスポートし、そのファイルにアートワークをインポートしてください。</string>
+	<string name="notice_import_baked_atlas">MOC3 ファイルから作成されたドキュメントにはアートワークを追加できません。ドキュメントを CMO3 としてエクスポートし、そのファイルをインポートしてから、アートワークを追加してください。</string>
 	<string name="notice_import_no_art_layers">このファイルには追加できるピクセルを持つレイヤーがありません。</string>
 	<string name="notice_reload_done">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件照合。</string>
 	<string name="notice_reload_notes">アートワークを再読み込みしました：%1$d 件更新、%2$d 件追加、%3$d 件照合、%4$d 件要確認。ログを参照してください。</string>
@@ -653,7 +653,7 @@
 	<string name="notice_reload_no_files">読み込めるアートワークファイルがなく、何も再読み込みされませんでした。</string>
 	<string name="notice_relink_pulled">アートを再リンクして再読み込みしました。</string>
 	<string name="notice_relink_binding_only">アートを再リンクしましたが、ファイルを読み込めなかったためアートは変わっていません。</string>
-	<string name="notice_relink_pulled_from_document">ファイルを読み込めなかったため、このドキュメントが保持するアートから再リンクしました。</string>
+	<string name="notice_relink_pulled_from_document">アートを再リンクしましたが、ファイルを読み込めなかったため、ドキュメントが保持するレイヤーのコピーを使用しました。</string>
 	<string name="notice_match_done">%1$d 件のレイヤーを照合、%2$d 件が要確認です。</string>
 	<string name="notice_match_no_files">ファイルからもこのドキュメントからもアートワークを読み込めなかったため、何も照合されませんでした。</string>
 	<string name="notice_match_nothing">十分な確度で照合できたリンクはありません。候補は要確認の行に表示されています。</string>
@@ -673,13 +673,13 @@
 	<string name="notice_uv_placement_off_page">配置がページの端を超えています。はみ出した部分は切り取られます。</string>
 	<string name="notice_uv_placement_pinned">選択したタイルはピン留めされています。トランスフォームするにはピン留めを解除してください。</string>
 	<string name="notice_edit_no_editable_geometry">編集できるものがありません。選択中のドローアブルはすべて親によって非表示です。</string>
-	<string name="notice_edit_rotation_not_editable">回転デフォーマの編集はまだ実装されていません。</string>
+	<string name="notice_edit_rotation_not_editable">回転デフォーマはまだ編集できません。</string>
 	<string name="notice_edit_warp_has_no_lattice">このワープデフォーマには編集できる格子がありません。</string>
 	<string name="notice_edit_warp_hidden_at_rest">このワープデフォーマはデフォルトのポーズで描画されないため、格子を編集できません。</string>
-	<string name="notice_edit_lattice_topology_fixed">格子のグリッドは変えられません。点の移動はできますが、追加・マージ・リップ・連結はできません。</string>
-	<string name="notice_edit_lattice_children_moved">変形した格子が子のうち %1$d 個の上で折り返しています。ドローアブルが動いた可能性があります。</string>
-	<string name="notice_lattice_resampled">格子を近似的に再サンプリングしました。アートの静止位置はそのままですが、動きがわずかに変わる場合があります。元に戻すには取り消してください。</string>
-	<string name="notice_lattice_resampled_children_moved">格子を近似的に再サンプリングしましたが、子のうち %1$d 個はその場に保てなかったため、それらのアートが動きました。元に戻すには取り消してください。</string>
+	<string name="notice_edit_lattice_topology_fixed">格子の点は移動できますが、追加・マージ・連結はできません。代わりに行数と列数を変更してください。</string>
+	<string name="notice_edit_lattice_children_moved">変形した格子が、配下の %1$d 個のオブジェクトの位置で折り返す、または潰れているため、それらのアートが動きました。</string>
+	<string name="notice_lattice_resampled">格子を近似的に作り直したため、動きがわずかに変わる場合があります。確認して、必要なら調整してください。</string>
+	<string name="notice_lattice_resampled_children_moved">格子を近似的に作り直したため、動きがわずかに変わる場合があります。配下の %1$d 個のオブジェクトはその場に保てなかったため、それらのアートが動きました。</string>
 
 	<string name="cmd_mesh_proportional_toggle">プロポーショナル編集の切り替え</string>
 	<string name="cmd_mesh_proportional_falloff_smooth">プロポーショナル減衰: スムーズ</string>
@@ -749,8 +749,8 @@
 	<string name="hud_scale_factor">×%1$s</string>
 	<string name="notice_proportional_connected_on">プロポーショナル編集: 接続のみ</string>
 	<string name="notice_proportional_connected_off">プロポーショナル編集: 半径内すべて</string>
-	<string name="notice_reparent_place_not_kept">%1$s は位置を保てないまま紐付けられました。新しいデフォーマの階層では変換できません。</string>
-	<string name="notice_reparent_places_not_kept">%1$d 個のオブジェクトが位置を保てないまま付け替えられました。デフォーマの階層では変換できません。</string>
+	<string name="notice_reparent_place_not_kept">%1$s を新しい親に移動しましたが、位置を保てませんでした。新しいデフォーマでは、その位置を変換できませんでした。</string>
+	<string name="notice_reparent_places_not_kept">%1$d 個のオブジェクトを新しい親に移動しましたが、位置を保てませんでした。新しいデフォーマでは、それらの位置を変換できませんでした。</string>
 
 	<string name="pie_title_pivot">ピボットポイント</string>
 	<string name="pie_title_snap">スナップ</string>
@@ -805,7 +805,7 @@
 	<string name="properties_mesh">メッシュ: 頂点 %1$d / 三角 %2$d</string>
 	<string name="properties_no_mesh">メッシュなし</string>
 	<string name="properties_warp_lattice">格子</string>
-	<string name="properties_warp_lattice_description">格子の形にキーが設定されているパラメータです。色は、ポーズがキーの上か、キーの間か、ポーズモードで作ったキー未設定の形があるかを示します。ここを指してキーを挿入すると、現在のポーズで格子にキーが設定されます。</string>
+	<string name="properties_warp_lattice_description">格子の形を制御するパラメータです。色は、ポーズがキーの上か、キーの間か、ポーズモードで作ったキー未設定の形を持つかを示します。ここにカーソルを合わせてキーを挿入すると、現在のポーズでの格子の形が記録されます。</string>
 	<string name="properties_warp_lattice_keyed_on">%1$s にキーあり</string>
 	<string name="properties_warp_lattice_unkeyed">キー未設定</string>
 	<string name="properties_warp_lattice_separator">、</string>
@@ -829,9 +829,9 @@
 	<string name="properties_section_blend_shapes">ブレンドシェイプ</string>
 	<string name="properties_blend_shape_binding">%1$s: キー %2$d 個</string>
 	<string name="properties_field_lattice_rows">行数</string>
-	<string name="properties_field_lattice_rows_description">格子の縦方向のセル数。変更するとメッシュのキーフォームが再サンプリングされます。</string>
+	<string name="properties_field_lattice_rows_description">格子の縦方向のセル数。変更するとメッシュのキーフォームが再サンプリングされるため、動きがわずかに変わる場合があります。</string>
 	<string name="properties_field_lattice_columns">列数</string>
-	<string name="properties_field_lattice_columns_description">格子の横方向のセル数。変更するとメッシュのキーフォームが再サンプリングされます。</string>
+	<string name="properties_field_lattice_columns_description">格子の横方向のセル数。変更するとメッシュのキーフォームが再サンプリングされるため、動きがわずかに変わる場合があります。</string>
 	<string name="properties_section_part">パーツ</string>
 	<string name="properties_canvas_none">キャンバスなし</string>
 	<!-- ドキュメント > ランタイム: ターゲット選択と制限機能リスト。製品名（Cubism / Ayagami）は原文のまま。 -->
@@ -975,18 +975,18 @@
 	<string name="properties_field_size_x_description">ビューポートで見えているメッシュの幅。変更すると中心を基準に拡大縮小します。すべてのパラメータが初期値のときだけ編集できます。</string>
 	<string name="properties_field_size_z_description">ビューポートで見えているメッシュの高さ。変更すると中心を基準に拡大縮小します。すべてのパラメータが初期値のときだけ編集できます。</string>
 	<string name="properties_field_base_angle_description">デフォーマの基準の回転（度）。各キーフォームが設定する角度は、この値に加算されます。</string>
-	<string name="properties_part_position_x_description">パーツに含まれるすべてのものの、ビューポートで見えている水平方向の中心（ワールド軸からの距離）。パーツを移動できるようになるまでは読み取り専用です。</string>
-	<string name="properties_part_position_z_description">パーツに含まれるすべてのものの、ビューポートで見えている垂直方向の中心（ワールド軸から上が正）。パーツを移動できるようになるまでは読み取り専用です。</string>
-	<string name="properties_part_size_x_description">パーツに含まれるすべてのものの、ビューポートで見えている幅。パーツを拡大縮小できるようになるまでは読み取り専用です。</string>
-	<string name="properties_part_size_z_description">パーツに含まれるすべてのものの、ビューポートで見えている高さ。パーツを拡大縮小できるようになるまでは読み取り専用です。</string>
-	<string name="properties_warp_position_x_description">デフォーマの格子の、ビューポートで見えている水平方向の中心（ワールド軸からの距離）。変更するとデフォーマ全体が移動し、アートも一緒に動きます。オブジェクトモードのデフォルトのポーズで編集できます。</string>
-	<string name="properties_warp_position_z_description">デフォーマの格子の、ビューポートで見えている垂直方向の中心（ワールド軸から上が正）。変更するとデフォーマ全体が移動し、アートも一緒に動きます。オブジェクトモードのデフォルトのポーズで編集できます。</string>
-	<string name="properties_warp_size_x_description">デフォーマの格子の、ビューポートで見えている幅。変更するとデフォーマ全体が中心を基準に拡大縮小され、アートも一緒に動きます。オブジェクトモードのデフォルトのポーズで編集できます。</string>
-	<string name="properties_warp_size_z_description">デフォーマの格子の、ビューポートで見えている高さ。変更するとデフォーマ全体が中心を基準に拡大縮小され、アートも一緒に動きます。オブジェクトモードのデフォルトのポーズで編集できます。</string>
-	<string name="properties_rotation_pivot_x_description">デフォーマのピボットの、ビューポートで見えている水平方向の位置（ワールド軸からの距離）。デフォーマを移動できるようになるまでは読み取り専用です。</string>
-	<string name="properties_rotation_pivot_z_description">デフォーマのピボットの、ビューポートで見えている垂直方向の位置（ワールド軸から上が正）。デフォーマを移動できるようになるまでは読み取り専用です。</string>
-	<string name="properties_field_angle_description">表示中のポーズでのデフォーマの角度（度）。基準角度に、キーフォームとブレンドシェイプがそこで設定する角度を加えた値です。デフォーマを回転できるようになるまでは読み取り専用です。</string>
-	<string name="properties_field_scale_description">表示中のポーズでのデフォーマのスケール（キーフォームとブレンドシェイプがそこで設定する値）。デフォーマを拡大縮小できるようになるまでは読み取り専用です。</string>
+	<string name="properties_part_position_x_description">パーツの内容全体の、ビューポートで見えている水平方向の中心（ワールド軸からの距離）。現在は読み取り専用です。</string>
+	<string name="properties_part_position_z_description">パーツの内容全体の、ビューポートで見えている垂直方向の中心（ワールド軸から上が正）。現在は読み取り専用です。</string>
+	<string name="properties_part_size_x_description">パーツの内容全体の、ビューポートで見えている幅。現在は読み取り専用です。</string>
+	<string name="properties_part_size_z_description">パーツの内容全体の、ビューポートで見えている高さ。現在は読み取り専用です。</string>
+	<string name="properties_warp_position_x_description">ビューポートでの格子の水平方向の中心（ワールド軸からの距離）。編集するとデフォーマとそのアートが移動します。オブジェクトモードのデフォルトのポーズで使用できます。</string>
+	<string name="properties_warp_position_z_description">ビューポートでの格子の垂直方向の中心（ワールド軸から上が正）。編集するとデフォーマとそのアートが移動します。オブジェクトモードのデフォルトのポーズで使用できます。</string>
+	<string name="properties_warp_size_x_description">ビューポートでの格子の幅。編集すると、格子の中心を基準にデフォーマとそのアートが拡大縮小されます。オブジェクトモードのデフォルトのポーズで使用できます。</string>
+	<string name="properties_warp_size_z_description">ビューポートでの格子の高さ。編集すると、格子の中心を基準にデフォーマとそのアートが拡大縮小されます。オブジェクトモードのデフォルトのポーズで使用できます。</string>
+	<string name="properties_rotation_pivot_x_description">デフォーマのピボットの、ビューポートで見えている水平方向の位置（ワールド軸からの距離）。現在は読み取り専用です。</string>
+	<string name="properties_rotation_pivot_z_description">デフォーマのピボットの、ビューポートで見えている垂直方向の位置（ワールド軸から上が正）。現在は読み取り専用です。</string>
+	<string name="properties_field_angle_description">現在のポーズでのデフォーマの角度（度）。基準角度に、キーフォームとブレンドシェイプによる加算分を足した値です。現在は読み取り専用です。</string>
+	<string name="properties_field_scale_description">現在のポーズでのデフォーマのスケール（キーフォームとブレンドシェイプによる値）。現在は読み取り専用です。</string>
 	<string name="properties_part_ref_description">この項目が属するパーツ。クリアすると、どのパーツにも属さなくなります。</string>
 	<string name="properties_parent_deformer_description">この項目が付いているデフォーマ。そのデフォーマが動いたり、曲がったり、回転したりすると、この項目も追従します。</string>
 	<string name="properties_field_pinned_description">アトラスページ上のこのアートの位置を固定します。UV エディターで手動で動かすことはできず、「ピン留めしたタイルを維持」がオフでない限り、再パックでもその場に残ります。</string>
@@ -1032,7 +1032,7 @@
 	<string name="import_options_align_description">追加したファイルのキャンバスを、ドキュメントのキャンバスのどこに置くか。「左上」は左上の角同士を合わせ、「中央」は中央に置きます。他の位置も同様です。</string>
 	<string name="import_options_offset_x_description">基準位置で置いた位置から、追加したアートを右へずらす量（ピクセル）。負の値は左です。</string>
 	<string name="import_options_offset_z_description">基準位置で置いた位置から、追加したアートを上へずらす量（ピクセル）。負の値は下です。</string>
-	<string name="import_options_alpha_threshold_description">レイヤーの初期メッシュを作るとき、アートとみなすピクセルの不透明度（1〜255）。四角形はこれに合わせ、アートから生成したメッシュはこれを覆います。</string>
+	<string name="import_options_alpha_threshold_description">ドローアブルの初期メッシュを作るとき、アートとみなすピクセルの不透明度（1〜255）。</string>
 	<string name="import_options_margin_description">レイヤーの初期の四角形が、見えているアートの外側へ各辺でどれだけはみ出すか（ピクセル）。アートから生成したメッシュはプリセットの余白を使います。</string>
 	<string name="match_options_threshold_description">見失ったレイヤーを自動で再リンクするのに必要な照合の確かさ（パーセント）。これに満たない候補は、ソースパネルで確認できるように残されます。</string>
 	<string name="transform_options_move_x_description">選択が右に移動した距離（ピクセル）。負の値は左です。</string>
@@ -1053,25 +1053,25 @@
 	<string name="create_warp_options_columns_description">新しいワープの横方向のセル数。</string>
 	<string name="create_warp_options_margin_description">選択範囲と新しいワープの端との間の余白。選択範囲の長い辺に対する割合です。</string>
 	<string name="create_warp_options_quad_description">新しいワープの各セルを2つの三角形としてではなく、4つの角の間でなめらかに変形するかどうか。</string>
-	<string name="rehome_options_keep_in_place_description">移動した項目を、キーのある動きも含めて新しい親の下で静止位置に保ちます。オフにすると数値をそのまま保ち、新しい親に追従します。</string>
+	<string name="rehome_options_keep_in_place_description">項目を、キーのある動きも含めて、新しい親の下でも同じ見た目に保ちます。オフにすると値はそのままになり、新しい親と一緒に動きます。</string>
 	<string name="lattice_options_columns_description">格子の新しい横方向のセル数。</string>
 	<string name="lattice_options_row_splits_description">各行のセルを縦方向にいくつに分割するか。</string>
 	<string name="lattice_options_column_splits_description">各列のセルを横方向にいくつに分割するか。</string>
 	<string name="mesh_options_preset_description">プリセットの値で間隔、余白、輪郭の最小点数、最小角度、はしご状にする幅を設定します。</string>
-	<string name="mesh_options_alpha_threshold_description">アートの一部とみなすピクセルの不透明度（最大 255）。</string>
+	<string name="mesh_options_alpha_threshold_description">アートの一部とみなすピクセルの不透明度（1〜255）。</string>
 	<string name="mesh_options_outline_spacing_description">輪郭に沿った頂点の目標間隔（ピクセル）。</string>
 	<string name="mesh_options_interior_spacing_description">アート内部の頂点（内側の輪と均等な格子）の目標間隔（ピクセル）。</string>
 	<string name="mesh_options_outer_margin_description">形が許す範囲で、輪郭をアートの外側にどれだけ離すか（ピクセル）。</string>
 	<string name="mesh_options_inner_margin_description">内側の輪をアートの縁からどれだけ内側に置くか（ピクセル）。0 で内側の輪なし。</string>
-	<string name="mesh_options_minimum_margin_description">輪郭がアートのピクセルに近づける最小距離（ピクセル）。</string>
+	<string name="mesh_options_minimum_margin_description">輪郭がアートに近づける最小距離（ピクセル）。</string>
 	<string name="mesh_options_minimum_outline_points_description">アートの断片がどれだけ小さくても、1 つの輪郭が持つ最少の頂点数。</string>
-	<string name="mesh_options_minimum_angle_description">細長い三角形に頂点を追加して分割し、各三角形の最も狭い角がこの角度（度）以上になるようにします。値を大きくすると三角形が均一になり、変形がなめらかになりますが、頂点数は増えます（頂点数の上限まで）。髪の毛先など、輪郭そのものが作る角は広げられないため、そのまま残ります。0 で追加しません。</string>
+	<string name="mesh_options_minimum_angle_description">細長い三角形に頂点を追加して分割し、各三角形の最も狭い角がこの角度（度）以上になるようにします。値を大きくすると頂点が増えます（頂点数の上限まで）。髪の毛先など、輪郭そのものが作る角は広げられないため、そのまま残ります。0 で追加しません。</string>
 	<string name="mesh_options_vertex_budget_description">1 つのメッシュの頂点数の目安。収まらないアートは上限を 4096 まで上げて、それでも収まらなければ穴を埋めて生成し直します。</string>
-	<string name="mesh_options_interior_thinning_limit_description">頂点数の上限より多くの頂点が必要なアートでは、まず内部を間引きます。間隔は最大で輪郭の間隔のこの倍数まで広がります。それを超えると、輪郭も一緒に間引きます。大きいほど輪郭の細部を長く保ち、小さいほど内部が均一になります。</string>
+	<string name="mesh_options_interior_thinning_limit_description">メッシュが頂点数の上限を超えそうなとき、まず内部を間引きます。間隔は輪郭の間隔のこの倍数まで広がります。それを超えると輪郭も間引きます。大きいほど輪郭の細部を多く保ち、小さいほど内部が均一になります。</string>
 	<string name="mesh_options_fill_holes_description">アートの穴を切り抜かず、1 枚のシートとしてメッシュで覆います。輪郭の間隔より小さい穴は常にメッシュで覆います。</string>
 	<string name="mesh_options_strand_rungs_description">細いアートを、輪郭をなぞる代わりに、中央に 1 本の列を通した均等な帯としてメッシュにします。</string>
-	<string name="mesh_options_strand_width_description">「細部をはしご状に」がオンのとき、この幅（ピクセル）より細いアートをはしご状の帯にします。各プリセットは内側の輪が収まらなくなる幅に設定します。大きくすると太めのストラップや髪の房も帯になり、小さくすると内側の輪を持つ部分が増えます。</string>
-	<string name="mesh_options_deformation_tolerance_description">新しいメッシュが、リグが元のメッシュに与える形（初期状態と各キーフォーム）からずれてよい距離（ピクセル）。それを超える箇所では、その形を保つ元の頂点を残します。小さいほど多くの頂点が残ります。</string>
+	<string name="mesh_options_strand_width_description">「細部をはしご状に」がオンのとき、この幅（ピクセル）より細いアートを帯状にします。大きくすると太めのストラップや髪の房も帯になり、小さくすると内側の輪を持つ部分が増えます。</string>
+	<string name="mesh_options_deformation_tolerance_description">新しいメッシュが、元のメッシュの形（初期状態と各キーフォーム）からずれてよい距離（ピクセル）。それを超える箇所では、元の頂点を残します。小さいほど多くの頂点が残ります。</string>
 	<string name="mesh_options_quad_margin_description">四角形が、見えているアートとグルーで固定された頂点の外側へ、各辺でどれだけはみ出すか（ピクセル）。</string>
 	<!-- ブレンドモード（Cubism のカラーブレンド一覧）。 -->
 	<string name="blend_mode_normal">通常</string>
