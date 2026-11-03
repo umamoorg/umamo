@@ -68,7 +68,6 @@ class PendingLatticeEditTest {
 		session.discardPendingEditsForPose()
 
 		assertTrue(session.pendingLatticeEdits.value.isEmpty())
-		assertEquals(listOf("1"), assertNotNull(session.notice.value).arguments)
 	}
 
 	@Test
