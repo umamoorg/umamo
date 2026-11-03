@@ -163,7 +163,7 @@
 	<string name="export_reason_sketch_part_not_runtime_content">A guide-image (sketch) part is not runtime content, so it was left out.</string>
 	<string name="export_reason_hidden_part_omitted_by_option">The part is hidden and the export options omit hidden parts, so its contents were left out.</string>
 	<string name="export_reason_hidden_drawable_omitted_by_option">The drawable is hidden and the export options omit hidden drawables, so it was left out.</string>
-	<string name="export_reason_vertex_count_exceeds_index_width">The mesh has %1$d vertices, past the %2$d limit of a 16-bit triangle, so it was left out.</string>
+	<string name="export_reason_vertex_count_exceeds_index_width">The mesh has %1$d vertices, more than the %2$d this format allows, so it was left out.</string>
 	<string name="export_reason_no_atlas_page_bound">No atlas page is bound to this drawable, so it was written pointing at page 0.</string>
 	<string name="export_reason_clipping_mask_not_in_export">The clipping mask %1$s is not in this export, so the mesh was written unclipped by it.</string>
 	<string name="export_reason_offscreen_mask_not_in_export">A clipping mask names a drawable that could not be written, so it was dropped from the offscreen.</string>
@@ -201,9 +201,9 @@
 	<string name="export_reason_keyform_cannot_bundle">%1$s  CMO3 stores one grid per object.</string>
 	<string name="export_reason_axis_parameter_no_source">The grid axis parameter %1$s has no CMO3 source, so the keyform grid was not written.</string>
 	<string name="export_reason_blend_shape_parameter_no_source">The blend-shape parameter %1$s has no CMO3 source, so the blend shape was not written.</string>
-	<string name="export_reason_physics_names_deleted_parameter">The physics settings %1$s still read or drive this deleted parameter.  They were written unchanged; retarget or remove them in the Cubism Editor.</string>
-	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s names parameters this export does not contain (%2$s).  It was written unchanged, so a runtime finds nothing for those inputs and outputs.</string>
-	<string name="export_reason_sidecar_names_unwritten_parts">%1$s names parts this export does not contain (%2$s).  It was written unchanged, so a runtime finds nothing to switch or fade for them.</string>
+	<string name="export_reason_physics_names_deleted_parameter">The physics settings %1$s still use this deleted parameter.  They were exported unchanged; point them at another parameter or remove them in the Cubism Editor.</string>
+	<string name="export_reason_sidecar_names_unwritten_parameters">%1$s refers to parameters that are not in this export (%2$s).  It was exported unchanged, so software that plays the model will not find them.</string>
+	<string name="export_reason_sidecar_names_unwritten_parts">%1$s refers to parts that are not in this export (%2$s).  It was exported unchanged, so software that plays the model will have nothing to show or hide for them.</string>
 	<string name="export_reason_keyforms_without_base_mesh">Keyforms without a base mesh cannot be bundled into CMO3.</string>
 	<string name="export_reason_fractional_draw_order">CMO3 stores a whole-number draw order, so the fractional value was not written.</string>
 	<string name="export_reason_static_glue_intensity_without_keyforms">A static glue intensity with no keyforms has nowhere to live in CMO3.</string>
@@ -226,7 +226,7 @@
 	<string name="export_reason_atlas_page_not_recomposed">This artwork was moved on its atlas page, but the page image still shows it at its old spot; repack to redraw it.</string>
 	<string name="export_reason_atlas_tile_metadata">This artwork's pixels, name, or size changed, which an atlas placement cannot carry; re-import the artwork instead.</string>
 	<string name="export_reason_atlas_tile_rebinding">This drawable was bound to different artwork, which needs the artwork re-imported rather than repacked.</string>
-	<string name="export_reason_source_layer_binding_not_in_export">This artwork is bound to layer %2$s of %1$s, which the document does not list, so the binding could not be written; the CMO3 carries the artwork as a flat image of its own.  Relink it in the Sources space to export the binding.</string>
+	<string name="export_reason_source_layer_binding_not_in_export">This art is bound to layer %2$s of %1$s, but the document does not list that file, so the binding could not be exported.  Relink it in the Sources space to export the binding.</string>
 	<string name="export_reason_fractional_canvas_size">CMO3 stores whole canvas pixels, so the fractional canvas size was not written.</string>
 	<!-- Export overwrite warning (the document.confirm command; %1$d is how many existing files the
 	     export would replace, %2$s the abbreviated file list). -->
@@ -592,7 +592,6 @@
 	<!-- Transient notices (EditorSession.emitNotice keys): brief feedback about a blocked action. -->
 	<string name="notice_transform_only_drawables">Only drawables and warp deformers can be transformed.  Parts and rotation deformers are not yet supported.</string>
 	<string name="notice_mode_pose_needs_deformer">Pose mode needs a deformer to pose.</string>
-	<string name="notice_pose_lattice_edits_discarded">Moving the pose discarded %1$d unkeyed lattice edit(s).  Undo to bring them back.</string>
 	<string name="notice_transform_deformed">Can't transform while mesh is deformed.  Reset all parameters first.</string>
 	<string name="notice_unknown">Action unavailable.</string>
 
@@ -655,15 +654,15 @@
 	<string name="history_mesh_generate_quad">Generate Quad Mesh</string>
 	<!-- Generate Mesh from Art notices.  %1$d is the number of meshes generated, %2$d the number skipped. -->
 	<string name="notice_mesh_generated">Generated %1$d mesh(es) from art.</string>
-	<string name="notice_mesh_generated_with_skips">Generated %1$d mesh(es) from art; %2$d skipped.  See the log.</string>
-	<string name="notice_mesh_generated_coarser">Generated %1$d mesh(es) from art; %2$d built coarser than asked to stay within the Vertex Budget.  See the log.</string>
-	<string name="notice_mesh_generated_refit">Generated %1$d mesh(es) from art; %2$d needed a higher Vertex Budget or Fill Holes to fit.  See the log.</string>
+	<string name="notice_mesh_generated_with_skips">Generated %1$d mesh(es) from art; %2$d skipped.</string>
+	<string name="notice_mesh_generated_coarser">Generated %1$d mesh(es) from art; %2$d built coarser than asked to stay within the vertex budget.</string>
+	<string name="notice_mesh_generated_refit">Generated %1$d mesh(es) from art; %2$d had to be redone with a higher vertex budget or with holes filled.</string>
 	<string name="notice_mesh_pinned_without_room">Generated %1$d mesh(es); %2$d skipped because pinned art has no room to grow.  Unpin the art or lower the margin.</string>
 	<string name="notice_mesh_over_budget">Generated %1$d mesh(es); %2$d skipped because they need more than 4096 vertices even with holes filled.  Raise the Alpha Threshold or lower the Minimum Outline Points.</string>
-	<string name="notice_mesh_glued_throughout">Generated %1$d mesh(es); %2$d skipped because glue holds most of their vertices, and regenerating them would change how they follow what they are glued to.</string>
-	<string name="notice_mesh_none_generated">No mesh was generated.  See the log.</string>
+	<string name="notice_mesh_glued_throughout">Generated %1$d mesh(es); %2$d skipped because most of their vertices are glued to other meshes, and regenerating would change how they follow them.</string>
+	<string name="notice_mesh_none_generated">No mesh was generated.</string>
 	<string name="notice_mesh_pack_refused">Nothing was generated: The atlas has no room for the larger meshes.</string>
-	<string name="notice_mesh_superseded">The document changed while the meshes were being generated; nothing was applied.</string>
+	<string name="notice_mesh_superseded">The document changed while the meshes were being generated, so none were applied.</string>
 	<string name="notice_mesh_no_targets">Select a drawable with a mesh to generate one from its art.</string>
 	<string name="history_drawable_duplicate">Duplicate Drawable</string>
 	<string name="notice_merge_needs_vertices">Merge needs two or more selected vertices (vertex mode).</string>
@@ -673,7 +672,7 @@
 	<string name="notice_display_partial_source_artwork">Some drawables have no source artwork and are still displaying from the atlas.</string>
 	<string name="notice_display_source_artwork_unavailable">All drawables do not have source artwork layers and are displaying from the atlas.</string>
 	<string name="notice_atlas_repacked">Atlas repacked.</string>
-	<string name="notice_import_artwork_notes">Artwork imported with notes.  See the log.</string>
+	<string name="notice_import_artwork_notes">Artwork imported with notes.</string>
 	<string name="notice_import_artwork_added">Artwork added.</string>
 	<string name="notice_document_saving">Saving…</string>
 	<string name="notice_document_saved">Saved %1$s.</string>
@@ -694,17 +693,17 @@
 	<string name="progress_atlas_packing">Packing the atlas…</string>
 	<string name="progress_count">%1$d / %2$d</string>
 	<string name="progress_more_tasks">+%1$d more</string>
-	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3's physics, guides, keyform notes, random pose, model state sets, user data, and other editor settings are not carried in this file.  CMO3 exports from this session still keep them, but a CMO3 exported after reopening the file will not.</string>
-	<string name="notice_document_moc3_loss">Saved as UMA.  Physics, motions, expressions, user data, and pose from the MOC3 family are not carried in this file.</string>
+	<string name="notice_document_cmo3_loss">Saved as UMA.  The CMO3's physics, guides, keyform notes, random pose, model state sets, user data, and other editor settings are not stored in this file.  CMO3 exports from this session still keep them, but a CMO3 exported after reopening the file will not.</string>
+	<string name="notice_document_moc3_loss">Saved as UMA.  The MOC3 model's physics, motions, expressions, user data, and pose files are not supported in this file yet.</string>
 	<string name="notice_import_artwork_superseded">The document changed while the artwork was being added; nothing was applied.</string>
-	<string name="notice_import_baked_atlas">Artwork can't be added to documents created from imported MOC3 files.  Export it as CMO3 first and then import the artwork into that file.</string>
+	<string name="notice_import_baked_atlas">Artwork can't be added to a document created from a MOC3 file.  Export the document as CMO3, import that file, and then add the artwork.</string>
 	<string name="notice_import_no_art_layers">The file has no layers with pixels to add.</string>
 	<string name="notice_reload_done">Artwork reloaded: %1$d updated, %2$d added, %3$d matched.</string>
-	<string name="notice_reload_notes">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review.  See the log.</string>
-	<string name="notice_reload_outgrown">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review; some art now reaches past its mesh.  Generate Mesh from Art re-meshes it; see the log.</string>
-	<string name="notice_relink_outgrown">Art relinked; some of it now reaches past its mesh.  Generate Mesh from Art re-meshes it; see the log.</string>
-	<string name="notice_match_outgrown">%1$d layer(s) matched, %2$d left for review; some art now reaches past its mesh.  Generate Mesh from Art re-meshes it; see the log.</string>
-	<string name="notice_replace_outgrown">Artwork replaced: %1$d layer(s) reloaded by key, %2$d matched, %3$d left for review; some art now reaches past its mesh.  Generate Mesh from Art re-meshes it; see the log.</string>
+	<string name="notice_reload_notes">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review.</string>
+	<string name="notice_reload_outgrown">Artwork reloaded: %1$d updated, %2$d added, %3$d matched, %4$d need review; some layers now reach past the edges of their meshes.</string>
+	<string name="notice_relink_outgrown">Art relinked; some layers now reach past the edges of their meshes.</string>
+	<string name="notice_match_outgrown">%1$d layer(s) matched, %2$d left for review; some layers now reach past the edges of their meshes.</string>
+	<string name="notice_replace_outgrown">Artwork replaced: %1$d layer(s) reloaded by key, %2$d matched, %3$d left for review; some layers now reach past the edges of their meshes.</string>
 	<string name="notice_watch_changed">%1$d artwork file(s) changed on disk.  Press Reload to take the changes.</string>
 	<string name="notice_watch_stale_at_open">%1$d artwork file(s) changed since they were last read.  Press Reload to take the changes.</string>
 	<string name="notice_watch_missing">%1$s is no longer where the document read it.</string>
@@ -712,7 +711,7 @@
 	<string name="notice_reload_no_files">No artwork file could be read; nothing was reloaded.</string>
 	<string name="notice_relink_pulled">Art relinked and reloaded.</string>
 	<string name="notice_relink_binding_only">Art relinked; its file could not be read, so the art did not change.</string>
-	<string name="notice_relink_pulled_from_document">Art relinked from the art this document holds, since its file could not be read.</string>
+	<string name="notice_relink_pulled_from_document">Art relinked; its file could not be read, so the document's copy of the layer was used.</string>
 	<string name="notice_match_done">%1$d layer(s) matched, %2$d left for review.</string>
 	<string name="notice_match_no_files">No artwork could be read, from its file or from this document; nothing was matched.</string>
 	<string name="notice_match_nothing">No binding matched confidently enough; the suggestions are on the rows that need review.</string>
@@ -722,7 +721,7 @@
 	<string name="notice_atlas_repack_unchanged">Atlas already packed; nothing changed.</string>
 	<string name="notice_uv_no_uvs">The selection has no editable UVs.</string>
 	<string name="notice_uv_no_selection">Nothing is selected to mirror.</string>
-	<string name="notice_uv_no_editable_geometry">Nothing to edit here.  None of the edited meshes are on the shown page or layer.</string>
+	<string name="notice_uv_no_editable_geometry">Nothing to edit here.  None of the meshes you are editing are on the page or layer being shown.</string>
 	<string name="notice_uv_placement_layer_addressed">The puppet's UVs address the source artwork and not the atlas so there is no placement to move.</string>
 	<string name="notice_uv_placement_no_placed_art">Nothing selected is packed on an atlas page or there is no source artwork.</string>
 	<string name="notice_uv_placement_page_view_only">Show an atlas page in the UV editor to move placements.</string>
@@ -732,13 +731,13 @@
 	<string name="notice_uv_placement_off_page">Placement extends past the page edge.  The overhang is cropped.</string>
 	<string name="notice_uv_placement_pinned">Selected tile is pinned.  Unpin it to transform it.</string>
 	<string name="notice_edit_no_editable_geometry">Nothing to edit, every selected drawable is hidden by a parent.</string>
-	<string name="notice_edit_rotation_not_editable">Rotation deformer editing is not yet built.</string>
+	<string name="notice_edit_rotation_not_editable">Rotation deformers can't be edited yet.</string>
 	<string name="notice_edit_warp_has_no_lattice">This warp deformer has no lattice to edit.</string>
 	<string name="notice_edit_warp_hidden_at_rest">This warp deformer is not drawn at the default pose, so its lattice cannot be edited.</string>
-	<string name="notice_edit_lattice_topology_fixed">Lattice topology can be reshaped, but it can not be destructively changed.</string>
-	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds over %1$d of its children.  Drawables may have moved.</string>
-	<string name="notice_lattice_resampled">The lattice was resampled approximately.  Motion may differ slightly and require adjustment.</string>
-	<string name="notice_lattice_resampled_children_moved">The lattice was resampled approximately.  %1$d children were affected and their drawables may have moved.</string>
+	<string name="notice_edit_lattice_topology_fixed">A lattice's points can be moved, but not added, merged, or connected.  Change its rows and columns instead.</string>
+	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds or collapses at %1$d object(s) under it, so their art has moved.</string>
+	<string name="notice_lattice_resampled">The lattice was rebuilt as a close approximation, so its motion may differ slightly.  Check it and adjust if needed.</string>
+	<string name="notice_lattice_resampled_children_moved">The lattice was rebuilt as a close approximation, so its motion may differ slightly.  %1$d object(s) under it could not keep their place, so their art has moved.</string>
 
 	<!-- Proportional editing (O): the toggle, the falloff curves, and the modal badge segment. -->
 	<string name="cmd_mesh_proportional_toggle">Toggle Proportional Editing</string>
@@ -793,16 +792,16 @@
 	<string name="overlay_section_text_description">Informational text shown around the edges of the viewport.</string>
 	<string name="overlay_section_geometry_description">The visual helpers for displaying drawables.</string>
 	<string name="overlay_row_grid_description">The divided grid behind the scene that is used for snapping and visual alignment.</string>
-	<string name="overlay_row_axes_description">The world X and Z axis lines through the origin.</string>
+	<string name="overlay_row_axes_description">The world X and Z axes drawn through the origin.</string>
 	<string name="overlay_row_cursor_description">The 2D cursor used for snap and pivot operations.</string>
 	<string name="overlay_row_info_description">The general information such as the current selection and zoom level.</string>
-	<string name="overlay_row_wireframe_description">Show the mesh wireframe of drawables not currently selected for editing.</string>
+	<string name="overlay_row_wireframe_description">Shows the mesh wireframe of drawables that are not being edited.</string>
 	<string name="overlay_grid_scale_description">The spacing of the major grid lines, in world units; in the UV editor, in texels.</string>
 	<string name="overlay_grid_subdivisions_description">How many minor lines divide each major grid cell.</string>
 	<string name="overlay_section_objects_description">The visual helpers for selected and active drawables.</string>
-	<string name="overlay_row_selection_tint_description">Tint the selected and active drawables so that they stand out in the art.</string>
-	<string name="overlay_row_deformers_description">Show the lattice of every warp deformer, not only the selected ones, so that any of them can be selected in the viewport.</string>
-	<string name="overlay_row_cull_hidden_description">Hide parts of the wireframe that are covered by other drawables.</string>
+	<string name="overlay_row_selection_tint_description">Tints selected and active drawables so they stand out.</string>
+	<string name="overlay_row_deformers_description">Shows the lattice of every warp deformer, not only the selected ones, so you can select any of them in the viewport.</string>
+	<string name="overlay_row_cull_hidden_description">Hides parts of the wireframe that are covered by other drawables.</string>
 	<string name="overlay_wireframe_opacity_description">The opacity of the wireframe drawn in the viewport.</string>
 	<string name="overlay_deformer_opacity_description">The opacity of the warp lattices drawn in the viewport.</string>
 	<string name="cmd_mesh_proportional_connected">Toggle Proportional Connected Only</string>
@@ -816,8 +815,8 @@
 	<string name="notice_proportional_connected_on">Proportional editing: Connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: All within radius.</string>
 	<!-- %1$s is the drawable's name. -->
-	<string name="notice_reparent_place_not_kept">%1$s was bound without keeping its place: Its new deformer chain could not map it.</string>
-	<string name="notice_reparent_places_not_kept">%1$d object(s) re-homed without keeping their place: The deformer chain could not map them.</string>
+	<string name="notice_reparent_place_not_kept">%1$s was moved to its new parent but could not keep its place: The new deformers could not map its position.</string>
+	<string name="notice_reparent_places_not_kept">%1$d object(s) were moved to their new parent but could not keep their place: The new deformers could not map their positions.</string>
 
 	<!-- Pie menu center titles (the pie's name, Blender-style). -->
 	<string name="pie_title_pivot">Pivot Point</string>
@@ -854,12 +853,12 @@
 	<string name="sidebar_cursor_z_description">The 2D cursor's vertical position, measured up from the world axes.</string>
 	<string name="sidebar_edit_vertex">Vertex:</string>
 	<string name="sidebar_edit_median">Median:</string>
-	<string name="sidebar_median_x_description">The horizontal position of the selected vertices, their median when there are several, measured from the world axes.</string>
-	<string name="sidebar_median_z_description">The vertical position of the selected vertices, their median when there are several, measured up from the world axes.</string>
+	<string name="sidebar_median_x_description">The horizontal position of the selected vertices(their median if several), measured from the world axes.</string>
+	<string name="sidebar_median_z_description">The vertical position of the selected vertices(their median if several), measured up from the world axes.</string>
 	<string name="sidebar_uv_cursor_x_description">The UV cursor's horizontal position on the shown page or artwork, in pixels from its left edge.</string>
 	<string name="sidebar_uv_cursor_y_description">The UV cursor's vertical position on the shown page or artwork, in pixels down from its top edge.</string>
-	<string name="sidebar_uv_median_x_description">The horizontal position of the selected texture coordinates, their median when there are several, in pixels from the left edge of the shown page or artwork.</string>
-	<string name="sidebar_uv_median_y_description">The vertical position of the selected texture coordinates, their median when there are several, in pixels down from the top edge of the shown page or artwork.</string>
+	<string name="sidebar_uv_median_x_description">The horizontal position of the selected texture coordinates(their median if several), in pixels from the left edge of the shown page or artwork.</string>
+	<string name="sidebar_uv_median_y_description">The vertical position of the selected texture coordinates(their median if several), in pixels down from the top edge of the shown page or artwork.</string>
 	<string name="sidebar_placement_x_description">Where the art's origin sits on its page, in pixels from the page's left edge.</string>
 	<string name="sidebar_placement_y_description">Where the art's origin sits on its page, in pixels down from the page's top edge.</string>
 	<string name="sidebar_placement_angle_description">How far the art is turned on its page about its origin, in degrees.</string>
@@ -877,7 +876,7 @@
 	<string name="properties_mesh">Mesh: %1$d verts, %2$d tris</string>
 	<string name="properties_no_mesh">No mesh</string>
 	<string name="properties_warp_lattice">Lattice</string>
-	<string name="properties_warp_lattice_description">The parameters the lattice's shape is keyed on.  The tint shows whether the pose sits on a key, between keys, or holds a shape made in Pose mode and not yet keyed; point here and insert a key to key the lattice at the pose.</string>
+	<string name="properties_warp_lattice_description">Parameters that control the lattice's shape.  The tint shows whether the pose is on a key, between keys, or has an unkeyed shape from Pose mode.  Hover here and insert a key to record the lattice's shape at this pose.</string>
 	<string name="properties_warp_lattice_keyed_on">Keyed on %1$s</string>
 	<string name="properties_warp_lattice_unkeyed">Not keyed</string>
 	<string name="properties_warp_lattice_separator">, </string>
@@ -902,11 +901,11 @@
 	<string name="properties_section_blend">Blend</string>
 	<string name="properties_section_deformer">Deformer</string>
 	<string name="properties_section_blend_shapes">Blend Shapes</string>
-	<string name="properties_blend_shape_binding">%1$s: %2$d keys</string>
+	<string name="properties_blend_shape_binding">%1$s: %2$d key(s)</string>
 	<string name="properties_field_lattice_rows">Rows</string>
-	<string name="properties_field_lattice_rows_description">How many cells the lattice has from top to bottom.  Changing the value will resample the mesh key forms.</string>
+	<string name="properties_field_lattice_rows_description">How many cells the lattice has from top to bottom.  Changing it resamples the mesh keyforms, so motion may change slightly.</string>
 	<string name="properties_field_lattice_columns">Columns</string>
-	<string name="properties_field_lattice_columns_description">How many cells the lattice has from left to right.  Changing the value will resample the mesh key forms.</string>
+	<string name="properties_field_lattice_columns_description">How many cells the lattice has from left to right.  Changing it resamples the mesh keyforms, so motion may change slightly.</string>
 	<string name="properties_section_part">Part</string>
 	<string name="properties_canvas_none">No canvas</string>
 	<string name="properties_field_runtime_target">Target</string>
@@ -1055,18 +1054,18 @@
 	<string name="properties_field_size_x_description">The width of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_size_z_description">The height of the mesh as it appears in the viewport, scaled about its center when changed.  Editable only while every parameter is at its default.</string>
 	<string name="properties_field_base_angle_description">The deformer's base rotation, in degrees.  The angle each keyform sets is added to it.</string>
-	<string name="properties_part_position_x_description">The horizontal center of everything the part holds, as it appears in the viewport, measured from the world axes.  Read-only until parts can be moved here.</string>
-	<string name="properties_part_position_z_description">The vertical center of everything the part holds, as it appears in the viewport, measured up from the world axes.  Read-only until parts can be moved here.</string>
-	<string name="properties_part_size_x_description">The width of everything the part holds, as it appears in the viewport.  Read-only until parts can be scaled here.</string>
-	<string name="properties_part_size_z_description">The height of everything the part holds, as it appears in the viewport.  Read-only until parts can be scaled here.</string>
-	<string name="properties_warp_position_x_description">The horizontal center of the deformer's lattice as it appears in the viewport, measured from the world axes.  Moving it moves the whole deformer, its art following; it can be edited in Object mode at the default pose.</string>
-	<string name="properties_warp_position_z_description">The vertical center of the deformer's lattice as it appears in the viewport, measured up from the world axes.  Moving it moves the whole deformer, its art following; it can be edited in Object mode at the default pose.</string>
-	<string name="properties_warp_size_x_description">The width of the deformer's lattice as it appears in the viewport.  Resizing it scales the whole deformer about its center, its art following; it can be edited in Object mode at the default pose.</string>
-	<string name="properties_warp_size_z_description">The height of the deformer's lattice as it appears in the viewport.  Resizing it scales the whole deformer about its center, its art following; it can be edited in Object mode at the default pose.</string>
-	<string name="properties_rotation_pivot_x_description">The horizontal position of the deformer's pivot as it appears in the viewport, measured from the world axes.  Read-only until deformers can be moved here.</string>
-	<string name="properties_rotation_pivot_z_description">The vertical position of the deformer's pivot as it appears in the viewport, measured up from the world axes.  Read-only until deformers can be moved here.</string>
-	<string name="properties_field_angle_description">The deformer's angle at the shown pose, in degrees: its Base Angle plus the angle its keyforms and blend shapes set there.  Read-only until deformers can be rotated here.</string>
-	<string name="properties_field_scale_description">The deformer's scale at the shown pose, as its keyforms and blend shapes set it there.  Read-only until deformers can be scaled here.</string>
+	<string name="properties_part_position_x_description">The horizontal center of the part's contents as they appear in the viewport, measured from the world axes.  Read-only for now.</string>
+	<string name="properties_part_position_z_description">The vertical center of the part's contents as they appear in the viewport, measured up from the world axes.  Read-only for now.</string>
+	<string name="properties_part_size_x_description">The width of the part's contents as they appear in the viewport.  Read-only for now.</string>
+	<string name="properties_part_size_z_description">The height of the part's contents as they appear in the viewport.  Read-only for now.</string>
+	<string name="properties_warp_position_x_description">The horizontal center of the lattice in the viewport, measured from the world axes.  Editing it moves the deformer and its art.  Available in Object mode at the default pose.</string>
+	<string name="properties_warp_position_z_description">The vertical center of the lattice in the viewport, measured up from the world axes.  Editing it moves the deformer and its art.  Available in Object mode at the default pose.</string>
+	<string name="properties_warp_size_x_description">The width of the lattice in the viewport.  Editing it scales the deformer and its art around the lattice's center.  Available in Object mode at the default pose.</string>
+	<string name="properties_warp_size_z_description">The height of the lattice in the viewport.  Editing it scales the deformer and its art around the lattice's center.  Available in Object mode at the default pose.</string>
+	<string name="properties_rotation_pivot_x_description">The horizontal position of the deformer's pivot as it appears in the viewport, measured from the world axes.  Read-only for now.</string>
+	<string name="properties_rotation_pivot_z_description">The vertical position of the deformer's pivot as it appears in the viewport, measured up from the world axes.  Read-only for now.</string>
+	<string name="properties_field_angle_description">The deformer's angle at the current pose, in degrees: its Base Angle plus whatever its keyforms and blend shapes add.  Read-only for now.</string>
+	<string name="properties_field_scale_description">The deformer's scale at the current pose, from its keyforms and blend shapes.  Read-only for now.</string>
 	<string name="properties_part_ref_description">The part this item belongs to.  Clearing it moves the item out of every part.</string>
 	<string name="properties_parent_deformer_description">The deformer this item is attached to.  The item follows it as it moves, bends, or turns.</string>
 	<string name="properties_field_pinned_description">Holds this art in place on its atlas page.  Moving it by hand in the UV editor is refused, and a repack leaves it where it is unless Keep Pinned Tiles is off.</string>
@@ -1112,7 +1111,7 @@
 	<string name="import_options_align_description">Where the added file's canvas sits on the document's canvas: Top Left lines up their top-left corners, Center centers it, and so on.</string>
 	<string name="import_options_offset_x_description">Moves the added art right from where Align puts it, in pixels.  Negative moves it left.</string>
 	<string name="import_options_offset_z_description">Moves the added art up from where Align puts it, in pixels.  Negative moves it down.</string>
-	<string name="import_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to count as art when a layer's initial mesh is made: the quad fits around it, and a mesh generated from art covers it.</string>
+	<string name="import_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to count as art when a drawable's initial mesh is made.</string>
 	<string name="import_options_margin_description">How far a layer's initial quad reaches past its visible art on every side, in pixels.  A mesh generated from art keeps its preset's margins.</string>
 	<string name="match_options_threshold_description">How sure a match must be, as a percentage, before a lost layer is relinked to it automatically.  Weaker matches are left for review in the Sources panel.</string>
 	<string name="transform_options_move_x_description">How far the selection moved right, in pixels.  Negative moves it left.</string>
@@ -1133,25 +1132,25 @@
 	<string name="create_warp_options_columns_description">How many cells the new warp has from left to right.</string>
 	<string name="create_warp_options_margin_description">The room between the selection and the new warp's edges, in percent of the selection's larger side.</string>
 	<string name="create_warp_options_quad_description">Whether the new warp bends each cell smoothly between its four corners rather than as two triangles.</string>
-	<string name="rehome_options_keep_in_place_description">Keeps the moved item where it rests under its new parent, its keyed motion included.  Unchecked, it keeps its numbers and follows the new parent.</string>
+	<string name="rehome_options_keep_in_place_description">Keeps the item looking the same under its new parent, including its keyed motion.  When off, its values stay the same and it moves with the new parent.</string>
 	<string name="lattice_options_columns_description">The lattice's new cell count from left to right.</string>
 	<string name="lattice_options_row_splits_description">How many cells each row of cells is split into, top to bottom.</string>
 	<string name="lattice_options_column_splits_description">How many cells each column of cells is split into, left to right.</string>
 	<string name="mesh_options_preset_description">Fills in the spacings, margins, outline points, minimum angle, and strand width from preset values.</string>
-	<string name="mesh_options_alpha_threshold_description">How opaque a pixel must be, up to 255, to be counted as part of the art.</string>
-	<string name="mesh_options_outline_spacing_description">The distance the mesher aims for between vertices along the outline, in pixels.</string>
-	<string name="mesh_options_interior_spacing_description">The distance the mesher aims for between vertices inside the art, the inner ring and the even grid, in pixels.</string>
+	<string name="mesh_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to be counted as part of the art.</string>
+	<string name="mesh_options_outline_spacing_description">The target distance between vertices along the outline, in pixels.</string>
+	<string name="mesh_options_interior_spacing_description">The target distance between vertices inside the art(the inner ring and the even grid), in pixels.</string>
 	<string name="mesh_options_outer_margin_description">How far outside the art the outline runs where the shape allows, in pixels.</string>
 	<string name="mesh_options_inner_margin_description">How far inside the art's edge the inner ring runs, in pixels.  0 for no inner ring.</string>
-	<string name="mesh_options_minimum_margin_description">The closest the outline may come to any art pixel, in pixels.</string>
+	<string name="mesh_options_minimum_margin_description">The closest the outline may come to the art, in pixels.</string>
 	<string name="mesh_options_minimum_outline_points_description">The fewest vertices one outline ring may have, however small its piece of art.</string>
-	<string name="mesh_options_minimum_angle_description">Adds vertices to break up thin, sliver-shaped triangles until each triangle's narrowest corner is at least this many degrees.  Higher gives more even triangles that bend more smoothly, but uses more vertices, up to the Vertex Budget.  Corners the outline itself makes, such as a hair tip's, can't be widened and stay as they are.  0 adds none.</string>
+	<string name="mesh_options_minimum_angle_description">Adds vertices to break up thin, sliver-shaped triangles until each triangle's narrowest corner is at least this many degrees.  Higher values use more vertices, up to the vertex budget.  Corners the outline itself makes, such as a hair tip's, can't be widened and stay as they are.  0 adds none.</string>
 	<string name="mesh_options_vertex_budget_description">The most vertices one mesh should have.  Art that can't fit is meshed again under a higher budget, up to 4096, and then with its holes filled.</string>
-	<string name="mesh_options_interior_thinning_limit_description">When the art needs more vertices than the Vertex Budget it thins the interior first.  The spacing grows to at most this value times the outline spacing.  Past that, the outline thins along with it.  Higher keeps the outline's detail longer and lower keeps the interior even.</string>
+	<string name="mesh_options_interior_thinning_limit_description">When a mesh would exceed the vertex budget, the interior thins out first, up to this many times the outline spacing.  Past that, the outline thins too.  Higher keeps more outline detail; lower keeps the interior even.</string>
 	<string name="mesh_options_fill_holes_description">Meshes over holes in the art as one sheet instead of cutting them out.  A hole smaller than the Outline Spacing is always meshed over.</string>
 	<string name="mesh_options_strand_rungs_description">Meshes thin art as even strips with a single run down the center instead of outlining the art.</string>
-	<string name="mesh_options_strand_width_description">With Strand Rungs on, art narrower than this, in pixels, is meshed as a strip of rungs.  Each preset sets it where an inner ring stops fitting; raise it to mesh wider straps and locks as strips too, lower it to give more of them an inner ring.</string>
-	<string name="mesh_options_deformation_tolerance_description">How far, in pixels, the new mesh may stray from the shapes the rig gives the old one, at rest and in every keyform.  Where it would stray further, the old vertices that hold those shapes are kept.  Smaller keeps more of them.</string>
+	<string name="mesh_options_strand_width_description">With Strand Rungs on, art narrower than this, in pixels, is meshed as a strip.  Raise it to mesh wider straps and locks as strips too; lower it to give more of them an inner ring.</string>
+	<string name="mesh_options_deformation_tolerance_description">How far, in pixels, the new mesh may differ from the old mesh's shape, at rest and in every keyform.  Where it would differ more, the old vertices are kept.  Smaller values keep more of them.</string>
 	<string name="mesh_options_quad_margin_description">How far the quad reaches past the visible art, and past any glued vertex, on every side, in pixels.</string>
 	<!-- Blend modes (Cubism color blend list). -->
 	<string name="blend_mode_normal">Normal</string>

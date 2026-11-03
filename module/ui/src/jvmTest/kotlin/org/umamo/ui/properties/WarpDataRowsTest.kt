@@ -230,14 +230,14 @@ class WarpDataRowsTest {
 		runComposeUiTest {
 			mountData(showing(WARP_W))
 			onNodeWithText("Blend Shapes").assertExists()
-			onNodeWithText("Smile: 2 keys").assertExists()
+			onNodeWithText("Smile: 2 key(s)").assertExists()
 		}
 
 	@Test
 	fun aDrawablesBlendShapesListToo() =
 		runComposeUiTest {
 			mountData(showing(DRAWABLE_D))
-			onNodeWithText("Smile: 3 keys").assertExists()
+			onNodeWithText("Smile: 3 key(s)").assertExists()
 		}
 
 	@Test

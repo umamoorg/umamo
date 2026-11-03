@@ -8,6 +8,13 @@ Umamo is early alpha.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.5.0 - 2026-11-07
+
+### Added
 * Internationalization: Initial Français/French translation.  Thank you to skueee(Robin Brams) for the translation.
 * Keyform Sheet: Every row that holds an unkeyed edit shows an orange pending circle.
 * Keyform Sheet: Insert Key by Type (K) opens a pie to key a posed warp's lattice, opacity, colors, or all of them.

@@ -316,18 +316,6 @@ class EditorSession private constructor(
 		publish(snapshot)
 		refreshFlags()
 		mutableChanges.tryEmit(change)
-		reportDiscardedLattices(discardedLattices)
-	}
-
-	/**
-	 * Says near the cursor that a pose move discarded [count] pending lattices; nothing for none.
-	 *
-	 * @param Int count How many were discarded.
-	 */
-	private fun reportDiscardedLattices(count: Int) {
-		if (count > 0) {
-			notices.emit("notice.pose.latticeEditsDiscarded", NoticePlacement.NearCursor, listOf(count.toString()))
-		}
 	}
 
 	/**
@@ -643,7 +631,6 @@ class EditorSession private constructor(
 
 		if (discardedLattices > 0) {
 			mutablePendingLatticeEdits.value = emptyMap()
-			reportDiscardedLattices(discardedLattices)
 		}
 	}
 
