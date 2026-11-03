@@ -205,7 +205,7 @@ Editor-format knowledge for CMO3, MOC3, and CLIP are reverse-engineered by black
 | Format | Read | Write | Note                                                                                     |
 | ------ | ---- | ----- | ---------------------------------------------------------------------------------------- |
 | PSD    | 〇   | -     | Photoshop (Read only)                                                                    |
-| CLIP   | △   | -     | Clip Studio Paint (Read only) - Implemented, not fully tested.  Has some blending issues. |
+| CLIP   | 〇   | -     | Clip Studio Paint (Read only)                                                            |
 | KRA    | 〇   | -     | Krita (Read only) - ZIP + maindoc.xml + tiled LZF rasters; ported from open source.      |
 | UMA    | 〇   | 〇    | Umamo Model File                                                                         |
 | CMO3   | 〇   | 〇    | Cubism Editor Model File - Compatible up to Cubism 5.4                                   |
