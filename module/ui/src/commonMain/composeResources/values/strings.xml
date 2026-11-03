@@ -734,7 +734,7 @@
 	<string name="notice_edit_rotation_not_editable">Rotation deformers can't be edited yet.</string>
 	<string name="notice_edit_warp_has_no_lattice">This warp deformer has no lattice to edit.</string>
 	<string name="notice_edit_warp_hidden_at_rest">This warp deformer is not drawn at the default pose, so its lattice cannot be edited.</string>
-	<string name="notice_edit_lattice_topology_fixed">A lattice's points can be moved, but not added, merged, or connected.  Change its Rows and Columns instead.</string>
+	<string name="notice_edit_lattice_topology_fixed">A lattice's points can be moved, but not added, merged, or connected.  Change its rows and columns instead.</string>
 	<string name="notice_edit_lattice_children_moved">The reshaped lattice folds or collapses at %1$d object(s) under it, so their art has moved.</string>
 	<string name="notice_lattice_resampled">The lattice was rebuilt as a close approximation, so its motion may differ slightly.  Check it and adjust if needed.</string>
 	<string name="notice_lattice_resampled_children_moved">The lattice was rebuilt as a close approximation, so its motion may differ slightly.  %1$d object(s) under it could not keep their place, so their art has moved.</string>
@@ -853,12 +853,12 @@
 	<string name="sidebar_cursor_z_description">The 2D cursor's vertical position, measured up from the world axes.</string>
 	<string name="sidebar_edit_vertex">Vertex:</string>
 	<string name="sidebar_edit_median">Median:</string>
-	<string name="sidebar_median_x_description">The horizontal position of the selected vertices (their median if several), measured from the world axes.</string>
-	<string name="sidebar_median_z_description">The vertical position of the selected vertices (their median if several), measured up from the world axes.</string>
+	<string name="sidebar_median_x_description">The horizontal position of the selected vertices(their median if several), measured from the world axes.</string>
+	<string name="sidebar_median_z_description">The vertical position of the selected vertices(their median if several), measured up from the world axes.</string>
 	<string name="sidebar_uv_cursor_x_description">The UV cursor's horizontal position on the shown page or artwork, in pixels from its left edge.</string>
 	<string name="sidebar_uv_cursor_y_description">The UV cursor's vertical position on the shown page or artwork, in pixels down from its top edge.</string>
-	<string name="sidebar_uv_median_x_description">The horizontal position of the selected texture coordinates (their median if several), in pixels from the left edge of the shown page or artwork.</string>
-	<string name="sidebar_uv_median_y_description">The vertical position of the selected texture coordinates (their median if several), in pixels down from the top edge of the shown page or artwork.</string>
+	<string name="sidebar_uv_median_x_description">The horizontal position of the selected texture coordinates(their median if several), in pixels from the left edge of the shown page or artwork.</string>
+	<string name="sidebar_uv_median_y_description">The vertical position of the selected texture coordinates(their median if several), in pixels down from the top edge of the shown page or artwork.</string>
 	<string name="sidebar_placement_x_description">Where the art's origin sits on its page, in pixels from the page's left edge.</string>
 	<string name="sidebar_placement_y_description">Where the art's origin sits on its page, in pixels down from the page's top edge.</string>
 	<string name="sidebar_placement_angle_description">How far the art is turned on its page about its origin, in degrees.</string>
@@ -1139,7 +1139,7 @@
 	<string name="mesh_options_preset_description">Fills in the spacings, margins, outline points, minimum angle, and strand width from preset values.</string>
 	<string name="mesh_options_alpha_threshold_description">How opaque a pixel must be, from 1 to 255, to be counted as part of the art.</string>
 	<string name="mesh_options_outline_spacing_description">The target distance between vertices along the outline, in pixels.</string>
-	<string name="mesh_options_interior_spacing_description">The target distance between vertices inside the art (the inner ring and the even grid), in pixels.</string>
+	<string name="mesh_options_interior_spacing_description">The target distance between vertices inside the art(the inner ring and the even grid), in pixels.</string>
 	<string name="mesh_options_outer_margin_description">How far outside the art the outline runs where the shape allows, in pixels.</string>
 	<string name="mesh_options_inner_margin_description">How far inside the art's edge the inner ring runs, in pixels.  0 for no inner ring.</string>
 	<string name="mesh_options_minimum_margin_description">The closest the outline may come to the art, in pixels.</string>
