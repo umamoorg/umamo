@@ -47,6 +47,7 @@ Umamo is early alpha.
 * Keyform Sheet: Keys can no longer be inserted, removed, or moved in Edit Mode.
 * Mesh: Layers added from artwork now start with a mesh generated from their art instead of a quad.
 * Source Artwork: Adding artwork to a document created from an imported MOC3 is now refused and instructs the user to export a CMO3 to be able to import artwork.
+* Splash Screen: New splash screen art by RAHIBIZ.
 * UI: The 2D Viewport's mode DropdownChip is now pinned instead of collapsing into the more chip.
 * UI: The Properties panel's Object and Data tabs show the active item when several are selected and keep showing the last active item after a deselect.
 * UI: Key bindings can now use the literal Control key, separate from the primary modifier(Command on macOS).
