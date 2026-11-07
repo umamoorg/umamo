@@ -26,8 +26,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.imageResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.ui.help.ProjectInfo
@@ -45,7 +47,7 @@ import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoShapes
 import org.umamo.ui.theme.LocalUmamoTypography
 
-/** The banner's width-to-height ratio, near the 501x250 of Blender's splash. */
+/** The banner's width-to-height ratio. */
 private const val SPLASH_BANNER_ASPECT = 2f
 
 /** The card's widest extent; the banner art is authored at three times this width (see [SplashBanner]). */
@@ -117,26 +119,23 @@ fun QuickSetupDialog(onDismiss: () -> Unit) {
 }
 
 /**
- * The splash's banner: the splash artwork, with the app's name and icon, the version, and the artist credit
- * overlaid in three of its corners, so a version bump never means new art.
+ * The splash's banner that shows above the quick setup options.
  *
- * The art is drawable/splash_banner.png: 2:1 at 1680x840 pixels, three times the banner's largest size
- * ([QUICK_SETUP_MAX_WIDTH] wide) so it stays sharp on high-density screens, cropped to fill the banner.  The
- * overlays sit on the viewport's badge pill, the palette's pair for text over content the theme does not
- * color, so they read on any art in either theme.
+ * The art is drawable/splash_banner.png:
+ *     1:1 at 560x280 pixels
+ *     2:1 at 1120x560 pixels.
  */
 @Composable
 private fun SplashBanner() {
 	val colors = LocalUmamoColors.current
 	val typography = LocalUmamoTypography.current
 	val badgeShape = RoundedCornerShape(4.dp)
-	// The header fill shows only through transparent pixels in the art.
 	Box(modifier = Modifier.fillMaxWidth().aspectRatio(SPLASH_BANNER_ASPECT).background(colors.headerBackground)) {
-		// Decorative: the modal's rows and title say what it is.
 		Image(
-			painter = painterResource(Res.drawable.splash_banner),
+			bitmap = imageResource(Res.drawable.splash_banner),
 			contentDescription = null,
 			contentScale = ContentScale.Crop,
+			filterQuality = FilterQuality.Medium,
 			modifier = Modifier.matchParentSize(),
 		)
 		Row(
