@@ -11,7 +11,6 @@ import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.parameterKey
 import org.umamo.edit.structure.RehomeParameterKeys
 import org.umamo.edit.structure.WarpCreationParameterKeys
-import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.RotationAxis
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.choiceKey
@@ -25,6 +24,7 @@ import org.umamo.ui.model.mesh.MeshGenerationParameterKeys
 import org.umamo.ui.model.mesh.QuadMeshParameterKeys
 import org.umamo.ui.model.repack.RepackParameterKeys
 import org.umamo.ui.resources.*
+import org.umamo.ui.viewport.depthSurfaceLabel
 import org.umamo.ui.viewport.falloffLabel
 import org.umamo.ui.viewport.uv.PlacementParameterKeys
 
@@ -283,11 +283,7 @@ private fun choiceLabel(labelKey: String): String? {
 	if (labelKey.startsWith(TransformParameterKeys.DEPTH_SURFACE_CHOICE_PREFIX)) {
 		val key = labelKey.removePrefix(TransformParameterKeys.DEPTH_SURFACE_CHOICE_PREFIX)
 
-		return when (depthSurfaceOf(key).takeIf { surface -> surface.choiceKey == key }) {
-			DepthSurface.Flat -> stringResource(Res.string.transform_depth_surface_flat)
-			DepthSurface.Rounded -> stringResource(Res.string.transform_depth_surface_rounded)
-			null -> null
-		}
+		return depthSurfaceOf(key).takeIf { surface -> surface.choiceKey == key }?.let { surface -> depthSurfaceLabel(surface) }
 	}
 
 	if (labelKey.startsWith(ImportParameterKeys.ANCHOR_CHOICE_PREFIX)) {

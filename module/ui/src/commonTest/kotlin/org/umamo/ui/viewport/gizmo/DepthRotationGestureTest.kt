@@ -27,7 +27,7 @@ class DepthRotationGestureTest {
 	private val size = IntSize(800, 400)
 
 	/**
-	 * A pointer frame from [start] to [current] under [lock], at depth 90 over a Rounded surface.
+	 * A pointer frame from [start] to [current] under [lock], at depth 90 over a Cylinder surface.
 	 *
 	 * @param Offset start The gesture's start.
 	 * @param Offset current The current pointer.
@@ -35,7 +35,7 @@ class DepthRotationGestureTest {
 	 * @return TransformGestureFrame The frame.
 	 */
 	private fun frame(start: Offset, current: Offset, lock: TransformAxisConstraint?): TransformGestureFrame =
-		TransformGestureFrame(0f to 0f, start, current, lock, camera, size, pivotDepth = 90f, depthSurface = DepthSurface.Rounded)
+		TransformGestureFrame(0f to 0f, start, current, lock, camera, size, pivotDepth = 90f, depthSurface = DepthSurface.Cylinder)
 
 	@Test
 	fun aZLockTurnsByHorizontalTravel() {
@@ -44,7 +44,7 @@ class DepthRotationGestureTest {
 		assertEquals(RotationAxis.Z, parameters.rotationAxis)
 		assertEquals((PI / 4.0).toFloat(), parameters.rotationRadians, 1e-5f, "100 px of a 400 px shorter side is an eighth turn")
 		assertEquals(90f, parameters.pivotDepth)
-		assertEquals(DepthSurface.Rounded, parameters.depthSurface)
+		assertEquals(DepthSurface.Cylinder, parameters.depthSurface)
 	}
 
 	@Test
@@ -75,11 +75,11 @@ class DepthRotationGestureTest {
 		val points = floatArrayOf(10f, 0f, 30f, 5f, 60f, -20f)
 		val group = TransformPivotGroup(setOf(0, 1), 20f, 0f)
 		val influences = mapOf(2 to ProportionalInfluence(0.5f, 20f, 0f))
-		val parameters = TransformGestureParameters(0f, 0f, 1f, 1f, 0.6f, RotationAxis.Z, 45f, DepthSurface.Rounded)
+		val parameters = TransformGestureParameters(0f, 0f, 1f, 1f, 0.6f, RotationAxis.Z, 45f, DepthSurface.Cylinder)
 
 		val applied = applyOperator(MeshOperatorKind.Rotate, points, listOf(group), parameters, influences)
-		val grouped = MeshTransforms.rotateVerticesInDepth(points, setOf(0, 1), RotationAxis.Z, 0.6f, 45f, DepthSurface.Rounded, 20f, 0f)
-		val expected = MeshTransforms.rotateVerticesInDepthWeighted(grouped, influences, RotationAxis.Z, 0.6f, 45f, DepthSurface.Rounded)
+		val grouped = MeshTransforms.rotateVerticesInDepth(points, setOf(0, 1), RotationAxis.Z, 0.6f, 45f, DepthSurface.Cylinder, 20f, 0f)
+		val expected = MeshTransforms.rotateVerticesInDepthWeighted(grouped, influences, RotationAxis.Z, 0.6f, 45f, DepthSurface.Cylinder)
 
 		assertEquals(expected.toList(), applied.toList())
 	}

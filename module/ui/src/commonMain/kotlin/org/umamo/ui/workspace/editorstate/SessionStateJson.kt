@@ -283,5 +283,6 @@ private fun depthSurfaceWireName(surface: DepthSurface): String =
 	// UMA §7.4: `depthRotation.surface`.
 	when (surface) {
 		DepthSurface.Flat -> "flat"
-		DepthSurface.Rounded -> "rounded"
+		DepthSurface.Cylinder -> "cylinder"
+		DepthSurface.Sphere -> "sphere"
 	}

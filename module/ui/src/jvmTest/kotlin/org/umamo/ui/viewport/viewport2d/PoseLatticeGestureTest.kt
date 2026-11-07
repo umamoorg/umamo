@@ -117,7 +117,7 @@ class PoseLatticeGestureTest {
 	): FloatArray = assertNotNull(warpLatticeAt(session.model.value, session.pose.value, deformerId, session.pendingLatticeEdits.value)).world
 
 	@Test
-	fun aZLockedDepthRotationLandsAndTheStripRoundsIt() =
+	fun aZLockedDepthRotationLandsAndTheStripBendsIt() =
 		runComposeUiTest {
 			val fixture = mountGizmoOverlays(poseSession(points = setOf(0, 1, 2, 3), active = 3))
 			val session = fixture.session
@@ -163,21 +163,54 @@ class PoseLatticeGestureTest {
 
 			assertEquals(pivotZ, (landed[1] + landed[3] + landed[5] + landed[7]) / 4f, 1e-3f)
 
-			// Rounded on the strip reruns from the base and sticks for the next turn; so does a typed depth.
+			// Cylinder on the strip reruns from the base and sticks for the next turn; so does a typed depth.
 			val surface = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.DEPTH_SURFACE } as OperatorParameter.ChoiceParameter
 			session.adjustLastOperation(
-				record.parameters.withParameter(TransformParameterKeys.DEPTH_SURFACE, surface.copy(value = DepthSurface.Rounded.choiceKey)),
+				record.parameters.withParameter(TransformParameterKeys.DEPTH_SURFACE, surface.copy(value = DepthSurface.Cylinder.choiceKey)),
 				adjustedKey = TransformParameterKeys.DEPTH_SURFACE,
 			)
-			assertEquals(DepthSurface.Rounded, session.depthSurface.value, "the Surface row writes back")
-			val rounded = posedWorld(session, LATTICE_RIG_BODY)
-			val cornerDepth = depthOffsetOf(before[0] - pivotX, before[1] - pivotZ, pushedDepth, DepthSurface.Rounded)
-			assertEquals(pivotX + (before[0] - pivotX) * cos(radians) - cornerDepth * sin(radians), rounded[0], 1e-2f, "the corner sits on the sphere")
+			assertEquals(DepthSurface.Cylinder, session.depthSurface.value, "the Surface row writes back")
+			val bent = posedWorld(session, LATTICE_RIG_BODY)
+			val cornerDepth = depthOffsetOf(before[0] - pivotX, before[1] - pivotZ, pushedDepth, DepthSurface.Cylinder, RotationAxis.Z)
+			assertEquals(pivotX + (before[0] - pivotX) * cos(radians) - cornerDepth * sin(radians), bent[0], 1e-2f, "the corner sits on the cylinder")
 
 			val adjusted = assertNotNull(session.adjustableOperation.value)
 			val depthRow = adjusted.parameters.first { parameter -> parameter.key == TransformParameterKeys.PIVOT_DEPTH } as OperatorParameter.FloatParameter
 			session.adjustLastOperation(adjusted.parameters.withParameter(TransformParameterKeys.PIVOT_DEPTH, depthRow.copy(value = 75f)), adjustedKey = TransformParameterKeys.PIVOT_DEPTH)
 			assertEquals(75f, session.pivotDepth.value, "the Depth row writes back")
+		}
+
+	@Test
+	fun aSurfaceCycledMidRotationReDrivesAtOnceAndLands() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(poseSession(points = setOf(0, 1, 2, 3), active = 3))
+			val session = fixture.session
+			val before = posedWorld(session, LATTICE_RIG_BODY)
+			val pivotX = (before[0] + before[2] + before[4] + before[6]) / 4f
+			val pivotZ = (before[1] + before[3] + before[5] + before[7]) / 4f
+			session.setPivotDepth(30f)
+			moveIn(LEFT_AREA, listOf(gestureStart))
+			session.beginMeshOperator(MeshOperatorKind.Rotate, LEFT_AREA)
+			waitForIdle()
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+			moveIn(LEFT_AREA, listOf(tenUnitsRight))
+			val previewsBefore = fixture.service.pushedLatticePreviews.size
+
+			// T's cycle (the key ladder calls this) re-drives with no pointer move.
+			session.cycleDepthSurface()
+			waitForIdle()
+			assertEquals(previewsBefore + 1, fixture.service.pushedLatticePreviews.size, "the cycle re-drove the preview")
+
+			clickIn(LEFT_AREA, tenUnitsRight)
+
+			val record = assertNotNull(session.adjustableOperation.value)
+			val surface = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.DEPTH_SURFACE } as OperatorParameter.ChoiceParameter
+			assertEquals(DepthSurface.Cylinder.choiceKey, surface.value, "the rotation landed Cylinder")
+			val angle = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.ANGLE } as OperatorParameter.FloatParameter
+			val radians = angle.value * PI.toFloat() / 180f
+			val landed = posedWorld(session, LATTICE_RIG_BODY)
+			val cornerDepth = depthOffsetOf(before[0] - pivotX, before[1] - pivotZ, 30f, DepthSurface.Cylinder, RotationAxis.Z)
+			assertEquals(pivotX + (before[0] - pivotX) * cos(radians) - cornerDepth * sin(radians), landed[0], 1e-2f, "the corner sits on the cylinder")
 		}
 
 	@Test

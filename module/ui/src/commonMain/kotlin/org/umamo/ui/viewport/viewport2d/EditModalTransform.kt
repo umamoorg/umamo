@@ -381,7 +381,7 @@ internal class EditModalTransform(
 				}
 
 				session.setPivotDepth(depth)
-				submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
+				redrive(camera, size)
 			}
 
 			return
@@ -391,8 +391,21 @@ internal class EditModalTransform(
 			session.setProportionalRadius(proportional.radiusWorld * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
 			val updated = session.proportionalEdit.value
 			gestureData.transform.applyProportional(updated, updated?.radiusWorld ?: 0f)
-			submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
+			redrive(camera, size)
 		}
+	}
+
+	/**
+	 * Re-drives this area's in-flight gesture at the last pointer, so a setting changed mid-gesture (the wheel's radius
+	 * or depth, T's surface) shows without a pointer move.  A no-op while no gesture is latched here.
+	 *
+	 * @param ViewportCamera camera The area camera.
+	 * @param IntSize size The area size in pixels.
+	 */
+	fun redrive(camera: ViewportCamera, size: IntSize) {
+		val operator = session.activeMeshOperator.value?.takeIf { it.areaId == areaId } ?: return
+
+		submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
 	}
 
 	/**

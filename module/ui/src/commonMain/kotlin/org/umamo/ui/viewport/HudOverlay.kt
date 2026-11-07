@@ -26,6 +26,7 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.editsElements
 import org.umamo.edit.toSelectionTarget
+import org.umamo.edit.transform.DepthSurface
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.ui.kit.Text
@@ -247,4 +248,18 @@ internal fun falloffLabel(falloff: ProportionalFalloff): String =
 		ProportionalFalloff.Linear -> stringResource(Res.string.falloff_linear)
 		ProportionalFalloff.Constant -> stringResource(Res.string.falloff_constant)
 		ProportionalFalloff.Random -> stringResource(Res.string.falloff_random)
+	}
+
+/**
+ * The localized name of a depth surface, for the depth inset's readout and the operation strip's Surface row.
+ *
+ * @param DepthSurface surface The surface.
+ * @return String The localized surface name.
+ */
+@Composable
+internal fun depthSurfaceLabel(surface: DepthSurface): String =
+	when (surface) {
+		DepthSurface.Flat -> stringResource(Res.string.transform_depth_surface_flat)
+		DepthSurface.Cylinder -> stringResource(Res.string.transform_depth_surface_cylinder)
+		DepthSurface.Sphere -> stringResource(Res.string.transform_depth_surface_sphere)
 	}

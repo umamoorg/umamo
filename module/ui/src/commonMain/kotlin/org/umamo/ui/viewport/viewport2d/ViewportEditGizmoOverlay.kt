@@ -241,6 +241,14 @@ fun ViewportEditGizmoOverlay(
 		}
 	}
 
+	// A depth surface cycled MID-GESTURE (T in the key ladder) re-drives at once, so the press shows without a pointer
+	// move; with no gesture here the re-drive does nothing.
+	LaunchedEffect(session) {
+		session.depthSurface.collect {
+			modalTransform.redrive(liveCamera.value, liveSize.value)
+		}
+	}
+
 	// Start the modal gesture as an operator latches IN THIS AREA; tear it down (re-syncing the renderer
 	// to the committed model and lattices) as it clears.  liveGeometry and stage are the values this composition held
 	// when the operator changed, and meshSelection is read as the effect runs, as the collected state has it.

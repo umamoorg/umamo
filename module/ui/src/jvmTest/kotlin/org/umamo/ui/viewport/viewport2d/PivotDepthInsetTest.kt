@@ -37,19 +37,23 @@ class PivotDepthInsetTest {
 
 			session.beginMeshOperator(MeshOperatorKind.Rotate, ROTATING_AREA)
 			waitForIdle()
-			assertEquals(0, insetsReading("Depth 30 px"), "the in-plane turn shows no inset")
+			assertEquals(0, insetsReading("Depth 30 px · Flat"), "the in-plane turn shows no inset")
 
 			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
 			waitForIdle()
-			assertEquals(1, insetsReading("Depth 30 px"), "a locked turn shows it in its own area alone")
+			assertEquals(1, insetsReading("Depth 30 px · Flat"), "a locked turn shows it in its own area alone")
 
 			session.setPivotDepth(46f)
 			waitForIdle()
-			assertEquals(1, insetsReading("Depth 46 px"), "a push updates the readout")
+			assertEquals(1, insetsReading("Depth 46 px · Flat"), "a push updates the readout")
+
+			session.cycleDepthSurface()
+			waitForIdle()
+			assertEquals(1, insetsReading("Depth 46 px · Cylinder"), "and so does T's surface cycle")
 
 			session.clearMeshOperator()
 			waitForIdle()
-			assertEquals(0, insetsReading("Depth 46 px"), "the confirm or cancel takes it away")
+			assertEquals(0, insetsReading("Depth 46 px · Cylinder"), "the confirm or cancel takes it away")
 		}
 
 	/**

@@ -63,7 +63,7 @@ fun ViewportHudOverlay(
 
 	// The depth rotation's inset (bottom right): the initiating area's Rotate rotating in depth about a locked axis.  The
 	// latch publishes its depth flag before the operator, so composing on the operator reads it settled, and only a
-	// shown inset collects the depth.
+	// shown inset collects the depth and the surface.
 	val liveMeshOperator = meshOperator
 
 	if (
@@ -73,7 +73,8 @@ fun ViewportHudOverlay(
 		session.meshOperatorRotatesInDepth(liveMeshOperator.kind)
 	) {
 		val pivotDepth by session.pivotDepth.collectAsState()
-		PivotDepthInset(pivotDepth = pivotDepth, gridScale = LocalAreaOverlays.current?.grid?.scale ?: GridConfig().scale, modifier = modifier)
+		val depthSurface by session.depthSurface.collectAsState()
+		PivotDepthInset(pivotDepth = pivotDepth, surface = depthSurface, gridScale = LocalAreaOverlays.current?.grid?.scale ?: GridConfig().scale, modifier = modifier)
 	}
 
 	// The area-wide info chips: the top-left active-mesh label and the bottom-left zoom readout.  The
