@@ -95,7 +95,8 @@ class RuntimeGatingTest {
 	fun blendModeOptionsFilterToLegacyPlusCurrent() {
 		val legacyOnly = blendModeDisplayOrder().filter { mode -> mode.isLegacy }
 		assertEquals(legacyOnly, blendModeOptionsFor(RuntimeTarget.Cubism50, BlendMode.Normal))
-		assertEquals(legacyOnly, blendModeOptionsFor(RuntimeTarget.Ayagami, BlendMode.Normal), "Ayagami is 5.0-level")
+		assertEquals(legacyOnly, blendModeOptionsFor(RuntimeTarget.Ayagami50, BlendMode.Normal), "Ayagami 5.0 is 5.0-level")
+		assertEquals(blendModeDisplayOrder(), blendModeOptionsFor(RuntimeTarget.Ayagami53, BlendMode.Normal), "Ayagami 5.3 is 5.3-level")
 
 		// An unsupported stored value stays selectable, in its display-order position.
 		val withCurrent = blendModeDisplayOrder().filter { mode -> mode.isLegacy || mode == BlendMode.Overlay }

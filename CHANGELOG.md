@@ -23,6 +23,7 @@ Umamo is early alpha.
 * Pose Mode: A new editor mode (Ctrl+Tab, or the 2D Viewport's mode menu) for shaping a warp's lattice and keying them to parameters.
 * Pose Mode: Alt+Q over overlapping lattices opens the overlap picker to choose the warp to pose.
 * Properties: Warp deformer Data Tab.
+* Runtime Target: New Ayagami (Cubism 5.3 Equivalent) target for Ayagami's Cubism 5.3 / MOC3 v6 build.
 * Settings: New settings:
 	* Colors: Deformers section with lattice idle, selected, active, unkeyed, and hovered colors.
 	* Import: Initial Mesh and Mesh Generation Presets
@@ -46,6 +47,7 @@ Umamo is early alpha.
 * Format: (BREAKING CHANGE) UMA now stores two position arrays, local and world, for meshes.  Files saved before 0.5.0 will not load in 0.5.0 and later.
 * Keyform Sheet: Keys can no longer be inserted, removed, or moved in Edit Mode.
 * Mesh: Layers added from artwork now start with a mesh generated from their art instead of a quad.
+* Runtime Target: The existing Ayagami (Cubism 5.0 Equivalent) target has been renamed from ayagami to ayagami50.
 * Source Artwork: Adding artwork to a document created from an imported MOC3 is now refused and instructs the user to export a CMO3 to be able to import artwork.
 * UI: The 2D Viewport's mode DropdownChip is now pinned instead of collapsing into the more chip.
 * UI: The Properties panel's Object and Data tabs show the active item when several are selected and keep showing the last active item after a deselect.
