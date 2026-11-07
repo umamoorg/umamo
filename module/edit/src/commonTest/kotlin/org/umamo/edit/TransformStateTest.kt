@@ -156,25 +156,25 @@ class TransformStateTest {
 		assertEquals(DepthSurface.Flat, session.depthSurface.value)
 
 		session.setPivotDepth(120f)
-		session.setDepthSurface(DepthSurface.Rounded)
+		session.setDepthSurface(DepthSurface.Cylinder)
 		assertEquals(120f, session.viewState().pivotDepth)
-		assertEquals(DepthSurface.Rounded, session.viewState().depthSurface)
+		assertEquals(DepthSurface.Cylinder, session.viewState().depthSurface)
 
 		session.setPivotDepth(-1e9f)
 		assertEquals(-PIVOT_DEPTH_LIMIT, session.pivotDepth.value, "a write clamps to the Depth row's range")
 
-		val reopened = EditorSession(session.model.value, initialViewState = SessionViewState(pivotDepth = 64f, depthSurface = DepthSurface.Rounded))
+		val reopened = EditorSession(session.model.value, initialViewState = SessionViewState(pivotDepth = 64f, depthSurface = DepthSurface.Cylinder))
 		assertEquals(64f, reopened.pivotDepth.value, "a saved state seeds the depth")
-		assertEquals(DepthSurface.Rounded, reopened.depthSurface.value)
+		assertEquals(DepthSurface.Cylinder, reopened.depthSurface.value)
 	}
 
-	/** T's cycle walks Flat, Rounded, and Sphere and wraps, and the view state carries where it stopped. */
+	/** T's cycle walks Flat, Cylinder, and Sphere and wraps, and the view state carries where it stopped. */
 	@Test
 	fun theDepthSurfaceCyclesAndSticks() {
 		val session = meshedSession()
 
 		session.cycleDepthSurface()
-		assertEquals(DepthSurface.Rounded, session.depthSurface.value)
+		assertEquals(DepthSurface.Cylinder, session.depthSurface.value)
 		session.cycleDepthSurface()
 		assertEquals(DepthSurface.Sphere, session.viewState().depthSurface)
 		session.cycleDepthSurface()

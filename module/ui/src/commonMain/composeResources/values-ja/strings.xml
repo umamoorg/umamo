@@ -949,7 +949,7 @@
 	<string name="transform_axis_x">X</string>
 	<string name="transform_axis_z">Z</string>
 	<string name="transform_depth_surface_flat">平面</string>
-	<string name="transform_depth_surface_rounded">丸み</string>
+	<string name="transform_depth_surface_cylinder">円柱</string>
 	<string name="transform_depth_surface_sphere">球面</string>
 	<!-- The Merge row of the operation settings strip and its choices. -->
 	<string name="merge_options_target">マージ位置</string>
@@ -1083,7 +1083,7 @@
 	<string name="transform_options_slide_factor_description">頂点が辺上のどこに移動したか。0 は元の位置、1 は隣の頂点の位置です。</string>
 	<string name="transform_options_axis_description">選択が回転した軸。Y は画面内で回転し、X と Z は奥行き方向に回転します。</string>
 	<string name="transform_options_pivot_depth_description">X または Z まわりの回転で、ピボットを画面の奥へ押し出した距離（ピクセル）。負の値は手前に引きます。</string>
-	<string name="transform_options_depth_surface_description">回転する前の、選択の奥行き方向の形。平面は平らなまま、丸みは回転軸に沿った円柱のように曲げ、球面はピボットを中心とした球に沿って曲げるため、中央が最も大きく動きます。</string>
+	<string name="transform_options_depth_surface_description">回転する前の、選択の奥行き方向の形。平面は平らなまま、円柱は回転軸に沿って円柱状に曲げ、球面はピボットを中心とした球に沿って曲げるため、中央が最も大きく動きます。</string>
 	<string name="merge_options_target_description">マージした頂点を集める位置。中心、または最初か最後に選択した頂点の位置です。</string>
 	<string name="lattice_options_rows_description">格子の新しい縦方向のセル数。</string>
 	<string name="create_warp_options_rows_description">新しいワープの縦方向のセル数。</string>

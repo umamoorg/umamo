@@ -942,7 +942,7 @@ class ModalKeyLadderTest {
 		assertNotNull(posing.activeMeshOperator.value, "the Pose Rotate latched")
 
 		assertTrue(press(Key.T, ShellModalState(editorSession = posing)), "a Pose Rotate takes T")
-		assertEquals(DepthSurface.Rounded, posing.depthSurface.value)
+		assertEquals(DepthSurface.Cylinder, posing.depthSurface.value)
 
 		// Everywhere else T must reach the keymap, where it toggles the toolbar.
 		val editRotate = session(EditorMode.Edit).apply { beginMeshOperator(MeshOperatorKind.Rotate, areaId) }

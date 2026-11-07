@@ -234,7 +234,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
-			// T during a Pose-mode Rotate cycles the depth surface (Flat, Rounded, Sphere), locked or not, so the next
+			// T during a Pose-mode Rotate cycles the depth surface (Flat, Cylinder, Sphere), locked or not, so the next
 			// rotation never needs the strip to change it.  It is taken here, ahead of the keymap, for the rotation's
 			// length only: everywhere else T reaches its binding (the toolbar toggle).
 			stroke.isDown && stroke.key == Key.T && editorSession?.activeMeshOperator?.value?.let { operator -> editorSession.meshOperatorRotatesInDepth(operator.kind) } == true -> {

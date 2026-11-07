@@ -76,7 +76,7 @@ class SessionStateJsonTest {
 				uvCursor = UvCursor(0.25f, 0.75f),
 				pivotMode = TransformPivotMode.IndividualOrigins,
 				pivotDepth = 125.5f,
-				depthSurface = DepthSurface.Rounded,
+				depthSurface = DepthSurface.Cylinder,
 				proportionalEnabled = true,
 				proportionalSettings = ProportionalEditState(ProportionalFalloff.Linear, 64f, connectedOnly = true),
 			)
@@ -95,8 +95,8 @@ class SessionStateJsonTest {
 		assertTrue(depthOnly["surface"] is JsonNull, "a Flat surface writes nothing")
 		assertEquals(SessionViewState(pivotDepth = -40f), sessionViewStateOf(sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)))
 
-		val surfaceOnly = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Rounded), defaultPose, model)["depthRotation"] as JsonObject
-		assertEquals("rounded", surfaceOnly["surface"]?.jsonPrimitive?.content)
+		val surfaceOnly = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Cylinder), defaultPose, model)["depthRotation"] as JsonObject
+		assertEquals("cylinder", surfaceOnly["surface"]?.jsonPrimitive?.content)
 		assertTrue(surfaceOnly["depth"] is JsonNull, "a depth of 0 writes nothing")
 
 		for (surface in DepthSurface.entries) {

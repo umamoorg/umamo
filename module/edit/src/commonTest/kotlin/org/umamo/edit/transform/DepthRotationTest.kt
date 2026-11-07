@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 
 /**
  * Verifies the depth rotation's math: Flat's closed form (a squash by the cosine and a slide of the pivot's depth times
- * the sine), the right-handed signs, Rounded's cylinder along the axis and Sphere's sphere and where each meets Flat,
+ * the sine), the right-handed signs, the Cylinder along the axis and the Sphere around the pivot and where each meets Flat,
  * T's surface cycle, the weighted halo, and the in-plane Y turn staying exactly the ordinary rotation.
  */
 class DepthRotationTest {
@@ -62,7 +62,7 @@ class DepthRotationTest {
 		val positions = floatArrayOf(12f, 3f, -8f, 40f, 0f, 0f)
 		val flat = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.Z, 0.7f, 0f, DepthSurface.Flat, 0f, 0f)
 
-		for (surface in listOf(DepthSurface.Rounded, DepthSurface.Sphere)) {
+		for (surface in listOf(DepthSurface.Cylinder, DepthSurface.Sphere)) {
 			val curved = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.Z, 0.7f, 0f, surface, 0f, 0f)
 
 			for (componentIndex in flat.indices) {
@@ -78,19 +78,19 @@ class DepthRotationTest {
 	fun theCurvedSurfacesMeetFlatOverThePivot() {
 		val flat = MeshTransforms.rotateVerticesInDepth(floatArrayOf(5f, 5f), setOf(0), RotationAxis.Z, 0.4f, 60f, DepthSurface.Flat, 5f, 5f)
 
-		for (surface in listOf(DepthSurface.Rounded, DepthSurface.Sphere)) {
+		for (surface in listOf(DepthSurface.Cylinder, DepthSurface.Sphere)) {
 			val curved = MeshTransforms.rotateVerticesInDepth(floatArrayOf(5f, 5f), setOf(0), RotationAxis.Z, 0.4f, 60f, surface, 5f, 5f)
 
 			assertEquals(flat[0], curved[0], 1e-4f, "$surface")
 		}
 	}
 
-	/** Rounded bends around a cylinder along the axis: about Z every row moves alike, whatever its height. */
+	/** Cylinder bends around the axis: about Z every row moves alike, whatever its height. */
 	@Test
-	fun roundedAboutZMovesEveryRowAlike() {
+	fun cylinderAboutZMovesEveryRowAlike() {
 		val depth = 100f
 		val positions = floatArrayOf(60f, 0f, 60f, 70f, 60f, -90f)
-		val turned = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.Z, sixthTurn, depth, DepthSurface.Rounded, 0f, 0f)
+		val turned = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.Z, sixthTurn, depth, DepthSurface.Cylinder, 0f, 0f)
 		val sideDepth = sqrt(depth * depth - 60f * 60f)
 
 		for (pointIndex in 0 until 3) {
@@ -101,10 +101,10 @@ class DepthRotationTest {
 
 	/** About X the cylinder lies along X, so every column tilts alike, whatever its x. */
 	@Test
-	fun roundedAboutXMovesEveryColumnAlike() {
+	fun cylinderAboutXMovesEveryColumnAlike() {
 		val depth = 100f
 		val positions = floatArrayOf(0f, 60f, 80f, 60f, -95f, 60f)
-		val turned = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.X, sixthTurn, depth, DepthSurface.Rounded, 0f, 0f)
+		val turned = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.X, sixthTurn, depth, DepthSurface.Cylinder, 0f, 0f)
 		val rowDepth = -sqrt(depth * depth - 60f * 60f)
 
 		for (pointIndex in 0 until 3) {
@@ -133,7 +133,7 @@ class DepthRotationTest {
 	fun theRimIsContinuous() {
 		val depth = 50f
 
-		for (surface in listOf(DepthSurface.Rounded, DepthSurface.Sphere)) {
+		for (surface in listOf(DepthSurface.Cylinder, DepthSurface.Sphere)) {
 			val atRim = MeshTransforms.rotateVerticesInDepth(floatArrayOf(50f, 0f), setOf(0), RotationAxis.Z, 0.5f, depth, surface, 0f, 0f)
 			val justInside = MeshTransforms.rotateVerticesInDepth(floatArrayOf(49.999f, 0f), setOf(0), RotationAxis.Z, 0.5f, depth, surface, 0f, 0f)
 			val beyond = MeshTransforms.rotateVerticesInDepth(floatArrayOf(80f, 0f), setOf(0), RotationAxis.Z, 0.5f, depth, surface, 0f, 0f)
@@ -146,8 +146,8 @@ class DepthRotationTest {
 	/** T cycles the surfaces in declaration order and wraps. */
 	@Test
 	fun theSurfacesCycleInOrder() {
-		assertEquals(DepthSurface.Rounded, DepthSurface.Flat.next())
-		assertEquals(DepthSurface.Sphere, DepthSurface.Rounded.next())
+		assertEquals(DepthSurface.Cylinder, DepthSurface.Flat.next())
+		assertEquals(DepthSurface.Sphere, DepthSurface.Cylinder.next())
 		assertEquals(DepthSurface.Flat, DepthSurface.Sphere.next())
 	}
 
@@ -167,7 +167,7 @@ class DepthRotationTest {
 	@Test
 	fun theYAxisIsTheOrdinaryRotation() {
 		val positions = floatArrayOf(3f, 4f, -2f, 9f)
-		val turned = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1), RotationAxis.Y, 0.9f, 75f, DepthSurface.Rounded, 1f, 1f)
+		val turned = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1), RotationAxis.Y, 0.9f, 75f, DepthSurface.Cylinder, 1f, 1f)
 
 		assertEquals(MeshTransforms.rotateVertices(positions, setOf(0, 1), 0.9f, 1f, 1f).toList(), turned.toList())
 	}

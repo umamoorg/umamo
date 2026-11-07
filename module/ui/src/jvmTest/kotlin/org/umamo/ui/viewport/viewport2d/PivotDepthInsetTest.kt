@@ -49,11 +49,11 @@ class PivotDepthInsetTest {
 
 			session.cycleDepthSurface()
 			waitForIdle()
-			assertEquals(1, insetsReading("Depth 46 px · Rounded"), "and so does T's surface cycle")
+			assertEquals(1, insetsReading("Depth 46 px · Cylinder"), "and so does T's surface cycle")
 
 			session.clearMeshOperator()
 			waitForIdle()
-			assertEquals(0, insetsReading("Depth 46 px · Rounded"), "the confirm or cancel takes it away")
+			assertEquals(0, insetsReading("Depth 46 px · Cylinder"), "the confirm or cancel takes it away")
 		}
 
 	/**

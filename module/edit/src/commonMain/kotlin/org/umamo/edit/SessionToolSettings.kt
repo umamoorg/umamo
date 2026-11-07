@@ -99,7 +99,7 @@ interface SessionToolSettings {
 	 */
 	fun setDepthSurface(surface: DepthSurface)
 
-	/** Moves the depth surface to the next one in T's cycle (Flat, Rounded, Sphere), silently. */
+	/** Moves the depth surface to the next one in T's cycle (Flat, Cylinder, Sphere), silently. */
 	fun cycleDepthSurface()
 
 	/**

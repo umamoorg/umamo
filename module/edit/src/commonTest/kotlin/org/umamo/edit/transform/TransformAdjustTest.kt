@@ -69,7 +69,7 @@ class TransformAdjustTest {
 
 	@Test
 	fun aDepthRotationAddsItsAxisDepthAndSurfaceRowsAndRoundTrips() {
-		val gesture = TransformGestureParameters(0f, 0f, 1f, 1f, 0.5f, RotationAxis.Z, 140f, DepthSurface.Rounded)
+		val gesture = TransformGestureParameters(0f, 0f, 1f, 1f, 0.5f, RotationAxis.Z, 140f, DepthSurface.Cylinder)
 
 		val plain = transformParameters(MeshOperatorKind.Rotate, gesture, TransformRowSpace.World, proportional = null)
 		assertEquals(listOf(TransformParameterKeys.ANGLE), plain.map { row -> row.key }, "a Rotate that cannot rotate in depth shows its angle alone")
@@ -84,7 +84,7 @@ class TransformAdjustTest {
 		assertClose(0.5f, back.rotationRadians, "the angle round-trips")
 		assertEquals(RotationAxis.Z, back.rotationAxis)
 		assertEquals(140f, back.pivotDepth)
-		assertEquals(DepthSurface.Rounded, back.depthSurface)
+		assertEquals(DepthSurface.Cylinder, back.depthSurface)
 		assertTrue(back.rotatesInDepth)
 
 		// Choosing the axis on the strip turns an in-plane Rotate in depth after the fact.
