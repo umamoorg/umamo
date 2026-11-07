@@ -1211,7 +1211,7 @@
 	<string name="quick_setup_title">Quick Setup</string>
 	<string name="quick_setup_continue">Continue</string>
 	<!-- Only localize the artist credit if the artist requests it.  Otherwise put their name/handle verbatim without localizing it.  That means if their name is わたなべ then put the hiragana here in the English file.  All others will fall back to English for the correct name. -->
-	<string name="quick_setup_artist_credit">ARTIST CREDIT</string>
+	<string name="quick_setup_artist_credit">RAHIBIZ</string>
 	<!-- Settings categories (the left rail). -->
 	<string name="settings_category_interface">Interface</string>
 	<string name="settings_category_colors">Colors</string>
