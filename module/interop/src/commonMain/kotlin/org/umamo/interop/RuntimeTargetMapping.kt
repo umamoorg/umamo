@@ -33,9 +33,7 @@ fun RuntimeTarget.mocVersion(): MocVersion =
 /**
  * The CMO3 target version this target persists as, or null for NoTarget - a target-less document
  * has no target VERSION and persists through the latest sentinel instead (see
- * [cmo3TargetVersionNo]).  Ayagami has no CMO3 encoding of its own, so a CMO3 round trip keeps
- * an Ayagami build's gating level but not its identity (a reopen shows the matching Cubism
- * target); UMA carries the identity.
+ * [cmo3TargetVersionNo]).
  *
  * @return Cmo3TargetVersion? The CMO3-side version, or null for NoTarget.
  */
