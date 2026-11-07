@@ -7,15 +7,20 @@
 * GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 * Android GLES renderer backend (deferred 2026-06-21)
 
-## WORK STEPS - 2026-09-14
-6.) (Everything required for glue, deformers, and so on.)
-7.) UMA Format - Mostly done, a few final pieces to go through.  I'm leaving it "unfinished" as pre-v1.0 for the format until Umamo 1.0 is ready to release.
+## WORK STEPS - 2026-11-07
+1.) (Everything required for glue, deformers, and so on.)
+2.) UMA Format - Mostly done, a few final pieces to go through.  I'm leaving it "unfinished" as pre-v1.0 for the format until Umamo 1.0 is ready to release.
 
-## 0.5.0 Goals
+## 0.6.0 Goals
 0.) Merge in the existing language translations.(Some were merged.)
-~~1.) Work on the 2D Viewport sidebar that is empty.~~
-~~2.) Warp Deformer Gizmos and Editing(Rotation deformer is deferred.)~~
-3.) Glue Gizmos and Editing(Deferred)
+1.) Finish 3D Depth Rotation and Merge
+2.) Fix Platform Bugs - Linux and MacOS
+3.) Proper Bone and Skeleton System
+4.) Rotation Deformer Gizmos and Editing
+
+## 0.7.0 Goals
+5.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.
+6.) Modifiers - Generate -> Mirror - This will also seed being able to mirror things along with other potential modifiers.
 
 ## VERY IMPORTANT
 * Hire translators for localization.
