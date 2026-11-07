@@ -50,6 +50,39 @@ enum class TransformAxisConstraint {
 }
 
 /**
+ * How deep each point sits before a depth rotation, each surface's radius the pivot's depth.  Flat keeps the art a
+ * plane, so the turn squashes it and slides it by the pivot's depth; Cylinder bends it around a cylinder through the
+ * pivot along the rotation axis, so every row of a turn about Z (every column of a tilt about X) curves alike; Sphere
+ * lays it over a sphere around the pivot, so its middle moves furthest - the look of a head turning.  The three agree
+ * at depth 0.  The declaration order is the order T cycles them in during a rotation ([next]).
+ */
+enum class DepthSurface {
+	Flat,
+	Cylinder,
+	Sphere,
+}
+
+/**
+ * The surface after this one in T's cycle: Flat, Cylinder, Sphere, then Flat again.
+ *
+ * @return DepthSurface The next surface.
+ */
+fun DepthSurface.next(): DepthSurface = DepthSurface.entries[(ordinal + 1) % DepthSurface.entries.size]
+
+/** The farthest the Depth row pushes a depth rotation's pivot either way, in world px. */
+const val PIVOT_DEPTH_LIMIT = 100_000f
+
+/**
+ * [depthWorld] clamped into the Depth row's range - the one clamp every write of the pivot depth goes through (a
+ * mid-gesture wheel push, the strip's write-back, and a saved document's seed).  A NaN lands on 0, the depth a fresh
+ * session starts at.
+ *
+ * @param Float depthWorld The requested depth in world px.
+ * @return Float The depth within -[PIVOT_DEPTH_LIMIT]..[PIVOT_DEPTH_LIMIT].
+ */
+fun clampPivotDepth(depthWorld: Float): Float = if (depthWorld.isNaN()) 0f else depthWorld.coerceIn(-PIVOT_DEPTH_LIMIT, PIVOT_DEPTH_LIMIT)
+
+/**
  * Which radial pie menu is open over the viewport, or none (null in the session flow).  The pie
  * entries dispatch through the command registry; the session only coordinates which pie is showing
  * (a transient latch like the modal operators).

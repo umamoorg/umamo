@@ -1,5 +1,7 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.DepthSurface
+import org.umamo.edit.next
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin

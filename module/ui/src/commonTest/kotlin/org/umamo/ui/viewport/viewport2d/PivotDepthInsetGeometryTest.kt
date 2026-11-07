@@ -13,6 +13,7 @@ class PivotDepthInsetGeometryTest {
 	private val width = 160f
 	private val height = 80f
 
+	/** A deeper pivot sits higher in the inset, beyond the art plane and short of the horizon. */
 	@Test
 	fun aDeeperPivotClimbsTowardTheHorizon() {
 		val shallow = pivotDepthInsetGeometry(100f, 100f, width, height)
@@ -23,6 +24,7 @@ class PivotDepthInsetGeometryTest {
 		assertTrue(deep.pivot.y > deep.horizonY, "and never past the horizon")
 	}
 
+	/** A pivot at depth 0 sits on the art plane, in the middle of the inset. */
 	@Test
 	fun aPivotOnTheArtSitsOnTheArtPlane() {
 		val geometry = pivotDepthInsetGeometry(0f, 100f, width, height)
@@ -31,6 +33,7 @@ class PivotDepthInsetGeometryTest {
 		assertEquals(width / 2f, geometry.pivot.x, 1e-4f, "the depth line runs up the middle")
 	}
 
+	/** A pivot pulled toward the viewer sits in front of the art plane and stays inside the inset. */
 	@Test
 	fun aPulledPivotSitsInFrontOfTheArtPlane() {
 		val geometry = pivotDepthInsetGeometry(-150f, 100f, width, height)
@@ -39,6 +42,7 @@ class PivotDepthInsetGeometryTest {
 		assertTrue(geometry.pivot.y <= height, "and still inside the inset")
 	}
 
+	/** Every receding floor line meets the horizon at the inset's vanishing point. */
 	@Test
 	fun theRecedingLinesConvergeOnTheVanishingPoint() {
 		val geometry = pivotDepthInsetGeometry(200f, 100f, width, height)
@@ -54,6 +58,7 @@ class PivotDepthInsetGeometryTest {
 		}
 	}
 
+	/** A very deep pivot widens the floor grid's step, so the inset never crowds with lines. */
 	@Test
 	fun aDeepPushWidensTheFramingInsteadOfCrowdingIt() {
 		val geometry = pivotDepthInsetGeometry(50_000f, 100f, width, height)

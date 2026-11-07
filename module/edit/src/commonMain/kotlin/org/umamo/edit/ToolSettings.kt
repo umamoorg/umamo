@@ -3,9 +3,6 @@ package org.umamo.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import org.umamo.edit.transform.DepthSurface
-import org.umamo.edit.transform.PIVOT_DEPTH_LIMIT
-import org.umamo.edit.transform.next
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions: the
@@ -116,9 +113,19 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 		mutableDepthSurface.value = surface
 	}
 
-	/** Moves the depth surface to the next one in T's cycle (see [SessionToolSettings.cycleDepthSurface]). */
-	override fun cycleDepthSurface() {
-		mutableDepthSurface.value = mutableDepthSurface.value.next()
+	/**
+	 * Moves the depth surface to the next one in T's cycle, naming it in a near-cursor notice when [announce] (see
+	 * [SessionToolSettings.cycleDepthSurface]).
+	 *
+	 * @param Boolean announce True to post the notice.
+	 */
+	override fun cycleDepthSurface(announce: Boolean) {
+		val surface = mutableDepthSurface.value.next()
+		mutableDepthSurface.value = surface
+
+		if (announce) {
+			notify(depthSurfaceNoticeKey(surface), NoticePlacement.NearCursor)
+		}
 	}
 
 	/**
@@ -236,10 +243,14 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 }
 
 /**
- * [depthWorld] clamped into the Depth row's range - the one clamp every write of the pivot depth goes through (a
- * mid-gesture wheel push, the strip's write-back, and a saved document's seed).
+ * The message key of the notice naming [surface] as T's cycle lands on it.
  *
- * @param Float depthWorld The requested depth in world px.
- * @return Float The depth within -[PIVOT_DEPTH_LIMIT]..[PIVOT_DEPTH_LIMIT].
+ * @param DepthSurface surface The surface the cycle landed on.
+ * @return String The notice's message key.
  */
-private fun clampPivotDepth(depthWorld: Float): Float = depthWorld.coerceIn(-PIVOT_DEPTH_LIMIT, PIVOT_DEPTH_LIMIT)
+private fun depthSurfaceNoticeKey(surface: DepthSurface): String =
+	when (surface) {
+		DepthSurface.Flat -> "notice.depthSurface.flat"
+		DepthSurface.Cylinder -> "notice.depthSurface.cylinder"
+		DepthSurface.Sphere -> "notice.depthSurface.sphere"
+	}

@@ -5,6 +5,7 @@ import androidx.compose.ui.input.key.Key
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
@@ -13,7 +14,6 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.selectAllMeshElements
-import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.beginObjectOperator
@@ -933,6 +933,7 @@ class ModalKeyLadderTest {
 		}
 	}
 
+	/** A bare T cycles the depth surface during a Pose Rotate and nowhere else; everywhere else it reaches the keymap. */
 	@Test
 	fun tCyclesTheDepthSurfaceOnlyDuringAPoseRotate() {
 		val posing = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
@@ -943,6 +944,11 @@ class ModalKeyLadderTest {
 
 		assertTrue(press(Key.T, ShellModalState(editorSession = posing)), "a Pose Rotate takes T")
 		assertEquals(DepthSurface.Cylinder, posing.depthSurface.value)
+
+		// A T with a modifier held is some other chord's, and passes on to the keymap.
+		assertFalse(press(Key.T, ShellModalState(editorSession = posing), primaryModifier = true), "the primary modifier's T passes on")
+		assertFalse(press(Key.T, ShellModalState(editorSession = posing), shift = true), "Shift+T passes on")
+		assertEquals(DepthSurface.Cylinder, posing.depthSurface.value, "and neither cycles the surface")
 
 		// Everywhere else T must reach the keymap, where it toggles the toolbar.
 		val editRotate = session(EditorMode.Edit).apply { beginMeshOperator(MeshOperatorKind.Rotate, areaId) }
@@ -955,6 +961,29 @@ class ModalKeyLadderTest {
 		}
 
 		assertFalse(press(Key.T, ShellModalState(editorSession = session(EditorMode.Object))), "and so does an idle session")
+	}
+
+	/** T names the new surface in a notice only while no axis is locked, since a locked rotation's inset already shows it. */
+	@Test
+	fun tAnnouncesTheSurfaceOnlyWithNoAxisLocked() {
+		val posing = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+		posing.togglePoseMode()
+		posing.selectAllMeshElements()
+		posing.beginMeshOperator(MeshOperatorKind.Rotate, areaId)
+		assertNotNull(posing.activeMeshOperator.value, "the Pose Rotate latched")
+		val state = ShellModalState(editorSession = posing)
+
+		press(Key.Z, state)
+		assertEquals(TransformAxisConstraint.AxisZ, posing.axisConstraint.value, "Z locked the axis")
+		press(Key.T, state)
+		assertEquals(DepthSurface.Cylinder, posing.depthSurface.value)
+		assertNull(posing.notice.value, "the locked rotation's inset names the surface, so no notice does")
+
+		press(Key.Z, state)
+		assertNull(posing.axisConstraint.value, "Z again released the lock")
+		press(Key.T, state)
+		assertEquals(DepthSurface.Sphere, posing.depthSurface.value)
+		assertEquals("notice.depthSurface.sphere", posing.notice.value?.messageKey, "an unlocked T names the surface")
 	}
 
 	@Test

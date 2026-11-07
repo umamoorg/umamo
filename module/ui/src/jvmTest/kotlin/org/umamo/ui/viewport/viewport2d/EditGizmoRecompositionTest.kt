@@ -103,7 +103,7 @@ class EditGizmoRecompositionTest {
 
 			session.setPivotDepth(40f)
 			moveIn(LEFT_AREA, listOf(Offset(210f, 150f), Offset(230f, 150f)))
-			session.cycleDepthSurface()
+			session.cycleDepthSurface(announce = false)
 			waitForIdle()
 
 			assertTrue(fixture.service.pushedLatticePreviews.isNotEmpty(), "the moves did drive")

@@ -774,6 +774,9 @@
 	<string name="hud_scale_factor">×%1$s</string>
 	<string name="notice_proportional_connected_on">プロポーショナル編集: 接続のみ</string>
 	<string name="notice_proportional_connected_off">プロポーショナル編集: 半径内すべて</string>
+	<string name="notice_depth_surface_flat">面: 平面</string>
+	<string name="notice_depth_surface_cylinder">面: 円柱</string>
+	<string name="notice_depth_surface_sphere">面: 球面</string>
 	<string name="notice_reparent_place_not_kept">%1$s を新しい親に移動しましたが、位置を保てませんでした。新しいデフォーマでは、その位置を変換できませんでした。</string>
 	<string name="notice_reparent_places_not_kept">%1$d 個のオブジェクトを新しい親に移動しましたが、位置を保てませんでした。新しいデフォーマでは、それらの位置を変換できませんでした。</string>
 

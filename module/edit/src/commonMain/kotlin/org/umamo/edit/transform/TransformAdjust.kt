@@ -1,9 +1,11 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.MAX_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.MIN_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
+import org.umamo.edit.PIVOT_DEPTH_LIMIT
 import org.umamo.edit.ParameterChoice
 import org.umamo.edit.ParameterUnit
 import org.umamo.edit.ProportionalEditState
@@ -56,10 +58,6 @@ class TransformGestureParameters(
 	val pivotDepth: Float = 0f,
 	val depthSurface: DepthSurface = DepthSurface.Flat,
 ) {
-	/** True when this is a Rotate about X or Z - a rotate in depth rather than in the plane. */
-	val rotatesInDepth: Boolean
-		get() = rotationAxis != RotationAxis.Y
-
 	companion object {
 		/** The parameters that move nothing. */
 		val IDENTITY = TransformGestureParameters(0f, 0f, 1f, 1f, 0f)
@@ -118,9 +116,6 @@ const val TRANSFORM_SCALE_MAX = 100f
 
 /** The Scale rows' scrub step. */
 const val TRANSFORM_SCALE_STEP = 0.01f
-
-/** The farthest the Depth row pushes the pivot either way, in world px. */
-const val PIVOT_DEPTH_LIMIT = 100_000f
 
 /** The farthest a Move row reaches either way, in the gesture space's units (world px or texels). */
 private const val TRANSFORM_MOVE_LIMIT = 100_000f
@@ -384,7 +379,12 @@ fun rotationAxisOf(key: String): RotationAxis = RotationAxis.entries.firstOrNull
  */
 fun depthSurfaceOf(key: String): DepthSurface = DepthSurface.entries.firstOrNull { surface -> surface.choiceKey == key } ?: DepthSurface.Flat
 
-/** A depth rotation's rows: the axis it turned about, the pivot's depth, and the surface. */
+/**
+ * A depth rotation's rows: the axis it turned about, the pivot's depth, and the surface.
+ *
+ * @param TransformGestureParameters parameters The numbers the Rotate landed with.
+ * @return List The Axis, Depth, and Surface rows.
+ */
 private fun depthRotationParameters(parameters: TransformGestureParameters): List<OperatorParameter> =
 	listOf(
 		OperatorParameter.ChoiceParameter(

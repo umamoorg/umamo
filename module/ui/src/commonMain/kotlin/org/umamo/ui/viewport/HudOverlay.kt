@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
@@ -26,7 +27,6 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.editsElements
 import org.umamo.edit.toSelectionTarget
-import org.umamo.edit.transform.DepthSurface
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.ui.kit.Text

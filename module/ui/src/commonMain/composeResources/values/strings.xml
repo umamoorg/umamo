@@ -589,7 +589,7 @@
 	<!-- Status bar zones: context bind hints, edit-mode selection counts, and mesh stat totals. -->
 	<string name="status_bind_confirm">LMB / Enter: Confirm</string>
 	<string name="status_bind_cancel">RMB / Esc: Cancel</string>
-	<!-- The status hints a Pose-mode Rotate adds: the axis keys, then (once locked) the pivot push; %1$s is the primary modifier. -->
+	<!-- The status hints a Pose-mode Rotate adds: the axis keys and the surface cycle, then (once locked) the pivot push; %1$s is the primary modifier. -->
 	<string name="status_bind_depth_rotation">X / Z: Rotate in Depth</string>
 	<string name="status_bind_depth_push">%1$s+Wheel: Depth</string>
 	<string name="status_bind_depth_surface">T: Surface</string>
@@ -842,6 +842,10 @@
 	<string name="hud_scale_factor">×%1$s</string>
 	<string name="notice_proportional_connected_on">Proportional editing: Connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: All within radius.</string>
+	<!-- The depth surface T cycles to during a Pose-mode Rotate with no axis locked. -->
+	<string name="notice_depth_surface_flat">Surface: Flat.</string>
+	<string name="notice_depth_surface_cylinder">Surface: Cylinder.</string>
+	<string name="notice_depth_surface_sphere">Surface: Sphere.</string>
 	<!-- %1$s is the drawable's name. -->
 	<string name="notice_reparent_place_not_kept">%1$s was moved to its new parent but could not keep its place: The new deformers could not map its position.</string>
 	<string name="notice_reparent_places_not_kept">%1$d object(s) were moved to their new parent but could not keep their place: The new deformers could not map their positions.</string>
@@ -1162,8 +1166,8 @@
 	<string name="transform_options_proportional_description">Also moves the unselected vertices near the selection, less the farther away they are.</string>
 	<string name="transform_options_falloff_description">The curve the proportional influence follows as it fades out toward the edge of Proportional Size.</string>
 	<string name="transform_options_proportional_size_description">How far the proportional influence reaches from the selection, in pixels.</string>
-	<string name="transform_options_connected_description">Limits the proportional influence to vertices that are only connected to the selected meshes.</string>
-	<string name="transform_options_slide_factor_description">The percentage distance along the edge that the vertex rests.</string>
+	<string name="transform_options_connected_description">Limits the proportional influence to vertices that are connected to the selected meshes.</string>
+	<string name="transform_options_slide_factor_description">The fractional percentage distance along the edge that the vertex rests.</string>
 	<string name="transform_options_axis_description">The rotational axis that the selection pivots around.</string>
 	<string name="transform_options_pivot_depth_description">How far forwards or backwards along the Y axis the pivot is moved.</string>
 	<string name="transform_options_depth_surface_description">The shape of the 3D surface applied to the lattice.</string>

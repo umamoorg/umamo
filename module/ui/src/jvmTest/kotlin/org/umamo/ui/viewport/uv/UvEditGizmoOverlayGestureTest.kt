@@ -14,6 +14,7 @@ import org.umamo.edit.OperatorParameter
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.UvMirrorRequest
 import org.umamo.edit.UvSnapKind
 import org.umamo.edit.UvSnapRequest
@@ -114,6 +115,23 @@ class UvEditGizmoOverlayGestureTest {
 
 			assertNull(session.activeUvOperator.value)
 			assertEquals(quadUvsMoved, uvRigUvsOf(session, UV_RIG_QUAD))
+		}
+
+	/** An axis lock pressed after the pointer moved re-drives at once, so an Enter with no move after it lands the locked Grab. */
+	@Test
+	fun aLockPressedMidGrabLandsWithoutAMove() =
+		runComposeUiTest {
+			val fixture = mountUvGizmoOverlays(uvEditSession(elements = listOf(MeshElement.Vertex(0))))
+			val session = fixture.session
+			grabTenTexelsRight(session)
+
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+			waitForIdle()
+			session.requestMeshConfirm()
+			waitForIdle()
+
+			assertNull(session.activeUvOperator.value)
+			assertEquals(UV_RIG_QUAD_UVS, uvRigUvsOf(session, UV_RIG_QUAD), "the Z lock took the move across back out")
 		}
 
 	/** A right-click cancels: nothing commits, and the renderer goes back to the committed model. */

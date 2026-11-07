@@ -88,7 +88,7 @@ internal class EditModalTransform(
 	 * cursor wrap, pointer controller).  The capture is the Edit-mode gesture; preview holds each moving
 	 * mesh's new rest shape.
 	 */
-	val gesture = ModalGestureState<EditGesture, MeshRestPositions>()
+	override val gesture = ModalGestureState<EditGesture, MeshRestPositions>()
 
 	// The Vertex Slide's most recent landing (edge + factor), written as a drive publishes and read by the
 	// confirm's strip registration.  Plain state, like ModalGestureState.lastParameters: nothing composed or
@@ -369,10 +369,15 @@ internal class EditModalTransform(
 		val gestureData = gesture.capture
 
 		if (primaryHeld && session.meshOperatorRotatesInDepth(operator.kind) && session.axisConstraint.value != null) {
+			// Travel gathered before the capture lands would arrive as a burst of steps once it does.
+			if (gestureData == null) {
+				return
+			}
+
 			pendingDepthSteps += steps
 			val wholeSteps = pendingDepthSteps.toInt()
 
-			if (wholeSteps != 0 && gestureData != null) {
+			if (wholeSteps != 0) {
 				pendingDepthSteps -= wholeSteps
 				var depth = session.pivotDepth.value
 
@@ -387,6 +392,9 @@ internal class EditModalTransform(
 			return
 		}
 
+		// A scroll that pushes no depth drops a partial notch, so it never tips a later push over a step early.
+		pendingDepthSteps = 0f
+
 		if (steps != 0f && proportional != null && gestureData != null && session.meshOperatorTakesProportional(operator.kind)) {
 			session.setProportionalRadius(proportional.radiusWorld * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
 			val updated = session.proportionalEdit.value
@@ -396,16 +404,15 @@ internal class EditModalTransform(
 	}
 
 	/**
-	 * Re-drives this area's in-flight gesture at the last pointer, so a setting changed mid-gesture (the wheel's radius
-	 * or depth, T's surface) shows without a pointer move.  A no-op while no gesture is latched here.
+	 * Re-drives on an axis lock change, dropping any partial wheel notch first: travel gathered about one axis must not
+	 * push the pivot for the next.
 	 *
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
 	 */
-	fun redrive(camera: ViewportCamera, size: IntSize) {
-		val operator = session.activeMeshOperator.value?.takeIf { it.areaId == areaId } ?: return
-
-		submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
+	override fun onAxisLockChanged(camera: ViewportCamera, size: IntSize) {
+		pendingDepthSteps = 0f
+		redrive(camera, size)
 	}
 
 	/**

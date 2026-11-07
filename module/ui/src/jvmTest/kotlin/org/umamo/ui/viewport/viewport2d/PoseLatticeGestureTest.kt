@@ -7,6 +7,7 @@ import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.KeyformAim
@@ -20,7 +21,6 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.keyform.captureKeysOnTracks
 import org.umamo.edit.setMeshSelectMode
-import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.PIVOT_DEPTH_STEP
 import org.umamo.edit.transform.RotationAxis
 import org.umamo.edit.transform.TransformParameterKeys
@@ -116,6 +116,7 @@ class PoseLatticeGestureTest {
 		deformerId: DeformerId,
 	): FloatArray = assertNotNull(warpLatticeAt(session.model.value, session.pose.value, deformerId, session.pendingLatticeEdits.value)).world
 
+	/** A Z-locked Pose Rotate lands in depth at the wheel-pushed pivot, and its strip rows rerun and write back. */
 	@Test
 	fun aZLockedDepthRotationLandsAndTheStripBendsIt() =
 		runComposeUiTest {
@@ -180,6 +181,61 @@ class PoseLatticeGestureTest {
 			assertEquals(75f, session.pivotDepth.value, "the Depth row writes back")
 		}
 
+	/** A Z lock pressed after the pointer moved re-drives at once, so an Enter with no move after it lands the depth rotation. */
+	@Test
+	fun aLockPressedMidRotationLandsInDepthWithoutAMove() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(poseSession(points = setOf(0, 1, 2, 3), active = 3))
+			val session = fixture.session
+			val before = posedWorld(session, LATTICE_RIG_BODY)
+			moveIn(LEFT_AREA, listOf(gestureStart))
+			session.beginMeshOperator(MeshOperatorKind.Rotate, LEFT_AREA)
+			waitForIdle()
+			moveIn(LEFT_AREA, listOf(tenUnitsRight))
+			val previewsBefore = fixture.service.pushedLatticePreviews.size
+
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+			waitForIdle()
+			assertEquals(previewsBefore + 1, fixture.service.pushedLatticePreviews.size, "the lock re-drove the preview")
+			session.requestMeshConfirm()
+			waitForIdle()
+
+			val record = assertNotNull(session.adjustableOperation.value)
+			val axis = record.parameters.first { parameter -> parameter.key == TransformParameterKeys.AXIS } as OperatorParameter.ChoiceParameter
+			assertEquals(RotationAxis.Z.choiceKey, axis.value, "the rotation landed about Z")
+			val landed = posedWorld(session, LATTICE_RIG_BODY)
+
+			for (pointIndex in 0 until 4) {
+				assertEquals(before[pointIndex * 2 + 1], landed[pointIndex * 2 + 1], 1e-3f, "point $pointIndex keeps its height, as a turn about Z does")
+			}
+		}
+
+	/** Partial wheel notches gathered about one axis are dropped as the lock moves to the other, so they never add up to a push. */
+	@Test
+	fun partialNotchesDoNotCarryAcrossALockChange() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(poseSession(points = setOf(0, 1, 2, 3), active = 3))
+			val session = fixture.session
+			session.setPivotDepth(10f)
+			moveIn(LEFT_AREA, listOf(gestureStart))
+			session.beginMeshOperator(MeshOperatorKind.Rotate, LEFT_AREA)
+			waitForIdle()
+			moveIn(LEFT_AREA, listOf(tenUnitsRight))
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+			waitForIdle()
+
+			onNodeWithTag(gizmoAreaTag(LEFT_AREA)).performKeyInput { keyDown(Key.CtrlLeft) }
+			scrollIn(LEFT_AREA, -0.6f)
+			assertEquals(10f, session.pivotDepth.value, "a partial notch pushes nothing yet")
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
+			waitForIdle()
+			scrollIn(LEFT_AREA, -0.6f)
+			onNodeWithTag(gizmoAreaTag(LEFT_AREA)).performKeyInput { keyUp(Key.CtrlLeft) }
+
+			assertEquals(10f, session.pivotDepth.value, "the partial notch about Z went with the lock change")
+		}
+
+	/** A surface cycled mid-rotation re-drives with no pointer move, and the rotation lands on it. */
 	@Test
 	fun aSurfaceCycledMidRotationReDrivesAtOnceAndLands() =
 		runComposeUiTest {
@@ -197,7 +253,7 @@ class PoseLatticeGestureTest {
 			val previewsBefore = fixture.service.pushedLatticePreviews.size
 
 			// T's cycle (the key ladder calls this) re-drives with no pointer move.
-			session.cycleDepthSurface()
+			session.cycleDepthSurface(announce = false)
 			waitForIdle()
 			assertEquals(previewsBefore + 1, fixture.service.pushedLatticePreviews.size, "the cycle re-drove the preview")
 

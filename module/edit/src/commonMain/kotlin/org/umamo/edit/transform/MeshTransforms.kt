@@ -1,5 +1,6 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.DepthSurface
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -186,20 +187,20 @@ object MeshTransforms {
 	}
 
 	/**
-	 * Turns the selected vertices about the pivot ([pivotX], [pivotY]) by [radians] about [axis], in depth (see
+	 * Turns the selected vertices about the pivot ([pivotX], [pivotZ]) by [radians] about [axis], in depth (see
 	 * DepthRotation.kt): each point is lifted to its depth under [surface], rotated in 3D about the pivot sitting at
 	 * [pivotDepth], and dropped back onto the plane.  A turn about Z (positive turns the front toward +x) moves only x,
-	 * one about X (positive tilts the front toward -y) only y, and Flat is exact and affine - a squash by the cosine and
+	 * one about X (positive tilts the front toward -z, down) only z, and Flat is exact and affine - a squash by the cosine and
 	 * a slide of the depth times the sine.  [RotationAxis.Y] is the in-plane turn, exactly [rotateVertices].
 	 *
-	 * @param FloatArray positions The interleaved mesh positions (y is world Z, up).
+	 * @param FloatArray positions The interleaved mesh positions (the second component is world Z, up).
 	 * @param Set<Int> indices The selected vertex indices.
 	 * @param RotationAxis axis The axis to turn about.
 	 * @param Float radians The turn angle in radians.
 	 * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
 	 * @param DepthSurface surface How deep the points sit before the turn.
 	 * @param Float pivotX The pivot x.
-	 * @param Float pivotY The pivot y.
+	 * @param Float pivotZ The pivot's world Z (the positions' second component).
 	 * @return FloatArray A new positions array with the selected vertices turned.
 	 */
 	fun rotateVerticesInDepth(
@@ -210,10 +211,10 @@ object MeshTransforms {
 		pivotDepth: Float,
 		surface: DepthSurface,
 		pivotX: Float,
-		pivotY: Float,
+		pivotZ: Float,
 	): FloatArray {
 		if (axis == RotationAxis.Y) {
-			return rotateVertices(positions, indices, radians, pivotX, pivotY)
+			return rotateVertices(positions, indices, radians, pivotX, pivotZ)
 		}
 
 		val result = positions.copyOf()
@@ -221,7 +222,7 @@ object MeshTransforms {
 		val sinAngle = sin(radians)
 
 		for (vertexIndex in indices) {
-			rotateVertexInDepth(result, vertexIndex, axis, cosAngle, sinAngle, pivotDepth, surface, pivotX, pivotY)
+			rotateVertexInDepth(result, vertexIndex, axis, cosAngle, sinAngle, pivotDepth, surface, pivotX, pivotZ)
 		}
 
 		return result
@@ -274,7 +275,7 @@ object MeshTransforms {
 	 * @param Float pivotDepth The pivot's depth along world Y.
 	 * @param DepthSurface surface How deep the point sits.
 	 * @param Float pivotX The pivot x.
-	 * @param Float pivotY The pivot y.
+	 * @param Float pivotZ The pivot's world Z (the positions' second component).
 	 */
 	private fun rotateVertexInDepth(
 		positions: FloatArray,
@@ -285,11 +286,11 @@ object MeshTransforms {
 		pivotDepth: Float,
 		surface: DepthSurface,
 		pivotX: Float,
-		pivotY: Float,
+		pivotZ: Float,
 	) {
 		val offsetX = positions[vertexIndex * 2] - pivotX
-		val offsetY = positions[vertexIndex * 2 + 1] - pivotY
-		val offsetDepth = depthOffsetOf(offsetX, offsetY, pivotDepth, surface, axis)
+		val offsetZ = positions[vertexIndex * 2 + 1] - pivotZ
+		val offsetDepth = depthOffsetOf(offsetX, offsetZ, pivotDepth, surface, axis)
 
 		// Right-handed with X right, Y into the screen, Z up: about +Z the front (-Y) swings toward +X, and about +X it
 		// swings toward -Z.
@@ -299,7 +300,7 @@ object MeshTransforms {
 			}
 
 			RotationAxis.X -> {
-				positions[vertexIndex * 2 + 1] = pivotY + offsetDepth * sinAngle + offsetY * cosAngle
+				positions[vertexIndex * 2 + 1] = pivotZ + offsetDepth * sinAngle + offsetZ * cosAngle
 			}
 
 			RotationAxis.Y -> {}
