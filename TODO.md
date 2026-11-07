@@ -48,7 +48,6 @@
 ## Deformers
 * Generation
 	* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
-* Clean up language strings.
 
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
