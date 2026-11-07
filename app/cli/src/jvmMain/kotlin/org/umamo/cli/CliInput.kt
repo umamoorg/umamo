@@ -123,29 +123,28 @@ private fun loadMoc3(mocFile: File, manifestFile: File?, manifest: Model3Json?):
 					runCatching { Moc3.readModel3(candidate.readText()).fileReferences.moc == mocFile.name }.getOrDefault(false)
 				}
 	val resolvedManifest = manifest ?: resolvedManifestFile?.let { file -> Moc3.readModel3(file.readText()) }
+	// The same lookup the app's document loader runs, so both import a family with the same names, groups,
+	// and links.  Without a manifest the sibling is still read from beside the moc.
+	val familyDirectory = if (resolvedManifest != null) resolvedManifestFile?.parentFile else mocFile.parentFile
+	val displayInfo =
+		Moc3Sidecars.readDisplayInfo(
+			resolvedManifest?.fileReferences?.displayInfo,
+			Moc3Sidecars.basenameFor(mocFile.name),
+			{ reference -> File(familyDirectory, reference).takeIf { file -> file.isFile }?.readBytes() },
+		) { reference, failure ->
+			System.err.println("Warning: ignoring unparseable $reference: ${failure.message}")
+		}
 
 	if (resolvedManifest == null) {
-		return LoadedInput.Moc3Input(document, Moc3Family(mocFile, null, null, emptyList(), emptyList()))
+		return LoadedInput.Moc3Input(document, Moc3Family(mocFile, null, displayInfo, emptyList(), emptyList()))
 	}
 
-	val manifestDirectory = resolvedManifestFile!!.parentFile
 	val references = resolvedManifest.fileReferences
-	// Manifest reference first, then the sibling-by-basename fallback the app's document loader
-	// uses - a model3 without a DisplayInfo entry otherwise converts nameless, and the export then
-	// writes parameter ids where Cubism expects display names.
-	val displayInfo =
-		listOfNotNull(references.displayInfo, "${mocFile.nameWithoutExtension}.cdi3.json")
-			.distinct()
-			.firstNotNullOfOrNull { reference ->
-				File(manifestDirectory, reference)
-					.takeIf { file -> file.isFile }
-					?.let { file -> runCatching { Moc3.readCdi3(file.readText()) }.getOrNull() }
-			}
-	val textureFiles = references.textures.map { reference -> File(manifestDirectory, reference) }
+	val textureFiles = references.textures.map { reference -> File(familyDirectory, reference) }
 	val sidecars =
 		buildList {
 			fun passThrough(kind: Moc3Sidecars.SidecarKind, reference: String?) {
-				val file = reference?.let { relative -> File(manifestDirectory, relative) } ?: return
+				val file = reference?.let { relative -> File(familyDirectory, relative) } ?: return
 
 				if (file.isFile) {
 					add(Moc3Sidecars.PassThroughSidecar(kind, file.name, file.readText()))
@@ -175,6 +174,14 @@ internal fun importPuppet(loaded: LoadedInput): PuppetModel =
 		}
 
 		is LoadedInput.Moc3Input -> {
+			// Names, the parameter panel's groups, and the linked pairs live only in the cdi3, so an import
+			// without one silently loses them all unless the operator is told.
+			if (loaded.family.displayInfo == null) {
+				System.err.println(
+					"Warning: no readable cdi3.json for ${loaded.family.mocFile.name}; importing without display names, parameter groups, or linked parameters",
+				)
+			}
+
 			restMeshesToCanvasSpace(Moc3Import.fromMocDocument(loaded.document, loaded.family.displayInfo))
 		}
 

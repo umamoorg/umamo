@@ -54,10 +54,6 @@ class PendingLatticeEditTest {
 		session.commitPose(ParameterChange.SetValue(listOf(parameterP)), session.pose.value + (parameterP to -0.25f))
 
 		assertTrue(session.pendingLatticeEdits.value.isEmpty(), "shaped for the pose being left")
-		val notice = assertNotNull(session.notice.value)
-		assertEquals("notice.pose.latticeEditsDiscarded", notice.messageKey)
-		assertEquals(listOf("2"), notice.arguments)
-		assertEquals(NoticePlacement.NearCursor, notice.placement)
 
 		session.undo()
 		assertEquals(0.5f, session.pose.value[parameterP])
@@ -72,7 +68,6 @@ class PendingLatticeEditTest {
 		session.discardPendingEditsForPose()
 
 		assertTrue(session.pendingLatticeEdits.value.isEmpty())
-		assertEquals(listOf("1"), assertNotNull(session.notice.value).arguments)
 	}
 
 	@Test

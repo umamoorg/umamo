@@ -58,6 +58,14 @@ internal object ClipRaster {
 	private val STATUS_TAG = encodeUtf16Be("BlockStatus")
 	private val CHECKSUM_TAG = encodeUtf16Be("BlockCheckSum")
 
+	// Offscreen.Attribute property names (UTF-16BE), located by search.
+	private val PARAMETER_TAG = encodeUtf16Be("Parameter")
+	private val INIT_COLOR_TAG = encodeUtf16Be("InitColor")
+
+	// The fully revealing mask value: what an empty mask tile takes when the Attribute carries no
+	// readable InitColor (so an unrecognized layout never hides art), and the no-mask default.
+	private const val MASK_REVEAL = 0xFF
+
 	// "\x00B\x00l" - the first two UTF-16BE code units shared by every Block* tag; if the 2nd u32
 	// equals this, the first u32 was the string length (no leading size word).
 	private const val TAG_PREFIX = 0x0042006CL
@@ -71,8 +79,8 @@ internal object ClipRaster {
 	 * pixel format) so the caller can fall back to a placeholder.
 	 *
 	 * The mask, when present, modulates alpha: `outputAlpha = colorAlpha * mask / 255`.  Mask tiles
-	 * align with color tiles by `(col, row)` - both offscreens are canvas-anchored identically - so a
-	 * color tile with no co-located mask tile is left fully visible (the mask InitColor is 255).
+	 * align with color tiles by `(col, row)` - both offscreens are canvas-anchored identically - and a
+	 * color tile with no co-located mask tile takes the mask's InitColor, which reveals or hides it.
 	 *
 	 * @param ByteArray fileBytes        The complete .clip file (chunks are read from it).
 	 * @param Int colorChunkOffset       Absolute file offset of the layer's color CHNKExta chunk.
@@ -106,13 +114,17 @@ internal object ClipRaster {
 		}
 
 		// Mask tiles keyed by (col, row), aligned to color tiles (shared canvas-0,0 anchor).  Absent
-		// for layers without a mask, and per-tile-absent where the mask InitColor (255) applies.
+		// for layers without a mask, and per-tile-absent where the mask's InitColor applies instead.
+		val hasMask = maskAttribute != null && maskChunkOffset >= 0
 		val maskTilesByColRow =
-			if (maskAttribute != null && maskChunkOffset >= 0) {
+			if (hasMask) {
 				buildMaskTiles(fileBytes, maskChunkOffset, maskAttribute)
 			} else {
 				emptyMap()
 			}
+		val maskInitValue = if (hasMask) parseMaskInitValue(maskAttribute) else MASK_REVEAL
+		// One shared plane for every stored-nothing mask tile; null when it would reveal everything.
+		val emptyMaskTile = if (maskInitValue == MASK_REVEAL) null else ByteArray(TILE_PIXELS) { maskInitValue.toByte() }
 
 		// Crop to the bounding box of non-empty tiles - bounds memory for large, mostly-empty layers
 		// and matches the KRA reader's union-of-tiles cropping.
@@ -154,7 +166,7 @@ internal object ClipRaster {
 			val format = tileFormatFor(inflatedLength) ?: continue
 			val column = tile.index % grid.columns
 			val row = tile.index / grid.columns
-			val maskTile = maskTilesByColRow[packColumnRow(column, row)]
+			val maskTile = maskTilesByColRow[packColumnRow(column, row)] ?: emptyMaskTile
 			blitTile(
 				tileBytes = inflateBuffer,
 				format = format,
@@ -181,7 +193,7 @@ internal object ClipRaster {
 	 * Decodes a layer's mask offscreen into its non-empty grayscale tiles, keyed by `(col, row)`.
 	 *
 	 * Each mask tile inflates to a single-channel 256x256 plane (TILE_PIXELS bytes).  Empty tiles are
-	 * omitted: their absence signals the mask InitColor (255, fully visible) at decode time.
+	 * omitted: their absence means the mask's InitColor applies there (see [parseMaskInitValue]).
 	 *
 	 * @param ByteArray fileBytes        The complete .clip file.
 	 * @param Int maskChunkOffset        Absolute file offset of the mask CHNKExta chunk.
@@ -370,14 +382,13 @@ internal object ClipRaster {
 	 */
 	private fun parseAttributeGrid(attribute: ByteArray): AttributeGrid? {
 		// CLIP: Offscreen.Attribute - UTF-16BE "Parameter", then width, height, cols, rows (u32 BE).
-		val parameterTag = encodeUtf16Be("Parameter")
-		val tagAt = indexOf(attribute, parameterTag, 0)
+		val tagAt = indexOf(attribute, PARAMETER_TAG, 0)
 
 		if (tagAt < 0) {
 			return null
 		}
 
-		val fieldsAt = tagAt + parameterTag.size
+		val fieldsAt = tagAt + PARAMETER_TAG.size
 
 		if (fieldsAt + 16 > attribute.size) {
 			return null
@@ -387,6 +398,39 @@ internal object ClipRaster {
 		val rows = readUInt32BE(attribute, fieldsAt + 12)
 
 		return AttributeGrid(columns = columns, rows = rows)
+	}
+
+	/**
+	 * Reads the 0..255 value a mask tile with no stored data takes, from the mask's InitColor.
+	 *
+	 * A mask either starts revealed (InitColor enabled, all bits set) or hidden (disabled, zero), so
+	 * the tiles a mask never painted show or hide the layer accordingly.  A missing or truncated
+	 * InitColor reveals.
+	 *
+	 * @param ByteArray maskAttribute The mask Offscreen.Attribute bytes.
+	 * @return Int The mask value of an empty tile.
+	 */
+	private fun parseMaskInitValue(maskAttribute: ByteArray): Int {
+		// CLIP: Offscreen.Attribute "InitColor" - u32 size (20), u32 enabled, u32 color (u32 BE).
+		val tagAt = indexOf(maskAttribute, INIT_COLOR_TAG, 0)
+
+		if (tagAt < 0) {
+			return MASK_REVEAL
+		}
+
+		val fieldsAt = tagAt + INIT_COLOR_TAG.size
+
+		if (fieldsAt + 12 > maskAttribute.size) {
+			return MASK_REVEAL
+		}
+
+		val enabled = readUInt32BE(maskAttribute, fieldsAt + 4)
+
+		if (enabled == 0) {
+			return 0
+		}
+
+		return readUInt32BE(maskAttribute, fieldsAt + 8) and 0xFF
 	}
 
 	/** One tile within a layer's external block data: its grid index and (possibly empty) body. */

@@ -7,21 +7,66 @@ Umamo is early alpha.
 (Unreleased changes)
 
 ### Added
-* Mesh: Generate Mesh from Art(Shift+M) builds a new mesh from the art's opaque pixels for the selected drawables.
-* UI: The status bar shows a progress bar while a document opens, artwork is added or reloaded, meshes are generated, or the atlas is packed.
-* UI: Viewport Overlays has a new Show Overlays toggle and dropdown at the end of the 2D Viewport and UV Editor headers to toggle viewport overlays.  The choices are saved per document.
-* UI: The viewport sidebar is now actually built and functional.
 
 ### Changed
-* UI: The 2D Viewport's mode DropdownChip is now pinned instead of collapsing into the more chip.
-* UI: The Properties panel's Object and Data tabs show the active item when several are selected and keep showing the last active item after a deselect.
 
 ### Fixed
-* Format: MOC3 export now refuses to export an art mesh with more than 65,536 vertices instead of writing wrapped triangle indices.
-* Format: CMO3 export no longer warns that a glue could not be exported when the meshes on both sides of it were remeshed.
+
+## 0.5.0 - 2026-11-07
+
+### Added
+* Internationalization: Initial Français/French translation.  Thank you to skueee(Robin Brams) for the translation.
+* Keyform Sheet: Every row that holds an unkeyed edit shows an orange pending circle.
+* Keyform Sheet: Insert Key by Type (K) opens a pie to key a posed warp's lattice, opacity, colors, or all of them.
+* Mesh: Generate Mesh from Art(Shift+M) builds a new mesh from the art's opaque pixels for the selected drawables.
+* Mesh: Generate Quad Mesh replaces a mesh with a quad around its art and any glued vertices.
+* Pose Mode: A new editor mode (Ctrl+Tab, or the 2D Viewport's mode menu) for shaping a warp's lattice and keying them to parameters.
+* Pose Mode: Alt+Q over overlapping lattices opens the overlap picker to choose the warp to pose.
+* Properties: Warp deformer Data Tab.
+* Runtime Target: New Ayagami (Cubism 5.3 Equivalent) target for Ayagami's Cubism 5.3 / MOC3 v6 build.
+* Settings: New settings:
+	* Colors: Deformers section with lattice idle, selected, active, unkeyed, and hovered colors.
+	* Import: Initial Mesh and Mesh Generation Presets
+	* Viewport: Default toolbar and sidebar visibility
+	* Viewport: UV Grid Scale, UV Grid Subdivisions
+* UI: Inverse Square and Random falloff curves added to proportional editing.
+* UI: Right-clicking in the 2D Viewport opens a context menu of the current mode's common commands.
+* UI: Snap is now available in the UV Editor, including Object Mode.
+* UI: The status bar now shows a progress bar while a document opens, artwork is added or reloaded, meshes are generated, or the atlas is packed.
+* UI: The viewport sidebar is now actually built and functional.
+* UI: Viewport Overlays has a new Show Overlays toggle and dropdown at the end of the 2D Viewport and UV Editor headers to toggle viewport overlays.  The choices are saved per document.
+* UI: Viewport Overlays have been expanded with additional controls.  Grid scale and subdivisions, wireframe opacity and culling, selection tint, and warp lattices.
+* Warp Deformers: Create Warp Deformer wraps the selected drawables or parts in a new warp.
+* Warp Deformers: Edit Mode now edits a warp's rest lattice.
+* Warp Deformers: Object Mode can now grab, rotate, scale, and duplicate whole warps.
+* Warp Deformers: Warp deformers can now be seen, selected, and edited in the 2D Viewport.
+
+### Changed
+* Diagnostics: If the CLI can't find the MOC3's cdi3.json sidecar it will print a warning.
+* Diagnostics: The `--puppet` `dump` flag now prints the parameter panel's group tree and linked parameters.
+* Format: (BREAKING CHANGE) UMA now stores two position arrays, local and world, for meshes.  Files saved before 0.5.0 will not load in 0.5.0 and later.
+* Keyform Sheet: Keys can no longer be inserted, removed, or moved in Edit Mode.
+* Language: Menus, dialogs, and notices now say Puppet (UMA, CMO3, or MOC3), Artwork (PSD, CLIP, or KRA), and File consistently, in English and Japanese.  This replaces "document" and "model" and matches the standardization done to the user manual.
+* Mesh: Layers added from artwork now start with a mesh generated from their art instead of a quad.
+* Runtime Target: The existing Ayagami (Cubism 5.0 Equivalent) target has been renamed from ayagami to ayagami50.
+* Source Artwork: Adding artwork to a document created from an imported MOC3 is now refused and instructs the user to export a CMO3 to be able to import artwork.
+* Splash Screen: New splash screen art by RAHIBIZ.
+* UI: The 2D Viewport's mode DropdownChip is now pinned instead of collapsing into the more chip.
+* UI: The Properties panel's Object and Data tabs show the active item when several are selected and keep showing the last active item after a deselect.
+* UI: Key bindings can now use the literal Control key, separate from the primary modifier(Command on macOS).
+
+### Fixed
 * Format: CMO3 export no longer duplicates mirrored meshes imported from a MOC3.
+* Format: CMO3 export no longer warns that a glue could not be exported when the meshes on both sides of it were remeshed.
+* Format: CMO3 export that lacked parameter groups would export with the root missing all parameters which would break subsequent imports.
+* Format: CMO3 export writes a part keyform's opacity even when it is empty.
+* Format: MOC3 export now refuses to export an art mesh with more than 65,536 vertices instead of writing wrapped triangle indices.
+* Outliner, Parameters: Dropping a row on the lower edge of the row directly above it no longer sends it to the end of its list instead of leaving it in place.
+* UI: Escape and the keyboard shortcuts no longer stop working after a number field inside Preferences is confirmed with Enter.
 * UI: The tooltip could sometimes block clicking when it overflowed from its default position.
 * UI: Turning on proportional editing from the UV Editor's operation strip no longer resets the 2D Viewport's proportional radius to its default.
+* Viewport: Glue stays welded after its meshes are regenerated, keyed, or re-parented, and deleting a glued drawable no longer leaves a stray weld on other glue.
+* Viewport: Source artwork too large for the GPU's maximum texture size is scaled down instead of failing to upload.
 
 ## 0.4.0 - 2026-10-02
 

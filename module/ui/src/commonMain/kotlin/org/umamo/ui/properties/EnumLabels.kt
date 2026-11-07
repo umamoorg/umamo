@@ -241,9 +241,9 @@ fun formChannelLabelRes(channel: FormChannel): StringResource =
 	}
 
 /**
- * The display label for a runtime target: NoTarget and Ayagami resolve through the string catalog
- * (their parentheticals are chrome), while the Cubism entries are product identity shown verbatim
- * from [RuntimeTarget.displayName], never localized.
+ * The display label for a runtime target: NoTarget and the Ayagami builds resolve through the
+ * string catalog (their parentheticals are chrome), while the Cubism entries are product identity
+ * shown verbatim from [RuntimeTarget.displayName], never localized.
  *
  * @param RuntimeTarget target The target to label.
  * @return String The dropdown label.
@@ -253,7 +253,9 @@ fun runtimeTargetLabel(target: RuntimeTarget): String =
 	when (target) {
 		RuntimeTarget.NoTarget -> stringResource(Res.string.runtime_target_no_target)
 
-		RuntimeTarget.Ayagami -> stringResource(Res.string.runtime_target_ayagami, target.cubismLevelText().orEmpty())
+		RuntimeTarget.Ayagami50,
+		RuntimeTarget.Ayagami53,
+		-> stringResource(Res.string.runtime_target_ayagami, target.cubismLevelText().orEmpty())
 
 		RuntimeTarget.Cubism30,
 		RuntimeTarget.Cubism33,

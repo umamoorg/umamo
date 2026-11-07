@@ -8,11 +8,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
+import org.umamo.edit.Selection
+import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
 import org.umamo.render.pick.PickCandidate
+import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.StubPuppetViewportService
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,7 +26,8 @@ import kotlin.test.assertNotNull
 /**
  * Pins the Edit overlay's request routing ([collectEditGizmoRequests]): with two areas collecting, each
  * request runs in the area it names and nowhere else, an empty edit answers with the notice once, and
- * Alt+Q switches directly or asks for the picker.
+ * Alt+Q switches directly or asks for the picker - over the drawables in Edit mode, over the drawn lattices in
+ * Pose mode.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class EditGizmoRequestsTest {
@@ -33,7 +39,7 @@ class EditGizmoRequestsTest {
 		val session: EditorSession,
 		val service: StubPuppetViewportService,
 		val geometries: MutableState<List<EditMeshGeometry>>,
-		val overlapRequests: MutableList<Pair<Offset, List<PickCandidate>>>,
+		val overlapRequests: MutableList<Pair<Offset, List<ObjectPickCandidate>>>,
 	)
 
 	/**
@@ -45,7 +51,7 @@ class EditGizmoRequestsTest {
 	private fun TestScope.collectInTwoAreas(session: EditorSession): TwoAreas {
 		val service = StubPuppetViewportService()
 		val geometries = mutableStateOf(editMeshGeometries(session.model.value, session.meshSelection.value.drawableIds))
-		val overlapRequests = ArrayList<Pair<Offset, List<PickCandidate>>>()
+		val overlapRequests = ArrayList<Pair<Offset, List<ObjectPickCandidate>>>()
 
 		for (areaId in listOf(LEFT_AREA_ID, RIGHT_AREA_ID)) {
 			backgroundScope.launch {
@@ -92,7 +98,40 @@ class EditGizmoRequestsTest {
 			areas.session.requestSwitchObjectUnderCursor(LEFT_AREA_ID)
 			runCurrent()
 
-			assertEquals(listOf(pointer to stack), areas.overlapRequests.toList())
+			val (anchor, candidates) = areas.overlapRequests.single()
+			assertEquals(pointer, anchor)
+			assertEquals(listOf(SelectionTarget.Drawable(RIG_OTHER), SelectionTarget.Drawable(RIG_QUAD)), candidates.map { candidate -> candidate.target })
+			assertEquals(stack.map { candidate -> candidate.centrality }, candidates.map { candidate -> candidate.centrality })
+		}
+
+	/** In Pose mode, two drawn lattices under the pointer ask for the picker, best first. */
+	@Test
+	fun poseSwitchOverTwoLatticesAsksForThePicker() =
+		runTest {
+			val areas = collectInTwoAreas(posingTheBody())
+			areas.service.latticeStackByArea[LEFT_AREA_ID] = listOf(LATTICE_RIG_HEAD, LATTICE_RIG_GUIDE)
+
+			areas.session.requestSwitchObjectUnderCursor(LEFT_AREA_ID)
+			runCurrent()
+
+			val (anchor, candidates) = areas.overlapRequests.single()
+			assertEquals(pointer, anchor)
+			assertEquals(listOf(SelectionTarget.Deformer(LATTICE_RIG_HEAD), SelectionTarget.Deformer(LATTICE_RIG_GUIDE)), candidates.map { candidate -> candidate.target })
+			assertEquals(ElementOwner.Deformer(LATTICE_RIG_BODY), areas.session.meshSelection.value.activeOwner, "nothing switches until a row is picked")
+		}
+
+	/** In Pose mode, one drawn lattice under the pointer is posed directly, with no picker. */
+	@Test
+	fun poseSwitchOverOneLatticeSwitches() =
+		runTest {
+			val areas = collectInTwoAreas(posingTheBody())
+			areas.service.latticeStackByArea[LEFT_AREA_ID] = listOf(LATTICE_RIG_GUIDE)
+
+			areas.session.requestSwitchObjectUnderCursor(LEFT_AREA_ID)
+			runCurrent()
+
+			assertEquals(ElementOwner.Deformer(LATTICE_RIG_GUIDE), areas.session.meshSelection.value.activeOwner)
+			assertEquals(emptyList(), areas.overlapRequests.toList())
 		}
 
 	/** One other mesh under the pointer switches the edit to it. */
@@ -160,4 +199,16 @@ class EditGizmoRequestsTest {
 		const val LEFT_AREA_ID = "left"
 		const val RIGHT_AREA_ID = "right"
 	}
+
+	/**
+	 * A session over the lattice rig posing the body warp.
+	 *
+	 * @return EditorSession The session, in Pose mode.
+	 */
+	private fun posingTheBody(): EditorSession =
+		EditorSession(latticeRigModel()).apply {
+			setSelection(Selection(setOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)), SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+			setMode(EditorMode.Pose)
+			assertEquals(ElementOwner.Deformer(LATTICE_RIG_BODY), meshSelection.value.activeOwner)
+		}
 }

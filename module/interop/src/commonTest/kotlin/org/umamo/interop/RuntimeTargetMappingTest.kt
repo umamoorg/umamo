@@ -17,7 +17,8 @@ class RuntimeTargetMappingTest {
 	@Test
 	fun mocVersionsMatchEachTargetsLevel() {
 		assertEquals(MocVersion.V53, RuntimeTarget.NoTarget.mocVersion(), "nothing restricted, bake latest")
-		assertEquals(MocVersion.V50, RuntimeTarget.Ayagami.mocVersion(), "Ayagami's effective level")
+		assertEquals(MocVersion.V50, RuntimeTarget.Ayagami50.mocVersion(), "Ayagami 5.0's effective level")
+		assertEquals(MocVersion.V53, RuntimeTarget.Ayagami53.mocVersion(), "Ayagami 5.3's effective level")
 		assertEquals(MocVersion.V30, RuntimeTarget.Cubism30.mocVersion())
 		assertEquals(MocVersion.V33, RuntimeTarget.Cubism33.mocVersion())
 		assertEquals(MocVersion.V40, RuntimeTarget.Cubism40.mocVersion())
@@ -31,8 +32,13 @@ class RuntimeTargetMappingTest {
 		assertNull(RuntimeTarget.NoTarget.cmo3TargetVersion(), "NoTarget has no target VERSION, only the sentinel")
 		assertEquals(
 			RuntimeTarget.Cubism50.cmo3TargetVersion(),
-			RuntimeTarget.Ayagami.cmo3TargetVersion(),
-			"Ayagami persists at its effective Cubism level",
+			RuntimeTarget.Ayagami50.cmo3TargetVersion(),
+			"Ayagami 5.0 persists at its effective Cubism level",
+		)
+		assertEquals(
+			RuntimeTarget.Cubism53.cmo3TargetVersion(),
+			RuntimeTarget.Ayagami53.cmo3TargetVersion(),
+			"Ayagami 5.3 persists at its effective Cubism level",
 		)
 		val cubismTargets =
 			listOf(
@@ -46,8 +52,9 @@ class RuntimeTargetMappingTest {
 		cubismTargets.forEach { target ->
 			assertEquals(target, runtimeTargetOfCmo3Target(target.cmo3TargetVersion()), "round trip for $target")
 		}
-		// Ayagami's identity cannot survive CMO3 - it reopens as its effective Cubism level.
-		assertEquals(RuntimeTarget.Cubism50, runtimeTargetOfCmo3Target(RuntimeTarget.Ayagami.cmo3TargetVersion()))
+		// An Ayagami build's identity cannot survive CMO3 - it reopens as its effective Cubism level.
+		assertEquals(RuntimeTarget.Cubism50, runtimeTargetOfCmo3Target(RuntimeTarget.Ayagami50.cmo3TargetVersion()))
+		assertEquals(RuntimeTarget.Cubism53, runtimeTargetOfCmo3Target(RuntimeTarget.Ayagami53.cmo3TargetVersion()))
 	}
 
 	@Test
@@ -57,7 +64,8 @@ class RuntimeTargetMappingTest {
 			RuntimeTarget.NoTarget.cmo3TargetVersionNo(),
 			"NoTarget persists as the SDK(N/A)/Latest sentinel",
 		)
-		assertEquals(5_000_000, RuntimeTarget.Ayagami.cmo3TargetVersionNo(), "Ayagami persists as Cubism 5.0")
+		assertEquals(5_000_000, RuntimeTarget.Ayagami50.cmo3TargetVersionNo(), "Ayagami 5.0 persists as Cubism 5.0")
+		assertEquals(5_030_000, RuntimeTarget.Ayagami53.cmo3TargetVersionNo(), "Ayagami 5.3 persists as Cubism 5.3")
 		assertEquals(4_020_000, RuntimeTarget.Cubism42.cmo3TargetVersionNo(), "a Cubism target persists its literal")
 		// The sentinel round-trips through ingest: it decodes to no version, which maps to NoTarget.
 		assertEquals(

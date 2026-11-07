@@ -8,17 +8,14 @@ import kotlin.math.roundToInt
 /*
  * Thumbnail rasterization over the neutral raster: the fit every CMO3 icon takes (the art scaled so
  * its longer edge fills a square, centered, transparent elsewhere - the shape the official editor
- * writes for layer, model-image, drawable, and model icons), and the rectangle crop a texture patch
- * is cut with.  Pure Kotlin, so the desktop and Android exports render identical icons.
+ * writes for layer, model-image, drawable, and model icons), the area-average scale beneath it, and
+ * the rectangle crop a texture patch is cut with.  Pure Kotlin, so the desktop and Android exports
+ * render identical icons.
  */
 
 /**
  * Scales this raster so its longer edge equals [size] and centers it in a transparent
  * [size] x [size] square, the aspect preserved.
- *
- * Each destination pixel is the area average of the source rectangle it covers, computed in
- * premultiplied space: averaging straight RGB across an alpha edge would drag the matte color into
- * the visible pixels and darken the fringe.
  *
  * @param Int size The square's edge in pixels, at least 1.
  * @return RasterImage The fitted square, straight alpha, top row first.
@@ -31,18 +28,56 @@ public fun RasterImage.fittedInto(size: Int): RasterImage {
 		return RasterImage(size, size, square)
 	}
 
-	val scale = size.toDouble() / maxOf(width, height)
-	val fittedWidth = (width * scale).roundToInt().coerceIn(1, size)
-	val fittedHeight = (height * scale).roundToInt().coerceIn(1, size)
-	val offsetX = (size - fittedWidth) / 2
-	val offsetY = (size - fittedHeight) / 2
-	val columnSpans = axisSpans(width, fittedWidth)
-	val rowSpans = axisSpans(height, fittedHeight)
+	val fitted = scaledToLongerEdge(size)
+	val offsetX = (size - fitted.width) / 2
+	val offsetY = (size - fitted.height) / 2
 
-	for (destinationRow in 0 until fittedHeight) {
+	for (rowIndex in 0 until fitted.height) {
+		fitted.rgba.copyInto(square, ((offsetY + rowIndex) * size + offsetX) * 4, rowIndex * fitted.width * 4, (rowIndex + 1) * fitted.width * 4)
+	}
+
+	return RasterImage(size, size, square)
+}
+
+/**
+ * This raster scaled, aspect preserved, so its longer edge is [edge] pixels.
+ *
+ * @param Int edge The longer edge in pixels, at least 1.
+ * @return RasterImage The scaled raster, straight alpha, top row first.
+ */
+public fun RasterImage.scaledToLongerEdge(edge: Int): RasterImage {
+	require(edge > 0) { "a scaled raster needs a positive edge, not $edge" }
+	val scale = edge.toDouble() / maxOf(width, height)
+
+	return scaledTo((width * scale).roundToInt().coerceIn(1, edge), (height * scale).roundToInt().coerceIn(1, edge))
+}
+
+/**
+ * This raster resampled to [targetWidth] x [targetHeight].
+ *
+ * Each destination pixel is the area average of the source rectangle it covers, computed in
+ * premultiplied space: averaging straight RGB across an alpha edge would drag the matte color into
+ * the visible pixels and darken the fringe.
+ *
+ * @param Int targetWidth  The width in pixels, at least 1.
+ * @param Int targetHeight The height in pixels, at least 1.
+ * @return RasterImage The resampled raster, straight alpha, top row first.
+ */
+public fun RasterImage.scaledTo(targetWidth: Int, targetHeight: Int): RasterImage {
+	require(targetWidth > 0 && targetHeight > 0) { "a scaled raster needs a positive size, not ${targetWidth}x$targetHeight" }
+	val scaled = ByteArray(targetWidth * targetHeight * 4)
+
+	if (width <= 0 || height <= 0) {
+		return RasterImage(targetWidth, targetHeight, scaled)
+	}
+
+	val columnSpans = axisSpans(width, targetWidth)
+	val rowSpans = axisSpans(height, targetHeight)
+
+	for (destinationRow in 0 until targetHeight) {
 		val rowSpan = rowSpans[destinationRow]
 
-		for (destinationColumn in 0 until fittedWidth) {
+		for (destinationColumn in 0 until targetWidth) {
 			val columnSpan = columnSpans[destinationColumn]
 			var red = 0.0
 			var green = 0.0
@@ -72,16 +107,16 @@ public fun RasterImage.fittedInto(size: Int): RasterImage {
 				continue
 			}
 
-			val destinationOffset = ((offsetY + destinationRow) * size + offsetX + destinationColumn) * 4
+			val destinationOffset = (destinationRow * targetWidth + destinationColumn) * 4
 			// Un-premultiply: the color sums carry an alpha factor the alpha sum divides back out.
-			square[destinationOffset] = (red / alpha).roundToInt().coerceIn(0, 255).toByte()
-			square[destinationOffset + 1] = (green / alpha).roundToInt().coerceIn(0, 255).toByte()
-			square[destinationOffset + 2] = (blue / alpha).roundToInt().coerceIn(0, 255).toByte()
-			square[destinationOffset + 3] = (alpha / coverage).roundToInt().coerceIn(0, 255).toByte()
+			scaled[destinationOffset] = (red / alpha).roundToInt().coerceIn(0, 255).toByte()
+			scaled[destinationOffset + 1] = (green / alpha).roundToInt().coerceIn(0, 255).toByte()
+			scaled[destinationOffset + 2] = (blue / alpha).roundToInt().coerceIn(0, 255).toByte()
+			scaled[destinationOffset + 3] = (alpha / coverage).roundToInt().coerceIn(0, 255).toByte()
 		}
 	}
 
-	return RasterImage(size, size, square)
+	return RasterImage(targetWidth, targetHeight, scaled)
 }
 
 /**

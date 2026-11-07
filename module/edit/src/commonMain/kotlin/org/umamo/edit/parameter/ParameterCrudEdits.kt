@@ -22,6 +22,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.materializedParameterTree
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*

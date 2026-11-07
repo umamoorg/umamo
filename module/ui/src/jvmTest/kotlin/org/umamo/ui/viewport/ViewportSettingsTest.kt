@@ -22,7 +22,7 @@ class ViewportSettingsTest {
 
 		assertEquals(ViewportSettings.SHOW_TOOLBAR_DEFAULT, settings.getBoolean(ViewportSettings.SHOW_TOOLBAR_KEY), "the toolbar")
 		assertEquals(ViewportSettings.SHOW_SIDEBAR_DEFAULT, settings.getBoolean(ViewportSettings.SHOW_SIDEBAR_KEY), "the sidebar")
-		assertEquals(ViewportChromeState(showToolbar = true, showSidebar = false), ViewportChromeState())
+		assertEquals(ViewportChromeState(showToolbar = true, showSidebar = true), ViewportChromeState())
 	}
 
 	/** Each surface's pair resolves out of defaultSettings.json to the constants the code falls back on. */

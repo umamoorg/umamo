@@ -148,6 +148,19 @@ class LatticeCaptureTest {
 		assertTrue(session.pendingLatticeEdits.value.isEmpty(), "the key consumed it")
 	}
 
+	/** A lane aimed at a held warp's row on a parameter it never keyed seeds that axis and keys the shape at the pose. */
+	@Test
+	fun aLaneAimedAtAHeldWarpWithNoAxisSeedsItAndKeysAtThePose() {
+		val form = shaped(1f, 2f)
+		val session = session(mapOf(parameterP to 0.5f, parameterQ to 0.25f), mapOf(cage to form), targeted = setOf(parameterQ))
+
+		session.captureKeyOnTrack(track(cage), parameterQ, KeyformAim.Position(-0.5f, keyIndex = null))
+
+		assertEquals(listOf(-1f, 0f, 0.25f, 1f), keysOf(session, cage, parameterQ), "seeded, then keyed at the pose, not where the lane was aimed")
+		assertContentEquals(form.controlPoints, assertNotNull(session.model.value.warpGridLatticeAt(cage, session.pose.value)).controlPoints)
+		assertTrue(session.pendingLatticeEdits.value.isEmpty(), "the key consumed it")
+	}
+
 	@Test
 	fun aLaneAimedAtAWarpHoldingNothingInsertsWhereAimed() {
 		val session = session(mapOf(parameterP to 0.5f), mapOf(second to shaped(3f, 4f)))

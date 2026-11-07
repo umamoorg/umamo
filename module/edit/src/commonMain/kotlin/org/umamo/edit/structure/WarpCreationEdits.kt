@@ -16,7 +16,7 @@ import org.umamo.runtime.model.PuppetModel
  * which :edit cannot see, so the caller computes the created model and this records it.
  */
 
-/** The cells along each axis a warp is born with. */
+/** The cells along each axis a warp is born with, and the fewest it is born with under a warp the pose moves. */
 const val WARP_BIRTH_DIVISIONS = 5
 
 /** The margin, in percent of the selection's larger side, a warp is born with on every edge. */

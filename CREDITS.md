@@ -5,7 +5,7 @@ Project Lead: Azxiana - https://azxiana.com/
 
 ## Translations
 한국어/Korean - Thank you to Nyaro for the translation.
- Français/French - Thank you to skueee(Robin Brams) for the translation.
+Français/French - Thank you to skueee(Robin Brams) for the translation.
 
 ## Gylphs
 

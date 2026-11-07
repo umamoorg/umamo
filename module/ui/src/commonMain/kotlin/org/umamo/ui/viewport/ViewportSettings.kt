@@ -43,7 +43,7 @@ internal object ViewportSettings {
 	const val UV_GRID_SUBDIVISIONS_DEFAULT = 8
 
 	const val SHOW_TOOLBAR_DEFAULT = true
-	const val SHOW_SIDEBAR_DEFAULT = false
+	const val SHOW_SIDEBAR_DEFAULT = true
 
 	/**
 	 * The commit clamp for the zoom-step preference fields: 0.1 % (ultra-fine) up to 100 % (a

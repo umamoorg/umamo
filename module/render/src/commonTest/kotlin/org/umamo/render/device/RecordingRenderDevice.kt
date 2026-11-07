@@ -484,8 +484,11 @@ internal class TargetDestroyed(
  * trace.
  *
  * Single-threaded, like every device.
+ *
+ * @property Int maxTextureEdge The texture edge the device reports it can sample, so a test can stand in for a
+ *   GPU smaller than the art it uploads.
  */
-internal class RecordingRenderDevice : RenderDevice {
+internal class RecordingRenderDevice(private val maxTextureEdge: Int = RECORDED_MAX_TARGET_SIZE) : RenderDevice {
 	private val recordedSteps = ArrayList<RecordedStep>()
 	private val recordedResourceEvents = ArrayList<ResourceEvent>()
 	private val pipelinesBySpec = HashMap<RenderPipelineSpec, RecordedPipeline>()
@@ -812,6 +815,8 @@ internal class RecordingRenderDevice : RenderDevice {
 	}
 
 	override fun maxRenderTargetSize(): Int = RECORDED_MAX_TARGET_SIZE
+
+	override fun maxTextureSize(): Int = maxTextureEdge
 
 	override fun describeBackend(): String = "recording device (draws nothing)"
 

@@ -10,6 +10,7 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 
 class OutlinerTreeEditsTest {
@@ -112,6 +113,15 @@ class OutlinerTreeEditsTest {
 	}
 
 	@Test
+	fun afterDropOnTheRowAboveLeavesTheRowInPlace() {
+		// Part B dropped just below part A, the row above it: B is lifted out before it lands, so it goes back
+		// ahead of d3 rather than past the end of the root level.
+		val model = model()
+		val drop = assertIs<OutlinerDrop.MoveOrgChild>(model.resolveOutlinerDrop(SelectionTarget.Part(partB), SelectionTarget.Part(partA), 0.9f))
+		assertEquals(model.rootChildren, model.withOrgChildMoved(drop.child, drop.newParentId, drop.before).rootChildren)
+	}
+
+	@Test
 	fun intoPartNestsAndExpands() {
 		val drop =
 			model().resolveOutlinerDrop(SelectionTarget.Drawable(drawable3), SelectionTarget.Part(partB), 0.5f)
@@ -145,6 +155,16 @@ class OutlinerTreeEditsTest {
 			OutlinerDrop.MoveDeformer(warpSibling, warpRoot, beforeId = null, expandTarget = false),
 			model.resolveOutlinerDrop(SelectionTarget.Deformer(warpSibling), SelectionTarget.Deformer(warpNested), 0.9f),
 		)
+	}
+
+	@Test
+	fun deformerAfterDropOnTheRowAboveKeepsSiblingOrder() {
+		// Roots w1, w2, w4: w2 dropped just below w1 stays between w1 and w4.
+		val warpLast = DeformerId("w4")
+		val model = model().let { base -> base.copy(deformers = base.deformers + rotation(warpLast, parent = null)) }
+		val drop = assertIs<OutlinerDrop.MoveDeformer>(model.resolveOutlinerDrop(SelectionTarget.Deformer(warpSibling), SelectionTarget.Deformer(warpRoot), 0.9f))
+		val moved = model.withDeformerMoved(drop.id, drop.newParentId, drop.beforeId)
+		assertEquals(listOf(warpRoot, warpSibling, warpLast), moved.deformers.filter { deformer -> deformer.parent == null }.map { deformer -> deformer.id })
 	}
 
 	@Test

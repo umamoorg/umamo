@@ -7,15 +7,20 @@
 * GPU glue: multi-pair seam vertices (deferred 2026-06-21)
 * Android GLES renderer backend (deferred 2026-06-21)
 
-## WORK STEPS - 2026-09-14
-6.) (Everything required for glue, deformers, and so on.)
-7.) UMA Format - Mostly done, a few final pieces to go through.  I'm leaving it "unfinished" as pre-v1.0 for the format until Umamo 1.0 is ready to release.
+## WORK STEPS - 2026-11-07
+1.) (Everything required for glue, deformers, and so on.)
+2.) UMA Format - Mostly done, a few final pieces to go through.  I'm leaving it "unfinished" as pre-v1.0 for the format until Umamo 1.0 is ready to release.
 
-## 0.5.0 Goals
+## 0.6.0 Goals
 0.) Merge in the existing language translations.(Some were merged.)
-~~1.) Work on the 2D Viewport sidebar that is empty.~~
-2.) Warp Deformer Gizmos and Editing(Rotation deformer is deferred.)
-3.) Glue Gizmos and Editing(Deferred)
+1.) Finish 3D Depth Rotation and Merge
+2.) Fix Platform Bugs - Linux and MacOS
+3.) Proper Bone and Skeleton System
+4.) Rotation Deformer Gizmos and Editing
+
+## 0.7.0 Goals
+5.) Glue Gizmos and Editing - Part of all of this may end up happening with "Proper Bone and Skeleton System" in 0.6.0.
+6.) Modifiers - Generate -> Mirror - This will also seed being able to mirror things along with other potential modifiers.
 
 ## VERY IMPORTANT
 * Hire translators for localization.
@@ -43,8 +48,7 @@
 ## Deformers
 * Generation
 	* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
-* Deformer overlay shows partially transparent with only the outline.
-* Create Warp Deformer on a part should apply to all drawables in that part.
+* Clean up language strings.
 
 ## Artwork Import
 * We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
@@ -218,7 +222,6 @@ See format planning document: docs/plan/uma-format.md
 
 ## Future Feature Wishes
 * Pose Reference - A poseable and adjustable 3D mannequin model for overlay reference.
-* Really good edge detection for auto-mesh.
 * Normal map, emission, metallic, and reflection shaders for texturing.
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
@@ -233,6 +236,15 @@ See format planning document: docs/plan/uma-format.md
 ## MacOS
 * Zoom with the touchpad on my 2014 Macbook Pro is glitchy.  It will jump around and even go the wrong direction.
 * Can't quit from the native menu or CMD+Q.
+* Attempting to open a second file does not open a second application instance and claims that it can't open UMA file types.
+
+## Linux
+* Can't quit with CTRL+Q or ALT+F4.
+* Opening the application with a file argument, with an older 0.4.0 file, results in the application loading, but not showing the damaged file warning.  This is probably the same on other distributions as well.
+
+## CDI3.json
+* Change Drawables to ArtMesh.
+	* https://github.com/Live2D/CubismSpecs/pull/9/changes
 
 ## Input
 
