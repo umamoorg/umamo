@@ -235,6 +235,10 @@ See format planning document: docs/plan/uma-format.md
 * Can't quit from the native menu or CMD+Q.
 * Attempting to open a second file does not open a second application instance and claims that it can't open UMA file types.
 
+## Linux
+* Can't quit with CTRL+Q or ALT+F4.
+* Opening the application with a file argument, with an older 0.4.0 file, results in the application loading, but not showing the damaged file warning.  This is probably the same on other distributions as well.
+
 ## CDI3.json
 * Change Drawables to ArtMesh.
 	* https://github.com/Live2D/CubismSpecs/pull/9/changes
