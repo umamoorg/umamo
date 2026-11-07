@@ -155,7 +155,8 @@ internal fun UmaGroupMode.toRuntime(): PartGroupMode =
 internal fun RuntimeTarget.toUma(): UmaRuntimeTarget =
 	when (this) {
 		RuntimeTarget.NoTarget -> UmaRuntimeTarget.NoTarget
-		RuntimeTarget.Ayagami -> UmaRuntimeTarget.Ayagami
+		RuntimeTarget.Ayagami50 -> UmaRuntimeTarget.Ayagami50
+		RuntimeTarget.Ayagami53 -> UmaRuntimeTarget.Ayagami53
 		RuntimeTarget.Cubism30 -> UmaRuntimeTarget.Cubism30
 		RuntimeTarget.Cubism33 -> UmaRuntimeTarget.Cubism33
 		RuntimeTarget.Cubism40 -> UmaRuntimeTarget.Cubism40
@@ -172,7 +173,8 @@ internal fun RuntimeTarget.toUma(): UmaRuntimeTarget =
 internal fun UmaRuntimeTarget.toRuntime(): RuntimeTarget =
 	when (this) {
 		UmaRuntimeTarget.NoTarget -> RuntimeTarget.NoTarget
-		UmaRuntimeTarget.Ayagami -> RuntimeTarget.Ayagami
+		UmaRuntimeTarget.Ayagami50 -> RuntimeTarget.Ayagami50
+		UmaRuntimeTarget.Ayagami53 -> RuntimeTarget.Ayagami53
 		UmaRuntimeTarget.Cubism30 -> RuntimeTarget.Cubism30
 		UmaRuntimeTarget.Cubism33 -> RuntimeTarget.Cubism33
 		UmaRuntimeTarget.Cubism40 -> RuntimeTarget.Cubism40

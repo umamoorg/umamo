@@ -116,8 +116,11 @@ public enum class UmaRuntimeTarget {
 	@SerialName("noTarget")
 	NoTarget,
 
-	@SerialName("ayagami")
-	Ayagami,
+	@SerialName("ayagami50")
+	Ayagami50,
+
+	@SerialName("ayagami53")
+	Ayagami53,
 
 	@SerialName("cubism30")
 	Cubism30,

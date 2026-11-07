@@ -169,8 +169,8 @@ internal val DisplaySection =
  * step; the restricted list derives from the capability matrix, never a hardcoded per-target list.
  *
  * A CMO3 export persists every target: Cubism targets as their literals, NoTarget as the editor's
- * SDK(N/A)/Latest sentinel, and Ayagami at its effective Cubism level (its identity cannot survive
- * CMO3, so a reopen shows Cubism 5.0; UMA carries the identity natively).
+ * SDK(N/A)/Latest sentinel, and an Ayagami build at its effective Cubism level (its identity cannot
+ * survive CMO3, so a reopen shows the matching Cubism target; UMA carries the identity natively).
  */
 internal val RuntimeSection =
 	PropertySection(
