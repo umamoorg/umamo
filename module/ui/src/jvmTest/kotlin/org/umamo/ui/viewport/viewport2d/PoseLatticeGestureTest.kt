@@ -21,6 +21,7 @@ import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.keyform.captureKeysOnTracks
 import org.umamo.edit.setMeshSelectMode
 import org.umamo.edit.transform.DepthSurface
+import org.umamo.edit.transform.PIVOT_DEPTH_STEP
 import org.umamo.edit.transform.RotationAxis
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.beginMeshOperator
@@ -131,12 +132,12 @@ class PoseLatticeGestureTest {
 			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
 			assertEquals(TransformAxisConstraint.AxisZ, session.axisConstraint.value, "a Pose Rotate locks the axis it turns about")
 
-			// The primary-modifier wheel pushes the pivot away (wheel up), a fixed screen distance per step at the zoom.
+			// The primary-modifier wheel pushes the pivot away (wheel up), one fixed world step per event.
 			onNodeWithTag(gizmoAreaTag(LEFT_AREA)).performKeyInput { keyDown(Key.CtrlLeft) }
 			scrollIn(LEFT_AREA, -1f)
 			onNodeWithTag(gizmoAreaTag(LEFT_AREA)).performKeyInput { keyUp(Key.CtrlLeft) }
 			val pushedDepth = session.pivotDepth.value
-			assertTrue(pushedDepth > 10f, "the wheel pushed the pivot into the screen, to $pushedDepth")
+			assertEquals(10f + PIVOT_DEPTH_STEP, pushedDepth, "one wheel step pushes the pivot one fixed step into the screen")
 			val radiusBefore = session.proportionalSettings.value.radiusWorld
 			scrollIn(LEFT_AREA, -1f)
 			assertEquals(pushedDepth, session.pivotDepth.value, "the plain wheel leaves the depth alone")

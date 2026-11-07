@@ -126,8 +126,12 @@ internal class ModalTransformController(
 				}
 			}
 
+			// A scroll this controller already consumed is the same event delivered again, and acting on it twice
+			// would double a wheel step.
 			PointerEventType.Scroll -> {
-				target.onScroll(change.scrollDelta.y, event.keyboardModifiers.holdsPrimary(), camera, size)
+				if (!change.isConsumed) {
+					target.onScroll(change.scrollDelta.y, event.keyboardModifiers.holdsPrimary(), camera, size)
+				}
 			}
 
 			else -> {}

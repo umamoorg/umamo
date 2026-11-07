@@ -42,8 +42,7 @@ enum class TransformPivotMode {
  * The axis a modal Grab / Scale is locked to, toggled by pressing X or Z during the gesture (Blender's
  * axis constraint).  Named by the DISPLAYED axes: the project presents the 2D plane as X (horizontal)
  * and Z (vertical, world +y) per the Y+ forward, Z+ up convention, so AxisZ constrains the position
- * arrays' y coordinates.  A Rotate that rotates in depth (a Pose-mode Rotate) reads the lock as the axis
- * it turns about, as Blender's R Z does; every other Rotate has only the view axis and never locks.
+ * arrays' y coordinates.
  */
 enum class TransformAxisConstraint {
 	AxisX,

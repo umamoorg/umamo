@@ -126,6 +126,27 @@ class DepthRotationTest {
 		assertEquals(MeshTransforms.rotateVertices(positions, setOf(0, 1), 0.9f, 1f, 1f).toList(), turned.toList())
 	}
 
+	/** A wheel step moves one fixed step whatever the scroll's size, and lands on the step grid so 0 stays reachable. */
+	@Test
+	fun aWheelStepLandsOnTheNextGridStep() {
+		assertEquals(PIVOT_DEPTH_STEP, pivotDepthSteppedFrom(0f, -1f), "wheel up pushes one step away")
+		assertEquals(-PIVOT_DEPTH_STEP, pivotDepthSteppedFrom(0f, 1f), "wheel down pulls one step toward the viewer")
+		assertEquals(pivotDepthSteppedFrom(10f, -0.1f), pivotDepthSteppedFrom(10f, -3f), "only the sign is read")
+		assertEquals(10f, pivotDepthSteppedFrom(10f, 0f), "a zero scroll leaves the depth")
+
+		// A depth typed off the grid steps onto it, so stepping down always reaches 0.
+		assertEquals(15f, pivotDepthSteppedFrom(12f, -1f))
+		assertEquals(10f, pivotDepthSteppedFrom(12f, 1f))
+		var depth = 12f
+
+		repeat(3) {
+			depth = pivotDepthSteppedFrom(depth, 1f)
+		}
+
+		assertEquals(0f, depth, "12 steps down through 10 and 5 to 0")
+		assertEquals(0f, pivotDepthSteppedFrom(-3f, -1f), "and a pulled pivot steps up to 0")
+	}
+
 	/** The stored keys read back to their values, and an unknown key to the defaults. */
 	@Test
 	fun theChoiceKeysRoundTrip() {

@@ -1,5 +1,7 @@
 package org.umamo.edit.transform
 
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.sign
 import kotlin.math.sqrt
 
@@ -65,3 +67,26 @@ fun depthOffsetOf(offsetX: Float, offsetY: Float, pivotDepth: Float, surface: De
 			if (rimSquared > 0f) -pivotDepth.sign * sqrt(rimSquared) else 0f
 		}
 	}
+
+/** How far one wheel step pushes a depth rotation's pivot along world Y, in world px, whatever the zoom. */
+const val PIVOT_DEPTH_STEP = 5f
+
+/**
+ * The pivot depth one wheel step moves [pivotDepth] to: the next multiple of [PIVOT_DEPTH_STEP] away from the viewer for
+ * wheel up, toward the viewer for wheel down.  A depth typed off the step grid lands back on it, so stepping can always
+ * return to 0.
+ *
+ * @param Float pivotDepth The pivot's depth along world Y, in world px.
+ * @param Float steps The direction; only its sign is read (negative is wheel up), and the caller gathers a scroll into
+ *   whole notches.
+ * @return Float The stepped depth; [pivotDepth] unchanged for a zero scroll.
+ */
+fun pivotDepthSteppedFrom(pivotDepth: Float, steps: Float): Float {
+	val gridIndex = pivotDepth / PIVOT_DEPTH_STEP
+
+	return when {
+		steps < 0f -> (floor(gridIndex) + 1f) * PIVOT_DEPTH_STEP
+		steps > 0f -> (ceil(gridIndex) - 1f) * PIVOT_DEPTH_STEP
+		else -> pivotDepth
+	}
+}

@@ -16,6 +16,7 @@ import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.buildModalTransformCapture
+import org.umamo.edit.transform.pivotDepthSteppedFrom
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ElementOwner
@@ -33,10 +34,8 @@ import org.umamo.ui.viewport.gizmo.ModalTransformTarget
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.activeElementMedian
 import org.umamo.ui.viewport.gizmo.gestureParameters
+import kotlin.math.abs
 import kotlin.math.pow
-
-// How far one wheel step pushes a depth rotation's pivot along Y, in screen px at the current zoom.
-private const val PIVOT_DEPTH_STEP_PX = 16f
 
 /**
  * The captured state of an in-flight Edit- or Pose-mode transform: the shared [ModalTransformCapture] alongside
@@ -96,6 +95,10 @@ internal class EditModalTransform(
 	// drawn reads it, and every reader checks the capture first, so a landing left from an earlier slide is
 	// never read.
 	private var slideLanding: SlideLanding? = null
+
+	// The primary-modifier wheel's travel toward the next depth step: a notch can arrive split across events, and a
+	// trackpad or high-resolution wheel sends fractions, so the travel gathers here and each whole notch steps once.
+	private var pendingDepthSteps = 0f
 
 	// The request the published preview answers: the confirm names the vertices it moved, which a radius
 	// or falloff change since may have changed on the capture itself.
@@ -190,6 +193,7 @@ internal class EditModalTransform(
 
 		gesture.begin(EditGesture(transform, geometryByOwner, slide, stage), gesture.lastPointer)
 		slideLanding = null
+		pendingDepthSteps = 0f
 		publishedRequest = null
 		publishedResult = null
 
@@ -351,8 +355,8 @@ internal class EditModalTransform(
 	 * The wheel resizes the proportional influence radius mid-gesture (Blender's behavior): geometric
 	 * steps and weights re-derived from the frozen originals at once, on the UI thread, and a drive
 	 * submitted so the mesh responds without a pointer move.  With the primary modifier held during a Rotate
-	 * rotating in depth about a locked axis, it pushes the pivot along Y instead - wheel up away from the viewer,
-	 * a fixed screen distance per step at the current zoom - and re-drives the same way.
+	 * rotating in depth about a locked axis, it pushes the pivot along Y instead - wheel up away from the viewer, one
+	 * fixed world step per whole notch ([pivotDepthSteppedFrom]) - and re-drives the same way.
 	 *
 	 * @param Float steps The scroll in wheel steps; negative (wheel up) grows the radius.
 	 * @param Boolean primaryHeld True while the primary modifier is held.
@@ -365,8 +369,18 @@ internal class EditModalTransform(
 		val gestureData = gesture.capture
 
 		if (primaryHeld && session.meshOperatorRotatesInDepth(operator.kind) && session.axisConstraint.value != null) {
-			if (steps != 0f && gestureData != null && camera.zoom > 0f) {
-				session.setPivotDepth(session.pivotDepth.value - steps * PIVOT_DEPTH_STEP_PX / camera.zoom)
+			pendingDepthSteps += steps
+			val wholeSteps = pendingDepthSteps.toInt()
+
+			if (wholeSteps != 0 && gestureData != null) {
+				pendingDepthSteps -= wholeSteps
+				var depth = session.pivotDepth.value
+
+				repeat(abs(wholeSteps)) {
+					depth = pivotDepthSteppedFrom(depth, wholeSteps.toFloat())
+				}
+
+				session.setPivotDepth(depth)
 				submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
 			}
 
