@@ -13,14 +13,15 @@ import org.umamo.runtime.model.RuntimeTarget
 
 /**
  * The moc version a MOC3 export of this target bakes: the matching version for a Cubism target,
- * the latest for NoTarget (nothing restricted), and V50 for Ayagami (its effective level).
+ * the latest for NoTarget (nothing restricted), and an Ayagami build's effective Cubism level.
  *
  * @return MocVersion The bake target.
  */
 fun RuntimeTarget.mocVersion(): MocVersion =
 	when (this) {
 		RuntimeTarget.NoTarget -> MocVersion.V53
-		RuntimeTarget.Ayagami -> MocVersion.V50
+		RuntimeTarget.Ayagami50 -> MocVersion.V50
+		RuntimeTarget.Ayagami53 -> MocVersion.V53
 		RuntimeTarget.Cubism30 -> MocVersion.V30
 		RuntimeTarget.Cubism33 -> MocVersion.V33
 		RuntimeTarget.Cubism40 -> MocVersion.V40
@@ -33,7 +34,8 @@ fun RuntimeTarget.mocVersion(): MocVersion =
  * The CMO3 target version this target persists as, or null for NoTarget - a target-less document
  * has no target VERSION and persists through the latest sentinel instead (see
  * [cmo3TargetVersionNo]).  Ayagami has no CMO3 encoding of its own, so a CMO3 round trip keeps
- * its gating level but not its identity (a reopen shows Cubism 5.0); UMA carries the identity.
+ * an Ayagami build's gating level but not its identity (a reopen shows the matching Cubism
+ * target); UMA carries the identity.
  *
  * @return Cmo3TargetVersion? The CMO3-side version, or null for NoTarget.
  */
@@ -41,8 +43,10 @@ fun RuntimeTarget.cmo3TargetVersion(): Cmo3TargetVersion? =
 	when (this) {
 		RuntimeTarget.NoTarget -> null
 
-		// Ayagami writes its effective Cubism level, in lockstep with cubismLevel and mocVersion.
-		RuntimeTarget.Ayagami -> Cmo3TargetVersion.V50
+		// An Ayagami build writes its effective Cubism level, in lockstep with cubismLevel and mocVersion.
+		RuntimeTarget.Ayagami50 -> Cmo3TargetVersion.V50
+
+		RuntimeTarget.Ayagami53 -> Cmo3TargetVersion.V53
 
 		RuntimeTarget.Cubism30 -> Cmo3TargetVersion.V30
 

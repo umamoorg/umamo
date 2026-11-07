@@ -10,15 +10,15 @@ package org.umamo.runtime.model
  * version and drives the feature-strip confirmation.  This mirrors the official editor's own
  * "Model target version selection" behavior, which likewise keeps out-of-target data in the file.
  *
- * Ayagami is a third-party runtime (not an Umamo project) that is effectively Cubism 5.0
- * compatible at present per its maintainer; it has its own entry, rather than aliasing Cubism50,
- * so its capabilities can advance independently of the Cubism ladder.
+ * Ayagami is a third-party runtime (not an Umamo project) that ships two builds, one Cubism 5.0
+ * (moc v5) compatible and one Cubism 5.3 (moc v6) compatible; each build has its own entry, rather
+ * than aliasing a Cubism one, so its capabilities can advance independently of the Cubism ladder.
  */
 enum class RuntimeTarget(
 	/**
 	 * The verbatim product name shown in the target dropdown.  Cubism entries display this
-	 * directly; NoTarget's phrasing and Ayagami's equivalence parenthetical are chrome, so those
-	 * two resolve through the string catalog instead - with the name "Ayagami" itself kept
+	 * directly; NoTarget's phrasing and the Ayagami entries' equivalence parenthetical are chrome,
+	 * so those resolve through the string catalog instead - with the name "Ayagami" itself kept
 	 * verbatim inside the localized string, and its level fed from [cubismLevelText] so the label
 	 * can never drift from the gating level.
 	 */
@@ -32,8 +32,11 @@ enum class RuntimeTarget(
 	/** No restriction - every feature Umamo models is authorable. */
 	NoTarget("No Target", null),
 
-	/** The Ayagami third-party runtime - effectively Cubism 5.0 at present (see the class docblock). */
-	Ayagami("Ayagami", 50),
+	/** The Ayagami third-party runtime's Cubism 5.0 build (see the class docblock). */
+	Ayagami50("Ayagami 5.0", 50),
+
+	/** The Ayagami third-party runtime's Cubism 5.3 build (see the class docblock). */
+	Ayagami53("Ayagami 5.3", 53),
 
 	Cubism30("Cubism 3.0", 30),
 	Cubism33("Cubism 3.3", 33),

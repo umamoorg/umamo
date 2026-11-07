@@ -219,7 +219,6 @@ See format planning document: docs/plan/uma-format.md
 
 ## Future Feature Wishes
 * Pose Reference - A poseable and adjustable 3D mannequin model for overlay reference.
-* Really good edge detection for auto-mesh.
 * Normal map, emission, metallic, and reflection shaders for texturing.
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
@@ -234,6 +233,18 @@ See format planning document: docs/plan/uma-format.md
 ## MacOS
 * Zoom with the touchpad on my 2014 Macbook Pro is glitchy.  It will jump around and even go the wrong direction.
 * Can't quit from the native menu or CMD+Q.
+* Attempting to open a second file does not open a second application instance and claims that it can't open UMA file types.
+
+## Language Strings
+Update to these standards when referring to files, documents, and puppet:
+* File (Any file)
+* Artwork/Layered Artwork (When referring to a PSD, CLIP, or KRA)
+* Puppet (Any UMA, CMO3, or MOC3)
+* *EXT* (Refer to a specific file type extension, UMA/PSD/CMO3, when talking about that specific file type.)
+
+## CDI3.json
+* Change Drawables to ArtMesh.
+	* https://github.com/Live2D/CubismSpecs/pull/9/changes
 
 ## Input
 
