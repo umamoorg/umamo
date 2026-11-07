@@ -86,16 +86,16 @@ class SessionStateJsonTest {
 		assertEquals(saved, reopened)
 	}
 
-	/** The depth turn's block names each member away from its default, and a pulled pivot reads back negative. */
+	/** The depth rotation's block names each member away from its default, and a pulled pivot reads back negative. */
 	@Test
-	fun theDepthTurnBlockWritesOnlyItsDeviations() {
-		val depthOnly = sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)["depthTurn"] as JsonObject
+	fun theDepthRotationBlockWritesOnlyItsDeviations() {
+		val depthOnly = sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)["depthRotation"] as JsonObject
 
 		assertEquals(-40f, depthOnly["depth"]?.jsonPrimitive?.content?.toFloat())
 		assertTrue(depthOnly["surface"] is JsonNull, "a Flat surface writes nothing")
 		assertEquals(SessionViewState(pivotDepth = -40f), sessionViewStateOf(sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)))
 
-		val surfaceOnly = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Rounded), defaultPose, model)["depthTurn"] as JsonObject
+		val surfaceOnly = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Rounded), defaultPose, model)["depthRotation"] as JsonObject
 		assertEquals("rounded", surfaceOnly["surface"]?.jsonPrimitive?.content)
 		assertTrue(surfaceOnly["depth"] is JsonNull, "a depth of 0 writes nothing")
 	}

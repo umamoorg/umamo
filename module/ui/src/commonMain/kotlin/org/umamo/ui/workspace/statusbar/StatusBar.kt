@@ -175,7 +175,7 @@ private fun ContextBindsZone() {
 	val axisConstraint = session?.axisConstraint?.collectAsState()?.value
 	val operatorActive = meshOperator != null || objectOperator != null || uvOperator != null
 	// The latch publishes its depth flag before the operator, so composing on the operator reads it settled.
-	val turnsInDepth = session != null && meshOperator != null && session.meshOperatorTurnsInDepth(meshOperator.kind)
+	val rotatesInDepth = session != null && meshOperator != null && session.meshOperatorRotatesInDepth(meshOperator.kind)
 	// The table is a plain map, so the revision is what re-reads it: a document swap lands its commands
 	// from effects AFTER the composition the swap caused, and only the bump brings this zone back.
 	val registered = remember(commands.revision) { commands.all() }
@@ -189,11 +189,11 @@ private fun ContextBindsZone() {
 				add(stringResource(Res.string.status_bind_confirm))
 				add(stringResource(Res.string.status_bind_cancel))
 
-				if (turnsInDepth) {
-					add(stringResource(Res.string.status_bind_depth_turn))
+				if (rotatesInDepth) {
+					add(stringResource(Res.string.status_bind_depth_rotation))
 				}
 
-				if (turnsInDepth && axisConstraint != null) {
+				if (rotatesInDepth && axisConstraint != null) {
 					add(stringResource(Res.string.status_bind_depth_push, primaryModifierLabel()))
 				}
 			}

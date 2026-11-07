@@ -187,7 +187,7 @@ object MeshTransforms {
 
 	/**
 	 * Turns the selected vertices about the pivot ([pivotX], [pivotY]) by [radians] about [axis], in depth (see
-	 * DepthTurn.kt): each point is lifted to its depth under [surface], rotated in 3D about the pivot sitting at
+	 * DepthRotation.kt): each point is lifted to its depth under [surface], rotated in 3D about the pivot sitting at
 	 * [pivotDepth], and dropped back onto the plane.  A turn about Z (positive turns the front toward +x) moves only x,
 	 * one about X (positive tilts the front toward -y) only y, and Flat is exact and affine - a squash by the cosine and
 	 * a slide of the depth times the sine.  [RotationAxis.Y] is the in-plane turn, exactly [rotateVertices].
@@ -202,7 +202,7 @@ object MeshTransforms {
 	 * @param Float pivotY The pivot y.
 	 * @return FloatArray A new positions array with the selected vertices turned.
 	 */
-	fun turnVerticesInDepth(
+	fun rotateVerticesInDepth(
 		positions: FloatArray,
 		indices: Set<Int>,
 		axis: RotationAxis,
@@ -221,7 +221,7 @@ object MeshTransforms {
 		val sinAngle = sin(radians)
 
 		for (vertexIndex in indices) {
-			turnVertexInDepth(result, vertexIndex, axis, cosAngle, sinAngle, pivotDepth, surface, pivotX, pivotY)
+			rotateVertexInDepth(result, vertexIndex, axis, cosAngle, sinAngle, pivotDepth, surface, pivotX, pivotY)
 		}
 
 		return result
@@ -229,7 +229,7 @@ object MeshTransforms {
 
 	/**
 	 * Turns the influenced vertices in depth by their share of [radians], each about its own influence's pivot - the
-	 * proportional-editing companion of [turnVerticesInDepth], weighting the ANGLE as [rotateVerticesWeighted] does, with
+	 * proportional-editing companion of [rotateVerticesInDepth], weighting the ANGLE as [rotateVerticesWeighted] does, with
 	 * the same pivot depth and surface for every vertex.
 	 *
 	 * @param FloatArray positions The interleaved mesh positions.
@@ -240,7 +240,7 @@ object MeshTransforms {
 	 * @param DepthSurface surface How deep the points sit before the turn.
 	 * @return FloatArray A new positions array with the influenced vertices turned.
 	 */
-	fun turnVerticesInDepthWeighted(
+	fun rotateVerticesInDepthWeighted(
 		positions: FloatArray,
 		influences: Map<Int, ProportionalInfluence>,
 		axis: RotationAxis,
@@ -256,14 +256,14 @@ object MeshTransforms {
 
 		for ((vertexIndex, influence) in influences) {
 			val weightedRadians = radians * influence.weight
-			turnVertexInDepth(result, vertexIndex, axis, cos(weightedRadians), sin(weightedRadians), pivotDepth, surface, influence.pivotX, influence.pivotY)
+			rotateVertexInDepth(result, vertexIndex, axis, cos(weightedRadians), sin(weightedRadians), pivotDepth, surface, influence.pivotX, influence.pivotY)
 		}
 
 		return result
 	}
 
 	/**
-	 * Turns one vertex of [positions] in place about X or Z: the turn [turnVerticesInDepth] and its weighted companion
+	 * Turns one vertex of [positions] in place about X or Z: the turn [rotateVerticesInDepth] and its weighted companion
 	 * share, given the angle's cosine and sine.
 	 *
 	 * @param FloatArray positions The interleaved positions, written in place.
@@ -276,7 +276,7 @@ object MeshTransforms {
 	 * @param Float pivotX The pivot x.
 	 * @param Float pivotY The pivot y.
 	 */
-	private fun turnVertexInDepth(
+	private fun rotateVertexInDepth(
 		positions: FloatArray,
 		vertexIndex: Int,
 		axis: RotationAxis,

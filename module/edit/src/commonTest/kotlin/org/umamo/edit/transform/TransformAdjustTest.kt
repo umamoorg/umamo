@@ -68,13 +68,13 @@ class TransformAdjustTest {
 	}
 
 	@Test
-	fun aDepthTurningRotateAddsItsAxisDepthAndSurfaceRowsAndRoundTrips() {
+	fun aDepthRotationAddsItsAxisDepthAndSurfaceRowsAndRoundTrips() {
 		val gesture = TransformGestureParameters(0f, 0f, 1f, 1f, 0.5f, RotationAxis.Z, 140f, DepthSurface.Rounded)
 
 		val plain = transformParameters(MeshOperatorKind.Rotate, gesture, TransformRowSpace.World, proportional = null)
-		assertEquals(listOf(TransformParameterKeys.ANGLE), plain.map { row -> row.key }, "a Rotate that cannot turn in depth shows its angle alone")
+		assertEquals(listOf(TransformParameterKeys.ANGLE), plain.map { row -> row.key }, "a Rotate that cannot rotate in depth shows its angle alone")
 
-		val rows = transformParameters(MeshOperatorKind.Rotate, gesture, TransformRowSpace.World, proportional = null, turnsInDepth = true)
+		val rows = transformParameters(MeshOperatorKind.Rotate, gesture, TransformRowSpace.World, proportional = null, rotatesInDepth = true)
 		assertEquals(
 			listOf(TransformParameterKeys.ANGLE, TransformParameterKeys.AXIS, TransformParameterKeys.PIVOT_DEPTH, TransformParameterKeys.DEPTH_SURFACE),
 			rows.map { row -> row.key },
@@ -85,7 +85,7 @@ class TransformAdjustTest {
 		assertEquals(RotationAxis.Z, back.rotationAxis)
 		assertEquals(140f, back.pivotDepth)
 		assertEquals(DepthSurface.Rounded, back.depthSurface)
-		assertTrue(back.turnsInDepth)
+		assertTrue(back.rotatesInDepth)
 
 		// Choosing the axis on the strip turns an in-plane Rotate in depth after the fact.
 		val axisRow = rows.first { row -> row.key == TransformParameterKeys.AXIS } as OperatorParameter.ChoiceParameter

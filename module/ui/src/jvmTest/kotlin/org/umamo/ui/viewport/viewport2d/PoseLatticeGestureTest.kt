@@ -116,7 +116,7 @@ class PoseLatticeGestureTest {
 	): FloatArray = assertNotNull(warpLatticeAt(session.model.value, session.pose.value, deformerId, session.pendingLatticeEdits.value)).world
 
 	@Test
-	fun aZLockedRotateTurnsTheLatticeInDepthAndTheStripRoundsIt() =
+	fun aZLockedDepthRotationLandsAndTheStripRoundsIt() =
 		runComposeUiTest {
 			val fixture = mountGizmoOverlays(poseSession(points = setOf(0, 1, 2, 3), active = 3))
 			val session = fixture.session

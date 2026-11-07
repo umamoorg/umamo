@@ -32,8 +32,8 @@ import kotlin.math.PI
  * frame; after the commit the operation settings strip shows it as rows and builds one back from them,
  * so the same transform runs from a pointer or a typed value.
  *
- * A Rotate also names its axis: Y, the view axis, is the in-plane turn, and X or Z turn the art in depth about the
- * pivot pushed to [pivotDepth], over [depthSurface] (see DepthTurn.kt).  The depth and surface are read only by a
+ * A Rotate also names its axis: Y, the view axis, is the in-plane turn, and X or Z rotate the art in depth about the
+ * pivot pushed to [pivotDepth], over [depthSurface] (see DepthRotation.kt).  The depth and surface are read only by a
  * turn about X or Z.
  *
  * @property Float        deltaX          The Grab translation's x (identity 0 for the other operators).
@@ -56,8 +56,8 @@ class TransformGestureParameters(
 	val pivotDepth: Float = 0f,
 	val depthSurface: DepthSurface = DepthSurface.Flat,
 ) {
-	/** True when this is a Rotate about X or Z - a turn in depth rather than in the plane. */
-	val turnsInDepth: Boolean
+	/** True when this is a Rotate about X or Z - a rotate in depth rather than in the plane. */
+	val rotatesInDepth: Boolean
 		get() = rotationAxis != RotationAxis.Y
 
 	companion object {
@@ -101,7 +101,7 @@ object TransformParameterKeys {
 	val PROPORTIONAL_ROWS: Set<String> = setOf(PROPORTIONAL, FALLOFF, PROPORTIONAL_SIZE, CONNECTED_ONLY)
 
 	/**
-	 * The depth rows a depth-turning Rotate's strip writes back: the pivot's depth and the surface stick for the next
+	 * The depth rows a depth rotation's strip writes back: the pivot's depth and the surface stick for the next
 	 * turn, as the proportional rows do; the Axis row is the one gesture's own.
 	 */
 	val DEPTH_ROWS: Set<String> = setOf(PIVOT_DEPTH, DEPTH_SURFACE)
@@ -196,7 +196,7 @@ class ProportionalRows(
 /**
  * The strip's rows for a Grab / Rotate / Scale that landed with [parameters]: the move's two
  * components, the angle in degrees, or the two factors, followed by the proportional rows when the
- * gesture could take weights.  A Rotate that could turn in depth adds its Axis, Depth, and Surface rows after
+ * gesture could take weights.  A Rotate that could rotate in depth adds its Axis, Depth, and Surface rows after
  * the angle, whichever axis it landed about, so a turn can be added after the fact as the halo can.  A Vertex
  * Slide has no rows here (see [slideParameters]).
  *
@@ -205,7 +205,7 @@ class ProportionalRows(
  * @param TransformRowSpace          space        The space the rows read in.
  * @param ProportionalRows?          proportional The proportional rows, or null when the gesture took no
  *   weights (Object mode, a suppressed auto-grab).
- * @param Boolean                    turnsInDepth True when the gesture could turn in depth (a Pose-mode Rotate);
+ * @param Boolean                    rotatesInDepth True when the gesture could rotate in depth (a Pose-mode Rotate);
  *   read only for a Rotate.
  * @return List The rows, empty for an operator that has none.
  */
@@ -214,7 +214,7 @@ fun transformParameters(
 	parameters: TransformGestureParameters,
 	space: TransformRowSpace,
 	proportional: ProportionalRows?,
-	turnsInDepth: Boolean = false,
+	rotatesInDepth: Boolean = false,
 ): List<OperatorParameter> {
 	val rows = ArrayList<OperatorParameter>()
 
@@ -236,8 +236,8 @@ fun transformParameters(
 				),
 			)
 
-			if (turnsInDepth) {
-				rows.addAll(depthTurnParameters(parameters))
+			if (rotatesInDepth) {
+				rows.addAll(depthRotationParameters(parameters))
 			}
 		}
 
@@ -384,8 +384,8 @@ fun rotationAxisOf(key: String): RotationAxis = RotationAxis.entries.firstOrNull
  */
 fun depthSurfaceOf(key: String): DepthSurface = DepthSurface.entries.firstOrNull { surface -> surface.choiceKey == key } ?: DepthSurface.Flat
 
-/** A depth-turning Rotate's rows: the axis it turned about, the pivot's depth, and the surface. */
-private fun depthTurnParameters(parameters: TransformGestureParameters): List<OperatorParameter> =
+/** A depth rotation's rows: the axis it turned about, the pivot's depth, and the surface. */
+private fun depthRotationParameters(parameters: TransformGestureParameters): List<OperatorParameter> =
 	listOf(
 		OperatorParameter.ChoiceParameter(
 			TransformParameterKeys.AXIS,

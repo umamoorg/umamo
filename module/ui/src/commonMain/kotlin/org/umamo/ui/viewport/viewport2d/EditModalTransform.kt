@@ -35,7 +35,7 @@ import org.umamo.ui.viewport.gizmo.activeElementMedian
 import org.umamo.ui.viewport.gizmo.gestureParameters
 import kotlin.math.pow
 
-// How far one wheel step pushes a depth turn's pivot along Y, in screen px at the current zoom.
+// How far one wheel step pushes a depth rotation's pivot along Y, in screen px at the current zoom.
 private const val PIVOT_DEPTH_STEP_PX = 16f
 
 /**
@@ -335,7 +335,7 @@ internal class EditModalTransform(
 				gestureData.stage,
 				parameters,
 				proportional,
-				turnsInDepth = session.meshOperatorTurnsInDepth(transform.operatorKind),
+				rotatesInDepth = session.meshOperatorRotatesInDepth(transform.operatorKind),
 			) { _, state ->
 				session.setProportionalEdit(state)
 			}
@@ -351,7 +351,7 @@ internal class EditModalTransform(
 	 * The wheel resizes the proportional influence radius mid-gesture (Blender's behavior): geometric
 	 * steps and weights re-derived from the frozen originals at once, on the UI thread, and a drive
 	 * submitted so the mesh responds without a pointer move.  With the primary modifier held during a Rotate
-	 * turning in depth about a locked axis, it pushes the pivot along Y instead - wheel up away from the viewer,
+	 * rotating in depth about a locked axis, it pushes the pivot along Y instead - wheel up away from the viewer,
 	 * a fixed screen distance per step at the current zoom - and re-drives the same way.
 	 *
 	 * @param Float steps The scroll in wheel steps; negative (wheel up) grows the radius.
@@ -364,7 +364,7 @@ internal class EditModalTransform(
 		val proportional = session.proportionalEdit.value
 		val gestureData = gesture.capture
 
-		if (primaryHeld && session.meshOperatorTurnsInDepth(operator.kind) && session.axisConstraint.value != null) {
+		if (primaryHeld && session.meshOperatorRotatesInDepth(operator.kind) && session.axisConstraint.value != null) {
 			if (steps != 0f && gestureData != null && camera.zoom > 0f) {
 				session.setPivotDepth(session.pivotDepth.value - steps * PIVOT_DEPTH_STEP_PX / camera.zoom)
 				submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)

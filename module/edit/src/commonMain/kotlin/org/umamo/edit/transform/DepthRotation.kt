@@ -4,7 +4,7 @@ import kotlin.math.sign
 import kotlin.math.sqrt
 
 /*
- * The depth turn: a modal Rotate about the world X or Z axis instead of the view axis Y.  The art lives in the X/Z
+ * The depth rotation: a modal Rotate about the world X or Z axis instead of the view axis Y.  The art lives in the X/Z
  * plane, so the turn lifts each point into 3D at a depth, rotates it about the pivot, and drops the depth again -
  * nothing ever stores a Y.  The position arrays' second component is world Z (up), as everywhere in the 2D viewport;
  * depth is world Y, positive into the screen.  The pivot can sit at a depth of its own (pushed along Y), and the
@@ -14,7 +14,7 @@ import kotlin.math.sqrt
 
 /**
  * The axis a modal Rotate turns about.  Y is the view axis - the ordinary in-plane rotation every R starts with -
- * and X and Z are the world axes in the art's plane, which turn the art in depth (see [MeshTransforms.turnVerticesInDepth]).
+ * and X and Z are the world axes in the art's plane, which rotate the art in depth (see [MeshTransforms.rotateVerticesInDepth]).
  * The operation strip's Axis row keys an axis by its [choiceKey].
  */
 enum class RotationAxis {
@@ -24,7 +24,7 @@ enum class RotationAxis {
 }
 
 /**
- * How deep each point sits before a depth turn.  Flat keeps the art a plane, so the turn squashes it and slides it by
+ * How deep each point sits before a depth rotation.  Flat keeps the art a plane, so the turn squashes it and slides it by
  * the pivot's depth; Rounded lays it over a sphere around the pivot, whose radius is the pivot's depth, so its middle
  * moves furthest - the look of a head turning.  The two agree at depth 0.
  */
@@ -42,7 +42,7 @@ val DepthSurface.choiceKey: String
 	get() = name.replaceFirstChar { first -> first.lowercaseChar() }
 
 /**
- * The depth offset of one point from the pivot before a depth turn, along world Y (positive into the screen): Flat
+ * The depth offset of one point from the pivot before a depth rotation, along world Y (positive into the screen): Flat
  * puts every point on the art's plane, [pivotDepth] in front of the pivot; Rounded puts it on the sphere of radius
  * |[pivotDepth]| around the pivot, on the viewer's side for a pivot pushed away (a negative depth mirrors it), and a
  * point past the sphere's rim on the pivot's own plane.

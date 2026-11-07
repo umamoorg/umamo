@@ -18,11 +18,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 
 /**
- * Pins the depth turn's gesture side: a locked Rotate frame resolves to a turn about the locked axis by the pointer's
+ * Pins the depth rotation's gesture side: a locked Rotate frame resolves to a turn about the locked axis by the pointer's
  * travel (a quarter turn per half the area's shorter side), with the frame's pivot depth and surface; the in-plane
- * accumulator keeps advancing under a lock; and [applyOperator] runs the depth turn per pivot group and halo.
+ * accumulator keeps advancing under a lock; and [applyOperator] runs the depth rotation per pivot group and halo.
  */
-class DepthTurnGestureTest {
+class DepthRotationGestureTest {
 	private val camera = ViewportCamera(0f, 0f, 2f)
 	private val size = IntSize(800, 400)
 
@@ -71,15 +71,15 @@ class DepthTurnGestureTest {
 	}
 
 	@Test
-	fun applyOperatorTurnsEachGroupAndTheHaloInDepth() {
+	fun applyOperatorRotatesEachGroupAndTheHaloInDepth() {
 		val points = floatArrayOf(10f, 0f, 30f, 5f, 60f, -20f)
 		val group = TransformPivotGroup(setOf(0, 1), 20f, 0f)
 		val influences = mapOf(2 to ProportionalInfluence(0.5f, 20f, 0f))
 		val parameters = TransformGestureParameters(0f, 0f, 1f, 1f, 0.6f, RotationAxis.Z, 45f, DepthSurface.Rounded)
 
 		val applied = applyOperator(MeshOperatorKind.Rotate, points, listOf(group), parameters, influences)
-		val grouped = MeshTransforms.turnVerticesInDepth(points, setOf(0, 1), RotationAxis.Z, 0.6f, 45f, DepthSurface.Rounded, 20f, 0f)
-		val expected = MeshTransforms.turnVerticesInDepthWeighted(grouped, influences, RotationAxis.Z, 0.6f, 45f, DepthSurface.Rounded)
+		val grouped = MeshTransforms.rotateVerticesInDepth(points, setOf(0, 1), RotationAxis.Z, 0.6f, 45f, DepthSurface.Rounded, 20f, 0f)
+		val expected = MeshTransforms.rotateVerticesInDepthWeighted(grouped, influences, RotationAxis.Z, 0.6f, 45f, DepthSurface.Rounded)
 
 		assertEquals(expected.toList(), applied.toList())
 	}

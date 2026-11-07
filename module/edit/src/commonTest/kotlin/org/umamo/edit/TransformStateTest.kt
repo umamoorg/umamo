@@ -111,14 +111,14 @@ class TransformStateTest {
 		assertNull(session.axisConstraint.value, "Rotate refuses the lock")
 	}
 
-	/** A Pose-mode Rotate turns in depth: X and Z lock the axis it turns about, and the flag clears with the latch. */
+	/** A Pose-mode Rotate rotates in depth: X and Z lock the axis it turns about, and the flag clears with the latch. */
 	@Test
-	fun aPoseRotateLocksTheAxisItTurnsAbout() {
+	fun aPoseRotateLocksTheAxisItRotatesAbout() {
 		val session = PoseLatticeTestRig.posing(listOf(SelectionTarget.Deformer(PoseLatticeTestRig.cage)))
 		session.selectAllMeshElements()
 
 		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
-		assertTrue(session.meshOperatorTurnsInDepth(MeshOperatorKind.Rotate), "a Pose Rotate turns in depth")
+		assertTrue(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate), "a Pose Rotate rotates in depth")
 		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
 		assertEquals(TransformAxisConstraint.AxisZ, session.axisConstraint.value)
 		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
@@ -129,10 +129,10 @@ class TransformStateTest {
 		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
 		session.clearMeshOperator()
 		assertNull(session.axisConstraint.value, "clearing the operator clears the lock")
-		assertFalse(session.activeMeshOperatorTurnsInDepth, "and the depth flag")
+		assertFalse(session.activeMeshOperatorRotatesInDepth, "and the depth flag")
 
 		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test")
-		assertFalse(session.meshOperatorTurnsInDepth(MeshOperatorKind.Rotate), "a Grab latch never turns in depth")
+		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate), "a Grab latch never rotates in depth")
 	}
 
 	/** An Edit-mode Rotate keeps only the view axis: X and Z stay no-ops. */
@@ -143,14 +143,14 @@ class TransformStateTest {
 		session.setMeshSelection(MeshSelectionOps.add(session.meshSelection.value, DrawableId("d"), MeshElement.Vertex(0)))
 
 		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
-		assertFalse(session.meshOperatorTurnsInDepth(MeshOperatorKind.Rotate))
+		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate))
 		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
 		assertNull(session.axisConstraint.value, "the Edit Rotate refuses the lock")
 	}
 
-	/** The depth turn's pivot depth and surface stick, clamp, gather into the view state, and seed back from it. */
+	/** The depth rotation's pivot depth and surface stick, clamp, gather into the view state, and seed back from it. */
 	@Test
-	fun theDepthTurnSettingsStick() {
+	fun theDepthRotationSettingsStick() {
 		val session = meshedSession()
 		assertEquals(0f, session.pivotDepth.value, "the pivot starts on the art")
 		assertEquals(DepthSurface.Flat, session.depthSurface.value)

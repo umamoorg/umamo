@@ -33,12 +33,12 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 
 	private val mutablePivotDepth = MutableStateFlow(0f)
 
-	/** The depth-turn pivot's depth along world Y (see [SessionToolSettings.pivotDepth]). */
+	/** The depth rotation's pivot depth along world Y (see [SessionToolSettings.pivotDepth]). */
 	override val pivotDepth: StateFlow<Float> = mutablePivotDepth.asStateFlow()
 
 	private val mutableDepthSurface = MutableStateFlow(DepthSurface.Flat)
 
-	/** How deep the points sit before a depth turn (see [SessionToolSettings.depthSurface]). */
+	/** How deep the points sit before a depth rotation (see [SessionToolSettings.depthSurface]). */
 	override val depthSurface: StateFlow<DepthSurface> = mutableDepthSurface.asStateFlow()
 
 	private val mutableProportionalEdit = MutableStateFlow<ProportionalEditState?>(null)
@@ -98,7 +98,7 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
-	 * Sets the depth-turn pivot's depth, clamped to the Depth row's range.
+	 * Sets the depth rotation's pivot depth, clamped to the Depth row's range.
 	 *
 	 * @param Float depthWorld The depth along world Y, in world px, positive into the screen.
 	 */
@@ -107,7 +107,7 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
-	 * Sets the depth surface the next depth turn lays the points over.
+	 * Sets the depth surface the next depth rotation lays the points over.
 	 *
 	 * @param DepthSurface surface The surface.
 	 */
@@ -210,7 +210,7 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
-	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, the depth turn's pivot depth and
+	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, the depth rotation's pivot depth and
 	 * surface, and proportional editing with the configuration it would re-enable with.  Called once, as the session
 	 * is built, so nothing here is a gesture and nothing here posts a notice.
 	 *

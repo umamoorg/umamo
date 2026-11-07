@@ -29,11 +29,11 @@ import kotlin.math.min
  * @property Offset start The pointer position at gesture start, in screen pixels.
  * @property Offset current The current (wrap-continuous virtual) pointer, in screen pixels.
  * @property TransformAxisConstraint? axisConstraint The axis lock, or null when unconstrained; on a Rotate, the axis
- *   the turn goes about in depth (only a depth-turning Rotate ever holds one).
+ *   the turn goes about in depth (only a depth rotation ever holds one).
  * @property ViewportCamera camera The area camera (world<->screen affine).
  * @property IntSize size The area size in pixels.
- * @property Float pivotDepth The depth turn's pivot depth along world Y, in world px (read only by a locked Rotate).
- * @property DepthSurface depthSurface How deep the points sit before a depth turn (read only by a locked Rotate).
+ * @property Float pivotDepth The depth rotation's pivot depth along world Y, in world px (read only by a locked Rotate).
+ * @property DepthSurface depthSurface How deep the points sit before a depth rotation (read only by a locked Rotate).
  */
 internal class TransformGestureFrame(
 	val anchor: Pair<Float, Float>,
@@ -49,7 +49,7 @@ internal class TransformGestureFrame(
 /**
  * Resolves [frame] into the parameters [operator] applies: a Grab's translation, a Scale's factors,
  * or a Rotate's accumulated angle, the rest at identity.  A Rotate whose frame holds an axis lock turns in
- * depth about that axis instead, by [depthTurnRadians], at the frame's pivot depth and surface.  Call it once
+ * depth about that axis instead, by [depthRotationRadians], at the frame's pivot depth and surface.  Call it once
  * per pointer frame, before the per-mesh loop - the Rotate branch advances [rotationTracker] (locked or not,
  * so releasing a lock picks the in-plane angle up where the pointer is), and one advance per frame is what
  * the accumulator expects.
@@ -80,17 +80,17 @@ internal fun gestureParameters(
 
 			when (frame.axisConstraint) {
 				// The in-plane turn carries the frame's depth and surface unread, so a strip that offers them shows
-				// where the next depth turn would start.
+				// where the next depth rotation would start.
 				null -> {
 					TransformGestureParameters(0f, 0f, 1f, 1f, inPlaneRadians, RotationAxis.Y, frame.pivotDepth, frame.depthSurface)
 				}
 
 				TransformAxisConstraint.AxisX -> {
-					TransformGestureParameters(0f, 0f, 1f, 1f, depthTurnRadians(frame), RotationAxis.X, frame.pivotDepth, frame.depthSurface)
+					TransformGestureParameters(0f, 0f, 1f, 1f, depthRotationRadians(frame), RotationAxis.X, frame.pivotDepth, frame.depthSurface)
 				}
 
 				TransformAxisConstraint.AxisZ -> {
-					TransformGestureParameters(0f, 0f, 1f, 1f, depthTurnRadians(frame), RotationAxis.Z, frame.pivotDepth, frame.depthSurface)
+					TransformGestureParameters(0f, 0f, 1f, 1f, depthRotationRadians(frame), RotationAxis.Z, frame.pivotDepth, frame.depthSurface)
 				}
 			}
 		}
@@ -141,7 +141,7 @@ internal fun gestureScaleFactors(frame: TransformGestureFrame): Pair<Float, Floa
  * The angle a Rotate gesture applies about a pivot, in the positions' units: the pointer's angle about
  * the anchor accumulated through [rotationTracker], negated out of screen space into the positions'
  * sense - the value [MeshTransforms.rotateVertices] takes.  The in-plane angle, whatever the axis lock: a
- * locked Rotate turns by [depthTurnRadians] instead.
+ * locked Rotate turns by [depthRotationRadians] instead.
  *
  * @param TransformGestureFrame frame The gesture's pointer frame.
  * @param RotationAngleTracker rotationTracker The gesture's angle accumulator.
@@ -155,7 +155,7 @@ internal fun gestureRotationRadians(frame: TransformGestureFrame, rotationTracke
 }
 
 /**
- * The angle a depth-turning Rotate applies about its locked axis: the pointer's travel from the gesture start along
+ * The angle a depth rotation applies about its locked axis: the pointer's travel from the gesture start along
  * the screen direction that turns it - horizontal for Z (rightward turns the front right), vertical for X (downward
  * tilts the front down) - at a quarter turn per half the area's shorter side, so the rate is the same whatever the
  * zoom.  The travel is the wrap-continuous pointer's, so the turn is unbounded.
@@ -163,7 +163,7 @@ internal fun gestureRotationRadians(frame: TransformGestureFrame, rotationTracke
  * @param TransformGestureFrame frame The gesture's pointer frame, holding an axis lock.
  * @return Float The turn in radians; 0 without a lock.
  */
-internal fun depthTurnRadians(frame: TransformGestureFrame): Float {
+internal fun depthRotationRadians(frame: TransformGestureFrame): Float {
 	val shorterSide = min(frame.size.width, frame.size.height).toFloat()
 
 	if (shorterSide <= 0f) {
@@ -287,19 +287,19 @@ internal fun applyOperator(
 
 		MeshOperatorKind.Rotate -> {
 			// The angle was measured against the gesture anchor; each group then rotates about its own
-			// pivot, and each influenced vertex about its owning group's pivot.  A turn in depth does the same
+			// pivot, and each influenced vertex about its owning group's pivot.  A rotate in depth does the same
 			// about X or Z, each group's pivot pushed to the one depth.
 			val rotation = parameters.rotationRadians
 
-			if (parameters.turnsInDepth) {
+			if (parameters.rotatesInDepth) {
 				val axis = parameters.rotationAxis
 				val depth = parameters.pivotDepth
 				val surface = parameters.depthSurface
 				val moved =
 					groups.fold(originalWorld) { positions, group ->
-						MeshTransforms.turnVerticesInDepth(positions, group.vertexIndices, axis, rotation, depth, surface, group.pivotX, group.pivotY)
+						MeshTransforms.rotateVerticesInDepth(positions, group.vertexIndices, axis, rotation, depth, surface, group.pivotX, group.pivotY)
 					}
-				MeshTransforms.turnVerticesInDepthWeighted(moved, proportionalInfluences, axis, rotation, depth, surface)
+				MeshTransforms.rotateVerticesInDepthWeighted(moved, proportionalInfluences, axis, rotation, depth, surface)
 			} else {
 				val moved =
 					groups.fold(originalWorld) { positions, group ->

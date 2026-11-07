@@ -72,7 +72,7 @@ interface SessionToolSettings {
 	fun setPivotMode(mode: TransformPivotMode)
 
 	/**
-	 * How far a depth-turning Rotate's pivot is pushed along world Y, in world px, positive into the screen: the
+	 * How far a depth rotation's pivot is pushed along world Y, in world px, positive into the screen: the
 	 * primary-modifier wheel pushes it mid-gesture and the operation strip's Depth row writes it back, so the next
 	 * turn starts where the last one left it (the proportional radius's rule).  Transient editor state like
 	 * [pivotMode] - never snapshotted.
@@ -80,7 +80,7 @@ interface SessionToolSettings {
 	val pivotDepth: StateFlow<Float>
 
 	/**
-	 * Sets the depth-turn pivot's depth outright, silently, clamped to the Depth row's range.
+	 * Sets the depth rotation's pivot depth outright, silently, clamped to the Depth row's range.
 	 *
 	 * @param Float depthWorld The depth along world Y, in world px, positive into the screen.
 	 */
@@ -95,7 +95,7 @@ interface SessionToolSettings {
 	/**
 	 * Sets the depth surface outright, silently.
 	 *
-	 * @param DepthSurface surface The surface the next depth turn lays the points over.
+	 * @param DepthSurface surface The surface the next depth rotation lays the points over.
 	 */
 	fun setDepthSurface(surface: DepthSurface)
 

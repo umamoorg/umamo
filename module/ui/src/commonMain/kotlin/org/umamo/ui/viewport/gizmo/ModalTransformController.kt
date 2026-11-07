@@ -46,7 +46,7 @@ internal interface ModalTransformTarget {
 
 	/**
 	 * Handles a modal wheel scroll.  The Edit overlay resizes the proportional influence radius here, and with the
-	 * primary modifier held pushes a depth turn's pivot along Y; targets without a scroll behavior take the default
+	 * primary modifier held pushes a depth rotation's pivot along Y; targets without a scroll behavior take the default
 	 * no-op.
 	 *
 	 * @param Float steps The scroll delta in wheel steps (negative is wheel-up).

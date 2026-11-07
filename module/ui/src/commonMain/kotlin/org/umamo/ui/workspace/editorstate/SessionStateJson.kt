@@ -94,9 +94,9 @@ fun sessionStateJson(viewState: SessionViewState, pose: Pose, model: PuppetModel
 				}
 			} ?: JsonNull,
 		)
-		// UMA §7.4: `depthTurn` - the depth turn's pivot depth and surface, left out at the defaults.
+		// UMA §7.4: `depthRotation` - the depth rotation's pivot depth and surface, left out at the defaults.
 		put(
-			"depthTurn",
+			"depthRotation",
 			if (viewState.pivotDepth == 0f && viewState.depthSurface == DepthSurface.Flat) {
 				JsonNull
 			} else {
@@ -124,7 +124,7 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 	val parameterSelection = tree["parameterSelection"] as? JsonObject
 	val parameterIds = parameterSelection?.let { block -> stringListOf(block, "ids") }.orEmpty().mapTo(LinkedHashSet(), ::ParameterId)
 	val proportional = tree["proportional"] as? JsonObject
-	val depthTurn = tree["depthTurn"] as? JsonObject
+	val depthRotation = tree["depthRotation"] as? JsonObject
 
 	return SessionViewState(
 		selection = Selection(targets, selection?.let { block -> stringOf(block, "active") }?.let(::selectionTargetOf)),
@@ -134,9 +134,9 @@ fun sessionViewStateOf(tree: JsonObject?): SessionViewState? {
 		cursor2d = floatListOf(tree, "cursor2d", 2)?.let { (worldX, worldZ) -> Cursor2d(worldX, worldZ) },
 		uvCursor = floatListOf(tree, "uvCursor", 2)?.let { (u, v) -> UvCursor(u, v) },
 		pivotMode = stringOf(tree, "pivot")?.let { wireName -> TransformPivotMode.entries.firstOrNull { mode -> pivotWireName(mode) == wireName } } ?: TransformPivotMode.MedianPoint,
-		pivotDepth = depthTurn?.let { block -> finiteFloatOf(block["depth"]) } ?: 0f,
+		pivotDepth = depthRotation?.let { block -> finiteFloatOf(block["depth"]) } ?: 0f,
 		depthSurface =
-			depthTurn?.let { block -> stringOf(block, "surface") }?.let { wireName -> DepthSurface.entries.firstOrNull { surface -> depthSurfaceWireName(surface) == wireName } }
+			depthRotation?.let { block -> stringOf(block, "surface") }?.let { wireName -> DepthSurface.entries.firstOrNull { surface -> depthSurfaceWireName(surface) == wireName } }
 				?: DepthSurface.Flat,
 		proportionalEnabled = proportional?.let { block -> booleanOf(block, "enabled") } ?: false,
 		proportionalSettings =
@@ -280,7 +280,7 @@ private fun falloffWireName(falloff: ProportionalFalloff): String =
  * @return String The wire name.
  */
 private fun depthSurfaceWireName(surface: DepthSurface): String =
-	// UMA §7.4: `depthTurn.surface`.
+	// UMA §7.4: `depthRotation.surface`.
 	when (surface) {
 		DepthSurface.Flat -> "flat"
 		DepthSurface.Rounded -> "rounded"

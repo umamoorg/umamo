@@ -86,9 +86,9 @@ class EditGizmoRecompositionTest {
 			assertNothingRan(counter, "a radius and an axis change")
 		}
 
-	/** Pushing a depth turn's pivot and driving the turn redraw and preview, and run no composable. */
+	/** Pushing a depth rotation's pivot and driving the turn redraw and preview, and run no composable. */
 	@Test
-	fun aDepthPushMidTurnRunsNothing() =
+	fun aDepthPushMidRotationRunsNothing() =
 		countingGizmoRuns { counter ->
 			val session = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
 			session.togglePoseMode()

@@ -537,7 +537,7 @@
 	<!-- ステータスバー区画：コンテキスト割当ヒント・編集モードの選択数・メッシュ統計。 -->
 	<string name="status_bind_confirm">LMB / Enter: 確定</string>
 	<string name="status_bind_cancel">RMB / Esc: キャンセル</string>
-	<string name="status_bind_depth_turn">X / Z: 奥行き回転</string>
+	<string name="status_bind_depth_rotation">X / Z: 奥行き回転</string>
 	<string name="status_bind_depth_push">%1$s+ホイール: 奥行き</string>
 	<string name="status_bind_edit_mode">編集モード</string>
 	<string name="status_bind_visibility">表示切替</string>

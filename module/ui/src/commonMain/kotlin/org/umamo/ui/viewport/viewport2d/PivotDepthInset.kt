@@ -46,7 +46,7 @@ private val PIVOT_DOT_RADIUS = 3.dp
 private val DEPTH_AXIS_COLOR = Color(WorldAxisColors.Classic.yRed, WorldAxisColors.Classic.yGreen, WorldAxisColors.Classic.yBlue)
 
 /**
- * The depth turn's inset (bottom right): the floor grid receding into the screen, the art's plane across it, and the
+ * The depth rotation's inset (bottom right): the floor grid receding into the screen, the art's plane across it, and the
  * pivot pushed into it along a dashed depth line, over the depth readout.  Shown while the area's Rotate turns in
  * depth about a locked axis.  Draw-only - it takes no pointer input, so the area's corner stays reachable.
  *

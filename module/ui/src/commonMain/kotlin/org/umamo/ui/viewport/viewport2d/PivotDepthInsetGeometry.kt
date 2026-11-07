@@ -34,7 +34,7 @@ internal data class InsetSegment(val start: Offset, val end: Offset)
 
 /**
  * The depth inset's picture: a floor grid in one-point perspective, receding from the viewer toward a horizon, with
- * the art's plane across it and the depth turn's pivot pushed into it.  Depth runs up the inset (world Y, into the
+ * the art's plane across it and the depth rotation's pivot pushed into it.  Depth runs up the inset (world Y, into the
  * screen), so a pivot pushed away climbs toward the horizon, and one pulled toward the viewer sits in front of the
  * art plane.  The floor's lines fall at multiples of the viewport grid's major spacing, doubled as the pivot goes
  * deeper so a framing never holds more than [TRANSVERSE_LINES] of them.

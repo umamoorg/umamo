@@ -15,13 +15,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * The depth turn's bottom-right inset shows only in the area whose Pose-mode Rotate turns in depth about a locked
+ * The depth rotation's bottom-right inset shows only in the area whose Pose-mode Rotate rotates in depth about a locked
  * axis, reads the pivot's depth, and follows a push without the gesture restarting.
  */
 @OptIn(ExperimentalTestApi::class)
 class PivotDepthInsetTest {
 	@Test
-	fun theInsetShowsInTheTurningAreaOnlyWhileAnAxisIsLocked() =
+	fun theInsetShowsInTheRotatingAreaOnlyWhileAnAxisIsLocked() =
 		runComposeUiTest {
 			val session = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
 			session.togglePoseMode()
@@ -30,12 +30,12 @@ class PivotDepthInsetTest {
 			session.setPivotDepth(30f)
 			setContent {
 				UmamoTheme {
-					ViewportHudOverlay(areaId = TURNING_AREA, session = session, liveCamera = ViewportCamera(0f, 0f, 1f))
+					ViewportHudOverlay(areaId = ROTATING_AREA, session = session, liveCamera = ViewportCamera(0f, 0f, 1f))
 					ViewportHudOverlay(areaId = OTHER_AREA, session = session, liveCamera = ViewportCamera(0f, 0f, 1f))
 				}
 			}
 
-			session.beginMeshOperator(MeshOperatorKind.Rotate, TURNING_AREA)
+			session.beginMeshOperator(MeshOperatorKind.Rotate, ROTATING_AREA)
 			waitForIdle()
 			assertEquals(0, insetsReading("Depth 30 px"), "the in-plane turn shows no inset")
 
@@ -62,8 +62,8 @@ class PivotDepthInsetTest {
 		onAllNodesWithContentDescription(readout, useUnmergedTree = true).fetchSemanticsNodes().size
 
 	private companion object {
-		/** The area the turn latched in. */
-		const val TURNING_AREA = "turning"
+		/** The area the rotation latched in. */
+		const val ROTATING_AREA = "rotating"
 
 		/** Another viewport over the same session. */
 		const val OTHER_AREA = "other"
