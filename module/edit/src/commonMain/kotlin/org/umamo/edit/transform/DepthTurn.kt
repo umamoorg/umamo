@@ -15,7 +15,7 @@ import kotlin.math.sqrt
 /**
  * The axis a modal Rotate turns about.  Y is the view axis - the ordinary in-plane rotation every R starts with -
  * and X and Z are the world axes in the art's plane, which turn the art in depth (see [MeshTransforms.turnVerticesInDepth]).
- * Every consumer (the operation strip's Axis row, the saved editor state) keys an axis by its [choiceKey].
+ * The operation strip's Axis row keys an axis by its [choiceKey].
  */
 enum class RotationAxis {
 	Y,
@@ -37,7 +37,7 @@ enum class DepthSurface {
 val RotationAxis.choiceKey: String
 	get() = name.lowercase()
 
-/** The stable key of a depth surface: its name in lower camel case (flat, rounded), the one spelling the Surface row and the editor state store. */
+/** The stable key of a depth surface: its name in lower camel case (flat, rounded), the one spelling the Surface row stores. */
 val DepthSurface.choiceKey: String
 	get() = name.replaceFirstChar { first -> first.lowercaseChar() }
 

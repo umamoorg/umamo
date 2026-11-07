@@ -8,8 +8,6 @@ package org.umamo.render
  * call site.  [Classic] is a neutral grey grid, used as the default so a caller that does not theme the
  * backdrop still gets a sensible surface.
  *
- * ビューポートのグリッド背景の 3 色（0..1 の RGB）。背景・主線・副線。:render を UI 非依存に保つため素の float。
- *
  * @property Float backgroundRed   Red of the flat canvas fill.
  * @property Float backgroundGreen Green of the flat canvas fill.
  * @property Float backgroundBlue  Blue of the flat canvas fill.
@@ -88,8 +86,6 @@ data class GridColors(
  * vertical world axis is presented as Z), and the green Y axis, the depth no axis line shows, which only
  * the depth turn's chrome draws.  Plain floats for the same reason as [GridColors]: :render stays free of
  * any UI dependency.
- *
- * ワールド軸線の 2 色（0..1 の RGB）。横が赤い X 軸、縦が青い Z 軸（表示規約は Y+ 前、Z+ 上）。
  *
  * @property Float xRed   Red of the horizontal X axis line.
  * @property Float xGreen Green of the horizontal X axis line.

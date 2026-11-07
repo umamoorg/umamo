@@ -157,8 +157,8 @@ interface SessionToolLatches {
 
 	/**
 	 * Whether a mesh operator of [kind], latched as the active one, can turn in depth: a Rotate latched in Pose mode
-	 * (see [activeMeshOperatorTurnsInDepth]).  The one rule every depth-turn gate asks - the axis lock, the wheel's
-	 * depth push, the strip's depth rows, the badge, the status hints, and the depth inset.
+	 * (see [activeMeshOperatorTurnsInDepth]).  The one rule the depth-turn gates ask - the wheel's depth push, the
+	 * strip's depth rows, the status hints, and the depth inset.
 	 *
 	 * @param MeshOperatorKind kind The latched operator's kind.
 	 * @return Boolean True when the gesture can turn about X or Z.
