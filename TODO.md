@@ -235,13 +235,6 @@ See format planning document: docs/plan/uma-format.md
 * Can't quit from the native menu or CMD+Q.
 * Attempting to open a second file does not open a second application instance and claims that it can't open UMA file types.
 
-## Language Strings
-Update to these standards when referring to files, documents, and puppet:
-* File (Any file)
-* Artwork/Layered Artwork (When referring to a PSD, CLIP, or KRA)
-* Puppet (Any UMA, CMO3, or MOC3)
-* *EXT* (Refer to a specific file type extension, UMA/PSD/CMO3, when talking about that specific file type.)
-
 ## CDI3.json
 * Change Drawables to ArtMesh.
 	* https://github.com/Live2D/CubismSpecs/pull/9/changes

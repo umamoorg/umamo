@@ -46,6 +46,7 @@ Umamo is early alpha.
 * Diagnostics: The `--puppet` `dump` flag now prints the parameter panel's group tree and linked parameters.
 * Format: (BREAKING CHANGE) UMA now stores two position arrays, local and world, for meshes.  Files saved before 0.5.0 will not load in 0.5.0 and later.
 * Keyform Sheet: Keys can no longer be inserted, removed, or moved in Edit Mode.
+* Language: Menus, dialogs, and notices now say Puppet (UMA, CMO3, or MOC3), Artwork (PSD, CLIP, or KRA), and File consistently, in English and Japanese.  This replaces "document" and "model" and matches the standardization done to the user manual.
 * Mesh: Layers added from artwork now start with a mesh generated from their art instead of a quad.
 * Runtime Target: The existing Ayagami (Cubism 5.0 Equivalent) target has been renamed from ayagami to ayagami50.
 * Source Artwork: Adding artwork to a document created from an imported MOC3 is now refused and instructs the user to export a CMO3 to be able to import artwork.
