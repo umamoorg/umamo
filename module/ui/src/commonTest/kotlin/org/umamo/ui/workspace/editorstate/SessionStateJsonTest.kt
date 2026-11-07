@@ -98,6 +98,15 @@ class SessionStateJsonTest {
 		val surfaceOnly = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Rounded), defaultPose, model)["depthRotation"] as JsonObject
 		assertEquals("rounded", surfaceOnly["surface"]?.jsonPrimitive?.content)
 		assertTrue(surfaceOnly["depth"] is JsonNull, "a depth of 0 writes nothing")
+
+		for (surface in DepthSurface.entries) {
+			val saved = SessionViewState(depthSurface = surface)
+
+			assertEquals(saved, sessionViewStateOf(sessionStateJson(saved, defaultPose, model)), "$surface round-trips")
+		}
+
+		val sphere = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Sphere), defaultPose, model)["depthRotation"] as JsonObject
+		assertEquals("sphere", sphere["surface"]?.jsonPrimitive?.content)
 	}
 
 	/** An id holding a colon survives: the reference splits on its FIRST colon only. */

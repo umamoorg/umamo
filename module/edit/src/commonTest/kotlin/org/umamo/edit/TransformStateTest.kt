@@ -168,6 +168,19 @@ class TransformStateTest {
 		assertEquals(DepthSurface.Rounded, reopened.depthSurface.value)
 	}
 
+	/** T's cycle walks Flat, Rounded, and Sphere and wraps, and the view state carries where it stopped. */
+	@Test
+	fun theDepthSurfaceCyclesAndSticks() {
+		val session = meshedSession()
+
+		session.cycleDepthSurface()
+		assertEquals(DepthSurface.Rounded, session.depthSurface.value)
+		session.cycleDepthSurface()
+		assertEquals(DepthSurface.Sphere, session.viewState().depthSurface)
+		session.cycleDepthSurface()
+		assertEquals(DepthSurface.Flat, session.depthSurface.value, "the cycle wraps")
+	}
+
 	/** The cursor, pivot mode, and pie latches hold their values; undo clears the transient pie latch. */
 	@Test
 	fun cursorPivotAndPieState() {

@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.PIVOT_DEPTH_LIMIT
+import org.umamo.edit.transform.next
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions: the
@@ -113,6 +114,11 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	 */
 	override fun setDepthSurface(surface: DepthSurface) {
 		mutableDepthSurface.value = surface
+	}
+
+	/** Moves the depth surface to the next one in T's cycle (see [SessionToolSettings.cycleDepthSurface]). */
+	override fun cycleDepthSurface() {
+		mutableDepthSurface.value = mutableDepthSurface.value.next()
 	}
 
 	/**

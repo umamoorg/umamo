@@ -86,7 +86,7 @@ class EditGizmoRecompositionTest {
 			assertNothingRan(counter, "a radius and an axis change")
 		}
 
-	/** Pushing a depth rotation's pivot and driving the turn redraw and preview, and run no composable. */
+	/** Pushing a depth rotation's pivot, driving the turn, and cycling its surface redraw and preview, and run no composable. */
 	@Test
 	fun aDepthPushMidRotationRunsNothing() =
 		countingGizmoRuns { counter ->
@@ -103,9 +103,11 @@ class EditGizmoRecompositionTest {
 
 			session.setPivotDepth(40f)
 			moveIn(LEFT_AREA, listOf(Offset(210f, 150f), Offset(230f, 150f)))
+			session.cycleDepthSurface()
+			waitForIdle()
 
 			assertTrue(fixture.service.pushedLatticePreviews.isNotEmpty(), "the moves did drive")
-			assertNothingRan(counter, "a depth push and a turn")
+			assertNothingRan(counter, "a depth push, a turn, and a surface cycle")
 		}
 
 	/**

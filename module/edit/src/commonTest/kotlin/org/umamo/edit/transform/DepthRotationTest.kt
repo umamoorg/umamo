@@ -10,8 +10,8 @@ import kotlin.test.assertTrue
 
 /**
  * Verifies the depth rotation's math: Flat's closed form (a squash by the cosine and a slide of the pivot's depth times
- * the sine), the right-handed signs, Rounded's sphere and where it meets Flat, the weighted halo, and the in-plane Y
- * turn staying exactly the ordinary rotation.
+ * the sine), the right-handed signs, Rounded's cylinder along the axis and Sphere's sphere and where each meets Flat,
+ * T's surface cycle, the weighted halo, and the in-plane Y turn staying exactly the ordinary rotation.
  */
 class DepthRotationTest {
 	private val quarterTurn = (PI / 2.0).toFloat()
@@ -56,53 +56,99 @@ class DepthRotationTest {
 		assertEquals(-pushed[0], pulled[0], 1e-4f)
 	}
 
-	/** At depth 0 the two surfaces agree: every point sits in the pivot's plane and only squashes. */
+	/** At depth 0 the three surfaces agree: every point sits in the pivot's plane and only squashes. */
 	@Test
 	fun theSurfacesAgreeAtDepthZero() {
 		val positions = floatArrayOf(12f, 3f, -8f, 40f, 0f, 0f)
 		val flat = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.Z, 0.7f, 0f, DepthSurface.Flat, 0f, 0f)
-		val rounded = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.Z, 0.7f, 0f, DepthSurface.Rounded, 0f, 0f)
 
-		for (componentIndex in flat.indices) {
-			assertEquals(flat[componentIndex], rounded[componentIndex], 1e-5f)
+		for (surface in listOf(DepthSurface.Rounded, DepthSurface.Sphere)) {
+			val curved = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.Z, 0.7f, 0f, surface, 0f, 0f)
+
+			for (componentIndex in flat.indices) {
+				assertEquals(flat[componentIndex], curved[componentIndex], 1e-5f, "$surface")
+			}
 		}
 
 		assertEquals(12f * cos(0.7f), flat[0], 1e-4f)
 	}
 
-	/** Over the pivot itself Rounded sits at the full depth in front, exactly where Flat puts every point. */
+	/** Over the pivot itself both curved surfaces sit at the full depth in front, exactly where Flat puts every point. */
 	@Test
-	fun roundedMeetsFlatOverThePivot() {
+	fun theCurvedSurfacesMeetFlatOverThePivot() {
 		val flat = MeshTransforms.rotateVerticesInDepth(floatArrayOf(5f, 5f), setOf(0), RotationAxis.Z, 0.4f, 60f, DepthSurface.Flat, 5f, 5f)
-		val rounded = MeshTransforms.rotateVerticesInDepth(floatArrayOf(5f, 5f), setOf(0), RotationAxis.Z, 0.4f, 60f, DepthSurface.Rounded, 5f, 5f)
 
-		assertEquals(flat[0], rounded[0], 1e-4f)
+		for (surface in listOf(DepthSurface.Rounded, DepthSurface.Sphere)) {
+			val curved = MeshTransforms.rotateVerticesInDepth(floatArrayOf(5f, 5f), setOf(0), RotationAxis.Z, 0.4f, 60f, surface, 5f, 5f)
+
+			assertEquals(flat[0], curved[0], 1e-4f, "$surface")
+		}
 	}
 
-	/** Rounded lays the points over the sphere, so the middle travels further than the outline. */
+	/** Rounded bends around a cylinder along the axis: about Z every row moves alike, whatever its height. */
 	@Test
-	fun roundedMovesTheMiddleFurthest() {
+	fun roundedAboutZMovesEveryRowAlike() {
 		val depth = 100f
-		val positions = floatArrayOf(0f, 0f, 60f, 0f, -60f, 0f)
+		val positions = floatArrayOf(60f, 0f, 60f, 70f, 60f, -90f)
 		val turned = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.Z, sixthTurn, depth, DepthSurface.Rounded, 0f, 0f)
+		val sideDepth = sqrt(depth * depth - 60f * 60f)
+
+		for (pointIndex in 0 until 3) {
+			assertEquals(60f * cos(sixthTurn) + sideDepth * sin(sixthTurn), turned[pointIndex * 2], 1e-3f, "row $pointIndex sits on the cylinder")
+			assertEquals(positions[pointIndex * 2 + 1], turned[pointIndex * 2 + 1], 0f, "and keeps its height")
+		}
+	}
+
+	/** About X the cylinder lies along X, so every column tilts alike, whatever its x. */
+	@Test
+	fun roundedAboutXMovesEveryColumnAlike() {
+		val depth = 100f
+		val positions = floatArrayOf(0f, 60f, 80f, 60f, -95f, 60f)
+		val turned = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2), RotationAxis.X, sixthTurn, depth, DepthSurface.Rounded, 0f, 0f)
+		val rowDepth = -sqrt(depth * depth - 60f * 60f)
+
+		for (pointIndex in 0 until 3) {
+			assertEquals(rowDepth * sin(sixthTurn) + 60f * cos(sixthTurn), turned[pointIndex * 2 + 1], 1e-3f, "column $pointIndex sits on the cylinder")
+			assertEquals(positions[pointIndex * 2], turned[pointIndex * 2], 0f, "and keeps its x")
+		}
+	}
+
+	/** Sphere lays the points over the sphere, so the middle travels further than the outline, and rows away from the pivot less. */
+	@Test
+	fun sphereMovesTheMiddleFurthest() {
+		val depth = 100f
+		val positions = floatArrayOf(0f, 0f, 60f, 0f, -60f, 0f, 0f, 70f)
+		val turned = MeshTransforms.rotateVerticesInDepth(positions, setOf(0, 1, 2, 3), RotationAxis.Z, sixthTurn, depth, DepthSurface.Sphere, 0f, 0f)
 		val middleTravel = turned[0] - positions[0]
 		val sideDepth = sqrt(depth * depth - 60f * 60f)
 
 		assertEquals(60f * cos(sixthTurn) + sideDepth * sin(sixthTurn), turned[2], 1e-3f, "a side point sits on the sphere")
 		assertTrue(middleTravel > turned[2] - positions[2], "the middle travels further than the near side")
 		assertTrue(middleTravel > turned[4] - positions[4], "and further than the far side")
+		assertTrue(middleTravel > turned[6] - positions[6], "and further than a point above it, unlike the cylinder")
 	}
 
-	/** A point past the sphere's rim sits in the pivot's plane, and the rim itself is continuous. */
+	/** A point past either curved surface's rim sits in the pivot's plane, and the rim itself is continuous. */
 	@Test
 	fun theRimIsContinuous() {
 		val depth = 50f
-		val atRim = MeshTransforms.rotateVerticesInDepth(floatArrayOf(50f, 0f), setOf(0), RotationAxis.Z, 0.5f, depth, DepthSurface.Rounded, 0f, 0f)
-		val justInside = MeshTransforms.rotateVerticesInDepth(floatArrayOf(49.999f, 0f), setOf(0), RotationAxis.Z, 0.5f, depth, DepthSurface.Rounded, 0f, 0f)
-		val beyond = MeshTransforms.rotateVerticesInDepth(floatArrayOf(80f, 0f), setOf(0), RotationAxis.Z, 0.5f, depth, DepthSurface.Rounded, 0f, 0f)
 
-		assertEquals(atRim[0], justInside[0], 0.5f)
-		assertEquals(80f * cos(0.5f), beyond[0], 1e-3f, "past the rim the point only squashes")
+		for (surface in listOf(DepthSurface.Rounded, DepthSurface.Sphere)) {
+			val atRim = MeshTransforms.rotateVerticesInDepth(floatArrayOf(50f, 0f), setOf(0), RotationAxis.Z, 0.5f, depth, surface, 0f, 0f)
+			val justInside = MeshTransforms.rotateVerticesInDepth(floatArrayOf(49.999f, 0f), setOf(0), RotationAxis.Z, 0.5f, depth, surface, 0f, 0f)
+			val beyond = MeshTransforms.rotateVerticesInDepth(floatArrayOf(80f, 0f), setOf(0), RotationAxis.Z, 0.5f, depth, surface, 0f, 0f)
+
+			assertEquals(atRim[0], justInside[0], 0.5f, "$surface")
+			assertEquals(80f * cos(0.5f), beyond[0], 1e-3f, "past the $surface rim the point only squashes")
+		}
+	}
+
+	/** T cycles the surfaces in declaration order and wraps. */
+	@Test
+	fun theSurfacesCycleInOrder() {
+		assertEquals(DepthSurface.Rounded, DepthSurface.Flat.next())
+		assertEquals(DepthSurface.Sphere, DepthSurface.Rounded.next())
+		assertEquals(DepthSurface.Flat, DepthSurface.Sphere.next())
 	}
 
 	/** The weighted halo turns each vertex by its weight's share of the angle about its own pivot. */

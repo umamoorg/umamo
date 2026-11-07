@@ -23,11 +23,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.transform.DepthSurface
 import org.umamo.render.WorldAxisColors
 import org.umamo.ui.kit.Text
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.viewport.depthSurfaceLabel
 import kotlin.math.roundToInt
 
 // The floor picture's size inside the badge.
@@ -47,24 +49,27 @@ private val DEPTH_AXIS_COLOR = Color(WorldAxisColors.Classic.yRed, WorldAxisColo
 
 /**
  * The depth rotation's inset (bottom right): the floor grid receding into the screen, the art's plane across it, and the
- * pivot pushed into it along a dashed depth line, over the depth readout.  Shown while the area's Rotate turns in
- * depth about a locked axis.  Draw-only - it takes no pointer input, so the area's corner stays reachable.
+ * pivot pushed into it along a dashed depth line, over the readout of the depth and the surface (which T cycles).
+ * Shown while the area's Rotate turns in depth about a locked axis.  Draw-only - it takes no pointer input, so the
+ * area's corner stays reachable.
  *
  * The pivot glides to each new depth in the DRAW phase (the animation is read inside the canvas), so a wheel step
  * recomposes the readout once and the glide never recomposes anything.
  *
  * @param Float pivotDepth The pivot's depth along world Y, in world px, positive into the screen.
+ * @param DepthSurface surface How deep the points sit before the rotation.
  * @param Float gridScale The area grid's major spacing, in world px, the floor's line spacing.
  * @param Modifier modifier The layout modifier (the host passes a stack fill).
  */
 @Composable
 internal fun PivotDepthInset(
 	pivotDepth: Float,
+	surface: DepthSurface,
 	gridScale: Float,
 	modifier: Modifier = Modifier,
 ) {
 	val hudColors = LocalUmamoColors.current
-	val readout = stringResource(Res.string.hud_pivot_depth, pivotDepth.roundToInt())
+	val readout = stringResource(Res.string.hud_pivot_depth, pivotDepth.roundToInt(), depthSurfaceLabel(surface))
 	val shownDepth = remember { Animatable(pivotDepth) }
 
 	LaunchedEffect(pivotDepth) {

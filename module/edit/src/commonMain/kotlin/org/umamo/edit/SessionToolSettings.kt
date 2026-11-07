@@ -87,8 +87,8 @@ interface SessionToolSettings {
 	fun setPivotDepth(depthWorld: Float)
 
 	/**
-	 * How deep the points sit before a turn about X or Z (see [org.umamo.edit.transform.DepthSurface]); the strip's
-	 * Surface row writes it back, so the next turn starts from it.
+	 * How deep the points sit before a rotation about X or Z (see [org.umamo.edit.transform.DepthSurface]): T cycles it
+	 * during the rotation and the strip's Surface row writes it back, so the next rotation starts from it.
 	 */
 	val depthSurface: StateFlow<DepthSurface>
 
@@ -98,6 +98,9 @@ interface SessionToolSettings {
 	 * @param DepthSurface surface The surface the next depth rotation lays the points over.
 	 */
 	fun setDepthSurface(surface: DepthSurface)
+
+	/** Moves the depth surface to the next one in T's cycle (Flat, Rounded, Sphere), silently. */
+	fun cycleDepthSurface()
 
 	/**
 	 * Proportional editing (Blender's O): non-null while enabled, carrying the falloff curve and the

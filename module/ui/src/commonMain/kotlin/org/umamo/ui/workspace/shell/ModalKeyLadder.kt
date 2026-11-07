@@ -234,6 +234,14 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
+			// T during a Pose-mode Rotate cycles the depth surface (Flat, Rounded, Sphere), locked or not, so the next
+			// rotation never needs the strip to change it.  It is taken here, ahead of the keymap, for the rotation's
+			// length only: everywhere else T reaches its binding (the toolbar toggle).
+			stroke.isDown && stroke.key == Key.T && editorSession?.activeMeshOperator?.value?.let { operator -> editorSession.meshOperatorRotatesInDepth(operator.kind) } == true -> {
+				editorSession.cycleDepthSurface()
+				true
+			}
+
 			// An armed Box / Circle select tool owns Escape and Enter: both leave the tool, before the
 			// selection-clear branch below. Resolve any in-flight gesture on the fast cancel signal FIRST
 			// (a circle stroke keeps its paint, a box rubber-band is discarded), then disarm: clearSelectTool

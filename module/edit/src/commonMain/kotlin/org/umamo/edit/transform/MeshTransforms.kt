@@ -289,7 +289,7 @@ object MeshTransforms {
 	) {
 		val offsetX = positions[vertexIndex * 2] - pivotX
 		val offsetY = positions[vertexIndex * 2 + 1] - pivotY
-		val offsetDepth = depthOffsetOf(offsetX, offsetY, pivotDepth, surface)
+		val offsetDepth = depthOffsetOf(offsetX, offsetY, pivotDepth, surface, axis)
 
 		// Right-handed with X right, Y into the screen, Z up: about +Z the front (-Y) swings toward +X, and about +X it
 		// swings toward -Z.

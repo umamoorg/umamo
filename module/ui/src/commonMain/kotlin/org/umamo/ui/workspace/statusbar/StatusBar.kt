@@ -195,6 +195,7 @@ private fun ContextBindsZone() {
 
 				if (rotatesInDepth && axisConstraint != null) {
 					add(stringResource(Res.string.status_bind_depth_push, primaryModifierLabel()))
+					add(stringResource(Res.string.status_bind_depth_surface))
 				}
 			}
 		} else {

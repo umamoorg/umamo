@@ -13,6 +13,7 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.selectAllMeshElements
+import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.beginObjectOperator
@@ -40,6 +41,8 @@ import org.umamo.ui.model.repack.AtlasRepackReport
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.cmd_mesh_grab
 import org.umamo.ui.settings.QuickSetupState
+import org.umamo.ui.viewport.viewport2d.LATTICE_RIG_BODY
+import org.umamo.ui.viewport.viewport2d.latticeRigSession
 import org.umamo.ui.workspace.AlertRequest
 import org.umamo.ui.workspace.ConfirmRequest
 import org.umamo.ui.workspace.DialogAlternative
@@ -928,6 +931,30 @@ class ModalKeyLadderTest {
 			assertTrue(press(Key.Z, state), family)
 			assertEquals(TransformAxisConstraint.AxisZ, session.axisConstraint.value, family)
 		}
+	}
+
+	@Test
+	fun tCyclesTheDepthSurfaceOnlyDuringAPoseRotate() {
+		val posing = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+		posing.togglePoseMode()
+		posing.selectAllMeshElements()
+		posing.beginMeshOperator(MeshOperatorKind.Rotate, areaId)
+		assertNotNull(posing.activeMeshOperator.value, "the Pose Rotate latched")
+
+		assertTrue(press(Key.T, ShellModalState(editorSession = posing)), "a Pose Rotate takes T")
+		assertEquals(DepthSurface.Rounded, posing.depthSurface.value)
+
+		// Everywhere else T must reach the keymap, where it toggles the toolbar.
+		val editRotate = session(EditorMode.Edit).apply { beginMeshOperator(MeshOperatorKind.Rotate, areaId) }
+		assertNotNull(editRotate.activeMeshOperator.value, "the Edit Rotate latched")
+		assertFalse(press(Key.T, ShellModalState(editorSession = editRotate)), "an Edit Rotate leaves T alone")
+		assertEquals(DepthSurface.Flat, editRotate.depthSurface.value)
+
+		for ((family, latched) in latchedOperatorFamilies()) {
+			assertFalse(press(Key.T, ShellModalState(editorSession = latched)), family)
+		}
+
+		assertFalse(press(Key.T, ShellModalState(editorSession = session(EditorMode.Object))), "and so does an idle session")
 	}
 
 	@Test

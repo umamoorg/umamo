@@ -284,4 +284,5 @@ private fun depthSurfaceWireName(surface: DepthSurface): String =
 	when (surface) {
 		DepthSurface.Flat -> "flat"
 		DepthSurface.Rounded -> "rounded"
+		DepthSurface.Sphere -> "sphere"
 	}
