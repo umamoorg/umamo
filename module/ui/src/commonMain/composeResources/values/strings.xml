@@ -2,8 +2,7 @@
 <!--
   English (default) UI string catalog. Every user-facing chrome string lives here and is read via the
   generated Res.string.* accessor through stringResource(); format-level identifiers (ParamAngleX, …)
-  are NEVER localized — they are puppet/interop data, not chrome. The translated catalogs live
-  beside it at values-ja/strings.xml, values-ko/strings.xml and values-fr/strings.xml.
+  are NEVER localized — they are puppet/interop data, not chrome.
 
   Terminology.  Four terms name the things the editor opens, saves, and imports.  The user manual
   uses the same four, so a string that disagrees with them is a bug.

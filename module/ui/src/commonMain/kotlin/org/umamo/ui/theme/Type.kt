@@ -11,8 +11,11 @@ import org.jetbrains.compose.resources.FontResource
 import org.umamo.ui.l10n.LocalAppLocale
 import org.umamo.ui.resources.Res
 import org.umamo.ui.resources.inter_regular
+import org.umamo.ui.resources.noto_sans_cjk_hk_regular
 import org.umamo.ui.resources.noto_sans_cjk_jp_regular
 import org.umamo.ui.resources.noto_sans_cjk_kr_regular
+import org.umamo.ui.resources.noto_sans_cjk_sc_regular
+import org.umamo.ui.resources.noto_sans_cjk_tc_regular
 
 /*
  * The custom type scale. The 15 role names mirror the familiar scale (displayLarge … labelSmall) so call
@@ -52,11 +55,30 @@ fun rememberCjkFontFamily(): FontFamily = FontFamily(Font(cjkFontFor(LocalAppLoc
  * @param String languageTag The active BCP-47 tag, bare ("ko") or regional ("ko-KR").
  * @return FontResource The cut for that language.
  */
-internal fun cjkFontFor(languageTag: String): FontResource =
-	// Match the language subtag alone, so a regional tag resolves like the bare one.
-	when (languageTag.substringBefore('-').lowercase()) {
+internal fun cjkFontFor(languageTag: String): FontResource {
+	val subtags = languageTag.replace('_', '-').lowercase().split('-')
+
+	// Only Chinese reads past the language subtag: its script or region picks the glyph forms.
+	return when (subtags.first()) {
 		"ko" -> Res.font.noto_sans_cjk_kr_regular
+		"zh" -> chineseCjkFontFor(subtags.drop(1))
 		else -> Res.font.noto_sans_cjk_jp_regular
+	}
+}
+
+/**
+ * Picks the Noto Sans CJK cut for a Chinese tag from the subtags after its language.
+ *
+ * @param List subtags The tag's lowercase subtags after "zh".
+ * @return FontResource The SC, HK, or TC cut.
+ */
+private fun chineseCjkFontFor(subtags: List<String>): FontResource =
+	// A script outranks a region, the same order the UI-language match uses: zh-Hans-HK is Simplified.
+	when {
+		"hans" in subtags -> Res.font.noto_sans_cjk_sc_regular
+		"hk" in subtags || "mo" in subtags -> Res.font.noto_sans_cjk_hk_regular
+		"hant" in subtags || "tw" in subtags -> Res.font.noto_sans_cjk_tc_regular
+		else -> Res.font.noto_sans_cjk_sc_regular
 	}
 
 /**

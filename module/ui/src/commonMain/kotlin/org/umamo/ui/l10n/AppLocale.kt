@@ -23,13 +23,56 @@ const val LOCALE_SETTINGS_KEY: String = "localization.locale"
 const val FALLBACK_LOCALE_TAG: String = "en"
 
 /**
- * The UI languages Umamo ships, in display order: one entry per composeResources/values-<tag>/ catalog, keyed
- * by the BCP-47 tag written to localization.locale (which applyAppLocale feeds to the resource environment).
+ * The UI languages Umamo ships, in display order: one entry per composeResources catalog, keyed by the BCP-47
+ * tag written to localization.locale (which applyAppLocale feeds to the resource environment).  A language tag
+ * ("ja") has its catalog in values-<language>/, a regional tag ("zh-TW") in values-<language>-r<REGION>/.
  *
  * The values are endonyms shown verbatim whatever the active UI language: a language's own name is identity,
  * not chrome to translate, and it is what a rigger who cannot read the current language looks for.
  */
-val UI_LANGUAGE_ENDONYMS: Map<String, String> = linkedMapOf("en" to "English", "ja" to "日本語", "ko" to "한국어", "fr" to "Français")
+val UI_LANGUAGE_ENDONYMS: Map<String, String> =
+	linkedMapOf(
+		"en" to "English",
+		"ja" to "日本語",
+		"ko" to "한국어",
+		"fr" to "Français",
+		"zh-CN" to "简体中文",
+		"zh-TW" to "繁體中文",
+	)
+
+/**
+ * The catalogs of a language whose catalogs are split by script rather than by language, and which one a tag
+ * belongs to when neither its region nor the bare language has a catalog of its own.
+ *
+ * @property Map    byScript        Lowercase script subtag to lowercase catalog tag.
+ * @property Map    byRegion        Lowercase region subtag to lowercase catalog tag.
+ * @property String languageDefault The catalog tag for a tag with neither a known script nor a known region.
+ */
+private class ScriptSplitCatalogs(
+	val byScript: Map<String, String>,
+	val byRegion: Map<String, String>,
+	val languageDefault: String,
+)
+
+// CLDR's parent locales for Chinese: Traditional is the Hant script and Taiwan, Hong Kong, and Macau;
+// Simplified is the Hans script and mainland China, Singapore, and Malaysia, and the default for any other zh.
+private val SCRIPT_SPLIT_CATALOGS: Map<String, ScriptSplitCatalogs> =
+	mapOf(
+		"zh" to
+			ScriptSplitCatalogs(
+				byScript = mapOf("hant" to "zh-tw", "hans" to "zh-cn"),
+				byRegion =
+					mapOf(
+						"tw" to "zh-tw",
+						"hk" to "zh-tw",
+						"mo" to "zh-tw",
+						"cn" to "zh-cn",
+						"sg" to "zh-cn",
+						"my" to "zh-cn",
+					),
+				languageDefault = "zh-cn",
+			),
+	)
 
 /**
  * The operating system's preferred UI languages as BCP-47 tags, most preferred first; empty when the platform
@@ -43,8 +86,9 @@ expect fun systemLanguageTags(): List<String>
 /**
  * Picks the UI language for a list of preferred language tags: the first preferred tag with a catalog wins.
  * Each tag is tried at its most specific first - the whole tag, then language-region, then the language alone -
- * so a region catalog ("zh-CN") is matched before a bare language one would be.  `_` separators (the JVM and
- * POSIX spelling) read as `-`, and case does not matter.
+ * so a region catalog ("zh-CN") is matched before a bare language one would be.  Last, a language whose
+ * catalogs are split by script tries the catalog its script or region belongs to ("zh-Hant-HK" -> "zh-TW").
+ * `_` separators (the JVM and POSIX spelling) read as `-`, and case does not matter.
  *
  * @param List       preferredTags The preferred language tags, most preferred first.
  * @param Collection supported     The tags that have a catalog.
@@ -58,7 +102,13 @@ fun matchUiLanguage(preferredTags: List<String>, supported: Collection<String>):
 		val language = subtags.firstOrNull() ?: continue
 		// A region is the two-letter or three-digit subtag after the language (and any four-letter script).
 		val region = subtags.drop(1).firstOrNull { subtag -> subtag.length == 2 || (subtag.length == 3 && subtag.all(Char::isDigit)) }
-		val candidates = listOfNotNull(subtags.joinToString("-"), region?.let { "$language-$it" }, language)
+		val script = subtags.drop(1).firstOrNull { subtag -> subtag.length == 4 && subtag.all(Char::isLetter) }
+		// A script names the catalog before a region does: zh-Hant-SG is Traditional.
+		val scriptSplitCandidate =
+			SCRIPT_SPLIT_CATALOGS[language]?.let { catalogs ->
+				script?.let(catalogs.byScript::get) ?: region?.let(catalogs.byRegion::get) ?: catalogs.languageDefault
+			}
+		val candidates = listOfNotNull(subtags.joinToString("-"), region?.let { "$language-$it" }, language, scriptSplitCandidate)
 
 		for (candidate in candidates) {
 			supportedByLowercase[candidate]?.let { matched -> return matched }

@@ -32,8 +32,36 @@ class UiLanguageMatchTest {
 
 	@Test
 	fun noCatalogFallsBackToEnglish() {
-		assertEquals("en", matchUiLanguage(listOf("zh-TW"), shipped))
+		assertEquals("en", matchUiLanguage(listOf("pt-BR"), shipped))
 		assertEquals("en", matchUiLanguage(listOf("de-DE", "es"), shipped))
+	}
+
+	/**
+	 * Every Chinese tag lands on the catalog of its script: the region catalogs are the only Chinese ones, so a
+	 * script-only tag, a foreign region, a parent region, and the bare language all take the script fallback.
+	 */
+	@Test
+	fun chineseTagsFindTheirScriptsCatalog() {
+		for (simplifiedTag in listOf("zh-CN", "zh_cn", "zh-Hans", "zh-Hans-US", "zh-SG", "zh-MY", "zh", "zh-US")) {
+			assertEquals("zh-CN", matchUiLanguage(listOf(simplifiedTag), shipped), simplifiedTag)
+		}
+
+		for (traditionalTag in listOf("zh-TW", "zh-Hant", "zh-Hant-TW", "zh-HK", "zh-MO", "zh-Hant-SG", "ZH_hk")) {
+			assertEquals("zh-TW", matchUiLanguage(listOf(traditionalTag), shipped), traditionalTag)
+		}
+	}
+
+	/**
+	 * The script fallback is the last candidate for its tag, and it never crosses scripts: Traditional with no
+	 * Traditional catalog moves on to the next preferred language rather than taking Simplified.
+	 */
+	@Test
+	fun theScriptFallbackNeverCrossesScripts() {
+		assertEquals("zh-TW", matchUiLanguage(listOf("zh-Hant-HK", "ja-JP"), shipped))
+
+		val simplifiedOnly = listOf("en", "ja", "zh-CN")
+		assertEquals("ja", matchUiLanguage(listOf("zh-Hant", "ja-JP"), simplifiedOnly))
+		assertEquals("en", matchUiLanguage(listOf("zh-HK"), simplifiedOnly))
 	}
 
 	@Test
