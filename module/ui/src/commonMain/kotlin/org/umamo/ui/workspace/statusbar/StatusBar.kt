@@ -189,13 +189,14 @@ private fun ContextBindsZone() {
 				add(stringResource(Res.string.status_bind_confirm))
 				add(stringResource(Res.string.status_bind_cancel))
 
+				// T cycles the surface for the whole rotation; the wheel pushes the pivot only about a locked axis.
 				if (rotatesInDepth) {
 					add(stringResource(Res.string.status_bind_depth_rotation))
+					add(stringResource(Res.string.status_bind_depth_surface))
 				}
 
 				if (rotatesInDepth && axisConstraint != null) {
 					add(stringResource(Res.string.status_bind_depth_push, primaryModifierLabel()))
-					add(stringResource(Res.string.status_bind_depth_surface))
 				}
 			}
 		} else {

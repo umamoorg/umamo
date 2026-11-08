@@ -2,9 +2,9 @@ package org.umamo.ui.viewport.gizmo
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.TransformAxisConstraint
-import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.edit.transform.ProportionalInfluence
 import org.umamo.edit.transform.RotationAngleTracker
@@ -37,6 +37,7 @@ class DepthRotationGestureTest {
 	private fun frame(start: Offset, current: Offset, lock: TransformAxisConstraint?): TransformGestureFrame =
 		TransformGestureFrame(0f to 0f, start, current, lock, camera, size, pivotDepth = 90f, depthSurface = DepthSurface.Cylinder)
 
+	/** A Z lock turns by the pointer's horizontal travel, a quarter turn per half the shorter side, at the frame's depth and surface. */
 	@Test
 	fun aZLockTurnsByHorizontalTravel() {
 		val parameters = gestureParameters(MeshOperatorKind.Rotate, frame(Offset(400f, 200f), Offset(500f, 260f), TransformAxisConstraint.AxisZ), RotationAngleTracker())
@@ -47,6 +48,7 @@ class DepthRotationGestureTest {
 		assertEquals(DepthSurface.Cylinder, parameters.depthSurface)
 	}
 
+	/** An X lock tilts by the pointer's vertical travel, upward travel tilting the front up. */
 	@Test
 	fun anXLockTiltsByVerticalTravel() {
 		val parameters = gestureParameters(MeshOperatorKind.Rotate, frame(Offset(400f, 200f), Offset(380f, 100f), TransformAxisConstraint.AxisX), RotationAngleTracker())
@@ -55,6 +57,7 @@ class DepthRotationGestureTest {
 		assertEquals(-(PI / 4.0).toFloat(), parameters.rotationRadians, 1e-5f, "moving up tilts the front up")
 	}
 
+	/** A locked frame still advances the in-plane accumulator, so releasing the lock turns from where the pointer is. */
 	@Test
 	fun theInPlaneTurnCarriesTheDepthUnreadAndTheTrackerKeepsAdvancing() {
 		val tracker = RotationAngleTracker()
@@ -70,6 +73,7 @@ class DepthRotationGestureTest {
 		assertEquals(90f, inPlane.pivotDepth, "the frame's depth rides along for the strip")
 	}
 
+	/** A Rotate in depth turns each pivot group and then the proportional halo, as the depth math does on its own. */
 	@Test
 	fun applyOperatorRotatesEachGroupAndTheHaloInDepth() {
 		val points = floatArrayOf(10f, 0f, 30f, 5f, 60f, -20f)

@@ -111,6 +111,8 @@ internal class ToolLatches : SessionToolLatches {
 		clearViewportGesture: Boolean = false,
 	) {
 		mutableActiveMeshOperator.value = null
+		activeMeshOperatorSuppressesProportional = false
+		activeMeshOperatorRotatesInDepth = false
 		mutableActiveObjectOperator.value = null
 		mutableActiveUvOperator.value = null
 		mutableActiveSelectTool.value = null

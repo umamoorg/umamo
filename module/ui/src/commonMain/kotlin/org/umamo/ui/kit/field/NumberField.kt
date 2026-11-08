@@ -130,7 +130,7 @@ fun NumberField(
 		step = step,
 		bounded = bounded,
 		format = { toFormat -> formatDecimals(toFormat, decimals) },
-		parse = { typed -> typed.trim().toFloatOrNull() },
+		parse = ::parseTypedFloat,
 		onCommit = { raw -> onValueChange(roundToDecimals(raw, decimals).coerceIn(range.start, range.endInclusive)) },
 		onPreview =
 			onPreview?.let { preview ->

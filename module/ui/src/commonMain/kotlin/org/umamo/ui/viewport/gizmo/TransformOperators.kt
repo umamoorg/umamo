@@ -2,9 +2,9 @@ package org.umamo.ui.viewport.gizmo
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.TransformAxisConstraint
-import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.MeshTransforms
 import org.umamo.edit.transform.ProportionalInfluence
 import org.umamo.edit.transform.RotationAngleTracker
@@ -77,22 +77,17 @@ internal fun gestureParameters(
 
 		MeshOperatorKind.Rotate -> {
 			val inPlaneRadians = gestureRotationRadians(frame, rotationTracker)
-
-			when (frame.axisConstraint) {
-				// The in-plane turn carries the frame's depth and surface unread, so a strip that offers them shows
-				// where the next depth rotation would start.
-				null -> {
-					TransformGestureParameters(0f, 0f, 1f, 1f, inPlaneRadians, RotationAxis.Y, frame.pivotDepth, frame.depthSurface)
+			val axis =
+				when (frame.axisConstraint) {
+					null -> RotationAxis.Y
+					TransformAxisConstraint.AxisX -> RotationAxis.X
+					TransformAxisConstraint.AxisZ -> RotationAxis.Z
 				}
+			val radians = if (axis == RotationAxis.Y) inPlaneRadians else depthRotationRadians(frame)
 
-				TransformAxisConstraint.AxisX -> {
-					TransformGestureParameters(0f, 0f, 1f, 1f, depthRotationRadians(frame), RotationAxis.X, frame.pivotDepth, frame.depthSurface)
-				}
-
-				TransformAxisConstraint.AxisZ -> {
-					TransformGestureParameters(0f, 0f, 1f, 1f, depthRotationRadians(frame), RotationAxis.Z, frame.pivotDepth, frame.depthSurface)
-				}
-			}
+			// The in-plane turn carries the frame's depth and surface unread, so a strip that offers them shows where
+			// the next depth rotation would start.
+			TransformGestureParameters(0f, 0f, 1f, 1f, radians, axis, frame.pivotDepth, frame.depthSurface)
 		}
 
 		// Vertex Slide has its own edge projection (slideFactorAlongEdge); it never applies these.
@@ -288,25 +283,16 @@ internal fun applyOperator(
 		MeshOperatorKind.Rotate -> {
 			// The angle was measured against the gesture anchor; each group then rotates about its own
 			// pivot, and each influenced vertex about its owning group's pivot.  A rotate in depth does the same
-			// about X or Z, each group's pivot pushed to the one depth.
+			// about X or Z, each group's pivot pushed to the one depth; about Y the depth math is the in-plane turn.
 			val rotation = parameters.rotationRadians
-
-			if (parameters.rotatesInDepth) {
-				val axis = parameters.rotationAxis
-				val depth = parameters.pivotDepth
-				val surface = parameters.depthSurface
-				val moved =
-					groups.fold(originalWorld) { positions, group ->
-						MeshTransforms.rotateVerticesInDepth(positions, group.vertexIndices, axis, rotation, depth, surface, group.pivotX, group.pivotY)
-					}
-				MeshTransforms.rotateVerticesInDepthWeighted(moved, proportionalInfluences, axis, rotation, depth, surface)
-			} else {
-				val moved =
-					groups.fold(originalWorld) { positions, group ->
-						MeshTransforms.rotateVertices(positions, group.vertexIndices, rotation, group.pivotX, group.pivotY)
-					}
-				MeshTransforms.rotateVerticesWeighted(moved, proportionalInfluences, rotation)
-			}
+			val axis = parameters.rotationAxis
+			val depth = parameters.pivotDepth
+			val surface = parameters.depthSurface
+			val moved =
+				groups.fold(originalWorld) { positions, group ->
+					MeshTransforms.rotateVerticesInDepth(positions, group.vertexIndices, axis, rotation, depth, surface, group.pivotX, group.pivotY)
+				}
+			MeshTransforms.rotateVerticesInDepthWeighted(moved, proportionalInfluences, axis, rotation, depth, surface)
 		}
 
 		// Vertex Slide never reaches here: the drive loop handles it with its own edge projection.

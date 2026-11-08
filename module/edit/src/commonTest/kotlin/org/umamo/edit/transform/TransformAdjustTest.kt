@@ -1,5 +1,6 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ProportionalEditState
@@ -67,6 +68,7 @@ class TransformAdjustTest {
 		}
 	}
 
+	/** A Rotate that could rotate in depth adds its Axis, Depth, and Surface rows, and the rows read back as the same parameters. */
 	@Test
 	fun aDepthRotationAddsItsAxisDepthAndSurfaceRowsAndRoundTrips() {
 		val gesture = TransformGestureParameters(0f, 0f, 1f, 1f, 0.5f, RotationAxis.Z, 140f, DepthSurface.Cylinder)
@@ -85,7 +87,6 @@ class TransformAdjustTest {
 		assertEquals(RotationAxis.Z, back.rotationAxis)
 		assertEquals(140f, back.pivotDepth)
 		assertEquals(DepthSurface.Cylinder, back.depthSurface)
-		assertTrue(back.rotatesInDepth)
 
 		// Choosing the axis on the strip turns an in-plane Rotate in depth after the fact.
 		val axisRow = rows.first { row -> row.key == TransformParameterKeys.AXIS } as OperatorParameter.ChoiceParameter

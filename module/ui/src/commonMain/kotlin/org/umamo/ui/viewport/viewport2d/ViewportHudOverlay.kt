@@ -11,6 +11,7 @@ import org.umamo.ui.viewport.ActiveMeshInfoLabel
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.ModalOperatorBadge
+import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportZoomBadge
 import kotlin.math.roundToInt
 
@@ -74,7 +75,8 @@ fun ViewportHudOverlay(
 	) {
 		val pivotDepth by session.pivotDepth.collectAsState()
 		val depthSurface by session.depthSurface.collectAsState()
-		PivotDepthInset(pivotDepth = pivotDepth, surface = depthSurface, gridScale = LocalAreaOverlays.current?.grid?.scale ?: GridConfig().scale, modifier = modifier)
+		val gridScale = LocalAreaOverlays.current?.grid?.scale ?: GridConfig.applicationDefault(OverlaySurface.Viewport2D).scale
+		PivotDepthInset(pivotDepth = pivotDepth, surface = depthSurface, gridScale = gridScale, modifier = modifier)
 	}
 
 	// The area-wide info chips: the top-left active-mesh label and the bottom-left zoom readout.  The

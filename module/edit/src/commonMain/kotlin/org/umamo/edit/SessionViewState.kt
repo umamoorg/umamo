@@ -1,6 +1,5 @@
 package org.umamo.edit
 
-import org.umamo.edit.transform.DepthSurface
 import org.umamo.runtime.eval.defaultValueLookup
 import org.umamo.runtime.eval.poseValueLookup
 import org.umamo.runtime.eval.warpDrawnAt

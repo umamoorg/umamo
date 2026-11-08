@@ -33,6 +33,7 @@ import org.umamo.ui.viewport.LocalLiveMeshPreview
 import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
+import org.umamo.ui.viewport.gizmo.collectAxisLockChanges
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.selectToolKind
 import org.umamo.ui.viewport.resyncAfterElementGesture
@@ -249,6 +250,12 @@ fun ViewportEditGizmoOverlay(
 		}
 	}
 
+	// An axis lock toggled MID-GESTURE (X / Z in the key ladder) re-drives at once, so the lock shows - and a confirm
+	// before the next pointer move lands it.
+	LaunchedEffect(session) {
+		collectAxisLockChanges(session, modalTransform, liveCamera, liveSize)
+	}
+
 	// Start the modal gesture as an operator latches IN THIS AREA; tear it down (re-syncing the renderer
 	// to the committed model and lattices) as it clears.  liveGeometry and stage are the values this composition held
 	// when the operator changed, and meshSelection is read as the effect runs, as the collected state has it.
@@ -275,18 +282,7 @@ fun ViewportEditGizmoOverlay(
 			modifier
 				.fillMaxSize()
 				.clipToBounds()
-				.onGloballyPositioned { coordinates -> gesture.areaScreenOrigin = coordinates.positionOnScreen() }
-				// While THIS AREA'S modal transform runs or its select tool is armed, hide the OS cursor so
-				// only the overlay's drawn cursor (double-arrow, crosshair, or brush circle) shows; plain idle
-				// Edit mode adds no icon, leaving the navigation layer's cursor to show through.  A gesture
-				// owned by another viewport leaves this area's cursor alone.
-				.then(
-					if (activeOperator?.areaId == areaId || ownedSelectTool != null) {
-						Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
-					} else {
-						Modifier
-					},
-				),
+				.onGloballyPositioned { coordinates -> gesture.areaScreenOrigin = coordinates.positionOnScreen() },
 	) {
 		// The gesture chrome (band, affordances, modal HUD) in a small layer of its own: it reads
 		// gesture.lastPointer, which updates on every pointer event (hover included), so it redraws per move
@@ -298,7 +294,20 @@ fun ViewportEditGizmoOverlay(
 					.graphicsLayer()
 					.pointerInput(areaId) {
 						editGizmoPointerLoop(areaId, session, modalTransform, marquee, meshPick, latticeHover, liveCamera, liveSize)
-					},
+					}
+					// While THIS AREA'S modal transform runs or its select tool is armed, hide the OS cursor so
+					// only the overlay's drawn cursor (double-arrow, crosshair, or brush circle) shows; plain idle
+					// Edit mode adds no icon, leaving the navigation layer's cursor to show through.  A gesture
+					// owned by another viewport leaves this area's cursor alone.
+					// The hidden cursor joins AFTER the pointer input, below the loop's node: armed above it, it would re-route
+					// the hit path, and Compose delivers the next event to the loop down both the old and the new path.
+					.then(
+						if (activeOperator?.areaId == areaId || ownedSelectTool != null) {
+							Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
+						} else {
+							Modifier
+						},
+					),
 		) {
 			drawEditGizmoChrome(
 				marquee = marquee,

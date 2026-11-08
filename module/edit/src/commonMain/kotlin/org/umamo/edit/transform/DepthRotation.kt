@@ -1,5 +1,6 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.DepthSurface
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.sign
@@ -26,19 +27,6 @@ enum class RotationAxis {
 	Z,
 }
 
-/**
- * How deep each point sits before a depth rotation, each surface's radius the pivot's depth.  Flat keeps the art a
- * plane, so the turn squashes it and slides it by the pivot's depth; Cylinder bends it around a cylinder through the
- * pivot along the rotation axis, so every row of a turn about Z (every column of a tilt about X) curves alike; Sphere
- * lays it over a sphere around the pivot, so its middle moves furthest - the look of a head turning.  The three agree
- * at depth 0.  The declaration order is the order T cycles them in during a rotation ([next]).
- */
-enum class DepthSurface {
-	Flat,
-	Cylinder,
-	Sphere,
-}
-
 /** The stable key of a rotation axis: its name in lower case (y, x, z), the one spelling the Axis row stores. */
 val RotationAxis.choiceKey: String
 	get() = name.lowercase()
@@ -48,26 +36,19 @@ val DepthSurface.choiceKey: String
 	get() = name.replaceFirstChar { first -> first.lowercaseChar() }
 
 /**
- * The surface after this one in T's cycle: Flat, Cylinder, Sphere, then Flat again.
- *
- * @return DepthSurface The next surface.
- */
-fun DepthSurface.next(): DepthSurface = DepthSurface.entries[(ordinal + 1) % DepthSurface.entries.size]
-
-/**
  * The depth offset of one point from the pivot before a depth rotation, along world Y (positive into the screen): Flat
  * puts every point on the art's plane, [pivotDepth] in front of the pivot; Cylinder puts it on the cylinder of radius
  * |[pivotDepth]| through the pivot along [axis], and Sphere on the sphere of that radius around the pivot - on the
  * viewer's side for a pivot pushed away (a negative depth mirrors it), and a point past the rim on the pivot's own plane.
  *
  * @param Float offsetX The point's offset from the pivot along world X.
- * @param Float offsetY The point's offset from the pivot along world Z (the positions' second component).
+ * @param Float offsetZ The point's offset from the pivot along world Z (the positions' second component).
  * @param Float pivotDepth The pivot's depth along world Y, positive into the screen.
  * @param DepthSurface surface How deep the points sit.
  * @param RotationAxis axis The axis the rotation goes about, which the Cylinder surface runs along.
  * @return Float The point's depth minus the pivot's.
  */
-fun depthOffsetOf(offsetX: Float, offsetY: Float, pivotDepth: Float, surface: DepthSurface, axis: RotationAxis): Float =
+fun depthOffsetOf(offsetX: Float, offsetZ: Float, pivotDepth: Float, surface: DepthSurface, axis: RotationAxis): Float =
 	when (surface) {
 		DepthSurface.Flat -> {
 			-pivotDepth
@@ -79,7 +60,7 @@ fun depthOffsetOf(offsetX: Float, offsetY: Float, pivotDepth: Float, surface: De
 			val across =
 				when (axis) {
 					RotationAxis.Z -> offsetX
-					RotationAxis.X -> offsetY
+					RotationAxis.X -> offsetZ
 					RotationAxis.Y -> 0f
 				}
 
@@ -87,7 +68,7 @@ fun depthOffsetOf(offsetX: Float, offsetY: Float, pivotDepth: Float, surface: De
 		}
 
 		DepthSurface.Sphere -> {
-			onDepthRim(pivotDepth, offsetX * offsetX + offsetY * offsetY)
+			onDepthRim(pivotDepth, offsetX * offsetX + offsetZ * offsetZ)
 		}
 	}
 

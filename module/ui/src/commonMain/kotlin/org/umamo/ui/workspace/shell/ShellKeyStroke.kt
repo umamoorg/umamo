@@ -40,7 +40,11 @@ internal data class ShellKeyStroke(
 	val shift: Boolean = false,
 	val alt: Boolean = false,
 	val controlKey: Boolean = false,
-)
+) {
+	/** True while any modifier is held - the primary, Shift, Alt, or a literal Control. */
+	val hasModifier: Boolean
+		get() = primaryModifier || shift || alt || controlKey
+}
 
 /**
  * Reduces a Compose key event to the [ShellKeyStroke] the shell routes on.

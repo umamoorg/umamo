@@ -20,6 +20,7 @@ import kotlin.test.assertEquals
  */
 @OptIn(ExperimentalTestApi::class)
 class PivotDepthInsetTest {
+	/** The depth inset shows only in the rotating area, and only while an axis is locked. */
 	@Test
 	fun theInsetShowsInTheRotatingAreaOnlyWhileAnAxisIsLocked() =
 		runComposeUiTest {
@@ -47,7 +48,7 @@ class PivotDepthInsetTest {
 			waitForIdle()
 			assertEquals(1, insetsReading("Depth 46 px · Flat"), "a push updates the readout")
 
-			session.cycleDepthSurface()
+			session.cycleDepthSurface(announce = false)
 			waitForIdle()
 			assertEquals(1, insetsReading("Depth 46 px · Cylinder"), "and so does T's surface cycle")
 

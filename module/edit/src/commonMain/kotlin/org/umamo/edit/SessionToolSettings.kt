@@ -1,7 +1,6 @@
 package org.umamo.edit
 
 import kotlinx.coroutines.flow.StateFlow
-import org.umamo.edit.transform.DepthSurface
 
 /**
  * The tool settings a session carries between gestures and a saved document carries between sessions:
@@ -87,7 +86,7 @@ interface SessionToolSettings {
 	fun setPivotDepth(depthWorld: Float)
 
 	/**
-	 * How deep the points sit before a rotation about X or Z (see [org.umamo.edit.transform.DepthSurface]): T cycles it
+	 * How deep the points sit before a rotation about X or Z (see [DepthSurface]): T cycles it
 	 * during the rotation and the strip's Surface row writes it back, so the next rotation starts from it.
 	 */
 	val depthSurface: StateFlow<DepthSurface>
@@ -99,8 +98,13 @@ interface SessionToolSettings {
 	 */
 	fun setDepthSurface(surface: DepthSurface)
 
-	/** Moves the depth surface to the next one in T's cycle (Flat, Cylinder, Sphere), silently. */
-	fun cycleDepthSurface()
+	/**
+	 * Moves the depth surface to the next one in T's cycle (Flat, Cylinder, Sphere), naming the new surface in a
+	 * near-cursor notice when [announce] - a rotation with no axis locked, whose depth inset is not showing it.
+	 *
+	 * @param Boolean announce True to post the notice.
+	 */
+	fun cycleDepthSurface(announce: Boolean)
 
 	/**
 	 * Proportional editing (Blender's O): non-null while enabled, carrying the falloff curve and the

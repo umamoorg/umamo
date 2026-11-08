@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.umamo.edit.Cursor2d
 import org.umamo.edit.DEFAULT_PROPORTIONAL_EDIT_STATE
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.ParameterSelection
@@ -19,7 +20,6 @@ import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SessionViewState
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.UvCursor
-import org.umamo.edit.transform.DepthSurface
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId

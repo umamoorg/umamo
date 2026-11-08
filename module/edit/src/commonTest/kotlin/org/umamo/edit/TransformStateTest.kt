@@ -1,8 +1,6 @@
 package org.umamo.edit
 
-import org.umamo.edit.transform.DepthSurface
 import org.umamo.edit.transform.MeshTransforms
-import org.umamo.edit.transform.PIVOT_DEPTH_LIMIT
 import org.umamo.edit.transform.RotationAngleTracker
 import org.umamo.edit.transform.TransformPivots
 import org.umamo.edit.transform.beginBoxSelect
@@ -135,6 +133,25 @@ class TransformStateTest {
 		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate), "a Grab latch never rotates in depth")
 	}
 
+	/** An operator interrupted by another tool's latch drops its depth and suppression flags with it. */
+	@Test
+	fun anInterruptedMeshOperatorDropsItsLatchFlags() {
+		val session = PoseLatticeTestRig.posing(listOf(SelectionTarget.Deformer(PoseLatticeTestRig.cage)))
+		session.selectAllMeshElements()
+
+		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
+		assertTrue(session.activeMeshOperatorRotatesInDepth, "the Pose Rotate latched rotating in depth")
+		session.beginBoxSelect("area-test")
+		assertNull(session.activeMeshOperator.value, "the box select took the latch")
+		assertFalse(session.activeMeshOperatorRotatesInDepth, "the depth flag went with the operator")
+		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate))
+
+		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test", suppressProportional = true)
+		assertTrue(session.activeMeshOperatorSuppressesProportional, "the auto-grab latched suppressed")
+		session.beginBoxSelect("area-test")
+		assertFalse(session.activeMeshOperatorSuppressesProportional, "the suppression went with the operator")
+	}
+
 	/** An Edit-mode Rotate keeps only the view axis: X and Z stay no-ops. */
 	@Test
 	fun anEditRotateRefusesTheDepthLock() {
@@ -162,6 +179,10 @@ class TransformStateTest {
 
 		session.setPivotDepth(-1e9f)
 		assertEquals(-PIVOT_DEPTH_LIMIT, session.pivotDepth.value, "a write clamps to the Depth row's range")
+		session.setPivotDepth(Float.POSITIVE_INFINITY)
+		assertEquals(PIVOT_DEPTH_LIMIT, session.pivotDepth.value, "an infinite write clamps too")
+		session.setPivotDepth(Float.NaN)
+		assertEquals(0f, session.pivotDepth.value, "a NaN lands on the art")
 
 		val reopened = EditorSession(session.model.value, initialViewState = SessionViewState(pivotDepth = 64f, depthSurface = DepthSurface.Cylinder))
 		assertEquals(64f, reopened.pivotDepth.value, "a saved state seeds the depth")
@@ -173,12 +194,17 @@ class TransformStateTest {
 	fun theDepthSurfaceCyclesAndSticks() {
 		val session = meshedSession()
 
-		session.cycleDepthSurface()
+		session.cycleDepthSurface(announce = false)
 		assertEquals(DepthSurface.Cylinder, session.depthSurface.value)
-		session.cycleDepthSurface()
+		session.cycleDepthSurface(announce = false)
 		assertEquals(DepthSurface.Sphere, session.viewState().depthSurface)
-		session.cycleDepthSurface()
+		session.cycleDepthSurface(announce = false)
 		assertEquals(DepthSurface.Flat, session.depthSurface.value, "the cycle wraps")
+		assertNull(session.notice.value, "a silent cycle posts nothing")
+
+		session.cycleDepthSurface(announce = true)
+		assertEquals("notice.depthSurface.cylinder", session.notice.value?.messageKey, "an announced cycle names the surface")
+		assertEquals(NoticePlacement.NearCursor, session.notice.value?.placement)
 	}
 
 	/** The cursor, pivot mode, and pie latches hold their values; undo clears the transient pie latch. */

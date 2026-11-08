@@ -23,7 +23,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.stringResource
-import org.umamo.edit.transform.DepthSurface
+import org.umamo.edit.DepthSurface
 import org.umamo.render.WorldAxisColors
 import org.umamo.ui.kit.Text
 import org.umamo.ui.resources.*
