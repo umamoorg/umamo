@@ -16,6 +16,7 @@ import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.buildModalTransformCapture
+import org.umamo.edit.transform.pivotDepthSteppedFrom
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ElementOwner
@@ -33,6 +34,7 @@ import org.umamo.ui.viewport.gizmo.ModalTransformTarget
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.activeElementMedian
 import org.umamo.ui.viewport.gizmo.gestureParameters
+import kotlin.math.abs
 import kotlin.math.pow
 
 /**
@@ -86,13 +88,17 @@ internal class EditModalTransform(
 	 * cursor wrap, pointer controller).  The capture is the Edit-mode gesture; preview holds each moving
 	 * mesh's new rest shape.
 	 */
-	val gesture = ModalGestureState<EditGesture, MeshRestPositions>()
+	override val gesture = ModalGestureState<EditGesture, MeshRestPositions>()
 
 	// The Vertex Slide's most recent landing (edge + factor), written as a drive publishes and read by the
 	// confirm's strip registration.  Plain state, like ModalGestureState.lastParameters: nothing composed or
 	// drawn reads it, and every reader checks the capture first, so a landing left from an earlier slide is
 	// never read.
 	private var slideLanding: SlideLanding? = null
+
+	// The primary-modifier wheel's travel toward the next depth step: a notch can arrive split across events, and a
+	// trackpad or high-resolution wheel sends fractions, so the travel gathers here and each whole notch steps once.
+	private var pendingDepthSteps = 0f
 
 	// The request the published preview answers: the confirm names the vertices it moved, which a radius
 	// or falloff change since may have changed on the capture itself.
@@ -187,6 +193,7 @@ internal class EditModalTransform(
 
 		gesture.begin(EditGesture(transform, geometryByOwner, slide, stage), gesture.lastPointer)
 		slideLanding = null
+		pendingDepthSteps = 0f
 		publishedRequest = null
 		publishedResult = null
 
@@ -324,7 +331,16 @@ internal class EditModalTransform(
 				} else {
 					null
 				}
-			registerMeshTransformAdjustment(session, areaId, transform, gestureData.geometryByOwner, gestureData.stage, parameters, proportional) { _, state ->
+			registerMeshTransformAdjustment(
+				session,
+				areaId,
+				transform,
+				gestureData.geometryByOwner,
+				gestureData.stage,
+				parameters,
+				proportional,
+				rotatesInDepth = session.meshOperatorRotatesInDepth(transform.operatorKind),
+			) { _, state ->
 				session.setProportionalEdit(state)
 			}
 		}
@@ -338,23 +354,65 @@ internal class EditModalTransform(
 	/**
 	 * The wheel resizes the proportional influence radius mid-gesture (Blender's behavior): geometric
 	 * steps and weights re-derived from the frozen originals at once, on the UI thread, and a drive
-	 * submitted so the mesh responds without a pointer move.
+	 * submitted so the mesh responds without a pointer move.  With the primary modifier held during a Rotate
+	 * rotating in depth about a locked axis, it pushes the pivot along Y instead - wheel up away from the viewer, one
+	 * fixed world step per whole notch ([pivotDepthSteppedFrom]) - and re-drives the same way.
 	 *
 	 * @param Float steps The scroll in wheel steps; negative (wheel up) grows the radius.
+	 * @param Boolean primaryHeld True while the primary modifier is held.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
 	 */
-	override fun onScroll(steps: Float, camera: ViewportCamera, size: IntSize) {
+	override fun onScroll(steps: Float, primaryHeld: Boolean, camera: ViewportCamera, size: IntSize) {
 		val operator = session.activeMeshOperator.value?.takeIf { it.areaId == areaId } ?: return
 		val proportional = session.proportionalEdit.value
 		val gestureData = gesture.capture
+
+		if (primaryHeld && session.meshOperatorRotatesInDepth(operator.kind) && session.axisConstraint.value != null) {
+			// Travel gathered before the capture lands would arrive as a burst of steps once it does.
+			if (gestureData == null) {
+				return
+			}
+
+			pendingDepthSteps += steps
+			val wholeSteps = pendingDepthSteps.toInt()
+
+			if (wholeSteps != 0) {
+				pendingDepthSteps -= wholeSteps
+				var depth = session.pivotDepth.value
+
+				repeat(abs(wholeSteps)) {
+					depth = pivotDepthSteppedFrom(depth, wholeSteps.toFloat())
+				}
+
+				session.setPivotDepth(depth)
+				redrive(camera, size)
+			}
+
+			return
+		}
+
+		// A scroll that pushes no depth drops a partial notch, so it never tips a later push over a step early.
+		pendingDepthSteps = 0f
 
 		if (steps != 0f && proportional != null && gestureData != null && session.meshOperatorTakesProportional(operator.kind)) {
 			session.setProportionalRadius(proportional.radiusWorld * PROPORTIONAL_RADIUS_STEP_FACTOR.pow(-steps))
 			val updated = session.proportionalEdit.value
 			gestureData.transform.applyProportional(updated, updated?.radiusWorld ?: 0f)
-			submitDrive(operator.kind, gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
+			redrive(camera, size)
 		}
+	}
+
+	/**
+	 * Re-drives on an axis lock change, dropping any partial wheel notch first: travel gathered about one axis must not
+	 * push the pivot for the next.
+	 *
+	 * @param ViewportCamera camera The area camera.
+	 * @param IntSize size The area size in pixels.
+	 */
+	override fun onAxisLockChanged(camera: ViewportCamera, size: IntSize) {
+		pendingDepthSteps = 0f
+		redrive(camera, size)
 	}
 
 	/**
@@ -372,7 +430,17 @@ internal class EditModalTransform(
 		val start = gesture.gestureStart ?: return false
 		val gestureData = gesture.capture ?: return false
 		val transform = gestureData.transform
-		val frame = TransformGestureFrame(transform.anchor, start, virtualPointer, session.axisConstraint.value, activeCamera, size)
+		val frame =
+			TransformGestureFrame(
+				transform.anchor,
+				start,
+				virtualPointer,
+				session.axisConstraint.value,
+				activeCamera,
+				size,
+				session.pivotDepth.value,
+				session.depthSurface.value,
+			)
 		val parameters = gestureParameters(operator, frame, transform.rotationTracker)
 		// Vertex Slide projects the pointer onto its edge: the best edge is re-picked from the live pointer
 		// every move, and a pointer landing on no edge leaves the vertex where it was.

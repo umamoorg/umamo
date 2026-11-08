@@ -68,7 +68,7 @@ internal class ObjectModalTransform(
 	 * The per-area modal-gesture bookkeeping (last pointer, capture + preview, gesture origin, cursor wrap,
 	 * pointer controller); the capture is the Object-mode gesture.
 	 */
-	val gesture = ModalGestureState<ObjectGesture, MeshRestPositions>()
+	override val gesture = ModalGestureState<ObjectGesture, MeshRestPositions>()
 
 	/**
 	 * The drive: requests resolved per pointer event, the drawables computed off the UI thread in parallel and

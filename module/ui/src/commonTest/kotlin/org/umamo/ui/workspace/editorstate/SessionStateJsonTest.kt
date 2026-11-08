@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.umamo.edit.Cursor2d
 import org.umamo.edit.DEFAULT_PROPORTIONAL_EDIT_STATE
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MeshSelectMode
 import org.umamo.edit.ParameterSelection
@@ -74,6 +75,8 @@ class SessionStateJsonTest {
 				cursor2d = Cursor2d(12.5f, -8f),
 				uvCursor = UvCursor(0.25f, 0.75f),
 				pivotMode = TransformPivotMode.IndividualOrigins,
+				pivotDepth = 125.5f,
+				depthSurface = DepthSurface.Cylinder,
 				proportionalEnabled = true,
 				proportionalSettings = ProportionalEditState(ProportionalFalloff.Linear, 64f, connectedOnly = true),
 			)
@@ -81,6 +84,29 @@ class SessionStateJsonTest {
 		val reopened = sessionViewStateOf(sessionStateJson(saved, defaultPose, model))
 
 		assertEquals(saved, reopened)
+	}
+
+	/** The depth rotation's block names each member away from its default, and a pulled pivot reads back negative. */
+	@Test
+	fun theDepthRotationBlockWritesOnlyItsDeviations() {
+		val depthOnly = sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)["depthRotation"] as JsonObject
+
+		assertEquals(-40f, depthOnly["depth"]?.jsonPrimitive?.content?.toFloat())
+		assertTrue(depthOnly["surface"] is JsonNull, "a Flat surface writes nothing")
+		assertEquals(SessionViewState(pivotDepth = -40f), sessionViewStateOf(sessionStateJson(SessionViewState(pivotDepth = -40f), defaultPose, model)))
+
+		val surfaceOnly = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Cylinder), defaultPose, model)["depthRotation"] as JsonObject
+		assertEquals("cylinder", surfaceOnly["surface"]?.jsonPrimitive?.content)
+		assertTrue(surfaceOnly["depth"] is JsonNull, "a depth of 0 writes nothing")
+
+		for (surface in DepthSurface.entries) {
+			val saved = SessionViewState(depthSurface = surface)
+
+			assertEquals(saved, sessionViewStateOf(sessionStateJson(saved, defaultPose, model)), "$surface round-trips")
+		}
+
+		val sphere = sessionStateJson(SessionViewState(depthSurface = DepthSurface.Sphere), defaultPose, model)["depthRotation"] as JsonObject
+		assertEquals("sphere", sphere["surface"]?.jsonPrimitive?.content)
 	}
 
 	/** An id holding a colon survives: the reference splits on its FIRST colon only. */

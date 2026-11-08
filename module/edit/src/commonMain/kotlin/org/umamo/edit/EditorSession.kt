@@ -963,6 +963,8 @@ class EditorSession private constructor(
 			cursor2d = settings.cursor2d.value,
 			uvCursor = settings.uvCursor.value,
 			pivotMode = settings.pivotMode.value,
+			pivotDepth = settings.pivotDepth.value,
+			depthSurface = settings.depthSurface.value,
 			proportionalEnabled = settings.proportionalEdit.value != null,
 			proportionalSettings = settings.proportionalSettings.value,
 		)

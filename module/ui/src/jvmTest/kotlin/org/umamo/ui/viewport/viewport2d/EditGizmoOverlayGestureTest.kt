@@ -133,6 +133,25 @@ class EditGizmoOverlayGestureTest {
 			assertEquals(pushesBefore + 1, fixture.service.pushedModels.size, "the scroll alone re-drove the preview")
 		}
 
+	/**
+	 * A wheel notch that is the first event after the latch steps the radius once: the latch arms the hidden cursor, and
+	 * arming it must not re-route the hit path the pointer loop sits on, or the notch would arrive twice.
+	 */
+	@Test
+	fun theFirstWheelNotchAfterTheLatchStepsOnce() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(gizmoEditSession(elements = listOf(MeshElement.Vertex(0))))
+			val session = fixture.session
+			session.setProportionalEdit(ProportionalEditState(ProportionalFalloff.Linear, 10f))
+			moveIn(LEFT_AREA, listOf(gestureStart))
+			session.beginMeshOperator(MeshOperatorKind.Grab, LEFT_AREA)
+			waitForIdle()
+
+			scrollIn(LEFT_AREA, -1f)
+
+			assertEquals(10f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(session.proportionalEdit.value).radiusWorld, 1e-4f, "one notch, one step")
+		}
+
 	/** The wheel leaves the radius alone during a Vertex Slide, which takes no weights. */
 	@Test
 	fun theWheelLeavesTheRadiusAloneDuringASlide() =

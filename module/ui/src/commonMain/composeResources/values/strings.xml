@@ -589,6 +589,10 @@
 	<!-- Status bar zones: context bind hints, edit-mode selection counts, and mesh stat totals. -->
 	<string name="status_bind_confirm">LMB / Enter: Confirm</string>
 	<string name="status_bind_cancel">RMB / Esc: Cancel</string>
+	<!-- The status hints a Pose-mode Rotate adds: the axis keys and the surface cycle, then (once locked) the pivot push; %1$s is the primary modifier. -->
+	<string name="status_bind_depth_rotation">X / Z: Rotate in Depth</string>
+	<string name="status_bind_depth_push">%1$s+Wheel: Depth</string>
+	<string name="status_bind_depth_surface">T: Surface</string>
 	<string name="status_bind_edit_mode">Edit Mode</string>
 	<string name="status_bind_visibility">Visibility</string>
 	<string name="status_bind_grab">Grab</string>
@@ -618,6 +622,10 @@
 	<!-- Viewport HUD: the modal-operator status badge. -->
 	<string name="hud_along_x">Along X</string>
 	<string name="hud_along_z">Along Z</string>
+	<!-- A Rotate rotating in depth names the axis it turns about, and the lower-right inset reads the pivot's depth. -->
+	<string name="hud_about_x">About X</string>
+	<string name="hud_about_z">About Z</string>
+	<string name="hud_pivot_depth">Depth %1$d px · %2$s</string>
 
 	<!-- Transform pivot modes (the Period pie) and the Shift+S snap operations. -->
 	<string name="cmd_transform_pivot_pie">Pivot Point</string>
@@ -834,6 +842,10 @@
 	<string name="hud_scale_factor">×%1$s</string>
 	<string name="notice_proportional_connected_on">Proportional editing: Connected only.</string>
 	<string name="notice_proportional_connected_off">Proportional editing: All within radius.</string>
+	<!-- The depth surface T cycles to during a Pose-mode Rotate with no axis locked. -->
+	<string name="notice_depth_surface_flat">Surface: Flat.</string>
+	<string name="notice_depth_surface_cylinder">Surface: Cylinder.</string>
+	<string name="notice_depth_surface_sphere">Surface: Sphere.</string>
 	<!-- %1$s is the drawable's name. -->
 	<string name="notice_reparent_place_not_kept">%1$s was moved to its new parent but could not keep its place: The new deformers could not map its position.</string>
 	<string name="notice_reparent_places_not_kept">%1$d object(s) were moved to their new parent but could not keep their place: The new deformers could not map their positions.</string>
@@ -1012,6 +1024,16 @@
 	<string name="transform_options_proportional_size">Proportional Size</string>
 	<string name="transform_options_connected">Connected Only</string>
 	<string name="transform_options_slide_factor">Factor</string>
+	<!-- A Pose-mode Rotate's depth rows and their choices. -->
+	<string name="transform_options_axis">Axis</string>
+	<string name="transform_options_pivot_depth">Depth</string>
+	<string name="transform_options_depth_surface">Surface</string>
+	<string name="transform_axis_y">Y</string>
+	<string name="transform_axis_x">X</string>
+	<string name="transform_axis_z">Z</string>
+	<string name="transform_depth_surface_flat">Flat</string>
+	<string name="transform_depth_surface_cylinder">Cylinder</string>
+	<string name="transform_depth_surface_sphere">Sphere</string>
 	<!-- The Merge row of the operation settings strip and its choices. -->
 	<string name="merge_options_target">Merge At</string>
 	<string name="lattice_options_rows">Rows</string>
@@ -1144,9 +1166,12 @@
 	<string name="transform_options_proportional_description">Also moves the unselected vertices near the selection, less the farther away they are.</string>
 	<string name="transform_options_falloff_description">The curve the proportional influence follows as it fades out toward the edge of Proportional Size.</string>
 	<string name="transform_options_proportional_size_description">How far the proportional influence reaches from the selection, in pixels.</string>
-	<string name="transform_options_connected_description">Limits the proportional influence to vertices joined to the selection by mesh edges, measuring distance along those edges.</string>
-	<string name="transform_options_slide_factor_description">Where along its edge the vertex landed: 0 is where it started, and 1 is the neighboring vertex.</string>
-	<string name="merge_options_target_description">Where the merged vertices come together: at their center, or on the first or last vertex selected.</string>
+	<string name="transform_options_connected_description">Limits the proportional influence to vertices that are connected to the selected meshes.</string>
+	<string name="transform_options_slide_factor_description">The fractional percentage distance along the edge that the vertex rests.</string>
+	<string name="transform_options_axis_description">The rotational axis that the selection pivots around.</string>
+	<string name="transform_options_pivot_depth_description">How far forwards or backwards along the Y axis the pivot is moved.</string>
+	<string name="transform_options_depth_surface_description">The shape of the 3D surface applied to the lattice.</string>
+	<string name="merge_options_target_description">The position where the merged vertices will end up at.</string>
 	<string name="lattice_options_rows_description">The lattice's new cell count from top to bottom.</string>
 	<string name="create_warp_options_rows_description">How many cells the new warp has from top to bottom.</string>
 	<string name="create_warp_options_columns_description">How many cells the new warp has from left to right.</string>

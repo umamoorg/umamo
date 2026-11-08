@@ -210,7 +210,7 @@ class UvEditModalTransformTest {
 		rig.latch(MeshOperatorKind.Grab)
 		rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT)
 
-		rig.transform.onScroll(-1f, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+		rig.transform.onScroll(-1f, primaryHeld = false, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
 
 		assertEquals(UV_RIG_PAGE_SIDE / 8f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(rig.radiusHolder.value.value), 1e-4f)
 		assertEquals(10f, assertNotNull(session.proportionalEdit.value).radiusWorld)
@@ -230,7 +230,7 @@ class UvEditModalTransformTest {
 		val pageRadius = rig.radiusHolder.value
 		val layerRadius = rig.showLayer()
 
-		rig.transform.onScroll(-1f, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+		rig.transform.onScroll(-1f, primaryHeld = false, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
 
 		assertEquals(UV_RIG_PAGE_SIDE / 8f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(pageRadius.value), 1e-4f, "the page's radius grew")
 		assertNull(layerRadius.value, "the layer's radius is untouched, not even seeded")
@@ -263,7 +263,7 @@ class UvEditModalTransformTest {
 		val layerRadius = rig.showLayer()
 		rig.latch(MeshOperatorKind.Grab)
 
-		rig.transform.onScroll(-1f, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+		rig.transform.onScroll(-1f, primaryHeld = false, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
 
 		assertEquals(UV_RIG_LAYER_SIDE / 8f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(layerRadius.value), 1e-4f, "seeded from the layer, then grown")
 		assertEquals(UV_RIG_PAGE_SIDE / 8f, pageRadius.value, "the page's radius is untouched")
@@ -447,7 +447,7 @@ class UvEditModalTransformTest {
 			rig.driveTo(UV_RIG_TEN_TEXELS_RIGHT)
 			runCurrent()
 
-			rig.transform.onScroll(-1f, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
+			rig.transform.onScroll(-1f, primaryHeld = false, UV_RIG_PAGE_CAMERA, UV_RIG_AREA_SIZE)
 
 			assertEquals(UV_RIG_PAGE_SIDE / 8f * PROPORTIONAL_RADIUS_STEP_FACTOR, assertNotNull(rig.radiusHolder.value.value), 1e-4f)
 			assertEquals(1, rig.pushed.size, "the re-drive waits for the worker")

@@ -1,14 +1,20 @@
 package org.umamo.ui.viewport.gizmo
 
+import androidx.compose.runtime.State
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEvent
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerKeyboardModifiers
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.flow.drop
 import org.umamo.edit.EditorSession
 import org.umamo.render.ViewportCamera
+import org.umamo.ui.action.controlIsDistinctFromPrimary
 
 /**
  * The commit-side seam of a modal G / S / R gesture: what differs between the Edit overlay (per-mesh
@@ -18,6 +24,9 @@ import org.umamo.render.ViewportCamera
  * [ModalTransformController]; implementations supply only where the preview goes and how it commits.
  */
 internal interface ModalTransformTarget {
+	/** The area's modal-gesture bookkeeping: the last pointer and the cursor wrap a re-drive starts from. */
+	val gesture: ModalGestureState<*, *>
+
 	/**
 	 * Submits a drive of the live preview for the given wrap-continuous pointer: the request resolves here,
 	 * on the UI thread, and the preview reaches the renderer when the target's drive worker publishes it
@@ -41,14 +50,37 @@ internal interface ModalTransformTarget {
 	fun cancel()
 
 	/**
-	 * Handles a modal wheel scroll.  The Edit overlay resizes the proportional influence radius here;
-	 * targets without a scroll behavior take the default no-op.
+	 * Handles a modal wheel scroll.  The Edit overlay resizes the proportional influence radius here, and with the
+	 * primary modifier held pushes a depth rotation's pivot along Y; targets without a scroll behavior take the default
+	 * no-op.
 	 *
 	 * @param Float steps The scroll delta in wheel steps (negative is wheel-up).
+	 * @param Boolean primaryHeld True while the primary modifier (Ctrl; Command on macOS) is held.
 	 * @param ViewportCamera camera The area camera.
 	 * @param IntSize size The area size in pixels.
 	 */
-	fun onScroll(steps: Float, camera: ViewportCamera, size: IntSize) {}
+	fun onScroll(steps: Float, primaryHeld: Boolean, camera: ViewportCamera, size: IntSize) {}
+
+	/**
+	 * Re-drives the in-flight gesture at the last pointer, so a setting changed mid-gesture (an axis lock, the wheel's
+	 * radius or depth, T's surface) shows - and confirms - without a pointer move.
+	 *
+	 * @param ViewportCamera camera The area camera.
+	 * @param IntSize size The area size in pixels.
+	 * @return Boolean True when a drive was submitted; false while no gesture is latched in this area.
+	 */
+	fun redrive(camera: ViewportCamera, size: IntSize): Boolean = drivePreview(gesture.cursorWrap.virtualPointer(gesture.lastPointer), camera, size)
+
+	/**
+	 * Handles the session's axis lock changing, whichever area's key press changed it: re-drives, so the lock lands on
+	 * the preview at once.
+	 *
+	 * @param ViewportCamera camera The area camera.
+	 * @param IntSize size The area size in pixels.
+	 */
+	fun onAxisLockChanged(camera: ViewportCamera, size: IntSize) {
+		redrive(camera, size)
+	}
 }
 
 /**
@@ -121,7 +153,7 @@ internal class ModalTransformController(
 			}
 
 			PointerEventType.Scroll -> {
-				target.onScroll(change.scrollDelta.y, camera, size)
+				target.onScroll(change.scrollDelta.y, event.keyboardModifiers.holdsPrimary(), camera, size)
 			}
 
 			else -> {}
@@ -132,6 +164,14 @@ internal class ModalTransformController(
 		return pointer
 	}
 }
+
+/**
+ * Whether these pointer-event modifiers hold the logical primary modifier: Command where Control is a modifier of its
+ * own (macOS), Control everywhere else - the keymap's primary, read off a pointer event.
+ *
+ * @return Boolean True when the primary modifier is held.
+ */
+private fun PointerKeyboardModifiers.holdsPrimary(): Boolean = if (controlIsDistinctFromPrimary()) isMetaPressed else isCtrlPressed
 
 /**
  * Collects the session's Enter-confirm requests for one overlay instance and confirms its gesture.
@@ -153,5 +193,27 @@ internal suspend fun collectModalConfirmRequests(
 		if (isGestureActiveHere()) {
 			confirm()
 		}
+	}
+}
+
+/**
+ * Collects the session's axis lock for one overlay instance and hands each change to its [target], so X or Z pressed
+ * mid-gesture moves the preview without a pointer move - and a confirm before the next move lands the locked result.
+ * The lock is session-wide, so every overlay instance sees each change; the target's own drive refuses a gesture it
+ * does not own.  The lock the collector starts on is no change, and is skipped.
+ *
+ * @param EditorSession session The session whose axis lock to collect.
+ * @param ModalTransformTarget target The overlay's modal transform.
+ * @param State liveCamera The area camera, read as each change arrives.
+ * @param State liveSize The area size in pixels, read as each change arrives.
+ */
+internal suspend fun collectAxisLockChanges(
+	session: EditorSession,
+	target: ModalTransformTarget,
+	liveCamera: State<ViewportCamera>,
+	liveSize: State<IntSize>,
+) {
+	session.axisConstraint.drop(1).collect {
+		target.onAxisLockChanged(liveCamera.value, liveSize.value)
 	}
 }

@@ -6,7 +6,7 @@ import kotlin.math.round
 
 /*
  * Pure, Compose-free numeric-field math: display / storage rounding, the min-max fill fraction, the
- * drag-scrub value mapping, and fixed-decimal formatting.  Extracted so the field's behavior is unit
+ * drag-scrub value mapping, fixed-decimal formatting, and typed-entry parsing.  Extracted so the field's behavior is unit
  * testable without a Compose harness (see NumberFieldMathTest).
  */
 
@@ -19,6 +19,16 @@ const val NUMBER_FIELD_STORAGE_DECIMALS = 6
 
 /** Pixels of horizontal drag per one [step] increment while scrubbing (the pointer-scrub sensitivity). */
 const val NUMBER_FIELD_SCRUB_PIXELS_PER_STEP = 6f
+
+/**
+ * The number a decimal field's typed entry means, or null for an entry that is no number - "NaN" and "Infinity"
+ * included: Kotlin's parse accepts both, a clamp passes NaN straight through, and no field value is ever meant to be
+ * either.
+ *
+ * @param String typed The entered text.
+ * @return Float? The finite number, or null to leave the field as it was.
+ */
+fun parseTypedFloat(typed: String): Float? = typed.trim().toFloatOrNull()?.takeIf { parsed -> parsed.isFinite() }
 
 /**
  * The left-to-right fill fraction for a bounded field: where [value] sits in [min]..[max], clamped to

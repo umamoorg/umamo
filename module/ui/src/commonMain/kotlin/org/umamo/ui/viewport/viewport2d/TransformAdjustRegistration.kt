@@ -49,6 +49,8 @@ import org.umamo.ui.transform.amendLatticeLanding
  * @param ElementEditStage           stage        Where the geometry was captured.
  * @param TransformGestureParameters parameters   The numbers the gesture landed with.
  * @param ProportionalRows?          proportional The proportional rows, or null when the gesture took no weights.
+ * @param Boolean                    rotatesInDepth True when the gesture could rotate in depth (a Pose-mode Rotate), which
+ *   adds the depth rows.
  * @param Function                   onProportional Receives the adjusted record and its proportional state
  *   (null for off) after each landed adjustment, so the next gesture can start from it and a caller can write
  *   back only the rows the rigger set; unused when [proportional] is null.
@@ -63,10 +65,11 @@ internal fun registerMeshTransformAdjustment(
 	stage: ElementEditStage,
 	parameters: TransformGestureParameters,
 	proportional: ProportionalRows?,
+	rotatesInDepth: Boolean = false,
 	onProportional: (AdjustableOperation, ProportionalEditState?) -> Unit,
 ): AdjustableOperation? {
 	val kind = transform.operatorKind
-	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional)
+	val rows = transformParameters(kind, parameters, TransformRowSpace.World, proportional, rotatesInDepth)
 
 	if (rows.isEmpty()) {
 		return null
@@ -78,8 +81,17 @@ internal fun registerMeshTransformAdjustment(
 		// The drive's own compute and landing, so a replay and the gesture it replays cannot drift apart.
 		val jobs = meshDriveJobs(transform, geometryByOwner, wholeMeshes = false)
 
-		if (session.amendDrive(record, computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model, stage)), stage) && proportionalRows != null) {
+		if (!session.amendDrive(record, computeMeshDrive(MeshDriveRequest(kind, adjusted, jobs, null, record.baseSnapshot.model, stage)), stage)) {
+			return@registerAdjustableOperation
+		}
+
+		if (proportionalRows != null) {
 			onProportional(record, proportionalRows.asState())
+		}
+
+		if (rotatesInDepth && record.adjustedKey in TransformParameterKeys.DEPTH_ROWS) {
+			session.setPivotDepth(adjusted.pivotDepth)
+			session.setDepthSurface(adjusted.depthSurface)
 		}
 	}
 }

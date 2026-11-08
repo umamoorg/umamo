@@ -11,8 +11,11 @@ import org.umamo.edit.mesh.MergeTarget
 import org.umamo.edit.mesh.parameterKey
 import org.umamo.edit.structure.RehomeParameterKeys
 import org.umamo.edit.structure.WarpCreationParameterKeys
+import org.umamo.edit.transform.RotationAxis
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.choiceKey
+import org.umamo.edit.transform.depthSurfaceOf
+import org.umamo.edit.transform.rotationAxisOf
 import org.umamo.interop.art.ArtworkAnchor
 import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.ui.model.artwork.ImportParameterKeys
@@ -21,6 +24,7 @@ import org.umamo.ui.model.mesh.MeshGenerationParameterKeys
 import org.umamo.ui.model.mesh.QuadMeshParameterKeys
 import org.umamo.ui.model.repack.RepackParameterKeys
 import org.umamo.ui.resources.*
+import org.umamo.ui.viewport.depthSurfaceLabel
 import org.umamo.ui.viewport.falloffLabel
 import org.umamo.ui.viewport.uv.PlacementParameterKeys
 
@@ -101,6 +105,12 @@ internal fun operatorParameterLabel(labelKey: String): String =
 		TransformParameterKeys.CONNECTED_ONLY -> stringResource(Res.string.transform_options_connected)
 
 		TransformParameterKeys.SLIDE_FACTOR -> stringResource(Res.string.transform_options_slide_factor)
+
+		TransformParameterKeys.AXIS -> stringResource(Res.string.transform_options_axis)
+
+		TransformParameterKeys.PIVOT_DEPTH -> stringResource(Res.string.transform_options_pivot_depth)
+
+		TransformParameterKeys.DEPTH_SURFACE -> stringResource(Res.string.transform_options_depth_surface)
 
 		MergeParameterKeys.TARGET -> stringResource(Res.string.merge_options_target)
 
@@ -203,6 +213,9 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 		TransformParameterKeys.PROPORTIONAL_SIZE -> Res.string.transform_options_proportional_size_description
 		TransformParameterKeys.CONNECTED_ONLY -> Res.string.transform_options_connected_description
 		TransformParameterKeys.SLIDE_FACTOR -> Res.string.transform_options_slide_factor_description
+		TransformParameterKeys.AXIS -> Res.string.transform_options_axis_description
+		TransformParameterKeys.PIVOT_DEPTH -> Res.string.transform_options_pivot_depth_description
+		TransformParameterKeys.DEPTH_SURFACE -> Res.string.transform_options_depth_surface_description
 		MergeParameterKeys.TARGET -> Res.string.merge_options_target_description
 		LatticeResizeParameterKeys.ROWS -> Res.string.lattice_options_rows_description
 		RehomeParameterKeys.KEEP_IN_PLACE -> Res.string.rehome_options_keep_in_place_description
@@ -242,8 +255,8 @@ internal fun operatorParameterDescriptionRes(labelKey: String): StringResource? 
 internal fun operatorParameterDescription(labelKey: String): String = operatorParameterDescriptionRes(labelKey)?.let { resource -> stringResource(resource) } ?: ""
 
 /**
- * The localized label of a choice entry's prefixed key: a falloff curve's, a merge target's, an
- * import anchor's, or a mesh preset's.
+ * The localized label of a choice entry's prefixed key: a falloff curve's, a rotation axis's, a depth
+ * surface's, a merge target's, an import anchor's, or a mesh preset's.
  *
  * @param String labelKey The entry's label key.
  * @return String? The label, or null when the key carries none of the prefixes.
@@ -254,6 +267,23 @@ private fun choiceLabel(labelKey: String): String? {
 		val key = labelKey.removePrefix(TransformParameterKeys.FALLOFF_CHOICE_PREFIX)
 
 		return ProportionalFalloff.entries.firstOrNull { falloff -> falloff.choiceKey == key }?.let { falloff -> falloffLabel(falloff) }
+	}
+
+	if (labelKey.startsWith(TransformParameterKeys.AXIS_CHOICE_PREFIX)) {
+		val key = labelKey.removePrefix(TransformParameterKeys.AXIS_CHOICE_PREFIX)
+
+		return when (rotationAxisOf(key).takeIf { axis -> axis.choiceKey == key }) {
+			RotationAxis.Y -> stringResource(Res.string.transform_axis_y)
+			RotationAxis.X -> stringResource(Res.string.transform_axis_x)
+			RotationAxis.Z -> stringResource(Res.string.transform_axis_z)
+			null -> null
+		}
+	}
+
+	if (labelKey.startsWith(TransformParameterKeys.DEPTH_SURFACE_CHOICE_PREFIX)) {
+		val key = labelKey.removePrefix(TransformParameterKeys.DEPTH_SURFACE_CHOICE_PREFIX)
+
+		return depthSurfaceOf(key).takeIf { surface -> surface.choiceKey == key }?.let { surface -> depthSurfaceLabel(surface) }
 	}
 
 	if (labelKey.startsWith(ImportParameterKeys.ANCHOR_CHOICE_PREFIX)) {

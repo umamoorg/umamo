@@ -1,9 +1,11 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.MAX_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.MIN_PROPORTIONAL_RADIUS_WORLD
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
+import org.umamo.edit.PIVOT_DEPTH_LIMIT
 import org.umamo.edit.ParameterChoice
 import org.umamo.edit.ParameterUnit
 import org.umamo.edit.ProportionalEditState
@@ -22,7 +24,8 @@ import kotlin.math.PI
  * :runtime, and the world-to-base inverse needs :render's evaluator.
  *
  * There is no axis-constraint row, for the reason the placement gesture has none: a lock only zeroes
- * one Grab component or pins one Scale factor at 1, so the per-component rows already say it.
+ * one Grab component or pins one Scale factor at 1, so the per-component rows already say it.  A Rotate's
+ * Axis row is not a constraint: it names the axis the turn went about, which no other row carries.
  */
 
 /**
@@ -31,11 +34,19 @@ import kotlin.math.PI
  * frame; after the commit the operation settings strip shows it as rows and builds one back from them,
  * so the same transform runs from a pointer or a typed value.
  *
- * @property Float deltaX          The Grab translation's x (identity 0 for the other operators).
- * @property Float deltaY          The Grab translation's y, in the positions' sense (y up for world space).
- * @property Float factorX         The Scale factor along x (identity 1 for the other operators).
- * @property Float factorY         The Scale factor along y.
- * @property Float rotationRadians The Rotate angle in the positions' sense (identity 0 for the others).
+ * A Rotate also names its axis: Y, the view axis, is the in-plane turn, and X or Z rotate the art in depth about the
+ * pivot pushed to [pivotDepth], over [depthSurface] (see DepthRotation.kt).  The depth and surface are read only by a
+ * turn about X or Z.
+ *
+ * @property Float        deltaX          The Grab translation's x (identity 0 for the other operators).
+ * @property Float        deltaY          The Grab translation's y, in the positions' sense (y up for world space).
+ * @property Float        factorX         The Scale factor along x (identity 1 for the other operators).
+ * @property Float        factorY         The Scale factor along y.
+ * @property Float        rotationRadians The Rotate angle in the positions' sense (identity 0 for the others); about X
+ *   or Z, positive turns the front toward +x or tilts it toward -y.
+ * @property RotationAxis rotationAxis    The axis the Rotate turns about (Y, the in-plane turn, for the others).
+ * @property Float        pivotDepth      The pivot's depth along world Y, positive into the screen, in world px.
+ * @property DepthSurface depthSurface    How deep the points sit before a turn about X or Z.
  */
 class TransformGestureParameters(
 	val deltaX: Float,
@@ -43,6 +54,9 @@ class TransformGestureParameters(
 	val factorX: Float,
 	val factorY: Float,
 	val rotationRadians: Float,
+	val rotationAxis: RotationAxis = RotationAxis.Y,
+	val pivotDepth: Float = 0f,
+	val depthSurface: DepthSurface = DepthSurface.Flat,
 ) {
 	companion object {
 		/** The parameters that move nothing. */
@@ -64,6 +78,15 @@ object TransformParameterKeys {
 	const val PROPORTIONAL_SIZE = "transform.proportionalSize"
 	const val CONNECTED_ONLY = "transform.connectedOnly"
 	const val SLIDE_FACTOR = "transform.slideFactor"
+	const val AXIS = "transform.axis"
+	const val PIVOT_DEPTH = "transform.pivotDepth"
+	const val DEPTH_SURFACE = "transform.depthSurface"
+
+	/** The label-key prefix of the Axis row's choices; the axis's [RotationAxis.choiceKey] follows it. */
+	const val AXIS_CHOICE_PREFIX = "transform.axis."
+
+	/** The label-key prefix of the Surface row's choices; the surface's [DepthSurface.choiceKey] follows it. */
+	const val DEPTH_SURFACE_CHOICE_PREFIX = "transform.depthSurface."
 
 	/** The label-key prefix of the Falloff row's choices; the curve's [ProportionalFalloff.choiceKey] follows it. */
 	const val FALLOFF_CHOICE_PREFIX = "transform.falloff."
@@ -74,6 +97,12 @@ object TransformParameterKeys {
 	 * in a panel registers them off) writes back only on these, so moving a Move row never switches it off.
 	 */
 	val PROPORTIONAL_ROWS: Set<String> = setOf(PROPORTIONAL, FALLOFF, PROPORTIONAL_SIZE, CONNECTED_ONLY)
+
+	/**
+	 * The depth rows a depth rotation's strip writes back: the pivot's depth and the surface stick for the next
+	 * turn, as the proportional rows do; the Axis row is the one gesture's own.
+	 */
+	val DEPTH_ROWS: Set<String> = setOf(PIVOT_DEPTH, DEPTH_SURFACE)
 }
 
 /** The widest angle an Angle row accepts, in degrees either way. */
@@ -162,13 +191,17 @@ class ProportionalRows(
 /**
  * The strip's rows for a Grab / Rotate / Scale that landed with [parameters]: the move's two
  * components, the angle in degrees, or the two factors, followed by the proportional rows when the
- * gesture could take weights.  A Vertex Slide has no rows here (see [slideParameters]).
+ * gesture could take weights.  A Rotate that could rotate in depth adds its Axis, Depth, and Surface rows after
+ * the angle, whichever axis it landed about, so a turn can be added after the fact as the halo can.  A Vertex
+ * Slide has no rows here (see [slideParameters]).
  *
  * @param MeshOperatorKind           kind         The operator that ran.
  * @param TransformGestureParameters parameters   The numbers it landed with, in the gesture space's units.
  * @param TransformRowSpace          space        The space the rows read in.
  * @param ProportionalRows?          proportional The proportional rows, or null when the gesture took no
  *   weights (Object mode, a suppressed auto-grab).
+ * @param Boolean                    rotatesInDepth True when the gesture could rotate in depth (a Pose-mode Rotate);
+ *   read only for a Rotate.
  * @return List The rows, empty for an operator that has none.
  */
 fun transformParameters(
@@ -176,6 +209,7 @@ fun transformParameters(
 	parameters: TransformGestureParameters,
 	space: TransformRowSpace,
 	proportional: ProportionalRows?,
+	rotatesInDepth: Boolean = false,
 ): List<OperatorParameter> {
 	val rows = ArrayList<OperatorParameter>()
 
@@ -196,6 +230,10 @@ fun transformParameters(
 					unit = ParameterUnit.Degrees,
 				),
 			)
+
+			if (rotatesInDepth) {
+				rows.addAll(depthRotationParameters(parameters))
+			}
 		}
 
 		MeshOperatorKind.Scale -> {
@@ -218,7 +256,7 @@ fun transformParameters(
 /**
  * The gesture parameters the strip's rows mean - the inverse of [transformParameters], back into the
  * gesture space's form the operator math takes.  A missing row reads as identity, so the rows of one
- * operator never move another.
+ * operator never move another, and a Rotate without depth rows turns in the plane.
  *
  * @param MeshOperatorKind  kind       The operator the rows belong to.
  * @param TransformRowSpace space      The space the rows read in.
@@ -248,6 +286,9 @@ fun transformGestureParametersOf(
 				factorX = 1f,
 				factorY = 1f,
 				rotationRadians = space.radiansOfRow(parameters.floatValue(TransformParameterKeys.ANGLE, 0f)),
+				rotationAxis = rotationAxisOf(parameters.choiceValue(TransformParameterKeys.AXIS, RotationAxis.Y.choiceKey)),
+				pivotDepth = parameters.floatValue(TransformParameterKeys.PIVOT_DEPTH, 0f),
+				depthSurface = depthSurfaceOf(parameters.choiceValue(TransformParameterKeys.DEPTH_SURFACE, DepthSurface.Flat.choiceKey)),
 			)
 		}
 
@@ -321,6 +362,52 @@ fun slideParameters(factor: Float): List<OperatorParameter> =
  */
 val ProportionalFalloff.choiceKey: String
 	get() = name.replaceFirstChar { first -> first.lowercaseChar() }
+
+/**
+ * The rotation axis a stored key names, falling back to Y (the in-plane turn) for a key no axis has.
+ *
+ * @param String key The axis's [RotationAxis.choiceKey].
+ * @return RotationAxis The axis.
+ */
+fun rotationAxisOf(key: String): RotationAxis = RotationAxis.entries.firstOrNull { axis -> axis.choiceKey == key } ?: RotationAxis.Y
+
+/**
+ * The depth surface a stored key names, falling back to Flat for a key no surface has.
+ *
+ * @param String key The surface's [DepthSurface.choiceKey].
+ * @return DepthSurface The surface.
+ */
+fun depthSurfaceOf(key: String): DepthSurface = DepthSurface.entries.firstOrNull { surface -> surface.choiceKey == key } ?: DepthSurface.Flat
+
+/**
+ * A depth rotation's rows: the axis it turned about, the pivot's depth, and the surface.
+ *
+ * @param TransformGestureParameters parameters The numbers the Rotate landed with.
+ * @return List The Axis, Depth, and Surface rows.
+ */
+private fun depthRotationParameters(parameters: TransformGestureParameters): List<OperatorParameter> =
+	listOf(
+		OperatorParameter.ChoiceParameter(
+			TransformParameterKeys.AXIS,
+			TransformParameterKeys.AXIS,
+			parameters.rotationAxis.choiceKey,
+			RotationAxis.entries.map { axis -> ParameterChoice(axis.choiceKey, TransformParameterKeys.AXIS_CHOICE_PREFIX + axis.choiceKey) },
+		),
+		OperatorParameter.FloatParameter(
+			TransformParameterKeys.PIVOT_DEPTH,
+			TransformParameterKeys.PIVOT_DEPTH,
+			parameters.pivotDepth,
+			-PIVOT_DEPTH_LIMIT,
+			PIVOT_DEPTH_LIMIT,
+			unit = ParameterUnit.Pixels,
+		),
+		OperatorParameter.ChoiceParameter(
+			TransformParameterKeys.DEPTH_SURFACE,
+			TransformParameterKeys.DEPTH_SURFACE,
+			parameters.depthSurface.choiceKey,
+			DepthSurface.entries.map { surface -> ParameterChoice(surface.choiceKey, TransformParameterKeys.DEPTH_SURFACE_CHOICE_PREFIX + surface.choiceKey) },
+		),
+	)
 
 /** The proportional rows: the flag, the curve, the size, and Connected Only. */
 private fun proportionalParameters(proportional: ProportionalRows): List<OperatorParameter> =

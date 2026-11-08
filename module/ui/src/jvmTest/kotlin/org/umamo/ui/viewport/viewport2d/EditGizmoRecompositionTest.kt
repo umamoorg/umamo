@@ -7,7 +7,9 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformAxisConstraint
+import org.umamo.edit.selectAllMeshElements
 import org.umamo.edit.transform.beginCircleSelect
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
@@ -82,6 +84,30 @@ class EditGizmoRecompositionTest {
 			waitForIdle()
 
 			assertNothingRan(counter, "a radius and an axis change")
+		}
+
+	/** Pushing a depth rotation's pivot, driving the turn, and cycling its surface redraw and preview, and run no composable. */
+	@Test
+	fun aDepthPushMidRotationRunsNothing() =
+		countingGizmoRuns { counter ->
+			val session = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
+			session.togglePoseMode()
+			session.selectAllMeshElements()
+			val fixture = mountGizmoOverlays(session)
+			moveIn(LEFT_AREA, listOf(LATTICE_RIG_GESTURE_START))
+			session.beginMeshOperator(MeshOperatorKind.Rotate, LEFT_AREA)
+			waitForIdle()
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+			waitForIdle()
+			counter.reset()
+
+			session.setPivotDepth(40f)
+			moveIn(LEFT_AREA, listOf(Offset(210f, 150f), Offset(230f, 150f)))
+			session.cycleDepthSurface(announce = false)
+			waitForIdle()
+
+			assertTrue(fixture.service.pushedLatticePreviews.isNotEmpty(), "the moves did drive")
+			assertNothingRan(counter, "a depth push, a turn, and a surface cycle")
 		}
 
 	/**

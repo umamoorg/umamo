@@ -10,6 +10,7 @@ import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.transform.beginBoxSelect
 import org.umamo.edit.transform.beginUvOperator
 import org.umamo.runtime.model.Deformer
@@ -118,6 +119,24 @@ class UvObjectGizmoOverlayGestureTest {
 			assertNull(session.activeUvOperator.value)
 			assertEquals(uvRigTilePlacement(110f), uvRigPlacementOf(session, UV_RIG_QUAD_TILE))
 			assertNull(fixture.placementDragStatusByArea.getValue(LEFT_AREA).value)
+		}
+
+	/** An axis lock pressed after the pointer moved re-drives at once, so an Enter with no move after it lands the locked placement. */
+	@Test
+	fun aLockPressedMidPlacementLandsWithoutAMove() =
+		runComposeUiTest {
+			val fixture = mountPlaced()
+			val session = fixture.session
+			latchPlacementGrab(fixture)
+			moveIn(LEFT_AREA, listOf(UV_RIG_TEN_TEXELS_RIGHT))
+
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+			waitForIdle()
+			session.requestMeshConfirm()
+			waitForIdle()
+
+			assertNull(session.activeUvOperator.value)
+			assertEquals(uvRigTilePlacement(100f), uvRigPlacementOf(session, UV_RIG_QUAD_TILE), "the Z lock took the move across back out")
 		}
 
 	/** A right-click cancels: nothing commits and the readout clears. */

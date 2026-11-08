@@ -1,5 +1,6 @@
 package org.umamo.edit.transform
 
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ProportionalEditState
@@ -65,6 +66,36 @@ class TransformAdjustTest {
 			val rows = transformParameters(MeshOperatorKind.Rotate, gesture, space, proportional = null)
 			assertClose((PI / 2).toFloat(), transformGestureParametersOf(MeshOperatorKind.Rotate, space, rows).rotationRadians, "$space round-trips the angle")
 		}
+	}
+
+	/** A Rotate that could rotate in depth adds its Axis, Depth, and Surface rows, and the rows read back as the same parameters. */
+	@Test
+	fun aDepthRotationAddsItsAxisDepthAndSurfaceRowsAndRoundTrips() {
+		val gesture = TransformGestureParameters(0f, 0f, 1f, 1f, 0.5f, RotationAxis.Z, 140f, DepthSurface.Cylinder)
+
+		val plain = transformParameters(MeshOperatorKind.Rotate, gesture, TransformRowSpace.World, proportional = null)
+		assertEquals(listOf(TransformParameterKeys.ANGLE), plain.map { row -> row.key }, "a Rotate that cannot rotate in depth shows its angle alone")
+
+		val rows = transformParameters(MeshOperatorKind.Rotate, gesture, TransformRowSpace.World, proportional = null, rotatesInDepth = true)
+		assertEquals(
+			listOf(TransformParameterKeys.ANGLE, TransformParameterKeys.AXIS, TransformParameterKeys.PIVOT_DEPTH, TransformParameterKeys.DEPTH_SURFACE),
+			rows.map { row -> row.key },
+		)
+
+		val back = transformGestureParametersOf(MeshOperatorKind.Rotate, TransformRowSpace.World, rows)
+		assertClose(0.5f, back.rotationRadians, "the angle round-trips")
+		assertEquals(RotationAxis.Z, back.rotationAxis)
+		assertEquals(140f, back.pivotDepth)
+		assertEquals(DepthSurface.Cylinder, back.depthSurface)
+
+		// Choosing the axis on the strip turns an in-plane Rotate in depth after the fact.
+		val axisRow = rows.first { row -> row.key == TransformParameterKeys.AXIS } as OperatorParameter.ChoiceParameter
+		val inPlane = rows.withParameter(TransformParameterKeys.AXIS, axisRow.copy(value = RotationAxis.Y.choiceKey))
+		assertEquals(RotationAxis.Y, transformGestureParametersOf(MeshOperatorKind.Rotate, TransformRowSpace.World, inPlane).rotationAxis)
+
+		val withoutDepthRows = transformGestureParametersOf(MeshOperatorKind.Rotate, TransformRowSpace.World, plain)
+		assertEquals(RotationAxis.Y, withoutDepthRows.rotationAxis, "missing depth rows read as the in-plane turn")
+		assertEquals(0f, withoutDepthRows.pivotDepth)
 	}
 
 	@Test

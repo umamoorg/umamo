@@ -31,6 +31,7 @@ import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.LocalModalDriveDispatcher
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
+import org.umamo.ui.viewport.gizmo.collectAxisLockChanges
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.rememberViewportOverlayColors
 
@@ -202,6 +203,12 @@ internal fun UvObjectGizmoOverlay(
 		}
 	}
 
+	// An axis lock toggled MID-GESTURE (X / Z in the key ladder) re-drives at once, so the lock shows - and a confirm
+	// before the next pointer move lands it.
+	LaunchedEffect(session) {
+		collectAxisLockChanges(session, modalTransform, liveCamera, liveSize)
+	}
+
 	// The Shift+S snaps in Object mode (the pie and the header's snap menu), gated to this area: they move or
 	// read placed art tiles on the shown page, decoding their art on the drive dispatcher like the capture.
 	val areaOverlays = LocalAreaOverlays.current
@@ -228,18 +235,20 @@ internal fun UvObjectGizmoOverlay(
 			modifier
 				.fillMaxSize()
 				.onGloballyPositioned { coordinates -> gesture.areaScreenOrigin = coordinates.positionOnScreen() }
+				.pointerInput(areaId) {
+					uvObjectGizmoPointerLoop(areaId, session, modalTransform, objectPick, liveCamera, liveSize)
+				}
 				// While THIS AREA'S placement gesture runs, hide the OS cursor so only the overlay's drawn
 				// cursor shows; a gesture owned by another area leaves this cursor alone.
+				// The hidden cursor joins AFTER the pointer input, below the loop's node: armed above it, it would re-route
+				// the hit path, and Compose delivers the next event to the loop down both the old and the new path.
 				.then(
 					if (ownsGesture) {
 						Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
 					} else {
 						Modifier
 					},
-				)
-				.pointerInput(areaId) {
-					uvObjectGizmoPointerLoop(areaId, session, modalTransform, objectPick, liveCamera, liveSize)
-				},
+				),
 	) {
 		// The chrome (the collision outlines, the rubber band, the modal HUD) in a small layer of its own: it reads
 		// the pointer and the drive's result in the draw phase, so a move redraws this layer and nothing else.

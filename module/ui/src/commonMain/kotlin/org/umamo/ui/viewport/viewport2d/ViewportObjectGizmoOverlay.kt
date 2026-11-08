@@ -31,6 +31,7 @@ import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
 import org.umamo.ui.viewport.gizmo.applyOperator
+import org.umamo.ui.viewport.gizmo.collectAxisLockChanges
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.screenToWorld
 import org.umamo.ui.viewport.gizmo.selectToolKind
@@ -198,6 +199,12 @@ fun ViewportObjectGizmoOverlay(
 		}
 	}
 
+	// An axis lock toggled MID-GESTURE (X / Z in the key ladder) re-drives at once, so the lock shows - and a confirm
+	// before the next pointer move lands it.
+	LaunchedEffect(session) {
+		collectAxisLockChanges(session, modalTransform, liveCamera, liveSize)
+	}
+
 	// The geometry-dependent Shift+S snaps for Object mode over the selected drawables' and warps' centroids.
 	// Only the pointer's own area executes: every open 2D viewport composes this collector, and an
 	// ungated request would commit once per viewport.
@@ -214,16 +221,18 @@ fun ViewportObjectGizmoOverlay(
 				.fillMaxSize()
 				.clipToBounds()
 				.onGloballyPositioned { coordinates -> gesture.areaScreenOrigin = coordinates.positionOnScreen() }
+				.pointerInput(areaId) {
+					objectGizmoPointerLoop(areaId, session, modalTransform, marquee, objectPick, latticeHover, liveCamera, liveSize)
+				}
+				// The hidden cursor joins AFTER the pointer input, below the loop's node: armed above it, it would re-route
+				// the hit path, and Compose delivers the next event to the loop down both the old and the new path.
 				.then(
 					if (armed) {
 						Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
 					} else {
 						Modifier
 					},
-				)
-				.pointerInput(areaId) {
-					objectGizmoPointerLoop(areaId, session, modalTransform, marquee, objectPick, latticeHover, liveCamera, liveSize)
-				},
+				),
 	) {
 		Canvas(modifier = Modifier.fillMaxSize()) {
 			drawObjectGizmoChrome(

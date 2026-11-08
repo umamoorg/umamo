@@ -71,6 +71,42 @@ interface SessionToolSettings {
 	fun setPivotMode(mode: TransformPivotMode)
 
 	/**
+	 * How far a depth rotation's pivot is pushed along world Y, in world px, positive into the screen: the
+	 * primary-modifier wheel pushes it mid-gesture and the operation strip's Depth row writes it back, so the next
+	 * turn starts where the last one left it (the proportional radius's rule).  Transient editor state like
+	 * [pivotMode] - never snapshotted.
+	 */
+	val pivotDepth: StateFlow<Float>
+
+	/**
+	 * Sets the depth rotation's pivot depth outright, silently, clamped to the Depth row's range.
+	 *
+	 * @param Float depthWorld The depth along world Y, in world px, positive into the screen.
+	 */
+	fun setPivotDepth(depthWorld: Float)
+
+	/**
+	 * How deep the points sit before a rotation about X or Z (see [DepthSurface]): T cycles it
+	 * during the rotation and the strip's Surface row writes it back, so the next rotation starts from it.
+	 */
+	val depthSurface: StateFlow<DepthSurface>
+
+	/**
+	 * Sets the depth surface outright, silently.
+	 *
+	 * @param DepthSurface surface The surface the next depth rotation lays the points over.
+	 */
+	fun setDepthSurface(surface: DepthSurface)
+
+	/**
+	 * Moves the depth surface to the next one in T's cycle (Flat, Cylinder, Sphere), naming the new surface in a
+	 * near-cursor notice when [announce] - a rotation with no axis locked, whose depth inset is not showing it.
+	 *
+	 * @param Boolean announce True to post the notice.
+	 */
+	fun cycleDepthSurface(announce: Boolean)
+
+	/**
 	 * Proportional editing (Blender's O): non-null while enabled, carrying the falloff curve and the
 	 * influence radius.  Transient editor state like [pivotMode] - it survives mode switches but is
 	 * never snapshotted; the Edit overlay reads it when a modal operator latches (and on mid-gesture

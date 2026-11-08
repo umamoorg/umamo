@@ -219,10 +219,11 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 				true
 			}
 
-			// X / Z during a modal Grab / Scale toggle the axis lock (Blender's axis constraint).
-			// This has to live in the ladder: the modal operator swallows pointer input in the
-			// overlay and every other key here, so the keymap never sees these presses.  The
-			// session no-ops for Rotate (one 2D rotation axis - nothing to lock).
+			// X / Z during a modal Grab / Scale toggle the axis lock (Blender's axis constraint), and
+			// during a Pose-mode Rotate the axis it turns about in depth.  This has to live in the
+			// ladder: the modal operator swallows pointer input in the overlay and every other key
+			// here, so the keymap never sees these presses.  The session no-ops for any other Rotate
+			// (only the view axis - nothing to lock).
 			stroke.isDown && stroke.key == Key.X && editorSession?.activeOperator != null -> {
 				editorSession.toggleAxisConstraint(TransformAxisConstraint.AxisX)
 				true
@@ -230,6 +231,18 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 
 			stroke.isDown && stroke.key == Key.Z && editorSession?.activeOperator != null -> {
 				editorSession.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+				true
+			}
+
+			// A bare T during a Pose-mode Rotate cycles the depth surface (Flat, Cylinder, Sphere), locked or not, so the
+			// next rotation never needs the strip to change it.  It is taken here, ahead of the keymap, for the rotation's
+			// length only: everywhere else T reaches its binding (the toolbar toggle), and so does a T with a modifier
+			// held.  With no axis locked the depth inset is not showing the surface, so a notice names it instead.
+			stroke.isDown &&
+				stroke.key == Key.T &&
+				!stroke.hasModifier &&
+				editorSession?.activeMeshOperator?.value?.let { operator -> editorSession.meshOperatorRotatesInDepth(operator.kind) } == true -> {
+				editorSession.cycleDepthSurface(announce = editorSession.axisConstraint.value == null)
 				true
 			}
 

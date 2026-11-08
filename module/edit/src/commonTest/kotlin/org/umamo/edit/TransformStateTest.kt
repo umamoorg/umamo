@@ -80,7 +80,7 @@ class TransformStateTest {
 		return EditorSession(model)
 	}
 
-	/** The axis constraint toggles only while a Grab / Scale is live, never for Rotate, and clears with the operator. */
+	/** The axis constraint toggles only while a Grab / Scale is live, never for an Object Rotate, and clears with the operator. */
 	@Test
 	fun axisConstraintTogglesOnlyDuringGrabOrScale() {
 		val session = meshedSession()
@@ -103,10 +103,108 @@ class TransformStateTest {
 		session.clearObjectOperator()
 		assertNull(session.axisConstraint.value, "clearing the operator clears the lock")
 
-		// Rotate has no 2D axis to lock.
+		// An Object Rotate has only the view axis.
 		session.beginObjectOperator(MeshOperatorKind.Rotate, "area-test")
 		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
 		assertNull(session.axisConstraint.value, "Rotate refuses the lock")
+	}
+
+	/** A Pose-mode Rotate rotates in depth: X and Z lock the axis it turns about, and the flag clears with the latch. */
+	@Test
+	fun aPoseRotateLocksTheAxisItRotatesAbout() {
+		val session = PoseLatticeTestRig.posing(listOf(SelectionTarget.Deformer(PoseLatticeTestRig.cage)))
+		session.selectAllMeshElements()
+
+		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
+		assertTrue(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate), "a Pose Rotate rotates in depth")
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+		assertEquals(TransformAxisConstraint.AxisZ, session.axisConstraint.value)
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
+		assertEquals(TransformAxisConstraint.AxisX, session.axisConstraint.value, "the other axis switches the turn")
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisX)
+		assertNull(session.axisConstraint.value, "the same axis goes back to the in-plane turn")
+
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+		session.clearMeshOperator()
+		assertNull(session.axisConstraint.value, "clearing the operator clears the lock")
+		assertFalse(session.activeMeshOperatorRotatesInDepth, "and the depth flag")
+
+		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test")
+		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate), "a Grab latch never rotates in depth")
+	}
+
+	/** An operator interrupted by another tool's latch drops its depth and suppression flags with it. */
+	@Test
+	fun anInterruptedMeshOperatorDropsItsLatchFlags() {
+		val session = PoseLatticeTestRig.posing(listOf(SelectionTarget.Deformer(PoseLatticeTestRig.cage)))
+		session.selectAllMeshElements()
+
+		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
+		assertTrue(session.activeMeshOperatorRotatesInDepth, "the Pose Rotate latched rotating in depth")
+		session.beginBoxSelect("area-test")
+		assertNull(session.activeMeshOperator.value, "the box select took the latch")
+		assertFalse(session.activeMeshOperatorRotatesInDepth, "the depth flag went with the operator")
+		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate))
+
+		session.beginMeshOperator(MeshOperatorKind.Grab, "area-test", suppressProportional = true)
+		assertTrue(session.activeMeshOperatorSuppressesProportional, "the auto-grab latched suppressed")
+		session.beginBoxSelect("area-test")
+		assertFalse(session.activeMeshOperatorSuppressesProportional, "the suppression went with the operator")
+	}
+
+	/** An Edit-mode Rotate keeps only the view axis: X and Z stay no-ops. */
+	@Test
+	fun anEditRotateRefusesTheDepthLock() {
+		val session = meshedSession()
+		session.setMode(EditorMode.Edit)
+		session.setMeshSelection(MeshSelectionOps.add(session.meshSelection.value, DrawableId("d"), MeshElement.Vertex(0)))
+
+		session.beginMeshOperator(MeshOperatorKind.Rotate, "area-test")
+		assertFalse(session.meshOperatorRotatesInDepth(MeshOperatorKind.Rotate))
+		session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+		assertNull(session.axisConstraint.value, "the Edit Rotate refuses the lock")
+	}
+
+	/** The depth rotation's pivot depth and surface stick, clamp, gather into the view state, and seed back from it. */
+	@Test
+	fun theDepthRotationSettingsStick() {
+		val session = meshedSession()
+		assertEquals(0f, session.pivotDepth.value, "the pivot starts on the art")
+		assertEquals(DepthSurface.Flat, session.depthSurface.value)
+
+		session.setPivotDepth(120f)
+		session.setDepthSurface(DepthSurface.Cylinder)
+		assertEquals(120f, session.viewState().pivotDepth)
+		assertEquals(DepthSurface.Cylinder, session.viewState().depthSurface)
+
+		session.setPivotDepth(-1e9f)
+		assertEquals(-PIVOT_DEPTH_LIMIT, session.pivotDepth.value, "a write clamps to the Depth row's range")
+		session.setPivotDepth(Float.POSITIVE_INFINITY)
+		assertEquals(PIVOT_DEPTH_LIMIT, session.pivotDepth.value, "an infinite write clamps too")
+		session.setPivotDepth(Float.NaN)
+		assertEquals(0f, session.pivotDepth.value, "a NaN lands on the art")
+
+		val reopened = EditorSession(session.model.value, initialViewState = SessionViewState(pivotDepth = 64f, depthSurface = DepthSurface.Cylinder))
+		assertEquals(64f, reopened.pivotDepth.value, "a saved state seeds the depth")
+		assertEquals(DepthSurface.Cylinder, reopened.depthSurface.value)
+	}
+
+	/** T's cycle walks Flat, Cylinder, and Sphere and wraps, and the view state carries where it stopped. */
+	@Test
+	fun theDepthSurfaceCyclesAndSticks() {
+		val session = meshedSession()
+
+		session.cycleDepthSurface(announce = false)
+		assertEquals(DepthSurface.Cylinder, session.depthSurface.value)
+		session.cycleDepthSurface(announce = false)
+		assertEquals(DepthSurface.Sphere, session.viewState().depthSurface)
+		session.cycleDepthSurface(announce = false)
+		assertEquals(DepthSurface.Flat, session.depthSurface.value, "the cycle wraps")
+		assertNull(session.notice.value, "a silent cycle posts nothing")
+
+		session.cycleDepthSurface(announce = true)
+		assertEquals("notice.depthSurface.cylinder", session.notice.value?.messageKey, "an announced cycle names the surface")
+		assertEquals(NoticePlacement.NearCursor, session.notice.value?.placement)
 	}
 
 	/** The cursor, pivot mode, and pie latches hold their values; undo clears the transient pie latch. */

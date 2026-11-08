@@ -20,6 +20,18 @@ import kotlin.test.assertTrue
  * stack-position corner shaping the vertical numeric-field stack and horizontal ButtonGroup share.
  */
 class NumberFieldMathTest {
+	/** A typed entry parses to its finite number, and NaN or an infinity is refused like any other non-number. */
+	@Test
+	fun aTypedEntryParsesOnlyToAFiniteNumber() {
+		assertEquals(12.5f, parseTypedFloat(" 12.5 "))
+		assertEquals(-3f, parseTypedFloat("-3"))
+		assertNull(parseTypedFloat("NaN"))
+		assertNull(parseTypedFloat("Infinity"))
+		assertNull(parseTypedFloat("-Infinity"))
+		assertNull(parseTypedFloat("twelve"))
+		assertNull(parseTypedFloat(""))
+	}
+
 	@Test
 	fun fillFractionIsThePositionInABoundedRangeElseNull() {
 		assertEquals(0.5f, numberFieldFillFraction(5f, 0f, 10f))

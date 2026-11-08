@@ -6,6 +6,7 @@ import androidx.compose.ui.test.MouseButton
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.edit.EditorMode
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.TransformAxisConstraint
 import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
 import org.umamo.ui.viewport.gizmo.clickIn
@@ -86,6 +87,26 @@ class ObjectGizmoOverlayGestureTest {
 
 			assertNull(session.activeObjectOperator.value)
 			assertEquals(10f, rigPositionsOf(session, RIG_QUAD)[0])
+		}
+
+	/** An axis lock pressed after the pointer moved re-drives at once, so an Enter with no move after it lands the locked Grab. */
+	@Test
+	fun aLockPressedMidGrabLandsWithoutAMove() =
+		runComposeUiTest {
+			val fixture = mountGizmoOverlays(gizmoObjectSession())
+			val session = fixture.session
+			moveIn(LEFT_AREA, listOf(gestureStart))
+			session.beginObjectOperator(MeshOperatorKind.Grab, LEFT_AREA)
+			waitForIdle()
+			moveIn(LEFT_AREA, listOf(tenUnitsRight))
+
+			session.toggleAxisConstraint(TransformAxisConstraint.AxisZ)
+			waitForIdle()
+			session.requestMeshConfirm()
+			waitForIdle()
+
+			assertNull(session.activeObjectOperator.value)
+			assertEquals(0f, rigPositionsOf(session, RIG_QUAD)[0], "the Z lock took the move across back out")
 		}
 
 	/** Leaving Object mode mid-gesture puts the renderer back on the committed model. */

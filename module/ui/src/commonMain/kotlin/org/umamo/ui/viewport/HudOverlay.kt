@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.DepthSurface
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
@@ -200,10 +201,12 @@ internal fun ModalOperatorBadge(
 ) {
 	val hudColors = LocalUmamoColors.current
 	val operatorLabel = stringResource(operatorKind.labelResource())
+	// A locked Rotate rotates about its axis in depth; a locked Grab or Scale runs along it.
+	val rotatesAbout = operatorKind == MeshOperatorKind.Rotate
 	val axisSuffix =
 		when (axisConstraint) {
-			TransformAxisConstraint.AxisX -> "  ${stringResource(Res.string.hud_along_x)}"
-			TransformAxisConstraint.AxisZ -> "  ${stringResource(Res.string.hud_along_z)}"
+			TransformAxisConstraint.AxisX -> "  ${stringResource(if (rotatesAbout) Res.string.hud_about_x else Res.string.hud_along_x)}"
+			TransformAxisConstraint.AxisZ -> "  ${stringResource(if (rotatesAbout) Res.string.hud_about_z else Res.string.hud_along_z)}"
 			null -> ""
 		}
 	val proportionalSuffix =
@@ -245,4 +248,18 @@ internal fun falloffLabel(falloff: ProportionalFalloff): String =
 		ProportionalFalloff.Linear -> stringResource(Res.string.falloff_linear)
 		ProportionalFalloff.Constant -> stringResource(Res.string.falloff_constant)
 		ProportionalFalloff.Random -> stringResource(Res.string.falloff_random)
+	}
+
+/**
+ * The localized name of a depth surface, for the depth inset's readout and the operation strip's Surface row.
+ *
+ * @param DepthSurface surface The surface.
+ * @return String The localized surface name.
+ */
+@Composable
+internal fun depthSurfaceLabel(surface: DepthSurface): String =
+	when (surface) {
+		DepthSurface.Flat -> stringResource(Res.string.transform_depth_surface_flat)
+		DepthSurface.Cylinder -> stringResource(Res.string.transform_depth_surface_cylinder)
+		DepthSurface.Sphere -> stringResource(Res.string.transform_depth_surface_sphere)
 	}

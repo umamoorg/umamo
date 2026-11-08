@@ -29,6 +29,16 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	/** What a modal Scale / Rotate turns the selection about (see [SessionToolSettings.pivotMode]). */
 	override val pivotMode: StateFlow<TransformPivotMode> = mutablePivotMode.asStateFlow()
 
+	private val mutablePivotDepth = MutableStateFlow(0f)
+
+	/** The depth rotation's pivot depth along world Y (see [SessionToolSettings.pivotDepth]). */
+	override val pivotDepth: StateFlow<Float> = mutablePivotDepth.asStateFlow()
+
+	private val mutableDepthSurface = MutableStateFlow(DepthSurface.Flat)
+
+	/** How deep the points sit before a depth rotation (see [SessionToolSettings.depthSurface]). */
+	override val depthSurface: StateFlow<DepthSurface> = mutableDepthSurface.asStateFlow()
+
 	private val mutableProportionalEdit = MutableStateFlow<ProportionalEditState?>(null)
 
 	/** Proportional editing, non-null while enabled (see [SessionToolSettings.proportionalEdit]). */
@@ -83,6 +93,39 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	 */
 	override fun setPivotMode(mode: TransformPivotMode) {
 		mutablePivotMode.value = mode
+	}
+
+	/**
+	 * Sets the depth rotation's pivot depth, clamped to the Depth row's range.
+	 *
+	 * @param Float depthWorld The depth along world Y, in world px, positive into the screen.
+	 */
+	override fun setPivotDepth(depthWorld: Float) {
+		mutablePivotDepth.value = clampPivotDepth(depthWorld)
+	}
+
+	/**
+	 * Sets the depth surface the next depth rotation lays the points over.
+	 *
+	 * @param DepthSurface surface The surface.
+	 */
+	override fun setDepthSurface(surface: DepthSurface) {
+		mutableDepthSurface.value = surface
+	}
+
+	/**
+	 * Moves the depth surface to the next one in T's cycle, naming it in a near-cursor notice when [announce] (see
+	 * [SessionToolSettings.cycleDepthSurface]).
+	 *
+	 * @param Boolean announce True to post the notice.
+	 */
+	override fun cycleDepthSurface(announce: Boolean) {
+		val surface = mutableDepthSurface.value.next()
+		mutableDepthSurface.value = surface
+
+		if (announce) {
+			notify(depthSurfaceNoticeKey(surface), NoticePlacement.NearCursor)
+		}
 	}
 
 	/**
@@ -180,9 +223,9 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 	}
 
 	/**
-	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, proportional editing with the
-	 * configuration it would re-enable with.  Called once, as the session is built, so nothing here is a gesture
-	 * and nothing here posts a notice.
+	 * Lays a saved session's tool state in, silently: the cursors, the pivot mode, the depth rotation's pivot depth and
+	 * surface, and proportional editing with the configuration it would re-enable with.  Called once, as the session
+	 * is built, so nothing here is a gesture and nothing here posts a notice.
 	 *
 	 * @param SessionViewState viewState The saved state, already fitted to the model.
 	 */
@@ -190,9 +233,24 @@ internal class ToolSettings(private val notify: (String, NoticePlacement) -> Uni
 		mutableCursor2d.value = viewState.cursor2d
 		mutableUvCursor.value = viewState.uvCursor
 		mutablePivotMode.value = viewState.pivotMode
+		mutablePivotDepth.value = clampPivotDepth(viewState.pivotDepth)
+		mutableDepthSurface.value = viewState.depthSurface
 		viewState.proportionalSettings?.let { settings ->
 			mutableProportionalSettings.value = settings.copy(radiusWorld = clampProportionalRadius(settings.radiusWorld))
 		}
 		mutableProportionalEdit.value = mutableProportionalSettings.value.takeIf { viewState.proportionalEnabled }
 	}
 }
+
+/**
+ * The message key of the notice naming [surface] as T's cycle lands on it.
+ *
+ * @param DepthSurface surface The surface the cycle landed on.
+ * @return String The notice's message key.
+ */
+private fun depthSurfaceNoticeKey(surface: DepthSurface): String =
+	when (surface) {
+		DepthSurface.Flat -> "notice.depthSurface.flat"
+		DepthSurface.Cylinder -> "notice.depthSurface.cylinder"
+		DepthSurface.Sphere -> "notice.depthSurface.sphere"
+	}

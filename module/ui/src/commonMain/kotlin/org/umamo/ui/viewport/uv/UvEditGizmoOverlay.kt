@@ -32,6 +32,7 @@ import org.umamo.ui.theme.selectionOverlayStyle
 import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
+import org.umamo.ui.viewport.gizmo.collectAxisLockChanges
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.meshMarquee
 import org.umamo.ui.viewport.gizmo.selectToolKind
@@ -216,6 +217,12 @@ internal fun UvEditGizmoOverlay(
 		}
 	}
 
+	// An axis lock toggled MID-GESTURE (X / Z in the key ladder) re-drives at once, so the lock shows - and a confirm
+	// before the next pointer move lands it.
+	LaunchedEffect(session) {
+		collectAxisLockChanges(session, modalTransform, liveCamera, liveSize)
+	}
+
 	// A proportional toggle or falloff change MID-GESTURE re-derives the capture's weights from its frozen
 	// originals (the keyboard-side complement of the scroll resize).
 	LaunchedEffect(session) {
@@ -249,17 +256,7 @@ internal fun UvEditGizmoOverlay(
 			modifier
 				.fillMaxSize()
 				.clipToBounds()
-				.onGloballyPositioned { coordinates -> gesture.areaScreenOrigin = coordinates.positionOnScreen() }
-				// While THIS AREA'S modal transform runs or its select tool is armed, hide the OS cursor so only
-				// the overlay's drawn cursor (double-arrow, crosshair, or brush circle) shows; a gesture owned by
-				// another area leaves this cursor alone.
-				.then(
-					if (activeOperator?.areaId == areaId || ownedSelectTool != null) {
-						Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
-					} else {
-						Modifier
-					},
-				),
+				.onGloballyPositioned { coordinates -> gesture.areaScreenOrigin = coordinates.positionOnScreen() },
 	) {
 		// The gesture chrome (band, affordances, modal HUD) in a layer of its own, which also takes the pointer:
 		// it reads gesture.lastPointer, which updates on every pointer event (hover included), so this small
@@ -271,7 +268,19 @@ internal fun UvEditGizmoOverlay(
 					.graphicsLayer()
 					.pointerInput(areaId) {
 						uvEditGizmoPointerLoop(areaId, session, modalTransform, marquee, meshPick, liveCamera, liveSize)
-					},
+					}
+					// While THIS AREA'S modal transform runs or its select tool is armed, hide the OS cursor so only
+					// the overlay's drawn cursor (double-arrow, crosshair, or brush circle) shows; a gesture owned by
+					// another area leaves this cursor alone.
+					// The hidden cursor joins AFTER the pointer input, below the loop's node: armed above it, it would re-route
+					// the hit path, and Compose delivers the next event to the loop down both the old and the new path.
+					.then(
+						if (activeOperator?.areaId == areaId || ownedSelectTool != null) {
+							Modifier.pointerHoverIcon(hiddenPointerIcon(), overrideDescendants = true)
+						} else {
+							Modifier
+						},
+					),
 		) {
 			drawUvEditGizmoChrome(
 				marquee = marquee,
