@@ -42,15 +42,12 @@
 * From CrystalorImLisa on Reddit: The ability to mirror deformers and drawables along with their key frames.
 	* Umamo solution: Select a deformer and the drawable -> Duplicate -> Mirror X (On the duplicate) -> Do some minor UV clean up -> Done!
 	* https://www.reddit.com/r/Live2D/comments/1uy0871/is_there_a_way_to_duplicate_a_warp_deformer/
-* From @thesillydarku on Twitter: "I had to manually add the "-Xmx4g" flag otherwise got java memory heap errors when trying to export to CMO3"
-	* https://fixupx.com/thesillydarku/status/2102974212952707294
 
 ## Deformers
 * Generation
 	* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
 
 ## Artwork Import
-* We need to properly handle different blending mode imports from artwork to setup the drawables automatically.
 * Automatic visual matching of imported artwork layers to layers cut from a texture atlas after a MOC3 to CMO3 conversion.
 
 ## Puppet Model, CMO3, MOC3
@@ -71,7 +68,6 @@
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements
-	* Unconnected proportional editing should edit all meshes when multiple meshes are selected for edit mode.  I would like to merge the proportional button and falloff settings into one menu with the connected checkbox.
 	* ALT+H (Unhide All) and SHIFT+H (Hide everything that is not selected.)
 * New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
@@ -163,7 +159,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 
 ### UMA (Native File Format)
 * Improvements
-	* Preview thumbnail should take a snapshot of the 2D space and not from the part thumbnailer.  The part thumbnail does not respect visbility and so on.
 	* Format icon helper - Display thumbnail as the icon with the Umamo logo overlaid.  Requires an installer.
 
 See the roadmap: docs/plan/art-sourcing-pipeline.md § Phase G — the source-agnostic container is designed there.
