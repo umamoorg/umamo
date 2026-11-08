@@ -121,7 +121,6 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 	* Do another pass on the keyed parameter/property highlight colors.  Why does off key filled color appear as grey over green?
 	* Transform Position and Size should update the render while scrubbing.  They should also show the rest pose data after changing to edit mode.
 	* Aspect locked properties(Size) should update the other control while one is being scrubbed.
-* Changing keyed properties outside of object mode: QA testing to determine if this breaks anything.
 * Single/multiple relation pickers.
 	* Improvements
 		* Persist list height.(Stored in UMA format, maybe?)
