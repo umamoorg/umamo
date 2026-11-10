@@ -6,8 +6,8 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.umamo.edit.DocumentChange
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.MeshChange
-import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.atlas.commitArtworkReloaded
 import org.umamo.edit.atlas.withAtlasRepack
@@ -268,7 +268,7 @@ class ReloadArtworkFlowTest {
 			val drawableA = session.model.value.drawables.first { drawable -> drawable.atlasTileId == tileA }
 			// A's quad with one corner pulled in: a mesh the rigger made their own, which a relink keeps.
 			val tweaked = assertNotNull(drawableA.mesh).positions.copyOf().also { positions -> positions[4] -= 1f }
-			session.commitMeshPositions(MeshChange.TransformVertices(mapOf(drawableA.id to listOf(2)), MeshOperatorKind.Grab), mapOf(drawableA.id to MeshRestPositions.shared(tweaked)))
+			session.commitMeshPositions(MeshChange.TransformVertices(mapOf(drawableA.id to listOf(2)), ElementEditKind.Grab), mapOf(drawableA.id to MeshRestPositions.shared(tweaked)))
 
 			// B's art sits elsewhere on the canvas, so A's kept mesh covers none of it.
 			assertTrue(runRelinkArtwork(host, RelinkArtworkRequest(tileA, SourceLayerRef(sourceId, "lyid:2", true), InMemoryArt(listOf(layerA, layerB)), options), areaId = null))

@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.commands
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.TargetShape
 import org.umamo.edit.editsElements
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.beginObjectOperator
@@ -12,11 +13,13 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.workspace.SpaceScope
 
 /**
- * The modal transform commands (Blender G / S / R) and their cancel.
+ * The modal transform commands (Blender G / S / R) and their cancel, and To Shape, the one-shot wrap of the selected
+ * points onto a cylinder or a sphere.
  *
  * One binding serves every surface and mode: the operator dispatches by where the pointer is and which
  * mode is active, so the keymap binds a bare letter with no context of its own.  Each session method
- * guards its own preconditions, so an out-of-mode or ineligible press is a safe no-op.
+ * guards its own preconditions, so an out-of-mode or ineligible press is a safe no-op.  To Shape runs in Pose
+ * mode over the pointer's 2D viewport, whose operation strip then switches between its two shapes.
  *
  * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param CommandRouting routing Resolves which area the pointer means at dispatch time.
@@ -62,6 +65,22 @@ internal fun transformCommands(
 			editorSession?.clearMeshOperator()
 			editorSession?.clearObjectOperator()
 			editorSession?.clearUvOperator()
+		},
+		Command(
+			"mesh.toShape.cylinder",
+			title = Res.string.cmd_mesh_to_shape_cylinder,
+			availability = availability.inPoseMode,
+			spaces = SpaceScope.Viewport2D,
+		) {
+			editorSession?.requestToShape(TargetShape.Cylinder, routing.viewportArea())
+		},
+		Command(
+			"mesh.toShape.sphere",
+			title = Res.string.cmd_mesh_to_shape_sphere,
+			availability = availability.inPoseMode,
+			spaces = SpaceScope.Viewport2D,
+		) {
+			editorSession?.requestToShape(TargetShape.Sphere, routing.viewportArea())
 		},
 	)
 

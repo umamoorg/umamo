@@ -47,6 +47,11 @@
 * Generation
 	* Create a standardize skeleton naming system like Blender uses for L/R flipping and detection.  This could eventually be used to import artwork layers in grouped layers and automatically apply bones.
 
+## Bugs
+* Geometry rotation +/-180 degrees results in a weird zoom instead of rotating after key framing.
+* Keyframe Insert after selecting parameter axis still inserts on both with only the second actually receiving the key frame.
+	* Angle X/Y on Erica
+
 ## Artwork Import
 * Automatic visual matching of imported artwork layers to layers cut from a texture atlas after a MOC3 to CMO3 conversion.
 
@@ -63,8 +68,11 @@
 ## Deleted References (Unused Data)
 * Add a Blender like unused data to inspect and clean up dead references.
 
-# Object/Edit Mode Switch
+## Object/Edit Mode Switch
 * When there is no drawable selected, a default is found to select.  However, this does not update the selection and leaves the Properties and Outliner panels in a bad state.  The Properties shows nothing and Outliner has nothing selected.
+
+## Keyform Sheet
+* Option to isolate a single track of the keyform sheet to allow scrubbing only that track.  This would allow debugging an individual keyform to determine if the problem is coming from the entire parameter or just that keyform.
 
 ## Tools, Shortcuts, and Gizmos
 * Improvements
@@ -73,10 +81,9 @@
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
 
-## Overlay Toggles
-* Improvements
-	* Objects:
-		* Deformers (Deferred until deformer overlays are built after this work.)
+## Overlays
+* When entering pose or edit mode with both a mesh and deformer selected it shows only the type of the active selection.  Having the other types show as a wireframe by default would be useful for visual inspection.
+	* Investigate making the wireframe overlay scoped to selected in the overlay options.  This might not be the best way to implemented and/or over complicated.
 
 ## Object and Mesh Editing
 * Improvements
@@ -150,6 +157,10 @@ https://hollisbrown.github.io/blendershortcuts/ - I should make a page like this
 ## Selection
 * Select All of Type
 * Invert Selection of Type
+* Select by...
+	* Mask By (Select the drawables that mask this drawable.)
+	* Mask Of (Select the drawables that this drawable masks.)
+	* Warp/Rotation Deformer Of/By
 
 ## Format
 
@@ -219,6 +230,7 @@ See format planning document: docs/plan/uma-format.md
 * Key/mouse/pen input overlay for recording/streaming.
 * History playback for proof of work.  The history system is there, but that is a lot of track over a long session.  So capture a snapshot every time period or number of snapshots.
 * A proper bone skeleton system with bendy bones.
+* Parameter Frame by Frame animation: A quick setup to select multiple drawables and define them as a frame by frame animation.(Instant on/off opacity.)
 
 ## Rights Management
 * One time, permanently dismissable message dialog informing users to not edit MOC3 files without permission from the author.
@@ -254,9 +266,9 @@ Sketch:
 * Icons for commands - Long tail feature, would need to add a lot of icons.  We can reuse the existing icons for current commands such as editor/select modes.
 
 ## Status Bar
-* The first iteration to improve the status bar hints was a good success.  Eventually:
-	* Hint icons (Mouse button indicator, etc.)
-	* Better contextual hints: Swap out anything that is irrelevant when selecting for example and just show selection relevant shortcuts.
+* The second iteration to improve the status bar brought in better status messages and hints.  Eventually:
+	* Better hint icons: Keys need more styling, (Ctrl) + (V), bubbles around them.
+	* The updated shortcut hints are better, but eventually the system will need to be fully overhauled as the program becomes more complex.
 
 ## Pose Palette/Library
 * Cubism 5.4 added a "Model state set" which is just a pose library.  The data is saved into the CMO3 file.  This should be easy to implement and store in the native UMA format.

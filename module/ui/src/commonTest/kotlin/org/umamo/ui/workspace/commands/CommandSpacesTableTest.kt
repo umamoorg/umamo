@@ -50,6 +50,8 @@ class CommandSpacesTableTest {
 				"mesh.grab" to workSurfaces,
 				"mesh.scale" to workSurfaces,
 				"mesh.rotate" to workSurfaces,
+				"mesh.toShape.cylinder" to viewport,
+				"mesh.toShape.sphere" to viewport,
 				"mesh.boxSelect" to workSurfacesAndSheet,
 				"mesh.circleSelect" to workSurfaces,
 				"mesh.selectLinkedAtCursor" to workSurfaces,

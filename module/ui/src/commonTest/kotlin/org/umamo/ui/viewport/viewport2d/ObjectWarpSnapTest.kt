@@ -1,7 +1,7 @@
 package org.umamo.ui.viewport.viewport2d
 
 import org.umamo.edit.DeformerChange
-import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SnapKind
 import org.umamo.render.eval.warpLatticeAt
@@ -72,7 +72,7 @@ class ObjectWarpSnapTest {
 	fun theCursorSnapsReadAPendingLatticeAsTheViewportDrawsIt() {
 		val session = latticeRigSession(listOf(SelectionTarget.Deformer(LATTICE_RIG_BODY)))
 		val shifted = WarpLatticeForm(floatArrayOf(10f, 0f, 50f, 0f, 10f, 40f, 50f, 40f))
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(LATTICE_RIG_BODY), MeshOperatorKind.Grab), mapOf(LATTICE_RIG_BODY to shifted))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(LATTICE_RIG_BODY), ElementEditKind.Grab), mapOf(LATTICE_RIG_BODY to shifted))
 
 		handleObjectSnapRequest(session, SnapKind.CursorToSelected, 1f)
 

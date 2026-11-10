@@ -9,6 +9,7 @@ import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalEditState
+import org.umamo.edit.editKind
 import org.umamo.edit.mesh.MeshRestPositions
 import org.umamo.edit.mesh.withMeshPositions
 import org.umamo.edit.transform.IndividualOriginScope
@@ -289,7 +290,7 @@ internal class EditModalTransform(
 			// The drive lands folded onto the model as it is now, as one step.
 			val movedIndicesByDrawable =
 				request.jobs.mapNotNull { job -> job.drawableId?.takeIf { drawableId -> drawableId in result.preview }?.let { drawableId -> drawableId to job.movedIndices.toList() } }.toMap()
-			val recorded = session.commitDrive(result.foldedOnto(session.model.value), gestureData.stage, gestureData.transform.operatorKind, movedIndicesByDrawable)
+			val recorded = session.commitDrive(result.foldedOnto(session.model.value), gestureData.stage, gestureData.transform.operatorKind.editKind, movedIndicesByDrawable)
 
 			// The strip's rows for the step just pushed, over the RETAINED capture so an adjustment
 			// replays the same frozen geometry - registered before the operator clears, since the

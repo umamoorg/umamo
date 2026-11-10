@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshTopology
 import org.umamo.edit.NoticePlacement
@@ -271,7 +272,7 @@ internal fun handleEditSnapRequest(
 
 			// A snap relocates geometry without scaling or turning it, so it files under the move label; its lattices
 			// land at the stage they were captured at, as a finished Grab's do.
-			session.commitDrive(foldDrive(model, outcomes, latticeMoved, stage), stage, MeshOperatorKind.Grab, movedIndicesByDrawable)
+			session.commitDrive(foldDrive(model, outcomes, latticeMoved, stage), stage, ElementEditKind.Grab, movedIndicesByDrawable)
 		}
 	}
 }

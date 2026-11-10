@@ -1,6 +1,8 @@
 package org.umamo.ui.viewport.viewport2d
 
+import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.mesh.MeshRestPositions
@@ -22,6 +24,7 @@ import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeLanding
 import org.umamo.ui.transform.LatticeWorldGeometry
 import org.umamo.ui.transform.OwnerWorldGeometry
+import org.umamo.ui.transform.amendLatticeLanding
 import org.umamo.ui.transform.commitLatticeLanding
 import org.umamo.ui.transform.latticeReshapeOf
 import org.umamo.ui.transform.posedLatticeForms
@@ -133,12 +136,12 @@ internal class MeshDriveResult(
 
 /**
  * Commits a drive as one undo step: its lattices landed at [stage] when it moved any ([latticeLanding]), else its
- * meshes' new rest shapes, naming every vertex the drive moved.  The commit twin of the strip's amend, so a confirm,
- * a typed median, and a snap land a drive alike.
+ * meshes' new rest shapes, naming every vertex the drive moved.  The commit twin of [amendDrive], so a confirm, a
+ * typed median, a snap, and a To Shape land a drive alike.
  *
  * @param MeshDriveResult result The drive.
  * @param ElementEditStage stage Where the moved geometry was captured.
- * @param MeshOperatorKind kind The operator the drive ran as.
+ * @param ElementEditKind kind What the drive did to the points, which names the step.
  * @param Map<DrawableId, List<Int>> movedIndicesByDrawable Each moving mesh's moved vertices - the moved set, not just
  *   the covered one, since proportional editing moves weighted unselected vertices too.
  * @return Boolean True when a step was recorded; a drive that lands where it started records none, and so has no step
@@ -147,7 +150,7 @@ internal class MeshDriveResult(
 internal fun EditorSession.commitDrive(
 	result: MeshDriveResult,
 	stage: ElementEditStage,
-	kind: MeshOperatorKind,
+	kind: ElementEditKind,
 	movedIndicesByDrawable: Map<DrawableId, List<Int>>,
 ): Boolean {
 	result.latticeLanding(stage)?.let { landing -> return commitLatticeLanding(landing, kind) }
@@ -160,6 +163,21 @@ internal fun EditorSession.commitDrive(
 
 	return model.value !== modelBefore
 }
+
+/**
+ * Lands an operation strip rerun's drive over the adjusted operation's own step: its lattices at [stage] when it moved
+ * any, else its meshes folded onto the record's base.  The amend twin of [commitDrive].
+ *
+ * @param AdjustableOperation record The record the rerun was given.
+ * @param MeshDriveResult result The rerun's drive.
+ * @param ElementEditStage stage Where the moved geometry was captured.
+ * @return Boolean True when the step was replaced.
+ */
+internal fun EditorSession.amendDrive(
+	record: AdjustableOperation,
+	result: MeshDriveResult,
+	stage: ElementEditStage,
+): Boolean = result.latticeLanding(stage)?.let { landing -> amendLatticeLanding(record, landing) } ?: amendLastCommit(record, result.folded)
 
 /**
  * One job's share of a drive's result: a mesh's new rest shape, or a lattice's moved world points.

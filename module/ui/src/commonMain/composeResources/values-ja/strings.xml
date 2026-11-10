@@ -319,6 +319,8 @@
 	<string name="cmd_mesh_grab">頂点を移動</string>
 	<string name="cmd_mesh_scale">頂点を拡縮</string>
 	<string name="cmd_mesh_rotate">頂点を回転</string>
+	<string name="cmd_mesh_to_shape_cylinder">形状に変形（円柱）</string>
+	<string name="cmd_mesh_to_shape_sphere">形状に変形（球面）</string>
 	<string name="cmd_mesh_select_mode_vertex">頂点選択モード</string>
 	<string name="cmd_mesh_select_mode_edge">辺選択モード</string>
 	<string name="cmd_mesh_select_mode_face">面選択モード</string>
@@ -400,10 +402,12 @@
 	<string name="history_mesh_scale">頂点を拡縮</string>
 	<string name="history_mesh_rotate">頂点を回転</string>
 	<string name="history_mesh_slide">頂点をスライド</string>
+	<string name="history_mesh_to_shape">頂点を形状に変形</string>
 	<string name="history_lattice_move">格子の点を移動</string>
 	<string name="history_lattice_scale">格子の点を拡縮</string>
 	<string name="history_lattice_rotate">格子の点を回転</string>
 	<string name="history_lattice_slide">格子の点をスライド</string>
+	<string name="history_lattice_to_shape">格子の点を形状に変形</string>
 	<string name="history_lattice_resize">格子の分割数</string>
 	<string name="history_lattice_subdivide">格子を細分化</string>
 	<string name="history_deformer_create">ワープデフォーマを作成</string>
@@ -411,6 +415,7 @@
 	<string name="history_pose_scale">ポーズ：格子の点を拡縮</string>
 	<string name="history_pose_rotate">ポーズ：格子の点を回転</string>
 	<string name="history_pose_slide">ポーズ：格子の点をスライド</string>
+	<string name="history_pose_to_shape">ポーズ：格子の点を形状に変形</string>
 	<string name="history_pose_clear_edits">ポーズの編集をクリア</string>
 	<string name="history_uv_move">UV を移動</string>
 	<string name="history_uv_scale">UV を拡縮</string>
@@ -633,6 +638,7 @@
 	<string name="notice_mesh_no_targets">アートからメッシュを生成するには、メッシュのあるドローアブルを選択してください。</string>
 	<string name="history_drawable_duplicate">ドローアブルを複製</string>
 	<string name="notice_merge_needs_vertices">マージには2つ以上の選択頂点が必要です（頂点モード）。</string>
+	<string name="notice_to_shape_nothing">変形するものがありません：ピボットから広がる格子の点を選択してください。</string>
 	<string name="notice_connect_needs_two_vertices">連結にはちょうど2つの選択頂点が必要です（頂点モード）。</string>
 	<string name="notice_connect_refused">連結できません。カットが何も横断しないか、形状が退化しています。</string>
 	<string name="notice_rip_nothing">ここではリップできません。分割できる面の扇がありません。</string>
@@ -956,6 +962,8 @@
 	<string name="transform_depth_surface_sphere">球面</string>
 	<!-- The Merge row of the operation settings strip and its choices. -->
 	<string name="merge_options_target">マージ位置</string>
+	<string name="to_shape_options_shape">形状</string>
+	<string name="to_shape_options_degrees">角度</string>
 	<string name="lattice_options_rows">行数</string>
 	<string name="rehome_options_keep_in_place">その場に保つ</string>
 	<string name="create_warp_options_margin">余白</string>
@@ -1088,6 +1096,10 @@
 	<string name="transform_options_pivot_depth_description">ピボットを Y 軸に沿って前方または後方へ動かした距離。</string>
 	<string name="transform_options_depth_surface_description">格子に適用する 3D 面の形状。</string>
 	<string name="merge_options_target_description">マージした頂点が最終的に移る位置。</string>
+	<string name="to_shape_options_shape_description">選択した点を巻き付ける面（正面から見た形）。</string>
+	<string name="to_shape_options_axis_description">円柱が沿う軸。球面では使いません。</string>
+	<string name="to_shape_options_degrees_description">選択が形状に巻き付く角度。180 で前半分、360 で一周、0 で平らなままです。</string>
+	<string name="to_shape_options_factor_description">点を形状へ近づける割合。0 で元の位置、1 で完全に形状の上。</string>
 	<string name="lattice_options_rows_description">格子の新しい縦方向のセル数。</string>
 	<string name="create_warp_options_rows_description">新しいワープの縦方向のセル数。</string>
 	<string name="create_warp_options_columns_description">新しいワープの横方向のセル数。</string>

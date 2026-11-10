@@ -6,8 +6,8 @@ import kotlinx.serialization.json.JsonObject
 import org.umamo.edit.DeformerChange
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.KeyformAim
-import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
@@ -147,7 +147,7 @@ class PoseKeyedLatticeExportGateTest {
 		val stage = ElementEditStage.Posed(session.pose.value, session.pendingLatticeEdits.value)
 		val forms = posedLatticeForms(session.model.value, stage, mapOf(warpId to target), mapOf(warpId to moved))
 		assertTrue(warpId in forms, "${warpId.raw} lowered")
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(warpId), MeshOperatorKind.Grab), forms)
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(warpId), ElementEditKind.Grab), forms)
 	}
 
 	/**

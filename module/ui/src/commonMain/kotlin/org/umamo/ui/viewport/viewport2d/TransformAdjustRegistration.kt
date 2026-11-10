@@ -22,7 +22,6 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.OwnerWorldGeometry
-import org.umamo.ui.transform.amendLatticeLanding
 
 /*
  * The modal transforms' registrations on the operation settings strip - the half that needs geometry.
@@ -95,21 +94,6 @@ internal fun registerMeshTransformAdjustment(
 		}
 	}
 }
-
-/**
- * Lands a rerun's drive over the adjusted operation's own step: its lattices at [stage] when it moved any, else its
- * meshes folded onto the record's base.
- *
- * @param AdjustableOperation record The record the rerun was given.
- * @param MeshDriveResult result The rerun's drive.
- * @param ElementEditStage stage Where the moved geometry was captured.
- * @return Boolean True when the step was replaced.
- */
-private fun EditorSession.amendDrive(
-	record: AdjustableOperation,
-	result: MeshDriveResult,
-	stage: ElementEditStage,
-): Boolean = result.latticeLanding(stage)?.let { landing -> amendLatticeLanding(record, landing) } ?: amendLastCommit(record, result.folded)
 
 /**
  * Registers the Vertex Slide that just committed as the session's adjustable operation, with its
