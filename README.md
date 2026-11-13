@@ -176,19 +176,23 @@ Don't combine `-Pumamo.target` with `:desktop:run` — that would load the targe
 
 Reusable library modules live under `module/`, runnable application targets under `app/`.  Everything else at the repo root (`gradle/`, `docs/`, build files) is intentionally *not* a module. A module's Gradle path (`:format`) is kept flat and independent of its folder.  See: [settings.gradle.kts](settings.gradle.kts)
 
-| Module      | Directory         | Targets       | Role                                                                                                   |
-| ----------- | ----------------- | ------------- | ------------------------------------------------------------------------------------------------------ |
-| `:format`   | `module/format`   | jvm + android | Cubism file family + art I/O (CMO3 read/write, …)                                                      |
-| `:reimport` | `module/reimport` | jvm + android | Source-art binding + non-destructive reconcile                                                         |
-| `:storage`  | `module/storage`  | jvm + android | App config/data dirs + file IO (okio) + native file dialogs (FileKit)                                  |
-| `:settings` | `module/settings` | jvm + android | JSON settings: defaults←user merge, dotted get/set, change Flow → `:storage`                           |
-| `:runtime`  | `module/runtime`  | jvm + android | Puppet model + CMO3 ingest                                                                             |
-| `:render`   | `module/render`   | jvm + android | Deformation eval (CPU) + renderer + morph-blend shaders (`expect`/`actual`: LWJGL / GLES) → `:runtime` |
-| `:ui`       | `module/ui`       | jvm + android | Compose Multiplatform editor shell                                                                     |
-| `:desktop`  | `app/desktop`     | jvm           | Desktop entrypoint (Compose Desktop + LWJGL viewport)                                                  |
-| `:android`  | `app/android`     | android       | Android entrypoint (Activity + Compose + GLSurfaceView)                                                |
+| Module      | Directory         | Targets                             | Role                                                                                           |
+| ----------- | ----------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `:geometry` | `module/geometry` | jvm + android + iosArm64 + linuxX64 | Pure vector geometry: exact predicates, constrained Delaunay triangulation, mesh refinement    |
+| `:runtime`  | `module/runtime`  | jvm + android + iosArm64            | The immutable puppet model, keyform grid algebra, and atlas domain; no format knowledge        |
+| `:format`   | `module/format`   | jvm + android + iosArm64            | File codecs: UMA, CMO3, MOC3 and its JSON sidecars, PSD, CLIP, KRA                             |
+| `:interop`  | `module/interop`  | jvm + android + iosArm64            | Format ↔ puppet model conversion: import, CMO3 export, artwork import, and the art mesher      |
+| `:reimport` | `module/reimport` | jvm + android                       | Non-destructive artwork reload: reconcile, file watcher, layer matcher                         |
+| `:edit`     | `module/edit`     | jvm + android                       | The editing session: undo history, selection, and every edit operation over the puppet model   |
+| `:render`   | `module/render`   | jvm + android + iosArm64            | Deformation eval (CPU), the puppet renderer, and its shaders over a backend-neutral device API |
+| `:storage`  | `module/storage`  | jvm + android                       | App config/data dirs + file IO (okio) + native file dialogs (FileKit)                          |
+| `:settings` | `module/settings` | jvm + android                       | JSON settings: defaults←user merge, dotted get/set, change Flow → `:storage`                   |
+| `:ui`       | `module/ui`       | jvm + android                       | Compose Multiplatform editor UI and the shared app shell                                       |
+| `:desktop`  | `app/desktop`     | jvm                                 | Desktop entrypoint (Compose Desktop window + LWJGL offscreen viewport)                         |
+| `:android`  | `app/android`     | android                             | Android entrypoint (Activity over the shared app shell)                                        |
+| `:cli`      | `app/cli`         | jvm                                 | Headless diagnostic tool (dump, extract, atlas, mesh, convert, diff)                           |
 
-Shared logic lives in `commonMain`; platform code in `jvmMain`/`androidMain` via `expect`/`actual`.
+Shared logic lives in `commonMain`; platform code lives in `jvmMain`/`androidMain`.  The `iosArm64` target is compile-only: it keeps `commonMain` free of JVM-only code.  `:geometry` also runs its tests natively on `linuxX64`.
 
 ### Input, Commands, & Settings
 

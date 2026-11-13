@@ -77,7 +77,7 @@ subprojects {
 //
 // commonTest is in scope too, and deliberately: it has to compile for every target its commonMain
 // does, so a JVM-only API there is the same latent break, and a test source set is exactly where one
-// slips in unnoticed (a test that only ever runs on the JVM still has to *build* everywhere).  It is
+// slips in unnoticed (a test that only ever runs on the JVM still has to build everywhere).  It is
 // also where the leaks were: `"ABCD".toByteArray(Charsets.US_ASCII)` in a shared test reads as
 // harmless until the day it isn't.
 //
