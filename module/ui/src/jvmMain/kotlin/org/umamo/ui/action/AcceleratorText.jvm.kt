@@ -11,8 +11,6 @@ private fun hostIsMac(): Boolean = System.getProperty("os.name").orEmpty().start
 /**
  * Desktop primary-modifier label: the Apple Command glyph on macOS, "Ctrl" on Windows and Linux.
  *
- * デスクトップの主修飾ラベル。macOS は "⌘"、Windows / Linux は "Ctrl"。
- *
  * @return String The primary modifier label.
  */
 actual fun primaryModifierLabel(): String =

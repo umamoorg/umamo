@@ -13,7 +13,7 @@ import kotlin.math.sin
 object MeshTransforms {
 	/**
 	 * The median pivot for scale / rotate: the mean (centroid) of the selected vertices' positions, in the
-	 * array's coordinate space. Returns (0, 0) when nothing is selected (no operator runs in that case).
+	 * array's coordinate space.  Returns (0, 0) when nothing is selected (no operator runs in that case).
 	 *
 	 * @param FloatArray positions The interleaved mesh positions.
 	 * @param Set<Int> indices The selected vertex indices.

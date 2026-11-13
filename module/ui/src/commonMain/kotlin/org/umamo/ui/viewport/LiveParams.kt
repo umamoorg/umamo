@@ -15,7 +15,7 @@ import org.umamo.ui.model.LiveParamsHandle
 import kotlin.concurrent.Volatile
 
 /**
- * Thread-safe hand-off of parameter values from the Compose UI thread to the render thread. The
+ * Thread-safe hand-off of parameter values from the Compose UI thread to the render thread.  The
  * value is an immutable map swapped wholesale, so a volatile reference is a safe publish; the render
  * thread compares identity to detect a change.
  */
@@ -33,7 +33,7 @@ class LiveParams(
 	 */
 	private val observedValues: MutableState<Map<ParameterId, Float>> = mutableStateOf(initialValues)
 
-	/** The current pose. Every write also publishes to the snapshot mirror behind [observed]. */
+	/** The current pose.  Every write also publishes to the snapshot mirror behind [observed]. */
 	var values: Map<ParameterId, Float>
 		get() = publishedValues
 		set(value) {

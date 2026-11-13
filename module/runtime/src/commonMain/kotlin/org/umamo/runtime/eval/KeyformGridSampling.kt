@@ -22,7 +22,7 @@ import org.umamo.runtime.model.WarpLatticeForm
 // must refuse against these exact values, not a second copy of them.
 
 /**
- * The key-coincidence tolerance. Public because :interop's keyform export refinement merges union
+ * The key-coincidence tolerance.  Public because :interop's keyform export refinement merges union
  * axes against the same snap distance the sampling here and the grid algebra use; every consumer
  * must bracket against this exact value, never a copy of it.
  */
@@ -31,7 +31,7 @@ public const val EPS_KEY: Float = 0.001f
 internal const val EPS_SPAN = 0.0015f
 
 // The Umamo C++ Runtime caps the multilinear corner set at 16 (kbCorners `maxc`); past that an axis snaps to its
-// lower key instead of splitting. Replicated for fidelity (matters only for >4 fractional axes).
+// lower key instead of splitting.  Replicated for fidelity (matters only for >4 fractional axes).
 private const val MAX_CORNERS = 16
 
 /**
@@ -217,8 +217,8 @@ public fun <TForm> keyformBaseOf(
 
 /**
  * The drawable's grid form at the DEFAULT pose as position deltas vs the keyform-space base
- * (DrawableMesh.localPositions) - the shared blend-shape delta reference. Null when the drawable is
- * ungridded or the default pose is out of the grid's range (the reference is then zero). Static per
+ * (DrawableMesh.localPositions) - the shared blend-shape delta reference.  Null when the drawable is
+ * ungridded or the default pose is out of the grid's range (the reference is then zero).  Static per
  * drawable: the CPU pose prep, the GPU delta-texture bake, and the MOC3 import all call this and must
  * agree.
  *

@@ -1,11 +1,11 @@
 package org.umamo.render.eval
 
-import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -21,11 +21,11 @@ import kotlin.test.assertTrue
  *
  * Result: 156/174 match to tiny-ULP (157 before the harness rebuild - see the assertion
  * note); the other 18 are sub-pixel residuals (<0.6 px/vertex)
- * concentrated in deeply-nested warp chains. Ruled out as causes: FMA contraction, rotation sin/cos,
+ * concentrated in deeply-nested warp chains.  Ruled out as causes: FMA contraction, rotation sin/cos,
  * vertex extrapolation, blend-at-default - and `warpExtrap` was audited bit-for-bit against the oracle.
  * The residual grows with nesting depth, which is most consistent with CMO3↔MOC3 source-data
  * re-quantization amplified through the chain (umamo evaluates the CMO3, the oracle the exported MOC3),
- * i.e. a serialization difference, not a math error. Well within the bounded-ULP fidelity contract.
+ * i.e. a serialization difference, not a math error.  Well within the bounded-ULP fidelity contract.
  *
  * Gated on the cmo3/moc3 samples + the Umamo C++ Runtime oracle paths (system properties); skips when absent.
  */
@@ -34,10 +34,10 @@ class DeformationOracleTest {
 
 	@Test
 	fun defaultPoseMatchesOracle() {
-		val cmo3 = requireOracleInput("cmo3.sample")
-		val moc3 = requireOracleInput("moc3.sample")
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val cmo3 = requireSample("cmo3.sample")
+		val moc3 = requireSample("moc3.sample")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 
 		val root = Cmo3.read(cmo3).root as? CModelSource ?: error("root is not a CModelSource")
 		val model = Cmo3Import.fromModelSource(root)
@@ -90,28 +90,6 @@ class DeformationOracleTest {
 		assertTrue(posMatch >= 156, "geometry regressed: posMatch=$posMatch (<156) — investigate before relaxing")
 	}
 
-	/**
-	 * The file [property] points at, skipping the test when it is absent.
-	 *
-	 * A JUnit assumption rather than an early return, so an un-runnable oracle reports SKIPPED instead of
-	 * passing green having compared nothing.  This one needs the Umamo C++ Runtime as an external oracle,
-	 * so unlike the corpus gates it cannot be defaulted - it stays opt-in by nature.
-	 *
-	 * @param String property The system property naming the input.
-	 * @return File The existing file.
-	 */
-	private fun requireOracleInput(property: String): File {
-		val file = sysFile(property)
-		Assume.assumeTrue(
-			"[oracle] absent -D$property (needs -Dcmo3.sample -Dmoc3.sample -Drelive.dumpModel -Drelive.coreLib)",
-			file != null,
-		)
-
-		return file!!
-	}
-
-	private fun sysFile(property: String): File? = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
-
 	private fun rollingHash(values: FloatArray): Double {
 		var hp = 0.0
 
@@ -122,10 +100,10 @@ class DeformationOracleTest {
 		return hp
 	}
 
-	private fun closeEnough(a: Double, b: Double): Boolean {
-		val scale = maxOf(1.0, abs(a), abs(b))
+	private fun closeEnough(first: Double, second: Double): Boolean {
+		val scale = maxOf(1.0, abs(first), abs(second))
 
-		return abs(a - b) <= 1e-5 * scale
+		return abs(first - second) <= 1e-5 * scale
 	}
 
 	private fun transformedHash(world: FloatArray, offsetX: Float, offsetY: Float, scale: Float, signY: Float): Double {

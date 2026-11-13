@@ -47,7 +47,7 @@ internal object IdSerializer : XmlSerializer {
 }
 
 /**
- * The `*Guid` tags emitted by the editor. One [Guid] type, many tags.
+ * The `*Guid` tags emitted by the editor.  One [Guid] type, many tags.
  */
 internal val GUID_TAGS: List<String> =
 	listOf(
@@ -79,7 +79,7 @@ internal val GUID_TAGS: List<String> =
 		"SyncCubismParamGuid",
 	)
 
-/** The `*Id` tags emitted by the editor. One [Id] type, many tags. */
+/** The `*Id` tags emitted by the editor.  One [Id] type, many tags. */
 internal val ID_TAGS: List<String> =
 	listOf(
 		"CAffecterId",

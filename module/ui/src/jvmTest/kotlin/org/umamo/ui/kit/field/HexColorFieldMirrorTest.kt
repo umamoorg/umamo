@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasSetTextAction
@@ -125,5 +126,5 @@ class HexColorFieldMirrorTest {
 	 * @return SemanticsNodeInteraction The text node.
 	 */
 	@OptIn(ExperimentalTestApi::class)
-	private fun androidx.compose.ui.test.ComposeUiTest.field() = onNode(hasSetTextAction())
+	private fun ComposeUiTest.field() = onNode(hasSetTextAction())
 }

@@ -154,6 +154,12 @@ object ArtworkReloadPlanner {
 		// many reloads find it unbound.
 		val ignoredKeys = source.layers.filter { row -> row.ignored }.mapTo(HashSet()) { row -> row.key }
 
+		/**
+		 * The rebind a lost binding was matched to, when its suggestion was accepted.
+		 *
+		 * @param SourceLayerRef binding The binding whose layer is gone.
+		 * @return ReconcileResult.Rebound? The rebind, or null when no candidate was accepted.
+		 */
 		fun reboundFor(binding: SourceLayerRef): ReconcileResult.Rebound? {
 			val candidateKey = accepted[binding.layerKey] ?: return null
 

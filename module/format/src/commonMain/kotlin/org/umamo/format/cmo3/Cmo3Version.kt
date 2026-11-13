@@ -8,11 +8,9 @@ import org.umamo.format.FormatVersion
  * Modelled as a `sealed interface` so the compiler forces every `when` over versions to be
  * exhaustive: adding a generation without handling it everywhere becomes a compile error, not a
  * silent runtime gap.
- *
- * 対応する CMO3 スキーマ世代。sealed interface により `when` の網羅性をコンパイラが強制する。
  */
 sealed interface Cmo3Version : FormatVersion {
-	// `data object` = a singleton with generated equals/hashCode/toString. There is exactly one
+	// `data object` = a singleton with generated equals/hashCode/toString.  There is exactly one
 	// of each version, so an object (not a class) is the right modelling.
 	data object V3 : Cmo3Version {
 		override val label = "cmo3 / Cubism 3.x"
@@ -27,7 +25,7 @@ sealed interface Cmo3Version : FormatVersion {
 	}
 
 	/**
-	 * Human-readable summary. The `when` has no `else` branch on purpose - the sealed hierarchy makes
+	 * Human-readable summary.  The `when` has no `else` branch on purpose - the sealed hierarchy makes
 	 * it exhaustive, so a future `V6` won't compile until handled here.
 	 *
 	 * @return String The summary sentence.

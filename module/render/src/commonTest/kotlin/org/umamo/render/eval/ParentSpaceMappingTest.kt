@@ -27,7 +27,7 @@ import kotlin.test.assertTrue
  * Verifies [ParentSpaceMapping]: the forward local->world projection matches the evaluator's world
  * positions exactly (same chain, same Y negation), and the inverse recovers local coordinates - in
  * closed form for rotation parents, by Newton iteration for warp parents - including for a moved
- * world target (the Edit-gizmo drag case). Degenerate transforms keep the seed instead of exploding.
+ * world target (the Edit-gizmo drag case).  Degenerate transforms keep the seed instead of exploding.
  * The per-vertex [ParentSpaceMapping.worldToLocalLinearized] used by the transform path is exact for
  * affine parents and, unlike the reach-capped Newton inverse, follows a large warp-child drag without
  * pinning or boiling.
@@ -197,7 +197,7 @@ class ParentSpaceMappingTest {
 	}
 
 	/**
-	 * A swept warp-child grab follows the cursor without pinning or boiling. The reach-uncapped per-vertex
+	 * A swept warp-child grab follows the cursor without pinning or boiling.  The reach-uncapped per-vertex
 	 * inverse lands the vertex on the moving target every frame (it reprojects onto it - never pins short),
 	 * and the solved local coordinate advances in bounded steps (no jitter / scatter), even as the sweep
 	 * crosses the piecewise extrapolation band where the reach-capped inverse was noisy.
@@ -307,7 +307,7 @@ class ParentSpaceMappingTest {
 
 	/**
 	 * On a strongly curved cage - the real-model failure (three nested, upward-bowed warps) in miniature -
-	 * a large multi-vertex grab lands the selection's centroid on the cursor. The world-rigid inverse lands
+	 * a large multi-vertex grab lands the selection's centroid on the cursor.  The world-rigid inverse lands
 	 * every vertex on target, so the centroid trivially follows too (the shared-Jacobian inverses miss here).
 	 */
 	@Test

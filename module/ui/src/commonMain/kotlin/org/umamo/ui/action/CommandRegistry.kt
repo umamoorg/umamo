@@ -6,7 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
- * The central table of named [Command]s and the single dispatch point for invoking them. Menus, the
+ * The central table of named [Command]s and the single dispatch point for invoking them.  Menus, the
  * area header, the command palette, and the keymap all go through here, so an operation has exactly
  * one implementation regardless of how it was triggered.
  *
@@ -90,12 +90,10 @@ class CommandRegistry {
 }
 
 /**
- * The active [CommandRegistry] for the composition. `static` because the registry instance is stable
+ * The active [CommandRegistry] for the composition.  `static` because the registry instance is stable
  * for the app's lifetime (commands are registered into it, not swapped); descendants read
- * `LocalCommands.current` to dispatch. The default errors loudly so a missing provider is caught at
+ * `LocalCommands.current` to dispatch.  The default errors loudly so a missing provider is caught at
  * the first dispatch rather than silently no-op'ing.
- *
- * コンポジション内で有効なコマンドレジストリ。アプリ生存期間中インスタンスは不変なので static。
  */
 val LocalCommands =
 	staticCompositionLocalOf<CommandRegistry> {

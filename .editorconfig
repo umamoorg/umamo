@@ -13,8 +13,7 @@ indent_style = tab
 indent_style = tab
 # Tell ktlint to use the official ruleset but honour tab indentation above.
 ktlint_code_style = ktlint_official
-# Bilingual EN/JA comments push some lines long; relax the line-length rule rather than
-# fight it (CLAUDE.md cares about *why*-comments, not column counts).
+# No column limit: A line is as long as it reads best and the wrapping rules disabled below key off this one.
 ktlint_standard_max-line-length = disabled
 # Allow single-line call chains like `libs.versions.x.get().toInt()` (ubiquitous in Gradle
 # Kotlin DSL + version-catalog access); the forced-newline form hurts more than it helps.
@@ -34,6 +33,27 @@ ktlint_function_naming_ignore_when_annotated_with = Composable
 # instead of one line per string; no-wildcard-imports stays strict for every other package. This is
 # the precise form of the gen/ subtree's blanket disable — exempt the generated package, not the file.
 ij_kotlin_packages_to_use_import_on_demand = org.umamo.ui.resources.**
+# umamo:no-print-and-return-gate is about tests, where printing and returning reports PASSED for a test
+# that ran nothing.  A tool's entry point prints and returns as a matter of course, so the rule is off
+# here and on in the test sources below.
+ktlint_umamo_no-print-and-return-gate = disabled
+
+# umamo:docblock-tags holds a documented function to the whole house tag block: one @param per parameter
+# and @return for a returned value.  A test source may keep a summary-only docblock, since a fixture
+# helper's one line usually says enough; the tags a test docblock does have still match its signature.
+[**/src/{*Test,test}/**.kt]
+umamo_docblock_tags_mode = drift_only
+# umamo:function-docblock asks a docblock of every named function that is not an override.  A test case's
+# name says what it pins, so test sources are not held to it.
+ktlint_umamo_function-docblock = disabled
+ktlint_umamo_no-print-and-return-gate = enabled
+# The architecture rules say where shipping code may build a command, name the main dispatcher, extend
+# the editor session, or import across a package boundary.  A test builds commands to drive a dispatcher
+# and reaches across packages to set its scene, so test sources are not held to them.
+ktlint_umamo_import-boundary = disabled
+ktlint_umamo_no-command-outside-tables = disabled
+ktlint_umamo_no-main-dispatcher = disabled
+ktlint_umamo_session-extension-placement = disabled
 
 [*.{yml,yaml,json,toml}]
 indent_style = space

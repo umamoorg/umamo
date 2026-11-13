@@ -180,6 +180,13 @@ fun PuppetModel.drawablesByPartSubtree(): Map<PartId, List<DrawableId>> {
 	val partById = parts.associateBy { part -> part.id }
 	val collected = HashMap<PartId, List<DrawableId>>(parts.size)
 
+	/**
+	 * Gathers the drawables in a part's subtree, caching each part's result.
+	 *
+	 * @param PartId partId The part at the top of the subtree.
+	 * @param MutableSet<PartId> guard The parts already entered, which stop a cyclic tree from recursing forever.
+	 * @return List<DrawableId> The subtree's drawables, in panel order.
+	 */
 	fun collect(partId: PartId, guard: MutableSet<PartId>): List<DrawableId> {
 		collected[partId]?.let { return it }
 
@@ -251,6 +258,11 @@ fun PuppetModel.partSelfAndDescendants(id: PartId): Set<PartId> {
 	val partById = parts.associateBy { part -> part.id }
 	val collected = LinkedHashSet<PartId>()
 
+	/**
+	 * Collects a part and every part under it, each once.
+	 *
+	 * @param PartId current The part to visit.
+	 */
 	fun walk(current: PartId) {
 		// add() guards a malformed (already cyclic) tree from recursing forever.
 		if (!collected.add(current)) {
@@ -280,6 +292,11 @@ fun PuppetModel.deformerSelfAndDescendants(id: DeformerId): Set<DeformerId> {
 	val childrenByParent = deformers.groupBy { deformer -> deformer.parent }
 	val collected = LinkedHashSet<DeformerId>()
 
+	/**
+	 * Collects a deformer and every deformer under it, each once.
+	 *
+	 * @param DeformerId current The deformer to visit.
+	 */
 	fun walk(current: DeformerId) {
 		// add() guards a malformed (already cyclic) hierarchy from recursing forever.
 		if (!collected.add(current)) {

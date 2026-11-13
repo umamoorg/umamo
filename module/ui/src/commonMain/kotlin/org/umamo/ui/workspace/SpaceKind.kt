@@ -9,7 +9,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
 /**
- * The closed inventory of editor space types an area can host. This is the Blender "editor type":
+ * The closed inventory of editor space types an area can host.  This is the Blender "editor type":
  * any area can be switched to any of these via its header dropdown, so the set is agnostic, not tied
  * to a fixed dock position.
  *
@@ -81,7 +81,7 @@ internal val SpaceKind.hostsOperationStrip: Boolean
 	get() = SpaceScope.WorkSurfaces.appliesIn(this)
 
 /**
- * Serializes [SpaceKind] as its stable [SpaceKind.key] string. An unknown key (a layout written by a
+ * Serializes [SpaceKind] as its stable [SpaceKind.key] string.  An unknown key (a layout written by a
  * newer build that has a space this build lacks) decodes to a neutral [SpaceKind.Outliner] rather
  * than failing the whole layout - a forward-compatible, non-destructive fallback that also avoids
  * spinning up a GL viewport for an unknown kind.

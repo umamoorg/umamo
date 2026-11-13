@@ -6,7 +6,7 @@ import kotlin.test.assertNull
 
 /**
  * The palette ranking: label prefix > label word start > label substring > id-only substring, ties
- * alphabetical, non-matches dropped. The "ac" case pins the property that matters most for usability:
+ * alphabetical, non-matches dropped.  The "ac" case pins the property that matters most for usability:
  * "Actual Size" must outrank the workspace commands that merely contain "ac".
  */
 class CommandSearchTest {

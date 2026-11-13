@@ -5,13 +5,14 @@ import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * Exercises the identity subsystem (*Guid / *Id). Confirms the reconciliation gate stays byte-identical
+ * Exercises the identity subsystem (*Guid / *Id).  Confirms the reconciliation gate stays byte-identical
  * with these typed, and that GUID/Id tags drop out of the unmodeled set (typing has real effect).
  */
 class IdentitySubsystemTest {
@@ -23,9 +24,7 @@ class IdentitySubsystemTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping identity subsystem test")
-
-			return
+			skipTest("cmo3.sample not present; skipping identity subsystem test")
 		}
 
 		val mainXml =
@@ -67,7 +66,10 @@ class IdentitySubsystemTest {
 			}
 		}
 
-		if (firstDiff < 0 && expected.size == actual.size) return
+		if (firstDiff < 0 && expected.size == actual.size) {
+			return
+		}
+
 		val at = if (firstDiff < 0) limit else firstDiff
 		val start = maxOf(0, at - 60)
 		fail(

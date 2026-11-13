@@ -8,7 +8,10 @@ import org.umamo.format.cmo3.model.gen.CPhysicsInput
 import org.umamo.format.cmo3.model.gen.CPhysicsOutput
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSource
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
+import org.umamo.testkit.skipTest
 import java.io.File
+import java.util.Collections
+import java.util.IdentityHashMap
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -44,9 +47,7 @@ class Cmo3PhysicsReferenceProbeTest {
 		val files = corpusFiles()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe lists no readable samples; skipping the physics-reference probe")
-
-			return
+			skipTest("cmo3.probe lists no readable samples; skipping the physics-reference probe")
 		}
 
 		val referenceShapes = sortedMapOf<String, Int>()
@@ -58,7 +59,7 @@ class Cmo3PhysicsReferenceProbeTest {
 			// CMO3: CModelSource field parameterSourceSet -> CParameterSourceSet field _sources.
 			val parameterSources =
 				Cmo3Import.elementsOf((root.parameterSourceSet as? CParameterSourceSet)?._sources).filterIsInstance<CParameterSource>()
-			val parameterGuids = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+			val parameterGuids = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 			parameterSources.mapNotNullTo(parameterGuids) { source -> source.guid }
 			val parameterUuids = parameterSources.mapNotNull { source -> Cmo3Import.uuidOf(source.guid) }.toSet()
 			// CMO3: CModelSource field physicsSettingsSourceSet -> CPhysicsSettingsSourceSet fields

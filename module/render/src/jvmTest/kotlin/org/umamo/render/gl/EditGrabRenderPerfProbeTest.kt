@@ -33,6 +33,7 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 
@@ -67,9 +68,7 @@ class EditGrabRenderPerfProbeTest {
 		val mocFile = sample
 
 		if (mocFile == null) {
-			println("moc3.perfSample not present; skipping perf probe")
-
-			return
+			skipTest("moc3.perfSample not present; skipping perf probe")
 		}
 
 		requireHeadlessGl(PROBE_TAG)

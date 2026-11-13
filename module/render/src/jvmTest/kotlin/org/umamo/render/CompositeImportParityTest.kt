@@ -10,6 +10,7 @@ import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -25,7 +26,7 @@ private const val SCALAR_TOLERANCE = 0.001f
  * Imports the offscreen corpus pairs from their `.cmo3` source and baked `.moc3` and asserts the
  * composite surface agrees across the two paths: part composite state (composition enums, clip
  * lists, invert, static channels), the keyformed opacity/color cells, and the drawable-level
- * extended blend + culling. The offscreen counterpart of [Moc3Cmo3ParityTest]. Skips gracefully
+ * extended blend + culling.  The offscreen counterpart of [Moc3Cmo3ParityTest].  Skips gracefully
  * without the corpus.
  */
 class CompositeImportParityTest {
@@ -156,8 +157,8 @@ class CompositeImportParityTest {
 	 *
 	 * DISTINCT rather than a multiset because the two files legitimately store different keyform
 	 * COUNTS for the same rig: baking resamples the grid (one corpus model carries 191 warp keyforms
-	 * in its .cmo3 and 436 in its .moc3). Multiplicity is therefore not a parity claim; the set of
-	 * authored values is. That still catches what matters - a path that drops the channels yields an
+	 * in its .cmo3 and 436 in its .moc3).  Multiplicity is therefore not a parity claim; the set of
+	 * authored values is.  That still catches what matters - a path that drops the channels yields an
 	 * empty set, and one that mis-scales a value yields a different member.
 	 *
 	 * @param PuppetModel puppet The imported rig.
@@ -235,10 +236,10 @@ class CompositeImportParityTest {
 		}
 
 		if (comparedPairs == 0) {
-			println("no deformer-channel cmo3/moc3 pairs present; skipping")
-		} else {
-			assertTrue(totalChannelledKeyforms > 0, "compared at least one channelled keyform")
+			skipTest("no deformer-channel cmo3/moc3 pairs present; skipping")
 		}
+
+		assertTrue(totalChannelledKeyforms > 0, "compared at least one channelled keyform")
 	}
 
 	@Test
@@ -266,7 +267,7 @@ class CompositeImportParityTest {
 		}
 
 		if (comparedPairs == 0) {
-			println("no composite cmo3/moc3 pairs present; skipping")
+			skipTest("no composite cmo3/moc3 pairs present; skipping")
 		}
 	}
 }

@@ -33,13 +33,17 @@ import org.umamo.runtime.model.translationAffine
 import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeWorldGeometry
+import org.umamo.ui.transform.MeshJobOutcome
 import org.umamo.ui.transform.activeObjectCentroid
 import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.transform.captureLatticeWorlds
+import org.umamo.ui.transform.commitDrive
 import org.umamo.ui.transform.commitObjectMove
 import org.umamo.ui.transform.coveredMedian
 import org.umamo.ui.transform.coveredVerticesOf
 import org.umamo.ui.transform.elementEditStage
+import org.umamo.ui.transform.foldDrive
+import org.umamo.ui.transform.outcomeOf
 import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.asObjectPickCandidates

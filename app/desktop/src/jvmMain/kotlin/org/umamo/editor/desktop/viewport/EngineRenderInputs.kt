@@ -53,7 +53,7 @@ internal class EngineRenderInputs(
 	@Volatile
 	private var activeSelectionBacking: DrawableId? = null
 
-	// The drawables actually drawn (the resolved Parts-panel visibility cascade). Seeded from the open
+	// The drawables actually drawn (the resolved Parts-panel visibility cascade).  Seeded from the open
 	// model's static cascade.
 	@Volatile
 	private var shownBacking: Set<DrawableId> = puppet.visibleDrawableIds()
@@ -216,7 +216,7 @@ internal class EngineRenderInputs(
 	}
 
 	/**
-	 * The grid backdrop colors (background / major / minor). A change bumps both render passes so a
+	 * The grid backdrop colors (background / major / minor).  A change bumps both render passes so a
 	 * color-only change repaints without waiting for an unrelated render.
 	 */
 	var gridColors: GridColors
@@ -230,7 +230,7 @@ internal class EngineRenderInputs(
 		}
 
 	/**
-	 * Sets the highlighted drawables (object-mode selection). A change bumps the puppet render version so the
+	 * Sets the highlighted drawables (object-mode selection).  A change bumps the puppet render version so the
 	 * loop re-renders every area once with the new tint; an identical set is a no-op.
 	 *
 	 * @param Set<DrawableId> ids The selected drawable ids.
@@ -243,7 +243,7 @@ internal class EngineRenderInputs(
 	}
 
 	/**
-	 * Sets the active (last-selected) drawable, tinted apart from the rest of a multi-selection. A change
+	 * Sets the active (last-selected) drawable, tinted apart from the rest of a multi-selection.  A change
 	 * bumps the puppet render version; an identical value is a no-op.
 	 *
 	 * @param DrawableId id The active drawable id, or null when none is active.
@@ -256,7 +256,7 @@ internal class EngineRenderInputs(
 	}
 
 	/**
-	 * Sets which drawables are drawn (the resolved Parts-panel visibility cascade). A change bumps the puppet
+	 * Sets which drawables are drawn (the resolved Parts-panel visibility cascade).  A change bumps the puppet
 	 * render version so every area re-renders once; the geometry is unchanged, so only the draw filter moves.
 	 *
 	 * @param Set<DrawableId> ids The drawable ids to draw.
@@ -309,7 +309,7 @@ internal class EngineRenderInputs(
 
 	/**
 	 * Pushes the latest model so the render thread can reconcile it after an edit (a layer reorder
-	 * re-derives the render order; a base-mesh move re-uploads the changed drawables' VBOs). A new (different)
+	 * re-derives the render order; a base-mesh move re-uploads the changed drawables' VBOs).  A new (different)
 	 * instance bumps the puppet render version so every area re-renders once.
 	 *
 	 * @param PuppetModel model The current model.
@@ -334,7 +334,7 @@ internal class EngineRenderInputs(
 	}
 
 	/**
-	 * Sets the color selected drawables are tinted toward (the selection highlight). A change bumps the
+	 * Sets the color selected drawables are tinted toward (the selection highlight).  A change bumps the
 	 * puppet render version; an identical color is a no-op.
 	 *
 	 * @param Float red The tint red, 0..1.
@@ -351,7 +351,7 @@ internal class EngineRenderInputs(
 	}
 
 	/**
-	 * Sets the color the active drawable is tinted toward (the active-selection highlight). A change bumps the
+	 * Sets the color the active drawable is tinted toward (the active-selection highlight).  A change bumps the
 	 * puppet render version; an identical color is a no-op.
 	 *
 	 * @param Float red The tint red, 0..1.

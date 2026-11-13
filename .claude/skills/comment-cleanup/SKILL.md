@@ -69,10 +69,13 @@ structure. Example fix applied in this project:
 + // Structural pass - set membership: identity shells for creations, source removal for deletions.
 ```
 
-**Do not touch legitimate roadmap citations** — `docs/plan/art-sourcing-pipeline.md § Phase G` is a
-real, still-open phase in a real design doc; a comment citing it accurately is not planning-language
-cruft. The test is whether the *cited plan* still exists and is still pending, not whether the word
-"Phase" appears.
+**A citation of a plan doc is the same cruft.** `docs/plan/` is private and temporary, so a comment
+citing one of its files, or an id that only means something inside one (a decision number like `D20`,
+a session like `G8`, a phase or round), points at nothing a later reader can open. Rewrite it into the
+rule it stood for, or cite the public spec when one says it (`docs/format/UMA.md §3`). A row label
+such as `"G3"` inside a string literal is program output, not a citation; leave it.
+The `umamo:no-plan-citation` ktlint rule reports the path form in Kotlin sources and build scripts. The
+ids, and any citation in a shell script or a workflow file, are still this skill's to find.
 
 **(C) Bug-narrative / debugging-diary comments.** Rewrite comments that narrate a bug's discovery
 story in a way that needs hidden context — "used to X, which caused Y, so now Z," "never showed the

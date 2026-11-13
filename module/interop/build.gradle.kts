@@ -1,6 +1,6 @@
-// :interop — format↔runtime conversion. CMO3/MOC3 ingest into the PuppetModel, the CMO3 export
+// :interop — format↔runtime conversion.  CMO3/MOC3 ingest into the PuppetModel, the CMO3 export
 // reconcile, the MOC3 export lowering, the model diff, and the RuntimeTarget↔format-version
-// mapping. Depends on BOTH
+// mapping.  Depends on BOTH
 // :format and :runtime so that neither has to know the other: :format stays a standalone codec
 // library and :runtime stays a pure puppet runtime.
 
@@ -17,16 +17,16 @@ plugins {
 kotlin {
 	jvmToolchain(21)
 
-	// The `jvmAndroidMain` group comes from the `umamo.kmp-jvmandroid` convention plugin. This module
+	// The `jvmAndroidMain` group comes from the `umamo.kmp-jvmandroid` convention plugin.  This module
 	// needs it because the CMO3 export lowering (Cmo3Export) mutates a Cmo3Model graph, which lives in
 	// :format's own jvmAndroidMain (the JDOM-backed codec) — so it can't sit in commonMain.
 
 	jvm()
 
 	// The iPadOS ship target, mirroring :format and :runtime (see :format's docblock for the full
-	// rationale). It keeps the commonMain conversions (MOC3 ingest for a future iOS viewer, the CMO3
+	// rationale).  It keeps the commonMain conversions (MOC3 ingest for a future iOS viewer, the CMO3
 	// ingest and model diff) a compiler-checked iOS citizen rather than the root regex gate's
-	// convention. Compiles on Linux/CI (klib only, no Xcode linker); a device target has no runnable
+	// convention.  Compiles on Linux/CI (klib only, no Xcode linker); a device target has no runnable
 	// test task, so `umamo.kmp-ios-gate` wires `check` to the compiles.
 	iosArm64()
 
@@ -55,6 +55,8 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				// The skeleton gate compares emitted XML structure against the corpus blank; JDOM is
 				// :format's own (implementation-scoped) backend, so the test declares it directly.
 				implementation(libs.jdom)

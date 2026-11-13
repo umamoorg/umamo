@@ -25,7 +25,7 @@ private const val EXTRAPOLATION_JACOBIAN_STEP = 1e-3f
 private const val WARP_INVERSE_MAX_STEP = 0.5f
 
 /**
- * Iteration cap for the per-vertex reach-uncapped Newton in the world-rigid inverse. Higher than the
+ * Iteration cap for the per-vertex reach-uncapped Newton in the world-rigid inverse.  Higher than the
  * damped [WARP_INVERSE_MAX_ITERATIONS] because there is no per-step clamp: a far target is reached by
  * full Newton steps that re-anchor the Jacobian, converging in a handful once the estimate lands in the
  * lattice's far-field affine region; the cap only bounds a pathological (folded / multivalued) case.
@@ -129,9 +129,9 @@ class ParentSpaceMapping internal constructor(
 	 * the mesh stays rigid in world space (no squish).
 	 *
 	 * Seeding each warp vertex from its rest UV keeps neighbors converging to nearby pre-images, so the
-	 * result stays coherent (no scatter) wherever the forward map is injective. Where a target sits in a
+	 * result stays coherent (no scatter) wherever the forward map is injective.  Where a target sits in a
 	 * folded / multivalued extrapolation region the Newton keeps its best estimate near the seed rather than
-	 * flinging - so a truly unreachable vertex lags instead of boiling. Not capping the per-step reach
+	 * flinging - so a truly unreachable vertex lags instead of boiling.  Not capping the per-step reach
 	 * (unlike [invertWarp]) is what lets a large grab follow instead of pinning / ovalizing; the risk traded
 	 * back is that a strongly non-injective cage can still scatter far outside the lattice.
 	 *
@@ -383,7 +383,7 @@ internal fun mappingOver(drawable: Drawable, parentWorldOf: (DeformerId) -> Defo
 
 /**
  * The drawable's blended LOCAL posed positions at the given pose - base plus the multilinear keyform
- * blend, before any parent deformer. This is the local shape the renderer feeds the deformer chain, so
+ * blend, before any parent deformer.  This is the local shape the renderer feeds the deformer chain, so
  * a display that projects it through [ParentSpaceMapping.localToWorld] lands exactly on the rendered
  * art at ANY pose (including between keys, where a single cell's deltas would not).
  *
@@ -421,7 +421,7 @@ internal fun localPosedOver(drawable: Drawable, paramValue: (ParameterId) -> Flo
 
 /**
  * Closed-form inverse of the baked rotation affine `x' = c12*x + c15*y + ox, y' = c14*x + c13*y + oy`,
- * writing the solved local point to `local[coordIndex]`,`local[coordIndex+1]`. A near-zero determinant
+ * writing the solved local point to `local[coordIndex]`,`local[coordIndex+1]`.  A near-zero determinant
  * (a zero-scale deformer) keeps the seed untouched.
  *
  * @param RotationWorld rotation The baked world affine.
@@ -446,7 +446,7 @@ private fun invertRotation(rotation: RotationWorld, targetX: Float, targetY: Flo
 
 /**
  * Damped Newton inverse of the warp lattice: solves `warpApply(u, v) = target` starting from the seed
- * already in `local[coordIndex]`,`local[coordIndex+1]`, using a finite-difference Jacobian. Writes the
+ * already in `local[coordIndex]`,`local[coordIndex+1]`, using a finite-difference Jacobian.  Writes the
  * best estimate found (by residual) back into [local]; the tolerance scales with the lattice's control
  * point extent so convergence means sub-art-pixel accuracy at any canvas size.
  *

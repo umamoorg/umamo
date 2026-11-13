@@ -57,7 +57,7 @@ object KraReader : ArtReader {
 				?: error("not a .kra: no maindoc.xml in the archive")
 
 		// JDOM finds elements by namespace-qualified name; KRA files carry a default namespace that
-		// also differs between schema versions (calligra.org vs koffice.org). So we match by local
+		// also differs between schema versions (calligra.org vs koffice.org).  So we match by local
 		// name throughout (see childrenNamed) and read attributes, which carry no namespace, directly.
 		val documentRoot = parseMainDocument(mainXml)
 		val imageElement =
@@ -107,7 +107,7 @@ object KraReader : ArtReader {
 
 /**
  * True if bytes is a Krita archive: a ZIP whose first, stored entry is the mimetype file holding
- * application/x-krita. Krita writes that entry first and uncompressed (like ODF/EPUB), so the marker
+ * application/x-krita.  Krita writes that entry first and uncompressed (like ODF/EPUB), so the marker
  * sits in the first few dozen bytes and a short prefix scan identifies the format without unzipping.
  * A .kra re-saved by a tool that drops the mimetype entry will not match here, in which case the
  * format registry's extension fallback covers it.
@@ -298,7 +298,7 @@ private fun buildLayer(
 	val defaultPixelBytes = entries["$layerDataPath.defaultpixel"]
 
 	// Per-channel enable mask (channelflags); its width is the channel count, so the format must be
-	// resolved first. A disabled alpha channel is Krita's "Inherit Alpha" - the clipping signal.
+	// resolved first.  A disabled alpha channel is Krita's "Inherit Alpha" - the clipping signal.
 	val channelMask = channelMaskFrom(layerElement.getAttributeValue("channelflags"), format)
 
 	val assembled = assembleRaster(tiles, format, defaultPixelBytes, layerX, layerY)
@@ -359,7 +359,7 @@ private fun assembleRaster(
 	val height = maxBottom - minTop
 	val rgba = ByteArray(width * height * 4)
 
-	// Pre-fill with the converted default pixel (the color Krita uses for untiled gaps). A
+	// Pre-fill with the converted default pixel (the color Krita uses for untiled gaps).  A
 	// transparent default leaves the zero-initialized buffer untouched.
 	val fillPixel = ByteArray(4)
 

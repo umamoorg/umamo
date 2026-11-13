@@ -1,7 +1,7 @@
 package org.umamo.ui.document
 
 /**
- * The display name for a stored file path (titles, the Open Recent menu). A pure string helper — it
+ * The display name for a stored file path (titles, the Open Recent menu).  A pure string helper — it
  * never touches the filesystem — so it degrades gracefully for Android SAF `content://` URIs, whose
  * last segment stands in until real SAF display-name resolution lands.
  *

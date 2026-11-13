@@ -1,10 +1,12 @@
 package org.umamo.format.cmo3
 
+import org.jdom.Attribute
 import org.jdom.Element
 import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -58,13 +60,7 @@ class Cmo3PrologueProbeTest {
 
 	@Test
 	fun prologueInvariantsHoldAcrossTheCorpus() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping prologue probe")
-
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping prologue probe")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 		val failures = ArrayList<String>()
 
@@ -119,7 +115,7 @@ class Cmo3PrologueProbeTest {
 		}
 
 		// Root attributes: exactly fileFormatVersion.
-		val attributeNames = document.rootElement.attributes.map { attribute -> (attribute as org.jdom.Attribute).name }
+		val attributeNames = document.rootElement.attributes.map { attribute -> (attribute as Attribute).name }
 
 		if (attributeNames != listOf("fileFormatVersion")) {
 			failures.add("${file.name}: root attributes are $attributeNames")

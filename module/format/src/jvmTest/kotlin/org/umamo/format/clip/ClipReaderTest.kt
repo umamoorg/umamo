@@ -1,11 +1,12 @@
 package org.umamo.format.clip
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * End-to-end reader test against a real .clip. Corpus-gated: it uses -Dclip.sample=<file> when given,
+ * End-to-end reader test against a real .clip.  Corpus-gated: it uses -Dclip.sample=<file> when given,
  * else auto-discovers a sample under test/corpus/clip/ by walking up from the working directory; if
  * neither is present it self-skips so CI stays green without a committed corpus.
  *
@@ -49,9 +50,7 @@ class ClipReaderTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no clip.sample and no test/corpus/clip samples; skipping CLIP reader test")
-
-			return
+			skipTest("no clip.sample and no test/corpus/clip samples; skipping CLIP reader test")
 		}
 
 		for (sample in samples) {

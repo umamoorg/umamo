@@ -1,12 +1,15 @@
 package org.umamo.edit.transform
 
 import org.umamo.edit.DepthSurface
+import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.withParameter
+import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.ElementOwner
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.test.Test
@@ -152,7 +155,7 @@ class TransformAdjustTest {
 		val capture =
 			assertNotNull(
 				buildModalTransformCapture(
-					sources = listOf(ModalCaptureSource(org.umamo.runtime.model.ElementOwner.Drawable(org.umamo.runtime.model.DrawableId("a")), floatArrayOf(0f, 0f, 10f, 0f), org.umamo.edit.ElementTopology.ofTriangles(2, intArrayOf(0, 1, 1)), setOf(0))),
+					sources = listOf(ModalCaptureSource(ElementOwner.Drawable(DrawableId("a")), floatArrayOf(0f, 0f, 10f, 0f), ElementTopology.ofTriangles(2, intArrayOf(0, 1, 1)), setOf(0))),
 					pivotMode = TransformPivotMode.MedianPoint,
 					individualOriginScope = IndividualOriginScope.ConnectivityIsland,
 					operatorKind = MeshOperatorKind.Grab,

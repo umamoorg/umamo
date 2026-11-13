@@ -35,9 +35,9 @@ import org.umamo.ui.workspace.layout.SplitOrientation
 
 /**
  * Renders an area tree recursively: a [LeafArea] becomes an [AreaLeaf]; a [SplitNode] becomes a
- * [SplitContainer]. Two callbacks flow down: [onNodeChange] threads a rewritten subtree back up to the
+ * [SplitContainer].  Two callbacks flow down: [onNodeChange] threads a rewritten subtree back up to the
  * root (used by splitter ratio drags), and [onCommand] carries structural edits (split / close /
- * switch) to the shell's reducer. A leaf is wrapped in key(id) so its composition identity follows the
+ * switch) to the shell's reducer.  A leaf is wrapped in key(id) so its composition identity follows the
  * stable area id rather than its position: an area that takes another's place starts fresh instead of
  * inheriting the other's remembered state.
  *
@@ -76,7 +76,7 @@ fun AreaTree(
 }
 
 /**
- * Lays out a split's two children with a divider between them, weighted by the node's ratio. Each
+ * Lays out a split's two children with a divider between them, weighted by the node's ratio.  Each
  * child recurses through [AreaTree], threading its own rewrite back into the parent via [onNodeChange]
  * so an edit deep in the tree rebuilds only the path to the root.  A divider drag rewrites this node's
  * whole subtree through a [SplitterDragSession]; the ancestor onNodeChange chain (node.copy(first = ...))

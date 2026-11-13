@@ -5,12 +5,10 @@ package org.umamo.runtime.model
  *
  * Cubism deformation is parameter-driven morph blending, not skeletal - there are exactly two
  * deformer kinds, so a `sealed interface` captures the closed taxonomy and forces `when`s over it to
- * be exhaustive (adding a third kind becomes a compile error until handled everywhere). Deformers nest
+ * be exhaustive (adding a third kind becomes a compile error until handled everywhere).  Deformers nest
  * via [parent] (the transform hierarchy a drawable inherits); each also belongs to a part via [partId]
  * (the organizational tree) - two independent hierarchies, mirroring CMO3's `targetDeformerGuid` vs
  * `parentGuid`.
- *
- * リグ階層の変形器。Cubism は2種(ワープ／回転)のみ。変形系統([parent])と組織系統([partId])は別。
  */
 sealed interface Deformer {
 	val id: DeformerId
@@ -63,7 +61,7 @@ sealed interface Deformer {
 
 	/**
 	 * Warp deformer - a free-form-deformation (FFD) lattice: a [rows] × [columns] grid of control
-	 * points whose displacement bends the bound geometry. The control-point positions are animated
+	 * points whose displacement bends the bound geometry.  The control-point positions are animated
 	 * per keyform; only the lattice dimensions are static.
 	 */
 	data class Warp(
@@ -98,13 +96,13 @@ sealed interface Deformer {
 		override val isEnabled: Boolean = true,
 		/**
 		 * Additive blend-shape bindings on the lattice control points, applied on top of the
-		 * [geometryGrid] result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
+		 * [geometryGrid] result; empty when the deformer has none.  (CMO3 keyformMorphTargetSet.)
 		 */
 		val blendShapes: List<BlendShapeBinding<WarpForm>> = emptyList(),
 	) : Deformer
 
 	/**
-	 * Rotation deformer - a nesting pivot transform. Its origin/angle/scale are animated per keyform
+	 * Rotation deformer - a nesting pivot transform.  Its origin/angle/scale are animated per keyform
 	 * [baseAngle] is the static editor reference angle.
 	 */
 	data class Rotation(
@@ -137,7 +135,7 @@ sealed interface Deformer {
 		override val isEnabled: Boolean = true,
 		/**
 		 * Additive blend-shape bindings on the pivot transform, applied on top of the [geometryGrid]
-		 * result; empty when the deformer has none. (CMO3 keyformMorphTargetSet.)
+		 * result; empty when the deformer has none.  (CMO3 keyformMorphTargetSet.)
 		 */
 		val blendShapes: List<BlendShapeBinding<RotationForm>> = emptyList(),
 	) : Deformer

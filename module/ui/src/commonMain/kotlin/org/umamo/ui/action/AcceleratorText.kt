@@ -5,8 +5,6 @@ package org.umamo.ui.action
  * modifier resolves per platform via [primaryModifierLabel] (⌘ on macOS, Ctrl elsewhere); the rest is
  * pure and position-based.
  *
- * chord をメニュー行のアクセラレータ表記に整形する。主修飾キーはプラットフォーム依存で解決する。
- *
  * @param KeyChord chord The chord to format.
  * @return String The display hint.
  */
@@ -51,8 +49,6 @@ internal fun formatAccelerator(chord: KeyChord, primaryLabel: String): String {
  * Maps a position-based key token to its display glyph: "KeyO" to "O", "Digit0" to "0", and the few
  * named keys to short symbols.  An unrecognized token falls back to itself so a newly bound key still
  * shows something readable rather than vanishing.
- *
- * 位置ベースのキートークンを表示用の字形に変換する。未知のトークンはそのまま返す。
  *
  * @param String keyName The position-based key token (e.g. "KeyO").
  * @return String The display glyph.

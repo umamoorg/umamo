@@ -120,8 +120,17 @@ internal fun blendShapeSections(context: MocLoweringContext): Map<Int, ByteArray
 		sink.putFloats(Section.BLENDSHAPE_SUB_WEIGHT_VALUES, subWeights)
 	}
 
-	// Per-kind object trios: objects owning records (kind-local indices ascending), with each
-	// object's record range as GLOBAL record indices.
+	/**
+	 * Writes one kind's object trio: the objects that own records, in ascending kind-local index, and each object's
+	 * record range as global record indices.
+	 *
+	 * @param List<BlendShape> records The kind's blend-shape records, in file order.
+	 * @param Int recordOffset The global index of the kind's first record.
+	 * @param Function localIndexOf Maps a record's target index to its kind-local object index.
+	 * @param Section objectSection The section that takes the object indices.
+	 * @param Section startSection The section that takes each object's first record index.
+	 * @param Section countSection The section that takes each object's record count.
+	 */
 	fun putTrio(
 		records: List<BlendShape>,
 		recordOffset: Int,

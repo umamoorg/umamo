@@ -1,12 +1,11 @@
 package org.umamo.render.eval
 
-import org.junit.Assume
 import java.io.File
 import kotlin.math.abs
 
 /*
  * Shared helpers for differential-oracle tests that shell out to the rebuilt dump_model tool
- * (the Umamo C++ Runtime harness's dump_model.c). Mirrors DeformationOracleTest's hashing/comparison exactly -
+ * (the Umamo C++ Runtime harness's dump_model.c).  Mirrors DeformationOracleTest's hashing/comparison exactly -
  * that test's default-pose gate is deliberately left textually untouched (see its 156 re-pin
  * note), so the shared pieces live here for the posed tests instead of being extracted from it.
  */
@@ -81,7 +80,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	command.add(coreLib.absolutePath)
 	command.add(moc3.absolutePath)
 	command.add("--update")
-	// Adds mul=/scr= to each D line. Always on: the extra columns cost nothing to parse and the
+	// Adds mul=/scr= to each D line.  Always on: the extra columns cost nothing to parse and the
 	// alternative is two dump invocations for tests that want geometry AND color.
 	command.add("--channels")
 
@@ -103,7 +102,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	val vtxRegex = Regex("""vtx=(\d+)""")
 	val vposRegex = Regex("""vpos_h=(\S+)""")
 	val vuvRegex = Regex("""vuv_h=(\S+)""")
-	// D-line channels: op= comes from --update, mul=/scr= from --channels. Anchored to ` op=` with a
+	// D-line channels: op= comes from --update, mul=/scr= from --channels.  Anchored to ` op=` with a
 	// leading space so it cannot match the `vpos_h=`/`vuv_h=` suffixes or an id containing "op=".
 	val opacityRegex = Regex(""" op=(\S+)""")
 	val drawOrderRegex = Regex(""" draw=(-?\d+)""")
@@ -198,27 +197,10 @@ internal fun oracleTransformedHash(world: FloatArray, offsetX: Float, offsetY: F
 }
 
 /** Relative/absolute closeness at the oracle's 1e-5 tolerance (mirrors DeformationOracleTest). */
-internal fun oracleCloseEnough(a: Double, b: Double): Boolean {
-	val scale = maxOf(1.0, abs(a), abs(b))
+internal fun oracleCloseEnough(first: Double, second: Double): Boolean {
+	val scale = maxOf(1.0, abs(first), abs(second))
 
-	return abs(a - b) <= 1e-5 * scale
-}
-
-/**
- * Resolves a `-D`-supplied oracle input, skipping the calling test when it is absent.
- *
- * Every oracle gate needs the same two inputs and each had grown its own private copy of this; one
- * definition keeps the skip MESSAGE identical too, which is what makes an absent harness legible in
- * the test log rather than looking like a silent pass.
- *
- * @param String property The system property naming the file.
- * @return File The existing file (the test is skipped before this returns otherwise).
- */
-internal fun requireOracleInput(property: String): File {
-	val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
-	Assume.assumeTrue("[oracle] absent -D$property", file != null)
-
-	return file!!
+	return abs(first - second) <= 1e-5 * scale
 }
 
 /**

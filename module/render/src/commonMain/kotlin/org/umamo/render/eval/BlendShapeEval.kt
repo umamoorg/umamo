@@ -32,7 +32,7 @@ import org.umamo.runtime.model.RotationPivotForm
  *    piecewise-linear over OTHER parameters); Model B-measured: a half-ramp scales deltas by
  *    exactly 0.5000.
  *  - Deltas are relative to the object's grid form INTERPOLATED AT THE DEFAULT POSE, not the rest
- *    shape (refuted 16/16 on Model A). Forms with a null entry (an inserted neutral) never reach
+ *    shape (refuted 16/16 on Model A).  Forms with a null entry (an inserted neutral) never reach
  *    the contribution list.
  */
 
@@ -41,8 +41,8 @@ internal class ActiveBlendKey(val keyIndex: Int, val weight: Float)
 
 /**
  * Resolves which of [binding]'s keys contribute at [value], with the net weight of each
- * (bracket interpolation x [limitMultiplier]). At most two entries; EMPTY at the neutral value,
- * so the default pose stays arithmetic-free. Out-of-range values saturate to the end key.
+ * (bracket interpolation x [limitMultiplier]).  At most two entries; EMPTY at the neutral value,
+ * so the default pose stays arithmetic-free.  Out-of-range values saturate to the end key.
  *
  * @param BlendShapeBinding binding        The binding to resolve.
  * @param Float             value          The driving parameter's current value.
@@ -161,7 +161,7 @@ internal fun meshBlendState(
 	}
 
 	// The reference is the entity's state at the DEFAULT pose: geometry deltas vs the keyform-space base,
-	// plus each scalar channel's own value there. An untracked or out-of-range channel resolves to the
+	// plus each scalar channel's own value there.  An untracked or out-of-range channel resolves to the
 	// drawable's static, which for an imported drawable is Cubism's 500 / full opacity - the same
 	// statics scalarAt falls back to everywhere else, so the evaluator's subtraction still cancels exactly.
 	return MeshBlendState(
@@ -178,7 +178,7 @@ internal fun meshBlendState(
 
 /**
  * The summed weighted control-point delta of [warp]'s blend bindings at the current pose, or null
- * when nothing contributes. Deltas are relative to the lattice's grid form at the DEFAULT pose;
+ * when nothing contributes.  Deltas are relative to the lattice's grid form at the DEFAULT pose;
  * WarpForm control points are absolute, so the reference is subtracted here.
  *
  * @param Deformer.Warp warp        The warp deformer.
@@ -230,7 +230,7 @@ internal class RotationBlendDeltas(
 
 /**
  * The summed weighted affine deltas of [rotation]'s blend bindings at the current pose, or null
- * when nothing contributes. Deltas are relative to the rotation's grid form at the DEFAULT pose;
+ * when nothing contributes.  Deltas are relative to the rotation's grid form at the DEFAULT pose;
  * RotationForm fields are absolute, so the reference is subtracted here.
  *
  * @param Deformer.Rotation rotation     The rotation deformer.
@@ -263,7 +263,7 @@ internal fun rotationBlendDeltas(
 
 			if (reference == null) {
 				// The identity fallback mirrors the importer's, so the subtraction cancels exactly even for
-				// an unkeyed rotation. Flips are FLAG channels and never take part in a blend-shape delta.
+				// an unkeyed rotation.  Flips are FLAG channels and never take part in a blend-shape delta.
 				reference = rotationFormAt(rotation.geometryGrid, defaultValue)
 					?: RotationPivotForm(0f, 0f, 0f, 1f)
 			}

@@ -18,7 +18,7 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Longest edge (in texels) of a single art-mesh crop. The drawable's atlas crop is nearest-downsampled to
+ * Longest edge (in texels) of a single art-mesh crop.  The drawable's atlas crop is nearest-downsampled to
  * fit within this box so the cache stays small even for large atlas pages; the consumer then scales the
  * result to its display slot. 96px is comfortably above the overlap picker's ~44dp slot; the Outliner and
  * Sources hovers (~120dp) scale it up.
@@ -26,7 +26,7 @@ import kotlin.math.roundToInt
 private const val CROP_MAX_DIMENSION = 96
 
 /**
- * Longest edge (in pixels) of a combined part-folder or whole-model preview. A touch larger than a single
+ * Longest edge (in pixels) of a combined part-folder or whole-model preview.  A touch larger than a single
  * crop because it packs several layers; a part's composite is built once and cached.
  */
 private const val PART_COMPOSITE_MAX_DIMENSION = 128
@@ -74,7 +74,7 @@ class DrawableThumbnailer(
 	// Drawable -> owning part, derived from the org tree (membership lives only there).
 	private var currentDrawableOwner: Map<DrawableId, PartId?> = puppet.partByDrawable()
 
-	// Memoized derivations. The per-drawable caches are keyed by immutable geometry / UV data; [updateModel]
+	// Memoized derivations.  The per-drawable caches are keyed by immutable geometry / UV data; [updateModel]
 	// evicts an entry only when its drawable's mesh data was replaced or the drawable was removed.  The part
 	// composites depend on membership / order and are cleared wholesale.
 	private val cropCache = mutableMapOf<DrawableId, RawCrop?>()
@@ -153,7 +153,7 @@ class DrawableThumbnailer(
 			.toMap()
 
 	/**
-	 * The cropped art preview for a drawable, or null when it is untextured, mesh-less, or unknown. Memoized.
+	 * The cropped art preview for a drawable, or null when it is untextured, mesh-less, or unknown.  Memoized.
 	 *
 	 * @param DrawableId id The drawable to preview.
 	 * @return ImageBitmap? The cropped preview, or null when none is available.
@@ -221,7 +221,12 @@ class DrawableThumbnailer(
 		return compositeOf(members)?.let { composite -> RasterImage(composite.width, composite.height, composite.rgba) }
 	}
 
-	/** The cached raw crop for a drawable, computed once. */
+	/**
+	 * The cached raw crop for a drawable, computed once.
+	 *
+	 * @param DrawableId id The drawable to crop.
+	 * @return RawCrop? The crop, or null when the drawable has none.
+	 */
 	private fun croppedFor(id: DrawableId): RawCrop? = cropCache.getOrPut(id) { buildCrop(id) }
 
 	/**
@@ -310,7 +315,12 @@ class DrawableThumbnailer(
 		return RawCrop(pixels, thumbWidth, thumbHeight)
 	}
 
-	/** The cached rest-pose model bounds for a drawable, from its mesh positions. */
+	/**
+	 * The cached rest-pose model bounds for a drawable, from its mesh positions.
+	 *
+	 * @param DrawableId id The drawable to bound.
+	 * @return ModelBounds? The bounds, or null when the drawable has none.
+	 */
 	private fun modelBoundsOf(id: DrawableId): ModelBounds? = boundsCache.getOrPut(id) { computeBounds(id) }
 
 	/**
@@ -362,7 +372,12 @@ class DrawableThumbnailer(
 		return ModelBounds(minX, minY, maxX, maxY)
 	}
 
-	/** Every part id in a part's subtree (the part itself plus all descendant parts). */
+	/**
+	 * Every part id in a part's subtree (the part itself plus all descendant parts).
+	 *
+	 * @param PartId rootPartId The part at the top of the subtree.
+	 * @return Set<PartId> That part's id and every descendant part's.
+	 */
 	private fun partSubtree(rootPartId: PartId): Set<PartId> {
 		val collected = LinkedHashSet<PartId>()
 		val pending = ArrayDeque<PartId>()
@@ -433,7 +448,7 @@ class DrawableThumbnailer(
 		for ((crop, bounds) in members) {
 			// Map model bounds straight into composite pixels: Cubism's rest-pose mesh Y runs top-down, the
 			// same direction as the atlas crop's rows (which display upright as the single-drawable preview),
-			// so no Y flip - a smaller model Y is nearer the top. Flipping here would invert each layer's
+			// so no Y flip - a smaller model Y is nearer the top.  Flipping here would invert each layer's
 			// placement (frills jump to the top, stacked eye parts jumble) while leaving symmetric parts fine.
 			val left = (bounds.minX - unionMinX) / unionWidth * compositeWidth
 			val right = (bounds.maxX - unionMinX) / unionWidth * compositeWidth
@@ -536,7 +551,7 @@ class DrawableThumbnailer(
 	}
 
 	/**
-	 * Wraps a raw straight-alpha RGBA crop as a Compose bitmap. The bytes are UNPREMUL (straight) so a
+	 * Wraps a raw straight-alpha RGBA crop as a Compose bitmap.  The bytes are UNPREMUL (straight) so a
 	 * transparent texel's leftover matte RGB does not ghost through additively.
 	 *
 	 * @param RawCrop crop The raw crop to wrap.

@@ -28,7 +28,7 @@ import org.umamo.ui.workspace.AreaScope
 internal fun OverflowRowScope.outlinerHeaderControls(scope: AreaScope) {
 	val viewState = scope.spaceState(OUTLINER_VIEW_STATE_KEY) { OutlinerViewState() }
 	// Flexible gaps on both sides center the search field in the slot region; the filter chip after the
-	// second gap right-aligns. The center sits left of true center by half the chip's width - accepted,
+	// second gap right-aligns.  The center sits left of true center by half the chip's width - accepted,
 	// since exact centering would need the strip to weight against the placed items too.
 	flexibleSpace()
 	item("search", minWidth = SEARCH_FIELD_MIN_WIDTH) {
@@ -49,7 +49,7 @@ internal fun OverflowRowScope.outlinerHeaderControls(scope: AreaScope) {
 /**
  * The outliner's filter dropdown: the shared [FilterPopupChip] holding this panel's kind toggles plus
  * the restriction toggles - a Blender-style row of icon buttons controlling whether the pointer / eye
- * indicator columns render on the rows (lit = shown). Mutates the shared [viewState] directly.
+ * indicator columns render on the rows (lit = shown).  Mutates the shared [viewState] directly.
  *
  * @param OutlinerViewState viewState The area's shared search / filter state.
  */

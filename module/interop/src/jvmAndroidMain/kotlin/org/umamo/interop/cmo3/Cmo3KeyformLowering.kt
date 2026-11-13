@@ -3,6 +3,7 @@ package org.umamo.interop.cmo3
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CRotationDeformerForm
+import org.umamo.format.cmo3.model.drawable.CoordType
 import org.umamo.format.cmo3.model.gen.ACDeformerForm
 import org.umamo.format.cmo3.model.gen.ACDeformerSource
 import org.umamo.format.cmo3.model.gen.ACDrawableForm
@@ -16,6 +17,8 @@ import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
+import org.umamo.format.cmo3.model.gen.ExtendedInterpolationType
+import org.umamo.format.cmo3.model.gen.InterpolationType
 import org.umamo.format.cmo3.model.gen.KeyFormMorphTarget
 import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
 import org.umamo.format.cmo3.model.gen.KeyOnParameter
@@ -25,6 +28,7 @@ import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.format.cmo3.model.gen.KeyformOnGrid
 import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraint
 import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
+import org.umamo.format.cmo3.model.gen.MorphTargetEditBaseParameterMap
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.ExportEntityCategory
@@ -58,6 +62,9 @@ import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.deltaReaching
+import java.util.Collections
+import java.util.IdentityHashMap
+import java.util.UUID
 
 /*
  * The keyform half of the CMO3 export reconcile: re-bundling Umamo's split representation (a
@@ -99,8 +106,8 @@ internal class Cmo3KeyformLowering(
 	 * that name (the writer hoists one def per name, the editor's own shape; it never writes a null
 	 * coordType).
 	 */
-	private val coordTypes: HashMap<String, org.umamo.format.cmo3.model.drawable.CoordType> by lazy {
-		val byName = HashMap<String, org.umamo.format.cmo3.model.drawable.CoordType>()
+	private val coordTypes: HashMap<String, CoordType> by lazy {
+		val byName = HashMap<String, CoordType>()
 		val pools = index.drawableSources.map { source -> source.keyforms } + index.deformerSources.map { source -> keyformsOf(source) }
 
 		for (pool in pools) {
@@ -123,9 +130,9 @@ internal class Cmo3KeyformLowering(
 	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
 	 * @return CoordType The shared per-export instance for that name.
 	 */
-	private fun formCoordType(hasParentDeformer: Boolean): org.umamo.format.cmo3.model.drawable.CoordType =
+	private fun formCoordType(hasParentDeformer: Boolean): CoordType =
 		coordTypes.getOrPut(if (hasParentDeformer) "DeformerLocal" else "Canvas") {
-			org.umamo.format.cmo3.model.drawable.CoordType().apply {
+			CoordType().apply {
 				coordName = if (hasParentDeformer) "DeformerLocal" else "Canvas"
 			}
 		}
@@ -139,7 +146,7 @@ internal class Cmo3KeyformLowering(
 	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
 	 * @return CoordType The instance to tag the fresh form with.
 	 */
-	private fun freshFormCoordType(template: Any?, hasParentDeformer: Boolean): org.umamo.format.cmo3.model.drawable.CoordType {
+	private fun freshFormCoordType(template: Any?, hasParentDeformer: Boolean): CoordType {
 		val wanted = formCoordType(hasParentDeformer)
 
 		return coordTypeOf(template)?.takeIf { templateCoordType -> templateCoordType.coordName == wanted.coordName } ?: wanted
@@ -203,13 +210,20 @@ internal class Cmo3KeyformLowering(
 	 * @param Any? form The form.
 	 * @return CoordType? Its coordType.
 	 */
-	private fun coordTypeOf(form: Any?): org.umamo.format.cmo3.model.drawable.CoordType? =
+	private fun coordTypeOf(form: Any?): CoordType? =
 		when (form) {
 			is ACDrawableForm -> form.coordType
 			is ACDeformerForm -> form.coordType
 			else -> null
-		} as? org.umamo.format.cmo3.model.drawable.CoordType
+		} as? CoordType
 
+	/**
+	 * Records an edit this export cannot represent.
+	 *
+	 * @param ExportEntityCategory category The kind of entity the edit is on.
+	 * @param String? subject The entity's id, or null.
+	 * @param ExportNoticeReason reason Why it cannot be written.
+	 */
 	private fun unsupported(
 		category: ExportEntityCategory,
 		subject: String?,
@@ -328,19 +342,36 @@ internal class Cmo3KeyformLowering(
 		return byValues
 	}
 
+	/**
+	 * A map key for a set of parameter values, the same for the same values in any order.
+	 *
+	 * @param Map<ParameterId, Float> values The parameter values of one grid cell.
+	 * @return String The key, built from each value's exact bits.
+	 */
 	private fun valueKey(values: Map<ParameterId, Float>): String =
 		values.entries
 			.sortedBy { entry -> entry.key.raw }
 			.joinToString("|") { entry -> "${entry.key.raw}=${entry.value.toRawBits()}" }
 
-	/** A fresh Guid cloning [template]'s kind (the tag the identity subsystem writes). */
+	/**
+	 * A fresh Guid cloning [template]'s kind (the tag the identity subsystem writes).
+	 *
+	 * @param Guid? template The guid whose kind and note to copy, or null.
+	 * @return Guid The new guid.
+	 */
 	private fun freshGuidLike(template: Guid?): Guid =
 		Guid(template?.kind ?: "CFormGuid").apply {
-			uuid = java.util.UUID.randomUUID().toString()
+			uuid = UUID.randomUUID().toString()
 			note = template?.note ?: "(no debug info)"
 		}
 
-	/** A template form of [TFormClass] from [ownForms], falling back to any owner of the same kind. */
+	/**
+	 * A template form of [TFormClass] from [ownForms], falling back to any owner of the same kind.
+	 *
+	 * @param Any? ownForms The owner's own forms pool, as stored.
+	 * @param List<Any?> fallbackPools Other owners' pools to search next.
+	 * @return TFormClass? The first form of the wanted class, or null.
+	 */
 	private inline fun <reified TFormClass : ACForm> templateForm(ownForms: Any?, fallbackPools: List<Any?>): TFormClass? {
 		Cmo3Import.elementsOf(ownForms).filterIsInstance<TFormClass>().firstOrNull()?.let { return it }
 
@@ -411,8 +442,8 @@ internal class Cmo3KeyformLowering(
 						// CMO3: KeyformBindingSource fields interpolationType /
 						// extendedInterpolationType / insertPointCount / extendedInterpolationScale /
 						// description - every corpus binding writes LINEAR / LINEAR / 1 / 1.0 / "".
-						interpolationType = org.umamo.format.cmo3.model.gen.InterpolationType.LINEAR
-						extendedInterpolationType = org.umamo.format.cmo3.model.gen.ExtendedInterpolationType.LINEAR
+						interpolationType = InterpolationType.LINEAR
+						extendedInterpolationType = ExtendedInterpolationType.LINEAR
 						insertPointCount = 1
 						extendedInterpolationScale = 1f
 						description = ""
@@ -559,10 +590,28 @@ internal class Cmo3KeyformLowering(
 		editor.ensureChildSlot(form, formTag, property, beforeProperty)
 	}
 
+	/**
+	 * The scalar a channel value holds.
+	 *
+	 * @param ChannelValue? value The channel value, or null.
+	 * @return Float? The scalar, or null when the value is absent or of another kind.
+	 */
 	private fun scalarOf(value: ChannelValue?): Float? = (value as? ChannelValue.Scalar)?.value
 
+	/**
+	 * The color a channel value holds.
+	 *
+	 * @param ChannelValue? value The channel value, or null.
+	 * @return ColorRgb? The color, or null when the value is absent or of another kind.
+	 */
 	private fun colorOf(value: ChannelValue?): ColorRgb? = (value as? ChannelValue.Color)?.color
 
+	/**
+	 * The flag a channel value holds.
+	 *
+	 * @param ChannelValue? value The channel value, or null.
+	 * @return Boolean? The flag, or null when the value is absent or of another kind.
+	 */
 	private fun flagOf(value: ChannelValue?): Boolean? = (value as? ChannelValue.Flag)?.flag
 
 	/**
@@ -631,6 +680,14 @@ internal class Cmo3KeyformLowering(
 		val template =
 			templateForm<CArtMeshForm>(source.keyforms, index.drawableSources.map { it.keyforms })
 
+		/**
+		 * Writes one grid cell's art-mesh form, onto the existing form or a fresh one built from the template.
+		 *
+		 * @param CArtMeshForm? existing The form already at this cell, or null to create one.
+		 * @param FloatArray? deltas The cell's mesh deltas, or null for none.
+		 * @param Map<FormChannel, ChannelValue> channels The cell's channel values.
+		 * @return CArtMeshForm The written form.
+		 */
 		fun writeMeshForm(existing: CArtMeshForm?, deltas: FloatArray?, channels: Map<FormChannel, ChannelValue>): CArtMeshForm {
 			val form =
 				existing
@@ -732,7 +789,14 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** Lowers a warp deformer's keyforms and/or blend shapes. */
+	/**
+	 * Lowers a warp deformer's keyforms and/or blend shapes.
+	 *
+	 * @param CWarpDeformerSource source The warp's graph source.
+	 * @param Deformer.Warp editedWarp The edited warp deformer.
+	 * @param Boolean rebuildGrid Whether to rebuild the keyform grid.
+	 * @param Boolean rebuildMorphs Whether to rebuild the blend shapes.
+	 */
 	fun lowerWarp(source: CWarpDeformerSource, editedWarp: Deformer.Warp, rebuildGrid: Boolean, rebuildMorphs: Boolean) {
 		val subject = editedWarp.id.raw
 		val statics =
@@ -747,6 +811,14 @@ internal class Cmo3KeyformLowering(
 		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CWarpDeformerForm>(source.keyforms, index.deformerSources.filterIsInstance<CWarpDeformerSource>().map { it.keyforms })
 
+		/**
+		 * Writes one grid cell's warp form, onto the existing form or a fresh one built from the template.
+		 *
+		 * @param CWarpDeformerForm? existing The form already at this cell, or null to create one.
+		 * @param WarpLatticeForm? payload The cell's lattice, or null to leave the stored control points alone.
+		 * @param Map<FormChannel, ChannelValue> channels The cell's channel values.
+		 * @return CWarpDeformerForm The written form.
+		 */
 		fun writeWarpForm(existing: CWarpDeformerForm?, payload: WarpLatticeForm?, channels: Map<FormChannel, ChannelValue>): CWarpDeformerForm {
 			val form =
 				existing
@@ -825,7 +897,14 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** Lowers a rotation deformer's keyforms and/or blend shapes. */
+	/**
+	 * Lowers a rotation deformer's keyforms and/or blend shapes.
+	 *
+	 * @param CRotationDeformerSource source The rotation deformer's graph source.
+	 * @param Deformer.Rotation editedRotation The edited rotation deformer.
+	 * @param Boolean rebuildGrid Whether to rebuild the keyform grid.
+	 * @param Boolean rebuildMorphs Whether to rebuild the blend shapes.
+	 */
 	fun lowerRotation(source: CRotationDeformerSource, editedRotation: Deformer.Rotation, rebuildGrid: Boolean, rebuildMorphs: Boolean) {
 		val subject = editedRotation.id.raw
 		val statics =
@@ -842,6 +921,14 @@ internal class Cmo3KeyformLowering(
 		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CRotationDeformerForm>(source.keyforms, index.deformerSources.filterIsInstance<CRotationDeformerSource>().map { it.keyforms })
 
+		/**
+		 * Writes one grid cell's rotation form, onto the existing form or a fresh one built from the template.
+		 *
+		 * @param CRotationDeformerForm? existing The form already at this cell, or null to create one.
+		 * @param RotationPivotForm? payload The cell's pivot form, or null to leave the stored pivot alone.
+		 * @param Map<FormChannel, ChannelValue> channels The cell's channel values.
+		 * @return CRotationDeformerForm The written form.
+		 */
 		fun writeRotationForm(existing: CRotationDeformerForm?, payload: RotationPivotForm?, channels: Map<FormChannel, ChannelValue>): CRotationDeformerForm {
 			val form =
 				existing
@@ -935,7 +1022,12 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** Lowers a part's channel tracks (the CPartForm grid). */
+	/**
+	 * Lowers a part's channel tracks (the CPartForm grid).
+	 *
+	 * @param CPartSource source The part's graph source.
+	 * @param Part editedPart The edited part.
+	 */
 	fun lowerPart(source: CPartSource, editedPart: Part) {
 		val subject = editedPart.id.raw
 		val isPre53 = source.colorComposition == null
@@ -1043,7 +1135,12 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** Lowers a glue's intensity track (the CGlueForm grid) and its static intensity. */
+	/**
+	 * Lowers a glue's intensity track (the CGlueForm grid) and its static intensity.
+	 *
+	 * @param CGlueSource source The glue's graph source.
+	 * @param Glue editedGlue The edited glue.
+	 */
 	fun lowerGlue(source: CGlueSource, editedGlue: Glue) {
 		val subject = "${editedGlue.meshA.raw}+${editedGlue.meshB.raw}"
 		val statics = mapOf<FormChannel, ChannelValue>(FormChannel.GLUE_INTENSITY to ChannelValue.Scalar(editedGlue.intensity))
@@ -1102,7 +1199,12 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** The guids of the forms the current grid's cells reference. */
+	/**
+	 * The guids of the forms the current grid's cells reference.
+	 *
+	 * @param Any? gridSourceField The owner's grid-source field, as stored.
+	 * @return Set<String> The form guids, empty when there is no grid.
+	 */
 	private fun gridFormGuids(gridSourceField: Any?): Set<String> {
 		val gridSource = gridSourceField as? KeyformGridSource ?: return emptySet()
 
@@ -1111,7 +1213,13 @@ internal class Cmo3KeyformLowering(
 			.toSet()
 	}
 
-	/** The morph-target form objects the current morph set references, for pool assembly. */
+	/**
+	 * The morph-target form objects the current morph set references, for pool assembly.
+	 *
+	 * @param Any? morphSetField The owner's morph-target set field, as stored.
+	 * @param Any? formsField The owner's keyforms pool field, as stored.
+	 * @return List<ACForm> The referenced forms, in morph-target order.
+	 */
 	private fun existingMorphForms(morphSetField: Any?, formsField: Any?): List<ACForm> {
 		val set = morphSetField as? KeyFormMorphTargetSet ?: return emptyList()
 		val formByUuid =
@@ -1207,7 +1315,7 @@ internal class Cmo3KeyformLowering(
 							// CMO3: KeyFormMorphTarget field editBaseParameterMap - corpus records
 							// carry the wrapper with a null baseParameterMap, never a bare null.
 							editBaseParameterMap =
-								org.umamo.format.cmo3.model.gen.MorphTargetEditBaseParameterMap()
+								MorphTargetEditBaseParameterMap()
 						}
 				record.keyValue = keyValue
 				record.keyformGuid = form.guid
@@ -1248,7 +1356,18 @@ internal class Cmo3KeyformLowering(
 		return morphForms
 	}
 
-	/** Writes the owner's keyforms pool: the grid forms in cell order, then the morph forms. */
+	/**
+	 * Writes the owner's keyforms pool: the grid forms in cell order, then the morph forms.
+	 *
+	 * @param Any owner The graph object that owns the pool.
+	 * @param String ownerTag The class level of the owner, by tag.
+	 * @param String property The field that holds the pool.
+	 * @param String? beforeProperty The field the pool is written before, or null.
+	 * @param Any? current The pool as currently stored.
+	 * @param List<ACForm> gridForms The grid forms, in cell order.
+	 * @param List<ACForm> morphForms The morph-target forms.
+	 * @param Function assign Stores a new pool list on the owner.
+	 */
 	private fun writePool(
 		owner: Any,
 		ownerTag: String,
@@ -1259,7 +1378,7 @@ internal class Cmo3KeyformLowering(
 		morphForms: List<ACForm>,
 		assign: (MutableList<Any?>) -> Unit,
 	) {
-		val gridIdentity = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val gridIdentity = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		gridForms.forEach { gridIdentity.add(it) }
 		val pool = ArrayList<Any?>(gridForms.size + morphForms.size)
 		pool.addAll(gridForms)

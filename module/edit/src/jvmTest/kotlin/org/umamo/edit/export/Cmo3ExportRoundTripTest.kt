@@ -58,6 +58,7 @@ import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.diffPuppetModels
 import org.umamo.runtime.model.AlphaBlendMode
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
@@ -67,6 +68,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RuntimeTarget
 import org.umamo.runtime.model.atlasPixelOf
 import org.umamo.runtime.model.storedToArtAffineForTile
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -114,19 +116,11 @@ class Cmo3ExportRoundTripTest {
 		assertTrue(residual.isEmpty, "$label: edits lost through export/import: $residual")
 	}
 
-	private fun skipMessageOrNull(): File? {
-		val file = sample
-
-		if (file == null) {
-			println("cmo3.sample not present; skipping export round-trip test")
-		}
-
-		return file
-	}
+	private fun sampleOrSkip(): File = sample ?: skipTest("cmo3.sample not present; skipping export round-trip test")
 
 	@Test
 	fun renamesSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				puppet
@@ -143,7 +137,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun visibilityAndSelectableFlagsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				puppet
@@ -160,7 +154,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun blendCullingAndMaskEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val drawableId = puppet.drawables.first().id
@@ -177,7 +171,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun reparentEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				// Detach a deformed drawable, and move a deformer to the tree root - both reference
@@ -206,16 +200,14 @@ class Cmo3ExportRoundTripTest {
 	 */
 	@Test
 	fun aDetachedDrawablesFormsAreTaggedForTheRoot() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val puppet = Cmo3Import.fromModelSource(modelSource)
 		val deformed = puppet.drawables.firstOrNull { drawable -> drawable.parentDeformerId != null && drawable.geometryGrid?.axes?.isNotEmpty() == true }
 
 		if (deformed == null) {
-			println("${file.name} has no keyed drawable under a deformer; skipping the form-space tag check")
-
-			return
+			skipTest("${file.name} has no keyed drawable under a deformer; skipping the form-space tag check")
 		}
 
 		val report = Cmo3Export.apply(puppet.withDrawableParentDeformer(deformed.id, null, localPositions = null), cmo3)
@@ -235,7 +227,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun partFieldEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val partId = puppet.parts.first().id
@@ -248,18 +240,16 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun deformerFieldEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val rotation =
 			run {
 				val cmo3 = Cmo3.read(file.readBytes())
 				Cmo3Import.fromModelSource(cmo3.root as CModelSource).deformers
-					.firstOrNull { it is org.umamo.runtime.model.Deformer.Rotation }
+					.firstOrNull { it is Deformer.Rotation }
 			}
 
 		if (rotation == null) {
-			println("${file.name} has no rotation deformer; skipping base-angle round trip")
-
-			return
+			skipTest("${file.name} has no rotation deformer; skipping base-angle round trip")
 		}
 
 		val result = roundTrip(file) { puppet -> puppet.withDeformerBaseAngle(rotation.id, 42.5f) }
@@ -268,7 +258,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun parameterRangeAndLinkEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		// Range edits change how a re-import COMPACTS channel tracks (axisSpansRange keys off the
 		// range), so a range edit on any axis-bearing parameter round-trips semantically equal but
 		// representationally different.  Pick a parameter no axis references at all - collected from
@@ -324,7 +314,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun treeMovesSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				// Move the first part-owned drawable to the end of the root level - exercises both the
@@ -341,7 +331,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun parameterGroupEditsSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val hasGroup =
 			run {
 				val cmo3 = Cmo3.read(file.readBytes())
@@ -349,9 +339,7 @@ class Cmo3ExportRoundTripTest {
 			}
 
 		if (!hasGroup) {
-			println("${file.name} has no parameter groups; skipping group round trip")
-
-			return
+			skipTest("${file.name} has no parameter groups; skipping group round trip")
 		}
 
 		val result =
@@ -364,7 +352,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun canvasAndRuntimeTargetSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val newWidth = puppet.canvasWidth + 16f
@@ -390,16 +378,14 @@ class Cmo3ExportRoundTripTest {
 	 */
 	@Test
 	fun anAtlasPlacementMoveRewritesBothHalvesAndReportsTheStalePage() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(modelSource)
 		val packed = imported.atlas.tiles.firstOrNull { tile -> tile.placement != null }
 
 		if (packed == null) {
-			println("${file.name} packs no artwork; skipping the atlas placement round trip")
-
-			return
+			skipTest("${file.name} packs no artwork; skipping the atlas placement round trip")
 		}
 
 		val canvasBefore = assertNotNull(canvasPlacementOf(modelSource, packed.id.raw), "the packed tile declares a canvas placement")
@@ -481,7 +467,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun vertexNudgeSurvivesRoundTripWithAWeldNotice() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				val drawable = puppet.drawables.first { it.mesh != null }
@@ -554,7 +540,7 @@ class Cmo3ExportRoundTripTest {
 	 */
 	@Test
 	fun aCanvasOnlyEditLeavesEveryFormBitIdentical() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val formsBefore = artMeshFormPositions(modelSource)
@@ -584,7 +570,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun uvEditsSurviveRoundTripOnPackedAndUnpackedDrawables() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		// Exercise both UV frame conventions when the model has both: a packed (atlas-region)
 		// drawable writes verbatim, an unpacked one goes through the forward model-image affine.
 		val cmo3 = Cmo3.read(file.readBytes())
@@ -679,13 +665,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun aUvEditOverAReducedCopyStoresTheEditorsCacheFrame() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping the reduced-copy UV round trip")
-
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping the reduced-copy UV round trip")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 
 		for (file in files) {
@@ -742,12 +722,12 @@ class Cmo3ExportRoundTripTest {
 			return
 		}
 
-		println("no cmo3.probe model draws over a reduced cache copy; skipping the reduced-copy UV round trip")
+		skipTest("no cmo3.probe model draws over a reduced cache copy; skipping the reduced-copy UV round trip")
 	}
 
 	@Test
 	fun worldOriginEditReportsInsteadOfSilentlyDropping() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet -> puppet.withWorldOrigin(puppet.worldOriginX + 10f, puppet.worldOriginZ) }
 		assertTrue(
@@ -763,13 +743,7 @@ class Cmo3ExportRoundTripTest {
 
 	@Test
 	fun renameSurvivesAcrossTheWholeCorpus() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping corpus rename smoke")
-
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping corpus rename smoke")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 		val failures = ArrayList<String>()
 

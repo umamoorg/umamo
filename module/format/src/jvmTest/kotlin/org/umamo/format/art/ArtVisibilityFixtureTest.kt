@@ -3,6 +3,7 @@ package org.umamo.format.art
 import org.umamo.format.clip.ClipReader
 import org.umamo.format.kra.KraReader
 import org.umamo.format.psd.PsdReader
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -11,11 +12,11 @@ import kotlin.test.assertTrue
 
 /**
  * Visibility regression tests against purpose-built fixtures whose hidden layers and folders are
- * known up front. These are the only tests that prove the readers actually parse visibility with the
+ * known up front.  These are the only tests that prove the readers actually parse visibility with the
  * right bit and the right sense from real files: the pure-model cascade test (SourceArtVisibilityTest)
  * exercises the algorithm over fakes but never touches a reader, and the structural reader tests only
  * assert that wiring is self-consistent - neither can catch a reader that reads the wrong flag, inverts
- * hidden/shown, or drops folder visibility. A fixture with a layer the artist deliberately hid does.
+ * hidden/shown, or drops folder visibility.  A fixture with a layer the artist deliberately hid does.
  *
  * Corpus-gated: each fixture self-skips when absent, so CI stays green without the binaries committed.
  */
@@ -50,7 +51,7 @@ class ArtVisibilityFixtureTest {
 
 	/**
 	 * EricaVisibilityTest.psd has one folder ("Front hair") and one leaf ("Ear R/3") toggled off in
-	 * Photoshop. It checks per-layer flag parsing, folder-header flag parsing, and the ancestor cascade
+	 * Photoshop.  It checks per-layer flag parsing, folder-header flag parsing, and the ancestor cascade
 	 * in one shot.
 	 */
 	@Test
@@ -58,9 +59,7 @@ class ArtVisibilityFixtureTest {
 		val file = corpusFile("EricaVisibilityTest.psd")
 
 		if (file == null) {
-			println("no EricaVisibilityTest.psd under test/corpus; skipping PSD visibility fixture test")
-
-			return
+			skipTest("no EricaVisibilityTest.psd under test/corpus; skipping PSD visibility fixture test")
 		}
 
 		val art = PsdReader.read(file.readBytes())
@@ -94,16 +93,14 @@ class ArtVisibilityFixtureTest {
 	/**
 	 * KritaLayerVisibility.kra nests a shown folder ("Group 7") inside a hidden one ("Group 6"), so it
 	 * exercises the multi-level cascade: a leaf whose own eye and whose immediate folder are both on is
-	 * still not shown because a grandparent folder is hidden. It also carries a directly-hidden root leaf.
+	 * still not shown because a grandparent folder is hidden.  It also carries a directly-hidden root leaf.
 	 */
 	@Test
 	fun kraFixtureCascadesThroughNestedGroups() {
 		val file = corpusFile("KritaLayerVisibility.kra")
 
 		if (file == null) {
-			println("no KritaLayerVisibility.kra under test/corpus; skipping KRA visibility fixture test")
-
-			return
+			skipTest("no KritaLayerVisibility.kra under test/corpus; skipping KRA visibility fixture test")
 		}
 
 		val art = KraReader.read(file.readBytes())
@@ -141,9 +138,7 @@ class ArtVisibilityFixtureTest {
 		val file = corpusFile("Greyscale.clip")
 
 		if (file == null) {
-			println("no Greyscale.clip under test/corpus; skipping CLIP visibility fixture test")
-
-			return
+			skipTest("no Greyscale.clip under test/corpus; skipping CLIP visibility fixture test")
 		}
 
 		val art = ClipReader.read(file.readBytes())

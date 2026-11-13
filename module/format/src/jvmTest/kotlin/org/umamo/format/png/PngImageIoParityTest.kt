@@ -1,6 +1,7 @@
 package org.umamo.format.png
 
 import org.umamo.format.raster.RasterImage
+import org.umamo.testkit.skipTest
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -33,9 +34,7 @@ class PngImageIoParityTest {
 		val png = encodePng(image, interlaced = true)
 
 		if ((png[28].toInt() and 0xFF) != 1) {
-			println("ImageIO did not produce an interlaced PNG on this JDK; skipping Adam7 assertion")
-
-			return
+			skipTest("ImageIO did not produce an interlaced PNG on this JDK; skipping Adam7 assertion")
 		}
 
 		val decoded = PngCodec.read(png)
@@ -57,9 +56,7 @@ class PngImageIoParityTest {
 		val png = encodePng(image, interlaced = true)
 
 		if ((png[28].toInt() and 0xFF) != 1) {
-			println("ImageIO did not produce an interlaced PNG on this JDK; skipping Adam7 assertion")
-
-			return
+			skipTest("ImageIO did not produce an interlaced PNG on this JDK; skipping Adam7 assertion")
 		}
 
 		assertGraySamplesMatch(image, PngCodec.read(png)) { sample -> sample }
@@ -80,9 +77,7 @@ class PngImageIoParityTest {
 		assertEquals(16, png[24].toInt() and 0xFF, "ImageIO writes TYPE_USHORT_GRAY as a 16-bit PNG")
 
 		if ((png[28].toInt() and 0xFF) != 1) {
-			println("ImageIO did not produce an interlaced PNG on this JDK; skipping Adam7 assertion")
-
-			return
+			skipTest("ImageIO did not produce an interlaced PNG on this JDK; skipping Adam7 assertion")
 		}
 
 		assertGraySamplesMatch(image, PngCodec.read(png)) { sample -> ((2L * sample * 255 + 65535) / (2L * 65535)).toInt() }

@@ -18,7 +18,9 @@ import org.umamo.edit.PROPORTIONAL_RADIUS_STEP_FACTOR
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
 import org.umamo.edit.transform.TransformParameterKeys
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.edit.transform.beginUvOperator
+import org.umamo.edit.transform.sourceLayerEditFrame
 import org.umamo.edit.withParameter
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.DrawableLayerBinding

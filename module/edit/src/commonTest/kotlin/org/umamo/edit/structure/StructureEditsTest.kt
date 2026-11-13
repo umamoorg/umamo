@@ -71,7 +71,7 @@ class StructureEditsTest {
 			).withDerivedRenderRoot()
 		val session = EditorSession(layered)
 
-		// d is above e in the panel; move d to after e (append). The panel order flips, and the derived
+		// d is above e in the panel; move d to after e (append).  The panel order flips, and the derived
 		// render order (panel reversed) follows.
 		session.moveOrgChild(OrgChild.Drawable(DrawableId("d")), newParentId = PartId("a"), before = null)
 		assertEquals(

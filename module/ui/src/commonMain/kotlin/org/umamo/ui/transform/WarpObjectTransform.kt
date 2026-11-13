@@ -50,7 +50,6 @@ internal fun landedWarp(model: PuppetModel, warpId: DeformerId, worldAffine: Flo
  * This model with every warp in [worldAffineById] moved as a whole ([landedWarp]).  The warps must not nest - an
  * Object-mode transform moves only the outermost selected items - so each one maps through a parent that stays put.
  *
- * @param PuppetModel model The model.
  * @param Map<DeformerId, FloatArray> worldAffineById Each moved warp's world affine.
  * @return PuppetModel The model with the warps moved; the same instance when none could be.
  */

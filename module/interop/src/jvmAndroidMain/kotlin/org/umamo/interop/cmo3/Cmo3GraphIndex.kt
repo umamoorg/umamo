@@ -75,6 +75,13 @@ internal class Cmo3GraphIndex(val modelSource: CModelSource) {
 			}
 		}
 
+	/**
+	 * Indexes graph sources by their id string, leaving out any without one.
+	 *
+	 * @param List<TSource> sources The sources to index.
+	 * @param Function idOf Reads a source's id field.
+	 * @return Map<String, TSource> The sources by id string.
+	 */
 	private fun <TSource> byIdStr(sources: List<TSource>, idOf: (TSource) -> Any?): Map<String, TSource> =
 		buildMap {
 			for (source in sources) {

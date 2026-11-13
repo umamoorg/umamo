@@ -42,7 +42,7 @@ class DeltaTexelsTest {
 
 	@Test
 	fun buildDeltaTexelsPlacesEachCellInItsLinearColumn() {
-		// Two vertices, two cells along one axis. Cell 0 shifts vertex 1 only; cell 1 shifts vertex 0 only,
+		// Two vertices, two cells along one axis.  Cell 0 shifts vertex 1 only; cell 1 shifts vertex 0 only,
 		// so a row/column transpose or an off-by-one column would be caught.
 		val grid =
 			KeyformGrid(
@@ -64,7 +64,7 @@ class DeltaTexelsTest {
 	@Test
 	fun buildDeltaTexelsUsesTheAxisMajorLinearIndex() {
 		// Strides run axis 0 fastest (stride 1), so coordinate (0,1) on a 2x2 grid is linear index 2 -
-		// the same indexing WeightedCell.linearIndex carries into the shader. A stride flip lands it at 1.
+		// the same indexing WeightedCell.linearIndex carries into the shader.  A stride flip lands it at 1.
 		val grid =
 			KeyformGrid(
 				axes = listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f)), KeyformAxis(paramB, floatArrayOf(0f, 1f))),
@@ -90,7 +90,7 @@ class DeltaTexelsTest {
 
 	@Test
 	fun buildDeltaTexelsZeroFillsWhenTheDeltaArrayIsShorterThanTheMesh() {
-		// Reachable in real models: the form carries fewer vertices than the mesh. The short tail reads as
+		// Reachable in real models: the form carries fewer vertices than the mesh.  The short tail reads as
 		// rest rather than running off the end.
 		val grid =
 			KeyformGrid(

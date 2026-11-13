@@ -2,6 +2,7 @@ package org.umamo.format.cmo3.serialize
 
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -10,7 +11,7 @@ import kotlin.test.assertTrue
 
 /**
  * Verifies the ModelDocument backbone: parses the sample's main.xml into navigable parts (versions,
- * imports, shared pool, main root) and re-emits byte-identically. Skips without the sample.
+ * imports, shared pool, main root) and re-emits byte-identically.  Skips without the sample.
  */
 class ModelDocumentTest {
 	private val sample: File? =
@@ -21,9 +22,7 @@ class ModelDocumentTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping ModelDocument test")
-
-			return
+			skipTest("cmo3.sample not present; skipping ModelDocument test")
 		}
 
 		val mainXml =

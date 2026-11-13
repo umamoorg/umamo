@@ -3,26 +3,48 @@ package org.umamo.interop.cmo3
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.custom.GEditableMesh2
+import org.umamo.format.cmo3.model.drawable.CoordType
+import org.umamo.format.cmo3.model.gen.ACDeformerSource
+import org.umamo.format.cmo3.model.gen.AlphaComposition
+import org.umamo.format.cmo3.model.gen.CAffecterSourceSet
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDeformerSourceSet
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CEditableMeshExtension
+import org.umamo.format.cmo3.model.gen.CGlueForm
+import org.umamo.format.cmo3.model.gen.CGlueSource
 import org.umamo.format.cmo3.model.gen.CParameterGroup
 import org.umamo.format.cmo3.model.gen.CParameterGroupSet
 import org.umamo.format.cmo3.model.gen.CParameterSource
 import org.umamo.format.cmo3.model.gen.CParameterSourceSet
+import org.umamo.format.cmo3.model.gen.CPartForm
+import org.umamo.format.cmo3.model.gen.CPartSource
+import org.umamo.format.cmo3.model.gen.CPartSourceSet
 import org.umamo.format.cmo3.model.gen.CPhysicsInput
 import org.umamo.format.cmo3.model.gen.CPhysicsOutput
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSource
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
+import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CTextureInputExtension
 import org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage
+import org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion
+import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
+import org.umamo.format.cmo3.model.gen.ColorComposition
+import org.umamo.format.cmo3.model.gen.KeyformGridAccessKey
+import org.umamo.format.cmo3.model.gen.KeyformGridSource
+import org.umamo.format.cmo3.model.gen.KeyformOnGrid
+import org.umamo.format.cmo3.model.gen.TextureState
 import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.cmo3.model.type.CColor
+import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.ExportEntityCategory
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.Glue
@@ -31,9 +53,11 @@ import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterNode
+import org.umamo.runtime.model.Part
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.partByDrawable
 import org.umamo.runtime.model.storedToArtAffineForTile
+import java.util.UUID
 
 /*
  * The structural half of the CMO3 export reconcile: set membership.  Creations synthesize an
@@ -93,6 +117,13 @@ internal class Cmo3StructureLowering(
 		}
 	}
 
+	/**
+	 * Records an edit this export cannot represent.
+	 *
+	 * @param ExportEntityCategory category The kind of entity the edit is on.
+	 * @param String? subject The entity's id, or null.
+	 * @param ExportNoticeReason reason Why it cannot be written.
+	 */
 	private fun unsupported(
 		category: ExportEntityCategory,
 		subject: String?,
@@ -101,9 +132,16 @@ internal class Cmo3StructureLowering(
 		notices.add(ExportNotice.UnsupportedChange(category, subject, reason))
 	}
 
+	/**
+	 * A fresh guid of the template's kind, or of a fallback kind when there is no template.
+	 *
+	 * @param Guid? template The guid whose kind and note to copy, or null.
+	 * @param String fallbackKind The kind to use without a template.
+	 * @return Guid The new guid.
+	 */
 	private fun freshGuidLike(template: Guid?, fallbackKind: String): Guid =
 		Guid(template?.kind ?: fallbackKind).apply {
-			uuid = java.util.UUID.randomUUID().toString()
+			uuid = UUID.randomUUID().toString()
 			note = template?.note ?: "(no debug info)"
 		}
 
@@ -113,13 +151,31 @@ internal class Cmo3StructureLowering(
 	 * CMO3: GEditableMesh2 field coordType - corpus meshes always carry a CoordType with coordName
 	 * "Basic Coord"; one instance is reused so the writer hoists a single shared def.
 	 */
-	private val basicCoordType: org.umamo.format.cmo3.model.drawable.CoordType by lazy {
-		org.umamo.format.cmo3.model.drawable.CoordType().apply { coordName = "Basic Coord" }
+	private val basicCoordType: CoordType by lazy {
+		CoordType().apply { coordName = "Basic Coord" }
 	}
 
+	/**
+	 * A fresh id of the template's kind, carrying a given id string.
+	 *
+	 * @param Id? template The id whose kind to copy, or null.
+	 * @param String fallbackKind The kind to use without a template.
+	 * @param String idStr The id string.
+	 * @return Id The new id.
+	 */
 	private fun freshIdLike(template: Id?, fallbackKind: String, idStr: String): Id =
 		Id(template?.kind ?: fallbackKind).apply { idstr = idStr }
 
+	/**
+	 * Appends an element to a graph collection field, creating the list when the field holds none.
+	 *
+	 * @param Any owner The graph object that owns the field.
+	 * @param String ownerTag The class level of the owner, by tag.
+	 * @param String property The field's name.
+	 * @param Any? current The field's current value.
+	 * @param Function assign Stores a new list on the owner.
+	 * @param Any element The element to append.
+	 */
 	private fun appendToCollection(owner: Any, ownerTag: String, property: String, current: Any?, assign: (MutableList<Any?>) -> Unit, element: Any) {
 		val mutable = mutableGraphListOf(current)
 
@@ -138,13 +194,24 @@ internal class Cmo3StructureLowering(
 		editor.ensureChildSlot(owner, ownerTag, property)
 	}
 
+	/**
+	 * Removes every matching element from a graph collection field.
+	 *
+	 * @param Any? current The field's current value.
+	 * @param Function matches Picks the elements to remove.
+	 * @return Boolean True when anything was removed.
+	 */
 	private fun removeFromCollection(current: Any?, matches: (Any?) -> Boolean): Boolean {
 		val mutable = mutableGraphListOf(current) ?: return false
 
 		return mutable.removeAll(matches)
 	}
 
-	/** Strips [uuid] from every parts-panel child list (all user parts plus the synthetic root). */
+	/**
+	 * Strips [uuid] from every parts-panel child list (all user parts plus the synthetic root).
+	 *
+	 * @param String? uuid The guid to strip, or null to do nothing.
+	 */
 	private fun stripFromChildLists(uuid: String?) {
 		if (uuid == null) {
 			return
@@ -233,6 +300,12 @@ internal class Cmo3StructureLowering(
 	private fun physicsSettingsNaming(parameterGuid: Any): List<String> {
 		val uuid = Cmo3Import.uuidOf(parameterGuid)
 
+		/**
+		 * Tells whether a reference names the parameter, by identity or by guid.
+		 *
+		 * @param Any? reference A guid reference found in the physics settings.
+		 * @return Boolean True when it is the parameter's.
+		 */
 		fun names(reference: Any?): Boolean = reference === parameterGuid || (uuid != null && Cmo3Import.uuidOf(reference) == uuid)
 
 		// CMO3: CModelSource field physicsSettingsSourceSet -> CPhysicsSettingsSourceSet field _sourceCubismPhysics
@@ -293,7 +366,11 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
-	/** Removes a deleted parameter group's source. */
+	/**
+	 * Removes a deleted parameter group's source.
+	 *
+	 * @param ParameterGroupId groupId The deleted group.
+	 */
 	fun deleteParameterGroup(groupId: ParameterGroupId) {
 		val groupSet = modelSource.parameterGroupSet as? CParameterGroupSet ?: return
 
@@ -316,7 +393,7 @@ internal class Cmo3StructureLowering(
 	 */
 	fun synthesizeDrawable(editedDrawable: Drawable): Boolean {
 		val subject = editedDrawable.id.raw
-		val sourceSet = modelSource.drawableSourceSet as? org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+		val sourceSet = modelSource.drawableSourceSet as? CDrawableSourceSet
 
 		if (sourceSet == null) {
 			unsupported(ExportEntityCategory.Drawable, subject, ExportNoticeReason.NoSourceSetToCreateInto)
@@ -366,9 +443,9 @@ internal class Cmo3StructureLowering(
 				texture = binding!!.texture
 				textureState =
 					if (binding.isUnpacked) {
-						org.umamo.format.cmo3.model.gen.TextureState.MODEL_IMAGE
+						TextureState.MODEL_IMAGE
 					} else {
-						org.umamo.format.cmo3.model.gen.TextureState.TEXTURE_ATLAS
+						TextureState.TEXTURE_ATLAS
 					}
 			}
 
@@ -429,7 +506,7 @@ internal class Cmo3StructureLowering(
 		val extension = CTextureInputExtension()
 		val atlasRegion =
 			binding.textureAtlasGuid?.let { atlasGuid ->
-				org.umamo.format.cmo3.model.gen.CTextureInput_TextureAtlasRegion().apply {
+				CTextureInput_TextureAtlasRegion().apply {
 					// CMO3: CTextureInput_TextureAtlasRegion fields textureAtlasGuid +
 					// inputImageLocalToCanvasTransform (ACTextureInput super carries the owner backref).
 					// The transform places the atlas page's pixel frame on the canvas so this drawable's
@@ -443,7 +520,7 @@ internal class Cmo3StructureLowering(
 			}
 		val modelImage =
 			binding.modelImageGuid?.let { imageGuid ->
-				org.umamo.format.cmo3.model.gen.CTextureInput_ModelImage().apply {
+				CTextureInput_ModelImage().apply {
 					// CMO3: CTextureInput_ModelImage field _modelImageGuid.
 					optionalTransformOnCanvas = CAffine()
 					_owner = extension
@@ -489,8 +566,8 @@ internal class Cmo3StructureLowering(
 	 * @param Part editedPart The created part.
 	 * @return Boolean True on success.
 	 */
-	fun synthesizePart(editedPart: org.umamo.runtime.model.Part): Boolean {
-		val sourceSet = modelSource.partSourceSet as? org.umamo.format.cmo3.model.gen.CPartSourceSet
+	fun synthesizePart(editedPart: Part): Boolean {
+		val sourceSet = modelSource.partSourceSet as? CPartSourceSet
 
 		if (sourceSet == null) {
 			unsupported(ExportEntityCategory.Part, editedPart.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
@@ -499,10 +576,10 @@ internal class Cmo3StructureLowering(
 		}
 
 		val template = index.userPartSources.firstOrNull() ?: index.rootPartSource
-		val part = org.umamo.format.cmo3.model.gen.CPartSource()
+		val part = CPartSource()
 		val formGuid = freshGuidLike(null, "CFormGuid")
 		val form =
-			org.umamo.format.cmo3.model.gen.CPartForm().apply {
+			CPartForm().apply {
 				// CMO3: CPartForm - the one default-cell form (drawOrder/opacity/colors).
 				guid = formGuid
 				_source = part
@@ -516,14 +593,14 @@ internal class Cmo3StructureLowering(
 			localName = editedPart.name
 			isVisible = true
 			keyformGridSource =
-				org.umamo.format.cmo3.model.gen.KeyformGridSource().apply {
+				KeyformGridSource().apply {
 					// CMO3: KeyformGridSource - one unkeyed cell (empty access key) like the blank's parts.
 					keyformsOnGrid =
 						ArrayList<Any?>(
 							mutableListOf(
-								org.umamo.format.cmo3.model.gen.KeyformOnGrid().apply {
+								KeyformOnGrid().apply {
 									accessKey =
-										org.umamo.format.cmo3.model.gen.KeyformGridAccessKey().apply {
+										KeyformGridAccessKey().apply {
 											_keyOnParameterList = ArrayList<Any?>()
 										}
 									keyformGuid = formGuid
@@ -539,11 +616,11 @@ internal class Cmo3StructureLowering(
 			id = freshIdLike(template?.id as? Id, "CPartId", editedPart.id.raw)
 			keyforms = CArrayList<Any?>(mutableListOf(form))
 			defaultOrder_forEditor = editedPart.drawOrder
-			partsEditColor = org.umamo.format.cmo3.model.type.CColor()
+			partsEditColor = CColor()
 			_childGuids = CArrayList<Any?>()
 			clipGuidList = CArrayList<Any?>()
-			colorComposition = org.umamo.format.cmo3.model.gen.ColorComposition.NORMAL
-			alphaComposition = org.umamo.format.cmo3.model.gen.AlphaComposition.OVER
+			colorComposition = ColorComposition.NORMAL
+			alphaComposition = AlphaComposition.OVER
 		}
 		appendToCollection(sourceSet, "CPartSourceSet", "_sources", sourceSet._sources, { sourceSet._sources = it }, part)
 
@@ -557,8 +634,8 @@ internal class Cmo3StructureLowering(
 	 * @param Deformer editedDeformer The created deformer.
 	 * @return Boolean True on success.
 	 */
-	fun synthesizeDeformer(editedDeformer: org.umamo.runtime.model.Deformer): Boolean {
-		val sourceSet = modelSource.deformerSourceSet as? org.umamo.format.cmo3.model.gen.CDeformerSourceSet
+	fun synthesizeDeformer(editedDeformer: Deformer): Boolean {
+		val sourceSet = modelSource.deformerSourceSet as? CDeformerSourceSet
 
 		if (sourceSet == null) {
 			unsupported(ExportEntityCategory.Deformer, editedDeformer.id.raw, ExportNoticeReason.NoSourceSetToCreateInto)
@@ -566,22 +643,22 @@ internal class Cmo3StructureLowering(
 			return false
 		}
 
-		val fresh: org.umamo.format.cmo3.model.gen.ACDeformerSource =
+		val fresh: ACDeformerSource =
 			when (editedDeformer) {
-				is org.umamo.runtime.model.Deformer.Warp -> {
+				is Deformer.Warp -> {
 					val template =
-						index.deformerSources.filterIsInstance<org.umamo.format.cmo3.model.gen.CWarpDeformerSource>().firstOrNull()
-					org.umamo.format.cmo3.model.gen.CWarpDeformerSource().apply {
+						index.deformerSources.filterIsInstance<CWarpDeformerSource>().firstOrNull()
+					CWarpDeformerSource().apply {
 						guid = freshGuidLike(template?.guid as? Guid, "CDeformerGuid")
 						id = freshIdLike(template?.id as? Id, "CDeformerId", editedDeformer.id.raw)
 						keyforms = CArrayList<Any?>()
 					}
 				}
 
-				is org.umamo.runtime.model.Deformer.Rotation -> {
+				is Deformer.Rotation -> {
 					val template =
-						index.deformerSources.filterIsInstance<org.umamo.format.cmo3.model.gen.CRotationDeformerSource>().firstOrNull()
-					org.umamo.format.cmo3.model.gen.CRotationDeformerSource().apply {
+						index.deformerSources.filterIsInstance<CRotationDeformerSource>().firstOrNull()
+					CRotationDeformerSource().apply {
 						guid = freshGuidLike(template?.guid as? Guid, "CDeformerGuid")
 						id = freshIdLike(template?.id as? Id, "CDeformerId", editedDeformer.id.raw)
 						keyforms = CArrayList<Any?>()
@@ -616,7 +693,7 @@ internal class Cmo3StructureLowering(
 	 */
 	fun synthesizeGlue(editedGlue: Glue, ordinal: Int): Boolean {
 		val subject = "${editedGlue.meshA.raw}~${editedGlue.meshB.raw}"
-		val sourceSet = modelSource.affecterSourceSet as? org.umamo.format.cmo3.model.gen.CAffecterSourceSet
+		val sourceSet = modelSource.affecterSourceSet as? CAffecterSourceSet
 
 		if (sourceSet == null) {
 			unsupported(ExportEntityCategory.Glue, subject, ExportNoticeReason.NoSourceSetToCreateInto)
@@ -637,11 +714,11 @@ internal class Cmo3StructureLowering(
 		val ownerPartId = edited.partByDrawable()[editedGlue.meshA]
 		val ownerPart = ownerPartId?.let { index.partByIdStr[it.raw] } ?: index.rootPartSource
 		val ownerGuid = ownerPart?.guid
-		val fresh = org.umamo.format.cmo3.model.gen.CGlueSource()
+		val fresh = CGlueSource()
 		val glueGuid = freshGuidLike(template?.guid as? Guid, "CAffecterGuid")
 		val formGuid = freshGuidLike(null, "CFormGuid")
 		val form =
-			org.umamo.format.cmo3.model.gen.CGlueForm().apply {
+			CGlueForm().apply {
 				// CMO3: CGlueForm - the one default-cell form; every corpus glue carries at least
 				// this cell, and the intensity lowering writes only into existing forms.
 				guid = formGuid
@@ -658,15 +735,15 @@ internal class Cmo3StructureLowering(
 			// glued drawables' own panel parent (corpus glues always sit under a part).
 			parentGuid = ownerGuid
 			keyformGridSource =
-				org.umamo.format.cmo3.model.gen.KeyformGridSource().apply {
+				KeyformGridSource().apply {
 					// CMO3: KeyformGridSource - one unkeyed cell (empty access key), the corpus
 					// glue default; an intensity track later rebuilds this web via writeGridWeb.
 					keyformsOnGrid =
 						ArrayList<Any?>(
 							mutableListOf(
-								org.umamo.format.cmo3.model.gen.KeyformOnGrid().apply {
+								KeyformOnGrid().apply {
 									accessKey =
-										org.umamo.format.cmo3.model.gen.KeyformGridAccessKey().apply {
+										KeyformGridAccessKey().apply {
 											_keyOnParameterList = ArrayList<Any?>()
 										}
 									keyformGuid = formGuid
@@ -693,7 +770,7 @@ internal class Cmo3StructureLowering(
 			// CMO3: CGlueSource field tabPosOnCanvas - the glue tab marker, never null; the editor
 			// stacks them at x = -100 down the canvas's left margin.
 			tabPosOnCanvas =
-				org.umamo.format.cmo3.model.type.GVector2().apply {
+				GVector2().apply {
 					x = -100f
 					y = 100f * (ordinal + 1)
 				}
@@ -711,9 +788,13 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
-	/** Removes a deleted drawable's source and strips its guid from every panel child list. */
+	/**
+	 * Removes a deleted drawable's source and strips its guid from every panel child list.
+	 *
+	 * @param DrawableId drawableId The deleted drawable.
+	 */
 	fun deleteDrawable(drawableId: DrawableId) {
-		val sourceSet = modelSource.drawableSourceSet as? org.umamo.format.cmo3.model.gen.CDrawableSourceSet ?: return
+		val sourceSet = modelSource.drawableSourceSet as? CDrawableSourceSet ?: return
 		val source = index.drawableByIdStr[drawableId.raw]
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === source }) {
@@ -722,9 +803,13 @@ internal class Cmo3StructureLowering(
 		}
 	}
 
-	/** Removes a deleted part's source and strips its guid from every panel child list. */
+	/**
+	 * Removes a deleted part's source and strips its guid from every panel child list.
+	 *
+	 * @param String partIdRaw The deleted part's raw id.
+	 */
 	fun deletePart(partIdRaw: String) {
-		val sourceSet = modelSource.partSourceSet as? org.umamo.format.cmo3.model.gen.CPartSourceSet ?: return
+		val sourceSet = modelSource.partSourceSet as? CPartSourceSet ?: return
 		val source = index.partByIdStr[partIdRaw]
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === source }) {
@@ -733,9 +818,13 @@ internal class Cmo3StructureLowering(
 		}
 	}
 
-	/** Removes a deleted deformer's source and strips its guid from every panel child list. */
+	/**
+	 * Removes a deleted deformer's source and strips its guid from every panel child list.
+	 *
+	 * @param String deformerIdRaw The deleted deformer's raw id.
+	 */
 	fun deleteDeformer(deformerIdRaw: String) {
-		val sourceSet = modelSource.deformerSourceSet as? org.umamo.format.cmo3.model.gen.CDeformerSourceSet ?: return
+		val sourceSet = modelSource.deformerSourceSet as? CDeformerSourceSet ?: return
 		val source = index.deformerByIdStr[deformerIdRaw]
 
 		if (removeFromCollection(sourceSet._sources) { entry -> entry === source }) {
@@ -744,9 +833,15 @@ internal class Cmo3StructureLowering(
 		}
 	}
 
-	/** Removes a deleted glue's source, resolved by mesh pair plus ordinal. */
+	/**
+	 * Removes a deleted glue's source, resolved by mesh pair plus ordinal.
+	 *
+	 * @param DrawableId meshA The glue's first mesh.
+	 * @param DrawableId meshB The glue's second mesh.
+	 * @param Int ordinal Which glue of that pair, counted from zero.
+	 */
 	fun deleteGlue(meshA: DrawableId, meshB: DrawableId, ordinal: Int) {
-		val sourceSet = modelSource.affecterSourceSet as? org.umamo.format.cmo3.model.gen.CAffecterSourceSet ?: return
+		val sourceSet = modelSource.affecterSourceSet as? CAffecterSourceSet ?: return
 		val matching =
 			index.glueSources.filter { glueSource ->
 				index.drawableIdStrByUuid[Cmo3Import.uuidOf(glueSource.targetArtMeshA_guid)] == meshA.raw &&
@@ -919,10 +1014,21 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
+	/**
+	 * The point uid table of a drawable's editable mesh.
+	 *
+	 * @param DrawableId drawableId The drawable.
+	 * @return IntArray? The table, or null when the drawable has no source or no table.
+	 */
 	private fun uidTableOf(drawableId: DrawableId): IntArray? =
 		index.drawableByIdStr[drawableId.raw]?.let { source -> Cmo3Import.editableMeshOf(source)?.pointUid as? IntArray }
 
-	/** The unique undirected triangle edges as the editable mesh's short-indexed pair list. */
+	/**
+	 * The unique undirected triangle edges as the editable mesh's short-indexed pair list.
+	 *
+	 * @param IntArray indices The triangle list, three vertex indices per triangle.
+	 * @return ShortArray The edges, two vertex indices per edge.
+	 */
 	private fun triangleEdges(indices: IntArray): ShortArray {
 		val seen = LinkedHashSet<Int>()
 		var triangleStart = 0
@@ -956,6 +1062,11 @@ internal class Cmo3StructureLowering(
 	 *
 	 * CMO3: GEditableMesh2 fields pointPriority / edgePriority - byte arrays on every corpus
 	 * mesh, never null (the editor NPEs on a null); points carry 10, triangle edges 30.
+	 *
+	 * @param Any? existing The stored priority array, or null.
+	 * @param Int count The entry count the new array needs.
+	 * @param Byte freshDefault The priority a fresh byte array is filled with.
+	 * @return Any? The new array.
 	 */
 	private fun resizedPriorityArray(existing: Any?, count: Int, freshDefault: Byte): Any? =
 		when (existing) {
@@ -978,7 +1089,19 @@ internal class Cmo3StructureLowering(
 	private fun storedUvsFor(source: CArtMeshSource, uvs: FloatArray, editedDrawable: Drawable): FloatArray =
 		textureFrames.storedUvsOf(source, uvs, editedDrawable.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) })
 
+	/**
+	 * Finds a parameter group in the edited model's parameter tree.
+	 *
+	 * @param ParameterGroupId groupId The group to find.
+	 * @return ParameterNode.Group? The group, or null when the edited model has none by that id.
+	 */
 	private fun findEditedGroup(groupId: ParameterGroupId): ParameterNode.Group? {
+		/**
+		 * Searches a node list, nested groups included, for the wanted group.
+		 *
+		 * @param List<ParameterNode> nodes The node list to search.
+		 * @return ParameterNode.Group? The group, or null.
+		 */
 		fun walk(nodes: List<ParameterNode>): ParameterNode.Group? {
 			for (node in nodes) {
 				if (node is ParameterNode.Group) {

@@ -92,14 +92,13 @@ private fun layerKindOf(row: ClipLayerRow, textLayerIds: Set<Long>): SourceLayer
 /**
  * Builds the neutral, ordered [SourceLayer] list from the CLIP layer table.
  *
- * EN: The layer tree is encoded as MainId links: a node's LayerFirstChildIndex points at its first
- *     child and LayerNextIndex at its next sibling (0 terminates each chain).  We descend from
- *     Canvas.CanvasRootFolder (a synthetic root that is never emitted) and flatten depth-first.  The
- *     firstChild/nextSibling walk visits the bottom-most layer first (verified: the root's first
- *     child in the corpus is "Paper", Clip Studio's default background), so the produced list is
- *     bottom-to-top - the painter's-algorithm order the compositor expects, matching the KRA reader.
- *     Folders contribute only their name to the slash-joined groupPath; only leaf layers are emitted.
- * JA: MainId のリンク（FirstChild/NextSibling）でツリーを深さ優先に平坦化し, 下から上の順で葉のみ出力する.
+ * The layer tree is encoded as MainId links: a node's LayerFirstChildIndex points at its first
+ * child and LayerNextIndex at its next sibling (0 terminates each chain).  We descend from
+ * Canvas.CanvasRootFolder (a synthetic root that is never emitted) and flatten depth-first.  The
+ * firstChild/nextSibling walk visits the bottom-most layer first (verified: the root's first
+ * child in the corpus is "Paper", Clip Studio's default background), so the produced list is
+ * bottom-to-top - the painter's-algorithm order the compositor expects, matching the KRA reader.
+ * Folders contribute only their name to the slash-joined groupPath; only leaf layers are emitted.
  *
  * @param ClipCanvas canvas        The document geometry and root-folder id.
  * @param List rows                All layer rows (in any order; indexed internally by MainId).

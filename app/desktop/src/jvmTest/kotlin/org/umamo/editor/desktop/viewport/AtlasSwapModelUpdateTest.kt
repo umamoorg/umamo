@@ -1,6 +1,8 @@
 package org.umamo.editor.desktop.viewport
 
+import androidx.compose.ui.graphics.PixelMap
 import androidx.compose.ui.graphics.toPixelMap
+import kotlinx.coroutines.flow.StateFlow
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.runtime.model.AtlasPage
@@ -18,8 +20,10 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
+import org.umamo.testkit.skipTest
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
+import org.umamo.ui.viewport.RenderedFrame
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -114,9 +118,9 @@ class AtlasSwapModelUpdateTest {
 
 	/** Waits until the area publishes a frame satisfying [accept], or returns null on timeout. */
 	private fun awaitFrame(
-		frames: kotlinx.coroutines.flow.StateFlow<org.umamo.ui.viewport.RenderedFrame?>,
+		frames: StateFlow<RenderedFrame?>,
 		deadlineMillis: Long = 5_000,
-		accept: (androidx.compose.ui.graphics.PixelMap) -> Boolean,
+		accept: (PixelMap) -> Boolean,
 	): Boolean {
 		val start = System.currentTimeMillis()
 
@@ -133,7 +137,7 @@ class AtlasSwapModelUpdateTest {
 		return false
 	}
 
-	private fun centerChannelDominates(pixels: androidx.compose.ui.graphics.PixelMap, channel: String): Boolean {
+	private fun centerChannelDominates(pixels: PixelMap, channel: String): Boolean {
 		val color = pixels[pixels.width / 2, pixels.height / 2]
 		val red = color.red
 		val green = color.green
@@ -161,9 +165,7 @@ class AtlasSwapModelUpdateTest {
 			val sawBaseline = awaitFrame(frames) { pixels -> centerChannelDominates(pixels, "red") }
 
 			if (!sawBaseline) {
-				println("[atlas-swap-live] no GL frame arrived; skipping (context unavailable, or baseline never rendered)")
-
-				return
+				skipTest("[atlas-swap-live] no GL frame arrived; skipping (context unavailable, or baseline never rendered)")
 			}
 
 			// The repack, in the UI's publish order: the committed model first (the session collector),

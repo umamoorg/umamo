@@ -25,6 +25,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterGroupId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -133,19 +134,11 @@ class Cmo3ExportStructureRoundTripTest {
 		assertTrue(onlyToleratedResidue, "$label: unexpected residual $residual")
 	}
 
-	private fun skipMessageOrNull(): File? {
-		val file = sample
-
-		if (file == null) {
-			println("cmo3.sample not present; skipping structure round-trip test")
-		}
-
-		return file
-	}
+	private fun sampleOrSkip(): File = sample ?: skipTest("cmo3.sample not present; skipping structure round-trip test")
 
 	@Test
 	fun parameterCreateAndDeleteSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		var deletedId: String? = null
 		val result =
 			roundTrip(file) { puppet ->
@@ -186,7 +179,7 @@ class Cmo3ExportStructureRoundTripTest {
 
 	@Test
 	fun parameterGroupCreateSurvivesRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				puppet.withParameterGroupCreated(ParameterGroupId("UmamoTestGroup"), "Umamo Test Group")
@@ -196,7 +189,7 @@ class Cmo3ExportStructureRoundTripTest {
 
 	@Test
 	fun drawableDuplicateSurvivesRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		var duplicateId: DrawableId? = null
 		val result =
 			roundTrip(file) { puppet ->
@@ -211,7 +204,7 @@ class Cmo3ExportStructureRoundTripTest {
 
 	@Test
 	fun drawableDeleteSurvivesRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				puppet.withDrawableDeleted(puppet.drawables.first().id)
@@ -221,7 +214,7 @@ class Cmo3ExportStructureRoundTripTest {
 
 	@Test
 	fun partAndDeformerDeleteSurviveRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				// A leaf part (no sub-parts) keeps the cascade small; any deformer exercises the
@@ -244,7 +237,7 @@ class Cmo3ExportStructureRoundTripTest {
 
 	@Test
 	fun topologyMergeSurvivesRoundTrip() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		var editedId: DrawableId? = null
 		val result =
 			roundTrip(file) { puppet ->

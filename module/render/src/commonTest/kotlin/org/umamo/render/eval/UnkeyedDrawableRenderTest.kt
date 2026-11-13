@@ -66,7 +66,7 @@ class UnkeyedDrawableRenderTest {
 	}
 
 	/**
-	 * A KEYED drawable whose pose is outside its key range is still hidden. This is the case that must not
+	 * A KEYED drawable whose pose is outside its key range is still hidden.  This is the case that must not
 	 * be confused with the one above - out of range is a deliberate authoring device (the toggle-part
 	 * pattern), and turning it into "render at rest" would make hidden art reappear.
 	 */

@@ -4,8 +4,10 @@ import org.umamo.interop.ExportNotice
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.restMeshesToCanvasSpace
+import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.max
@@ -32,10 +34,10 @@ class Moc3UnkeyedDrawableExportTest {
 	/**
 	 * The sample rig with one deformer-parented drawable's keyform grid removed.
 	 *
-	 * @return Pair The rig and the un-keyed drawable, or null when the sample is absent or has none.
+	 * @return Pair The rig and the un-keyed drawable.  The test is skipped when the sample is absent or has none.
 	 */
-	private fun rigWithAnUnkeyedChild(): Pair<PuppetModel, Drawable>? {
-		val sampleFile = sample ?: return null
+	private fun rigWithAnUnkeyedChild(): Pair<PuppetModel, Drawable> {
+		val sampleFile = sample ?: skipTest("moc3.sample not present")
 		val directory = sampleFile.parentFile
 		val loaded =
 			assertIs<DocumentLoad.Loaded>(
@@ -45,11 +47,11 @@ class Moc3UnkeyedDrawableExportTest {
 			).document as Moc3Document
 		// A warp child specifically: a base in any space but the lattice's would miss by the whole lattice
 		// transform there.
-		val warpIds = loaded.puppet.deformers.filterIsInstance<org.umamo.runtime.model.Deformer.Warp>().map { it.id }
+		val warpIds = loaded.puppet.deformers.filterIsInstance<Deformer.Warp>().map { it.id }
 		val target =
 			loaded.puppet.drawables.firstOrNull { drawable ->
 				drawable.parentDeformerId in warpIds && drawable.geometryGrid != null && drawable.mesh != null
-			} ?: return null
+			} ?: skipTest("${sampleFile.name} has no keyed drawable under a warp")
 		val unkeyed = target.copy(geometryGrid = null)
 		val rig =
 			loaded.puppet.copy(
@@ -61,7 +63,7 @@ class Moc3UnkeyedDrawableExportTest {
 
 	@Test
 	fun anUnkeyedWarpChildKeepsItsPlace() {
-		val (rig, unkeyed) = rigWithAnUnkeyedChild() ?: return
+		val (rig, unkeyed) = rigWithAnUnkeyedChild()
 		val lowered = Moc3Export.toMocDocument(rig)
 		assertTrue(
 			lowered.document.artMeshes.any { mesh -> mesh.id == unkeyed.id.raw },

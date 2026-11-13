@@ -53,7 +53,7 @@ import kotlin.system.exitProcess
 
 /**
  * Applies the `UMAMO_DUMP_PARAMS` environment override (e.g. `ParamAngleX=30,ParamAngleY=-10`) to the
- * given live params, so a deformed pose can be dumped headless. A desktop dev affordance - the shared
+ * given live params, so a deformed pose can be dumped headless.  A desktop dev affordance - the shared
  * initialLiveParams stays environment-free.
  *
  * @param LiveParams liveParams The initial document's parameter hand-off to rewrite.
@@ -220,6 +220,7 @@ fun main(args: Array<String>) {
 		// A file opened from the command line is a real "open" - record it in recent files too.
 		LaunchedEffect(Unit) { initialDocumentPath?.let { settings.addRecentFile(it) } }
 
+		/** Saves the window geometry, logs the quit, and exits the application. */
 		fun closeApp() {
 			settings.saveWindowState(windowState)
 			// A session log that ends here was a clean quit; one that ends anywhere else was not.

@@ -1,5 +1,6 @@
 package org.umamo.format.binary
 
+import org.umamo.testkit.skipTest
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -222,9 +223,7 @@ class ZipJavaOracleTest {
 		val samples = locateKraSamples()
 
 		if (samples.isEmpty()) {
-			println("no kra.sample and no test/corpus/krita samples; skipping the KRA ZIP oracle")
-
-			return
+			skipTest("no kra.sample and no test/corpus/krita samples; skipping the KRA ZIP oracle")
 		}
 
 		for (sample in samples) {

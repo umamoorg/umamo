@@ -277,6 +277,12 @@ internal fun walkLayeredImage(image: CLayeredImage): List<WalkedCmo3Layer> {
 	val walked = ArrayList<WalkedCmo3Layer>()
 	val duplicateCountByKey = HashMap<String, Int>()
 
+	/**
+	 * Records every layer under a group, depth first, with its folder path and a key unique in the document.
+	 *
+	 * @param ACLayerGroup group The layer group to walk.
+	 * @param String path The group's folder path, empty at the root.
+	 */
 	fun walk(group: ACLayerGroup, path: String) {
 		for (entry in Cmo3Import.elementsOf(group._children)) {
 			when (entry) {

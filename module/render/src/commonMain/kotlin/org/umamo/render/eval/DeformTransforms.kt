@@ -255,7 +255,7 @@ private fun latticeCellPoint(
 
 /**
  * Out-of-grid warp extrapolation: a pure affine far outside the lattice, edge-blended near the border
- * (mode-independent). Assumes `(u, v)` is outside `[0,1)²` (call only after [warpInGrid] returned
+ * (mode-independent).  Assumes `(u, v)` is outside `[0,1)²` (call only after [warpInGrid] returned
  * false).
  *
  * @param FloatArray cp       Control points, `(cols+1)*(rows+1)` interleaved x,y.

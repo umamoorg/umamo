@@ -1,6 +1,7 @@
 package org.umamo.format.cmo3
 
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,9 +41,7 @@ class TargetVersionNoCorpusTest {
 	@Test
 	fun corpusDocumentsDecodeToTheirAuthoredTarget() {
 		if (probeFiles.isEmpty()) {
-			println("cmo3.probe not present; skipping targetVersionNo corpus test")
-
-			return
+			skipTest("cmo3.probe not present; skipping targetVersionNo corpus test")
 		}
 
 		var pinnedCount = 0

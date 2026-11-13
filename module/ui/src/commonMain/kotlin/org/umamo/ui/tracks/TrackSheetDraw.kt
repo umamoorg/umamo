@@ -8,7 +8,14 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import org.umamo.ui.theme.UmamoColors
 
-/** Draws the playhead as a full-height vertical line at [value]'s position. */
+/**
+ * Draws the playhead as a full-height vertical line at [value]'s position.
+ *
+ * @param Float value The playhead's value on the axis.
+ * @param TrackAxis axis The axis that maps a value to a position.
+ * @param Color color The line color.
+ * @param Float inset The lane's horizontal inset, in pixels.
+ */
 internal fun DrawScope.drawPlayhead(value: Float, axis: TrackAxis, color: Color, inset: Float) {
 	val x = laneX(axis.fractionOf(value), size.width, inset)
 	drawLine(color, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5f)
@@ -19,6 +26,12 @@ internal fun DrawScope.drawPlayhead(value: Float, axis: TrackAxis, color: Color,
  *
  * Every shape is filled then outlined in the panel color, so marks that land on top of each other (two
  * channels keyed at the same value) stay countable instead of merging into one blob.
+ *
+ * @param TrackKeyShape shape The mark's shape.
+ * @param Offset center The mark's center.
+ * @param Float radius The mark's radius, in pixels.
+ * @param Color fill The fill color.
+ * @param Color outline The outline color.
  */
 private fun DrawScope.drawMark(shape: TrackKeyShape, center: Offset, radius: Float, fill: Color, outline: Color) {
 	when (shape) {

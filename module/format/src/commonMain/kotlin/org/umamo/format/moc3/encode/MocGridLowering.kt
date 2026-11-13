@@ -5,7 +5,7 @@ import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
 
 /**
- * Synthesizes the keyform-binding grid sections from [context] (byte-exact). Reproduces the
+ * Synthesizes the keyform-binding grid sections from [context] (byte-exact).  Reproduces the
  * editor's parameter-binding dedup: a parameter-binding is a unique `(parameter, key positions)`
  * pair; they are grouped by owning parameter and, within a parameter, ordered by first occurrence
  * scanning keyform-bindings in index order.

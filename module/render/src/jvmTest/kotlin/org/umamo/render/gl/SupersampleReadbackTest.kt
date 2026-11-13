@@ -4,6 +4,7 @@ import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.SupersampledSurface
+import org.umamo.render.device.ReadbackTicket
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -23,8 +24,6 @@ import kotlin.test.assertTrue
  * scissor coordinates), resolves, and then requires: the sync read-back sees red FIRST (top-first
  * contract, correct through the downscale), and the async ticket delivers byte-identical pixels in
  * submission order.
- *
- * ビューポート読み戻しの末尾（スーパーサンプル解決＋非同期読み戻し）を初めて検証する。
  */
 class SupersampleReadbackTest {
 	private val displaySize = 64
@@ -58,7 +57,7 @@ class SupersampleReadbackTest {
 		assertContentEquals(sync.rgba, second.rgba, "a second in-flight ticket delivers too")
 
 		// A completed poll consumes the ticket EXACTLY ONCE, at the fence-signal: re-polling a finished
-		// ticket must trip the spent check, not silently re-map a recycled PBO. This pins the ordering
+		// ticket must trip the spent check, not silently re-map a recycled PBO.  This pins the ordering
 		// fix - the ticket is marked spent the moment the fence signals, before the map, so there is no
 		// window in which a consumed ticket reads as still-in-flight and gets re-polled.
 		assertFailsWith<IllegalStateException>("re-polling a consumed ticket is a spent-check trip") {
@@ -89,7 +88,7 @@ class SupersampleReadbackTest {
 	}
 
 	/** Polls [ticket] to completion, bounded so a wedged fence fails the test instead of hanging it. */
-	private fun awaitReadback(device: GlRenderDevice, ticket: org.umamo.render.device.ReadbackTicket): RasterImage {
+	private fun awaitReadback(device: GlRenderDevice, ticket: ReadbackTicket): RasterImage {
 		repeat(2000) {
 			device.pollReadback(ticket)?.let { return it }
 			Thread.sleep(1)

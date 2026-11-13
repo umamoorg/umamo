@@ -53,7 +53,7 @@ class KeyformGridEvalTest {
 		corners.forEach { assertEquals(0.25f, it.weight) }
 		// coord (a,b) folds to a + b*3: the four cells surrounding (0.5, 0.5) are (1,1)(2,1)(1,2)(2,2).
 		assertEquals(setOf(4, 5, 7, 8), corners.map { it.linearIndex }.toSet())
-		assertEquals(1f, corners.fold(0f) { acc, c -> acc + c.weight })
+		assertEquals(1f, corners.fold(0f) { total, corner -> total + corner.weight })
 	}
 
 	@Test

@@ -84,7 +84,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	val pose = rememberParameterPoseState(puppet, liveParams, session)
 
 	// Group expand/collapse state, keyed by group id; absent entries fall back to the group's saved
-	// initiallyOpen. Parked on [viewState] rather than remember(puppet) so it survives every model edit -
+	// initiallyOpen.  Parked on [viewState] rather than remember(puppet) so it survives every model edit -
 	// keying it to the puppet would reset the map, and so collapse every group, on any edit at all,
 	// including a link write inside the group itself.
 	val expandedGroups = viewState.expandedGroups
@@ -97,14 +97,14 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	val keyMarksByParameter = remember(puppet) { puppet.parameterKeyMarks() }
 
 	// The "affects the selected object" filter: when it is on and something is selected, restrict the panel
-	// to the parameters that drive the selection (effective, through the deformer chain). Inert with no
-	// selection, so the panel is never mysteriously blank. Recomputed only on a puppet / selection / flag /
+	// to the parameters that drive the selection (effective, through the deformer chain).  Inert with no
+	// selection, so the panel is never mysteriously blank.  Recomputed only on a puppet / selection / flag /
 	// query change.
 	val selection = LocalSelection.current?.selection ?: Selection()
 	// The keyform-authoring target, shared across areas via the session - a keyform sheet in another area
 	// follows whatever is picked here.
 	val parameterSelection by remember(session) { session?.parameterSelection ?: MutableStateFlow(ParameterSelection()) }.collectAsState()
-	// The header search's text, applied as a second filter over the same set. Trimmed once here so the
+	// The header search's text, applied as a second filter over the same set.  Trimmed once here so the
 	// memo key and the match both read the same string.
 	val searchQuery = viewState.query.trim()
 	val visibleParamIds =
@@ -131,7 +131,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 
 	// A newly created group or parameter is prepended at the top and immediately opened for inline rename;
 	// scroll its row into view when it is not already visible (the created item can otherwise land just
-	// above the viewport when the list was scrolled down). Mirrors the reveal-on-select effect in the
+	// above the viewport when the list was scrolled down).  Mirrors the reveal-on-select effect in the
 	// outliner / history spaces; the visibility guard keeps renaming an already-visible item from jumping.
 	// The row is AWAITED through snapshotFlow rather than looked up once: a created parameter reaches this
 	// composition through the model StateFlow's collector, which can land a recomposition after the
@@ -156,7 +156,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 		}
 	}
 
-	// Transient drag-and-drop state, per panel instance. While a drag is in flight the panel parks its
+	// Transient drag-and-drop state, per panel instance.  While a drag is in flight the panel parks its
 	// cancel on the shell's seam so Escape aborts the drag (the grip is pointerInput and never focusable,
 	// so the shell root keeps the keyboard and its Escape reaches the seam).
 	val dragController = remember { RowDragController<ParameterMoveSubject>() }
@@ -185,7 +185,7 @@ fun ParametersSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 	) {
 		Column(modifier = Modifier.fillMaxSize()) {
 			// The list scrolls under an overlay scrollbar; the Box carries the column weight so the bar
-			// spans the scrolling region. Reset All lives in the area header (parametersHeaderControls).
+			// spans the scrolling region.  Reset All lives in the area header (parametersHeaderControls).
 			Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
 				LazyColumn(
 					state = listState,

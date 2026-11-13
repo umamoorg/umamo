@@ -4,6 +4,9 @@ import org.umamo.format.moc3.encode.MocEncoder
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.format.moc3.model.BlendShapeTarget
+import org.umamo.format.moc3.model.Part
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -38,7 +41,7 @@ class MocStructuralEditBakeTest {
 	 * @param List        parts    The replacement part list.
 	 * @return MocDocument The edited document.
 	 */
-	private fun withParts(document: MocDocument, parts: List<org.umamo.format.moc3.model.Part>): MocDocument =
+	private fun withParts(document: MocDocument, parts: List<Part>): MocDocument =
 		MocDocument(
 			version = document.version,
 			canvas = document.canvas,
@@ -59,9 +62,7 @@ class MocStructuralEditBakeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping structural edit bake test")
-
-			return
+			skipTest("moc3.samples not present; skipping structural edit bake test")
 		}
 
 		var exercised = 0
@@ -79,7 +80,7 @@ class MocStructuralEditBakeTest {
 			// carried on the decoded model rather than recomputed at bake time.  Editing a model with
 			// part blend shapes therefore needs the blend layout re-derived, which is export-phase work.
 			// modelC is the only corpus sample with such a record.
-			if (document.blendShapes.any { it.target == org.umamo.format.moc3.model.BlendShapeTarget.PART }) {
+			if (document.blendShapes.any { it.target == BlendShapeTarget.PART }) {
 				skippedForPartBlends.add(file.name)
 
 				continue

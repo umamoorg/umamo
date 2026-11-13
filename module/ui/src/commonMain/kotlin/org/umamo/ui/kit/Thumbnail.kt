@@ -25,7 +25,7 @@ val DefaultThumbnailSize = 44.dp
 private val ThumbnailCheckerCell = 6.dp
 
 /**
- * A square art-mesh preview slot, shared by the overlap picker and the Outliner hover preview. When
+ * A square art-mesh preview slot, shared by the overlap picker and the Outliner hover preview.  When
  * [thumbnail] is present it is drawn over a small transparency checker (the themed viewport checker colors)
  * so the layer's silhouette reads against the surface; when it is null the slot is an empty box of the same
  * size, keeping label-only rows aligned with thumbnailed ones.

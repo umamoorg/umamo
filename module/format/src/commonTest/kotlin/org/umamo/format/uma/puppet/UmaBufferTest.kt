@@ -1,5 +1,6 @@
 package org.umamo.format.uma.puppet
 
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -102,7 +103,7 @@ class UmaBufferTest {
 		 * @param String text The JSON.
 		 * @return JsonObject The object.
 		 */
-		fun objectOf(text: String): JsonObject = kotlinx.serialization.json.Json.parseToJsonElement(text) as JsonObject
+		fun objectOf(text: String): JsonObject = Json.parseToJsonElement(text) as JsonObject
 		assertNotNull(UmaAccessor.of(objectOf(accessor(bufferPath, 0, 2, "float32"))), "the five keys")
 		assertNotNull(UmaAccessor.of(objectOf(accessor(bufferPath, 0, 2, "float64", byteLength = 16))), "an unknown component type is still an accessor")
 		assertNull(UmaAccessor.of(objectOf("""{ "buffer": "b", "byteOffset": 0, "byteLength": 8, "count": 2, "componentType": "float32", "stride": 4 }""")), "an extra key")

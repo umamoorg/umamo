@@ -9,7 +9,7 @@ import org.umamo.settings.Settings
 
 /**
  * The window size/position/placement to open with - restored from `interface.window.*`, or a sensible
- * default (1280×800, platform-placed, floating) on first run. A window saved while maximized or fullscreen
+ * default (1280×800, platform-placed, floating) on first run.  A window saved while maximized or fullscreen
  * reopens that way; the persisted size/position are the floating restore geometry it returns to.
  *
  * @return WindowState The starting window state.
@@ -32,8 +32,8 @@ fun Settings.savedWindowState(): WindowState {
 
 /**
  * Persists [state]'s current placement, plus its size + position, to `interface.window.*` so the next launch
- * restores them. Call on close (the [WindowState] tracks live resizes/moves/maximize, so it holds the final
- * state). Size and position are recorded only while floating: when maximized or fullscreen, [state]'s size
+ * restores them.  Call on close (the [WindowState] tracks live resizes/moves/maximize, so it holds the final
+ * state).  Size and position are recorded only while floating: when maximized or fullscreen, [state]'s size
  * and position are the screen-filling bounds, so saving them would clobber the restore geometry the window
  * should return to on un-maximize - the last floating geometry is kept instead.
  *

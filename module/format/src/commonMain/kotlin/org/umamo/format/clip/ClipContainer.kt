@@ -5,11 +5,10 @@ import org.umamo.format.binary.decodeAscii
 /**
  * Parser for the outer CLIP (Clip Studio Paint) container: the CSFCHUNK wrapper.
  *
- * EN: A .clip file is a flat sequence of 8-byte-ASCII-tagged chunks with big-endian u64 sizes,
- *     verified against several samples(`>8sQ`).  This object walks that sequence and hands back
- *     the embedded SQLite database (the CHNKSQLi payload), which carries the layer table the
- *     reader needs.  The tiled raster in the CHNKExta chunks is left untouched.
- * JA: CLIP コンテナ（CSFCHUNK）を解析し, 埋め込み SQLite（CHNKSQLi）を取り出す.
+ * A .clip file is a flat sequence of 8-byte-ASCII-tagged chunks with big-endian u64 sizes,
+ * verified against several samples(`>8sQ`).  This object walks that sequence and hands back
+ * the embedded SQLite database (the CHNKSQLi payload), which carries the layer table the
+ * reader needs.  The tiled raster in the CHNKExta chunks is left untouched.
  *
  * Layout (all integers big-endian):
  *   // CLIP: @ +0x00  "CSFCHUNK" (8)  container magic

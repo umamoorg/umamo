@@ -16,7 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Cascade tests on synthetic single-level and nested hierarchies. A mesh's local verts are pushed
+ * Cascade tests on synthetic single-level and nested hierarchies.  A mesh's local verts are pushed
  * through its parent deformer's baked world transform and Y-flipped; nesting composes the transforms
  * top-down.
  */
@@ -80,7 +80,7 @@ class DeformerCascadeTest {
 
 	// --- Render-channel cascade -------------------------------------------------------------------
 	// A deformer's opacity and multiply/screen colors apply to every drawable underneath it, composed
-	// down the chain. Riggers key the opacity as a subtree show/hide switch, so these compositions are
+	// down the chain.  Riggers key the opacity as a subtree show/hide switch, so these compositions are
 	// load-bearing rather than cosmetic.
 
 	/** A 1x1 identity-lattice warp carrying render channels, for channel-only assertions. */
@@ -157,7 +157,7 @@ class DeformerCascadeTest {
 	@Test
 	fun channelsBlendAcrossKeysRatherThanSnapping() {
 		// A two-key axis keyed 1 -> 0: at the midpoint the subtree must be half faded, not fully on or
-		// fully off. Snapping to the nearest key was a real bug in the reference implementation.
+		// fully off.  Snapping to the nearest key was a real bug in the reference implementation.
 		val fanned =
 			KeyformGrid(
 				listOf(KeyformAxis(paramA, floatArrayOf(0f, 1f))),

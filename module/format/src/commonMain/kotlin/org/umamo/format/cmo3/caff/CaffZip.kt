@@ -26,8 +26,8 @@ internal object CaffZip {
 	// CMO3: the compressed blob is a single-entry zip stream; the entry is always named "contents".
 	private val ENTRY_NAME = "contents".encodeToByteArray()
 
-	// ZIP: general-purpose flags. Bit 3 (0x08) says the CRC and sizes follow in a data descriptor
-	// rather than the local header; bit 11 (0x0800) declares the name UTF-8. The editor sets both
+	// ZIP: general-purpose flags.  Bit 3 (0x08) says the CRC and sizes follow in a data descriptor
+	// rather than the local header; bit 11 (0x0800) declares the name UTF-8.  The editor sets both
 	// (measured: 0x0808), so a real .cmo3 carries zeroed sizes up front — a reader that trusts them
 	// reads nothing.
 	private const val FLAGS = ZipRecords.FLAG_DATA_DESCRIPTOR or ZipRecords.FLAG_UTF8_NAME
@@ -85,9 +85,9 @@ internal object CaffZip {
 			return Int.MAX_VALUE
 		}
 
-		// ZIP: data descriptor @ +0x0C uncompressed size. Zero is what the LOCAL header carries, so a
+		// ZIP: data descriptor @ +0x0C uncompressed size.  Zero is what the LOCAL header carries, so a
 		// zero here reads as "not really a descriptor"; past Int range needs zip64 and cannot be a
-		// ByteArray length anyway. Both fall back rather than truncate.
+		// ByteArray length anyway.  Both fall back rather than truncate.
 		val declared = reader.u32(descriptorStart + 12)
 
 		return if (declared in 1..Int.MAX_VALUE.toLong()) declared.toInt() else Int.MAX_VALUE
@@ -115,7 +115,7 @@ internal object CaffZip {
 		out.writeShortLe(ZipRecords.VERSION_DEFLATED)
 		out.writeShortLe(FLAGS)
 		out.writeShortLe(ZipRecords.METHOD_DEFLATED)
-		// ZIP: local header @ +0x0A time, @ +0x0C date. Both little-endian 16-bit, in LOCAL time.
+		// ZIP: local header @ +0x0A time, @ +0x0C date.  Both little-endian 16-bit, in LOCAL time.
 		out.writeShortLe(dosDateTime and 0xFFFF)
 		out.writeShortLe((dosDateTime ushr 16) and 0xFFFF)
 		// Zeroed here and carried in the data descriptor instead — that is what flag bit 3 means.
@@ -134,9 +134,9 @@ internal object CaffZip {
 		out.writeIntLe(deflated.size)
 		out.writeIntLe(contents.size)
 
-		// Ends here — no central directory, no end-of-central-directory record. That is not an
+		// Ends here — no central directory, no end-of-central-directory record.  That is not an
 		// omission, it is what a CAFF blob measurably is: de-obfuscating the corpus sample finds one
-		// PK\x03\x04 and one PK\x07\x08, and zero of either record (CMO3.md §1). Re-emitting without
+		// PK\x03\x04 and one PK\x07\x08, and zero of either record (CMO3.md §1).  Re-emitting without
 		// them reproduces the original's exact file size, which is the same fact from the other side.
 		// Writing them would append 76 bytes the format does not carry, growing the file on each save
 		// — and is why this cannot be ZipOutputStream, which emits both unconditionally on close.

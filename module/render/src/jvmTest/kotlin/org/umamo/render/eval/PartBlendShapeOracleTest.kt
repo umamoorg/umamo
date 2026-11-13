@@ -6,6 +6,7 @@ import org.umamo.format.moc3.model.BlendShapeKeyform
 import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -30,8 +31,8 @@ import kotlin.test.assertTrue
 class PartBlendShapeOracleTest {
 	@Test
 	fun partBlendShapeDrawOrderMatchesTheOracleRenderOrder() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val samples =
 			System.getProperty("moc3.samples")
 				?.let(::File)
@@ -102,7 +103,7 @@ class PartBlendShapeOracleTest {
 				comparedPoses++
 
 				if (oursEvaluated != theirs) {
-					val firstDivergence = oursEvaluated.zip(theirs).indexOfFirst { (a, b) -> a != b }
+					val firstDivergence = oursEvaluated.zip(theirs).indexOfFirst { (ourId, theirId) -> ourId != theirId }
 					mismatches.add(
 						"${mocFile.name} pose=$pose: render order diverges at slot $firstDivergence " +
 							"(ours=${oursEvaluated.getOrNull(firstDivergence)} oracle=${theirs.getOrNull(firstDivergence)})",

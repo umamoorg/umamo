@@ -37,8 +37,8 @@ import org.umamo.ui.workspace.rowdrag.RowCoordinatesHolder
 import org.umamo.ui.workspace.rowdrag.RowDragController
 
 /**
- * The leading drag handle of a parameter row (a slider, a pad, or a group header). Dragging it reorders
- * the row or moves it into / out of a group. Uses raw pointerInput (immediate drag on a dedicated grip,
+ * The leading drag handle of a parameter row (a slider, a pad, or a group header).  Dragging it reorders
+ * the row or moves it into / out of a group.  Uses raw pointerInput (immediate drag on a dedicated grip,
  * since the row body carries sliders and pads), which also never requests focus: a focused node that
  * leaves composition takes keyboard focus with it, and every shortcut then stays dead until the next click.
  *
@@ -150,7 +150,7 @@ internal fun ParameterGripHandle(
 }
 
 /**
- * Draws the before / after insertion line for a drop-target row. Into is drawn by the group header's own
+ * Draws the before / after insertion line for a drop-target row.  Into is drawn by the group header's own
  * fill, so this only handles the reorder bands; a null band or an Into draws nothing.
  *
  * Drawn OVER the row's content, not behind it: the line sits on the row's top / bottom edge, and the
@@ -180,7 +180,7 @@ internal fun Modifier.parameterDropLine(band: RowDropBand?, accentColor: Color):
 /**
  * Applies a parameter-row drag drop: resolves the target row and band, then dispatches the tree move.
  * Ends the controller first (after capturing its state), so a no-op / illegal drop simply clears the
- * drag. An Into drop expands the destination group.
+ * drag.  An Into drop expands the destination group.
  *
  * @param RowDragController<ParameterMoveSubject> dragController The drag state (read then cleared).
  * @param List rows The current render rows.

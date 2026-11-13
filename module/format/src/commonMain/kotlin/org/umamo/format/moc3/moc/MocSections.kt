@@ -76,7 +76,12 @@ public class MocSections internal constructor(private val model: MocModel) {
 		return model.section(index)?.takeIf { it.isNotEmpty() }
 	}
 
-	/** Whether [section] is present in this model's version and has a section slice. */
+	/**
+	 * Whether [section] is present in this model's version and has a section slice.
+	 *
+	 * @param Section section The section to test.
+	 * @return Boolean True when the model has it.
+	 */
 	public fun isPresent(section: Section): Boolean = rawSlice(section) != null
 
 	/**
@@ -215,7 +220,12 @@ public class MocSections internal constructor(private val model: MocModel) {
 		return writer.toByteArray()
 	}
 
-	/** The element-region bytes straight from the file (first `elementCount × element.size` bytes). */
+	/**
+	 * The element-region bytes straight from the file (first `elementCount × element.size` bytes).
+	 *
+	 * @param Section section The section to read.
+	 * @return ByteArray The bytes, empty when the section is absent.
+	 */
 	public fun rawElementRegion(section: Section): ByteArray =
 		rawSlice(section)?.copyOf(elementCount(section) * section.element.size) ?: ByteArray(0)
 }

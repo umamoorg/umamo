@@ -23,9 +23,9 @@ import org.umamo.runtime.model.WarpLatticeForm
 /**
  * Backend-neutral per-pose deform inputs for one drawable - the cheap output of [preparePose]: which
  * keyform cells are active and their weights ([corners]), the mesh's baked parent-deformer transform
- * ([parentWorld]; null for a direct, deformer-less mesh), and the blended scalar attributes. [corners]
+ * ([parentWorld]; null for a direct, deformer-less mesh), and the blended scalar attributes.  [corners]
  * null means the mesh is hidden at this pose; [isParented] with a null [parentWorld] means a hidden
- * ancestor deformer (also hidden). Nothing here is per-vertex - the CPU finishes it in [applyCpuDeform],
+ * ancestor deformer (also hidden).  Nothing here is per-vertex - the CPU finishes it in [applyCpuDeform],
  * and the GPU path uploads the same corners (→ weight uniforms) + baked transform instead.
  */
 internal class DrawableDeformInputs(
@@ -59,7 +59,7 @@ internal class GlueInputs(
 
 /**
  * The full per-pose, backend-neutral deform inputs ([preparePose]'s output): per-drawable weights + baked
- * transforms and the resolved glues. The CPU finishes it per vertex via [applyCpuDeform]; the GPU path
+ * transforms and the resolved glues.  The CPU finishes it per vertex via [applyCpuDeform]; the GPU path
  * uploads the same data as uniforms instead of re-uploading every deformed vertex - that re-use is exactly
  * why the deformation is split into a cheap "prepare" and a backend-specific "apply".
  */
@@ -84,7 +84,7 @@ internal class PoseDeformInputs(
 
 /**
  * Computes the cheap, backend-neutral deform inputs for [model] at [parameters]: the multilinear keyform
- * weights per mesh and each mesh's baked deformer-cascade transform - never per-vertex geometry. Shared
+ * weights per mesh and each mesh's baked deformer-cascade transform - never per-vertex geometry.  Shared
  * verbatim by the CPU ([applyCpuDeform]) and the eventual GPU apply paths.
  *
  * @param PuppetModel model      The rig.
@@ -118,7 +118,7 @@ internal fun preparePose(
 
 		// An UNKEYED drawable renders at its rest mesh rather than vanishing: one full-weight corner into
 		// an empty cell map contributes no deltas, and every blend site already treats a missing cell as a
-		// zero contribution. Null corners keep meaning HIDDEN (a pose outside a keyed grid's range), so
+		// zero contribution.  Null corners keep meaning HIDDEN (a pose outside a keyed grid's range), so
 		// "no grid" and "out of range" stay distinguishable - they are opposite outcomes.
 		val grid = drawable.geometryGrid
 		val corners = if (grid != null) gridCorners(grid, paramValue) else REST_CORNERS
@@ -189,9 +189,9 @@ internal fun preparePose(
 			screenColor = screenColor.coerceToUnit()
 		}
 
-		// Then the parent deformer chain's accumulated channels. A deformer's opacity multiplies, its
+		// Then the parent deformer chain's accumulated channels.  A deformer's opacity multiplies, its
 		// multiply color multiplies, its screen color screens - each already folded over every ancestor
-		// deformer by buildDeformerWorlds, so one composition here covers the whole chain. Clamped
+		// deformer by buildDeformerWorlds, so one composition here covers the whole chain.  Clamped
 		// because a blended color can leave [0,1] at the ends of a keyed range.
 		parentWorld?.let { world ->
 			opacity *= world.accumulatedOpacity
@@ -251,6 +251,11 @@ internal fun preparePose(
 	// immutable across all of them.
 	val partsById = model.partById
 
+	/**
+	 * Resolves a render group's posed draw order and composite state, then its child groups'.
+	 *
+	 * @param RenderGroup group The group to resolve.
+	 */
 	fun blendGroupStates(group: RenderGroup) {
 		val partId = group.partId
 		val channels = group.channelGrids
@@ -318,7 +323,7 @@ internal fun preparePose(
 
 /**
  * Finishes [inputs] on the CPU: per drawable, blends the active corners into local positions, pushes them
- * through the baked parent transform, negates Y, then welds the glue pairs in place. Output is identical
+ * through the baked parent transform, negates Y, then welds the glue pairs in place.  Output is identical
  * to evaluating the model in one pass.
  *
  * @param PuppetModel      model  The rig (for each drawable's keyform-space base + grid).

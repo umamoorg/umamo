@@ -19,9 +19,10 @@ import kotlin.math.PI
  * The modal transforms' face on the operation settings strip - the half that knows no geometry: the
  * numbers a Grab / Rotate / Scale (or a Vertex Slide) landed with as the strip's typed rows, the
  * parameters those rows mean, and the proportional rows' state.  The registrations that replay a
- * frozen capture through the viewport's world geometry or the UV editor's frame live in :ui
- * (viewport/TransformAdjustRegistration.kt) and cannot be here: :edit and :render are siblings over
- * :runtime, and the world-to-base inverse needs :render's evaluator.
+ * frozen capture through the viewport's world geometry live in :ui (TransformAdjustRegistration.kt in
+ * org.umamo.ui.transform) and cannot be here: :edit and :render are siblings over :runtime, and the
+ * world-to-base inverse needs :render's evaluator.  The UV editor's registration replays through its own frame
+ * alone, so it is beside this file (UvTransformAdjust.kt).
  *
  * There is no axis-constraint row, for the reason the placement gesture has none: a lock only zeroes
  * one Grab component or pins one Scale factor at 1, so the per-component rows already say it.  A Rotate's
@@ -409,7 +410,12 @@ private fun depthRotationParameters(parameters: TransformGestureParameters): Lis
 		),
 	)
 
-/** The proportional rows: the flag, the curve, the size, and Connected Only. */
+/**
+ * The proportional rows: the flag, the curve, the size, and Connected Only.
+ *
+ * @param ProportionalRows proportional The proportional-editing settings to show.
+ * @return List<OperatorParameter> The rows, in panel order.
+ */
 private fun proportionalParameters(proportional: ProportionalRows): List<OperatorParameter> =
 	listOf(
 		OperatorParameter.BooleanParameter(TransformParameterKeys.PROPORTIONAL, TransformParameterKeys.PROPORTIONAL, proportional.enabled),
@@ -431,11 +437,24 @@ private fun proportionalParameters(proportional: ProportionalRows): List<Operato
 		OperatorParameter.BooleanParameter(TransformParameterKeys.CONNECTED_ONLY, TransformParameterKeys.CONNECTED_ONLY, proportional.connectedOnly),
 	)
 
-/** A Move row in the gesture space's pixel units. */
+/**
+ * A Move row in the gesture space's pixel units.
+ *
+ * @param String key The row's parameter key.
+ * @param Float value The row's value, in pixels.
+ * @return OperatorParameter The row.
+ */
 private fun moveRow(key: String, value: Float): OperatorParameter =
 	OperatorParameter.FloatParameter(key, key, value, -TRANSFORM_MOVE_LIMIT, TRANSFORM_MOVE_LIMIT, unit = ParameterUnit.Pixels)
 
-/** A Scale row, naming the row whose ratio it can be locked with when it is the first of the pair. */
+/**
+ * A Scale row, naming the row whose ratio it can be locked with when it is the first of the pair.
+ *
+ * @param String key The row's parameter key.
+ * @param Float value The row's scale factor.
+ * @param String? ratioPartnerKey The key of the row it locks its ratio with, or null.
+ * @return OperatorParameter The row.
+ */
 private fun scaleRow(key: String, value: Float, ratioPartnerKey: String? = null): OperatorParameter =
 	OperatorParameter.FloatParameter(key, key, value, TRANSFORM_SCALE_MIN, TRANSFORM_SCALE_MAX, TRANSFORM_SCALE_STEP, ratioPartnerKey = ratioPartnerKey)
 
@@ -458,6 +477,9 @@ private val TransformRowSpace.verticalScaleKey: String
 /**
  * The vertical component as the row reads it - and, being its own inverse, as the gesture reads a
  * row: world y is up and shown as-is; display y is flipped to read down like the page.
+ *
+ * @param Float value A vertical component, from the gesture or from a row.
+ * @return Float The same component in the other one's convention.
  */
 private fun TransformRowSpace.rowVertical(value: Float): Float =
 	when (this) {
@@ -465,8 +487,18 @@ private fun TransformRowSpace.rowVertical(value: Float): Float =
 		TransformRowSpace.UvDisplay -> -value
 	}
 
-/** The angle row for a gesture rotation: degrees, with the page space's sign flip. */
+/**
+ * The angle row for a gesture rotation: degrees, with the page space's sign flip.
+ *
+ * @param Float rotationRadians The gesture's rotation, in radians.
+ * @return Float The angle the row shows, in degrees.
+ */
 private fun TransformRowSpace.rowDegrees(rotationRadians: Float): Float = rowVertical((rotationRadians * 180.0 / PI).toFloat())
 
-/** The gesture rotation an angle row means: the inverse of [rowDegrees]. */
+/**
+ * The gesture rotation an angle row means: the inverse of [rowDegrees].
+ *
+ * @param Float degrees The angle a row shows, in degrees.
+ * @return Float The gesture rotation, in radians.
+ */
 private fun TransformRowSpace.radiansOfRow(degrees: Float): Float = (rowVertical(degrees) * PI / 180.0).toFloat()

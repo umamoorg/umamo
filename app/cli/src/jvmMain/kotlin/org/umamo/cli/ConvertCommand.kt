@@ -1,6 +1,7 @@
 package org.umamo.cli
 
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.ExportReport
@@ -77,7 +78,7 @@ internal fun runConvert(arguments: List<String>): Int {
 private fun convertCmo3ToMoc3Family(loaded: LoadedInput.Cmo3Input, outputFile: File) {
 	val basename = Moc3Sidecars.basenameFor(outputFile.name)
 	val importedPuppet = importPuppet(loaded)
-	val modelSource = (loaded.model.root as org.umamo.format.cmo3.model.custom.CModelSource)
+	val modelSource = (loaded.model.root as CModelSource)
 	val pageSet = cmo3AtlasPages(modelSource) { imageResource -> loaded.model.extractLayerPng(imageResource) }
 	// Skip matches the editor's CMO3 loader: a page that will not decode drops rather than failing the
 	// whole conversion, and Skip never returns null, so the fallback is unreachable.

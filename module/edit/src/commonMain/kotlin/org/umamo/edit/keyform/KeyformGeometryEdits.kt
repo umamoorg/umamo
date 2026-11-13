@@ -19,9 +19,11 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
 
 /*
@@ -255,7 +257,11 @@ private fun PuppetModel.rewriteGeometryNullable(
 		}
 	}
 
-/** This drawable's geometry grid, or null when the id is unknown or it has none. */
+/**
+ * This drawable's geometry grid, or null when the id is unknown or it has none.
+ *
+ * @param KeyformOwner.Drawable owner The drawable to look up.
+ */
 private fun PuppetModel.drawableGeometry(owner: KeyformOwner.Drawable) =
 	drawables.firstOrNull { candidate -> candidate.id == owner.id }?.geometryGrid
 
@@ -283,7 +289,7 @@ private fun <TForm> PuppetModel.replaceDrawableGeometry(
 		drawables =
 			drawables.map { candidate ->
 				if (candidate.id == owner.id) {
-					candidate.copy(geometryGrid = rewritten as KeyformGrid<org.umamo.runtime.model.MeshDeltaForm>?)
+					candidate.copy(geometryGrid = rewritten as KeyformGrid<MeshDeltaForm>?)
 				} else {
 					candidate
 				}
@@ -333,13 +339,13 @@ private fun <TForm> PuppetModel.replaceDeformerGeometry(
 
 					candidate is Deformer.Warp -> {
 						candidate.copy(
-							geometryGrid = rewritten as KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
+							geometryGrid = rewritten as KeyformGrid<WarpLatticeForm>?,
 						)
 					}
 
 					candidate is Deformer.Rotation -> {
 						candidate.copy(
-							geometryGrid = rewritten as KeyformGrid<org.umamo.runtime.model.RotationPivotForm>?,
+							geometryGrid = rewritten as KeyformGrid<RotationPivotForm>?,
 						)
 					}
 
@@ -358,11 +364,17 @@ private fun <TForm> PuppetModel.replaceDeformerGeometry(
  * irrelevant to them - but Kotlin has no way to say "any grid" without a type argument.  Confined to this
  * file, and sound because [KeyformGrid] is immutable and a cell is only ever read or built through the
  * interpolator of its own grid.
+ *
+ * @return KeyformGrid<Nothing> This grid, typed over no form.
  */
 @Suppress("UNCHECKED_CAST")
 private fun <TForm> KeyformGrid<TForm>.asNothing(): KeyformGrid<Nothing> = this as KeyformGrid<Nothing>
 
-/** The [asNothing] counterpart for an interpolator, for the same reason and with the same confinement. */
+/**
+ * The [asNothing] counterpart for an interpolator, for the same reason and with the same confinement.
+ *
+ * @return FormInterpolator<Nothing> This interpolator, typed over no form.
+ */
 @Suppress("UNCHECKED_CAST")
 private fun <TForm> FormInterpolator<TForm>.asNothing(): FormInterpolator<Nothing> = this as FormInterpolator<Nothing>
 

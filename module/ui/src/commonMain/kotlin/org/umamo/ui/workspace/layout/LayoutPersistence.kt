@@ -11,7 +11,7 @@ const val INTERFACE_LAYOUT_KEY: String = "interface.layout"
  * The JSON configuration for (de)serializing the area-tree layout. classDiscriminator = "type" pairs
  * with each AreaNode subtype's @SerialName ("split"/"leaf") to drive the sealed-interface
  * polymorphism; encodeDefaults so ratio and other defaulted fields always persist; ignoreUnknownKeys
- * so a layout written by a newer build (extra fields) still loads. Held module-internal - callers go
+ * so a layout written by a newer build (extra fields) still loads.  Held module-internal - callers go
  * through the encode/decode helpers, not this directly.
  */
 internal val LayoutJson: Json =
@@ -46,7 +46,7 @@ fun encodeLayout(layout: InterfaceLayout): JsonElement = LayoutJson.encodeToJson
 
 /**
  * Decodes an [InterfaceLayout] from a [JsonElement], or null if the element is malformed or describes
- * an empty layout (no workspaces) - both of which mean "fall back to the seeded defaults". Never
+ * an empty layout (no workspaces) - both of which mean "fall back to the seeded defaults".  Never
  * throws: a corrupt stored layout must not prevent the editor from opening.
  *
  * @param JsonElement element The stored layout element.
@@ -59,7 +59,7 @@ fun decodeLayout(element: JsonElement): InterfaceLayout? =
 
 /**
  * Loads the persisted layout, or seeds the defaults when none is stored (decode failure or the empty
- * `interface.layout.workspaces: []` baseline). On a seed it writes the concrete default back once, so
+ * `interface.layout.workspaces: []` baseline).  On a seed it writes the concrete default back once, so
  * the stored layout is materialized on first run (mirrors how window state seeds its defaults).
  *
  * @param Settings settings The settings store to read/seed.

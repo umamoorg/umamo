@@ -63,9 +63,8 @@ jobs:
       # runner has no GPU.
       #
       # NOTE: the golden corpus (test/corpus/, gitignored) is absent here, so every corpus-gated test
-      # either skips or — for the ~76 print-and-return sites — reports PASSED while asserting nothing.
-      # This suite therefore proves markedly less than the same command does locally. See
-      # RELEASING.md § "What this gate does not prove".
+      # reports SKIPPED, and the verification summary at the end of the log counts and names them.
+      # This suite therefore proves markedly less than the same command does locally.
       - name: Build, test, and lint
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"

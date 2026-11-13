@@ -21,6 +21,7 @@ import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.format.cmo3.model.type.GVector2
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -65,7 +66,7 @@ class Cmo3LayerWebProbeTest {
 	 *
 	 * Read from the property rather than discovered by walking up from `user.dir`: an explicit `-D`
 	 * pointing at a corpus outside the working tree is exactly the case a directory walk misses, and a
-	 * probe that cannot find its input returns early and reports PASSED while covering nothing.
+	 * probe that cannot find its input covers nothing.
 	 *
 	 * @return List The readable samples, empty when the property names none.
 	 */
@@ -137,7 +138,7 @@ class Cmo3LayerWebProbeTest {
 
 			// CMO3: ACTextureInput field optionalTransformOnCanvas
 			optionalTransformsOnCanvas +=
-				inputs.count { input -> (input as? org.umamo.format.cmo3.model.gen.ACTextureInput)?.optionalTransformOnCanvas != null }
+				inputs.count { input -> (input as? ACTextureInput)?.optionalTransformOnCanvas != null }
 		}
 
 		var rotated = 0
@@ -196,9 +197,7 @@ class Cmo3LayerWebProbeTest {
 		val files = corpusFiles()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe lists no readable samples; skipping the layered-art web probe")
-
-			return
+			skipTest("cmo3.probe lists no readable samples; skipping the layered-art web probe")
 		}
 
 		val surveys = mutableListOf<LayerWebSurvey>()
@@ -245,9 +244,7 @@ class Cmo3LayerWebProbeTest {
 		val files = corpusFiles()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe lists no readable samples; skipping the optional-canvas-transform probe")
-
-			return
+			skipTest("cmo3.probe lists no readable samples; skipping the optional-canvas-transform probe")
 		}
 
 		val typeCounts = mutableMapOf<String, Int>()
@@ -317,9 +314,7 @@ class Cmo3LayerWebProbeTest {
 		val files = corpusFiles()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe lists no readable samples; skipping the placement-agreement probe")
-
-			return
+			skipTest("cmo3.probe lists no readable samples; skipping the placement-agreement probe")
 		}
 
 		var checkedModelImages = 0
@@ -378,9 +373,7 @@ class Cmo3LayerWebProbeTest {
 		val files = corpusFiles()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe lists no readable samples; skipping the art-mesh id probe")
-
-			return
+			skipTest("cmo3.probe lists no readable samples; skipping the art-mesh id probe")
 		}
 
 		var checked = 0

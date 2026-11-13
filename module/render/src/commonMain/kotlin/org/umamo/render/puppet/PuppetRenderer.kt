@@ -113,7 +113,7 @@ class PuppetRenderer(
 	private var currentCamera: ViewportCamera? = null
 
 	// The last pose's prepared deform inputs, cached so picking can re-run the CPU deform on demand (at
-	// click time, off the render thread) without re-doing it every frame. Immutable once built, so the
+	// click time, off the render thread) without re-doing it every frame.  Immutable once built, so the
 	// volatile reference is a safe publish to the UI thread that calls pickGeometry. null before first pose.
 	@Volatile
 	private var lastPoseInputs: PoseDeformInputs? = null
@@ -142,8 +142,8 @@ class PuppetRenderer(
 	@Volatile
 	private var activeHighlightColor: FloatArray = floatArrayOf(0.49f, 0.89f, 0.0f)
 
-	// The last pose's resolved draw list (back-to-front; last = front), published for picking. This folds
-	// in the parts/group hierarchy, so it is the authoritative front/back order. Render-thread-written,
+	// The last pose's resolved draw list (back-to-front; last = front), published for picking.  This folds
+	// in the parts/group hierarchy, so it is the authoritative front/back order.  Render-thread-written,
 	// UI-thread-read; the immutable list swap is a safe publish.
 	@Volatile
 	private var lastDrawnOrder: List<DrawableId> = emptyList()
@@ -221,7 +221,7 @@ class PuppetRenderer(
 	@Volatile
 	private var latticePointsCache: LatticePointsCache? = null
 
-	// The live model used for the per-pose deform eval, the render order, and the reconcile diff. A var so
+	// The live model used for the per-pose deform eval, the render order, and the reconcile diff.  A var so
 	// an edit can re-push it via updateModel. @Volatile because the render thread writes it while the UI
 	// thread reads it (pickGeometry); a PuppetModel is immutable, so the reference swap is a safe publish.
 	@Volatile
@@ -229,12 +229,12 @@ class PuppetRenderer(
 	private var baseOrder: List<DrawableId> = model.drawables.map { it.id }
 	private var currentRenderRoot: RenderGroup = model.renderRoot
 
-	// Effective Parts-panel visibility (own eyeball ∧ every ancestor part's), resolved once per change. Gates
-	// only the drawn list; hidden meshes that are mask sources or glue partners still deform. Render-thread only.
+	// Effective Parts-panel visibility (own eyeball ∧ every ancestor part's), resolved once per change.  Gates
+	// only the drawn list; hidden meshes that are mask sources or glue partners still deform.  Render-thread only.
 	private var shownDrawableIds: Set<DrawableId> = model.visibleDrawableIds()
 
 	// The pose's resolved render plan (back-to-front with composite boundaries) and the per-isolated-part
-	// pose-blended composite channels, both set by setPose and walked by render. Render-thread only.
+	// pose-blended composite channels, both set by setPose and walked by render.  Render-thread only.
 	private var currentPlan: List<RenderPlanNode> = emptyList()
 	private var currentCompositeStates: Map<PartId, PartRenderState> = emptyMap()
 
@@ -480,7 +480,7 @@ class PuppetRenderer(
 
 	/**
 	 * Sets which drawable is active (the last-selected object of a multi-selection), tinted toward
-	 * [activeHighlightColor] rather than [highlightColor]. Null clears the distinction.
+	 * [activeHighlightColor] rather than [highlightColor].  Null clears the distinction.
 	 *
 	 * @param DrawableId? id The active drawable id, or null when none is active.
 	 */
@@ -795,7 +795,7 @@ class PuppetRenderer(
 				drawOrderOf = if (orderTarget != null) drawOrderOf() else emptyMap(),
 			)
 
-		// Main pass. The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
+		// Main pass.  The grid is an opaque full-screen fill, so it both clears and paints - DontCare load.
 		// A flat backdrop is the pass's own clear, and the puppet blends over it exactly as over the grid.
 		var pass =
 			when (backdrop) {

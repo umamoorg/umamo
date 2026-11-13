@@ -40,7 +40,7 @@ internal class ArtResidency(
 	var textures: PuppetTextures = textures
 		private set
 
-	// The uploaded atlas pages, index-parallel to PuppetTextures.atlases. Retained so a structural reconcile
+	// The uploaded atlas pages, index-parallel to PuppetTextures.atlases.  Retained so a structural reconcile
 	// can bind a newly-uploaded drawable to its page.
 	private var atlasHandles: List<GpuTexture> = emptyList()
 

@@ -3,6 +3,7 @@ package org.umamo.format.cmo3.serialize
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -11,7 +12,7 @@ import kotlin.test.fail
 
 /**
  * The reconciliation gate: deconstruct the real main.xml into a ModelGraph (root object + shared
- * pool + PIs + root attrs) and re-emit it byte-identical. With an empty registry everything is
+ * pool + PIs + root attrs) and re-emit it byte-identical.  With an empty registry everything is
  * verbatim, proving the read/write reconstruction preserves shared ids/order, PIs, and structure.
  * Skips when the sample is unavailable.
  */
@@ -24,9 +25,7 @@ class ReconciliationTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping reconciliation test")
-
-			return
+			skipTest("cmo3.sample not present; skipping reconciliation test")
 		}
 
 		val mainXml =
@@ -60,7 +59,10 @@ class ReconciliationTest {
 			}
 		}
 
-		if (firstDiff < 0 && expected.size == actual.size) return
+		if (firstDiff < 0 && expected.size == actual.size) {
+			return
+		}
+
 		val at = if (firstDiff < 0) limit else firstDiff
 		val start = maxOf(0, at - 60)
 		val expectedWindow = expected.decodeToString(start, minOf(expected.size, at + 80))

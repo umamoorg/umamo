@@ -22,7 +22,7 @@ import org.umamo.ui.theme.LocalUmamoTypography
 
 /**
  * A small flat button: tight padding, small corners, hover-highlight and a darker fill while held (no
- * ripple). [primary] fills with the accent; otherwise a neutral control fill.
+ * ripple).  [primary] fills with the accent; otherwise a neutral control fill.
  *
  * @param String   label    The button text.
  * @param Function onClick  Click callback.

@@ -16,18 +16,16 @@ private const val THEME_SETTING_KEY = "interface.theme"
 private const val DEFAULT_THEME_MODE = "dark"
 
 /**
- * The active theme mode ("dark" | "light" | "system") for the composition. Mirrors [LocalAppLocale]: a
+ * The active theme mode ("dark" | "light" | "system") for the composition.  Mirrors [LocalAppLocale]: a
  * static local with a sensible default, so [UmamoTheme] is safe to use even where settings are never
  * provided (a preview, or a subtree mounted outside the settings scope) - it simply renders the default
- * mode there. Every app entrypoint feeds the real value in from settings via [ProvideAppThemeFromSettings].
- *
- * コンポジションで有効なテーマモード。設定が無い場面でも既定値で動くよう静的ローカルにしている。
+ * mode there.  Every app entrypoint feeds the real value in from settings via [ProvideAppThemeFromSettings].
  */
 val LocalThemeMode = staticCompositionLocalOf { DEFAULT_THEME_MODE }
 
 /**
  * The Umamo theme: resolves the palette (dark or light per [LocalThemeMode]) and provides the custom design
- * tokens - [LocalUmamoColors], [LocalUmamoTypography], [LocalUmamoShapes] - to the subtree. There is no
+ * tokens - [LocalUmamoColors], [LocalUmamoTypography], [LocalUmamoShapes] - to the subtree.  There is no
  * Material here; the kit widgets ([org.umamo.ui.kit]) read these locals directly.
  *
  * @param Function content The UI to render under the theme.

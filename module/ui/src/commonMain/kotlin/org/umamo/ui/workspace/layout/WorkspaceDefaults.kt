@@ -4,9 +4,9 @@ import org.umamo.ui.workspace.SpaceKind
 import kotlin.random.Random
 
 /**
- * Mints a fresh, unique area id. Uses a random token rather than a global counter so there is no
+ * Mints a fresh, unique area id.  Uses a random token rather than a global counter so there is no
  * shared mutable state to make tests order-dependent or to reset across runs; uniqueness within a
- * single layout (the only scope that matters) is overwhelmingly assured. Never reused once a leaf is
+ * single layout (the only scope that matters) is overwhelmingly assured.  Never reused once a leaf is
  * closed, so it is safe as a stable Compose key.
  *
  * @return String A new area id.

@@ -3,9 +3,8 @@ package org.umamo.format.moc3.io
 /**
  * Little-endian, non-obfuscated writer into a growable byte buffer.
  *
- * EN: Inverse of [LittleEndianReader]; same little-endian conventions, plus [alignTo] for the
- *     zero-padding MOC3 uses between sections / at end of file.
- * JA: [LittleEndianReader] の逆操作。
+ * Inverse of [LittleEndianReader]; same little-endian conventions, plus [alignTo] for the
+ * zero-padding MOC3 uses between sections / at end of file.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
  */
@@ -38,7 +37,11 @@ public class LittleEndianWriter(initialCapacity: Int = 64 * 1024) {
 		}
 	}
 
-	/** Returns a copy of the written bytes (length == [position]). */
+	/**
+	 * Returns a copy of the written bytes (length == [position]).
+	 *
+	 * @return ByteArray A copy of the bytes written so far.
+	 */
 	public fun toByteArray(): ByteArray = buffer.copyOf(position)
 
 	/**

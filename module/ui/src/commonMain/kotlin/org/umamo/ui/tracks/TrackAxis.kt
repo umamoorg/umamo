@@ -306,6 +306,12 @@ data class TrackRowLine(
 fun flattenTrackRows(rows: List<TrackRow>, expandedKeys: Set<String>): List<TrackRowLine> {
 	val lines = ArrayList<TrackRowLine>()
 
+	/**
+	 * Adds a row's line, then its children's when the row is expanded.
+	 *
+	 * @param TrackRow row The row to add.
+	 * @param Int depth The row's nesting depth.
+	 */
 	fun visit(row: TrackRow, depth: Int) {
 		val expandable = row.children.isNotEmpty()
 		val expanded = expandable && row.key in expandedKeys
@@ -337,6 +343,11 @@ fun flattenTrackRows(rows: List<TrackRow>, expandedKeys: Set<String>): List<Trac
 fun summarizedMarks(row: TrackRow): List<TrackKeyMark> {
 	val byPosition = LinkedHashMap<Float, TrackKeyMark>()
 
+	/**
+	 * Gathers the editable marks of a row and of every row under it, one per position.
+	 *
+	 * @param TrackRow current The row to visit.
+	 */
 	fun visit(current: TrackRow) {
 		for (mark in current.marks) {
 			// Only an EDITABLE child key can be summarized: a summary mark is a handle on the keys beneath

@@ -51,7 +51,7 @@ internal interface XmlSerializer {
 	fun createInstance(element: Element, ctx: ReadContext): Any?
 
 	/**
-	 * Populates a class instance's fields from [element]. No-op for leaf values.
+	 * Populates a class instance's fields from [element].  No-op for leaf values.
 	 *
 	 * @param Element     element  The source element.
 	 * @param Any         instance The instance created by [createInstance].
@@ -60,9 +60,15 @@ internal interface XmlSerializer {
 	fun setupInstance(element: Element, instance: Any, ctx: ReadContext) {}
 }
 
-/** Sets the xs.n attribute when [name] is non-null (collection items omit it). */
+/**
+ * Sets the xs.n attribute when [name] is non-null (collection items omit it).
+ *
+ * @param String? name The field name, or null for a collection item.
+ */
 internal fun Element.setFieldName(name: String?) {
-	if (name != null) setAttribute(ATTR_NAME, name)
+	if (name != null) {
+		setAttribute(ATTR_NAME, name)
+	}
 }
 
 /**
@@ -86,7 +92,7 @@ internal class PrimitiveSerializer(
 
 /**
  * Serializer for ordered collections: `<tag count="n" xs.n="field">` with positional item children
- * (items carry no xs.n). Covers ArrayList ("array_list") and CArrayList ("carray_list"); [factory]
+ * (items carry no xs.n).  Covers ArrayList ("array_list") and CArrayList ("carray_list"); [factory]
  * builds the concrete list type so the tag round-trips (read tag -> type -> same tag on write).
  */
 internal class ListSerializer(
@@ -142,10 +148,21 @@ internal class ReflectiveClassSerializer(
 	private val childPropertiesByPropName: Map<String, KMutableProperty1<Any, Any?>> =
 		childProperties.associateBy { it.name }
 
+	/**
+	 * The serialized attribute name: the annotation's name, else the Kotlin property name.
+	 *
+	 * @param KMutableProperty1<Any, Any?> property The attribute property.
+	 * @return String The attribute name.
+	 */
 	private fun attributeNameOf(property: KMutableProperty1<Any, Any?>): String =
 		property.findAnnotation<SerialAttribute>()!!.name.ifEmpty { property.name }
 
-	/** The serialized child name (xs.n): an explicit @SerialName, else the Kotlin property name. */
+	/**
+	 * The serialized child name (xs.n): an explicit @SerialName, else the Kotlin property name.
+	 *
+	 * @param KMutableProperty1<Any, Any?> property The property to name.
+	 * @return String The child name.
+	 */
 	private fun childNameOf(property: KMutableProperty1<Any, Any?>): String =
 		property.findAnnotation<SerialName>()?.name ?: property.name
 
@@ -200,6 +217,11 @@ internal class ReflectiveClassSerializer(
 		}
 	}
 
+	/**
+	 * Lists the class's serializable properties in field declaration order, each made accessible.
+	 *
+	 * @return List<KMutableProperty1<Any, Any?>> The properties, in declaration order.
+	 */
 	@Suppress("UNCHECKED_CAST")
 	private fun buildProperties(): List<KMutableProperty1<Any, Any?>> {
 		val fieldOrder = kClass.java.declaredFields.map { it.name }
@@ -230,8 +252,14 @@ internal class ReflectiveClassSerializer(
 				} else {
 					property.name in skipIfDefault && isDefaultValue(property, propertyValue)
 				}
-			if (omit) continue
-			if (propertyValue != null) element.setAttribute(attributeNameOf(property), propertyValue.toString())
+
+			if (omit) {
+				continue
+			}
+
+			if (propertyValue != null) {
+				element.setAttribute(attributeNameOf(property), propertyValue.toString())
+			}
 		}
 
 		// Child elements: replay the exact sequence read (order, presence and unknown children all
@@ -269,7 +297,11 @@ internal class ReflectiveClassSerializer(
 
 			for (property in childProperties) {
 				val propertyValue = property.get(value)
-				if (property.name in skipIfDefault && isDefaultValue(property, propertyValue)) continue
+
+				if (property.name in skipIfDefault && isDefaultValue(property, propertyValue)) {
+					continue
+				}
+
 				element.addContent(ctx.createElementFromObject(childNameOf(property), propertyValue))
 			}
 		}
@@ -277,6 +309,13 @@ internal class ReflectiveClassSerializer(
 		return element
 	}
 
+	/**
+	 * Tells whether a value equals what a default instance holds for the property.
+	 *
+	 * @param KMutableProperty1<Any, Any?> property The property.
+	 * @param Any? propertyValue The value about to be written.
+	 * @return Boolean True when it matches the default; false when the class has no default instance.
+	 */
 	private fun isDefaultValue(property: KMutableProperty1<Any, Any?>, propertyValue: Any?): Boolean {
 		val default = defaultInstance ?: return false
 
@@ -322,6 +361,13 @@ internal class ReflectiveClassSerializer(
 		}
 	}
 
+	/**
+	 * Parses an attribute's text into the property's scalar type.
+	 *
+	 * @param String raw The attribute text.
+	 * @param KMutableProperty1<Any, Any?> property The property the value is for.
+	 * @return Any The parsed value, or the text itself for any other type.
+	 */
 	private fun parseScalar(raw: String, property: KMutableProperty1<Any, Any?>): Any =
 		when (property.returnType.classifier) {
 			Int::class -> raw.toInt()

@@ -89,12 +89,12 @@ internal fun DocumentViewport(
 		is PuppetDocument -> {
 			key(document) {
 				// The session is created per-document by the host and is non-null for a puppet document;
-				// the fallback only guards a desync. Panels read LocalPuppet (a live projection of the session
+				// the fallback only guards a desync.  Panels read LocalPuppet (a live projection of the session
 				// model) and drive edits through LocalEditorSession / the session-backed selection handle.
 				val activeSession = session ?: remember(document) { EditorSession(document.puppet, document.liveParams.values) }
 				// The undo cap is a preference, not a construction-time constant, so it is applied here rather
 				// than passed to the constructor: the desktop host builds the session outside the settings
-				// provider, and a committed change has to reach the stack of the document already open. Keying
+				// provider, and a committed change has to reach the stack of the document already open.  Keying
 				// the session's own remember on the value would instead discard the stack on every change.
 				val historyLimit by rememberIntSetting(HistorySettings.HISTORY_LIMIT_KEY, HistorySettings.HISTORY_LIMIT_DEFAULT)
 				LaunchedEffect(activeSession, historyLimit) {

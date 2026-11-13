@@ -1,10 +1,25 @@
 package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.model.custom.CLayer
+import org.umamo.format.cmo3.model.custom.CModelImage
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CCachedImage
+import org.umamo.format.cmo3.model.gen.CCachedImageManager
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.gen.CLayerGroup
+import org.umamo.format.cmo3.model.gen.CLayeredImage
+import org.umamo.format.cmo3.model.gen.CModelImageGroup
+import org.umamo.format.cmo3.model.gen.CTextureAtlas
+import org.umamo.format.cmo3.model.gen.CTextureManager
 import org.umamo.format.cmo3.model.gen.GTexture2D
+import org.umamo.format.cmo3.model.gen.GTransform2
+import org.umamo.format.cmo3.model.gen.LayeredImageWrapper
+import org.umamo.format.cmo3.model.gen.ModelImageEntry
+import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.cmo3.model.type.CRect
+import org.umamo.format.cmo3.model.type.GVector2
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.interop.cmo3TargetVersionNo
@@ -50,7 +65,7 @@ class Cmo3ImageChainBuilderTest {
 		val resources = model.imageResources()
 		assertEquals(2, resources.size, "one CImageResource per page")
 		// No crop region on either page: no stand-in document, no crop group, nothing counted.
-		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		val textureManager = skeleton.root.textureManager as CTextureManager
 		assertTrue(Cmo3Import.elementsOf(textureManager._rawImages).isEmpty(), "no crop region, no stand-in document")
 		assertTrue(Cmo3Import.elementsOf(textureManager._modelImageGroups).isEmpty(), "and no crop group")
 		assertEquals(0, chain.cropDrawableCount)
@@ -240,29 +255,29 @@ class Cmo3ImageChainBuilderTest {
 		val crop = PngCodec.read(chain.pngEntries.single { entry -> entry.path == "imageFileBuf_0.png" }.pngBytes)
 		assertEquals(5, crop.width, "crop width is the opaque block's width")
 		assertEquals(7, crop.height, "crop height is the opaque block's height")
-		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		val textureManager = skeleton.root.textureManager as CTextureManager
 		val atlas =
 			Cmo3Import.elementsOf(textureManager._textureAtlases)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+				.filterIsInstance<CTextureAtlas>()
 				.single()
 		val entry =
 			Cmo3Import.elementsOf(atlas.modelImages)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.ModelImageEntry>()
+				.filterIsInstance<ModelImageEntry>()
 				.single()
-		val packing = entry.materialLocalToAtlasTransform as org.umamo.format.cmo3.model.gen.GTransform2
-		val packingPosition = packing.position as org.umamo.format.cmo3.model.type.GVector2
+		val packing = entry.materialLocalToAtlasTransform as GTransform2
+		val packingPosition = packing.position as GVector2
 		assertEquals(10f, packingPosition.x, 1e-6f, "packing origin x is the block's page origin")
 		assertEquals(12f, packingPosition.y, 1e-6f, "packing origin y is the block's page origin")
 		val layeredImage =
 			Cmo3Import.elementsOf(textureManager._rawImages)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.LayeredImageWrapper>()
+				.filterIsInstance<LayeredImageWrapper>()
 				.single()
-				.image as org.umamo.format.cmo3.model.gen.CLayeredImage
+				.image as CLayeredImage
 		val patchLayer =
-			Cmo3Import.elementsOf((layeredImage._rootLayer as org.umamo.format.cmo3.model.gen.CLayerGroup)._children)
-				.filterIsInstance<org.umamo.format.cmo3.model.custom.CLayer>()
+			Cmo3Import.elementsOf((layeredImage._rootLayer as CLayerGroup)._children)
+				.filterIsInstance<CLayer>()
 				.single()
-		val bounds = patchLayer.boundsOnImageDoc as org.umamo.format.cmo3.model.type.CRect
+		val bounds = patchLayer.boundsOnImageDoc as CRect
 		assertEquals(10, bounds.x, "bounds origin x is the block's canvas position (identity fit)")
 		assertEquals(12, bounds.y, "bounds origin y is the block's canvas position (identity fit)")
 		assertEquals(5, bounds.width, "bounds width is the trimmed crop's width")
@@ -272,15 +287,15 @@ class Cmo3ImageChainBuilderTest {
 		val modelImage =
 			Cmo3Import.elementsOf(
 				Cmo3Import.elementsOf(textureManager._modelImageGroups)
-					.filterIsInstance<org.umamo.format.cmo3.model.gen.CModelImageGroup>()
+					.filterIsInstance<CModelImageGroup>()
 					.single()
 					._modelImages,
-			).filterIsInstance<org.umamo.format.cmo3.model.custom.CModelImage>().single()
+			).filterIsInstance<CModelImage>().single()
 		val cachedImage =
-			Cmo3Import.elementsOf((modelImage.cachedImageManager as org.umamo.format.cmo3.model.gen.CCachedImageManager).cachedImages)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.CCachedImage>()
+			Cmo3Import.elementsOf((modelImage.cachedImageManager as CCachedImageManager).cachedImages)
+				.filterIsInstance<CCachedImage>()
 				.single()
-		val cacheTransform = cachedImage.transformRawImageToCachedImage as org.umamo.format.cmo3.model.type.CAffine
+		val cacheTransform = cachedImage.transformRawImageToCachedImage as CAffine
 		assertEquals(5f / 64f, cacheTransform.m00, "cache transform x is raw width over the 64-padded raster")
 		assertEquals(7f / 64f, cacheTransform.m11, "cache transform y is raw height over the 64-padded raster")
 	}
@@ -332,25 +347,25 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(bindingA.modelImageGuid, bindingB.modelImageGuid, "twins share one model image")
 		assertEquals(1f, bindingA.inputImageLocalToCanvasTransform!!.m00, 1e-4f, "twin A keeps its own fit")
 		assertEquals(-1f, bindingB.inputImageLocalToCanvasTransform!!.m00, 1e-4f, "twin B keeps its mirrored fit")
-		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		val textureManager = skeleton.root.textureManager as CTextureManager
 		val modelImages =
 			Cmo3Import.elementsOf(
 				Cmo3Import.elementsOf(textureManager._modelImageGroups)
-					.filterIsInstance<org.umamo.format.cmo3.model.gen.CModelImageGroup>()
+					.filterIsInstance<CModelImageGroup>()
 					.single()
 					._modelImages,
-			).filterIsInstance<org.umamo.format.cmo3.model.custom.CModelImage>()
+			).filterIsInstance<CModelImage>()
 		assertEquals(1, modelImages.size, "one shared material, not one per twin")
 		val entries =
 			Cmo3Import.elementsOf(
 				Cmo3Import.elementsOf(textureManager._textureAtlases)
-					.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+					.filterIsInstance<CTextureAtlas>()
 					.single()
 					.modelImages,
-			).filterIsInstance<org.umamo.format.cmo3.model.gen.ModelImageEntry>()
+			).filterIsInstance<ModelImageEntry>()
 		assertEquals(1, entries.size, "one atlas entry for the shared material")
 		// The shared image keeps the FIRST drawable's placement (identity fit -> the block origin).
-		val placement = modelImages.single()._materialLocalToCanvasTransform as org.umamo.format.cmo3.model.type.CAffine
+		val placement = modelImages.single()._materialLocalToCanvasTransform as CAffine
 		assertEquals(10f, placement.m02, "shared placement is twin A's")
 		assertEquals(12f, placement.m12, "shared placement is twin A's")
 	}
@@ -388,39 +403,39 @@ class Cmo3ImageChainBuilderTest {
 			listOf(listOf(Cmo3ImageChainBuilder.DrawableRegion("SnapDrawable", uvs, positions, intArrayOf(0, 1, 2, 1, 2, 3)))),
 			nowMillis = 1_700_000_000_000L,
 		)
-		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		val textureManager = skeleton.root.textureManager as CTextureManager
 		val modelImage =
 			Cmo3Import.elementsOf(
 				Cmo3Import.elementsOf(textureManager._modelImageGroups)
-					.filterIsInstance<org.umamo.format.cmo3.model.gen.CModelImageGroup>()
+					.filterIsInstance<CModelImageGroup>()
 					.single()
 					._modelImages,
-			).filterIsInstance<org.umamo.format.cmo3.model.custom.CModelImage>().single()
-		val placement = modelImage._materialLocalToCanvasTransform as org.umamo.format.cmo3.model.type.CAffine
+			).filterIsInstance<CModelImage>().single()
+		val placement = modelImage._materialLocalToCanvasTransform as CAffine
 		assertEquals(10f, placement.m02, "placement x snaps to the whole canvas pixel (10.4 -> 10)")
 		assertEquals(12f, placement.m12, "placement y snaps to the whole canvas pixel (11.7 -> 12)")
 		val atlas =
 			Cmo3Import.elementsOf(textureManager._textureAtlases)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+				.filterIsInstance<CTextureAtlas>()
 				.single()
 		val entry =
 			Cmo3Import.elementsOf(atlas.modelImages)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.ModelImageEntry>()
+				.filterIsInstance<ModelImageEntry>()
 				.single()
-		val packing = entry.materialLocalToAtlasTransform as org.umamo.format.cmo3.model.gen.GTransform2
-		val packingPosition = packing.position as org.umamo.format.cmo3.model.type.GVector2
+		val packing = entry.materialLocalToAtlasTransform as GTransform2
+		val packingPosition = packing.position as GVector2
 		assertEquals(9.6f, packingPosition.x, 1e-4f, "packing origin carries the complementary x fraction")
 		assertEquals(12.3f, packingPosition.y, 1e-4f, "packing origin carries the complementary y fraction")
 		val layeredImage =
 			Cmo3Import.elementsOf(textureManager._rawImages)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.LayeredImageWrapper>()
+				.filterIsInstance<LayeredImageWrapper>()
 				.single()
-				.image as org.umamo.format.cmo3.model.gen.CLayeredImage
+				.image as CLayeredImage
 		val patchLayer =
-			Cmo3Import.elementsOf((layeredImage._rootLayer as org.umamo.format.cmo3.model.gen.CLayerGroup)._children)
-				.filterIsInstance<org.umamo.format.cmo3.model.custom.CLayer>()
+			Cmo3Import.elementsOf((layeredImage._rootLayer as CLayerGroup)._children)
+				.filterIsInstance<CLayer>()
 				.single()
-		val bounds = patchLayer.boundsOnImageDoc as org.umamo.format.cmo3.model.type.CRect
+		val bounds = patchLayer.boundsOnImageDoc as CRect
 		assertEquals(10, bounds.x, "bounds origin x equals the snapped placement")
 		assertEquals(12, bounds.y, "bounds origin y equals the snapped placement")
 	}
@@ -460,21 +475,21 @@ class Cmo3ImageChainBuilderTest {
 		assertEquals(10f, binding.inputImageLocalToCanvasTransform.m12, 1e-3f, "fitted y offset")
 
 		// The atlas entry carries the patch origin and the same fitted placement.
-		val textureManager = skeleton.root.textureManager as org.umamo.format.cmo3.model.gen.CTextureManager
+		val textureManager = skeleton.root.textureManager as CTextureManager
 		val atlas =
 			Cmo3Import.elementsOf(textureManager._textureAtlases)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+				.filterIsInstance<CTextureAtlas>()
 				.single()
 		val entry =
 			Cmo3Import.elementsOf(atlas.modelImages)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.ModelImageEntry>()
+				.filterIsInstance<ModelImageEntry>()
 				.single()
 		assertEquals(binding.modelImageGuid, entry.modelImageGuid, "entry joins the drawable's model image")
-		val packing = entry.materialLocalToAtlasTransform as org.umamo.format.cmo3.model.gen.GTransform2
-		val packingPosition = packing.position as org.umamo.format.cmo3.model.type.GVector2
+		val packing = entry.materialLocalToAtlasTransform as GTransform2
+		val packingPosition = packing.position as GVector2
 		assertEquals(2f, packingPosition.x, 1e-6f, "patch origin x on the page")
 		assertEquals(4f, packingPosition.y, 1e-6f, "patch origin y on the page")
-		val entryPlacement = entry.atlasLocalToCanvasTransform as org.umamo.format.cmo3.model.type.CAffine
+		val entryPlacement = entry.atlasLocalToCanvasTransform as CAffine
 		assertEquals(2f, entryPlacement.m00, 1e-4f, "entry placement matches the fit")
 		assertEquals(10f, entryPlacement.m12, 1e-3f, "entry placement matches the fit")
 
@@ -485,16 +500,16 @@ class Cmo3ImageChainBuilderTest {
 		// imageResource dims.
 		val layeredImage =
 			Cmo3Import.elementsOf(textureManager._rawImages)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.LayeredImageWrapper>()
+				.filterIsInstance<LayeredImageWrapper>()
 				.single()
-				.image as org.umamo.format.cmo3.model.gen.CLayeredImage
+				.image as CLayeredImage
 		assertEquals(pageSize, layeredImage.width, "doc width is the page")
 		assertEquals(pageSize, layeredImage.height, "doc height is the page")
 		val patchLayer =
-			Cmo3Import.elementsOf((layeredImage._rootLayer as org.umamo.format.cmo3.model.gen.CLayerGroup)._children)
-				.filterIsInstance<org.umamo.format.cmo3.model.custom.CLayer>()
+			Cmo3Import.elementsOf((layeredImage._rootLayer as CLayerGroup)._children)
+				.filterIsInstance<CLayer>()
 				.single()
-		val bounds = patchLayer.boundsOnImageDoc as org.umamo.format.cmo3.model.type.CRect
+		val bounds = patchLayer.boundsOnImageDoc as CRect
 		assertEquals(7, bounds.x, "bounds origin x is the fitted patch-origin placement (2*2 + 3)")
 		assertEquals(6, bounds.y, "bounds origin y is the fitted patch-origin placement (-1*4 + 10)")
 		assertEquals(2, bounds.width, "bounds width is the crop width")

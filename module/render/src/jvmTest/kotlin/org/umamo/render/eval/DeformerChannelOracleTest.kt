@@ -8,6 +8,7 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -48,8 +49,8 @@ class DeformerChannelOracleTest {
 
 	@Test
 	fun deformerChannelsCascadeToDrawablesLikeTheOracle() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val samples =
 			System.getProperty("moc3.samples")
 				?.let(::File)
@@ -95,7 +96,7 @@ class DeformerChannelOracleTest {
 					/*
 					 * The runtime core FREEZES an art mesh whose own keyform binding - or any ancestor
 					 * deformer's - is out of its keyed parameter range, skipping it entirely during the
-					 * update, so every computed field stays at the zero it was allocated with. Umamo
+					 * update, so every computed field stays at the zero it was allocated with.  Umamo
 					 * instead evaluates such a drawable live, and that difference spans geometry as well
 					 * as these channels (the oracle reports `vpos_h=0` for them), so it is a separate gap
 					 * from the channel cascade this test gates - see TODO § Puppet Model, CMO3, MOC3.
@@ -218,9 +219,9 @@ class DeformerChannelOracleTest {
 				}
 			}
 
-			// Clamp to the parameter's DECLARED range. A keyform axis can carry key positions outside
+			// Clamp to the parameter's DECLARED range.  A keyform axis can carry key positions outside
 			// it (nothing in the format forbids a rig keeping keys from a since-narrowed range), and
-			// the runtime core clamps the written value to [min, max] before evaluating. Sweeping an
+			// the runtime core clamps the written value to [min, max] before evaluating.  Sweeping an
 			// out-of-range value would compare our extrapolation against the core's clamp - a real
 			// difference, but a different one from the channel cascade this test gates.
 			for (value in visits.map { it.coerceIn(parameter.minimumValue, parameter.maximumValue) }.distinct().sorted()) {

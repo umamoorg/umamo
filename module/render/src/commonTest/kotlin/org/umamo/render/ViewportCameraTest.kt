@@ -6,7 +6,7 @@ import kotlin.test.assertTrue
 
 /**
  * Exercises the pure viewport-camera maths (no GL): fit framing, the world-to-NDC affine, cursor-pinned
- * zoom, grab pan, actual-size, and the zoom clamps. These are the invariants the interactive navigation
+ * zoom, grab pan, actual-size, and the zoom clamps.  These are the invariants the interactive navigation
  * relies on, isolated so they verify without a render context.
  */
 class ViewportCameraTest {

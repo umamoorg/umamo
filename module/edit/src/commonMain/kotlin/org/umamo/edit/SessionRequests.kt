@@ -146,8 +146,8 @@ interface SessionRequests {
 	fun requestRip(areaId: String?)
 
 	/**
-	 * Fires when an in-flight modal mesh gesture should confirm. The working positions live in the desktop
-	 * overlay, so the session cannot commit directly - it signals here and the overlay commits. This is the
+	 * Fires when an in-flight modal mesh gesture should confirm.  The working positions live in the desktop
+	 * overlay, so the session cannot commit directly - it signals here and the overlay commits.  This is the
 	 * keyboard path (Enter); a primary click confirms in the overlay's own pointer loop.
 	 */
 	val meshConfirmRequests: SharedFlow<Unit>

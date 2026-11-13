@@ -33,7 +33,7 @@ val hostArch =
 		osArch.contains("aarch64") || osArch.contains("arm64") -> "arm64"
 		else -> "x64"
 	}
-// EN: Skiko/Compose ships no windows-arm64 build; Windows-on-ARM runs the x64 artifact emulated.
+// Skiko/Compose ships no windows-arm64 build; Windows-on-ARM runs the x64 artifact emulated.
 val hostTarget =
 	if (hostOs == "windows" && hostArch == "arm64") {
 		"windows-x64"
@@ -41,8 +41,8 @@ val hostTarget =
 		"$hostOs-$hostArch"
 	}
 
-// EN: `findProperty` reads a Gradle project property (`-Pkey=value` on the command line, or a line in
-//     gradle.properties); it returns null when unset, so `?:` falls back to the host. The override wins.
+// `findProperty` reads a Gradle project property (`-Pkey=value` on the command line, or a line in
+// gradle.properties); it returns null when unset, so `?:` falls back to the host. The override wins.
 val requestedTarget = (findProperty("umamo.target") as String?)?.lowercase()?.trim()
 val resolvedTarget = requestedTarget ?: hostTarget
 
@@ -68,7 +68,7 @@ require(!requireTargetIsHost || resolvedTarget == hostTarget) {
 		"an artifact that runs nowhere."
 }
 
-// EN: LWJGL publishes its per-platform natives under these classifiers (org.lwjgl:lwjgl::natives-windows, …).
+// LWJGL publishes its per-platform natives under these classifiers (org.lwjgl:lwjgl::natives-windows, …).
 val lwjglNativesClassifier =
 	when (resolvedTarget) {
 		"linux-x64" -> "natives-linux"
@@ -79,7 +79,7 @@ val lwjglNativesClassifier =
 		else -> error("unreachable: resolvedTarget validated above")
 	}
 
-// EN: `extra` is Gradle's per-project untyped property bag; the applying module reads these back with
-//     `extra["umamoBuildTarget"] as String`. This is how an `apply(from =)` script returns values.
+// `extra` is Gradle's per-project untyped property bag; the applying module reads these back with
+// `extra["umamoBuildTarget"] as String`. This is how an `apply(from =)` script returns values.
 extra["umamoBuildTarget"] = resolvedTarget
 extra["umamoLwjglNatives"] = lwjglNativesClassifier

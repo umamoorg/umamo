@@ -6,6 +6,8 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ElementEditKind
 import org.umamo.edit.KeyformAction
 import org.umamo.edit.KeyformAim
+import org.umamo.edit.MeshOperatorKind
+import org.umamo.edit.ParameterChange
 import org.umamo.edit.ParameterSelection
 import org.umamo.edit.PoseLatticeTestRig.cage
 import org.umamo.edit.PoseLatticeTestRig.parameterP
@@ -216,7 +218,7 @@ class LatticeCaptureTest {
 		session.removeKeysOnTracks(listOf(track(cage), track(second)), null, KeyformAim.Pose)
 		assertEquals(listOf(-1f, 1f), keysOf(session, cage, parameterP), "the key at the pose goes, the warp without one is left alone")
 
-		session.commitPose(org.umamo.edit.ParameterChange.SetValue(listOf(parameterP)), session.pose.value + (parameterP to 1f))
+		session.commitPose(ParameterChange.SetValue(listOf(parameterP)), session.pose.value + (parameterP to 1f))
 		val modelBefore = session.model.value
 		session.removeKeysOnTracks(listOf(track(cage)), null, KeyformAim.Pose)
 		assertSame(modelBefore, session.model.value, "a warp's last axis is never collapsed")

@@ -1,5 +1,4 @@
 # Version catalog — single source of truth for dependency + plugin versions.
-# バージョンカタログ：依存とプラグインのバージョンを一元管理する。
 # Why: Gradle's typed `libs.*` accessors beat scattered string versions in each
 # build script — one place to bump, compile-checked references.
 [versions]

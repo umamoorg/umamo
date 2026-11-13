@@ -133,9 +133,9 @@ internal fun TrackLane(
 							}
 						},
 					)
-					// ONE gesture handler for tap AND drag. Two separate pointerInput blocks would race: a drag
+					// ONE gesture handler for tap AND drag.  Two separate pointerInput blocks would race: a drag
 					// detector would consume the down before a tap detector saw it, so clicking a mark would do
-					// nothing and neither selection nor dragging would work. Deciding between them from a single
+					// nothing and neither selection nor dragging would work.  Deciding between them from a single
 					// stream is the only way they cannot fight.
 					.pointerInput(row.key, axis, markRadiusPx) {
 						trackLaneGestureLoop(row, axis, markRadiusPx, touchSlop, latestEditableMarks, latestCallbacks, drag)

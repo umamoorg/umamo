@@ -1,5 +1,6 @@
 package org.umamo.format.jpeg
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -53,9 +54,7 @@ class JpegDecodeCorpusTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no jpeg.sample and no test/corpus JPEGs; skipping JPEG corpus test")
-
-			return
+			skipTest("no jpeg.sample and no test/corpus JPEGs; skipping JPEG corpus test")
 		}
 
 		for (sample in samples) {

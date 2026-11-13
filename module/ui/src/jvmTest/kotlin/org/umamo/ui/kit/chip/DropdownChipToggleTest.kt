@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
@@ -167,7 +168,7 @@ class DropdownChipToggleTest {
 	 * @param String description The node's content description.
 	 * @return Float The node's width in dp.
 	 */
-	private fun androidx.compose.ui.test.ComposeUiTest.widthOf(description: String): Float {
+	private fun ComposeUiTest.widthOf(description: String): Float {
 		val bounds = onNodeWithContentDescription(description, useUnmergedTree = true).getBoundsInRoot()
 
 		return (bounds.right - bounds.left).value
@@ -179,7 +180,7 @@ class DropdownChipToggleTest {
 	 * @param String label The row's text.
 	 * @return Boolean True while the panel shows the row.
 	 */
-	private fun androidx.compose.ui.test.ComposeUiTest.panelShows(label: String): Boolean =
+	private fun ComposeUiTest.panelShows(label: String): Boolean =
 		onAllNodes(hasText(label) and hasAnyAncestor(isPopup()), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
 	private companion object {

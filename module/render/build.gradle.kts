@@ -1,9 +1,7 @@
 // :render — deformation eval (CPU) + the backend-neutral PuppetRenderer + morph-blend shaders, over a
-// RenderDevice backend seam. Everything except the device impls is commonMain (jvm/android/iosArm64);
+// RenderDevice backend seam.  Everything except the device impls is commonMain (jvm/android/iosArm64);
 // GlRenderDevice (LWJGL, desktop GL 3.3) lives in jvmMain, the GLES/Metal devices are stubs in
-// androidMain/iosMain. Zero expect/actual. Depends on :runtime for the puppet model.
-// :render — 変形評価（CPU）＋バックエンド非依存の PuppetRenderer。RenderDevice が継ぎ目で、GL 実装のみ
-// jvmMain。GLES / Metal デバイスはスタブ。:runtime に依存。
+// androidMain/iosMain.  Zero expect/actual.  Depends on :runtime for the puppet model.
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
@@ -15,11 +13,10 @@ plugins {
 	id("umamo.test-corpus")
 }
 
-// EN: LWJGL ships its native libraries as classifier'd artifacts; pick the one for the build target.
-//     Default is the host; -Pumamo.target=<os>-<arch> cross-resolves (e.g. windows-x64 from WSL2). The
-//     selection is shared with :desktop so a cross-build can't bundle this module's host natives by
-//     mistake — see gradle/build-target.gradle.kts. (Desktop only — Android uses GLES via android.opengl.)
-// JA: LWJGL のネイティブ分類子を選ぶ。既定はホスト、-Pumamo.target で他プラットフォーム向けに解決。
+// LWJGL ships its native libraries as classifier'd artifacts; pick the one for the build target.
+// Default is the host; -Pumamo.target=<os>-<arch> cross-resolves (e.g. windows-x64 from WSL2).  The
+// selection is shared with :desktop so a cross-build can't bundle this module's host natives by
+// mistake — see gradle/build-target.gradle.kts.  (Desktop only — Android uses GLES via android.opengl.)
 apply(from = rootProject.file("gradle/build-target.gradle.kts"))
 val lwjglNatives = extra["umamoLwjglNatives"] as String
 
@@ -35,8 +32,8 @@ kotlin {
 	// The iPadOS ship target, mirroring :format/:runtime (see :format's docblock for the rationale).
 	// This is what the Metal engineer builds against: iosMain sees the whole backend-neutral stack —
 	// PuppetRenderer, the RenderDevice API, eval, pose/diff/glue planning — and supplies one
-	// MetalRenderDevice. It also turns commonMain purity for all of that from the root regex gate's
-	// convention into a compiler guarantee. Compiles on Linux/CI (klib only, no Xcode linker); a device
+	// MetalRenderDevice.  It also turns commonMain purity for all of that from the root regex gate's
+	// convention into a compiler guarantee.  Compiles on Linux/CI (klib only, no Xcode linker); a device
 	// target has no runnable test task, so `umamo.kmp-ios-gate` wires `check` to the compiles.
 	iosArm64()
 
@@ -55,7 +52,7 @@ kotlin {
 				// `api`: :format types sit in the renderer's own public surface too — RasterImage in
 				// RenderDevice's upload API, PngCodec behind the atlas decode, and the CMO3/MOC3 node
 				// types the two texture adapters walk — and :runtime is format-free, so nothing supplies
-				// :format transitively. Those adapters are commonMain: the CMO3 graph node types live in
+				// :format transitively.  Those adapters are commonMain: the CMO3 graph node types live in
 				// :format's commonMain, and only the JDOM-built Cmo3Model wrapper does not, so the
 				// adapter takes a CModelSource plus an injected pixel lookup and this module needs no
 				// jvmAndroidMain at all.
@@ -80,6 +77,8 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				// The oracle/parity tests ingest corpus models through :interop's Cmo3Import/Moc3Import.
 				implementation(project(":interop"))
 				// Headless GL (GLFW hidden window) for the GPU-vs-CPU transform-feedback validation test.

@@ -78,7 +78,7 @@ class GlueLayoutTest {
 	@Test
 	fun planGlueLayoutAssignsOffsetsInDrawableOrderSkippingUngluedMeshes() {
 		// "middle" is not glued, so it takes no region: offsets follow model.drawables order over the
-		// GLUED meshes only. Both the pass-1 write and the pass-2 partner read depend on this exactly.
+		// GLUED meshes only.  Both the pass-1 write and the pass-2 partner read depend on this exactly.
 		val drawables = listOf(drawable("a", 4), drawable("middle", 9), drawable("b", 2))
 		val glue = Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f)))
 		val layout = planGlueLayout(model(drawables, listOf(glue)))
@@ -124,7 +124,7 @@ class GlueLayoutTest {
 	@Test
 	fun planGlueLayoutGivesAnIndexLessAnchorItsOwnRegion() {
 		// A zero-triangle anchor draws nothing but is a weld partner, so it MUST still get a region: pass 1
-		// deforms it, and pass 2 reads its positions. Dropping it would weld against uninitialised memory.
+		// deforms it, and pass 2 reads its positions.  Dropping it would weld against uninitialised memory.
 		val anchor = drawable("anchor", 4).let { Drawable(it.id, it.name, null, BlendMode.Normal, emptyList(), it.mesh, it.geometryGrid) }
 		val drawables = listOf(anchor, drawable("b", 2))
 		val glue = Glue(DrawableId("anchor"), DrawableId("b"), listOf(GluePair(0, 0, 0f, 1f)))
@@ -165,13 +165,13 @@ class GlueLayoutTest {
 	@Test
 	fun planGlueLayoutLeavesGlueBeyondTheShaderArrayUnwelded() {
 		// The shader's glueIntensity[] uniform has exactly MAX_GLUES slots; a vertex tagged with glue index
-		// >= MAX_GLUES would read it out of bounds. Those pairs must stay -1 (unwelded), which is what makes
+		// >= MAX_GLUES would read it out of bounds.  Those pairs must stay -1 (unwelded), which is what makes
 		// resolvePose's "renders unwelded" promise true rather than an out-of-bounds read.
-		val a = drawable("a", 1)
-		val b = drawable("b", 1)
-		// MAX_GLUES + 1 glues, all on the same pair. The first MAX_GLUES tag vertex 0; the last must not.
+		val drawableA = drawable("a", 1)
+		val drawableB = drawable("b", 1)
+		// MAX_GLUES + 1 glues, all on the same pair.  The first MAX_GLUES tag vertex 0; the last must not.
 		val glues = List(MAX_GLUES + 1) { Glue(DrawableId("a"), DrawableId("b"), listOf(GluePair(0, 0, 0.5f, 0.5f))) }
-		val layout = planGlueLayout(model(listOf(a, b), glues))
+		val layout = planGlueLayout(model(listOf(drawableA, drawableB), glues))
 		// Each pair overwrites vertex 0's tag, so after the loop it holds the LAST in-bounds glue index.
 		assertEquals(MAX_GLUES - 1, layout.attributesById.getValue(DrawableId("a")).glueIndex[0], "the last addressable glue tags the vertex")
 		assertTrue(

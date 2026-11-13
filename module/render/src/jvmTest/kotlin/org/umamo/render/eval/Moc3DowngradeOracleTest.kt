@@ -8,6 +8,7 @@ import org.umamo.interop.ExportNotice
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.RuntimeFeature
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -32,8 +33,8 @@ import kotlin.test.assertTrue
 class Moc3DowngradeOracleTest {
 	@Test
 	fun everyDowngradeLoadsAndDropsWhatItPromised() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val samples =
 			System.getProperty("moc3.samples")
 				?.let(::File)

@@ -11,6 +11,7 @@ import org.umamo.render.glsl.MAX_GLUES
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.hypot
 import kotlin.test.Test
@@ -48,9 +49,7 @@ class GlueSeamGapProbeTest {
 		val rigs = corpusRigs()
 
 		if (rigs.isEmpty()) {
-			println("$PROBE_TAG no corpus rigs (cmo3.probe, moc3.samples); skipping")
-
-			return
+			skipTest("$PROBE_TAG no corpus rigs (cmo3.probe, moc3.samples); skipping")
 		}
 
 		for (rig in rigs) {

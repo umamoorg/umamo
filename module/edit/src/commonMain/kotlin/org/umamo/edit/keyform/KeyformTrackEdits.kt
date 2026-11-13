@@ -82,7 +82,11 @@ fun PuppetModel.withTrackKeyRemoved(track: KeyformTrackRef, parameter: Parameter
 		is KeyformTrackRef.Geometry -> withGeometryKeyRemoved(track.owner, parameter, keyIndex)
 	}
 
-/** The history-label channel for [track] - null for geometry, which has no channel to name. */
+/**
+ * The history-label channel for [track] - null for geometry, which has no channel to name.
+ *
+ * @param KeyformTrackRef track The track being edited.
+ */
 private fun channelOf(track: KeyformTrackRef) =
 	when (track) {
 		is KeyformTrackRef.Channel -> track.target.channel
@@ -482,7 +486,13 @@ fun PuppetModel.trackKeyIndexAtPose(track: KeyformTrackRef, parameter: Parameter
 fun PuppetModel.trackKeyIndexAt(track: KeyformTrackRef, parameter: Parameter, value: Float): Int =
 	trackGridOf(this, track)?.keyIndexAt(parameter.id, value) ?: -1
 
-/** The grid behind [track] - its owner's channel track or its geometry - or null when there is none. */
+/**
+ * The grid behind [track] - its owner's channel track or its geometry - or null when there is none.
+ *
+ * @param PuppetModel puppet The model to read.
+ * @param KeyformTrackRef track The track to resolve.
+ * @return KeyformGrid<*>? The track's grid, or null.
+ */
 private fun trackGridOf(puppet: PuppetModel, track: KeyformTrackRef): KeyformGrid<*>? =
 	when (track) {
 		is KeyformTrackRef.Channel -> puppet.channelGridsOf(track.owner)?.get(track.target.channel)

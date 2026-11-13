@@ -15,8 +15,14 @@ import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
 import org.umamo.format.cmo3.model.gen.Type
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
+import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.ParameterType
+import org.umamo.format.moc3.moc.Section
+import org.umamo.format.moc3.model.BlendShapeKeyform
 import org.umamo.format.moc3.model.BlendShapeTarget
+import org.umamo.format.moc3.model.RotationDeformer
+import org.umamo.format.moc3.model.WarpDeformer
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -27,7 +33,7 @@ import kotlin.test.assertTrue
  * the neutral key comes from, and whether a NORMAL-typed parameter can drive a morph target.
  *
  * The join is by id for art meshes and by document-order index for deformers - the index
- * correspondence is itself one of the hypotheses this probe checks. Keyed on Model A's pair from
+ * correspondence is itself one of the hypotheses this probe checks.  Keyed on Model A's pair from
  * `cmo3.probe` + `moc3.samples`; skips gracefully when either is absent.
  */
 class MorphTargetJoinProbeTest {
@@ -55,9 +61,7 @@ class MorphTargetJoinProbeTest {
 		val moc3File = modelAMoc3
 
 		if (cmo3File == null || moc3File == null) {
-			println("Model A corpus pair not present; skipping morph-target join probe")
-
-			return
+			skipTest("Model A corpus pair not present; skipping morph-target join probe")
 		}
 
 		val root = Cmo3.read(cmo3File).root as? CModelSource ?: error("root is not a CModelSource")
@@ -152,8 +156,8 @@ class MorphTargetJoinProbeTest {
 		// MOC3 side.
 		val document = Moc3.read(moc3File.readBytes())
 		val records = document.blendShapes
-		val warpIndexToDeformer = document.deformers.withIndex().filter { it.value is org.umamo.format.moc3.model.WarpDeformer }.map { it.index }
-		val rotationIndexToDeformer = document.deformers.withIndex().filter { it.value is org.umamo.format.moc3.model.RotationDeformer }.map { it.index }
+		val warpIndexToDeformer = document.deformers.withIndex().filter { it.value is WarpDeformer }.map { it.index }
+		val rotationIndexToDeformer = document.deformers.withIndex().filter { it.value is RotationDeformer }.map { it.index }
 		println("[probe] MOC3 records=${records.size} (params typed BLEND_SHAPE=${document.parameters.count { it.type == ParameterType.BLEND_SHAPE }})")
 
 		// E3 join: meshes by id, deformers by document-order index within their kind.
@@ -282,13 +286,11 @@ class MorphTargetJoinProbeTest {
 				.orEmpty()
 
 		if (samples.isEmpty()) {
-			println("moc3.samples not present; skipping neutral-delta probe")
-
-			return
+			skipTest("moc3.samples not present; skipping neutral-delta probe")
 		}
 
 		for (file in samples) {
-			val model = org.umamo.format.moc3.moc.MocCodec.read(file.readBytes())
+			val model = MocCodec.read(file.readBytes())
 			val document = Moc3.decode(model)
 
 			if (document.blendShapes.isEmpty()) {
@@ -296,18 +298,18 @@ class MorphTargetJoinProbeTest {
 			}
 
 			val sections = model.sections
-			val positionValues = sections.floatArray(org.umamo.format.moc3.moc.Section.KEYFORM_POSITION_VALUES)
-			val meshPositionIndex = sections.intArray(org.umamo.format.moc3.moc.Section.KEYFORM_POSITION_INDEX)
-			val warpPositionIndex = sections.intArray(org.umamo.format.moc3.moc.Section.WARP_KEYFORM_INDEX)
-			val rotationAngle = sections.floatArray(org.umamo.format.moc3.moc.Section.ROTATION_ANGLE)
-			val rotationOriginX = sections.floatArray(org.umamo.format.moc3.moc.Section.ROTATION_ORIGIN_X)
-			val rotationOriginY = sections.floatArray(org.umamo.format.moc3.moc.Section.ROTATION_ORIGIN_Y)
-			val rotationScale = sections.floatArray(org.umamo.format.moc3.moc.Section.ROTATION_SCALE)
+			val positionValues = sections.floatArray(Section.KEYFORM_POSITION_VALUES)
+			val meshPositionIndex = sections.intArray(Section.KEYFORM_POSITION_INDEX)
+			val warpPositionIndex = sections.intArray(Section.WARP_KEYFORM_INDEX)
+			val rotationAngle = sections.floatArray(Section.ROTATION_ANGLE)
+			val rotationOriginX = sections.floatArray(Section.ROTATION_ORIGIN_X)
+			val rotationOriginY = sections.floatArray(Section.ROTATION_ORIGIN_Y)
+			val rotationScale = sections.floatArray(Section.ROTATION_SCALE)
 
 			// (2) Table-level: sec122[record] == BINDING_KEY_COUNT[RECORD_BINDING[record]].
-			val recordBinding = sections.intArray(org.umamo.format.moc3.moc.Section.BLENDSHAPE_RECORD_BINDING)
-			val bindingKeyCount = sections.intArray(org.umamo.format.moc3.moc.Section.BLENDSHAPE_BINDING_KEY_COUNT)
-			val recordKeyCount = sections.intArray(org.umamo.format.moc3.moc.Section.BLENDSHAPE_RECORD_KEY_COUNT)
+			val recordBinding = sections.intArray(Section.BLENDSHAPE_RECORD_BINDING)
+			val bindingKeyCount = sections.intArray(Section.BLENDSHAPE_BINDING_KEY_COUNT)
+			val recordKeyCount = sections.intArray(Section.BLENDSHAPE_RECORD_KEY_COUNT)
 
 			for (recordIndex in document.blendShapes.indices) {
 				kotlin.test.assertEquals(
@@ -337,7 +339,7 @@ class MorphTargetJoinProbeTest {
 						}
 
 						for (keyIndex in record.keyforms.indices) {
-							val typed = record.keyforms[keyIndex] as org.umamo.format.moc3.model.BlendShapeKeyform.Mesh
+							val typed = record.keyforms[keyIndex] as BlendShapeKeyform.Mesh
 							val rawOffset = meshPositionIndex[record.recordBase + keyIndex]
 							kotlin.test.assertEquals(blockLength, typed.form.vertexPositions.size, "${file.name}: typed mesh block length")
 
@@ -353,7 +355,7 @@ class MorphTargetJoinProbeTest {
 					}
 
 					BlendShapeTarget.WARP -> {
-						val warp = document.deformers[record.targetIndex] as org.umamo.format.moc3.model.WarpDeformer
+						val warp = document.deformers[record.targetIndex] as WarpDeformer
 						val blockLength = warp.keyforms.first().controlPoints.size
 						val offset = warpPositionIndex[neutralRow]
 
@@ -362,7 +364,7 @@ class MorphTargetJoinProbeTest {
 						}
 
 						for (keyIndex in record.keyforms.indices) {
-							val typed = record.keyforms[keyIndex] as org.umamo.format.moc3.model.BlendShapeKeyform.Warp
+							val typed = record.keyforms[keyIndex] as BlendShapeKeyform.Warp
 							val rawOffset = warpPositionIndex[record.recordBase + keyIndex]
 							kotlin.test.assertEquals(blockLength, typed.form.controlPoints.size, "${file.name}: typed warp block length")
 
@@ -384,7 +386,7 @@ class MorphTargetJoinProbeTest {
 						assertTrue(rotationScale[neutralRow] == 0f, "${file.name}: rotation neutral scale zero")
 
 						for (keyIndex in record.keyforms.indices) {
-							val typed = record.keyforms[keyIndex] as org.umamo.format.moc3.model.BlendShapeKeyform.Rotation
+							val typed = record.keyforms[keyIndex] as BlendShapeKeyform.Rotation
 							val rawRow = record.recordBase + keyIndex
 							assertTrue(typed.form.angle == rotationAngle[rawRow], "${file.name}: typed rotation angle equals raw at key $keyIndex")
 							assertTrue(typed.form.originX == rotationOriginX[rawRow], "${file.name}: typed rotation originX equals raw at key $keyIndex")

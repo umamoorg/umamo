@@ -3,9 +3,8 @@ package org.umamo.format.cmo3.io
 /**
  * Big-endian, XOR-obfuscating writer into a growable byte buffer.
  *
- * EN: Inverse of [BinaryReader];
- *     same big-endian + width-keyed XOR conventions.
- * JA: [BinaryReader] の逆操作。
+ * Inverse of [BinaryReader];
+ * same big-endian + width-keyed XOR conventions.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 Container: CAFF</a>
  */
@@ -16,17 +15,30 @@ public class BinaryWriter(initialCapacity: Int = 64 * 1024) {
 	public var position: Int = 0
 		private set
 
+	/**
+	 * Grows the buffer so that more bytes fit past the cursor.
+	 *
+	 * @param Int additional The number of bytes about to be written.
+	 */
 	private fun ensure(additional: Int) {
 		val needed = position + additional
 
 		if (needed > buffer.size) {
 			var newSize = buffer.size * 2
-			if (newSize < needed) newSize = needed
+
+			if (newSize < needed) {
+				newSize = needed
+			}
+
 			buffer = buffer.copyOf(newSize)
 		}
 	}
 
-	/** Returns a copy of the written bytes (length == [position]). */
+	/**
+	 * Returns a copy of the written bytes (length == [position]).
+	 *
+	 * @return ByteArray A copy of the bytes written so far.
+	 */
 	public fun toByteArray(): ByteArray = buffer.copyOf(position)
 
 	/**

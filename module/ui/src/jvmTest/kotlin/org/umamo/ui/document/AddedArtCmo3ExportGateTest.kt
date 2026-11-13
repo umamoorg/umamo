@@ -23,6 +23,7 @@ import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.cmo3.cmo3AtlasIngest
 import org.umamo.interop.cmo3.cmo3SourceArtOf
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.artwork.AddArtworkRequest
 import org.umamo.ui.model.artwork.runAddArtwork
@@ -54,9 +55,7 @@ class AddedArtCmo3ExportGateTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the added-art export gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the added-art export gate")
 			}
 
 			val load = loadDocument(file.readBytes(), file.name, file.path)

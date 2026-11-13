@@ -42,7 +42,7 @@ val TRACK_LABEL_COLUMN_MIN_WIDTH: Dp = 80.dp
 /** The widest the label column may be dragged, so the track region can never be squeezed away entirely. */
 val TRACK_LABEL_COLUMN_MAX_WIDTH: Dp = 420.dp
 
-/** Row height. Two lines of text (name over its type), so taller than a single-line tree row. */
+/** Row height.  Two lines of text (name over its type), so taller than a single-line tree row. */
 val TRACK_ROW_HEIGHT: Dp = 32.dp
 
 /** The ruler strip's height. */

@@ -21,7 +21,5 @@ public interface RasterCodec : FormatCodec<RasterImage>
  * A [RasterCodec] for a format Umamo decodes but does not encode (JPEG lossy, WebP, TIFF).  Inherits
  * a refusing [write] from [ReadOnlyCodec], so the read-only nature is stated once in the type; the
  * corresponding [org.umamo.format.FileKind] declares writable = false to advertise it before a call.
- *
- * 読み取り専用のラスタコーデック(JPEG/WebP/TIFF)。write は常に拒否する。
  */
 public interface ReadOnlyRasterCodec : RasterCodec, ReadOnlyCodec<RasterImage>

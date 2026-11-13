@@ -93,6 +93,7 @@ private val CHORD_CHIP_MIN_WIDTH = 148.dp
  * Setup share it.  A switch keeps the user's per-command overrides, which layer on whichever preset is chosen.
  *
  * @param Function onSelect Called after a preset is picked, for the host's own bookkeeping.
+ * @param Boolean quick True to label the row for Quick Setup.
  */
 @Composable
 internal fun KeymapPresetSettingRow(onSelect: () -> Unit = {}, quick: Boolean = false) {

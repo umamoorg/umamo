@@ -3,16 +3,15 @@ package org.umamo.format
 /**
  * The shared read/write contract for one binary container format in the Cubism/Umamo file family.
  *
- * EN: Every format Umamo can both parse and emit as a self-contained byte stream (`.uma`, `.cmo3`,
- *     and `.moc3`) exposes the same members, so callers and the [FormatRegistry]
- *     dispatcher treat formats uniformly instead of hardcoding one facade's method names. The
- *     in-memory model type differs per format ([org.umamo.format.cmo3.Cmo3Model] vs
- *     [org.umamo.format.moc3.MocDocument]) and the models share no supertype - hence the generic
- *     [TModel]; a heterogeneous registry holds `FormatCodec<*>` and callers branch on [kind]. The
- *     dependency runs codec → [FileKind] (a codec names its kind), never the reverse, so [FileKind]
- *     stays pure metadata. Text sidecars (`model3.json` and friends) are `String`-shaped, not
- *     `ByteArray`, so they deliberately fall outside this contract.
- * JA: `.cmo3`/`.moc3` など「バイト列で完結する」形式の共通読み書き契約。モデル型は形式ごとに異なる。
+ * Every format Umamo can both parse and emit as a self-contained byte stream (`.uma`, `.cmo3`,
+ * and `.moc3`) exposes the same members, so callers and the [FormatRegistry]
+ * dispatcher treat formats uniformly instead of hardcoding one facade's method names.  The
+ * in-memory model type differs per format ([org.umamo.format.cmo3.Cmo3Model] vs
+ * [org.umamo.format.moc3.MocDocument]) and the models share no supertype - hence the generic
+ * [TModel]; a heterogeneous registry holds `FormatCodec<*>` and callers branch on [kind].  The
+ * dependency runs codec → [FileKind] (a codec names its kind), never the reverse, so [FileKind]
+ * stays pure metadata.  Text sidecars (`model3.json` and friends) are `String`-shaped, not
+ * `ByteArray`, so they deliberately fall outside this contract.
  */
 public interface FormatCodec<TModel> {
 	/** Which [FileKind] this codec reads and writes - the link to capability/tier metadata. */
@@ -63,8 +62,6 @@ public interface FormatCodec<TModel> {
  * (PSD, CLIP, KRA), whose [FileKind] already declares `writable = false`.  Inherits a [write] that
  * refuses, so the read-only nature is stated once in the type instead of copy-pasted throws in each
  * reader; the [FormatRegistry] still holds these uniformly as `FormatCodec<*>`.
- *
- * 読み取り専用形式（PSD/CLIP/KRA などの画材取り込み元）用の FormatCodec。write は常に拒否する。
  */
 public interface ReadOnlyCodec<TModel> : FormatCodec<TModel> {
 	/**

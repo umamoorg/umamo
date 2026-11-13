@@ -6,18 +6,16 @@ import org.umamo.format.binary.decodeAscii
  * Parser for one Krita layer's tiled pixel-data file (the imageName/layers/filename entry inside
  * the ZIP).
  *
- * The file is a tiny ASCII header followed by a sequence of tiles. Each tile is a 64x64 block at a
+ * The file is a tiny ASCII header followed by a sequence of tiles.  Each tile is a 64x64 block at a
  * given paint-device coordinate; a tile is present only where the layer has content (Krita's canvas
  * is unbounded), so the layer's extent is the union of its tile rectangles.
  *
  * The header is one KEY VALUE pair per newline-terminated line, in this order: VERSION 2,
- * TILEWIDTH 64, TILEHEIGHT 64, PIXELSIZE bytesPerPixel, DATA tileCount. Each tile then has a line
+ * TILEWIDTH 64, TILEHEIGHT 64, PIXELSIZE bytesPerPixel, DATA tileCount.  Each tile then has a line
  * x,y,LZF,dataSize followed by dataSize bytes whose first byte flags raw vs LZF-compressed payload
  * (see decodeTilePayload).
  *
  * KRA: header in kis_tiled_data_manager.cc:181-196; per-tile framing in kis_tile_compressor_2.cpp.
- *
- * Krita レイヤーのタイル化ピクセルデータの解析。ASCII ヘッダとタイル列。タイルは内容のある箇所のみ存在する。
  */
 
 /** One decoded 64x64 tile: its top-left paint-device coordinate and interleaved native-order pixels. */
@@ -59,7 +57,7 @@ internal fun parseKraLayerTiles(data: ByteArray): KraLayerTiles {
 	val tiles = ArrayList<KraTile>(tileCount)
 
 	for (tileIndex in 0 until tileCount) {
-		// Tile header: x,y,LZF,dataSize. KRA: kis_tile_compressor_2.cpp:56-66.
+		// Tile header: x,y,LZF,dataSize.  KRA: kis_tile_compressor_2.cpp:56-66.
 		val fields = cursor.readLine().split(',')
 		require(fields.size == 4) {
 			"Malformed KRA tile header at tile $tileIndex"

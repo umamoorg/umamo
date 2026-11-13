@@ -20,6 +20,7 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.deformerChain
+import org.umamo.testkit.skipTest
 import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.transform.createWarpAdjustable
 import org.umamo.ui.transform.deleteTargetKeepingRest
@@ -56,9 +57,7 @@ class WarpCreationExportGateTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the warp creation export gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the warp creation export gate")
 			}
 
 			val document = assertIs<Cmo3Document>(assertIs<DocumentLoad.Loaded>(loadDocument(file.readBytes(), file.name, file.path)).document)

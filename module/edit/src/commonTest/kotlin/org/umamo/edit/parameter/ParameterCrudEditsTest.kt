@@ -40,7 +40,7 @@ import kotlin.test.assertTrue
  * Pins the parameter document edits: create mints a fresh animatable axis at the top and returns its id,
  * rename changes the display name (id-stable) with blank / unchanged no-ops, and delete removes the axis
  * from the parameters list, the panel tree, any link, and every keyform grid - collapsing a grid to the
- * deleted parameter's default slice or to null when it was the last axis. Also pins the generic
+ * deleted parameter's default slice or to null when it was the last axis.  Also pins the generic
  * withAxisCollapsed coordinate math, and that each edit undoes.
  */
 class ParameterCrudEditsTest {

@@ -4,8 +4,7 @@
 # The release workflow runs this against every app image it archives, after unpacking the archive, so it
 # proves what nothing else in CI does: that the thing a rigger downloads starts at all - the jlinked runtime,
 # the launcher's JVM options, the natives, and the archive's own execute bits and symlinks.  The session log
-# (docs/plan/distribution.md Phase 0) already records everything the check needs, so the app needs no test
-# mode of its own.
+# already records everything the check needs, so the app needs no test mode of its own.
 #
 # It fails when the log never says the installed launcher started it, when the app dies first, when the log
 # records an uncaught exception, when the JVM printed a warning on stderr (the launcher options exist to keep

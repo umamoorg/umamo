@@ -1,5 +1,6 @@
 package org.umamo.interop.cmo3
 
+import org.umamo.format.art.LayerBounds
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelImage
@@ -12,6 +13,7 @@ import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.cropped
 import org.umamo.format.raster.fittedInto
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -85,7 +87,7 @@ class Cmo3IconDifferentialTest {
 	private fun trimmed(art: RasterImage): RasterImage {
 		val box = alphaBox(art) ?: return art
 
-		return art.cropped(org.umamo.format.art.LayerBounds(box[0], box[1], box[2], box[3]))
+		return art.cropped(LayerBounds(box[0], box[1], box[2], box[3]))
 	}
 
 	private fun boxDeltaOf(ours: IntArray?, theirs: IntArray?, size: Int): Int =
@@ -100,9 +102,7 @@ class Cmo3IconDifferentialTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping the icon differential")
-
-			return
+			skipTest("cmo3.sample not present; skipping the icon differential")
 		}
 
 		val cmo3 = Cmo3.read(file.readBytes())

@@ -22,12 +22,15 @@ import org.umamo.render.device.GridUniforms
 import org.umamo.render.device.LoadAction
 import org.umamo.render.device.OverlayDrawUniforms
 import org.umamo.render.device.OverlayMeshBuffers
+import org.umamo.render.device.PipelineBlend
 import org.umamo.render.device.RenderPassEncoder
 import org.umamo.render.device.RenderPassSpec
 import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureWrap
 import org.umamo.render.device.WorldToNdc
+import org.umamo.render.glsl.MAX_BLEND_CORNERS
+import org.umamo.render.glsl.MAX_CORNERS
 import org.umamo.render.glsl.UNIT_ATLAS
 import org.umamo.render.glsl.UNIT_CP
 import org.umamo.render.glsl.UNIT_DELTA
@@ -112,7 +115,7 @@ internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {
 	}
 
 	override fun barrier(store: DeformedPositionStore) {
-		// The declared write→read dependency on the position store. The WSL d3d12/Mesa stack does not order
+		// The declared write→read dependency on the position store.  The WSL d3d12/Mesa stack does not order
 		// transform-feedback writes before a later texture-buffer read, and glMemoryBarrier does not cover
 		// feedback writes (they are coherent-pipeline writes), so the full sync is the only reliable fix.
 		// Called only on pose-change frames, so a static pose pays nothing.
@@ -120,7 +123,7 @@ internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {
 	}
 
 	override fun endFrame() {
-		// Nothing to submit on GL: the calls already ran. A command-buffer backend would commit here.
+		// Nothing to submit on GL: the calls already ran.  A command-buffer backend would commit here.
 	}
 }
 
@@ -137,7 +140,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 	private var pipeline: GlRenderPipeline? = null
 	private val current: GlRenderPipeline get() = pipeline ?: error("setPipeline before drawing")
 
-	// Per-program state is re-established only when the program actually switches. A uniform keeps its value
+	// Per-program state is re-established only when the program actually switches.  A uniform keeps its value
 	// on the program object across binds, and the renderer passes the same camera / glue state for a whole
 	// pass, so re-sending them per draw is wasted work: a run of same-blend drawables would otherwise churn
 	// glUseProgram + blend + samplers + camera every draw.
@@ -152,8 +155,8 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 	private val overlayColorScratch = BufferUtils.createFloatBuffer(4)
 
 	// Scratch for the corner uniform arrays, reused across draws so the per-draw marshalling never allocates.
-	private val cornerCellScratch = BufferUtils.createIntBuffer(org.umamo.render.glsl.MAX_CORNERS)
-	private val cornerWeightScratch = BufferUtils.createFloatBuffer(org.umamo.render.glsl.MAX_CORNERS)
+	private val cornerCellScratch = BufferUtils.createIntBuffer(MAX_CORNERS)
+	private val cornerWeightScratch = BufferUtils.createFloatBuffer(MAX_CORNERS)
 
 	override fun setPipeline(pipeline: RenderPipeline) {
 		val glPipeline = pipeline as GlRenderPipeline
@@ -387,7 +390,13 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 		GL11.glDisable(GL11.GL_SCISSOR_TEST)
 	}
 
-	/** Sets a draw's fragment uniforms and binds its atlas / mask textures when present. */
+	/**
+	 * Sets a draw's fragment uniforms and binds its atlas / mask textures when present.
+	 *
+	 * @param GlRenderPipeline pipeline The bound pipeline, whose uniform locations are used.
+	 * @param FragmentUniforms fragment The draw's fragment uniform values.
+	 * @param DrawTextures textures The draw's atlas and mask textures.
+	 */
 	private fun setFragmentUniforms(pipeline: GlRenderPipeline, fragment: FragmentUniforms, textures: DrawTextures) {
 		val locations = pipeline.locations
 		GL20.glUniform1i(locations.useTexture, if (fragment.useTexture) 1 else 0)
@@ -436,8 +445,8 @@ internal class GlDeformCapturePassEncoder(
 	private val pipeline: GlDeformCapturePipeline,
 	private val store: GlDeformedPositionStore,
 ) : DeformCapturePassEncoder {
-	private val cornerCellScratch = BufferUtils.createIntBuffer(org.umamo.render.glsl.MAX_CORNERS)
-	private val cornerWeightScratch = BufferUtils.createFloatBuffer(org.umamo.render.glsl.MAX_CORNERS)
+	private val cornerCellScratch = BufferUtils.createIntBuffer(MAX_CORNERS)
+	private val cornerWeightScratch = BufferUtils.createFloatBuffer(MAX_CORNERS)
 
 	// The vertex index the open feedback session writes next, or -1 while none is open.
 	private var feedbackCursor = -1
@@ -506,7 +515,7 @@ private fun marshalDeformUniforms(
 	cornerCellScratch: IntBuffer,
 	cornerWeightScratch: FloatBuffer,
 ) {
-	val cornerCount = minOf(org.umamo.render.glsl.MAX_CORNERS, deform.cornerCount)
+	val cornerCount = minOf(MAX_CORNERS, deform.cornerCount)
 	cornerCellScratch.clear()
 	cornerWeightScratch.clear()
 
@@ -521,7 +530,7 @@ private fun marshalDeformUniforms(
 	GL20.glUniform1iv(locations.cornerCell, cornerCellScratch)
 	GL20.glUniform1fv(locations.cornerWeight, cornerWeightScratch)
 	// Blend-shape columns: skip the array uploads entirely for the zero-blend common case.
-	val blendCount = minOf(org.umamo.render.glsl.MAX_BLEND_CORNERS, deform.blendCount)
+	val blendCount = minOf(MAX_BLEND_CORNERS, deform.blendCount)
 	GL20.glUniform1i(locations.blendCount, blendCount)
 
 	if (blendCount > 0) {
@@ -566,10 +575,15 @@ private fun listDrawBuffers(target: GlRenderTarget, both: Boolean) {
 }
 
 // The two-buffer draw list of an order pass's art draws, and the order a clear writes: nothing.
-private val BOTH_DRAW_BUFFERS: java.nio.IntBuffer = BufferUtils.createIntBuffer(2).put(GL30.GL_COLOR_ATTACHMENT0).put(GL30.GL_COLOR_ATTACHMENT1).flip()
-private val ZERO_ORDER: java.nio.FloatBuffer = BufferUtils.createFloatBuffer(4).put(0f).put(0f).put(0f).put(0f).flip()
+private val BOTH_DRAW_BUFFERS: IntBuffer = BufferUtils.createIntBuffer(2).put(GL30.GL_COLOR_ATTACHMENT0).put(GL30.GL_COLOR_ATTACHMENT1).flip()
+private val ZERO_ORDER: FloatBuffer = BufferUtils.createFloatBuffer(4).put(0f).put(0f).put(0f).put(0f).flip()
 
-/** Binds [texture] to the given texture unit as a 2D texture. */
+/**
+ * Binds [texture] to the given texture unit as a 2D texture.
+ *
+ * @param Int unit The texture unit, counted from zero.
+ * @param GpuTexture texture The texture to bind.
+ */
 private fun bindTexture2D(unit: Int, texture: GpuTexture) {
 	GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit)
 	GL11.glBindTexture(GL11.GL_TEXTURE_2D, (texture as GlTexture).handle)
@@ -595,24 +609,28 @@ private fun applyCull(cullBackFaces: Boolean) {
 	}
 }
 
-/** Sets the fixed-function blend state for a pipeline's blend mode. */
-private fun applyBlend(blend: org.umamo.render.device.PipelineBlend) {
+/**
+ * Sets the fixed-function blend state for a pipeline's blend mode.
+ *
+ * @param PipelineBlend blend The pipeline's blend mode.
+ */
+private fun applyBlend(blend: PipelineBlend) {
 	when (blend) {
-		org.umamo.render.device.PipelineBlend.Opaque -> {
+		PipelineBlend.Opaque -> {
 			GL11.glDisable(GL11.GL_BLEND)
 		}
 
-		org.umamo.render.device.PipelineBlend.Normal -> {
+		PipelineBlend.Normal -> {
 			GL11.glEnable(GL11.GL_BLEND)
 			GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA)
 		}
 
-		org.umamo.render.device.PipelineBlend.Additive -> {
+		PipelineBlend.Additive -> {
 			GL11.glEnable(GL11.GL_BLEND)
 			GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE)
 		}
 
-		org.umamo.render.device.PipelineBlend.Multiply -> {
+		PipelineBlend.Multiply -> {
 			GL11.glEnable(GL11.GL_BLEND)
 			GL14.glBlendFuncSeparate(GL11.GL_DST_COLOR, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE)
 		}

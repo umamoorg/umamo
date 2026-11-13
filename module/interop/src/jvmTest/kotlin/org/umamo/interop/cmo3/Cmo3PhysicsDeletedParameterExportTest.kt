@@ -11,6 +11,7 @@ import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
 import org.umamo.interop.ExportNotice
 import org.umamo.interop.ExportNoticeReason
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,9 +32,7 @@ class Cmo3PhysicsDeletedParameterExportTest {
 		val sample = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { file -> file.isFile }
 
 		if (sample == null) {
-			println("cmo3.sample not present; skipping the deleted-parameter physics notice")
-
-			return
+			skipTest("cmo3.sample not present; skipping the deleted-parameter physics notice")
 		}
 
 		val cmo3 = Cmo3.read(sample)

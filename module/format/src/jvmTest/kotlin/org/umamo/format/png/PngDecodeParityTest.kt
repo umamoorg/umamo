@@ -1,5 +1,6 @@
 package org.umamo.format.png
 
+import org.umamo.testkit.skipTest
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -22,6 +23,9 @@ import kotlin.test.assertTrue
  * sample.  Absent → the test self-skips, so CI stays green without a committed corpus.
  */
 class PngDecodeParityTest {
+	// How many samples ImageIO could read and so were compared at all.
+	private var comparedSampleCount = 0
+
 	/**
 	 * Locates every PNG sample: `-Dpng.sample` when set, else every `.png` anywhere under
 	 * `test/corpus`.
@@ -58,13 +62,15 @@ class PngDecodeParityTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no png.sample and no test/corpus PNGs; skipping PNG parity test")
-
-			return
+			skipTest("no png.sample and no test/corpus PNGs; skipping PNG parity test")
 		}
 
 		val failures = samples.mapNotNull(::checkSample)
 		assertTrue(failures.isEmpty(), "PngCodec decode must match javax.imageio:\n" + failures.joinToString("\n"))
+
+		if (comparedSampleCount == 0) {
+			skipTest("ImageIO could decode none of the ${samples.size} samples; nothing was compared")
+		}
 	}
 
 	/**
@@ -87,6 +93,8 @@ class PngDecodeParityTest {
 
 			return null
 		}
+
+		comparedSampleCount++
 
 		if (reference.width != decoded.width || reference.height != decoded.height) {
 			return "${sample.path}: PngCodec decoded ${decoded.width}x${decoded.height}, javax.imageio ${reference.width}x${reference.height}"

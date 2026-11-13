@@ -1,7 +1,7 @@
 package org.umamo.format.moc3.moc
 
 /**
- * Per-drawable constant flags (`SEC_DRAW_CFLAG`, section index 42), a `u8` bitmask. These match the
+ * Per-drawable constant flags (`SEC_DRAW_CFLAG`, section index 42), a `u8` bitmask.  These match the
  * public runtime API (`csmConstantDrawableFlags`); the low bits are blend mode, then masking.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md</a>
@@ -21,7 +21,7 @@ public object ConstantFlag {
 }
 
 /**
- * Per-drawable dynamic flags (`csmDynamicDrawableFlags`), a `u8` bitmask of per-frame state. Not
+ * Per-drawable dynamic flags (`csmDynamicDrawableFlags`), a `u8` bitmask of per-frame state.  Not
  * stored in the file (computed by the runtime), recorded here for completeness of the public model.
  */
 public object DynamicFlag {

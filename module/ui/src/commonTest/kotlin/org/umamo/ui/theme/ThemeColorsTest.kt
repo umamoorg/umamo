@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 /**
  * Pins every umamoDarkColors value to its expected constant.  The dark scheme is the shipped look and its
  * rendered pixels are a contract: this test keeps a later refactor of the color table from silently
- * shifting any token's value. Alpha-carrying tokens are asserted via .copy(alpha = ...) on the same base
+ * shifting any token's value.  Alpha-carrying tokens are asserted via .copy(alpha = ...) on the same base
  * value for float bit-identity (values like 0.7f have no exact 8-bit hex form).
  */
 class ThemeColorsTest {

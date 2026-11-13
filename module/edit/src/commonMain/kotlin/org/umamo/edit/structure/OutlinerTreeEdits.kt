@@ -15,9 +15,6 @@ import org.umamo.runtime.model.PuppetModel
  * (withOrgChildMoved / withDeformerMoved) live in StructureEdits.kt; this file only routes a drop to
  * them.  Mirrors the parameter panel's split (ParametersDropRules in :ui feeds ParameterTreeEdits
  * here) - except the outliner's rules mention no UI types, so the whole resolution lives in :edit.
- *
- * アウトライナーのドロップ解決。行ドロップの帯域判定と移動先の解決を一箇所で行い、指標と実際の
- * 移動が常に一致する。ツリー変換自体は StructureEdits.kt にある。
  */
 
 /**
@@ -93,14 +90,24 @@ fun SelectionTarget.asOrgChild(): OrgChild? =
 		is SelectionTarget.Deformer -> null
 	}
 
-/** The org child [child]'s sibling list - its owning part's children, or the root level when it is top-level. */
+/**
+ * The org child [child]'s sibling list - its owning part's children, or the root level when it is top-level.
+ *
+ * @param OrgChild child The org child to look up.
+ * @return List<OrgChild> The list that holds it.
+ */
 private fun PuppetModel.orgSiblingsOf(child: OrgChild): List<OrgChild> {
 	val parent = parts.firstOrNull { child in it.children }
 
 	return parent?.children ?: rootChildren
 }
 
-/** The id of the part owning [child], or null when it is at the top level. */
+/**
+ * The id of the part owning [child], or null when it is at the top level.
+ *
+ * @param OrgChild child The org child to look up.
+ * @return PartId? The owning part's id, or null at the top level.
+ */
 private fun PuppetModel.orgParentOf(child: OrgChild): PartId? =
 	parts.firstOrNull { child in it.children }?.id
 
@@ -108,6 +115,10 @@ private fun PuppetModel.orgParentOf(child: OrgChild): PartId? =
  * The org child after [child] among its siblings once [moving] is lifted out, or null when [child] is then
  * last (append).  The move detaches [moving] before it inserts, so an anchor on [moving] itself would
  * not be found and would append.
+ *
+ * @param OrgChild child The child to look after.
+ * @param OrgChild moving The child being moved, which is left out.
+ * @return OrgChild? The next sibling, or null when there is none.
  */
 private fun PuppetModel.orgSiblingAfter(child: OrgChild, moving: OrgChild): OrgChild? {
 	val siblings = orgSiblingsOf(child) - moving
@@ -115,11 +126,22 @@ private fun PuppetModel.orgSiblingAfter(child: OrgChild, moving: OrgChild): OrgC
 	return siblings.getOrNull(siblings.indexOf(child) + 1)
 }
 
-/** The deformer [id]'s parent in the nesting hierarchy, or null when it is an armature root. */
+/**
+ * The deformer [id]'s parent in the nesting hierarchy, or null when it is an armature root.
+ *
+ * @param DeformerId id The deformer to look up.
+ * @return DeformerId? The parent's id, or null for a root.
+ */
 private fun PuppetModel.deformerParentOf(id: DeformerId): DeformerId? =
 	deformers.firstOrNull { it.id == id }?.parent
 
-/** The deformer after [id] among its same-parent siblings (list order) once [moving] is lifted out, or null when last. */
+/**
+ * The deformer after [id] among its same-parent siblings (list order) once [moving] is lifted out, or null when last.
+ *
+ * @param DeformerId id The deformer to look after.
+ * @param DeformerId moving The deformer being moved, which is left out.
+ * @return DeformerId? The next sibling's id, or null when there is none.
+ */
 private fun PuppetModel.deformerSiblingAfter(id: DeformerId, moving: DeformerId): DeformerId? {
 	val parent = deformerParentOf(id)
 	val siblings = deformers.filter { it.parent == parent && it.id != moving }.map { it.id }

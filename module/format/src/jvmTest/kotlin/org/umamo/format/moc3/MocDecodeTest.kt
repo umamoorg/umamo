@@ -5,8 +5,10 @@ import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
 import org.umamo.format.moc3.model.BlendShapeKeyform
+import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -15,7 +17,7 @@ import kotlin.test.assertTrue
 /**
  * Decode (Layer-2) internal-consistency checks: decoding exercises every base/grid index path, so a
  * clean run already proves the keyform-binding grid + value-table arithmetic stays in bounds; the
- * assertions then tie object/keyform shapes together. Skips gracefully without samples.
+ * assertions then tie object/keyform shapes together.  Skips gracefully without samples.
  */
 class MocDecodeTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
@@ -35,9 +37,7 @@ class MocDecodeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping union-region flag test")
-
-			return
+			skipTest("moc3.samples not present; skipping union-region flag test")
 		}
 
 		// The only corpus samples that append the union region; every other file (including all blend
@@ -63,9 +63,7 @@ class MocDecodeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping decode test")
-
-			return
+			skipTest("moc3.samples not present; skipping decode test")
 		}
 
 		for (file in files) {
@@ -214,8 +212,8 @@ class MocDecodeTest {
 				)
 				val targetOk =
 					when (bs.target) {
-						org.umamo.format.moc3.model.BlendShapeTarget.ART_MESH -> bs.targetIndex in doc.artMeshes.indices
-						org.umamo.format.moc3.model.BlendShapeTarget.PART -> bs.targetIndex in doc.parts.indices
+						BlendShapeTarget.ART_MESH -> bs.targetIndex in doc.artMeshes.indices
+						BlendShapeTarget.PART -> bs.targetIndex in doc.parts.indices
 						else -> bs.targetIndex in doc.deformers.indices
 					}
 				assertTrue(targetOk, "${file.name}: blendshape target ${bs.target} ${bs.targetIndex}")
@@ -235,10 +233,10 @@ class MocDecodeTest {
 				val kindMatches =
 					bs.keyforms.all { keyform ->
 						when (bs.target) {
-							org.umamo.format.moc3.model.BlendShapeTarget.WARP -> keyform is BlendShapeKeyform.Warp
-							org.umamo.format.moc3.model.BlendShapeTarget.ART_MESH -> keyform is BlendShapeKeyform.Mesh
-							org.umamo.format.moc3.model.BlendShapeTarget.ROTATION -> keyform is BlendShapeKeyform.Rotation
-							org.umamo.format.moc3.model.BlendShapeTarget.PART -> keyform is BlendShapeKeyform.Part
+							BlendShapeTarget.WARP -> keyform is BlendShapeKeyform.Warp
+							BlendShapeTarget.ART_MESH -> keyform is BlendShapeKeyform.Mesh
+							BlendShapeTarget.ROTATION -> keyform is BlendShapeKeyform.Rotation
+							BlendShapeTarget.PART -> keyform is BlendShapeKeyform.Part
 						}
 					}
 				assertTrue(kindMatches, "${file.name}: blendshape keyform kinds match ${bs.target}")
@@ -301,19 +299,19 @@ class MocDecodeTest {
 			/**
 			 * Sums the delta keyforms of the records targeting [target].
 			 *
-			 * @param org.umamo.format.moc3.model.BlendShapeTarget target The record kind to total.
+			 * @param BlendShapeTarget target The record kind to total.
 			 * @return Int The delta-keyform count over that kind's records.
 			 */
-			fun deltaKeyformsOf(target: org.umamo.format.moc3.model.BlendShapeTarget): Int =
+			fun deltaKeyformsOf(target: BlendShapeTarget): Int =
 				doc.blendShapes.filter { it.target == target }.sumOf { it.keyforms.size }
 
 			if (file.name.startsWith("modelA")) {
 				assertEquals(60, doc.blendShapes.size, "Model A: blend-shape records")
 				assertEquals(0, limitAttachments, "Model A: no blend-weight limits")
 				assertEquals(178, deltaKeyformTotal, "Model A: delta keyforms")
-				assertEquals(142, deltaKeyformsOf(org.umamo.format.moc3.model.BlendShapeTarget.WARP), "Model A: warp delta keyforms")
-				assertEquals(24, deltaKeyformsOf(org.umamo.format.moc3.model.BlendShapeTarget.ART_MESH), "Model A: mesh delta keyforms")
-				assertEquals(12, deltaKeyformsOf(org.umamo.format.moc3.model.BlendShapeTarget.ROTATION), "Model A: rotation delta keyforms")
+				assertEquals(142, deltaKeyformsOf(BlendShapeTarget.WARP), "Model A: warp delta keyforms")
+				assertEquals(24, deltaKeyformsOf(BlendShapeTarget.ART_MESH), "Model A: mesh delta keyforms")
+				assertEquals(12, deltaKeyformsOf(BlendShapeTarget.ROTATION), "Model A: rotation delta keyforms")
 			}
 
 			if (file.name.startsWith("modelB")) {
@@ -346,19 +344,19 @@ class MocDecodeTest {
 				// The delta region IS present on the 5.x bakes: keyform colors decode non-null
 				// (zeros where unauthored), the counterpart of the Azxiana absence anchor.
 				val meshKeyform =
-					doc.blendShapes.first { it.target == org.umamo.format.moc3.model.BlendShapeTarget.ART_MESH }
+					doc.blendShapes.first { it.target == BlendShapeTarget.ART_MESH }
 						.keyforms.filterIsInstance<BlendShapeKeyform.Mesh>().first()
 				assertEquals(true, meshKeyform.form.multiplyColor != null, "Model A: color delta region present")
 			}
 
 			if (file.name.startsWith("modelC")) {
 				assertEquals(124, doc.blendShapes.size, "Model C: blend-shape records (incl. 1 part-owned)")
-				assertEquals(1, doc.blendShapes.count { it.target == org.umamo.format.moc3.model.BlendShapeTarget.PART }, "Model C: part records")
+				assertEquals(1, doc.blendShapes.count { it.target == BlendShapeTarget.PART }, "Model C: part records")
 				assertEquals(234, limitAttachments, "Model C: limit attachments")
 				assertEquals(7, distinctLimits, "Model C: deduplicated limit curves")
 				assertEquals(270, deltaKeyformTotal, "Model C: delta keyforms")
 				// The single part-owned record's typed payload (MOC3 §5.6 section 58 delta rows).
-				val partRecord = doc.blendShapes.first { it.target == org.umamo.format.moc3.model.BlendShapeTarget.PART }
+				val partRecord = doc.blendShapes.first { it.target == BlendShapeTarget.PART }
 				assertEquals(
 					listOf(BlendShapeKeyform.Part(-900f), BlendShapeKeyform.Part(0f)),
 					partRecord.keyforms,

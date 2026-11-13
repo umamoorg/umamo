@@ -6,6 +6,7 @@
 // The API level is held to the engine's Kotlin, so a newer compiler can never emit a call into a stdlib
 // function the engine's older stdlib does not have.
 
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 plugins {
@@ -41,8 +42,16 @@ dependencies {
 tasks.test {
 	useJUnitPlatform()
 
+	// IncludedBuildSourcesLintTest reads these files as text.  The test classpath carries the sources only as
+	// classes, and a comment compiles to the same classes whatever it says, so without this an edit the
+	// lint would report could leave the task up to date.
+	inputs
+		.files(fileTree("src"), fileTree("../build-logic") { include("src/**", "*.gradle.kts") }, "build.gradle.kts", "settings.gradle.kts", "../../.editorconfig")
+		.withPropertyName("lintedSources")
+		.withPathSensitivity(PathSensitivity.RELATIVE)
+
 	testLogging {
 		events("passed", "skipped", "failed")
-		exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+		exceptionFormat = TestExceptionFormat.FULL
 	}
 }

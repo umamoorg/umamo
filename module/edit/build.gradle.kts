@@ -1,6 +1,6 @@
-// :edit — editing session, undo/redo history, and the pure model-mutation transforms. Depends on
+// :edit — editing session, undo/redo history, and the pure model-mutation transforms.  Depends on
 // :runtime (the immutable PuppetModel it snapshots and transforms) and :geometry (the mesh
-// regeneration transfer's point location and the generated mesh type). Holds no Compose: it is the
+// regeneration transfer's point location and the generated mesh type).  Holds no Compose: it is the
 // platform-neutral editing core that both :ui and the apps drive, so it stays Android-sharable.
 
 plugins {
@@ -46,8 +46,10 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				// The CMO3 export round-trip gate drives real :edit session ops over a corpus model,
-				// then re-reads the re-emitted file through the JVM-only codec. The conversion entry
+				// then re-reads the re-emitted file through the JVM-only codec.  The conversion entry
 				// points (Cmo3Import / Cmo3Export) live in :interop, whose api(:format) also supplies
 				// the jvmAndroidMain codec surface transitively.
 				implementation(kotlin("test"))

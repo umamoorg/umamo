@@ -18,6 +18,8 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
+import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -54,9 +56,7 @@ class Moc3Cmo3ParityTest {
 		val moc3File = moc3Sample
 
 		if (cmo3File == null || moc3File == null) {
-			println("cmo3.sample/moc3.sample not present; skipping parity test")
-
-			return
+			skipTest("cmo3.sample/moc3.sample not present; skipping parity test")
 		}
 
 		val cmo3Root = Cmo3.read(cmo3File).root as? CModelSource ?: error("root is not a CModelSource")
@@ -324,8 +324,8 @@ class Moc3Cmo3ParityTest {
 	 */
 	private fun compareWarpGrids(
 		drawableId: DrawableId,
-		cmo3Grid: KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
-		moc3Grid: KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
+		cmo3Grid: KeyformGrid<WarpLatticeForm>?,
+		moc3Grid: KeyformGrid<WarpLatticeForm>?,
 		tolerance: Float,
 	) {
 		if (cmo3Grid == null || moc3Grid == null) {

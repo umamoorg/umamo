@@ -5,7 +5,7 @@ import org.umamo.render.puppet.GlueVertexAttributes
 // The device's opaque handles and the specs used to create them.
 //
 // Handles are interfaces with no members on purpose: a caller can hold one and hand it back, and can do
-// nothing else with it. The concrete type is backend state - a GL name, an MTLBuffer - and keeping it
+// nothing else with it.  The concrete type is backend state - a GL name, an MTLBuffer - and keeping it
 // unreachable is what stops backend concepts leaking into the shared renderer.
 
 /** A texture the device owns, sampleable from a shader. */

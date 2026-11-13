@@ -42,7 +42,9 @@ public class ModelDocument private constructor(
 
 		// PIs live as document content before the root element.
 		for (content in document.content) {
-			if (content !is ProcessingInstruction) continue
+			if (content !is ProcessingInstruction) {
+				continue
+			}
 
 			when (content.target) {
 				PI_VERSION -> {
@@ -72,11 +74,16 @@ public class ModelDocument private constructor(
 		mainElements = (rootElement.getChild(MAIN_ELEMENT)?.children as List<Element>?).orEmpty()
 	}
 
-	/** Schema version of [className] as declared by a `<?version?>` PI, or null. */
+	/**
+	 * Schema version of [className] as declared by a `<?version?>` PI, or null.
+	 *
+	 * @param String className The serialized class name.
+	 * @return Int? The declared version, or null when the document declares none.
+	 */
 	public fun versionOf(className: String): Int? = versions[className]
 
 	/**
-	 * Re-emits the document to bytes. Byte-identical to the source while the underlying JDOM is
+	 * Re-emits the document to bytes.  Byte-identical to the source while the underlying JDOM is
 	 * unmodified (verbatim fallback); reflects edits once the typed layer mutates [document].
 	 *
 	 * @return ByteArray UTF-8 XML in the editor's exact format.

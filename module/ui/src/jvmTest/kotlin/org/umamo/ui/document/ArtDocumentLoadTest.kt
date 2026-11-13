@@ -17,6 +17,7 @@ import org.umamo.interop.cmo3.cmo3AtlasIngest
 import org.umamo.interop.cmo3.cmo3SourceArtOf
 import org.umamo.render.deriveAtlasTextures
 import org.umamo.runtime.model.ParameterNode
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import java.io.File
 import kotlin.math.abs
@@ -46,9 +47,7 @@ class ArtDocumentLoadTest {
 		val file = sample
 
 		if (file == null) {
-			println("psd.sample not present; skipping the artwork document gate")
-
-			return
+			skipTest("psd.sample not present; skipping the artwork document gate")
 		}
 
 		val load = loadDocument(file.readBytes(), file.name, file.path)

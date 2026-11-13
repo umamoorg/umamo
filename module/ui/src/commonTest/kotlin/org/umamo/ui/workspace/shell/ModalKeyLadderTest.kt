@@ -2,6 +2,7 @@ package org.umamo.ui.workspace.shell
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -862,11 +863,11 @@ class ModalKeyLadderTest {
 			for ((family, session) in latchedOperatorFamilies()) {
 				var confirms = 0
 				val collector = launch { session.meshConfirmRequests.collect { confirms++ } }
-				@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+				@OptIn(ExperimentalCoroutinesApi::class)
 				runCurrent()
 
 				assertTrue(enter(ShellModalState(editorSession = session)))
-				@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+				@OptIn(ExperimentalCoroutinesApi::class)
 				runCurrent()
 
 				assertEquals(1, confirms, "$family: Enter mirrors a primary click through the shared confirm signal")
@@ -1008,11 +1009,11 @@ class ModalKeyLadderTest {
 				assertNotNull(session.activeSelectTool.value, "fixture: the tool must be armed")
 				var cancels = 0
 				val collector = launch { session.meshGestureCancelRequests.collect { cancels++ } }
-				@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+				@OptIn(ExperimentalCoroutinesApi::class)
 				runCurrent()
 
 				assertTrue(press(key, ShellModalState(editorSession = session)))
-				@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+				@OptIn(ExperimentalCoroutinesApi::class)
 				runCurrent()
 
 				// The cancel must fire as well as the disarm: clearSelectTool alone routes cleanup through a
@@ -1158,11 +1159,11 @@ class ModalKeyLadderTest {
 			val selection = nonEmptySelection()
 			var cancels = 0
 			val collector = launch { session.meshGestureCancelRequests.collect { cancels++ } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			assertTrue(escape(ShellModalState(editorSession = session, selection = selection)))
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			assertEquals(1, cancels)

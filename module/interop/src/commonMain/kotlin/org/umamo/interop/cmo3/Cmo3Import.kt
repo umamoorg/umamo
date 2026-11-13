@@ -96,10 +96,10 @@ import org.umamo.runtime.model.storedToArtAffineForTile
 /**
  * Maps a parsed CMO3 model graph (`:format`) into the concrete [PuppetModel] (`:runtime`).
  *
- * This is the boundary that keeps CMO3's serialization quirks out of the deformation core. The
+ * This is the boundary that keeps CMO3's serialization quirks out of the deformation core.  The
  * raw graph is loosely typed (object fields are `Any?` holding already-resolved instances) and its
  * structure is encoded as GUID strings (`targetDeformerGuid`, `parentGuid`, `clipGuidList`), not
- * object links. So mapping is two passes: (1) index every source by its GUID uuid → runtime id;
+ * object links.  So mapping is two passes: (1) index every source by its GUID uuid → runtime id;
  * (2) build the runtime entities, resolving each cross-reference through those indices.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Model object graph</a>
@@ -142,7 +142,7 @@ object Cmo3Import {
 				.filterIsInstance<CArtMeshSource>()
 
 		// CMO3: rootPart is the synthetic __RootPart__ tree anchor - the editor excludes it from its
-		// part count, and entities directly under it are top-level (partId == null). Drop it from the
+		// part count, and entities directly under it are top-level (partId == null).  Drop it from the
 		// user-facing parts so the model matches the editor and null cleanly means "at the root".
 		val rootPart = modelSource.rootPart
 		val rootPartUuid =
@@ -152,7 +152,7 @@ object Cmo3Import {
 			}
 		val userPartSources = partSources.filter { uuidOf(it.guid) != rootPartUuid }
 
-		// Pass 1 - GUID uuid → runtime id, per category. Cross-references resolve through these.
+		// Pass 1 - GUID uuid → runtime id, per category.  Cross-references resolve through these.
 		val partIdByUuid =
 			buildMap {
 				for (part in userPartSources) {
@@ -249,9 +249,16 @@ object Cmo3Import {
 		// (the empty-renderRoot fallback / storage order; the derived renderRoot is the draw-order authority).
 		val renderIndexByUuid = partsTreeRenderOrder(modelSource, partSources)
 
-		// CMO3: CPartSource._childGuids is the parts-panel order - sub-parts and drawables interleaved (plus
-		// deformers, which we route to the Armature instead). Resolve each child guid to a part or drawable
-		// org child, skipping anything else; this ordered list is the org tree's single source of truth.
+		/**
+		 * Resolves a part's child guids into org children, in parts-panel order.
+		 *
+		 * CMO3: CPartSource._childGuids is the parts-panel order - sub-parts and drawables interleaved (plus
+		 * deformers, which we route to the Armature instead).  Resolve each child guid to a part or drawable
+		 * org child, skipping anything else; this ordered list is the org tree's single source of truth.
+		 *
+		 * @param Any? childGuids The part's child-guid list, as stored.
+		 * @return List<OrgChild> The sub-parts and drawables, in panel order.
+		 */
 		fun orgChildrenOf(childGuids: Any?): List<OrgChild> =
 			elementsOf(childGuids).mapNotNull { childGuid ->
 				val childUuid = uuidOf(childGuid) ?: return@mapNotNull null
@@ -260,20 +267,42 @@ object Cmo3Import {
 				null
 			}
 
-		// CMO3: part draw order is CPartForm.drawOrder (a keyform); the static first-cell value (else
-		// defaultOrder_forEditor) is the fallback, the grid carries the per-pose blend for a group part.
+		/**
+		 * Reads a part's static draw order.
+		 *
+		 * CMO3: part draw order is CPartForm.drawOrder (a keyform); the static first-cell value (else
+		 * defaultOrder_forEditor) is the fallback, the grid carries the per-pose blend for a group part.
+		 *
+		 * @param CPartSource part The part's graph source.
+		 * @return Int The first form's draw order, else the editor default.
+		 */
 		fun partStaticDrawOrder(part: CPartSource): Int =
 			elementsOf(part.keyforms).filterIsInstance<CPartForm>().firstOrNull()?.drawOrder ?: part.defaultOrder_forEditor
 
-		// A 5.3-authored part is marked by a present colorComposition (the offscreen probe pins this on every
-		// corpus file); a pre-5.3 part has it null.
+		/**
+		 * Tells whether a part was authored before Cubism 5.3.
+		 *
+		 * A 5.3-authored part is marked by a present colorComposition (the offscreen probe pins this on every
+		 * corpus file); a pre-5.3 part has it null.
+		 *
+		 * @param CPartSource part The part's graph source.
+		 * @return Boolean True when the part carries no color composition.
+		 */
 		fun isPre53Part(part: CPartSource): Boolean = part.colorComposition == null
 
-		// CMO3: CPartForm.opacity is @DontSerializeIfDefault with a 0f default, and pre-5.3 parts never author
-		// the float, so it parses as 0f meaning "unset -> fully opaque" (Cubism's semantic default is 100%),
-		// NOT 0%.  A 5.3 part authors opacity explicitly, so a genuine 0 there (e.g. a draw-order crossfade
-		// keyform) is a real value and is left alone - only pre-5.3's unset 0f is remapped to opaque.  Without
-		// this a pre-5.3 model's whole part subtree renders invisible under the part-opacity cascade.
+		/**
+		 * Resolves a part form's stored opacity to the opacity it means.
+		 *
+		 * CMO3: CPartForm.opacity is @DontSerializeIfDefault with a 0f default, and pre-5.3 parts never author
+		 * the float, so it parses as 0f meaning "unset -> fully opaque" (Cubism's semantic default is 100%),
+		 * NOT 0%.  A 5.3 part authors opacity explicitly, so a genuine 0 there (e.g. a draw-order crossfade
+		 * keyform) is a real value and is left alone - only pre-5.3's unset 0f is remapped to opaque.  Without
+		 * this a pre-5.3 model's whole part subtree renders invisible under the part-opacity cascade.
+		 *
+		 * @param Float rawOpacity The opacity as stored.
+		 * @param Boolean isPre53 Whether the part predates Cubism 5.3.
+		 * @return Float The opacity to use.
+		 */
 		fun resolvedPartOpacity(rawOpacity: Float, isPre53: Boolean): Float =
 			if (isPre53 && rawOpacity == 0f) {
 				1f
@@ -281,6 +310,12 @@ object Cmo3Import {
 				rawOpacity
 			}
 
+		/**
+		 * Builds a part's channel tracks from its keyform grid.
+		 *
+		 * @param CPartSource part The part's graph source.
+		 * @return ChannelGrids The tracks, empty when the grid has no parameter axes.
+		 */
 		fun partChannelsOf(part: CPartSource): ChannelGrids {
 			val bundled =
 				buildGrid(part.keyformGridSource, part.keyforms, paramIdByUuid) { form ->
@@ -312,11 +347,18 @@ object Cmo3Import {
 			)
 		}
 
-		// CMO3: the composition/clip fields are latent - they survive unchecking offscreen, so this is
-		// called for every part (not just offscreen ones) to capture the settings regardless of mode; the
-		// composite is only applied while the part is Isolated.  Each field defaults gracefully when absent
-		// (colorComposition/alphaComposition -> Normal/Over via the token maps; pre-5.3 CPartForms carry no
-		// opacity/color elements, so firstForm's channels fall back to identity).
+		/**
+		 * Reads a part's composite settings: blend modes, masks, opacity, and colors.
+		 *
+		 * CMO3: the composition/clip fields are latent - they survive unchecking offscreen, so this is
+		 * called for every part (not just offscreen ones) to capture the settings regardless of mode; the
+		 * composite is only applied while the part is Isolated.  Each field defaults gracefully when absent
+		 * (colorComposition/alphaComposition -> Normal/Over via the token maps; pre-5.3 CPartForms carry no
+		 * opacity/color elements, so firstForm's channels fall back to identity).
+		 *
+		 * @param CPartSource source The part's graph source.
+		 * @return PartComposite The composite.
+		 */
 		fun partCompositeOf(source: CPartSource): PartComposite {
 			val firstForm = elementsOf(source.keyforms).filterIsInstance<CPartForm>().firstOrNull()
 
@@ -423,11 +465,11 @@ object Cmo3Import {
 				}
 			}
 
-		// Render order: drawables painted back-to-front. The parts-tree DFS (panel order, top = front)
+		// Render order: drawables painted back-to-front.  The parts-tree DFS (panel order, top = front)
 		// is front-to-back, so the drawable list is its reverse - the last panel entry is the backmost,
 		// drawn first. drawOrder (all 500 in the corpus) and its animation refine this later; the tree
-		// walk is the param-independent base. CMO3: CPartSource._childGuids holds child parts / deformers
-		// / meshes in panel order; the drawableSourceSet is creation order, not stacking order. The shared
+		// walk is the param-independent base.  CMO3: CPartSource._childGuids holds child parts / deformers
+		// / meshes in panel order; the drawableSourceSet is creation order, not stacking order.  The shared
 		// renderIndexByUuid (computed above for parts) is the source of both this order and panelOrder.
 		val orderedDrawableSources = drawableSources.sortedByDescending { renderIndexByUuid[uuidOf(it.guid)] ?: Int.MAX_VALUE }
 
@@ -495,7 +537,7 @@ object Cmo3Import {
 				?.let { idStrOf(it.id) }
 				?.let(::PartId)
 
-		// Glue affecters: seam-weld vertex pairs after deformation. CMO3 references vertices by stable UID;
+		// Glue affecters: seam-weld vertex pairs after deformation.  CMO3 references vertices by stable UID;
 		// build uid→index per drawable from its editable mesh (positions[i] == editableMesh.point[i]).
 		val uidToIndexByDrawableId =
 			buildMap {
@@ -516,8 +558,18 @@ object Cmo3Import {
 		// appended at the root, so no mesh is dropped from the outliner or the derived render order.
 		val placedDrawableIds =
 			buildSet {
-				rootChildrenFromTree.forEach { child -> if (child is OrgChild.Drawable) add(child.id) }
-				parts.forEach { part -> part.children.forEach { child -> if (child is OrgChild.Drawable) add(child.id) } }
+				rootChildrenFromTree.forEach { child ->
+					if (child is OrgChild.Drawable) {
+						add(child.id)
+					}
+				}
+				parts.forEach { part ->
+					part.children.forEach { child ->
+						if (child is OrgChild.Drawable) {
+							add(child.id)
+						}
+					}
+				}
 			}
 		val rootChildren =
 			rootChildrenFromTree + drawables.mapNotNull { drawable -> if (drawable.id in placedDrawableIds) null else OrgChild.Drawable(drawable.id) }
@@ -595,6 +647,12 @@ object Cmo3Import {
 
 		val visited = HashSet<String>()
 
+		/**
+		 * Builds a parameter group's children, recursing into sub-groups and skipping a group already visited.
+		 *
+		 * @param CParameterGroup group The group's graph source.
+		 * @return List<ParameterNode> The child nodes, in stored order.
+		 */
 		fun childrenOf(group: CParameterGroup): List<ParameterNode> =
 			buildList {
 				for (childGuid in elementsOf(group._childGuids)) {
@@ -643,7 +701,7 @@ object Cmo3Import {
 
 	/**
 	 * Maps a CMO3 `CGlueSource` to a runtime [Glue], resolving its target meshes and converting each
-	 * UID-keyed vertex pair to mesh-local indices. CMO3: `weights`/`bindVertexUids` are `[A,B]`-interleaved
+	 * UID-keyed vertex pair to mesh-local indices.  CMO3: `weights`/`bindVertexUids` are `[A,B]`-interleaved
 	 * per pair; `keyforms` (CGlueForm.intensity) drive the weld strength.
 	 *
 	 * @param CGlueSource glue                  The glue source.
@@ -705,8 +763,8 @@ object Cmo3Import {
 
 	/**
 	 * Assigns each entity a pre-order index from a depth-first walk of the parts tree, following every
-	 * part's ordered `_childGuids`. Drawables sorted by their index render in the editor's panel
-	 * stacking order. Non-part children (deformers, meshes) are leaves and get an index without
+	 * part's ordered `_childGuids`.  Drawables sorted by their index render in the editor's panel
+	 * stacking order.  Non-part children (deformers, meshes) are leaves and get an index without
 	 * recursing; the gaps they leave do not matter since only relative order is used.
 	 *
 	 * @param CModelSource      modelSource The model root (for `rootPart`).
@@ -721,6 +779,11 @@ object Cmo3Import {
 		val visited = HashSet<String>()
 		var nextIndex = 0
 
+		/**
+		 * Numbers a panel entry and, when it is a part, everything under it, in parts-panel order.
+		 *
+		 * @param String uuid The entry's guid.
+		 */
 		fun walk(uuid: String) {
 			if (!visited.add(uuid)) {
 				return
@@ -791,7 +854,7 @@ object Cmo3Import {
 		(value as? CFloatColor)?.let { ColorRgb(it.red, it.green, it.blue) }
 
 	/**
-	 * Reads an art mesh's canvas geometry. CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`
+	 * Reads an art mesh's canvas geometry.  CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`
 	 * (interleaved x,y), `indices` is an `int-array` (3 per triangle).  The positions are the canvas editable
 	 * mesh; the returned mesh shares them as its base until the caller sets the keyforms' own.  The stored
 	 * `uvs` reach the model through [Cmo3TextureFrames.modelUvsOf].
@@ -828,7 +891,7 @@ object Cmo3Import {
 	}
 
 	/**
-	 * Builds the keyform grid for a controllable source. CMO3: `keyformGridSource` holds the axes
+	 * Builds the keyform grid for a controllable source.  CMO3: `keyformGridSource` holds the axes
 	 * (`keyformBindings`: parameterGuid + key values) and the cells (`keyformsOnGrid`: an accessKey
 	 * coordinate + a `keyformGuid` referencing one of the source's `keyforms` form objects).
 	 *
@@ -895,7 +958,7 @@ object Cmo3Import {
 	private fun formGuid(form: Any?): Any? = (form as? ACForm)?.guid
 
 	/**
-	 * Indexes a source's `keyforms` pool by each form's own guid uuid. Grid cells and morph
+	 * Indexes a source's `keyforms` pool by each form's own guid uuid.  Grid cells and morph
 	 * targets both resolve their form references through this pool.
 	 *
 	 * @param Any? forms The source's `keyforms` collection (the form objects).
@@ -1022,7 +1085,7 @@ object Cmo3Import {
 	 * Warp cell payload: the form's absolute FFD control-point positions plus its render channels.
 	 *
 	 * The channels live on the shared `ACDeformerForm` base, so warp and rotation read them the same
-	 * way. They cascade onto every drawable under the deformer - see `DeformerCascade`.
+	 * way.  They cascade onto every drawable under the deformer - see `DeformerCascade`.
 	 *
 	 * @param Any form The form object (expected CWarpDeformerForm).
 	 * @return WarpForm? The control points, or null if absent.

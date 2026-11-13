@@ -37,7 +37,7 @@ interface PersistentSpaceState {
 internal val AREA_BLOCK_MEMBER_ORDER: List<String> = listOf("cameras", "viewport", "outliner", "sources", "parameters", "keyformSheet", "properties", "uv")
 
 /**
- * The per-area context handed to a space's content factory and its header slot. Carries the hosting
+ * The per-area context handed to a space's content factory and its header slot.  Carries the hosting
  * area's stable id (which the 2D viewport needs to key its GL surface) and the per-space state bag -
  * the header slot and the body render as sibling subtrees sharing only this scope, so [spaceState] is
  * the one channel a space's header controls and its body can share state through (a CompositionLocal
@@ -94,7 +94,7 @@ class AreaScope(
 /**
  * Describes one editor space: its [kind], the localized [title] shown in the dropdown menu, the [icon]
  * shown in the area header and beside the title in the dropdown, and the [content] factory that renders
- * it given its [AreaScope]. Keeping content a `@Composable (AreaScope) -> Unit` lambda lets the app
+ * it given its [AreaScope].  Keeping content a `@Composable (AreaScope) -> Unit` lambda lets the app
  * override specific kinds (notably the GL viewport) without `:ui` depending on any platform code.
  *
  * [headerContent] is the optional space-specific header strip, rendered by the (otherwise
@@ -122,14 +122,14 @@ class SpaceDescriptor(
 )
 
 /**
- * The resolver from [SpaceKind] to its [SpaceDescriptor] - the agnostic-area machinery. An area asks
+ * The resolver from [SpaceKind] to its [SpaceDescriptor] - the agnostic-area machinery.  An area asks
  * the registry for its current kind's descriptor to render content, and lists [all] descriptors to
- * populate the editor-type dropdown. The app augments the base registry with [withOverrides] (e.g. to
+ * populate the editor-type dropdown.  The app augments the base registry with [withOverrides] (e.g. to
  * swap the placeholder viewport for the real GL one).
  */
 class SpaceRegistry(private val descriptorsByKind: Map<SpaceKind, SpaceDescriptor>) {
 	/**
-	 * The descriptor for [kind]. Throws if a kind is unregistered - every kind must have a descriptor
+	 * The descriptor for [kind].  Throws if a kind is unregistered - every kind must have a descriptor
 	 * (the base registry covers all of them), so a miss is a programming error, not a runtime branch.
 	 *
 	 * @param SpaceKind kind The kind to resolve.
@@ -152,7 +152,7 @@ class SpaceRegistry(private val descriptorsByKind: Map<SpaceKind, SpaceDescripto
 }
 
 /**
- * The active [SpaceRegistry] for the composition. `static` - the registry is stable for the shell's
+ * The active [SpaceRegistry] for the composition.  `static` - the registry is stable for the shell's
  * lifetime; areas read `LocalSpaceRegistry.current` to render and to build their dropdown.
  */
 val LocalSpaceRegistry =

@@ -14,6 +14,11 @@ package org.umamo.reimport
 interface SourceWatcher {
 	/** Receives change notifications for a watched path. */
 	fun interface ChangeListener {
+		/**
+		 * Called when the watched file changes.
+		 *
+		 * @param String path The path that changed.
+		 */
 		fun onChanged(path: String)
 	}
 

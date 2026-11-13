@@ -2,6 +2,8 @@ package org.umamo.format.moc3
 
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
+import org.umamo.format.moc3.model.BlendShapeTarget
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 
@@ -20,9 +22,7 @@ class BlendEncodeProbeTest {
 				.filter { file -> listOf("modelA", "modelB", "modelC").any { prefix -> file.name.startsWith(prefix) } }
 
 		if (samples.isEmpty()) {
-			println("moc3.samples not present; skipping encode probe")
-
-			return
+			skipTest("moc3.samples not present; skipping encode probe")
 		}
 
 		for (file in samples) {
@@ -38,7 +38,7 @@ class BlendEncodeProbeTest {
 			val multiplyRed = sections.floatArray(Section.COLOR_MULTIPLY_R)
 			val screenRed = sections.floatArray(Section.COLOR_SCREEN_R)
 			val recordKeyTotalNoParts =
-				document.blendShapes.filter { it.target != org.umamo.format.moc3.model.BlendShapeTarget.PART }
+				document.blendShapes.filter { it.target != BlendShapeTarget.PART }
 					.sumOf { it.keyPositions.size }
 			val deltaStart = multiplyRed.size - recordKeyTotalNoParts
 			val nonZeroMultiply =
@@ -51,9 +51,9 @@ class BlendEncodeProbeTest {
 
 			// My assumed order: warp records, mesh records, rotation records (parts excluded); print
 			// each record's delta-row span under that assumption with its kind + target + parameter.
-			val warpRecords = document.blendShapes.filter { it.target == org.umamo.format.moc3.model.BlendShapeTarget.WARP }
-			val meshRecords = document.blendShapes.filter { it.target == org.umamo.format.moc3.model.BlendShapeTarget.ART_MESH }
-			val rotationRecords = document.blendShapes.filter { it.target == org.umamo.format.moc3.model.BlendShapeTarget.ROTATION }
+			val warpRecords = document.blendShapes.filter { it.target == BlendShapeTarget.WARP }
+			val meshRecords = document.blendShapes.filter { it.target == BlendShapeTarget.ART_MESH }
+			val rotationRecords = document.blendShapes.filter { it.target == BlendShapeTarget.ROTATION }
 			var rowCursor = 0
 
 			for (record in warpRecords + meshRecords + rotationRecords) {

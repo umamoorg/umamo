@@ -515,6 +515,12 @@ class TileMeshMask private constructor(
 			val height = ceil(maxY).toInt() + 1 - top
 			val raw = LongArray((width * height + 63) ushr 6)
 
+			/**
+			 * Sets a cell's bit in the mask; a cell outside the mask is ignored.
+			 *
+			 * @param Int column The cell's column.
+			 * @param Int row The cell's row.
+			 */
 			fun mark(column: Int, row: Int) {
 				if (column < 0 || row < 0 || column >= width || row >= height) {
 					return

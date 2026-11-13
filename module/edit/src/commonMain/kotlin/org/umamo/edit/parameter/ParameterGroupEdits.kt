@@ -9,14 +9,14 @@ import org.umamo.runtime.model.materializedParameterTree
 
 /*
  * Parameter-group document edits: create an empty group, delete (unwrap) a group keeping its parameters,
- * and rename a group. All operate on PuppetModel.parameterTree (layout) and never touch the flat
+ * and rename a group.  All operate on PuppetModel.parameterTree (layout) and never touch the flat
  * parameters list or the links; each undoes for free through EditorSession.mutate's whole-model snapshot.
  * Reuses collectParameterGroupIds from ParameterTreeEdits and the model's materializedParameterTree.
  */
 
 /**
  * A fresh CParameterGroup-style idstr ("ParamGroup", then "ParamGroup2", "ParamGroup3", ...) that
- * collides with no existing group id anywhere in the tree. Deterministic from the model alone so the
+ * collides with no existing group id anywhere in the tree.  Deterministic from the model alone so the
  * same edit replays identically under undo / redo - no clock, no random.
  *
  * // CMO3: CParameterGroupId.idstr - editor-minted sequential group identifiers.
@@ -60,8 +60,8 @@ fun PuppetModel.withParameterGroupCreated(newGroupId: ParameterGroupId, name: St
 
 /**
  * A copy of this model with group [groupId] dissolved: its child nodes splice into the tree at the
- * group's own position and the group node is dropped, so no parameter is lost. Never touches the flat
- * parameters list or the links. A no-op (no such group) returns this same instance.
+ * group's own position and the group node is dropped, so no parameter is lost.  Never touches the flat
+ * parameters list or the links.  A no-op (no such group) returns this same instance.
  *
  * @param ParameterGroupId groupId The group to unwrap.
  * @return PuppetModel The model with the group unwrapped, or this if it was absent.
@@ -71,6 +71,12 @@ fun PuppetModel.withParameterGroupDeleted(groupId: ParameterGroupId): PuppetMode
 		return this
 	}
 
+	/**
+	 * Replaces the group being dissolved with its own children, wherever it sits in the tree.
+	 *
+	 * @param List<ParameterNode> nodes The node list to rewrite.
+	 * @return List<ParameterNode> The rewritten list.
+	 */
 	fun splice(nodes: List<ParameterNode>): List<ParameterNode> =
 		nodes.flatMap { node ->
 			when {
@@ -84,8 +90,8 @@ fun PuppetModel.withParameterGroupDeleted(groupId: ParameterGroupId): PuppetMode
 }
 
 /**
- * A copy of this model with group [groupId] renamed to [newName] (trimmed). A blank name is a no-op
- * (returns this same instance), so an empty commit keeps the old label. Names are user data - never
+ * A copy of this model with group [groupId] renamed to [newName] (trimmed).  A blank name is a no-op
+ * (returns this same instance), so an empty commit keeps the old label.  Names are user data - never
  * localized - and are not unique; identity is the group id, so only the matching node changes.
  *
  * @param ParameterGroupId groupId The group to rename.
@@ -99,6 +105,12 @@ fun PuppetModel.withParameterGroupRenamed(groupId: ParameterGroupId, newName: St
 		return this
 	}
 
+	/**
+	 * Renames the group, wherever it sits in the tree.
+	 *
+	 * @param List<ParameterNode> nodes The node list to rewrite.
+	 * @return List<ParameterNode> The rewritten list.
+	 */
 	fun rename(nodes: List<ParameterNode>): List<ParameterNode> =
 		nodes.map { node ->
 			when {
@@ -118,7 +130,7 @@ fun PuppetModel.withParameterGroupRenamed(groupId: ParameterGroupId, newName: St
 
 /**
  * Creates a new empty parameter group (a freshly minted id, expanded) and returns its id, so the caller
- * can immediately open inline rename on it. One undo step.
+ * can immediately open inline rename on it.  One undo step.
  *
  * @param String name The initial display name.
  * @return ParameterGroupId The id of the created group.
@@ -131,7 +143,7 @@ fun EditorSession.createParameterGroup(name: String): ParameterGroupId {
 }
 
 /**
- * Deletes (unwraps) parameter group [id], splicing its parameters into the parent, as one undo step. A
+ * Deletes (unwraps) parameter group [id], splicing its parameters into the parent, as one undo step.  A
  * no-op records nothing.
  *
  * @param ParameterGroupId id The group to unwrap.
@@ -141,7 +153,7 @@ fun EditorSession.deleteParameterGroup(id: ParameterGroupId) {
 }
 
 /**
- * Renames parameter group [id] to [newName] (trimmed) as one undo step. A blank or unchanged name
+ * Renames parameter group [id] to [newName] (trimmed) as one undo step.  A blank or unchanged name
  * records nothing.
  *
  * @param ParameterGroupId id The group to rename.

@@ -45,7 +45,7 @@ internal fun importParameterLinks(context: Moc3ImportContext): List<ParameterLin
 	val knownParameterIds = context.parameterIds.toSet()
 
 	// cdi3: CombinedParameters is an array of [horizontal, vertical] id pairs - the editor's LINKED
-	// parameter pads. Entries that are not a 2-pair or name an unknown parameter are skipped.
+	// parameter pads.  Entries that are not a 2-pair or name an unknown parameter are skipped.
 	return context.displayInfo?.combinedParameters.orEmpty().mapNotNull { pair ->
 		val horizontalId = pair.getOrNull(0)?.let(::ParameterId) ?: return@mapNotNull null
 		val verticalId = pair.getOrNull(1)?.let(::ParameterId) ?: return@mapNotNull null
@@ -80,6 +80,12 @@ internal fun importParameterTree(context: Moc3ImportContext): List<ParameterNode
 			.groupBy { parameter -> if (parameter.groupId in groupIds) parameter.groupId else "" }
 	val visited = HashSet<String>()
 
+	/**
+	 * Builds a group's children: its parameters, then its sub-groups, each group once.
+	 *
+	 * @param String ownerGroupId The owning group's id, empty for the root.
+	 * @return List<ParameterNode> The child nodes.
+	 */
 	fun childrenOf(ownerGroupId: String): List<ParameterNode> =
 		buildList {
 			for (parameter in parametersByGroup[ownerGroupId].orEmpty()) {
@@ -109,6 +115,11 @@ internal fun importParameterTree(context: Moc3ImportContext): List<ParameterNode
 	// covers every axis (the tree replaces the flat list when non-empty).
 	val placedParameterIds =
 		buildSet {
+			/**
+			 * Adds the id of every parameter leaf in a node list, nested ones included.
+			 *
+			 * @param List<ParameterNode> nodes The node list to walk.
+			 */
 			fun walk(nodes: List<ParameterNode>) {
 				for (node in nodes) {
 					when (node) {

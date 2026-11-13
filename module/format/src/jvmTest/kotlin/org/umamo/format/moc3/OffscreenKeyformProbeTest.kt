@@ -1,8 +1,10 @@
 package org.umamo.format.moc3
 
+import org.umamo.format.moc3.io.LittleEndianReader
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -10,7 +12,7 @@ import kotlin.test.assertTrue
 
 /**
  * Verifies the v6 offscreen keyform layout on the Model A corpus sample (the only offscreen-carrying
- * model). Confirmed structure (see MOC3.md §5.6):
+ * model).  Confirmed structure (see MOC3.md §5.6):
  *
  *  - An offscreen's keyforms ride its OWNER PART's keyform grid - there is no offscreen
  *    keyform-binding section; Σ owner-part grid sizes == CountInfo 36.
@@ -39,9 +41,7 @@ class OffscreenKeyformProbeTest {
 			samplesDir?.walkTopDown()?.firstOrNull { it.isFile && it.name.startsWith("modelA") && it.extension == "moc3" }
 
 		if (sample == null) {
-			println("moc3.samples/modelA not present; skipping offscreen probe")
-
-			return
+			skipTest("moc3.samples/modelA not present; skipping offscreen probe")
 		}
 
 		val model = MocCodec.read(sample.readBytes())
@@ -102,7 +102,7 @@ class OffscreenKeyformProbeTest {
 
 		val drawableMaskTotal = model.drawables().sumOf { it.maskCount }
 		val maskBytes = model.section(Section.MASK_INDEX_DATA.indexIn(model.version))!!
-		val maskReader = org.umamo.format.moc3.io.LittleEndianReader(maskBytes)
+		val maskReader = LittleEndianReader(maskBytes)
 		val maskTable = IntArray(maskBytes.size / 4) { maskReader.readInt32() }
 		// The raw element region is 64-byte padded, so compare the meaningful rows and require
 		// anything beyond them to be zero padding.

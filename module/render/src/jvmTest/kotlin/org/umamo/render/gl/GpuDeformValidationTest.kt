@@ -18,6 +18,7 @@ import org.umamo.render.eval.WarpWorld
 import org.umamo.render.eval.deformMeshWorldFromCorners
 import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.GlslDialect
+import org.umamo.render.glsl.MAX_BLEND_CORNERS
 import org.umamo.render.glsl.tfDeformVertexShader
 import org.umamo.render.glsl.tfDiscardFragmentShader
 import org.umamo.render.puppet.blendColumnLayout
@@ -28,25 +29,26 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Differential validation that the GPU deform shader matches the CPU evaluator per vertex. Runs the
+ * Differential validation that the GPU deform shader matches the CPU evaluator per vertex.  Runs the
  * shipped [DEFORM_GLSL] (the exact body [PuppetRenderer] uses) in a headless GL context with transform
  * feedback capturing each vertex's world position, then diffs against [deformMeshWorldFromCorners] (the CPU
- * deform, pre-glue) for the same pose. Bounded-ULP is the bar - float32 GPU vs float32 CPU diverge slightly
- * by construction. Glue is excluded (the GPU path skips it), so this compares the morph + cascade math only.
+ * deform, pre-glue) for the same pose.  Bounded-ULP is the bar - float32 GPU vs float32 CPU diverge slightly
+ * by construction.  Glue is excluded (the GPU path skips it), so this compares the morph + cascade math only.
  *
  * Gated on `-Dcmo3.sample` and on a usable GL context, both via JUnit assumptions - so an ungated run
- * reports SKIPPED rather than passing green having asserted nothing. That distinction matters here more
+ * reports SKIPPED rather than passing green having asserted nothing.  That distinction matters here more
  * than anywhere: this is the only pin on the deform math, and a Metal port will check itself against it.
  * Run: `./gradlew :render:jvmTest -Dcmo3.sample=… --tests *GpuDeformValidationTest`.
  */
 class GpuDeformValidationTest {
-	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas, so this is well sub-pixel). It
+	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas, so this is well sub-pixel).  It
 	// tolerates float32 GPU-vs-CPU rounding and the shader's approximate out-of-grid warp extrapolation.
 	private val toleranceUnits = 0.5
 
@@ -55,7 +57,7 @@ class GpuDeformValidationTest {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
 		Assume.assumeTrue("[gpu-tf] no -Dcmo3.sample corpus model", file.isFile)
 		requireHeadlessGl("[gpu-tf]")
-		val root = Cmo3.read(file).root as? CModelSource ?: return
+		val root = Cmo3.read(file).root as? CModelSource ?: skipTest("[gpu-tf] ${file.name}: root is not a CModelSource")
 		val model = Cmo3Import.fromModelSource(root)
 		val program = linkTransformFeedbackProgram()
 		GL20.glUseProgram(program)
@@ -139,7 +141,7 @@ class GpuDeformValidationTest {
 				?.firstOrNull { it.isFile && it.name.startsWith("modelA") }
 		Assume.assumeTrue("[gpu-tf] no Model A blend-shape model in -Dcmo3.probe", modelAFile != null)
 		requireHeadlessGl("[gpu-tf]")
-		val root = Cmo3.read(modelAFile!!).root as? CModelSource ?: return
+		val root = Cmo3.read(modelAFile!!).root as? CModelSource ?: skipTest("[gpu-tf] ${modelAFile.name}: root is not a CModelSource")
 		val model = Cmo3Import.fromModelSource(root)
 		val defaults = model.parameters.associate { it.id to it.default }
 		val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }
@@ -263,11 +265,11 @@ class GpuDeformValidationTest {
 		var blendCount = 0
 
 		if (blend != null && blendLayout != null) {
-			val blendCells = IntArray(org.umamo.render.glsl.MAX_BLEND_CORNERS)
-			val blendWeights = FloatArray(org.umamo.render.glsl.MAX_BLEND_CORNERS)
+			val blendCells = IntArray(MAX_BLEND_CORNERS)
+			val blendWeights = FloatArray(MAX_BLEND_CORNERS)
 
 			for (contribution in blend.contributions) {
-				if (blendCount >= org.umamo.render.glsl.MAX_BLEND_CORNERS) {
+				if (blendCount >= MAX_BLEND_CORNERS) {
 					break
 				}
 

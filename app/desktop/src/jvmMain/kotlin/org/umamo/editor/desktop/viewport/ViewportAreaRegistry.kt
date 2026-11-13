@@ -102,12 +102,12 @@ internal fun uvFitBounds(surfaceBounds: ContentBounds, islandExtent: ContentBoun
 	return ContentBounds(minX, minY, maxX - minX, maxY - minY)
 }
 
-/** The camera and pixel size of a registered area, resolved for a CPU pick. Null-camera areas do not appear. */
+/** The camera and pixel size of a registered area, resolved for a CPU pick.  Null-camera areas do not appear. */
 internal data class AreaView(val camera: ViewportCamera, val width: Int, val height: Int)
 
 /**
  * Per-area render state, shared between the UI thread ([ViewportAreaRegistry]) and the render thread
- * ([OffscreenRenderEngine]). Field-ownership contract:
+ * ([OffscreenRenderEngine]).  Field-ownership contract:
  *
  *   - The @Volatile fields are written by the UI thread and read by the render thread (a volatile publish of
  *     immutable values or plain scalars): scene, uvContent, uvIslandExtent, overlays, width, height,
@@ -132,7 +132,7 @@ internal class AreaSlot {
 	// half-applied switch - the old kind against the new payload - which reads as a legitimately stale
 	// frame, renders grid-only, and then stamps itself fresh against the payload that landed meanwhile.
 	// The area would sit on an empty grid until a pan or resize happened to dislodge it, and nothing
-	// would look wrong anywhere. A single reference cannot tear, so the switch is all-or-nothing.
+	// would look wrong anywhere.  A single reference cannot tear, so the switch is all-or-nothing.
 	//
 	// Null for a puppet area, which has no UV surface.
 	@Volatile
@@ -170,15 +170,15 @@ internal class AreaSlot {
 		get() = framing?.camera
 
 	// Set by the Fit command (UI thread), cleared by the render thread, which then recomputes a fresh fit
-	// (ignoring any remembered camera). A flag rather than camera=null so the old view shows until the refit
+	// (ignoring any remembered camera).  A flag rather than camera=null so the old view shows until the refit
 	// lands, and so refit beats the workspace-restore path.
 	@Volatile
 	var refitRequested: Boolean = false
 	val cameraState = MutableStateFlow<ViewportCamera?>(null)
 
-	// How many live composables currently hold this area id. A leaf can be torn down and rebuilt for the SAME
+	// How many live composables currently hold this area id.  A leaf can be torn down and rebuilt for the SAME
 	// id during a tree collapse (closing a split sibling), so register(new) and unregister(old) briefly
-	// overlap; the slot is dropped only when this returns to 0. Touched only on the Compose UI thread.
+	// overlap; the slot is dropped only when this returns to 0.  Touched only on the Compose UI thread.
 	var refCount: Int = 0
 
 	// Render-thread-only bookkeeping (no synchronization needed).
@@ -204,13 +204,13 @@ internal class AreaSlot {
 }
 
 /**
- * Owns the registered viewport areas and their cameras. The register/resize/camera-navigation surface runs
+ * Owns the registered viewport areas and their cameras.  The register/resize/camera-navigation surface runs
  * on the UI thread; [OffscreenRenderEngine] iterates the same [areas] map on the render thread and calls
- * [establishCamera] to fit newly-sized areas. The shared state is safe across the two threads: the slot map
+ * [establishCamera] to fit newly-sized areas.  The shared state is safe across the two threads: the slot map
  * is a ConcurrentHashMap, per-area hand-off fields are @Volatile, and the camera flows are StateFlows.
  */
 internal class ViewportAreaRegistry {
-	/** The registered areas, keyed by stable area id. Iterated by the render engine; mutated by the UI thread. */
+	/** The registered areas, keyed by stable area id.  Iterated by the render engine; mutated by the UI thread. */
 	val areas = ConcurrentHashMap<String, AreaSlot>()
 
 	// Cameras remembered by area AND surface beyond a slot's composable life, so switching workspaces (which
@@ -253,8 +253,8 @@ internal class ViewportAreaRegistry {
 	}
 
 	// Zoom increments in percentage points, fed from settings (viewport.zoomStep*Percent): the fine step is
-	// one wheel notch / keyboard press, the coarse step is the Shift-held variant. Defaults mirror
-	// defaultSettings.json. UI thread only.
+	// one wheel notch / keyboard press, the coarse step is the Shift-held variant.  Defaults mirror
+	// defaultSettings.json.  UI thread only.
 	@Volatile
 	var zoomStepPercent: Float = 1f
 
@@ -262,7 +262,7 @@ internal class ViewportAreaRegistry {
 	var zoomStepCoarsePercent: Float = 5f
 
 	/**
-	 * Registers a viewport area and returns the flow of images to display for it. Re-registering an id that
+	 * Registers a viewport area and returns the flow of images to display for it.  Re-registering an id that
 	 * is still live (the same area's leaf rebuilt during a tree collapse - see [AreaSlot.refCount]) returns
 	 * the existing slot and its last image, so the surviving viewport keeps rendering instead of being
 	 * orphaned.
@@ -410,7 +410,7 @@ internal class ViewportAreaRegistry {
 	 * Releases one hold on an area; the slot is dropped only when the last holder leaves (ref-count to zero).
 	 * This guards the tree-collapse case: closing one split sibling rebuilds the surviving area's leaf under a
 	 * fresh composition node, so its [register] runs BEFORE the old leaf's unregister - a plain remove here
-	 * would delete the slot the rebuilt viewport just bound to, freezing it at a stale (stretched) frame. Any
+	 * would delete the slot the rebuilt viewport just bound to, freezing it at a stale (stretched) frame.  Any
 	 * read-back already in flight for a truly-dropped slot still completes and is discarded when collected.
 	 *
 	 * @param String areaId The area id to release.
@@ -425,7 +425,7 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Returns the flow of the area's current camera, for the overlay zoom readout. The viewport composable
+	 * Returns the flow of the area's current camera, for the overlay zoom readout.  The viewport composable
 	 * registers the area before reading this, so it attaches to the existing slot.
 	 *
 	 * @param String areaId The area id.
@@ -435,7 +435,7 @@ internal class ViewportAreaRegistry {
 		areas.getOrPut(areaId) { AreaSlot() }.cameraState
 
 	/**
-	 * Updates an area's requested pixel size; the render thread re-renders it at the new size. A no-op for an
+	 * Updates an area's requested pixel size; the render thread re-renders it at the new size.  A no-op for an
 	 * unregistered id - registration always precedes the size report, so resize must never resurrect a slot
 	 * the ref-count has already dropped (that would leak a zero-ref slot the render loop renders forever).
 	 *
@@ -450,7 +450,7 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Pans the area's camera by a screen-pixel drag (grab style). No-op before the initial fit exists.
+	 * Pans the area's camera by a screen-pixel drag (grab style).  No-op before the initial fit exists.
 	 *
 	 * @param String areaId The area id.
 	 * @param Float deltaXpx Horizontal drag in pixels.
@@ -462,7 +462,7 @@ internal class ViewportAreaRegistry {
 
 	/**
 	 * Zooms the area's camera about a cursor position (wheel zoom) by one configured step, pinning the world
-	 * point under the cursor. The step (fine or coarse Shift step) comes from settings.
+	 * point under the cursor.  The step (fine or coarse Shift step) comes from settings.
 	 *
 	 * @param String areaId The area id.
 	 * @param Boolean zoomIn True to zoom in, false to zoom out.
@@ -490,7 +490,7 @@ internal class ViewportAreaRegistry {
 
 	/**
 	 * Frames a screen-pixel rectangle in the area's camera (Zoom Region / Shift+B): the box fills the
-	 * viewport, letterboxed on the looser axis. A no-op before the first fit or when the area has no size yet.
+	 * viewport, letterboxed on the looser axis.  A no-op before the first fit or when the area has no size yet.
 	 *
 	 * @param String areaId The area id.
 	 * @param Float leftPx One horizontal box edge in viewport pixels.
@@ -544,7 +544,7 @@ internal class ViewportAreaRegistry {
 	}
 
 	/**
-	 * Fits a world-space rectangle inside the area, centered (the Frame Selected camera move). A no-op before
+	 * Fits a world-space rectangle inside the area, centered (the Frame Selected camera move).  A no-op before
 	 * the first fit or when the area has no size yet.
 	 *
 	 * @param String areaId The area id.
@@ -691,12 +691,17 @@ internal class ViewportAreaRegistry {
 		}
 	}
 
-	/** The zoom step in percentage points for this notch/press: the coarse (Shift) step or the fine step. */
+	/**
+	 * The zoom step in percentage points for this notch/press: the coarse (Shift) step or the fine step.
+	 *
+	 * @param Boolean coarse True for the coarse (Shift) step, false for the fine one.
+	 * @return Float The step, in percentage points.
+	 */
 	private fun stepFor(coarse: Boolean): Float = if (coarse) zoomStepCoarsePercent else zoomStepPercent
 
 	/**
 	 * Applies [transform] to the area's current camera and publishes the result, still framing the surface it
-	 * framed. No-op before the initial fit (there is nothing to transform until the first frame establishes the
+	 * framed.  No-op before the initial fit (there is nothing to transform until the first frame establishes the
 	 * view).
 	 *
 	 * @param String areaId The area id.

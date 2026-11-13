@@ -16,17 +16,17 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.RuntimeTarget
 
 /**
- * How a [Change] participates in undo. Reconciles the two channels a mutation feeds: the change-event
- * bus (everything emits) and the undo stack (only a subset are steps). A change declares one of these,
+ * How a [Change] participates in undo.  Reconciles the two channels a mutation feeds: the change-event
+ * bus (everything emits) and the undo stack (only a subset are steps).  A change declares one of these,
  * so the [EditorSession] knows whether to push a history step without the call site hardcoding it.
  */
 sealed interface Undoability {
-	/** Pushes its own history step. The common case (rename, reparent, visibility, a selection gesture). */
+	/** Pushes its own history step.  The common case (rename, reparent, visibility, a selection gesture). */
 	object Undoable : Undoability
 
 	/**
 	 * Pushes a step, but a run that shares [key] within one gesture merges into a single step (a slider
-	 * scrub, a continuous brush drag). Reserved for gestures like these; no call site produces a
+	 * scrub, a continuous brush drag).  Reserved for gestures like these; no call site produces a
 	 * [Coalescing] change yet.
 	 *
 	 * @property String key The coalescing identity; consecutive changes sharing it merge.
@@ -38,8 +38,8 @@ sealed interface Undoability {
 }
 
 /**
- * A described edit. Carries the description of what changed — not how to undo it — because undo is by
- * immutable snapshot, not by inverse op (see [History]). Every mutation emits a [Change] on the
+ * A described edit.  Carries the description of what changed — not how to undo it — because undo is by
+ * immutable snapshot, not by inverse op (see [History]).  Every mutation emits a [Change] on the
  * session's change bus; the [undoability] decides whether it also becomes a history step, and [labelKey]
  * is a stable key the UI resolves to a localized history-panel label (kept here as a string so :edit
  * stays free of Compose resources).
@@ -55,7 +55,7 @@ sealed interface Change {
 /** Changes to a part (the organizational tree node). */
 sealed interface PartChange : Change {
 	/**
-	 * Toggles a part's Parts-panel eyeball. Cascades at render time (hiding a part hides its subtree),
+	 * Toggles a part's Parts-panel eyeball.  Cascades at render time (hiding a part hides its subtree),
 	 * but the stored change is just this one part's flag.
 	 *
 	 * @property PartId id The part whose visibility changed.
@@ -101,7 +101,7 @@ sealed interface PartChange : Change {
 	}
 
 	/**
-	 * Deletes a part. A cascade removes the whole subtree (the part, descendant parts, and their drawables);
+	 * Deletes a part.  A cascade removes the whole subtree (the part, descendant parts, and their drawables);
 	 * an ungroup removes only the folder and re-homes its contents up one level.
 	 *
 	 * @property PartId id The deleted part.
@@ -199,7 +199,7 @@ sealed interface DrawableChange : Change {
 
 	/**
 	 * Moves a drawable in the organizational tree: to a new owning part (null = the root level) and / or a
-	 * new position among its siblings. Because the parts-panel order is also the draw-order tiebreak, this
+	 * new position among its siblings.  Because the parts-panel order is also the draw-order tiebreak, this
 	 * can change draw order, so the viewport follows.
 	 *
 	 * @property DrawableId id The moved drawable.
@@ -549,7 +549,7 @@ sealed interface DeformerChange : Change {
 	}
 
 	/**
-	 * Sets a rotation deformer's static editor reference angle. A no-op on a warp deformer (it has no
+	 * Sets a rotation deformer's static editor reference angle.  A no-op on a warp deformer (it has no
 	 * base angle), so the transform short-circuits.
 	 *
 	 * @property DeformerId id The rotation deformer whose base angle changed.
@@ -578,10 +578,10 @@ sealed interface DeformerChange : Change {
 sealed interface ParameterChange : Change {
 	/**
 	 * Commits a parameter scrub: the live value (pose) of one or more parameters reached a new resting
-	 * position. The pose is ephemeral editor state (not document content), snapshotted so the scrub is
-	 * undoable. Coalescing is realized upstream, at the gesture boundary: a continuous slider / 2D-pad
+	 * position.  The pose is ephemeral editor state (not document content), snapshotted so the scrub is
+	 * undoable.  Coalescing is realized upstream, at the gesture boundary: a continuous slider / 2D-pad
 	 * drag streams transient preview frames straight to the renderer and commits exactly one [SetValue]
-	 * on release, so a whole drag is a single undo step while two separate drags are two. Hence this is a
+	 * on release, so a whole drag is a single undo step while two separate drags are two.  Hence this is a
 	 * plain [Undoability.Undoable] step (one per commit), not a history-side merge.
 	 *
 	 * @property List<ParameterId> ids The parameters whose live value this gesture moved.
@@ -592,8 +592,8 @@ sealed interface ParameterChange : Change {
 	}
 
 	/**
-	 * Sets a parameter's range (minimum / maximum) and default. Document content - it changes the model
-	 * and marks the document dirty. The default is clamped within the range, and the live pose value is
+	 * Sets a parameter's range (minimum / maximum) and default.  Document content - it changes the model
+	 * and marks the document dirty.  The default is clamped within the range, and the live pose value is
 	 * re-clamped into the new range as part of the same undo step.
 	 *
 	 * @property ParameterId id The parameter whose range changed.
@@ -607,8 +607,8 @@ sealed interface ParameterChange : Change {
 	}
 
 	/**
-	 * Links two adjacent parameters into one 2D pad, or removes that link. Document content - it
-	 * changes the model and marks the document dirty. The live pose is untouched: both parameters
+	 * Links two adjacent parameters into one 2D pad, or removes that link.  Document content - it
+	 * changes the model and marks the document dirty.  The live pose is untouched: both parameters
 	 * keep their values, only the panel presentation folds into (or splits out of) a pad.
 	 *
 	 * @property ParameterId horizontal The X-axis (upper) parameter.
@@ -621,8 +621,8 @@ sealed interface ParameterChange : Change {
 	}
 
 	/**
-	 * Reorders a parameter row in the panel's group tree, or moves it into or out of a group. Layout only
-	 * - the flat parameters list and the links are untouched. The subject is one or two adjacent parameter
+	 * Reorders a parameter row in the panel's group tree, or moves it into or out of a group.  Layout only
+	 * - the flat parameters list and the links are untouched.  The subject is one or two adjacent parameter
 	 * leaves (a slider or a linked pad) or a whole group.
 	 *
 	 * @property ParameterMoveSubject subject The leaves or group being moved.
@@ -702,7 +702,7 @@ sealed interface ParameterChange : Change {
 
 sealed interface DocumentChange : Change {
 	/**
-	 * Sets the document canvas size in world units. Document content, so it marks the document dirty.
+	 * Sets the document canvas size in world units.  Document content, so it marks the document dirty.
 	 *
 	 * @property Float width The new canvas width.
 	 * @property Float height The new canvas height.
@@ -713,7 +713,7 @@ sealed interface DocumentChange : Change {
 	}
 
 	/**
-	 * Sets the world origin (where the viewport axis lines cross, in world space). Document content, so
+	 * Sets the world origin (where the viewport axis lines cross, in world space).  Document content, so
 	 * it marks the document dirty.
 	 *
 	 * @property Float x The new world-origin x.
@@ -725,7 +725,7 @@ sealed interface DocumentChange : Change {
 	}
 
 	/**
-	 * Sets the document's runtime-compatibility target. Document content, so it marks the document
+	 * Sets the document's runtime-compatibility target.  Document content, so it marks the document
 	 * dirty.
 	 *
 	 * @property RuntimeTarget target The new runtime target.
@@ -991,7 +991,7 @@ sealed interface KeyformChange : Change {
 sealed interface MeshChange : Change {
 	/**
 	 * Transforms a set of mesh vertices to new rest positions, per drawable - an Edit session spans several
-	 * meshes, so one gesture can move vertices on each of them as a single undo step. The pose is
+	 * meshes, so one gesture can move vertices on each of them as a single undo step.  The pose is
 	 * unaffected; this edits the rest geometry, which is document content.
 	 *
 	 * @property Map<DrawableId, List<Int>> vertexIndicesByDrawable The vertices this gesture moved, per
@@ -1122,18 +1122,18 @@ sealed interface MeshChange : Change {
 
 /**
  * Changes to ephemeral editor state — selection and mode — which ride alongside the document model in
- * a history snapshot rather than inside [org.umamo.runtime.model.PuppetModel]. Selection gestures are
+ * a history snapshot rather than inside [org.umamo.runtime.model.PuppetModel].  Selection gestures are
  * full undo steps (the user's chosen Blender-faithful granularity); a mode toggle is transient.
  */
 sealed interface EditorStateChange : Change {
-	/** A selection gesture (click, deselect, range). Its own undo step so a misclick is recoverable. */
+	/** A selection gesture (click, deselect, range).  Its own undo step so a misclick is recoverable. */
 	object SelectionChanged : EditorStateChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String = "change.selection"
 	}
 
 	/**
-	 * A parameter-target gesture (clicking a parameter row). Its own undo step, like the object and mesh
+	 * A parameter-target gesture (clicking a parameter row).  Its own undo step, like the object and mesh
 	 * selection gestures, so undoing back across a keyform edit restores the parameter it was made on.
 	 */
 	object ParameterSelectionChanged : EditorStateChange {
@@ -1142,7 +1142,7 @@ sealed interface EditorStateChange : Change {
 	}
 
 	/**
-	 * An Edit-mode element-selection gesture (click, box, deselect). Its own undo step, like its
+	 * An Edit-mode element-selection gesture (click, box, deselect).  Its own undo step, like its
 	 * object-mode counterpart [SelectionChanged], so a misclick that loses a selection is recoverable.
 	 */
 	object MeshSelectionChanged : EditorStateChange {
@@ -1161,7 +1161,7 @@ sealed interface EditorStateChange : Change {
 	}
 
 	/**
-	 * An Edit-mode select-mode switch (vertex / edge / face). Its own undo step, so undoing back across
+	 * An Edit-mode select-mode switch (vertex / edge / face).  Its own undo step, so undoing back across
 	 * the switch restores both the prior mode and the selection it converted - the flush-down / derive-up
 	 * conversion is lossy by design (Blender-faithful), so only the snapshot can bring the set back.
 	 *
@@ -1173,7 +1173,7 @@ sealed interface EditorStateChange : Change {
 	}
 
 	/**
-	 * An Object/Edit mode toggle. Its own undo step (like a selection gesture), so undoing back across a
+	 * An Object/Edit mode toggle.  Its own undo step (like a selection gesture), so undoing back across a
 	 * mode change restores the prior mode together with the vertex selection it seeded - the editor never
 	 * ends up in Edit mode showing a state that was captured in Object mode.
 	 *

@@ -17,7 +17,7 @@ import kotlin.test.assertEquals
 
 /**
  * Verifies the glue weld ([applyGluesResolved]): each pair slides `A' = A + (B−A)·wA`, `B' = B + (A−B)·wB`
- * from the pre-blend positions. When `wA + wB = 1` (the editor's case) the two converge to one point.
+ * from the pre-blend positions.  When `wA + wB = 1` (the editor's case) the two converge to one point.
  */
 class GlueTest {
 	/** A direct (deformer-less) one-vertex drawable resting at `(x, y)` - evaluates to world `(x, −y)`. */
@@ -35,13 +35,13 @@ class GlueTest {
 		)
 	}
 
-	private fun modelWith(a: Drawable, b: Drawable, glue: Glue) =
+	private fun modelWith(drawableA: Drawable, drawableB: Drawable, glue: Glue) =
 		PuppetModel(
 			parameters = emptyList(),
 			parts = emptyList(),
 			deformers = emptyList(),
-			drawables = listOf(a, b),
-			rootChildren = listOf(OrgChild.Drawable(a.id), OrgChild.Drawable(b.id)),
+			drawables = listOf(drawableA, drawableB),
+			rootChildren = listOf(OrgChild.Drawable(drawableA.id), OrgChild.Drawable(drawableB.id)),
 			rootPartId = null,
 			glues = listOf(glue),
 		)
@@ -69,11 +69,11 @@ class GlueTest {
 				Glue(DrawableId("A"), DrawableId("B"), listOf(GluePair(0, 0, 0.25f, 0.75f))),
 			)
 		val geometry = CpuDeformationEvaluator().evaluate(model, emptyMap())
-		val a = geometry.worldPositions.getValue(DrawableId("A"))
-		val b = geometry.worldPositions.getValue(DrawableId("B"))
-		assertEquals(a[0], b[0], 1e-4f)
-		assertEquals(a[1], b[1], 1e-4f)
-		assertEquals(13f, a[0], 1e-4f) // 10 + (22−10)·0.25
+		val positionsA = geometry.worldPositions.getValue(DrawableId("A"))
+		val positionsB = geometry.worldPositions.getValue(DrawableId("B"))
+		assertEquals(positionsA[0], positionsB[0], 1e-4f)
+		assertEquals(positionsA[1], positionsB[1], 1e-4f)
+		assertEquals(13f, positionsA[0], 1e-4f) // 10 + (22−10)·0.25
 	}
 
 	@Test

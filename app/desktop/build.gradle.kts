@@ -1,6 +1,6 @@
 // :desktop (app/desktop) — desktop entrypoint (Compose Desktop + LWJGL viewport interop).
-// :desktop — デスクトップ起動点（Compose Desktop ＋ LWJGL ビューポート連携）。
 
+import org.gradle.jvm.tasks.Jar
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -9,11 +9,10 @@ plugins {
 	alias(libs.plugins.composeCompiler)
 }
 
-// EN: Resolve which platform's natives this build bundles (default: the host; override with
-//     -Pumamo.target=<os>-<arch>, e.g. windows-x64 to cross-build from WSL2 Linux). The shared script
-//     also drives :render so both modules agree; it exposes its result via extra properties. See
-//     gradle/build-target.gradle.kts for the full rationale and the cross-build recipe.
-// JA: 同梱するネイティブの対象プラットフォームを解決する（既定はホスト、-Pumamo.target で上書き）。
+// Resolve which platform's natives this build bundles (default: the host; override with
+// -Pumamo.target=<os>-<arch>, e.g. windows-x64 to cross-build from WSL2 Linux).  The shared script
+// also drives :render so both modules agree; it exposes its result via extra properties.  See
+// gradle/build-target.gradle.kts for the full rationale and the cross-build recipe.
 apply(from = rootProject.file("gradle/build-target.gradle.kts"))
 val buildTarget = extra["umamoBuildTarget"] as String
 val lwjglNatives = extra["umamoLwjglNatives"] as String
@@ -38,7 +37,7 @@ val appCopyright = "Copyright (C) Umamo Project contributors.  Licensed under th
 val appLicenseIdentifier = "GPL-3.0-only"
 val appAboutUrl = "https://umamo.org"
 
-// The name the app image, its launcher, and its cfg take (docs/plan/distribution.md D15).  A Mac app is
+// The name the app image, its launcher, and its cfg take.  A Mac app is
 // capitalized, and this is also the name the macOS menu bar shows.  Windows follows, because the MSI names its
 // Start-menu entry and its Settings > Apps entry after it.  Linux keeps the lowercase name of its package and launcher
 // conventions.  Folders a rigger's files live in stay lowercase on every OS - the Windows install folder among them.
@@ -77,14 +76,13 @@ kotlin {
 	sourceSets {
 		jvmMain {
 			dependencies {
-				// EN: Compose Desktop's per-target artifact bundles the matching Skiko native (a
-				//     .so/.dll/.dylib). buildTarget is exactly the artifact's "<os>-<arch>" suffix, so
-				//     `desktop-jvm-$buildTarget` selects the right one — on the host this is what
-				//     `compose.desktop.currentOs` resolves to, so the default path is unchanged. Direct
-				//     coordinate (not the `compose.desktop.<target>` accessor) because those accessors are
-				//     deprecated in CMP 1.11 — same migration the version catalog already made for the
-				//     other compose.* artifacts (see libs.versions.toml).
-				// JA: 対象プラットフォームの Skiko ネイティブを含む Compose Desktop 依存を直接座標で選ぶ。
+				// Compose Desktop's per-target artifact bundles the matching Skiko native (a
+				// .so/.dll/.dylib). buildTarget is exactly the artifact's "<os>-<arch>" suffix, so
+				// `desktop-jvm-$buildTarget` selects the right one — on the host this is what
+				// `compose.desktop.currentOs` resolves to, so the default path is unchanged.  Direct
+				// coordinate (not the `compose.desktop.<target>` accessor) because those accessors are
+				// deprecated in CMP 1.11 — same migration the version catalog already made for the
+				// other compose.* artifacts (see libs.versions.toml).
 				implementation("org.jetbrains.compose.desktop:desktop-jvm-$buildTarget:${libs.versions.composeMultiplatform.get()}")
 				// Compose resources: the desktop menu bar localizes against :ui's EN/JA catalogs via
 				// stringResource(Res.string.*); :ui exposes it as implementation, so declare it here too.
@@ -104,14 +102,14 @@ kotlin {
 
 				// JNA: a tiny Win32 FFI for desktop window chrome (the DWM title-bar caption tint).
 				// Already on the runtime classpath via FileKit; declared here so jvmMain compiles
-				// against com.sun.jna.* directly. No-op off Windows — the call is OS-guarded.
+				// against com.sun.jna.* directly.  No-op off Windows — the call is OS-guarded.
 				implementation(libs.jna)
 
 				// LWJGL GL for the offscreen viewport renderer; BOM keeps module versions aligned.
 				implementation(project.dependencies.platform(libs.lwjgl.bom))
 				implementation(libs.lwjgl.core)
 				implementation(libs.lwjgl.opengl)
-				// GLFW: a hidden-window GL context for the OFFSCREEN viewport renderer. The puppet is
+				// GLFW: a hidden-window GL context for the OFFSCREEN viewport renderer.  The puppet is
 				// rendered to an FBO and shown as a lightweight Compose Image (not a heavyweight AWT
 				// canvas), so Compose menus/overlays/gizmos layer over it correctly on every platform.
 				implementation(libs.lwjgl.glfw)
@@ -122,13 +120,15 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				implementation(kotlin("test"))
 			}
 		}
 	}
 }
 
-// Compose Desktop's packaging/run DSL. `:desktop:run` launches the editor.
+// Compose Desktop's packaging/run DSL.  `:desktop:run` launches the editor.
 compose.desktop {
 	application {
 		mainClass = "org.umamo.editor.desktop.MainKt"
@@ -139,11 +139,11 @@ compose.desktop {
 
 		// Everything in this jvmArgs list is baked into the PACKAGED launcher too — the plugin
 		// hands application.jvmArgs straight to jpackage as --java-options, which end up in
-		// umamo.cfg. So only put things here that are true for a shipped build. The corpus-preview
+		// umamo.cfg.  So only put things here that are true for a shipped build.  The corpus-preview
 		// override, a developer affordance pointing at a gitignored absolute host path, is set on
 		// `:desktop:run` alone at the bottom of this file.
 		//
-		// Half of the machine's memory (docs/plan/distribution.md D6): a large model's export needs gigabytes,
+		// Half of the machine's memory: a large model's export needs gigabytes,
 		// and the user's paint app runs beside the editor.  A percentage rather than a fixed size, so a small
 		// machine is never promised more than it has.  A jar cannot carry launcher options, so README, RELEASING,
 		// and the release notes print this same option for `java -jar`, as the in-app alerts do (JAR_HEAP_OPTION);
@@ -182,20 +182,20 @@ compose.desktop {
 			description = appDescription
 			copyright = appCopyright
 
-			// The jlink module set for the bundled runtime. Compose's default is
+			// The jlink module set for the bundled runtime.  Compose's default is
 			// [java.base, java.desktop, java.logging, jdk.crypto.ec] and modules(...) APPENDS to
-			// it rather than replacing it, so these are purely additive. Each is load-bearing,
+			// it rather than replacing it, so these are purely additive.  Each is load-bearing,
 			// and each was traced to the jar that needs it with `jdeps --list-deps`:
 			//   java.instrument   — kotlinx-coroutines' AgentPremain debug-probe transformer.
 			//   java.sql          — SQLDelight's JdbcSqliteDriver / sqlite-jdbc (CLIP ingest).
-			//   java.xml          — JDOM's SAX/JAXP path, i.e. all of CMO3 read/write. Already
+			//   java.xml          — JDOM's SAX/JAXP path, i.e. all of CMO3 read/write.  Already
 			//                       implied (java.desktop requires it transitively), but CMO3 is
 			//                       the product; it should not ride on someone else's implication.
 			//   jdk.security.auth — dbus-java, under FileKit's XDG-portal open/save dialogs.
 			//   jdk.unsupported   — sun.misc.Unsafe, which LWJGL's MemoryBackendUnsafe* needs.
 			// Deliberately NOT includeAllModules: that adds ~50 MB per platform to paper over a
 			// class of bug the release workflow already catches by asserting on the MODULES= line
-			// of jlink's `release` descriptor. Re-run `:desktop:suggestRuntimeModules` after any
+			// of jlink's `release` descriptor.  Re-run `:desktop:suggestRuntimeModules` after any
 			// dependency change and add whatever it names — but note it under-reports, since it
 			// misses reflective and service-loaded edges (it does not name java.xml).
 			modules("java.instrument", "java.sql", "java.xml", "jdk.security.auth", "jdk.unsupported")
@@ -223,8 +223,8 @@ compose.desktop {
 				// holds it under its file name in Contents/Resources beside the app icon, which jpackage names
 				// Umamo.icns, and macOS's case-insensitive file system reads umamo.icns as that same file.
 				fileAssociation(umaMimeType, umaExtension, umaDescription, project.file("icons/umamo-document.icns"))
-				// CFBundleIdentifier. Matches :android's applicationId so one reverse-DNS identity
-				// covers the project on both platforms. Not required for an unsigned app image (the
+				// CFBundleIdentifier.  Matches :android's applicationId so one reverse-DNS identity
+				// covers the project on both platforms.  Not required for an unsigned app image (the
 				// plugin only validates it when signing), but jpackage would otherwise derive one
 				// from the main-class package — and macOS keys preferences and TCC permission grants
 				// on this string, so changing it later orphans every user's saved state.
@@ -566,7 +566,7 @@ tasks.withType<Test>().configureEach {
 	inputs.files(filesReadByTests).withPropertyName("filesReadByTests").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
-// `umamo.testCmo3` opens the corpus CMO3 (gitignored; the puppet preview) on launch. It is a
+// `umamo.testCmo3` opens the corpus CMO3 (gitignored; the puppet preview) on launch.  It is a
 // DEVELOPER affordance carrying an absolute host path, so it must never reach a packaged
 // artifact where that path does not exist — hence the run task rather than
 // application.jvmArgs, which the plugin forwards to jpackage as --java-options.
@@ -574,9 +574,9 @@ tasks.withType<Test>().configureEach {
 // Two deliberate choices:
 //   * withType/matching/configureEach, not tasks.named("run"): the Compose plugin registers its
 //     tasks inside its own afterEvaluate, so `run` does not exist while this script is being
-//     evaluated and named() would throw. Same lazy idiom as the uber-jar override below.
+//     evaluated and named() would throw.  Same lazy idiom as the uber-jar override below.
 //   * systemProperty(), not jvmArgs(): the plugin's own configuration action calls
-//     JavaExec.setJvmArgs() — a REPLACE, not an append. Gradle happens to run that action before
+//     JavaExec.setJvmArgs() — a REPLACE, not an append.  Gradle happens to run that action before
 //     this one so an appended jvmArg would survive today, but systemProperties is a separate
 //     collection setJvmArgs never touches, so this holds regardless of action ordering.
 // The path is resolved to a val first so the lambda captures a String, not the Project
@@ -589,14 +589,14 @@ tasks.withType<JavaExec>().matching { execTask -> execTask.name == "run" }
 
 // The Compose plugin stamps the uber jar with the HOST os token (its own currentTarget
 // detection), which lies when -Pumamo.target cross-resolves the bundled natives — the jar
-// CONTENTS already honor buildTarget (Skiko artifact and LWJGL natives above). The plugin
+// CONTENTS already honor buildTarget (Skiko artifact and LWJGL natives above).  The plugin
 // assigns the name PARTS (appendix/version) directly in its afterEvaluate, after any
 // configureEach action, so part-level overrides lose; an explicit archiveFileName replaces the
 // derived-from-parts convention outright and wins regardless of assignment order.
 //
 // Target before version — umamo-<os>-<arch>-<version>.<ext>. Keep that order: it is what the
 // release assets are named and what downstream tooling matches on.
-tasks.withType<org.gradle.jvm.tasks.Jar>().matching { jarTask -> jarTask.name == "packageUberJarForCurrentOS" }
+tasks.withType<Jar>().matching { jarTask -> jarTask.name == "packageUberJarForCurrentOS" }
 	.configureEach {
 		archiveFileName.set("umamo-$buildTarget-$umamoVersion.jar")
 		// What `java -jar` reads from the manifest, beside the Main-Class the plugin adds to the same map.  Without

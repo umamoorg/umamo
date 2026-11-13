@@ -8,6 +8,7 @@ import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.runtime.eval.gridCorners
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -23,15 +24,15 @@ import kotlin.test.assertTrue
  *
  * The authored form is rebuilt as the keyform-space base plus the ingested delta.  The hypotheses
  * coincide on drawables whose default-pose grid form equals the canvas editable mesh; only records
- * where they differ discriminate. Units: MOC3 deltas are model space; the origin cancels in a delta,
+ * where they differ discriminate.  Units: MOC3 deltas are model space; the origin cancels in a delta,
  * so the conversion is x/ppu with Y components sign-flipped.
  *
  * MEASURED VERDICT (Model A, 16 discriminating records): H_SETUP is refuted outright (errors 20-50x
- * larger than H_GRID). H_GRID holds to first order, but a residual remains on warp-parented
+ * larger than H_GRID).  H_GRID holds to first order, but a residual remains on warp-parented
  * meshes whose parent warp carries a morph on the same driving parameter - antisymmetric in the
  * key (e.g. ArtMesh80 comp 128: implied reference deviates +-147 px at keys -+10 while the
  * authored forms there are equal), consistent with the baker pre-compensating the mesh delta
- * through the morphed parent warp. The assert below is therefore DIRECTIONAL (grid beats setup
+ * through the morphed parent warp.  The assert below is therefore DIRECTIONAL (grid beats setup
  * on every discriminating record); the posed oracle quantifies the coupling end to end.
  *
  * Skips gracefully when the Model A corpus pair is absent.
@@ -50,9 +51,7 @@ class BlendDeltaFrameProbeTest {
 		val moc3File = modelAMoc3
 
 		if (cmo3File == null || moc3File == null) {
-			println("Model A corpus pair not present; skipping delta-frame probe")
-
-			return
+			skipTest("Model A corpus pair not present; skipping delta-frame probe")
 		}
 
 		val root = Cmo3.read(cmo3File).root as? CModelSource ?: error("root is not a CModelSource")

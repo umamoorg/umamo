@@ -24,7 +24,7 @@ import kotlin.test.assertEquals
 class FramebufferReadbackTest {
 	private val size = 16
 
-	/** Reads a pixel out of a top-first [RasterImage]. Row 0 is the TOP row. */
+	/** Reads a pixel out of a top-first [RasterImage].  Row 0 is the TOP row. */
 	private fun pixelAt(image: RasterImage, column: Int, row: Int): Triple<Int, Int, Int> {
 		val at = (row * image.width + column) * 4
 
@@ -56,7 +56,7 @@ class FramebufferReadbackTest {
 		val image = device.readPixels(target)
 		assertEquals(size, image.width)
 		assertEquals(size, image.height)
-		// GL's top half is red; a top-first image must therefore lead with red. Without the flip this
+		// GL's top half is red; a top-first image must therefore lead with red.  Without the flip this
 		// is green and the assertion fires - which is the whole point of the test.
 		assertEquals(Triple(255, 0, 0), pixelAt(image, 0, 0), "row 0 is the framebuffer's TOP row (red)")
 		assertEquals(Triple(0, 255, 0), pixelAt(image, 0, size - 1), "the last row is the BOTTOM row (green)")

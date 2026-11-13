@@ -11,6 +11,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.cmo3.cmo3AtlasPages
 import org.umamo.render.encodeAtlasPng
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.repack.AtlasRepackHost
 import org.umamo.ui.model.repack.AtlasRepackReport
@@ -41,9 +42,7 @@ class LiveRepackExportGateTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the live repack export gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the live repack export gate")
 			}
 
 			val load = loadDocument(file.readBytes(), file.name, file.path)

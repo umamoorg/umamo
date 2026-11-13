@@ -98,8 +98,8 @@ fun WorkspaceTabs(
 	val keymap = LocalKeymap.current
 	val activeIndex = workspaces.indexOfFirst { workspace -> workspace.id == activeId }.coerceAtLeast(0)
 
-	// Drag-to-reorder state. The dragged tab translates with the pointer while its layout slot stays put;
-	// on release the projected center decides the destination index. Tab centers are measured in root
+	// Drag-to-reorder state.  The dragged tab translates with the pointer while its layout slot stays put;
+	// on release the projected center decides the destination index.  Tab centers are measured in root
 	// space (a common frame for all tabs) so the projected-center comparison is consistent.
 	var draggingIndex by remember { mutableStateOf<Int?>(null) }
 	var dragDeltaX by remember { mutableStateOf(0f) }
@@ -343,8 +343,6 @@ private fun WorkspaceTabEditor(initialName: String, onCommit: (String) -> Unit, 
  * until hovered) so it reads as part of the strip rather than a heavy button; the localized
  * [contentDescription] gives it an accessible label since its face is only a glyph.
  *
- * タブ帯末尾の「+」。新規ワークスペースを作成する。グリフのみのため content description を付ける。
- *
  * @param String contentDescription The accessible label (the localized "New Workspace").
  * @param Function onClick Invoked to create a new workspace.
  */
@@ -402,10 +400,8 @@ internal fun reorderTargetIndex(fromIndex: Int, dragDeltaX: Float, centers: List
 }
 
 /**
- * Resolves a workspace id to its display title. Built-in ids map to localized strings; any other id
+ * Resolves a workspace id to its display title.  Built-in ids map to localized strings; any other id
  * (a user-created/renamed workspace whose name is user data, not chrome) shows verbatim.
- *
- * ワークスペース id を表示タイトルに解決する。組み込み id はローカライズ、それ以外はそのまま。
  *
  * @param String workspaceId The workspace id.
  * @return String The localized or literal title.

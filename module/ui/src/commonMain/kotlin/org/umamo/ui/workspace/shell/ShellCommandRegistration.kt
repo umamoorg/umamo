@@ -120,7 +120,7 @@ internal fun RegisterShellCommands(
 	}
 	// Viewport navigation and overlay commands dispatch to the hovered surface at invocation time: the
 	// hovered area's camera controller or overlay state through its hub (2D viewport or UV editor), a
-	// no-op when none is registered. Re-registered when the render service changes (a new document /
+	// no-op when none is registered.  Re-registered when the render service changes (a new document /
 	// renderer), which flips the availability gate.
 	DisposableEffect(commandRegistry, service) {
 		val cleanup =

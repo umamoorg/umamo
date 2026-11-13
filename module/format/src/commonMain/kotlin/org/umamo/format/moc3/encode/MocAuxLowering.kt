@@ -75,7 +75,7 @@ internal fun auxiliarySections(context: MocLoweringContext): Map<Int, ByteArray>
 
 		// Per-group render count (83) and child draw-order extent (84/85), which the runtime reads.  A kind-0 child's draw order is its
 		// mesh's; a kind-1 child's is its sub-group part's; the render count recurses into sub-groups and
-		// counts an extra slot for a sub-group part that owns an offscreen. Draw order = floor(0.001+value).
+		// counts an extra slot for a sub-group part that owns an offscreen.  Draw order = floor(0.001+value).
 		val ownerParts = doc.offscreens.map { it.ownerPartIndex }.toHashSet()
 		val renderCountMemo = HashMap<Int, Int>()
 

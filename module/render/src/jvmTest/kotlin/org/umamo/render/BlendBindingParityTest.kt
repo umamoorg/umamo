@@ -7,6 +7,7 @@ import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.BlendShapeBinding
 import org.umamo.runtime.model.Deformer
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -42,9 +43,7 @@ class BlendBindingParityTest {
 			}
 
 		if (pairs.isEmpty()) {
-			println("cmo3.probe/moc3.samples not present; skipping blend-binding parity")
-
-			return
+			skipTest("cmo3.probe/moc3.samples not present; skipping blend-binding parity")
 		}
 
 		for ((name, files) in pairs) {

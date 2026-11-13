@@ -30,6 +30,12 @@ internal data class OutlinerRow(val node: OutlinerNode, val depth: Int)
 internal fun flattenOutliner(root: OutlinerNode, isOpen: (String) -> Boolean): List<OutlinerRow> {
 	val rows = mutableListOf<OutlinerRow>()
 
+	/**
+	 * Adds a node's row, then its children's when the node is open.
+	 *
+	 * @param OutlinerNode node The node to add.
+	 * @param Int depth The node's nesting depth.
+	 */
 	fun visit(node: OutlinerNode, depth: Int) {
 		rows += OutlinerRow(node, depth)
 

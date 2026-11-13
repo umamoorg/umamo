@@ -13,12 +13,11 @@ import org.umamo.format.art.SourceLayer
 /**
  * Pure-Kotlin PSD reader (desktop JVM and Android).
  *
- * EN: [PsdLayerRecords] walks the "Layer and Mask Information" section for each layer's metadata
- *     (bounds/opacity/clipping/blend/name/folder structure) and channel layout; [PsdRaster] decodes
- *     each layer's channel pixels to straight-alpha RGBA.  Both use only java.nio and java.util.zip,
- *     which Android ships (unlike javax.imageio, which is desktop-only) - so this lives in
- *     jvmAndroidMain and lights up tablets too.
- * JA: 純 Kotlin の PSD 読み込み。メタデータは [PsdLayerRecords]、ピクセルは [PsdRaster]。Android でも動作。
+ * [PsdLayerRecords] walks the "Layer and Mask Information" section for each layer's metadata
+ * (bounds/opacity/clipping/blend/name/folder structure) and channel layout; [PsdRaster] decodes
+ * each layer's channel pixels to straight-alpha RGBA.  Both use only java.nio and java.util.zip,
+ * which Android ships (unlike javax.imageio, which is desktop-only) - so this lives in
+ * jvmAndroidMain and lights up tablets too.
  *
  * Scope: read-only; 8/16-bit RGB(A) and Grayscale, Indexed-color, and 1-bit Bitmap.  CMYK, Lab,
  * Multichannel, Duotone, and 32-bit float are rejected with a clear error.
@@ -64,7 +63,7 @@ object PsdReader : ArtReader {
 
 		// Walk records top-to-bottom (the reverse of bottom-to-top PSD storage) so a folder's named
 		// header - which sits at the top of its run - opens the group before its children, and the
-		// hidden bounding divider at the bottom closes it. Real layers carry the current stack path;
+		// hidden bounding divider at the bottom closes it.  Real layers carry the current stack path;
 		// folder markers are structural and are not emitted as drawable layers.
 		val groups = ArrayList<SourceGroup>()
 		val folderStack = ArrayDeque<String>()
@@ -102,7 +101,7 @@ object PsdReader : ArtReader {
 				else -> {
 					layersTopToBottom +=
 						PsdSourceLayer(
-							// Stable identity: Photoshop's lyid (stable across rename/reorder) when present, else name+order. See docs/format/PSD.md.
+							// Stable identity: Photoshop's lyid (stable across rename/reorder) when present, else name+order.  See docs/format/PSD.md.
 							id = record.layerId?.let { layerId -> LayerId("lyid:$layerId") } ?: LayerId("${record.name}#$recordIndex"),
 							idIsStable = record.layerId != null,
 							name = record.name,

@@ -29,6 +29,7 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.RenderedFrame
 import kotlin.test.Test
@@ -66,9 +67,7 @@ class MeshOverlayLiveEngineTest {
 			service.resize("area", 100, 100)
 
 			if (!awaitFrame(frames) { sample -> isArtBlue(sample) }) {
-				println("[overlay-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
-
-				return
+				skipTest("[overlay-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
 			}
 
 			// Stage 1: the overlay under the Classic palette tints the selected faces orange over the blue art.

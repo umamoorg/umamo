@@ -146,11 +146,17 @@ internal fun PartMaskEditor(part: Part, composite: PartComposite, context: Prope
 		}
 	val addEntry: (MaskEntry) -> Unit = { entry ->
 		when (entry) {
-			is MaskEntry.OfDrawable -> mutateComposite { copy(maskedBy = (maskedBy + entry.id).distinct()) }
+			is MaskEntry.OfDrawable -> {
+				mutateComposite { copy(maskedBy = (maskedBy + entry.id).distinct()) }
+			}
 
 			// A part masking itself would clip the very layer it composites; the candidate list excludes it,
 			// and the eyedropper has to refuse it too or the outliner becomes a way around the guard.
-			is MaskEntry.OfPart -> if (entry.id != part.id) mutateComposite { copy(maskedByParts = (maskedByParts + entry.id).distinct()) }
+			is MaskEntry.OfPart -> {
+				if (entry.id != part.id) {
+					mutateComposite { copy(maskedByParts = (maskedByParts + entry.id).distinct()) }
+				}
+			}
 		}
 	}
 

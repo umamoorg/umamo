@@ -18,9 +18,6 @@ internal expect fun normalizeKeyPosition(key: Key): Key
  * chord capture, so a captured chord and a dispatched chord always agree on a key's name - the tokens here
  * are exactly the ones a preset spec or a stored override uses.
  *
- * Compose の Key を KeyChord が保持する位置ベースのトークンに変換する。入力ディスパッチと再割り当て UI で共有し、
- * 取り込んだコードと発火するコードのキー名が必ず一致するようにする。
- *
  * @param Key key The Compose key from a key event.
  * @return String? The position-based token, or null if the key is not bindable.
  */

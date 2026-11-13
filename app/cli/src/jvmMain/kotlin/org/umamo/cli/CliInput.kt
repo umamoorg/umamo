@@ -143,6 +143,12 @@ private fun loadMoc3(mocFile: File, manifestFile: File?, manifest: Model3Json?):
 	val textureFiles = references.textures.map { reference -> File(familyDirectory, reference) }
 	val sidecars =
 		buildList {
+			/**
+			 * Adds a sidecar the manifest names to the list, when its file exists.
+			 *
+			 * @param Moc3Sidecars.SidecarKind kind The sidecar's kind.
+			 * @param String? reference The manifest's path to it, or null when the manifest names none.
+			 */
 			fun passThrough(kind: Moc3Sidecars.SidecarKind, reference: String?) {
 				val file = reference?.let { relative -> File(familyDirectory, relative) } ?: return
 

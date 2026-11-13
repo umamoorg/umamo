@@ -1,12 +1,13 @@
 package org.umamo.format.kra
 
 import org.umamo.format.art.isEffectivelyVisible
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * End-to-end reader test against a real .kra. Corpus-gated: it uses -Dkra.sample=<file> when given,
+ * End-to-end reader test against a real .kra.  Corpus-gated: it uses -Dkra.sample=<file> when given,
  * else auto-discovers a sample under test/corpus/krita/ by walking up from the working directory; if
  * neither is present it self-skips so CI stays green without a committed corpus.
  *
@@ -45,9 +46,7 @@ class KraReaderTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no kra.sample and no test/corpus/krita samples; skipping KRA reader test")
-
-			return
+			skipTest("no kra.sample and no test/corpus/krita samples; skipping KRA reader test")
 		}
 
 		for (sample in samples) {

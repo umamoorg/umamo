@@ -1,12 +1,13 @@
 package org.umamo.format.moc3
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
  * Exact-string round-trip of the JSON sidecar fixtures(via the `moc3.samples` property).
- * Equality covers key order, tab indentation, and numeric-token fidelity. Skips
+ * Equality covers key order, tab indentation, and numeric-token fidelity.  Skips
  * gracefully when a given sidecar type has no fixture.
  */
 class JsonRoundTripTest {
@@ -19,9 +20,7 @@ class JsonRoundTripTest {
 		val files = fixtures(suffix)
 
 		if (files.isEmpty()) {
-			println("no *$suffix fixtures present; skipping")
-
-			return
+			skipTest("no *$suffix fixtures present; skipping")
 		}
 
 		for (file in files) {

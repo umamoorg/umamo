@@ -101,7 +101,7 @@ internal class OffscreenRenderEngine(
 	// The supersampled draw + display-size resolve target pair, device-owned and backend-neutral.
 	private val surface = SupersampledSurface(device, RENDER_SUPERSAMPLE)
 
-	// The read-backs in flight, issued per area render and collected front-first each tick. Render-thread only.
+	// The read-backs in flight, issued per area render and collected front-first each tick.  Render-thread only.
 	private val readbacks = FrameReadbackQueue(device)
 
 	// The image captures the UI thread has asked for, served between frames and answered null at shutdown.
@@ -153,7 +153,7 @@ internal class OffscreenRenderEngine(
 		renderThread.start()
 	}
 
-	/** Stops the render thread and releases the GL context. Blocks briefly to join. */
+	/** Stops the render thread and releases the GL context.  Blocks briefly to join. */
 	fun dispose() {
 		running = false
 		renderThread.join(2000)
@@ -285,7 +285,7 @@ internal class OffscreenRenderEngine(
 		}
 
 		// Rebuild the pose - and thus the draw list, which setPose filters by the shown set and sorts by
-		// the render order - when the pose, the visibility cascade, OR the render order changes. A
+		// the render order - when the pose, the visibility cascade, OR the render order changes.  A
 		// visibility toggle or a layer reorder leaves the params untouched, so without these checks the
 		// draw list would never refresh. setShownDrawables / updateModel run first so setPose uses them.
 		// The override and lattice maps are compared by identity like the params map: all are swapped wholesale
@@ -409,7 +409,7 @@ internal class OffscreenRenderEngine(
 
 	/**
 	 * Renders [slot] at [width] x [height] into the supersampled draw target, box-downscales it into the
-	 * resolve framebuffer, then kicks off an asynchronous read-back gated by a fence. Marks the slot
+	 * resolve framebuffer, then kicks off an asynchronous read-back gated by a fence.  Marks the slot
 	 * in-flight; the result is posted later by [FrameReadbackQueue.collect].
 	 *
 	 * @param String areaId The area's id.
@@ -434,7 +434,7 @@ internal class OffscreenRenderEngine(
 		val drawTarget = surface.ensure(width, height, renderScale)
 
 		// Supersample: render the whole pipeline (puppet, clip masks, grid) into the renderScale x draw
-		// buffer, then box-downscale to display size on resolve. The camera zoom and the grid line width scale
+		// buffer, then box-downscale to display size on resolve.  The camera zoom and the grid line width scale
 		// by the same factor so framing and backdrop are unchanged after the downscale.  The resolve target
 		// is display-size whatever the scale, so read-back consumers never see the quality switch.
 		renderer.setRenderScale(renderScale.toFloat())
@@ -538,12 +538,12 @@ internal class OffscreenRenderEngine(
 		snapshots.close()
 		// glFinish before any other GL call here, so the driver completes all pending GPU work BEFORE the
 		// disposers delete GL objects and the context is destroyed - otherwise a driver worker thread can be
-		// mid-copy on memory we free, which would crash (SIGSEGV in libc memcpy) on a clean window close. A
+		// mid-copy on memory we free, which would crash (SIGSEGV in libc memcpy) on a clean window close.  A
 		// single barrier here; the collaborators' dispose() must NOT call glFinish, and the context is
 		// destroyed last.
 		GL11.glFinish()
 		// Abandon in-flight read-backs (the fences/staging are freed through the device); the surface
-		// targets go the same way. The context is destroyed last.
+		// targets go the same way.  The context is destroyed last.
 		readbacks.cancelAll()
 		// The renderer's own device objects.  Source artwork and underlay images are created and
 		// destroyed across its life rather than uploaded once, so they need releasing explicitly

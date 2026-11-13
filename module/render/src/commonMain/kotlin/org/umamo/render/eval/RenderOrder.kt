@@ -46,12 +46,24 @@ fun renderPlan(
 	drawOrder: Map<DrawableId, Float>,
 	partDrawOrders: Map<PartId, Float> = emptyMap(),
 ): List<RenderPlanNode> {
+	/**
+	 * The integer draw order a node sorts by at the current pose.
+	 *
+	 * @param RenderNode node The render node.
+	 * @return Int The draw order, truncated after a small bias.
+	 */
 	fun sortKey(node: RenderNode): Int =
 		when (node) {
 			is RenderDrawable -> ((drawOrder[node.id] ?: DEFAULT_DRAW_ORDER.toFloat()) + 0.001f).toInt()
 			is RenderGroup -> node.partId?.let { partDrawOrders[it] }?.let { (it + 0.001f).toInt() } ?: node.drawOrder
 		}
 
+	/**
+	 * Emits a group's children in draw order, nesting a composited part's subtree under a node of its own.
+	 *
+	 * @param RenderGroup group The group to emit.
+	 * @param ArrayList<RenderPlanNode> into The list that takes the plan nodes.
+	 */
 	fun emit(group: RenderGroup, into: ArrayList<RenderPlanNode>) {
 		for (child in group.children.sortedBy(::sortKey)) {
 			when (child) {
@@ -90,6 +102,11 @@ fun renderPlan(
 fun flattenRenderPlan(nodes: List<RenderPlanNode>): List<DrawableId> {
 	val result = ArrayList<DrawableId>()
 
+	/**
+	 * Adds a plan node's drawables, in order.
+	 *
+	 * @param RenderPlanNode node The plan node to walk.
+	 */
 	fun walk(node: RenderPlanNode) {
 		when (node) {
 			is RenderPlanDrawable -> result.add(node.id)
@@ -123,10 +140,10 @@ fun renderOrder(
 ): List<DrawableId> = flattenRenderPlan(renderPlan(root, drawOrder, partDrawOrders))
 
 /**
- * The back-to-front paint order for one pose. [baseOrder] is the model's parts-tree (panel) drawable
+ * The back-to-front paint order for one pose.  [baseOrder] is the model's parts-tree (panel) drawable
  * order - already back-to-front when draw orders are equal - and this stably re-sorts it by the
- * per-drawable blended [drawOrder], the primary key. A higher draw order paints later (in front) across
- * the whole model regardless of part; equal draw orders keep [baseOrder]. This mirrors how the Cubism
+ * per-drawable blended [drawOrder], the primary key.  A higher draw order paints later (in front) across
+ * the whole model regardless of part; equal draw orders keep [baseOrder].  This mirrors how the Cubism
  * editor stacks drawables (drawOrder first, the parts tree breaking ties).
  *
  * Quantize to int before sorting: (`drawDrawOrders[i] = (int)(0.001f + drawOrder)`).
@@ -134,7 +151,7 @@ fun renderOrder(
  * `Σ wᵢ·orderᵢ` only lands near an integer (float-summation gives e.g. 499.99997 vs 500.00003), so
  * sorting the raw float reshuffles drawables that should be tied - a sub-ULP-noise reorder that makes a
  * coincident-order drawable (e.g. a masked head shadow at 500) flicker in front of the face at the
- * parameter values where the noise crosses. Flooring `+0.001` collapses the noise to a true tie so the
+ * parameter values where the noise crosses.  Flooring `+0.001` collapses the noise to a true tie so the
  * stable sort preserves [baseOrder]; the `+0.001` rescues a value sitting just below its intended integer.
  *
  * Because draw order rides on the keyform, it is param-dependent - pass the [DeformedGeometry.drawOrder]

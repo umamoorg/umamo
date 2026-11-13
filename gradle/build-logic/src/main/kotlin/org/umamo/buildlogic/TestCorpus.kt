@@ -22,13 +22,13 @@ data class CorpusSampleProperty(
  * the resolution rules, and org.umamo.buildlogic.sharedCorpusDefault for the shared default table.
  */
 abstract class TestCorpusExtension {
-	/** The declared path-valued properties, in declaration order. Read by the convention plugin. */
+	/** The declared path-valued properties, in declaration order.  Read by the convention plugin. */
 	val sampleProperties: MutableList<CorpusSampleProperty> = mutableListOf()
 
-	/** The declared plain flags. Read by the convention plugin. */
+	/** The declared plain flags.  Read by the convention plugin. */
 	val flagProperties: MutableList<String> = mutableListOf()
 
-	/** The test JVM heap, or null to leave Gradle's default. Read by the convention plugin. */
+	/** The test JVM heap, or null to leave Gradle's default.  Read by the convention plugin. */
 	var testMaxHeap: String? = null
 		private set
 
@@ -54,7 +54,7 @@ abstract class TestCorpusExtension {
 	 * their gated tests on.
 	 *
 	 * @param String propertyName        The system property name.
-	 * @param String corpusRelativePath  The default, relative to test/corpus. File or directory; it is
+	 * @param String corpusRelativePath  The default, relative to test/corpus.  File or directory; it is
 	 *                                   used only when it exists, so a partial corpus still self-skips.
 	 */
 	fun sampleWithCorpusDefault(
@@ -69,8 +69,8 @@ abstract class TestCorpusExtension {
 	 *
 	 * A flag is a switch, not a location (`-Dcmo3.generate=true`, `-Dumamo.requireGl=true`), so putting
 	 * one through the sample path would reject it for not naming a file that exists.  Forwarding is
-	 * still the part that matters: a flag the build forgets to pass through is a test that reads a
-	 * property nobody set and returns immediately, reporting PASSED while doing nothing.
+	 * still the part that matters: a flag the build forgets to pass through is a property nobody set,
+	 * and the test that reads it skips whatever the command line asked for.
 	 *
 	 * @param String propertyNames The system property names.
 	 */
@@ -94,7 +94,7 @@ abstract class TestCorpusExtension {
  * These are the defaults that mean the same thing in every module, so they live in one place rather
  * than being re-derived per build script, where modules would drift apart.
  *
- * @param File corpusDirectory The local golden corpus root. Gitignored, so absent on CI and on a
+ * @param File corpusDirectory The local golden corpus root.  Gitignored, so absent on CI and on a
  *             fresh clone — every lookup here is allowed to come back null.
  * @param String propertyName The system property name.
  * @return String? The default value, or null when there is none.
@@ -106,36 +106,46 @@ fun sharedCorpusDefault(
 	if (!corpusDirectory.isDirectory) {
 		return null
 	}
+
 	return when (propertyName) {
 		// Pinned to one model on purpose, for two independent reasons: :format's facade/CAFF/document
 		// tests assert exact counts (180 image resources, 926 CAFF entries, 158 import PIs) that only
 		// this model satisfies, and it is the corpus model that actually carries glue affecters, which
 		// is what makes :render's glue gates meaningful rather than vacuously green.
-		"cmo3.sample" -> corpusDirectory.resolve("cmo3/EricaTamamo.cmo3").takeIf { it.isFile }?.absolutePath
+		"cmo3.sample" -> {
+			corpusDirectory.resolve("cmo3/EricaTamamo.cmo3").takeIf { it.isFile }?.absolutePath
+		}
 
-		// Every .cmo3 in the corpus, spanning Cubism 3.x/4.x/5.3. The cross-version gate wants the
+		// Every .cmo3 in the corpus, spanning Cubism 3.x/4.x/5.3.  The cross-version gate wants the
 		// whole set, and ModelGenerator wants it for the same reason its own docblock gives: the
 		// generated model is the UNION over every sample, so a field or enum constant that only one
-		// project exercises still gets covered. Generating from one sample would silently drop the rest.
-		"cmo3.probe", "cmo3.gensample" ->
+		// project exercises still gets covered.  Generating from one sample would silently drop the rest.
+		"cmo3.probe", "cmo3.gensample" -> {
 			corpusDirectory
 				.resolve("cmo3")
 				.listFiles { candidate -> candidate.isFile && candidate.extension == "cmo3" }
 				?.sortedBy { it.name }
 				?.joinToString(",") { it.absolutePath }
 				?.takeIf { it.isNotEmpty() }
+		}
 
 		// The whole moc3 tree — the decode/lowering/bake/probe gates walk it.
-		"moc3.samples" -> corpusDirectory.resolve("moc3").takeIf { it.isDirectory }?.absolutePath
+		"moc3.samples" -> {
+			corpusDirectory.resolve("moc3").takeIf { it.isDirectory }?.absolutePath
+		}
 
 		// The perf probes' rig.  modelF is the largest corpus model (1330 drawables, 220k vertices), which
 		// is the point: a probe over a small rig measures nothing.  Same meaning in :ui and :render.
-		"moc3.perfSample" -> corpusDirectory.resolve("moc3/modelF/modelF.moc3").takeIf { it.isFile }?.absolutePath
+		"moc3.perfSample" -> {
+			corpusDirectory.resolve("moc3/modelF/modelF.moc3").takeIf { it.isFile }?.absolutePath
+		}
 
-		// Deliberately absent, and worth stating: `moc3.sample` (singular). :ui defaults it to the one
+		// Deliberately absent, and worth stating: `moc3.sample` (singular).  :ui defaults it to the one
 		// corpus family that is complete on disk, while :interop and :render want it explicit-only —
 		// a table entry here would switch their gated tests on as a side effect.
-		else -> null
+		else -> {
+			null
+		}
 	}
 }
 
@@ -145,7 +155,7 @@ fun sharedCorpusDefault(
  * Two ways a path is found, in order:
  *   1. An explicit `-D` on the Gradle command line.  A RELATIVE value resolves against the REPO ROOT,
  *      not the test JVM's working directory (the module).  A gated test that cannot find its sample
- *      prints and returns, reporting PASSED while doing nothing, so an explicit path that resolves to
+ *      skips, which is the wrong answer to a path someone typed, so an explicit path that resolves to
  *      nothing fails the build outright instead.
  *   2. The local golden corpus, when present — the module-specific default if it declared one, else the
  *      shared table.  This makes the mandatory CMO3 round-trip gate run BY DEFAULT for anyone who has
@@ -168,13 +178,14 @@ fun resolveCorpusSample(
 		System.getProperty(sampleProperty.name)
 			?: return moduleOrSharedDefault(corpusDirectory, sampleProperty)
 
-	// Some properties (cmo3.probe) carry a comma-separated list; resolve each element. File.resolve
+	// Some properties (cmo3.probe) carry a comma-separated list; resolve each element.  File.resolve
 	// returns an absolute argument unchanged, so this handles both forms.
 	val resolvedValue =
 		explicitValue
 			.split(',')
 			.filter { it.isNotBlank() }
 			.joinToString(",") { path -> repositoryRoot.resolve(path.trim()).absolutePath }
+
 	// Fail loudly rather than let the gated test skip-and-pass on a typo.
 	for (path in resolvedValue.split(',')) {
 		require(File(path).exists()) {
@@ -182,6 +193,7 @@ fun resolveCorpusSample(
 				"Relative values resolve against the repo root ($repositoryRoot)."
 		}
 	}
+
 	return resolvedValue
 }
 
@@ -199,5 +211,6 @@ private fun moduleOrSharedDefault(
 	val corpusRelativeDefault =
 		sampleProperty.corpusRelativeDefault
 			?: return sharedCorpusDefault(corpusDirectory, sampleProperty.name)
+
 	return corpusDirectory.resolve(corpusRelativeDefault).takeIf { it.exists() }?.absolutePath
 }

@@ -29,9 +29,9 @@ import org.umamo.ui.model.DrawableThumbnailProvider
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 
 /**
- * CPU-side hit-testing and art previews for the viewport, over the current deformed pose. Runs entirely on
+ * CPU-side hit-testing and art previews for the viewport, over the current deformed pose.  Runs entirely on
  * the UI thread and never touches GL: it reuses the renderer's pure-CPU pick geometry (a snapshot the render
- * thread produces) and its resolved draw order, and the retained CPU atlas pixels for the alpha gate. The
+ * thread produces) and its resolved draw order, and the retained CPU atlas pixels for the alpha gate.  The
  * facade resolves each area's camera and size and forwards them here, so this class is area-agnostic.
  *
  * @property PuppetRenderer renderer The renderer, for its pure-CPU pickGeometry() and drawnOrder().
@@ -45,7 +45,7 @@ internal class ViewportPicker(
 	model: PuppetModel,
 ) {
 	// Per-drawable triangle indices for hit-testing, restricted to the drawables actually shown (the
-	// Parts-panel eyeball cascade) and to those carrying a triangle mesh. Picking iterates the pose's
+	// Parts-panel eyeball cascade) and to those carrying a triangle mesh.  Picking iterates the pose's
 	// deformed positions and looks indices up here, so unshown / mesh-less drawables are never hit.
 	private var pickableIndices: Map<DrawableId, IntArray> = model.pickableIndicesByDrawable()
 
@@ -63,7 +63,7 @@ internal class ViewportPicker(
 	// textureSourceId so a duplicate samples its SOURCE's texels for the pick alpha gate.
 	private var atlasKeyByDrawableId: Map<DrawableId, String> = model.atlasKeyByDrawable()
 
-	// Art-mesh previews for the overlap picker (the same provider the Outliner hover uses). Pure CPU over
+	// Art-mesh previews for the overlap picker (the same provider the Outliner hover uses).  Pure CPU over
 	// the immutable atlas bytes, so it is built once and shared - a single cache across both consumers.
 	private val thumbnailer = DrawableThumbnailer(model, textures)
 
@@ -106,7 +106,7 @@ internal class ViewportPicker(
 
 	/**
 	 * Hit-tests a viewport pixel against the current deformed pose and returns the FRONT-MOST opaque drawable
-	 * under it, or null when the click misses or no pose is ready yet. Restricted to shown, meshed drawables;
+	 * under it, or null when the click misses or no pose is ready yet.  Restricted to shown, meshed drawables;
 	 * front/back uses the renderer's resolved draw order, and the transparent triangle overhang is rejected
 	 * by the atlas-alpha gate.
 	 *
@@ -140,7 +140,7 @@ internal class ViewportPicker(
 
 	/**
 	 * All opaque drawables under a viewport pixel, FRONT-TO-BACK with each one's centrality - for the
-	 * Alt-click overlap-picker popup. Same screen-to-world, hit, and alpha gate as [pickAt].
+	 * Alt-click overlap-picker popup.  Same screen-to-world, hit, and alpha gate as [pickAt].
 	 *
 	 * @param ViewportCamera camera The area's camera.
 	 * @param Int width The area width in pixels.
@@ -177,9 +177,9 @@ internal class ViewportPicker(
 	}
 
 	/**
-	 * Every visible drawable's world-space centroid at the current pose, for Object-mode region select. Reads
+	 * Every visible drawable's world-space centroid at the current pose, for Object-mode region select.  Reads
 	 * the same posed pick geometry as [pickAt] and reduces each drawable to its centroid; empty before the
-	 * first frame's geometry lands. Area-independent - the caller projects with its camera.
+	 * first frame's geometry lands.  Area-independent - the caller projects with its camera.
 	 *
 	 * @return Map The per-drawable [x, y] world centroid.
 	 */
@@ -248,7 +248,11 @@ internal class ViewportPicker(
 	 */
 	fun thumbnailFor(id: DrawableId): ImageBitmap? = thumbnailer.thumbnailFor(id)
 
-	/** The shared art-mesh thumbnail provider, exposed so the host can wire it to the Outliner hover preview. */
+	/**
+	 * The shared art-mesh thumbnail provider, exposed so the host can wire it to the Outliner hover preview.
+	 *
+	 * @return DrawableThumbnailProvider The shared provider.
+	 */
 	fun thumbnails(): DrawableThumbnailProvider = thumbnailer
 
 	/**
@@ -269,11 +273,20 @@ internal class ViewportPicker(
 	 */
 	fun drawableNameFor(id: DrawableId): String? = drawableNameByDrawableId[id]
 
-	/** The renderer's resolved back-to-front draw list as a front-rank map (higher index = more front). */
+	/**
+	 * The renderer's resolved back-to-front draw list as a front-rank map (higher index = more front).
+	 *
+	 * @return Map<DrawableId, Float> Each drawn drawable's rank, higher being nearer the front.
+	 */
 	private fun frontRankMap(): Map<DrawableId, Float> =
 		renderer.drawnOrder().withIndex().associate { (index, id) -> id to index.toFloat() }
 
-	/** The drawable's atlas page size (width, height) in texels, or null when it is untextured. */
+	/**
+	 * The drawable's atlas page size (width, height) in texels, or null when it is untextured.
+	 *
+	 * @param DrawableId id The drawable.
+	 * @return Pair<Int, Int>? The page's width and height in texels, or null.
+	 */
 	private fun atlasSizeOf(id: DrawableId): Pair<Int, Int>? =
 		textures.atlasIndexByDrawableId[atlasKeyByDrawableId[id] ?: id.raw]?.let { atlasIndex ->
 			textures.atlases.getOrNull(atlasIndex)?.let { image -> image.width to image.height }
@@ -281,7 +294,7 @@ internal class ViewportPicker(
 
 	/**
 	 * The atlas-texel alpha (0..1) for a drawable at a full-atlas (u, v), or 1f when the drawable is
-	 * untextured (a flat draw color, treated as fully opaque). Reads the retained CPU atlas pixels; the
+	 * untextured (a flat draw color, treated as fully opaque).  Reads the retained CPU atlas pixels; the
 	 * alpha byte is the coverage whether or not the atlas is premultiplied, so no un-premultiply is needed.
 	 * A point off the page is transparent, as the renderer draws it: a mesh overhangs its art, and when the
 	 * page is a single model image that overhang runs past the page itself.

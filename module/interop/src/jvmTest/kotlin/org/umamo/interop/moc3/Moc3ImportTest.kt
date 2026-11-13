@@ -8,6 +8,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PartId
@@ -15,6 +16,7 @@ import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -39,9 +41,7 @@ class Moc3ImportTest {
 		val file = sample
 
 		if (file == null) {
-			println("moc3.sample not present; skipping import test")
-
-			return
+			skipTest("moc3.sample not present; skipping import test")
 		}
 
 		val mocDocument = Moc3.read(file.readBytes())
@@ -77,12 +77,12 @@ class Moc3ImportTest {
 		if (file.name.startsWith("modelA")) {
 			assertEquals(
 				12,
-				puppet.parameters.count { it.kind == org.umamo.runtime.model.ParameterKind.BLEND_SHAPE },
+				puppet.parameters.count { it.kind == ParameterKind.BLEND_SHAPE },
 				"modelA: blend-shape parameter kinds mapped",
 			)
 		}
 
-		// Golden gate: for the EricaTamamo corpus, pin the imported structure. Drawable-derived counts
+		// Golden gate: for the EricaTamamo corpus, pin the imported structure.  Drawable-derived counts
 		// intentionally differ from the CMO3 sample's (177 drawables / 31470 vertices / 337 art
 		// interpolations): the bake drops the three sketch ("Guide Image") drawables.
 		if (file.name.startsWith("EricaTamamo")) {
@@ -178,7 +178,7 @@ class Moc3ImportTest {
 			)
 		}
 
-		// Deformer labels: the id, optionally anchored with the one drawable the deformer reaches. The
+		// Deformer labels: the id, optionally anchored with the one drawable the deformer reaches.  The
 		// anchor is checked for TRUTH rather than by restating the rule - whatever mesh a label names
 		// must really be deformed by that deformer, directly or through its descendants.
 		val subtreeDrawables = HashMap<Int, MutableSet<String>>()
@@ -278,9 +278,7 @@ class Moc3ImportTest {
 				.filter { file -> listOf("modelA", "modelB", "modelC").any { prefix -> file.name.startsWith(prefix) } }
 
 		if (samples.isEmpty()) {
-			println("moc3.samples not present; skipping blend-binding corpus gate")
-
-			return
+			skipTest("moc3.samples not present; skipping blend-binding corpus gate")
 		}
 
 		for (file in samples) {
@@ -309,7 +307,7 @@ class Moc3ImportTest {
 					}
 				}
 				assertEquals(
-					org.umamo.runtime.model.ParameterKind.BLEND_SHAPE,
+					ParameterKind.BLEND_SHAPE,
 					kindByParameter[binding.parameterId],
 					"${file.name}: driving parameter is BLEND_SHAPE-typed",
 				)
@@ -342,7 +340,7 @@ class Moc3ImportTest {
 				}
 			}
 
-			val blendParameterCount = puppet.parameters.count { it.kind == org.umamo.runtime.model.ParameterKind.BLEND_SHAPE }
+			val blendParameterCount = puppet.parameters.count { it.kind == ParameterKind.BLEND_SHAPE }
 			val nonNeutralForms = allBindings.sumOf { binding -> binding.forms.count { it != null } }
 			val limitCurves = allBindings.sumOf { it.limits.size }
 			val limitPoints = allBindings.sumOf { binding -> binding.limits.sumOf { it.points.size } }
