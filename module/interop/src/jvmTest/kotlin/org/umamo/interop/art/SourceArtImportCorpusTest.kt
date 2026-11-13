@@ -4,6 +4,7 @@ import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.art.analyzeAlpha
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,7 +17,7 @@ import kotlin.test.assertTrue
  * collide, text and empty layers - land on the model as the synthetic test says they should.
  *
  * Corpus-gated the way the readers' own tests are: every sample under `test/corpus/{psd,clip,krita}`
- * found by walking up from the working directory, self-skipping with a printed line when none exist.
+ * found by walking up from the working directory, self-skipping when none exist.
  */
 class SourceArtImportCorpusTest {
 	private fun locateSamples(): List<File> {
@@ -43,9 +44,7 @@ class SourceArtImportCorpusTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no test/corpus artwork samples; skipping the artwork import corpus test")
-
-			return
+			skipTest("no test/corpus artwork samples; skipping the artwork import corpus test")
 		}
 
 		for (sample in samples) {

@@ -97,6 +97,8 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				// Skiko's native runtime for the host, so commonTest code that rasterizes (the thumbnailer's
 				// rgbaToImageBitmap → Image.makeRaster) can run under :ui:jvmTest — the plain compose-ui
 				// coordinate carries no natives.  Same direct-coordinate rationale as app/desktop.

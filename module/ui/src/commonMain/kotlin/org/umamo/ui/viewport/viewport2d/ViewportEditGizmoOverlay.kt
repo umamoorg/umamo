@@ -57,8 +57,8 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  *   - MeshOverlayPublish.kt and LatticeCagePublish.kt: the wireframe, dots, face fills, and lattice cage as data
  *     for the renderer, which draws them into the frame with the art; the viewport binding publishes them, not this
  *     overlay.
- * The collectors' handlers are in SessionRequestHandlers.kt, and the strip registrations in
- * TransformAdjustRegistration.kt.
+ * The collectors' handlers are in SessionRequestHandlers.kt, and the strip registrations in org.umamo.ui.transform
+ * (TransformAdjustRegistration.kt).
  */
 
 /**

@@ -1,5 +1,6 @@
 package org.umamo.format.cmo3
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 
@@ -12,13 +13,7 @@ import kotlin.test.Test
 class Cmo3ResaveDumpTest {
 	@Test
 	fun dumpResaves() {
-		val spec =
-			System.getProperty("cmo3.resave")
-				?: run {
-					println("cmo3.resave not present; skipping resave dump")
-
-					return
-				}
+		val spec = System.getProperty("cmo3.resave") ?: skipTest("cmo3.resave not present; skipping resave dump")
 
 		for (file in spec.split(',').map { File(it.trim()) }.filter { it.isFile }) {
 			val resaved = Cmo3.write(Cmo3.read(file.readBytes()))

@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
+import org.umamo.edit.transform.UvEditFrame
+import org.umamo.edit.transform.displayToUv
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner

@@ -16,6 +16,7 @@ import org.umamo.interop.art.mesh.ArtMeshPreset
 import org.umamo.interop.art.mesh.meshCoversOpaquePixels
 import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.artwork.resolveBirths
 import java.io.File
 import kotlin.test.Test
@@ -46,9 +47,7 @@ class AutomaticBirthImportGateTest {
 			val first = sample
 
 			if (first == null) {
-				println("psd.sample not present; skipping the automatic birth gate")
-
-				return@runBlocking
+				skipTest("psd.sample not present; skipping the automatic birth gate")
 			}
 
 			val files = listOf(first) + listOfNotNull(File(first.parentFile, "LimeBirb.psd").takeIf { file -> file.isFile })

@@ -13,6 +13,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.cos
@@ -161,9 +162,7 @@ class WarpRestLatticeCorpusTest {
 		val files = probeFiles()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe not present; skipping the rest-lattice corpus check")
-
-			return
+			skipTest("cmo3.probe not present; skipping the rest-lattice corpus check")
 		}
 
 		val random = Random(20261029)

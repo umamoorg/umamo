@@ -9,6 +9,7 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -47,9 +48,7 @@ class Moc3DowngradeContentTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping downgrade content gate")
-
-			return
+			skipTest("moc3.samples not present; skipping downgrade content gate")
 		}
 
 		val failures = ArrayList<String>()

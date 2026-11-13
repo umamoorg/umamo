@@ -1,5 +1,6 @@
 package org.umamo.format.moc3
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,9 +20,7 @@ class JsonRoundTripTest {
 		val files = fixtures(suffix)
 
 		if (files.isEmpty()) {
-			println("no *$suffix fixtures present; skipping")
-
-			return
+			skipTest("no *$suffix fixtures present; skipping")
 		}
 
 		for (file in files) {

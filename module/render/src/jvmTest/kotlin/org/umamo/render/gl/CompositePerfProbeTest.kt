@@ -12,6 +12,7 @@ import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.PartGroupMode
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.withDerivedRenderRoot
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 
@@ -39,9 +40,7 @@ class CompositePerfProbeTest {
 				?.firstOrNull { it.name == "modelA.moc3" }
 
 		if (mocFile == null) {
-			println("modelA.moc3 not present; skipping perf probe")
-
-			return
+			skipTest("modelA.moc3 not present; skipping perf probe")
 		}
 
 		requireHeadlessGl("[composite-perf]")

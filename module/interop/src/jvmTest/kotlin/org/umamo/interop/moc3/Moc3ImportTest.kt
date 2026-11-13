@@ -16,6 +16,7 @@ import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,9 +41,7 @@ class Moc3ImportTest {
 		val file = sample
 
 		if (file == null) {
-			println("moc3.sample not present; skipping import test")
-
-			return
+			skipTest("moc3.sample not present; skipping import test")
 		}
 
 		val mocDocument = Moc3.read(file.readBytes())
@@ -279,9 +278,7 @@ class Moc3ImportTest {
 				.filter { file -> listOf("modelA", "modelB", "modelC").any { prefix -> file.name.startsWith(prefix) } }
 
 		if (samples.isEmpty()) {
-			println("moc3.samples not present; skipping blend-binding corpus gate")
-
-			return
+			skipTest("moc3.samples not present; skipping blend-binding corpus gate")
 		}
 
 		for (file in samples) {

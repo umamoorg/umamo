@@ -29,6 +29,7 @@ import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.diffPuppetModels
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.PartId
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.artwork.AddArtworkRequest
 import org.umamo.ui.model.artwork.runAddArtwork
@@ -155,21 +156,21 @@ class UmaSaveGateTest {
 	@Test
 	fun aCmo3DocumentSavesAndReopensWithItsEdit() =
 		runBlocking {
-			val file = cmo3Sample ?: return@runBlocking println("cmo3.sample not present; skipping the CMO3 save gate")
+			val file = cmo3Sample ?: skipTest("cmo3.sample not present; skipping the CMO3 save gate")
 			roundTrip(open(file), "cmo3")
 		}
 
 	@Test
 	fun aMoc3DocumentSavesAndReopensWithItsEdit() =
 		runBlocking {
-			val file = moc3Sample ?: return@runBlocking println("moc3.sample not present; skipping the MOC3 save gate")
+			val file = moc3Sample ?: skipTest("moc3.sample not present; skipping the MOC3 save gate")
 			roundTrip(open(file), "moc3")
 		}
 
 	@Test
 	fun anArtworkDocumentSavesAndReopensWithItsEdit() =
 		runBlocking {
-			val file = psdSample ?: return@runBlocking println("psd.sample not present; skipping the artwork save gate")
+			val file = psdSample ?: skipTest("psd.sample not present; skipping the artwork save gate")
 			roundTrip(open(file), "psd")
 		}
 
@@ -180,7 +181,7 @@ class UmaSaveGateTest {
 	@Test
 	fun editorStateSurvivesASaveAndNeverTouchesTheModel() =
 		runBlocking {
-			val file = psdSample ?: return@runBlocking println("psd.sample not present; skipping the editor-state save gate")
+			val file = psdSample ?: skipTest("psd.sample not present; skipping the editor-state save gate")
 			val document = open(file)
 			val directory = temporaryDirectory()
 			val session = EditorSession(document.puppet, document.liveParams.values)
@@ -216,7 +217,7 @@ class UmaSaveGateTest {
 	@Test
 	fun aDocumentReopensToThePoseSelectionAndViewItWasSavedWith() =
 		runBlocking {
-			val file = psdSample ?: return@runBlocking println("psd.sample not present; skipping the session-state save gate")
+			val file = psdSample ?: skipTest("psd.sample not present; skipping the session-state save gate")
 			val document = open(file)
 			val directory = temporaryDirectory()
 			val session = EditorSession(document.puppet, document.liveParams.values)
@@ -265,7 +266,7 @@ class UmaSaveGateTest {
 	@Test
 	fun aNewDocumentWithImportedArtSavesAndReopens() =
 		runBlocking {
-			val file = psdSample ?: return@runBlocking println("psd.sample not present; skipping the new-document save gate")
+			val file = psdSample ?: skipTest("psd.sample not present; skipping the new-document save gate")
 			val document = newBlankDocument()
 			val session = EditorSession(document.puppet, document.liveParams.values)
 			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
@@ -296,7 +297,7 @@ class UmaSaveGateTest {
 	@Test
 	fun aSaveAfterARepackDerivesItsPages() =
 		runBlocking {
-			val file = cmo3Sample ?: return@runBlocking println("cmo3.sample not present; skipping the repack save gate")
+			val file = cmo3Sample ?: skipTest("cmo3.sample not present; skipping the repack save gate")
 			val document = assertIs<Cmo3Document>(open(file))
 			val session = EditorSession(document.puppet, document.liveParams.values)
 			val sessionAtlasPages = SessionAtlasPages(session, document.puppet.atlas, document.textures, document.artRasters)
@@ -330,7 +331,7 @@ class UmaSaveGateTest {
 	@Test
 	fun aRenderedThumbnailIsTheOneTheFileStores() =
 		runBlocking {
-			val file = cmo3Sample ?: return@runBlocking println("cmo3.sample not present; skipping the rendered-thumbnail save gate")
+			val file = cmo3Sample ?: skipTest("cmo3.sample not present; skipping the rendered-thumbnail save gate")
 			val document = open(file)
 			val session = EditorSession(document.puppet, document.liveParams.values)
 			// A flat color over an alpha ramp across each row, never fully transparent.
@@ -374,7 +375,7 @@ class UmaSaveGateTest {
 	@Test
 	fun anEditDuringASaveStaysDirty() =
 		runBlocking {
-			val file = cmo3Sample ?: return@runBlocking println("cmo3.sample not present; skipping the dirty-during-save gate")
+			val file = cmo3Sample ?: skipTest("cmo3.sample not present; skipping the dirty-during-save gate")
 			val document = open(file)
 			val session = EditorSession(document.puppet, document.liveParams.values)
 			val hidden = hideFirstPart(session)

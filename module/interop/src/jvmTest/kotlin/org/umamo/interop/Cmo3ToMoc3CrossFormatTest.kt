@@ -10,6 +10,7 @@ import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -92,9 +93,7 @@ class Cmo3ToMoc3CrossFormatTest {
 		val twins = twins()
 
 		if (twins.isEmpty()) {
-			println("no cmo3/moc3 twins in the corpus; skipping cross-format comparison")
-
-			return
+			skipTest("no cmo3/moc3 twins in the corpus; skipping cross-format comparison")
 		}
 
 		val failures = ArrayList<String>()

@@ -42,6 +42,14 @@ dependencies {
 tasks.test {
 	useJUnitPlatform()
 
+	// IncludedBuildSourcesLintTest reads these files as text.  The test classpath carries the sources only as
+	// classes, and a comment compiles to the same classes whatever it says, so without this an edit the
+	// lint would report could leave the task up to date.
+	inputs
+		.files(fileTree("src"), fileTree("../build-logic") { include("src/**", "*.gradle.kts") }, "build.gradle.kts", "settings.gradle.kts", "../../.editorconfig")
+		.withPropertyName("lintedSources")
+		.withPathSensitivity(PathSensitivity.RELATIVE)
+
 	testLogging {
 		events("passed", "skipped", "failed")
 		exceptionFormat = TestExceptionFormat.FULL

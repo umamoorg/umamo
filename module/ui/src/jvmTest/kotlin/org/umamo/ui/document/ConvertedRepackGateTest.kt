@@ -36,6 +36,7 @@ import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasPixelOf
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.repack.buildRepackPackInput
 import org.umamo.ui.model.repack.repackRefusals
 import org.umamo.ui.viewport.initialLiveParams
@@ -159,9 +160,7 @@ class ConvertedRepackGateTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.repackSample not present; skipping the converted-repack export gate")
-
-			return
+			skipTest("cmo3.repackSample not present; skipping the converted-repack export gate")
 		}
 
 		val cmo3 = Cmo3.read(file.readBytes())

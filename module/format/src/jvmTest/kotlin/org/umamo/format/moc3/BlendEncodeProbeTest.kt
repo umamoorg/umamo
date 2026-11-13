@@ -3,6 +3,7 @@ package org.umamo.format.moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.model.BlendShapeTarget
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 
@@ -21,9 +22,7 @@ class BlendEncodeProbeTest {
 				.filter { file -> listOf("modelA", "modelB", "modelC").any { prefix -> file.name.startsWith(prefix) } }
 
 		if (samples.isEmpty()) {
-			println("moc3.samples not present; skipping encode probe")
-
-			return
+			skipTest("moc3.samples not present; skipping encode probe")
 		}
 
 		for (file in samples) {

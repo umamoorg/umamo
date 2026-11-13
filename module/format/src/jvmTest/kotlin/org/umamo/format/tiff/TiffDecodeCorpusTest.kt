@@ -1,5 +1,6 @@
 package org.umamo.format.tiff
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -54,9 +55,7 @@ class TiffDecodeCorpusTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no tiff.sample and no test/corpus TIFFs; skipping TIFF corpus test")
-
-			return
+			skipTest("no tiff.sample and no test/corpus TIFFs; skipping TIFF corpus test")
 		}
 
 		for (sample in samples) {

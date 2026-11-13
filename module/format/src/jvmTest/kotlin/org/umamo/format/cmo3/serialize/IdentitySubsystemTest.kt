@@ -5,6 +5,7 @@ import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -23,9 +24,7 @@ class IdentitySubsystemTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping identity subsystem test")
-
-			return
+			skipTest("cmo3.sample not present; skipping identity subsystem test")
 		}
 
 		val mainXml =

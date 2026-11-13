@@ -23,6 +23,7 @@ import org.umamo.interop.cmo3.Cmo3Conversion.AtlasPage
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -44,13 +45,7 @@ class Cmo3ConversionRoundTripTest {
 
 	@Test
 	fun corpusMocModelsConvertAndRoundTrip() {
-		val samplesDirectory =
-			System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
-				?: run {
-					println("moc3.samples not present; skipping MOC3 conversion round trip")
-
-					return
-				}
+		val samplesDirectory = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory } ?: skipTest("moc3.samples not present; skipping MOC3 conversion round trip")
 		val mocFiles =
 			samplesDirectory
 				.walkTopDown()
@@ -60,13 +55,19 @@ class Cmo3ConversionRoundTripTest {
 				.toList()
 		assertTrue(mocFiles.isNotEmpty(), "no corpus moc3 with a model3 sidecar under $samplesDirectory")
 		val failures = ArrayList<String>()
+		var convertedModelCount = 0
 
 		for (mocFile in mocFiles) {
 			runCatching { roundTripOne(mocFile, failures) }
+				.onSuccess { converted -> convertedModelCount += if (converted) 1 else 0 }
 				.onFailure { failure -> failures.add("${mocFile.name}: threw $failure") }
 		}
 
 		assertTrue(failures.isEmpty(), "MOC3 conversion round trip failed:\n" + failures.joinToString("\n"))
+
+		if (convertedModelCount == 0) {
+			skipTest("no corpus moc3 has its atlas pages on disk; nothing was converted")
+		}
 	}
 
 	/**
@@ -74,8 +75,9 @@ class Cmo3ConversionRoundTripTest {
 	 *
 	 * @param File mocFile The .moc3 file (sidecars beside it).
 	 * @param ArrayList failures The shared violation collector.
+	 * @return Boolean Whether the model was converted, which it is not when its atlas pages are absent.
 	 */
-	private fun roundTripOne(mocFile: File, failures: ArrayList<String>) {
+	private fun roundTripOne(mocFile: File, failures: ArrayList<String>): Boolean {
 		val label = mocFile.name
 		val mocDocument = Moc3.read(mocFile.readBytes())
 		val manifest = Moc3.readModel3(File(mocFile.parentFile, "${mocFile.nameWithoutExtension}.model3.json").readText())
@@ -84,7 +86,7 @@ class Cmo3ConversionRoundTripTest {
 		if (textureFiles.any { textureFile -> !textureFile.isFile }) {
 			println("$label: atlas pages not in the corpus; skipping")
 
-			return
+			return false
 		}
 
 		val pages =
@@ -167,7 +169,7 @@ class Cmo3ConversionRoundTripTest {
 				?: run {
 					failures.add("$label: re-read root is not a CModelSource")
 
-					return
+					return true
 				}
 		checkDrawablesSampleTheAtlasPages(label, reimportedSource, failures)
 		checkTwinsShareTheirSlot(label, reimportedSource, pages.map { page -> page.width to page.height }, result.puppet, pageIndexByDrawableId, failures)
@@ -178,7 +180,7 @@ class Cmo3ConversionRoundTripTest {
 		val residual = org.umamo.interop.diffPuppetModels(reimported, result.puppet)
 
 		if (residual.isEmpty) {
-			return
+			return true
 		}
 
 		// Allowed residues: WORLD_ORIGIN plus bounded-ULP GEOMETRY/BLEND_SHAPES drift.
@@ -220,6 +222,8 @@ class Cmo3ConversionRoundTripTest {
 				failures.add("$label: drawable ${entityDiff.id.raw} geometry drifted by $drift")
 			}
 		}
+
+		return true
 	}
 
 	/**

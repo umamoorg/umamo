@@ -10,6 +10,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.RenderDrawable
 import org.umamo.runtime.model.RenderGroup
 import org.umamo.runtime.model.RenderNode
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -50,9 +51,7 @@ class Moc3ImportOrderTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping import order gate")
-
-			return
+			skipTest("moc3.samples not present; skipping import order gate")
 		}
 
 		val failures = ArrayList<String>()
@@ -106,9 +105,7 @@ class Moc3ImportOrderTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping org-tree order gate")
-
-			return
+			skipTest("moc3.samples not present; skipping org-tree order gate")
 		}
 
 		val failures = ArrayList<String>()

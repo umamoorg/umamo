@@ -8,6 +8,7 @@ import org.umamo.render.device.TextureFormat
 import org.umamo.render.puppet.PuppetRenderer
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -40,9 +41,7 @@ class CompositeAccelerationParityTest {
 				?.firstOrNull { it.name == "modelA.moc3" }
 
 		if (mocFile == null) {
-			println("modelA.moc3 not present; skipping composite acceleration parity")
-
-			return
+			skipTest("modelA.moc3 not present; skipping composite acceleration parity")
 		}
 
 		requireHeadlessGl("[composite-accel-parity]")

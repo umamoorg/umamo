@@ -30,6 +30,8 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.UvCursor
 import org.umamo.edit.transform.TransformParameterKeys
+import org.umamo.edit.transform.UvEditFrame
+import org.umamo.edit.transform.displayToUv
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
@@ -46,11 +48,9 @@ import org.umamo.ui.viewport.uv.UV_RIG_OTHER
 import org.umamo.ui.viewport.uv.UV_RIG_PAGE_SIDE
 import org.umamo.ui.viewport.uv.UV_RIG_QUAD
 import org.umamo.ui.viewport.uv.UV_RIG_QUAD_TILE
-import org.umamo.ui.viewport.uv.UvEditFrame
 import org.umamo.ui.viewport.uv.UvPlacementSceneState
 import org.umamo.ui.viewport.uv.UvPlacementSurface
 import org.umamo.ui.viewport.uv.UvSidebarSurface
-import org.umamo.ui.viewport.uv.displayToUv
 import org.umamo.ui.viewport.uv.uvEditSession
 import org.umamo.ui.viewport.uv.uvObjectSession
 import org.umamo.ui.viewport.uv.uvRigGeometries

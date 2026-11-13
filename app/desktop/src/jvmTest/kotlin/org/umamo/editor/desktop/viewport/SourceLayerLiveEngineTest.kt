@@ -23,6 +23,7 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.RenderedFrame
 import kotlin.test.Test
@@ -64,9 +65,7 @@ class SourceLayerLiveEngineTest {
 			service.resize("area", 100, 100)
 
 			if (!awaitFrame(frames) { _, sample -> isBlue(sample) }) {
-				println("[artwork-live] no GL frame arrived; skipping (context unavailable, or the atlas never rendered)")
-
-				return
+				skipTest("[artwork-live] no GL frame arrived; skipping (context unavailable, or the atlas never rendered)")
 			}
 
 			// Stage 1: the plan alone re-renders the area.  The puppet stays on its atlas until the layer

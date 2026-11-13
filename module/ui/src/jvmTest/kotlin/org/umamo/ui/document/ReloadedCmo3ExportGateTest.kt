@@ -25,6 +25,7 @@ import org.umamo.interop.cmo3.cmo3AtlasPages
 import org.umamo.interop.cmo3.cmo3SourceArtOf
 import org.umamo.render.encodeAtlasPng
 import org.umamo.runtime.model.lineageRoot
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.artwork.RelinkArtworkRequest
 import org.umamo.ui.model.artwork.runRelinkArtwork
@@ -57,9 +58,7 @@ class ReloadedCmo3ExportGateTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the reloaded export gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the reloaded export gate")
 			}
 
 			val load = loadDocument(file.readBytes(), file.name, file.path)
@@ -217,9 +216,7 @@ class ReloadedCmo3ExportGateTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the decomposed relink gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the decomposed relink gate")
 			}
 
 			val load = loadDocument(file.readBytes(), file.name, file.path)

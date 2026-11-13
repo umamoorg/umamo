@@ -32,6 +32,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.drawableIdsByAtlasTile
 import org.umamo.runtime.model.storedToArtAffineForTile
+import org.umamo.testkit.skipTest
 import java.io.File
 import java.util.Locale
 import kotlin.math.hypot
@@ -53,7 +54,7 @@ import kotlin.test.assertTrue
  * the base through the evaluator instead.
  *
  * Reads `cmo3.sample` (Erica, which carries glue) and the explicit-only comma-separated
- * `meshTransfer.samples`; self-skips with a printed line when neither exists.
+ * `meshTransfer.samples`; self-skips when neither exists.
  */
 class MeshRegenerationCorpusProbeTest {
 	/** The configurations meshed: Standard, and a wide outer margin that leans on the extrapolation. */
@@ -75,9 +76,7 @@ class MeshRegenerationCorpusProbeTest {
 				.distinct()
 
 		if (samples.isEmpty()) {
-			println("[mesh-transfer] no cmo3.sample or meshTransfer.samples; skipping the regeneration probe")
-
-			return
+			skipTest("[mesh-transfer] no cmo3.sample or meshTransfer.samples; skipping the regeneration probe")
 		}
 
 		var builtTotal = 0

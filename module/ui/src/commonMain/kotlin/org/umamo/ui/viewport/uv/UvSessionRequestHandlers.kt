@@ -13,7 +13,9 @@ import org.umamo.edit.atlas.placementSelectedTileIds
 import org.umamo.edit.atlas.setAtlasPlacements
 import org.umamo.edit.mesh.commitMeshUvs
 import org.umamo.edit.transform.MeshTransforms
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.edit.transform.snapToGrid
+import org.umamo.edit.transform.storedUvsWithMoved
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableId

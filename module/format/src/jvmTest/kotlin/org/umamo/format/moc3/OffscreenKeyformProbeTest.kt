@@ -4,6 +4,7 @@ import org.umamo.format.moc3.io.LittleEndianReader
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,9 +41,7 @@ class OffscreenKeyformProbeTest {
 			samplesDir?.walkTopDown()?.firstOrNull { it.isFile && it.name.startsWith("modelA") && it.extension == "moc3" }
 
 		if (sample == null) {
-			println("moc3.samples/modelA not present; skipping offscreen probe")
-
-			return
+			skipTest("moc3.samples/modelA not present; skipping offscreen probe")
 		}
 
 		val model = MocCodec.read(sample.readBytes())

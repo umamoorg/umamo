@@ -13,6 +13,7 @@ import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocModel
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -99,9 +100,7 @@ class PairedVisibilityFlagProbeTest {
 	@Test
 	fun firstFlagOfEachPairCarriesVisibility() {
 		if (cmo3Probes.isEmpty() || moc3SamplesDir == null) {
-			println("cmo3.probe / moc3.samples not both present; skipping paired visibility flag probe")
-
-			return
+			skipTest("cmo3.probe / moc3.samples not both present; skipping paired visibility flag probe")
 		}
 
 		val mocByName =
@@ -110,9 +109,7 @@ class PairedVisibilityFlagProbeTest {
 		val twins = cmo3Probes.mapNotNull { cmo3 -> mocByName[cmo3.nameWithoutExtension]?.let { cmo3 to it } }
 
 		if (twins.isEmpty()) {
-			println("no CMO3/MOC3 twins in the corpus; skipping paired visibility flag probe")
-
-			return
+			skipTest("no CMO3/MOC3 twins in the corpus; skipping paired visibility flag probe")
 		}
 
 		var joinedDeviations = 0
@@ -215,9 +212,7 @@ class PairedVisibilityFlagProbeTest {
 		val samplesDir = moc3SamplesDir
 
 		if (samplesDir == null) {
-			println("moc3.samples not present; skipping paired flag census")
-
-			return
+			skipTest("moc3.samples not present; skipping paired flag census")
 		}
 
 		// work/ holds our own bake outputs, excluded like every other corpus walk does.  This census
@@ -231,9 +226,7 @@ class PairedVisibilityFlagProbeTest {
 				.toList()
 
 		if (files.isEmpty()) {
-			println("no corpus moc3 files; skipping paired flag census")
-
-			return
+			skipTest("no corpus moc3 files; skipping paired flag census")
 		}
 
 		val firstColumnDeviations = HashMap<String, Int>()

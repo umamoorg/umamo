@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.v2.runComposeUiTest
 import org.umamo.edit.EditorSession
+import org.umamo.edit.transform.atlasPageEditFrame
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.theme.UmamoTheme

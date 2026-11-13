@@ -12,6 +12,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.transform.setLatticeSizeAdjustable
 import org.umamo.ui.transform.subdivideLatticesAdjustable
@@ -43,9 +44,7 @@ class LatticeResizeExportGateTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the lattice resize export gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the lattice resize export gate")
 			}
 
 			val document = assertIs<Cmo3Document>(assertIs<DocumentLoad.Loaded>(loadDocument(file.readBytes(), file.name, file.path)).document)

@@ -20,6 +20,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
+import org.umamo.testkit.skipTest
 import org.umamo.ui.viewport.AtlasPageBinding
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.RenderedFrame
@@ -164,9 +165,7 @@ class AtlasSwapModelUpdateTest {
 			val sawBaseline = awaitFrame(frames) { pixels -> centerChannelDominates(pixels, "red") }
 
 			if (!sawBaseline) {
-				println("[atlas-swap-live] no GL frame arrived; skipping (context unavailable, or baseline never rendered)")
-
-				return
+				skipTest("[atlas-swap-live] no GL frame arrived; skipping (context unavailable, or baseline never rendered)")
 			}
 
 			// The repack, in the UI's publish order: the committed model first (the session collector),

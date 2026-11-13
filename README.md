@@ -131,6 +131,7 @@ The Gradle wrapper (`./gradlew`) pins the Gradle version so no system Gradle ins
 ./gradlew :desktop:run                                      #Launch the desktop editor
 ./gradlew :android:installDebug                             #Deploy to a connected Android tablet
 ./gradlew build                                             #Everything
+./gradlew verifyChanged                                     #Run build and lint only on changed files.
 ./gradlew test                                              #Unit tests
 ./gradlew ktlintFormat                                      #Format all files according to .editorconfig
 ./gradlew -q :cli:run --args="dump model.moc3"              #Dump a CMO3/MOC3's contents to stdout
@@ -188,6 +189,7 @@ Reusable library modules live under `module/`, runnable application targets unde
 | `:storage`  | `module/storage`  | jvm + android                       | App config/data dirs + file IO (okio) + native file dialogs (FileKit)                          |
 | `:settings` | `module/settings` | jvm + android                       | JSON settings: defaults←user merge, dotted get/set, change Flow → `:storage`                   |
 | `:ui`       | `module/ui`       | jvm + android                       | Compose Multiplatform editor UI and the shared app shell                                       |
+| `:testkit`  | `module/testkit`  | jvm                                 | Test support: the helpers that end a test as skipped when its sample is absent                 |
 | `:desktop`  | `app/desktop`     | jvm                                 | Desktop entrypoint (Compose Desktop window + LWJGL offscreen viewport)                         |
 | `:android`  | `app/android`     | android                             | Android entrypoint (Activity over the shared app shell)                                        |
 | `:cli`      | `app/cli`         | jvm                                 | Headless diagnostic tool (dump, extract, atlas, mesh, convert, diff)                           |

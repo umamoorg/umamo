@@ -14,6 +14,7 @@ import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
@@ -90,9 +91,7 @@ class AtlasRepackMeshDisjointTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping the repack mesh-disjointness gate")
-
-			return
+			skipTest("cmo3.sample not present; skipping the repack mesh-disjointness gate")
 		}
 
 		val cmo3 = Cmo3.read(file.readBytes())
@@ -100,9 +99,7 @@ class AtlasRepackMeshDisjointTest {
 		val imported = Cmo3Import.fromModelSource(root)
 
 		if (imported.atlas.tiles.isEmpty() || !imported.atlas.storedUvsAddressPages) {
-			println("${file.name} is not repackable; skipping the mesh-disjointness gate")
-
-			return
+			skipTest("${file.name} is not repackable; skipping the mesh-disjointness gate")
 		}
 
 		val ingest = cmo3AtlasIngest(root)

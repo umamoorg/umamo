@@ -4,6 +4,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -46,9 +47,7 @@ class Moc3ExportBindingOrderTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping export binding-order gate")
-
-			return
+			skipTest("moc3.samples not present; skipping export binding-order gate")
 		}
 
 		val failures = ArrayList<String>()
@@ -106,9 +105,7 @@ class Moc3ExportBindingOrderTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping offscreen row gate")
-
-			return
+			skipTest("moc3.samples not present; skipping offscreen row gate")
 		}
 
 		val failures = ArrayList<String>()

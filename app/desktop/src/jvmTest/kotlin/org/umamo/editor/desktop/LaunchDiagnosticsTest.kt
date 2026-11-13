@@ -2,6 +2,7 @@ package org.umamo.editor.desktop
 
 import org.umamo.storage.LogLevel
 import org.umamo.storage.UmamoLog
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,9 +37,7 @@ class LaunchDiagnosticsTest {
 	@Test
 	fun aChattyFolderOpenerStillFinishes() {
 		if (!File("/bin/sh").exists()) {
-			println("skipping: no POSIX shell to stand in for xdg-open")
-
-			return
+			skipTest("skipping: no POSIX shell to stand in for xdg-open")
 		}
 
 		// A megabyte of output is far past what a pipe holds: left in a pipe nothing reads, the opener would block
@@ -50,9 +49,7 @@ class LaunchDiagnosticsTest {
 	@Test
 	fun aFolderOpenerThatHangsIsStoppedAtTheTimeout() {
 		if (!File("/bin/sh").exists()) {
-			println("skipping: no POSIX shell to stand in for xdg-open")
-
-			return
+			skipTest("skipping: no POSIX shell to stand in for xdg-open")
 		}
 
 		val started = System.nanoTime()

@@ -13,6 +13,7 @@ import org.umamo.edit.mesh.commitObjectPositions
 import org.umamo.format.uma.UmaModel
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import org.umamo.ui.transform.captureDrawableWorld
 import org.umamo.ui.viewport.AtlasPageBinding
 import java.io.File
@@ -176,9 +177,7 @@ class DeltaPrecisionProfileProbe {
 			val samples = System.getProperty("profile.samples")?.split(',')?.map { path -> File(path.trim()) }?.filter { file -> file.isFile }.orEmpty()
 
 			if (samples.isEmpty()) {
-				println("[profile] no profile.samples; skipping")
-
-				return@runBlocking
+				skipTest("[profile] no profile.samples; skipping")
 			}
 
 			val outputDirectory = File(System.getProperty("profile.output") ?: createTempDirectory("delta-profile").toString()).also { directory -> directory.mkdirs() }

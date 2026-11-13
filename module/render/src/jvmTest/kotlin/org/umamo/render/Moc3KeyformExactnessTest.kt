@@ -3,6 +3,7 @@ package org.umamo.render
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -33,9 +34,7 @@ class Moc3KeyformExactnessTest {
 	@Test
 	fun deformerChildKeyformsSurviveTheMoc3Path() {
 		if (samples.isEmpty()) {
-			println("moc3.samples not present; skipping the MOC3 keyform exactness check")
-
-			return
+			skipTest("moc3.samples not present; skipping the MOC3 keyform exactness check")
 		}
 
 		val mismatches = ArrayList<String>()

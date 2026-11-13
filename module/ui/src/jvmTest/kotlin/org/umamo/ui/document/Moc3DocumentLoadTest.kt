@@ -1,5 +1,6 @@
 package org.umamo.ui.document
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -85,9 +86,7 @@ class Moc3DocumentLoadTest {
 		val mocFile = sample
 
 		if (mocFile == null) {
-			println("moc3.sample not present; skipping missing-texture test")
-
-			return
+			skipTest("moc3.sample not present; skipping missing-texture test")
 		}
 
 		// A real decodable moc whose manifest lists a texture the reader cannot resolve.
@@ -104,9 +103,7 @@ class Moc3DocumentLoadTest {
 		val mocFile = sample
 
 		if (mocFile == null) {
-			println("moc3.sample not present; skipping undecodable-texture test")
-
-			return
+			skipTest("moc3.sample not present; skipping undecodable-texture test")
 		}
 
 		val load =
@@ -126,9 +123,7 @@ class Moc3DocumentLoadTest {
 		val mocFile = sample
 
 		if (mocFile == null) {
-			println("moc3.sample not present; skipping corpus load test")
-
-			return
+			skipTest("moc3.sample not present; skipping corpus load test")
 		}
 
 		val directory = mocFile.parentFile

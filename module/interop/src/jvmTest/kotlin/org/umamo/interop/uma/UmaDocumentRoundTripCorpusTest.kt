@@ -26,6 +26,7 @@ import org.umamo.render.eval.DeformedGeometry
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.visibleDrawableIds
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.random.Random
 import kotlin.test.Test
@@ -45,7 +46,7 @@ import kotlin.test.assertTrue
  *
  * Corpus-gated: `cmo3.probe` (every corpus .cmo3 by default), `moc3.samples` (the moc3 corpus directory, each
  * moc's pages read beside it through its model3.json), and the PSD / CLIP / KRA files under test/corpus found by
- * walking up from the working directory.  Each format self-skips with a printed line when its samples are absent.
+ * walking up from the working directory.  Each format self-skips when its samples are absent.
  */
 class UmaDocumentRoundTripCorpusTest {
 	private val writer = UmaWriterInfo("Umamo", "corpus-test")
@@ -212,9 +213,7 @@ class UmaDocumentRoundTripCorpusTest {
 		val samples = System.getProperty("cmo3.probe")?.split(',')?.map(::File)?.filter { file -> file.isFile }.orEmpty()
 
 		if (samples.isEmpty()) {
-			println("no cmo3.probe samples; skipping the CMO3 document round trip")
-
-			return
+			skipTest("no cmo3.probe samples; skipping the CMO3 document round trip")
 		}
 
 		for (sample in samples) {
@@ -247,9 +246,7 @@ class UmaDocumentRoundTripCorpusTest {
 				?.walkTopDown()?.filter { file -> file.isFile && file.extension == "moc3" }?.sortedBy { file -> file.path }?.toList().orEmpty()
 
 		if (samples.isEmpty()) {
-			println("no moc3.samples; skipping the MOC3 document round trip")
-
-			return
+			skipTest("no moc3.samples; skipping the MOC3 document round trip")
 		}
 
 		var pagedSamples = 0
@@ -288,9 +285,7 @@ class UmaDocumentRoundTripCorpusTest {
 		val samples = locateArtworkSamples()
 
 		if (samples.isEmpty()) {
-			println("no test/corpus artwork samples; skipping the artwork document round trip")
-
-			return
+			skipTest("no test/corpus artwork samples; skipping the artwork document round trip")
 		}
 
 		for (sample in samples) {

@@ -4,6 +4,7 @@ import org.umamo.format.art.ArtReader
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.art.locateLayeredCorpusSamples
 import org.umamo.format.png.PngCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -28,13 +29,19 @@ class AtlasPackCorpusTest {
 		val samples = locateLayeredCorpusSamples()
 
 		if (samples.isEmpty()) {
-			println("no test/corpus directory; skipping atlas-pack corpus test")
-
-			return
+			skipTest("no test/corpus directory; skipping atlas-pack corpus test")
 		}
 
+		var packedSampleCount = 0
+
 		for ((sample, reader) in samples) {
-			checkSample(sample, reader)
+			if (checkSample(sample, reader)) {
+				packedSampleCount++
+			}
+		}
+
+		if (packedSampleCount == 0) {
+			skipTest("no corpus sample has a raster layer to pack")
 		}
 	}
 
@@ -43,8 +50,9 @@ class AtlasPackCorpusTest {
 	 *
 	 * @param File sample      The layered source file to read.
 	 * @param ArtReader reader The reader that decodes it.
+	 * @return Boolean Whether the sample was packed, which it is not when it has no raster layer.
 	 */
-	private fun checkSample(sample: File, reader: ArtReader) {
+	private fun checkSample(sample: File, reader: ArtReader): Boolean {
 		val options = AtlasPackOptions(maxPageSize = 4096)
 		val art = reader.read(sample.readBytes())
 		val items = art.atlasPackItems { layer -> layer.kind == SourceLayerKind.Raster }
@@ -52,7 +60,7 @@ class AtlasPackCorpusTest {
 		if (items.isEmpty()) {
 			println("checked ${sample.name}: no raster layers")
 
-			return
+			return false
 		}
 
 		val startNanos = System.nanoTime()
@@ -108,5 +116,7 @@ class AtlasPackCorpusTest {
 			"checked ${sample.name}: ${result.placements.size} packed, ${result.skipped.size} skipped, " +
 				"${result.pages.size} page(s) [$occupancy], ${(packedNanos - startNanos) / 1_000_000} ms$oversizedNote",
 		)
+
+		return true
 	}
 }

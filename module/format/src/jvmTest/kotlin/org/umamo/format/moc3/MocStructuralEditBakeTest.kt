@@ -6,6 +6,7 @@ import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
 import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.format.moc3.model.Part
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -61,9 +62,7 @@ class MocStructuralEditBakeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping structural edit bake test")
-
-			return
+			skipTest("moc3.samples not present; skipping structural edit bake test")
 		}
 
 		var exercised = 0

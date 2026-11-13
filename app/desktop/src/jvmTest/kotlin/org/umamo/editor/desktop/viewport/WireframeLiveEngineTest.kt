@@ -30,6 +30,7 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.LiveParams
@@ -81,9 +82,7 @@ class WireframeLiveEngineTest {
 			service.setMeshOverlayPalette(MeshOverlayPalette.Classic.copy(edgeIdle = OverlayColor(1f, 0f, 1f, 1f)))
 
 			if (!awaitFrame(leftFrames) { sample -> isArtBlue(sample) }) {
-				println("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
-
-				return
+				skipTest("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
 			}
 
 			assertTrue(awaitFrame(rightFrames) { sample -> isArtBlue(sample) }, "both areas show the plain art before any wireframe")
@@ -122,9 +121,7 @@ class WireframeLiveEngineTest {
 			service.setMeshOverlayPalette(MeshOverlayPalette.Classic.copy(edgeIdle = OverlayColor(1f, 0f, 1f, 1f)))
 
 			if (!awaitFrame(leftFrames) { sample -> isArtBlue(sample) }) {
-				println("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
-
-				return
+				skipTest("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
 			}
 
 			service.setMeshOverlay(quadWireframe())
@@ -158,9 +155,7 @@ class WireframeLiveEngineTest {
 			service.setSelectionHighlightColor(1f, 0f, 0f)
 
 			if (!awaitFrame(leftFrames) { sample -> isArtBlue(sample) }) {
-				println("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
-
-				return
+				skipTest("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
 			}
 
 			service.setSelection(setOf(probeId))
@@ -197,9 +192,7 @@ class WireframeLiveEngineTest {
 			service.setMeshOverlayPalette(MeshOverlayPalette.Classic.copy(edgeIdle = OverlayColor(1f, 0f, 1f, 1f)))
 
 			if (!awaitFrame(leftFrames) { sample -> isArtBlue(sample) }) {
-				println("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
-
-				return
+				skipTest("[wireframe-live] no GL frame arrived; skipping (context unavailable, or the art never rendered)")
 			}
 
 			service.setMeshOverlay(quadWireframe(listOf(probeId, frontId)))
