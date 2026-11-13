@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport.uv
+package org.umamo.edit.transform
 
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.DrawableLayerBinding

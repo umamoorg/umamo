@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport.viewport2d
+package org.umamo.ui.transform
 
 import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshOperatorKind
@@ -9,7 +9,9 @@ import org.umamo.edit.transform.IndividualOriginScope
 import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.runtime.model.ElementOwner
-import org.umamo.ui.transform.captureDrawableWorlds
+import org.umamo.ui.viewport.viewport2d.RIG_OTHER
+import org.umamo.ui.viewport.viewport2d.RIG_QUAD
+import org.umamo.ui.viewport.viewport2d.gizmoRigModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

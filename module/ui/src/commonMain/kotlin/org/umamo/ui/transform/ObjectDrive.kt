@@ -1,17 +1,14 @@
-package org.umamo.ui.viewport.viewport2d
+package org.umamo.ui.transform
 
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.TransformGestureParameters
+import org.umamo.edit.transform.gestureAffine
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.deformerId
-import org.umamo.ui.transform.landedWarp
-import org.umamo.ui.transform.warpPreviewOf
-import org.umamo.ui.transform.withWarpsReplaced
-import org.umamo.ui.viewport.gizmo.gestureAffine
 
 /*
  * The Object-mode drive over whole objects: the drawables through the mesh drive (each one's world shape inverted
@@ -79,21 +76,13 @@ internal fun warpAffinesOf(transform: ModalTransformCapture, operator: MeshOpera
 internal fun computeObjectDrive(request: ObjectDriveRequest): ObjectDriveResult = withWarps(request, computeMeshDrive(request.mesh))
 
 /**
- * The drive with the drawables in parallel chunks on the caller's dispatcher; the same result as [computeObjectDrive].
- *
- * @param ObjectDriveRequest request The request.
- * @return ObjectDriveResult The result.
- */
-internal suspend fun computeObjectDriveParallel(request: ObjectDriveRequest): ObjectDriveResult = withWarps(request, computeMeshDriveParallel(request.mesh))
-
-/**
  * Moves each warp of [request] as a whole over its base model, beside the drawables' result.
  *
  * @param ObjectDriveRequest request The request.
  * @param MeshDriveResult mesh The drawables' result.
  * @return ObjectDriveResult The whole result.
  */
-private fun withWarps(request: ObjectDriveRequest, mesh: MeshDriveResult): ObjectDriveResult {
+internal fun withWarps(request: ObjectDriveRequest, mesh: MeshDriveResult): ObjectDriveResult {
 	if (request.warpAffines.isEmpty()) {
 		return ObjectDriveResult(mesh, emptyMap(), emptyMap())
 	}

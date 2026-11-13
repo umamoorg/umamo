@@ -15,6 +15,9 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.ui.transform.MeshDriveRequest
+import org.umamo.ui.transform.computeMeshDrive
+import org.umamo.ui.transform.meshDriveJobs
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

@@ -2,6 +2,7 @@ package org.umamo.ui.viewport.uv
 
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.compositionLocalOf
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /**

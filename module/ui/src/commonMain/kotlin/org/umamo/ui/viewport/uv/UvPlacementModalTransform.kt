@@ -13,6 +13,7 @@ import org.umamo.edit.NoticePlacement
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.atlas.setAtlasPlacements
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry

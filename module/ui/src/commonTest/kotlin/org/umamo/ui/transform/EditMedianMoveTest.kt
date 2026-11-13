@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport.viewport2d
+package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshElement
@@ -10,7 +10,11 @@ import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.withParameter
 import org.umamo.runtime.model.ElementOwner
-import org.umamo.ui.transform.WorldAxis
+import org.umamo.ui.viewport.viewport2d.RIG_OTHER
+import org.umamo.ui.viewport.viewport2d.RIG_QUAD
+import org.umamo.ui.viewport.viewport2d.editOwnerGeometries
+import org.umamo.ui.viewport.viewport2d.gizmoEditSession
+import org.umamo.ui.viewport.viewport2d.rigPositionsOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -56,8 +60,9 @@ class EditMedianMoveTest {
 	 */
 	private fun moveOf(session: EditorSession): CoveredMedianMove {
 		val selection = session.meshSelection.value
+		val edit = editOwnerGeometries(session.model.value, selection.owners)
 
-		return assertNotNull(coveredMedianMove(selection, editOwnerGeometries(session.model.value, selection.owners)))
+		return assertNotNull(coveredMedianMove(selection, edit.map { geometry -> geometry.worldGeometry }, edit.associate { geometry -> geometry.owner to geometry.topology }))
 	}
 
 	/**

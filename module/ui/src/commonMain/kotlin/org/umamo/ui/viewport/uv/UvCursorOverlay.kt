@@ -11,6 +11,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntSize
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors

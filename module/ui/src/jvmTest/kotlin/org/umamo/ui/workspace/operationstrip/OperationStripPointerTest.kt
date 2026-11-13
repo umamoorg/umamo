@@ -29,8 +29,8 @@ import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.model.LocalEditorSession
-import org.umamo.ui.properties.setDrawableWorldSizeAdjustable
 import org.umamo.ui.theme.UmamoTheme
+import org.umamo.ui.transform.setDrawableWorldSizeAdjustable
 import org.umamo.ui.workspace.SpaceKind
 import org.umamo.ui.workspace.changeLabel
 import kotlin.test.Test

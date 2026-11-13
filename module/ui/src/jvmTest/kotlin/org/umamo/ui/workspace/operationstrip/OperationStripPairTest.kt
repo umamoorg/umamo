@@ -27,9 +27,9 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.properties.setDrawableWorldSizeAdjustable
 import org.umamo.ui.theme.UmamoTheme
 import org.umamo.ui.transform.drawableWorldTransform
+import org.umamo.ui.transform.setDrawableWorldSizeAdjustable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

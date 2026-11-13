@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorSession
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.asObjectPickCandidates

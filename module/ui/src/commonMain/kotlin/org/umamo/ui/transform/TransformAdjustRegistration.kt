@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport.viewport2d
+package org.umamo.ui.transform
 
 import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
@@ -19,20 +19,17 @@ import org.umamo.edit.transform.slideParameters
 import org.umamo.edit.transform.transformGestureParametersOf
 import org.umamo.edit.transform.transformParameters
 import org.umamo.runtime.model.ElementOwner
-import org.umamo.ui.transform.DrawableWorldGeometry
-import org.umamo.ui.transform.ElementEditStage
-import org.umamo.ui.transform.OwnerWorldGeometry
-import org.umamo.ui.transform.amendLatticeLanding
 
 /*
  * The modal transforms' registrations on the operation settings strip - the half that needs geometry.
- * The rows and what they mean live in :edit (TransformAdjust.kt, next to the merge's); what stays here
+ * The rows and what they mean live in :edit (TransformAdjust.kt, next to the merge's); what stays in :ui
  * is the rerun each gesture needs, because a rerun replays the RETAINED capture through the viewport's
  * frozen world geometry (OwnerWorldGeometry, which needs :render's evaluator and so cannot sit in
- * :edit), applies the shared operator math (gizmo/TransformOperators.kt), and lands a lattice's points at the
+ * :edit), applies the shared operator math (:edit's TransformOperators.kt), and lands a lattice's points at the
  * stage they were captured at, as the confirm did.  These are the 2D viewport's gestures: the Edit- and Pose-mode
  * element transform, the vertex slide, and the Object-mode transform.  The UV editor's texture-coordinate transform
- * has the same shape over its own frozen frame (uv/UvTransformAdjustRegistration.kt).
+ * has the same shape over its own frozen frame, which needs no evaluator, so its registration is in :edit
+ * (UvTransformAdjust.kt).
  */
 
 /**
@@ -105,7 +102,6 @@ internal fun registerMeshTransformAdjustment(
  * @param ElementEditStage stage Where the moved geometry was captured.
  * @return Boolean True when the step was replaced.
  */
-@Suppress("ktlint:umamo:session-extension-placement")
 private fun EditorSession.amendDrive(
 	record: AdjustableOperation,
 	result: MeshDriveResult,

@@ -1,7 +1,7 @@
-package org.umamo.ui.viewport.uv
+package org.umamo.edit.transform
 
 /** A texel axis a UV-editor position is typed on, read as an image editor reads it: x right, y down. */
-internal enum class TexelAxis {
+enum class TexelAxis {
 	/** Texel x, across. */
 	X,
 

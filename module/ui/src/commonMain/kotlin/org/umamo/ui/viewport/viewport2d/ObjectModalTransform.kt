@@ -16,10 +16,17 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.ui.transform.DrawableWorldGeometry
+import org.umamo.ui.transform.MeshDriveRequest
+import org.umamo.ui.transform.ObjectDriveRequest
+import org.umamo.ui.transform.ObjectDriveResult
 import org.umamo.ui.transform.activeObjectCentroid
 import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.transform.captureLatticeWorlds
 import org.umamo.ui.transform.commitObjectMove
+import org.umamo.ui.transform.computeObjectDrive
+import org.umamo.ui.transform.meshDriveJobs
+import org.umamo.ui.transform.registerObjectTransformAdjustment
+import org.umamo.ui.transform.warpAffinesOf
 import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.ModalGestureState
 import org.umamo.ui.viewport.gizmo.ModalTransformTarget

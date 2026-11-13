@@ -1,8 +1,6 @@
-package org.umamo.ui.viewport.gizmo
+package org.umamo.edit.transform
 
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.transform.TransformGestureParameters
-import org.umamo.edit.transform.TransformPivotGroup
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertTrue

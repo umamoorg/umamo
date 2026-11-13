@@ -16,7 +16,15 @@ import org.umamo.edit.mesh.withMeshUvs
 import org.umamo.edit.transform.IndividualOriginScope
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.ProportionalRows
+import org.umamo.edit.transform.UvDriveRequest
+import org.umamo.edit.transform.UvDriveResult
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.edit.transform.buildModalTransformCapture
+import org.umamo.edit.transform.computeUvDrive
+import org.umamo.edit.transform.registerUvTransformAdjustment
+import org.umamo.edit.transform.setProportionalEditKeepingRadius
+import org.umamo.edit.transform.storedUvsForCommit
+import org.umamo.edit.transform.uvDriveJobs
 import org.umamo.render.ViewportCamera
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
@@ -52,6 +60,26 @@ internal fun uvProportionalRadiusSeed(displayWidth: Int, displayHeight: Int): Fl
  */
 internal fun uvProportionalRadiusRange(displayWidth: Int, displayHeight: Int): ClosedFloatingPointRange<Float> =
 	MIN_UV_PROPORTIONAL_RADIUS_DISPLAY..(4f * maxOf(displayWidth, displayHeight))
+
+/**
+ * Resolves a surface's proportional radius, seeding it from the surface's size on first use.
+ *
+ * @param MutableState<Float?> radiusState The surface's radius state.
+ * @param UvEditFrame frame The surface's frame.
+ * @return Float The influence radius in display (texel) units.
+ */
+internal fun resolvedUvProportionalRadius(radiusState: MutableState<Float?>, frame: UvEditFrame): Float {
+	val current = radiusState.value
+
+	if (current != null) {
+		return current
+	}
+
+	val seeded = uvProportionalRadiusSeed(frame.displayWidth, frame.displayHeight)
+	radiusState.value = seeded
+
+	return seeded
+}
 
 /**
  * The captured state of an in-flight UV transform: the shared [ModalTransformCapture], whose entries hold each
@@ -216,7 +244,8 @@ internal class UvEditModalTransform(
 					val radiusState = gestureData.proportionalRadius
 					val proportional = ProportionalRows.of(session.proportionalEdit.value, resolvedUvProportionalRadius(radiusState, gestureData.frame))
 					registerUvTransformAdjustment(session, areaId, transform, gestureData.frame, parameters, proportional) { _, state, radiusDisplay ->
-						session.writeBackUvProportional(radiusState, state, radiusDisplay)
+						radiusState.value = radiusDisplay
+						session.setProportionalEditKeepingRadius(state)
 					}
 				}
 			}

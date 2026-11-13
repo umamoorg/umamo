@@ -32,6 +32,9 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.gestureOwnsAreaPointer
+import org.umamo.edit.transform.atlasPageEditFrame
+import org.umamo.edit.transform.sourceLayerEditFrame
 import org.umamo.render.puppet.OverlayColor
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.atlasBindingForTile
@@ -60,7 +63,6 @@ import org.umamo.ui.viewport.OverlapState
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.ViewportRegionOverlay
-import org.umamo.ui.viewport.gestureOwnsAreaPointer
 import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.rememberGestureOwnsAreaPointer
@@ -76,10 +78,8 @@ import org.umamo.ui.viewport.uv.UvPlacementSurface
 import org.umamo.ui.viewport.uv.UvShownScene
 import org.umamo.ui.viewport.uv.UvSidebarSurface
 import org.umamo.ui.viewport.uv.UvSpaceCamera
-import org.umamo.ui.viewport.uv.atlasPageEditFrame
 import org.umamo.ui.viewport.uv.publishUvScene
 import org.umamo.ui.viewport.uv.restFrontRank
-import org.umamo.ui.viewport.uv.sourceLayerEditFrame
 import org.umamo.ui.viewport.uv.uvIslandPick
 import org.umamo.ui.workspace.AreaScope
 import org.umamo.ui.workspace.LocalAreaCameraHub
