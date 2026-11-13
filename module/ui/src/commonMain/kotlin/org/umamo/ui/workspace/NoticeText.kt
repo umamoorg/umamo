@@ -24,6 +24,7 @@ fun noticeText(messageKey: String, arguments: List<String> = emptyList()): Strin
 		"notice.keyform.noParameter" -> stringResource(Res.string.notice_keyform_no_parameter)
 		"notice.parameter.deleteChangedRest" -> stringResource(Res.string.notice_parameter_delete_changed_rest, *countArguments(arguments, 1))
 		"notice.merge.needsVertices" -> stringResource(Res.string.notice_merge_needs_vertices)
+		"notice.toShape.nothing" -> stringResource(Res.string.notice_to_shape_nothing)
 		"notice.connect.needsTwoVertices" -> stringResource(Res.string.notice_connect_needs_two_vertices)
 		"notice.connect.refused" -> stringResource(Res.string.notice_connect_refused)
 		"notice.rip.nothing" -> stringResource(Res.string.notice_rip_nothing)

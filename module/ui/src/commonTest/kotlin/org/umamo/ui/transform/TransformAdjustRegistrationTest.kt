@@ -1,6 +1,7 @@
 package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
@@ -90,7 +91,7 @@ class TransformAdjustRegistrationTest {
 		val landed = TransformGestureParameters(10f, 0f, 1f, 1f, 0f)
 		val entry = transform.entries.single()
 		val world = applyOperator(MeshOperatorKind.Grab, entry.positions, entry.groups, landed, emptyMap())
-		session.commitMeshPositions(MeshChange.TransformVertices(mapOf(drawableId to listOf(0, 1, 2)), MeshOperatorKind.Grab), mapOf(drawableId to geometry.worldToRest(world, entry.movedIndices)))
+		session.commitMeshPositions(MeshChange.TransformVertices(mapOf(drawableId to listOf(0, 1, 2)), ElementEditKind.Grab), mapOf(drawableId to geometry.worldToRest(world, entry.movedIndices)))
 		assertEquals(10f, session.model.value.drawables.single().mesh!!.positions[0], "the grab landed")
 		var writtenBack: ProportionalEditState? = null
 		var writeBacks = 0

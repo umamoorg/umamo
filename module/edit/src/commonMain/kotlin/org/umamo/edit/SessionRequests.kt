@@ -32,6 +32,22 @@ interface SessionRequests {
 	fun requestSnap(kind: SnapKind, areaId: String?)
 
 	/**
+	 * Fires To Shape for one viewport's overlay to execute: the selected points' posed world positions and the
+	 * landing back onto the lattices live with the overlay, as a snap's do.  The payload carries the shape the
+	 * command named and the dispatch-time resolved area (see [ToShapeRequest]), which elects the one viewport that
+	 * runs it and whose operation strip shows its rows.
+	 */
+	val toShapeRequests: SharedFlow<ToShapeRequest>
+
+	/**
+	 * Requests a To Shape (see [toShapeRequests]).
+	 *
+	 * @param TargetShape shape The surface to wrap the selected points onto.
+	 * @param String? areaId The executing overlay's area, resolved at command dispatch; null no-ops.
+	 */
+	fun requestToShape(shape: TargetShape, areaId: String?)
+
+	/**
 	 * Fires Select Linked (Blender's L / Ctrl+L) for one overlay to execute: a keymap command carries
 	 * no pointer position, so the overlay (which tracks the pointer and owns the projected geometry)
 	 * picks the seed and floods.  The payload carries the flood variant AND the dispatch-time resolved

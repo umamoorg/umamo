@@ -18,7 +18,7 @@ import org.umamo.ui.viewport.gizmo.handleSelectLinkedRequest
 
 /**
  * Collects the keymap commands the Edit overlay executes for its area: Select Linked, Alt+Q switch
- * object, Rip, and the Shift+S snaps.  Only the area each request names runs it, checked BEFORE the
+ * object, Rip, the Shift+S snaps, and To Shape.  Only the area each request names runs it, checked BEFORE the
  * empty-geometry notice so a request over nothing to edit answers once, from the asking area.
  *
  * Runs until its caller's effect is cancelled.  Everything that changes while it runs is read through
@@ -106,6 +106,18 @@ internal suspend fun collectEditGizmoRequests(
 
 				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
 				handleEditSnapRequest(session, editable, stage.value, request.kind, (overlays?.grid ?: GridConfig()).snapStep)
+			}
+		}
+		// To Shape over the selected points, gated like the snaps so exactly one viewport commits it; this area's
+		// operation strip then carries the rows that switch the shape after the fact.
+		launch {
+			session.toShapeRequests.collect { request ->
+				if (request.areaId != areaId) {
+					return@collect
+				}
+
+				val editable = editableGeometryOrNotice(session, geometries.value, "notice.edit.noEditableGeometry") ?: return@collect
+				handleToShapeRequest(session, editable, stage.value, request.shape, areaId)
 			}
 		}
 	}

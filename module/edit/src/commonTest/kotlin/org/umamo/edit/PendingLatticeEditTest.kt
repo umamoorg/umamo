@@ -31,7 +31,7 @@ class PendingLatticeEditTest {
 		val stepsBefore = session.historyView.value.steps.size
 		val form = shaped(1f, 2f)
 
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), MeshOperatorKind.Grab), mapOf(cage to form))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), ElementEditKind.Grab), mapOf(cage to form))
 
 		assertSame(form, session.pendingLatticeEdits.value[cage])
 		assertSame(modelBefore, session.model.value, "the document is untouched")
@@ -49,7 +49,7 @@ class PendingLatticeEditTest {
 	@Test
 	fun aPoseMoveDiscardsItWithACountedNoticeAndUndoBringsItBack() {
 		val session = posing(listOf(SelectionTarget.Deformer(cage), SelectionTarget.Deformer(second)), pose)
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage, second), MeshOperatorKind.Grab), mapOf(cage to shaped(1f, 2f), second to shaped(3f, 4f)))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage, second), ElementEditKind.Grab), mapOf(cage to shaped(1f, 2f), second to shaped(3f, 4f)))
 
 		session.commitPose(ParameterChange.SetValue(listOf(parameterP)), session.pose.value + (parameterP to -0.25f))
 
@@ -63,7 +63,7 @@ class PendingLatticeEditTest {
 	@Test
 	fun aPreviewDiscardReportsTheCountToo() {
 		val session = posing(listOf(SelectionTarget.Deformer(cage)), pose)
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), MeshOperatorKind.Grab), mapOf(cage to shaped(1f, 2f)))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), ElementEditKind.Grab), mapOf(cage to shaped(1f, 2f)))
 
 		session.discardPendingEditsForPose()
 
@@ -84,7 +84,7 @@ class PendingLatticeEditTest {
 	fun aModeSwitchKeepsIt() {
 		val session = posing(listOf(SelectionTarget.Deformer(cage)), pose)
 		val form = shaped(1f, 2f)
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), MeshOperatorKind.Grab), mapOf(cage to form))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), ElementEditKind.Grab), mapOf(cage to form))
 
 		session.setMode(EditorMode.Edit)
 		assertSame(form, session.pendingLatticeEdits.value[cage], "Edit mode shows rest, but the pose is kept")
@@ -97,14 +97,14 @@ class PendingLatticeEditTest {
 	@Test
 	fun aWriteThatRewritesAWarpsFormsDropsThatWarpAlone() {
 		val session = posing(listOf(SelectionTarget.Deformer(cage), SelectionTarget.Deformer(second)), pose)
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage, second), MeshOperatorKind.Grab), mapOf(cage to shaped(1f, 2f), second to shaped(3f, 4f)))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage, second), ElementEditKind.Grab), mapOf(cage to shaped(1f, 2f), second to shaped(3f, 4f)))
 
 		session.mutate(DeformerChange.Rename(second, "renamed")) { model ->
 			model.copy(deformers = model.deformers.map { deformer -> if (deformer.id == second) (deformer as Deformer.Warp).copy(name = "renamed") else deformer })
 		}
 		assertEquals(setOf(cage, second), session.pendingLatticeEdits.value.keys, "a rename leaves the lattices alone")
 
-		session.mutate(DeformerChange.ReshapeLattice(listOf(cage), MeshOperatorKind.Grab)) { model ->
+		session.mutate(DeformerChange.ReshapeLattice(listOf(cage), ElementEditKind.Grab)) { model ->
 			model.copy(deformers = model.deformers.map { deformer -> if (deformer.id == cage) (deformer as Deformer.Warp).withLatticeShifted(FloatArray(18) { 1f }) else deformer })
 		}
 		assertEquals(setOf(second), session.pendingLatticeEdits.value.keys, "the reshaped warp's entry goes")
@@ -118,7 +118,7 @@ class PendingLatticeEditTest {
 	@Test
 	fun aDeletedWarpsEntryGoes() {
 		val session = posing(listOf(SelectionTarget.Deformer(cage)), pose)
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), MeshOperatorKind.Grab), mapOf(cage to shaped(1f, 2f)))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), ElementEditKind.Grab), mapOf(cage to shaped(1f, 2f)))
 
 		session.mutate(DeformerChange.Rename(cage, "gone")) { model -> model.copy(deformers = model.deformers.filter { deformer -> deformer.id != cage }) }
 
@@ -129,8 +129,8 @@ class PendingLatticeEditTest {
 	fun theStripAmendsTheStepInPlace() {
 		val session = posing(listOf(SelectionTarget.Deformer(cage), SelectionTarget.Deformer(second)), pose)
 		val held = shaped(3f, 4f)
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(second), MeshOperatorKind.Grab), mapOf(second to held))
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), MeshOperatorKind.Grab), mapOf(cage to shaped(1f, 2f)))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(second), ElementEditKind.Grab), mapOf(second to held))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), ElementEditKind.Grab), mapOf(cage to shaped(1f, 2f)))
 		val operation = assertNotNull(session.registerAdjustableOperation(session.model.value, "area", listOf(OperatorParameter.IntParameter("x", "op.x", 1, 0, 2))) {})
 		val stepsBefore = session.historyView.value.steps.size
 		val amended = shaped(5f, 6f)
@@ -149,7 +149,7 @@ class PendingLatticeEditTest {
 	@Test
 	fun noneOfItIsSaved() {
 		val session = posing(listOf(SelectionTarget.Deformer(cage)), pose)
-		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), MeshOperatorKind.Grab), mapOf(cage to shaped(1f, 2f)))
+		session.commitPendingLatticeEdits(DeformerChange.PoseLattice(listOf(cage), ElementEditKind.Grab), mapOf(cage to shaped(1f, 2f)))
 
 		val reopened = EditorSession(session.model.value, session.pose.value, initialViewState = session.viewState())
 

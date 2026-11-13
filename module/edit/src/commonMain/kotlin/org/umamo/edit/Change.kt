@@ -394,16 +394,17 @@ sealed interface DeformerChange : Change {
 	 * re-expressed so they rest where they rested.  Labelled by the operator, like a mesh transform.
 	 *
 	 * @property List<DeformerId> deformerIds The reshaped warps.
-	 * @property MeshOperatorKind kind The operator that reshaped them.
+	 * @property ElementEditKind kind What reshaped them.
 	 */
-	data class ReshapeLattice(val deformerIds: List<DeformerId>, val kind: MeshOperatorKind) : DeformerChange {
+	data class ReshapeLattice(val deformerIds: List<DeformerId>, val kind: ElementEditKind) : DeformerChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String =
 			when (kind) {
-				MeshOperatorKind.Grab -> "change.lattice.move"
-				MeshOperatorKind.Scale -> "change.lattice.scale"
-				MeshOperatorKind.Rotate -> "change.lattice.rotate"
-				MeshOperatorKind.VertexSlide -> "change.lattice.slide"
+				ElementEditKind.Grab -> "change.lattice.move"
+				ElementEditKind.Scale -> "change.lattice.scale"
+				ElementEditKind.Rotate -> "change.lattice.rotate"
+				ElementEditKind.VertexSlide -> "change.lattice.slide"
+				ElementEditKind.ToShape -> "change.lattice.toShape"
 			}
 	}
 
@@ -445,20 +446,21 @@ sealed interface DeformerChange : Change {
 
 	/**
 	 * Shapes one or more warps' lattices at the pose without keying them (a finished Pose-mode G / S / R, Vertex
-	 * Slide, or snap over lattice points): the shaped lattices are held pending until a key consumes them or the
-	 * pose moves, and the model is untouched.  Labelled by the operator, like a mesh transform.
+	 * Slide, snap, or To Shape over lattice points): the shaped lattices are held pending until a key consumes them or
+	 * the pose moves, and the model is untouched.  Labelled by what shaped them, like a mesh transform.
 	 *
 	 * @property List<DeformerId> deformerIds The shaped warps.
-	 * @property MeshOperatorKind kind The operator that shaped them.
+	 * @property ElementEditKind kind What shaped them.
 	 */
-	data class PoseLattice(val deformerIds: List<DeformerId>, val kind: MeshOperatorKind) : DeformerChange {
+	data class PoseLattice(val deformerIds: List<DeformerId>, val kind: ElementEditKind) : DeformerChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String =
 			when (kind) {
-				MeshOperatorKind.Grab -> "change.pose.move"
-				MeshOperatorKind.Scale -> "change.pose.scale"
-				MeshOperatorKind.Rotate -> "change.pose.rotate"
-				MeshOperatorKind.VertexSlide -> "change.pose.slide"
+				ElementEditKind.Grab -> "change.pose.move"
+				ElementEditKind.Scale -> "change.pose.scale"
+				ElementEditKind.Rotate -> "change.pose.rotate"
+				ElementEditKind.VertexSlide -> "change.pose.slide"
+				ElementEditKind.ToShape -> "change.pose.toShape"
 			}
 	}
 
@@ -978,8 +980,8 @@ sealed interface KeyformChange : Change {
  * drawables and warps ([TransformObjects]).
  *
  * The three whole-gesture transforms ([TransformVertices], [TransformObjects], [TransformUvs]) each carry
- * the [MeshOperatorKind] they performed, so the history panel can name the operation rather than filing
- * every Grab, Scale, and Rotate under one "Move" label.  The kind names WHAT the transform was, not how it
+ * what they performed ([ElementEditKind] for the vertices, the [MeshOperatorKind] for the others), so the history
+ * panel can name the operation rather than filing every Grab, Scale, and Rotate under one "Move" label.  The kind names WHAT the transform was, not how it
  * was driven: the Properties panel's typed Size row records Scale with no modal operator ever latching.
  *
  * Each label key is resolved by an exhaustive `when` over the kind rather than by interpolating a suffix
@@ -994,19 +996,20 @@ sealed interface MeshChange : Change {
 	 *
 	 * @property Map<DrawableId, List<Int>> vertexIndicesByDrawable The vertices this gesture moved, per
 	 *   drawable (for the history-panel detail).
-	 * @property MeshOperatorKind kind The operator this gesture ran, which selects the history label.
+	 * @property ElementEditKind kind What this step did to the vertices, which selects the history label.
 	 */
 	data class TransformVertices(
 		val vertexIndicesByDrawable: Map<DrawableId, List<Int>>,
-		val kind: MeshOperatorKind,
+		val kind: ElementEditKind,
 	) : MeshChange {
 		override val undoability: Undoability = Undoability.Undoable
 		override val labelKey: String =
 			when (kind) {
-				MeshOperatorKind.Grab -> "change.mesh.move"
-				MeshOperatorKind.Scale -> "change.mesh.scale"
-				MeshOperatorKind.Rotate -> "change.mesh.rotate"
-				MeshOperatorKind.VertexSlide -> "change.mesh.slide"
+				ElementEditKind.Grab -> "change.mesh.move"
+				ElementEditKind.Scale -> "change.mesh.scale"
+				ElementEditKind.Rotate -> "change.mesh.rotate"
+				ElementEditKind.VertexSlide -> "change.mesh.slide"
+				ElementEditKind.ToShape -> "change.mesh.toShape"
 			}
 	}
 

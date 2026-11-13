@@ -1,6 +1,7 @@
 package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelection
@@ -166,7 +167,7 @@ internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, 
 	val result = move.drive(parameters, model.value)
 	val movedIndicesByDrawable =
 		move.transform.entries.mapNotNull { entry -> entry.drawableId?.takeIf { drawableId -> drawableId in result.preview }?.let { drawableId -> drawableId to entry.movedIndices.toList() } }.toMap()
-	val recorded = commitDrive(result, move.stage, MeshOperatorKind.Grab, movedIndicesByDrawable)
+	val recorded = commitDrive(result, move.stage, ElementEditKind.Grab, movedIndicesByDrawable)
 
 	// A commit that recorded nothing has no step of its own for the strip to amend.
 	if (!recorded) {

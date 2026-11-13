@@ -3,6 +3,7 @@ package org.umamo.edit.keyform
 import org.umamo.edit.DeformerChange
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.KeyformAction
 import org.umamo.edit.KeyformAim
 import org.umamo.edit.MeshOperatorKind
@@ -62,7 +63,7 @@ class LatticeCaptureTest {
 		session.setParameterSelection(ParameterSelection(targeted, targeted.last()))
 
 		if (forms.isNotEmpty()) {
-			session.commitPendingLatticeEdits(DeformerChange.PoseLattice(forms.keys.toList(), MeshOperatorKind.Grab), forms)
+			session.commitPendingLatticeEdits(DeformerChange.PoseLattice(forms.keys.toList(), ElementEditKind.Grab), forms)
 		}
 
 		return session

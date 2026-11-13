@@ -215,7 +215,7 @@ class LatticeEditEntryTest {
 		val session = tabInto(listOf(SelectionTarget.Deformer(cage)))
 		val before = session.model.value
 		val reshaped = before.copy(deformers = before.deformers.map { deformer -> if (deformer.id == cage) (deformer as Deformer.Warp).withLatticeShifted(FloatArray(18) { 1f }) else deformer })
-		val change = DeformerChange.ReshapeLattice(listOf(cage), MeshOperatorKind.Grab)
+		val change = DeformerChange.ReshapeLattice(listOf(cage), ElementEditKind.Grab)
 		val stepsBefore = session.historyView.value.steps.size
 
 		session.commitLatticeReshape(change, reshaped, unconvertedCount = 2)
