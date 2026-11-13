@@ -72,8 +72,6 @@ internal fun fileCommands(
 			val path = argument as? String ?: return@Command
 			onOpenPath(path)
 		},
-		// No default chord: the platform's own quit gesture (the window's close button, Cmd+Q, Android's back)
-		// reaches the same gate through the host's exit guard, and a chord is one rebind away.
 		Command("file.exit", title = Res.string.menu_exit) { onExit() },
 	)
 

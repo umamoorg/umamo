@@ -13,6 +13,8 @@ Umamo is early alpha.
 ### Changed
 
 ### Fixed
+* Keymap: PrimaryModifer+Q(Ctrl+Q on Linux, Cmd+Q on MacOS) now closes the application.
+* File: Opening the application with a supplied file no longer fails to show a notice if the file is damaged.
 
 ## 0.5.0 - 2026-11-07
 

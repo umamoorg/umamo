@@ -15,6 +15,7 @@ import kotlinx.serialization.json.JsonObject
 import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.EditorSession
 import org.umamo.storage.FileKitFilePicker
+import org.umamo.storage.UmamoLog
 import org.umamo.ui.LocalSettings
 import org.umamo.ui.action.CommandRegistry
 import org.umamo.ui.document.ArtDocument
@@ -178,10 +179,7 @@ fun EditorApp(
 
 	// Everything derived from the open document, as one value built beside the document read.  The
 	// controllers made per document hold it; the ones that outlive documents read it through the holder
-	// below.  They register their commands once (Ctrl+O and the palette dispatch through the registry) and
-	// the exit guard installs once, so a controller that held a document would keep asking about whichever
-	// one was open when it was made - none at all on a normal launch, which is a silent skip of the whole
-	// unsaved-changes prompt.  The holder always reads the context of the composition that is live now.
+	// below.
 	val context =
 		remember(document, session, documentFile, sessionAtlasPages, areaViewStates, viewportSlot) {
 			OpenDocumentContext(document, session, documentFile, sessionAtlasPages, areaViewStates, viewportSlot)
@@ -207,15 +205,12 @@ fun EditorApp(
 	val save = remember { DocumentSaveController(services) }
 	val open = remember { DocumentOpenController(services, save) }
 
-	// A file the operating system hands the running editor - a double-clicked document on macOS, a VIEW intent
-	// on Android - opens the way a recent file does, unsaved-changes check included.
+	// A file the operating system hands the editor.
 	LaunchedEffect(openRequests) {
 		openRequests?.requests?.collect { requestedPath -> open.openStoredPath(requestedPath) }
 	}
 
-	// A jar launch with a small memory limit is told how to raise it, once per launch: this composable outlives
-	// document swaps, which rebuild only the shell below.  It waits for Quick Setup on a first run so the two
-	// dialogs never stack, then for the shell's alert command, which registers from the shell's own effect.
+	// A JAR launch with a small memory limit is told how to raise it, once per launch.
 	LaunchedEffect(Unit) {
 		val notice = lowMemoryNoticeRequest(hostHeap, settings) ?: return@LaunchedEffect
 		snapshotFlow { quickSetup.visible }.first { visible -> !visible }
@@ -252,17 +247,13 @@ fun EditorApp(
 		}
 	val exportImage = remember(imageExport) { imageExport?.let { controller -> { viewportAreaId: String? -> controller.exportImage(viewportAreaId) } } }
 
-	// The host's exits pass through the same guard as File > Exit.  Installed once per guard: the gate reads
-	// the live document, so the closure's own age does not matter.  A running model export is work an exit
-	// waits for, so the host routes even a clean document's exit through the guard while one runs.
+	// The host's exits pass through the same guard as File > Exit.
 	DisposableEffect(exitGuard) {
 		val cleanup = exitGuard.install(workRunning = { services.modelExports.isBusy }) { exit -> save.confirmExit(exit) }
 		onDispose { cleanup() }
 	}
 
-	// Register the document operations as real commands so the keymap and the palette drive them (Ctrl+O
-	// dispatches through the shell's registry).  The tables themselves live with every other command table
-	// in org.umamo.ui.workspace.commands; only the actions are supplied here, where the document loader is.
+	// Register the document operations as real commands so the keymap and the palette drive them.
 	DisposableEffect(commandRegistry) {
 		val cleanup =
 			commandRegistry.registerAll(
@@ -275,7 +266,10 @@ fun EditorApp(
 					onImportCmo3 = { open.importCmo3ViaPicker() },
 					onImportMoc3 = { open.importMoc3ViaPicker() },
 					onOpenPath = { path -> open.openStoredPath(path) },
-					onExit = { save.confirmExit { currentOnExit() } },
+					onExit = {
+						UmamoLog.info("quit requested: file.exit")
+						save.confirmExit { currentOnExit() }
+					},
 				),
 			)
 		onDispose { cleanup() }
