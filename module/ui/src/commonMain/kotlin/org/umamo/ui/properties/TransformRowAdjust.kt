@@ -36,6 +36,7 @@ import org.umamo.ui.viewport.viewport2d.registerWorldAdjustment
  * @param Float centerZ The world z (up) its bounds center should land on.
  * @param String? areaId The area the strip should show in, or null for nowhere.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.setDrawableWorldCenterAdjustable(id: DrawableId, centerX: Float, centerZ: Float, areaId: String?) {
 	adjustWorldBounds(areaId, MeshOperatorKind.Grab, { setDrawableWorldCenter(id, centerX, centerZ) }) { bounds -> centeringParameters(bounds, centerX, centerZ) }
 }
@@ -49,6 +50,7 @@ internal fun EditorSession.setDrawableWorldCenterAdjustable(id: DrawableId, cent
  * @param Float height The target world z extent.
  * @param String? areaId The area the strip should show in, or null for nowhere.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.setDrawableWorldSizeAdjustable(id: DrawableId, width: Float, height: Float, areaId: String?) {
 	adjustWorldBounds(areaId, MeshOperatorKind.Scale, { setDrawableWorldSize(id, width, height) }) { bounds -> resizingParameters(bounds, width, height) }
 }
@@ -62,6 +64,7 @@ internal fun EditorSession.setDrawableWorldSizeAdjustable(id: DrawableId, width:
  * @param Float centerZ The world z (up) its bounds center should land on.
  * @param String? areaId The area the strip should show in, or null for nowhere.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.setWarpWorldCenterAdjustable(id: DeformerId, centerX: Float, centerZ: Float, areaId: String?) {
 	adjustWorldBounds(areaId, MeshOperatorKind.Grab, { setWarpWorldCenter(id, centerX, centerZ) }) { bounds -> centeringParameters(bounds, centerX, centerZ) }
 }
@@ -75,6 +78,7 @@ internal fun EditorSession.setWarpWorldCenterAdjustable(id: DeformerId, centerX:
  * @param Float height The target world z extent.
  * @param String? areaId The area the strip should show in, or null for nowhere.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.setWarpWorldSizeAdjustable(id: DeformerId, width: Float, height: Float, areaId: String?) {
 	adjustWorldBounds(areaId, MeshOperatorKind.Scale, { setWarpWorldSize(id, width, height) }) { bounds -> resizingParameters(bounds, width, height) }
 }
@@ -88,6 +92,7 @@ internal fun EditorSession.setWarpWorldSizeAdjustable(id: DeformerId, width: Flo
  * @param Function commit Commits the edit, answering the geometry it was planned against, or null when refused.
  * @param Function parametersOf The strip's parameters for the commit, from that geometry's world bounds.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 private fun EditorSession.adjustWorldBounds(
 	areaId: String?,
 	kind: MeshOperatorKind,

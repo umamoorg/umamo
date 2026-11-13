@@ -40,6 +40,7 @@ internal fun gestureOwnsAreaPointer(
  * @param String areaId The area asking.
  * @return Boolean True when a gesture owns this area's pointer.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.gestureOwnsAreaPointer(areaId: String): Boolean =
 	gestureOwnsAreaPointer(
 		areaId = areaId,

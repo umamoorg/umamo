@@ -217,9 +217,13 @@ val checkCommonSourcePurity =
 val ktlintRuleTests = gradle.includedBuild("ktlint-rules").task(":test")
 val buildLogicTests = gradle.includedBuild("build-logic").task(":test")
 
+// The module-graph guard (gradle/module-dependencies.txt) rides it as well.
+val checkModuleBoundaries = tasks.named("checkModuleBoundaries")
+
 subprojects {
 	tasks.matching { task -> task.name == "check" }.configureEach {
 		dependsOn(checkCommonSourcePurity)
+		dependsOn(checkModuleBoundaries)
 		dependsOn(ktlintRuleTests)
 		dependsOn(buildLogicTests)
 	}

@@ -105,6 +105,7 @@ internal fun registerMeshTransformAdjustment(
  * @param ElementEditStage stage Where the moved geometry was captured.
  * @return Boolean True when the step was replaced.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 private fun EditorSession.amendDrive(
 	record: AdjustableOperation,
 	result: MeshDriveResult,

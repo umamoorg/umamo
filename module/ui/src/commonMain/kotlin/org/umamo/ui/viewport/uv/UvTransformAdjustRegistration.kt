@@ -102,6 +102,7 @@ internal fun uvTransformLanding(
  * @param ProportionalEditState? state The adjusted proportional state, or null for off.
  * @param Float radiusDisplay The row's radius in texels.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.writeBackUvProportional(radiusState: MutableState<Float?>, state: ProportionalEditState?, radiusDisplay: Float) {
 	radiusState.value = radiusDisplay
 	setProportionalEdit(state?.copy(radiusWorld = proportionalSettings.value.radiusWorld))

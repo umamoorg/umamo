@@ -119,6 +119,7 @@ internal fun uvMedianMove(selection: MeshSelection, geometries: List<GizmoMeshGe
  * @return PuppetModel? The previewed model, or null when it would change nothing or a UV transform owns the
  *   coordinates.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.previewUvMedianMove(move: UvMedianMove, axis: TexelAxis, texelValue: Float): PuppetModel? {
 	if (activeUvOperator.value != null) {
 		return null
@@ -141,6 +142,7 @@ internal fun EditorSession.previewUvMedianMove(move: UvMedianMove, axis: TexelAx
  * @param Float texelValue The y-down texel coordinate the median should land on.
  * @param String areaId The area the strip shows in.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.moveUvMedianAdjustable(move: UvMedianMove, axis: TexelAxis, texelValue: Float, areaId: String) {
 	if (activeUvOperator.value != null) {
 		return

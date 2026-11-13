@@ -144,6 +144,7 @@ internal class MeshDriveResult(
  * @return Boolean True when a step was recorded; a drive that lands where it started records none, and so has no step
  *   for the operation strip to amend.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.commitDrive(
 	result: MeshDriveResult,
 	stage: ElementEditStage,

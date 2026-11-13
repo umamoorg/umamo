@@ -139,6 +139,7 @@ internal fun coveredMedianMove(
  * @return MeshDriveResult? The previewed drive, or null when it would change nothing or a modal transform owns the
  *   meshes.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axis: WorldAxis, worldValue: Float): MeshDriveResult? {
 	if (activeMeshOperator.value != null) {
 		return null
@@ -158,6 +159,7 @@ internal fun EditorSession.previewCoveredMedianMove(move: CoveredMedianMove, axi
  * @param Float worldValue The world coordinate the median should land on.
  * @param String areaId The area the strip shows in.
  */
+@Suppress("ktlint:umamo:session-extension-placement")
 internal fun EditorSession.moveCoveredMedianAdjustable(move: CoveredMedianMove, axis: WorldAxis, worldValue: Float, areaId: String) {
 	if (activeMeshOperator.value != null) {
 		return
