@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.model.LocalPuppetRenderSync
 import org.umamo.ui.theme.LocalUmamoColors
@@ -54,7 +55,7 @@ import org.umamo.ui.viewport.gizmo.selectToolKind
  *     meshMarquee.
  *   - UvEditGizmoDraw.kt: the gesture chrome, read in the draw phase.
  * The UV cursor helpers both overlays use are in UvCursorOverlay.kt, the snap handler in
- * UvSessionRequestHandlers.kt, and the strip registration in UvTransformAdjustRegistration.kt.
+ * UvSessionRequestHandlers.kt, and the strip registration in :edit (UvTransformAdjust.kt).
  */
 
 /**

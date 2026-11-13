@@ -1,28 +1,27 @@
-package org.umamo.ui.viewport.uv
+package org.umamo.edit.transform
 
-import androidx.compose.runtime.MutableState
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
 import org.umamo.edit.MeshOperatorKind
-import org.umamo.edit.MeshSelection
-import org.umamo.edit.TransformPivotMode
 import org.umamo.edit.mesh.commitMeshUvs
 import org.umamo.edit.mesh.withMeshUvs
-import org.umamo.edit.transform.IndividualOriginScope
-import org.umamo.edit.transform.ModalTransformCapture
-import org.umamo.edit.transform.ProportionalRows
-import org.umamo.edit.transform.TransformGestureParameters
-import org.umamo.edit.transform.TransformParameterKeys
-import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /*
  * A typed or scrubbed UV Vertex / Median value as an Edit-mode move: a Grab of every covered texture coordinate on
  * the shown surface, captured, landed, committed, and registered on the operation settings strip exactly as the UV
  * editor's own Grab is, so the step, its label, and every later strip adjustment are that Grab's.
  */
+
+/**
+ * The mean display position of a set of covered vertices.
+ *
+ * @property Float displayX The median's display x in texels.
+ * @property Float displayY The median's display y in texels, y up.
+ * @property Int vertexCount How many vertices it is the mean of.
+ */
+class UvDisplayMedian(val displayX: Float, val displayY: Float, val vertexCount: Int)
 
 /**
  * The covered texture coordinates captured for a move of their median: a Grab capture over the shown meshes, the
@@ -35,14 +34,17 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
  *
  * @property ModalTransformCapture transform The Grab capture, positions in display texels (y up).
  * @property UvEditFrame frame The surface's authoring frame.
- * @property MutableState<Float?> radiusState The surface's proportional radius, which the strip's rows read and set.
  * @property UvDisplayMedian median The covered median as captured.
+ * @property Function radiusDisplay Reads the surface's proportional radius in display texels, seeding it on first
+ *   use: what the strip's rows start from.
+ * @property Function onRadiusAdjusted Hands the surface the radius an adjusted proportional row set.
  */
-internal class UvMedianMove(
+class UvMedianMove(
 	val transform: ModalTransformCapture,
 	val frame: UvEditFrame,
-	val radiusState: MutableState<Float?>,
 	val median: UvDisplayMedian,
+	val radiusDisplay: () -> Float,
+	val onRadiusAdjusted: (Float) -> Unit,
 ) {
 	/**
 	 * The Grab that puts the median's [axis] coordinate on [texelValue]: the difference on that axis, and exactly
@@ -81,36 +83,6 @@ internal class UvMedianMove(
 }
 
 /**
- * Captures the coordinates [selection] covers across the shown meshes for a move of their median.  The pivot is the
- * median point with no anchors, since a Grab ignores the pivot, and every shown mesh is offered the way the UV
- * editor's own Grab offers them ([uvCaptureSources]), so proportional editing turned on from the strip afterward
- * reaches the same meshes that Grab's would.
- *
- * @param MeshSelection selection The mesh selection.
- * @param List<GizmoMeshGeometry> geometries The shown meshes' display geometry, read from the COMMITTED coordinates.
- * @param UvEditFrame frame The surface's authoring frame.
- * @param MutableState<Float?> radiusState The surface's proportional radius.
- * @return UvMedianMove? The move, or null when nothing is covered.
- */
-internal fun uvMedianMove(selection: MeshSelection, geometries: List<GizmoMeshGeometry>, frame: UvEditFrame, radiusState: MutableState<Float?>): UvMedianMove? {
-	val covered = uvCoveredVertices(selection, geometries)
-	val median = uvCoveredMedian(covered) ?: return null
-	val coveredByOwner = covered.associate { mesh -> mesh.geometry.owner to mesh.indices }
-	val sources = uvCaptureSources(selection, geometries) { geometry -> coveredByOwner[geometry.owner].orEmpty() }
-	val transform =
-		buildModalTransformCapture(
-			sources = sources,
-			pivotMode = TransformPivotMode.MedianPoint,
-			individualOriginScope = IndividualOriginScope.ConnectivityIsland,
-			operatorKind = MeshOperatorKind.Grab,
-			activeAnchor = null,
-			cursorAnchor = null,
-		) ?: return null
-
-	return UvMedianMove(transform, frame, radiusState, median)
-}
-
-/**
  * The model a scrub of the median shows for one frame, without committing anything.
  *
  * @param UvMedianMove move The captured move.
@@ -119,7 +91,7 @@ internal fun uvMedianMove(selection: MeshSelection, geometries: List<GizmoMeshGe
  * @return PuppetModel? The previewed model, or null when it would change nothing or a UV transform owns the
  *   coordinates.
  */
-internal fun EditorSession.previewUvMedianMove(move: UvMedianMove, axis: TexelAxis, texelValue: Float): PuppetModel? {
+fun EditorSession.previewUvMedianMove(move: UvMedianMove, axis: TexelAxis, texelValue: Float): PuppetModel? {
 	if (activeUvOperator.value != null) {
 		return null
 	}
@@ -141,7 +113,7 @@ internal fun EditorSession.previewUvMedianMove(move: UvMedianMove, axis: TexelAx
  * @param Float texelValue The y-down texel coordinate the median should land on.
  * @param String areaId The area the strip shows in.
  */
-internal fun EditorSession.moveUvMedianAdjustable(move: UvMedianMove, axis: TexelAxis, texelValue: Float, areaId: String) {
+fun EditorSession.moveUvMedianAdjustable(move: UvMedianMove, axis: TexelAxis, texelValue: Float, areaId: String) {
 	if (activeUvOperator.value != null) {
 		return
 	}
@@ -167,11 +139,12 @@ internal fun EditorSession.moveUvMedianAdjustable(move: UvMedianMove, axis: Texe
 	}
 
 	val settings = proportionalSettings.value
-	val radius = resolvedUvProportionalRadius(move.radiusState, move.frame)
+	val radius = move.radiusDisplay()
 	val proportional = ProportionalRows(false, settings.falloff, radius, settings.connectedOnly)
 	registerUvTransformAdjustment(this, areaId, move.transform, move.frame, parameters, proportional) { record, state, radiusDisplay ->
 		if (record.adjustedKey in TransformParameterKeys.PROPORTIONAL_ROWS) {
-			writeBackUvProportional(move.radiusState, state, radiusDisplay)
+			move.onRadiusAdjusted(radiusDisplay)
+			setProportionalEditKeepingRadius(state)
 		}
 	}
 }

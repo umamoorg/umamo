@@ -17,19 +17,19 @@ import org.umamo.ui.properties.rememberFieldScrubPreview
 import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
+import org.umamo.ui.transform.CoveredMedianMove
 import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.MeshDriveResult
 import org.umamo.ui.transform.coveredMedian
+import org.umamo.ui.transform.coveredMedianMove
 import org.umamo.ui.transform.coveredVerticesOf
+import org.umamo.ui.transform.moveCoveredMedianAdjustable
+import org.umamo.ui.transform.previewCoveredMedianMove
 import org.umamo.ui.transform.rememberElementEditStage
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.LocalLiveMeshPreview
-import org.umamo.ui.viewport.viewport2d.CoveredMedianMove
 import org.umamo.ui.viewport.viewport2d.EditOwnerGeometry
-import org.umamo.ui.viewport.viewport2d.MeshDriveResult
-import org.umamo.ui.viewport.viewport2d.coveredMedianMove
 import org.umamo.ui.viewport.viewport2d.editOwnerGeometries
-import org.umamo.ui.viewport.viewport2d.moveCoveredMedianAdjustable
-import org.umamo.ui.viewport.viewport2d.previewCoveredMedianMove
 
 /**
  * The move the panel's writes drive, captured at the first write and kept for the selection and geometry it was built
@@ -51,7 +51,10 @@ private class MedianWrites(
 	 *
 	 * @return CoveredMedianMove? The move, or null when nothing is covered.
 	 */
-	fun move(): CoveredMedianMove? = captured ?: coveredMedianMove(selection, edit, stage).also { move -> captured = move }
+	fun move(): CoveredMedianMove? =
+		captured
+			?: coveredMedianMove(selection, edit.map { geometry -> geometry.worldGeometry }, edit.associate { geometry -> geometry.owner to geometry.topology }, stage)
+				.also { move -> captured = move }
 }
 
 /**

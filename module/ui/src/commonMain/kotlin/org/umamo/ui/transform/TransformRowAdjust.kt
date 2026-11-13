@@ -1,4 +1,4 @@
-package org.umamo.ui.properties
+package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshOperatorKind
@@ -8,12 +8,6 @@ import org.umamo.edit.transform.boundsScaleFactors
 import org.umamo.edit.transform.meshBounds
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
-import org.umamo.ui.transform.OwnerWorldGeometry
-import org.umamo.ui.transform.setDrawableWorldCenter
-import org.umamo.ui.transform.setDrawableWorldSize
-import org.umamo.ui.transform.setWarpWorldCenter
-import org.umamo.ui.transform.setWarpWorldSize
-import org.umamo.ui.viewport.viewport2d.registerWorldAdjustment
 
 /*
  * The Transform rows' commits with their operation-strip registration: a Position edit is a Grab and a

@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport.viewport2d
+package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ElementTopology
@@ -13,7 +13,9 @@ import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ProportionalRows
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformParameterKeys
+import org.umamo.edit.transform.applyOperator
 import org.umamo.edit.transform.buildModalTransformCapture
+import org.umamo.edit.transform.slideVertexByFactor
 import org.umamo.edit.withParameter
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
@@ -22,10 +24,6 @@ import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.transform.ElementEditStage
-import org.umamo.ui.transform.captureDrawableWorld
-import org.umamo.ui.viewport.gizmo.applyOperator
-import org.umamo.ui.viewport.gizmo.slideVertexByFactor
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull

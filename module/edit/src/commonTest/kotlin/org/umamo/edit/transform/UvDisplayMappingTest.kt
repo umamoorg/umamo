@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport.uv
+package org.umamo.edit.transform
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

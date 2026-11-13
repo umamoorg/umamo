@@ -1,20 +1,19 @@
-package org.umamo.ui.viewport.uv
+package org.umamo.edit.transform
 
-import androidx.compose.runtime.MutableState
 import org.umamo.edit.AdjustableOperation
 import org.umamo.edit.EditorSession
 import org.umamo.edit.ProportionalEditState
+import org.umamo.edit.SessionToolSettings
 import org.umamo.edit.mesh.withMeshUvs
-import org.umamo.edit.transform.ModalTransformCapture
-import org.umamo.edit.transform.ProportionalRows
-import org.umamo.edit.transform.TransformGestureParameters
-import org.umamo.edit.transform.TransformRowSpace
-import org.umamo.edit.transform.rederiveProportionalHalos
-import org.umamo.edit.transform.transformGestureParametersOf
-import org.umamo.edit.transform.transformParameters
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.viewport.gizmo.applyOperator
+
+/*
+ * The UV editor's texture-coordinate transform on the operation settings strip.  Texture coordinates live in one
+ * flat display space with no deformer between them and the model, so the whole rerun fits here: the retained
+ * capture through the operator, written back through the gesture's frozen frame.  The 2D viewport's registrations
+ * need :render's evaluator and stay in :ui.
+ */
 
 /**
  * Registers the UV editor's texture-coordinate transform that just committed as the session's
@@ -35,7 +34,7 @@ import org.umamo.ui.viewport.gizmo.applyOperator
  * @return AdjustableOperation? The record, or null when the session refused the registration or the
  *   operator has no rows.
  */
-internal fun registerUvTransformAdjustment(
+fun registerUvTransformAdjustment(
 	session: EditorSession,
 	areaId: String,
 	transform: ModalTransformCapture,
@@ -93,36 +92,13 @@ internal fun uvTransformLanding(
 }
 
 /**
- * Hands a UV transform's adjusted proportional rows back: the row's texel radius to the surface the transform
- * ran on, and the state to the session with the session's own remembered world radius, since a texel radius is
- * no world radius.  The remembered one, not the live one, so turning proportional editing on from the strip never
- * resets the 2D viewport's radius to the default.
+ * Sets proportional editing from a state whose radius is not a world radius, keeping the session's own remembered
+ * world radius: what a UV transform's adjusted proportional rows hand back, since their radius is in texels.  The
+ * remembered radius, not the live one, so turning proportional editing on from the strip never resets the 2D
+ * viewport's radius to the default.
  *
- * @param MutableState<Float?> radiusState The surface's texel radius state.
  * @param ProportionalEditState? state The adjusted proportional state, or null for off.
- * @param Float radiusDisplay The row's radius in texels.
  */
-internal fun EditorSession.writeBackUvProportional(radiusState: MutableState<Float?>, state: ProportionalEditState?, radiusDisplay: Float) {
-	radiusState.value = radiusDisplay
+fun SessionToolSettings.setProportionalEditKeepingRadius(state: ProportionalEditState?) {
 	setProportionalEdit(state?.copy(radiusWorld = proportionalSettings.value.radiusWorld))
-}
-
-/**
- * Resolves a surface's proportional radius, seeding it from the surface's size on first use.
- *
- * @param MutableState<Float?> radiusState The surface's radius state.
- * @param UvEditFrame frame The surface's frame.
- * @return Float The influence radius in display (texel) units.
- */
-internal fun resolvedUvProportionalRadius(radiusState: MutableState<Float?>, frame: UvEditFrame): Float {
-	val current = radiusState.value
-
-	if (current != null) {
-		return current
-	}
-
-	val seeded = uvProportionalRadiusSeed(frame.displayWidth, frame.displayHeight)
-	radiusState.value = seeded
-
-	return seeded
 }

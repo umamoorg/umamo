@@ -39,6 +39,10 @@ import org.umamo.ui.transform.previewDrawableWorldSize
 import org.umamo.ui.transform.previewWarpWorldCenter
 import org.umamo.ui.transform.previewWarpWorldSize
 import org.umamo.ui.transform.setDrawableParentKeepingRest
+import org.umamo.ui.transform.setDrawableWorldCenterAdjustable
+import org.umamo.ui.transform.setDrawableWorldSizeAdjustable
+import org.umamo.ui.transform.setWarpWorldCenterAdjustable
+import org.umamo.ui.transform.setWarpWorldSizeAdjustable
 import org.umamo.ui.transform.warpWorldTransform
 import org.umamo.ui.workspace.operationstrip.LocalOperationStripArea
 

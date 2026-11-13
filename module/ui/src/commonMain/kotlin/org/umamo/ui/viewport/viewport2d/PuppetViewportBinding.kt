@@ -41,6 +41,7 @@ import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.editOwnerOf
+import org.umamo.edit.gestureOwnsAreaPointer
 import org.umamo.edit.pinsPose
 import org.umamo.edit.shownPendingChannelEdits
 import org.umamo.edit.shownPendingLatticeEdits
@@ -79,7 +80,6 @@ import org.umamo.ui.viewport.PuppetViewportServiceFactory
 import org.umamo.ui.viewport.ViewportColorSettings
 import org.umamo.ui.viewport.ViewportRegionOverlay
 import org.umamo.ui.viewport.ViewportSettings
-import org.umamo.ui.viewport.gestureOwnsAreaPointer
 import org.umamo.ui.viewport.gizmo.editMeshOverlaySizes
 import org.umamo.ui.viewport.overlapStateFrom
 import org.umamo.ui.viewport.parseSelectionHighlightColor

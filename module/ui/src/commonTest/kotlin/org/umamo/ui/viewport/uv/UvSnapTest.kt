@@ -7,6 +7,8 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelectionOps
 import org.umamo.edit.UvCursor
 import org.umamo.edit.UvSnapKind
+import org.umamo.edit.transform.atlasPageEditFrame
+import org.umamo.edit.transform.uvToDisplay
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId

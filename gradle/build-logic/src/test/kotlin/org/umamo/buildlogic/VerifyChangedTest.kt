@@ -97,6 +97,14 @@ class VerifyChangedTest {
 	}
 
 	@Test
+	fun aChangeThatCanMoveTheModuleGraphChecksTheBoundaries() {
+		assertTrue(":checkModuleBoundaries" in planVerification(listOf("module/edit/build.gradle.kts"), modules).taskPaths)
+		assertTrue(":checkModuleBoundaries" in planVerification(listOf("settings.gradle.kts"), modules).taskPaths)
+		assertEquals(listOf(":checkModuleBoundaries"), planVerification(listOf("gradle/module-dependencies.txt"), modules).taskPaths)
+		assertFalse(":checkModuleBoundaries" in planVerification(listOf("module/edit/src/commonMain/kotlin/org/umamo/edit/EditorSession.kt"), modules).taskPaths)
+	}
+
+	@Test
 	fun anApplicationWithoutTestsIsCompiled() {
 		val plan = planVerification(listOf("app/android/src/main/kotlin/org/umamo/editor/android/MainActivity.kt"), modules)
 

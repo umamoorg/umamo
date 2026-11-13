@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.IntSize
 import org.umamo.edit.EditorSession
 import org.umamo.edit.editsElements
 import org.umamo.edit.transform.MeshTransforms
+import org.umamo.edit.transform.applyOperator
 import org.umamo.render.ViewportCamera
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.hiddenPointerIcon
@@ -30,7 +31,6 @@ import org.umamo.ui.viewport.LocalAreaOverlays
 import org.umamo.ui.viewport.ObjectPickCandidate
 import org.umamo.ui.viewport.PuppetViewportService
 import org.umamo.ui.viewport.gizmo.ModalDriveEffect
-import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.collectAxisLockChanges
 import org.umamo.ui.viewport.gizmo.collectModalConfirmRequests
 import org.umamo.ui.viewport.gizmo.screenToWorld
@@ -52,8 +52,8 @@ import org.umamo.ui.viewport.resyncAfterElementGesture
  *   - ObjectGizmoDraw.kt: the gesture chrome, read in the draw phase.
  *   - ObjectGizmoRequests.kt: the area-gated collector for the Shift+S snaps.
  * The shared pick and marquee flows are in gizmo/ObjectPickController.kt and gizmo/MarqueeSelectController.kt;
- * the snap handler is in SessionRequestHandlers.kt, and the strip registration in
- * TransformAdjustRegistration.kt.
+ * the snap handler is in SessionRequestHandlers.kt, and the strip registration in org.umamo.ui.transform
+ * (TransformAdjustRegistration.kt).
  */
 
 /**

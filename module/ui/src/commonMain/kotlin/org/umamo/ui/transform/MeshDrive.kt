@@ -1,4 +1,4 @@
-package org.umamo.ui.viewport.viewport2d
+package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshChange
@@ -10,6 +10,8 @@ import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.ProportionalInfluence
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
+import org.umamo.edit.transform.applyOperator
+import org.umamo.edit.transform.slideVertexByFactor
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ElementOwner
@@ -17,18 +19,6 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.deformerId
 import org.umamo.runtime.model.drawableId
-import org.umamo.ui.transform.DrawableWorldGeometry
-import org.umamo.ui.transform.ElementEditStage
-import org.umamo.ui.transform.LatticeLanding
-import org.umamo.ui.transform.LatticeWorldGeometry
-import org.umamo.ui.transform.OwnerWorldGeometry
-import org.umamo.ui.transform.commitLatticeLanding
-import org.umamo.ui.transform.latticeReshapeOf
-import org.umamo.ui.transform.posedLatticeForms
-import org.umamo.ui.viewport.gizmo.DRIVE_MIN_CHUNK_WEIGHT
-import org.umamo.ui.viewport.gizmo.applyOperator
-import org.umamo.ui.viewport.gizmo.mapInBalancedChunks
-import org.umamo.ui.viewport.gizmo.slideVertexByFactor
 
 /*
  * The 2D modal drive's compute, shared by the Edit, Pose, and Object transforms and the operation settings strip's
@@ -78,6 +68,19 @@ internal class SlideMove(
 	val owner: ElementOwner,
 	val activeVertex: Int,
 	val landing: SlideLanding,
+)
+
+/**
+ * Where the Vertex Slide's most recent drive landed: the edge it picked and how far along it the vertex
+ * sits - what the confirm registers on the operation settings strip, whose Factor row re-slides the
+ * same frozen edge.
+ *
+ * @property Int neighborIndex The edge's far endpoint the drive picked.
+ * @property Float factor The landed factor in [0, 1].
+ */
+internal class SlideLanding(
+	val neighborIndex: Int,
+	val factor: Float,
 )
 
 /**
@@ -256,27 +259,13 @@ internal fun OwnerWorldGeometry.outcomeOf(transformedWorld: FloatArray, moved: S
 internal fun computeMeshDrive(request: MeshDriveRequest): MeshDriveResult = foldMeshDrive(request, request.jobs.map { job -> meshJobOutcome(job, request) })
 
 /**
- * The drive with its meshes in parallel chunks on the caller's dispatcher, weighted by how many vertices
- * each moves; the same result as [computeMeshDrive], element for element.
- *
- * @param MeshDriveRequest request The request.
- * @param Int minChunkWeight The least weight a chunk carries (tests lower it to force chunking).
- * @return MeshDriveResult The result.
- */
-internal suspend fun computeMeshDriveParallel(request: MeshDriveRequest, minChunkWeight: Int = DRIVE_MIN_CHUNK_WEIGHT): MeshDriveResult {
-	val outcomes = mapInBalancedChunks(request.jobs, { job -> job.movedIndices.size + 1 }, minChunkWeight) { job -> meshJobOutcome(job, request) }
-
-	return foldMeshDrive(request, outcomes)
-}
-
-/**
  * Gathers each job's outcome and folds them onto the request's model ([foldDrive]).
  *
  * @param MeshDriveRequest request The request.
  * @param List<MeshJobOutcome> outcomes Each job's outcome, in job order.
  * @return MeshDriveResult The result.
  */
-private fun foldMeshDrive(request: MeshDriveRequest, outcomes: List<MeshJobOutcome>): MeshDriveResult =
+internal fun foldMeshDrive(request: MeshDriveRequest, outcomes: List<MeshJobOutcome>): MeshDriveResult =
 	foldDrive(request.baseModel, outcomes, request.jobs.mapNotNull { job -> job.owner.deformerId?.let { deformerId -> deformerId to job.movedIndices } }.toMap(), request.stage)
 
 /**

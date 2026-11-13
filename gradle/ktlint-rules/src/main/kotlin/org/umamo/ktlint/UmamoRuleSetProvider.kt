@@ -23,10 +23,15 @@ public class UmamoRuleSetProvider : RuleSetProviderV3(RuleSetId(UMAMO_RULE_SET_I
 			RuleProvider { CommentSentenceSpacingRule() },
 			RuleProvider { DocblockTagsRule() },
 			RuleProvider { FunctionDocblockRule() },
+			RuleProvider { ImportBoundaryRule() },
+			RuleProvider { NoCommandOutsideTablesRule() },
 			RuleProvider { NoCommentEmphasisRule() },
 			RuleProvider { NoFullyQualifiedNameRule() },
+			RuleProvider { NoMainDispatcherRule() },
+			RuleProvider { NoPrintAndReturnGateRule() },
 			RuleProvider { NoSingleLetterNameRule() },
 			RuleProvider { NoUnitOnlyBlockRule() },
+			RuleProvider { SessionExtensionPlacementRule() },
 			RuleProvider { StatementIfBracesRule() },
 		)
 }

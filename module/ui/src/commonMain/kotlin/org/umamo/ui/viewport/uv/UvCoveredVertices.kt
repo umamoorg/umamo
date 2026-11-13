@@ -1,8 +1,16 @@
 package org.umamo.ui.viewport.uv
 
+import androidx.compose.runtime.MutableState
+import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
+import org.umamo.edit.TransformPivotMode
+import org.umamo.edit.transform.IndividualOriginScope
 import org.umamo.edit.transform.ModalCaptureSource
+import org.umamo.edit.transform.UvDisplayMedian
+import org.umamo.edit.transform.UvEditFrame
+import org.umamo.edit.transform.UvMedianMove
+import org.umamo.edit.transform.buildModalTransformCapture
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 
 /*
@@ -19,15 +27,6 @@ import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
  * @property Set<Int> indices The covered vertices, every one inside [geometry].
  */
 internal class UvCoveredVertices(val geometry: GizmoMeshGeometry, val indices: Set<Int>)
-
-/**
- * The mean display position of a set of covered vertices.
- *
- * @property Float displayX The median's display x in texels.
- * @property Float displayY The median's display y in texels, y up.
- * @property Int vertexCount How many vertices it is the mean of.
- */
-internal class UvDisplayMedian(val displayX: Float, val displayY: Float, val vertexCount: Int)
 
 /**
  * The covered vertices of every shown mesh, dropping a mesh that has none, and any index past a mesh's vertices
@@ -99,3 +98,34 @@ internal fun uvCaptureSources(
 
 		if (coveredIndices.isEmpty() && geometry.owner !in selection.owners) null else ModalCaptureSource(geometry.owner, geometry.positions.copyOf(), geometry.topology, coveredIndices)
 	}
+
+/**
+ * Captures the coordinates [selection] covers across the shown meshes for a move of their median.  The pivot is the
+ * median point with no anchors, since a Grab ignores the pivot, and every shown mesh is offered the way the UV
+ * editor's own Grab offers them ([uvCaptureSources]), so proportional editing turned on from the strip afterward
+ * reaches the same meshes that Grab's would.
+ *
+ * @param MeshSelection selection The mesh selection.
+ * @param List<GizmoMeshGeometry> geometries The shown meshes' display geometry, read from the COMMITTED coordinates.
+ * @param UvEditFrame frame The surface's authoring frame.
+ * @param MutableState<Float?> radiusState The surface's proportional radius, which the move reads when it registers on
+ *   the strip and an adjusted strip row writes back.
+ * @return UvMedianMove? The move, or null when nothing is covered.
+ */
+internal fun uvMedianMove(selection: MeshSelection, geometries: List<GizmoMeshGeometry>, frame: UvEditFrame, radiusState: MutableState<Float?>): UvMedianMove? {
+	val covered = uvCoveredVertices(selection, geometries)
+	val median = uvCoveredMedian(covered) ?: return null
+	val coveredByOwner = covered.associate { mesh -> mesh.geometry.owner to mesh.indices }
+	val sources = uvCaptureSources(selection, geometries) { geometry -> coveredByOwner[geometry.owner].orEmpty() }
+	val transform =
+		buildModalTransformCapture(
+			sources = sources,
+			pivotMode = TransformPivotMode.MedianPoint,
+			individualOriginScope = IndividualOriginScope.ConnectivityIsland,
+			operatorKind = MeshOperatorKind.Grab,
+			activeAnchor = null,
+			cursorAnchor = null,
+		) ?: return null
+
+	return UvMedianMove(transform, frame, median, radiusDisplay = { resolvedUvProportionalRadius(radiusState, frame) }) { radius -> radiusState.value = radius }
+}

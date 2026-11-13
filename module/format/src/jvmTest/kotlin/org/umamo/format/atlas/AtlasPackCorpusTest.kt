@@ -24,9 +24,6 @@ import kotlin.test.assertEquals
  * - and packing the same document twice produces the same pages.
  */
 class AtlasPackCorpusTest {
-	// How many samples had raster layers and so were packed at all.
-	private var packedSampleCount = 0
-
 	@Test
 	fun packingInvariantsHoldOnCorpusDocuments() {
 		val samples = locateLayeredCorpusSamples()
@@ -35,8 +32,12 @@ class AtlasPackCorpusTest {
 			skipTest("no test/corpus directory; skipping atlas-pack corpus test")
 		}
 
+		var packedSampleCount = 0
+
 		for ((sample, reader) in samples) {
-			checkSample(sample, reader)
+			if (checkSample(sample, reader)) {
+				packedSampleCount++
+			}
 		}
 
 		if (packedSampleCount == 0) {
@@ -49,8 +50,9 @@ class AtlasPackCorpusTest {
 	 *
 	 * @param File sample      The layered source file to read.
 	 * @param ArtReader reader The reader that decodes it.
+	 * @return Boolean Whether the sample was packed, which it is not when it has no raster layer.
 	 */
-	private fun checkSample(sample: File, reader: ArtReader) {
+	private fun checkSample(sample: File, reader: ArtReader): Boolean {
 		val options = AtlasPackOptions(maxPageSize = 4096)
 		val art = reader.read(sample.readBytes())
 		val items = art.atlasPackItems { layer -> layer.kind == SourceLayerKind.Raster }
@@ -58,7 +60,7 @@ class AtlasPackCorpusTest {
 		if (items.isEmpty()) {
 			println("checked ${sample.name}: no raster layers")
 
-			return
+			return false
 		}
 
 		val startNanos = System.nanoTime()
@@ -114,6 +116,7 @@ class AtlasPackCorpusTest {
 			"checked ${sample.name}: ${result.placements.size} packed, ${result.skipped.size} skipped, " +
 				"${result.pages.size} page(s) [$occupancy], ${(packedNanos - startNanos) / 1_000_000} ms$oversizedNote",
 		)
-		packedSampleCount++
+
+		return true
 	}
 }

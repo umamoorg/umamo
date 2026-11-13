@@ -1,7 +1,4 @@
-package org.umamo.ui.viewport.uv
-
-import org.umamo.render.PuppetTextures
-import org.umamo.runtime.model.Drawable
+package org.umamo.edit.transform
 
 /*
  * The UV editor's display mapping: the space its camera, hit tests, and wireframe operate in is
@@ -22,7 +19,7 @@ import org.umamo.runtime.model.Drawable
  * @param Int pageWidth The atlas page width in texels.
  * @return Float The display-space x.
  */
-internal fun uvToDisplayX(u: Float, pageWidth: Int): Float = u * pageWidth
+fun uvToDisplayX(u: Float, pageWidth: Int): Float = u * pageWidth
 
 /**
  * Maps a normalized atlas v to the display (texel) y, flipping into the camera's Y-up convention.
@@ -31,7 +28,7 @@ internal fun uvToDisplayX(u: Float, pageWidth: Int): Float = u * pageWidth
  * @param Int pageHeight The atlas page height in texels.
  * @return Float The display-space y.
  */
-internal fun uvToDisplayY(v: Float, pageHeight: Int): Float = (1f - v) * pageHeight
+fun uvToDisplayY(v: Float, pageHeight: Int): Float = (1f - v) * pageHeight
 
 /**
  * Maps a display (texel) x back to the normalized atlas u - the exact inverse of [uvToDisplayX].
@@ -40,7 +37,7 @@ internal fun uvToDisplayY(v: Float, pageHeight: Int): Float = (1f - v) * pageHei
  * @param Int pageWidth The atlas page width in texels.
  * @return Float The normalized atlas u coordinate.
  */
-internal fun displayToUvU(displayX: Float, pageWidth: Int): Float = displayX / pageWidth
+fun displayToUvU(displayX: Float, pageWidth: Int): Float = displayX / pageWidth
 
 /**
  * Maps a display (texel) y back to the normalized atlas v - the exact inverse of [uvToDisplayY].
@@ -49,7 +46,7 @@ internal fun displayToUvU(displayX: Float, pageWidth: Int): Float = displayX / p
  * @param Int pageHeight The atlas page height in texels.
  * @return Float The normalized atlas v coordinate.
  */
-internal fun displayToUvV(displayY: Float, pageHeight: Int): Float = 1f - displayY / pageHeight
+fun displayToUvV(displayY: Float, pageHeight: Int): Float = 1f - displayY / pageHeight
 
 /**
  * Maps an interleaved (u, v) array into display space (see the file header for the convention).
@@ -59,7 +56,7 @@ internal fun displayToUvV(displayY: Float, pageHeight: Int): Float = 1f - displa
  * @param Int pageHeight The atlas page height in texels.
  * @return FloatArray A new interleaved display-space array.
  */
-internal fun uvToDisplay(uvs: FloatArray, pageWidth: Int, pageHeight: Int): FloatArray {
+fun uvToDisplay(uvs: FloatArray, pageWidth: Int, pageHeight: Int): FloatArray {
 	val display = FloatArray(uvs.size)
 	val vertexCount = uvs.size / 2
 
@@ -80,7 +77,7 @@ internal fun uvToDisplay(uvs: FloatArray, pageWidth: Int, pageHeight: Int): Floa
  * @param Int pageHeight The atlas page height in texels.
  * @return FloatArray A new interleaved normalized uv array.
  */
-internal fun displayToUv(display: FloatArray, pageWidth: Int, pageHeight: Int): FloatArray {
+fun displayToUv(display: FloatArray, pageWidth: Int, pageHeight: Int): FloatArray {
 	val uvs = FloatArray(display.size)
 	val vertexCount = display.size / 2
 
@@ -91,15 +88,3 @@ internal fun displayToUv(display: FloatArray, pageWidth: Int, pageHeight: Int): 
 
 	return uvs
 }
-
-/**
- * Resolves which atlas page a drawable samples: the mapping is keyed by the source format's ids, so
- * a session-created duplicate resolves through textureSourceId - the same resolution the GPU upload
- * and the thumbnailer use.
- *
- * @param Drawable drawable The drawable whose page to resolve.
- * @param PuppetTextures textures The document's decoded atlas pages.
- * @return Int? The page index into [PuppetTextures.atlases], or null when the drawable is untextured.
- */
-internal fun atlasPageIndexFor(drawable: Drawable, textures: PuppetTextures): Int? =
-	textures.atlasIndexByDrawableId[(drawable.textureSourceId ?: drawable.id).raw]

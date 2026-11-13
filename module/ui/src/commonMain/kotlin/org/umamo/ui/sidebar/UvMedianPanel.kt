@@ -4,6 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import org.jetbrains.compose.resources.stringResource
+import org.umamo.edit.transform.UvMedianMove
+import org.umamo.edit.transform.moveUvMedianAdjustable
+import org.umamo.edit.transform.previewUvMedianMove
 import org.umamo.ui.kit.Text
 import org.umamo.ui.properties.MutedNote
 import org.umamo.ui.properties.TexelPositionFields
@@ -12,9 +15,6 @@ import org.umamo.ui.resources.*
 import org.umamo.ui.theme.LocalUmamoColors
 import org.umamo.ui.theme.LocalUmamoTypography
 import org.umamo.ui.viewport.uv.LocalUvSidebarSurface
-import org.umamo.ui.viewport.uv.UvMedianMove
-import org.umamo.ui.viewport.uv.moveUvMedianAdjustable
-import org.umamo.ui.viewport.uv.previewUvMedianMove
 import org.umamo.ui.viewport.uv.uvCoveredMedian
 import org.umamo.ui.viewport.uv.uvCoveredVertices
 import org.umamo.ui.viewport.uv.uvMedianMove

@@ -40,6 +40,9 @@ private val BUILD_WIDE_FILES = setOf("build.gradle.kts", "settings.gradle.kts", 
 /** The root project's own Kotlin scripts, which its ktlintCheck lints. */
 private val ROOT_SCRIPTS = setOf("build.gradle.kts", "settings.gradle.kts")
 
+/** The table the dependencies between modules are held to, which `checkModuleBoundaries` reads. */
+private const val MODULE_GRAPH_TABLE = "gradle/module-dependencies.txt"
+
 /** How many uncovered files the report names before it only counts the rest. */
 private const val MAX_NAMED_UNCOVERED_FILES = 8
 
@@ -93,6 +96,7 @@ fun planVerification(changedFiles: List<String>, modules: List<ModuleFacts>): Ve
 	val taskPaths = sortedSetOf<String>()
 	val report = ArrayList<String>()
 	val verifiedModules = HashSet<String>()
+	var moduleGraphTouched = buildChanged || MODULE_GRAPH_TABLE in changedFiles
 	val mainChangedModules = LinkedHashSet<String>()
 	val coveredFiles = HashSet<String>()
 
@@ -137,6 +141,9 @@ fun planVerification(changedFiles: List<String>, modules: List<ModuleFacts>): Ve
 			mainChangedModules.add(module.path)
 		}
 
+		// A build script is where a dependency between modules is declared.
+		moduleGraphTouched = moduleGraphTouched || wholeModule
+
 		if (moduleFiles.isNotEmpty()) {
 			val changedParts = (sourceSets + if (moduleFiles.any { moduleFile -> sourceSetOf(moduleFile, module) == null }) listOf("build") else emptyList()).joinToString(", ")
 			report.add("  ${module.path} ($changedParts): ${chosen.joinToString(", ")}")
@@ -157,6 +164,10 @@ fun planVerification(changedFiles: List<String>, modules: List<ModuleFacts>): Ve
 		taskPaths.add(":checkCommonSourcePurity")
 	}
 
+	if (moduleGraphTouched) {
+		taskPaths.add(":checkModuleBoundaries")
+	}
+
 	if (lintEverywhere || changedFiles.any { changedFile -> changedFile in ROOT_SCRIPTS }) {
 		taskPaths.add(":ktlintCheck")
 	}
@@ -174,7 +185,7 @@ fun planVerification(changedFiles: List<String>, modules: List<ModuleFacts>): Ve
 		report.add("  the build logic's own tests run")
 	}
 
-	val uncoveredFiles = changedFiles.filter { changedFile -> changedFile !in coveredFiles && changedFile !in BUILD_WIDE_FILES && changedFile != ".editorconfig" && !changedFile.startsWith(RULE_SET_DIRECTORY) && !changedFile.startsWith(BUILD_LOGIC_DIRECTORY) }
+	val uncoveredFiles = changedFiles.filter { changedFile -> changedFile !in coveredFiles && changedFile !in BUILD_WIDE_FILES && changedFile != ".editorconfig" && changedFile != MODULE_GRAPH_TABLE && !changedFile.startsWith(RULE_SET_DIRECTORY) && !changedFile.startsWith(BUILD_LOGIC_DIRECTORY) }
 
 	if (uncoveredFiles.isNotEmpty()) {
 		val unnamed = if (uncoveredFiles.size > MAX_NAMED_UNCOVERED_FILES) ", and ${uncoveredFiles.size - MAX_NAMED_UNCOVERED_FILES} more" else ""
