@@ -80,6 +80,8 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				// The oracle/parity tests ingest corpus models through :interop's Cmo3Import/Moc3Import.
 				implementation(project(":interop"))
 				// Headless GL (GLFW hidden window) for the GPU-vs-CPU transform-feedback validation test.

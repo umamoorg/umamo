@@ -1,6 +1,5 @@
 package org.umamo.render.eval
 
-import org.junit.Assume
 import java.io.File
 import kotlin.math.abs
 
@@ -202,23 +201,6 @@ internal fun oracleCloseEnough(first: Double, second: Double): Boolean {
 	val scale = maxOf(1.0, abs(first), abs(second))
 
 	return abs(first - second) <= 1e-5 * scale
-}
-
-/**
- * Resolves a `-D`-supplied oracle input, skipping the calling test when it is absent.
- *
- * Every oracle gate needs the same two inputs and each had grown its own private copy of this; one
- * definition keeps the skip MESSAGE identical too, which is what makes an absent harness legible in
- * the test log rather than looking like a silent pass.
- *
- * @param String property The system property naming the file.
- * @return File The existing file (the test is skipped before this returns otherwise).
- */
-internal fun requireOracleInput(property: String): File {
-	val file = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
-	Assume.assumeTrue("[oracle] absent -D$property", file != null)
-
-	return file!!
 }
 
 /**

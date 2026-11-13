@@ -18,6 +18,7 @@ import org.umamo.render.placementFootprint
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.storedToArtAffineForTile
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.repack.AtlasRepackHost
 import org.umamo.ui.model.repack.AtlasRepackReport
@@ -69,9 +70,7 @@ class LivePlacementMoveGateTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the live placement move gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the live placement move gate")
 			}
 
 			val load = loadDocument(file.readBytes(), file.name, file.path)

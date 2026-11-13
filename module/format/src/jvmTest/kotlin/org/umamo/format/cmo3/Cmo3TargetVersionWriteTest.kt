@@ -4,6 +4,7 @@ import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.serialize.ChildSlot
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -21,19 +22,9 @@ class Cmo3TargetVersionWriteTest {
 
 	@Test
 	fun sameValueSetKeepsMainXmlByteIdentical() {
-		val file =
-			sample ?: run {
-				println("cmo3.sample not present; skipping targetVersionNo write test")
-
-				return
-			}
+		val file = sample ?: skipTest("cmo3.sample not present; skipping targetVersionNo write test")
 		val model = Cmo3.read(file)
-		val existing =
-			model.targetVersionNo ?: run {
-				println("sample carries no targetVersionNo; skipping byte-identity pin")
-
-				return
-			}
+		val existing = model.targetVersionNo ?: skipTest("sample carries no targetVersionNo; skipping byte-identity pin")
 		model.setTargetVersionNo(existing)
 		val originalMainXml = CaffCodec.read(file.readBytes()).firstByTag(CaffArchive.TAG_MAIN_XML)!!.content
 		val rewrittenMainXml = CaffCodec.read(Cmo3.write(model)).firstByTag(CaffArchive.TAG_MAIN_XML)!!.content
@@ -42,7 +33,7 @@ class Cmo3TargetVersionWriteTest {
 
 	@Test
 	fun changedValuePersistsThroughReemit() {
-		val file = sample ?: return
+		val file = sample ?: skipTest("cmo3.sample not present; skipping targetVersionNo write test")
 		val model = Cmo3.read(file)
 		model.setTargetVersionNo(Cmo3TargetVersion.V42.versionNo)
 		assertEquals(Cmo3TargetVersion.V42.versionNo, Cmo3.read(Cmo3.write(model)).targetVersionNo)
@@ -50,7 +41,7 @@ class Cmo3TargetVersionWriteTest {
 
 	@Test
 	fun missingElementIsRecreatedWhereTheEditorWritesIt() {
-		val file = sample ?: return
+		val file = sample ?: skipTest("cmo3.sample not present; skipping targetVersionNo write test")
 		val model = Cmo3.read(file)
 		val modelSource = model.root as CModelSource
 		// Simulate a source document that never carried the element: null the field and drop its

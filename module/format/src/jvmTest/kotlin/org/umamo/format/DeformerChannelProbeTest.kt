@@ -16,6 +16,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.model.Rgb
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 
@@ -145,9 +146,7 @@ class DeformerChannelProbeTest {
 		val files = cmo3Samples()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe not present; skipping CMO3 deformer-channel probe")
-
-			return
+			skipTest("cmo3.probe not present; skipping CMO3 deformer-channel probe")
 		}
 
 		println("=== CMO3 deformer channels (opacity / multiplyColor / screenColor on ACDeformerForm) ===")
@@ -229,9 +228,7 @@ class DeformerChannelProbeTest {
 		val files = moc3Samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping MOC3 deformer-channel probe")
-
-			return
+			skipTest("moc3.samples not present; skipping MOC3 deformer-channel probe")
 		}
 
 		println("=== MOC3 deformer channels (WarpKeyform / RotationKeyform opacity + colors) ===")

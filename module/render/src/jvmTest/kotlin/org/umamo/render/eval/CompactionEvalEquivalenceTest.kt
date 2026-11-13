@@ -5,6 +5,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -84,9 +85,7 @@ class CompactionEvalEquivalenceTest {
 		val files = probeFiles()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe not present; skipping compaction equivalence")
-
-			return
+			skipTest("cmo3.probe not present; skipping compaction equivalence")
 		}
 
 		val evaluator = CpuDeformationEvaluator()

@@ -24,6 +24,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.positionsFromDeltas
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -255,9 +256,7 @@ class UmaCmo3HopCorpusTest {
 		val samples = System.getProperty("cmo3.probe")?.split(',')?.map(::File)?.filter { file -> file.isFile }?.sortedBy { file -> file.name }.orEmpty()
 
 		if (samples.isEmpty()) {
-			println("no cmo3.probe samples; skipping the CMO3 hop through UMA")
-
-			return
+			skipTest("no cmo3.probe samples; skipping the CMO3 hop through UMA")
 		}
 
 		exportDirectory.mkdirs()

@@ -33,6 +33,7 @@ import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -358,9 +359,7 @@ class PuppetSnapshotRenderTest {
 				?.firstOrNull { candidate -> candidate.name == "modelA.moc3" }
 
 		if (mocFile == null) {
-			println("modelA.moc3 not present; skipping the corpus tiled-capture check")
-
-			return
+			skipTest("modelA.moc3 not present; skipping the corpus tiled-capture check")
 		}
 
 		requireHeadlessGl("[snapshot-corpus-tiles]")

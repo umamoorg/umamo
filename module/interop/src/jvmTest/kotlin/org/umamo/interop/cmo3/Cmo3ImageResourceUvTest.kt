@@ -18,6 +18,7 @@ import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.atlasPixelOf
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -78,12 +79,7 @@ class Cmo3ImageResourceUvTest {
 
 	@Test
 	fun unpackedPerLayerUvsSpanFullImageAfterInverseTransform() {
-		val file =
-			corpusFile("MultiplyScreenColors.cmo3") ?: run {
-				println("MultiplyScreenColors.cmo3 not present; skipping unpacked-UV test")
-
-				return
-			}
+		val file = corpusFile("MultiplyScreenColors.cmo3") ?: skipTest("MultiplyScreenColors.cmo3 not present; skipping unpacked-UV test")
 		val root = Cmo3.read(file).root as? CModelSource ?: error("root is not a CModelSource")
 		val puppet = Cmo3Import.fromModelSource(root)
 
@@ -132,12 +128,7 @@ class Cmo3ImageResourceUvTest {
 	 */
 	@Test
 	fun aSourceModeSaveIsReadOntoItsOwnAtlasPage() {
-		val file =
-			corpusFile("modelA.cmo3") ?: run {
-				println("modelA.cmo3 not present; skipping the source-mode page test")
-
-				return
-			}
+		val file = corpusFile("modelA.cmo3") ?: skipTest("modelA.cmo3 not present; skipping the source-mode page test")
 		val cmo3 = Cmo3.read(file)
 		val root = cmo3.root as? CModelSource ?: error("root is not a CModelSource")
 		val imported = Cmo3Import.importModelSource(root)
@@ -215,12 +206,7 @@ class Cmo3ImageResourceUvTest {
 	 */
 	@Test
 	fun pageSamplingUvsAreLeftVerbatim() {
-		val file =
-			corpusFile("EricaTamamo.cmo3") ?: run {
-				println("EricaTamamo.cmo3 not present; skipping the verbatim page test")
-
-				return
-			}
+		val file = corpusFile("EricaTamamo.cmo3") ?: skipTest("EricaTamamo.cmo3 not present; skipping the verbatim page test")
 		val root = Cmo3.read(file).root as? CModelSource ?: error("root is not a CModelSource")
 		val puppet = Cmo3Import.fromModelSource(root)
 		val sourcesById = artMeshes(root).associateBy { (it.id as? Id)?.idstr }

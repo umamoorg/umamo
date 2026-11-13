@@ -34,6 +34,7 @@ import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.positionsFromDeltas
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -177,31 +178,17 @@ class Cmo3ExportKeyformRoundTripTest {
 		}
 	}
 
-	private fun skipMessageOrNull(): File? {
-		val file = sample
-
-		if (file == null) {
-			println("cmo3.sample not present; skipping keyform round-trip test")
-		}
-
-		return file
-	}
+	private fun sampleOrSkip(): File = sample ?: skipTest("cmo3.sample not present; skipping keyform round-trip test")
 
 	/**
 	 * The first corpus file whose imported model satisfies [predicate] - the channel-track cases
 	 * search the whole probe corpus because compaction leaves many models with statics only.
 	 *
 	 * @param Function predicate The feature the test needs.
-	 * @return File? The matching file, or null (after a skip message) when no corpus model has it.
+	 * @return File The matching file.  The test is skipped when no corpus model has the feature.
 	 */
-	private fun firstProbeFileWith(predicate: (PuppetModel) -> Boolean): File? {
-		val spec = System.getProperty("cmo3.probe") ?: System.getProperty("cmo3.sample")
-
-		if (spec == null) {
-			println("cmo3.probe not present; skipping")
-
-			return null
-		}
+	private fun firstProbeFileWith(predicate: (PuppetModel) -> Boolean): File {
+		val spec = System.getProperty("cmo3.probe") ?: System.getProperty("cmo3.sample") ?: skipTest("cmo3.probe not present; skipping")
 
 		for (candidate in spec.split(',').map { File(it.trim()) }.filter { it.isFile }) {
 			val imported =
@@ -214,9 +201,7 @@ class Cmo3ExportKeyformRoundTripTest {
 			}
 		}
 
-		println("no corpus model has the feature; skipping")
-
-		return null
+		skipTest("no corpus model has the feature; skipping")
 	}
 
 	/**
@@ -233,7 +218,7 @@ class Cmo3ExportKeyformRoundTripTest {
 
 	@Test
 	fun keyformGeometryNudgeSurvivesWithinUlp() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		var editedId: DrawableId? = null
 		val result =
 			roundTrip(file) { puppet ->
@@ -270,7 +255,7 @@ class Cmo3ExportKeyformRoundTripTest {
 
 	@Test
 	fun geometryKeyInsertSurvivesWithinUlp() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		var editedId: DrawableId? = null
 		val result =
 			roundTrip(file) { puppet ->
@@ -300,7 +285,7 @@ class Cmo3ExportKeyformRoundTripTest {
 	 */
 	@Test
 	fun geometryKeyDeleteKeepsEverySurvivingFormBitForBit() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		var editedId: DrawableId? = null
 		var removedCells = 0
 		val result =
@@ -337,7 +322,7 @@ class Cmo3ExportKeyformRoundTripTest {
 		val file =
 			firstProbeFileWith { probe ->
 				probe.deformers.any { it is Deformer.Warp && it.channelGrids[FormChannel.OPACITY] != null }
-			} ?: return
+			}
 		val result =
 			roundTrip(file) { puppet ->
 				val warp =
@@ -377,7 +362,7 @@ class Cmo3ExportKeyformRoundTripTest {
 
 	@Test
 	fun drawableStaticOpacityEditSurvivesExactly() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		val result =
 			roundTrip(file) { puppet ->
 				// A drawable with keyforms but no opacity track: the static's CMO3 home is every
@@ -395,7 +380,7 @@ class Cmo3ExportKeyformRoundTripTest {
 
 	@Test
 	fun partDrawOrderTrackSurvivesExactly() {
-		val file = skipMessageOrNull() ?: return
+		val file = sampleOrSkip()
 		// No corpus model keeps a part draw-order track after compaction, so AUTHOR one: a fresh
 		// axis and varying values, exercising whole-web synthesis (new binding, fresh CPartForms).
 		val result =
@@ -427,7 +412,7 @@ class Cmo3ExportKeyformRoundTripTest {
 	@Test
 	fun glueIntensityTrackSurvivesExactly() {
 		val file =
-			firstProbeFileWith { probe -> probe.glues.isNotEmpty() } ?: return
+			firstProbeFileWith { probe -> probe.glues.isNotEmpty() }
 		// No corpus model keeps an intensity track after compaction, so AUTHOR one on an existing
 		// glue: a fresh axis with varying weld strength.
 		val result =
@@ -461,7 +446,7 @@ class Cmo3ExportKeyformRoundTripTest {
 		val file =
 			firstProbeFileWith { probe ->
 				probe.drawables.any { drawable -> drawable.blendShapes.any { binding -> binding.forms.any { it != null } } }
-			} ?: return
+			}
 		var editedId: DrawableId? = null
 		val result =
 			roundTrip(file) { puppet ->
@@ -545,7 +530,7 @@ class Cmo3ExportKeyformRoundTripTest {
 						drawable.geometryGrid!!.cells.isNotEmpty() &&
 						drawable.blendShapes.any { binding -> binding.forms.any { form -> form != null } }
 				}
-			} ?: return
+			}
 		var editedId: DrawableId? = null
 		val result =
 			roundTrip(file) { puppet ->

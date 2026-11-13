@@ -13,6 +13,7 @@ import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.PartComposite
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -70,7 +71,7 @@ class CompositeImportTest {
 
 	@Test
 	fun cmo3BaseFamilyPinsCompositionEnums() {
-		val file = probeFiles()["ModelWithOffscreen.cmo3"] ?: return println("ModelWithOffscreen.cmo3 not present; skipping")
+		val file = probeFiles()["ModelWithOffscreen.cmo3"] ?: skipTest("ModelWithOffscreen.cmo3 not present; skipping")
 		val puppet = importCmo3(file)
 		// Authored: Face = Normal/Over, Eye = Multiply (Before 5.3)/Disjoint, both offscreen.
 		val isolatedParts = puppet.parts.filter { it.activeComposite != null }
@@ -87,7 +88,7 @@ class CompositeImportTest {
 	fun cmo3ClippingReverseMaskPinsClipAndLatentFields() {
 		val file =
 			probeFiles()["ModelWithOffscreenClippingIDReverseMask.cmo3"]
-				?: return println("ModelWithOffscreenClippingIDReverseMask.cmo3 not present; skipping")
+				?: skipTest("ModelWithOffscreenClippingIDReverseMask.cmo3 not present; skipping")
 		val puppet = importCmo3(file)
 		val drawableIds = puppet.drawables.mapTo(HashSet()) { it.id }
 		// The authored clip: an offscreen part with Reverse mask on and one drawable as Clipping ID.
@@ -111,7 +112,7 @@ class CompositeImportTest {
 	fun cmo3PartClippingPinsDrawableExtendedBlendAndCulling() {
 		val file =
 			probeFiles()["ModelWithOffscreenPartClipping.cmo3"]
-				?: return println("ModelWithOffscreenPartClipping.cmo3 not present; skipping")
+				?: skipTest("ModelWithOffscreenPartClipping.cmo3 not present; skipping")
 		val puppet = importCmo3(file)
 		// The authored drawable: color blend Screen, alpha blend Out, Culling on.
 		val screenDrawable = assertNotNull(puppet.drawables.find { it.blendMode == BlendMode.Screen }, "Screen drawable")
@@ -126,7 +127,7 @@ class CompositeImportTest {
 
 	@Test
 	fun cmo3MultiplyScreenColorsPinsAuthoredColors() {
-		val file = probeFiles()["MultiplyScreenColors.cmo3"] ?: return println("MultiplyScreenColors.cmo3 not present; skipping")
+		val file = probeFiles()["MultiplyScreenColors.cmo3"] ?: skipTest("MultiplyScreenColors.cmo3 not present; skipping")
 		val puppet = importCmo3(file)
 		val composite = assertNotNull(puppet.parts.mapNotNull { it.activeComposite }.firstOrNull(), "an offscreen part")
 		assertColorClose(AUTHORED_MULTIPLY, composite.multiplyColor, "multiply color")
@@ -137,7 +138,7 @@ class CompositeImportTest {
 	fun moc3PartClippingPinsDrawableExtendedBlendAndCulling() {
 		val file =
 			mocFiles()["ModelWithOffscreenPartClipping.moc3"]
-				?: return println("ModelWithOffscreenPartClipping.moc3 not present; skipping")
+				?: skipTest("ModelWithOffscreenPartClipping.moc3 not present; skipping")
 		val puppet = importMoc3(file)
 		// MOC3 v6 §5.6 s153: the authored drawable stored packed 522 = Screen or (Out shl 8).
 		val screenDrawable = assertNotNull(puppet.drawables.find { it.blendMode == BlendMode.Screen }, "Screen drawable")
@@ -152,7 +153,7 @@ class CompositeImportTest {
 
 	@Test
 	fun moc3MultiplyScreenColorsPinsAuthoredColors() {
-		val file = mocFiles()["MultiplyScreenColors.moc3"] ?: return println("MultiplyScreenColors.moc3 not present; skipping")
+		val file = mocFiles()["MultiplyScreenColors.moc3"] ?: skipTest("MultiplyScreenColors.moc3 not present; skipping")
 		val puppet = importMoc3(file)
 		val composite = assertNotNull(puppet.parts.mapNotNull { it.activeComposite }.firstOrNull(), "an offscreen part")
 		assertColorClose(AUTHORED_MULTIPLY, composite.multiplyColor, "multiply color")
@@ -161,7 +162,7 @@ class CompositeImportTest {
 
 	@Test
 	fun moc3ModelAPinsOrganicOffscreenCount() {
-		val file = mocFiles()["modelA.moc3"] ?: return println("modelA.moc3 not present; skipping")
+		val file = mocFiles()["modelA.moc3"] ?: skipTest("modelA.moc3 not present; skipping")
 		val puppet = importMoc3(file)
 		// Model A's 24 offscreen parts (== the moc's CountInfo[35]); the organic cross-check that the
 		// owner-part join holds beyond the authored extraction family.
@@ -181,7 +182,7 @@ class CompositeImportTest {
 		// @DontSerializeIfDefault field parses as 0f = "unset -> fully opaque" (Cubism's semantic default),
 		// NOT 0%.  Without the ingest remap the part-opacity cascade renders the whole part subtree invisible
 		// (every drawable under a part goes to opacity 0); only the two root-level drawables stayed visible.
-		val file = probeFiles()["EricaTamamo.cmo3"] ?: return println("EricaTamamo.cmo3 not present; skipping")
+		val file = probeFiles()["EricaTamamo.cmo3"] ?: skipTest("EricaTamamo.cmo3 not present; skipping")
 		val model = importCmo3(file)
 		assertTrue(model.parts.isNotEmpty(), "EricaTamamo carries parts")
 		assertTrue(model.parts.none { it.composite.opacity == 0f }, "no pre-5.3 part is spuriously transparent")
@@ -198,7 +199,13 @@ class CompositeImportTest {
 		// opacity/color and an isolated static part's edit would never render (Moc3Import already yields
 		// empty channel grids for an unbound part - this keeps CMO3 consistent).  A part with real
 		// animation keeps its tracks (below).
-		probeFiles()["EricaTamamo.cmo3"]?.let { file ->
+		val files = probeFiles()
+
+		if ("EricaTamamo.cmo3" !in files && "modelA.cmo3" !in files) {
+			skipTest("neither EricaTamamo.cmo3 nor modelA.cmo3 is present; skipping")
+		}
+
+		files["EricaTamamo.cmo3"]?.let { file ->
 			val model = importCmo3(file)
 			val frontHair = model.parts.firstOrNull { it.name.equals("Front hair", ignoreCase = true) }
 			assertNotNull(frontHair, "EricaTamamo has a Front hair part")
@@ -206,7 +213,7 @@ class CompositeImportTest {
 		} ?: println("EricaTamamo.cmo3 not present; skipping")
 
 		// An animated part - keyformed part draw order / opacity - keeps its tracks (non-empty axes).
-		probeFiles()["modelA.cmo3"]?.let { file ->
+		files["modelA.cmo3"]?.let { file ->
 			val model = importCmo3(file)
 			assertTrue(
 				model.parts.any { part -> part.channelGrids.gridsByChannel.values.any { track -> track.axes.isNotEmpty() } },

@@ -2,6 +2,7 @@ package org.umamo.format.moc3
 
 import org.umamo.format.moc3.encode.MocLowering
 import org.umamo.format.moc3.moc.MocCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -28,12 +29,7 @@ class OffscreenSweepProbeTest {
 
 	@Test
 	fun probeOffscreenSweep() {
-		val dir =
-			samplesDir ?: run {
-				println("moc3.samples not present; skipping")
-
-				return
-			}
+		val dir = samplesDir ?: skipTest("moc3.samples not present; skipping")
 		// modelA rides along as the organic 24-offscreen cross-check for the section-role hypotheses
 		// (160 == 152, 153 sizing) derived from the authored extraction family.
 		val files =
@@ -51,9 +47,7 @@ class OffscreenSweepProbeTest {
 				.toList()
 
 		if (files.isEmpty()) {
-			println("no ModelWithOffscreen moc3 samples; skipping")
-
-			return
+			skipTest("no ModelWithOffscreen moc3 samples; skipping")
 		}
 
 		for (file in files) {

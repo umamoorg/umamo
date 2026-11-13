@@ -1,5 +1,6 @@
 package org.umamo.format.art
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -24,9 +25,7 @@ class AlphaAnalysisCorpusTest {
 		val samples = locateLayeredCorpusSamples()
 
 		if (samples.isEmpty()) {
-			println("no test/corpus directory; skipping alpha-analysis corpus test")
-
-			return
+			skipTest("no test/corpus directory; skipping alpha-analysis corpus test")
 		}
 
 		for ((sample, reader) in samples) {

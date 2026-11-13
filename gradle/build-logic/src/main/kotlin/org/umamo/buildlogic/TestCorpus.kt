@@ -69,8 +69,8 @@ abstract class TestCorpusExtension {
 	 *
 	 * A flag is a switch, not a location (`-Dcmo3.generate=true`, `-Dumamo.requireGl=true`), so putting
 	 * one through the sample path would reject it for not naming a file that exists.  Forwarding is
-	 * still the part that matters: a flag the build forgets to pass through is a test that reads a
-	 * property nobody set and returns immediately, reporting PASSED while doing nothing.
+	 * still the part that matters: a flag the build forgets to pass through is a property nobody set,
+	 * and the test that reads it skips whatever the command line asked for.
 	 *
 	 * @param String propertyNames The system property names.
 	 */
@@ -155,7 +155,7 @@ fun sharedCorpusDefault(
  * Two ways a path is found, in order:
  *   1. An explicit `-D` on the Gradle command line.  A RELATIVE value resolves against the REPO ROOT,
  *      not the test JVM's working directory (the module).  A gated test that cannot find its sample
- *      prints and returns, reporting PASSED while doing nothing, so an explicit path that resolves to
+ *      skips, which is the wrong answer to a path someone typed, so an explicit path that resolves to
  *      nothing fails the build outright instead.
  *   2. The local golden corpus, when present — the module-specific default if it declared one, else the
  *      shared table.  This makes the mandatory CMO3 round-trip gate run BY DEFAULT for anyone who has

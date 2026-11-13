@@ -4,6 +4,7 @@ import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -28,9 +29,7 @@ class MocSectionsTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping section decode test")
-
-			return
+			skipTest("moc3.samples not present; skipping section decode test")
 		}
 
 		for (file in files) {
@@ -59,9 +58,7 @@ class MocSectionsTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping structural test")
-
-			return
+			skipTest("moc3.samples not present; skipping structural test")
 		}
 
 		for (file in files) {

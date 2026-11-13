@@ -15,6 +15,7 @@ import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import org.umamo.ui.transform.captureDrawableWorlds
 import org.umamo.ui.transform.latticeReshapeOf
 import org.umamo.ui.viewport.AtlasPageBinding
@@ -46,9 +47,7 @@ class LatticeReshapeExportGateTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the lattice reshape export gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the lattice reshape export gate")
 			}
 
 			val document = assertIs<Cmo3Document>(assertIs<DocumentLoad.Loaded>(loadDocument(file.readBytes(), file.name, file.path)).document)

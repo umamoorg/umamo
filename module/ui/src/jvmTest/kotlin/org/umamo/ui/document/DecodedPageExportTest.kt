@@ -3,6 +3,7 @@ package org.umamo.ui.document
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.coroutines.runBlocking
 import org.umamo.format.png.PngCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -42,9 +43,7 @@ class DecodedPageExportTest {
 		val document = loadSample()
 
 		if (document == null) {
-			println("moc3.sample not present; skipping the decoded-page export gate")
-
-			return
+			skipTest("moc3.sample not present; skipping the decoded-page export gate")
 		}
 
 		val pages = conversionPagesFor(document)
@@ -62,9 +61,7 @@ class DecodedPageExportTest {
 		val document = loadSample()
 
 		if (document == null) {
-			println("moc3.sample not present; skipping the decoded-page export gate")
-
-			return
+			skipTest("moc3.sample not present; skipping the decoded-page export gate")
 		}
 
 		val before = document.textures.atlases.map { page -> page.rgba.contentHashCode() }

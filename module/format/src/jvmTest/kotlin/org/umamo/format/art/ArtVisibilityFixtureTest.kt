@@ -3,6 +3,7 @@ package org.umamo.format.art
 import org.umamo.format.clip.ClipReader
 import org.umamo.format.kra.KraReader
 import org.umamo.format.psd.PsdReader
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -58,9 +59,7 @@ class ArtVisibilityFixtureTest {
 		val file = corpusFile("EricaVisibilityTest.psd")
 
 		if (file == null) {
-			println("no EricaVisibilityTest.psd under test/corpus; skipping PSD visibility fixture test")
-
-			return
+			skipTest("no EricaVisibilityTest.psd under test/corpus; skipping PSD visibility fixture test")
 		}
 
 		val art = PsdReader.read(file.readBytes())
@@ -101,9 +100,7 @@ class ArtVisibilityFixtureTest {
 		val file = corpusFile("KritaLayerVisibility.kra")
 
 		if (file == null) {
-			println("no KritaLayerVisibility.kra under test/corpus; skipping KRA visibility fixture test")
-
-			return
+			skipTest("no KritaLayerVisibility.kra under test/corpus; skipping KRA visibility fixture test")
 		}
 
 		val art = KraReader.read(file.readBytes())
@@ -141,9 +138,7 @@ class ArtVisibilityFixtureTest {
 		val file = corpusFile("Greyscale.clip")
 
 		if (file == null) {
-			println("no Greyscale.clip under test/corpus; skipping CLIP visibility fixture test")
-
-			return
+			skipTest("no Greyscale.clip under test/corpus; skipping CLIP visibility fixture test")
 		}
 
 		val art = ClipReader.read(file.readBytes())

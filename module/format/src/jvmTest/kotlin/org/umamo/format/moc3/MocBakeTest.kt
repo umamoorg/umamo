@@ -2,6 +2,7 @@ package org.umamo.format.moc3
 
 import org.umamo.format.moc3.encode.MocEncoder
 import org.umamo.format.moc3.moc.MocCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,9 +27,7 @@ class MocBakeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping bake test")
-
-			return
+			skipTest("moc3.samples not present; skipping bake test")
 		}
 
 		// Build output, never beside the corpus.  A `work/` that lands inside the samples tree is picked

@@ -8,6 +8,7 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -48,8 +49,8 @@ class DeformerChannelOracleTest {
 
 	@Test
 	fun deformerChannelsCascadeToDrawablesLikeTheOracle() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val samples =
 			System.getProperty("moc3.samples")
 				?.let(::File)

@@ -9,6 +9,7 @@ import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.restMeshesToCanvasSpace
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -41,8 +42,8 @@ class BlendShapeOracleTest {
 
 	@Test
 	fun posedBlendShapesMatchOracle() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val pairs = resolvePairs()
 		Assume.assumeTrue("[oracle] no blend-shape corpus pairs resolvable", pairs.isNotEmpty())
 

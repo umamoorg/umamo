@@ -8,6 +8,7 @@ import org.umamo.format.cmo3.model.gen.CPhysicsInput
 import org.umamo.format.cmo3.model.gen.CPhysicsOutput
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSource
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
+import org.umamo.testkit.skipTest
 import java.io.File
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -46,9 +47,7 @@ class Cmo3PhysicsReferenceProbeTest {
 		val files = corpusFiles()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe lists no readable samples; skipping the physics-reference probe")
-
-			return
+			skipTest("cmo3.probe lists no readable samples; skipping the physics-reference probe")
 		}
 
 		val referenceShapes = sortedMapOf<String, Int>()

@@ -4,6 +4,7 @@ import org.jdom.Element
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -29,19 +30,12 @@ class Cmo3ShapeGateTest {
 
 	@Test
 	fun writtenElementShapesAllOccurInAnEditorWrittenFile() {
-		val probe =
-			System.getProperty("cmo3.probe") ?: run {
-				println("cmo3.probe not present; skipping shape gate")
-
-				return
-			}
+		val probe = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping shape gate")
 		val files = probe.split(',').map { path -> File(path.trim()) }.filter { file -> file.isFile }
 		val (ours, official) = files.partition { file -> file.name.contains("ExportTest") }
 
 		if (ours.isEmpty() || official.isEmpty()) {
-			println("shape gate needs both Umamo-written and editor-written corpus files; skipping")
-
-			return
+			skipTest("shape gate needs both Umamo-written and editor-written corpus files; skipping")
 		}
 
 		val knownShapes = HashMap<String, MutableSet<List<String>>>()

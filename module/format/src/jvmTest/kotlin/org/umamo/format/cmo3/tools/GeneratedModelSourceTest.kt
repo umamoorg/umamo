@@ -1,5 +1,6 @@
 package org.umamo.format.cmo3.tools
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,9 +22,7 @@ class GeneratedModelSourceTest {
 	@Test
 	fun parsesEveryDeclarationInTheRealGeneratedModel() {
 		if (!generatedModel.isFile) {
-			println("GeneratedModel.kt not found at ${generatedModel.absolutePath}; skipping")
-
-			return
+			skipTest("GeneratedModel.kt not found at ${generatedModel.absolutePath}; skipping")
 		}
 
 		val model = parseGeneratedModel(generatedModel)
@@ -42,7 +41,7 @@ class GeneratedModelSourceTest {
 	@Test
 	fun parsesTheBracelessEmptyClassForm() {
 		if (!generatedModel.isFile) {
-			return
+			skipTest("GeneratedModel.kt not found at ${generatedModel.absolutePath}; skipping")
 		}
 
 		val model = parseGeneratedModel(generatedModel)
@@ -55,7 +54,7 @@ class GeneratedModelSourceTest {
 	@Test
 	fun capturesFieldsInDeclarationOrderWithTheirAnnotations() {
 		if (!generatedModel.isFile) {
-			return
+			skipTest("GeneratedModel.kt not found at ${generatedModel.absolutePath}; skipping")
 		}
 
 		val model = parseGeneratedModel(generatedModel)

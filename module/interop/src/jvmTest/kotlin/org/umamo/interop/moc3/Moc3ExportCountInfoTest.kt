@@ -9,6 +9,7 @@ import org.umamo.format.moc3.moc.MocVersion
 import org.umamo.format.moc3.moc.Section
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -64,9 +65,7 @@ class Moc3ExportCountInfoTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping export CountInfo gate")
-
-			return
+			skipTest("moc3.samples not present; skipping export CountInfo gate")
 		}
 
 		val failures = ArrayList<String>()

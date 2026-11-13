@@ -55,6 +55,8 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				// The skeleton gate compares emitted XML structure against the corpus blank; JDOM is
 				// :format's own (implementation-scoped) backend, so the test declares it directly.
 				implementation(libs.jdom)

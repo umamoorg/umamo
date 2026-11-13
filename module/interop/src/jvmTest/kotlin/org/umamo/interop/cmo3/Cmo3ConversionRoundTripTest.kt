@@ -23,6 +23,7 @@ import org.umamo.interop.cmo3.Cmo3Conversion.AtlasPage
 import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -42,15 +43,12 @@ import kotlin.test.assertTrue
 class Cmo3ConversionRoundTripTest {
 	private val geometryDriftTolerance = 1e-3f
 
+	// How many corpus models had their atlas pages on disk and so were converted at all.
+	private var convertedModelCount = 0
+
 	@Test
 	fun corpusMocModelsConvertAndRoundTrip() {
-		val samplesDirectory =
-			System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }
-				?: run {
-					println("moc3.samples not present; skipping MOC3 conversion round trip")
-
-					return
-				}
+		val samplesDirectory = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory } ?: skipTest("moc3.samples not present; skipping MOC3 conversion round trip")
 		val mocFiles =
 			samplesDirectory
 				.walkTopDown()
@@ -67,6 +65,10 @@ class Cmo3ConversionRoundTripTest {
 		}
 
 		assertTrue(failures.isEmpty(), "MOC3 conversion round trip failed:\n" + failures.joinToString("\n"))
+
+		if (convertedModelCount == 0) {
+			skipTest("no corpus moc3 has its atlas pages on disk; nothing was converted")
+		}
 	}
 
 	/**
@@ -87,6 +89,7 @@ class Cmo3ConversionRoundTripTest {
 			return
 		}
 
+		convertedModelCount++
 		val pages =
 			textureFiles.map { textureFile ->
 				val pngBytes = textureFile.readBytes()

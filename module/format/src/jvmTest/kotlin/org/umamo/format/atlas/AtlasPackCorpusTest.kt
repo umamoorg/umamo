@@ -4,6 +4,7 @@ import org.umamo.format.art.ArtReader
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.format.art.locateLayeredCorpusSamples
 import org.umamo.format.png.PngCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -23,18 +24,23 @@ import kotlin.test.assertEquals
  * - and packing the same document twice produces the same pages.
  */
 class AtlasPackCorpusTest {
+	// How many samples had raster layers and so were packed at all.
+	private var packedSampleCount = 0
+
 	@Test
 	fun packingInvariantsHoldOnCorpusDocuments() {
 		val samples = locateLayeredCorpusSamples()
 
 		if (samples.isEmpty()) {
-			println("no test/corpus directory; skipping atlas-pack corpus test")
-
-			return
+			skipTest("no test/corpus directory; skipping atlas-pack corpus test")
 		}
 
 		for ((sample, reader) in samples) {
 			checkSample(sample, reader)
+		}
+
+		if (packedSampleCount == 0) {
+			skipTest("no corpus sample has a raster layer to pack")
 		}
 	}
 
@@ -108,5 +114,6 @@ class AtlasPackCorpusTest {
 			"checked ${sample.name}: ${result.placements.size} packed, ${result.skipped.size} skipped, " +
 				"${result.pages.size} page(s) [$occupancy], ${(packedNanos - startNanos) / 1_000_000} ms$oversizedNote",
 		)
+		packedSampleCount++
 	}
 }

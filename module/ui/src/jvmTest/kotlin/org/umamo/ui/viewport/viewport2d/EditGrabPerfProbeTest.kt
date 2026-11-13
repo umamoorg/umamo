@@ -43,6 +43,7 @@ import org.umamo.runtime.model.partNameByDrawable
 import org.umamo.runtime.model.pickableIndicesByDrawable
 import org.umamo.runtime.model.pickableUvsByDrawable
 import org.umamo.runtime.model.visibleDrawableIds
+import org.umamo.testkit.skipTest
 import org.umamo.ui.graphics.RgbaAlphaType
 import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
@@ -97,9 +98,7 @@ class EditGrabPerfProbeTest {
 		val mocFile = sample
 
 		if (mocFile == null) {
-			println("moc3.perfSample not present; skipping perf probe")
-
-			return
+			skipTest("moc3.perfSample not present; skipping perf probe")
 		}
 
 		val loadStart = System.nanoTime()
@@ -129,9 +128,7 @@ class EditGrabPerfProbeTest {
 		val mocFile = sample
 
 		if (mocFile == null) {
-			println("moc3.perfSample not present; skipping perf probe")
-
-			return
+			skipTest("moc3.perfSample not present; skipping perf probe")
 		}
 
 		val model = restMeshesToCanvasSpace(Moc3Import.fromMocDocument(Moc3.read(mocFile.readBytes()), null))
