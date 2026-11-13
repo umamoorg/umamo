@@ -147,7 +147,11 @@ fun OutlinerSpace(scope: AreaScope, modifier: Modifier = Modifier) {
 			buildSet {
 				for (target in selection.targets) {
 					val path = pathTo(filteredTree, target) ?: continue
-					path.dropLast(1).forEach { ancestorId -> if (ancestorId.startsWith("part:")) add(ancestorId) }
+					path.dropLast(1).forEach { ancestorId ->
+						if (ancestorId.startsWith("part:")) {
+							add(ancestorId)
+						}
+					}
 				}
 			}
 		}

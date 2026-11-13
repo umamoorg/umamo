@@ -74,8 +74,13 @@ data class BlendShapeBinding<TForm : Any>(
 	// data class with an array field: generated equals/hashCode use referential array equality,
 	// which is wrong for value semantics (same rationale as Keyform).
 	override fun equals(other: Any?): Boolean {
-		if (this === other) return true
-		if (other !is BlendShapeBinding<*>) return false
+		if (this === other) {
+			return true
+		}
+
+		if (other !is BlendShapeBinding<*>) {
+			return false
+		}
 
 		return parameterId == other.parameterId &&
 			keys.contentEquals(other.keys) &&

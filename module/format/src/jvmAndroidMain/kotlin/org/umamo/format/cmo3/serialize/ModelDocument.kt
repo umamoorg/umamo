@@ -42,7 +42,9 @@ public class ModelDocument private constructor(
 
 		// PIs live as document content before the root element.
 		for (content in document.content) {
-			if (content !is ProcessingInstruction) continue
+			if (content !is ProcessingInstruction) {
+				continue
+			}
 
 			when (content.target) {
 				PI_VERSION -> {

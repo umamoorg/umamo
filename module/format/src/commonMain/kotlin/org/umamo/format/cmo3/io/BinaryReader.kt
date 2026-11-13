@@ -123,9 +123,17 @@ public class BinaryReader(private val data: ByteArray) {
 	 */
 	public fun readVarInt(key: Int): Int {
 		val byte0 = readU8(key)
-		if (byte0 and 0x80 == 0) return byte0 and 0xFF
+
+		if (byte0 and 0x80 == 0) {
+			return byte0 and 0xFF
+		}
+
 		val byte1 = readU8(key)
-		if (byte1 and 0x80 == 0) return ((byte0 and 0x7F) shl 7) or (byte1 and 0x7F)
+
+		if (byte1 and 0x80 == 0) {
+			return ((byte0 and 0x7F) shl 7) or (byte1 and 0x7F)
+		}
+
 		val byte2 = readU8(key)
 
 		if (byte2 and 0x80 == 0) {

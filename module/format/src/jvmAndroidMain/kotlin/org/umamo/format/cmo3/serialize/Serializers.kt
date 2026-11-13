@@ -62,7 +62,9 @@ internal interface XmlSerializer {
 
 /** Sets the xs.n attribute when [name] is non-null (collection items omit it). */
 internal fun Element.setFieldName(name: String?) {
-	if (name != null) setAttribute(ATTR_NAME, name)
+	if (name != null) {
+		setAttribute(ATTR_NAME, name)
+	}
 }
 
 /**
@@ -230,8 +232,14 @@ internal class ReflectiveClassSerializer(
 				} else {
 					property.name in skipIfDefault && isDefaultValue(property, propertyValue)
 				}
-			if (omit) continue
-			if (propertyValue != null) element.setAttribute(attributeNameOf(property), propertyValue.toString())
+
+			if (omit) {
+				continue
+			}
+
+			if (propertyValue != null) {
+				element.setAttribute(attributeNameOf(property), propertyValue.toString())
+			}
 		}
 
 		// Child elements: replay the exact sequence read (order, presence and unknown children all
@@ -269,7 +277,11 @@ internal class ReflectiveClassSerializer(
 
 			for (property in childProperties) {
 				val propertyValue = property.get(value)
-				if (property.name in skipIfDefault && isDefaultValue(property, propertyValue)) continue
+
+				if (property.name in skipIfDefault && isDefaultValue(property, propertyValue)) {
+					continue
+				}
+
 				element.addContent(ctx.createElementFromObject(childNameOf(property), propertyValue))
 			}
 		}

@@ -64,9 +64,18 @@ public class Cmo3Model internal constructor(
 
 		while (stack.isNotEmpty()) {
 			val obj = stack.removeLast() ?: continue
-			if (obj is CharSequence || obj is Number || obj is Boolean || obj is Char || obj is Enum<*>) continue
-			if (!seen.add(obj)) continue
-			if (obj is CImageResource) out.add(obj)
+
+			if (obj is CharSequence || obj is Number || obj is Boolean || obj is Char || obj is Enum<*>) {
+				continue
+			}
+
+			if (!seen.add(obj)) {
+				continue
+			}
+
+			if (obj is CImageResource) {
+				out.add(obj)
+			}
 
 			when (obj) {
 				is Iterable<*> -> {
@@ -87,7 +96,10 @@ public class Cmo3Model internal constructor(
 
 						while (cls != null && cls != Any::class.java) {
 							for (field in cls.declaredFields) {
-								if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+								if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
+									continue
+								}
+
 								field.isAccessible = true
 								stack.addLast(field.get(obj))
 							}

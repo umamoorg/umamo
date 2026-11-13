@@ -12,8 +12,13 @@ data class Keyform(
 	// data class with an array field: generated equals/hashCode use referential array equality,
 	// which is wrong for value semantics. Override so two keyforms with equal deltas compare equal.
 	override fun equals(other: Any?): Boolean {
-		if (this === other) return true
-		if (other !is Keyform) return false
+		if (this === other) {
+			return true
+		}
+
+		if (other !is Keyform) {
+			return false
+		}
 
 		return atValue == other.atValue && delta.contentEquals(other.delta)
 	}

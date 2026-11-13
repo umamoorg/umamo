@@ -164,7 +164,11 @@ private fun PuppetModel.partSubtreeIds(id: PartId): Set<PartId> {
 			continue
 		}
 
-		partById[next]?.children?.forEach { child -> if (child is OrgChild.Part) stack.add(child.id) }
+		partById[next]?.children?.forEach { child ->
+			if (child is OrgChild.Part) {
+				stack.add(child.id)
+			}
+		}
 	}
 
 	return subtree

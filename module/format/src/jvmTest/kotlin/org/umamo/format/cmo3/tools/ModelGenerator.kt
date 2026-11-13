@@ -131,7 +131,10 @@ class ModelGenerator {
 
 	@Test
 	fun generate() {
-		if (System.getProperty("cmo3.generate") != "true") return
+		if (System.getProperty("cmo3.generate") != "true") {
+			return
+		}
+
 		// Generate from cmo3.gensample if given (a comma-separated list unions several projects, e.g. the
 		// feature-complete so enum constants and fields from every version are covered), else the default single sample.
 		val sampleSpec =
@@ -157,7 +160,9 @@ class ModelGenerator {
 		val custom = sortedSetOf<String>()
 
 		for ((tag, info) in tags) {
-			if (tag in handHandled || tag in primitiveTags || tag in collectionTags) continue
+			if (tag in handHandled || tag in primitiveTags || tag in collectionTags) {
+				continue
+			}
 
 			when {
 				info.customAttrs == sortedSetOf("v") && !info.hasChildren -> enums[tag] = info
@@ -185,7 +190,13 @@ class ModelGenerator {
 		}
 
 		val skip = sortedSetOf<String>()
-		for (tag in reflective.keys) if ((ownFields(tag) intersect ancestorFields(tag)).isNotEmpty()) skip += tag
+
+		for (tag in reflective.keys) {
+			if ((ownFields(tag) intersect ancestorFields(tag)).isNotEmpty()) {
+				skip += tag
+			}
+		}
+
 		var changed = true
 
 		while (changed) { // cascade: drop anything extending a skipped class
@@ -215,7 +226,10 @@ class ModelGenerator {
 	private fun walk(element: Element, tags: HashMap<String, TagInfo>) {
 		// A reference (xs.ref) is not a definition: it has no fields and must not be counted as an
 		// instance (doing so made every field look "sometimes-present").
-		if (element.getAttributeValue("xs.ref") != null) return
+		if (element.getAttributeValue("xs.ref") != null) {
+			return
+		}
+
 		val tag = element.name
 
 		if (tag !in primitiveTags && tag !in collectionTags && tag != "entry") {
@@ -227,7 +241,10 @@ class ModelGenerator {
 			for (attribute in attrs) {
 				if (attribute.name !in neutralAttrs) {
 					info.customAttrs += attribute.name
-					if (attribute.name == "v") info.enumValues += attribute.value
+
+					if (attribute.name == "v") {
+						info.enumValues += attribute.value
+					}
 				}
 			}
 
@@ -268,7 +285,9 @@ class ModelGenerator {
 	}
 
 	private fun ktTypeAndDefault(typeTags: Set<String>): Pair<String, String> {
-		if (typeTags.size == 1) primitiveTags[typeTags.first()]?.let { return it }
+		if (typeTags.size == 1) {
+			primitiveTags[typeTags.first()]?.let { return it }
+		}
 
 		return "Any?" to "null"
 	}

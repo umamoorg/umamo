@@ -516,8 +516,18 @@ object Cmo3Import {
 		// appended at the root, so no mesh is dropped from the outliner or the derived render order.
 		val placedDrawableIds =
 			buildSet {
-				rootChildrenFromTree.forEach { child -> if (child is OrgChild.Drawable) add(child.id) }
-				parts.forEach { part -> part.children.forEach { child -> if (child is OrgChild.Drawable) add(child.id) } }
+				rootChildrenFromTree.forEach { child ->
+					if (child is OrgChild.Drawable) {
+						add(child.id)
+					}
+				}
+				parts.forEach { part ->
+					part.children.forEach { child ->
+						if (child is OrgChild.Drawable) {
+							add(child.id)
+						}
+					}
+				}
 			}
 		val rootChildren =
 			rootChildrenFromTree + drawables.mapNotNull { drawable -> if (drawable.id in placedDrawableIds) null else OrgChild.Drawable(drawable.id) }

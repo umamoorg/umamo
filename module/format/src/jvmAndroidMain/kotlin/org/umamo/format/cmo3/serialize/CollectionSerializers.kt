@@ -143,7 +143,10 @@ internal class MapSerializer(
 			}
 		} else {
 			for (entry in children) {
-				if (entry.name != TAG_ENTRY) continue
+				if (entry.name != TAG_ENTRY) {
+					continue
+				}
+
 				@Suppress("UNCHECKED_CAST")
 				val parts = entry.children as List<Element>
 				val keyElement = parts.firstOrNull { it.getAttributeValue(ATTR_NAME) == NAME_KEY }

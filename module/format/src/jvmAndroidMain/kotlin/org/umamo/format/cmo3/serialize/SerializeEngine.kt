@@ -309,9 +309,15 @@ internal class SerializerRegistry {
 
 	/** Serializer for the serializable superclass of [kClass], or null. Never instantiated directly. */
 	fun superSerializerOf(kClass: KClass<*>, suppress: Boolean): ReflectiveClassSerializer? {
-		if (suppress) return null
+		if (suppress) {
+			return null
+		}
+
 		val superJava = kClass.java.superclass ?: return null
-		if (superJava == Any::class.java || superJava.isInterface) return null
+
+		if (superJava == Any::class.java || superJava.isInterface) {
+			return null
+		}
 
 		return classSerializer(superJava.kotlin)
 	}
@@ -396,7 +402,9 @@ internal class WriteContext(
 
 	/** Records [value]'s element on first write (subsequent calls are no-ops, matching the editor). */
 	fun setWritten(value: Any, element: Element) {
-		if (!written.containsKey(value)) written[value] = WrittenRecord(element, writtenIndexCounter++)
+		if (!written.containsKey(value)) {
+			written[value] = WrittenRecord(element, writtenIndexCounter++)
+		}
 	}
 
 	/**
@@ -438,7 +446,12 @@ internal class WriteContext(
 		if (value is VerbatimNode) {
 			// Re-emit the preserved subtree, re-stamping the owning field name (or dropping it for items).
 			val clone = value.element.clone() as Element
-			if (name != null) clone.setAttribute(ATTR_NAME, name) else clone.removeAttribute(ATTR_NAME)
+
+			if (name != null) {
+				clone.setAttribute(ATTR_NAME, name)
+			} else {
+				clone.removeAttribute(ATTR_NAME)
+			}
 
 			return clone
 		}
@@ -504,7 +517,11 @@ internal class ReadContext(
 	 */
 	fun createObjectFromElement(element: Element): Any? {
 		val tag = element.name
-		if (tag == TAG_NULL) return null
+
+		if (tag == TAG_NULL) {
+			return null
+		}
+
 		element.getAttributeValue(ATTR_REF)?.let { return references[it] }
 		val serializer = registry.serializerForTag(tag)
 
@@ -714,7 +731,10 @@ public class SerializeEngine internal constructor(
 			context.references[id] = instance
 			sharedInfo[instance] = SharedRef(id, index, element.name)
 			sharedOrder.add(instance)
-			if (serializer != null) typedToSetup.add(element to instance)
+
+			if (serializer != null) {
+				typedToSetup.add(element to instance)
+			}
 		}
 
 		for ((element, instance) in typedToSetup) {

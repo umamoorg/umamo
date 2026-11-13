@@ -21,7 +21,11 @@ public class BinaryWriter(initialCapacity: Int = 64 * 1024) {
 
 		if (needed > buffer.size) {
 			var newSize = buffer.size * 2
-			if (newSize < needed) newSize = needed
+
+			if (newSize < needed) {
+				newSize = needed
+			}
+
 			buffer = buffer.copyOf(newSize)
 		}
 	}

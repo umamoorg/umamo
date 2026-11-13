@@ -67,7 +67,10 @@ class IdentitySubsystemTest {
 			}
 		}
 
-		if (firstDiff < 0 && expected.size == actual.size) return
+		if (firstDiff < 0 && expected.size == actual.size) {
+			return
+		}
+
 		val at = if (firstDiff < 0) limit else firstDiff
 		val start = maxOf(0, at - 60)
 		fail(
