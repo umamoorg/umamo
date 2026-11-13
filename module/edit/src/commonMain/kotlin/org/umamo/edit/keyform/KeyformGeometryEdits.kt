@@ -19,9 +19,11 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.KeyformOwner
+import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpLatticeForm
 
 /*
@@ -287,7 +289,7 @@ private fun <TForm> PuppetModel.replaceDrawableGeometry(
 		drawables =
 			drawables.map { candidate ->
 				if (candidate.id == owner.id) {
-					candidate.copy(geometryGrid = rewritten as KeyformGrid<org.umamo.runtime.model.MeshDeltaForm>?)
+					candidate.copy(geometryGrid = rewritten as KeyformGrid<MeshDeltaForm>?)
 				} else {
 					candidate
 				}
@@ -337,13 +339,13 @@ private fun <TForm> PuppetModel.replaceDeformerGeometry(
 
 					candidate is Deformer.Warp -> {
 						candidate.copy(
-							geometryGrid = rewritten as KeyformGrid<org.umamo.runtime.model.WarpLatticeForm>?,
+							geometryGrid = rewritten as KeyformGrid<WarpLatticeForm>?,
 						)
 					}
 
 					candidate is Deformer.Rotation -> {
 						candidate.copy(
-							geometryGrid = rewritten as KeyformGrid<org.umamo.runtime.model.RotationPivotForm>?,
+							geometryGrid = rewritten as KeyformGrid<RotationPivotForm>?,
 						)
 					}
 

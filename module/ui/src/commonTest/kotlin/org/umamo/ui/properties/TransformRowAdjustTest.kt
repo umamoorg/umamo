@@ -8,6 +8,7 @@ import org.umamo.edit.OperatorParameter
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.floatValue
+import org.umamo.edit.transform.MeshBounds
 import org.umamo.edit.transform.TransformParameterKeys
 import org.umamo.edit.withParameter
 import org.umamo.runtime.model.BlendMode
@@ -90,7 +91,7 @@ class TransformRowAdjustTest {
 	 * The drawable's world bounds in [session] at the shown pose.
 	 *
 	 * @param EditorSession session The session.
-	 * @return org.umamo.edit.transform.MeshBounds The bounds.
+	 * @return MeshBounds The bounds.
 	 */
 	private fun boundsOf(session: EditorSession) = drawableWorldTransform(session.model.value, session.shownPose, drawableId, session.mode.value)!!.bounds
 

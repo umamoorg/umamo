@@ -1,6 +1,10 @@
 // Root build script.  Plugins are declared here with `apply false` purely to pin their
 // versions for the whole build; each module opts in by `alias(...)`-ing the ones it needs.
 // This avoids every module repeating version numbers (the version catalog holds those).
+
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.jlleitschuh.gradle.ktlint.KtlintExtension
+
 plugins {
 	alias(libs.plugins.kotlinMultiplatform) apply false
 	alias(libs.plugins.composeCompiler) apply false
@@ -32,7 +36,7 @@ subprojects {
 	apply(plugin = "org.jlleitschuh.gradle.ktlint")
 	// Compose Multiplatform generates Kotlin under build/generated (JetBrains space-indent style); lint
 	// our own sources, not generated output (e.g. the resources `Res` collectors).
-	configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+	configure<KtlintExtension> {
 		version.set(ktlintEngineVersion)
 
 		filter {
@@ -58,7 +62,7 @@ subprojects {
 	tasks.withType<Test>().configureEach {
 		testLogging {
 			events("passed", "skipped", "failed")
-			exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+			exceptionFormat = TestExceptionFormat.FULL
 		}
 	}
 }

@@ -4,6 +4,7 @@ import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
 import org.umamo.format.raster.RasterImage
 import org.umamo.render.SupersampledSurface
+import org.umamo.render.device.ReadbackTicket
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -89,7 +90,7 @@ class SupersampleReadbackTest {
 	}
 
 	/** Polls [ticket] to completion, bounded so a wedged fence fails the test instead of hanging it. */
-	private fun awaitReadback(device: GlRenderDevice, ticket: org.umamo.render.device.ReadbackTicket): RasterImage {
+	private fun awaitReadback(device: GlRenderDevice, ticket: ReadbackTicket): RasterImage {
 		repeat(2000) {
 			device.pollReadback(ticket)?.let { return it }
 			Thread.sleep(1)

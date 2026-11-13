@@ -2,6 +2,7 @@ package org.umamo.editor.desktop
 
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import kotlin.test.Test
@@ -86,7 +87,7 @@ class HttpUpdateTransportTest {
 		// A port that was free a moment ago: nothing listens on it, so the connection is refused.
 		val closedPort = ServerSocket(0).use { socket -> socket.localPort }
 
-		assertFailsWith<java.io.IOException> {
+		assertFailsWith<IOException> {
 			runBlocking { HttpUpdateTransport().get("http://127.0.0.1:$closedPort/", emptyMap()) }
 		}
 	}

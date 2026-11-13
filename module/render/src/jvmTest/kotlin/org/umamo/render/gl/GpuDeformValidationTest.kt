@@ -18,6 +18,7 @@ import org.umamo.render.eval.WarpWorld
 import org.umamo.render.eval.deformMeshWorldFromCorners
 import org.umamo.render.eval.preparePose
 import org.umamo.render.glsl.GlslDialect
+import org.umamo.render.glsl.MAX_BLEND_CORNERS
 import org.umamo.render.glsl.tfDeformVertexShader
 import org.umamo.render.glsl.tfDiscardFragmentShader
 import org.umamo.render.puppet.blendColumnLayout
@@ -263,11 +264,11 @@ class GpuDeformValidationTest {
 		var blendCount = 0
 
 		if (blend != null && blendLayout != null) {
-			val blendCells = IntArray(org.umamo.render.glsl.MAX_BLEND_CORNERS)
-			val blendWeights = FloatArray(org.umamo.render.glsl.MAX_BLEND_CORNERS)
+			val blendCells = IntArray(MAX_BLEND_CORNERS)
+			val blendWeights = FloatArray(MAX_BLEND_CORNERS)
 
 			for (contribution in blend.contributions) {
-				if (blendCount >= org.umamo.render.glsl.MAX_BLEND_CORNERS) {
+				if (blendCount >= MAX_BLEND_CORNERS) {
 					break
 				}
 

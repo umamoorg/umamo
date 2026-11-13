@@ -8,6 +8,7 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.ParameterId
+import org.umamo.runtime.model.ParameterKind
 import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PartId
@@ -77,7 +78,7 @@ class Moc3ImportTest {
 		if (file.name.startsWith("modelA")) {
 			assertEquals(
 				12,
-				puppet.parameters.count { it.kind == org.umamo.runtime.model.ParameterKind.BLEND_SHAPE },
+				puppet.parameters.count { it.kind == ParameterKind.BLEND_SHAPE },
 				"modelA: blend-shape parameter kinds mapped",
 			)
 		}
@@ -309,7 +310,7 @@ class Moc3ImportTest {
 					}
 				}
 				assertEquals(
-					org.umamo.runtime.model.ParameterKind.BLEND_SHAPE,
+					ParameterKind.BLEND_SHAPE,
 					kindByParameter[binding.parameterId],
 					"${file.name}: driving parameter is BLEND_SHAPE-typed",
 				)
@@ -342,7 +343,7 @@ class Moc3ImportTest {
 				}
 			}
 
-			val blendParameterCount = puppet.parameters.count { it.kind == org.umamo.runtime.model.ParameterKind.BLEND_SHAPE }
+			val blendParameterCount = puppet.parameters.count { it.kind == ParameterKind.BLEND_SHAPE }
 			val nonNeutralForms = allBindings.sumOf { binding -> binding.forms.count { it != null } }
 			val limitCurves = allBindings.sumOf { it.limits.size }
 			val limitPoints = allBindings.sumOf { binding -> binding.limits.sumOf { it.points.size } }

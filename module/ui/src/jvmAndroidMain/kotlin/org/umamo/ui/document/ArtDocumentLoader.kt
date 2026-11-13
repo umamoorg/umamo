@@ -24,6 +24,7 @@ import org.umamo.interop.art.SourceArtImportResult
 import org.umamo.render.DecodedImage
 import org.umamo.render.PuppetTextures
 import org.umamo.render.SourceArtRasters
+import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.storage.UmamoLog
 import org.umamo.ui.model.artwork.LoggedSourceFilePresence
@@ -283,7 +284,7 @@ private fun finishArtDocument(imported: SourceArtImportResult, name: String, pat
 	// out the same instance for a tile - the identity the renderer's texture cache and the viewport's freshness
 	// test compare by.
 	val decodedByTile = imported.rasterByTile.mapValues { (_, raster) -> DecodedImage(raster.rgba, raster.width, raster.height) }
-	val decodeRaster: (org.umamo.runtime.model.AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] }
+	val decodeRaster: (AtlasTileId) -> DecodedImage? = { tileId -> decodedByTile[tileId] }
 	progress?.stage(ProgressLabels.ATLAS_PACKING)
 	val packed = packModelAtOpen(imported.puppet, decodeRaster)
 	val notices =

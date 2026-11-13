@@ -3,6 +3,7 @@ package org.umamo.ui.model.artwork
 import kotlinx.coroutines.test.runTest
 import org.umamo.storage.LogLevel
 import org.umamo.storage.UmamoLog
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -15,8 +16,8 @@ class LoggedSourceFilePresenceTest {
 	@Test
 	fun aPathIsLoggedOnItsFirstAnswerAndOnEveryChange() =
 		runTest {
-			val path = "/art/presence-${kotlin.random.Random.nextInt()}.psd"
-			val uri = "content://art/presence-${kotlin.random.Random.nextInt()}"
+			val path = "/art/presence-${Random.nextInt()}.psd"
+			val uri = "content://art/presence-${Random.nextInt()}"
 			var onDisk: Boolean? = true
 			val logged = LoggedSourceFilePresence { probed -> if (probed == path) onDisk else null }
 

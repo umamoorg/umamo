@@ -1,6 +1,7 @@
 package org.umamo.format.atlas
 
 import org.umamo.format.art.analyzeAlpha
+import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -104,7 +105,7 @@ class AtlasPackTest {
 	fun aFixedRotatedTileKeepsTheFreeTilesClearOfItsBox() {
 		// A 30 degree turn at 0.75 scale about the tile origin, moved to (20, 6): the box the packer must
 		// keep clear is the box of the turned corners, not the upright rect.
-		val radians = 30.0 * kotlin.math.PI / 180.0
+		val radians = 30.0 * PI / 180.0
 		val cosine = (kotlin.math.cos(radians) * 0.75).toFloat()
 		val sine = (kotlin.math.sin(radians) * 0.75).toFloat()
 		val affine = floatArrayOf(cosine, -sine, 20f, sine, cosine, 6f)

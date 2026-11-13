@@ -1,5 +1,6 @@
 package org.umamo.format.moc3
 
+import org.umamo.format.moc3.io.LittleEndianReader
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
@@ -102,7 +103,7 @@ class OffscreenKeyformProbeTest {
 
 		val drawableMaskTotal = model.drawables().sumOf { it.maskCount }
 		val maskBytes = model.section(Section.MASK_INDEX_DATA.indexIn(model.version))!!
-		val maskReader = org.umamo.format.moc3.io.LittleEndianReader(maskBytes)
+		val maskReader = LittleEndianReader(maskBytes)
 		val maskTable = IntArray(maskBytes.size / 4) { maskReader.readInt32() }
 		// The raw element region is 64-byte padded, so compare the meaningful rows and require
 		// anything beyond them to be zero padding.

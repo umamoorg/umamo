@@ -1,5 +1,6 @@
 package org.umamo.ui.viewport.viewport2d
 
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -63,7 +64,7 @@ class PivotDepthInsetTest {
 	 * @param String readout The readout's text.
 	 * @return Int The count.
 	 */
-	private fun androidx.compose.ui.test.ComposeUiTest.insetsReading(readout: String): Int =
+	private fun ComposeUiTest.insetsReading(readout: String): Int =
 		onAllNodesWithContentDescription(readout, useUnmergedTree = true).fetchSemanticsNodes().size
 
 	private companion object {

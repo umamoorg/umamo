@@ -1,5 +1,6 @@
 // :desktop (app/desktop) — desktop entrypoint (Compose Desktop + LWJGL viewport interop).
 
+import org.gradle.jvm.tasks.Jar
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -593,7 +594,7 @@ tasks.withType<JavaExec>().matching { execTask -> execTask.name == "run" }
 //
 // Target before version — umamo-<os>-<arch>-<version>.<ext>. Keep that order: it is what the
 // release assets are named and what downstream tooling matches on.
-tasks.withType<org.gradle.jvm.tasks.Jar>().matching { jarTask -> jarTask.name == "packageUberJarForCurrentOS" }
+tasks.withType<Jar>().matching { jarTask -> jarTask.name == "packageUberJarForCurrentOS" }
 	.configureEach {
 		archiveFileName.set("umamo-$buildTarget-$umamoVersion.jar")
 		// What `java -jar` reads from the manifest, beside the Main-Class the plugin adds to the same map.  Without

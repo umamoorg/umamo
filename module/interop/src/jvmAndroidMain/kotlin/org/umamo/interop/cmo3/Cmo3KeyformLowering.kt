@@ -3,6 +3,7 @@ package org.umamo.interop.cmo3
 import org.umamo.format.cmo3.Cmo3GraphEditor
 import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CRotationDeformerForm
+import org.umamo.format.cmo3.model.drawable.CoordType
 import org.umamo.format.cmo3.model.gen.ACDeformerForm
 import org.umamo.format.cmo3.model.gen.ACDeformerSource
 import org.umamo.format.cmo3.model.gen.ACDrawableForm
@@ -16,6 +17,8 @@ import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CRotationDeformerSource
 import org.umamo.format.cmo3.model.gen.CWarpDeformerForm
 import org.umamo.format.cmo3.model.gen.CWarpDeformerSource
+import org.umamo.format.cmo3.model.gen.ExtendedInterpolationType
+import org.umamo.format.cmo3.model.gen.InterpolationType
 import org.umamo.format.cmo3.model.gen.KeyFormMorphTarget
 import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
 import org.umamo.format.cmo3.model.gen.KeyOnParameter
@@ -25,6 +28,7 @@ import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.format.cmo3.model.gen.KeyformOnGrid
 import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraint
 import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
+import org.umamo.format.cmo3.model.gen.MorphTargetEditBaseParameterMap
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.interop.ExportEntityCategory
@@ -58,6 +62,9 @@ import org.umamo.runtime.model.RotationPivotForm
 import org.umamo.runtime.model.WarpForm
 import org.umamo.runtime.model.WarpLatticeForm
 import org.umamo.runtime.model.deltaReaching
+import java.util.Collections
+import java.util.IdentityHashMap
+import java.util.UUID
 
 /*
  * The keyform half of the CMO3 export reconcile: re-bundling Umamo's split representation (a
@@ -99,8 +106,8 @@ internal class Cmo3KeyformLowering(
 	 * that name (the writer hoists one def per name, the editor's own shape; it never writes a null
 	 * coordType).
 	 */
-	private val coordTypes: HashMap<String, org.umamo.format.cmo3.model.drawable.CoordType> by lazy {
-		val byName = HashMap<String, org.umamo.format.cmo3.model.drawable.CoordType>()
+	private val coordTypes: HashMap<String, CoordType> by lazy {
+		val byName = HashMap<String, CoordType>()
 		val pools = index.drawableSources.map { source -> source.keyforms } + index.deformerSources.map { source -> keyformsOf(source) }
 
 		for (pool in pools) {
@@ -123,9 +130,9 @@ internal class Cmo3KeyformLowering(
 	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
 	 * @return CoordType The shared per-export instance for that name.
 	 */
-	private fun formCoordType(hasParentDeformer: Boolean): org.umamo.format.cmo3.model.drawable.CoordType =
+	private fun formCoordType(hasParentDeformer: Boolean): CoordType =
 		coordTypes.getOrPut(if (hasParentDeformer) "DeformerLocal" else "Canvas") {
-			org.umamo.format.cmo3.model.drawable.CoordType().apply {
+			CoordType().apply {
 				coordName = if (hasParentDeformer) "DeformerLocal" else "Canvas"
 			}
 		}
@@ -139,7 +146,7 @@ internal class Cmo3KeyformLowering(
 	 * @param Boolean hasParentDeformer Whether the owning item deforms under a parent deformer.
 	 * @return CoordType The instance to tag the fresh form with.
 	 */
-	private fun freshFormCoordType(template: Any?, hasParentDeformer: Boolean): org.umamo.format.cmo3.model.drawable.CoordType {
+	private fun freshFormCoordType(template: Any?, hasParentDeformer: Boolean): CoordType {
 		val wanted = formCoordType(hasParentDeformer)
 
 		return coordTypeOf(template)?.takeIf { templateCoordType -> templateCoordType.coordName == wanted.coordName } ?: wanted
@@ -203,12 +210,12 @@ internal class Cmo3KeyformLowering(
 	 * @param Any? form The form.
 	 * @return CoordType? Its coordType.
 	 */
-	private fun coordTypeOf(form: Any?): org.umamo.format.cmo3.model.drawable.CoordType? =
+	private fun coordTypeOf(form: Any?): CoordType? =
 		when (form) {
 			is ACDrawableForm -> form.coordType
 			is ACDeformerForm -> form.coordType
 			else -> null
-		} as? org.umamo.format.cmo3.model.drawable.CoordType
+		} as? CoordType
 
 	/**
 	 * Records an edit this export cannot represent.
@@ -354,7 +361,7 @@ internal class Cmo3KeyformLowering(
 	 */
 	private fun freshGuidLike(template: Guid?): Guid =
 		Guid(template?.kind ?: "CFormGuid").apply {
-			uuid = java.util.UUID.randomUUID().toString()
+			uuid = UUID.randomUUID().toString()
 			note = template?.note ?: "(no debug info)"
 		}
 
@@ -435,8 +442,8 @@ internal class Cmo3KeyformLowering(
 						// CMO3: KeyformBindingSource fields interpolationType /
 						// extendedInterpolationType / insertPointCount / extendedInterpolationScale /
 						// description - every corpus binding writes LINEAR / LINEAR / 1 / 1.0 / "".
-						interpolationType = org.umamo.format.cmo3.model.gen.InterpolationType.LINEAR
-						extendedInterpolationType = org.umamo.format.cmo3.model.gen.ExtendedInterpolationType.LINEAR
+						interpolationType = InterpolationType.LINEAR
+						extendedInterpolationType = ExtendedInterpolationType.LINEAR
 						insertPointCount = 1
 						extendedInterpolationScale = 1f
 						description = ""
@@ -1308,7 +1315,7 @@ internal class Cmo3KeyformLowering(
 							// CMO3: KeyFormMorphTarget field editBaseParameterMap - corpus records
 							// carry the wrapper with a null baseParameterMap, never a bare null.
 							editBaseParameterMap =
-								org.umamo.format.cmo3.model.gen.MorphTargetEditBaseParameterMap()
+								MorphTargetEditBaseParameterMap()
 						}
 				record.keyValue = keyValue
 				record.keyformGuid = form.guid
@@ -1371,7 +1378,7 @@ internal class Cmo3KeyformLowering(
 		morphForms: List<ACForm>,
 		assign: (MutableList<Any?>) -> Unit,
 	) {
-		val gridIdentity = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val gridIdentity = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		gridForms.forEach { gridIdentity.add(it) }
 		val pool = ArrayList<Any?>(gridForms.size + morphForms.size)
 		pool.addAll(gridForms)

@@ -1,5 +1,6 @@
 package org.umamo.settings
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -115,10 +116,10 @@ class SettingsTest {
 			val settings = Settings.load(storage, """{"a":{"b":1}}""")
 			val received = mutableListOf<String>()
 			val collector = launch { settings.changes.collect { received.add(it) } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent() // let the collector subscribe before we emit
 			settings.setInt("a.b", 2)
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent() // deliver the emission
 			collector.cancel()
 			assertEquals(listOf("a.b"), received)
@@ -132,12 +133,12 @@ class SettingsTest {
 			val settings = Settings.load(storage, """{"a":{"b":1,"c":"x"},"d":{"e":true}}""")
 			val received = mutableListOf<String>()
 			val collector = launch { settings.changes.collect { received.add(it) } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			settings.setInt("a.b", 2)
 			settings.setString("a.c", "y")
 			settings.setBoolean("d.e", false)
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			collector.cancel()
 			assertEquals(listOf("a.b", "a.c", "d.e"), received)
@@ -150,19 +151,19 @@ class SettingsTest {
 			val settings = Settings.load(storage, """{"a":{"b":1,"c":"x"}}""")
 			val earlyEvents = mutableListOf<String>()
 			val earlyCollector = launch { settings.changes.collect { earlyEvents.add(it) } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			settings.setInt("a.b", 2)
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			// The changes flow has no replay: a subscriber arriving after an event never sees it.
 			val lateEvents = mutableListOf<String>()
 			val lateCollector = launch { settings.changes.collect { lateEvents.add(it) } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			settings.setString("a.c", "y")
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			earlyCollector.cancel()
 			lateCollector.cancel()

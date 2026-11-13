@@ -44,6 +44,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import java.awt.datatransfer.Clipboard as AwtClipboard
 
 /**
  * Copies an alert's text the two ways a rigger would - selecting it and pressing the copy chord, and the kit's
@@ -65,7 +66,7 @@ class AlertTextCopyTest {
 			entry = clipEntry
 		}
 
-		override val nativeClipboard: NativeClipboard = java.awt.datatransfer.Clipboard("test")
+		override val nativeClipboard: NativeClipboard = AwtClipboard("test")
 
 		/**
 		 * The copied text, or null.

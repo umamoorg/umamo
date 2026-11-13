@@ -19,6 +19,7 @@ class UmamoRuleSetProviderTest {
 				"umamo:docblock-tags",
 				"umamo:function-docblock",
 				"umamo:no-comment-emphasis",
+				"umamo:no-fully-qualified-name",
 				"umamo:no-single-letter-name",
 				"umamo:no-unit-only-block",
 				"umamo:statement-if-braces",

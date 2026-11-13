@@ -12,6 +12,7 @@ import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.KeyformGrid
+import org.umamo.runtime.model.ParameterId
 import org.umamo.format.moc3.model.KeyformAxis as MocKeyformAxis
 
 /**
@@ -37,7 +38,7 @@ import org.umamo.format.moc3.model.KeyformAxis as MocKeyformAxis
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §5.6</a>
  */
-class Moc3KeyformPool(private val parameterIndexOf: (org.umamo.runtime.model.ParameterId) -> Int) {
+class Moc3KeyformPool(private val parameterIndexOf: (ParameterId) -> Int) {
 	/** Signature → binding index, so two objects on the same axes share one record. */
 	private val indexBySignature = LinkedHashMap<List<Pair<Int, List<Float>>>, Int>()
 	private val bindings = ArrayList<KeyformBinding>()

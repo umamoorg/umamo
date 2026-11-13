@@ -26,10 +26,12 @@ import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.FormChannel
+import org.umamo.runtime.model.Glue
 import org.umamo.runtime.model.KeyformAxis
 import org.umamo.runtime.model.KeyformCell
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
+import org.umamo.runtime.model.MeshForm
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.positionsFromDeltas
 import java.io.File
@@ -442,7 +444,7 @@ class Cmo3ExportKeyformRoundTripTest {
 						),
 					)
 				val editedGlue =
-					org.umamo.runtime.model.Glue(
+					Glue(
 						glue.meshA,
 						glue.meshB,
 						glue.pairs,
@@ -482,7 +484,7 @@ class Cmo3ExportKeyformRoundTripTest {
 										nudged[0] += 2f
 									}
 
-									org.umamo.runtime.model.MeshForm(
+									MeshForm(
 										nudged,
 										form.drawOrder,
 										form.opacity,

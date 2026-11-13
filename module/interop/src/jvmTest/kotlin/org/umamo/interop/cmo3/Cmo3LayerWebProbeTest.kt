@@ -137,7 +137,7 @@ class Cmo3LayerWebProbeTest {
 
 			// CMO3: ACTextureInput field optionalTransformOnCanvas
 			optionalTransformsOnCanvas +=
-				inputs.count { input -> (input as? org.umamo.format.cmo3.model.gen.ACTextureInput)?.optionalTransformOnCanvas != null }
+				inputs.count { input -> (input as? ACTextureInput)?.optionalTransformOnCanvas != null }
 		}
 
 		var rotated = 0

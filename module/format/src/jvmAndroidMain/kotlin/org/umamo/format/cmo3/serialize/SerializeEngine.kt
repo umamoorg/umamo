@@ -1,9 +1,12 @@
 package org.umamo.format.cmo3.serialize
 
+import org.jdom.Attribute
 import org.jdom.Document
 import org.jdom.Element
 import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.serialize.annotations.SerialTag
+import org.umamo.format.cmo3.type.CArrayList
+import org.umamo.format.cmo3.type.CHashMap
 import java.util.IdentityHashMap
 import kotlin.reflect.KClass
 import kotlin.reflect.full.findAnnotation
@@ -27,10 +30,10 @@ internal class SerializerRegistry {
 	private val boolSerializer = PrimitiveSerializer("b") { it == "true" }
 	private val stringSerializer = PrimitiveSerializer("s") { it }
 	private val arrayListSerializer = ListSerializer("array_list") { ArrayList() }
-	private val carrayListSerializer = ListSerializer("carray_list") { org.umamo.format.cmo3.type.CArrayList() }
+	private val carrayListSerializer = ListSerializer("carray_list") { CArrayList() }
 
 	// hash_map reads into an order-preserving CHashMap so non-empty maps re-emit in document order.
-	private val hashMapSerializer = MapSerializer("hash_map") { org.umamo.format.cmo3.type.CHashMap() }
+	private val hashMapSerializer = MapSerializer("hash_map") { CHashMap() }
 	private val linkedMapSerializer = MapSerializer("linked_map") { LinkedHashMap() }
 	private val linkedSetSerializer = SetSerializer("linked_set") { LinkedHashSet() }
 
@@ -231,13 +234,13 @@ internal class SerializerRegistry {
 			is BooleanArray -> boolArraySerializer
 
 			// Order matters: subtypes before supertypes so the on-disk tag round-trips exactly.
-			is org.umamo.format.cmo3.type.CHashMap<*, *> -> hashMapSerializer
+			is CHashMap<*, *> -> hashMapSerializer
 
 			is LinkedHashMap<*, *> -> linkedMapSerializer
 
 			is Map<*, *> -> hashMapSerializer
 
-			is org.umamo.format.cmo3.type.CArrayList<*> -> carrayListSerializer
+			is CArrayList<*> -> carrayListSerializer
 
 			is List<*> -> arrayListSerializer
 
@@ -849,7 +852,7 @@ public class SerializeEngine internal constructor(
 			document.content.filterIsInstance<ProcessingInstruction>().map { it.clone() as ProcessingInstruction }
 
 		@Suppress("UNCHECKED_CAST")
-		val rootAttributes = (rootElement.attributes as List<org.jdom.Attribute>).map { it.name to it.value }
+		val rootAttributes = (rootElement.attributes as List<Attribute>).map { it.name to it.value }
 
 		return ModelGraph(
 			rootObject,

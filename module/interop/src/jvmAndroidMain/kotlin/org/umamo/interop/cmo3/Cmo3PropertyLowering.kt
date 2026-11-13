@@ -61,6 +61,8 @@ import org.umamo.runtime.model.inversePlacementAffine
 import org.umamo.runtime.model.isOriginAtCanvasCenter
 import org.umamo.runtime.model.lineageRoot
 import org.umamo.runtime.model.storedToArtAffineForTile
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * The flat-property half of the CMO3 export reconcile: every diffed field with a direct CMO3 field
@@ -1286,7 +1288,7 @@ internal class Cmo3PropertyLowering(
 		}
 
 		val orderedSources = ArrayList<Any?>()
-		val placed = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val placed = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 
 		for (parameter in edited.parameters) {
 			val source = index.parameterByIdStr[parameter.id.raw] ?: continue

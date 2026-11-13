@@ -16,6 +16,7 @@ import org.umamo.runtime.keyform.withKeyRemoved
 import org.umamo.runtime.model.ChannelGrids
 import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ChannelValueKind
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.Glue
@@ -358,6 +359,6 @@ fun EditorSession.removeChannelKey(target: KeyableTarget, parameter: Parameter) 
 internal fun FormChannel.neutralValue(): ChannelValue =
 	when (valueKind) {
 		ChannelValueKind.SCALAR -> ChannelValue.Scalar(0f)
-		ChannelValueKind.COLOR -> ChannelValue.Color(org.umamo.runtime.model.ColorRgb(0f, 0f, 0f))
+		ChannelValueKind.COLOR -> ChannelValue.Color(ColorRgb(0f, 0f, 0f))
 		ChannelValueKind.FLAG -> ChannelValue.Flag(false)
 	}

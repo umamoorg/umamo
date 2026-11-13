@@ -2,6 +2,7 @@ package org.umamo.format.clip
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import org.umamo.format.art.SourceLayerKind
+import org.umamo.format.clip.db.ClipDatabase
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,7 +34,7 @@ class ClipSyntheticReaderTest {
 			val driver = JdbcSqliteDriver("jdbc:sqlite:$temporaryDatabasePath")
 
 			try {
-				org.umamo.format.clip.db.ClipDatabase.Schema.create(driver)
+				ClipDatabase.Schema.create(driver)
 
 				for (statement in insertStatements) {
 					driver.execute(null, statement, 0)

@@ -5,6 +5,7 @@ import org.umamo.edit.keyform.channelValueAt
 import org.umamo.edit.keyform.isChannelKeyedOn
 import org.umamo.runtime.model.BlendMode
 import org.umamo.runtime.model.ChannelValue
+import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.FormChannel
@@ -116,7 +117,7 @@ class PendingChannelEditTest {
 		val editorSession = session()
 		val multiplyTarget = KeyableTarget(KeyformOwner.Drawable(drawableId), FormChannel.MULTIPLY_COLOR)
 		editorSession.setPendingChannelEdit(target, ChannelValue.Scalar(0.75f))
-		editorSession.setPendingChannelEdit(multiplyTarget, ChannelValue.Color(org.umamo.runtime.model.ColorRgb(1f, 0f, 0f)))
+		editorSession.setPendingChannelEdit(multiplyTarget, ChannelValue.Color(ColorRgb(1f, 0f, 0f)))
 
 		assertEquals(2, editorSession.pendingChannelEdits.value.size)
 	}
@@ -129,7 +130,7 @@ class PendingChannelEditTest {
 	fun capturingOneTargetKeepsOthersPending() {
 		val editorSession = session()
 		val multiplyTarget = KeyableTarget(KeyformOwner.Drawable(drawableId), FormChannel.MULTIPLY_COLOR)
-		val multiplyValue = ChannelValue.Color(org.umamo.runtime.model.ColorRgb(1f, 0f, 0f))
+		val multiplyValue = ChannelValue.Color(ColorRgb(1f, 0f, 0f))
 		editorSession.setPendingChannelEdit(target, ChannelValue.Scalar(0.75f))
 		editorSession.setPendingChannelEdit(multiplyTarget, multiplyValue)
 

@@ -13,6 +13,9 @@ import org.umamo.format.cmo3.serialize.ModelGraph
 import org.umamo.format.cmo3.serialize.cubismEngine
 import org.umamo.format.cmo3.xml.XmlCodec
 import java.io.File
+import java.lang.reflect.Modifier
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * A loaded CMO3: the CAFF container (all entries, incl. layer/atlas/icon PNGs) and the typed model
@@ -60,7 +63,7 @@ public class Cmo3Model internal constructor(
 	 * @return List<CImageResource> Every reachable image resource, each listed once.
 	 */
 	public fun imageResources(): List<CImageResource> {
-		val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val seen = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		val out = ArrayList<CImageResource>()
 		val stack = ArrayDeque<Any?>()
 		graph.root?.let(stack::addLast)
@@ -100,7 +103,7 @@ public class Cmo3Model internal constructor(
 
 						while (cls != null && cls != Any::class.java) {
 							for (field in cls.declaredFields) {
-								if (java.lang.reflect.Modifier.isStatic(field.modifiers)) {
+								if (Modifier.isStatic(field.modifiers)) {
 									continue
 								}
 

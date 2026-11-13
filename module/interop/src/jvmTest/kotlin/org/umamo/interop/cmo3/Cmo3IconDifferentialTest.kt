@@ -1,5 +1,6 @@
 package org.umamo.interop.cmo3
 
+import org.umamo.format.art.LayerBounds
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelImage
@@ -85,7 +86,7 @@ class Cmo3IconDifferentialTest {
 	private fun trimmed(art: RasterImage): RasterImage {
 		val box = alphaBox(art) ?: return art
 
-		return art.cropped(org.umamo.format.art.LayerBounds(box[0], box[1], box[2], box[3]))
+		return art.cropped(LayerBounds(box[0], box[1], box[2], box[3]))
 	}
 
 	private fun boxDeltaOf(ours: IntArray?, theirs: IntArray?, size: Int): Int =

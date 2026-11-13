@@ -16,6 +16,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.MouseButton
+import androidx.compose.ui.test.MouseInjectionScope
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performMouseInput
@@ -655,7 +656,7 @@ class TrackLaneInteractionTest {
 }
 
 /** The x just right of the label column and its separator, in pixels. */
-private fun androidx.compose.ui.test.MouseInjectionScope.labelColumnEdge(): Float = 190f
+private fun MouseInjectionScope.labelColumnEdge(): Float = 190f
 
 /** The y at the middle of the single child row: ruler, then the group row, then half a row. */
-private fun androidx.compose.ui.test.MouseInjectionScope.childRowCenterY(): Float = 20f + 32f + 16f
+private fun MouseInjectionScope.childRowCenterY(): Float = 20f + 32f + 16f

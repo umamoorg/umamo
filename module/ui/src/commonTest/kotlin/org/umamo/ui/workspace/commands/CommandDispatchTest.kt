@@ -1,5 +1,6 @@
 package org.umamo.ui.workspace.commands
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -343,11 +344,11 @@ class CommandDispatchTest {
 				snapCommands(session, routing(HoveredSurface("logs-1", SpaceKind.Logs)), SessionAvailability(session), AreaOverlayHub())
 			val received = mutableListOf<SnapRequest>()
 			val collector = launch { session.snapRequests.collect { request -> received += request } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			commands.run("snap.selectionToCursor")
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			collector.cancel()
 
@@ -388,11 +389,11 @@ class CommandDispatchTest {
 				snapCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session), AreaOverlayHub())
 			val received = mutableListOf<SnapRequest>()
 			val collector = launch { session.snapRequests.collect { request -> received += request } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			commands.run("snap.selectionToCursor")
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			collector.cancel()
 
@@ -454,11 +455,11 @@ class CommandDispatchTest {
 				uvCommands(session, routing(HoveredSurface(viewportArea, SpaceKind.Viewport2D)), SessionAvailability(session))
 			val received = mutableListOf<UvMirrorRequest>()
 			val collector = launch { session.uvMirrorRequests.collect { request -> received += request } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			commands.run("uv.mirrorU")
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			collector.cancel()
 
@@ -475,11 +476,11 @@ class CommandDispatchTest {
 				uvCommands(session, routing(HoveredSurface(uvArea, SpaceKind.UvEditor)), SessionAvailability(session))
 			val received = mutableListOf<UvMirrorRequest>()
 			val collector = launch { session.uvMirrorRequests.collect { request -> received += request } }
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 
 			commands.run("uv.mirrorU")
-			@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+			@OptIn(ExperimentalCoroutinesApi::class)
 			runCurrent()
 			collector.cancel()
 

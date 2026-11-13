@@ -15,6 +15,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
 import org.umamo.runtime.model.PuppetModel
+import kotlin.math.PI
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -273,7 +274,7 @@ class TransformStateTest {
 	/** The rotate accumulator crosses the atan2 branch cut, reverses through zero, and multi-turns. */
 	@Test
 	fun rotationAngleTrackerUnwrapsAndAccumulates() {
-		val pi = kotlin.math.PI.toFloat()
+		val pi = PI.toFloat()
 
 		// Start right AT the branch cut (a far pivot's typical start) and sweep across it: the raw
 		// difference would jump ~2*pi, the tracker advances by the small increments actually travelled.

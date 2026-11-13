@@ -1,7 +1,9 @@
 package org.umamo.interop.cmo3
 
+import org.umamo.format.cmo3.model.custom.CFloatColor
 import org.umamo.format.cmo3.model.custom.CLabelColor
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.AlphaComposition
 import org.umamo.format.cmo3.model.gen.CAffecterSourceSet
 import org.umamo.format.cmo3.model.gen.CArtPathBrushSetting
 import org.umamo.format.cmo3.model.gen.CDeformerSourceSet
@@ -12,6 +14,8 @@ import org.umamo.format.cmo3.model.gen.CGuidesSetting
 import org.umamo.format.cmo3.model.gen.CImageCanvas
 import org.umamo.format.cmo3.model.gen.CLabelColorType
 import org.umamo.format.cmo3.model.gen.CModelInfo
+import org.umamo.format.cmo3.model.gen.CModelStateSetSet
+import org.umamo.format.cmo3.model.gen.CMotionSyncSettingSourceSet
 import org.umamo.format.cmo3.model.gen.CParameterGroup
 import org.umamo.format.cmo3.model.gen.CParameterGroupSet
 import org.umamo.format.cmo3.model.gen.CParameterSourceSet
@@ -20,12 +24,16 @@ import org.umamo.format.cmo3.model.gen.CPartSource
 import org.umamo.format.cmo3.model.gen.CPartSourceSet
 import org.umamo.format.cmo3.model.gen.CPhysicsSettingsSourceSet
 import org.umamo.format.cmo3.model.gen.CPoint
+import org.umamo.format.cmo3.model.gen.CRandomPoseSettingManager
 import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.ColorComposition
 import org.umamo.format.cmo3.model.gen.EditorEdition
+import org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet
 import org.umamo.format.cmo3.model.gen.KeyformGridAccessKey
 import org.umamo.format.cmo3.model.gen.KeyformGridSource
 import org.umamo.format.cmo3.model.gen.KeyformOnGrid
 import org.umamo.format.cmo3.model.gen.ModelViewerSetting
+import org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet
 import org.umamo.format.cmo3.model.gen.TextureImageGroup
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
@@ -34,6 +42,7 @@ import org.umamo.format.cmo3.type.CArrayList
 import org.umamo.format.cmo3.type.CHashMap
 import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
+import java.util.UUID
 
 /**
  * Builds the blank CModelSource spine a fresh (never-read) CMO3 starts from, mirroring what the
@@ -190,17 +199,17 @@ internal object Cmo3SkeletonBuilder {
 				// features are unused), modelStateSetSet as the root's last child; its presence
 				// also drives the ModelStateSet:1 version PI.
 				randomPoseSetting =
-					org.umamo.format.cmo3.model.gen.CRandomPoseSettingManager().apply {
+					CRandomPoseSettingManager().apply {
 						// CMO3: CRandomPoseSettingManager field _settings - array_list, unlike the
 						// carray_list sibling collections.
 						_settings = ArrayList<Any?>()
 					}
 				motionSyncSettingsSet =
-					org.umamo.format.cmo3.model.gen.CMotionSyncSettingSourceSet().apply {
+					CMotionSyncSettingSourceSet().apply {
 						_settingSourceSetMotionSync = LinkedHashSet<Any?>()
 					}
 				modelStateSetSet =
-					org.umamo.format.cmo3.model.gen.CModelStateSetSet().apply {
+					CModelStateSetSet().apply {
 						_modelStateSets = CArrayList<Any?>()
 					}
 			}
@@ -255,8 +264,8 @@ internal object Cmo3SkeletonBuilder {
 			partsEditColor = CColor()
 			_childGuids = CArrayList<Any?>()
 			clipGuidList = CArrayList<Any?>()
-			colorComposition = org.umamo.format.cmo3.model.gen.ColorComposition.NORMAL
-			alphaComposition = org.umamo.format.cmo3.model.gen.AlphaComposition.OVER
+			colorComposition = ColorComposition.NORMAL
+			alphaComposition = AlphaComposition.OVER
 		}
 	}
 
@@ -288,7 +297,7 @@ internal object Cmo3SkeletonBuilder {
 	 */
 	internal fun freshGuid(kind: String): Guid =
 		Guid(kind).apply {
-			uuid = java.util.UUID.randomUUID().toString()
+			uuid = UUID.randomUUID().toString()
 			note = "(no debug info)"
 		}
 
@@ -298,10 +307,10 @@ internal object Cmo3SkeletonBuilder {
 	 * @return Any The fresh KeyFormMorphTargetSet.
 	 */
 	internal fun emptyMorphTargetSet(): Any =
-		org.umamo.format.cmo3.model.gen.KeyFormMorphTargetSet().apply {
+		KeyFormMorphTargetSet().apply {
 			_morphTargets = CArrayList<Any?>()
 			blendWeightConstraintSet =
-				org.umamo.format.cmo3.model.gen.MorphTargetBlendWeightConstraintSet().apply { _constraints = CArrayList<Any?>() }
+				MorphTargetBlendWeightConstraintSet().apply { _constraints = CArrayList<Any?>() }
 		}
 
 	/**
@@ -309,8 +318,8 @@ internal object Cmo3SkeletonBuilder {
 	 *
 	 * @return CFloatColor The fresh color.
 	 */
-	internal fun identityMultiplyColor(): org.umamo.format.cmo3.model.custom.CFloatColor =
-		org.umamo.format.cmo3.model.custom.CFloatColor().apply {
+	internal fun identityMultiplyColor(): CFloatColor =
+		CFloatColor().apply {
 			red = 1f
 			green = 1f
 			blue = 1f
@@ -322,8 +331,8 @@ internal object Cmo3SkeletonBuilder {
 	 *
 	 * @return CFloatColor The fresh color.
 	 */
-	internal fun identityScreenColor(): org.umamo.format.cmo3.model.custom.CFloatColor =
-		org.umamo.format.cmo3.model.custom.CFloatColor().apply { alpha = 1f }
+	internal fun identityScreenColor(): CFloatColor =
+		CFloatColor().apply { alpha = 1f }
 
 	/**
 	 * The default label color (uncustomized, UNDEFINED type).

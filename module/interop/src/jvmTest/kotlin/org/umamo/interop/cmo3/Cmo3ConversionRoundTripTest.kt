@@ -1,7 +1,18 @@
 package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
+import org.umamo.format.cmo3.Cmo3Author
+import org.umamo.format.cmo3.caff.CaffArchive
+import org.umamo.format.cmo3.caff.CaffCodec
+import org.umamo.format.cmo3.model.custom.CImageResource
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.format.cmo3.model.gen.CArtMeshSource
+import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
+import org.umamo.format.cmo3.model.gen.CTextureAtlas
+import org.umamo.format.cmo3.model.gen.CTextureManager
+import org.umamo.format.cmo3.model.gen.GTexture2D
+import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.format.cmo3.xml.XmlCodec
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.png.PngCodec
 import org.umamo.interop.DocumentField
@@ -13,6 +24,8 @@ import org.umamo.interop.moc3.Moc3Sidecars
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.runtime.model.PuppetModel
 import java.io.File
+import java.util.Collections
+import java.util.IdentityHashMap
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -139,13 +152,13 @@ class Cmo3ConversionRoundTripTest {
 		// must be a no-op - a missing or stale import/version PI here is exactly the malformed-file
 		// class the official editor rejects (it resolves element tags through the import list).
 		val writtenMainXml =
-			org.umamo.format.cmo3.caff.CaffCodec.read(written)
-				.firstByTag(org.umamo.format.cmo3.caff.CaffArchive.TAG_MAIN_XML)!!
+			CaffCodec.read(written)
+				.firstByTag(CaffArchive.TAG_MAIN_XML)!!
 				.content
-		val reparsed = org.umamo.format.cmo3.xml.XmlCodec.parse(writtenMainXml)
-		org.umamo.format.cmo3.Cmo3Author.completePrologue(reparsed)
+		val reparsed = XmlCodec.parse(writtenMainXml)
+		Cmo3Author.completePrologue(reparsed)
 
-		if (!org.umamo.format.cmo3.xml.XmlCodec.write(reparsed).contentEquals(writtenMainXml)) {
+		if (!XmlCodec.write(reparsed).contentEquals(writtenMainXml)) {
 			failures.add("$label: written prologue is incomplete (completePrologue on the output is not a no-op)")
 		}
 
@@ -230,18 +243,18 @@ class Cmo3ConversionRoundTripTest {
 		failures: ArrayList<String>,
 	) {
 		// CMO3: CModelSource field textureManager -> CTextureManager field _textureAtlases.
-		val textureManager = source.textureManager as? org.umamo.format.cmo3.model.gen.CTextureManager
+		val textureManager = source.textureManager as? CTextureManager
 		val atlasCount =
 			Cmo3Import
 				.elementsOf(textureManager?._textureAtlases)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
+				.filterIsInstance<CTextureAtlas>()
 				.size
 
 		if (atlasCount != pageSizes.size) {
 			failures.add("$label: wrote $atlasCount atlases for ${pageSizes.size} source pages; a twin must share its slot, not get a page of its own")
 		}
 
-		val fitsBySlot = HashMap<List<Any>, MutableList<Pair<String, org.umamo.format.cmo3.model.type.CAffine>>>()
+		val fitsBySlot = HashMap<List<Any>, MutableList<Pair<String, CAffine>>>()
 
 		for (drawable in encoded.drawables) {
 			val mesh = drawable.mesh ?: continue
@@ -270,7 +283,7 @@ class Cmo3ConversionRoundTripTest {
 	 * @param CAffine second The other.
 	 * @return Boolean True when they place the slot alike.
 	 */
-	private fun samePlacement(first: org.umamo.format.cmo3.model.type.CAffine, second: org.umamo.format.cmo3.model.type.CAffine): Boolean =
+	private fun samePlacement(first: CAffine, second: CAffine): Boolean =
 		abs(first.m00 - second.m00) <= 1f / 1024f &&
 			abs(first.m01 - second.m01) <= 1f / 1024f &&
 			abs(first.m10 - second.m10) <= 1f / 1024f &&
@@ -297,30 +310,30 @@ class Cmo3ConversionRoundTripTest {
 	 */
 	private fun checkDrawablesSampleTheAtlasPages(label: String, source: CModelSource, failures: ArrayList<String>) {
 		// CMO3: CTextureManager field _textureAtlases -> CTextureAtlas field cachedAtlasImage.
-		val textureManager = source.textureManager as? org.umamo.format.cmo3.model.gen.CTextureManager ?: return
+		val textureManager = source.textureManager as? CTextureManager ?: return
 		val pageResources =
 			Cmo3Import
 				.elementsOf(textureManager._textureAtlases)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.CTextureAtlas>()
-				.mapNotNull { atlas -> atlas.cachedAtlasImage as? org.umamo.format.cmo3.model.custom.CImageResource }
+				.filterIsInstance<CTextureAtlas>()
+				.mapNotNull { atlas -> atlas.cachedAtlasImage as? CImageResource }
 
 		if (pageResources.isEmpty()) {
 			return
 		}
 
-		val pageIdentities = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
+		val pageIdentities = Collections.newSetFromMap(IdentityHashMap<Any, Boolean>())
 		pageIdentities.addAll(pageResources)
 		// CMO3: CDrawableSourceSet field _sources -> CArtMeshSource field texture -> GTexture2D field
 		// srcImageResource.
 		val meshes =
 			Cmo3Import
-				.elementsOf((source.drawableSourceSet as? org.umamo.format.cmo3.model.gen.CDrawableSourceSet)?._sources)
-				.filterIsInstance<org.umamo.format.cmo3.model.gen.CArtMeshSource>()
+				.elementsOf((source.drawableSourceSet as? CDrawableSourceSet)?._sources)
+				.filterIsInstance<CArtMeshSource>()
 		val strays =
 			meshes.filter { mesh ->
 				val sampled =
-					(mesh.texture as? org.umamo.format.cmo3.model.gen.GTexture2D)
-						?.srcImageResource as? org.umamo.format.cmo3.model.custom.CImageResource
+					(mesh.texture as? GTexture2D)
+						?.srcImageResource as? CImageResource
 				sampled != null && sampled !in pageIdentities
 			}
 
@@ -346,8 +359,8 @@ class Cmo3ConversionRoundTripTest {
 	 * @return Float The maximum absolute component difference (0 when either grid is absent).
 	 */
 	private fun maxGeometryDrift(
-		source: org.umamo.runtime.model.PuppetModel,
-		reimported: org.umamo.runtime.model.PuppetModel,
+		source: PuppetModel,
+		reimported: PuppetModel,
 		drawableIdRaw: String,
 	): Float {
 		val sourceDrawable = source.drawables.firstOrNull { it.id.raw == drawableIdRaw }

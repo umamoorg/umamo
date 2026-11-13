@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.statusbar
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.runtime.model.BlendMode
+import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableMesh
@@ -103,7 +104,7 @@ class StatusBarStatsTest {
 			Selection(
 				targets =
 					setOf(
-						SelectionTarget.Deformer(org.umamo.runtime.model.DeformerId("warp1")),
+						SelectionTarget.Deformer(DeformerId("warp1")),
 						SelectionTarget.Drawable(DrawableId("face")),
 					),
 			)

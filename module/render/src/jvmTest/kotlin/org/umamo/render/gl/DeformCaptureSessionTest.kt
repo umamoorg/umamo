@@ -8,6 +8,7 @@ import org.umamo.render.device.DeformUniforms
 import org.umamo.render.device.DeformedPositionStore
 import org.umamo.render.device.DrawTextures
 import org.umamo.render.device.GpuMesh
+import org.umamo.render.device.GpuTexture
 import org.umamo.render.device.MeshSpec
 import org.umamo.render.device.TextureFilter
 import kotlin.test.Test
@@ -57,9 +58,9 @@ class DeformCaptureSessionTest {
 	 * @param GlRenderDevice device The device.
 	 * @param DeformedPositionStore store The store to write.
 	 * @param List<Pair<GpuMesh, Int>> captures Each mesh and its offset, in order.
-	 * @param org.umamo.render.device.GpuTexture deltaTexture The zero-delta table every mesh deforms by.
+	 * @param GpuTexture deltaTexture The zero-delta table every mesh deforms by.
 	 */
-	private fun captureAll(device: GlRenderDevice, store: DeformedPositionStore, captures: List<Pair<GpuMesh, Int>>, deltaTexture: org.umamo.render.device.GpuTexture) {
+	private fun captureAll(device: GlRenderDevice, store: DeformedPositionStore, captures: List<Pair<GpuMesh, Int>>, deltaTexture: GpuTexture) {
 		val frame = device.beginFrame()
 		val capture = frame.beginDeformCapturePass(device.createDeformCapturePipeline(), store)
 		val deform = DeformUniforms()

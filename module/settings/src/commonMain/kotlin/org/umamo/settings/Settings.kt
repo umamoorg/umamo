@@ -10,6 +10,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
+import okio.Path
 import org.umamo.storage.AppStorage
 
 /**
@@ -28,7 +29,7 @@ import org.umamo.storage.AppStorage
  */
 class Settings private constructor(
 	private val storage: AppStorage,
-	private val userFile: okio.Path,
+	private val userFile: Path,
 	private val defaults: JsonObject,
 	private var user: JsonObject,
 	val foundUserFile: Boolean,

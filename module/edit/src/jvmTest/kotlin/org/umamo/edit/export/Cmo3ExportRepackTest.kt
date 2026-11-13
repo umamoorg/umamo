@@ -30,6 +30,7 @@ import org.umamo.interop.cmo3.Cmo3Export
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.runtime.model.AtlasPage
 import org.umamo.runtime.model.AtlasPlacement
+import org.umamo.runtime.model.PuppetModel
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -91,7 +92,7 @@ class Cmo3ExportRepackTest {
 		}
 
 	/** Opens the sample and applies a same-page placement nudge, or null when it packs nothing. */
-	private fun nudgedSample(file: File): Triple<Cmo3Model, org.umamo.runtime.model.PuppetModel, Int>? {
+	private fun nudgedSample(file: File): Triple<Cmo3Model, PuppetModel, Int>? {
 		val cmo3 = Cmo3.read(file.readBytes())
 		val modelSource = cmo3.root as? CModelSource ?: error("${file.name}: root is not a CModelSource")
 		val imported = Cmo3Import.fromModelSource(modelSource)

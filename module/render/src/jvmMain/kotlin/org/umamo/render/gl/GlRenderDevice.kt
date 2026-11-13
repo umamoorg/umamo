@@ -49,6 +49,7 @@ import org.umamo.render.glsl.puppetFragmentShader
 import org.umamo.render.glsl.puppetVertexShader
 import org.umamo.render.glsl.tfDeformVertexShader
 import org.umamo.render.glsl.tfDiscardFragmentShader
+import org.umamo.render.puppet.GlueVertexAttributes
 import org.umamo.render.puppet.flipRowsVertically
 import java.nio.ByteBuffer
 
@@ -854,7 +855,7 @@ private val DIALECT = GlslDialect.Core330
  * @param GlueVertexAttributes attributes The mesh's planned per-vertex weld attributes.
  * @return ByteBuffer The interleaved buffer, flipped and ready to upload.
  */
-private fun interleaveGlueAttributes(attributes: org.umamo.render.puppet.GlueVertexAttributes): ByteBuffer {
+private fun interleaveGlueAttributes(attributes: GlueVertexAttributes): ByteBuffer {
 	val vertexCount = attributes.partnerIndex.size
 	val buffer = BufferUtils.createByteBuffer(vertexCount * 3 * Int.SIZE_BYTES)
 

@@ -1,5 +1,6 @@
 package org.umamo.format.cmo3.tools
 
+import org.jdom.Attribute
 import org.jdom.Element
 import org.jdom.input.SAXBuilder
 import org.umamo.format.cmo3.caff.CaffArchive
@@ -236,7 +237,7 @@ class ModelGenerator {
 			val info = tags.getOrPut(tag) { TagInfo() }
 			info.instances++
 			@Suppress("UNCHECKED_CAST")
-			val attrs = element.attributes as List<org.jdom.Attribute>
+			val attrs = element.attributes as List<Attribute>
 
 			for (attribute in attrs) {
 				if (attribute.name !in neutralAttrs) {

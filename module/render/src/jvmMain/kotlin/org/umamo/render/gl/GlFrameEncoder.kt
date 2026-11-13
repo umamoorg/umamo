@@ -22,12 +22,15 @@ import org.umamo.render.device.GridUniforms
 import org.umamo.render.device.LoadAction
 import org.umamo.render.device.OverlayDrawUniforms
 import org.umamo.render.device.OverlayMeshBuffers
+import org.umamo.render.device.PipelineBlend
 import org.umamo.render.device.RenderPassEncoder
 import org.umamo.render.device.RenderPassSpec
 import org.umamo.render.device.RenderPipeline
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureWrap
 import org.umamo.render.device.WorldToNdc
+import org.umamo.render.glsl.MAX_BLEND_CORNERS
+import org.umamo.render.glsl.MAX_CORNERS
 import org.umamo.render.glsl.UNIT_ATLAS
 import org.umamo.render.glsl.UNIT_CP
 import org.umamo.render.glsl.UNIT_DELTA
@@ -152,8 +155,8 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 	private val overlayColorScratch = BufferUtils.createFloatBuffer(4)
 
 	// Scratch for the corner uniform arrays, reused across draws so the per-draw marshalling never allocates.
-	private val cornerCellScratch = BufferUtils.createIntBuffer(org.umamo.render.glsl.MAX_CORNERS)
-	private val cornerWeightScratch = BufferUtils.createFloatBuffer(org.umamo.render.glsl.MAX_CORNERS)
+	private val cornerCellScratch = BufferUtils.createIntBuffer(MAX_CORNERS)
+	private val cornerWeightScratch = BufferUtils.createFloatBuffer(MAX_CORNERS)
 
 	override fun setPipeline(pipeline: RenderPipeline) {
 		val glPipeline = pipeline as GlRenderPipeline
@@ -442,8 +445,8 @@ internal class GlDeformCapturePassEncoder(
 	private val pipeline: GlDeformCapturePipeline,
 	private val store: GlDeformedPositionStore,
 ) : DeformCapturePassEncoder {
-	private val cornerCellScratch = BufferUtils.createIntBuffer(org.umamo.render.glsl.MAX_CORNERS)
-	private val cornerWeightScratch = BufferUtils.createFloatBuffer(org.umamo.render.glsl.MAX_CORNERS)
+	private val cornerCellScratch = BufferUtils.createIntBuffer(MAX_CORNERS)
+	private val cornerWeightScratch = BufferUtils.createFloatBuffer(MAX_CORNERS)
 
 	// The vertex index the open feedback session writes next, or -1 while none is open.
 	private var feedbackCursor = -1
@@ -512,7 +515,7 @@ private fun marshalDeformUniforms(
 	cornerCellScratch: IntBuffer,
 	cornerWeightScratch: FloatBuffer,
 ) {
-	val cornerCount = minOf(org.umamo.render.glsl.MAX_CORNERS, deform.cornerCount)
+	val cornerCount = minOf(MAX_CORNERS, deform.cornerCount)
 	cornerCellScratch.clear()
 	cornerWeightScratch.clear()
 
@@ -527,7 +530,7 @@ private fun marshalDeformUniforms(
 	GL20.glUniform1iv(locations.cornerCell, cornerCellScratch)
 	GL20.glUniform1fv(locations.cornerWeight, cornerWeightScratch)
 	// Blend-shape columns: skip the array uploads entirely for the zero-blend common case.
-	val blendCount = minOf(org.umamo.render.glsl.MAX_BLEND_CORNERS, deform.blendCount)
+	val blendCount = minOf(MAX_BLEND_CORNERS, deform.blendCount)
 	GL20.glUniform1i(locations.blendCount, blendCount)
 
 	if (blendCount > 0) {
@@ -572,8 +575,8 @@ private fun listDrawBuffers(target: GlRenderTarget, both: Boolean) {
 }
 
 // The two-buffer draw list of an order pass's art draws, and the order a clear writes: nothing.
-private val BOTH_DRAW_BUFFERS: java.nio.IntBuffer = BufferUtils.createIntBuffer(2).put(GL30.GL_COLOR_ATTACHMENT0).put(GL30.GL_COLOR_ATTACHMENT1).flip()
-private val ZERO_ORDER: java.nio.FloatBuffer = BufferUtils.createFloatBuffer(4).put(0f).put(0f).put(0f).put(0f).flip()
+private val BOTH_DRAW_BUFFERS: IntBuffer = BufferUtils.createIntBuffer(2).put(GL30.GL_COLOR_ATTACHMENT0).put(GL30.GL_COLOR_ATTACHMENT1).flip()
+private val ZERO_ORDER: FloatBuffer = BufferUtils.createFloatBuffer(4).put(0f).put(0f).put(0f).put(0f).flip()
 
 /**
  * Binds [texture] to the given texture unit as a 2D texture.
@@ -609,25 +612,25 @@ private fun applyCull(cullBackFaces: Boolean) {
 /**
  * Sets the fixed-function blend state for a pipeline's blend mode.
  *
- * @param org.umamo.render.device.PipelineBlend blend The pipeline's blend mode.
+ * @param PipelineBlend blend The pipeline's blend mode.
  */
-private fun applyBlend(blend: org.umamo.render.device.PipelineBlend) {
+private fun applyBlend(blend: PipelineBlend) {
 	when (blend) {
-		org.umamo.render.device.PipelineBlend.Opaque -> {
+		PipelineBlend.Opaque -> {
 			GL11.glDisable(GL11.GL_BLEND)
 		}
 
-		org.umamo.render.device.PipelineBlend.Normal -> {
+		PipelineBlend.Normal -> {
 			GL11.glEnable(GL11.GL_BLEND)
 			GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA)
 		}
 
-		org.umamo.render.device.PipelineBlend.Additive -> {
+		PipelineBlend.Additive -> {
 			GL11.glEnable(GL11.GL_BLEND)
 			GL14.glBlendFuncSeparate(GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO, GL11.GL_ONE)
 		}
 
-		org.umamo.render.device.PipelineBlend.Multiply -> {
+		PipelineBlend.Multiply -> {
 			GL11.glEnable(GL11.GL_BLEND)
 			GL14.glBlendFuncSeparate(GL11.GL_DST_COLOR, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_ONE)
 		}
