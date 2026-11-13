@@ -82,6 +82,12 @@ internal fun buildOutlinerTree(puppet: PuppetModel, rootLabel: String = "Armatur
 	val partsById = puppet.parts.associateBy { part -> part.id }
 	val drawablesById = puppet.drawables.associateBy { drawable -> drawable.id }
 
+	/**
+	 * Builds the outliner node for a drawable.
+	 *
+	 * @param Drawable drawable The drawable.
+	 * @return OutlinerNode The leaf node.
+	 */
 	fun drawableNode(drawable: Drawable): OutlinerNode =
 		OutlinerNode(
 			id = "drawable:${drawable.id.raw}",
@@ -99,6 +105,12 @@ internal fun buildOutlinerTree(puppet: PuppetModel, rootLabel: String = "Armatur
 	// var the part builder closes over and that is assigned the real body once partNode exists.
 	var childNodes: (List<OrgChild>) -> List<OutlinerNode> = { emptyList() }
 
+	/**
+	 * Builds the outliner node for a part, with its children under it.
+	 *
+	 * @param Part part The part.
+	 * @return OutlinerNode The part's node.
+	 */
 	fun partNode(part: Part): OutlinerNode =
 		OutlinerNode(
 			id = "part:${part.id.raw}",
@@ -241,6 +253,13 @@ private fun buildArmatureNode(puppet: PuppetModel, armatureLabel: String): Outli
 	val childrenByParent = puppet.deformers.groupBy { deformer -> deformer.parent }
 	val visited = HashSet<String>()
 
+	/**
+	 * Builds the outliner node for a deformer, with the deformers nested in it; a deformer already visited gets no
+	 * children.
+	 *
+	 * @param Deformer deformer The deformer.
+	 * @return OutlinerNode The deformer's node.
+	 */
 	fun deformerNode(deformer: Deformer): OutlinerNode {
 		val icon =
 			when (deformer) {

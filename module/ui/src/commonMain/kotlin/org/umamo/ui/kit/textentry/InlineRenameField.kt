@@ -58,6 +58,7 @@ fun InlineRenameField(
 	var resolved by remember { mutableStateOf(false) }
 	var hasFocused by remember { mutableStateOf(false) }
 
+	/** Resolves the edit once: commits the trimmed text, or cancels when it is empty. */
 	fun commit() {
 		if (resolved) {
 			return
@@ -73,6 +74,7 @@ fun InlineRenameField(
 		}
 	}
 
+	/** Resolves the edit once, as a cancel. */
 	fun cancel() {
 		if (resolved) {
 			return

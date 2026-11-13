@@ -242,8 +242,20 @@ private fun remapMeshDeltas(form: MeshDeltaForm, vertexSources: List<VertexSourc
  * @return FloatArray The rebuilt values, two per new vertex.
  */
 internal fun remapPerVertex(values: FloatArray, vertexSources: List<VertexSource>, oldVertexCount: Int): FloatArray {
+	/**
+	 * Reads an old vertex's first component, or 0 when the index is out of range.
+	 *
+	 * @param Int oldIndex The old vertex index.
+	 * @return Float The component, or 0.
+	 */
 	fun oldX(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 < values.size) values[oldIndex * 2] else 0f
 
+	/**
+	 * Reads an old vertex's second component, or 0 when the index is out of range.
+	 *
+	 * @param Int oldIndex The old vertex index.
+	 * @return Float The component, or 0.
+	 */
 	fun oldY(oldIndex: Int): Float = if (oldIndex in 0 until oldVertexCount && oldIndex * 2 + 1 < values.size) values[oldIndex * 2 + 1] else 0f
 	val newValues = FloatArray(vertexSources.size * 2)
 	vertexSources.forEachIndexed { newIndex, source ->

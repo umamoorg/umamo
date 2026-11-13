@@ -37,6 +37,12 @@ internal fun channelMaskFrom(channelFlags: String?, format: KraPixelFormat): Cha
 		return ChannelMask.ALL
 	}
 
+	/**
+	 * Tells whether the layer's channel flags leave a channel enabled; one the flags do not cover is.
+	 *
+	 * @param Int channelIndex The channel's position in the flags.
+	 * @return Boolean True unless the channel's flag is `0`.
+	 */
 	fun channelEnabled(channelIndex: Int): Boolean =
 		channelIndex !in channelFlags.indices || channelFlags[channelIndex] != '0'
 

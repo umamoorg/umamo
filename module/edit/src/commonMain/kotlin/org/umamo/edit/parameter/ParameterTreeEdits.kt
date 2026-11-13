@@ -42,6 +42,11 @@ sealed interface ParameterNodeRef {
 internal fun collectParameterGroupIds(nodes: List<ParameterNode>): Set<ParameterGroupId> {
 	val ids = HashSet<ParameterGroupId>()
 
+	/**
+	 * Adds the id of every group in a node list, nested ones included.
+	 *
+	 * @param List<ParameterNode> list The node list to walk.
+	 */
 	fun walk(list: List<ParameterNode>) {
 		for (node in list) {
 			if (node is ParameterNode.Group) {
@@ -226,6 +231,11 @@ private fun collectSubjectNodes(tree: List<ParameterNode>, subject: ParameterMov
 private fun collectLeafIds(nodes: List<ParameterNode>): Set<ParameterId> {
 	val ids = HashSet<ParameterId>()
 
+	/**
+	 * Adds the id of every leaf in a node list, nested ones included.
+	 *
+	 * @param List<ParameterNode> list The node list to walk.
+	 */
 	fun walk(list: List<ParameterNode>) {
 		for (node in list) {
 			when (node) {

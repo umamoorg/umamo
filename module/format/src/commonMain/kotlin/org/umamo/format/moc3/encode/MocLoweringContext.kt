@@ -234,6 +234,13 @@ internal class BlendShapeLayout(doc: MocDocument) {
 		// The limit sub-binding pool, deduplicated by value.  Sorted by gating-parameter index
 		// (corpus-observed); the within-parameter tie-break is first-occurrence order across
 		// recordsInFileOrder (Kotlin's sortedBy is stable).
+
+		/**
+		 * The value a limit is deduplicated by: its gating parameter, key positions, and weights.
+		 *
+		 * @param BlendShapeLimit limit The limit.
+		 * @return List<Any> The identity, comparable by value.
+		 */
 		fun identityOf(limit: BlendShapeLimit): List<Any> =
 			listOf(limit.parameterIndex, limit.keyPositions.toList(), limit.weights.toList())
 

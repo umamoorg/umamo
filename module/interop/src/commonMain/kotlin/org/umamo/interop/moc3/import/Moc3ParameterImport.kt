@@ -80,6 +80,12 @@ internal fun importParameterTree(context: Moc3ImportContext): List<ParameterNode
 			.groupBy { parameter -> if (parameter.groupId in groupIds) parameter.groupId else "" }
 	val visited = HashSet<String>()
 
+	/**
+	 * Builds a group's children: its parameters, then its sub-groups, each group once.
+	 *
+	 * @param String ownerGroupId The owning group's id, empty for the root.
+	 * @return List<ParameterNode> The child nodes.
+	 */
 	fun childrenOf(ownerGroupId: String): List<ParameterNode> =
 		buildList {
 			for (parameter in parametersByGroup[ownerGroupId].orEmpty()) {
@@ -109,6 +115,11 @@ internal fun importParameterTree(context: Moc3ImportContext): List<ParameterNode
 	// covers every axis (the tree replaces the flat list when non-empty).
 	val placedParameterIds =
 		buildSet {
+			/**
+			 * Adds the id of every parameter leaf in a node list, nested ones included.
+			 *
+			 * @param List<ParameterNode> nodes The node list to walk.
+			 */
 			fun walk(nodes: List<ParameterNode>) {
 				for (node in nodes) {
 					when (node) {

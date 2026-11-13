@@ -37,6 +37,13 @@ dependencyResolutionManagement {
 // declarations stay terse — project(":format"), not project(":module:format") — while the
 // folder tree stays tidy. Path ≠ directory ≠ package: three separate things.
 // (settings.gradle.kts is just Kotlin, so a local helper removes the repetition.)
+
+/**
+ * Includes a module under a flat Gradle path, with its project directory set apart from that path.
+ *
+ * @param String path The Gradle path, such as `:format`.
+ * @param String dir The module's directory, relative to the repo root.
+ */
 fun includeAt(path: String, dir: String) {
 	include(path)
 	project(path).projectDir = file(dir)

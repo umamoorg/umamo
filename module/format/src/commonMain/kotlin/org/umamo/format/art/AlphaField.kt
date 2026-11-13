@@ -293,6 +293,12 @@ private fun seedTrianglePixels(triangles: DoubleArray): IntArray {
 	var pixels = IntArray(64)
 	var count = 0
 
+	/**
+	 * Appends a pixel to the list, growing the array when it is full.
+	 *
+	 * @param Int column The pixel's column.
+	 * @param Int row The pixel's row.
+	 */
 	fun add(column: Int, row: Int) {
 		if (count + 2 > pixels.size) {
 			pixels = pixels.copyOf(pixels.size * 2)

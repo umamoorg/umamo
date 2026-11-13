@@ -288,6 +288,12 @@ public object CaffCodec {
 		return writer.toByteArray()
 	}
 
+	/**
+	 * The number of bytes a value takes as a CAFF variable-length integer.
+	 *
+	 * @param Int value The value to encode.
+	 * @return Int The byte count, 1 to 4.
+	 */
 	private fun varIntSize(value: Int): Int =
 		when {
 			value < 0x80 -> 1
@@ -297,6 +303,12 @@ public object CaffCodec {
 			else -> throw IllegalArgumentException("varint too large: $value")
 		}
 
+	/**
+	 * Encodes a format identifier, which must be exactly four bytes.
+	 *
+	 * @param String identifier The four-character identifier.
+	 * @return ByteArray Its bytes.
+	 */
 	private fun padFour(identifier: String): ByteArray {
 		val bytes = identifier.encodeToByteArray()
 		require(bytes.size == 4) { "format identifier must be 4 bytes: '$identifier'" }

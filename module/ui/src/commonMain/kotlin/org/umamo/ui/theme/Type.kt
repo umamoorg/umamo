@@ -112,6 +112,14 @@ data class UmamoTypography(
  * @return UmamoTypography The built scale.
  */
 fun umamoTypographyWith(family: FontFamily): UmamoTypography {
+	/**
+	 * Builds one text style of the scale, in the given family.
+	 *
+	 * @param Int sizeSp The font size, in sp.
+	 * @param Int lineSp The line height, in sp.
+	 * @param FontWeight weight The font weight.
+	 * @return TextStyle The style.
+	 */
 	fun style(sizeSp: Int, lineSp: Int, weight: FontWeight = FontWeight.Normal): TextStyle =
 		TextStyle(fontFamily = family, fontSize = sizeSp.sp, lineHeight = lineSp.sp, fontWeight = weight)
 

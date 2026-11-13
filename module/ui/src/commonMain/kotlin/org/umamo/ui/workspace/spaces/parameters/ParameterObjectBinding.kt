@@ -45,8 +45,12 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 	val gluesByMesh = puppet.gluesByMesh()
 	val result = HashSet<ParameterId>()
 
-	// Walks the deformer nesting from [startDeformerId] up through parents, adding each deformer's axes
-	// and blend-shape drivers. A visited guard defends against a malformed cyclic parent chain.
+	/**
+	 * Walks the deformer nesting from [startDeformerId] up through parents, adding each deformer's axes
+	 * and blend-shape drivers. A visited guard defends against a malformed cyclic parent chain.
+	 *
+	 * @param DeformerId? startDeformerId The deformer to start from, or null.
+	 */
 	fun addDeformerChainAxes(startDeformerId: DeformerId?) {
 		val visited = HashSet<DeformerId>()
 		var current = startDeformerId
@@ -59,9 +63,13 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 		}
 	}
 
-	// A drawable's effective set: its own mesh keyform axes and blend-shape drivers, its whole parent
-	// deformer chain's axes, and the intensity tracks of every glue welding it - a weld visibly moves
-	// the drawable's vertices, so its driving parameter affects the drawable.
+	/**
+	 * A drawable's effective set: its own mesh keyform axes and blend-shape drivers, its whole parent
+	 * deformer chain's axes, and the intensity tracks of every glue welding it - a weld visibly moves
+	 * the drawable's vertices, so its driving parameter affects the drawable.
+	 *
+	 * @param Drawable drawable The drawable.
+	 */
 	fun addDrawableEffective(drawable: Drawable) {
 		// Geometry AND channel tracks, so an opacity-only track still reports the parameter driving it.
 		drawable.geometryGrid?.axes?.forEach { axis -> result.add(axis.parameterId) }
@@ -138,11 +146,23 @@ internal fun PuppetModel.parameterKeyMarks(): Map<ParameterId, ParameterKeyMarks
 	val gridKeysByParameter = HashMap<ParameterId, MutableSet<Float>>()
 	val blendKeysByParameter = HashMap<ParameterId, MutableSet<Float>>()
 
+	/**
+	 * Adds a keyform axis's keys to the parameter's grid marks.
+	 *
+	 * @param ParameterId parameterId The parameter the keys sit on.
+	 * @param FloatArray keys The key values.
+	 */
 	fun addGridKeys(parameterId: ParameterId, keys: FloatArray) {
 		val values = gridKeysByParameter.getOrPut(parameterId) { sortedSetOf() }
 		keys.forEach { keyValue -> values.add(keyValue) }
 	}
 
+	/**
+	 * Adds a blend shape's keys to the parameter's blend marks.
+	 *
+	 * @param ParameterId parameterId The parameter the keys sit on.
+	 * @param FloatArray keys The key values.
+	 */
 	fun addBlendKeys(parameterId: ParameterId, keys: FloatArray) {
 		val values = blendKeysByParameter.getOrPut(parameterId) { sortedSetOf() }
 		keys.forEach { keyValue -> values.add(keyValue) }
@@ -232,6 +252,11 @@ private fun Deformer.blendShapeDrivers(): List<ParameterId> =
 private fun collectPartDrawables(part: Part, partById: Map<PartId, Part>): List<DrawableId> {
 	val result = ArrayList<DrawableId>()
 
+	/**
+	 * Adds the drawables in a child list and under its parts.
+	 *
+	 * @param List<OrgChild> children The child list to walk.
+	 */
 	fun walk(children: List<OrgChild>) {
 		for (child in children) {
 			when (child) {

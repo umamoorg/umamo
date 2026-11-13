@@ -291,6 +291,12 @@ internal object Cmo3SourceLayerWeb {
 		childrenByPath[""] = rootChildren
 		groupByPath[""] = rootGroup
 
+		/**
+		 * The layer group for a folder path, created along with its missing ancestors on first use.
+		 *
+		 * @param String path The folder path, empty for the root.
+		 * @return CLayerGroup The folder's layer group.
+		 */
 		fun folderAt(path: String): CLayerGroup {
 			groupByPath[path]?.let { existing -> return existing }
 			val parentPath = path.substringBeforeLast('/', "")

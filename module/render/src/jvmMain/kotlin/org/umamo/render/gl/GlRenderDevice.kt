@@ -73,6 +73,11 @@ class GlRenderDevice : RenderDevice {
 	private val renderPipelines = HashMap<RenderPipelineSpec, GlRenderPipeline>()
 	private var deformCapturePipeline: GlDeformCapturePipeline? = null
 
+	/**
+	 * The vertex array with no attributes, created on first use.
+	 *
+	 * @return Int The vertex array's name.
+	 */
 	private fun ensureEmptyVao(): Int {
 		if (emptyVao == 0) {
 			emptyVao = GL30.glGenVertexArrays()
@@ -703,10 +708,28 @@ class GlRenderDevice : RenderDevice {
 		}
 	}
 
+	/**
+	 * The GL internal format a texture format is stored as.
+	 *
+	 * @param TextureFormat format The texture format.
+	 * @return Int The GL constant.
+	 */
 	private fun internalFormatOf(format: TextureFormat): Int = if (format == TextureFormat.Rgba8) GL11.GL_RGBA8 else GL30.GL_RG32F
 
+	/**
+	 * The GL pixel format a texture format is uploaded as.
+	 *
+	 * @param TextureFormat format The texture format.
+	 * @return Int The GL constant.
+	 */
 	private fun pixelFormatOf(format: TextureFormat): Int = if (format == TextureFormat.Rgba8) GL11.GL_RGBA else GL30.GL_RG
 
+	/**
+	 * The GL pixel type a texture format is uploaded as.
+	 *
+	 * @param TextureFormat format The texture format.
+	 * @return Int The GL constant.
+	 */
 	private fun pixelTypeOf(format: TextureFormat): Int = if (format == TextureFormat.Rgba8) GL11.GL_UNSIGNED_BYTE else GL11.GL_FLOAT
 
 	/**

@@ -251,6 +251,11 @@ internal fun preparePose(
 	// immutable across all of them.
 	val partsById = model.partById
 
+	/**
+	 * Resolves a render group's posed draw order and composite state, then its child groups'.
+	 *
+	 * @param RenderGroup group The group to resolve.
+	 */
 	fun blendGroupStates(group: RenderGroup) {
 		val partId = group.partId
 		val channels = group.channelGrids

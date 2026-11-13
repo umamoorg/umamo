@@ -143,8 +143,20 @@ object MeshTopologyOps {
 		val newPositions = FloatArray(newCount * 2)
 		val newUvs = FloatArray(newCount * 2)
 
+		/**
+		 * Reads an old vertex's U, or 0 when the mesh stores no UV for it.
+		 *
+		 * @param Int oldIndex The old vertex index.
+		 * @return Float The U coordinate, or 0.
+		 */
 		fun uvX(oldIndex: Int): Float = if (oldIndex * 2 < mesh.uvs.size) mesh.uvs[oldIndex * 2] else 0f
 
+		/**
+		 * Reads an old vertex's V, or 0 when the mesh stores no UV for it.
+		 *
+		 * @param Int oldIndex The old vertex index.
+		 * @return Float The V coordinate, or 0.
+		 */
 		fun uvY(oldIndex: Int): Float = if (oldIndex * 2 + 1 < mesh.uvs.size) mesh.uvs[oldIndex * 2 + 1] else 0f
 		keptOld.forEachIndexed { newIndex, oldIndex ->
 			newPositions[newIndex * 2] = mesh.positions[oldIndex * 2]

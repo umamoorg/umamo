@@ -470,6 +470,12 @@ fun PuppetModel.partByDrawable(): Map<DrawableId, PartId?> {
 	val partById = parts.associateBy { it.id }
 	val owner = HashMap<DrawableId, PartId?>()
 
+	/**
+	 * Records the owning part of every drawable in a child list and under its parts.
+	 *
+	 * @param List<OrgChild> children The child list to walk.
+	 * @param PartId? parent The part that owns the list, or null at the root.
+	 */
 	fun walk(children: List<OrgChild>, parent: PartId?) {
 		for (child in children) {
 			when (child) {
@@ -494,6 +500,13 @@ fun PuppetModel.firstEditableDrawableInPanelOrder(): DrawableId? {
 	val partById = parts.associateBy { it.id }
 	val drawableById = drawables.associateBy { it.id }
 
+	/**
+	 * Finds the first visible drawable with a mesh in a child list, in panel order, descending into parts.
+	 *
+	 * @param List<OrgChild> children The child list to search.
+	 * @param Boolean ancestorsVisible Whether every part above the list is visible.
+	 * @return DrawableId? The drawable, or null when the list holds none.
+	 */
 	fun walk(children: List<OrgChild>, ancestorsVisible: Boolean): DrawableId? {
 		for (child in children) {
 			when (child) {

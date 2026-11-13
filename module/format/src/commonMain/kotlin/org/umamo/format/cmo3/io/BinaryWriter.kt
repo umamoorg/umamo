@@ -16,6 +16,11 @@ public class BinaryWriter(initialCapacity: Int = 64 * 1024) {
 	public var position: Int = 0
 		private set
 
+	/**
+	 * Grows the buffer so that more bytes fit past the cursor.
+	 *
+	 * @param Int additional The number of bytes about to be written.
+	 */
 	private fun ensure(additional: Int) {
 		val needed = position + additional
 

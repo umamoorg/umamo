@@ -517,6 +517,11 @@ class StatementIfBracesRuleTest {
 					return x == other.x
 				}
 
+				/**
+				 * Visits the values.
+				 *
+				 * @param List<Int> values The values to visit.
+				 */
 				fun visit(values: List<Int>) {
 					values.forEach { value -> if (value < 0) return }
 					for (value in values) if (value == 0) println("zero")
@@ -540,6 +545,11 @@ class StatementIfBracesRuleTest {
 					return x == other.x
 				}
 
+				/**
+				 * Visits the values.
+				 *
+				 * @param List<Int> values The values to visit.
+				 */
 				fun visit(values: List<Int>) {
 					values.forEach { value ->
 						if (value < 0) {

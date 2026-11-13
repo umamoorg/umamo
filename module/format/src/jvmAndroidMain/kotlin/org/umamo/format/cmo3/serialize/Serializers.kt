@@ -148,6 +148,12 @@ internal class ReflectiveClassSerializer(
 	private val childPropertiesByPropName: Map<String, KMutableProperty1<Any, Any?>> =
 		childProperties.associateBy { it.name }
 
+	/**
+	 * The serialized attribute name: the annotation's name, else the Kotlin property name.
+	 *
+	 * @param KMutableProperty1<Any, Any?> property The attribute property.
+	 * @return String The attribute name.
+	 */
 	private fun attributeNameOf(property: KMutableProperty1<Any, Any?>): String =
 		property.findAnnotation<SerialAttribute>()!!.name.ifEmpty { property.name }
 
@@ -211,6 +217,11 @@ internal class ReflectiveClassSerializer(
 		}
 	}
 
+	/**
+	 * Lists the class's serializable properties in field declaration order, each made accessible.
+	 *
+	 * @return List<KMutableProperty1<Any, Any?>> The properties, in declaration order.
+	 */
 	@Suppress("UNCHECKED_CAST")
 	private fun buildProperties(): List<KMutableProperty1<Any, Any?>> {
 		val fieldOrder = kClass.java.declaredFields.map { it.name }
@@ -298,6 +309,13 @@ internal class ReflectiveClassSerializer(
 		return element
 	}
 
+	/**
+	 * Tells whether a value equals what a default instance holds for the property.
+	 *
+	 * @param KMutableProperty1<Any, Any?> property The property.
+	 * @param Any? propertyValue The value about to be written.
+	 * @return Boolean True when it matches the default; false when the class has no default instance.
+	 */
 	private fun isDefaultValue(property: KMutableProperty1<Any, Any?>, propertyValue: Any?): Boolean {
 		val default = defaultInstance ?: return false
 
@@ -343,6 +361,13 @@ internal class ReflectiveClassSerializer(
 		}
 	}
 
+	/**
+	 * Parses an attribute's text into the property's scalar type.
+	 *
+	 * @param String raw The attribute text.
+	 * @param KMutableProperty1<Any, Any?> property The property the value is for.
+	 * @return Any The parsed value, or the text itself for any other type.
+	 */
 	private fun parseScalar(raw: String, property: KMutableProperty1<Any, Any?>): Any =
 		when (property.returnType.classifier) {
 			Int::class -> raw.toInt()

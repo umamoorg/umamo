@@ -38,8 +38,11 @@ ij_kotlin_packages_to_use_import_on_demand = org.umamo.ui.resources.**
 # umamo:docblock-tags holds a documented function to the whole house tag block: one @param per parameter
 # and @return for a returned value.  A test source may keep a summary-only docblock, since a fixture
 # helper's one line usually says enough; the tags a test docblock does have still match its signature.
-[**/src/*Test/**.kt]
+[**/src/{*Test,test}/**.kt]
 umamo_docblock_tags_mode = drift_only
+# umamo:function-docblock asks a docblock of every named function that is not an override.  A test case's
+# name says what it pins, so test sources are not held to it.
+ktlint_umamo_function-docblock = disabled
 
 [*.{yml,yaml,json,toml}]
 indent_style = space

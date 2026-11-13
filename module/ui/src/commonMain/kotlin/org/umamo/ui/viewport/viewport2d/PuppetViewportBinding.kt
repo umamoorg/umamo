@@ -441,6 +441,7 @@ fun rememberPuppetViewportHost(
 	// defaults, and highlight parser are shared with the preferences window via ViewportSettings.
 	val settings = LocalSettings.current
 	LaunchedEffect(service, settings, session) {
+		/** Pushes the current viewport settings into the render service. */
 		fun applyViewportSettings() {
 			service.zoomStepPercent =
 				(settings.getDouble(ViewportSettings.ZOOM_STEP_KEY) ?: ViewportSettings.ZOOM_STEP_DEFAULT).toFloat()

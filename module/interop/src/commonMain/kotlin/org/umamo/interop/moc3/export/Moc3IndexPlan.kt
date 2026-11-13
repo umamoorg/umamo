@@ -125,6 +125,11 @@ class Moc3IndexPlan private constructor(
 			val ordered = ArrayList<Part>(puppet.parts.size)
 			val visited = HashSet<PartId>()
 
+			/**
+			 * Appends the parts in a child list and under them, depth first, each once.
+			 *
+			 * @param List<OrgChild> children The child list to walk.
+			 */
 			fun walk(children: List<OrgChild>) {
 				for (child in children) {
 					if (child !is OrgChild.Part) {
@@ -169,6 +174,11 @@ class Moc3IndexPlan private constructor(
 			val ordered = ArrayList<Deformer>(deformers.size)
 			val visited = HashSet<DeformerId>()
 
+			/**
+			 * Appends a deformer and then its children, depth first, each once.
+			 *
+			 * @param Deformer deformer The deformer to visit.
+			 */
 			fun walk(deformer: Deformer) {
 				if (!visited.add(deformer.id)) {
 					return

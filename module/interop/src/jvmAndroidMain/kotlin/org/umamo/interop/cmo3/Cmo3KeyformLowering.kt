@@ -210,6 +210,13 @@ internal class Cmo3KeyformLowering(
 			else -> null
 		} as? org.umamo.format.cmo3.model.drawable.CoordType
 
+	/**
+	 * Records an edit this export cannot represent.
+	 *
+	 * @param ExportEntityCategory category The kind of entity the edit is on.
+	 * @param String? subject The entity's id, or null.
+	 * @param ExportNoticeReason reason Why it cannot be written.
+	 */
 	private fun unsupported(
 		category: ExportEntityCategory,
 		subject: String?,
@@ -328,6 +335,12 @@ internal class Cmo3KeyformLowering(
 		return byValues
 	}
 
+	/**
+	 * A map key for a set of parameter values, the same for the same values in any order.
+	 *
+	 * @param Map<ParameterId, Float> values The parameter values of one grid cell.
+	 * @return String The key, built from each value's exact bits.
+	 */
 	private fun valueKey(values: Map<ParameterId, Float>): String =
 		values.entries
 			.sortedBy { entry -> entry.key.raw }
@@ -570,10 +583,28 @@ internal class Cmo3KeyformLowering(
 		editor.ensureChildSlot(form, formTag, property, beforeProperty)
 	}
 
+	/**
+	 * The scalar a channel value holds.
+	 *
+	 * @param ChannelValue? value The channel value, or null.
+	 * @return Float? The scalar, or null when the value is absent or of another kind.
+	 */
 	private fun scalarOf(value: ChannelValue?): Float? = (value as? ChannelValue.Scalar)?.value
 
+	/**
+	 * The color a channel value holds.
+	 *
+	 * @param ChannelValue? value The channel value, or null.
+	 * @return ColorRgb? The color, or null when the value is absent or of another kind.
+	 */
 	private fun colorOf(value: ChannelValue?): ColorRgb? = (value as? ChannelValue.Color)?.color
 
+	/**
+	 * The flag a channel value holds.
+	 *
+	 * @param ChannelValue? value The channel value, or null.
+	 * @return Boolean? The flag, or null when the value is absent or of another kind.
+	 */
 	private fun flagOf(value: ChannelValue?): Boolean? = (value as? ChannelValue.Flag)?.flag
 
 	/**
@@ -642,6 +673,14 @@ internal class Cmo3KeyformLowering(
 		val template =
 			templateForm<CArtMeshForm>(source.keyforms, index.drawableSources.map { it.keyforms })
 
+		/**
+		 * Writes one grid cell's art-mesh form, onto the existing form or a fresh one built from the template.
+		 *
+		 * @param CArtMeshForm? existing The form already at this cell, or null to create one.
+		 * @param FloatArray? deltas The cell's mesh deltas, or null for none.
+		 * @param Map<FormChannel, ChannelValue> channels The cell's channel values.
+		 * @return CArtMeshForm The written form.
+		 */
 		fun writeMeshForm(existing: CArtMeshForm?, deltas: FloatArray?, channels: Map<FormChannel, ChannelValue>): CArtMeshForm {
 			val form =
 				existing
@@ -765,6 +804,14 @@ internal class Cmo3KeyformLowering(
 		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CWarpDeformerForm>(source.keyforms, index.deformerSources.filterIsInstance<CWarpDeformerSource>().map { it.keyforms })
 
+		/**
+		 * Writes one grid cell's warp form, onto the existing form or a fresh one built from the template.
+		 *
+		 * @param CWarpDeformerForm? existing The form already at this cell, or null to create one.
+		 * @param WarpLatticeForm? payload The cell's lattice, or null to leave the stored control points alone.
+		 * @param Map<FormChannel, ChannelValue> channels The cell's channel values.
+		 * @return CWarpDeformerForm The written form.
+		 */
 		fun writeWarpForm(existing: CWarpDeformerForm?, payload: WarpLatticeForm?, channels: Map<FormChannel, ChannelValue>): CWarpDeformerForm {
 			val form =
 				existing
@@ -867,6 +914,14 @@ internal class Cmo3KeyformLowering(
 		val existingForms = existingFormsByValues(source.keyformGridSource, source.keyforms)
 		val template = templateForm<CRotationDeformerForm>(source.keyforms, index.deformerSources.filterIsInstance<CRotationDeformerSource>().map { it.keyforms })
 
+		/**
+		 * Writes one grid cell's rotation form, onto the existing form or a fresh one built from the template.
+		 *
+		 * @param CRotationDeformerForm? existing The form already at this cell, or null to create one.
+		 * @param RotationPivotForm? payload The cell's pivot form, or null to leave the stored pivot alone.
+		 * @param Map<FormChannel, ChannelValue> channels The cell's channel values.
+		 * @return CRotationDeformerForm The written form.
+		 */
 		fun writeRotationForm(existing: CRotationDeformerForm?, payload: RotationPivotForm?, channels: Map<FormChannel, ChannelValue>): CRotationDeformerForm {
 			val form =
 				existing

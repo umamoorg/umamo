@@ -16,6 +16,13 @@ import org.umamo.runtime.model.SourceLayerRef
  * mutation - [ArtworkReloadPlanner] turns the matched and added halves into a model delta.
  */
 interface Reconciler {
+	/**
+	 * Classifies each binding against a new read of the artwork.
+	 *
+	 * @param List<SourceLayerRef> bindings The rig's source-layer bindings.
+	 * @param SourceArt newArt The artwork as just read.
+	 * @return ReconcileReport What matched, what was added, and what needs review.
+	 */
 	fun reconcile(bindings: List<SourceLayerRef>, newArt: SourceArt): ReconcileReport
 }
 

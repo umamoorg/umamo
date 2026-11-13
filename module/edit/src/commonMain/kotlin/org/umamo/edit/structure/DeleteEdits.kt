@@ -228,7 +228,12 @@ fun PuppetModel.withPartDeleted(id: PartId, cascade: Boolean): PuppetModel {
 			.copy(rootPartId = if (rootPartId != null && rootPartId in subtree) null else rootPartId)
 			.withDerivedRenderRoot()
 	} else {
-		// Ungroup: replace the part ref with the part's own children, in place, wherever it sits.
+		/**
+		 * Ungroups: replaces the part's reference with the part's own children, in place, wherever it sits.
+		 *
+		 * @param List<OrgChild> children The child list to rewrite.
+		 * @return List<OrgChild> The rewritten list.
+		 */
 		fun splice(children: List<OrgChild>): List<OrgChild> = children.flatMap { if (it == partRef) part.children else listOf(it) }
 		val cleanedRoot = splice(rootChildren)
 		val remainingParts = parts.filterNot { it.id == id }.map { it.copy(children = splice(it.children)) }.withPartMaskUngrouped(part)

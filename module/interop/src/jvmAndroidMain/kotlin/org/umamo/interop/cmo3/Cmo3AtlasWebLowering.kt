@@ -437,7 +437,12 @@ internal class Cmo3AtlasWebLowering(
 			mutableGraphListOf(site.atlas.modelImages)?.remove(site.entry)
 		}
 
-		// The page's shared texture, for every drawable that samples the page from here on.
+		/**
+		 * The page's shared texture, for every drawable that samples the page from here on.
+		 *
+		 * @param Int pageIndex The atlas page's index.
+		 * @return GTexture2D The texture, built on first use for a page nothing has sampled.
+		 */
 		fun pageTextureFor(pageIndex: Int): GTexture2D {
 			mintedTextureByAtlasIndex[pageIndex]?.let { minted -> return minted }
 

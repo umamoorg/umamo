@@ -21,6 +21,7 @@ public class UmamoRuleSetProvider : RuleSetProviderV3(RuleSetId(UMAMO_RULE_SET_I
 		setOf(
 			RuleProvider { BlankLineAroundControlFlowRule() },
 			RuleProvider { DocblockTagsRule() },
+			RuleProvider { FunctionDocblockRule() },
 			RuleProvider { NoCommentEmphasisRule() },
 			RuleProvider { NoUnitOnlyBlockRule() },
 			RuleProvider { StatementIfBracesRule() },

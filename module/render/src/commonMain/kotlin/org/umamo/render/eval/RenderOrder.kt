@@ -46,12 +46,24 @@ fun renderPlan(
 	drawOrder: Map<DrawableId, Float>,
 	partDrawOrders: Map<PartId, Float> = emptyMap(),
 ): List<RenderPlanNode> {
+	/**
+	 * The integer draw order a node sorts by at the current pose.
+	 *
+	 * @param RenderNode node The render node.
+	 * @return Int The draw order, truncated after a small bias.
+	 */
 	fun sortKey(node: RenderNode): Int =
 		when (node) {
 			is RenderDrawable -> ((drawOrder[node.id] ?: DEFAULT_DRAW_ORDER.toFloat()) + 0.001f).toInt()
 			is RenderGroup -> node.partId?.let { partDrawOrders[it] }?.let { (it + 0.001f).toInt() } ?: node.drawOrder
 		}
 
+	/**
+	 * Emits a group's children in draw order, nesting a composited part's subtree under a node of its own.
+	 *
+	 * @param RenderGroup group The group to emit.
+	 * @param ArrayList<RenderPlanNode> into The list that takes the plan nodes.
+	 */
 	fun emit(group: RenderGroup, into: ArrayList<RenderPlanNode>) {
 		for (child in group.children.sortedBy(::sortKey)) {
 			when (child) {
@@ -90,6 +102,11 @@ fun renderPlan(
 fun flattenRenderPlan(nodes: List<RenderPlanNode>): List<DrawableId> {
 	val result = ArrayList<DrawableId>()
 
+	/**
+	 * Adds a plan node's drawables, in order.
+	 *
+	 * @param RenderPlanNode node The plan node to walk.
+	 */
 	fun walk(node: RenderPlanNode) {
 		when (node) {
 			is RenderPlanDrawable -> result.add(node.id)

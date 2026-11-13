@@ -133,6 +133,11 @@ fun <TGeometry> buildKeyformBundle(
 	// geometry grid (the order the import's fan-out preserved).
 	val unionKeys = LinkedHashMap<ParameterId, FloatArray>()
 
+	/**
+	 * Merges an axis's keys into the union kept for its parameter.
+	 *
+	 * @param KeyformAxis axis The axis to merge.
+	 */
 	fun mergeAxis(axis: KeyformAxis) {
 		val existing = unionKeys[axis.parameterId]
 		unionKeys[axis.parameterId] =

@@ -281,6 +281,11 @@ fun PuppetModel.subtreeTargets(target: SelectionTarget): List<SelectionTarget> =
 			val visitedPartIds = HashSet<PartId>()
 			val collected = mutableListOf<SelectionTarget>()
 
+			/**
+			 * Collects a part, its sub-parts, and their drawables, visiting each part once.
+			 *
+			 * @param PartId partId The part to visit.
+			 */
 			fun visitPart(partId: PartId) {
 				if (!visitedPartIds.add(partId)) {
 					return
@@ -309,6 +314,11 @@ fun PuppetModel.subtreeTargets(target: SelectionTarget): List<SelectionTarget> =
 			val visitedDeformerIds = HashSet<DeformerId>()
 			val collected = mutableListOf<SelectionTarget>()
 
+			/**
+			 * Collects a deformer and every deformer nested under it, visiting each once.
+			 *
+			 * @param DeformerId deformerId The deformer to visit.
+			 */
 			fun visitDeformer(deformerId: DeformerId) {
 				if (!visitedDeformerIds.add(deformerId)) {
 					return

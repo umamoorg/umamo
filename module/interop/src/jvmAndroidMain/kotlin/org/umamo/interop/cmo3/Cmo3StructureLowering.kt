@@ -93,6 +93,13 @@ internal class Cmo3StructureLowering(
 		}
 	}
 
+	/**
+	 * Records an edit this export cannot represent.
+	 *
+	 * @param ExportEntityCategory category The kind of entity the edit is on.
+	 * @param String? subject The entity's id, or null.
+	 * @param ExportNoticeReason reason Why it cannot be written.
+	 */
 	private fun unsupported(
 		category: ExportEntityCategory,
 		subject: String?,
@@ -101,6 +108,13 @@ internal class Cmo3StructureLowering(
 		notices.add(ExportNotice.UnsupportedChange(category, subject, reason))
 	}
 
+	/**
+	 * A fresh guid of the template's kind, or of a fallback kind when there is no template.
+	 *
+	 * @param Guid? template The guid whose kind and note to copy, or null.
+	 * @param String fallbackKind The kind to use without a template.
+	 * @return Guid The new guid.
+	 */
 	private fun freshGuidLike(template: Guid?, fallbackKind: String): Guid =
 		Guid(template?.kind ?: fallbackKind).apply {
 			uuid = java.util.UUID.randomUUID().toString()
@@ -117,9 +131,27 @@ internal class Cmo3StructureLowering(
 		org.umamo.format.cmo3.model.drawable.CoordType().apply { coordName = "Basic Coord" }
 	}
 
+	/**
+	 * A fresh id of the template's kind, carrying a given id string.
+	 *
+	 * @param Id? template The id whose kind to copy, or null.
+	 * @param String fallbackKind The kind to use without a template.
+	 * @param String idStr The id string.
+	 * @return Id The new id.
+	 */
 	private fun freshIdLike(template: Id?, fallbackKind: String, idStr: String): Id =
 		Id(template?.kind ?: fallbackKind).apply { idstr = idStr }
 
+	/**
+	 * Appends an element to a graph collection field, creating the list when the field holds none.
+	 *
+	 * @param Any owner The graph object that owns the field.
+	 * @param String ownerTag The class level of the owner, by tag.
+	 * @param String property The field's name.
+	 * @param Any? current The field's current value.
+	 * @param Function assign Stores a new list on the owner.
+	 * @param Any element The element to append.
+	 */
 	private fun appendToCollection(owner: Any, ownerTag: String, property: String, current: Any?, assign: (MutableList<Any?>) -> Unit, element: Any) {
 		val mutable = mutableGraphListOf(current)
 
@@ -138,6 +170,13 @@ internal class Cmo3StructureLowering(
 		editor.ensureChildSlot(owner, ownerTag, property)
 	}
 
+	/**
+	 * Removes every matching element from a graph collection field.
+	 *
+	 * @param Any? current The field's current value.
+	 * @param Function matches Picks the elements to remove.
+	 * @return Boolean True when anything was removed.
+	 */
 	private fun removeFromCollection(current: Any?, matches: (Any?) -> Boolean): Boolean {
 		val mutable = mutableGraphListOf(current) ?: return false
 
@@ -237,6 +276,12 @@ internal class Cmo3StructureLowering(
 	private fun physicsSettingsNaming(parameterGuid: Any): List<String> {
 		val uuid = Cmo3Import.uuidOf(parameterGuid)
 
+		/**
+		 * Tells whether a reference names the parameter, by identity or by guid.
+		 *
+		 * @param Any? reference A guid reference found in the physics settings.
+		 * @return Boolean True when it is the parameter's.
+		 */
 		fun names(reference: Any?): Boolean = reference === parameterGuid || (uuid != null && Cmo3Import.uuidOf(reference) == uuid)
 
 		// CMO3: CModelSource field physicsSettingsSourceSet -> CPhysicsSettingsSourceSet field _sourceCubismPhysics
@@ -945,6 +990,12 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
+	/**
+	 * The point uid table of a drawable's editable mesh.
+	 *
+	 * @param DrawableId drawableId The drawable.
+	 * @return IntArray? The table, or null when the drawable has no source or no table.
+	 */
 	private fun uidTableOf(drawableId: DrawableId): IntArray? =
 		index.drawableByIdStr[drawableId.raw]?.let { source -> Cmo3Import.editableMeshOf(source)?.pointUid as? IntArray }
 
@@ -1014,7 +1065,19 @@ internal class Cmo3StructureLowering(
 	private fun storedUvsFor(source: CArtMeshSource, uvs: FloatArray, editedDrawable: Drawable): FloatArray =
 		textureFrames.storedUvsOf(source, uvs, editedDrawable.atlasTileId?.let { tileId -> edited.atlas.storedToArtAffineForTile(tileId) })
 
+	/**
+	 * Finds a parameter group in the edited model's parameter tree.
+	 *
+	 * @param ParameterGroupId groupId The group to find.
+	 * @return ParameterNode.Group? The group, or null when the edited model has none by that id.
+	 */
 	private fun findEditedGroup(groupId: ParameterGroupId): ParameterNode.Group? {
+		/**
+		 * Searches a node list, nested groups included, for the wanted group.
+		 *
+		 * @param List<ParameterNode> nodes The node list to search.
+		 * @return ParameterNode.Group? The group, or null.
+		 */
 		fun walk(nodes: List<ParameterNode>): ParameterNode.Group? {
 			for (node in nodes) {
 				if (node is ParameterNode.Group) {

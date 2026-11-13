@@ -283,6 +283,13 @@ private inline fun <TEntity, TId, TField> diffEntities(
 	return diffs
 }
 
+/**
+ * Lists the fields that differ between two versions of a parameter.
+ *
+ * @param Parameter baseline The parameter before the edit.
+ * @param Parameter edited The parameter after it.
+ * @return Set<ParameterField> The changed fields, empty when nothing differs.
+ */
 private fun parameterFields(baseline: Parameter, edited: Parameter): Set<ParameterField> =
 	buildSet {
 		if (baseline.name != edited.name) {
@@ -298,6 +305,13 @@ private fun parameterFields(baseline: Parameter, edited: Parameter): Set<Paramet
 		}
 	}
 
+/**
+ * Lists the fields that differ between two versions of a parameter group.
+ *
+ * @param ParameterNode.Group baseline The group before the edit.
+ * @param ParameterNode.Group edited The group after it.
+ * @return Set<ParameterGroupField> The changed fields, empty when nothing differs.
+ */
 private fun parameterGroupFields(baseline: ParameterNode.Group, edited: ParameterNode.Group): Set<ParameterGroupField> =
 	buildSet {
 		if (baseline.name != edited.name) {
@@ -313,6 +327,13 @@ private fun parameterGroupFields(baseline: ParameterNode.Group, edited: Paramete
 		}
 	}
 
+/**
+ * Lists the fields that differ between two versions of a part.
+ *
+ * @param Part baseline The part before the edit.
+ * @param Part edited The part after it.
+ * @return Set<PartField> The changed fields, empty when nothing differs.
+ */
 private fun partFields(baseline: Part, edited: Part): Set<PartField> =
 	buildSet {
 		if (baseline.name != edited.name) {
@@ -352,6 +373,13 @@ private fun partFields(baseline: Part, edited: Part): Set<PartField> =
 		}
 	}
 
+/**
+ * Lists the fields that differ between two versions of a deformer.
+ *
+ * @param Deformer baseline The deformer before the edit.
+ * @param Deformer edited The deformer after it.
+ * @return Set<DeformerField> The changed fields, empty when nothing differs.
+ */
 private fun deformerFields(baseline: Deformer, edited: Deformer): Set<DeformerField> =
 	buildSet {
 		if (baseline::class != edited::class) {
@@ -493,6 +521,13 @@ private fun atlasTileFields(baseline: AtlasTile, edited: AtlasTile): Set<AtlasTi
 		}
 	}
 
+/**
+ * Lists the fields that differ between two versions of a drawable.
+ *
+ * @param Drawable baseline The drawable before the edit.
+ * @param Drawable edited The drawable after it.
+ * @return Set<DrawableField> The changed fields, empty when nothing differs.
+ */
 private fun drawableFields(baseline: Drawable, edited: Drawable): Set<DrawableField> =
 	buildSet {
 		if (baseline.name != edited.name) {
@@ -609,6 +644,13 @@ private fun meshFields(baseline: DrawableMesh?, edited: DrawableMesh?): Set<Draw
 	}
 }
 
+/**
+ * Diffs the glue lists, keying each glue by its ordered mesh pair and its ordinal among the glues of that pair.
+ *
+ * @param List<Glue> baselineGlues The glues before the edit.
+ * @param List<Glue> editedGlues The glues after it.
+ * @return List<GlueDiff> One diff per glue that was added, removed, or changed.
+ */
 private fun diffGlues(baselineGlues: List<Glue>, editedGlues: List<Glue>): List<GlueDiff> {
 	if (baselineGlues === editedGlues) {
 		return emptyList()
@@ -650,6 +692,13 @@ private fun diffGlues(baselineGlues: List<Glue>, editedGlues: List<Glue>): List<
 	return diffs
 }
 
+/**
+ * Lists the fields that differ between two versions of a glue.
+ *
+ * @param Glue baseline The glue before the edit.
+ * @param Glue edited The glue after it.
+ * @return Set<GlueField> The changed fields, empty when nothing differs.
+ */
 private fun glueFields(baseline: Glue, edited: Glue): Set<GlueField> {
 	if (baseline === edited) {
 		return emptySet()
@@ -681,6 +730,13 @@ private fun glueFields(baseline: Glue, edited: Glue): Set<GlueField> {
 	}
 }
 
+/**
+ * Lists the document-level fields that differ between two models.
+ *
+ * @param PuppetModel baseline The model before the edit.
+ * @param PuppetModel edited The model after it.
+ * @return Set<DocumentField> The changed fields, empty when nothing differs.
+ */
 private fun documentFields(baseline: PuppetModel, edited: PuppetModel): Set<DocumentField> =
 	buildSet {
 		if (!floatEq(baseline.canvasWidth, edited.canvasWidth) || !floatEq(baseline.canvasHeight, edited.canvasHeight)) {
@@ -770,9 +826,20 @@ private fun nodeIdentities(nodes: List<ParameterNode>): List<String> =
 		}
 	}
 
+/**
+ * Lists every group in a parameter tree, nested ones included, each parent before its children.
+ *
+ * @param List<ParameterNode> tree The parameter tree.
+ * @return List<ParameterNode.Group> The groups, in depth-first order.
+ */
 private fun flattenGroups(tree: List<ParameterNode>): List<ParameterNode.Group> {
 	val groups = ArrayList<ParameterNode.Group>()
 
+	/**
+	 * Adds every group in a node list, each before its own children.
+	 *
+	 * @param List<ParameterNode> nodes The node list to walk.
+	 */
 	fun walk(nodes: List<ParameterNode>) {
 		for (node in nodes) {
 			if (node is ParameterNode.Group) {
@@ -794,6 +861,13 @@ private fun flattenGroups(tree: List<ParameterNode>): List<ParameterNode.Group> 
  * common call compares a model against itself or against structurally shared sub-objects.
  */
 
+/**
+ * Compares two floats by their exact bits.
+ *
+ * @param Float baseline The value before the edit.
+ * @param Float edited The value after it.
+ * @return Boolean True when the bits match, so 0.0 and -0.0 differ.
+ */
 private fun floatEq(baseline: Float, edited: Float): Boolean = baseline.toRawBits() == edited.toRawBits()
 
 /**
@@ -880,6 +954,15 @@ private fun rebuildsEqual(baselineLocal: FloatArray?, baselineDeltas: FloatArray
 private fun rebuiltComponent(local: FloatArray, deltas: FloatArray, componentIndex: Int): Float =
 	if (componentIndex < deltas.size) local[componentIndex] + deltas[componentIndex] else local[componentIndex]
 
+/**
+ * Tells whether two keyform grids are equal: the same axes and keys, and equal forms cell by cell.
+ *
+ * @param KeyformGrid<TForm>? baseline The grid before the edit, or null.
+ * @param KeyformGrid<TForm>? edited The grid after it, or null.
+ * @param Function formEqual Compares two forms.
+ * @param Boolean sameInstanceIsEqual Whether one shared instance counts as equal without its forms being compared.
+ * @return Boolean True when the grids are equal.
+ */
 private fun <TForm> gridEquals(
 	baseline: KeyformGrid<TForm>?,
 	edited: KeyformGrid<TForm>?,
@@ -926,6 +1009,13 @@ private fun <TForm> gridEquals(
 	return true
 }
 
+/**
+ * Tells whether two sets of channel tracks are equal: the same channels, each with an equal grid.
+ *
+ * @param ChannelGrids baseline The tracks before the edit.
+ * @param ChannelGrids edited The tracks after it.
+ * @return Boolean True when they are equal.
+ */
 private fun channelGridsEqual(baseline: ChannelGrids, edited: ChannelGrids): Boolean {
 	if (baseline === edited) {
 		return true
@@ -946,6 +1036,15 @@ private fun channelGridsEqual(baseline: ChannelGrids, edited: ChannelGrids): Boo
 	return true
 }
 
+/**
+ * Tells whether two blend-shape binding lists are equal, binding by binding and form by form.
+ *
+ * @param List<BlendShapeBinding<TForm>> baseline The bindings before the edit.
+ * @param List<BlendShapeBinding<TForm>> edited The bindings after it.
+ * @param Function formEqual Compares two forms.
+ * @param Boolean sameInstanceIsEqual Whether one shared list counts as equal without its forms being compared.
+ * @return Boolean True when they are equal.
+ */
 private fun <TForm : Any> blendShapesEqual(
 	baseline: List<BlendShapeBinding<TForm>>,
 	edited: List<BlendShapeBinding<TForm>>,
@@ -995,9 +1094,23 @@ private fun <TForm : Any> blendShapesEqual(
 	return true
 }
 
+/**
+ * Tells whether two warp lattice forms hold the same control points.
+ *
+ * @param WarpLatticeForm baseline The form before the edit.
+ * @param WarpLatticeForm edited The form after it.
+ * @return Boolean True when they are equal.
+ */
 private fun warpLatticeFormEqual(baseline: WarpLatticeForm, edited: WarpLatticeForm): Boolean =
 	baseline === edited || baseline.controlPoints.contentEquals(edited.controlPoints)
 
+/**
+ * Tells whether two rotation pivot forms hold the same origin, angle, and scale.
+ *
+ * @param RotationPivotForm baseline The form before the edit.
+ * @param RotationPivotForm edited The form after it.
+ * @return Boolean True when they are equal.
+ */
 private fun rotationPivotFormEqual(baseline: RotationPivotForm, edited: RotationPivotForm): Boolean =
 	baseline === edited ||
 		(
@@ -1026,6 +1139,13 @@ private fun meshFormEqual(baselineLocal: FloatArray?, baseline: MeshForm, edited
 				baseline.screenColor == edited.screenColor
 		)
 
+/**
+ * Tells whether two warp forms hold the same control points, opacity, and colors.
+ *
+ * @param WarpForm baseline The form before the edit.
+ * @param WarpForm edited The form after it.
+ * @return Boolean True when they are equal.
+ */
 private fun warpFormEqual(baseline: WarpForm, edited: WarpForm): Boolean =
 	baseline === edited ||
 		(
@@ -1035,6 +1155,13 @@ private fun warpFormEqual(baseline: WarpForm, edited: WarpForm): Boolean =
 				baseline.screenColor == edited.screenColor
 		)
 
+/**
+ * Tells whether two rotation forms hold the same pivot, flips, opacity, and colors.
+ *
+ * @param RotationForm baseline The form before the edit.
+ * @param RotationForm edited The form after it.
+ * @return Boolean True when they are equal.
+ */
 private fun rotationFormEqual(baseline: RotationForm, edited: RotationForm): Boolean =
 	baseline === edited ||
 		(

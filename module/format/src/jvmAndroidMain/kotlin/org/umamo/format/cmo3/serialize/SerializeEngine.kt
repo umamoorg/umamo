@@ -134,12 +134,24 @@ internal class SerializerRegistry {
 		customByTag[tag] = serializer
 	}
 
+	/**
+	 * The cached serializer for an enum class.
+	 *
+	 * @param Class<*> enumClass The enum's class.
+	 * @return EnumSerializer The serializer.
+	 */
 	private fun enumSerializerFor(enumClass: Class<*>): EnumSerializer {
 		val kClass = enumClass.kotlin
 
 		return enumSerializerCache.getOrPut(kClass) { EnumSerializer(tagFor(kClass), enumClass) }
 	}
 
+	/**
+	 * The enum class of a constant, which for a constant with a body of its own is the superclass.
+	 *
+	 * @param Enum<*> value The enum constant.
+	 * @return Class<*> The enum class.
+	 */
 	private fun enumClassOf(value: Enum<*>): Class<*> =
 		value.javaClass.let { if (it.isEnum) it else it.superclass }
 
@@ -548,6 +560,12 @@ internal class ReadContext(
 	/** Names of the attributes actually present on read, keyed by owner then serializer tag. */
 	val presentAttrs = IdentityHashMap<Any, MutableMap<String, MutableSet<String>>>()
 
+	/**
+	 * The recorded child sequence of an owner at one class level, created on first use.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 */
 	private fun slots(owner: Any, tag: String) =
 		childOrder.getOrPut(owner) { HashMap() }.getOrPut(tag) { ArrayList() }
 

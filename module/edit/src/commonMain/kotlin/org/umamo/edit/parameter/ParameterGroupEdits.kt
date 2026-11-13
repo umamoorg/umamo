@@ -71,6 +71,12 @@ fun PuppetModel.withParameterGroupDeleted(groupId: ParameterGroupId): PuppetMode
 		return this
 	}
 
+	/**
+	 * Replaces the group being dissolved with its own children, wherever it sits in the tree.
+	 *
+	 * @param List<ParameterNode> nodes The node list to rewrite.
+	 * @return List<ParameterNode> The rewritten list.
+	 */
 	fun splice(nodes: List<ParameterNode>): List<ParameterNode> =
 		nodes.flatMap { node ->
 			when {
@@ -99,6 +105,12 @@ fun PuppetModel.withParameterGroupRenamed(groupId: ParameterGroupId, newName: St
 		return this
 	}
 
+	/**
+	 * Renames the group, wherever it sits in the tree.
+	 *
+	 * @param List<ParameterNode> nodes The node list to rewrite.
+	 * @return List<ParameterNode> The rewritten list.
+	 */
 	fun rename(nodes: List<ParameterNode>): List<ParameterNode> =
 		nodes.map { node ->
 			when {

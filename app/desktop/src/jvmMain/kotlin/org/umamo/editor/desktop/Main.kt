@@ -220,6 +220,7 @@ fun main(args: Array<String>) {
 		// A file opened from the command line is a real "open" - record it in recent files too.
 		LaunchedEffect(Unit) { initialDocumentPath?.let { settings.addRecentFile(it) } }
 
+		/** Saves the window geometry, logs the quit, and exits the application. */
 		fun closeApp() {
 			settings.saveWindowState(windowState)
 			// A session log that ends here was a clean quit; one that ends anywhere else was not.

@@ -316,6 +316,14 @@ public fun blendColor(blendMode: BlendMode, backdrop: FloatArray, source: FloatA
 		}
 	}
 
+/**
+ * Applies a separable blend to each of the three color channels.
+ *
+ * @param FloatArray backdrop The backdrop color, as r, g, b.
+ * @param FloatArray source The source color, as r, g, b.
+ * @param Function operation The blend for one channel, given the backdrop then the source.
+ * @return FloatArray The blended color.
+ */
 private inline fun perChannel(backdrop: FloatArray, source: FloatArray, operation: (Float, Float) -> Float): FloatArray =
 	FloatArray(3) { channelIndex -> operation(backdrop[channelIndex], source[channelIndex]) }
 

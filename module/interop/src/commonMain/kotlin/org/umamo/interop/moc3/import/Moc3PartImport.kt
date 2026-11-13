@@ -67,6 +67,12 @@ internal fun importParts(
 			if (parentIndex in 0 until partCount && parentIndex != partIndex) parentIndex else -1
 		}
 
+	/**
+	 * Tells whether a part's parent chain ends at the root instead of looping.
+	 *
+	 * @param Int startIndex The part's file index.
+	 * @return Boolean False when the chain is a cycle.
+	 */
 	fun reachesRoot(startIndex: Int): Boolean {
 		var currentIndex = rangedParentIndices[startIndex]
 		var steps = 0
@@ -103,6 +109,12 @@ internal fun importParts(
 	// terminates instead of overflowing the stack.
 	val partPanelIndexCache = HashMap<Int, Int>()
 
+	/**
+	 * The parts-panel position of a part: the smallest panel index among the drawables anywhere under it.
+	 *
+	 * @param Int partIndex The part's file index.
+	 * @return Int The panel index, or `Int.MAX_VALUE` when no drawable under the part has one.
+	 */
 	fun partPanelIndex(partIndex: Int): Int {
 		partPanelIndexCache[partIndex]?.let { cachedIndex ->
 			return cachedIndex
@@ -131,6 +143,12 @@ internal fun importParts(
 		return minimumIndex
 	}
 
+	/**
+	 * Lists a part's direct children, sub-parts and drawables together, in parts-panel order.
+	 *
+	 * @param Int parentIndex The parent part's file index, or -1 for the root.
+	 * @return List<OrgChild> The children, sorted by panel index.
+	 */
 	fun childrenOf(parentIndex: Int): List<OrgChild> {
 		data class ChildEntry(val child: OrgChild, val panelIndex: Int)
 

@@ -249,9 +249,16 @@ object Cmo3Import {
 		// (the empty-renderRoot fallback / storage order; the derived renderRoot is the draw-order authority).
 		val renderIndexByUuid = partsTreeRenderOrder(modelSource, partSources)
 
-		// CMO3: CPartSource._childGuids is the parts-panel order - sub-parts and drawables interleaved (plus
-		// deformers, which we route to the Armature instead). Resolve each child guid to a part or drawable
-		// org child, skipping anything else; this ordered list is the org tree's single source of truth.
+		/**
+		 * Resolves a part's child guids into org children, in parts-panel order.
+		 *
+		 * CMO3: CPartSource._childGuids is the parts-panel order - sub-parts and drawables interleaved (plus
+		 * deformers, which we route to the Armature instead). Resolve each child guid to a part or drawable
+		 * org child, skipping anything else; this ordered list is the org tree's single source of truth.
+		 *
+		 * @param Any? childGuids The part's child-guid list, as stored.
+		 * @return List<OrgChild> The sub-parts and drawables, in panel order.
+		 */
 		fun orgChildrenOf(childGuids: Any?): List<OrgChild> =
 			elementsOf(childGuids).mapNotNull { childGuid ->
 				val childUuid = uuidOf(childGuid) ?: return@mapNotNull null
@@ -260,20 +267,42 @@ object Cmo3Import {
 				null
 			}
 
-		// CMO3: part draw order is CPartForm.drawOrder (a keyform); the static first-cell value (else
-		// defaultOrder_forEditor) is the fallback, the grid carries the per-pose blend for a group part.
+		/**
+		 * Reads a part's static draw order.
+		 *
+		 * CMO3: part draw order is CPartForm.drawOrder (a keyform); the static first-cell value (else
+		 * defaultOrder_forEditor) is the fallback, the grid carries the per-pose blend for a group part.
+		 *
+		 * @param CPartSource part The part's graph source.
+		 * @return Int The first form's draw order, else the editor default.
+		 */
 		fun partStaticDrawOrder(part: CPartSource): Int =
 			elementsOf(part.keyforms).filterIsInstance<CPartForm>().firstOrNull()?.drawOrder ?: part.defaultOrder_forEditor
 
-		// A 5.3-authored part is marked by a present colorComposition (the offscreen probe pins this on every
-		// corpus file); a pre-5.3 part has it null.
+		/**
+		 * Tells whether a part was authored before Cubism 5.3.
+		 *
+		 * A 5.3-authored part is marked by a present colorComposition (the offscreen probe pins this on every
+		 * corpus file); a pre-5.3 part has it null.
+		 *
+		 * @param CPartSource part The part's graph source.
+		 * @return Boolean True when the part carries no color composition.
+		 */
 		fun isPre53Part(part: CPartSource): Boolean = part.colorComposition == null
 
-		// CMO3: CPartForm.opacity is @DontSerializeIfDefault with a 0f default, and pre-5.3 parts never author
-		// the float, so it parses as 0f meaning "unset -> fully opaque" (Cubism's semantic default is 100%),
-		// NOT 0%.  A 5.3 part authors opacity explicitly, so a genuine 0 there (e.g. a draw-order crossfade
-		// keyform) is a real value and is left alone - only pre-5.3's unset 0f is remapped to opaque.  Without
-		// this a pre-5.3 model's whole part subtree renders invisible under the part-opacity cascade.
+		/**
+		 * Resolves a part form's stored opacity to the opacity it means.
+		 *
+		 * CMO3: CPartForm.opacity is @DontSerializeIfDefault with a 0f default, and pre-5.3 parts never author
+		 * the float, so it parses as 0f meaning "unset -> fully opaque" (Cubism's semantic default is 100%),
+		 * NOT 0%.  A 5.3 part authors opacity explicitly, so a genuine 0 there (e.g. a draw-order crossfade
+		 * keyform) is a real value and is left alone - only pre-5.3's unset 0f is remapped to opaque.  Without
+		 * this a pre-5.3 model's whole part subtree renders invisible under the part-opacity cascade.
+		 *
+		 * @param Float rawOpacity The opacity as stored.
+		 * @param Boolean isPre53 Whether the part predates Cubism 5.3.
+		 * @return Float The opacity to use.
+		 */
 		fun resolvedPartOpacity(rawOpacity: Float, isPre53: Boolean): Float =
 			if (isPre53 && rawOpacity == 0f) {
 				1f
@@ -281,6 +310,12 @@ object Cmo3Import {
 				rawOpacity
 			}
 
+		/**
+		 * Builds a part's channel tracks from its keyform grid.
+		 *
+		 * @param CPartSource part The part's graph source.
+		 * @return ChannelGrids The tracks, empty when the grid has no parameter axes.
+		 */
 		fun partChannelsOf(part: CPartSource): ChannelGrids {
 			val bundled =
 				buildGrid(part.keyformGridSource, part.keyforms, paramIdByUuid) { form ->
@@ -312,11 +347,18 @@ object Cmo3Import {
 			)
 		}
 
-		// CMO3: the composition/clip fields are latent - they survive unchecking offscreen, so this is
-		// called for every part (not just offscreen ones) to capture the settings regardless of mode; the
-		// composite is only applied while the part is Isolated.  Each field defaults gracefully when absent
-		// (colorComposition/alphaComposition -> Normal/Over via the token maps; pre-5.3 CPartForms carry no
-		// opacity/color elements, so firstForm's channels fall back to identity).
+		/**
+		 * Reads a part's composite settings: blend modes, masks, opacity, and colors.
+		 *
+		 * CMO3: the composition/clip fields are latent - they survive unchecking offscreen, so this is
+		 * called for every part (not just offscreen ones) to capture the settings regardless of mode; the
+		 * composite is only applied while the part is Isolated.  Each field defaults gracefully when absent
+		 * (colorComposition/alphaComposition -> Normal/Over via the token maps; pre-5.3 CPartForms carry no
+		 * opacity/color elements, so firstForm's channels fall back to identity).
+		 *
+		 * @param CPartSource source The part's graph source.
+		 * @return PartComposite The composite.
+		 */
 		fun partCompositeOf(source: CPartSource): PartComposite {
 			val firstForm = elementsOf(source.keyforms).filterIsInstance<CPartForm>().firstOrNull()
 
@@ -605,6 +647,12 @@ object Cmo3Import {
 
 		val visited = HashSet<String>()
 
+		/**
+		 * Builds a parameter group's children, recursing into sub-groups and skipping a group already visited.
+		 *
+		 * @param CParameterGroup group The group's graph source.
+		 * @return List<ParameterNode> The child nodes, in stored order.
+		 */
 		fun childrenOf(group: CParameterGroup): List<ParameterNode> =
 			buildList {
 				for (childGuid in elementsOf(group._childGuids)) {
@@ -731,6 +779,11 @@ object Cmo3Import {
 		val visited = HashSet<String>()
 		var nextIndex = 0
 
+		/**
+		 * Numbers a panel entry and, when it is a part, everything under it, in parts-panel order.
+		 *
+		 * @param String uuid The entry's guid.
+		 */
 		fun walk(uuid: String) {
 			if (!visited.add(uuid)) {
 				return
