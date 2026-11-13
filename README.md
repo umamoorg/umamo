@@ -131,6 +131,7 @@ The Gradle wrapper (`./gradlew`) pins the Gradle version so no system Gradle ins
 ./gradlew :desktop:run                                      #Launch the desktop editor
 ./gradlew :android:installDebug                             #Deploy to a connected Android tablet
 ./gradlew build                                             #Everything
+./gradlew verifyChanged                                     #Run build and lint only on changed files.
 ./gradlew test                                              #Unit tests
 ./gradlew ktlintFormat                                      #Format all files according to .editorconfig
 ./gradlew -q :cli:run --args="dump model.moc3"              #Dump a CMO3/MOC3's contents to stdout

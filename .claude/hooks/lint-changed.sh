@@ -72,9 +72,9 @@ fi
 
 gradle_tasks=(ktlintFormat ktlintCheck)
 
-# The rule set is not one of the root build's projects, so its own test is what lints it.
+# Neither included build is one of the root build's projects, so the rule set's test is what lints them.
 for changed_file in "${changed_files[@]}"; do
-	if [[ "$changed_file" == gradle/ktlint-rules/* ]]; then
+	if [[ "$changed_file" == gradle/ktlint-rules/* || "$changed_file" == gradle/build-logic/* ]]; then
 		gradle_tasks+=(:ktlint-rules:test)
 
 		break

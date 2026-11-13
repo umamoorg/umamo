@@ -85,6 +85,7 @@ Build logic that more than one module needs is a convention plugin in `gradle/bu
 - `umamo.kmp-jvmandroid` — the `jvmAndroidMain` source-set group.
 - `umamo.kmp-ios-gate` — makes `check` compile the iOS target, which is what enforces commonMain purity.
 - `umamo.test-corpus` — corpus paths for sample-gated tests, declared in a `umamoTestCorpus { }` block.  Never hand a Test task a sample path by hand.
+- `umamo.verification` — the end-of-build summary and `verifyChanged`, applied by the root project alone.
 
 ### UI
 
@@ -140,13 +141,13 @@ Directions the design commits to.  None of this says the code is there; check be
 
 ## Verifying a change
 
-CI runs `./gradlew build -Dumamo.requireGl=true`: every compile, every test, `ktlintCheck`, and the purity checks.  Run that before calling a branch done, and the narrowest task that covers the change while iterating.  README.md has the run commands and the WSL2 setup.
+CI runs `./gradlew build -Dumamo.requireGl=true`: every compile, every test, `ktlintCheck`, and the purity checks.  Run that before calling a branch done.  README.md has the run commands and the WSL2 setup.
 
+- **While iterating, run `./gradlew verifyChanged`.**  It runs what covers the changed and untracked files: their modules' tests, a compile of the modules that depend on them, the compile gates their source sets call for, `ktlintCheck`, and the purity scan.  `-PverifyBase=master` covers the whole branch.  One test class is `./gradlew :ui:jvmTest --tests '*CommandDispatchTest'`.
+- **Read the `VERDICT:` line, not the exit code.**  Every build ends its summary with one: `OK`, `INCOMPLETE` (a task asked for by name ended `SKIPPED` or `NO-SOURCE`), or `FAILED`, with the test counts; the failed and skipped tests are named above it.  When piping Gradle, `grep VERDICT`.  No verdict means no task ran, and a test task marked up to date is reporting an earlier run.
 - **Format first.**  Run `./gradlew ktlintFormat` before a build or lint.  It fixes most code style violations by itself; what it leaves needs a hand fix.  At the end of each turn a Stop hook (`.claude/hooks/lint-changed.sh`) does the same over the changed Kotlin files and hands back what it could not fix, so a file may be reformatted on disk after your last edit.
-- **Tests** are `:<module>:jvmTest`, for example `./gradlew :ui:jvmTest --tests '*CommandDispatchTest'`.
-- **Read the outcome, not the exit code.**  Piping Gradle through `grep` or `tail` returns the last command's status, so `BUILD FAILED` reads as success: use `set -o pipefail` and read the output.  A task marked `SKIPPED` verified nothing.
 - **A gated test can pass while asserting nothing.**  A test whose corpus sample or GL context is missing self-skips and still reports PASSED, so confirm the test you are relying on really ran.  `-Dumamo.requireGl=true` turns a missing GL context into a failure.
-- **commonMain purity has three nets,** and `build` runs all of them: the `checkCommonSourcePurity` scan, the iOS compile, and `:<module>:compileCommonMainKotlinMetadata`.  The metadata compile rejects platform-only stdlib APIs that the JVM and iOS compiles both accept.  The two compiles only cover `:geometry`, `:runtime`, `:format`, `:interop`, and `:render`; the other modules report them `SKIPPED`, so their common code is checked by the scan and by inspection.
+- **commonMain purity has three nets:** the `checkCommonSourcePurity` scan, the iOS compile, and `compileCommonMainKotlinMetadata`, which rejects platform-only stdlib APIs the other two accept.  The two compiles are real only in `:geometry`, `:runtime`, `:format`, `:interop`, and `:render`; common code in the other modules is held by the scan and by inspection.
 
 ## Code style
 

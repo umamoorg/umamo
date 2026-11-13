@@ -14,6 +14,8 @@ plugins {
 	alias(libs.plugins.androidApplication) apply false
 	alias(libs.plugins.androidKmpLibrary) apply false
 	alias(libs.plugins.ktlint)
+	// The end-of-build verification summary and `verifyChanged` (gradle/build-logic).
+	id("umamo.verification")
 }
 
 // Apply ktlint to every subproject so tab-based style (see .editorconfig) is enforced
@@ -209,13 +211,16 @@ val checkCommonSourcePurity =
 // Wire into `check` so the guard runs with the normal verification lifecycle rather than needing to be
 // remembered.  Gradle runs the task once however many subprojects depend on it.
 //
-// The ktlint rule set's own tests ride the same lifecycle: an included build's tests never run under the
-// root's `build` on their own, and a rule that silently stopped matching would pass every ktlintCheck.
+// The tests of the two included builds ride the same lifecycle: an included build's tests never run under
+// the root's `build` on their own, and a rule that silently stopped matching would pass every ktlintCheck.
+// The rule set's tests are also the lint of both included builds, which no ktlint task here reads.
 val ktlintRuleTests = gradle.includedBuild("ktlint-rules").task(":test")
+val buildLogicTests = gradle.includedBuild("build-logic").task(":test")
 
 subprojects {
 	tasks.matching { task -> task.name == "check" }.configureEach {
 		dependsOn(checkCommonSourcePurity)
 		dependsOn(ktlintRuleTests)
+		dependsOn(buildLogicTests)
 	}
 }
