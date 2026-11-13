@@ -1,6 +1,7 @@
 package org.umamo.format.kra
 
 import org.umamo.format.art.isEffectivelyVisible
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -45,9 +46,7 @@ class KraReaderTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no kra.sample and no test/corpus/krita samples; skipping KRA reader test")
-
-			return
+			skipTest("no kra.sample and no test/corpus/krita samples; skipping KRA reader test")
 		}
 
 		for (sample in samples) {

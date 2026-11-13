@@ -120,6 +120,8 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				implementation(kotlin("test"))
 			}
 		}

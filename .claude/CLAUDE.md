@@ -66,6 +66,7 @@ Library modules live under `module/`, apps under `app/`.  Gradle paths are flat 
 - `:render` — the CPU deformation eval, the puppet renderer, and its shaders.
 - `:storage`, `:settings` — app directories, file IO, and native dialogs; the JSON settings engine.
 - `:ui` — the Compose editor UI and the shared app shell.
+- `:testkit` — JVM test support: `skipTest` and `requireSample`.  Nothing that ships depends on it.
 - `:desktop`, `:android` — thin entrypoints over the shared shell.
 - `:cli` — a headless diagnostic tool.
 
@@ -77,6 +78,7 @@ Deliberate boundaries:
 - **The CPU eval stays in `:render` on purpose**, beside the GPU deform shaders it mirrors and is diffed against, even though it would move to `:runtime` cleanly.
 - **`:render` knows no container format.**  `:interop` walks a document's atlas pages and hands over neutral page data.  `PuppetRenderer` makes no GL calls: every GPU operation goes through `RenderDevice`, and a backend is one `RenderDevice` implementation.  The baseline is GL 3.3 core on desktop and GLES 3.0 on Android; LWJGL is desktop-only.
 - **`:cli` depends on neither `:ui` nor `:edit`.**
+- **These boundaries are checked.**  `gradle/module-dependencies.txt` lists each module's main dependencies and `checkModuleBoundaries` fails when the build disagrees, so a new dependency between modules is a change to that table too.  The package-level rules, here and under UI and Commands, are ktlint's: `umamo:import-boundary`, `umamo:session-extension-placement`, `umamo:no-command-outside-tables`, and `umamo:no-main-dispatcher` (library code delivers on its caller's scope; the desktop has no main dispatcher).
 
 ### Build logic
 
@@ -146,7 +148,7 @@ CI runs `./gradlew build -Dumamo.requireGl=true`: every compile, every test, `kt
 - **While iterating, run `./gradlew verifyChanged`.**  It runs what covers the changed and untracked files: their modules' tests, a compile of the modules that depend on them, the compile gates their source sets call for, `ktlintCheck`, and the purity scan.  `-PverifyBase=master` covers the whole branch.  One test class is `./gradlew :ui:jvmTest --tests '*CommandDispatchTest'`.
 - **Read the `VERDICT:` line, not the exit code.**  Every build ends its summary with one: `OK`, `INCOMPLETE` (a task asked for by name ended `SKIPPED` or `NO-SOURCE`), or `FAILED`, with the test counts; the failed and skipped tests are named above it.  When piping Gradle, `grep VERDICT`.  No verdict means no task ran, and a test task marked up to date is reporting an earlier run.
 - **Format first.**  Run `./gradlew ktlintFormat` before a build or lint.  It fixes most code style violations by itself; what it leaves needs a hand fix.  At the end of each turn a Stop hook (`.claude/hooks/lint-changed.sh`) does the same over the changed Kotlin files and hands back what it could not fix, so a file may be reformatted on disk after your last edit.
-- **A gated test can pass while asserting nothing.**  A test whose corpus sample or GL context is missing self-skips and still reports PASSED, so confirm the test you are relying on really ran.  `-Dumamo.requireGl=true` turns a missing GL context into a failure.
+- **A test that cannot run skips, it never returns.**  A corpus- or GL-gated test ends in `skipTest(reason)` or `requireSample(property)` from `:testkit` when its input is missing, so the run reports it SKIPPED and the summary names it; a `println` and a `return` would report PASSED, and `umamo:no-print-and-return-gate` reports that form.  A loop that passes over items it cannot use skips when it used none.  `-Dumamo.requireGl=true` turns a missing GL context into a failure.
 - **commonMain purity has three nets:** the `checkCommonSourcePurity` scan, the iOS compile, and `compileCommonMainKotlinMetadata`, which rejects platform-only stdlib APIs the other two accept.  The two compiles are real only in `:geometry`, `:runtime`, `:format`, `:interop`, and `:render`; common code in the other modules is held by the scan and by inspection.
 
 ## Code style

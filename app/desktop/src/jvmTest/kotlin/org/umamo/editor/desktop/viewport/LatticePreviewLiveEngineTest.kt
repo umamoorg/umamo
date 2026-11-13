@@ -19,6 +19,7 @@ import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.WarpLatticeForm
+import org.umamo.testkit.skipTest
 import org.umamo.ui.viewport.LiveParams
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -48,9 +49,7 @@ class LatticePreviewLiveEngineTest {
 			service.resize("area", 100, 100)
 
 			if (!awaitExtent(service) { bounds -> bounds.minX == -60f }) {
-				println("[lattice-preview-live] the lattice was never measured; skipping (no GL context)")
-
-				return
+				skipTest("[lattice-preview-live] the lattice was never measured; skipping (no GL context)")
 			}
 
 			val shifted = FloatArray(cage.size) { componentIndex -> if (componentIndex % 2 == 0) cage[componentIndex] + 30f else cage[componentIndex] }
@@ -74,9 +73,7 @@ class LatticePreviewLiveEngineTest {
 			service.resize("area", 100, 100)
 
 			if (!awaitExtent(service) { bounds -> bounds.minX == -60f }) {
-				println("[lattice-preview-live] the lattice was never measured; skipping (no GL context)")
-
-				return
+				skipTest("[lattice-preview-live] the lattice was never measured; skipping (no GL context)")
 			}
 
 			service.setLatticeOverrides(mapOf(warpId to WarpLatticeForm(shiftedBy(10f))))

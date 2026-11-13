@@ -10,6 +10,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.atlas.setAtlasPlacements
+import org.umamo.edit.transform.TexelAxis
 import org.umamo.runtime.model.AtlasPlacement
 import org.umamo.ui.kit.StackPosition
 import org.umamo.ui.kit.field.AspectLockFieldPair
@@ -21,7 +22,6 @@ import org.umamo.ui.properties.TexelPositionFields
 import org.umamo.ui.properties.UNBOUNDED_RANGE
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.uv.LocalUvSidebarSurface
-import org.umamo.ui.viewport.uv.TexelAxis
 
 /**
  * The UV editor's Item tab in Object mode: where the shown drawable's art sits on its page, the tile placement the

@@ -11,11 +11,16 @@
 //      belong to and runs the tests, compile gates, and lint that cover them.  Pass `-PverifyBase=<ref>`
 //      to count everything since the branch left that ref, committed work included.  See
 //      org.umamo.buildlogic.planVerification for the rules.
+//
+// It also registers `checkModuleBoundaries`, which holds the dependencies between modules to the table in
+// gradle/module-dependencies.txt.  See org.umamo.buildlogic.CheckModuleBoundariesTask.
 
 import org.umamo.buildlogic.BuildEventServices
+import org.umamo.buildlogic.CheckModuleBoundariesTask
 import org.umamo.buildlogic.ModuleFacts
 import org.umamo.buildlogic.VerificationSummaryService
 import org.umamo.buildlogic.VerifyChangedTask
+import org.umamo.buildlogic.isTestConfiguration
 import org.umamo.buildlogic.planVerification
 
 // Plain strings, so the configuration cache stores values and no project reference.
@@ -99,4 +104,25 @@ if (verifyChangedRequested) {
 			report.set(plan.report)
 		}
 	}
+}
+
+tasks.register<CheckModuleBoundariesTask>("checkModuleBoundaries") {
+	group = "verification"
+	description = "Fails if a module's shipping source sets depend on a module that gradle/module-dependencies.txt does not list for it."
+	table.set(layout.projectDirectory.file("gradle/module-dependencies.txt"))
+	report.set(layout.buildDirectory.file("reports/module-dependencies.txt"))
+	// Read when the task graph is built, by which time every module has declared its dependencies.
+	actualEdges.set(
+		provider {
+			subprojects.associate { module ->
+				module.path to
+					module.configurations
+						.filter { configuration -> !isTestConfiguration(configuration.name) }
+						.flatMap { configuration -> configuration.dependencies.withType<ProjectDependency>().map { dependency -> dependency.path } }
+						.filter { dependencyPath -> dependencyPath != module.path }
+						.distinct()
+						.sorted()
+			}
+		},
+	)
 }

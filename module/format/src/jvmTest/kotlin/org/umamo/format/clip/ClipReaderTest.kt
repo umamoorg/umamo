@@ -1,5 +1,6 @@
 package org.umamo.format.clip
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -49,9 +50,7 @@ class ClipReaderTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no clip.sample and no test/corpus/clip samples; skipping CLIP reader test")
-
-			return
+			skipTest("no clip.sample and no test/corpus/clip samples; skipping CLIP reader test")
 		}
 
 		for (sample in samples) {

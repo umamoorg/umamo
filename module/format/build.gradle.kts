@@ -120,6 +120,8 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				// The synthetic CLIP fixture (ClipSyntheticReaderTest) drives the JDBC driver directly
 				// to generate its database.  jvmMain already carries the driver, but the test's use is
 				// its own - declared here so it survives the driver ever moving out of jvmMain.
@@ -172,6 +174,6 @@ umamoTestCorpus {
 	)
 	// ModelGenerator's on-switch — a boolean, not a path, so it goes through `flag` and skips the
 	// file-existence check.  Without the forwarding the generator reads a property nobody set and
-	// returns immediately: a @Test reporting PASSED while generating nothing.
+	// skips: nothing is generated, whatever the command line asked for.
 	flag("cmo3.generate")
 }

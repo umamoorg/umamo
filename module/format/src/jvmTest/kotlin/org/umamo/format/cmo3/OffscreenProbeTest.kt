@@ -19,6 +19,7 @@ import org.umamo.format.cmo3.model.gen.KeyformOnGrid
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CColor
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 
@@ -63,9 +64,7 @@ class OffscreenProbeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe not present; skipping offscreen probe")
-
-			return
+			skipTest("cmo3.probe not present; skipping offscreen probe")
 		}
 
 		for (file in files) {

@@ -6,10 +6,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import org.umamo.edit.EditorSession
 import org.umamo.edit.UvCursor
+import org.umamo.edit.transform.TexelAxis
 import org.umamo.ui.properties.TexelPositionFields
 import org.umamo.ui.resources.*
 import org.umamo.ui.viewport.uv.LocalUvSidebarSurface
-import org.umamo.ui.viewport.uv.TexelAxis
 
 /**
  * The View tab's 2D Cursor panel in the UV editor: the UV cursor's X and Y on the shown page or source artwork, in

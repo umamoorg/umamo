@@ -1,5 +1,6 @@
 package org.umamo.format.cmo3.caff
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -24,9 +25,7 @@ class CaffSampleTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping CAFF sample test")
-
-			return
+			skipTest("cmo3.sample not present; skipping CAFF sample test")
 		}
 
 		val ours = CaffCodec.read(file.readBytes())

@@ -5,6 +5,7 @@ import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.diffPuppetModels
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -18,19 +19,11 @@ import kotlin.test.assertTrue
 class Cmo3ExportIdentityTest {
 	@Test
 	fun unchangedModelAppliesAsAByteIdenticalNoOp() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping export identity gate")
-
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping export identity gate")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 
 		if (files.isEmpty()) {
-			println("cmo3.probe lists no readable samples; skipping")
-
-			return
+			skipTest("cmo3.probe lists no readable samples; skipping")
 		}
 
 		val failures = ArrayList<String>()

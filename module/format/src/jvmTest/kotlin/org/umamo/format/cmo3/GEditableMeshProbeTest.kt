@@ -5,6 +5,7 @@ import org.umamo.format.cmo3.model.custom.GEditableMesh2
 import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.gen.CEditableMeshExtension
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -20,13 +21,7 @@ import kotlin.test.assertTrue
 class GEditableMeshProbeTest {
 	@Test
 	fun editableMeshEncodingsHoldAcrossTheCorpus() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping editable-mesh probe")
-
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping editable-mesh probe")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 		val failures = ArrayList<String>()
 		var meshCount = 0

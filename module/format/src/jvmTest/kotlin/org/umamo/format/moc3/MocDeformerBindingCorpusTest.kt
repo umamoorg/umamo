@@ -2,6 +2,7 @@ package org.umamo.format.moc3
 
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,9 +36,7 @@ class MocDeformerBindingCorpusTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping decoded deformer binding test")
-
-			return
+			skipTest("moc3.samples not present; skipping decoded deformer binding test")
 		}
 
 		for (file in files) {
@@ -70,9 +69,7 @@ class MocDeformerBindingCorpusTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping baked deformer binding test")
-
-			return
+			skipTest("moc3.samples not present; skipping baked deformer binding test")
 		}
 
 		for (file in files) {

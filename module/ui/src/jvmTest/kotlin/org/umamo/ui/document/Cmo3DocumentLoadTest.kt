@@ -1,5 +1,6 @@
 package org.umamo.ui.document
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,7 +23,7 @@ class Cmo3DocumentLoadTest {
 
 	@Test
 	fun aCorpusModelLoadsWithItsEmbeddedAtlasBound() {
-		val file = sample ?: return
+		val file = sample ?: skipTest("cmo3.sample not present")
 		val load = loadDocument(file.readBytes(), file.name, file.path)
 
 		val document = assertIs<Cmo3Document>(assertIs<DocumentLoad.Loaded>(load).document)

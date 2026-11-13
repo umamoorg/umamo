@@ -20,6 +20,7 @@ import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import org.umamo.ui.viewport.AreaOverlays
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.LiveParams
@@ -60,9 +61,7 @@ class AreaOverlaysLiveEngineTest {
 			service.resize("right", 100, 100)
 
 			if (!awaitFrame(leftFrames) { pixels -> !isUniform(pixels) }) {
-				println("[area-overlays-live] no GL frame arrived; skipping (context unavailable)")
-
-				return
+				skipTest("[area-overlays-live] no GL frame arrived; skipping (context unavailable)")
 			}
 
 			assertTrue(awaitFrame(rightFrames) { pixels -> isUniform(pixels) }, "no lines and no axes: the right area's frame is one flat color")

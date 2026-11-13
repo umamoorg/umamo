@@ -2,6 +2,7 @@ package org.umamo.format.cmo3.xml
 
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -22,9 +23,7 @@ class XmlRoundTripTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping XML round-trip test")
-
-			return
+			skipTest("cmo3.sample not present; skipping XML round-trip test")
 		}
 
 		val archive = CaffCodec.read(file.readBytes())

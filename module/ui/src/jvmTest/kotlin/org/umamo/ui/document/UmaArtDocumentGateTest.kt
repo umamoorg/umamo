@@ -28,6 +28,7 @@ import org.umamo.render.SourceArtRasters
 import org.umamo.render.deriveAtlasTextures
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.DrawableMesh
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import java.io.File
 import kotlin.test.Test
@@ -45,7 +46,7 @@ import kotlin.test.assertTrue
  * own births landed too).
  *
  * Corpus-gated: the PSD / CLIP / KRA files under test/corpus found by walking up from the working directory,
- * self-skipping with a printed line when none exist.
+ * self-skipping when none exist.
  */
 class UmaArtDocumentGateTest {
 	private val writer = UmaWriterInfo("Umamo", "gate-test")
@@ -165,9 +166,7 @@ class UmaArtDocumentGateTest {
 		val samples = locateArtworkSamples()
 
 		if (samples.isEmpty()) {
-			println("no test/corpus artwork samples; skipping the UMA artwork document gate")
-
-			return
+			skipTest("no test/corpus artwork samples; skipping the UMA artwork document gate")
 		}
 
 		val failures = ArrayList<String>()

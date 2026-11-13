@@ -4,6 +4,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.Cmo3Version
 import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocVersion
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,31 +20,19 @@ class GetVersionCorpusTest {
 
 	@Test
 	fun cmo3SampleProbesToAKnownGeneration() {
-		val file =
-			cmo3Sample ?: run {
-				println("cmo3.sample not present; skipping cmo3 getVersion corpus test")
-
-				return
-			}
+		val file = cmo3Sample ?: skipTest("cmo3.sample not present; skipping cmo3 getVersion corpus test")
 		val version = Cmo3.getVersion(file.readBytes())
 		assertTrue(version is Cmo3Version, "cmo3 sample probes to a Cmo3Version, got $version")
 	}
 
 	@Test
 	fun mocSamplesProbeToTheirVersionByte() {
-		val directory =
-			mocSamplesDir ?: run {
-				println("moc3.samples not present; skipping moc3 getVersion corpus test")
-
-				return
-			}
+		val directory = mocSamplesDir ?: skipTest("moc3.samples not present; skipping moc3 getVersion corpus test")
 		val samples =
 			directory.walkTopDown().filter { it.isFile && it.extension.equals("moc3", ignoreCase = true) }.toList()
 
 		if (samples.isEmpty()) {
-			println("moc3.samples contains no .moc3 files; skipping")
-
-			return
+			skipTest("moc3.samples contains no .moc3 files; skipping")
 		}
 
 		for (sample in samples) {

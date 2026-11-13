@@ -7,6 +7,7 @@ import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.serialize.GUID_TAGS
 import org.umamo.format.cmo3.serialize.ID_TAGS
+import org.umamo.testkit.skipTest
 import java.io.ByteArrayInputStream
 import java.io.File
 import kotlin.test.Test
@@ -133,7 +134,7 @@ class ModelGenerator {
 	@Test
 	fun generate() {
 		if (System.getProperty("cmo3.generate") != "true") {
-			return
+			skipTest("-Dcmo3.generate=true not given, so nothing is generated")
 		}
 
 		// Generate from cmo3.gensample if given (a comma-separated list unions several projects, e.g. the

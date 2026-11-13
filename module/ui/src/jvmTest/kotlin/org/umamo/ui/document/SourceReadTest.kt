@@ -13,6 +13,7 @@ import org.umamo.runtime.model.AtlasTile
 import org.umamo.runtime.model.AtlasTileId
 import org.umamo.runtime.model.PuppetAtlas
 import org.umamo.runtime.model.SourceLayerRef
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
@@ -41,9 +42,7 @@ class SourceReadTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the decomposed source read gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the decomposed source read gate")
 			}
 
 			val load = loadDocument(file.readBytes(), file.name, file.path)

@@ -2,6 +2,7 @@ package org.umamo.format.cmo3.serialize
 
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -21,9 +22,7 @@ class ModelDocumentTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping ModelDocument test")
-
-			return
+			skipTest("cmo3.sample not present; skipping ModelDocument test")
 		}
 
 		val mainXml =

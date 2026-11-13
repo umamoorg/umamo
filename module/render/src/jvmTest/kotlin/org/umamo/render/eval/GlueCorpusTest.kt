@@ -5,6 +5,7 @@ import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.hypot
 import kotlin.test.Test
@@ -21,7 +22,7 @@ class GlueCorpusTest {
 	fun glueWeldsSeamPairsOnCorpus() {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
 		Assume.assumeTrue("[glue-e2e] no cmo3.sample corpus model", file.isFile)
-		val root = Cmo3.read(file).root as? CModelSource ?: return
+		val root = Cmo3.read(file).root as? CModelSource ?: skipTest("[glue-e2e] ${file.name}: root is not a CModelSource")
 		val puppet = Cmo3Import.fromModelSource(root)
 		assertTrue(puppet.glues.isNotEmpty(), "corpus model should carry glue affecters")
 

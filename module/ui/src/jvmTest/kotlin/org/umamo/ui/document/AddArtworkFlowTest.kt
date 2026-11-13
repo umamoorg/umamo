@@ -11,6 +11,7 @@ import org.umamo.interop.art.ArtSourceDescriptor
 import org.umamo.interop.art.SourceArtImportOptions
 import org.umamo.render.deriveAtlasTextures
 import org.umamo.runtime.model.ParameterNode
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.artwork.AddArtworkRequest
 import org.umamo.ui.model.artwork.ImportParameterKeys
@@ -43,9 +44,7 @@ class AddArtworkFlowTest {
 			val second = first?.let { file -> File(file.parentFile, "EricaVisibilityTest.psd") }?.takeIf { it.isFile }
 
 			if (first == null || second == null) {
-				println("psd.sample (and its EricaVisibilityTest.psd sibling) not present; skipping the add-artwork flow gate")
-
-				return@runBlocking
+				skipTest("psd.sample (and its EricaVisibilityTest.psd sibling) not present; skipping the add-artwork flow gate")
 			}
 
 			val load = loadDocument(first.readBytes(), first.name, first.path)
@@ -135,9 +134,7 @@ class AddArtworkFlowTest {
 			val second = first?.let { file -> File(file.parentFile, "EricaVisibilityTest.psd") }?.takeIf { it.isFile }
 
 			if (first == null || second == null) {
-				println("psd.sample (and its EricaVisibilityTest.psd sibling) not present; skipping the new-document import gate")
-
-				return@runBlocking
+				skipTest("psd.sample (and its EricaVisibilityTest.psd sibling) not present; skipping the new-document import gate")
 			}
 
 			val document = newBlankDocument()

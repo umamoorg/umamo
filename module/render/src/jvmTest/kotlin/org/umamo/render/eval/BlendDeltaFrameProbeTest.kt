@@ -8,6 +8,7 @@ import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.runtime.eval.gridCorners
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -50,9 +51,7 @@ class BlendDeltaFrameProbeTest {
 		val moc3File = modelAMoc3
 
 		if (cmo3File == null || moc3File == null) {
-			println("Model A corpus pair not present; skipping delta-frame probe")
-
-			return
+			skipTest("Model A corpus pair not present; skipping delta-frame probe")
 		}
 
 		val root = Cmo3.read(cmo3File).root as? CModelSource ?: error("root is not a CModelSource")

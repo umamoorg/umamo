@@ -9,6 +9,7 @@ import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.xml.XmlCodec
 import org.umamo.interop.cmo3TargetVersionNo
 import org.umamo.runtime.model.RuntimeTarget
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -58,11 +59,7 @@ class Cmo3SkeletonBuilderTest {
 				?.split(',')
 				?.map { path -> File(path.trim()) }
 				?.firstOrNull { file -> file.name == "BareMinimum.cmo3" && file.isFile }
-				?: run {
-					println("BareMinimum.cmo3 not in cmo3.probe; skipping spine comparison")
-
-					return
-				}
+				?: skipTest("BareMinimum.cmo3 not in cmo3.probe; skipping spine comparison")
 		val blankArchive = CaffCodec.read(bareMinimum.readBytes())
 		val blankXml = blankArchive.firstByTag(CaffArchive.TAG_MAIN_XML) ?: error("BareMinimum has no main_xml")
 		val editorSpine = modelSourceChildren(XmlCodec.parse(blankXml.content).rootElement)

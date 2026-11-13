@@ -3,6 +3,7 @@ package org.umamo.ui.workspace.spaces.uv
 import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshTopology
+import org.umamo.edit.transform.uvToDisplay
 import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableLayerBinding
@@ -12,7 +13,6 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.atlasBindingFor
 import org.umamo.runtime.model.layerUvsFromAtlasUvs
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
-import org.umamo.ui.viewport.uv.uvToDisplay
 
 /**
  * A UV area's shown geometry kept from one derive to the next, so an edit rebuilds only the meshes it

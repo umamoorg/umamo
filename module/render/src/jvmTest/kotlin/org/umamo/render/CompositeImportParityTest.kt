@@ -10,6 +10,7 @@ import org.umamo.runtime.model.ChannelValue
 import org.umamo.runtime.model.ColorRgb
 import org.umamo.runtime.model.FormChannel
 import org.umamo.runtime.model.PuppetModel
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -235,10 +236,10 @@ class CompositeImportParityTest {
 		}
 
 		if (comparedPairs == 0) {
-			println("no deformer-channel cmo3/moc3 pairs present; skipping")
-		} else {
-			assertTrue(totalChannelledKeyforms > 0, "compared at least one channelled keyform")
+			skipTest("no deformer-channel cmo3/moc3 pairs present; skipping")
 		}
+
+		assertTrue(totalChannelledKeyforms > 0, "compared at least one channelled keyform")
 	}
 
 	@Test
@@ -266,7 +267,7 @@ class CompositeImportParityTest {
 		}
 
 		if (comparedPairs == 0) {
-			println("no composite cmo3/moc3 pairs present; skipping")
+			skipTest("no composite cmo3/moc3 pairs present; skipping")
 		}
 	}
 }

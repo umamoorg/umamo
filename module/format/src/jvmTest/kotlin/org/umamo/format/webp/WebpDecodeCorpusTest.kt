@@ -1,5 +1,6 @@
 package org.umamo.format.webp
 
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -46,9 +47,7 @@ class WebpDecodeCorpusTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no webp.sample and no test/corpus WebPs; skipping WebP corpus test")
-
-			return
+			skipTest("no webp.sample and no test/corpus WebPs; skipping WebP corpus test")
 		}
 
 		for (sample in samples) {

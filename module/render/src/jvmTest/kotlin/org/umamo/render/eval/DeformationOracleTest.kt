@@ -1,11 +1,11 @@
 package org.umamo.render.eval
 
-import org.junit.Assume
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -34,10 +34,10 @@ class DeformationOracleTest {
 
 	@Test
 	fun defaultPoseMatchesOracle() {
-		val cmo3 = requireOracleInput("cmo3.sample")
-		val moc3 = requireOracleInput("moc3.sample")
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val cmo3 = requireSample("cmo3.sample")
+		val moc3 = requireSample("moc3.sample")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 
 		val root = Cmo3.read(cmo3).root as? CModelSource ?: error("root is not a CModelSource")
 		val model = Cmo3Import.fromModelSource(root)
@@ -89,28 +89,6 @@ class DeformationOracleTest {
 		// pinned to the reproducible baseline.
 		assertTrue(posMatch >= 156, "geometry regressed: posMatch=$posMatch (<156) — investigate before relaxing")
 	}
-
-	/**
-	 * The file [property] points at, skipping the test when it is absent.
-	 *
-	 * A JUnit assumption rather than an early return, so an un-runnable oracle reports SKIPPED instead of
-	 * passing green having compared nothing.  This one needs the Umamo C++ Runtime as an external oracle,
-	 * so unlike the corpus gates it cannot be defaulted - it stays opt-in by nature.
-	 *
-	 * @param String property The system property naming the input.
-	 * @return File The existing file.
-	 */
-	private fun requireOracleInput(property: String): File {
-		val file = sysFile(property)
-		Assume.assumeTrue(
-			"[oracle] absent -D$property (needs -Dcmo3.sample -Dmoc3.sample -Drelive.dumpModel -Drelive.coreLib)",
-			file != null,
-		)
-
-		return file!!
-	}
-
-	private fun sysFile(property: String): File? = System.getProperty(property)?.let(::File)?.takeIf { it.exists() }
 
 	private fun rollingHash(values: FloatArray): Double {
 		var hp = 0.0

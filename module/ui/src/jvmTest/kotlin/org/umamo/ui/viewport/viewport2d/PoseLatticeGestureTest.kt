@@ -36,7 +36,9 @@ import org.umamo.runtime.model.ElementOwner
 import org.umamo.runtime.model.KeyformOwner
 import org.umamo.runtime.model.KeyformTrackRef
 import org.umamo.ui.transform.WorldAxis
+import org.umamo.ui.transform.coveredMedianMove
 import org.umamo.ui.transform.elementEditStageOf
+import org.umamo.ui.transform.moveCoveredMedianAdjustable
 import org.umamo.ui.viewport.LiveParams
 import org.umamo.ui.viewport.LiveParamsAdapter
 import org.umamo.ui.viewport.gizmo.LEFT_AREA
@@ -384,7 +386,10 @@ class PoseLatticeGestureTest {
 			val modelBefore = session.model.value
 			val stage = elementEditStageOf(session.mode.value, session.pose.value, session.pendingLatticeEdits.value)
 			val owners = editOwnerGeometries(session.model.value, session.meshSelection.value.owners, stage)
-			val move = assertNotNull(coveredMedianMove(session.meshSelection.value, owners, stage))
+			val move =
+				assertNotNull(
+					coveredMedianMove(session.meshSelection.value, owners.map { geometry -> geometry.worldGeometry }, owners.associate { geometry -> geometry.owner to geometry.topology }, stage),
+				)
 
 			session.moveCoveredMedianAdjustable(move, WorldAxis.X, 50f, LEFT_AREA)
 

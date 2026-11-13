@@ -11,6 +11,7 @@ import org.umamo.edit.transform.RotationAngleTracker
 import org.umamo.edit.transform.RotationAxis
 import org.umamo.edit.transform.TransformGestureParameters
 import org.umamo.edit.transform.TransformPivotGroup
+import org.umamo.edit.transform.applyOperator
 import org.umamo.render.ViewportCamera
 import kotlin.math.PI
 import kotlin.test.Test

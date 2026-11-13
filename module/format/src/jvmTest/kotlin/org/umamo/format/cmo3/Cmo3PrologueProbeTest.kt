@@ -6,6 +6,7 @@ import org.jdom.ProcessingInstruction
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -59,13 +60,7 @@ class Cmo3PrologueProbeTest {
 
 	@Test
 	fun prologueInvariantsHoldAcrossTheCorpus() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping prologue probe")
-
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping prologue probe")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 		val failures = ArrayList<String>()
 

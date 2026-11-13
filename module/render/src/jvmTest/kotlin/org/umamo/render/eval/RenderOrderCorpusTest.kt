@@ -8,6 +8,7 @@ import org.umamo.format.cmo3.model.gen.CArtMeshSource
 import org.umamo.format.cmo3.model.gen.CDrawableSourceSet
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.interop.cmo3.Cmo3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,19 +33,19 @@ class RenderOrderCorpusTest {
 	fun bumpedDrawOrderPaintsFrontmostOnCorpus() {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
 		Assume.assumeTrue("[ord-e2e] no cmo3.sample corpus model", file.isFile)
-		val root = Cmo3.read(file).root as? CModelSource ?: return
+		val root = Cmo3.read(file).root as? CModelSource ?: skipTest("[ord-e2e] ${file.name}: root is not a CModelSource")
 
 		// The backmost drawable at the default pose (parts-tree order, all draw orders equal - an empty
 		// map makes paintOrder fall back to the Cubism default for every drawable, i.e. the base order).
 		val baseline = Cmo3Import.fromModelSource(root)
-		val backmost = baseline.drawables.firstOrNull() ?: return
+		val backmost = baseline.drawables.firstOrNull() ?: skipTest("[ord-e2e] ${file.name} has no drawables")
 		val defaultOrder = paintOrder(baseline.drawables.map { it.id }, emptyMap())
 		assertEquals(backmost.id, defaultOrder.first(), "precondition: target starts backmost")
 		assertNotEquals(backmost.id, defaultOrder.last(), "precondition: target is not already frontmost")
 
 		// Raise that drawable's keyform draw order on the shared graph, then re-run the full pipeline.
 		val artMeshes = elements((root.drawableSourceSet as? CDrawableSourceSet)?._sources).filterIsInstance<CArtMeshSource>()
-		val target = artMeshes.firstOrNull { (it.id as? Id)?.idstr == backmost.id.raw } ?: return
+		val target = artMeshes.firstOrNull { (it.id as? Id)?.idstr == backmost.id.raw } ?: skipTest("[ord-e2e] ${file.name}: the backmost drawable has no art mesh source")
 		elements(target.keyforms).filterIsInstance<CArtMeshForm>().forEach { it.drawOrder = 999 }
 
 		val puppet = Cmo3Import.fromModelSource(root)

@@ -4,7 +4,7 @@
 // pair, drifted three different ways (:interop and :edit forwarded an explicit `-D` verbatim while
 // :format and :render resolved and existence-checked it; the corpus default table disagreed about
 // which properties even had one).  Since the failure mode of getting it wrong is a gated test that
-// reports PASSED while doing nothing, one implementation is worth more here than in most places.
+// skips while its sample sits on disk, one implementation is worth more here than in most places.
 //
 // A module declares what it wants and nothing else:
 //

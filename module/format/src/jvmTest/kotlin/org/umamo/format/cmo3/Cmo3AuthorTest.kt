@@ -9,6 +9,7 @@ import org.umamo.format.cmo3.caff.CompressOption
 import org.umamo.format.cmo3.model.custom.CModelSource
 import org.umamo.format.cmo3.model.gen.CImageCanvas
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -25,13 +26,7 @@ import kotlin.test.assertTrue
 class Cmo3AuthorTest {
 	@Test
 	fun tableDerivedPrologueMatchesTheCorpusVerbatim() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping prologue derivation sweep")
-
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping prologue derivation sweep")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 		val failures = ArrayList<String>()
 

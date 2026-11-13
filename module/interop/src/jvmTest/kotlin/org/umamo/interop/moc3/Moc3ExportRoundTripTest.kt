@@ -4,6 +4,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.interop.moc3.import.Moc3Import
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -46,9 +47,7 @@ class Moc3ExportRoundTripTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping export round trip")
-
-			return
+			skipTest("moc3.samples not present; skipping export round trip")
 		}
 
 		val failures = ArrayList<String>()

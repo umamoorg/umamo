@@ -22,6 +22,7 @@ import org.umamo.format.moc3.model.BlendShapeKeyform
 import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -60,9 +61,7 @@ class MorphTargetJoinProbeTest {
 		val moc3File = modelAMoc3
 
 		if (cmo3File == null || moc3File == null) {
-			println("Model A corpus pair not present; skipping morph-target join probe")
-
-			return
+			skipTest("Model A corpus pair not present; skipping morph-target join probe")
 		}
 
 		val root = Cmo3.read(cmo3File).root as? CModelSource ?: error("root is not a CModelSource")
@@ -287,9 +286,7 @@ class MorphTargetJoinProbeTest {
 				.orEmpty()
 
 		if (samples.isEmpty()) {
-			println("moc3.samples not present; skipping neutral-delta probe")
-
-			return
+			skipTest("moc3.samples not present; skipping neutral-delta probe")
 		}
 
 		for (file in samples) {

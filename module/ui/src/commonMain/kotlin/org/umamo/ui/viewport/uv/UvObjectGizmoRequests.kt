@@ -4,6 +4,7 @@ import androidx.compose.runtime.State
 import kotlinx.coroutines.CoroutineDispatcher
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.ui.viewport.GridConfig
 import org.umamo.ui.viewport.OverlaySurface
 import org.umamo.ui.viewport.ViewportOverlayState

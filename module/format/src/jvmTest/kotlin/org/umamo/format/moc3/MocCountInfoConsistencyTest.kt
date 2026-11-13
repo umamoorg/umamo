@@ -6,6 +6,7 @@ import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
 import org.umamo.format.moc3.moc.Sizing
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -130,9 +131,7 @@ class MocCountInfoConsistencyTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping CountInfo consistency test")
-
-			return
+			skipTest("moc3.samples not present; skipping CountInfo consistency test")
 		}
 
 		val failures = ArrayList<String>()

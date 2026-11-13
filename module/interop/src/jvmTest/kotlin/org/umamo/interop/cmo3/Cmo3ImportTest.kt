@@ -26,6 +26,7 @@ import org.umamo.runtime.model.ParameterLink
 import org.umamo.runtime.model.ParameterNode
 import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.partByDrawable
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,9 +49,7 @@ class Cmo3ImportTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping import test")
-
-			return
+			skipTest("cmo3.sample not present; skipping import test")
 		}
 
 		val root = Cmo3.read(file).root as? CModelSource ?: error("root is not a CModelSource")
@@ -344,9 +343,7 @@ class Cmo3ImportTest {
 			System.getProperty("cmo3.probe")?.split(',')?.map(::File)?.filter { it.isFile }.orEmpty()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe not present; skipping blend-shape corpus probe")
-
-			return
+			skipTest("cmo3.probe not present; skipping blend-shape corpus probe")
 		}
 
 		for (file in files) {

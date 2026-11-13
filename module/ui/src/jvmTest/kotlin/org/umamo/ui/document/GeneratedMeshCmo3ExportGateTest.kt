@@ -32,6 +32,7 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.applyAffine
 import org.umamo.runtime.model.drawableIdsByAtlasTile
 import org.umamo.runtime.model.storedToArtAffineForTile
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.mesh.GenerateMeshHost
 import org.umamo.ui.model.mesh.GenerateMeshOutcome
@@ -88,9 +89,7 @@ class GeneratedMeshCmo3ExportGateTest {
 			val file = sample
 
 			if (file == null) {
-				println("cmo3.sample not present; skipping the generated-mesh export gate")
-
-				return@runBlocking
+				skipTest("cmo3.sample not present; skipping the generated-mesh export gate")
 			}
 
 			val startNanos = System.nanoTime()

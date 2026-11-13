@@ -4,6 +4,7 @@ import org.umamo.edit.EditorSession
 import org.umamo.edit.ParameterChange
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.testkit.skipTest
 import org.umamo.ui.model.SessionAtlasPages
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import java.io.File
@@ -38,7 +39,7 @@ class DocumentSwapRetentionTest {
 
 	@Test
 	fun aReplacedDocumentAndItsSessionBecomeUnreachable() {
-		val file = sample ?: return
+		val file = sample ?: skipTest("cmo3.sample not present")
 		val replacedReferences = openUseAndRelease(file)
 		// The incoming document is held strongly across the whole check, as the shell holds its
 		// current document while the previous one is discarded.

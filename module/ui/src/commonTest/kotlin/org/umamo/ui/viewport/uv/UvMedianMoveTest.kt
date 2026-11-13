@@ -8,8 +8,13 @@ import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.OperatorParameter
 import org.umamo.edit.ProportionalEditState
 import org.umamo.edit.ProportionalFalloff
+import org.umamo.edit.transform.TexelAxis
 import org.umamo.edit.transform.TransformParameterKeys
+import org.umamo.edit.transform.UvMedianMove
 import org.umamo.edit.transform.beginUvOperator
+import org.umamo.edit.transform.displayToUv
+import org.umamo.edit.transform.moveUvMedianAdjustable
+import org.umamo.edit.transform.previewUvMedianMove
 import org.umamo.edit.withParameter
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -196,17 +201,17 @@ class UvMedianMoveTest {
 		assertEquals(otherBefore.subList(2, 4), otherAfter.subList(2, 4), "the corner outside the radius stays")
 	}
 
-	/** The UV write-back keeps the session's remembered world radius even while proportional editing is off. */
+	/** An adjusted Proportional Size row lands its texel radius on the surface and leaves the session's world radius alone. */
 	@Test
-	fun theWriteBackKeepsTheRememberedWorldRadius() {
+	fun anAdjustedProportionalSizeLandsOnTheSurface() {
 		val session = session()
 		session.setProportionalRadius(345f)
-		assertNull(session.proportionalEdit.value, "precondition: proportional editing is off")
+		session.moveUvMedianAdjustable(moveOf(session), TexelAxis.X, 130f, STRIP_AREA)
 
-		session.writeBackUvProportional(radiusState, ProportionalEditState(ProportionalFalloff.Linear, 12f), 12f)
+		adjustFloat(session, TransformParameterKeys.PROPORTIONAL_SIZE, 12f)
 
 		assertEquals(12f, radiusState.value, "the texel radius lands on the surface")
-		assertEquals(345f, assertNotNull(session.proportionalEdit.value).radiusWorld)
+		assertEquals(345f, session.proportionalSettings.value.radiusWorld, "the world radius stays")
 	}
 
 	/** While a UV transform owns the coordinates, the panel neither previews nor commits. */

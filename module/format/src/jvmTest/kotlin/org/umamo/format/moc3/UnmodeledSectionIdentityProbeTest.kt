@@ -6,6 +6,7 @@ import org.umamo.format.moc3.moc.MocModel
 import org.umamo.format.moc3.moc.ParameterType
 import org.umamo.format.moc3.moc.Section
 import org.umamo.format.moc3.moc.Sections
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -84,9 +85,7 @@ class UnmodeledSectionIdentityProbeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping runtime slot probe")
-
-			return
+			skipTest("moc3.samples not present; skipping runtime slot probe")
 		}
 
 		// Section index → the CountInfo field sizing it, and how many u64 slots each object gets.
@@ -135,9 +134,7 @@ class UnmodeledSectionIdentityProbeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping start column probe")
-
-			return
+			skipTest("moc3.samples not present; skipping start column probe")
 		}
 
 		var checked = 0
@@ -203,9 +200,7 @@ class UnmodeledSectionIdentityProbeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping per-form color reference probe")
-
-			return
+			skipTest("moc3.samples not present; skipping per-form color reference probe")
 		}
 
 		// (object count field, keyform-base section, form-count section, colorBase section,
@@ -273,9 +268,7 @@ class UnmodeledSectionIdentityProbeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping parameter start column probe")
-
-			return
+			skipTest("moc3.samples not present; skipping parameter start column probe")
 		}
 
 		var checkedEmpty = 0

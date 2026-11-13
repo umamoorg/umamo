@@ -13,6 +13,7 @@ import org.umamo.format.png.PngCodec
 import org.umamo.format.raster.RasterImage
 import org.umamo.format.raster.cropped
 import org.umamo.format.raster.fittedInto
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -101,9 +102,7 @@ class Cmo3IconDifferentialTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping the icon differential")
-
-			return
+			skipTest("cmo3.sample not present; skipping the icon differential")
 		}
 
 		val cmo3 = Cmo3.read(file.readBytes())

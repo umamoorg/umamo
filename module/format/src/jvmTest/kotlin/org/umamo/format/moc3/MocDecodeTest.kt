@@ -8,6 +8,7 @@ import org.umamo.format.moc3.model.BlendShapeKeyform
 import org.umamo.format.moc3.model.BlendShapeTarget
 import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,9 +37,7 @@ class MocDecodeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping union-region flag test")
-
-			return
+			skipTest("moc3.samples not present; skipping union-region flag test")
 		}
 
 		// The only corpus samples that append the union region; every other file (including all blend
@@ -64,9 +63,7 @@ class MocDecodeTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping decode test")
-
-			return
+			skipTest("moc3.samples not present; skipping decode test")
 		}
 
 		for (file in files) {

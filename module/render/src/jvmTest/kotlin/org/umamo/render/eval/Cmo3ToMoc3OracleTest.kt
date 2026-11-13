@@ -7,6 +7,7 @@ import org.umamo.format.moc3.Moc3
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.interop.cmo3.Cmo3Import
 import org.umamo.interop.moc3.export.Moc3Export
+import org.umamo.testkit.requireSample
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -60,8 +61,8 @@ class Cmo3ToMoc3OracleTest {
 
 	@Test
 	fun exportedProjectsEvaluateLikeTheEditorsBake() {
-		val dumpModel = requireOracleInput("relive.dumpModel")
-		val coreLib = requireOracleInput("relive.coreLib")
+		val dumpModel = requireSample("relive.dumpModel")
+		val coreLib = requireSample("relive.coreLib")
 		val twins = twins()
 		Assume.assumeTrue("[oracle] no cmo3/moc3 twins", twins.isNotEmpty())
 

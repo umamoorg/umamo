@@ -29,6 +29,7 @@ import org.umamo.runtime.model.Drawable
 import org.umamo.runtime.model.KeyformGrid
 import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.ParameterId
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -56,7 +57,7 @@ class GpuDeformValidationTest {
 		val file = File(System.getProperty("cmo3.sample") ?: "")
 		Assume.assumeTrue("[gpu-tf] no -Dcmo3.sample corpus model", file.isFile)
 		requireHeadlessGl("[gpu-tf]")
-		val root = Cmo3.read(file).root as? CModelSource ?: return
+		val root = Cmo3.read(file).root as? CModelSource ?: skipTest("[gpu-tf] ${file.name}: root is not a CModelSource")
 		val model = Cmo3Import.fromModelSource(root)
 		val program = linkTransformFeedbackProgram()
 		GL20.glUseProgram(program)
@@ -140,7 +141,7 @@ class GpuDeformValidationTest {
 				?.firstOrNull { it.isFile && it.name.startsWith("modelA") }
 		Assume.assumeTrue("[gpu-tf] no Model A blend-shape model in -Dcmo3.probe", modelAFile != null)
 		requireHeadlessGl("[gpu-tf]")
-		val root = Cmo3.read(modelAFile!!).root as? CModelSource ?: return
+		val root = Cmo3.read(modelAFile!!).root as? CModelSource ?: skipTest("[gpu-tf] ${modelAFile.name}: root is not a CModelSource")
 		val model = Cmo3Import.fromModelSource(root)
 		val defaults = model.parameters.associate { it.id to it.default }
 		val defaultValue: (ParameterId) -> Float = { defaults[it] ?: 0f }

@@ -2,6 +2,7 @@ package org.umamo.interop.cmo3
 
 import org.umamo.format.cmo3.Cmo3
 import org.umamo.format.cmo3.model.custom.CModelSource
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,9 +23,7 @@ class Cmo3SourceFileExportTest {
 		val file = sample
 
 		if (file == null) {
-			println("cmo3.sample not present; skipping the source-file export gate")
-
-			return
+			skipTest("cmo3.sample not present; skipping the source-file export gate")
 		}
 
 		val cmo3 = Cmo3.read(file.readBytes())

@@ -4,6 +4,7 @@ import org.umamo.edit.MeshElement
 import org.umamo.edit.MeshSelection
 import org.umamo.edit.MeshTopology
 import org.umamo.runtime.model.ElementOwner
+import org.umamo.ui.transform.SlideLanding
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
 import org.umamo.ui.viewport.gizmo.slideFactorAlongEdge
 import org.umamo.ui.viewport.gizmo.worldToScreen
@@ -22,19 +23,6 @@ internal class SlideContext(
 	val owner: ElementOwner,
 	val activeVertex: Int,
 	val neighborIndices: IntArray,
-)
-
-/**
- * Where the Vertex Slide's most recent drive landed: the edge it picked and how far along it the vertex
- * sits - what the confirm registers on the operation settings strip, whose Factor row re-slides the
- * same frozen edge.
- *
- * @property Int neighborIndex The edge's far endpoint the drive picked.
- * @property Float factor The landed factor in [0, 1].
- */
-internal class SlideLanding(
-	val neighborIndex: Int,
-	val factor: Float,
 )
 
 /**

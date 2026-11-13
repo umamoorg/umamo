@@ -7,6 +7,7 @@ import org.umamo.format.moc3.model.RotationDeformer
 import org.umamo.format.moc3.model.WarpDeformer
 import org.umamo.interop.moc3.export.Moc3Export
 import org.umamo.runtime.eval.cellsByLinearIndex
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
@@ -56,7 +57,7 @@ class KeyformPrecisionProofProbe {
 
 	@Test
 	fun proveKeyformPrecision() {
-		val sampleFile = System.getProperty("proof.sample")?.let(::File)?.takeIf { file -> file.isFile } ?: return
+		val sampleFile = System.getProperty("proof.sample")?.let(::File)?.takeIf { file -> file.isFile } ?: skipTest("proof.sample not present")
 		val directory = sampleFile.parentFile
 		val bytes = sampleFile.readBytes()
 		val original = Moc3.read(bytes)

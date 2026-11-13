@@ -4,6 +4,7 @@ import org.umamo.format.FormatRegistry
 import org.umamo.format.art.SourceArt
 import org.umamo.format.art.SourceLayerKind
 import org.umamo.geometry.mesh.measureQuality
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -22,7 +23,7 @@ import kotlin.test.fail
  * buckets), the vertices refinement added, and timing per sample.
  *
  * Corpus-gated the way the readers' own tests are: every sample under `test/corpus/{psd,clip,krita}`
- * found by walking up from the working directory, self-skipping with a printed line when none exist.
+ * found by walking up from the working directory, self-skipping when none exist.
  */
 class ArtMeshCorpusTest {
 	/** Every preset, and Standard again with holes filled. */
@@ -35,9 +36,7 @@ class ArtMeshCorpusTest {
 		val samples = locateSamples()
 
 		if (samples.isEmpty()) {
-			println("no test/corpus artwork samples; skipping the art mesh corpus test")
-
-			return
+			skipTest("no test/corpus artwork samples; skipping the art mesh corpus test")
 		}
 
 		var layerTotal = 0

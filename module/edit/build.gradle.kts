@@ -46,6 +46,8 @@ kotlin {
 		}
 		jvmTest {
 			dependencies {
+				// skipTest and requireSample: a gated test that cannot run ends as SKIPPED.
+				implementation(project(":testkit"))
 				// The CMO3 export round-trip gate drives real :edit session ops over a corpus model,
 				// then re-reads the re-emitted file through the JVM-only codec.  The conversion entry
 				// points (Cmo3Import / Cmo3Export) live in :interop, whose api(:format) also supplies

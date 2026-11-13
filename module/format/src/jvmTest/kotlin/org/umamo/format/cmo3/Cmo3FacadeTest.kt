@@ -2,6 +2,7 @@ package org.umamo.format.cmo3
 
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -24,12 +25,7 @@ class Cmo3FacadeTest {
 
 	@Test
 	fun readsModelExposesLayersAndReemitsMainXmlByteIdentical() {
-		val file =
-			sample ?: run {
-				println("cmo3.sample not present; skipping facade test")
-
-				return
-			}
+		val file = sample ?: skipTest("cmo3.sample not present; skipping facade test")
 		val model = Cmo3.read(file)
 
 		// Typed root + layer resources.
@@ -54,7 +50,7 @@ class Cmo3FacadeTest {
 
 	@Test
 	fun replaceLayerPngPersists() {
-		val file = sample ?: return
+		val file = sample ?: skipTest("cmo3.sample not present; skipping facade test")
 		val model = Cmo3.read(file)
 		val resources = model.imageResources()
 		val target = resources.first()
@@ -74,12 +70,7 @@ class Cmo3FacadeTest {
 	 */
 	@Test
 	fun readingAnArchiveAgainGivesAPrivateGraphAsRead() {
-		val file =
-			sample ?: run {
-				println("cmo3.sample not present; skipping the archive reread test")
-
-				return
-			}
+		val file = sample ?: skipTest("cmo3.sample not present; skipping the archive reread test")
 		val model = Cmo3.read(file)
 		val originalMainXml = CaffCodec.read(file.readBytes()).firstByTag(CaffArchive.TAG_MAIN_XML)!!.content
 		val mainXmlOf = { cmo3: Cmo3Model -> CaffCodec.read(Cmo3.write(cmo3)).firstByTag(CaffArchive.TAG_MAIN_XML)!!.content }

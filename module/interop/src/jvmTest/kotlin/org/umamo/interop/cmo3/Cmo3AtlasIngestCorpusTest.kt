@@ -420,6 +420,7 @@ class Cmo3AtlasIngestCorpusTest {
 	fun corpusTilesBindToTheLayeredImagesTheEditorDecomposed() {
 		val files = corpusFiles()
 		Assume.assumeTrue("cmo3.probe names no readable file", files.isNotEmpty())
+		var boundFileCount = 0
 
 		for (file in files) {
 			val puppet = Cmo3Import.fromModelSource(Cmo3.read(file.readBytes()).root as CModelSource)
@@ -468,7 +469,10 @@ class Cmo3AtlasIngestCorpusTest {
 
 			assertEquals(0, stray, "${file.name}: bindings that name no inventory row")
 			println("${file.name}: ${puppet.sources.size} source(s), ${puppet.sources.sumOf { source -> source.layers.size }} inventory rows, $bound of ${puppet.atlas.tiles.size} tiles bound")
+			boundFileCount++
 		}
+
+		Assume.assumeTrue("cmo3.probe names no file that carries tiles to bind", boundFileCount > 0)
 	}
 
 	/**

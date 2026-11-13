@@ -16,6 +16,7 @@ import org.umamo.format.cmo3.model.gen.GTexture2D
 import org.umamo.format.cmo3.model.identity.Guid
 import org.umamo.format.cmo3.model.identity.Id
 import org.umamo.format.cmo3.model.type.CAffine
+import org.umamo.testkit.skipTest
 import java.io.File
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -97,9 +98,7 @@ class Cmo3UnpackedDrawableProbeTest {
 		val files = corpusFiles()
 
 		if (files.isEmpty()) {
-			println("cmo3.probe lists no readable samples; skipping the unpacked-drawable probe")
-
-			return
+			skipTest("cmo3.probe lists no readable samples; skipping the unpacked-drawable probe")
 		}
 
 		val shapeCounts = sortedMapOf<String, Int>()

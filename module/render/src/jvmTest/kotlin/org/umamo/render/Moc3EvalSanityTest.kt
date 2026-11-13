@@ -3,6 +3,7 @@ package org.umamo.render
 import org.umamo.format.moc3.Moc3
 import org.umamo.interop.moc3.import.Moc3Import
 import org.umamo.render.eval.CpuDeformationEvaluator
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -21,9 +22,7 @@ class Moc3EvalSanityTest {
 		val corpusRoot = sample?.parentFile?.parentFile?.takeIf { it.isDirectory }
 
 		if (corpusRoot == null) {
-			println("moc3.sample not present; skipping eval sanity test")
-
-			return
+			skipTest("moc3.sample not present; skipping eval sanity test")
 		}
 
 		val mocFiles =
@@ -31,6 +30,7 @@ class Moc3EvalSanityTest {
 				.flatMap { modelDirectory -> modelDirectory.listFiles { candidate -> candidate.isFile && candidate.extension == "moc3" }.orEmpty().toList() }
 				.sortedBy { it.path }
 		assertTrue(mocFiles.isNotEmpty(), "expected corpus .moc3 files under ${corpusRoot.path}")
+		var checkedModelCount = 0
 
 		for (mocFile in mocFiles) {
 			val mocDocument =
@@ -80,6 +80,11 @@ class Moc3EvalSanityTest {
 			}
 
 			println("${mocFile.name}: ${geometry.worldPositions.size} drawables, $checkedValues coordinates within ±$margin")
+			checkedModelCount++
+		}
+
+		if (checkedModelCount == 0) {
+			skipTest("no corpus moc3 has drawables on a canvas; nothing was evaluated")
 		}
 	}
 }

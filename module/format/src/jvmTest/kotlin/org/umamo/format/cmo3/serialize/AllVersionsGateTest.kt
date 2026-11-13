@@ -3,6 +3,7 @@ package org.umamo.format.cmo3.serialize
 import org.umamo.format.cmo3.caff.CaffArchive
 import org.umamo.format.cmo3.caff.CaffCodec
 import org.umamo.format.cmo3.xml.XmlCodec
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,19 +17,11 @@ import kotlin.test.assertTrue
 class AllVersionsGateTest {
 	@Test
 	fun everySampleRoundTripsFullyTypedAndByteIdentical() {
-		val spec =
-			System.getProperty("cmo3.probe")
-				?: run {
-					println("cmo3.probe not present; skipping cross-version gate")
-
-					return
-				}
+		val spec = System.getProperty("cmo3.probe") ?: skipTest("cmo3.probe not present; skipping cross-version gate")
 		val files = spec.split(',').map { File(it.trim()) }.filter { it.isFile }
 
 		if (files.isEmpty()) {
-			println("cmo3.probe lists no readable samples; skipping")
-
-			return
+			skipTest("cmo3.probe lists no readable samples; skipping")
 		}
 
 		for (file in files) {

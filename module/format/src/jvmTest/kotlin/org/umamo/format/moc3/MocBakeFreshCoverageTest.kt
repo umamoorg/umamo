@@ -3,6 +3,7 @@ package org.umamo.format.moc3
 import org.umamo.format.moc3.encode.MocEncoder
 import org.umamo.format.moc3.moc.MocCodec
 import org.umamo.format.moc3.moc.Section
+import org.umamo.testkit.skipTest
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -44,9 +45,7 @@ class MocBakeFreshCoverageTest {
 		val files = samples()
 
 		if (files.isEmpty()) {
-			println("moc3.samples not present; skipping fresh bake coverage test")
-
-			return
+			skipTest("moc3.samples not present; skipping fresh bake coverage test")
 		}
 
 		val missingOverall = LinkedHashSet<String>()
