@@ -20,8 +20,6 @@ private const val DEFAULT_THEME_MODE = "dark"
  * static local with a sensible default, so [UmamoTheme] is safe to use even where settings are never
  * provided (a preview, or a subtree mounted outside the settings scope) - it simply renders the default
  * mode there.  Every app entrypoint feeds the real value in from settings via [ProvideAppThemeFromSettings].
- *
- * コンポジションで有効なテーマモード。設定が無い場面でも既定値で動くよう静的ローカルにしている。
  */
 val LocalThemeMode = staticCompositionLocalOf { DEFAULT_THEME_MODE }
 

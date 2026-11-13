@@ -7,10 +7,9 @@ import kotlinx.serialization.json.JsonPrimitive
 /**
  * `*.model3.json` - the model manifest referencing the `.moc3`, textures, and other sidecars.
  *
- * EN: Field order and names match the `model3.json` the editor exports (the SDK's documented
- *     manifest schema).  Optional references are nullable and omitted when absent, so re-emission
- *     drops nothing.
- * JA: モデルマニフェスト。
+ * Field order and names match the `model3.json` the editor exports (the SDK's documented
+ * manifest schema).  Optional references are nullable and omitted when absent, so re-emission
+ * drops nothing.
  *
  * @see <a href="https://docs.umamo.org/format/MOC3.md">MOC3.md §model3.json</a>
  */

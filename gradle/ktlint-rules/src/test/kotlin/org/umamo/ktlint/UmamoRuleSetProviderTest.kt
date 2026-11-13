@@ -23,6 +23,7 @@ class UmamoRuleSetProviderTest {
 				"umamo:no-comment-emphasis",
 				"umamo:no-fully-qualified-name",
 				"umamo:no-main-dispatcher",
+				"umamo:no-plan-citation",
 				"umamo:no-print-and-return-gate",
 				"umamo:no-single-letter-name",
 				"umamo:no-unit-only-block",

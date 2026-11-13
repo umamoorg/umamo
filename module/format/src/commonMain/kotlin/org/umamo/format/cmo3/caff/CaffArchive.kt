@@ -4,8 +4,7 @@ package org.umamo.format.cmo3.caff
  * One logical file inside a CAFF archive.  [content] is the fully-decoded payload
  * (de-obfuscated and decompressed); compression/obfuscation describe how it is stored on disk.
  *
- * EN: Holds decoded bytes rather than a file offset.
- * JA: オフセットではなくデコード済みバイトを保持する。
+ * Holds decoded bytes rather than a file offset.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 FILE TABLE</a>
  */
@@ -46,8 +45,8 @@ public class CaffPreview(
 /**
  * An in-memory CAFF archive: header metadata, optional preview, and the ordered file entries.
  *
- * EN: Entry order is significant - the model serializer assigns file paths positionally, and
- *     consumers map them by order (e.g. the i-th CImageResource ↔ the i-th imageFileBuf*).
+ * Entry order is significant - the model serializer assigns file paths positionally, and
+ * consumers map them by order (e.g. the i-th CImageResource ↔ the i-th imageFileBuf*).
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 Container: CAFF</a>
  */

@@ -438,6 +438,72 @@ class DocblockTagsRuleTest {
 	}
 
 	@Test
+	fun reportsATagThatSaysNothingAfterItsTypeAndNameInBothModes() {
+		val code =
+			"""
+			/**
+			 * Scales a length.
+			 *
+			 * @param Float length
+			 * @param Map<String, Float> factors
+			 * @param (Float) -> Float easing The easing curve.
+			 * @return Float
+			 */
+			fun scale(length: Float, factors: Map<String, Float>, easing: (Float) -> Float): Float = easing(length)
+
+			/** @return (Float) -> Float */
+			fun easing(): (Float) -> Float = { value -> value }
+			""".trimIndent()
+
+		val expected =
+			listOf(
+				"4:4 `@param` is written `@param Type name description`; `length` has no description",
+				"5:4 `@param` is written `@param Type name description`; `factors` has no description",
+				"7:4 `@return` is written `@return Type description`; it has no description",
+				"11:5 `@return` is written `@return Type description`; it has no description",
+			)
+
+		assertEquals(expected, problems(code))
+		assertEquals(expected, problems(code, driftOnlyEngine))
+	}
+
+	@Test
+	fun readsADescriptionThatStartsOnTheLineBelowItsTag() {
+		val code =
+			"""
+			/**
+			 * Scales a length.
+			 *
+			 * @param Float length
+			 *     The length, in canvas units.
+			 * @param (Float) -> Float easing
+			 *     The easing curve.
+			 * @return Float
+			 *     The scaled length.
+			 */
+			fun scale(length: Float, easing: (Float) -> Float): Float = easing(length)
+			""".trimIndent()
+
+		assertEquals(emptyList(), problems(code))
+	}
+
+	@Test
+	fun reportsATagWithNeitherTypeNorDescriptionOnce() {
+		val code =
+			"""
+			/**
+			 * Logs a line.
+			 *
+			 * @param message
+			 */
+			fun log(message: String) {
+			}
+			""".trimIndent()
+
+		assertEquals(listOf("4:4 `@param` is written `@param Type name description`; `message` is missing its type"), problems(code))
+	}
+
+	@Test
 	fun reportsEveryViolationAsNotCorrectableUnderItsOwnId() {
 		val errors =
 			lint(

@@ -15,9 +15,6 @@ import org.umamo.edit.subtreeTargets
  * Change + transform per target kind so call sites (the outliner's per-row eye and inline rename) stay a
  * thin one-liner.  The selection-wide visibility toggle stays separate (see withSelectionVisibility) —
  * that one flips the whole selection.
- *
- * 対象1件（パーツ／描画／デフォーマ）を1段の取り消し単位で切り替え・改名するセッション補助。サブツリー版
- * （Shift クリック）は配下全体を1段で切り替える。
  */
 
 /**

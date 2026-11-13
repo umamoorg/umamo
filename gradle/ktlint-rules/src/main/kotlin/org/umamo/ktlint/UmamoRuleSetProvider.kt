@@ -28,6 +28,7 @@ public class UmamoRuleSetProvider : RuleSetProviderV3(RuleSetId(UMAMO_RULE_SET_I
 			RuleProvider { NoCommentEmphasisRule() },
 			RuleProvider { NoFullyQualifiedNameRule() },
 			RuleProvider { NoMainDispatcherRule() },
+			RuleProvider { NoPlanCitationRule() },
 			RuleProvider { NoPrintAndReturnGateRule() },
 			RuleProvider { NoSingleLetterNameRule() },
 			RuleProvider { NoUnitOnlyBlockRule() },

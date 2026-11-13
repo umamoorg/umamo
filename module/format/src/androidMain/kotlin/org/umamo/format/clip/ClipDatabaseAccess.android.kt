@@ -11,8 +11,6 @@ import java.io.File
  * Application or Activity, the same way the app calls FileKit.init): the Android SQLite driver needs
  * a Context to locate a database file, but the format-neutral ArtReader.read(bytes) has none, so it
  * is supplied here.  Prefer the application context to avoid leaking an Activity.
- *
- * Android 用フック。起動時に applicationContext を一度設定する（Context が必要なため）。
  */
 object ClipAndroid {
 	// TODO(android-clip): currently assigned nowhere - the Android app has no file-open flow yet, so

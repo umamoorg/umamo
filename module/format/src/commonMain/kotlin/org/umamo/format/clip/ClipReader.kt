@@ -10,13 +10,12 @@ import kotlin.math.roundToInt
 /**
  * Clip Studio Paint (.clip) reader.
  *
- * EN: `.clip` carries Celsys's rename/reorder-stable layer ids (Layer.MainId and Layer.LayerUuid),
- *     which give non-destructive re-import a reliable identity key.  This reader parses the
- *     CSFCHUNK container down to the embedded SQLite database (CHNKSQLi) for the Canvas + Layer tables,
- *     and decodes the tiled raster from the CHNKExta chunks: ids, names, group hierarchy, order,
- *     opacity, blend, bounds, kind, visibility, RGBA/greyscale/monochrome pixels, masks (baked into
- *     alpha), and clipping.  See docs/format/CLIP.md.
- * JA: CLIP 読み込み。安定レイヤー ID が再取り込みの信頼性を生む。ラスタ（RGBA/グレースケール/モノクロ）も復号する。
+ * `.clip` carries Celsys's rename/reorder-stable layer ids (Layer.MainId and Layer.LayerUuid),
+ * which give non-destructive re-import a reliable identity key.  This reader parses the
+ * CSFCHUNK container down to the embedded SQLite database (CHNKSQLi) for the Canvas + Layer tables,
+ * and decodes the tiled raster from the CHNKExta chunks: ids, names, group hierarchy, order,
+ * opacity, blend, bounds, kind, visibility, RGBA/greyscale/monochrome pixels, masks (baked into
+ * alpha), and clipping.  See docs/format/CLIP.md.
  *
  * Cross-platform: the only platform-specific step - opening a SQLite driver over the extracted
  * database bytes - sits behind the [useClipDatabase] expect/actual seam.  The container parse and tile

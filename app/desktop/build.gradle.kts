@@ -37,7 +37,7 @@ val appCopyright = "Copyright (C) Umamo Project contributors.  Licensed under th
 val appLicenseIdentifier = "GPL-3.0-only"
 val appAboutUrl = "https://umamo.org"
 
-// The name the app image, its launcher, and its cfg take (docs/plan/distribution.md D15).  A Mac app is
+// The name the app image, its launcher, and its cfg take.  A Mac app is
 // capitalized, and this is also the name the macOS menu bar shows.  Windows follows, because the MSI names its
 // Start-menu entry and its Settings > Apps entry after it.  Linux keeps the lowercase name of its package and launcher
 // conventions.  Folders a rigger's files live in stay lowercase on every OS - the Windows install folder among them.
@@ -143,7 +143,7 @@ compose.desktop {
 		// override, a developer affordance pointing at a gitignored absolute host path, is set on
 		// `:desktop:run` alone at the bottom of this file.
 		//
-		// Half of the machine's memory (docs/plan/distribution.md D6): a large model's export needs gigabytes,
+		// Half of the machine's memory: a large model's export needs gigabytes,
 		// and the user's paint app runs beside the editor.  A percentage rather than a fixed size, so a small
 		// machine is never promised more than it has.  A jar cannot carry launcher options, so README, RELEASING,
 		// and the release notes print this same option for `java -jar`, as the in-app alerts do (JAR_HEAP_OPTION);

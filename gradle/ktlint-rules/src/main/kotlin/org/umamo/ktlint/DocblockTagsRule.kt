@@ -22,7 +22,8 @@ import org.jetbrains.kotlin.com.intellij.lang.ASTNode
  * declared return type other than `Unit` has its `@return`.  Under `drift_only` a docblock may carry no
  * tags at all, and the rule only reports tags that disagree with the signature.  In both modes a
  * docblock that has `@param` tags has one for every parameter, in order, a function that returns
- * nothing has no `@return`, and the tags keep their order.
+ * nothing has no `@return`, the tags keep their order, and a `@param` or `@return` says something
+ * after its type and name: a tag that only repeats the signature documents nothing.
  *
  * Nothing here can be autocorrected: a missing tag needs a description only a person can write.
  */
@@ -119,6 +120,8 @@ public class DocblockTagsRule :
 			if (problem != null) {
 				consistent = false
 				emit(parameterTag.tag.offset, problem, false)
+			} else if (!parameterTag.subject.described && !parameterTag.tag.continued) {
+				emit(parameterTag.tag.offset, "`@param` is written `@param Type name description`; `${parameterTag.subject.name}` has no description", false)
 			}
 
 			seenNames.add(parameterTag.subject.name)
@@ -152,7 +155,8 @@ public class DocblockTagsRule :
 	}
 
 	/**
-	 * Reports a missing `@return` on a function that returns a value, and a `@return` on one that does not.
+	 * Reports a missing `@return` on a function that returns a value, a `@return` on one that does not,
+	 * and a `@return` that describes nothing.
 	 *
 	 * @param ASTNode function The FUN node.
 	 * @param List<Tag> tags The docblock's tags, in reading order.
@@ -166,8 +170,8 @@ public class DocblockTagsRule :
 		val returnType = returnTypeOf(function)
 		val returnTag = tags.firstOrNull { tag -> tag.name == RETURN_TAG }
 
-		if (returnType != null && returnType.text !in VALUELESS_TYPES) {
-			if (returnTag == null && mode == DocblockTagsMode.strict) {
+		if (returnTag == null) {
+			if (returnType != null && returnType.text !in VALUELESS_TYPES && mode == DocblockTagsMode.strict) {
 				emit(returnType.startOffset, "The docblock has no `@return` for the `${returnType.text}` this function returns", false)
 			}
 
@@ -177,8 +181,15 @@ public class DocblockTagsRule :
 		// Without a declared type, only an expression body can return a value, and nothing here can tell what.
 		val returnsNothing = returnType?.text == UNIT_TYPE || (returnType == null && function.findChildByType(ElementType.EQ) == null)
 
-		if (returnTag != null && returnsNothing) {
+		if (returnsNothing) {
 			emit(returnTag.offset, "`@return` documents a value, and this function returns none", false)
+
+			return
+		}
+
+		// The word after the type is where the description starts.
+		if (subjectOf(returnTag.body).name == null && !returnTag.continued) {
+			emit(returnTag.offset, "`@return` is written `@return Type description`; it has no description", false)
 		}
 	}
 
@@ -281,17 +292,21 @@ public class DocblockTagsRule :
 
 			if (content != null) {
 				val prose = content.groupValues[1]
+				val opensOrClosesFence = prose.startsWith(CODE_FENCE)
 
 				// A code sample may open a line with an annotation, which is not a tag.
-				if (prose.startsWith(CODE_FENCE)) {
-					insideFence = !insideFence
-				} else if (!insideFence) {
-					val tag = TAG.find(prose)
+				val tag = if (insideFence || opensOrClosesFence) null else TAG.find(prose)
 
-					if (tag != null) {
-						val offset = docblock.startOffset + lineStart + content.groups[1]!!.range.first
-						tags.add(Tag(tag.groupValues[1], tag.groupValues[2].removeSuffix(DOCBLOCK_END).trim(), offset))
-					}
+				if (opensOrClosesFence) {
+					insideFence = !insideFence
+				}
+
+				if (tag != null) {
+					val offset = docblock.startOffset + lineStart + content.groups[1]!!.range.first
+					tags.add(Tag(tag.groupValues[1], tag.groupValues[2].removeSuffix(DOCBLOCK_END).trim(), offset))
+				} else if (tags.isNotEmpty() && prose.removeSuffix(DOCBLOCK_END).isNotBlank()) {
+					// A tag's text runs on until the next tag.
+					tags[tags.lastIndex] = tags.last().copy(continued = true)
 				}
 			}
 
@@ -307,8 +322,8 @@ public class DocblockTagsRule :
 	 * A type may hold spaces inside its brackets, and a function type written out has them around its
 	 * arrow, so the type runs to the first space outside any bracket that is not part of an arrow.
 	 *
-	 * @param String body The tag's text after `@param`.
-	 * @return Subject The first word, and the word after the type.
+	 * @param String body The tag's text after its name.
+	 * @return Subject The first word, the word after the type, and whether anything follows that.
 	 */
 	private fun subjectOf(body: String): Subject {
 		val words = ArrayList<String>()
@@ -361,7 +376,7 @@ public class DocblockTagsRule :
 			typeEnd += 2
 		}
 
-		return Subject(words.firstOrNull(), words.getOrNull(typeEnd))
+		return Subject(words.firstOrNull(), words.getOrNull(typeEnd), described = words.size > typeEnd + 1)
 	}
 
 	/**
@@ -370,16 +385,18 @@ public class DocblockTagsRule :
 	 * @property String name The tag's name, without the `@`.
 	 * @property String body The text after the name on the tag's line.
 	 * @property Int offset Where the tag starts in the file.
+	 * @property Boolean continued Whether the tag's text runs on past its own line.
 	 */
-	private class Tag(val name: String, val body: String, val offset: Int)
+	private data class Tag(val name: String, val body: String, val offset: Int, val continued: Boolean = false)
 
 	/**
 	 * What a `@param` tag opens with.
 	 *
 	 * @property String? firstWord The first word, which is the type when the tag is written the house way.
 	 * @property String? name The word after the type, which is the parameter's name.
+	 * @property Boolean described Whether the tag's line says anything after that name.
 	 */
-	private class Subject(val firstWord: String?, val name: String?)
+	private class Subject(val firstWord: String?, val name: String?, val described: Boolean)
 
 	/**
 	 * A `@param` tag that documents a value parameter.

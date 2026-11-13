@@ -94,8 +94,6 @@ class CommandRegistry {
  * for the app's lifetime (commands are registered into it, not swapped); descendants read
  * `LocalCommands.current` to dispatch.  The default errors loudly so a missing provider is caught at
  * the first dispatch rather than silently no-op'ing.
- *
- * コンポジション内で有効なコマンドレジストリ。アプリ生存期間中インスタンスは不変なので static。
  */
 val LocalCommands =
 	staticCompositionLocalOf<CommandRegistry> {

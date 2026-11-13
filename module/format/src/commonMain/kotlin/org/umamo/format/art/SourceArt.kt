@@ -15,8 +15,6 @@ import kotlin.jvm.JvmInline
  * only on JVM targets, so without it this file stops compiling the moment a non-JVM target
  * (Kotlin/Native, for iPadOS) is added.  The annotation is an optional expectation, so non-JVM
  * targets simply ignore it.
- *
- * ソースレイヤーの安定 ID。value class で型安全かつゼロコスト。
  */
 @JvmInline
 value class LayerId(val raw: String)
@@ -105,12 +103,11 @@ enum class LayerBlend {
 /**
  * What kind of source layer this is - chiefly, whether it carries ingestible raster pixels.
  *
- * EN: A raster-ingesting consumer cares most about [Raster] (has decodable pixels) versus everything
- *     else (no stored raster).  The non-raster kinds are still surfaced so a consumer can report or
- *     skip them knowingly rather than treating them as empty raster layers: [Text] and [Vector] are
- *     object layers whose content is regenerated from object data on load (no persisted raster);
- *     [Adjustment] is a procedural correction/filter layer; [Fill] is a paper/solid-fill layer.
- * JA: レイヤー種別。取り込み側はラスタの有無を知る必要がある。非ラスタ種別も識別して通知/スキップできる。
+ * A raster-ingesting consumer cares most about [Raster] (has decodable pixels) versus everything
+ * else (no stored raster).  The non-raster kinds are still surfaced so a consumer can report or
+ * skip them knowingly rather than treating them as empty raster layers: [Text] and [Vector] are
+ * object layers whose content is regenerated from object data on load (no persisted raster);
+ * [Adjustment] is a procedural correction/filter layer; [Fill] is a paper/solid-fill layer.
  */
 enum class SourceLayerKind {
 	Raster,
@@ -126,8 +123,6 @@ enum class SourceLayerKind {
  * through from the content below instead of being written by this layer.  Defaults to all enabled,
  * since most sources do not expose per-channel masking.  Krita's channelflags populates this; a
  * disabled alpha is the same underlying signal as inherit-alpha clipping (see SourceLayer.clipped).
- *
- * レイヤーが合成時に書き込むチャンネル。無効なチャンネルは下のレイヤーを通す。既定は全て有効。
  */
 data class ChannelMask(
 	val red: Boolean,
@@ -148,8 +143,6 @@ data class ChannelMask(
  * A plain class, not a `data class`: it wraps a large [rgba] buffer for which generated structural
  * equals/hashCode would be a footgun (a deep array compare on every call).  Identity equality is the
  * right default here.
- *
- * レイヤーの復号済みピクセル（RGBA8888・ストレートアルファ・上から行優先）。
  */
 class LayerRaster(
 	val width: Int,
@@ -247,8 +240,6 @@ interface SourceLayer {
  * folder [blend] and [opacity], which composite the whole group and are not equivalent to setting
  * each child layer's blend.  [passThrough] marks a folder that does not isolate (CSP "Through"): its
  * children blend straight onto what is below the folder, so [blend] is moot.
- *
- * フォルダ属性（パスで識別）。フォルダのブレンド/不透明度は平坦化で失われるためここで保持する。
  */
 interface SourceGroup {
 	/** Slash-joined path identifying this folder, matching enclosed layers' [SourceLayer.groupPath]. */
@@ -334,7 +325,5 @@ fun SourceArt.isEffectivelyVisible(layer: SourceLayer): Boolean {
  * separate reader facade.  These formats are ingestion-only, so [ReadOnlyCodec] supplies the
  * refusing write - and every art FileKind has writable = false, which advertises that to callers
  * before they try.
- *
- * ソースアートを読む FormatCodec。形式ごとに実装。読み取り専用なので write は常に拒否する。
  */
 interface ArtReader : ReadOnlyCodec<SourceArt>

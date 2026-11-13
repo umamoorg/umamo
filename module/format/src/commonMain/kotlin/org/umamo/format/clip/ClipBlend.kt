@@ -5,12 +5,11 @@ import org.umamo.format.art.LayerBlend
 /**
  * Maps a CLIP `Layer.LayerComposite` blend-mode code to the neutral [LayerBlend].
  *
- * EN: The complete enum was reverse-engineered from LayerBlendModes.clip (one layer per mode, named
- *     after the Clip Studio Paint UI label).  Codes are contiguous 0..26, then 36 for Divide; the
- *     27..35 gap is unused for leaf layers.  Code 30 was observed only on folders in one sample
- *     and is the folder pass-through composite, not a leaf blend mode - it is not represented here
- *     (folders are not emitted as layers).  Truly unknown codes degrade to Normal.
- * JA: LayerComposite コードを中立 LayerBlend へ写像する.  LayerBlendModes.clip から全列挙を判明.
+ * The complete enum was reverse-engineered from LayerBlendModes.clip (one layer per mode, named
+ * after the Clip Studio Paint UI label).  Codes are contiguous 0..26, then 36 for Divide; the
+ * 27..35 gap is unused for leaf layers.  Code 30 was observed only on folders in one sample
+ * and is the folder pass-through composite, not a leaf blend mode - it is not represented here
+ * (folders are not emitted as layers).  Truly unknown codes degrade to Normal.
  */
 object ClipBlend {
 	/**

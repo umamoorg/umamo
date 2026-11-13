@@ -5,8 +5,7 @@ package org.umamo.format.cmo3.model.identity
  * every entity (drawable, deformer, part, parameter, …) has a typed `*Guid`; on disk each is its own
  * element tag carrying `uuid` + `note` attributes.  [kind] holds that concrete tag.
  *
- * EN: One type covers all `*Guid` tags - they are opaque identity tokens with identical structure.
- * JA: 全 `*Guid` を 1 型で表し、[kind] にタグ名を保持する。
+ * One type covers all `*Guid` tags - they are opaque identity tokens with identical structure.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Serializer mechanics</a>
  */

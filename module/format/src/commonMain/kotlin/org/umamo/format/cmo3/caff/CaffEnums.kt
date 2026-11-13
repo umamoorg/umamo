@@ -3,7 +3,7 @@ package org.umamo.format.cmo3.caff
 /**
  * Preview image encoding, as stored in the CAFF header preview block.
  *
- * EN: typeNo is the on-disk byte value.
+ * typeNo is the on-disk byte value.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 PREVIEW</a>
  */
@@ -29,7 +29,7 @@ public enum class ImageType(public val typeNo: Int) {
 /**
  * Preview pixel layout, as stored in the CAFF header preview block.
  *
- * EN: Preview pixel layout.
+ * Preview pixel layout.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 PREVIEW</a>
  */
@@ -57,8 +57,8 @@ public enum class ColorType(public val typeNo: Int) {
  * Per-entry storage mode. serializeNo is the on-disk byte; zipLevel is the java.util.zip level
  * used when (re)compressing FAST/SMALL entries.
  *
- * EN: RAW = stored as-is (already-compressed PNGs);
- *     FAST/SMALL = a single-entry ("contents") Java Zip stream.
+ * RAW = stored as-is (already-compressed PNGs);
+ * FAST/SMALL = a single-entry ("contents") Java Zip stream.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 Compression</a>
  */

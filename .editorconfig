@@ -13,8 +13,7 @@ indent_style = tab
 indent_style = tab
 # Tell ktlint to use the official ruleset but honour tab indentation above.
 ktlint_code_style = ktlint_official
-# Bilingual EN/JA comments push some lines long; relax the line-length rule rather than
-# fight it (CLAUDE.md cares about *why*-comments, not column counts).
+# No column limit: A line is as long as it reads best and the wrapping rules disabled below key off this one.
 ktlint_standard_max-line-length = disabled
 # Allow single-line call chains like `libs.versions.x.get().toInt()` (ubiquitous in Gradle
 # Kotlin DSL + version-catalog access); the forced-newline form hurts more than it helps.

@@ -11,8 +11,6 @@ import org.umamo.runtime.model.drawableId
  * mesh element the pointer picks and the selection stores.  Only the current mode's domain is stored in
  * [MeshSelection.elementsByOwner]; highlights in the other domains are derived for display, and
  * switching modes converts the stored sets (see [MeshSelectionOps.changeSelectMode]).
- *
- * 編集モードの選択対象の種類。Blender の頂点・辺・面選択モードに対応する。
  */
 enum class MeshSelectMode {
 	Vertex,
@@ -27,8 +25,6 @@ enum class MeshSelectMode {
  * A gesture replaces only positions, so vertex indices, canonical (low, high) edge pairs, and face
  * ordinals are stable identities across it; a topology edit commits a selection re-derived against the
  * new mesh in the same step.
- *
- * メッシュの選択可能要素。頂点・無向辺・面のいずれか。要素の同一性はメッシュ内ローカル。
  */
 sealed interface MeshElement {
 	/**

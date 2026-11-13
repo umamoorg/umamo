@@ -2,8 +2,6 @@
 // RenderDevice backend seam.  Everything except the device impls is commonMain (jvm/android/iosArm64);
 // GlRenderDevice (LWJGL, desktop GL 3.3) lives in jvmMain, the GLES/Metal devices are stubs in
 // androidMain/iosMain.  Zero expect/actual.  Depends on :runtime for the puppet model.
-// :render — 変形評価（CPU）＋バックエンド非依存の PuppetRenderer。RenderDevice が継ぎ目で、GL 実装のみ
-// jvmMain。GLES / Metal デバイスはスタブ。:runtime に依存。
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
@@ -15,11 +13,10 @@ plugins {
 	id("umamo.test-corpus")
 }
 
-// EN: LWJGL ships its native libraries as classifier'd artifacts; pick the one for the build target.
-//     Default is the host; -Pumamo.target=<os>-<arch> cross-resolves (e.g. windows-x64 from WSL2).  The
-//     selection is shared with :desktop so a cross-build can't bundle this module's host natives by
-//     mistake — see gradle/build-target.gradle.kts.  (Desktop only — Android uses GLES via android.opengl.)
-// JA: LWJGL のネイティブ分類子を選ぶ。既定はホスト、-Pumamo.target で他プラットフォーム向けに解決。
+// LWJGL ships its native libraries as classifier'd artifacts; pick the one for the build target.
+// Default is the host; -Pumamo.target=<os>-<arch> cross-resolves (e.g. windows-x64 from WSL2).  The
+// selection is shared with :desktop so a cross-build can't bundle this module's host natives by
+// mistake — see gradle/build-target.gradle.kts.  (Desktop only — Android uses GLES via android.opengl.)
 apply(from = rootProject.file("gradle/build-target.gradle.kts"))
 val lwjglNatives = extra["umamoLwjglNatives"] as String
 

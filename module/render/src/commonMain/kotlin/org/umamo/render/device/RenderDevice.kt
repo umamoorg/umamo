@@ -24,9 +24,6 @@ import org.umamo.format.raster.RasterImage
  * a backend that records into command buffers (Metal) is free to open and commit its own buffer internally
  * to service one.  They are not part of a FrameEncoder because they do not compose with a pass - a resolve
  * runs between a render frame and its read-back, and a read-back is polled across many later frames.
- *
- * GPU バックエンドの継ぎ目。GL / GLES / Metal ごとに実装する。描画はフレームに記録し、resolve / 読み戻し /
- * リソース操作はフレーム外の自己完結操作。
  */
 public interface RenderDevice {
 	// --- Resources.  Everything the device hands out, the device frees. ---

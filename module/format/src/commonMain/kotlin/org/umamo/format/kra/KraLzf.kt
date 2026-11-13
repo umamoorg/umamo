@@ -11,8 +11,6 @@ package org.umamo.format.kra
  *
  * Pure Kotlin with no platform APIs, so it lives below the ZIP/XML orchestration and is unit
  * testable on its own.  Ported verbatim from Krita's GPL source.
- *
- * Krita タイルの復号プリミティブ。LZF 伸長と平面→インターリーブ変換。プラットフォーム非依存。
  */
 
 // KRA: kis_tile_compressor_2.cpp - first payload byte selects raw vs LZF-compressed tile data.
