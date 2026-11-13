@@ -142,7 +142,7 @@ Directions the design commits to.  None of this says the code is there; check be
 
 CI runs `./gradlew build -Dumamo.requireGl=true`: every compile, every test, `ktlintCheck`, and the purity checks.  Run that before calling a branch done, and the narrowest task that covers the change while iterating.  README.md has the run commands and the WSL2 setup.
 
-- **Format first.**  Run `./gradlew ktlintFormat` before a build or lint, and again afterward if the lint still reports something.  It fixes most code style violations by itself; what it leaves needs a hand fix.
+- **Format first.**  Run `./gradlew ktlintFormat` before a build or lint.  It fixes most code style violations by itself; what it leaves needs a hand fix.  At the end of each turn a Stop hook (`.claude/hooks/lint-changed.sh`) does the same over the changed Kotlin files and hands back what it could not fix, so a file may be reformatted on disk after your last edit.
 - **Tests** are `:<module>:jvmTest`, for example `./gradlew :ui:jvmTest --tests '*CommandDispatchTest'`.
 - **Read the outcome, not the exit code.**  Piping Gradle through `grep` or `tail` returns the last command's status, so `BUILD FAILED` reads as success: use `set -o pipefail` and read the output.  A task marked `SKIPPED` verified nothing.
 - **A gated test can pass while asserting nothing.**  A test whose corpus sample or GL context is missing self-skips and still reports PASSED, so confirm the test you are relying on really ran.  `-Dumamo.requireGl=true` turns a missing GL context into a failure.

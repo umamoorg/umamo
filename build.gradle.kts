@@ -4,6 +4,8 @@
 
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jlleitschuh.gradle.ktlint.KtlintExtension
+import org.jlleitschuh.gradle.ktlint.tasks.KtLintCheckTask
+import org.jlleitschuh.gradle.ktlint.tasks.KtLintFormatTask
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform) apply false
@@ -30,6 +32,15 @@ ktlint {
 
 dependencies {
 	ktlintRuleset("org.umamo:ktlint-rules")
+}
+
+// A format and a check asked for in one invocation run in that order, so the check reports what the
+// format could not fix rather than what it was about to.  Ordering only: a check asked for alone still
+// runs alone.
+allprojects {
+	tasks.withType<KtLintCheckTask>().configureEach {
+		mustRunAfter(tasks.withType<KtLintFormatTask>())
+	}
 }
 
 subprojects {
