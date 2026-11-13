@@ -103,7 +103,7 @@ internal class SetSerializer(private val tag: String, private val factory: () ->
  * Serializer for maps: `<tag count="n" [keyType="string"]>` with `<entry>` children, each holding a
  * `key` and `value` child.  Covers HashMap ("hash_map") and LinkedHashMap ("linked_map").
  *
- * EN: Reads into a LinkedHashMap so entry order is preserved for faithful re-emit.
+ * Reads into a LinkedHashMap so entry order is preserved for faithful re-emit.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Primitive & collection tags</a>
  */

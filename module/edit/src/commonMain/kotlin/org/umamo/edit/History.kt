@@ -14,8 +14,6 @@ const val DEFAULT_HISTORY_LIMIT: Int = 200
  * A pose: the live value of every parameter (the current scrub position the renderer deforms to).  Held
  * as ephemeral editor state outside [PuppetModel] - it is not document content (keyforms are), but it is
  * snapshotted so a scrub is undoable.  A small immutable map, so capturing one in a snapshot is cheap.
- *
- * ポーズ：各パラメータの現在値。ドキュメント内容ではない一時的な編集状態だが、スクラブを取り消せるよう保持。
  */
 typealias Pose = Map<ParameterId, Float>
 
@@ -24,8 +22,6 @@ typealias Pose = Map<ParameterId, Float>
  * the selections, the pose, and the pending edits - held outside [PuppetModel] so undo restores the editor
  * as it was at each step, not just the document.  Every field is an immutable value, so a snapshot is just
  * a few references - cheap to keep and to restore.
- *
- * 取り消し可能な1状態：ドキュメントモデルと、それに付随するモード・選択・ポーズ・頂点選択。PuppetModel の外に持つ。
  *
  * @property PuppetModel model The document model at this step.
  * @property Selection selection The object-mode selection at this step.
@@ -76,8 +72,6 @@ data class EditorSnapshot(
  * One history entry: a [snapshot] and the [change] that produced it (null for the initial state).  The
  * change is metadata — the snapshot does the undoing — used for the history-panel label and coalescing.
  *
- * 履歴の1項目：スナップショットと、それを生んだ変更（初期状態は null）。
- *
  * @property EditorSnapshot snapshot The state after [change] was applied.
  * @property Change change The change that produced [snapshot], or null for the seed entry.
  */
@@ -91,8 +85,6 @@ data class HistoryEntry(
  * [labelKey] and the [cursor] index of the live step.  Rebuilt on every history change so a Compose
  * panel renders it as plain state (clicking a row jumps the session there).  Compose-free, so the label
  * stays a key the UI resolves to a localized string.
- *
- * 履歴パネル用の取り消しスタックの平坦化ビュー。各段のラベルキーと現在位置を持つ。
  *
  * @property List<HistoryStep> steps The stack oldest-first.
  * @property Int cursor The index of the live step within [steps].
@@ -123,8 +115,6 @@ data class HistoryStep(
  * Undo is a cursor move, never an inverse op — correctness is structural, since each entry holds the
  * whole prior value.  A future branching "undo tree" can replace the linear backing without touching the
  * session API; v1 is deliberately linear.
- *
- * 不変スナップショットの線形な取り消し/やり直しスタック。やり直し枝は新規記録で破棄する（v1 の方針）。
  *
  * @param EditorSnapshot initial The seed entry — the state the document opened on.
  * @param Int initialLimit The starting cap; [limit] carries it and may be reassigned later.

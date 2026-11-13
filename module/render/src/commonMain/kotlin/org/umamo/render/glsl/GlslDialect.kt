@@ -7,8 +7,6 @@ package org.umamo.render.glsl
  * one, which want the same bodies behind different preambles.  A Metal backend shares NOTHING here - MSL
  * is a different language, supplied by that backend - so this enum is deliberately GL-family only rather
  * than pretending to be a backend-neutral shader abstraction.
- *
- * GL 系（デスクトップ GL 3.3 / Android GLES 3.0）のシェーダ方言。Metal は MSL を別途持つ。
  */
 internal enum class GlslDialect {
 	/** Desktop OpenGL 3.3 core profile. */

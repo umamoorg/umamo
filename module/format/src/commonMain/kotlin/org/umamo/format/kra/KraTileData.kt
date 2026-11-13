@@ -16,8 +16,6 @@ import org.umamo.format.binary.decodeAscii
  * (see decodeTilePayload).
  *
  * KRA: header in kis_tiled_data_manager.cc:181-196; per-tile framing in kis_tile_compressor_2.cpp.
- *
- * Krita レイヤーのタイル化ピクセルデータの解析。ASCII ヘッダとタイル列。タイルは内容のある箇所のみ存在する。
  */
 
 /** One decoded 64x64 tile: its top-left paint-device coordinate and interleaved native-order pixels. */

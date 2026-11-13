@@ -9,8 +9,6 @@ package org.umamo.runtime.model
  * via [parent] (the transform hierarchy a drawable inherits); each also belongs to a part via [partId]
  * (the organizational tree) - two independent hierarchies, mirroring CMO3's `targetDeformerGuid` vs
  * `parentGuid`.
- *
- * リグ階層の変形器。Cubism は2種(ワープ／回転)のみ。変形系統([parent])と組織系統([partId])は別。
  */
 sealed interface Deformer {
 	val id: DeformerId

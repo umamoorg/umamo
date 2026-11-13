@@ -22,8 +22,6 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * part, re-homing a drawable, reordering siblings, and interleaving a drawable between parts; every move
  * re-derives the render order from the tree.  Deformer moves are separate (deformers live in the Armature,
  * not the org tree).
- *
- * 組織ツリーの構造編集。ツリーが階層とパネル順の唯一の真実で、描画順のタイブレークでもある。移動は1つに統合。
  */
 
 /**

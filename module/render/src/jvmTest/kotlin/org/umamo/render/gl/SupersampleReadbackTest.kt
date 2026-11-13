@@ -24,8 +24,6 @@ import kotlin.test.assertTrue
  * scissor coordinates), resolves, and then requires: the sync read-back sees red FIRST (top-first
  * contract, correct through the downscale), and the async ticket delivers byte-identical pixels in
  * submission order.
- *
- * ビューポート読み戻しの末尾（スーパーサンプル解決＋非同期読み戻し）を初めて検証する。
  */
 class SupersampleReadbackTest {
 	private val displaySize = 64

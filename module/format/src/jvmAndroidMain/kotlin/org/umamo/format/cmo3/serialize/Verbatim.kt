@@ -5,10 +5,9 @@ import org.jdom.Element
 /**
  * A not-yet-typed subtree, held verbatim as its detached JDOM element so it round-trips unchanged.
  *
- * EN: When the engine meets a tag with no registered typed serializer it falls back to this, instead
- *     of failing - so newer Live2D format additions still load and save losslessly.  As subsystems
- *     get typed, these are replaced by concrete classes.
- * JA: 未対応タグはこのノードとして JDOM 要素のまま保持し、無損失で往復させる。
+ * When the engine meets a tag with no registered typed serializer it falls back to this, instead
+ * of failing - so newer Live2D format additions still load and save losslessly.  As subsystems
+ * get typed, these are replaced by concrete classes.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Payload: main.xml</a>
  */
@@ -24,7 +23,7 @@ public class VerbatimNode internal constructor(
  * Receives notifications when the engine falls back to [VerbatimNode] for an unmodeled tag - so
  * gaps in model coverage (or new Live2D additions) are visible rather than silent.
  *
- * EN: Functional interface; default is [None] (no-op).
+ * Functional interface; default is [None] (no-op).
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Payload: main.xml</a>
  */

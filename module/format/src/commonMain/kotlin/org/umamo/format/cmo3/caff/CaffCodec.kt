@@ -6,9 +6,8 @@ import org.umamo.format.cmo3.io.BinaryWriter
 /**
  * Reads and writes the CAFF container.  Stateless; operates on whole byte arrays.
  *
- * EN: Layout is header (unobfuscated) -> preview block (unobfuscated) -> file table (obfuscated)
- *     -> concatenated blobs -> guard bytes 'b''c'.  See CMO3.md §1 for the exact byte map.
- * JA: ヘッダ → プレビュー → ファイルテーブル → ブロブ群 → ガードバイト。詳細は CMO3.md §1。
+ * Layout is header (unobfuscated) -> preview block (unobfuscated) -> file table (obfuscated)
+ * -> concatenated blobs -> guard bytes 'b''c'.  See CMO3.md §1 for the exact byte map.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 Container: CAFF</a>
  */

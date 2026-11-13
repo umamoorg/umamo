@@ -21,8 +21,6 @@ import org.umamo.runtime.model.PuppetModel
  * usually deformed by its parent deformer chain rather than keyed directly, the EFFECTIVE set unions the
  * object's own axes with every ancestor deformer's axes (and, for a part, its member drawables' effective
  * sets).  Compose-free so it can be unit-tested; every axis references one parameter by KeyformAxis.parameterId.
- *
- * 選択オブジェクトに影響するパラメータ集合（自身のキーフォーム軸＋親デフォーマ連鎖の軸）。
  */
 
 /**

@@ -24,8 +24,6 @@ class DeformedGeometry(
  * The core math is parameter-driven morph blending (`p = base + Σ wᵢ·Δᵢ`, multilinear across the
  * N-D keyform grid) composed through the deformer hierarchy.  The weights are cheap and computed
  * CPU-side; the per-vertex delta-sum runs in a vertex shader in `:gpu`.
- *
- * パラメータ値からドロウアブルのジオメトリを評価する契約。
  */
 interface DeformationEvaluator {
 	/**

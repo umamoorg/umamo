@@ -8,8 +8,6 @@ import org.umamo.format.FormatVersion
  * Modelled as a `sealed interface` so the compiler forces every `when` over versions to be
  * exhaustive: adding a generation without handling it everywhere becomes a compile error, not a
  * silent runtime gap.
- *
- * 対応する CMO3 スキーマ世代。sealed interface により `when` の網羅性をコンパイラが強制する。
  */
 sealed interface Cmo3Version : FormatVersion {
 	// `data object` = a singleton with generated equals/hashCode/toString.  There is exactly one

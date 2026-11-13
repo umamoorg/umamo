@@ -5,7 +5,7 @@
 # The installers are an MSI (Windows), a DEB and an RPM (Linux), and a DMG (macOS arm64). The macOS app and DMG
 # are signed with the project's Developer ID, notarized, and stapled; the RPMs and SHA256SUMS.txt are signed with
 # the release OpenPGP key; a published release carries GitHub build-provenance attestations. Windows stays
-# unsigned for now (docs/plan/distribution.md Phase 3). Umamo never updates itself (D8). See RELEASING.md.
+# unsigned for now. Umamo never updates itself. See RELEASING.md.
 name: Release
 
 on:
@@ -164,7 +164,7 @@ jobs:
       fail-fast: false
       # appImage gates createDistributable and the steps that check, archive, and smoke-test the app
       # image. packagingJdk, when set, is the JDK whose jlink and jpackage build that image instead of
-      # the Gradle daemon's 21 (docs/plan/distribution.md D14).
+      # the Gradle daemon's 21 (RELEASING.md, What ships).
       #
       # macOS arm64 packages with JDK 27 because jpackage before 27 rejects a CFBundleVersion whose
       # first component is zero, so any 0.x version failed createDistributable on macOS alone.

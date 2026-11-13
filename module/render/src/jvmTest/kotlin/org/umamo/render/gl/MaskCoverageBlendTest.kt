@@ -32,9 +32,6 @@ import kotlin.test.assertTrue
  * uses alpha factors (GL_ZERO, GL_ONE), so if the coverage draw honoured that mode the target's alpha
  * would stay 0 and the masked drawable would vanish entirely.  The renderer must therefore draw coverage
  * at Normal, not the source's mode - this test fails if that regresses (the masked quad goes black).
- *
- * マスク被覆パスがマスク元のブレンドモードに関わらず Normal で描くことを検証する。Multiply / Additive の
- * マスク元だと被覆アルファが 0 のままになり、被マスク描画が消えてしまう回帰を捕まえる。
  */
 class MaskCoverageBlendTest {
 	private val viewportSize = 64

@@ -7,7 +7,7 @@
 #     unexpected os.arch fails the build instead of producing a jar full of the wrong natives.
 #   * The heap overrides are not cosmetic: gradle.properties asks for a 4 GB daemon and the Kotlin daemon mirrors it,
 #     ~8 GB against the arm64 macOS runner's ~7 GB; 2 GB each fits every runner and is ample for :desktop alone.
-#   * UMAMO_PACKAGING_JAVA_HOME, when set, is the packaging JDK the leg names (docs/plan/distribution.md D14).
+#   * UMAMO_PACKAGING_JAVA_HOME, when set, is the packaging JDK the leg names (RELEASING.md, What ships).
 #   * UMAMO_MAC_SIGNING_IDENTITY and UMAMO_MAC_SIGNING_KEYCHAIN, when set (macos-signing-keychain.sh sets them),
 #     switch on the Compose plugin's signing with that Developer ID: the app image, its runtime, and every native
 #     inside its jars.  The build script never switches it on, so a build anywhere else stays ad-hoc signed.

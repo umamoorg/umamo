@@ -25,8 +25,6 @@ const val KEYMAP_OVERRIDES_KEY: String = "input.keybinding.overrides"
  * is explicitly unbound).  Never throws: a malformed or absent overrides object yields an empty map, so a
  * corrupt settings value falls back to the bare preset rather than breaking input.
  *
- * ユーザーのコード上書きを「指定文字列→コマンド id」のマップとして読む（空値は明示的な解除）。例外は投げない。
- *
  * @param Settings settings The settings store to read from.
  * @return Map The override map (chord spec → command id; "" = unbound).
  */
@@ -172,8 +170,6 @@ fun rebindCommand(settings: Settings, commandId: String, newChord: KeyChord) {
  * Unbinds [commandId]'s canonical chord, persisting the change (a no-op if it has no binding).  A preset
  * binding is masked with an unbind marker; a pure override is dropped.
  *
- * commandId の正規コードを解除して保存する（束縛が無ければ何もしない）。
- *
  * @param Settings settings The settings store to write to.
  * @param String commandId The command to unbind.
  */
@@ -187,8 +183,6 @@ fun unbindCommand(settings: Settings, commandId: String) {
 /**
  * Clears all user overrides, returning the keymap to the selected preset's bindings (the preset choice is
  * left unchanged).  The "reset shortcuts" action.
- *
- * すべてのユーザー上書きを消去し、選択中のプリセットに戻す（プリセットの選択はそのまま）。
  *
  * @param Settings settings The settings store to write to.
  */

@@ -6,8 +6,6 @@ import org.umamo.ui.workspace.SpaceScope
 /**
  * Receives a command invocation.  A `fun interface` (Kotlin SAM) so call sites can pass a lambda -
  * `CommandHandler { argument -> … }` - instead of an anonymous object.
- *
- * コマンド実行を受け取る関数型インターフェース。ラムダで渡せる。
  */
 fun interface CommandHandler {
 	/**
@@ -23,8 +21,6 @@ fun interface CommandHandler {
  * Edit-mode select-mode command is hidden in Object mode) and the dispatch guard in
  * [CommandRegistry.invoke].  A `fun interface` so registration sites pass a lambda closing over live
  * session state, evaluated fresh at each query rather than captured once.
- *
- * コマンドが現在のコンテキストで有効かを返す。パレットの絞り込みとディスパッチのガードに使う。
  */
 fun interface CommandAvailability {
 	/**

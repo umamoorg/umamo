@@ -14,9 +14,6 @@ package org.umamo.format.kra
  *
  * Scope: RGBA and GRAYA in U8, U16, and F32.  Half-float (F16) and other models (CMYK, LAB, XYZ,
  * YCbCr) raise a clear error rather than silently mis-decoding.
- *
- * Krita のカラースペースを RGBA8888 へ変換する。整数 RGB は BGRA、浮動小数 RGB は RGBA、グレースケールは
- * gray, alpha の順。8/16/32 ビットに対応し 8 ビットへ縮約する。
  */
 internal enum class KraColorDepth {
 	UnsignedByte, // U8

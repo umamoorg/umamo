@@ -9,8 +9,6 @@ package org.umamo.runtime.model
  * Each constant cites its CMO3 ColorComposition token and its MOC3 packed colorMode int
  * (sections 153/157, `colorMode or (alphaMode shl 8)`); the mapping lives in explicit functions
  * (BlendModeMapping), never in ordinals.
- *
- * 描画オブジェクト／オフスクリーン合成のカラーブレンドモード。Cubism のブレンドモードに対応。
  */
 enum class BlendMode {
 	/** Legacy Normal.  CMO3 `NORMAL`; MOC3 colorMode 0 (constant-flags bits clear). */
@@ -90,8 +88,6 @@ enum class BlendMode {
  *
  * Each constant cites its CMO3 AlphaComposition token and MOC3 packed alphaMode int
  * (sections 153/157, bits 8-15).
- *
- * アルファブレンドモード（Cubism 5.3）。カラーブレンドとは独立。
  */
 enum class AlphaBlendMode {
 	/** Over (the default; pre-5.3 behavior).  CMO3 `OVER`; MOC3 alphaMode 0. */

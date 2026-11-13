@@ -3,10 +3,9 @@ package org.umamo.format.cmo3.io
 /**
  * Big-endian, XOR-deobfuscating reader over a byte array.
  *
- * EN: All multi-byte integers
- *     are big-endian; an obfuscation key XORs values by width (byte=key&0xFF, short=key&0xFFFF,
- *     int=key, long=(key<<32)|key).  A key of 0 means "not obfuscated".
- * JA: 多バイト整数はビッグエンディアン。難読化キーで幅ごとに XOR する。
+ * All multi-byte integers
+ * are big-endian; an obfuscation key XORs values by width (byte=key&0xFF, short=key&0xFFFF,
+ * int=key, long=(key<<32)|key).  A key of 0 means "not obfuscated".
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 Container: CAFF</a>
  */
@@ -30,7 +29,7 @@ public class BinaryReader(private val data: ByteArray) {
 	/**
 	 * Advances the cursor by [count] bytes without interpreting them.
 	 *
-	 * EN: CAFF "skip(n)" is a literal reserved gap, NOT alignment padding.
+	 * CAFF "skip(n)" is a literal reserved gap, NOT alignment padding.
 	 *
 	 * @param Int count Number of bytes to skip.
 	 */
@@ -115,8 +114,8 @@ public class BinaryReader(private val data: ByteArray) {
 	/**
 	 * Reads a 7-bit, MSB-first variable-length unsigned integer.
 	 *
-	 * EN: A 7-bit variable-length integer: each byte carries 7 value bits;
-	 *     the high bit signals continuation.  Used as the length prefix for strings.
+	 * A 7-bit variable-length integer: each byte carries 7 value bits;
+	 * the high bit signals continuation.  Used as the length prefix for strings.
 	 *
 	 * @param Int key Obfuscation key (0 = none).
 	 * @return Int The decoded length/count.

@@ -15,9 +15,6 @@ import org.umamo.runtime.model.PuppetModel
  * (withOrgChildMoved / withDeformerMoved) live in StructureEdits.kt; this file only routes a drop to
  * them.  Mirrors the parameter panel's split (ParametersDropRules in :ui feeds ParameterTreeEdits
  * here) - except the outliner's rules mention no UI types, so the whole resolution lives in :edit.
- *
- * アウトライナーのドロップ解決。行ドロップの帯域判定と移動先の解決を一箇所で行い、指標と実際の
- * 移動が常に一致する。ツリー変換自体は StructureEdits.kt にある。
  */
 
 /**

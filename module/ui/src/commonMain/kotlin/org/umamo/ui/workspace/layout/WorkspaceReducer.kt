@@ -11,8 +11,6 @@ import org.umamo.ui.workspace.SpaceKind
  * Ratio drags are deliberately NOT here: a splitter rewrites its own subtree (dragSplitBoundary) and
  * threads the result up via the layout callback, so it never needs an id lookup.
  *
- * エリアツリーへの構造的編集（対象は葉の id）。ヘッダ等が発行する名前付きコマンド。純粋な reduce に集約。
- *
  * @property String areaId The leaf the command targets.
  */
 sealed interface AreaCommand {
@@ -58,8 +56,6 @@ sealed interface AreaCommand {
 /**
  * Which edge of the workspace a [AreaCommand.DockArea] docks its leaf against.  Bottom/Top dock a
  * full-width strip; Left/Right dock a full-height one.
- *
- * ドック先のワークスペース端。Bottom/Top は横幅いっぱい、Left/Right は縦高いっぱいの帯。
  */
 enum class DockEdge {
 	Top,
@@ -72,8 +68,6 @@ enum class DockEdge {
  * Applies a structural [command] to [root], returning the new tree (the input is never mutated -
  * data classes + copy).  Unknown ids are no-ops (the tree returns unchanged), so a stale command from
  * a closed area fails safely.
- *
- * 構造的コマンドを root に適用し、新しいツリーを返す（入力は不変）。未知の id は無操作。
  *
  * @param AreaNode root The tree to edit.
  * @param AreaCommand command The structural edit to apply.
@@ -122,8 +116,6 @@ fun reduce(root: AreaNode, command: AreaCommand): AreaNode =
  * it as a full-span strip on [edge] of the whole workspace, the strip taking [ratio] of the perpendicular
  * axis.  A no-op when the leaf is missing or is the workspace's sole area (nothing to dock against).
  *
- * 葉を現在の位置から外し（親分割は兄弟に畳む）、ワークスペース端の帯として再挿入する。
- *
  * @param AreaNode root The tree to edit.
  * @param String sourceId The leaf to dock.
  * @param DockEdge edge The workspace edge to dock against.
@@ -171,8 +163,6 @@ private fun findLeaf(node: AreaNode, areaId: String): LeafArea? =
  * [SplitNode] - i.e. they share a full edge and can be joined by collapsing their parent split.
  * Recurses the whole tree looking for such a parent.
  *
- * firstId と secondId が同一 SplitNode の 2 つの直接の子（葉）かどうかを返す。
- *
  * @param AreaNode node The subtree to search.
  * @param String firstId One leaf id.
  * @param String secondId The other leaf id.
@@ -205,8 +195,6 @@ internal fun areDirectSiblings(node: AreaNode, firstId: String, secondId: String
  * recurses into splits.  Leaves that don't match (and the whole tree, if none matches) come back
  * structurally unchanged.
  *
- * id 一致の葉を transform で置換したコピーを返す。分割は再帰。一致が無ければ不変。
- *
  * @param AreaNode node The subtree to walk.
  * @param String areaId The leaf id to replace.
  * @param Function transform Maps the matched leaf to its replacement node.
@@ -235,8 +223,6 @@ private fun mapLeaf(node: AreaNode, areaId: String, transform: (LeafArea) -> Are
  * sole leaf of a workspace is refused (returns the tree unchanged) - a workspace must always have at
  * least one area.
  *
- * 親分割を生き残る兄弟に畳んで葉を閉じる。ワークスペース唯一の葉は閉じない（不変を返す）。
- *
  * @param AreaNode root The tree to edit.
  * @param String areaId The leaf id to close.
  * @return AreaNode The tree with the leaf removed (or unchanged if it is the sole area / not found).
@@ -253,8 +239,6 @@ private fun closeArea(root: AreaNode, areaId: String): AreaNode {
  * Recursively removes the leaf [areaId] from a subtree, returning the rewritten subtree, or null when
  * the leaf is not in this subtree (the caller uses null to mean "keep looking / not here").  When a
  * split's direct child is the target, the split collapses to its other child.
- *
- * 部分木から葉を再帰的に取り除き、書き換えた部分木を返す。ここに無ければ null。
  *
  * @param AreaNode node The subtree to search.
  * @param String areaId The leaf id to remove.

@@ -1,6 +1,5 @@
 // :ui — Compose Multiplatform editor shell (panels, tree, timeline, parameter grid).
 // Hosts the :render viewport, injected by each app as a composable slot (see ViewportHost).
-// :ui — Compose Multiplatform 製エディタ UI。ビューポートは各アプリがスロットで注入する。
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)

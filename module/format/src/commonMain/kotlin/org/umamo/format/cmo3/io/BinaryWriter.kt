@@ -3,9 +3,8 @@ package org.umamo.format.cmo3.io
 /**
  * Big-endian, XOR-obfuscating writer into a growable byte buffer.
  *
- * EN: Inverse of [BinaryReader];
- *     same big-endian + width-keyed XOR conventions.
- * JA: [BinaryReader] の逆操作。
+ * Inverse of [BinaryReader];
+ * same big-endian + width-keyed XOR conventions.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 Container: CAFF</a>
  */

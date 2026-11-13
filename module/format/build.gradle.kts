@@ -1,5 +1,4 @@
 // :format — Cubism file family + art I/O.  KMP library shared by desktop (JVM) and Android.
-// :format — Cubism ファイル群とアート入出力。デスクトップ(JVM)と Android が共有する KMP ライブラリ。
 
 plugins {
 	alias(libs.plugins.kotlinMultiplatform)
