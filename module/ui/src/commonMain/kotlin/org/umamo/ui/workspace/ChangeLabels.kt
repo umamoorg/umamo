@@ -32,6 +32,8 @@ internal fun changeLabel(labelKey: String?): String =
 		"change.drawable.rename" -> stringResource(Res.string.history_drawable_rename)
 		"change.drawable.selectable" -> stringResource(Res.string.history_drawable_selectable)
 		"change.drawable.move" -> stringResource(Res.string.history_drawable_move)
+		"change.visibility.hideUnselected" -> stringResource(Res.string.history_hide_unselected)
+		"change.visibility.unhideAll" -> stringResource(Res.string.history_unhide_all)
 		"change.deformer.rename" -> stringResource(Res.string.history_deformer_rename)
 		"change.deformer.selectable" -> stringResource(Res.string.history_deformer_selectable)
 		"change.deformer.move" -> stringResource(Res.string.history_deformer_move)

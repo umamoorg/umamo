@@ -394,6 +394,8 @@
 	<string name="cmd_redo">Redo</string>
 	<string name="cmd_adjust_last_operation">Adjust Last Operation</string>
 	<string name="cmd_toggle_visibility">Toggle Visibility</string>
+	<string name="cmd_hide_unselected">Hide Unselected</string>
+	<string name="cmd_unhide_all">Unhide All</string>
 
 	<!-- Command palette. -->
 	<string name="search_hint">Search</string>
@@ -425,6 +427,8 @@
 	<string name="history_drawable_rename">Rename Mesh</string>
 	<string name="history_drawable_selectable">Toggle Mesh Selectability</string>
 	<string name="history_drawable_move">Move Mesh</string>
+	<string name="history_hide_unselected">Hide Unselected</string>
+	<string name="history_unhide_all">Unhide All</string>
 	<string name="history_deformer_rename">Rename Deformer</string>
 	<string name="history_deformer_selectable">Toggle Deformer Selectability</string>
 	<string name="history_deformer_move">Move Deformer</string>

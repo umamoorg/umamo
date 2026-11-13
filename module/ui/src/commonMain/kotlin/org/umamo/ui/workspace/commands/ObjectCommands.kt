@@ -6,6 +6,8 @@ import org.umamo.edit.PartChange
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionOps
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.structure.hideUnselected
+import org.umamo.edit.structure.unhideAll
 import org.umamo.edit.structure.visibilityOf
 import org.umamo.edit.structure.withSelectionVisibility
 import org.umamo.ui.action.Command
@@ -14,11 +16,11 @@ import org.umamo.ui.model.SelectionHandle
 import org.umamo.ui.resources.*
 
 /**
- * The commands acting on the object selection itself: the visibility toggle and the outliner's
- * select-hierarchy.  Both work off the selection rather than the pointer, so they need no routing - a
- * selection is already a statement about what is meant, wherever the pointer happens to sit.
+ * The commands acting on the object selection itself: the visibility toggle, Hide Unselected, Unhide All,
+ * and the outliner's select-hierarchy.  All work off the selection rather than the pointer, so they need no
+ * routing - a selection is already a statement about what is meant, wherever the pointer happens to sit.
  *
- * @param EditorSession? editorSession The open document's session, or null (both commands then no-op).
+ * @param EditorSession? editorSession The open document's session, or null (every command then no-ops).
  * @param SelectionHandle? selection The object-selection handle, or null with no document.
  * @param SessionAvailability availability The shared document-scoped availability tiers.
  * @return List<Command> The commands to register.
@@ -59,6 +61,13 @@ internal fun objectCommands(
 					editorSession.mutate(change) { model -> model.withSelectionVisibility(current.targets, newVisible) }
 				}
 			}
+		},
+		// Object mode only, so Shift+H and Alt+H stay free for hiding mesh elements in Edit mode.
+		Command("object.hideUnselected", title = Res.string.cmd_hide_unselected, availability = availability.inObjectMode) {
+			editorSession?.hideUnselected()
+		},
+		Command("object.unhideAll", title = Res.string.cmd_unhide_all, availability = availability.inObjectMode) {
+			editorSession?.unhideAll()
 		},
 		// Select Hierarchy: with a target argument (the outliner context menu passes its row) the row's
 		// subtree replaces the selection; without one (the palette) the current selection expands in place.

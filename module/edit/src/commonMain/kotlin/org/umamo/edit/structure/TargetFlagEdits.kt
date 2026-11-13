@@ -1,9 +1,11 @@
 package org.umamo.edit.structure
 
 import org.umamo.edit.SelectionTarget
+import org.umamo.edit.hasTarget
 import org.umamo.runtime.model.Deformer
 import org.umamo.runtime.model.DeformerId
 import org.umamo.runtime.model.DrawableId
+import org.umamo.runtime.model.OrgChild
 import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 
@@ -229,6 +231,118 @@ fun PuppetModel.withSelectionVisibility(targets: Set<SelectionTarget>, visible: 
 	}
 
 	return next
+}
+
+/**
+ * Every part and drawable whose own eye is off: what Unhide All turns back on.  Parts come first, each kind in
+ * model order.
+ *
+ * @return List<SelectionTarget> The hidden parts and drawables.
+ */
+fun PuppetModel.hiddenTargets(): List<SelectionTarget> =
+	parts.filter { part -> !part.isVisible }.map { part -> SelectionTarget.Part(part.id) } +
+		drawables.filter { drawable -> !drawable.isVisible }.map { drawable -> SelectionTarget.Drawable(drawable.id) }
+
+/**
+ * The branches Hide Unselected turns off: every part or drawable that is neither selected nor above something
+ * selected, taken at its topmost node so a hidden part's contents keep their own eyes.
+ *
+ * A selected part's contents stay as they are.  A selected deformer keeps its part shown, since a deformer under
+ * a hidden part is hidden with it.  A branch whose eye is already off is left out, and the walk never turns an
+ * eye on, so a selected object that is hidden stays hidden.
+ *
+ * @param Set<SelectionTarget> selected The selection to keep shown.
+ * @return List<SelectionTarget> The branch roots to hide, in tree order; empty when no selected target resolves.
+ */
+fun PuppetModel.unselectedBranches(selected: Set<SelectionTarget>): List<SelectionTarget> {
+	val resolved = selected.filter { target -> hasTarget(target) }
+
+	if (resolved.isEmpty()) {
+		return emptyList()
+	}
+
+	val selectedPartIds = resolved.filterIsInstance<SelectionTarget.Part>().mapTo(HashSet()) { target -> target.id }
+	val selectedDrawableIds = resolved.filterIsInstance<SelectionTarget.Drawable>().mapTo(HashSet()) { target -> target.id }
+	val selectedDeformerIds = resolved.filterIsInstance<SelectionTarget.Deformer>().mapTo(HashSet()) { target -> target.id }
+	val deformerPartIds = deformers.filter { deformer -> deformer.id in selectedDeformerIds }.mapNotNullTo(HashSet()) { deformer -> deformer.partId }
+	val partsById = parts.associateBy { part -> part.id }
+	val drawablesById = drawables.associateBy { drawable -> drawable.id }
+
+	// The parts the second walk keeps and enters: each one above a selected part or drawable, and a selected
+	// deformer's own part with everything above it.
+	val keptPartIds = HashSet<PartId>(deformerPartIds)
+	val collectedPartIds = HashSet<PartId>()
+	val path = ArrayList<PartId>()
+
+	/**
+	 * Adds the parts above each selected object under [children] to keptPartIds, visiting each part once.
+	 *
+	 * @param List<OrgChild> children The children to walk.
+	 */
+	fun collectKept(children: List<OrgChild>) {
+		for (child in children) {
+			when (child) {
+				is OrgChild.Drawable -> {
+					if (child.id in selectedDrawableIds) {
+						keptPartIds.addAll(path)
+					}
+				}
+
+				is OrgChild.Part -> {
+					if (!collectedPartIds.add(child.id)) {
+						continue
+					}
+
+					if (child.id in selectedPartIds || child.id in deformerPartIds) {
+						keptPartIds.addAll(path)
+					}
+
+					val part = partsById[child.id] ?: continue
+					path.add(child.id)
+					collectKept(part.children)
+					path.removeAt(path.lastIndex)
+				}
+			}
+		}
+	}
+	collectKept(rootChildren)
+
+	val branches = LinkedHashSet<SelectionTarget>()
+	val enteredPartIds = HashSet<PartId>()
+
+	/**
+	 * Adds the topmost shown, unselected, unkept objects under [children] to branches, entering only kept parts.
+	 *
+	 * @param List<OrgChild> children The children to walk.
+	 */
+	fun collectBranches(children: List<OrgChild>) {
+		for (child in children) {
+			when (child) {
+				is OrgChild.Drawable -> {
+					if (child.id !in selectedDrawableIds && drawablesById[child.id]?.isVisible == true) {
+						branches += SelectionTarget.Drawable(child.id)
+					}
+				}
+
+				is OrgChild.Part -> {
+					if (!enteredPartIds.add(child.id) || child.id in selectedPartIds) {
+						continue
+					}
+
+					val part = partsById[child.id] ?: continue
+
+					if (child.id in keptPartIds) {
+						collectBranches(part.children)
+					} else if (part.isVisible) {
+						branches += SelectionTarget.Part(child.id)
+					}
+				}
+			}
+		}
+	}
+	collectBranches(rootChildren)
+
+	return branches.toList()
 }
 
 /**

@@ -150,6 +150,8 @@ class ViewportContextMenuTest {
 			assertEquals(1, popups())
 			assertEquals(1, rowsReading("Duplicate"))
 			assertEquals(1, rowsReading("Toggle Visibility"))
+			assertEquals(1, rowsReading("Hide Unselected"))
+			assertEquals(1, rowsReading("Unhide All"))
 			assertEquals(1, rowsReading("Snap"))
 			assertEquals(1, rowsReading("Frame Selected"))
 			assertEquals(0, rowsReading("Subdivide Lattice"))

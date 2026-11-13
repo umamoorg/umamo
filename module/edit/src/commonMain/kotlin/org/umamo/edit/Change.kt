@@ -925,6 +925,33 @@ sealed interface DocumentChange : Change {
 }
 
 /**
+ * A visibility edit across many objects at once.  A single object's eye flip is [PartChange.SetVisibility] or
+ * [DrawableChange.SetVisibility]; these name the bulk operations, whose steps read by the operation rather than
+ * by one object's kind.
+ */
+sealed interface VisibilityChange : Change {
+	/**
+	 * Hides everything outside the selection, each unselected branch at its topmost part or drawable.
+	 *
+	 * @property List<SelectionTarget> hidden The parts and drawables whose own eye turned off.
+	 */
+	data class HideUnselected(val hidden: List<SelectionTarget>) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.hideUnselected"
+	}
+
+	/**
+	 * Turns on the eye of every part and drawable that had it off.
+	 *
+	 * @property List<SelectionTarget> shown The parts and drawables whose own eye turned on.
+	 */
+	data class UnhideAll(val shown: List<SelectionTarget>) : VisibilityChange {
+		override val undoability: Undoability = Undoability.Undoable
+		override val labelKey: String = "change.visibility.unhideAll"
+	}
+}
+
+/**
  * A keyform authoring edit: binding a channel to a parameter, capturing a key, or removing one.
  *
  * Carries the CHANNEL rather than the whole target because that is what the history label needs to read

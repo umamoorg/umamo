@@ -52,6 +52,8 @@ private val OBJECT_ROWS =
 	listOf(
 		ViewportMenuRow.Single("mesh.duplicate"),
 		ViewportMenuRow.Single("object.toggleVisibility"),
+		ViewportMenuRow.Single("object.hideUnselected"),
+		ViewportMenuRow.Single("object.unhideAll"),
 		ViewportMenuRow.Separator,
 		ViewportMenuRow.Choices("snap.pie", PieMenuKind.Snap),
 		ViewportMenuRow.Separator,

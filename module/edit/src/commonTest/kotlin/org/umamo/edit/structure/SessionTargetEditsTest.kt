@@ -1,6 +1,7 @@
 package org.umamo.edit.structure
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.SessionTestModels.deleteModel
 import org.umamo.edit.SessionTestModels.model
@@ -274,4 +275,132 @@ class SessionTargetEditsTest {
 		assertTrue(session.model.value.drawables.first { it.id == DrawableId("d3") }.isSelectable)
 		assertFalse(session.canUndo.value, "each leaf toggle was exactly one step")
 	}
+
+	/**
+	 * Hide Unselected with one drawable selected hides each unselected branch at its topmost node, as one
+	 * step: the sibling part B and the other root part T each get one flag, their contents keep theirs, and
+	 * the selection's ancestors R and A stay shown.
+	 */
+	@Test
+	fun hideUnselectedHidesTheTopmostUnselectedBranches() {
+		val model = deleteModel()
+		val selected = SelectionTarget.Drawable(DrawableId("d1"))
+		assertEquals(listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Part(PartId("T"))), model.unselectedBranches(setOf(selected)))
+
+		val session = EditorSession(model)
+		session.setSelection(Selection(setOf(selected), selected))
+		session.hideUnselected()
+
+		assertEquals("change.visibility.hideUnselected", session.lastLabel())
+		assertFalse(session.partVisible("B") || session.partVisible("T"))
+		assertTrue(session.partVisible("R") && session.partVisible("A") && session.drawableVisible("d1"))
+		assertTrue(session.drawableVisible("d2") && session.drawableVisible("d3"), "contents keep their own eyes")
+
+		session.undo()
+		assertTrue(session.partVisible("B") && session.partVisible("T"), "one undo step restores both branches")
+	}
+
+	/**
+	 * A selected part keeps its whole subtree as it is, an eye already off inside it included.
+	 */
+	@Test
+	fun hideUnselectedLeavesASelectedPartsContentsAlone() {
+		val model = deleteModel().withDrawableVisibility(DrawableId("d2"), false)
+
+		assertEquals(listOf(SelectionTarget.Part(PartId("T"))), model.unselectedBranches(setOf(SelectionTarget.Part(PartId("A")))))
+	}
+
+	/**
+	 * A selected deformer keeps its part and the parts above it shown, so its lattice stays drawn, while the
+	 * part's unselected art is hidden.
+	 */
+	@Test
+	fun hideUnselectedKeepsASelectedDeformersPartShown() {
+		val base = deleteModel()
+		val model =
+			base.copy(
+				deformers =
+					base.deformers.map { deformer ->
+						if (deformer.id == DeformerId("w") && deformer is Deformer.Warp) deformer.copy(partId = PartId("A")) else deformer
+					},
+			)
+
+		assertEquals(
+			listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Drawable(DrawableId("d1")), SelectionTarget.Part(PartId("T"))),
+			model.unselectedBranches(setOf(SelectionTarget.Deformer(DeformerId("w")))),
+		)
+	}
+
+	/**
+	 * A branch whose eye is already off is neither listed nor entered, so its contents are untouched.
+	 */
+	@Test
+	fun hideUnselectedSkipsAnAlreadyHiddenBranch() {
+		val model = deleteModel().withPartVisibility(PartId("T"), false)
+
+		assertEquals(listOf(SelectionTarget.Part(PartId("B"))), model.unselectedBranches(setOf(SelectionTarget.Drawable(DrawableId("d1")))))
+	}
+
+	/**
+	 * With nothing selected, or a selection naming only objects that are gone, there is nothing to keep, so
+	 * nothing is hidden and no step is recorded.
+	 */
+	@Test
+	fun hideUnselectedWithNothingToKeepRecordsNothing() {
+		val session = EditorSession(deleteModel())
+
+		session.hideUnselected()
+		assertFalse(session.canUndo.value)
+
+		val gone = SelectionTarget.Drawable(DrawableId("gone"))
+		session.setSelection(Selection(setOf(gone), gone))
+		val stepsBefore = session.historyView.value.steps.size
+		session.hideUnselected()
+
+		assertEquals(stepsBefore, session.historyView.value.steps.size)
+		assertTrue(session.partVisible("R") && session.partVisible("T"))
+	}
+
+	/**
+	 * Unhide All turns on every part's and drawable's eye as one step and leaves the selection alone; with
+	 * nothing hidden it records nothing.
+	 */
+	@Test
+	fun unhideAllShowsEverythingAsOneStep() {
+		val hidden =
+			deleteModel()
+				.withPartVisibility(PartId("B"), false)
+				.withDrawableVisibility(DrawableId("d2"), false)
+				.withDrawableVisibility(DrawableId("d3"), false)
+		assertEquals(
+			listOf(SelectionTarget.Part(PartId("B")), SelectionTarget.Drawable(DrawableId("d2")), SelectionTarget.Drawable(DrawableId("d3"))),
+			hidden.hiddenTargets(),
+		)
+
+		val session = EditorSession(hidden)
+		val selected = SelectionTarget.Drawable(DrawableId("d1"))
+		session.setSelection(Selection(setOf(selected), selected))
+		session.unhideAll()
+
+		assertEquals("change.visibility.unhideAll", session.lastLabel())
+		assertTrue(session.partVisible("B") && session.drawableVisible("d2") && session.drawableVisible("d3"))
+		assertEquals(Selection(setOf(selected), selected), session.selection.value)
+
+		val stepsAfter = session.historyView.value.steps.size
+		session.unhideAll()
+		assertEquals(stepsAfter, session.historyView.value.steps.size, "nothing hidden records nothing")
+
+		session.undo()
+		assertFalse(session.partVisible("B") || session.drawableVisible("d2") || session.drawableVisible("d3"))
+	}
+
+	/** Whether part [rawId]'s own eye is on. */
+	private fun EditorSession.partVisible(rawId: String): Boolean = model.value.parts.first { part -> part.id == PartId(rawId) }.isVisible
+
+	/** Whether drawable [rawId]'s own eye is on. */
+	private fun EditorSession.drawableVisible(rawId: String): Boolean =
+		model.value.drawables.first { drawable -> drawable.id == DrawableId(rawId) }.isVisible
+
+	/** The label key of the step the history cursor sits on. */
+	private fun EditorSession.lastLabel(): String? = historyView.value.let { view -> view.steps[view.cursor].labelKey }
 }

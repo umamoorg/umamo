@@ -175,6 +175,8 @@ class CommandTableOrderTest {
 				"edit.redo",
 				"edit.adjustLastOperation",
 				"object.toggleVisibility",
+				"object.hideUnselected",
+				"object.unhideAll",
 				"outliner.selectHierarchy",
 				"mesh.grab",
 				"mesh.scale",
