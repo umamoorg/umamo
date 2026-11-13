@@ -31,7 +31,7 @@ private const val COLOR_TOLERANCE = 1e-6f
  * Corpus-gated offscreen ingest anchors over the authored extraction family (see
  * docs/format/MOC3.md §5.6, Offscreens): part offscreen state, clip lists, invert,
  * static and keyformed colors, and the drawable-level extended blend + culling - on BOTH import
- * paths. Skips gracefully without the corpus.
+ * paths.  Skips gracefully without the corpus.
  */
 class CompositeImportTest {
 	private fun probeFiles(): Map<String, File> =

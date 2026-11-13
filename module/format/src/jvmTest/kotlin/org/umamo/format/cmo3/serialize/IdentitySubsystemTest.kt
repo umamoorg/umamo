@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * Exercises the identity subsystem (*Guid / *Id). Confirms the reconciliation gate stays byte-identical
+ * Exercises the identity subsystem (*Guid / *Id).  Confirms the reconciliation gate stays byte-identical
  * with these typed, and that GUID/Id tags drop out of the unmodeled set (typing has real effect).
  */
 class IdentitySubsystemTest {

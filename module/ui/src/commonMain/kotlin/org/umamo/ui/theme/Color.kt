@@ -5,22 +5,22 @@ import androidx.compose.ui.graphics.Color
 
 /*
  * The flat, explicit color palette for the custom design system - every role is a value we set, not a tone
- * derived from a seed. A dense, Blender-ish dark scheme (flat greys + the brand purple accent) with a
- * deliberately designed light scheme; re-tinting is local to this file. Kit widgets and migrated panels
+ * derived from a seed.  A dense, Blender-ish dark scheme (flat greys + the brand purple accent) with a
+ * deliberately designed light scheme; re-tinting is local to this file.  Kit widgets and migrated panels
  * read these via [LocalUmamoColors].
  *
  * The light scheme is a system, not an inversion of the dark values:
  *  - The surface ladder keeps the dark scheme's elevation sign (raised surfaces are lighter in both
  *    themes): window backdrop < tab < row stripe < panel < header < control fill.
  *  - One deliberate flip: transient hover washes go darker in light mode, because a lighter-than-near-white
- *    hover is imperceptible. Dark keeps its brighten-on-hover values.
+ *    hover is imperceptible.  Dark keeps its brighten-on-hover values.
  *  - The accent deepens in light mode so white on-accent text and accent-as-text stay legible.
  *  - Selection decouples from the accent in light mode: a soft lavender row tint with deep plum marks, so
  *    selected rows read as selection rather than as primary buttons.
  */
 
 /**
- * The role palette. Lean and explicit - no seed/tonal derivation. Roles map onto the editor's surfaces,
+ * The role palette.  Lean and explicit - no seed/tonal derivation.  Roles map onto the editor's surfaces,
  * line-work, text, the brand accent, selection, controls, transient state washes, and the viewport overlay.
  *
  * @property Color windowBackground   The outermost editor background and the native caption tint.

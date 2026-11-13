@@ -16,7 +16,7 @@ data class BlendWeightLimitPoint(
 
 /**
  * A blend-weight limit ("blend shape limit" in the Cubism editor): a piecewise-linear, end-clamped
- * curve over ANOTHER parameter's value that caps a blend shape's weight. A binding's effective
+ * curve over ANOTHER parameter's value that caps a blend shape's weight.  A binding's effective
  * multiplier is the MINIMUM over all of its limits (1 when it has none).
  *
  * CMO3: MorphTargetBlendWeightConstraint - the flat (constraintParameterGuid,
@@ -34,7 +34,7 @@ data class BlendWeightLimit(
 
 /**
  * A blend shape ("MorphTarget" in CMO3): an ADDITIVE deformation on one object, driven by one
- * parameter. Where a keyform grid interpolates BETWEEN absolute forms (parameters select shapes),
+ * parameter.  Where a keyform grid interpolates BETWEEN absolute forms (parameters select shapes),
  * a blend shape ADDS a weighted delta on top of the grid result (parameters add shapes), and
  * multiple bindings on the same object stack by summation.
  *

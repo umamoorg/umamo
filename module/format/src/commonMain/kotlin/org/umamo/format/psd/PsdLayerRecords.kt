@@ -339,7 +339,7 @@ internal object PsdLayerRecords {
 	 * The additional layer info is a run of blocks, each a 4-char signature ('8BIM' or '8B64'), a
 	 * 4-char key, a u32 length, then that many data bytes - but the data padding varies by writer, so
 	 * rather than walk block lengths we scan for the key behind a valid signature (the 8-byte
-	 * signature+key prefix makes a false match in mask/range/name bytes effectively impossible). All
+	 * signature+key prefix makes a false match in mask/range/name bytes effectively impossible).  All
 	 * reads here are absolute so the caller's cursor is left untouched.
 	 *
 	 * @param ByteReader buffer      The whole-file reader.

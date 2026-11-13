@@ -73,7 +73,7 @@ internal actual fun <T> useClipDatabase(databaseBytes: ByteArray, block: (ClipDa
 private fun createTemporaryDatabase(fileSystem: FileSystem, directory: Path, databaseBytes: ByteArray): Path {
 	while (true) {
 		val candidate = directory / "umamo-clip-${Random.nextLong().toULong().toString(16)}.sqlite3"
-		// Only the claim retries. A failure to WRITE is a real error (a full or read-only temp dir)
+		// Only the claim retries.  A failure to WRITE is a real error (a full or read-only temp dir)
 		// and propagates — looping on it would spin forever laying down files.
 		val handle =
 			try {

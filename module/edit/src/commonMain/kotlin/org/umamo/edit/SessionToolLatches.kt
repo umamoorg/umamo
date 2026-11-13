@@ -17,7 +17,7 @@ import org.umamo.runtime.model.DrawableId
 interface SessionToolLatches {
 	/**
 	 * The modal mesh operator currently running (Grab / Scale / Rotate) with its initiating viewport area,
-	 * or null. Transient UI coordination (not snapshotted, not on the bus): a registry command latches it,
+	 * or null.  Transient UI coordination (not snapshotted, not on the bus): a registry command latches it,
 	 * the initiating area's gizmo overlay observes it to drive the gesture (bystander viewports stay
 	 * inert), and clears it on confirm / cancel.
 	 */
@@ -68,8 +68,8 @@ interface SessionToolLatches {
 
 	/**
 	 * The transient preview of which drawables an in-flight Object-mode circle stroke is painting, or null when
-	 * no stroke is live. The GPU-tint bridge overlays this on top of the committed [EditorSession.selection] so painted
-	 * drawables light up immediately without committing each frame (which would spam undo). Not snapshotted,
+	 * no stroke is live.  The GPU-tint bridge overlays this on top of the committed [EditorSession.selection] so painted
+	 * drawables light up immediately without committing each frame (which would spam undo).  Not snapshotted,
 	 * not on the bus (transient UI coordination like [activeSelectTool]); the stroke commits once on release
 	 * via [EditorSession.setSelection] and clears this back to null.
 	 */
@@ -126,7 +126,7 @@ interface SessionToolLatches {
 	/**
 	 * The viewport area id whose Zoom Region gesture is armed (Blender's Shift+B), or null.  Mode-agnostic -
 	 * Zoom Region works in every mode alike - so it is keyed by area rather than gated on the mode,
-	 * and the top-level region overlay for that area reads it to capture the drag. Transient, not snapshotted.
+	 * and the top-level region overlay for that area reads it to capture the drag.  Transient, not snapshotted.
 	 */
 	val zoomRegionArmedArea: StateFlow<String?>
 

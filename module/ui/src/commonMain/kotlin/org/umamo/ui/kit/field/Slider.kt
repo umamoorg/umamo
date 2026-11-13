@@ -24,7 +24,7 @@ private val SLIDER_THUMB_RADIUS = 5.dp
 private val SLIDER_KEY_MARK_RADIUS = 3.5.dp
 
 /**
- * The shape a slider draws for its thumb and for a per-key marker. A circle marks a key-form (grid) point;
+ * The shape a slider draws for its thumb and for a per-key marker.  A circle marks a key-form (grid) point;
  * a square marks a blend-shape point - the parameter-cockpit distinction between the two control-point
  * kinds (see ParameterKind: circle points drive keyform interpolation, square points drive additive
  * blend-shape deltas).
@@ -57,7 +57,7 @@ data class SliderKeyMark(
  * @param Function onValueChangeFinished Called once when the gesture ends (tap, drag release, or cancel).
  * @param ClosedFloatingPointRange valueRange The min..max range.
  * @param List keyMarks Parameter keys to mark on the track, each with its shape (circle grid key / square
- *   blend-shape key), so the user can see and scrub onto a key. Empty by default.
+ *   blend-shape key), so the user can see and scrub onto a key.  Empty by default.
  * @param SliderKeyShape thumbShape The thumb's shape (Circle for a key-form parameter, Square for a
  *   blend-shape parameter); defaults to Circle.
  */
@@ -112,7 +112,7 @@ fun Slider(
 		val top = Offset(0f, centerY - trackHeight / 2f)
 		// The thumb center travels within [thumbRadius, width - thumbRadius] so the whole dot stays inside the
 		// control's hit area at both ends; otherwise the outer half of the thumb would hang into the
-		// non-interactive padding at the track start, and a click there would miss the slider. The track fills
+		// non-interactive padding at the track start, and a click there would miss the slider.  The track fills
 		// the full width for the end caps.
 		val usableWidth = (size.width - 2f * thumbRadius).coerceAtLeast(0f)
 		val thumbCenterX = thumbRadius + fraction * usableWidth
@@ -123,7 +123,7 @@ fun Slider(
 			size = Size(thumbCenterX, trackHeight),
 			cornerRadius = corner,
 		)
-		// Key markers: a small dot at each key value so the user can see and scrub onto a key. Shape
+		// Key markers: a small dot at each key value so the user can see and scrub onto a key.  Shape
 		// encodes the key's kind - a circle for a key-form (grid) key, a square for a blend-shape key.
 		val markRadius = SLIDER_KEY_MARK_RADIUS.toPx()
 
@@ -166,7 +166,7 @@ private fun DrawScope.drawSliderShape(shape: SliderKeyShape, color: Color, cente
 
 /**
  * Maps a pointer x onto [range] over the thumb's travel band, which is inset [inset] from each end so the
- * track ends map to the range ends and the whole thumb stays inside the control. Clamped to that band.
+ * track ends map to the range ends and the whole thumb stays inside the control.  Clamped to that band.
  *
  * @param Float x The pointer x within the control.
  * @param Float width The control's full width.

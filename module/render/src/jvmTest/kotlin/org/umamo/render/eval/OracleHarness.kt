@@ -6,7 +6,7 @@ import kotlin.math.abs
 
 /*
  * Shared helpers for differential-oracle tests that shell out to the rebuilt dump_model tool
- * (the Umamo C++ Runtime harness's dump_model.c). Mirrors DeformationOracleTest's hashing/comparison exactly -
+ * (the Umamo C++ Runtime harness's dump_model.c).  Mirrors DeformationOracleTest's hashing/comparison exactly -
  * that test's default-pose gate is deliberately left textually untouched (see its 156 re-pin
  * note), so the shared pieces live here for the posed tests instead of being extracted from it.
  */
@@ -81,7 +81,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	command.add(coreLib.absolutePath)
 	command.add(moc3.absolutePath)
 	command.add("--update")
-	// Adds mul=/scr= to each D line. Always on: the extra columns cost nothing to parse and the
+	// Adds mul=/scr= to each D line.  Always on: the extra columns cost nothing to parse and the
 	// alternative is two dump invocations for tests that want geometry AND color.
 	command.add("--channels")
 
@@ -103,7 +103,7 @@ internal fun runOracleDump(dumpModel: File, coreLib: File, moc3: File, pose: Map
 	val vtxRegex = Regex("""vtx=(\d+)""")
 	val vposRegex = Regex("""vpos_h=(\S+)""")
 	val vuvRegex = Regex("""vuv_h=(\S+)""")
-	// D-line channels: op= comes from --update, mul=/scr= from --channels. Anchored to ` op=` with a
+	// D-line channels: op= comes from --update, mul=/scr= from --channels.  Anchored to ` op=` with a
 	// leading space so it cannot match the `vpos_h=`/`vuv_h=` suffixes or an id containing "op=".
 	val opacityRegex = Regex(""" op=(\S+)""")
 	val drawOrderRegex = Regex(""" draw=(-?\d+)""")

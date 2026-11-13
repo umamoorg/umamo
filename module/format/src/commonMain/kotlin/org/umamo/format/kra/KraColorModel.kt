@@ -4,15 +4,15 @@ package org.umamo.format.kra
  * Maps a Krita layer's color space onto a converter that packs each source pixel into the neutral
  * model's RGBA8888 straight-alpha format.
  *
- * Two things vary between Krita color spaces and must be handled here. First, channel byte order:
+ * Two things vary between Krita color spaces and must be handled here.  First, channel byte order:
  * Krita's integer RGB spaces store BGRA (KoBgrU8Traits / KoBgrU16Traits with blue at 0, green at 1,
  * red at 2), while its float RGB space stores RGBA (KoRgbColorSpaceTraits with red at 0, green at 1,
- * blue at 2). Grayscale is gray then alpha (KoGrayColorSpaceTraits). Second, bit depth: 8/16-bit
+ * blue at 2).  Grayscale is gray then alpha (KoGrayColorSpaceTraits).  Second, bit depth: 8/16-bit
  * integer and 32-bit float, down-converted to 8-bit (16-bit keeps the most-significant byte; float
- * is clamped to 0..1 and scaled). The model is always RGBA8888, so high-depth precision cannot be
+ * is clamped to 0..1 and scaled).  The model is always RGBA8888, so high-depth precision cannot be
  * preserved regardless - this is lossy by the model's contract.
  *
- * Scope: RGBA and GRAYA in U8, U16, and F32. Half-float (F16) and other models (CMYK, LAB, XYZ,
+ * Scope: RGBA and GRAYA in U8, U16, and F32.  Half-float (F16) and other models (CMYK, LAB, XYZ,
  * YCbCr) raise a clear error rather than silently mis-decoding.
  *
  * Krita のカラースペースを RGBA8888 へ変換する。整数 RGB は BGRA、浮動小数 RGB は RGBA、グレースケールは
@@ -88,7 +88,7 @@ internal class KraPixelFormat(
 				}
 			}
 		} else {
-			// Grayscale: replicate the single grey channel into R/G/B. KRA: KoGrayColorSpaceTraits.
+			// Grayscale: replicate the single grey channel into R/G/B.  KRA: KoGrayColorSpaceTraits.
 			val grayByte: Byte
 			val alphaByte: Byte
 

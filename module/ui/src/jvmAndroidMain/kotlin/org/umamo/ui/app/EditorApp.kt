@@ -53,7 +53,7 @@ import org.umamo.ui.workspace.editorstate.sessionViewStateOf
 
 /**
  * The one editing session per open puppet document (the undo history + dirty state live here),
- * recreated when the document swaps; null for no document. Owned at the host level so both the host's
+ * recreated when the document swaps; null for no document.  Owned at the host level so both the host's
  * own chrome (e.g. the desktop title's unsaved marker) and [EditorApp] share the one session.
  *
  * A `.uma` opens on the session state it was saved with (docs/format/UMA.md § 7.4): the selection, the mode, the
@@ -88,7 +88,7 @@ fun rememberDocumentFileFor(document: Document?): DocumentFile? = remember(docum
  *
  * The menu bar is drawn in-window (not a host-OS menu strip) so it looks and behaves identically on
  * every platform and can sit on the workspace tab row to save vertical space - the Blender-style
- * choice. The trade-off is deliberate: there is no macOS system menu strip.
+ * choice.  The trade-off is deliberate: there is no macOS system menu strip.
  *
  * @param Document? document The open document, or null.
  * @param EditorSession? session The open document's editing session (non-null for a puppet document); drives

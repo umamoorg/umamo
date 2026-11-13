@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 
 /**
  * Verifies the value-type serializers reproduce the editor's exact forms (matched against the real
- * sample fragments) and round-trip. These types live inside containers, so they are exercised here
+ * sample fragments) and round-trip.  These types live inside containers, so they are exercised here
  * directly rather than via the whole-file gate.
  */
 class ValueTypeTest {

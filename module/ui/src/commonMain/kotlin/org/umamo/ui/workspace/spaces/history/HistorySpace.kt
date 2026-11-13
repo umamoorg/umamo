@@ -87,7 +87,7 @@ fun HistorySpace(modifier: Modifier = Modifier) {
 /**
  * One step row: its [label], styled by where it sits relative to the cursor (current is the accent band,
  * a step ahead of the cursor is dimmed as a pending redo), with a hover highlight and an optional saved
- * dot. Clicking jumps the session to this step.
+ * dot.  Clicking jumps the session to this step.
  *
  * @param String label The localized step label.
  * @param Boolean isCurrent Whether this is the live step (the highlighted row).

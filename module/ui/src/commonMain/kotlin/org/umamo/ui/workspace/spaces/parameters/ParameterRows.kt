@@ -380,7 +380,7 @@ private fun groupHoldsGroup(group: ParameterNode.Group, groupId: ParameterGroupI
  * @param Int      depth         The group nesting level for the emitted rows.
  * @param LinkInfo linkInfo      Animatable + link lookups.
  * @param Map      parameterById id -> Parameter, for resolving a link's vertical partner.
- * @param Set?     visibleParamIds The filter set, or null for no filter. A slider survives when its id is
+ * @param Set?     visibleParamIds The filter set, or null for no filter.  A slider survives when its id is
  *                               in the set; a pad survives when EITHER member is (it is one control).
  * @return List<ParameterRow> The slider / pad rows for the run.
  */

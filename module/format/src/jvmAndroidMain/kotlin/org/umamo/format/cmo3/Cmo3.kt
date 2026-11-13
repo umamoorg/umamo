@@ -16,7 +16,7 @@ import java.io.File
 
 /**
  * A loaded CMO3: the CAFF container (all entries, incl. layer/atlas/icon PNGs) and the typed model
- * graph (the CModelSource root plus the shared pool). Mutate the graph or layer images, then write.
+ * graph (the CModelSource root plus the shared pool).  Mutate the graph or layer images, then write.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md</a>
  */
@@ -279,9 +279,9 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 	override val kind: FileKind get() = FileKind.Cmo3
 
 	/**
-	 * True if [candidateBytes] starts with the CAFF magic. Note that every CAFF container sniffs the
+	 * True if [candidateBytes] starts with the CAFF magic.  Note that every CAFF container sniffs the
 	 * same way; a `.cmo3` is distinguished from other CAFF files only on full [read] (the `main_xml`
-	 * entry). Good enough for dispatch among the formats Umamo registers.
+	 * entry).  Good enough for dispatch among the formats Umamo registers.
 	 *
 	 * @param ByteArray candidateBytes Candidate file contents.
 	 * @return Boolean Whether this looks like a CAFF container.

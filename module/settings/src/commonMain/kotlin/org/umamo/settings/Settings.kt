@@ -14,12 +14,12 @@ import org.umamo.storage.AppStorage
 
 /**
  * The app's settings: a merged JSON tree of bundled defaults ← user overrides (← vendor extension
- * defaults, later), addressed by dotted keys (`getString("interface.theme")`). No caller ever passes a
+ * defaults, later), addressed by dotted keys (`getString("interface.theme")`).  No caller ever passes a
  * default - `defaultSettings.json` is the single source of baseline values, so reads are
- * default-by-construction. Writes go to the user layer only, re-merge, persist via [AppStorage], and emit
+ * default-by-construction.  Writes go to the user layer only, re-merge, persist via [AppStorage], and emit
  * the changed key on [changes] (the reactive spine the UI/keymap/History collect).
  *
- * Build it with [Settings.load]. The tree is held as a dynamic [JsonObject] (not typed `@Serializable`
+ * Build it with [Settings.load].  The tree is held as a dynamic [JsonObject] (not typed `@Serializable`
  * classes) because settings are open-ended and merged; typed per-domain views can layer on top later.
  *
  * @property Boolean foundUserFile Whether a user settings file was on disk when these settings loaded - false
@@ -143,7 +143,7 @@ class Settings private constructor(
 
 		/**
 		 * Loads settings: parses bundled [defaultSettingsJson] as the baseline and overlays the user file
-		 * ([fileName] under [storage]'s config directory) if present and valid. A missing or corrupt user
+		 * ([fileName] under [storage]'s config directory) if present and valid.  A missing or corrupt user
 		 * file falls back to defaults-only (never throws).
 		 *
 		 * @param AppStorage storage             Where the user file lives + IO.

@@ -23,7 +23,7 @@ value class LayerId(val raw: String)
 
 /**
  * Position and size of a layer on the source canvas, in pixels, with a top-left origin (the
- * image/PSD convention). The renderer flips Y when mapping to GL's bottom-left origin.
+ * image/PSD convention).  The renderer flips Y when mapping to GL's bottom-left origin.
  * [AlphaAnalysis.opaqueBounds] reuses this shape raster-locally, with left/top relative to the
  * raster's own origin instead of the canvas.
  */
@@ -123,8 +123,8 @@ enum class SourceLayerKind {
 
 /**
  * Which of the four output channels a layer writes when composited; a disabled channel passes
- * through from the content below instead of being written by this layer. Defaults to all enabled,
- * since most sources do not expose per-channel masking. Krita's channelflags populates this; a
+ * through from the content below instead of being written by this layer.  Defaults to all enabled,
+ * since most sources do not expose per-channel masking.  Krita's channelflags populates this; a
  * disabled alpha is the same underlying signal as inherit-alpha clipping (see SourceLayer.clipped).
  *
  * レイヤーが合成時に書き込むチャンネル。無効なチャンネルは下のレイヤーを通す。既定は全て有効。
@@ -146,7 +146,7 @@ data class ChannelMask(
  * the top, sized to the layer's cropped [bounds][SourceLayer.bounds] (not the full canvas).
  *
  * A plain class, not a `data class`: it wraps a large [rgba] buffer for which generated structural
- * equals/hashCode would be a footgun (a deep array compare on every call). Identity equality is the
+ * equals/hashCode would be a footgun (a deep array compare on every call).  Identity equality is the
  * right default here.
  *
  * レイヤーの復号済みピクセル（RGBA8888・ストレートアルファ・上から行優先）。
@@ -178,7 +178,7 @@ fun LayerRaster.isFullyTransparent(): Boolean {
 }
 
 /**
- * One layer of ingested source art, neutral across PSD/CLIP/KRA. [id] is the re-import join key;
+ * One layer of ingested source art, neutral across PSD/CLIP/KRA.  [id] is the re-import join key;
  * [groupPath] is the slash-joined group hierarchy used as the PSD fallback key when [id] is weak.
  */
 interface SourceLayer {
@@ -187,14 +187,14 @@ interface SourceLayer {
 	val groupPath: String
 
 	/**
-	 * What kind of layer this is. Defaults to [SourceLayerKind.Raster] - the common case and the only
+	 * What kind of layer this is.  Defaults to [SourceLayerKind.Raster] - the common case and the only
 	 * kind the PSD/KRA readers emit - so only readers that surface non-raster layers (CLIP) override
-	 * it. A raster-only consumer ingests [SourceLayerKind.Raster] and skips the rest.
+	 * it.  A raster-only consumer ingests [SourceLayerKind.Raster] and skips the rest.
 	 */
 	val kind: SourceLayerKind get() = SourceLayerKind.Raster
 
 	/**
-	 * Whether this layer is shown (the eye toggle). Defaults to true. A hidden layer is still read and
+	 * Whether this layer is shown (the eye toggle).  Defaults to true.  A hidden layer is still read and
 	 * surfaced so the consumer can decide whether to ingest or skip it; a layer can also be effectively
 	 * hidden by an ancestor folder being hidden ([SourceGroup.visible]).
 	 */
@@ -245,7 +245,7 @@ interface SourceLayer {
  * The flat model keys layers to their enclosing folders by path string rather than nesting; this
  * carries the per-folder attributes that a flattened leaf list would otherwise lose - chiefly the
  * folder [blend] and [opacity], which composite the whole group and are not equivalent to setting
- * each child layer's blend. [passThrough] marks a folder that does not isolate (CSP "Through"): its
+ * each child layer's blend.  [passThrough] marks a folder that does not isolate (CSP "Through"): its
  * children blend straight onto what is below the folder, so [blend] is moot.
  *
  * フォルダ属性（パスで識別）。フォルダのブレンド/不透明度は平坦化で失われるためここで保持する。
@@ -270,7 +270,7 @@ interface SourceGroup {
 	/**
 	 * True for a non-isolating "pass-through" folder (Clip Studio's default folder mode): the group's
 	 * children composite directly against the layers below the folder rather than within an isolated
-	 * group buffer. When true, [blend] does not apply.
+	 * group buffer.  When true, [blend] does not apply.
 	 */
 	val passThrough: Boolean
 }
@@ -329,9 +329,9 @@ fun SourceArt.isEffectivelyVisible(layer: SourceLayer): Boolean {
 
 /**
  * A [FormatCodec] whose in-memory model is the neutral [SourceArt] - one implementation per art
- * format (PSD, CLIP, KRA). Folding the art readers into [FormatCodec] lets the format registry
+ * format (PSD, CLIP, KRA).  Folding the art readers into [FormatCodec] lets the format registry
  * detect and resolve them exactly like the binary model codecs (CMO3/MOC3), rather than through a
- * separate reader facade. These formats are ingestion-only, so [ReadOnlyCodec] supplies the
+ * separate reader facade.  These formats are ingestion-only, so [ReadOnlyCodec] supplies the
  * refusing write - and every art FileKind has writable = false, which advertises that to callers
  * before they try.
  *

@@ -29,7 +29,7 @@ import org.umamo.format.raster.RasterImage
  * リソース操作はフレーム外の自己完結操作。
  */
 public interface RenderDevice {
-	// --- Resources. Everything the device hands out, the device frees. ---
+	// --- Resources.  Everything the device hands out, the device frees. ---
 
 	/**
 	 * Uploads an image as a sampleable texture.

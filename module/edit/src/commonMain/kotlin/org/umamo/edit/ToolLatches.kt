@@ -73,7 +73,7 @@ internal class ToolLatches : SessionToolLatches {
 	/** The keyform edit waiting on an axis, or null (see [SessionToolLatches.pendingParameterChoice]). */
 	override val pendingParameterChoice: StateFlow<ParameterChoiceRequest?> = mutablePendingParameterChoice.asStateFlow()
 
-	// The Circle-select brush radius carried across re-entry (Blender remembers it). Deliberately NOT
+	// The Circle-select brush radius carried across re-entry (Blender remembers it).  Deliberately NOT
 	// part of EditorSnapshot - re-arming the tool restores the last size.
 	private var lastCircleRadiusPx: Float = DEFAULT_CIRCLE_RADIUS_PX
 

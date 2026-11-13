@@ -11,7 +11,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 /**
- * Verifies [paintOrder]: drawOrder is the primary key, the parts-tree base order breaks ties. This is
+ * Verifies [paintOrder]: drawOrder is the primary key, the parts-tree base order breaks ties.  This is
  * the unit-test stand-in for the official editor (which we can't re-save under its EULA) - the
  * Layer68→600 case is `higherDrawOrderPaintsInFront`.
  */
@@ -52,8 +52,8 @@ class RenderOrderTest {
 	@Test
 	fun subIntegerDrawOrderNoiseDoesNotReorder() {
 		// The keyform blend `Σ wᵢ·500` lands just off 500.0 due to float-summation noise, so a
-		// raw-float sort reshuffles drawables that should be tied. Quantising `+0.001`→int collapses
-		// the noise to a true 500 tie, preserving the parts-tree base order. Without quantising,
+		// raw-float sort reshuffles drawables that should be tied.  Quantising `+0.001`→int collapses
+		// the noise to a true 500 tie, preserving the parts-tree base order.  Without quantising,
 		// `sortedBy` would order c (499.99997) < a (500.0) < b (500.00003) and lift c in front of the rest.
 		val base = listOf(id("a"), id("b"), id("c"))
 		val order = paintOrder(base, mapOf(id("a") to 500f, id("b") to 500.00003f, id("c") to 499.99997f))
@@ -72,9 +72,9 @@ class RenderOrderTest {
 	@Test
 	fun drawOrderGroupConfinesChildrenToTheGroupSlot() {
 		// An "eye" group (part draw order 600) holds two eye drawables; the root also holds
-		// back/mid/front drawables. A flat global sort would slot mid (550) BETWEEN eyeLow (510) and
+		// back/mid/front drawables.  A flat global sort would slot mid (550) BETWEEN eyeLow (510) and
 		// eyeHigh (590); the group must keep the eyes contiguous at the group's 600 slot, so mid stays
-		// before the whole group. Within the group the eyes still sort by their own order (510 < 590).
+		// before the whole group.  Within the group the eyes still sort by their own order (510 < 590).
 		val root =
 			RenderGroup(
 				partId = null,

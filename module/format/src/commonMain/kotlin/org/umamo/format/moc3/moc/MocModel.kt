@@ -2,7 +2,7 @@ package org.umamo.format.moc3.moc
 
 import org.umamo.format.moc3.io.LittleEndianReader
 
-/** Canvas dimensions and origin (section [Section.CANVAS], `f32[6]`). Pixel units. */
+/** Canvas dimensions and origin (section [Section.CANVAS], `f32[6]`).  Pixel units. */
 public data class CanvasInfo(
 	val pixelsPerUnit: Float,
 	val originX: Float,
@@ -12,7 +12,7 @@ public data class CanvasInfo(
 )
 
 /**
- * A model parameter (slider). [type] is null on MOC3 versions without `Parameter.Types` (< 4).
+ * A model parameter (slider).  [type] is null on MOC3 versions without `Parameter.Types` (< 4).
  * [repeats] is the Cubism 5.3+ "Parameter repeat flags" (section 54): true wraps the value into
  * `[minimumValue, maximumValue)` instead of clamping.
  */
@@ -25,13 +25,13 @@ public data class MocParameter(
 	val repeats: Boolean = false,
 )
 
-/** A part (visibility/draw-order group). [parentPartIndex] is -1 when the part is at the root. */
+/** A part (visibility/draw-order group).  [parentPartIndex] is -1 when the part is at the root. */
 public data class MocPart(
 	val id: String,
 	val parentPartIndex: Int,
 )
 
-/** A drawable (ArtMesh). [constantFlags] is the [ConstantFlag] bitmask. */
+/** A drawable (ArtMesh).  [constantFlags] is the [ConstantFlag] bitmask. */
 public data class MocDrawable(
 	val id: String,
 	val textureIndex: Int,

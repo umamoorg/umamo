@@ -17,14 +17,14 @@ private const val CENTRALITY_STEP_TEXELS = 2f
 
 /**
  * One opaque candidate under the cursor: the drawable, its front-rank (higher = drawn more in front),
- * and its centrality (0..1, higher = the click is deeper inside the opaque art). Used to build the
+ * and its centrality (0..1, higher = the click is deeper inside the opaque art).  Used to build the
  * overlap-picker popup.
  */
 data class PickCandidate(val id: DrawableId, val frontRank: Float, val centrality: Float)
 
 /**
  * Reports whether a point lies inside (or on an edge of) a triangle, using the sign of the three edge
- * cross products. Works for either winding order; a point exactly on an edge counts as inside. A
+ * cross products.  Works for either winding order; a point exactly on an edge counts as inside.  A
  * degenerate (zero-area) triangle accepts only points lying on its collapsed span.
  *
  * @param Float pointX  The test point X.
@@ -59,7 +59,7 @@ fun pointInTriangle(
 
 /**
  * The signed area term for the point relative to the directed edge (start to end): positive on one
- * side, negative on the other, zero on the line. The sign, not the magnitude, is what
+ * side, negative on the other, zero on the line.  The sign, not the magnitude, is what
  * [pointInTriangle] consumes.
  *
  * @param Float pointX The test point X.
@@ -81,7 +81,7 @@ private fun edgeSide(
 
 /**
  * The barycentric weights (w0, w1, w2) of a point relative to a triangle, used to interpolate
- * per-vertex attributes (the UV) at a hit point. Weights sum to 1; a degenerate (zero-area) triangle
+ * per-vertex attributes (the UV) at a hit point.  Weights sum to 1; a degenerate (zero-area) triangle
  * returns equal thirds rather than dividing by zero.
  *
  * @param Float pointX The point X.
@@ -166,8 +166,8 @@ fun pickDrawable(
 }
 
 /**
- * All opaque candidates under the point, FRONT-TO-BACK (front first), each with its centrality. Uses the
- * same hit + alpha gate as [pickDrawable]; built for the overlap-picker popup. Centrality (how deep the
+ * All opaque candidates under the point, FRONT-TO-BACK (front first), each with its centrality.  Uses the
+ * same hit + alpha gate as [pickDrawable]; built for the overlap-picker popup.  Centrality (how deep the
  * hit is inside the opaque art) is computed per survivor from its atlas size via [atlasSizeOf]; an
  * untextured drawable (null size) scores full centrality.
  *
@@ -276,8 +276,8 @@ fun centralityAt(
 
 /**
  * The barycentric-interpolated (u, v) at the first triangle of a drawable's mesh that contains the point,
- * or null when no triangle does. Index triples address vertices in the interleaved [positions] and [uvs]
- * arrays (vertex n at index 2n, 2n+1). Shared by [pickDrawable] and [pickAllDrawables].
+ * or null when no triangle does.  Index triples address vertices in the interleaved [positions] and [uvs]
+ * arrays (vertex n at index 2n, 2n+1).  Shared by [pickDrawable] and [pickAllDrawables].
  *
  * @param Float worldX             The point X.
  * @param Float worldZ             The point Z (up).

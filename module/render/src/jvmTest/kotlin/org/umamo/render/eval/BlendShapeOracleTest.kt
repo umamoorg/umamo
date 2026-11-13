@@ -21,7 +21,7 @@ import kotlin.test.assertTrue
  *
  * Match floors are pinned from the first measured run (the DeformationOracleTest pattern): the
  * same nested-warp bounded-ULP residual class shaves a few drawables, plus the mesh-under-
- * morphed-warp coupling documented in BlendDeltaFrameProbeTest. Gate against the Umamo C++ Runtime
+ * morphed-warp coupling documented in BlendDeltaFrameProbeTest.  Gate against the Umamo C++ Runtime
  * only; divergences against the reference implementations are recorded in MOC3.md, never gated
  * (reference trust order).
  *

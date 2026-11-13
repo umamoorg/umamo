@@ -67,7 +67,7 @@ fun EditorSession.rename(target: SelectionTarget, newName: String) {
 
 /**
  * Toggles the viewport selectability of one [target] as a single undo step, dispatching the per-kind
- * change and transform. Unlike visibility, a deformer has a selectable flag too.
+ * change and transform.  Unlike visibility, a deformer has a selectable flag too.
  *
  * @param SelectionTarget target The entity whose selectability to flip.
  */

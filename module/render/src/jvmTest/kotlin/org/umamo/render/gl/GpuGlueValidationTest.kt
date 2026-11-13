@@ -43,7 +43,7 @@ import kotlin.test.assertTrue
  * key edit on the anchor, a vertex added, a deleted anchor, and a deleted earlier glue, each of which
  * must land where the oracle says.
  *
- * The probe is built so the weld's effect is unmissable rather than a sub-pixel nudge. Two quads sit far
+ * The probe is built so the weld's effect is unmissable rather than a sub-pixel nudge.  Two quads sit far
  * apart with a gap between them; the glue pulls mesh B's left edge all the way onto mesh A's right edge
  * (weightB = 1), so a working weld stretches B across the gap and a broken one leaves it where it was.
  * Mesh A is deliberately INDEX-LESS - a pure weld anchor that draws nothing - which both makes B's drawn
@@ -63,10 +63,10 @@ class GpuGlueValidationTest {
 	// A pure-black backdrop, so "art" is simply "not black" and no grid line can be mistaken for coverage.
 	private val blackGrid = GridColors(0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f, 0f)
 
-	// Mesh A: the weld anchor, x in [-120, -60]. Vertices 1 and 3 are its RIGHT edge (x = -60).
+	// Mesh A: the weld anchor, x in [-120, -60].  Vertices 1 and 3 are its RIGHT edge (x = -60).
 	private val anchorPositions = floatArrayOf(-120f, -30f, -60f, -30f, -120f, 30f, -60f, 30f)
 
-	// Mesh B: the welded quad, x in [60, 120]. Vertices 0 and 2 are its LEFT edge (x = 60).
+	// Mesh B: the welded quad, x in [60, 120].  Vertices 0 and 2 are its LEFT edge (x = 60).
 	private val weldedPositions = floatArrayOf(60f, -30f, 120f, -30f, 60f, 30f, 120f, 30f)
 
 	/** A single-cell keyform grid with zero deltas - the mesh sits at its rest positions. */

@@ -45,7 +45,7 @@ internal fun importParameterLinks(context: Moc3ImportContext): List<ParameterLin
 	val knownParameterIds = context.parameterIds.toSet()
 
 	// cdi3: CombinedParameters is an array of [horizontal, vertical] id pairs - the editor's LINKED
-	// parameter pads. Entries that are not a 2-pair or name an unknown parameter are skipped.
+	// parameter pads.  Entries that are not a 2-pair or name an unknown parameter are skipped.
 	return context.displayInfo?.combinedParameters.orEmpty().mapNotNull { pair ->
 		val horizontalId = pair.getOrNull(0)?.let(::ParameterId) ?: return@mapNotNull null
 		val verticalId = pair.getOrNull(1)?.let(::ParameterId) ?: return@mapNotNull null

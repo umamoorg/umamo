@@ -18,8 +18,8 @@ import org.umamo.ui.resources.noto_sans_cjk_sc_regular
 import org.umamo.ui.resources.noto_sans_cjk_tc_regular
 
 /*
- * The custom type scale. The 15 role names mirror the familiar scale (displayLarge … labelSmall) so call
- * sites only swap the accessor (MaterialTheme.typography.X → LocalUmamoTypography.current.X). Inter for
+ * The custom type scale.  The 15 role names mirror the familiar scale (displayLarge … labelSmall) so call
+ * sites only swap the accessor (MaterialTheme.typography.X → LocalUmamoTypography.current.X).  Inter for
  * Latin, a Noto Sans CJK cut chosen by UI language for CJK; Regular only (heavier weights synthesize).
  */
 
@@ -82,7 +82,7 @@ private fun chineseCjkFontFor(subtags: List<String>): FontResource =
 	}
 
 /**
- * The role-named text styles. Same 15 roles as the familiar scale, so migrating a call site is a one-token
+ * The role-named text styles.  Same 15 roles as the familiar scale, so migrating a call site is a one-token
  * change.
  */
 data class UmamoTypography(
@@ -104,8 +104,8 @@ data class UmamoTypography(
 )
 
 /**
- * Builds the type scale on [family]. Pure (no composition), so it backs both the composable [umamoTypography]
- * and the [LocalUmamoTypography] fallback. Sizes mirror the conventional scale; titles and labels use Medium
+ * Builds the type scale on [family].  Pure (no composition), so it backs both the composable [umamoTypography]
+ * and the [LocalUmamoTypography] fallback.  Sizes mirror the conventional scale; titles and labels use Medium
  * (synthesized from the bundled Regular).
  *
  * @param FontFamily family The family to apply to every style.

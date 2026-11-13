@@ -51,7 +51,7 @@ internal interface XmlSerializer {
 	fun createInstance(element: Element, ctx: ReadContext): Any?
 
 	/**
-	 * Populates a class instance's fields from [element]. No-op for leaf values.
+	 * Populates a class instance's fields from [element].  No-op for leaf values.
 	 *
 	 * @param Element     element  The source element.
 	 * @param Any         instance The instance created by [createInstance].
@@ -92,7 +92,7 @@ internal class PrimitiveSerializer(
 
 /**
  * Serializer for ordered collections: `<tag count="n" xs.n="field">` with positional item children
- * (items carry no xs.n). Covers ArrayList ("array_list") and CArrayList ("carray_list"); [factory]
+ * (items carry no xs.n).  Covers ArrayList ("array_list") and CArrayList ("carray_list"); [factory]
  * builds the concrete list type so the tag round-trips (read tag -> type -> same tag on write).
  */
 internal class ListSerializer(

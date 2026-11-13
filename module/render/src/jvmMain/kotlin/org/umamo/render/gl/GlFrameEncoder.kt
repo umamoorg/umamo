@@ -112,7 +112,7 @@ internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {
 	}
 
 	override fun barrier(store: DeformedPositionStore) {
-		// The declared write→read dependency on the position store. The WSL d3d12/Mesa stack does not order
+		// The declared write→read dependency on the position store.  The WSL d3d12/Mesa stack does not order
 		// transform-feedback writes before a later texture-buffer read, and glMemoryBarrier does not cover
 		// feedback writes (they are coherent-pipeline writes), so the full sync is the only reliable fix.
 		// Called only on pose-change frames, so a static pose pays nothing.
@@ -120,7 +120,7 @@ internal class GlFrameEncoder(private val emptyVao: Int) : FrameEncoder {
 	}
 
 	override fun endFrame() {
-		// Nothing to submit on GL: the calls already ran. A command-buffer backend would commit here.
+		// Nothing to submit on GL: the calls already ran.  A command-buffer backend would commit here.
 	}
 }
 
@@ -137,7 +137,7 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 	private var pipeline: GlRenderPipeline? = null
 	private val current: GlRenderPipeline get() = pipeline ?: error("setPipeline before drawing")
 
-	// Per-program state is re-established only when the program actually switches. A uniform keeps its value
+	// Per-program state is re-established only when the program actually switches.  A uniform keeps its value
 	// on the program object across binds, and the renderer passes the same camera / glue state for a whole
 	// pass, so re-sending them per draw is wasted work: a run of same-blend drawables would otherwise churn
 	// glUseProgram + blend + samplers + camera every draw.

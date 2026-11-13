@@ -83,7 +83,7 @@ public class ModelDocument private constructor(
 	public fun versionOf(className: String): Int? = versions[className]
 
 	/**
-	 * Re-emits the document to bytes. Byte-identical to the source while the underlying JDOM is
+	 * Re-emits the document to bytes.  Byte-identical to the source while the underlying JDOM is
 	 * unmodified (verbatim fallback); reflects edits once the typed layer mutates [document].
 	 *
 	 * @return ByteArray UTF-8 XML in the editor's exact format.

@@ -10,18 +10,18 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.materializedParameterTree
 
 /*
- * Parameter-panel group-tree structure edits. PuppetModel.parameterTree is the canonical panel order
+ * Parameter-panel group-tree structure edits.  PuppetModel.parameterTree is the canonical panel order
  * (an ordered mix of parameter leaves and named groups); the flat parameters list stays the id-keyed
  * authoritative axis list, whose order the panel ignores once a tree exists.  So a reorder or a move
  * into / out of a group rewrites ONLY parameterTree, leaving parameters and parameterLinks alone - the
  * CMO3 export lowers the tree into the parameter groups' child lists.  A model imported with no groups
  * has an empty tree; the first real structure edit materializes a flat all-leaves-at-root tree so there
- * is one code path afterward. Every edit snapshots the whole PuppetModel through EditorSession.mutate,
+ * is one code path afterward.  Every edit snapshots the whole PuppetModel through EditorSession.mutate,
  * so it undoes for free.
  */
 
 /**
- * A position anchor in the parameter tree - "insert before this node". Null anywhere a ref is expected
+ * A position anchor in the parameter tree - "insert before this node".  Null anywhere a ref is expected
  * means "append at the destination's end".
  */
 sealed interface ParameterNodeRef {
@@ -33,7 +33,7 @@ sealed interface ParameterNodeRef {
 }
 
 /**
- * Every group id anywhere in [nodes], recursing into nested groups. Used to mint collision-free ids and
+ * Every group id anywhere in [nodes], recursing into nested groups.  Used to mint collision-free ids and
  * to validate a move destination.
  *
  * @param List nodes The tree (or subtree) to scan.
@@ -196,9 +196,9 @@ fun PuppetModel.withParameterRowMoved(
 }
 
 /**
- * The actual [ParameterNode]s named by [subject], found anywhere in [tree]. Leaves are returned as fresh
+ * The actual [ParameterNode]s named by [subject], found anywhere in [tree].  Leaves are returned as fresh
  * [ParameterNode.Param]s in [subject] order (so a pad stays horizontal-then-vertical); a group is
- * returned as its existing node with children intact. Empty when nothing matched.
+ * returned as its existing node with children intact.  Empty when nothing matched.
  *
  * @param List<ParameterNode> tree The group tree to search.
  * @param ParameterMoveSubject subject The leaves or group being moved.

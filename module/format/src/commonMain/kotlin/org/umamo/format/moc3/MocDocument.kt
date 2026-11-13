@@ -16,9 +16,9 @@ import org.umamo.format.moc3.model.RenderOrderGroup
  * The fully decoded semantic model of a `.moc3` - the agnostic intermediate for editor
  * reconstruction and the bake.
  *
- * Objects reference each other and parameters by index (their position in these lists). Each
+ * Objects reference each other and parameters by index (their position in these lists).  Each
  * deformable object names a `keyformBindingIndex`; look the binding up with [keyformBinding] to
- * learn the controlling parameters and key positions for its keyforms. The per-frame
+ * learn the controlling parameters and key positions for its keyforms.  The per-frame
  * interpolation/deformation math is intentionally not modelled - this is the stored data.
  * Blend shapes (moc 4+) and offscreens (moc 6) are assembled into [blendShapes]/[offscreens];
  * every section index is modeled in `Section`, though 149-151 (glue blend shapes)

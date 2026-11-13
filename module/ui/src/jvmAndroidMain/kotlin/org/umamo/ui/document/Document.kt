@@ -20,7 +20,7 @@ import org.umamo.ui.viewport.LiveParams
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * An open editor document - a parsed source file the viewport renders. Lives in jvmAndroidMain (not
+ * An open editor document - a parsed source file the viewport renders.  Lives in jvmAndroidMain (not
  * commonMain) because loading goes through :format's FormatRegistry / CMO3 codec, which is JVM-only
  * API shared by the desktop-JVM and Android targets.
  */

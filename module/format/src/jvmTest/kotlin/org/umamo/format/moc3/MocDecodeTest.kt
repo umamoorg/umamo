@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 /**
  * Decode (Layer-2) internal-consistency checks: decoding exercises every base/grid index path, so a
  * clean run already proves the keyform-binding grid + value-table arithmetic stays in bounds; the
- * assertions then tie object/keyform shapes together. Skips gracefully without samples.
+ * assertions then tie object/keyform shapes together.  Skips gracefully without samples.
  */
 class MocDecodeTest {
 	private val samplesDir: File? = System.getProperty("moc3.samples")?.let(::File)?.takeIf { it.isDirectory }

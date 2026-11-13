@@ -165,7 +165,7 @@ ktlint enforces much of this: its standard rules plus Umamo's own rule set in `g
 
 - Comments are in English and say why, not what.  Comment non-obvious logic.
 - The `comment-cleanup` skill (`.claude/skills/comment-cleanup/SKILL.md`) is the reference for what a comment must not be: stale, a plan or phase label, a bug's discovery story, a comparison to an unrelated tool, or a docblock that narrates the body instead of stating its purpose.  Write to that standard, and run the skill over a branch before it merges.
-- Oxford comma, and two spaces after a period that ends a sentence.
+- Oxford comma, and two spaces after a period that ends a sentence.  The `umamo:comment-sentence-spacing` ktlint rule adds the second space, which `ktlintFormat` applies.  It skips abbreviations, initials, and list numbers so that it never widens a gap that is not a sentence break, which means a break it cannot be sure of is still yours to space.
 - No Markdown bold or italics in comments or docblocks.  Purely visual formatting (spaces, line breaks, indentation, lists) is fine.  Enforced by the `umamo:no-comment-emphasis` ktlint rule, which `ktlintFormat` applies.
 - **Every function gets exactly one docblock**, PHPDoc-style: open with `/**`, start every interior line with ` * `, close with ` */`, indented with tabs.  Reserve `/**` for documentation and use `/* */` for inline notes.
 - An override needs a docblock only when it does something its original's docblock does not already say; a short, self-explanatory override goes without.  Test sources are not required to carry docblocks.  The `umamo:function-docblock` ktlint rule holds the rest: every named function outside test sources that is not an override, local functions included.

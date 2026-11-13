@@ -54,7 +54,7 @@ import kotlin.math.abs
 private const val RESET_EPSILON = 1e-4f
 
 /**
- * A generous clamp for the range-editor numeric fields. The three fields (min / default / max) are
+ * A generous clamp for the range-editor numeric fields.  The three fields (min / default / max) are
  * interdependent, so each is clamped only to this wide sanity bound and the session normalizes the
  * triple (min <= max, default within range); a tight per-field clamp would block typing a default beyond
  * the not-yet-committed max.
@@ -105,8 +105,8 @@ internal data class ParameterLinkAction(
 
 /**
  * The rounded elevation island wrapping one parameter (slider or pad) and, while open, its range
- * editor. One visual step raised from the panel fill (headerBackground sits exactly one elevation
- * step above panelBackground in both schemes), rounded with the kit's medium shape. The group-depth
+ * editor.  One visual step raised from the panel fill (headerBackground sits exactly one elevation
+ * step above panelBackground in both schemes), rounded with the kit's medium shape.  The group-depth
  * indent lives on the caller's row (beside the drag grip), so the island only carries [modifier].
  *
  * @param Modifier modifier The layout modifier (the caller supplies the row weight).
@@ -129,12 +129,12 @@ internal fun ParameterIsland(
 				.clip(shapes.medium)
 				.let { base ->
 					// The slider, pad, and name each consume their own pointer input first, so this only fires on
-					// the island's own surface. Scrubbing therefore does NOT retarget: a scrub is a pose gesture,
+					// the island's own surface.  Scrubbing therefore does NOT retarget: a scrub is a pose gesture,
 					// and making it push a selection undo step would bury the history under drag noise.
 					//
 					// NOT FOCUSABLE, and that is load-bearing: a clickable takes focus, and deleting the row that
 					// holds focus leaves Compose's focus null, which silently kills every keyboard shortcut until
-					// the next click. The range-editor chevron below guards itself the same way.
+					// the next click.  The range-editor chevron below guards itself the same way.
 					if (onSelect != null) {
 						base
 							.focusProperties { canFocus = false }
@@ -156,7 +156,7 @@ internal fun ParameterIsland(
 
 /**
  * One labelled slider for a parameter, clamped to its range, with a numeric entry field and (when the
- * value is off its default) a reset glyph. The slider drag previews live and commits one step on release;
+ * value is off its default) a reset glyph.  The slider drag previews live and commits one step on release;
  * the field / reset commit one step each.
  *
  * @param Parameter parameter        The parameter to scrub.
@@ -221,8 +221,8 @@ internal fun ParameterSlider(
 
 /**
  * One 2D pad for a LINKED parameter pair: a labelled numeric/reset row per axis above a [Pad2D] that
- * scrubs both at once. [horizontal] is the X axis, [vertical] the Y axis. The pad drag previews both live
- * and commits one step (covering both parameters) on release. The range chevron sits on the horizontal
+ * scrubs both at once.  [horizontal] is the X axis, [vertical] the Y axis.  The pad drag previews both live
+ * and commits one step (covering both parameters) on release.  The range chevron sits on the horizontal
  * (upper) axis row; clicking either axis name toggles the island's shared range editor.
  *
  * @param Parameter horizontal       The X-axis parameter.
@@ -259,7 +259,7 @@ internal fun ParameterPad2D(
 ) {
 	val colors = LocalUmamoColors.current
 	// Both axis names toggle the SAME island range editor, so the disclosure chevron is shared and
-	// vertically centerd across the two axis rows rather than pinned to the first. It is pulled out of the
+	// vertically centerd across the two axis rows rather than pinned to the first.  It is pulled out of the
 	// per-row leading slot (both rows pass showLeadingSlot = false, supplying the indent from here) and
 	// kept keyboard-focus-safe like the slider's inline toggle.
 	// IntrinsicSize.Min gives the row the height of its tallest child (the two-axis Column), so the shared
@@ -350,7 +350,7 @@ internal fun ParameterPad2D(
  * @param ParameterLabels labels    The panel's localized chrome.
  * @param Boolean  showRangeToggle  Whether this row's leading slot draws the island's chevron (versus a
  *                                  matching spacer); only consulted when [showLeadingSlot] is true.
- * @param Boolean  showLeadingSlot  Whether this row renders its own leading chevron / spacer slot. A
+ * @param Boolean  showLeadingSlot  Whether this row renders its own leading chevron / spacer slot.  A
  *                                  linked pad shares one external chevron centerd across both axis rows,
  *                                  so its rows pass false and let that chevron supply the indent.
  * @param Boolean  rangeOpen        Whether the island's range editor is open.
@@ -386,7 +386,7 @@ private fun ParameterValueRow(
 		Row(
 			// A single click toggles the range editor; a double click begins inline rename. singleOrDoubleClick
 			// uses raw pointerInput (never requests focus, so keyboard dispatch stays on the shell root) and
-			// fires the single click immediately - no double-tap wait. While renaming, the field below consumes
+			// fires the single click immediately - no double-tap wait.  While renaming, the field below consumes
 			// its own presses, so this gesture does not fight it.
 			//
 			// The press is claimed.  The name sits inside the island, whose own surface targets the row, and a
@@ -479,9 +479,9 @@ internal fun RangeAxisLabel(name: String) {
 
 /**
  * The min / default / max fields for one parameter's range, rendered inside its island while the range
- * editor is open. Editing any field commits one undo step through the session (which normalizes
+ * editor is open.  Editing any field commits one undo step through the session (which normalizes
  * min <= max, clamps the default into the range, and re-clamps the live pose); the model then refreshes
- * the fields. Any number of islands can hold an open range editor at once.
+ * the fields.  Any number of islands can hold an open range editor at once.
  *
  * @param Parameter parameter  The parameter whose range is edited.
  * @param Function  onSetRange Called with (min, default, max) to commit a range edit.
@@ -515,7 +515,7 @@ internal fun RangeFieldsRow(parameter: Parameter, onSetRange: (Float, Float, Flo
 }
 
 /**
- * One labelled numeric field of the range editor (min / default / max). The field clamps only to a wide
+ * One labelled numeric field of the range editor (min / default / max).  The field clamps only to a wide
  * sanity bound; the session normalizes the resulting triple.
  *
  * @param String   label    The field's caption.

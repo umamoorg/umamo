@@ -39,7 +39,7 @@ internal fun meshTotals(puppet: PuppetModel): MeshTotals {
 
 /**
  * The mesh totals covered by an object-mode [selection]: directly selected drawables plus every
- * drawable nested under a selected part (a folder selection counts its art, recursively). Deformer
+ * drawable nested under a selected part (a folder selection counts its art, recursively).  Deformer
  * targets contribute nothing - a deformer's influence set is a rig relationship, not containment.
  *
  * @param PuppetModel puppet The loaded rig.

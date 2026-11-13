@@ -18,7 +18,7 @@ package org.umamo.runtime.model
  * differ even there.
  *
  * A plain `class`, not a `data class`: the fields are arrays, whose identity-based `equals` would make
- * a generated structural `equals` quietly wrong (the same trap [Keyform] sidesteps by hand). A mesh is
+ * a generated structural `equals` quietly wrong (the same trap [Keyform] sidesteps by hand).  A mesh is
  * referenced, not value-compared, so reference identity is the honest default here.
  *
  * @property FloatArray positions      The canvas-space editable mesh.

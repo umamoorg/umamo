@@ -10,9 +10,9 @@ import org.umamo.runtime.model.SourceLayerRef
  * Reconciles existing rig bindings (the model's per-tile [SourceLayerRef]s) against freshly-read
  * source art - the headline "file refreshes" feature.
  *
- * Hard rule: re-import never destroys rig work. Matched layers update in place;
+ * Hard rule: re-import never destroys rig work.  Matched layers update in place;
  * added layers become new tiles bound to their layer; removed/renamed layers are flagged for review,
- * never silently deleted. The output [ReconcileReport] is therefore a reviewable diff, not an applied
+ * never silently deleted.  The output [ReconcileReport] is therefore a reviewable diff, not an applied
  * mutation - [ArtworkReloadPlanner] turns the matched and added halves into a model delta.
  */
 interface Reconciler {

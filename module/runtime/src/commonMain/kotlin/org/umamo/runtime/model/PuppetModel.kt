@@ -12,8 +12,8 @@ data class PuppetModel(
 	val drawables: List<Drawable>,
 	/**
 	 * The organizational tree's top level: sub-parts and drawables interleaved in parts-panel order, the
-	 * same ordered child list as [Part.children]. Single source of truth for top-level structure and
-	 * order; [parts] / [drawables] are flat lookup lists. Draw order derives from this (deriveRenderRoot).
+	 * same ordered child list as [Part.children].  Single source of truth for top-level structure and
+	 * order; [parts] / [drawables] are flat lookup lists.  Draw order derives from this (deriveRenderRoot).
 	 */
 	val rootChildren: List<OrgChild>,
 	/** The organizational tree root (the Parts panel's top), or null if the model is flat. */
@@ -21,20 +21,20 @@ data class PuppetModel(
 	/** Glue affecters - seam-weld pairs of drawables' shared vertices after deformation. */
 	val glues: List<Glue> = emptyList(),
 	/**
-	 * The draw-order group tree (Cubism's "Group by Draw Order" hierarchy) used to compute render order. A
+	 * The draw-order group tree (Cubism's "Group by Draw Order" hierarchy) used to compute render order.  A
 	 * group-less model is one flat [RenderGroup]; empty (the default) means "fall back to the flat base order".
 	 */
 	val renderRoot: RenderGroup = RenderGroup(null, DEFAULT_DRAW_ORDER, emptyList()),
 	/**
-	 * LINKED ("combined") parameter pairs - each renders as one 2D pad instead of two sliders. Empty
-	 * (the default) means every parameter is an independent 1D axis. Both members of a link also remain
+	 * LINKED ("combined") parameter pairs - each renders as one 2D pad instead of two sliders.  Empty
+	 * (the default) means every parameter is an independent 1D axis.  Both members of a link also remain
 	 * in [parameters]; this list only records the X/Y pairing.
 	 */
 	val parameterLinks: List<ParameterLink> = emptyList(),
 	/**
 	 * The parameter-panel group tree (Cubism's CParameterGroup organisation): the root group's children
-	 * in panel order, each a [ParameterNode.Param] or a (possibly nested) [ParameterNode.Group]. Empty
-	 * (the default) means the model has no groups, so the panel renders the flat [parameters] list. This
+	 * in panel order, each a [ParameterNode.Param] or a (possibly nested) [ParameterNode.Group].  Empty
+	 * (the default) means the model has no groups, so the panel renders the flat [parameters] list.  This
 	 * is layout only - every leaf id also appears in [parameters], which stays the authoritative axis list.
 	 */
 	val parameterTree: List<ParameterNode> = emptyList(),
@@ -142,9 +142,9 @@ data class PuppetModel(
 const val DEFAULT_DRAW_ORDER = 500
 
 /**
- * One ordered child of the organizational tree: a sub-part or a drawable. Cubism's parts panel keeps
+ * One ordered child of the organizational tree: a sub-part or a drawable.  Cubism's parts panel keeps
  * sub-parts and drawables in one interleaved sibling order per level (a loose mesh can sit between two
- * folders), and that order is also the draw-order tiebreak. This sealed type is how [Part.children] and
+ * folders), and that order is also the draw-order tiebreak.  This sealed type is how [Part.children] and
  * [PuppetModel.rootChildren] express that single order, instead of splitting parts and drawables apart.
  */
 sealed interface OrgChild {
@@ -169,7 +169,7 @@ data class Part(
 	val name: String,
 	/**
 	 * This part's ordered children - sub-parts and drawables interleaved, in parts-panel (top = front)
-	 * order. The single source of truth for the hierarchy AND the panel order at this level; draw order
+	 * order.  The single source of truth for the hierarchy AND the panel order at this level; draw order
 	 * derives from it (see [PuppetModel.deriveRenderRoot]).
 	 */
 	val children: List<OrgChild>,
@@ -191,7 +191,7 @@ data class Part(
 	val groupMode: PartGroupMode = PartGroupMode.PassThrough,
 	/**
 	 * The part's own draw order (0-1000, default 500) - the sort key for its slot when it is
-	 * grouped or isolated. (CMO3 CPartForm.drawOrder / defaultOrder_forEditor.)
+	 * grouped or isolated.  (CMO3 CPartForm.drawOrder / defaultOrder_forEditor.)
 	 */
 	val drawOrder: Int = DEFAULT_DRAW_ORDER,
 	/**
@@ -232,7 +232,7 @@ data class Part(
 }
 
 /**
- * A textured triangle mesh - the thing actually drawn. Two bindings place it: [partId] (organizational
+ * A textured triangle mesh - the thing actually drawn.  Two bindings place it: [partId] (organizational
  * tree) and [parentDeformerId] (the deformer chain that deforms it) - these are independent
  * hierarchies in Cubism.
  */
@@ -271,12 +271,12 @@ data class Drawable(
 	val invertMask: Boolean = false,
 	/**
 	 * How the drawable's alpha combines with the destination (Cubism 5.3); pre-5.3 sources have no
-	 * alpha mode and stay [AlphaBlendMode.Over]. (CMO3 alphaComposition; MOC3 s153 alphaMode.)
+	 * alpha mode and stay [AlphaBlendMode.Over].  (CMO3 alphaComposition; MOC3 s153 alphaMode.)
 	 */
 	val alphaBlendMode: AlphaBlendMode = AlphaBlendMode.Over,
 	/**
 	 * When true, back faces are culled - a mesh flipped inside-out by deformation disappears
-	 * instead of showing mirrored. Default false = double-sided, Cubism's default. (CMO3 culling;
+	 * instead of showing mirrored.  Default false = double-sided, Cubism's default.  (CMO3 culling;
 	 * MOC3 = the INVERSE of drawable constant-flags bit 2, IS_DOUBLE_SIDED.)
 	 */
 	val culling: Boolean = false,
@@ -317,7 +317,7 @@ data class Drawable(
 	val atlasTileId: AtlasTileId? = null,
 	/**
 	 * Additive blend-shape bindings on this drawable's mesh, applied on top of the [geometryGrid]
-	 * result; empty when the drawable has none. (CMO3 keyformMorphTargetSet.)
+	 * result; empty when the drawable has none.  (CMO3 keyformMorphTargetSet.)
 	 */
 	val blendShapes: List<BlendShapeBinding<MeshForm>> = emptyList(),
 )

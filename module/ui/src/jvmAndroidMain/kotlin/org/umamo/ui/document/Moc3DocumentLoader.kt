@@ -126,7 +126,7 @@ internal fun buildMoc3Document(
 	// Shared with the export so import and re-export agree on the family's shape.
 	val basename = Moc3Sidecars.basenameFor(name)
 
-	// model3.json: the manifest that joins the family together. Hard requirement; a manifest that
+	// model3.json: the manifest that joins the family together.  Hard requirement; a manifest that
 	// exists but does not parse is a ParseFailed, not a MissingManifest - the alert must not claim
 	// a file is absent when it is sitting right there.
 	val manifestName = "$basename.model3.json"
@@ -157,7 +157,7 @@ internal fun buildMoc3Document(
 			return DocumentLoad.Failed(DocumentOpenFailure(DocumentOpenError.ParseFailed, name))
 		}
 
-	// Atlas pages, in manifest order (a mesh's textureIndex indexes this list). Hard requirement.
+	// Atlas pages, in manifest order (a mesh's textureIndex indexes this list).  Hard requirement.
 	// model3: FileReferences.Textures - the ordered atlas page paths, manifest-relative.
 	val textureReferences = manifest.fileReferences.textures
 

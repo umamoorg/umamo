@@ -4,7 +4,7 @@ import org.lwjgl.system.Configuration
 import org.umamo.editor.desktop.PACKAGED_VERSION_PROPERTY
 
 /**
- * An off-screen GL 3.3+ core context owned by a single render thread. The offscreen viewport renderer
+ * An off-screen GL 3.3+ core context owned by a single render thread.  The offscreen viewport renderer
  * ([OffscreenRenderEngine]) renders only to framebuffer objects, so a context needs no visible window and no
  * presentable drawable - just a current GL context on the thread that issues the draw and read-back calls.
  *
@@ -19,7 +19,7 @@ internal interface OffscreenGlContext {
 	val backendName: String
 
 	/**
-	 * Creates the context and makes it current on the calling (render) thread. On failure returns false so
+	 * Creates the context and makes it current on the calling (render) thread.  On failure returns false so
 	 * the caller degrades to a blank viewport rather than crashing - the same graceful fallback the engine
 	 * already applies when GL is unavailable - and holds nothing: whatever the attempt made before it failed is
 	 * released again.
@@ -37,7 +37,7 @@ internal interface OffscreenGlContext {
 	fun failureReason(): String?
 
 	/**
-	 * The renderer / version / vendor / GLSL of the current context, for the startup diagnostic. Valid only
+	 * The renderer / version / vendor / GLSL of the current context, for the startup diagnostic.  Valid only
 	 * after a successful [createAndMakeCurrent].
 	 *
 	 * @return String The context description.
@@ -45,7 +45,7 @@ internal interface OffscreenGlContext {
 	fun describeContext(): String
 
 	/**
-	 * Releases the context on the render thread. Must NOT call glFinish - the engine issues one glFinish
+	 * Releases the context on the render thread.  Must NOT call glFinish - the engine issues one glFinish
 	 * barrier before disposing its GL resources, and this runs last, after that barrier.  Harmless when
 	 * nothing is held, which is how the engine can call it after a failed [createAndMakeCurrent] too.
 	 */
@@ -53,7 +53,7 @@ internal interface OffscreenGlContext {
 }
 
 /**
- * Selects the offscreen GL context implementation for the running OS. GLFW is used on all platforms.
+ * Selects the offscreen GL context implementation for the running OS.  GLFW is used on all platforms.
  *
  * @return OffscreenGlContext The context backend for this OS.
  */

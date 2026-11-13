@@ -72,7 +72,7 @@ internal fun buildDeltaTexels(
 /**
  * The static column assignment of a drawable's blend-shape delta forms in its delta texture:
  * blend columns are appended after the grid's [cellCount] columns, in (binding order, key order),
- * skipping neutral/absent forms (their delta is zero and never fetched). CPU pose prep, the texel
+ * skipping neutral/absent forms (their delta is zero and never fetched).  CPU pose prep, the texel
  * bake, and the per-frame uniform fill all agree through this one mapping.
  *
  * @property Int cellCount        The grid's own column count (blend columns start here).

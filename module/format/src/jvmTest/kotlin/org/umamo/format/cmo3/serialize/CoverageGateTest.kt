@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 
 /**
  * Documents and guards model coverage: with the full cubismEngine, exactly these tags remain
- * verbatim (any tag without a registered typed serializer). Growing this set is a regression.
+ * verbatim (any tag without a registered typed serializer).  Growing this set is a regression.
  */
 class CoverageGateTest {
 	private val sample: File? = System.getProperty("cmo3.sample")?.let(::File)?.takeIf { it.isFile }

@@ -474,7 +474,7 @@ class GlRenderDevice : RenderDevice {
 
 		// Content sits at GL (0, 0): every pass runs glViewport(0, 0, used, used), so the used region
 		// IS the bottom-left rows.  GL_LINEAR makes the downscale a box filter - the supersample
-		// resolve. On GL this whole primitive IS a blit; on Metal it cannot be (a blit encoder neither
+		// resolve.  On GL this whole primitive IS a blit; on Metal it cannot be (a blit encoder neither
 		// filters nor scales), which is why the interface names the effect rather than the mechanism.
 		if (region == null) {
 			GL30.glBlitFramebuffer(
@@ -490,7 +490,7 @@ class GlRenderDevice : RenderDevice {
 				GL11.GL_LINEAR,
 			)
 		} else {
-			// A same-size sub-rectangle copy (the composite path's snapshot). The rect is
+			// A same-size sub-rectangle copy (the composite path's snapshot).  The rect is
 			// top-left-origin per the ScissorRect contract; GL blits bottom-up, so the flip is against
 			// the USED height - flipping against a larger allocation would land above the content.
 			val bottomUpY = sourceUsedHeight - region.y - region.height
@@ -562,7 +562,7 @@ class GlRenderDevice : RenderDevice {
 		}
 
 		// The fence signaled, so the read is done and the ticket is consumed HERE - exactly once, whether or
-		// not the map below succeeds. Returning null past this point would make the caller treat a consumed
+		// not the map below succeeds.  Returning null past this point would make the caller treat a consumed
 		// ticket as still-in-flight and re-poll it, tripping the spent check and killing the render thread.
 		glTicket.spent = true
 		GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER, glTicket.pbo.id)
@@ -639,7 +639,7 @@ class GlRenderDevice : RenderDevice {
 		val bottomUp = ByteArray(usedWidth * usedHeight * 4)
 		pixels.get(bottomUp)
 
-		// GL reads bottom-up; RasterImage is top-first. The flip is this backend's; no caller asks.
+		// GL reads bottom-up; RasterImage is top-first.  The flip is this backend's; no caller asks.
 		return RasterImage(usedWidth, usedHeight, flipRowsVertically(bottomUp, usedWidth, usedHeight))
 	}
 

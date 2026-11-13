@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 /**
  * Cross-version parity gate: every sample listed in -Dcmo3.probe (comma-separated, normally the local
  * set of `.cmo3` files under `cmo3/` spanning Cubism 3.x/4.x/5.3) must round-trip byte-identical with
- * zero verbatim (unmodeled) tags. The samples are git-ignored, so a public build skips this gracefully.
+ * zero verbatim (unmodeled) tags.  The samples are git-ignored, so a public build skips this gracefully.
  */
 class AllVersionsGateTest {
 	@Test

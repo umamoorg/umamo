@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 
 /**
  * Validates the CAFF codec against the real sample, end to end: parse, inspect, and round-trip
- * through our own writer/reader. Self-contained (no editor jar). Skips when the sample is absent.
+ * through our own writer/reader.  Self-contained (no editor jar).  Skips when the sample is absent.
  */
 class CaffSampleTest {
 	private val sample: File? =

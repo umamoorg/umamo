@@ -73,7 +73,7 @@ internal object ZipRecords {
 	const val UINT16_SENTINEL = 0xFFFF
 	const val UINT32_SENTINEL = 0xFFFFFFFFL
 
-	// MS-DOS timestamp bounds (APPNOTE.TXT 4.4.6). The date packs year-1980 into 7 bits, so the epoch is
+	// MS-DOS timestamp bounds (APPNOTE.TXT 4.4.6).  The date packs year-1980 into 7 bits, so the epoch is
 	// 1980 and the ceiling is 2107; a clock outside that range is clamped rather than allowed to wrap into
 	// a different year.
 	private const val DOS_EPOCH_YEAR = 1980

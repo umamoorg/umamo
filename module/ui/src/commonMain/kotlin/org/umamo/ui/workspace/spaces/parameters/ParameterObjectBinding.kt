@@ -16,11 +16,11 @@ import org.umamo.runtime.model.PartId
 import org.umamo.runtime.model.PuppetModel
 
 /*
- * The object -> parameters relation behind the "show only the selected object's parameters" filter. A
- * parameter affects an object when it is an axis of a keyform grid that deforms it. Because a drawable is
+ * The object -> parameters relation behind the "show only the selected object's parameters" filter.  A
+ * parameter affects an object when it is an axis of a keyform grid that deforms it.  Because a drawable is
  * usually deformed by its parent deformer chain rather than keyed directly, the EFFECTIVE set unions the
  * object's own axes with every ancestor deformer's axes (and, for a part, its member drawables' effective
- * sets). Compose-free so it can be unit-tested; every axis references one parameter by KeyformAxis.parameterId.
+ * sets).  Compose-free so it can be unit-tested; every axis references one parameter by KeyformAxis.parameterId.
  *
  * 選択オブジェクトに影響するパラメータ集合（自身のキーフォーム軸＋親デフォーマ連鎖の軸）。
  */
@@ -47,7 +47,7 @@ internal fun effectiveParameterIds(puppet: PuppetModel, selection: Selection): S
 
 	/**
 	 * Walks the deformer nesting from [startDeformerId] up through parents, adding each deformer's axes
-	 * and blend-shape drivers. A visited guard defends against a malformed cyclic parent chain.
+	 * and blend-shape drivers.  A visited guard defends against a malformed cyclic parent chain.
 	 *
 	 * @param DeformerId? startDeformerId The deformer to start from, or null.
 	 */
@@ -123,9 +123,9 @@ private fun PuppetModel.gluesByMesh(): Map<DrawableId, List<Glue>> {
 }
 
 /**
- * A parameter's key marks: the parameter values it is keyed at, split by source. Grid keys come from
+ * A parameter's key marks: the parameter values it is keyed at, split by source.  Grid keys come from
  * keyform-grid axes (rendered as circle points); blend keys come from blend-shape bindings (square
- * points). Each list is sorted ascending and deduplicated. A parameter with neither has no map entry.
+ * points).  Each list is sorted ascending and deduplicated.  A parameter with neither has no map entry.
  *
  * @property List gridKeys  The keyform-grid axis key values (circle points), sorted ascending.
  * @property List blendKeys The blend-shape binding key values (square points), sorted ascending.
@@ -230,7 +230,7 @@ private fun Deformer.blendShapeBindingKeys(): List<Pair<ParameterId, FloatArray>
 	}
 
 /**
- * The parameters driving this deformer's blend-shape bindings (empty when it has none). Limit-curve
+ * The parameters driving this deformer's blend-shape bindings (empty when it has none).  Limit-curve
  * constraint parameters deliberately do NOT count as edges - a limit gates a binding's weight but
  * does not key the object itself.
  *

@@ -57,11 +57,11 @@ internal enum class SpineEdge {
 
 /**
  * Rewrites a split's subtree after a pointer drag on its own divider so that ONLY the two panels
- * adjacent to the divider resize - every other panel keeps its pixel extent. A plain drag would just
+ * adjacent to the divider resize - every other panel keeps its pixel extent.  A plain drag would just
  * move this node's ratio, which rescales an entire child subtree as a unit (dragging the divider next
  * to a three-column group visibly moves the far column); instead the drag delta telescopes down each
  * child's divider-adjacent spine of same-orientation splits, counter-adjusting every ratio along it
- * (see resizeEdgePanel). Pure (no Compose) so the pixels↔ratio math and the clamping are unit-tested
+ * (see resizeEdgePanel).  Pure (no Compose) so the pixels↔ratio math and the clamping are unit-tested
  * directly - this is the fiddliest bit of the layout math.
  *
  * The drag is clamped BEFORE rewriting (boundaryDragBounds) so no adjacent panel shrinks below
@@ -107,7 +107,7 @@ fun dragSplitBoundary(node: SplitNode, dragPx: Float, axisPx: Float, minPx: Floa
 }
 
 /**
- * The pixel extent of the divider-adjacent terminal panel inside [node]. Walks the [edge] spine of
+ * The pixel extent of the divider-adjacent terminal panel inside [node].  Walks the [edge] spine of
  * same-orientation splits (Trailing follows second children, Leading follows first children); a leaf
  * or a cross-orientation split terminates the walk, because a cross-axis subtree resizes as one unit
  * along the drag axis (its children fill the drag axis) and so absorbs the delta exactly like a leaf.
@@ -136,9 +136,9 @@ internal fun edgePanelSizePx(node: AreaNode, orientation: SplitOrientation, axis
 /**
  * The allowed drag interval for [node]'s divider: the intersection of the adjacent terminal panels'
  * [minPx] bounds with, for the node itself and every spine split the compensation will rewrite, the
- * bound keeping its new ratio inside the render clamp band [MIN_RATIO, 1 - MIN_RATIO]. Only these
+ * bound keeping its new ratio inside the render clamp band [MIN_RATIO, 1 - MIN_RATIO].  Only these
  * nodes' ratios change, so only they constrain the drag; interior panels are pixel-invariant by
- * construction. May be empty when the geometry is degenerate (extents already below the minimums).
+ * construction.  May be empty when the geometry is degenerate (extents already below the minimums).
  *
  * @param SplitNode node The split whose divider is being dragged.
  * @param Float axisPx The node's measured length along the split axis, in pixels.
@@ -189,9 +189,9 @@ internal fun boundaryDragBounds(node: SplitNode, axisPx: Float, minPx: Float, sp
 
 /**
  * Rewrites the ratios along [node]'s [edge] spine so that only the divider-adjacent terminal panel
- * absorbs [deltaPx] while every other panel in the subtree keeps its pixel extent. At each spine
+ * absorbs [deltaPx] while every other panel in the subtree keeps its pixel extent.  At each spine
  * split the far child's extent is held invariant - new ratio times new usable equals old extent
- * exactly - so the delta telescopes down to the terminal. A leaf or a cross-orientation split ends
+ * exactly - so the delta telescopes down to the terminal.  A leaf or a cross-orientation split ends
  * the recursion unchanged (it absorbs the delta as a unit).
  *
  * @param AreaNode node The subtree on one side of the dragged divider.
@@ -231,10 +231,10 @@ private fun resizeEdgePanel(node: AreaNode, orientation: SplitOrientation, axisP
 }
 
 /**
- * The draggable divider between a split's two children. Dragging it reports the pixel delta along the
+ * The draggable divider between a split's two children.  Dragging it reports the pixel delta along the
  * split axis via [onDragByPx], bracketed by [onDragStarted] / [onDragStopped]; the parent
  * (SplitContainer) accumulates the deltas in a [SplitterDragSession] and rewrites its subtree with
- * [dragSplitBoundary]. Orientation picks both the bar's long axis and the drag axis: a Horizontal
+ * [dragSplitBoundary].  Orientation picks both the bar's long axis and the drag axis: a Horizontal
  * split (children side by side) gets a vertical bar dragged horizontally; a Vertical split gets a
  * horizontal bar dragged vertically.
  *

@@ -157,7 +157,7 @@ internal fun UpdateCheckSettingRow() {
 internal fun ThemeSettingRow() {
 	var theme by rememberStringSetting(THEME_KEY, THEME_DEFAULT)
 	// Resolve option labels in composition (stringResource is @Composable) into ordered maps, so the
-	// SelectField label lambda - which is plain (T) -> String - is a lookup, not a composable call. The
+	// SelectField label lambda - which is plain (T) -> String - is a lookup, not a composable call.  The
 	// command palette resolves its labels the same way.
 	val themeLabels =
 		linkedMapOf(

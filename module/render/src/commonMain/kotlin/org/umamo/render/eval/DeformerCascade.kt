@@ -22,12 +22,12 @@ import kotlin.math.atan2
 
 /**
  * A deformer's baked world transform - a warp lattice or a rotation affine - through which child
- * deformers and bound meshes transform their points. [accY] is the Y-scale accumulator passed to
+ * deformers and bound meshes transform their points.  [accY] is the Y-scale accumulator passed to
  * child rotation deformers (warps pass the parent's through; rotations contribute their world scale).
  *
  * The three `accumulated*` channels are the deformer's own render channels composed with every
  * ancestor's, and they apply to every DRAWABLE under this deformer (see [DeformerChannels] for the
- * composition rules and [preparePose] for where they land). Riggers key a deformer's opacity to
+ * composition rules and [preparePose] for where they land).  Riggers key a deformer's opacity to
  * show and hide a whole subtree, so these are not a decorative extra - ignoring them renders effect
  * subtrees permanently visible.
  */
@@ -78,7 +78,7 @@ internal class DeformerChannels(
  * Composes a deformer's local channels onto its parent's accumulated ones.
  *
  * Opacity and multiply color compose by product; screen color composes by the screen operator
- * `a + b - a*b`. The identities are chosen so a ROOT deformer needs no special case: multiplying by
+ * `a + b - a*b`.  The identities are chosen so a ROOT deformer needs no special case: multiplying by
  * white and screening with black both return the local value unchanged.
  *
  * @param DeformerChannels local  This deformer's own blended channels.
@@ -118,7 +118,7 @@ internal fun cascadeDeformerChannels(local: DeformerChannels, parent: DeformerWo
 internal fun screenCompose(a: Float, b: Float): Float = a + b - a * b
 
 /**
- * A warp deformer's world transform: its baked world control points + lattice mode. The control-point
+ * A warp deformer's world transform: its baked world control points + lattice mode.  The control-point
  * fields are `internal` (not `private`) so the GPU renderer in this module can upload them as the
  * shader's lattice uniforms - the same baked data the CPU `apply` walks via [warpApply].
  */
@@ -349,7 +349,7 @@ private fun buildWarpWorld(
 	addWarpBlendDeltas(warp, paramValue, defaultValue, cp)
 	val pointCount = cp.size / 2
 	// The render channels are blended, never snapped to the nearest key, or they step instead of fading
-	// at mid-parameter values. Each track resolves its own corners; pre-compaction those are the same
+	// at mid-parameter values.  Each track resolves its own corners; pre-compaction those are the same
 	// corners in the same order as the control points', so the sums are unchanged.
 	// A constant null in the steady state (no pending edit), so the per-channel lookups below allocate
 	// no KeyableTarget keys on the per-frame path.
@@ -587,7 +587,7 @@ internal fun inheritedAngleRadians(
 
 /**
  * Deforms a deformer-parented mesh: blend its local vertices, push each through the parent deformer's
- * world transform, then negate Y (reverse-coordinate). Returns null when the mesh is hidden.
+ * world transform, then negate Y (reverse-coordinate).  Returns null when the mesh is hidden.
  *
  * @param KeyformGrid    grid       The mesh's keyform grid.
  * @param FloatArray     base       The mesh's rest-pose positions (interleaved x,y).
@@ -631,7 +631,7 @@ internal fun deformMeshWorldFromCorners(
 	val local = blendLocalFromCorners(grid, base, corners)
 
 	// Blend shapes: additive per-vertex deltas (form minus the grid-at-default reference) on top of
-	// the grid blend, before the parent transform. Binding-free drawables never reach this loop.
+	// the grid blend, before the parent transform.  Binding-free drawables never reach this loop.
 	if (blend != null) {
 		for (contribution in blend.contributions) {
 			val deltas = contribution.form.positionDeltas

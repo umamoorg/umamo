@@ -14,7 +14,7 @@ internal const val OUTLINER_ROOT_ID = "root"
 
 /**
  * The icon a row carries, drawn as themed vector art from the shared UmamoIcons set inside a reserved
- * fixed-width slot (see OutlinerIconSlot). The two synthetic roots mirror Blender's armature object /
+ * fixed-width slot (see OutlinerIconSlot).  The two synthetic roots mirror Blender's armature object /
  * armature data icons.
  */
 internal enum class OutlinerIcon {
@@ -100,7 +100,7 @@ internal fun buildOutlinerTree(puppet: PuppetModel, rootLabel: String = "Armatur
 		)
 
 	// The org tree is already a single interleaved order of sub-parts and drawables per level, so the
-	// outliner just reads it - no separate merge. A node that does not resolve (a dangling id) is dropped.
+	// outliner just reads it - no separate merge.  A node that does not resolve (a dangling id) is dropped.
 	// childNodes and partNode are mutually recursive (a part's children may be parts), so childNodes is a
 	// var the part builder closes over and that is assigned the real body once partNode exists.
 	var childNodes: (List<OrgChild>) -> List<OutlinerNode> = { emptyList() }
@@ -184,7 +184,7 @@ internal fun outlinerRangeSelection(orderedTargets: List<SelectionTarget?>, curr
 /**
  * The kind-toggle pass: returns the node (with kind-filtered children) as a one-element list, an empty
  * list when its whole kind is hidden, or - for a hidden part - just its kept children, hoisting the
- * drawables up so they flatten under the part's parent instead of disappearing. Returns a list (not a
+ * drawables up so they flatten under the part's parent instead of disappearing.  Returns a list (not a
  * nullable node) precisely so a dropped part can splice multiple children into its parent.
  *
  * @param OutlinerNode node The node to filter.
@@ -217,7 +217,7 @@ private fun kindFiltered(node: OutlinerNode, showParts: Boolean, showDrawables: 
  * The name-search pass over an already kind-filtered tree: a node survives when it matches [query] or any
  * descendant does, but only the path down to each match is kept - a matched node keeps just its matching
  * descendants, not its whole subtree, so searching "bag" shows the branches down to the bag rows and not
- * every unrelated child under them. A blank query keeps the tree unchanged; the puppet root survives even
+ * every unrelated child under them.  A blank query keeps the tree unchanged; the puppet root survives even
  * with no match so the panel never goes blank.
  *
  * @param OutlinerNode node The kind-filtered node.
@@ -241,8 +241,8 @@ private fun queryPruned(node: OutlinerNode, query: String): OutlinerNode? {
 
 /**
  * Builds the Armature node: every deformer nested by [Deformer.parent] (parentless deformers are the
- * roots), preserving the model's list order among siblings. Always present even when the rig has no
- * deformers, so the tree's structure is stable. A [visited] guard tolerates a malformed cyclic parent
+ * roots), preserving the model's list order among siblings.  Always present even when the rig has no
+ * deformers, so the tree's structure is stable.  A [visited] guard tolerates a malformed cyclic parent
  * reference, mirroring the parts / parameter-tree walks in the importer.
  *
  * @param PuppetModel puppet The rig whose deformers populate the node.

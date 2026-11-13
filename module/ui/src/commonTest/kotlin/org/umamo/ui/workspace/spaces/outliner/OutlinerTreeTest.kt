@@ -18,7 +18,7 @@ import kotlin.test.assertTrue
 
 /**
  * Unit-tests [buildOutlinerTree]: the unified Blender-style tree (root → Armature deformer hierarchy +
- * the org tree's interleaved parts / drawables). Corpus-free - a hand-built rig exercises deformer
+ * the org tree's interleaved parts / drawables).  Corpus-free - a hand-built rig exercises deformer
  * nesting, the interleaved child order read straight off the org tree, the dim rules, and the synthetic
  * rows' null selection targets.
  */

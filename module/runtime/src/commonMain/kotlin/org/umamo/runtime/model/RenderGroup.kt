@@ -1,10 +1,10 @@
 package org.umamo.runtime.model
 
 /**
- * A node in the render-order tree - Cubism's draw-order group hierarchy. The model carries this tree so the
+ * A node in the render-order tree - Cubism's draw-order group hierarchy.  The model carries this tree so the
  * renderer can reproduce the  hierarchical render order: a drawable's draw order sorts it only
  * among its group siblings, and a "Group by Draw Order" part moves as a unit positioned by the part's
- * draw order. A model with no draw-order groups is one flat [RenderGroup] of all drawables - equivalent to a
+ * draw order.  A model with no draw-order groups is one flat [RenderGroup] of all drawables - equivalent to a
  * global sort (what `paintOrder` does).
  */
 sealed interface RenderNode
@@ -13,7 +13,7 @@ sealed interface RenderNode
 data class RenderDrawable(val id: DrawableId) : RenderNode
 
 /**
- * A draw-order group: the implicit root, or a part whose [PartGroupMode] is Grouped or Isolated. Its
+ * A draw-order group: the implicit root, or a part whose [PartGroupMode] is Grouped or Isolated.  Its
  * [children] sort among themselves (in [drawOrder]-then-panel order); the group as a whole takes [drawOrder]
  * (the part's draw order) as its sort key in its parent, so a child can't escape the group's slot.
  * Basically, override the draw order of children of the part.

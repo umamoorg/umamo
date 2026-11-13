@@ -7,12 +7,12 @@ import org.umamo.render.glsl.MAX_CORNERS
 
 // The per-draw and per-pass shader inputs, as structs rather than named scalars.
 //
-// The renderer names no uniform. Each backend hand-writes one marshaller per struct: the GL family caches
+// The renderer names no uniform.  Each backend hand-writes one marshaller per struct: the GL family caches
 // the locations once at pipeline creation and issues glUniform*; a Metal backend would write a mirroring
-// MSL struct and setVertexBytes it. Deliberately NOT reflection-driven - kotlin-reflect does not exist on
+// MSL struct and setVertexBytes it.  Deliberately NOT reflection-driven - kotlin-reflect does not exist on
 // Kotlin/Native - and deliberately not a writeTo(sink), which would force this shared code to commit to a
 // memory layout when std140 and MSL alignment disagree. commonMain supplies VALUES; layout is the
-// backend's. That split is the cleanest line in the design.
+// backend's.  That split is the cleanest line in the design.
 
 /** The camera's world→NDC affine: `ndc = world * (scaleX, scaleY) + (offsetX, offsetY)`. */
 public data class WorldToNdc(val scaleX: Float, val scaleY: Float, val offsetX: Float, val offsetY: Float)
@@ -20,9 +20,9 @@ public data class WorldToNdc(val scaleX: Float, val scaleY: Float, val offsetX: 
 /**
  * One drawable's per-pose deform inputs: the active morph corners and the baked parent transform.
  *
- * MUTABLE AND REUSED. The renderer refills one instance per draw rather than allocating ~60 of these a
- * frame. A device implementation MUST therefore marshal every field before returning and MUST NOT retain
- * the instance. Both `glUniform*` and Metal's `setVertexBytes` copy, so both can honor that; a backend
+ * MUTABLE AND REUSED.  The renderer refills one instance per draw rather than allocating ~60 of these a
+ * frame.  A device implementation MUST therefore marshal every field before returning and MUST NOT retain
+ * the instance.  Both `glUniform*` and Metal's `setVertexBytes` copy, so both can honor that; a backend
  * that wanted to record and replay a command buffer could not, and would need its own copy.
  *
  * Getting this wrong renders garbage that looks exactly like a driver bug, which is why it is stated here

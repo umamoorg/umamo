@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 
 /**
  * Verifies the v6 offscreen keyform layout on the Model A corpus sample (the only offscreen-carrying
- * model). Confirmed structure (see MOC3.md §5.6):
+ * model).  Confirmed structure (see MOC3.md §5.6):
  *
  *  - An offscreen's keyforms ride its OWNER PART's keyform grid - there is no offscreen
  *    keyform-binding section; Σ owner-part grid sizes == CountInfo 36.

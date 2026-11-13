@@ -7,7 +7,7 @@ import io.github.vinceglb.filekit.dialogs.openFilePicker
 import io.github.vinceglb.filekit.dialogs.openFileSaver
 
 /**
- * The [FilePicker] over FileKit's native dialogs. FileKit already abstracts each platform's picker (Win32 /
+ * The [FilePicker] over FileKit's native dialogs.  FileKit already abstracts each platform's picker (Win32 /
  * Cocoa / GTK on desktop, Storage Access Framework on Android), so this single commonMain implementation
  * serves every platform, including Android once the Activity calls `FileKit.init`.
  *

@@ -1,4 +1,4 @@
-// Settings script — the FIRST thing Gradle evaluates. Declares where plugins and
+// Settings script — the FIRST thing Gradle evaluates.  Declares where plugins and
 // dependencies are fetched from, and which subprojects make up the build.
 
 rootProject.name = "umamo"
@@ -35,7 +35,7 @@ dependencyResolutionManagement {
 // Library modules live under module/, applications under app/. A module's Gradle PATH (e.g.
 // ":format") is kept flat and deliberately independent of its DIRECTORY, so dependency
 // declarations stay terse — project(":format"), not project(":module:format") — while the
-// folder tree stays tidy. Path ≠ directory ≠ package: three separate things.
+// folder tree stays tidy.  Path ≠ directory ≠ package: three separate things.
 // (settings.gradle.kts is just Kotlin, so a local helper removes the repetition.)
 
 /**

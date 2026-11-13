@@ -1,7 +1,7 @@
 package org.umamo.format.cmo3.caff
 
 /**
- * One logical file inside a CAFF archive. [content] is the fully-decoded payload
+ * One logical file inside a CAFF archive.  [content] is the fully-decoded payload
  * (de-obfuscated and decompressed); compression/obfuscation describe how it is stored on disk.
  *
  * EN: Holds decoded bytes rather than a file offset.
@@ -18,7 +18,7 @@ public class CaffEntry(
 )
 
 /**
- * The CAFF preview thumbnail. Most cmo3 files carry [present] == false (NO_PREVIEW).
+ * The CAFF preview thumbnail.  Most cmo3 files carry [present] == false (NO_PREVIEW).
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 PREVIEW</a>
  */

@@ -17,7 +17,7 @@ internal sealed interface DrawableAction {
 
 	/**
 	 * The backend has never seen this drawable - an Object-mode duplicate, a deleted drawable an undo
-	 * restored, or one skipped earlier for having no geometry. Upload it whole, with its entry in the
+	 * restored, or one skipped earlier for having no geometry.  Upload it whole, with its entry in the
 	 * current glue layout.
 	 */
 	class Upload(val drawable: Drawable) : DrawableAction {
@@ -27,7 +27,7 @@ internal sealed interface DrawableAction {
 	/**
 	 * The topology changed (vertex count, indices, the keyform grid, or the blend-shape bindings), or
 	 * the drawable was reparented across the warp boundary (gaining or losing a control-point texture),
-	 * so every buffer and the delta texture are stale. Free the resident and upload it whole against
+	 * so every buffer and the delta texture are stale.  Free the resident and upload it whole against
 	 * the new mesh.
 	 */
 	class Reupload(val drawable: Drawable) : DrawableAction {
@@ -35,7 +35,7 @@ internal sealed interface DrawableAction {
 	}
 
 	/**
-	 * The residency is reusable. Non-null [positions] / [uvs] are in-place re-uploads for the tiers that
+	 * The residency is reusable.  Non-null [positions] / [uvs] are in-place re-uploads for the tiers that
 	 * changed; both null means no BUFFER work - but the resident's static composite state (blend/alpha
 	 * mode, culling, mask ids, invert) is still re-stamped from [drawable], since a composite-only edit
 	 * changes no mesh array and so lands here, not in Reupload.
@@ -88,7 +88,7 @@ internal fun diffModel(
 	val oldDrawableById = model.drawables.associateBy { it.id }
 	// Warp parenting decides whether a drawable owns a control-point texture, and that is fixed at upload:
 	// a reparent that flips it (deleting a rotation deformer between a drawable and a warp, say) leaves a
-	// resident whose cp texture is stale or absent, so it must re-upload, not Keep. Derived purely from the
+	// resident whose cp texture is stale or absent, so it must re-upload, not Keep.  Derived purely from the
 	// two models - residency === `model`, so the old warp set matches what the backend actually uploaded.
 	val oldWarpIds = model.deformers.filterIsInstance<Deformer.Warp>().mapTo(HashSet()) { it.id }
 	val newWarpIds = newModel.deformers.filterIsInstance<Deformer.Warp>().mapTo(HashSet()) { it.id }
@@ -142,7 +142,7 @@ internal fun diffModel(
 		actions.add(DrawableAction.Keep(drawable, positions, uvs))
 	}
 
-	// Anything resident with no action is gone from the model. A Reupload is an ACTION, so a drawable that
+	// Anything resident with no action is gone from the model.  A Reupload is an ACTION, so a drawable that
 	// is freed and then fails to re-upload cannot also appear here - which is what stops the free happening
 	// twice, and with it the chance of the second free hitting a GL name the driver has since recycled.
 	val actioned = actions.mapTo(HashSet(actions.size)) { it.drawableId }

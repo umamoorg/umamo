@@ -12,7 +12,7 @@ import org.umamo.render.device.RenderTarget
 import org.umamo.render.device.TextureFilter
 import org.umamo.render.device.TextureWrap
 
-// The GL device's concrete handles. Each wraps the GL names its interface hides; nothing outside this
+// The GL device's concrete handles.  Each wraps the GL names its interface hides; nothing outside this
 // package can reach them, which is what keeps GL out of the shared renderer.
 
 /**

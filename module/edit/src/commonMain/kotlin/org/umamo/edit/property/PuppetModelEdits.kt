@@ -29,7 +29,7 @@ import org.umamo.runtime.model.withDerivedRenderRoot
 
 /**
  * Returns a copy of [this] with the drawable [id]'s color blend mode set to [mode], sharing every other
- * entity. A no-op id (no such drawable, or the mode already matches) returns the same instance.
+ * entity.  A no-op id (no such drawable, or the mode already matches) returns the same instance.
  *
  * @param DrawableId id The drawable to retarget.
  * @param BlendMode mode The new blend mode.
@@ -50,7 +50,7 @@ fun PuppetModel.withDrawableBlendMode(id: DrawableId, mode: BlendMode): PuppetMo
 
 /**
  * Returns a copy of [this] with the drawable [id]'s alpha blend mode set to [mode], sharing every other
- * entity. A no-op id (no such drawable, or the mode already matches) returns the same instance.
+ * entity.  A no-op id (no such drawable, or the mode already matches) returns the same instance.
  *
  * @param DrawableId id The drawable to retarget.
  * @param AlphaBlendMode mode The new alpha blend mode.
@@ -71,7 +71,7 @@ fun PuppetModel.withDrawableAlphaBlendMode(id: DrawableId, mode: AlphaBlendMode)
 
 /**
  * Returns a copy of [this] with the drawable [id]'s back-face culling set to [culling], sharing every
- * other entity. A no-op id (no such drawable, or the flag already matches) returns the same instance.
+ * other entity.  A no-op id (no such drawable, or the flag already matches) returns the same instance.
  *
  * @param DrawableId id The drawable to retarget.
  * @param Boolean culling The new culling state.
@@ -92,9 +92,9 @@ fun PuppetModel.withDrawableCulling(id: DrawableId, culling: Boolean): PuppetMod
 
 /**
  * Returns a copy of [this] with the drawable [id]'s static opacity set to [opacity], sharing every other
- * entity. A no-op id (no such drawable, or the value already matches) returns the same instance.
+ * entity.  A no-op id (no such drawable, or the value already matches) returns the same instance.
  *
- * Writes the STATIC only. When the drawable keys opacity, the track shadows this and the edit is invisible
+ * Writes the STATIC only.  When the drawable keys opacity, the track shadows this and the edit is invisible
  * at any pose the track covers - which is why the Properties row routes a keyed channel's edit into the
  * pending-edit buffer instead of here.
  *
@@ -117,9 +117,9 @@ fun PuppetModel.withDrawableOpacity(id: DrawableId, opacity: Float): PuppetModel
 
 /**
  * Returns a copy of [this] with the drawable [id]'s static draw order set to [drawOrder], sharing every
- * other entity. A no-op id (no such drawable, or the value already matches) returns the same instance.
+ * other entity.  A no-op id (no such drawable, or the value already matches) returns the same instance.
  *
- * Deliberately does NOT re-derive the render root, unlike [withPartDrawOrder]. A part's draw order is
+ * Deliberately does NOT re-derive the render root, unlike [withPartDrawOrder].  A part's draw order is
  * baked into the derived group tree; a drawable's is resolved per POSE at render time as its draw-order
  * channel's static, so the tree is unaffected and re-deriving would be wasted work on every edit.
  *
@@ -187,7 +187,7 @@ fun PuppetModel.withDrawableScreenColor(id: DrawableId, color: ColorRgb): Puppet
 
 /**
  * Returns a copy of [this] with the drawable [id]'s mask-inversion flag set to [invert], sharing every
- * other entity. A no-op id (no such drawable, or the flag already matches) returns the same instance.
+ * other entity.  A no-op id (no such drawable, or the flag already matches) returns the same instance.
  *
  * @param DrawableId id The drawable to retarget.
  * @param Boolean invert The new inverted-mask state.
@@ -208,7 +208,7 @@ fun PuppetModel.withDrawableInvertMask(id: DrawableId, invert: Boolean): PuppetM
 
 /**
  * Returns a copy of [this] with the drawable [id] bound to the deformer [parentDeformerId] (null unbinds),
- * sharing every other entity. A no-op id (no such drawable, or the binding already matches) returns the
+ * sharing every other entity.  A no-op id (no such drawable, or the binding already matches) returns the
  * same instance.  A drawable is deformed by, but never a child of, a deformer - so this is no tree surgery
  * and no render-order rederive.
  *
@@ -254,7 +254,7 @@ internal fun Drawable.rebound(parentDeformerId: DeformerId?, localPositions: Flo
 
 /**
  * Returns a copy of [this] with the drawable [id]'s clip-mask list replaced by [maskedBy], sharing every
- * other entity. A no-op id (no such drawable, or the list already matches) returns the same instance.
+ * other entity.  A no-op id (no such drawable, or the list already matches) returns the same instance.
  *
  * @param DrawableId id The drawable whose masks change.
  * @param List maskedBy The drawables whose alpha now clips it.
@@ -275,8 +275,8 @@ fun PuppetModel.withDrawableMaskedBy(id: DrawableId, maskedBy: List<DrawableId>)
 
 /**
  * Returns a copy of [this] with the deformer [id] bound to the organizational part [partId] (null clears
- * it), sharing every other entity. A no-op id (no such deformer, or the binding already matches) returns
- * the same instance. The part reference is loose - no Part.children entry corresponds to it - so this is a
+ * it), sharing every other entity.  A no-op id (no such deformer, or the binding already matches) returns
+ * the same instance.  The part reference is loose - no Part.children entry corresponds to it - so this is a
  * flat field write; the copy is per-subtype because Deformer is a sealed interface.
  *
  * @param DeformerId id The deformer to rebind.
@@ -302,7 +302,7 @@ fun PuppetModel.withDeformerPart(id: DeformerId, partId: PartId?): PuppetModel {
 
 /**
  * Returns a copy of [this] with the deformer [id]'s static opacity set to [opacity], sharing every other
- * entity. A no-op id (no such deformer, or the value already matches) returns the same instance.
+ * entity.  A no-op id (no such deformer, or the value already matches) returns the same instance.
  *
  * A deformer's render channels CASCADE onto every drawable beneath it - they compose by product at render
  * time - so this is a different lever from setting each of those drawables' own opacity.
@@ -321,7 +321,7 @@ fun PuppetModel.withDeformerOpacity(id: DeformerId, opacity: Float): PuppetModel
 
 /**
  * Returns a copy of [this] with the deformer [id]'s static multiply color set to [color], sharing every
- * other entity. A no-op id (no such deformer, or the value already matches) returns the same instance.
+ * other entity.  A no-op id (no such deformer, or the value already matches) returns the same instance.
  *
  * @param DeformerId id The deformer to retarget.
  * @param ColorRgb color The new multiply color.
@@ -337,7 +337,7 @@ fun PuppetModel.withDeformerMultiplyColor(id: DeformerId, color: ColorRgb): Pupp
 
 /**
  * Returns a copy of [this] with the deformer [id]'s static screen color set to [color], sharing every
- * other entity. A no-op id (no such deformer, or the value already matches) returns the same instance.
+ * other entity.  A no-op id (no such deformer, or the value already matches) returns the same instance.
  *
  * @param DeformerId id The deformer to retarget.
  * @param ColorRgb color The new screen color.
@@ -409,7 +409,7 @@ private inline fun PuppetModel.withDeformerRewritten(
 
 /**
  * Returns a copy of [this] with the rotation deformer [id]'s base angle set to [angle], sharing every
- * other entity. A no-op (no such deformer, a warp deformer - which has no base angle - or the angle
+ * other entity.  A no-op (no such deformer, a warp deformer - which has no base angle - or the angle
  * already matches) returns the same instance.
  *
  * @param DeformerId id The deformer to retarget.
@@ -437,7 +437,7 @@ fun PuppetModel.withDeformerBaseAngle(id: DeformerId, angle: Float): PuppetModel
 
 /**
  * Returns a copy of [this] with the warp deformer [id]'s FFD interpolation mode set to [quad], sharing
- * every other entity. A no-op (no such deformer, a rotation deformer - which has no lattice - or the
+ * every other entity.  A no-op (no such deformer, a rotation deformer - which has no lattice - or the
  * flag already matches) returns the same instance.
  *
  * @param DeformerId id The deformer to retarget.
@@ -465,7 +465,7 @@ fun PuppetModel.withDeformerQuadTransform(id: DeformerId, quad: Boolean): Puppet
 
 /**
  * Returns a copy of [this] with the part [id]'s guide-image (sketch) flag set to [sketch], sharing every
- * other entity. A no-op id (no such part, or the flag already matches) returns the same instance.
+ * other entity.  A no-op id (no such part, or the flag already matches) returns the same instance.
  *
  * @param PartId id The part to retarget.
  * @param Boolean sketch The new sketch state.
@@ -486,7 +486,7 @@ fun PuppetModel.withPartSketch(id: PartId, sketch: Boolean): PuppetModel {
 
 /**
  * Returns a copy of [this] with the part [id]'s own draw order set to [order], sharing every other
- * entity. A no-op id (no such part, or the value already matches) returns the same instance.
+ * entity.  A no-op id (no such part, or the value already matches) returns the same instance.
  *
  * @param PartId id The part to retarget.
  * @param Int order The new draw order.
@@ -509,8 +509,8 @@ fun PuppetModel.withPartDrawOrder(id: PartId, order: Int): PuppetModel {
 
 /**
  * Returns a copy of [this] with the part [id]'s rendering group mode set to [mode], sharing every other
- * entity. Carries the whole mode value, so an Isolated switch and any composite sub-field edit go
- * through here alike. A no-op id (no such part, or the mode already matches) returns the same instance.
+ * entity.  Carries the whole mode value, so an Isolated switch and any composite sub-field edit go
+ * through here alike.  A no-op id (no such part, or the mode already matches) returns the same instance.
  *
  * @param PartId id The part to retarget.
  * @param PartGroupMode mode The new group mode.
@@ -558,7 +558,7 @@ fun PuppetModel.withPartComposite(id: PartId, composite: PartComposite): PuppetM
 
 /**
  * Returns a copy of [this] with the document canvas size set to [width] x [height] in world units,
- * sharing the rest of the model. A no-op (both dimensions already match) returns the same instance.
+ * sharing the rest of the model.  A no-op (both dimensions already match) returns the same instance.
  *
  * @param Float width The new canvas width.
  * @param Float height The new canvas height.
@@ -574,7 +574,7 @@ fun PuppetModel.withCanvasSize(width: Float, height: Float): PuppetModel {
 
 /**
  * Returns a copy of [this] with the world origin set to ([x], [z]) in world space, sharing the rest of
- * the model. A no-op (both coordinates already match) returns the same instance.
+ * the model.  A no-op (both coordinates already match) returns the same instance.
  *
  * @param Float x The new world-origin x.
  * @param Float z The new world-origin z (up).
@@ -590,7 +590,7 @@ fun PuppetModel.withWorldOrigin(x: Float, z: Float): PuppetModel {
 
 /**
  * Returns a copy of [this] with the runtime-compatibility target set to [target], sharing the rest
- * of the model. A no-op (the target already matches) returns the same instance.
+ * of the model.  A no-op (the target already matches) returns the same instance.
  *
  * @param RuntimeTarget target The new runtime target.
  * @return PuppetModel The model with the target set, or [this] if nothing changed.

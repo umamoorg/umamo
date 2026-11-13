@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 
 /**
  * Exact-string round-trip of the JSON sidecar fixtures(via the `moc3.samples` property).
- * Equality covers key order, tab indentation, and numeric-token fidelity. Skips
+ * Equality covers key order, tab indentation, and numeric-token fidelity.  Skips
  * gracefully when a given sidecar type has no fixture.
  */
 class JsonRoundTripTest {

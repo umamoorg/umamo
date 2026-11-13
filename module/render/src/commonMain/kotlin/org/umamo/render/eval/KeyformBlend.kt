@@ -6,7 +6,7 @@ import org.umamo.runtime.model.Keyform
  * Multilinear blend for a single parameter axis: `base + Σ wᵢ·Δᵢ`.
  *
  * A 1-D isolation of the blend math also used, generalized to N dimensions, by the real keyform-grid
- * blend in [blendLocalFromCorners]. Kept as a free function so it's trivially testable on its own.
+ * blend in [blendLocalFromCorners].  Kept as a free function so it's trivially testable on its own.
  *
  * 単一パラメータ軸の多重線形ブレンド。実 N 次元評価の 1 次元プレースホルダ。
  *

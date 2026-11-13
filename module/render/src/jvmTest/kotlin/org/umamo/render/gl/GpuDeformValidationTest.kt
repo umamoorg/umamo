@@ -34,19 +34,19 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Differential validation that the GPU deform shader matches the CPU evaluator per vertex. Runs the
+ * Differential validation that the GPU deform shader matches the CPU evaluator per vertex.  Runs the
  * shipped [DEFORM_GLSL] (the exact body [PuppetRenderer] uses) in a headless GL context with transform
  * feedback capturing each vertex's world position, then diffs against [deformMeshWorldFromCorners] (the CPU
- * deform, pre-glue) for the same pose. Bounded-ULP is the bar - float32 GPU vs float32 CPU diverge slightly
- * by construction. Glue is excluded (the GPU path skips it), so this compares the morph + cascade math only.
+ * deform, pre-glue) for the same pose.  Bounded-ULP is the bar - float32 GPU vs float32 CPU diverge slightly
+ * by construction.  Glue is excluded (the GPU path skips it), so this compares the morph + cascade math only.
  *
  * Gated on `-Dcmo3.sample` and on a usable GL context, both via JUnit assumptions - so an ungated run
- * reports SKIPPED rather than passing green having asserted nothing. That distinction matters here more
+ * reports SKIPPED rather than passing green having asserted nothing.  That distinction matters here more
  * than anywhere: this is the only pin on the deform math, and a Metal port will check itself against it.
  * Run: `./gradlew :render:jvmTest -Dcmo3.sample=… --tests *GpuDeformValidationTest`.
  */
 class GpuDeformValidationTest {
-	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas, so this is well sub-pixel). It
+	// Per-coordinate bound in Umamo canvas units (~4500 across the canvas, so this is well sub-pixel).  It
 	// tolerates float32 GPU-vs-CPU rounding and the shader's approximate out-of-grid warp extrapolation.
 	private val toleranceUnits = 0.5
 

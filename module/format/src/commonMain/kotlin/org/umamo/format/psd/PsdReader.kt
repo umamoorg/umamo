@@ -64,7 +64,7 @@ object PsdReader : ArtReader {
 
 		// Walk records top-to-bottom (the reverse of bottom-to-top PSD storage) so a folder's named
 		// header - which sits at the top of its run - opens the group before its children, and the
-		// hidden bounding divider at the bottom closes it. Real layers carry the current stack path;
+		// hidden bounding divider at the bottom closes it.  Real layers carry the current stack path;
 		// folder markers are structural and are not emitted as drawable layers.
 		val groups = ArrayList<SourceGroup>()
 		val folderStack = ArrayDeque<String>()
@@ -102,7 +102,7 @@ object PsdReader : ArtReader {
 				else -> {
 					layersTopToBottom +=
 						PsdSourceLayer(
-							// Stable identity: Photoshop's lyid (stable across rename/reorder) when present, else name+order. See docs/format/PSD.md.
+							// Stable identity: Photoshop's lyid (stable across rename/reorder) when present, else name+order.  See docs/format/PSD.md.
 							id = record.layerId?.let { layerId -> LayerId("lyid:$layerId") } ?: LayerId("${record.name}#$recordIndex"),
 							idIsStable = record.layerId != null,
 							name = record.name,

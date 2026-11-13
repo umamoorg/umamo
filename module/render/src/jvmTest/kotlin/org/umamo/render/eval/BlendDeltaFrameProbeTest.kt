@@ -23,15 +23,15 @@ import kotlin.test.assertTrue
  *
  * The authored form is rebuilt as the keyform-space base plus the ingested delta.  The hypotheses
  * coincide on drawables whose default-pose grid form equals the canvas editable mesh; only records
- * where they differ discriminate. Units: MOC3 deltas are model space; the origin cancels in a delta,
+ * where they differ discriminate.  Units: MOC3 deltas are model space; the origin cancels in a delta,
  * so the conversion is x/ppu with Y components sign-flipped.
  *
  * MEASURED VERDICT (Model A, 16 discriminating records): H_SETUP is refuted outright (errors 20-50x
- * larger than H_GRID). H_GRID holds to first order, but a residual remains on warp-parented
+ * larger than H_GRID).  H_GRID holds to first order, but a residual remains on warp-parented
  * meshes whose parent warp carries a morph on the same driving parameter - antisymmetric in the
  * key (e.g. ArtMesh80 comp 128: implied reference deviates +-147 px at keys -+10 while the
  * authored forms there are equal), consistent with the baker pre-compensating the mesh delta
- * through the morphed parent warp. The assert below is therefore DIRECTIONAL (grid beats setup
+ * through the morphed parent warp.  The assert below is therefore DIRECTIONAL (grid beats setup
  * on every discriminating record); the posed oracle quantifies the coupling end to end.
  *
  * Skips gracefully when the Model A corpus pair is absent.

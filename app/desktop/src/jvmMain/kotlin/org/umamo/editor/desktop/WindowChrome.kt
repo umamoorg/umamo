@@ -13,8 +13,8 @@ import java.awt.Window
 
 /*
  * Desktop window-chrome integration: tint the host-OS title bar to match the editor's own palette so the
- * caption does not sit as a bright system-colored strip above a dark app. Only Windows 11's Desktop Window
- * Manager exposes this (DWMWA_CAPTION_COLOR); every other platform is a no-op. The caption color is read
+ * caption does not sit as a bright system-colored strip above a dark app.  Only Windows 11's Desktop Window
+ * Manager exposes this (DWMWA_CAPTION_COLOR); every other platform is a no-op.  The caption color is read
  * from [LocalUmamoColors] so it tracks the active light/dark theme.
  */
 

@@ -165,7 +165,7 @@ fun OverlapPickerPopup(
 
 											// Move only, deliberately not Enter: the popup opens under a
 											// stationary cursor, and a synthesized hover on open would stomp
-											// the pre-highlighted centrality winner. Real movement over a row
+											// the pre-highlighted centrality winner.  Real movement over a row
 											// steals the single highlight the arrow keys also drive.
 											if (event.type == PointerEventType.Move) {
 												highlighted = index
@@ -177,7 +177,7 @@ fun OverlapPickerPopup(
 								.padding(horizontal = 12.dp, vertical = 8.dp),
 						verticalAlignment = Alignment.CenterVertically,
 					) {
-						// Leading layer-art thumbnail. A checker backdrop sits behind it so transparent art reads as
+						// Leading layer-art thumbnail.  A checker backdrop sits behind it so transparent art reads as
 						// a clear silhouette; a deformer shows its kind's icon in the same slot, and an untextured
 						// drawable leaves the slot empty so label-only rows align.
 						val icon = entry.icon

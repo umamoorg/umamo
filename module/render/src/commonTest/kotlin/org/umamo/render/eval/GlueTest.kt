@@ -17,7 +17,7 @@ import kotlin.test.assertEquals
 
 /**
  * Verifies the glue weld ([applyGluesResolved]): each pair slides `A' = A + (B−A)·wA`, `B' = B + (A−B)·wB`
- * from the pre-blend positions. When `wA + wB = 1` (the editor's case) the two converge to one point.
+ * from the pre-blend positions.  When `wA + wB = 1` (the editor's case) the two converge to one point.
  */
 class GlueTest {
 	/** A direct (deformer-less) one-vertex drawable resting at `(x, y)` - evaluates to world `(x, −y)`. */

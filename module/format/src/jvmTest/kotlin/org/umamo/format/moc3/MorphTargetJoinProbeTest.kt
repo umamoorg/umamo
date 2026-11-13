@@ -27,7 +27,7 @@ import kotlin.test.assertTrue
  * the neutral key comes from, and whether a NORMAL-typed parameter can drive a morph target.
  *
  * The join is by id for art meshes and by document-order index for deformers - the index
- * correspondence is itself one of the hypotheses this probe checks. Keyed on Model A's pair from
+ * correspondence is itself one of the hypotheses this probe checks.  Keyed on Model A's pair from
  * `cmo3.probe` + `moc3.samples`; skips gracefully when either is absent.
  */
 class MorphTargetJoinProbeTest {

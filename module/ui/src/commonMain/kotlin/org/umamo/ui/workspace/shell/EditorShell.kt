@@ -88,7 +88,7 @@ import org.umamo.ui.workspace.statusbar.StatusBar
 
 /**
  * The whole editor shell: workspace tabs over a recursive, switchable, splittable area tree, with the
- * command palette overlaid. Self-contained so it runs standalone (defaults seed the built-in workspace
+ * command palette overlaid.  Self-contained so it runs standalone (defaults seed the built-in workspace
  * layout and a base space registry), while every collaborator is injectable so an app can supply the
  * GL [viewportHost], override specific spaces, share a pre-populated [commandRegistry] (e.g. with File
  * commands), drive the [languageTag] from settings, and persist via [onLayoutChange].

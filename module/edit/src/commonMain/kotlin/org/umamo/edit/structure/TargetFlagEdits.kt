@@ -16,7 +16,7 @@ import org.umamo.runtime.model.PuppetModel
 
 /**
  * Returns a copy of [this] with the part [id]'s Parts-panel visibility set to [visible], sharing every
- * other part and the rest of the model. A no-op id (no such part, or the flag already matches) returns
+ * other part and the rest of the model.  A no-op id (no such part, or the flag already matches) returns
  * the same instance, so callers can compare by reference to detect a real change.
  *
  * @param PartId id The part to retoggle.
@@ -38,7 +38,7 @@ fun PuppetModel.withPartVisibility(id: PartId, visible: Boolean): PuppetModel {
 
 /**
  * Returns a copy of [this] with the drawable [id]'s own Parts-panel visibility set to [visible], sharing
- * every other drawable and the rest of the model. A no-op id (no such drawable, or the flag already
+ * every other drawable and the rest of the model.  A no-op id (no such drawable, or the flag already
  * matches) returns the same instance.
  *
  * @param DrawableId id The drawable to retoggle.
@@ -81,7 +81,7 @@ fun PuppetModel.withPartName(id: PartId, name: String): PuppetModel {
 
 /**
  * Returns a copy of [this] with the drawable [id]'s display name set to [name], sharing every other
- * entity. A no-op id (no such drawable, or the name already matches) returns the same instance.
+ * entity.  A no-op id (no such drawable, or the name already matches) returns the same instance.
  *
  * @param DrawableId id The drawable to rename.
  * @param String name The new display name.
@@ -102,7 +102,7 @@ fun PuppetModel.withDrawableName(id: DrawableId, name: String): PuppetModel {
 
 /**
  * Returns a copy of [this] with the deformer [id]'s display name set to [name], sharing every other
- * entity. Handles both deformer kinds. A no-op id (no such deformer, or the name already matches)
+ * entity.  Handles both deformer kinds.  A no-op id (no such deformer, or the name already matches)
  * returns the same instance.
  *
  * @param DeformerId id The deformer to rename.
@@ -128,7 +128,7 @@ fun PuppetModel.withDeformerName(id: DeformerId, name: String): PuppetModel {
 
 /**
  * Returns a copy of [this] with the part [id]'s selectable flag set to [selectable], sharing every other
- * entity. A no-op id (no such part, or the flag already matches) returns the same instance.
+ * entity.  A no-op id (no such part, or the flag already matches) returns the same instance.
  *
  * @param PartId id The part whose selectability to set.
  * @param Boolean selectable The new selectable state.
@@ -149,7 +149,7 @@ fun PuppetModel.withPartSelectable(id: PartId, selectable: Boolean): PuppetModel
 
 /**
  * Returns a copy of [this] with the drawable [id]'s selectable flag set to [selectable], sharing every
- * other entity. A no-op id (no such drawable, or the flag already matches) returns the same instance.
+ * other entity.  A no-op id (no such drawable, or the flag already matches) returns the same instance.
  *
  * @param DrawableId id The drawable whose selectability to set.
  * @param Boolean selectable The new selectable state.
@@ -170,7 +170,7 @@ fun PuppetModel.withDrawableSelectable(id: DrawableId, selectable: Boolean): Pup
 
 /**
  * Returns a copy of [this] with the deformer [id]'s selectable flag set to [selectable], handling both
- * deformer kinds and sharing every other entity. A no-op id returns the same instance.
+ * deformer kinds and sharing every other entity.  A no-op id returns the same instance.
  *
  * @param DeformerId id The deformer whose selectability to set.
  * @param Boolean selectable The new selectable state.
@@ -194,7 +194,7 @@ fun PuppetModel.withDeformerSelectable(id: DeformerId, selectable: Boolean): Pup
 }
 
 /**
- * The current Parts-panel visibility of [target] in [this]. A deformer has no visibility flag, so it
+ * The current Parts-panel visibility of [target] in [this].  A deformer has no visibility flag, so it
  * reports true (it is never "hidden"); a missing part/drawable also reports true.
  *
  * @param SelectionTarget target The entity to query.
@@ -209,7 +209,7 @@ fun PuppetModel.visibilityOf(target: SelectionTarget): Boolean =
 
 /**
  * Returns a copy of [this] with every part and drawable in [targets] set to [visible], structurally
- * sharing untouched entities; deformer targets are skipped (they have no visibility flag). Folding all
+ * sharing untouched entities; deformer targets are skipped (they have no visibility flag).  Folding all
  * targets into one model makes the whole multi-selection toggle a single undo step.
  *
  * @param Set targets The selected targets to retoggle.
@@ -232,7 +232,7 @@ fun PuppetModel.withSelectionVisibility(targets: Set<SelectionTarget>, visible: 
 }
 
 /**
- * Whether [target] is viewport-selectable in [this] model. A missing entity reports true (selectable).
+ * Whether [target] is viewport-selectable in [this] model.  A missing entity reports true (selectable).
  *
  * @param SelectionTarget target The entity to query.
  * @return Boolean The entity's selectable state.

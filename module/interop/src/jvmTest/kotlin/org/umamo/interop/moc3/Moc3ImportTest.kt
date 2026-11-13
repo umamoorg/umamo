@@ -82,7 +82,7 @@ class Moc3ImportTest {
 			)
 		}
 
-		// Golden gate: for the EricaTamamo corpus, pin the imported structure. Drawable-derived counts
+		// Golden gate: for the EricaTamamo corpus, pin the imported structure.  Drawable-derived counts
 		// intentionally differ from the CMO3 sample's (177 drawables / 31470 vertices / 337 art
 		// interpolations): the bake drops the three sketch ("Guide Image") drawables.
 		if (file.name.startsWith("EricaTamamo")) {
@@ -178,7 +178,7 @@ class Moc3ImportTest {
 			)
 		}
 
-		// Deformer labels: the id, optionally anchored with the one drawable the deformer reaches. The
+		// Deformer labels: the id, optionally anchored with the one drawable the deformer reaches.  The
 		// anchor is checked for TRUTH rather than by restating the rule - whatever mesh a label names
 		// must really be deformed by that deformer, directly or through its descendants.
 		val subtreeDrawables = HashMap<Int, MutableSet<String>>()

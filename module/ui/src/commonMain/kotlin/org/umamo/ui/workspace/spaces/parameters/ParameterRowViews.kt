@@ -100,7 +100,7 @@ internal fun ParameterRowView(
 	}
 	Row(
 		// Report the OUTER row's bounds (not the inner island's) so the drop band math
-		// measures the whole row. The group-depth indent sits here, beside the grip.
+		// measures the whole row.  The group-depth indent sits here, beside the grip.
 		modifier =
 			Modifier
 				.fillMaxWidth()
@@ -122,7 +122,7 @@ internal fun ParameterRowView(
 			rowKey = key,
 			dragController = dragController,
 			onDrop = onDrop,
-			// Clicking the handle targets the row's parameters. The island itself is
+			// Clicking the handle targets the row's parameters.  The island itself is
 			// crowded - slider, pad, name, numeric field, reset glyph all consume their
 			// own pointer input - so the handle is the one reliably empty place to click,
 			// and it already means "this row" for the drag.  A group header selects
@@ -217,7 +217,7 @@ private fun ParameterGroupRow(
 			)
 		} else {
 			// A recessed rounded rail (tabBackground) so groups read as chrome under the
-			// raised islands; a nest-into drop tints and outlines it. Double-click the
+			// raised islands; a nest-into drop tints and outlines it.  Double-click the
 			// header to rename it (pointerInput, so it stays keyboard-focus-safe).
 			ParameterGroupHeaderBody(
 				name = row.name,

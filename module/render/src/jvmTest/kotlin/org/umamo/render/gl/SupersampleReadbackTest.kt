@@ -58,7 +58,7 @@ class SupersampleReadbackTest {
 		assertContentEquals(sync.rgba, second.rgba, "a second in-flight ticket delivers too")
 
 		// A completed poll consumes the ticket EXACTLY ONCE, at the fence-signal: re-polling a finished
-		// ticket must trip the spent check, not silently re-map a recycled PBO. This pins the ordering
+		// ticket must trip the spent check, not silently re-map a recycled PBO.  This pins the ordering
 		// fix - the ticket is marked spent the moment the fence signals, before the map, so there is no
 		// window in which a consumed ticket reads as still-in-flight and gets re-polled.
 		assertFailsWith<IllegalStateException>("re-polling a consumed ticket is a spent-check trip") {

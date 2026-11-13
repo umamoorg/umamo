@@ -96,10 +96,10 @@ import org.umamo.runtime.model.storedToArtAffineForTile
 /**
  * Maps a parsed CMO3 model graph (`:format`) into the concrete [PuppetModel] (`:runtime`).
  *
- * This is the boundary that keeps CMO3's serialization quirks out of the deformation core. The
+ * This is the boundary that keeps CMO3's serialization quirks out of the deformation core.  The
  * raw graph is loosely typed (object fields are `Any?` holding already-resolved instances) and its
  * structure is encoded as GUID strings (`targetDeformerGuid`, `parentGuid`, `clipGuidList`), not
- * object links. So mapping is two passes: (1) index every source by its GUID uuid → runtime id;
+ * object links.  So mapping is two passes: (1) index every source by its GUID uuid → runtime id;
  * (2) build the runtime entities, resolving each cross-reference through those indices.
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §3 Model object graph</a>
@@ -142,7 +142,7 @@ object Cmo3Import {
 				.filterIsInstance<CArtMeshSource>()
 
 		// CMO3: rootPart is the synthetic __RootPart__ tree anchor - the editor excludes it from its
-		// part count, and entities directly under it are top-level (partId == null). Drop it from the
+		// part count, and entities directly under it are top-level (partId == null).  Drop it from the
 		// user-facing parts so the model matches the editor and null cleanly means "at the root".
 		val rootPart = modelSource.rootPart
 		val rootPartUuid =
@@ -152,7 +152,7 @@ object Cmo3Import {
 			}
 		val userPartSources = partSources.filter { uuidOf(it.guid) != rootPartUuid }
 
-		// Pass 1 - GUID uuid → runtime id, per category. Cross-references resolve through these.
+		// Pass 1 - GUID uuid → runtime id, per category.  Cross-references resolve through these.
 		val partIdByUuid =
 			buildMap {
 				for (part in userPartSources) {
@@ -253,7 +253,7 @@ object Cmo3Import {
 		 * Resolves a part's child guids into org children, in parts-panel order.
 		 *
 		 * CMO3: CPartSource._childGuids is the parts-panel order - sub-parts and drawables interleaved (plus
-		 * deformers, which we route to the Armature instead). Resolve each child guid to a part or drawable
+		 * deformers, which we route to the Armature instead).  Resolve each child guid to a part or drawable
 		 * org child, skipping anything else; this ordered list is the org tree's single source of truth.
 		 *
 		 * @param Any? childGuids The part's child-guid list, as stored.
@@ -465,11 +465,11 @@ object Cmo3Import {
 				}
 			}
 
-		// Render order: drawables painted back-to-front. The parts-tree DFS (panel order, top = front)
+		// Render order: drawables painted back-to-front.  The parts-tree DFS (panel order, top = front)
 		// is front-to-back, so the drawable list is its reverse - the last panel entry is the backmost,
 		// drawn first. drawOrder (all 500 in the corpus) and its animation refine this later; the tree
-		// walk is the param-independent base. CMO3: CPartSource._childGuids holds child parts / deformers
-		// / meshes in panel order; the drawableSourceSet is creation order, not stacking order. The shared
+		// walk is the param-independent base.  CMO3: CPartSource._childGuids holds child parts / deformers
+		// / meshes in panel order; the drawableSourceSet is creation order, not stacking order.  The shared
 		// renderIndexByUuid (computed above for parts) is the source of both this order and panelOrder.
 		val orderedDrawableSources = drawableSources.sortedByDescending { renderIndexByUuid[uuidOf(it.guid)] ?: Int.MAX_VALUE }
 
@@ -537,7 +537,7 @@ object Cmo3Import {
 				?.let { idStrOf(it.id) }
 				?.let(::PartId)
 
-		// Glue affecters: seam-weld vertex pairs after deformation. CMO3 references vertices by stable UID;
+		// Glue affecters: seam-weld vertex pairs after deformation.  CMO3 references vertices by stable UID;
 		// build uid→index per drawable from its editable mesh (positions[i] == editableMesh.point[i]).
 		val uidToIndexByDrawableId =
 			buildMap {
@@ -701,7 +701,7 @@ object Cmo3Import {
 
 	/**
 	 * Maps a CMO3 `CGlueSource` to a runtime [Glue], resolving its target meshes and converting each
-	 * UID-keyed vertex pair to mesh-local indices. CMO3: `weights`/`bindVertexUids` are `[A,B]`-interleaved
+	 * UID-keyed vertex pair to mesh-local indices.  CMO3: `weights`/`bindVertexUids` are `[A,B]`-interleaved
 	 * per pair; `keyforms` (CGlueForm.intensity) drive the weld strength.
 	 *
 	 * @param CGlueSource glue                  The glue source.
@@ -763,8 +763,8 @@ object Cmo3Import {
 
 	/**
 	 * Assigns each entity a pre-order index from a depth-first walk of the parts tree, following every
-	 * part's ordered `_childGuids`. Drawables sorted by their index render in the editor's panel
-	 * stacking order. Non-part children (deformers, meshes) are leaves and get an index without
+	 * part's ordered `_childGuids`.  Drawables sorted by their index render in the editor's panel
+	 * stacking order.  Non-part children (deformers, meshes) are leaves and get an index without
 	 * recursing; the gaps they leave do not matter since only relative order is used.
 	 *
 	 * @param CModelSource      modelSource The model root (for `rootPart`).
@@ -854,7 +854,7 @@ object Cmo3Import {
 		(value as? CFloatColor)?.let { ColorRgb(it.red, it.green, it.blue) }
 
 	/**
-	 * Reads an art mesh's canvas geometry. CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`
+	 * Reads an art mesh's canvas geometry.  CMO3: `CArtMeshSource.positions`/`uvs` are `float-array`
 	 * (interleaved x,y), `indices` is an `int-array` (3 per triangle).  The positions are the canvas editable
 	 * mesh; the returned mesh shares them as its base until the caller sets the keyforms' own.  The stored
 	 * `uvs` reach the model through [Cmo3TextureFrames.modelUvsOf].
@@ -891,7 +891,7 @@ object Cmo3Import {
 	}
 
 	/**
-	 * Builds the keyform grid for a controllable source. CMO3: `keyformGridSource` holds the axes
+	 * Builds the keyform grid for a controllable source.  CMO3: `keyformGridSource` holds the axes
 	 * (`keyformBindings`: parameterGuid + key values) and the cells (`keyformsOnGrid`: an accessKey
 	 * coordinate + a `keyformGuid` referencing one of the source's `keyforms` form objects).
 	 *
@@ -958,7 +958,7 @@ object Cmo3Import {
 	private fun formGuid(form: Any?): Any? = (form as? ACForm)?.guid
 
 	/**
-	 * Indexes a source's `keyforms` pool by each form's own guid uuid. Grid cells and morph
+	 * Indexes a source's `keyforms` pool by each form's own guid uuid.  Grid cells and morph
 	 * targets both resolve their form references through this pool.
 	 *
 	 * @param Any? forms The source's `keyforms` collection (the form objects).
@@ -1085,7 +1085,7 @@ object Cmo3Import {
 	 * Warp cell payload: the form's absolute FFD control-point positions plus its render channels.
 	 *
 	 * The channels live on the shared `ACDeformerForm` base, so warp and rotation read them the same
-	 * way. They cascade onto every drawable under the deformer - see `DeformerCascade`.
+	 * way.  They cascade onto every drawable under the deformer - see `DeformerCascade`.
 	 *
 	 * @param Any form The form object (expected CWarpDeformerForm).
 	 * @return WarpForm? The control points, or null if absent.

@@ -11,7 +11,7 @@ import kotlin.test.fail
 
 /**
  * The reconciliation gate: deconstruct the real main.xml into a ModelGraph (root object + shared
- * pool + PIs + root attrs) and re-emit it byte-identical. With an empty registry everything is
+ * pool + PIs + root attrs) and re-emit it byte-identical.  With an empty registry everything is
  * verbatim, proving the read/write reconstruction preserves shared ids/order, PIs, and structure.
  * Skips when the sample is unavailable.
  */

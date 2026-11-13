@@ -119,7 +119,7 @@ internal class SerializerRegistry {
 	}
 
 	/**
-	 * Registers a custom serializer for an explicit [tag] backed by [kClass]. Lets one class cover
+	 * Registers a custom serializer for an explicit [tag] backed by [kClass].  Lets one class cover
 	 * many tags (e.g. a single Guid type carrying its kind for all *Guid tags); the serializer must
 	 * derive the element tag from the value on write.
 	 *
@@ -354,7 +354,7 @@ internal class SerializerRegistry {
 	}
 
 	/**
-	 * Serializer for the serializable superclass of [kClass], or null. Never instantiated directly.
+	 * Serializer for the serializable superclass of [kClass], or null.  Never instantiated directly.
 	 *
 	 * @param KClass<*> kClass The class whose superclass to look up.
 	 * @param Boolean suppress True to report no superclass at all.
@@ -393,14 +393,14 @@ internal class SharedDef(val element: Element, val refId: String, val index: Int
 
 /**
  * A shared object's preserved identity (xs.id), pool index (xs.idx), and exact def tag, captured at
- * read time. The [tag] is reused verbatim for references so it always matches the def - even where
+ * read time.  The [tag] is reused verbatim for references so it always matches the def - even where
  * one class covers many tags (Guid/Id) or the tag differs from the class name (float-array, etc.).
  */
 internal class SharedRef(val id: String, val index: Int, val tag: String)
 
 /**
  * One child slot of a reflective object, captured on read so the exact child sequence can be replayed
- * on write. This makes typed classes tolerant of format evolution (added, removed, or reordered
+ * on write.  This makes typed classes tolerant of format evolution (added, removed, or reordered
  * fields) across schema versions while staying byte-identical: a known field is re-serialized from the
  * typed value, an unrecognized one is re-emitted verbatim, and the superclass keeps its position.
  */
@@ -633,7 +633,7 @@ internal class ReadContext(
 		}
 
 		// A typed serializer may still fail on evolved/unknown content (e.g. a newer enum constant,
-		// an added field, a missing no-arg constructor). Fall back to verbatim + report, so format
+		// an added field, a missing no-arg constructor).  Fall back to verbatim + report, so format
 		// evolution never crashes or loses data - it just isn't typed yet.
 		return try {
 			val instance = serializer.createInstance(element, this) ?: return null

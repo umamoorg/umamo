@@ -13,7 +13,7 @@ import kotlin.test.assertSame
 /**
  * Verifies the pure boundary-drag math: a divider drag resizes ONLY its two adjacent panels (far
  * panels are pixel-invariant through the spine compensation), the min-size and render-ratio clamps,
- * and the no-op guards (unmeasured axis, degenerate geometry). Most cases use splitterPx = 0 for
+ * and the no-op guards (unmeasured axis, degenerate geometry).  Most cases use splitterPx = 0 for
  * readable round numbers; one case proves exactness with the real 4px bar.
  */
 class SplitterTest {
@@ -29,7 +29,7 @@ class SplitterTest {
 	/**
 	 * The pixel extent of the named leaf inside [node], resolving nested weights against [axisPx]
 	 * exactly the way SplitContainer's weighted Row does (each split distributes its extent minus
-	 * splitterPx between the two ratio-weighted children). Null when the leaf is not in the subtree.
+	 * splitterPx between the two ratio-weighted children).  Null when the leaf is not in the subtree.
 	 *
 	 * @param AreaNode node The subtree to search.
 	 * @param String leafId The leaf whose on-axis extent is wanted.

@@ -160,7 +160,7 @@ internal fun KeyformSheetSection(
 		onToggleExpanded = onToggleExpanded,
 		decorFor = { row -> trackRowDecorOf(projection.ownerKindByRowKey[row.key], icons, colors) },
 		// Clicking a mark selects it AND scrubs to it: selection is what Delete acts on, and scrubbing is
-		// how you land the pose exactly on a key without hunting with the slider. The two never conflict,
+		// how you land the pose exactly on a key without hunting with the slider.  The two never conflict,
 		// so doing both is strictly more useful than choosing.
 		//
 		// SHIFT+click is the exception on both counts: it TOGGLES rather than replaces (toggle, not

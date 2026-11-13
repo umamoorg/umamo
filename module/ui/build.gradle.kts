@@ -8,10 +8,10 @@ plugins {
 	alias(libs.plugins.composeMultiplatform)
 	alias(libs.plugins.composeCompiler)
 	// kotlinx.serialization codegen: the workspace/area-tree layout is `@Serializable` and persisted
-	// to the `interface.layout` settings key. The plugin generates the serializers at compile time.
+	// to the `interface.layout` settings key.  The plugin generates the serializers at compile time.
 	alias(libs.plugins.kotlinSerialization)
 	// Umamo's own conventions (gradle/build-logic): the shared jvmAndroidMain source-set group, and the
-	// corpus/-D forwarding configured by `umamoTestCorpus` below. (No iOS target here yet, so no
+	// corpus/-D forwarding configured by `umamoTestCorpus` below.  (No iOS target here yet, so no
 	// `umamo.kmp-ios-gate` — Compose Multiplatform's iOS story is a separate piece of work.)
 	id("umamo.kmp-jvmandroid")
 	id("umamo.test-corpus")
@@ -25,7 +25,7 @@ val buildTarget = extra["umamoBuildTarget"] as String
 kotlin {
 	jvmToolchain(21)
 
-	// The `jvmAndroidMain` group comes from the `umamo.kmp-jvmandroid` convention plugin. This module
+	// The `jvmAndroidMain` group comes from the `umamo.kmp-jvmandroid` convention plugin.  This module
 	// needs it because commonMain cannot see :format's own jvmAndroidMain types (FormatRegistry,
 	// Cmo3Model — the JDOM-backed CMO3 codec), but the shared document/file layer and app shell do.
 
@@ -45,7 +45,7 @@ kotlin {
 		commonMain {
 			dependencies {
 				// Direct Compose Multiplatform coordinates via the version catalog — the old
-				// `compose.runtime` plugin aliases were deprecated in CMP 1.10/1.11. The artifacts
+				// `compose.runtime` plugin aliases were deprecated in CMP 1.10/1.11.  The artifacts
 				// still redirect to androidx.compose on Android (Gradle metadata), so per-target
 				// resolution is unchanged; see the catalog note on the `compose-*` entries.
 				implementation(libs.compose.runtime)
@@ -55,7 +55,7 @@ kotlin {
 				// share one baseline; read via the generated `Res` (see SettingsProvider).
 				implementation(libs.compose.components.resources)
 				// Layout serialization (the area-tree → `interface.layout` JSON) and coroutines for the
-				// debounced `snapshotFlow` persist. Declared directly rather than leaned on transitively
+				// debounced `snapshotFlow` persist.  Declared directly rather than leaned on transitively
 				// from :settings — coroutines is `implementation` there, so it would not leak through.
 				implementation(libs.kotlinxSerializationJson)
 				implementation(libs.kotlinxCoroutinesCore)
@@ -99,14 +99,14 @@ kotlin {
 			dependencies {
 				// Skiko's native runtime for the host, so commonTest code that rasterizes (the thumbnailer's
 				// rgbaToImageBitmap → Image.makeRaster) can run under :ui:jvmTest — the plain compose-ui
-				// coordinate carries no natives. Same direct-coordinate rationale as app/desktop.
+				// coordinate carries no natives.  Same direct-coordinate rationale as app/desktop.
 				runtimeOnly("org.jetbrains.compose.desktop:desktop-jvm-$buildTarget:${libs.versions.composeMultiplatform.get()}")
-				// A real composition with real pointer input. The panels' gesture code (tap-versus-drag off
+				// A real composition with real pointer input.  The panels' gesture code (tap-versus-drag off
 				// one raw stream, selection round-tripping through hoisted state) is not reachable from a
 				// pure-function test, and that is exactly where the interaction bugs have been living.
 				implementation(libs.compose.ui.test)
 				implementation(libs.compose.ui.test.junit4)
-				// sealedSubclasses, for the export-notice label coverage test. Without it the reflection
+				// sealedSubclasses, for the export-notice label coverage test.  Without it the reflection
 				// call resolves to an empty list rather than failing, which would make that test vacuous.
 				implementation(kotlin("reflect"))
 			}
@@ -128,7 +128,7 @@ val syncBundledCredits =
 		into(layout.buildDirectory.dir("generated/bundledCredits"))
 	}
 
-// Generated resource accessor package. Public so the desktop/Android app modules can localize their
+// Generated resource accessor package.  Public so the desktop/Android app modules can localize their
 // own chrome (e.g. the desktop menu bar) against the same EN/JA string catalogs via stringResource —
 // the shared UI strings live here, not duplicated per app.
 compose.resources {
@@ -148,14 +148,14 @@ compose.resources {
 // tests self-skip and the build stays green.
 umamoTestCorpus {
 	// The corpus loader test decodes the 8192² atlas (256MB of RGBA) more than once; the JVM default
-	// heap cannot hold that. Same figure :format's tests use.
+	// heap cannot hold that.  Same figure :format's tests use.
 	maxHeap("4g")
 	// Model A: the corpus family that is COMPLETE on disk (manifest + textures + cdi3 + physics all
-	// resolve). The EricaTamamo corpus copy carries no texture folder, so the family loader test would
-	// fail on it rather than exercise the load path. Hence a module-specific default rather than the
+	// resolve).  The EricaTamamo corpus copy carries no texture folder, so the family loader test would
+	// fail on it rather than exercise the load path.  Hence a module-specific default rather than the
 	// shared table, which deliberately leaves moc3.sample explicit-only for :interop and :render.
 	sampleWithCorpusDefault("moc3.sample", "moc3/modelA/modelA.moc3")
-	// The CMO3 loader test's counterpart. Takes the shared table's default (a whole .cmo3 embeds its
+	// The CMO3 loader test's counterpart.  Takes the shared table's default (a whole .cmo3 embeds its
 	// own pixels, so unlike the moc family there is no sidecar folder that has to resolve).
 	sample("cmo3.sample")
 	// The converted-repack export gate's fixture: a MOC3-origin conversion of the modelG family

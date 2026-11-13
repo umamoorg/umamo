@@ -4,10 +4,10 @@ import org.umamo.format.cmo3.io.BinaryReader
 import org.umamo.format.cmo3.io.BinaryWriter
 
 /**
- * Reads and writes the CAFF container. Stateless; operates on whole byte arrays.
+ * Reads and writes the CAFF container.  Stateless; operates on whole byte arrays.
  *
  * EN: Layout is header (unobfuscated) -> preview block (unobfuscated) -> file table (obfuscated)
- *     -> concatenated blobs -> guard bytes 'b''c'. See CMO3.md §1 for the exact byte map.
+ *     -> concatenated blobs -> guard bytes 'b''c'.  See CMO3.md §1 for the exact byte map.
  * JA: ヘッダ → プレビュー → ファイルテーブル → ブロブ群 → ガードバイト。詳細は CMO3.md §1。
  *
  * @see <a href="https://docs.umamo.org/format/CMO3.md">CMO3.md §1 Container: CAFF</a>
@@ -191,7 +191,7 @@ public object CaffCodec {
 	}
 
 	/**
-	 * Serializes an archive back into CAFF bytes. Offsets are computed in one pass (no seek-back
+	 * Serializes an archive back into CAFF bytes.  Offsets are computed in one pass (no seek-back
 	 * fixup) and written as clean 64-bit values (high word 0).
 	 *
 	 * @param CaffArchive archive The archive to encode.

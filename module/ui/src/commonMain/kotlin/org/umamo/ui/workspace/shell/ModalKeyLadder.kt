@@ -247,7 +247,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 			}
 
 			// An armed Box / Circle select tool owns Escape and Enter: both leave the tool, before the
-			// selection-clear branch below. Resolve any in-flight gesture on the fast cancel signal FIRST
+			// selection-clear branch below.  Resolve any in-flight gesture on the fast cancel signal FIRST
 			// (a circle stroke keeps its paint, a box rubber-band is discarded), then disarm: clearSelectTool
 			// alone routes the cleanup through a recomposition-gated effect that can lose the race to a mouse
 			// release still in flight, letting a cancelled armed box commit through the idle Release path.
@@ -309,7 +309,7 @@ internal fun handleModalKeyLadder(stroke: ShellKeyStroke, state: ShellModalState
 			}
 
 			// In Edit and Pose mode, Escape abandons an in-flight non-armed box drag (armed tools and the
-			// zoom region are handled above); the overlay clears its rubber-band on the signal. Gated
+			// zoom region are handled above); the overlay clears its rubber-band on the signal.  Gated
 			// off an in-flight area CORNER drag so that still yields to area.dragCancel - a divider
 			// (splitter) drag is a separate mechanism this gate does not see, and cannot cancel.
 			// Blender-parity: with nothing in flight this is a harmless no-op that consumes Escape and

@@ -44,7 +44,7 @@ internal fun chromeCommands(
 		// precedence (mirroring area.dragCancel).
 		Command("row.dragCancel", title = null) { rowDragCancel.cancel?.invoke() },
 		// The preferences window opens through the registry like everything else, so the Edit menu, the
-		// Ctrl/Cmd+, binding, and the command palette all reach it through the one dispatch point. Titled,
+		// Ctrl/Cmd+, binding, and the command palette all reach it through the one dispatch point.  Titled,
 		// so it surfaces in the palette ("Settings") for free.
 		Command("edit.preferences", title = Res.string.cmd_preferences) { overlays.settingsVisible = !overlays.settingsVisible },
 		// The Help dialogs open through the registry too, so the Help menu and the palette (both titled,
@@ -60,7 +60,7 @@ internal fun chromeCommands(
 		Command("help.webSite", title = Res.string.menu_web_site) { openLink(ProjectInfo.WEB_SITE_URL) },
 		Command("help.documentation", title = Res.string.menu_documentation) { openLink(ProjectInfo.DOCUMENTATION_URL) },
 		// Workspace navigation: titled so they surface in the palette and resolve a shortcut hint in the tab
-		// context menu. The tab strip's Previous/Next rows dispatch the same ids, so menu and key share a path.
+		// context menu.  The tab strip's Previous/Next rows dispatch the same ids, so menu and key share a path.
 		Command("workspace.prev", title = Res.string.cmd_workspace_prev) { workspaces.switchBy(-1) },
 		Command("workspace.next", title = Res.string.cmd_workspace_next) { workspaces.switchBy(1) },
 	)

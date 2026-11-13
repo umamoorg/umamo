@@ -37,7 +37,7 @@ import org.umamo.ui.viewport.UvSceneContent
  * Renders the puppet OFF-SCREEN and publishes it as a Compose ImageBitmap per viewport area.
  * Because the viewport is then lightweight Compose content, the UI layers over it correctly on every platform.
  *
- * This is the desktop implementation of [PuppetViewportService]. It is a thin facade that composes the
+ * This is the desktop implementation of [PuppetViewportService].  It is a thin facade that composes the
  * pieces and forwards each call to the collaborator that owns it:
  *
  *   - [ViewportAreaRegistry] - the registered areas + their cameras (register / resize / navigation), on the
@@ -52,7 +52,7 @@ import org.umamo.ui.viewport.UvSceneContent
  * desktop OS today (macOS only differs by loading the async GLFW library).
  *
  * Threading: every method here is called on the UI thread; the engine publishes frames from its render
- * thread via the areas' StateFlows. Picking is CPU-side and synchronous.
+ * thread via the areas' StateFlows.  Picking is CPU-side and synchronous.
  *
  * @property PuppetModel puppet The rig to render.
  * @property PuppetTextures textures The atlas page(s).

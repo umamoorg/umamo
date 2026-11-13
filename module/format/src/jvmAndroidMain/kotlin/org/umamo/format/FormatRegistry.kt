@@ -17,9 +17,9 @@ import org.umamo.format.webp.WebPReader
  * an unknown file to the right one.
  *
  * Lives in `jvmAndroidMain` because it references [Cmo3], whose JDOM/reflection serializer is
- * JVM-only (it still sees the commonMain [Moc3]). Holds heterogeneous `FormatCodec<*>` since the
+ * JVM-only (it still sees the commonMain [Moc3]).  Holds heterogeneous `FormatCodec<*>` since the
  * models share no supertype; a caller does `detect(bytes)?.read(bytes)` and then branches on the
- * returned model type or the codec's [FormatCodec.kind]. Text sidecars (`model3.json` etc.) are
+ * returned model type or the codec's [FormatCodec.kind].  Text sidecars (`model3.json` etc.) are
  * not registered here - they are `String`-shaped and live as helpers on [Moc3].
  */
 public object FormatRegistry {
@@ -40,7 +40,7 @@ public object FormatRegistry {
 	 * Magic comes first because it is content-truthful - a mislabeled file still routes correctly.
 	 * The extension fallback exists for container formats whose magic is not self-identifying (e.g. a
 	 * ZIP-based .kra whose mimetype marker a third-party tool stripped), where the name is the only
-	 * remaining signal. [fileName] may be a bare name or a full path; only its extension is read.
+	 * remaining signal.  [fileName] may be a bare name or a full path; only its extension is read.
 	 *
 	 * @param ByteArray bytes The file contents to identify.
 	 * @param String? fileName The file name or path, used only for the extension fallback.

@@ -53,7 +53,7 @@ import kotlin.system.exitProcess
 
 /**
  * Applies the `UMAMO_DUMP_PARAMS` environment override (e.g. `ParamAngleX=30,ParamAngleY=-10`) to the
- * given live params, so a deformed pose can be dumped headless. A desktop dev affordance - the shared
+ * given live params, so a deformed pose can be dumped headless.  A desktop dev affordance - the shared
  * initialLiveParams stays environment-free.
  *
  * @param LiveParams liveParams The initial document's parameter hand-off to rewrite.

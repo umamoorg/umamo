@@ -16,11 +16,11 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.withDerivedRenderRoot
 
 /*
- * Entity deletion over the org tree. Removing a drawable, a deformer, or a part scrubs every dangling
- * reference so no later code dereferences a deleted id. Deleting an art mesh is the only inherently
+ * Entity deletion over the org tree.  Removing a drawable, a deformer, or a part scrubs every dangling
+ * reference so no later code dereferences a deleted id.  Deleting an art mesh is the only inherently
  * destructive case; deleting a deformer "unwraps" it (its sub-deformers and bound meshes re-home to its
  * parent); deleting a part is either a cascade (the part and its whole subtree) or an ungroup (the folder
- * only, contents spliced up into its parent). Org-tree edits re-derive the render order.
+ * only, contents spliced up into its parent).  Org-tree edits re-derive the render order.
  */
 
 /**
@@ -120,7 +120,7 @@ private fun List<Part>.withPartMaskUngrouped(dissolved: Part): List<Part> =
 
 /**
  * Returns a copy of [this] with the single drawable [id] deleted (mask / glue / tree references scrubbed,
- * render order re-derived). A no-op (no such drawable) returns the same instance.
+ * render order re-derived).  A no-op (no such drawable) returns the same instance.
  *
  * @param DrawableId id The drawable to delete.
  * @return PuppetModel The model without that drawable, or [this] if it was absent.
@@ -248,7 +248,7 @@ fun PuppetModel.withPartDeleted(id: PartId, cascade: Boolean): PuppetModel {
 }
 
 /**
- * Deletes the drawable [id] as one undo step. A no-op records nothing.
+ * Deletes the drawable [id] as one undo step.  A no-op records nothing.
  *
  * @param DrawableId id The drawable to delete.
  */
@@ -289,7 +289,7 @@ fun EditorSession.deletePart(id: PartId, cascade: Boolean) {
 }
 
 /**
- * Deletes the entity named by [target] as one undo step. [cascade] applies only to a part (a drawable or a
+ * Deletes the entity named by [target] as one undo step.  [cascade] applies only to a part (a drawable or a
  * deformer ignores it - a deformer always unwraps).
  *
  * @param SelectionTarget target  The entity to delete.

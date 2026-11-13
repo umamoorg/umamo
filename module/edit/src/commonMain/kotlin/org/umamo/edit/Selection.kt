@@ -11,9 +11,9 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.runtime.model.deformerChain
 
 /**
- * A selectable rig entity, addressed by its typed id. A closed taxonomy (part, drawable, or deformer)
+ * A selectable rig entity, addressed by its typed id.  A closed taxonomy (part, drawable, or deformer)
  * so a `when` over a selection is exhaustive; adding a fourth selectable kind becomes a compile error
- * until handled everywhere. This is object-mode selection — whole entities, not their interior mesh
+ * until handled everywhere.  This is object-mode selection — whole entities, not their interior mesh
  * vertices or deformer control points (those belong to Edit and Pose mode, see [EditorMode]).
  */
 sealed interface SelectionTarget {
@@ -118,9 +118,9 @@ data class ParameterSelection(
 }
 
 /**
- * Pure transformations over a [Selection], one per selection gesture. Each returns a new immutable
+ * Pure transformations over a [Selection], one per selection gesture.  Each returns a new immutable
  * [Selection] and never mutates its input, so they are trivially unit-testable without Compose or a
- * render context. The active target is maintained per the [Selection] invariant: it is always a member
+ * render context.  The active target is maintained per the [Selection] invariant: it is always a member
  * of the result's targets, or null when the result is empty.
  */
 object SelectionOps {
@@ -134,7 +134,7 @@ object SelectionOps {
 
 	/**
 	 * Toggles a target's membership (a Shift or Ctrl / Cmd click, Blender-style): removes it when
-	 * present, adds it otherwise. When added it becomes active; when removed the active target falls
+	 * present, adds it otherwise.  When added it becomes active; when removed the active target falls
 	 * back to another remaining member, or null if the selection became empty.
 	 *
 	 * @param Selection selection The selection to modify.
@@ -151,7 +151,7 @@ object SelectionOps {
 
 	/**
 	 * Adds a target without removing anything (an additive gesture with no current default binding),
-	 * making it active. Adding a target already present simply promotes it to active.
+	 * making it active.  Adding a target already present simply promotes it to active.
 	 *
 	 * @param Selection selection The selection to extend.
 	 * @param SelectionTarget target The target to add.

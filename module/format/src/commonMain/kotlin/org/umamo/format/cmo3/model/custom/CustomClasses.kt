@@ -8,8 +8,8 @@ import org.umamo.format.cmo3.serialize.annotations.SerialTag
 
 /*
  * Value/leaf classes whose scalar fields are written as attributes, modelled as reflective classes with
- * @SerialAttribute for the fields the editor writes as attributes. Field order mirrors each class's
- * serialize() method (verified by the byte-identity gate). Object fields are Any? - they reference
+ * @SerialAttribute for the fields the editor writes as attributes.  Field order mirrors each class's
+ * serialize() method (verified by the byte-identity gate).  Object fields are Any? - they reference
  * already-typed or still-verbatim objects and round-trip by identity regardless.
  */
 
@@ -203,7 +203,7 @@ public class GEditableMesh2 {
 }
 
 /**
- * An image layer. Extends the generated ACImageLayer (whose
+ * An image layer.  Extends the generated ACImageLayer (whose
  * ancestor ACLayerEntry carries the IOption `_optionOfIOption`); we override it here so the same value
  * is written both in `<super>` and directly, matching the editor.
  */

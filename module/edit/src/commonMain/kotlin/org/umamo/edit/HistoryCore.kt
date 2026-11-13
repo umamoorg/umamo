@@ -136,7 +136,7 @@ internal class HistoryCore(initialSnapshot: EditorSnapshot, initialHistoryLimit:
 
 	/**
 	 * Builds the current [HistoryView] from the stack: one [HistoryStep] per entry (its label key and
-	 * whether it is the saved baseline) plus the live cursor. The saved flag is by snapshot reference, so
+	 * whether it is the saved baseline) plus the live cursor.  The saved flag is by snapshot reference, so
 	 * exactly one row is marked even when adjacent selection-only steps share a model instance.
 	 *
 	 * @return HistoryView The projected stack for the panel.

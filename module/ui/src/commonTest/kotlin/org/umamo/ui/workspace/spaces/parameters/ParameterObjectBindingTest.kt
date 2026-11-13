@@ -105,7 +105,7 @@ class ParameterObjectBindingTest {
 
 	/**
 	 * A blend-shape binding is an object -> parameter edge like a keyform axis: an object whose ONLY
-	 * link to a parameter is a blend shape still lists it. Limit-curve constraint parameters are NOT
+	 * link to a parameter is a blend shape still lists it.  Limit-curve constraint parameters are NOT
 	 * edges - a limit gates the binding's weight, it does not key the object.
 	 */
 	@Test

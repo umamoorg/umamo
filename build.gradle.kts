@@ -1,9 +1,6 @@
-// Root build script. Plugins are declared here with `apply false` purely to pin their
+// Root build script.  Plugins are declared here with `apply false` purely to pin their
 // versions for the whole build; each module opts in by `alias(...)`-ing the ones it needs.
 // This avoids every module repeating version numbers (the version catalog holds those).
-// ルートビルドスクリプト。プラグインは `apply false` でバージョン固定のみを行い、各モジュールが
-// 必要なものを `alias(...)` で取り込む。
-
 plugins {
 	alias(libs.plugins.kotlinMultiplatform) apply false
 	alias(libs.plugins.composeCompiler) apply false
@@ -81,7 +78,7 @@ subprojects {
 // also where the leaks were: `"ABCD".toByteArray(Charsets.US_ASCII)` in a shared test reads as
 // harmless until the day it isn't.
 //
-// Three rules, each from a real leak found in this tree. Note that none of them is only about imports:
+// Three rules, each from a real leak found in this tree.  Note that none of them is only about imports:
 // the JVM's default imports (`java.lang.*`, `kotlin.jvm.*`, `kotlin.text.Charsets`) mean JVM-only APIs
 // can appear with no import line to grep for, and even a non-default API can be written out in full at
 // the use site — `catch (_: java.util.zip.DataFormatException)` needs no import and was exactly how the
@@ -195,7 +192,7 @@ val checkCommonSourcePurity =
 	}
 
 // Wire into `check` so the guard runs with the normal verification lifecycle rather than needing to be
-// remembered. Gradle runs the task once however many subprojects depend on it.
+// remembered.  Gradle runs the task once however many subprojects depend on it.
 //
 // The ktlint rule set's own tests ride the same lifecycle: an included build's tests never run under the
 // root's `build` on their own, and a rule that silently stopped matching would pass every ktlintCheck.

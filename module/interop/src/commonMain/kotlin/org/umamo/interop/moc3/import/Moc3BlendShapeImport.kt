@@ -57,7 +57,7 @@ internal fun meshBlendShapesOf(
 ): List<BlendShapeBinding<MeshForm>> {
 	val defaultValue: (ParameterId) -> Float = context::defaultValueOf
 	val referenceDeltas = meshGridDefaultDeltas(drawable, defaultValue) ?: FloatArray(0)
-	// The scalar reference is each channel's own value at the DEFAULT pose. An untracked or
+	// The scalar reference is each channel's own value at the DEFAULT pose.  An untracked or
 	// out-of-range channel falls back to the drawable's static, which for an imported drawable is
 	// Cubism's 500 / full opacity - the same fallback meshBlendState uses, so the evaluator's
 	// subtraction cancels exactly even for an ungridded drawable.

@@ -1,7 +1,7 @@
 package org.umamo.runtime.model
 
 /**
- * A copy of this model with [PuppetModel.renderRoot] recomputed from the current org tree. Every edit that
+ * A copy of this model with [PuppetModel.renderRoot] recomputed from the current org tree.  Every edit that
  * changes the org tree (a move, a delete) ends with this, so draw order stays a consistent derivation of
  * the tree rather than something the edit has to maintain by hand.
  *

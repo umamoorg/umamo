@@ -59,7 +59,7 @@ class EditorSessionTest {
 
 	/**
 	 * A document edit is one undo step; undo restores the prior model by snapshot and clears dirty,
-	 * redo re-applies it. Dirty is reference-equality against the saved instance.
+	 * redo re-applies it.  Dirty is reference-equality against the saved instance.
 	 */
 	@Test
 	fun mutateThenUndoRedoTracksModelAndDirty() {
@@ -166,7 +166,7 @@ class EditorSessionTest {
 	/**
 	 * The history view projects the stack (seed plus each step's label key) with the live cursor, and
 	 * jumpTo leaps directly to any step — restoring its model and selection — without walking one level at
-	 * a time. The saved flag marks exactly the saved row.
+	 * a time.  The saved flag marks exactly the saved row.
 	 */
 	@Test
 	fun historyViewProjectsStackAndJumpToLeapsAcrossSteps() {
@@ -213,7 +213,7 @@ class EditorSessionTest {
 
 	/**
 	 * A scrub commit is one undo step over the pose: it moves the live value, does not dirty the document
-	 * (the model is unchanged), and undo / redo restore the prior / next pose. The session pose starts at
+	 * (the model is unchanged), and undo / redo restore the prior / next pose.  The session pose starts at
 	 * the parameter's default.
 	 */
 	@Test

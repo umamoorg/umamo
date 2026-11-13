@@ -21,11 +21,11 @@ import kotlin.test.assertTrue
  *
  * Result: 156/174 match to tiny-ULP (157 before the harness rebuild - see the assertion
  * note); the other 18 are sub-pixel residuals (<0.6 px/vertex)
- * concentrated in deeply-nested warp chains. Ruled out as causes: FMA contraction, rotation sin/cos,
+ * concentrated in deeply-nested warp chains.  Ruled out as causes: FMA contraction, rotation sin/cos,
  * vertex extrapolation, blend-at-default - and `warpExtrap` was audited bit-for-bit against the oracle.
  * The residual grows with nesting depth, which is most consistent with CMO3↔MOC3 source-data
  * re-quantization amplified through the chain (umamo evaluates the CMO3, the oracle the exported MOC3),
- * i.e. a serialization difference, not a math error. Well within the bounded-ULP fidelity contract.
+ * i.e. a serialization difference, not a math error.  Well within the bounded-ULP fidelity contract.
  *
  * Gated on the cmo3/moc3 samples + the Umamo C++ Runtime oracle paths (system properties); skips when absent.
  */

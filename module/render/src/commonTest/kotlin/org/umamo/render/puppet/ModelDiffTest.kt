@@ -25,7 +25,7 @@ import kotlin.test.assertTrue
  * Pins [diffModel]'s four tiers by DECISION.
  *
  * The three GL reconcile tests cover this ground too, but they test the diff AND the GL apply together
- * and assert on pixels - so they need a display, and they cover maybe half the cases. These enumerate the
+ * and assert on pixels - so they need a display, and they cover maybe half the cases.  These enumerate the
  * decisions themselves and run anywhere.
  */
 class ModelDiffTest {
@@ -144,7 +144,7 @@ class ModelDiffTest {
 	@Test
 	fun diffModelSkipsUvsWhoseLengthDisagreesWithTheResident() {
 		// Defensive: the copy-on-write UV edit never changes the length, so a mismatch means the backend
-		// padded this mesh's UVs at upload. Re-uploading a short array would leave the tail stale.
+		// padded this mesh's UVs at upload.  Re-uploading a short array would leave the tail stale.
 		val before = drawable("a", floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f), uvs = FloatArray(6))
 		val after = drawable("a", before.mesh!!.positions, uvs = FloatArray(2), indices = before.mesh!!.indices, keyforms = before.geometryGrid)
 		val keep = assertIs<DrawableAction.Keep>(diffModel(model(before), model(after), resident("a" to 3)).actions.single())
@@ -153,7 +153,7 @@ class ModelDiffTest {
 
 	@Test
 	fun diffModelNeverBothActionsAndRemovesTheSameDrawable() {
-		// The double-free guard. A remesh frees the resident and re-uploads; if that upload yields nothing
+		// The double-free guard.  A remesh frees the resident and re-uploads; if that upload yields nothing
 		// (a remesh to zero triangles), the drawable must NOT also appear in `removed` - freeing the same GL
 		// names twice can hit a name the driver recycled for a later upload in the same pass, which would
 		// free a live buffer belonging to a different drawable.
@@ -166,7 +166,7 @@ class ModelDiffTest {
 
 	@Test
 	fun diffModelKeepsResidentWhoseMeshWentNull() {
-		// Reachable: a kept resident whose new mesh is null. The resident vertex count must come from the
+		// Reachable: a kept resident whose new mesh is null.  The resident vertex count must come from the
 		// backend, not the model, because the model no longer carries what the buffers were built at.
 		val before = drawable("a", floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f))
 		val meshless =
@@ -192,10 +192,10 @@ class ModelDiffTest {
 
 	@Test
 	fun diffModelReuploadsWhenWarpParentingFlips() {
-		// A drawable owns a control-point texture iff its parent is a warp, and that is fixed at upload. A
+		// A drawable owns a control-point texture iff its parent is a warp, and that is fixed at upload.  A
 		// reparent that flips it (deleting a rotation deformer between a drawable and a warp, so the drawable
 		// now parents the warp directly) must Reupload, or the resident keeps a stale / absent cp texture and
-		// the shader samples whatever texture unit 3 last held. Keying purely on the two models' warp sets.
+		// the shader samples whatever texture unit 3 last held.  Keying purely on the two models' warp sets.
 		val positions = floatArrayOf(0f, 0f, 1f, 0f, 1f, 1f)
 		val warp = Deformer.Warp(DeformerId("warp"), "warp", parent = null, partId = null, rows = 2, columns = 2, isQuadTransform = true, geometryGrid = null)
 		val rotation = Deformer.Rotation(DeformerId("rot"), "rot", parent = null, partId = null, baseAngle = 0f, geometryGrid = null)

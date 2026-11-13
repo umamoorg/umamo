@@ -14,7 +14,7 @@ import org.umamo.ui.workspace.SpaceKind
  */
 
 /**
- * How a [SplitNode] divides its space. Horizontal lays the two children side by side (the divider is
+ * How a [SplitNode] divides its space.  Horizontal lays the two children side by side (the divider is
  * a vertical bar you drag left/right); Vertical stacks them top over bottom (a horizontal divider).
  * Named for the axis the children occupy, and labelled in the UI by the visual result
  * ("Split Left/Right" vs "Split Top/Bottom") to avoid Blender's inverse "split horizontally" wording.
@@ -27,9 +27,9 @@ enum class SplitOrientation {
 
 /**
  * A node in a workspace's recursive area tree - either a [SplitNode] (an internal split) or a
- * [LeafArea] (a hosted editor space). A sealed interface so the layout engine and reducer match
+ * [LeafArea] (a hosted editor space).  A sealed interface so the layout engine and reducer match
  * exhaustively (the compiler enforces both cases are handled), and `@Serializable` so the whole tree
- * round-trips through the interface.layout settings key. Polymorphism uses a "type" discriminator
+ * round-trips through the interface.layout settings key.  Polymorphism uses a "type" discriminator
  * with the per-subtype [SerialName] (see LayoutJson).
  */
 @Serializable
@@ -40,8 +40,8 @@ internal const val MIN_RATIO = 0.05f
 
 /**
  * An internal split: two child nodes divided along [orientation], with [ratio] giving the first
- * child's fraction of the axis (0..1). Splits nest arbitrarily, so [first]/[second] may themselves be
- * SplitNodes. A SplitNode has no stable id - only leaves do - because a split is addressed
+ * child's fraction of the axis (0..1).  Splits nest arbitrarily, so [first]/[second] may themselves be
+ * SplitNodes.  A SplitNode has no stable id - only leaves do - because a split is addressed
  * structurally (by the leaves it contains), and ratio edits thread up through the tree, not through
  * an id lookup.
  *
@@ -62,7 +62,7 @@ data class SplitNode(
 /**
  * A leaf area hosting exactly one editor [space], identified by a stable, position-independent [id].
  * The id is the linchpin of an area's identity: it is minted once, never reused, and never derived
- * from tree position, so a leaf keeps its id when an unrelated area splits. A split or a close
+ * from tree position, so a leaf keeps its id when an unrelated area splits.  A split or a close
  * rebuilds the leaf's composition, so what an area keeps across a layout change is keyed on this id:
  * its view state, and the render service's slot and camera.
  *
