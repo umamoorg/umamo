@@ -1,7 +1,9 @@
 package org.umamo.edit.transform
 
 import org.umamo.edit.DepthSurface
+import org.umamo.edit.EditorSession
 import org.umamo.edit.ElementTopology
+import org.umamo.edit.SessionTestModels.meshModel
 import org.umamo.edit.TargetShape
 import org.umamo.edit.TransformPivotMode
 import org.umamo.runtime.model.DeformerId
@@ -19,8 +21,8 @@ import kotlin.test.assertTrue
  * foreshortened), the degrees set how far round it wraps (180 puts the farthest point on the rim, 360 meets the ends at
  * the back, 0 stays flat), a cylinder about either axis leaves the other axis alone, a half sphere rounds every way
  * without folding a cell, the factor blends, an off-center pivot bends round its farther reach, a selection with no
- * reach stays put, Individual Origins bends each lattice round its own center, and a depth rotation with the radius as
- * its depth turns a half cylinder exactly.
+ * reach stays put, Individual Origins bends each lattice round its own center, the session's depth rotation takes the
+ * radius and surface laid down, and a depth rotation with the radius as its depth turns a half cylinder exactly.
  */
 class ToShapeTest {
 	private val quarterTurn = (PI / 2.0).toFloat()
@@ -269,6 +271,23 @@ class ToShapeTest {
 		assertEquals(rimRadius * sqrt(2f), shapeRadiusOf(piece, ToShapeSettings(TargetShape.Sphere, degrees = halfTurn)), 1e-3f)
 		assertEquals(DepthSurface.Cylinder, TargetShape.Cylinder.depthSurface)
 		assertEquals(DepthSurface.Sphere, TargetShape.Sphere.depthSurface)
+	}
+
+	/** The session's depth rotation takes the radius and surface laid down; a wrap of 0 degrees hands over nothing. */
+	@Test
+	fun theDepthRotationTakesTheShapeLaidDown() {
+		val piece = shapePiecesOf(listOf(source(warp, grid(4, 100f), 4)), TransformPivotMode.MedianPoint, null, null).single()
+		val session = EditorSession(meshModel())
+
+		session.handDepthRotationTheShape(piece, ToShapeSettings(TargetShape.Sphere, degrees = halfTurn))
+
+		assertEquals(rimRadius * sqrt(2f), session.pivotDepth.value, 1e-3f)
+		assertEquals(DepthSurface.Sphere, session.depthSurface.value)
+
+		session.handDepthRotationTheShape(piece, ToShapeSettings(TargetShape.Cylinder, degrees = 0f))
+
+		assertEquals(rimRadius * sqrt(2f), session.pivotDepth.value, 1e-3f, "a wrap that bends nothing leaves the depth")
+		assertEquals(DepthSurface.Sphere, session.depthSurface.value, "and the surface")
 	}
 
 	/** A whole turn bends round half the radius: the farthest columns meet behind the pivot, the halfway ones sit on the rim. */

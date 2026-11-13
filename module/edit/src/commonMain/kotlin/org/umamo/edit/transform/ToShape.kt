@@ -1,6 +1,7 @@
 package org.umamo.edit.transform
 
 import org.umamo.edit.DepthSurface
+import org.umamo.edit.EditorSession
 import org.umamo.edit.TargetShape
 import org.umamo.edit.TransformPivotMode
 import org.umamo.runtime.model.ElementOwner
@@ -151,6 +152,25 @@ fun shapeRadiusOf(piece: ShapePiece, settings: ToShapeSettings): Float {
 		}
 
 	return reach / halfArc
+}
+
+/**
+ * Sets the depth rotation's depth and surface to the shape [settings] laid down, so an R about the same pivot turns the
+ * bent points round the very cylinder or sphere they sit on.  A wrap that bends nothing (0 degrees) has no radius to
+ * hand over and leaves them as they are.
+ *
+ * @param ShapePiece piece The piece whose radius the depth rotation takes.
+ * @param ToShapeSettings settings The shape laid down.
+ */
+fun EditorSession.handDepthRotationTheShape(piece: ShapePiece, settings: ToShapeSettings) {
+	val radius = shapeRadiusOf(piece, settings)
+
+	if (radius <= 0f) {
+		return
+	}
+
+	setPivotDepth(radius)
+	setDepthSurface(settings.shape.depthSurface)
 }
 
 /**

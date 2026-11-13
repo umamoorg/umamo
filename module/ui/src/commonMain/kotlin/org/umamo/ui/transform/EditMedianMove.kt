@@ -1,6 +1,7 @@
 package org.umamo.ui.transform
 
 import org.umamo.edit.EditorSession
+import org.umamo.edit.ElementEditKind
 import org.umamo.edit.ElementTopology
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.MeshSelection

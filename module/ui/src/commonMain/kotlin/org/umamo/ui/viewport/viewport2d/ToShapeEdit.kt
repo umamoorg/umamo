@@ -9,9 +9,8 @@ import org.umamo.edit.TargetShape
 import org.umamo.edit.transform.ModalCaptureSource
 import org.umamo.edit.transform.ShapePiece
 import org.umamo.edit.transform.ToShapeSettings
-import org.umamo.edit.transform.depthSurface
+import org.umamo.edit.transform.handDepthRotationTheShape
 import org.umamo.edit.transform.shapePiecesOf
-import org.umamo.edit.transform.shapeRadiusOf
 import org.umamo.edit.transform.shapedOwnerPositions
 import org.umamo.edit.transform.toShapeParameters
 import org.umamo.edit.transform.toShapeSettingsOf
@@ -22,8 +21,14 @@ import org.umamo.runtime.model.PuppetModel
 import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeWorldGeometry
+import org.umamo.ui.transform.MeshDriveResult
+import org.umamo.ui.transform.MeshJobOutcome
 import org.umamo.ui.transform.OwnerWorldGeometry
+import org.umamo.ui.transform.amendDrive
+import org.umamo.ui.transform.commitDrive
 import org.umamo.ui.transform.coveredVerticesOf
+import org.umamo.ui.transform.foldDrive
+import org.umamo.ui.transform.outcomeOf
 import org.umamo.ui.viewport.gizmo.activeElementMedian
 
 /*
@@ -175,28 +180,9 @@ internal fun handleToShapeRequest(
 		return null
 	}
 
-	session.handDepthRotationTheShape(capture, settings)
+	session.handDepthRotationTheShape(capture.depthPiece, settings)
 
 	return registerToShapeAdjustment(session, areaId, capture, settings)
-}
-
-/**
- * Sets the depth rotation's depth and surface to the shape [settings] laid down, so an R about the same pivot turns the
- * bent points round the very cylinder or sphere they sit on.  A wrap that bends nothing (0 degrees) has no radius to
- * hand over and leaves them as they are.
- *
- * @param ToShapeCapture capture The capture, whose depth piece names the radius.
- * @param ToShapeSettings settings The shape laid down.
- */
-private fun EditorSession.handDepthRotationTheShape(capture: ToShapeCapture, settings: ToShapeSettings) {
-	val radius = shapeRadiusOf(capture.depthPiece, settings)
-
-	if (radius <= 0f) {
-		return
-	}
-
-	setPivotDepth(radius)
-	setDepthSurface(settings.shape.depthSurface)
 }
 
 /**
@@ -220,6 +206,6 @@ internal fun registerToShapeAdjustment(
 		val adjusted = toShapeSettingsOf(record.parameters)
 
 		if (session.amendDrive(record, capture.drive(adjusted, record.baseSnapshot.model), capture.stage)) {
-			session.handDepthRotationTheShape(capture, adjusted)
+			session.handDepthRotationTheShape(capture.depthPiece, adjusted)
 		}
 	}
