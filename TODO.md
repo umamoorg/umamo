@@ -80,6 +80,7 @@
 * New Icons (For myself to get/make.)
 	* Replace magnet from the cursor/selection menu.
 	* The Tabler icons on the toolbar are probably fine, but I will check what is available from the Blender icons.
+* Toolbar - Needs a pull tab.
 
 ## Overlays
 * When entering pose or edit mode with both a mesh and deformer selected it shows only the type of the active selection.  Having the other types show as a wireframe by default would be useful for visual inspection.
@@ -211,6 +212,10 @@ See format planning document: docs/plan/uma-format.md
 
 ## Settings
 * Keybinding - input.keybinding (Includes keyboard, mouse, and pen buttons.)
+	* Search field for bindings.
+	* Dim or use a different color for "Unbound".
+	* Multiple binds for the same shortcut.  The command palette has two bindings in the default preset, but no way to edit them.
+	* Z/X axis lock and other context dependent keys need to be exposed in the key map along with indicating their context.
 * Pen Binding (JPen, Wacom) - input.pen (Includes pen, pressure, and things related to the radial menu.)
 * Quick Setup
 	* Versioned Settings
