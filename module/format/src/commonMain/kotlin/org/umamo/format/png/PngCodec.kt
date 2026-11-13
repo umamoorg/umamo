@@ -224,7 +224,12 @@ public object PngCodec : RasterCodec {
 			else -> bitDepth == 8 || bitDepth == 16
 		}
 
-	/** Channels stored per pixel for a color type (palette and grayscale store one sample). */
+	/**
+	 * Channels stored per pixel for a color type (palette and grayscale store one sample).
+	 *
+	 * @param Int colorType The PNG color type.
+	 * @return Int The channel count, 1 to 4.
+	 */
 	private fun channelCount(colorType: Int): Int =
 		when (colorType) {
 			COLOR_GRAYSCALE, COLOR_PALETTE -> 1

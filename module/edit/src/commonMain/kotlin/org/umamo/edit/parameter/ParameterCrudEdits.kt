@@ -378,7 +378,13 @@ private fun CollapsedChannels.withFractionalDrawOrderKept(): CollapsedChannels {
 	)
 }
 
-/** This node list with every [ParameterNode.Param] leaf for [id] spliced out, recursing into groups. */
+/**
+ * This node list with every [ParameterNode.Param] leaf for [id] spliced out, recursing into groups.
+ *
+ * @param List<ParameterNode> nodes The node list to filter.
+ * @param ParameterId id The parameter whose leaves to remove.
+ * @return List<ParameterNode> The list without those leaves.
+ */
 private fun removeParameterLeaf(nodes: List<ParameterNode>, id: ParameterId): List<ParameterNode> =
 	nodes.mapNotNull { node ->
 		when (node) {

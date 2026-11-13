@@ -30,7 +30,11 @@ public class BinaryWriter(initialCapacity: Int = 64 * 1024) {
 		}
 	}
 
-	/** Returns a copy of the written bytes (length == [position]). */
+	/**
+	 * Returns a copy of the written bytes (length == [position]).
+	 *
+	 * @return ByteArray A copy of the bytes written so far.
+	 */
 	public fun toByteArray(): ByteArray = buffer.copyOf(position)
 
 	/**

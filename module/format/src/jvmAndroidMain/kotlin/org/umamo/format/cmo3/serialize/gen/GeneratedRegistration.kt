@@ -4,7 +4,11 @@ package org.umamo.format.cmo3.serialize.gen
 import org.umamo.format.cmo3.model.gen.*
 import org.umamo.format.cmo3.serialize.SerializerRegistry
 
-/** Registers every generated reflective class + enum. */
+/**
+ * Registers every generated reflective class + enum.
+ *
+ * @param SerializerRegistry registry The registry to fill.
+ */
 internal fun registerGeneratedSubsystem(registry: SerializerRegistry) {
 	registry.register(ACAffecterForm::class)
 	registry.register(ACAffecterSource::class)

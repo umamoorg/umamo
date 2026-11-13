@@ -135,13 +135,25 @@ public interface RenderDevice {
 	 */
 	fun createDeformCapturePipeline(): DeformCapturePipeline
 
-	/** Frees [texture]. */
+	/**
+	 * Frees [texture].
+	 *
+	 * @param GpuTexture texture The texture to free.
+	 */
 	fun destroyTexture(texture: GpuTexture)
 
-	/** Frees [mesh] and every buffer it owns. */
+	/**
+	 * Frees [mesh] and every buffer it owns.
+	 *
+	 * @param GpuMesh mesh The mesh to free.
+	 */
 	fun destroyMesh(mesh: GpuMesh)
 
-	/** Frees [target]. */
+	/**
+	 * Frees [target].
+	 *
+	 * @param RenderTarget target The render target to free.
+	 */
 	fun destroyRenderTarget(target: RenderTarget)
 
 	/**

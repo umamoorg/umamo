@@ -63,7 +63,12 @@ internal class ArraySerializer(
 	}
 
 	internal companion object {
-		/** Joins a typed array's elements with the array separator. */
+		/**
+		 * Joins a typed array's elements with the array separator.
+		 *
+		 * @param Sequence<Any?> values The elements to join.
+		 * @return String The joined text.
+		 */
 		fun join(values: Sequence<Any?>): String = values.joinToString(ARRAY_SEPARATOR)
 	}
 }

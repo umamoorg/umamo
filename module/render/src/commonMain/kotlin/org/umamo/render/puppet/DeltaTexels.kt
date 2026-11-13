@@ -93,7 +93,13 @@ internal class BlendColumnLayout(
 	fun columnOf(bindingIndex: Int, keyIndex: Int): Int? = columnByKey[packKey(bindingIndex, keyIndex)]
 
 	internal companion object {
-		/** Packs a (binding, key) pair into one map key. */
+		/**
+		 * Packs a (binding, key) pair into one map key.
+		 *
+		 * @param Int bindingIndex The binding's index.
+		 * @param Int keyIndex The key's index on that binding.
+		 * @return Long The binding in the high word, the key in the low.
+		 */
 		internal fun packKey(bindingIndex: Int, keyIndex: Int): Long = bindingIndex.toLong() shl 32 or keyIndex.toLong()
 	}
 }

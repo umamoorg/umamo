@@ -134,7 +134,11 @@ private class SourceArtworkGaps {
 	private var reportedCount = 0
 	private var reportedUnavailable = false
 
-	/** Starts over against a new mapping. */
+	/**
+	 * Starts over against a new mapping.
+	 *
+	 * @param LayerDrawPlan plan The new layer mapping.
+	 */
 	fun reset(plan: LayerDrawPlan) {
 		this.plan = plan
 		undecodable.clear()

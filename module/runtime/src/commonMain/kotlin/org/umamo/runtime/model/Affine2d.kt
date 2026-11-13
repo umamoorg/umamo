@@ -10,7 +10,11 @@ import kotlin.math.sin
  * caller's points are in - the builders here know no frame, so a y-down page and a z-up world read them alike.
  */
 
-/** The affine that changes nothing. */
+/**
+ * The affine that changes nothing.
+ *
+ * @return FloatArray The affine.
+ */
 fun identityAffine(): FloatArray = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f)
 
 /**

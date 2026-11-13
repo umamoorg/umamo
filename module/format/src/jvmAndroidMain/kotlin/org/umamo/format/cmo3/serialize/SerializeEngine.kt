@@ -95,14 +95,23 @@ internal class SerializerRegistry {
 	private val customByClass = HashMap<KClass<*>, XmlSerializer>()
 	private val customByTag = HashMap<String, XmlSerializer>()
 
-	/** Registers a model class so its tag resolves on read and its version PI can be emitted. */
+	/**
+	 * Registers a model class so its tag resolves on read and its version PI can be emitted.
+	 *
+	 * @param KClass<*> kClass The model class to register.
+	 */
 	fun register(kClass: KClass<*>) {
 		val tag = tagFor(kClass)
 		tagToClass[tag] = kClass
 		classToTag[kClass] = tag
 	}
 
-	/** Registers a class with a hand-written (e.g. attribute-based) serializer, e.g. value-types. */
+	/**
+	 * Registers a class with a hand-written (e.g. attribute-based) serializer, e.g. value-types.
+	 *
+	 * @param KClass<*> kClass The class to register.
+	 * @param XmlSerializer serializer The serializer that reads and writes it.
+	 */
 	fun registerCustom(kClass: KClass<*>, serializer: XmlSerializer) {
 		register(kClass)
 		customByClass[kClass] = serializer
@@ -134,21 +143,41 @@ internal class SerializerRegistry {
 	private fun enumClassOf(value: Enum<*>): Class<*> =
 		value.javaClass.let { if (it.isEnum) it else it.superclass }
 
-	/** The element tag for [kClass]: its @SerialTag, else its simple name. */
+	/**
+	 * The element tag for [kClass]: its @SerialTag, else its simple name.
+	 *
+	 * @param KClass<*> kClass The class to name.
+	 * @return String The element tag.
+	 */
 	fun tagFor(kClass: KClass<*>): String =
 		classToTag[kClass] ?: (
 			kClass.findAnnotation<SerialTag>()?.tag ?: kClass.simpleName
 				?: error("anonymous class cannot be serialized: $kClass")
 		)
 
-	/** The class registered under [tag], or null if unknown (caller may fall back to verbatim). */
+	/**
+	 * The class registered under [tag], or null if unknown (caller may fall back to verbatim).
+	 *
+	 * @param String tag The element tag.
+	 * @return KClass<*>? The registered class, or null.
+	 */
 	fun classForTag(tag: String): KClass<*>? = tagToClass[tag]
 
-	/** Cached reflective serializer for [kClass]. */
+	/**
+	 * Cached reflective serializer for [kClass].
+	 *
+	 * @param KClass<*> kClass The class to serialize.
+	 * @return ReflectiveClassSerializer The class's serializer.
+	 */
 	fun classSerializer(kClass: KClass<*>): ReflectiveClassSerializer =
 		classSerializerCache.getOrPut(kClass) { ReflectiveClassSerializer(kClass, this) }
 
-	/** Serializer for a runtime value, dispatched by type (write path). */
+	/**
+	 * Serializer for a runtime value, dispatched by type (write path).
+	 *
+	 * @param Any value The value about to be written.
+	 * @return XmlSerializer The serializer for its type.
+	 */
 	fun serializerForValue(value: Any): XmlSerializer {
 		customByClass[value::class]?.let { return it }
 
@@ -206,7 +235,12 @@ internal class SerializerRegistry {
 		}
 	}
 
-	/** Serializer for an element tag (read path), or null if the tag is unknown. */
+	/**
+	 * Serializer for an element tag (read path), or null if the tag is unknown.
+	 *
+	 * @param String tag The element tag.
+	 * @return XmlSerializer? The serializer, or null.
+	 */
 	fun serializerForTag(tag: String): XmlSerializer? {
 		customByTag[tag]?.let { return it }
 
@@ -307,7 +341,13 @@ internal class SerializerRegistry {
 		}
 	}
 
-	/** Serializer for the serializable superclass of [kClass], or null. Never instantiated directly. */
+	/**
+	 * Serializer for the serializable superclass of [kClass], or null. Never instantiated directly.
+	 *
+	 * @param KClass<*> kClass The class whose superclass to look up.
+	 * @param Boolean suppress True to report no superclass at all.
+	 * @return ReflectiveClassSerializer? The superclass's serializer, or null.
+	 */
 	fun superSerializerOf(kClass: KClass<*>, suppress: Boolean): ReflectiveClassSerializer? {
 		if (suppress) {
 			return null
@@ -322,7 +362,11 @@ internal class SerializerRegistry {
 		return classSerializer(superJava.kotlin)
 	}
 
-	/** Registered (tag -> version) pairs for classes that declare a @SerialTag version. */
+	/**
+	 * Registered (tag -> version) pairs for classes that declare a @SerialTag version.
+	 *
+	 * @return List<Pair<String, Int>> One tag and version pair per versioned class.
+	 */
 	fun versions(): List<Pair<String, Int>> =
 		classToTag.entries.mapNotNull { (kClass, tag) ->
 			kClass.findAnnotation<SerialTag>()?.version?.takeIf { it >= 0 }?.let { tag to it }
@@ -400,7 +444,12 @@ internal class WriteContext(
 	private var refIdCounter = nextFreshRefId(preassignedShared)
 	private var writtenIndexCounter = 0
 
-	/** Records [value]'s element on first write (subsequent calls are no-ops, matching the editor). */
+	/**
+	 * Records [value]'s element on first write (subsequent calls are no-ops, matching the editor).
+	 *
+	 * @param Any value The object that was written.
+	 * @param Element element The element it was written as.
+	 */
 	fun setWritten(value: Any, element: Element) {
 		if (!written.containsKey(value)) {
 			written[value] = WrittenRecord(element, writtenIndexCounter++)
@@ -411,10 +460,20 @@ internal class WriteContext(
 	 * The child sequence read for [owner] at the [tag] level, or null for a freshly constructed object.
 	 * When non-null it is replayed verbatim (order, presence and unknown children all preserved), so a
 	 * round-trip reproduces the source exactly - independent of schema version.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @return List<ChildSlot>? The recorded child sequence, or null.
 	 */
 	fun childOrderFor(owner: Any, tag: String): List<ChildSlot>? = preservedChildOrder?.get(owner)?.get(tag)
 
-	/** The attributes present when [owner] was read at the [tag] level, or null for a fresh object. */
+	/**
+	 * The attributes present when [owner] was read at the [tag] level, or null for a fresh object.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @return Set<String>? The recorded attribute names, or null.
+	 */
 	fun presentAttrsFor(owner: Any, tag: String): Set<String>? = preservedPresentAttrs?.get(owner)?.get(tag)
 
 	/**
@@ -492,18 +551,41 @@ internal class ReadContext(
 	private fun slots(owner: Any, tag: String) =
 		childOrder.getOrPut(owner) { HashMap() }.getOrPut(tag) { ArrayList() }
 
-	/** Records, in document order, a recognized child field of [owner] at the [tag] level. */
+	/**
+	 * Records, in document order, a recognized child field of [owner] at the [tag] level.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @param String propertyName The field the child was read into.
+	 */
 	fun recordKnownChild(owner: Any, tag: String, propertyName: String) =
 		slots(owner, tag).add(ChildSlot.KnownField(propertyName))
 
-	/** Records, in document order, a child of [owner] the [tag] serializer did not recognise. */
+	/**
+	 * Records, in document order, a child of [owner] the [tag] serializer did not recognise.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @param Element element The unrecognized child, which is kept as a copy.
+	 */
 	fun recordVerbatimChild(owner: Any, tag: String, element: Element) =
 		slots(owner, tag).add(ChildSlot.VerbatimChild(element.clone() as Element))
 
-	/** Records, in document order, the position of the `<super>` element of [owner] at the [tag] level. */
+	/**
+	 * Records, in document order, the position of the `<super>` element of [owner] at the [tag] level.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 */
 	fun recordSuperChild(owner: Any, tag: String) = slots(owner, tag).add(ChildSlot.Super)
 
-	/** Records that attribute [attrName] of [owner] (at the [tag] level) was present in the source. */
+	/**
+	 * Records that attribute [attrName] of [owner] (at the [tag] level) was present in the source.
+	 *
+	 * @param Any owner The object the record is kept for.
+	 * @param String tag The class level of the owner, by tag.
+	 * @param String attrName The attribute's name.
+	 */
 	fun recordPresentAttr(owner: Any, tag: String, attrName: String) {
 		presentAttrs.getOrPut(owner) { HashMap() }.getOrPut(tag) { HashSet() }.add(attrName)
 	}

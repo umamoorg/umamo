@@ -333,14 +333,25 @@ internal class Cmo3KeyformLowering(
 			.sortedBy { entry -> entry.key.raw }
 			.joinToString("|") { entry -> "${entry.key.raw}=${entry.value.toRawBits()}" }
 
-	/** A fresh Guid cloning [template]'s kind (the tag the identity subsystem writes). */
+	/**
+	 * A fresh Guid cloning [template]'s kind (the tag the identity subsystem writes).
+	 *
+	 * @param Guid? template The guid whose kind and note to copy, or null.
+	 * @return Guid The new guid.
+	 */
 	private fun freshGuidLike(template: Guid?): Guid =
 		Guid(template?.kind ?: "CFormGuid").apply {
 			uuid = java.util.UUID.randomUUID().toString()
 			note = template?.note ?: "(no debug info)"
 		}
 
-	/** A template form of [TFormClass] from [ownForms], falling back to any owner of the same kind. */
+	/**
+	 * A template form of [TFormClass] from [ownForms], falling back to any owner of the same kind.
+	 *
+	 * @param Any? ownForms The owner's own forms pool, as stored.
+	 * @param List<Any?> fallbackPools Other owners' pools to search next.
+	 * @return TFormClass? The first form of the wanted class, or null.
+	 */
 	private inline fun <reified TFormClass : ACForm> templateForm(ownForms: Any?, fallbackPools: List<Any?>): TFormClass? {
 		Cmo3Import.elementsOf(ownForms).filterIsInstance<TFormClass>().firstOrNull()?.let { return it }
 
@@ -732,7 +743,14 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** Lowers a warp deformer's keyforms and/or blend shapes. */
+	/**
+	 * Lowers a warp deformer's keyforms and/or blend shapes.
+	 *
+	 * @param CWarpDeformerSource source The warp's graph source.
+	 * @param Deformer.Warp editedWarp The edited warp deformer.
+	 * @param Boolean rebuildGrid Whether to rebuild the keyform grid.
+	 * @param Boolean rebuildMorphs Whether to rebuild the blend shapes.
+	 */
 	fun lowerWarp(source: CWarpDeformerSource, editedWarp: Deformer.Warp, rebuildGrid: Boolean, rebuildMorphs: Boolean) {
 		val subject = editedWarp.id.raw
 		val statics =
@@ -825,7 +843,14 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** Lowers a rotation deformer's keyforms and/or blend shapes. */
+	/**
+	 * Lowers a rotation deformer's keyforms and/or blend shapes.
+	 *
+	 * @param CRotationDeformerSource source The rotation deformer's graph source.
+	 * @param Deformer.Rotation editedRotation The edited rotation deformer.
+	 * @param Boolean rebuildGrid Whether to rebuild the keyform grid.
+	 * @param Boolean rebuildMorphs Whether to rebuild the blend shapes.
+	 */
 	fun lowerRotation(source: CRotationDeformerSource, editedRotation: Deformer.Rotation, rebuildGrid: Boolean, rebuildMorphs: Boolean) {
 		val subject = editedRotation.id.raw
 		val statics =
@@ -935,7 +960,12 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** Lowers a part's channel tracks (the CPartForm grid). */
+	/**
+	 * Lowers a part's channel tracks (the CPartForm grid).
+	 *
+	 * @param CPartSource source The part's graph source.
+	 * @param Part editedPart The edited part.
+	 */
 	fun lowerPart(source: CPartSource, editedPart: Part) {
 		val subject = editedPart.id.raw
 		val isPre53 = source.colorComposition == null
@@ -1043,7 +1073,12 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** Lowers a glue's intensity track (the CGlueForm grid) and its static intensity. */
+	/**
+	 * Lowers a glue's intensity track (the CGlueForm grid) and its static intensity.
+	 *
+	 * @param CGlueSource source The glue's graph source.
+	 * @param Glue editedGlue The edited glue.
+	 */
 	fun lowerGlue(source: CGlueSource, editedGlue: Glue) {
 		val subject = "${editedGlue.meshA.raw}+${editedGlue.meshB.raw}"
 		val statics = mapOf<FormChannel, ChannelValue>(FormChannel.GLUE_INTENSITY to ChannelValue.Scalar(editedGlue.intensity))
@@ -1102,7 +1137,12 @@ internal class Cmo3KeyformLowering(
 		}
 	}
 
-	/** The guids of the forms the current grid's cells reference. */
+	/**
+	 * The guids of the forms the current grid's cells reference.
+	 *
+	 * @param Any? gridSourceField The owner's grid-source field, as stored.
+	 * @return Set<String> The form guids, empty when there is no grid.
+	 */
 	private fun gridFormGuids(gridSourceField: Any?): Set<String> {
 		val gridSource = gridSourceField as? KeyformGridSource ?: return emptySet()
 
@@ -1111,7 +1151,13 @@ internal class Cmo3KeyformLowering(
 			.toSet()
 	}
 
-	/** The morph-target form objects the current morph set references, for pool assembly. */
+	/**
+	 * The morph-target form objects the current morph set references, for pool assembly.
+	 *
+	 * @param Any? morphSetField The owner's morph-target set field, as stored.
+	 * @param Any? formsField The owner's keyforms pool field, as stored.
+	 * @return List<ACForm> The referenced forms, in morph-target order.
+	 */
 	private fun existingMorphForms(morphSetField: Any?, formsField: Any?): List<ACForm> {
 		val set = morphSetField as? KeyFormMorphTargetSet ?: return emptyList()
 		val formByUuid =
@@ -1248,7 +1294,18 @@ internal class Cmo3KeyformLowering(
 		return morphForms
 	}
 
-	/** Writes the owner's keyforms pool: the grid forms in cell order, then the morph forms. */
+	/**
+	 * Writes the owner's keyforms pool: the grid forms in cell order, then the morph forms.
+	 *
+	 * @param Any owner The graph object that owns the pool.
+	 * @param String ownerTag The class level of the owner, by tag.
+	 * @param String property The field that holds the pool.
+	 * @param String? beforeProperty The field the pool is written before, or null.
+	 * @param Any? current The pool as currently stored.
+	 * @param List<ACForm> gridForms The grid forms, in cell order.
+	 * @param List<ACForm> morphForms The morph-target forms.
+	 * @param Function assign Stores a new pool list on the owner.
+	 */
 	private fun writePool(
 		owner: Any,
 		ownerTag: String,

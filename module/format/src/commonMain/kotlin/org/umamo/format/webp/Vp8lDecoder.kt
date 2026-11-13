@@ -230,6 +230,14 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 
 	/**
 	 * Decodes a literal pixel: green is the main code, red/blue/alpha come from their own trees.
+	 *
+	 * @param WebpRaster raster The raster being filled.
+	 * @param WebpColorCache? colorCache The color cache to feed, or null when the image has none.
+	 * @param WebpHuffmanCodeGroup group The Huffman code group for this pixel.
+	 * @param ByteArray rgba A four-byte scratch buffer for the pixel.
+	 * @param Int x The pixel's column.
+	 * @param Int y The pixel's row.
+	 * @param Int green The green value, already decoded.
 	 */
 	private fun decodeLiteral(raster: WebpRaster, colorCache: WebpColorCache?, group: WebpHuffmanCodeGroup, rgba: ByteArray, x: Int, y: Int, green: Int) {
 		val red = group.redCode.readSymbol(reader)
@@ -245,6 +253,13 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 
 	/**
 	 * Decodes a color-cache reference into pixel (x, y).
+	 *
+	 * @param WebpRaster raster The raster being filled.
+	 * @param WebpColorCache colorCache The color cache to read.
+	 * @param ByteArray rgba A four-byte scratch buffer for the pixel.
+	 * @param Int x The pixel's column.
+	 * @param Int y The pixel's row.
+	 * @param Int code The symbol that names the cache entry.
 	 */
 	private fun decodeCached(raster: WebpRaster, colorCache: WebpColorCache, rgba: ByteArray, x: Int, y: Int, code: Int) {
 		val argb = colorCache.lookup(code - 256 - 24)
@@ -258,6 +273,16 @@ internal class Vp8lDecoder(private val reader: WebpLsbBitReader) {
 	/**
 	 * Decodes an LZ77 backward reference starting at (x, y), copying `length` pixels from the resolved
 	 * source position, and returns the copied length.
+	 *
+	 * @param WebpRaster raster The raster being filled.
+	 * @param WebpColorCache? colorCache The color cache, or null when the image has none.
+	 * @param Int width The image width in pixels.
+	 * @param WebpHuffmanCodeGroup group The Huffman code group for this pixel.
+	 * @param ByteArray rgba A four-byte scratch buffer for the pixel.
+	 * @param Int code The symbol that carries the length prefix.
+	 * @param Int x The column the copy starts at.
+	 * @param Int y The row the copy starts at.
+	 * @return Int The number of pixels copied.
 	 */
 	private fun decodeBackwardReference(raster: WebpRaster, colorCache: WebpColorCache?, width: Int, group: WebpHuffmanCodeGroup, rgba: ByteArray, code: Int, x: Int, y: Int): Int {
 		val length = lz77decode(code - 256)

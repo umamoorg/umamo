@@ -74,7 +74,12 @@ public class ModelDocument private constructor(
 		mainElements = (rootElement.getChild(MAIN_ELEMENT)?.children as List<Element>?).orEmpty()
 	}
 
-	/** Schema version of [className] as declared by a `<?version?>` PI, or null. */
+	/**
+	 * Schema version of [className] as declared by a `<?version?>` PI, or null.
+	 *
+	 * @param String className The serialized class name.
+	 * @return Int? The declared version, or null when the document declares none.
+	 */
 	public fun versionOf(className: String): Int? = versions[className]
 
 	/**

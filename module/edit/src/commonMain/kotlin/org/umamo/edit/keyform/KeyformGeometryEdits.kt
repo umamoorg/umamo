@@ -255,7 +255,11 @@ private fun PuppetModel.rewriteGeometryNullable(
 		}
 	}
 
-/** This drawable's geometry grid, or null when the id is unknown or it has none. */
+/**
+ * This drawable's geometry grid, or null when the id is unknown or it has none.
+ *
+ * @param KeyformOwner.Drawable owner The drawable to look up.
+ */
 private fun PuppetModel.drawableGeometry(owner: KeyformOwner.Drawable) =
 	drawables.firstOrNull { candidate -> candidate.id == owner.id }?.geometryGrid
 
@@ -358,11 +362,17 @@ private fun <TForm> PuppetModel.replaceDeformerGeometry(
  * irrelevant to them - but Kotlin has no way to say "any grid" without a type argument.  Confined to this
  * file, and sound because [KeyformGrid] is immutable and a cell is only ever read or built through the
  * interpolator of its own grid.
+ *
+ * @return KeyformGrid<Nothing> This grid, typed over no form.
  */
 @Suppress("UNCHECKED_CAST")
 private fun <TForm> KeyformGrid<TForm>.asNothing(): KeyformGrid<Nothing> = this as KeyformGrid<Nothing>
 
-/** The [asNothing] counterpart for an interpolator, for the same reason and with the same confinement. */
+/**
+ * The [asNothing] counterpart for an interpolator, for the same reason and with the same confinement.
+ *
+ * @return FormInterpolator<Nothing> This interpolator, typed over no form.
+ */
 @Suppress("UNCHECKED_CAST")
 private fun <TForm> FormInterpolator<TForm>.asNothing(): FormInterpolator<Nothing> = this as FormInterpolator<Nothing>
 

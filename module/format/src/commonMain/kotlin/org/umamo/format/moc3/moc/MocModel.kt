@@ -181,7 +181,11 @@ public class MocModel internal constructor(
 		return if (decoded.size == elementCount) decoded else List(elementCount) { decoded.getOrElse(it) { "" } }
 	}
 
-	/** The parameters, in file order. */
+	/**
+	 * The parameters, in file order.
+	 *
+	 * @return List<MocParameter> One entry per parameter.
+	 */
 	public fun parameters(): List<MocParameter> {
 		val parameterCount = parameterCount
 		val ids = idStrings(Section.PARAM_ID, parameterCount)
@@ -204,7 +208,11 @@ public class MocModel internal constructor(
 		}
 	}
 
-	/** The parts, in file order. */
+	/**
+	 * The parts, in file order.
+	 *
+	 * @return List<MocPart> One entry per part.
+	 */
 	public fun parts(): List<MocPart> {
 		val partCount = partCount
 		val ids = idStrings(Section.PART_ID, partCount)
@@ -213,7 +221,11 @@ public class MocModel internal constructor(
 		return List(partCount) { partIndex -> MocPart(ids[partIndex], parents[partIndex]) }
 	}
 
-	/** The drawables (ArtMeshes), in file order. */
+	/**
+	 * The drawables (ArtMeshes), in file order.
+	 *
+	 * @return List<MocDrawable> One entry per drawable.
+	 */
 	public fun drawables(): List<MocDrawable> {
 		val drawableCount = drawableCount
 		val ids = idStrings(Section.ARTMESH_ID, drawableCount)

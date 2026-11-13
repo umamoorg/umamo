@@ -199,7 +199,12 @@ public fun compositeReference(
 	)
 }
 
-/** The straight-alpha color of a premultiplied pixel, clamped to [0,1] (0 where the alpha is 0). */
+/**
+ * The straight-alpha color of a premultiplied pixel, clamped to [0,1] (0 where the alpha is 0).
+ *
+ * @param FloatArray premul The premultiplied pixel, as r, g, b, a.
+ * @return FloatArray The straight r, g, b.
+ */
 private fun unpremultiply(premul: FloatArray): FloatArray {
 	val alpha = premul[3]
 
@@ -314,7 +319,13 @@ public fun blendColor(blendMode: BlendMode, backdrop: FloatArray, source: FloatA
 private inline fun perChannel(backdrop: FloatArray, source: FloatArray, operation: (Float, Float) -> Float): FloatArray =
 	FloatArray(3) { channelIndex -> operation(backdrop[channelIndex], source[channelIndex]) }
 
-/** W3C hard-light: multiply below the midpoint of [selector], screen above it. */
+/**
+ * W3C hard-light: multiply below the midpoint of [selector], screen above it.
+ *
+ * @param Float base The channel the blend is applied to.
+ * @param Float selector The channel that picks multiply or screen.
+ * @return Float The blended channel.
+ */
 private fun hardLight(base: Float, selector: Float): Float =
 	if (selector <= 0.5f) {
 		2f * selector * base
@@ -323,7 +334,12 @@ private fun hardLight(base: Float, selector: Float): Float =
 		screened
 	}
 
-/** W3C soft-light's D(x) helper. */
+/**
+ * W3C soft-light's D(x) helper.
+ *
+ * @param Float value The backdrop channel.
+ * @return Float The value of D at that channel.
+ */
 private fun softLightD(value: Float): Float =
 	if (value <= 0.25f) {
 		((16f * value - 12f) * value + 4f) * value
@@ -331,14 +347,29 @@ private fun softLightD(value: Float): Float =
 		sqrt(value)
 	}
 
-/** W3C Lum(C). */
+/**
+ * W3C Lum(C).
+ *
+ * @param FloatArray color The color, as r, g, b.
+ * @return Float The luminosity.
+ */
 private fun luminosity(color: FloatArray): Float = 0.3f * color[0] + 0.59f * color[1] + 0.11f * color[2]
 
-/** W3C Sat(C). */
+/**
+ * W3C Sat(C).
+ *
+ * @param FloatArray color The color, as r, g, b.
+ * @return Float The saturation.
+ */
 private fun saturation(color: FloatArray): Float =
 	max(color[0], max(color[1], color[2])) - min(color[0], min(color[1], color[2]))
 
-/** W3C ClipColor(C): pulls out-of-range channels back toward the luminosity. */
+/**
+ * W3C ClipColor(C): pulls out-of-range channels back toward the luminosity.
+ *
+ * @param FloatArray color The color, as r, g, b, possibly out of range.
+ * @return FloatArray The color with every channel in range.
+ */
 private fun clipColor(color: FloatArray): FloatArray {
 	val lum = luminosity(color)
 	val minChannel = min(color[0], min(color[1], color[2]))
@@ -358,14 +389,26 @@ private fun clipColor(color: FloatArray): FloatArray {
 	return result
 }
 
-/** W3C SetLum(C, l). */
+/**
+ * W3C SetLum(C, l).
+ *
+ * @param FloatArray color The color, as r, g, b.
+ * @param Float lum The luminosity to give it.
+ * @return FloatArray The color at that luminosity, clipped into range.
+ */
 private fun setLuminosity(color: FloatArray, lum: Float): FloatArray {
 	val delta = lum - luminosity(color)
 
 	return clipColor(floatArrayOf(color[0] + delta, color[1] + delta, color[2] + delta))
 }
 
-/** W3C SetSat(C, s): rescales the mid channel between min and max, on sorted channels. */
+/**
+ * W3C SetSat(C, s): rescales the mid channel between min and max, on sorted channels.
+ *
+ * @param FloatArray color The color, as r, g, b.
+ * @param Float sat The saturation to give it.
+ * @return FloatArray The color at that saturation.
+ */
 private fun setSaturation(color: FloatArray, sat: Float): FloatArray {
 	val result = FloatArray(3)
 	val indices = intArrayOf(0, 1, 2).sortedBy { color[it] }

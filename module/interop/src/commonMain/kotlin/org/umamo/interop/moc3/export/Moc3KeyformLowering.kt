@@ -47,7 +47,11 @@ class Moc3KeyformPool(private val parameterIndexOf: (org.umamo.runtime.model.Par
 		intern(emptyList())
 	}
 
-	/** Every interned binding, in index order - what `MocDocument.keyformBindings` is built from. */
+	/**
+	 * Every interned binding, in index order - what `MocDocument.keyformBindings` is built from.
+	 *
+	 * @return List<KeyformBinding> The bindings, in pool index order.
+	 */
 	fun bindings(): List<KeyformBinding> = bindings.toList()
 
 	/**

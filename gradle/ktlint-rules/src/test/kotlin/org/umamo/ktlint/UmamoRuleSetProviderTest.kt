@@ -15,6 +15,7 @@ class UmamoRuleSetProviderTest {
 		assertEquals(
 			listOf(
 				"umamo:blank-line-around-control-flow",
+				"umamo:docblock-tags",
 				"umamo:no-comment-emphasis",
 				"umamo:no-unit-only-block",
 				"umamo:statement-if-braces",

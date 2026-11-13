@@ -61,7 +61,11 @@ private class ContourPointBuffer {
 		size += 2
 	}
 
-	/** The accumulated points as a right-sized flat array. */
+	/**
+	 * The accumulated points as a right-sized flat array.
+	 *
+	 * @return IntArray The points, in a copy sized to fit.
+	 */
 	fun toArray(): IntArray = storage.copyOf(size)
 
 	private companion object {

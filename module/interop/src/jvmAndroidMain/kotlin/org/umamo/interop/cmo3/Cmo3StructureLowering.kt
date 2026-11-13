@@ -144,7 +144,11 @@ internal class Cmo3StructureLowering(
 		return mutable.removeAll(matches)
 	}
 
-	/** Strips [uuid] from every parts-panel child list (all user parts plus the synthetic root). */
+	/**
+	 * Strips [uuid] from every parts-panel child list (all user parts plus the synthetic root).
+	 *
+	 * @param String? uuid The guid to strip, or null to do nothing.
+	 */
 	private fun stripFromChildLists(uuid: String?) {
 		if (uuid == null) {
 			return
@@ -293,7 +297,11 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
-	/** Removes a deleted parameter group's source. */
+	/**
+	 * Removes a deleted parameter group's source.
+	 *
+	 * @param ParameterGroupId groupId The deleted group.
+	 */
 	fun deleteParameterGroup(groupId: ParameterGroupId) {
 		val groupSet = modelSource.parameterGroupSet as? CParameterGroupSet ?: return
 
@@ -711,7 +719,11 @@ internal class Cmo3StructureLowering(
 		return true
 	}
 
-	/** Removes a deleted drawable's source and strips its guid from every panel child list. */
+	/**
+	 * Removes a deleted drawable's source and strips its guid from every panel child list.
+	 *
+	 * @param DrawableId drawableId The deleted drawable.
+	 */
 	fun deleteDrawable(drawableId: DrawableId) {
 		val sourceSet = modelSource.drawableSourceSet as? org.umamo.format.cmo3.model.gen.CDrawableSourceSet ?: return
 		val source = index.drawableByIdStr[drawableId.raw]
@@ -722,7 +734,11 @@ internal class Cmo3StructureLowering(
 		}
 	}
 
-	/** Removes a deleted part's source and strips its guid from every panel child list. */
+	/**
+	 * Removes a deleted part's source and strips its guid from every panel child list.
+	 *
+	 * @param String partIdRaw The deleted part's raw id.
+	 */
 	fun deletePart(partIdRaw: String) {
 		val sourceSet = modelSource.partSourceSet as? org.umamo.format.cmo3.model.gen.CPartSourceSet ?: return
 		val source = index.partByIdStr[partIdRaw]
@@ -733,7 +749,11 @@ internal class Cmo3StructureLowering(
 		}
 	}
 
-	/** Removes a deleted deformer's source and strips its guid from every panel child list. */
+	/**
+	 * Removes a deleted deformer's source and strips its guid from every panel child list.
+	 *
+	 * @param String deformerIdRaw The deleted deformer's raw id.
+	 */
 	fun deleteDeformer(deformerIdRaw: String) {
 		val sourceSet = modelSource.deformerSourceSet as? org.umamo.format.cmo3.model.gen.CDeformerSourceSet ?: return
 		val source = index.deformerByIdStr[deformerIdRaw]
@@ -744,7 +764,13 @@ internal class Cmo3StructureLowering(
 		}
 	}
 
-	/** Removes a deleted glue's source, resolved by mesh pair plus ordinal. */
+	/**
+	 * Removes a deleted glue's source, resolved by mesh pair plus ordinal.
+	 *
+	 * @param DrawableId meshA The glue's first mesh.
+	 * @param DrawableId meshB The glue's second mesh.
+	 * @param Int ordinal Which glue of that pair, counted from zero.
+	 */
 	fun deleteGlue(meshA: DrawableId, meshB: DrawableId, ordinal: Int) {
 		val sourceSet = modelSource.affecterSourceSet as? org.umamo.format.cmo3.model.gen.CAffecterSourceSet ?: return
 		val matching =
@@ -922,7 +948,12 @@ internal class Cmo3StructureLowering(
 	private fun uidTableOf(drawableId: DrawableId): IntArray? =
 		index.drawableByIdStr[drawableId.raw]?.let { source -> Cmo3Import.editableMeshOf(source)?.pointUid as? IntArray }
 
-	/** The unique undirected triangle edges as the editable mesh's short-indexed pair list. */
+	/**
+	 * The unique undirected triangle edges as the editable mesh's short-indexed pair list.
+	 *
+	 * @param IntArray indices The triangle list, three vertex indices per triangle.
+	 * @return ShortArray The edges, two vertex indices per edge.
+	 */
 	private fun triangleEdges(indices: IntArray): ShortArray {
 		val seen = LinkedHashSet<Int>()
 		var triangleStart = 0
@@ -956,6 +987,11 @@ internal class Cmo3StructureLowering(
 	 *
 	 * CMO3: GEditableMesh2 fields pointPriority / edgePriority - byte arrays on every corpus
 	 * mesh, never null (the editor NPEs on a null); points carry 10, triangle edges 30.
+	 *
+	 * @param Any? existing The stored priority array, or null.
+	 * @param Int count The entry count the new array needs.
+	 * @param Byte freshDefault The priority a fresh byte array is filled with.
+	 * @return Any? The new array.
 	 */
 	private fun resizedPriorityArray(existing: Any?, count: Int, freshDefault: Byte): Any? =
 		when (existing) {

@@ -691,7 +691,12 @@ internal class ViewportAreaRegistry {
 		}
 	}
 
-	/** The zoom step in percentage points for this notch/press: the coarse (Shift) step or the fine step. */
+	/**
+	 * The zoom step in percentage points for this notch/press: the coarse (Shift) step or the fine step.
+	 *
+	 * @param Boolean coarse True for the coarse (Shift) step, false for the fine one.
+	 * @return Float The step, in percentage points.
+	 */
 	private fun stepFor(coarse: Boolean): Float = if (coarse) zoomStepCoarsePercent else zoomStepPercent
 
 	/**

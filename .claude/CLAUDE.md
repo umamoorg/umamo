@@ -168,7 +168,8 @@ ktlint enforces much of this: its standard rules plus Umamo's own rule set in `g
 - Oxford comma, and two spaces after a period that ends a sentence.
 - No Markdown bold or italics in comments or docblocks.  Purely visual formatting (spaces, line breaks, indentation, lists) is fine.  Enforced by the `umamo:no-comment-emphasis` ktlint rule, which `ktlintFormat` applies.
 - **Every function gets exactly one docblock**, PHPDoc-style: open with `/**`, start every interior line with ` * `, close with ` */`, indented with tabs.  Reserve `/**` for documentation and use `/* */` for inline notes.
-- Structure: a one-line summary, then optionally a blank ` *` line and a longer description, then the tags.  Tag order is `@param` (one per parameter, in signature order, written `@param Type name description`), `@return` (omitted for `Unit`), then `@note` / `@warning` / `@see` / `@pre` / `@post` as needed.
+- Structure: a one-line summary, then optionally a blank ` *` line and a longer description, then the tags.  Tag order is `@param` (one per parameter, in signature order, written `@param Type name description`), `@return` (omitted for `Unit`), then `@note` / `@warning` / `@see` / `@pre` / `@post` as needed.  A function type is written `Function`.
+- The `umamo:docblock-tags` ktlint rule holds a docblock's tags to its signature; it reports and cannot fix, since a missing tag needs a written description.  Test sources are the one exception to the full tag block: a test docblock may be a summary alone, but the tags it does have must match the signature (`umamo_docblock_tags_mode` in `.editorconfig`).
 
 ```kotlin
 /**

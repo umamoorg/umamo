@@ -60,7 +60,11 @@ internal interface XmlSerializer {
 	fun setupInstance(element: Element, instance: Any, ctx: ReadContext) {}
 }
 
-/** Sets the xs.n attribute when [name] is non-null (collection items omit it). */
+/**
+ * Sets the xs.n attribute when [name] is non-null (collection items omit it).
+ *
+ * @param String? name The field name, or null for a collection item.
+ */
 internal fun Element.setFieldName(name: String?) {
 	if (name != null) {
 		setAttribute(ATTR_NAME, name)
@@ -147,7 +151,12 @@ internal class ReflectiveClassSerializer(
 	private fun attributeNameOf(property: KMutableProperty1<Any, Any?>): String =
 		property.findAnnotation<SerialAttribute>()!!.name.ifEmpty { property.name }
 
-	/** The serialized child name (xs.n): an explicit @SerialName, else the Kotlin property name. */
+	/**
+	 * The serialized child name (xs.n): an explicit @SerialName, else the Kotlin property name.
+	 *
+	 * @param KMutableProperty1<Any, Any?> property The property to name.
+	 * @return String The child name.
+	 */
 	private fun childNameOf(property: KMutableProperty1<Any, Any?>): String =
 		property.findAnnotation<SerialName>()?.name ?: property.name
 

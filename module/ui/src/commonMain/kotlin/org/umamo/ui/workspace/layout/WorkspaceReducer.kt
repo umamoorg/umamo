@@ -256,8 +256,8 @@ private fun closeArea(root: AreaNode, areaId: String): AreaNode {
  *
  * 部分木から葉を再帰的に取り除き、書き換えた部分木を返す。ここに無ければ null。
  *
- * @param node The subtree to search.
- * @param areaId The leaf id to remove.
+ * @param AreaNode node The subtree to search.
+ * @param String areaId The leaf id to remove.
  * @return AreaNode? The rewritten subtree, or null if the leaf was not found here.
  */
 private fun removeLeaf(node: AreaNode, areaId: String): AreaNode? =

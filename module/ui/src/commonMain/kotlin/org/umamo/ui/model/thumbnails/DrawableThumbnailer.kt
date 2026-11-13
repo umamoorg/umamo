@@ -221,7 +221,12 @@ class DrawableThumbnailer(
 		return compositeOf(members)?.let { composite -> RasterImage(composite.width, composite.height, composite.rgba) }
 	}
 
-	/** The cached raw crop for a drawable, computed once. */
+	/**
+	 * The cached raw crop for a drawable, computed once.
+	 *
+	 * @param DrawableId id The drawable to crop.
+	 * @return RawCrop? The crop, or null when the drawable has none.
+	 */
 	private fun croppedFor(id: DrawableId): RawCrop? = cropCache.getOrPut(id) { buildCrop(id) }
 
 	/**
@@ -310,7 +315,12 @@ class DrawableThumbnailer(
 		return RawCrop(pixels, thumbWidth, thumbHeight)
 	}
 
-	/** The cached rest-pose model bounds for a drawable, from its mesh positions. */
+	/**
+	 * The cached rest-pose model bounds for a drawable, from its mesh positions.
+	 *
+	 * @param DrawableId id The drawable to bound.
+	 * @return ModelBounds? The bounds, or null when the drawable has none.
+	 */
 	private fun modelBoundsOf(id: DrawableId): ModelBounds? = boundsCache.getOrPut(id) { computeBounds(id) }
 
 	/**
@@ -362,7 +372,12 @@ class DrawableThumbnailer(
 		return ModelBounds(minX, minY, maxX, maxY)
 	}
 
-	/** Every part id in a part's subtree (the part itself plus all descendant parts). */
+	/**
+	 * Every part id in a part's subtree (the part itself plus all descendant parts).
+	 *
+	 * @param PartId rootPartId The part at the top of the subtree.
+	 * @return Set<PartId> That part's id and every descendant part's.
+	 */
 	private fun partSubtree(rootPartId: PartId): Set<PartId> {
 		val collected = LinkedHashSet<PartId>()
 		val pending = ArrayDeque<PartId>()

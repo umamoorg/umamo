@@ -151,7 +151,11 @@ private fun textEditMenuItems(value: TextFieldValue, onValueChange: (TextFieldVa
 	return listOf(cut, copy, paste, selectAll)
 }
 
-/** The text covered by this value's selection, or "" when the selection is a bare caret. */
+/**
+ * The text covered by this value's selection, or "" when the selection is a bare caret.
+ *
+ * @return String The selected text.
+ */
 internal fun TextFieldValue.selectedText(): String = text.substring(selection.min, selection.max)
 
 /**

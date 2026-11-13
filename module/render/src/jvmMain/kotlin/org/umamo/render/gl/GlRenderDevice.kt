@@ -658,7 +658,12 @@ class GlRenderDevice : RenderDevice {
 		return "renderer=$renderer | version=$version | vendor=$vendor | glsl=$glsl | maxTexture=${maxTextureSize()}"
 	}
 
-	/** The (vertex, fragment) GLSL for a pipeline purpose - this backend's shader library, keyed by purpose. */
+	/**
+	 * The (vertex, fragment) GLSL for a pipeline purpose - this backend's shader library, keyed by purpose.
+	 *
+	 * @param PipelinePurpose purpose What the pipeline draws.
+	 * @return Pair<String, String> The vertex source, then the fragment source.
+	 */
 	private fun sourcesFor(purpose: PipelinePurpose): Pair<String, String> =
 		when (purpose) {
 			PipelinePurpose.PuppetDeformDraw -> puppetVertexShader(DIALECT) to puppetFragmentShader(DIALECT)
@@ -771,7 +776,13 @@ class GlRenderDevice : RenderDevice {
 			flip()
 		}
 
-	/** Uploads a float array into a fresh GL_ARRAY_BUFFER with the given usage; leaves it bound. */
+	/**
+	 * Uploads a float array into a fresh GL_ARRAY_BUFFER with the given usage; leaves it bound.
+	 *
+	 * @param FloatArray values The floats to upload.
+	 * @param Int usage The GL usage hint.
+	 * @return Int The new buffer's name.
+	 */
 	private fun uploadArrayBuffer(values: FloatArray, usage: Int): Int {
 		val buffer =
 			BufferUtils.createFloatBuffer(values.size).apply {
@@ -788,7 +799,12 @@ class GlRenderDevice : RenderDevice {
 	// Reusable scratch for in-place VBO re-uploads, grown on demand so a live preview edit never allocates.
 	private var uploadScratch = BufferUtils.createFloatBuffer(0)
 
-	/** Re-specifies a whole array buffer's contents in place, reusing the scratch buffer. */
+	/**
+	 * Re-specifies a whole array buffer's contents in place, reusing the scratch buffer.
+	 *
+	 * @param Int vbo The buffer to rewrite.
+	 * @param FloatArray values The floats to write.
+	 */
 	private fun subDataArrayBuffer(vbo: Int, values: FloatArray) {
 		if (uploadScratch.capacity() < values.size) {
 			uploadScratch = BufferUtils.createFloatBuffer(values.size)
@@ -848,7 +864,13 @@ internal fun linkGlProgram(vertexSource: String, fragmentSource: String, label: 
 	return program
 }
 
-/** Compiles and attaches both stages onto a fresh program (not yet linked, so the TF varyings can be set). */
+/**
+ * Compiles and attaches both stages onto a fresh program (not yet linked, so the TF varyings can be set).
+ *
+ * @param String vertexSource The vertex stage's GLSL.
+ * @param String fragmentSource The fragment stage's GLSL.
+ * @return Int The unlinked program's name.
+ */
 internal fun attachGlShaders(vertexSource: String, fragmentSource: String): Int {
 	val vertexShader = compileGlShader(GL20.GL_VERTEX_SHADER, vertexSource)
 	val fragmentShader = compileGlShader(GL20.GL_FRAGMENT_SHADER, fragmentSource)
@@ -859,7 +881,13 @@ internal fun attachGlShaders(vertexSource: String, fragmentSource: String): Int 
 	return program
 }
 
-/** Compiles one shader stage, throwing with the info log if compilation fails. */
+/**
+ * Compiles one shader stage, throwing with the info log if compilation fails.
+ *
+ * @param Int stage The GL shader stage.
+ * @param String source The stage's GLSL.
+ * @return Int The compiled shader's name.
+ */
 internal fun compileGlShader(stage: Int, source: String): Int {
 	val shader = GL20.glCreateShader(stage)
 	GL20.glShaderSource(shader, source)

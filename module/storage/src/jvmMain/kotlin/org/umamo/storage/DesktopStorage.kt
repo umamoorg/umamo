@@ -49,5 +49,9 @@ private fun desktopBaseDirectory(config: Boolean): File {
 	}
 }
 
-/** Converts a `java.io.File` to an okio [Path] via its absolute path. */
+/**
+ * Converts a `java.io.File` to an okio [Path] via its absolute path.
+ *
+ * @return Path The okio path.
+ */
 private fun File.toOkioPath(): Path = absolutePath.toPath()

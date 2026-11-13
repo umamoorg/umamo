@@ -55,14 +55,22 @@ internal fun collectParameterGroupIds(nodes: List<ParameterNode>): Set<Parameter
 	return ids
 }
 
-/** The leaf ids removed by a detach for [subject]; empty when it moves a group. */
+/**
+ * The leaf ids removed by a detach for [subject]; empty when it moves a group.
+ *
+ * @return Set<ParameterId> The moved leaf ids, or the empty set for a group.
+ */
 private fun ParameterMoveSubject.movedLeafIds(): Set<ParameterId> =
 	when (this) {
 		is ParameterMoveSubject.Leaves -> ids.toSet()
 		is ParameterMoveSubject.Group -> emptySet()
 	}
 
-/** The group id removed by a detach for [subject], or null when it moves leaves. */
+/**
+ * The group id removed by a detach for [subject], or null when it moves leaves.
+ *
+ * @return ParameterGroupId? The moved group's id, or null for leaves.
+ */
 private fun ParameterMoveSubject.movedGroupId(): ParameterGroupId? =
 	when (this) {
 		is ParameterMoveSubject.Leaves -> null
@@ -71,6 +79,9 @@ private fun ParameterMoveSubject.movedGroupId(): ParameterGroupId? =
 
 /**
  * Removes the moved node(s) from a node list (non-recursively at this level), returning the survivors.
+ *
+ * @param ParameterMoveSubject subject The leaves or group being moved.
+ * @return List<ParameterNode> The nodes that stay.
  */
 private fun List<ParameterNode>.detachSubject(subject: ParameterMoveSubject): List<ParameterNode> {
 	val movedLeaves = subject.movedLeafIds()
@@ -84,7 +95,13 @@ private fun List<ParameterNode>.detachSubject(subject: ParameterMoveSubject): Li
 	}
 }
 
-/** This node list with [inserted] placed before [before] (or appended when [before] is null or absent). */
+/**
+ * This node list with [inserted] placed before [before] (or appended when [before] is null or absent).
+ *
+ * @param List<ParameterNode> inserted The nodes to place.
+ * @param ParameterNodeRef? before The node to place them before, or null to append.
+ * @return List<ParameterNode> The list with the nodes inserted.
+ */
 private fun List<ParameterNode>.withNodesInsertedBefore(inserted: List<ParameterNode>, before: ParameterNodeRef?): List<ParameterNode> {
 	val result = toMutableList()
 	val insertAt =
@@ -96,7 +113,12 @@ private fun List<ParameterNode>.withNodesInsertedBefore(inserted: List<Parameter
 	return result
 }
 
-/** True when this node is the one [ref] names. */
+/**
+ * True when this node is the one [ref] names.
+ *
+ * @param ParameterNodeRef ref The reference to test against.
+ * @return Boolean True when the reference names this node.
+ */
 private fun ParameterNode.matchesRef(ref: ParameterNodeRef): Boolean =
 	when {
 		this is ParameterNode.Param && ref is ParameterNodeRef.Leaf -> id == ref.id
@@ -172,6 +194,10 @@ fun PuppetModel.withParameterRowMoved(
  * The actual [ParameterNode]s named by [subject], found anywhere in [tree]. Leaves are returned as fresh
  * [ParameterNode.Param]s in [subject] order (so a pad stays horizontal-then-vertical); a group is
  * returned as its existing node with children intact. Empty when nothing matched.
+ *
+ * @param List<ParameterNode> tree The group tree to search.
+ * @param ParameterMoveSubject subject The leaves or group being moved.
+ * @return List<ParameterNode> The matching nodes, empty when nothing matched.
  */
 private fun collectSubjectNodes(tree: List<ParameterNode>, subject: ParameterMoveSubject): List<ParameterNode> =
 	when (subject) {
@@ -191,7 +217,12 @@ private fun collectSubjectNodes(tree: List<ParameterNode>, subject: ParameterMov
 		}
 	}
 
-/** Every leaf id anywhere in [nodes]. */
+/**
+ * Every leaf id anywhere in [nodes].
+ *
+ * @param List<ParameterNode> nodes The node list to walk.
+ * @return Set<ParameterId> The id of every leaf under it.
+ */
 private fun collectLeafIds(nodes: List<ParameterNode>): Set<ParameterId> {
 	val ids = HashSet<ParameterId>()
 
@@ -208,7 +239,13 @@ private fun collectLeafIds(nodes: List<ParameterNode>): Set<ParameterId> {
 	return ids
 }
 
-/** The group node with [groupId] anywhere in [nodes], or null. */
+/**
+ * The group node with [groupId] anywhere in [nodes], or null.
+ *
+ * @param List<ParameterNode> nodes The node list to search.
+ * @param ParameterGroupId groupId The group to find.
+ * @return ParameterNode.Group? The group node, or null when there is none.
+ */
 private fun findGroupNode(nodes: List<ParameterNode>, groupId: ParameterGroupId): ParameterNode.Group? {
 	for (node in nodes) {
 		if (node is ParameterNode.Group) {

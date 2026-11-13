@@ -248,7 +248,11 @@ internal class ViewportPicker(
 	 */
 	fun thumbnailFor(id: DrawableId): ImageBitmap? = thumbnailer.thumbnailFor(id)
 
-	/** The shared art-mesh thumbnail provider, exposed so the host can wire it to the Outliner hover preview. */
+	/**
+	 * The shared art-mesh thumbnail provider, exposed so the host can wire it to the Outliner hover preview.
+	 *
+	 * @return DrawableThumbnailProvider The shared provider.
+	 */
 	fun thumbnails(): DrawableThumbnailProvider = thumbnailer
 
 	/**
@@ -269,11 +273,20 @@ internal class ViewportPicker(
 	 */
 	fun drawableNameFor(id: DrawableId): String? = drawableNameByDrawableId[id]
 
-	/** The renderer's resolved back-to-front draw list as a front-rank map (higher index = more front). */
+	/**
+	 * The renderer's resolved back-to-front draw list as a front-rank map (higher index = more front).
+	 *
+	 * @return Map<DrawableId, Float> Each drawn drawable's rank, higher being nearer the front.
+	 */
 	private fun frontRankMap(): Map<DrawableId, Float> =
 		renderer.drawnOrder().withIndex().associate { (index, id) -> id to index.toFloat() }
 
-	/** The drawable's atlas page size (width, height) in texels, or null when it is untextured. */
+	/**
+	 * The drawable's atlas page size (width, height) in texels, or null when it is untextured.
+	 *
+	 * @param DrawableId id The drawable.
+	 * @return Pair<Int, Int>? The page's width and height in texels, or null.
+	 */
 	private fun atlasSizeOf(id: DrawableId): Pair<Int, Int>? =
 		textures.atlasIndexByDrawableId[atlasKeyByDrawableId[id] ?: id.raw]?.let { atlasIndex ->
 			textures.atlases.getOrNull(atlasIndex)?.let { image -> image.width to image.height }

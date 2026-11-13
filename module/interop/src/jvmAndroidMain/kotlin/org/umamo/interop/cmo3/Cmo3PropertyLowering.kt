@@ -907,19 +907,34 @@ internal class Cmo3PropertyLowering(
 		}
 	}
 
-	/** CMO3: ACParameterControllableSource field localName - the user-facing display name. */
+	/**
+	 * CMO3: ACParameterControllableSource field localName - the user-facing display name.
+	 *
+	 * @param ACParameterControllableSource source The entity's graph source.
+	 * @param String name The display name to write.
+	 */
 	private fun lowerLocalName(source: ACParameterControllableSource, name: String) {
 		source.localName = name
 		editor.ensureChildSlot(source, "ACParameterControllableSource", "localName", "isVisible")
 	}
 
-	/** CMO3: ACParameterControllableSource field isVisible - the Parts-panel eyeball. */
+	/**
+	 * CMO3: ACParameterControllableSource field isVisible - the Parts-panel eyeball.
+	 *
+	 * @param ACParameterControllableSource source The entity's graph source.
+	 * @param Boolean isVisible Whether the entity is shown.
+	 */
 	private fun lowerIsVisible(source: ACParameterControllableSource, isVisible: Boolean) {
 		source.isVisible = isVisible
 		editor.ensureChildSlot(source, "ACParameterControllableSource", "isVisible", "isLocked")
 	}
 
-	/** CMO3: ACParameterControllableSource field isLocked (inverted: Cubism lock = not selectable). */
+	/**
+	 * CMO3: ACParameterControllableSource field isLocked (inverted: Cubism lock = not selectable).
+	 *
+	 * @param ACParameterControllableSource source The entity's graph source.
+	 * @param Boolean isSelectable Whether the entity can be selected; the stored lock is its inverse.
+	 */
 	private fun lowerIsLocked(source: ACParameterControllableSource, isSelectable: Boolean) {
 		source.isLocked = !isSelectable
 		editor.ensureChildSlot(source, "ACParameterControllableSource", "isLocked", "parentGuid")

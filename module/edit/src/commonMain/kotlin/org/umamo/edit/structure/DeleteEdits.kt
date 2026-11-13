@@ -23,14 +23,24 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * only, contents spliced up into its parent). Org-tree edits re-derive the render order.
  */
 
-/** A copy of this deformer re-nested under [newParent] in the transform hierarchy (used to re-home orphans). */
+/**
+ * A copy of this deformer re-nested under [newParent] in the transform hierarchy (used to re-home orphans).
+ *
+ * @param DeformerId? newParent The new parent deformer, or null for a root.
+ * @return Deformer The re-nested copy.
+ */
 private fun Deformer.reparentedTo(newParent: DeformerId?): Deformer =
 	when (this) {
 		is Deformer.Warp -> copy(parent = newParent)
 		is Deformer.Rotation -> copy(parent = newParent)
 	}
 
-/** A copy of this deformer re-bound to the organizational part [newPart] (or null to clear a dangling ref). */
+/**
+ * A copy of this deformer re-bound to the organizational part [newPart] (or null to clear a dangling ref).
+ *
+ * @param PartId? newPart The part to bind to, or null to clear the binding.
+ * @return Deformer The re-bound copy.
+ */
 private fun Deformer.reboundToPart(newPart: PartId?): Deformer =
 	when (this) {
 		is Deformer.Warp -> copy(partId = newPart)
@@ -150,7 +160,12 @@ fun PuppetModel.withDeformerDeleted(id: DeformerId, localPositionsByDrawable: Ma
 	return copy(deformers = updatedDeformers, drawables = updatedDrawables)
 }
 
-/** The set of part ids in [id]'s org-tree subtree (the part itself plus every descendant part). */
+/**
+ * The set of part ids in [id]'s org-tree subtree (the part itself plus every descendant part).
+ *
+ * @param PartId id The part at the top of the subtree.
+ * @return Set<PartId> That part's id and every descendant part's.
+ */
 private fun PuppetModel.partSubtreeIds(id: PartId): Set<PartId> {
 	val partById = parts.associateBy { it.id }
 	val subtree = LinkedHashSet<PartId>()

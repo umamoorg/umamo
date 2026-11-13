@@ -33,7 +33,11 @@ public class CaffPreview(
 	public val present: Boolean get() = imageType == ImageType.PNG && png != null
 
 	public companion object {
-		/** A NO_PREVIEW placeholder (what real cmo3 files contain). */
+		/**
+		 * A NO_PREVIEW placeholder (what real cmo3 files contain).
+		 *
+		 * @return CaffPreview The placeholder preview.
+		 */
 		public fun none(): CaffPreview =
 			CaffPreview(ImageType.NO_PREVIEW, ColorType.NO_PREVIEW, 0, 0, null)
 	}
@@ -59,16 +63,36 @@ public class CaffArchive(
 	public val preview: CaffPreview = CaffPreview.none(),
 	public val entries: List<CaffEntry> = emptyList(),
 ) {
-	/** Returns the first entry carrying [tag], or null. */
+	/**
+	 * Returns the first entry carrying [tag], or null.
+	 *
+	 * @param String tag The archive tag to match.
+	 * @return CaffEntry? The first matching entry, or null.
+	 */
 	public fun firstByTag(tag: String): CaffEntry? = entries.firstOrNull { it.tag == tag }
 
-	/** Returns all entries carrying [tag], in archive order. */
+	/**
+	 * Returns all entries carrying [tag], in archive order.
+	 *
+	 * @param String tag The archive tag to match.
+	 * @return List<CaffEntry> Every matching entry, in archive order.
+	 */
 	public fun allByTag(tag: String): List<CaffEntry> = entries.filter { it.tag == tag }
 
-	/** Returns the first entry with an exact [path], or null. */
+	/**
+	 * Returns the first entry with an exact [path], or null.
+	 *
+	 * @param String path The exact entry path.
+	 * @return CaffEntry? The entry, or null.
+	 */
 	public fun byPath(path: String): CaffEntry? = entries.firstOrNull { it.path == path }
 
-	/** Returns a copy of this archive with a different entry list (other metadata unchanged). */
+	/**
+	 * Returns a copy of this archive with a different entry list (other metadata unchanged).
+	 *
+	 * @param List<CaffEntry> entries The replacement entry list.
+	 * @return CaffArchive The copy.
+	 */
 	public fun withEntries(entries: List<CaffEntry>): CaffArchive =
 		CaffArchive(formatIdentifier, formatVersion, archiveVersion, obfuscateKey, preview, entries)
 

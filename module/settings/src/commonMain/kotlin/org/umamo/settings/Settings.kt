@@ -56,28 +56,68 @@ class Settings private constructor(
 		return current
 	}
 
-	/** @return String? The [key]'s string value, or null if absent / not a string. */
+	/**
+	 * Reads a string setting.
+	 *
+	 * @param String key The dotted key.
+	 * @return String? The [key]'s string value, or null if absent / not a string.
+	 */
 	fun getString(key: String): String? = (get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content
 
-	/** @return Boolean? The [key]'s boolean value, or null if absent / not a boolean. */
+	/**
+	 * Reads a boolean setting.
+	 *
+	 * @param String key The dotted key.
+	 * @return Boolean? The [key]'s boolean value, or null if absent / not a boolean.
+	 */
 	fun getBoolean(key: String): Boolean? = (get(key) as? JsonPrimitive)?.booleanOrNull
 
-	/** @return Int? The [key]'s integer value, or null if absent / not an integer. */
+	/**
+	 * Reads an integer setting.
+	 *
+	 * @param String key The dotted key.
+	 * @return Int? The [key]'s integer value, or null if absent / not an integer.
+	 */
 	fun getInt(key: String): Int? = (get(key) as? JsonPrimitive)?.intOrNull
 
-	/** @return Double? The [key]'s number value, or null if absent / not a number. */
+	/**
+	 * Reads a number setting.
+	 *
+	 * @param String key The dotted key.
+	 * @return Double? The [key]'s number value, or null if absent / not a number.
+	 */
 	fun getDouble(key: String): Double? = (get(key) as? JsonPrimitive)?.doubleOrNull
 
-	/** Sets a string value at [key]. */
+	/**
+	 * Sets a string value at [key].
+	 *
+	 * @param String key The dotted key.
+	 * @param String value The string to store.
+	 */
 	fun setString(key: String, value: String) = set(key, JsonPrimitive(value))
 
-	/** Sets a boolean value at [key]. */
+	/**
+	 * Sets a boolean value at [key].
+	 *
+	 * @param String key The dotted key.
+	 * @param Boolean value The boolean to store.
+	 */
 	fun setBoolean(key: String, value: Boolean) = set(key, JsonPrimitive(value))
 
-	/** Sets an integer value at [key]. */
+	/**
+	 * Sets an integer value at [key].
+	 *
+	 * @param String key The dotted key.
+	 * @param Int value The integer to store.
+	 */
 	fun setInt(key: String, value: Int) = set(key, JsonPrimitive(value))
 
-	/** Sets a number value at [key]. */
+	/**
+	 * Sets a number value at [key].
+	 *
+	 * @param String key The dotted key.
+	 * @param Double value The number to store.
+	 */
 	fun setDouble(key: String, value: Double) = set(key, JsonPrimitive(value))
 
 	/**
@@ -120,11 +160,22 @@ class Settings private constructor(
 			return Settings(storage, userFile, defaults, user, foundUserFile = userText != null)
 		}
 
-		/** Parses [text] to a [JsonObject], or an empty object when it is absent/blank/not an object/invalid. */
+		/**
+		 * Parses [text] to a [JsonObject], or an empty object when it is absent/blank/not an object/invalid.
+		 *
+		 * @param String text The JSON text.
+		 * @return JsonObject The parsed object, or an empty one.
+		 */
 		private fun parseObjectOrEmpty(text: String): JsonObject =
 			runCatching { JSON.parseToJsonElement(text) as? JsonObject }.getOrNull() ?: JsonObject(emptyMap())
 
-		/** Deep-merges [overlay] onto [base]: nested objects merge recursively; any other value is replaced. */
+		/**
+		 * Deep-merges [overlay] onto [base]: nested objects merge recursively; any other value is replaced.
+		 *
+		 * @param JsonObject base The object underneath.
+		 * @param JsonObject overlay The object whose values win.
+		 * @return JsonObject The merged object.
+		 */
 		private fun deepMerge(base: JsonObject, overlay: JsonObject): JsonObject {
 			val result = base.toMutableMap()
 
@@ -141,7 +192,14 @@ class Settings private constructor(
 			return JsonObject(result)
 		}
 
-		/** Returns a copy of [root] with [value] set at the dotted [path], creating intermediate objects. */
+		/**
+		 * Returns a copy of [root] with [value] set at the dotted [path], creating intermediate objects.
+		 *
+		 * @param JsonObject root The object to copy.
+		 * @param List<String> path The key path, one segment per level.
+		 * @param JsonElement value The value to set.
+		 * @return JsonObject The copy with the value set.
+		 */
 		private fun putAtPath(root: JsonObject, path: List<String>, value: JsonElement): JsonObject {
 			if (path.isEmpty()) {
 				return root

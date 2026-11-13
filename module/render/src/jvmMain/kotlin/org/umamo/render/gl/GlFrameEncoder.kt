@@ -387,7 +387,13 @@ internal class GlRenderPassEncoder(private val emptyVao: Int, private val target
 		GL11.glDisable(GL11.GL_SCISSOR_TEST)
 	}
 
-	/** Sets a draw's fragment uniforms and binds its atlas / mask textures when present. */
+	/**
+	 * Sets a draw's fragment uniforms and binds its atlas / mask textures when present.
+	 *
+	 * @param GlRenderPipeline pipeline The bound pipeline, whose uniform locations are used.
+	 * @param FragmentUniforms fragment The draw's fragment uniform values.
+	 * @param DrawTextures textures The draw's atlas and mask textures.
+	 */
 	private fun setFragmentUniforms(pipeline: GlRenderPipeline, fragment: FragmentUniforms, textures: DrawTextures) {
 		val locations = pipeline.locations
 		GL20.glUniform1i(locations.useTexture, if (fragment.useTexture) 1 else 0)
@@ -569,7 +575,12 @@ private fun listDrawBuffers(target: GlRenderTarget, both: Boolean) {
 private val BOTH_DRAW_BUFFERS: java.nio.IntBuffer = BufferUtils.createIntBuffer(2).put(GL30.GL_COLOR_ATTACHMENT0).put(GL30.GL_COLOR_ATTACHMENT1).flip()
 private val ZERO_ORDER: java.nio.FloatBuffer = BufferUtils.createFloatBuffer(4).put(0f).put(0f).put(0f).put(0f).flip()
 
-/** Binds [texture] to the given texture unit as a 2D texture. */
+/**
+ * Binds [texture] to the given texture unit as a 2D texture.
+ *
+ * @param Int unit The texture unit, counted from zero.
+ * @param GpuTexture texture The texture to bind.
+ */
 private fun bindTexture2D(unit: Int, texture: GpuTexture) {
 	GL13.glActiveTexture(GL13.GL_TEXTURE0 + unit)
 	GL11.glBindTexture(GL11.GL_TEXTURE_2D, (texture as GlTexture).handle)
@@ -595,7 +606,11 @@ private fun applyCull(cullBackFaces: Boolean) {
 	}
 }
 
-/** Sets the fixed-function blend state for a pipeline's blend mode. */
+/**
+ * Sets the fixed-function blend state for a pipeline's blend mode.
+ *
+ * @param org.umamo.render.device.PipelineBlend blend The pipeline's blend mode.
+ */
 private fun applyBlend(blend: org.umamo.render.device.PipelineBlend) {
 	when (blend) {
 		org.umamo.render.device.PipelineBlend.Opaque -> {

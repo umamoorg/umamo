@@ -52,6 +52,7 @@ fun selectionOverlayStyle(colors: UmamoColors): SelectionOverlayStyle =
  * crosshair, box, and circle cannot drift apart.
  *
  * @param SelectionOverlayStyle style The two-tone palette.
+ * @param Float dashPx The dash length, in pixels.
  * @param Function drawStroke Strokes the shape with the given color and dash path effect; called twice.
  */
 private inline fun strokeMarchingAnts(style: SelectionOverlayStyle, dashPx: Float, drawStroke: (Color, PathEffect) -> Unit) {

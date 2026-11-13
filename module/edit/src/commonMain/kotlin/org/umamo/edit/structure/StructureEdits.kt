@@ -26,11 +26,22 @@ import org.umamo.runtime.model.withDerivedRenderRoot
  * 組織ツリーの構造編集。ツリーが階層とパネル順の唯一の真実で、描画順のタイブレークでもある。移動は1つに統合。
  */
 
-/** True when [child] is present somewhere in the org tree (the root level or some part's children). */
+/**
+ * True when [child] is present somewhere in the org tree (the root level or some part's children).
+ *
+ * @param OrgChild child The org child to find.
+ * @return Boolean True when the tree holds it.
+ */
 private fun PuppetModel.containsOrgChild(child: OrgChild): Boolean =
 	child in rootChildren || parts.any { child in it.children }
 
-/** This child list with [child] inserted before [before] (or appended when [before] is null or absent). */
+/**
+ * This child list with [child] inserted before [before] (or appended when [before] is null or absent).
+ *
+ * @param OrgChild child The child to insert.
+ * @param OrgChild? before The child to insert it before, or null to append.
+ * @return List<OrgChild> The list with the child inserted.
+ */
 private fun List<OrgChild>.withChildInsertedBefore(child: OrgChild, before: OrgChild?): List<OrgChild> {
 	val result = toMutableList()
 	val insertAt = before?.let { result.indexOf(it) }?.takeIf { it >= 0 } ?: result.size
@@ -102,7 +113,12 @@ fun EditorSession.moveOrgChild(child: OrgChild, newParentId: PartId?, before: Or
 	mutate(change) { model -> model.withOrgChildMoved(child, newParentId, before) }
 }
 
-/** A copy of this deformer re-homed under [newParent] in the transform (nesting) hierarchy. */
+/**
+ * A copy of this deformer re-homed under [newParent] in the transform (nesting) hierarchy.
+ *
+ * @param DeformerId? newParent The new parent deformer, or null for a root.
+ * @return Deformer The re-homed copy.
+ */
 private fun Deformer.withParent(newParent: DeformerId?): Deformer =
 	when (this) {
 		is Deformer.Warp -> copy(parent = newParent)

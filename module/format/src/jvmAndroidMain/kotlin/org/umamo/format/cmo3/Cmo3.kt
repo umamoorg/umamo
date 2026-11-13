@@ -54,7 +54,11 @@ public class Cmo3Model internal constructor(
 		)
 	}
 
-	/** All [CImageResource]s reachable in the model (shared pool + inline), each linking an embedded PNG. */
+	/**
+	 * All [CImageResource]s reachable in the model (shared pool + inline), each linking an embedded PNG.
+	 *
+	 * @return List<CImageResource> Every reachable image resource, each listed once.
+	 */
 	public fun imageResources(): List<CImageResource> {
 		val seen = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Any, Boolean>())
 		val out = ArrayList<CImageResource>()
@@ -378,7 +382,12 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 		return Cmo3Model(archive, graph)
 	}
 
-	/** Parses a `.cmo3` from a file. */
+	/**
+	 * Parses a `.cmo3` from a file.
+	 *
+	 * @param File file The file to read.
+	 * @return Cmo3Model The parsed model.
+	 */
 	public fun read(file: File): Cmo3Model = read(file.readBytes())
 
 	/**
@@ -405,6 +414,11 @@ public object Cmo3 : FormatCodec<Cmo3Model> {
 		return CaffCodec.write(model.archive.withEntries(entries))
 	}
 
-	/** Writes a model to a `.cmo3` file. */
+	/**
+	 * Writes a model to a `.cmo3` file.
+	 *
+	 * @param Cmo3Model model The model to write.
+	 * @param File file The file to write it to.
+	 */
 	public fun write(model: Cmo3Model, file: File): Unit = file.writeBytes(write(model))
 }

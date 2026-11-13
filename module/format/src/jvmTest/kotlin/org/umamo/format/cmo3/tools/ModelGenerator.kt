@@ -498,7 +498,11 @@ class ModelGenerator {
 		builder.appendLine("import org.umamo.format.cmo3.model.gen.*")
 		builder.appendLine("import org.umamo.format.cmo3.serialize.SerializerRegistry")
 		builder.appendLine()
-		builder.appendLine("/** Registers every generated reflective class + enum. */")
+		builder.appendLine("/**")
+		builder.appendLine(" * Registers every generated reflective class + enum.")
+		builder.appendLine(" *")
+		builder.appendLine(" * @param SerializerRegistry registry The registry to fill.")
+		builder.appendLine(" */")
 		builder.appendLine("internal fun registerGeneratedSubsystem(registry: SerializerRegistry) {")
 
 		for (tag in (model.classes.keys + model.enums.keys + reflective.keys + enums.keys).sorted()) {
