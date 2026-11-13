@@ -282,13 +282,14 @@ private val DEFAULT_KEYMAP_SPECS: Map<String, String> =
 		"ctrl+Tab" to "mode.togglePose",
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
-		// The document's own chords: Open, Save, and Save As on the keys every application uses for them.
+		// The document's own chords: Open, Save, Save As, and Quit on the keys every application uses for them.
 		// Import CMO3 has no chord - an import is not an open - and the File menu and the palette reach it.
 		"primary+KeyN" to "file.new",
 		"primary+KeyO" to "file.open",
 		"primary+KeyS" to "file.save",
 		"primary+shift+KeyS" to "file.saveAs",
 		"primary+shift+KeyO" to "file.importArtwork",
+		"primary+KeyQ" to "file.exit",
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
 		"F9" to "edit.adjustLastOperation",
@@ -356,13 +357,14 @@ private val CUBISM_KEYMAP_SPECS: Map<String, String> =
 		"ctrl+Tab" to "mode.togglePose",
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
-		// The document's own chords: Open, Save, and Save As on the keys every application uses for them.
+		// The document's own chords: Open, Save, Save As, and Quit on the keys every application uses for them.
 		// Import CMO3 has no chord - an import is not an open - and the File menu and the palette reach it.
 		"primary+KeyN" to "file.new",
 		"primary+KeyO" to "file.open",
 		"primary+KeyS" to "file.save",
 		"primary+shift+KeyS" to "file.saveAs",
 		"primary+shift+KeyO" to "file.importArtwork",
+		"primary+KeyQ" to "file.exit",
 		// Undo / redo: Ctrl+Z plus both redo conventions Cubism migrants carry (Ctrl+Shift+Z and Ctrl+Y).
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
@@ -399,13 +401,14 @@ private val BLENDER_KEYMAP_SPECS: Map<String, String> =
 		"ctrl+Tab" to "mode.togglePose",
 		"primary+PageUp" to "workspace.prev",
 		"primary+PageDown" to "workspace.next",
-		// The document's own chords: Open, Save, and Save As on the keys every application uses for them.
+		// The document's own chords: Open, Save, Save As, and Quit on the keys every application uses for them.
 		// Import CMO3 has no chord - an import is not an open - and the File menu and the palette reach it.
 		"primary+KeyN" to "file.new",
 		"primary+KeyO" to "file.open",
 		"primary+KeyS" to "file.save",
 		"primary+shift+KeyS" to "file.saveAs",
 		"primary+shift+KeyO" to "file.importArtwork",
+		"primary+KeyQ" to "file.exit",
 		"primary+KeyZ" to "edit.undo",
 		"primary+shift+KeyZ" to "edit.redo",
 		"F9" to "edit.adjustLastOperation",

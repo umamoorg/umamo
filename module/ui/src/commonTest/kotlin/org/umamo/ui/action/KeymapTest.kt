@@ -144,7 +144,7 @@ class KeymapTest {
 
 	/**
 	 * Every preset reaches the document commands a rigger starts from, under the accelerators every other
-	 * application uses for them: New, Open, Save, and Save As on their usual keys, the artwork import
+	 * application uses for them: New, Open, Save, Save As, and Quit on their usual keys, the artwork import
 	 * - which ADDS to the open document - keeping the chord it has always had so a rebind saved against that
 	 * id still resolves, and Import CMO3 with no chord at all, since an import is not an open.
 	 */
@@ -157,6 +157,7 @@ class KeymapTest {
 			assertEquals("file.save", specs["primary+KeyS"], "$presetId: Ctrl+S saves")
 			assertEquals("file.saveAs", specs["primary+shift+KeyS"], "$presetId: Ctrl+Shift+S saves as")
 			assertEquals("file.importArtwork", specs["primary+shift+KeyO"], "$presetId: Ctrl+Shift+O imports artwork")
+			assertEquals("file.exit", specs["primary+KeyQ"], "$presetId: Ctrl+Q quits")
 			assertFalse(specs.containsValue("file.importCmo3"), "$presetId: Import CMO3 has no chord")
 		}
 	}

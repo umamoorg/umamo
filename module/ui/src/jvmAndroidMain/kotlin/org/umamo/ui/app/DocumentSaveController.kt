@@ -265,8 +265,10 @@ internal class DocumentSaveController(
 		val exitWhenIdle = { services.afterRunningExport(exit) }
 		afterPendingWrites {
 			if (services.current().session?.dirty?.value == true) {
+				UmamoLog.info("quit: unsaved edits, asking")
 				services.commandRegistry.invoke("document.confirmExit", dirtyDocumentPrompt(exitWhenIdle))
 			} else {
+				UmamoLog.info("quit: nothing unsaved")
 				exitWhenIdle()
 			}
 		}
