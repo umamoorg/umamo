@@ -14,6 +14,10 @@ import org.umamo.edit.MeshTopology
 import org.umamo.edit.Selection
 import org.umamo.edit.SelectionTarget
 import org.umamo.edit.TransformPivotMode
+import org.umamo.edit.transform.UvEditFrame
+import org.umamo.edit.transform.atlasPageEditFrame
+import org.umamo.edit.transform.displayToUv
+import org.umamo.edit.transform.sourceLayerEditFrame
 import org.umamo.render.DecodedImage
 import org.umamo.render.SourceArtRasters
 import org.umamo.render.ViewportCamera

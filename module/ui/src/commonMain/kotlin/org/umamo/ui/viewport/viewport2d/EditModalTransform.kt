@@ -26,7 +26,16 @@ import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.transform.ElementEditStage
 import org.umamo.ui.transform.LatticeLanding
 import org.umamo.ui.transform.LatticeWorldGeometry
+import org.umamo.ui.transform.MeshDriveRequest
+import org.umamo.ui.transform.MeshDriveResult
 import org.umamo.ui.transform.OwnerWorldGeometry
+import org.umamo.ui.transform.SlideLanding
+import org.umamo.ui.transform.SlideMove
+import org.umamo.ui.transform.commitDrive
+import org.umamo.ui.transform.computeMeshDrive
+import org.umamo.ui.transform.meshDriveJobs
+import org.umamo.ui.transform.registerMeshTransformAdjustment
+import org.umamo.ui.transform.registerSlideAdjustment
 import org.umamo.ui.viewport.LiveMeshPreview
 import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.ModalGestureState

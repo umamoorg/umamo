@@ -3,6 +3,7 @@ package org.umamo.ui.viewport.uv
 import androidx.compose.runtime.State
 import org.umamo.edit.EditorSession
 import org.umamo.edit.MeshSelection
+import org.umamo.edit.transform.UvEditFrame
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.MarqueeSelectController
 import org.umamo.ui.viewport.gizmo.MeshPickController

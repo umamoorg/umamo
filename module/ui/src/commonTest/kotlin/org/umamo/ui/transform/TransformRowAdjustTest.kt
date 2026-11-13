@@ -1,4 +1,4 @@
-package org.umamo.ui.properties
+package org.umamo.ui.transform
 
 import org.umamo.edit.EditorMode
 import org.umamo.edit.EditorSession
@@ -22,7 +22,6 @@ import org.umamo.runtime.model.MeshDeltaForm
 import org.umamo.runtime.model.Parameter
 import org.umamo.runtime.model.ParameterId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.transform.drawableWorldTransform
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs

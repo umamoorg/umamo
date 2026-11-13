@@ -23,6 +23,7 @@ import org.umamo.edit.selectAllObjects
 import org.umamo.edit.transform.ModalTransformCapture
 import org.umamo.edit.transform.RotationAngleTracker
 import org.umamo.edit.transform.TransformGestureParameters
+import org.umamo.edit.transform.applyOperator
 import org.umamo.edit.transform.beginMeshOperator
 import org.umamo.edit.transform.beginObjectOperator
 import org.umamo.format.moc3.Moc3
@@ -49,13 +50,15 @@ import org.umamo.ui.graphics.rgbaToImageBitmap
 import org.umamo.ui.model.thumbnails.DrawableThumbnailer
 import org.umamo.ui.transform.DrawableWorldGeometry
 import org.umamo.ui.transform.ElementEditStage
+import org.umamo.ui.transform.MeshDriveRequest
 import org.umamo.ui.transform.OwnerWorldGeometry
+import org.umamo.ui.transform.computeMeshDrive
+import org.umamo.ui.transform.meshDriveJobs
 import org.umamo.ui.viewport.UvSceneContent
 import org.umamo.ui.viewport.gizmo.EditMeshOverlayProducer
 import org.umamo.ui.viewport.gizmo.GizmoMeshGeometry
 import org.umamo.ui.viewport.gizmo.ModalDriveWorker
 import org.umamo.ui.viewport.gizmo.TransformGestureFrame
-import org.umamo.ui.viewport.gizmo.applyOperator
 import org.umamo.ui.viewport.gizmo.gestureParameters
 import org.umamo.ui.viewport.uv.UvEditOverlayProducer
 import org.umamo.ui.viewport.uv.UvObjectOverlayProducer

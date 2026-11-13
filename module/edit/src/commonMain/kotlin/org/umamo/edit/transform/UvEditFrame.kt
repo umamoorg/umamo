@@ -1,6 +1,5 @@
-package org.umamo.ui.viewport.uv
+package org.umamo.edit.transform
 
-import org.umamo.edit.transform.UvFrame
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.DrawableLayerBinding
 import org.umamo.runtime.model.PuppetModel
@@ -8,13 +7,6 @@ import org.umamo.runtime.model.identityAffine
 import org.umamo.runtime.model.invertAffine
 import org.umamo.runtime.model.layerUvAffineOf
 import org.umamo.runtime.model.meshOf
-
-/*
- * The UV editor's surface, in display (texel) space: the frame an edit happens in (this file, over
- * UvDisplayMapping.kt), island picking, the atlas-placement gesture and its operation-strip rows, the
- * Edit and Object overlays, and the UV editor's own cursor, HUD, camera, snap handler, and transform
- * registration.  The space that hosts all of it is org.umamo.ui.workspace.spaces.uv.
- */
 
 /**
  * The space a UV editing gesture works in: the display surface's texel size, and how a coordinate
@@ -106,7 +98,7 @@ class UvEditFrame(
 	 * @param Float texelValue The point's new coordinate on that axis, in y-down texels.
 	 * @return Pair<Float, Float> The moved point's stored (u, v).
 	 */
-	internal fun storedUvMovedTo(u: Float, v: Float, axis: TexelAxis, texelValue: Float): Pair<Float, Float> {
+	fun storedUvMovedTo(u: Float, v: Float, axis: TexelAxis, texelValue: Float): Pair<Float, Float> {
 		val (displayX, displayY) = displayAt(u, v)
 
 		return when (axis) {
@@ -205,7 +197,7 @@ fun storedUvsWithMoved(
  * @param UvEditFrame frame The space the coordinates are in.
  * @return FloatArray The coordinates to commit, a fresh array.
  */
-internal fun storedUvsForCommit(
+fun storedUvsForCommit(
 	model: PuppetModel,
 	drawableId: DrawableId,
 	movedIndices: Collection<Int>,

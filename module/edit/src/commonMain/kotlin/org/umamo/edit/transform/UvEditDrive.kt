@@ -1,14 +1,9 @@
-package org.umamo.ui.viewport.uv
+package org.umamo.edit.transform
 
 import org.umamo.edit.MeshOperatorKind
 import org.umamo.edit.mesh.withMeshUvs
-import org.umamo.edit.transform.ModalTransformCapture
-import org.umamo.edit.transform.ProportionalInfluence
-import org.umamo.edit.transform.TransformGestureParameters
-import org.umamo.edit.transform.TransformPivotGroup
 import org.umamo.runtime.model.DrawableId
 import org.umamo.runtime.model.PuppetModel
-import org.umamo.ui.viewport.gizmo.applyOperator
 
 /*
  * The UV Edit modal drive's compute: each moving mesh's frozen display coordinates through the operator,
@@ -28,7 +23,7 @@ import org.umamo.ui.viewport.gizmo.applyOperator
  * @property Map<Int, ProportionalInfluence> influence The proportional halo; empty when off.
  * @property Set<Int> movedIndices Every vertex the drive moves.
  */
-internal class UvDriveJob(
+class UvDriveJob(
 	val drawableId: DrawableId,
 	val positions: FloatArray,
 	val groups: List<TransformPivotGroup>,
@@ -47,7 +42,7 @@ internal class UvDriveJob(
  * @property UvEditFrame frame The gesture's frame, which converts display coordinates back to stored ones.
  * @property PuppetModel baseModel The model the new coordinates fold onto.
  */
-internal class UvDriveRequest(
+class UvDriveRequest(
 	val operator: MeshOperatorKind,
 	val parameters: TransformGestureParameters,
 	val jobs: List<UvDriveJob>,
@@ -63,7 +58,7 @@ internal class UvDriveRequest(
  * @property Map<DrawableId, FloatArray> storedUvs The same, converted whole to stored coordinates.
  * @property PuppetModel folded The request's base model with [storedUvs] folded in.
  */
-internal class UvDriveResult(
+class UvDriveResult(
 	val preview: Map<DrawableId, FloatArray>,
 	val storedUvs: Map<DrawableId, FloatArray>,
 	val folded: PuppetModel,
@@ -76,7 +71,7 @@ internal class UvDriveResult(
  * @param ModalTransformCapture transform The capture.
  * @return List<UvDriveJob> The jobs, in capture order.
  */
-internal fun uvDriveJobs(transform: ModalTransformCapture): List<UvDriveJob> =
+fun uvDriveJobs(transform: ModalTransformCapture): List<UvDriveJob> =
 	transform.entries.mapNotNull { entry ->
 		entry.drawableId
 			?.takeIf { entry.movedIndices.isNotEmpty() }
@@ -91,7 +86,7 @@ internal fun uvDriveJobs(transform: ModalTransformCapture): List<UvDriveJob> =
  * @param UvDriveRequest request The request.
  * @return UvDriveResult The result.
  */
-internal fun computeUvDrive(request: UvDriveRequest): UvDriveResult {
+fun computeUvDrive(request: UvDriveRequest): UvDriveResult {
 	val preview = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
 	val storedUvs = LinkedHashMap<DrawableId, FloatArray>(request.jobs.size)
 

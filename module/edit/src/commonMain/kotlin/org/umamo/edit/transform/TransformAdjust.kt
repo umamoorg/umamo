@@ -19,9 +19,10 @@ import kotlin.math.PI
  * The modal transforms' face on the operation settings strip - the half that knows no geometry: the
  * numbers a Grab / Rotate / Scale (or a Vertex Slide) landed with as the strip's typed rows, the
  * parameters those rows mean, and the proportional rows' state.  The registrations that replay a
- * frozen capture through the viewport's world geometry or the UV editor's frame live in :ui
- * (viewport/TransformAdjustRegistration.kt) and cannot be here: :edit and :render are siblings over
- * :runtime, and the world-to-base inverse needs :render's evaluator.
+ * frozen capture through the viewport's world geometry live in :ui (TransformAdjustRegistration.kt in
+ * org.umamo.ui.transform) and cannot be here: :edit and :render are siblings over :runtime, and the
+ * world-to-base inverse needs :render's evaluator.  The UV editor's registration replays through its own frame
+ * alone, so it is beside this file (UvTransformAdjust.kt).
  *
  * There is no axis-constraint row, for the reason the placement gesture has none: a lock only zeroes
  * one Grab component or pins one Scale factor at 1, so the per-component rows already say it.  A Rotate's
