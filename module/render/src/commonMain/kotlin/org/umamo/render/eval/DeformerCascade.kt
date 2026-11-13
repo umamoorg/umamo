@@ -114,6 +114,7 @@ internal fun cascadeDeformerChannels(local: DeformerChannels, parent: DeformerWo
  * @param Float b The other.
  * @return Float The screened channel.
  */
+@Suppress("ktlint:umamo:no-single-letter-name")
 internal fun screenCompose(a: Float, b: Float): Float = a + b - a * b
 
 /**

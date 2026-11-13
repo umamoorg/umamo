@@ -192,6 +192,7 @@ class ObjectWarpTransformExportGateTest {
 	 * @param Float factor The scale.
 	 * @return FloatArray The affine.
 	 */
+	@Suppress("ktlint:umamo:no-single-letter-name")
 	private fun turnAndGrowAbout(center: Pair<Float, Float>, degrees: Float, factor: Float): FloatArray {
 		val radians = degrees * PI.toFloat() / 180f
 		val a = cos(radians) * factor

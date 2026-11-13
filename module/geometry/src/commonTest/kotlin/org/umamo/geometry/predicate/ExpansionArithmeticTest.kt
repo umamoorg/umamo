@@ -75,6 +75,7 @@ class ExpansionArithmeticTest {
 	}
 
 	@Test
+	@Suppress("ktlint:umamo:no-single-letter-name")
 	fun crossProductIsExactOnLargeIntegers() {
 		// a*d - c*b with 2^29-sized integers: each product needs 58 bits plus a sign, and the
 		// difference cancels most of them.

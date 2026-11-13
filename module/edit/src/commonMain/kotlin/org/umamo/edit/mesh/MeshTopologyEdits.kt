@@ -45,13 +45,13 @@ sealed interface VertexSource {
 	data class AverageOf(val oldIndices: List<Int>) : VertexSource
 
 	/**
-	 * The new vertex splits the old edge (oldA, oldB) at parameter [t]: its deltas lerp accordingly.
+	 * The new vertex splits the old edge (oldA, oldB) at [fraction]: its deltas lerp accordingly.
 	 *
 	 * @property Int oldA The edge's first old endpoint.
 	 * @property Int oldB The edge's second old endpoint.
-	 * @property Float t The split parameter (0 = at oldA, 1 = at oldB).
+	 * @property Float fraction How far along the edge the split is (0 = at oldA, 1 = at oldB).
 	 */
-	data class LerpOf(val oldA: Int, val oldB: Int, val t: Float) : VertexSource
+	data class LerpOf(val oldA: Int, val oldB: Int, val fraction: Float) : VertexSource
 
 	/**
 	 * The new vertex blends old vertices by weights summing to one: its deltas are the same weighted
@@ -281,8 +281,8 @@ internal fun remapPerVertex(values: FloatArray, vertexSources: List<VertexSource
 			}
 
 			is VertexSource.LerpOf -> {
-				newValues[newIndex * 2] = oldX(source.oldA) + (oldX(source.oldB) - oldX(source.oldA)) * source.t
-				newValues[newIndex * 2 + 1] = oldY(source.oldA) + (oldY(source.oldB) - oldY(source.oldA)) * source.t
+				newValues[newIndex * 2] = oldX(source.oldA) + (oldX(source.oldB) - oldX(source.oldA)) * source.fraction
+				newValues[newIndex * 2 + 1] = oldY(source.oldA) + (oldY(source.oldB) - oldY(source.oldA)) * source.fraction
 			}
 
 			is VertexSource.Weighted -> {

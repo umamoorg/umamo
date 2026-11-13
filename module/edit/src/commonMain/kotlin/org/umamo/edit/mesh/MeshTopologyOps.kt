@@ -388,14 +388,14 @@ object MeshTopologyOps {
 		mesh.uvs.copyInto(newUvs, endIndex = minOf(mesh.uvs.size, newUvs.size))
 		crossingSources.forEachIndexed { crossingOrdinal, source ->
 			val newIndex = oldCount + crossingOrdinal
-			val t = source.t
-			newPositions[newIndex * 2] = mesh.positions[source.oldA * 2] + (mesh.positions[source.oldB * 2] - mesh.positions[source.oldA * 2]) * t
+			val fraction = source.fraction
+			newPositions[newIndex * 2] = mesh.positions[source.oldA * 2] + (mesh.positions[source.oldB * 2] - mesh.positions[source.oldA * 2]) * fraction
 			newPositions[newIndex * 2 + 1] =
-				mesh.positions[source.oldA * 2 + 1] + (mesh.positions[source.oldB * 2 + 1] - mesh.positions[source.oldA * 2 + 1]) * t
+				mesh.positions[source.oldA * 2 + 1] + (mesh.positions[source.oldB * 2 + 1] - mesh.positions[source.oldA * 2 + 1]) * fraction
 
 			if (source.oldA * 2 + 1 < mesh.uvs.size && source.oldB * 2 + 1 < mesh.uvs.size) {
-				newUvs[newIndex * 2] = mesh.uvs[source.oldA * 2] + (mesh.uvs[source.oldB * 2] - mesh.uvs[source.oldA * 2]) * t
-				newUvs[newIndex * 2 + 1] = mesh.uvs[source.oldA * 2 + 1] + (mesh.uvs[source.oldB * 2 + 1] - mesh.uvs[source.oldA * 2 + 1]) * t
+				newUvs[newIndex * 2] = mesh.uvs[source.oldA * 2] + (mesh.uvs[source.oldB * 2] - mesh.uvs[source.oldA * 2]) * fraction
+				newUvs[newIndex * 2 + 1] = mesh.uvs[source.oldA * 2 + 1] + (mesh.uvs[source.oldB * 2 + 1] - mesh.uvs[source.oldA * 2 + 1]) * fraction
 			}
 		}
 

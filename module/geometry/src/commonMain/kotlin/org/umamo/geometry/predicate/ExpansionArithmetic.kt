@@ -191,6 +191,7 @@ internal fun twoTwoSum(first1: Double, first0: Double, second1: Double, second0:
  * @param Double      d   The second factor of the positive product.
  * @param DoubleArray out Receives four components, smallest first.
  */
+@Suppress("ktlint:umamo:no-single-letter-name")
 internal fun crossProduct(a: Double, b: Double, c: Double, d: Double, out: DoubleArray) {
 	val positive = a * d
 	val positiveTail = twoProductTail(a, d, positive)
@@ -209,6 +210,7 @@ internal fun crossProduct(a: Double, b: Double, c: Double, d: Double, out: Doubl
  * @param Double      d   The second factor of the second product.
  * @param DoubleArray out Receives four components, smallest first.
  */
+@Suppress("ktlint:umamo:no-single-letter-name")
 internal fun twoProductSum(a: Double, b: Double, c: Double, d: Double, out: DoubleArray) {
 	val first = a * b
 	val firstTail = twoProductTail(a, b, first)
@@ -225,6 +227,7 @@ internal fun twoProductSum(a: Double, b: Double, c: Double, d: Double, out: Doub
  * @param Double      b   The second value squared.
  * @param DoubleArray out Receives four components, smallest first.
  */
+@Suppress("ktlint:umamo:no-single-letter-name")
 internal fun squareSum(a: Double, b: Double, out: DoubleArray) {
 	val first = a * a
 	val firstTail = squareTail(a, first)

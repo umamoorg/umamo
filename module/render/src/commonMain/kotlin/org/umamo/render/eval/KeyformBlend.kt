@@ -18,8 +18,8 @@ fun blend(base: FloatArray, keyforms: List<Pair<Float, Keyform>>): FloatArray {
 	val result = base.copyOf()
 
 	for ((weight, keyform) in keyforms) {
-		for (i in result.indices) {
-			result[i] += weight * keyform.delta[i]
+		for (componentIndex in result.indices) {
+			result[componentIndex] += weight * keyform.delta[componentIndex]
 		}
 	}
 

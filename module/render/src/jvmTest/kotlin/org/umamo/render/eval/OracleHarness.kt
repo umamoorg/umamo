@@ -198,10 +198,10 @@ internal fun oracleTransformedHash(world: FloatArray, offsetX: Float, offsetY: F
 }
 
 /** Relative/absolute closeness at the oracle's 1e-5 tolerance (mirrors DeformationOracleTest). */
-internal fun oracleCloseEnough(a: Double, b: Double): Boolean {
-	val scale = maxOf(1.0, abs(a), abs(b))
+internal fun oracleCloseEnough(first: Double, second: Double): Boolean {
+	val scale = maxOf(1.0, abs(first), abs(second))
 
-	return abs(a - b) <= 1e-5 * scale
+	return abs(first - second) <= 1e-5 * scale
 }
 
 /**

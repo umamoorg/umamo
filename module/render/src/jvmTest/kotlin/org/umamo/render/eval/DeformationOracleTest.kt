@@ -122,10 +122,10 @@ class DeformationOracleTest {
 		return hp
 	}
 
-	private fun closeEnough(a: Double, b: Double): Boolean {
-		val scale = maxOf(1.0, abs(a), abs(b))
+	private fun closeEnough(first: Double, second: Double): Boolean {
+		val scale = maxOf(1.0, abs(first), abs(second))
 
-		return abs(a - b) <= 1e-5 * scale
+		return abs(first - second) <= 1e-5 * scale
 	}
 
 	private fun transformedHash(world: FloatArray, offsetX: Float, offsetY: Float, scale: Float, signY: Float): Double {

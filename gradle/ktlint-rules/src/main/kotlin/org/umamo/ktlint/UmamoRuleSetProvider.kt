@@ -23,6 +23,7 @@ public class UmamoRuleSetProvider : RuleSetProviderV3(RuleSetId(UMAMO_RULE_SET_I
 			RuleProvider { DocblockTagsRule() },
 			RuleProvider { FunctionDocblockRule() },
 			RuleProvider { NoCommentEmphasisRule() },
+			RuleProvider { NoSingleLetterNameRule() },
 			RuleProvider { NoUnitOnlyBlockRule() },
 			RuleProvider { StatementIfBracesRule() },
 		)

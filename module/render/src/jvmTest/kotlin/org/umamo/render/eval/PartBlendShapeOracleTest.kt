@@ -102,7 +102,7 @@ class PartBlendShapeOracleTest {
 				comparedPoses++
 
 				if (oursEvaluated != theirs) {
-					val firstDivergence = oursEvaluated.zip(theirs).indexOfFirst { (a, b) -> a != b }
+					val firstDivergence = oursEvaluated.zip(theirs).indexOfFirst { (ourId, theirId) -> ourId != theirId }
 					mismatches.add(
 						"${mocFile.name} pose=$pose: render order diverges at slot $firstDivergence " +
 							"(ours=${oursEvaluated.getOrNull(firstDivergence)} oracle=${theirs.getOrNull(firstDivergence)})",
